@@ -1,5 +1,9 @@
 // INK FOLLOWS THE READER'S ZOOM -- one case, run against every reader that
-// zooms (`test/library.js` and `test/deck.js` each call it in one line).
+// zooms (`test/library.js`, `test/deck.js` and `test/paperzoom.js`, the
+// board's own document panel, each call it in one line). A reader that is not
+// the library's says where its pages are: `t.scroller`, `t.page`, `t.css` and
+// `t.fit`, the page's fit width in pixels, and `t.padX`, `t.gap`, `t.caption`
+// where its layout differs.
 //
 // Asked as: *"my annotations do NOT scale with said paper/presentation --
 // they're getting all out of wack and misplaced."*
@@ -22,6 +26,12 @@
 //     width in the pixels of whatever width the page had -- comes back on the
 //     same words at the same weight.
 //   * A BOARD CARD, which does not zoom, paints its ink exactly as it did.
+//
+// Every place is checked to a pixel, in the document's own coordinates: a
+// stroke's box against the page picture, the point under the fingers of an
+// off-centre pinch, and ink drawn, saved and reloaded at different zooms. And
+// every pinch is the reader's alone: its touches are cancelled and nothing
+// outside the pages is scaled.
 
 const fs = require('fs');
 const path = require('path');
@@ -31,30 +41,38 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const GLASS = 1024;          /* the window */
 const PADDING = 16;          /* #reader-pages padding, 1rem */
-const FIT = 864;             /* 54rem */
+const FIT_LIB = 864;         /* 54rem */
 const CAPTION = 26;          /* a caption's height in flow, measured on the iPad */
 const GAP = 16;              /* .lib-page margin-bottom */
 
 module.exports = async function inkFollowsZoom(w, t) {
   const ok = t.ok, fail = t.fail;
   const doc = w.document;
-  const scroller = doc.getElementById('reader-pages');
-  const figs = Array.prototype.slice.call(scroller.querySelectorAll('.lib-page'));
+  const scroller = doc.getElementById(t.scroller || 'reader-pages');
+  const FIT = t.fit || FIT_LIB;
+  const PADX = t.padX === undefined ? PADDING : t.padX;
+  const GAPY = t.gap === undefined ? GAP : t.gap;
+  const CAP = t.caption === undefined ? CAPTION : t.caption;
+  const figs = Array.prototype.slice.call(scroller.querySelectorAll(t.page || '.lib-page'));
   if (figs.length < 2) { fail('ink/zoom: the reader has fewer than two pages'); return; }
   const tag = t.name || 'reader';
   const say = (m) => tag + ': ' + m;
 
   /* ---- the stylesheet, the window, the scroll -------------------------- */
   const style = doc.createElement('style');
-  style.textContent = fs.readFileSync(path.join(WEB, 'library.css'), 'utf8');
+  style.textContent = fs.readFileSync(path.join(WEB, t.css || 'library.css'), 'utf8');
   doc.head.appendChild(style);
   const de = doc.documentElement;
   Object.defineProperty(de, 'clientWidth', { configurable: true, get: () => GLASS });
-  const scroll = { left: 0, top: 0 };
+  /* `clamped` says a scroll asked for more than the top or left edge: the
+     point under the fingers cannot be kept where the page cannot be scrolled. */
+  const scroll = { left: 0, top: 0, clamped: false };
   Object.defineProperty(scroller, 'scrollLeft', { configurable: true,
-    get: () => scroll.left, set: (v) => { scroll.left = Math.max(0, v); } });
+    get: () => scroll.left,
+    set: (v) => { if (v < -0.5) scroll.clamped = true; scroll.left = Math.max(0, v); } });
   Object.defineProperty(scroller, 'scrollTop', { configurable: true,
-    get: () => scroll.top, set: (v) => { scroll.top = Math.max(0, v); } });
+    get: () => scroll.top,
+    set: (v) => { if (v < -0.5) scroll.clamped = true; scroll.top = Math.max(0, v); } });
   scroller.getBoundingClientRect = () => rect(0, 60, GLASS, 700);
 
   figs.forEach((f) => {
@@ -73,9 +91,9 @@ module.exports = async function inkFollowsZoom(w, t) {
   }
   function zoom() { return parseFloat(scroller.style.getPropertyValue('--zoom')) || 1; }
   function layout() {
-    const content = GLASS - 2 * PADDING;
+    const content = GLASS - 2 * PADX;
     const W = Math.min(content, FIT) * zoom();
-    const left = PADDING + Math.max(0, (content - W) / 2) - scroll.left;
+    const left = PADX + Math.max(0, (content - W) / 2) - scroll.left;
     let top = 60 + PADDING - scroll.top;
     const out = new Map();
     figs.forEach((f) => {
@@ -85,9 +103,9 @@ module.exports = async function inkFollowsZoom(w, t) {
       const cap = f.querySelector('figcaption');
       const pos = cap ? w.getComputedStyle(cap).position : 'absolute';
       const inFlow = !(pos === 'absolute' || pos === 'fixed');
-      const h = ih + (inFlow ? CAPTION : 0);
+      const h = ih + (cap && inFlow ? CAP : 0);
       out.set(f, { r: rect(left, top, W, h), ir: rect(left, top, W, ih) });
-      top += h + GAP + (inFlow ? 0 : CAPTION);
+      top += h + GAPY + (cap && !inFlow ? CAP : 0);
     });
     return out;
   }
@@ -149,6 +167,19 @@ module.exports = async function inkFollowsZoom(w, t) {
       && near(a.y0, b.y0, tol * 1.8) && near(a.y1, b.y1, tol * 1.8)
       && near(a.rel, b.rel, wtol);
   }
+  /* THE SAME PLACE TO A PIXEL: the two boxes, each laid on the page picture as
+     it is now, differ by at most a pixel on every edge. Both edges held on
+     both axes means both sides scaled alike: no stretch. The line's weight is
+     `same`'s, because it is rounded to a quarter pixel as it is painted. */
+  function offPx(a, b, f) {
+    if (!a || !b) return Infinity;
+    const g = layout().get(f || f1);
+    return Math.max(Math.abs(a.x0 - b.x0) * g.ir.width, Math.abs(a.x1 - b.x1) * g.ir.width,
+                    Math.abs(a.y0 - b.y0) * g.ir.height, Math.abs(a.y1 - b.y1) * g.ir.height);
+  }
+  function samePx(a, b, f) {
+    return offPx(a, b, f) <= 1;
+  }
   const show = (s) => (s ? '[' + [s.x0, s.x1, s.y0, s.y1].map((v) => v.toFixed(4)).join(',')
                             + '] w/W=' + s.rel.toFixed(5) : 'nothing painted');
 
@@ -179,17 +210,58 @@ module.exports = async function inkFollowsZoom(w, t) {
     Object.defineProperty(ev, 'touches', { value: pts.map(([x, y]) => (
       { clientX: x, clientY: y, touchType: 'direct', radiusX: 10 })) });
     scroller.dispatchEvent(ev);
+    return ev;
   }
-  /* A pinch to `z`, the way two fingers make one. Nothing else is fired: no
-     resize observer, no image load. */
-  async function pinchTo(z) {
+  /* Where on which page picture a point on the glass is. */
+  function under(x, y) {
+    const L = layout();
+    let best = null, gap = Infinity;
+    figs.forEach((f) => {
+      const r = L.get(f).r;
+      const d = y < r.top ? r.top - y : (y > r.bottom ? y - r.bottom : 0);
+      if (d < gap) { gap = d; best = f; }
+    });
+    const ir = L.get(best).ir;
+    return { f: best, fx: (x - ir.left) / ir.width, fy: (y - ir.top) / ir.height };
+  }
+  /* A pinch to `z` about (cx, cy), the way two fingers make one: they land
+     100 px apart either side of it and spread or close about it. Nothing else
+     is fired: no resize observer, no image load. */
+  const pinches = { n: 0, refused: 0, still: 0, held: 0, page: 0 };
+  const pageLook = () => [de.getAttribute('style') || '', doc.body.getAttribute('style') || '',
+                          scroller.parentElement.getAttribute('style') || ''].join('|');
+  async function pinchTo(z, cx, cy) {
+    cx = cx === undefined ? 500 : cx;
+    cy = cy === undefined ? 300 : cy;
     doc.body.classList.remove('pen-writing');
-    const d = 100 * z / zoom();
-    touch('touchstart', [[450, 300], [550, 300]]);
-    touch('touchmove', [[500 - d / 2, 300], [500 + d / 2, 300]]);
-    touch('touchend', [[500 + d / 2, 300]]);
+    const was = zoom();
+    const d = 100 * z / was;
+    const at = under(cx, cy);
+    const look = pageLook();
+    scroll.clamped = false;
+    const a = touch('touchstart', [[cx - 50, cy], [cx + 50, cy]]);
+    const m = touch('touchmove', [[cx - d / 2, cy], [cx + d / 2, cy]]);
+    const g = new w.Event('gesturechange', { bubbles: true, cancelable: true });
+    scroller.dispatchEvent(g);
+    touch('touchend', [[cx + d / 2, cy]]);
     await sleep(5);
+    pinches.n++;
     if (!near(zoom(), z, 1e-6)) fail(say('the pinch landed at ' + zoom() + ', not ' + z));
+    if (a.defaultPrevented && m.defaultPrevented && g.defaultPrevented) pinches.refused++;
+    else fail(say('a pinch to ' + z + ' was shared with the browser: start '
+                  + a.defaultPrevented + ', move ' + m.defaultPrevented
+                  + ', gesture ' + g.defaultPrevented));
+    if (pageLook() === look && !scroller.style.transform) pinches.still++;
+    else fail(say('a pinch to ' + z + ' scaled something outside the pages'));
+    /* The point under the fingers is still under them, wherever the page
+       could be scrolled to keep it there. */
+    if (!scroll.clamped) {
+      const ir = layout().get(at.f).ir;
+      const off = Math.hypot(ir.left + at.fx * ir.width - cx, ir.top + at.fy * ir.height - cy);
+      if (off <= 1) pinches.held++;
+      else fail(say('pinching to ' + z + ' about (' + cx + ',' + cy + ') moved the point under '
+                    + 'the fingers ' + off.toFixed(2) + ' px'));
+    }
   }
 
   const A = w.Annotate;
@@ -216,47 +288,60 @@ module.exports = async function inkFollowsZoom(w, t) {
       ? ok(say('a ring drawn at 100% is painted where it was drawn on the page picture'))
       : fail(say('the ring is not where it was drawn: ' + show(at1)));
 
-    for (const z of [2.5, 0.5, 1]) {
-      await pinchTo(z);
+    /* In and out, about points nowhere near the middle of the glass. */
+    const SWEEP = [[2.5, 300, 500], [0.5, 800, 200], [1.5, 420, 650], [3, 700, 400],
+                   [0.75, 400, 250], [2, 900, 700], [1, 600, 350]];
+    for (const [z, cx, cy] of SWEEP) {
+      await pinchTo(z, cx, cy);
       const got = seen(f1, RING);
-      same(got, at1)
-        ? ok(say('at ' + Math.round(z * 100) + '% the ring sits on the same place of the '
-                 + 'page, at the same width against it'))
-        : fail(say('at ' + Math.round(z * 100) + '% the ring moved: ' + show(got)
-                   + ' against ' + show(at1)));
+      same(got, at1) && samePx(got, at1)
+        ? ok(say('at ' + Math.round(z * 100) + '%, pinched about (' + cx + ',' + cy
+                 + '), the ring is within a pixel of its place on the page, unstretched'))
+        : fail(say('at ' + Math.round(z * 100) + '% the ring moved '
+                   + offPx(got, at1).toFixed(2) + ' px: ' + show(got) + ' against ' + show(at1)));
     }
 
     // 2. Ink drawn at 250%, on a page wider than the glass and scrolled
     //    sideways, lands where it was drawn at every other zoom.
-    await pinchTo(2.5);
+    await pinchTo(2.5, 250, 600);
     scroll.left = 600;
     A.setPen(LINE, 2.2);
     const line = [];
     for (let i = 0; i <= 12; i++) line.push([0.3 + 0.1 * i / 12, 0.8]);
     await drawOn(f1, line);
     const at25 = seen(f1, LINE);
-    at25 && near(at25.x0, 0.3, 0.004) && near(at25.x1, 0.4, 0.004) && near(at25.y0, 0.8, 0.004)
-      ? ok(say('a line drawn at 250%, scrolled sideways, is painted under the nib'))
-      : fail(say('the line drawn at 250% is not under the nib: ' + show(at25)));
+    const nib = { x0: 0.3, x1: 0.4, y0: 0.8, y1: 0.8 };
+    at25 && offPx(at25, nib) <= 1
+      ? ok(say('a line drawn at 250%, scrolled sideways, is painted within a pixel of the nib'))
+      : fail(say('the line drawn at 250% is ' + offPx(at25, nib).toFixed(2)
+                 + ' px off the nib: ' + show(at25)));
     scroll.left = 0;
-    await pinchTo(1);
-    const back = seen(f1, LINE);
-    same(back, at25)
-      ? ok(say('and at 100% it is in the same place, at the same weight against the page'))
-      : fail(say('ink drawn at 250% moved at 100%: ' + show(back) + ' against ' + show(at25)));
+    for (const [z, cx, cy] of [[1, 500, 300], [0.5, 150, 650], [3, 850, 150], [1, 400, 400]]) {
+      await pinchTo(z, cx, cy);
+      const back = seen(f1, LINE);
+      same(back, at25) && samePx(back, at25)
+        ? ok(say('at ' + Math.round(z * 100) + '% it is within a pixel of where it was drawn, '
+                 + 'at the same weight against the page'))
+        : fail(say('ink drawn at 250% moved ' + offPx(back, at25).toFixed(2) + ' px at '
+                   + z + ': ' + show(back) + ' against ' + show(at25)));
+    }
 
-    // 3. And after a reload: what would be saved, loaded into a fresh store.
+    // 3. And after a reload AT ANOTHER ZOOM: what was saved at 250%, loaded
+    //    into a fresh store while the page is at 75%.
+    await pinchTo(2.5, 600, 300);
     const saved = JSON.parse(JSON.stringify(A.payload(K1, false).strokes));
+    await pinchTo(0.75, 350, 450);
     saved.every((s) => !('_d' in s) && !('_bb' in s))
       ? ok(say('a saved stroke carries no painted path, only its points'))
       : fail(say('the painted-path cache went to disk: ' + Object.keys(saved[0]).join(',')));
     A.drop(K1);
     A.load({ [K1]: saved });
     A.redrawAll();
-    same(seen(f1, RING), at1) && same(seen(f1, LINE), at25)
-      ? ok(say('and after a reload, both marks come back where they were drawn'))
-      : fail(say('a reload moved the ink: ' + show(seen(f1, RING)) + ' / '
+    samePx(seen(f1, RING), at1) && samePx(seen(f1, LINE), at25)
+      ? ok(say('ink saved at 250% and reloaded at 75% comes back within a pixel of its words'))
+      : fail(say('a reload at another zoom moved the ink: ' + show(seen(f1, RING)) + ' / '
                  + show(seen(f1, LINE))));
+    await pinchTo(1);
 
     // 4. INK ALREADY ON DISK, saved against the figure -- picture and caption
     //    -- and in the pen's own pixels at the width the page then had.
@@ -289,8 +374,8 @@ module.exports = async function inkFollowsZoom(w, t) {
     old && near(old.rel, 2.2 / WAS, 0.25 / old.W)
       ? ok(say('and at the weight it had against the page when it was drawn'))
       : fail(say('old ink changed weight: ' + old.rel + ' against ' + 2.2 / WAS));
-    await pinchTo(2.5);
-    same(seen(f2, RING), old)
+    await pinchTo(2.5, 700, 550);
+    same(seen(f2, RING), old) && samePx(seen(f2, RING), old, f2)
       ? ok(say('and it follows the zoom like new ink'))
       : fail(say('old ink does not follow the zoom: ' + show(seen(f2, RING))));
     await pinchTo(1);
@@ -350,6 +435,17 @@ module.exports = async function inkFollowsZoom(w, t) {
       : fail(say('a board card\'s ink changed: ' + narrow.join(',') + ' / ' + wide.join(',')));
     A.drop('c-zoom-test');
     card.remove();
+
+    pinches.refused === pinches.n && pinches.still === pinches.n
+      ? ok(say('all ' + pinches.n + ' pinches were the reader\'s alone: touches and gesture '
+               + 'cancelled, nothing outside the pages scaled'))
+      : fail(say('only ' + pinches.refused + ' of ' + pinches.n + ' pinches were refused to '
+                 + 'the browser, ' + pinches.still + ' left the page alone'));
+    pinches.held >= 8
+      ? ok(say('the point under the fingers stayed within a pixel in ' + pinches.held
+               + ' off-centre pinches'))
+      : fail(say('the point under the fingers was checked in only ' + pinches.held
+                 + ' pinches'));
   } finally {
     [K1, K2].forEach((k) => { A.drop(k); });
     A.setOn(wasOn);

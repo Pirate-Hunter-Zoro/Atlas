@@ -724,6 +724,9 @@
          at all -- and it is hidden until there is ink to ask about. -->
     <button id="paper-keep" type="button" hidden
             title="put this writing into a PDF">keep writing</button>
+    <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT; a tap puts it back. The
+         pinch is `readerzoom.js`'s, the library reader's own. -->
+    <button id="paper-zoom" type="button" title="back to the page width" hidden>100%</button>
     <button id="paper-get" type="button" class="pushed-get">save a copy</button>
     <button id="paper-close" type="button" title="back to the lesson">✕</button>
   </div>
@@ -957,6 +960,8 @@
 <script src="/static/plane-core.js"></script>
 <script src="/static/slate-core.js"></script>
 <script src="/static/annotate.js"></script>
+<!-- A document's own pinch: the library reader's, on `#paper-pages`. -->
+<script src="/static/readerzoom.js"></script>
 <!-- The lesson, photographed by the device that drew it. BEFORE board.js and
      NOT deferred, like every other thing board.js talks to: a deferred script
      runs after the document is parsed, which is after this classic one at the

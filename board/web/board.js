@@ -153,6 +153,7 @@ var els = {
   paperKeep: document.getElementById("paper-keep"),
   keepwhat: document.getElementById("keepwhat"),
   paperPages: document.getElementById("paper-pages"),
+  paperZoom: document.getElementById("paper-zoom"),
   carry: document.getElementById("carry"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
@@ -2777,6 +2778,23 @@ var paperOpen = null;
    gave it. */
 function openDoc(id, name, then) { openPaper("doc/" + id, name, then); }
 
+/* A DOCUMENT ZOOMS ITSELF, AND A PALM DOES NOT SCROLL IT: `readerzoom.js`, the
+   library reader's own pinch, on these pages. The page itself is never pinched
+   (`board.css`), so without this a pinch on a paper did nothing and a pinch
+   shut was Safari's. Made on first open, because `#paper-pages` is all it
+   needs and a board that never opens a document never pays for it. */
+var paperZoomer = null;
+function paperZoomReady() {
+  if (paperZoomer || !window.ReaderZoom || !els.paperPages) return paperZoomer;
+  paperZoomer = window.ReaderZoom.make({
+    scroller: els.paperPages,
+    chip: els.paperZoom,
+    page: ".paper-page",
+    open: function () { return !!paperOpen; },
+  });
+  return paperZoomer;
+}
+
 /* `then` is handed what `/view` answered, once the pages are on screen. An
    address naming one page of a document cannot scroll to it until the pictures
    exist, and there is nothing else on this page that knows when that is. */
@@ -2785,6 +2803,8 @@ function openPaper(kind, label, then) {
   paperOpen = kind;
   els.paper.hidden = false;
   document.body.classList.add("papering");
+  /* Every document opens at the page width, whatever the last was left at. */
+  if (paperZoomReady()) paperZoomer.set(1);
   var have = papers[kind];
   /* The caller's label first. A shelf row knows the document by the title the
      workspace gave it; `have.name` is the filename the PDF will be SAVED
