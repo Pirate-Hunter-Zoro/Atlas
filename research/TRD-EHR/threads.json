@@ -24,7 +24,8 @@
         "scripts/pipeline/predictions/plot_neighbor_sweep_figure.py",
         "scripts/pipeline/predictions/plot_cross_embedder_retrieval.py",
         "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
-        "homework/knn-ksweep"
+        "homework/knn-ksweep",
+        "writeups/deck-260925-0942"
       ],
       "outputs": [
         "results/cross_embedder_retrieval/cross_embedder_retrieval.csv",
