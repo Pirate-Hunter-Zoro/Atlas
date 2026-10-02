@@ -173,9 +173,10 @@ def _mark(st, node, aim, agent=None, root=None, kind=None):
     hours rather than pennies. So it is chosen as a sitting opens, which is both
     the cheaper answer and the honest one about what a sitting is.
     """
-    # A BOX OF A THREAD FILE IS A THREAD, and the sitting carries `thread` and
-    # its `kind` -- learn, coach or build -- in place of `node`. A kind names an
-    # aim, so the aim is written beside it and the stance follows from that.
+    # A BOX OF A THREAD FILE IS A THREAD, and the sitting carries `thread` in
+    # place of `node`. EVERY SITTING CARRIES ITS `kind` -- learn, coach or
+    # build -- on a thread or not. A kind names an aim, so the aim is written
+    # beside it and the stance follows from that.
     on = None
     if node and root:
         clean, _bad = threads.read(root)
@@ -183,15 +184,19 @@ def _mark(st, node, aim, agent=None, root=None, kind=None):
     st.pop("node", None)
     st.pop("thread", None)
     st.pop("kind", None)
+    if kind:
+        aim = config.kind_aim(kind, aim)
     if on:
         st["thread"] = on["id"]
-        if kind:
-            aim = config.kind_aim(kind, aim)
-        st["kind"] = kind or config.kind_for(
-            root, {"aim": aim, "stance": st.get("stance"), "thread": on["id"]},
-            on["files"]) or "learn"
     elif node:
         st["node"] = node["id"]
+    if root:
+        st["kind"] = kind or config.kind_for(
+            root, {"aim": aim, "stance": st.get("stance"),
+                   "thread": on["id"] if on else None},
+            on["files"] if on else None) or "learn"
+    elif kind:
+        st["kind"] = kind
     if aim:
         st["aim"] = aim
     else:
@@ -383,13 +388,12 @@ def _aim(h, repo):
                            status=400)
 
     st = repo.state()
-    if st.get("aim") == aim:
+    if st.get("aim") == aim and st.get("kind") == config.AIM_KIND[aim]:
         # Already what it is. Waking a turn to be told nothing changed is a model
         # call somebody pays for, so this is where a double tap stops.
         return h.send_json({"ok": True, "aim": aim, "changed": False})
     st["aim"] = aim
-    if st.get("thread") or st.get("kind"):
-        st["kind"] = config.AIM_KIND[aim]
+    st["kind"] = config.AIM_KIND[aim]
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump(st, fh, indent=2)
 
@@ -857,6 +861,11 @@ def post(h, repo, path):
                     spawn.board_cli(repo.root, args)
                     st = repo.state()
                     st["session"] = kind
+                    _mark(st, node, aim, agent, repo.root, kind_word)
+                    if stance:
+                        st["stance"] = stance
+                    else:
+                        st.pop("stance", None)
                 st["hw"] = chosen["rel"]
                 st["chapter"] = chosen["name"]
         else:

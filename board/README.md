@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 117 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 118 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -623,7 +623,8 @@ every workspace without one. `test/threads.py` is the suite.
   owner's word: `board thread export` lists a path unanswered and prints the question for the
   turn's card; `--aggregate` records yes, `--drop` records no.
 - `check` is a workspace-relative script `board send` runs after each step of a held sitting.
-  The tutor writes it and commits it before the hold. It prints only `RELAY:` lines.
+  It wins over the workspace's own `check` in `tutorboard.json`. In a fenced workspace it prints
+  only `RELAY:` lines.
 
 ```
 board thread < threads.json          write the whole file
@@ -715,10 +716,17 @@ Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn
 - **The atlas card's next line** is `threads.next_task` over the resolved file: the first open
   task of the first thread that is neither closed nor blocked, written `<thread title>: <task>`.
 
-### A sitting is on a thread, and is one of three kinds
+### Every sitting is one of three kinds, and may be on a thread
 
-In a workspace with a thread file, a sitting's `live/state.json` carries **`thread`** and
-**`kind`**. A box of a thread file is a thread, so `board open --node <id>`, `board open --thread
+Every sitting's `live/state.json` carries **`kind`**: learn, coach or build, in every workspace,
+with a thread file or without. `board open`, `board aim`, `/session` (`_mark`) and `/aim` write it
+whether or not the sitting is on a thread; a course's chapter sitting stays a lecture labelled
+with its chapter. The front door's sheet offers **Learn**, **Coach** and **Build** for every
+workspace (not a vendor tree): each switches the board there and lands on `/board?kind=<kind>`,
+which `board.js` (`kindAsked`) reads once, takes out of the address, and sends to `POST /aim`.
+
+In a workspace with a thread file, a sitting may also carry **`thread`**. A box of a thread file
+is a thread, so `board open --node <id>`, `board open --thread
 <id>` and a map tap (`/session` with `node` or `thread`) all write `thread` and never `node`;
 `node` is left for a box of a derived map. `config.sitting_box` reads either. The sitting is named
 after the thread's title, and an id the file does not declare is refused (ignored aloud at the
@@ -729,13 +737,18 @@ A kind is not a third axis. It names an aim, and the aim names the stance:
 | kind | aim | stance |
 |---|---|---|
 | learn | teach | teach — a board lesson, no code |
-| coach | coach | teach — the owner writes the statistics; `TEACHING.md`, *A coach sitting* |
+| coach | coach | teach — the owner writes the part being learned; `TEACHING.md`, *A coach sitting* |
 | build | build (or paper, slides) | do — the card is a report |
 
 `config.kind_for` reads it back: the sitting's own `kind`, else its own aim (`AIM_KIND`), else its
-stance, and for a teach stance with nothing else said, **coach where the thread's files are code**
-(`walk.SOURCE`) and learn otherwise. `--kind`, the sheet's `kind`, `board aim <kind>` and `/aim`
-with `kind` set it; changing the aim of a sitting on a thread moves its kind with it.
+stance, and for a teach stance with nothing else said, on a thread **coach where the thread's
+files are code** (`walk.SOURCE`) and learn otherwise; off a thread, the kind of the workspace's or
+family's aim. `--kind`, the sheet's `kind`, `board aim <kind>` and `/aim` with `kind` set it;
+changing a sitting's aim moves its kind with it.
+
+What each kind tells the turn is `config.KIND_SENSE`, in one place: the brief's thread section
+(`brief.thread_sense`) or, off a thread, its sitting section (`brief.sitting_sense`, which also
+names any hold standing in the workspace), and for coach the waking line (`sense.aim_sense`).
 
 **`board brief` opens with the thread**, right under its title line: the kind, the deliverable,
 the question, the derived status, the open tasks numbered as `board thread done` counts them, the
@@ -922,49 +935,94 @@ as `results/`, so a figure keeps its path and id on both machines. Paper-Writer'
 stdin, never editing the source.
 ### A sitting held at the cluster
 
-The owner writes a thread's code on the cluster, beside the data, and the coach on the Mac answers
-on the iPad. `tutorboard/holds.py` is the module; `test/holds.py` is the suite.
+The owner writes code on the cluster, in any workspace, and the coach on the Mac answers on the
+iPad. `tutorboard/holds.py` is the module; `test/holds.py` is the suite.
 
 ```
-board hold [<thread>]                cluster: relay/holds/<thread>.json, committed alone, pushed
-board send [<thread>] [--wait N|--no-wait] [--anyway]
+board hold <thread>                  cluster: hold a thread of threads.json
+board hold [--as <id>] [--check <script>] -- <path>...
+                                     cluster: hold these files or directories
+board hold                           cluster: hold the current sitting (says what it chose)
+board send [<id>] [--wait N|--no-wait] [--anyway]
                                      cluster: commit the step, run the check, push, print the reply
-board send --reply [<thread>]        cluster: the coach's last reply
-board release [<thread>]             cluster: remove the hold, committed alone, pushed
-board coach <thread> [--step N] < reply.md
-                                     Mac: relay/coach/<thread>.md, committed alone, pushed
+board send --reply [<id>]            cluster: the coach's last reply
+board release [<id>]                 cluster: remove the hold, committed alone, pushed
+board coach [<id>] [--step N] < reply.md
+                                     Mac: relay/coach/<id>.md, committed alone, pushed
 ```
 
-- **A hold is checked whole** (`holds.validate_hold`, pure): the thread exists, is not held
-  already, has `files`, none of them under another hold, and a `check` tracked and unchanged at
-  HEAD. It is made only where there is Slurm.
-- **While it stands, the thread's `files` are the cluster's.** The hold's own list and the
-  thread's current one both count. `holds.refusal` is asked by `board push` and the save button
-  on a machine without Slurm, and refuses a commit touching one, naming the file. `board brief`
-  says *held at the cluster* on the thread.
+With one hold standing, every `<id>` may be left out.
+
+- **The hold record** is `relay/holds/<id>.json`: `{id, thread?, label, files, check, held,
+  source}`. `check` is `{"script": rel}`, `{"spec": "one"|"all", "argv": [...]}`, or null. A
+  record naming only `thread` and a script path reads as that thread's hold.
+- **What a bare `board hold` holds** (`holds.resolve_target`), from `live/state.json`: the
+  sitting's thread, else its homework file (`hw`), else its chapter's directory
+  (`syllabus.chapter_dir`), else its map box's files, else it asks for the files. It prints what
+  it chose, because the cluster's `state.json` is only as fresh as its last pull. Holding a whole
+  chapter also keeps the Mac from writing that chapter's write-up until the release.
+- **A path** is a file or directory inside the workspace that exists. The id is `--as`, else a
+  slug of the first path's name; it matches `jobs.REQUEST_ID_RE`, never starts `check-`, and is
+  never another thread's id.
+- **The check** is the first of: `--check` (tracked and unchanged at HEAD), the thread's `check`,
+  the workspace's `check` in `tutorboard.json`. That is one shell command, run as `bash -c` over
+  the whole workspace, or an object that can also check only what is held:
+
+  ```
+  "check": "uv run --extra test python -m pytest tests -q"
+  "check": {"all": ["go", "test", "./..."], "one": ["go", "test", "./{dir}/..."],
+            "path": ["/usr/local/go/bin"]}
+  ```
+
+  `one` is used for exactly one held path, filling `{dir}` (the directory, or the file's),
+  `{file}` and `{module}` (`Exercises/Sets/E01.lean` is `Exercises.Sets.E01`); `all` otherwise.
+  A value may not start `-` or leave the workspace. `argv[0]` is one of `config.CHECK_PROGRAMS`
+  (go, lake, uv, python3, bash, make) or a tracked workspace script. It runs with no shell, from
+  the workspace root, `path` ahead of PATH, with a 30-minute cap. A closed workspace refuses a
+  hold with no check; an open one allows it, and the step's report says `state: "unchecked"`.
+  No word of a check may name an absolute or home path, a `$` variable or a `..` step, and a
+  tracked script that is a symlink out of the workspace is not a check: its output is judged by
+  this workspace's fence, so it may not reach into another one.
+- **Whether output is open** is `holds.output_open`, and all four must hold: no fence directory
+  (`fenced.holds`); no `"phi": true` in `tutorboard.json`, on disk or at HEAD; a workspace of a
+  family other than `research`; and the lab's `names_phi` loaded. The repository's top, a
+  family's directory and a directory inside a workspace are closed, and `board hold` refuses
+  there, because only a workspace's own `relay/holds/` is read by the Mac. TRD-EHR, PSYCH-ASR
+  and libr-local-llm say `"phi": true`.
+- **A hold is checked whole** (`holds.validate_hold`, pure), every problem at once: not held
+  already, has files, none under another hold and none holding one, and its check as above. It is
+  made only where there is Slurm.
+- **While it stands, the held files are the cluster's.** For a thread's hold the thread's current
+  `files` count too. `holds.refusal` is asked by `board push` and the save button on a machine
+  without Slurm, and refuses a commit touching one, naming the file and the hold. `board brief`
+  says *HELD AT THE CLUSTER* with the files, on any sitting in the workspace.
 - **`holds.sync` is the cluster's pull.** It fetches, refuses with nothing moved if origin changes
   a path that has uncommitted edits here, then `git rebase --autostash` onto the upstream; a
   rebase that stops is aborted. The relay's pass and every hold command pull through it.
   `holds.push` answers a rejection with one `sync` and one more push, never force.
-- **`board send` is one step.** It commits the thread's changed files as `<thread>: step`, as the
-  owner. It runs the check from the workspace root (`.py` with `python3`, `.sh` or non-executable
-  with `bash`; a check needing an environment is a `.sh` that enters it), with a 30-minute cap.
-  `relay/reports/check-<thread>-<n>.json` carries `kind: check`, `step`, `files`, `exit`,
-  `state`, the `RELAY:` lines (prefix dropped, 40 at most, a line the PHI policy flags withheld
-  and counted) and a crash's exception type. Nothing else the check prints leaves the terminal.
-  It commits that alone as `<thread>: check <n>`, pushes both, and polls origin's
-  `relay/coach/<thread>.md` every 10 seconds for three minutes.
-- **On the Mac, `holds.wake` drops a `[coach]` line** for each held thread's newest check report
-  that has no reply yet, once (`O_EXCL` under `live/coach.woken/`). The line names the step's
-  commit (the parent of the commit that added the report, when its subject is `<thread>:
-  step`), the check's exit and its `RELAY:` lines. The woken turn follows TEACHING.md, "A sitting
-  held at the cluster". A check report is not a request's report: `holds.is_check` tells them
-  apart, the registry's view ignores it, and a request id may not start `check-`.
-- **The coach file** starts `<!-- coach <thread> step <n> -->`; `board send` prints the body when
-  `n` reaches its step. `board coach` refuses text the PHI policy flags.
+- **`board send` is one step.** It commits the held files' changes as `<id>: step`, as the owner,
+  after `leaving.reason`. It runs the check and writes `relay/reports/check-<id>-<n>.json`:
+  `kind: check`, `hold`, `thread?`, `label`, `step`, `files`, `open`, `exit`, `state`, the
+  `RELAY:` lines (prefix dropped, 40 at most, a line the PHI policy flags withheld and counted)
+  and a crash's exception type. In an open workspace it adds `output`, `output_total` and
+  `output_cut`: stdout and stderr merged, through `holds.check_output` (ANSI and control
+  characters gone; the workspace's and the repository's absolute paths made relative; each line
+  through `relay.public`, so any other path is `<path>` and a flagged line is withheld; the first
+  40 and last 120 lines, each at most 300 characters, 16 KB in all, the cut marked
+  `… N lines cut …`). In a closed one nothing else the check prints leaves the terminal. It
+  commits the report alone as `<id>: check <n>`, pushes both, and polls origin's
+  `relay/coach/<id>.md` every 10 seconds for three minutes.
+- **On the Mac, `holds.wake` drops a `[coach]` line** for each hold's newest check report that
+  has no reply yet, once (`O_EXCL` under `live/coach.woken/`). The line names the step's commit
+  (the parent of the commit that added the report, when its subject is `<id>: step`), the
+  check's exit, its `RELAY:` lines and, open, its output. The woken turn follows TEACHING.md, "A
+  sitting held at the cluster". A check report is not a request's report: `holds.is_check` tells
+  them apart, the registry's view ignores it, and a request id may not start `check-`.
+- **The coach file** starts `<!-- coach <id> step <n> -->`; `board send` prints the body when `n`
+  reaches its step. `board coach` refuses text the PHI policy flags.
 - **The Mac's pull runs every `holds.POLL_SECONDS` (20) while any hold stands**
   (`holds.poll_seconds`). `holds.owned` lists what the cluster writes in a workspace now: its
-  reports, exports and holds, and every held thread's files.
+  reports, exports and holds, and every held file.
 - **`board release` refuses while a held file has uncommitted edits.** Send them as a step first.
 ### Colibri runs on demand
 
@@ -3196,6 +3254,11 @@ A course says what it is in `tutorboard.json` at its root, and there is very lit
 
 `board init "Galois Theory"` writes it. Without one, the name comes from the directory and
 everything works anyway.
+
+Two keys are about a sitting held at the cluster (see *A sitting held at the cluster*):
+`"phi": true` closes the workspace's check output to `RELAY:` lines, and `"check"` declares the
+check a hold runs. `config.read_config` validates `check` (`config.clean_check`) and reports
+what it dropped in `check_problems`.
 
 **A repository declares nothing about its subject.** There is one board and one method: the
 lesson is exercises, they are answered on the board by writing or by typing, and one question ends
@@ -5941,7 +6004,8 @@ board is standard library only; the workspaces are not, and a tutor tests before
   `~/.local/state/atlas-setup/`, changes nothing on a second run, and exits non-zero if any
   workspace failed.
 - **Each workspace names its check** as `check` in its `tutorboard.json`: the test command,
-  run from the workspace root, through `uv run` for Python. The brief prints it under the
+  run from the workspace root, through `uv run` for Python, as one shell command or in the
+  object form a hold can narrow (*A sitting held at the cluster*). The brief prints it under the
   stance, and every workspace contract says that a turn that changed code runs it before it
   pushes and says in its report whether it passed. `test/jobs.py` holds the real tree to it:
   a contract without the rule, a workspace with code and no check, or a `pyproject.toml`

@@ -1023,7 +1023,12 @@ def aim_sense(st, aim=None):
     aim = config.clean_aim(aim or (st or {}).get("aim"))
     if not aim:
         return ""
-    return " " + config.AIM_MEANS.get(aim, "")
+    said = " " + config.AIM_MEANS.get(aim, "")
+    # A COACH SITTING SAYS WHICH HALF IS WHOSE, in every workspace: the words
+    # are `config.KIND_SENSE`'s, which the brief uses too.
+    if config.AIM_KIND.get(aim) == "coach":
+        said += " This is " + config.KIND_SENSE["coach"]
+    return said
 
 
 MAKE_SENSE = (

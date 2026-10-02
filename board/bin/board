@@ -652,11 +652,14 @@ def cmd_open(live, args):
             node = None
         elif not chapter:
             chapter = found["name"]
+    # EVERY SITTING CARRIES ITS KIND, on a thread or not: learn, coach or
+    # build, chosen or read off its aim and stance (`config.kind_for`).
     if kind:
         aim = config.kind_aim(kind, aim)
-    elif on:
+    else:
         kind = config.kind_for(live.root, {"aim": aim, "stance": stance,
-                                           "thread": thread}, on["files"]) or None
+                                           "thread": thread},
+                               on["files"] if on else None) or None
 
     live.set_state(course=course, chapter=chapter, session=session or "lecture",
                    finished=None, hw=None,
@@ -2214,7 +2217,7 @@ def cmd_aim(live, args):
         print("  change it: board aim <%s>" % offered)
         return 0
     # A KIND IS AN AIM BY ANOTHER NAME, so `board aim coach` and `board aim
-    # learn` both change it, and a sitting on a thread keeps its kind in step.
+    # learn` both change it, and every sitting keeps its kind in step.
     aim = config.clean_aim(args[0])
     if not aim and config.clean_kind(args[0]):
         aim = config.KIND_AIM[config.clean_kind(args[0])]
@@ -2227,8 +2230,7 @@ def cmd_aim(live, args):
               "board open --%s --over <name>"
               % (aim, "walk" if aim == "trace" else "review"), file=sys.stderr)
         return 2
-    live.set_state(aim=aim, kind=config.AIM_KIND[aim] if (
-        st.get("thread") or st.get("kind")) else None)
+    live.set_state(aim=aim, kind=config.AIM_KIND[aim])
     print("aim: %s  (the lesson is untouched)" % aim)
     print("  %s" % config.AIM_MEANS.get(aim, ""))
     print("  a turn already mid-conversation reads this on its next fresh turn;")
@@ -2990,37 +2992,119 @@ def cmd_ask_cluster(live, args):
     return _request_filed(root, ok)
 
 
+def _held_id(live, words, who):
+    """The hold a command names: its one word, else the only hold standing,
+    else the sitting's thread where that is held. None, having said why."""
+    standing = holds.holds(live.root)
+    if len(words) > 1:
+        print("%s: name at most one hold" % who, file=sys.stderr)
+        return None
+    if words:
+        hid = words[0]
+        if not jobs.REQUEST_ID_RE.match(hid):
+            print("%s: %r is not a hold's id" % (who, hid), file=sys.stderr)
+            return None
+        return hid
+    if len(standing) == 1:
+        return sorted(standing)[0]
+    tid = str(live.state().get("thread") or "")
+    if tid in standing:
+        return tid
+    print("%s: name the hold -- held here: %s"
+          % (who, ", ".join(sorted(standing)) or "none"), file=sys.stderr)
+    return None
+
+
+def _hold_target(live, args, who="board hold"):
+    """`(target, said)` for `board hold`'s words, or `(None, "")` having said
+    why. See `holds.resolve_target`."""
+    words, as_id, script = [], None, None
+    i = 0
+    args = list(args)
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            words.append("--")
+            words.extend(args[i + 1:])
+            break
+        if a in ("--as", "--check"):
+            if i + 1 >= len(args):
+                print("%s: %s takes a value" % (who, a), file=sys.stderr)
+                return None, ""
+            if a == "--as":
+                as_id = args[i + 1].strip()
+            else:
+                script = _workspace_rel(live.root, args[i + 1])
+            i += 2
+            continue
+        if a.startswith("--"):
+            print("%s: %s is not an option here" % (who, a), file=sys.stderr)
+            return None, ""
+        words.append(a)
+        i += 1
+    target, said, problems = holds.resolve_target(
+        live.root, words, live.state(), cwd=os.getcwd(), as_id=as_id,
+        script=script)
+    if problems:
+        print("%s: %d problem(s), and nothing was held:" % (who, len(problems)),
+              file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return None, ""
+    return target, said
+
+
+def _workspace_rel(root, word):
+    """A path typed at the cluster, as the workspace-relative path it names."""
+    for base in (root, os.getcwd()):
+        full = os.path.realpath(os.path.join(base, word))
+        if os.path.exists(full):
+            rel = os.path.relpath(full, os.path.realpath(root))
+            return course_threads._rel(rel) or word
+    return word
+
+
 def cmd_hold(live, args):
-    """Hold a thread's sitting at the cluster, so the owner writes its code here.
+    """Hold a sitting at the cluster, so the owner writes its code here.
 
-        board hold [<thread>]
+        board hold <thread>                         a thread of threads.json
+        board hold [--as <id>] [--check <script>] -- <path>...
+        board hold                                  the current sitting
 
-    Typed in the cluster checkout. Records `relay/holds/<thread>.json`,
-    commits it alone and pushes it. Until `board release`, the thread's
-    `files` are the cluster's: the Mac's turns refuse to write them, and the
-    Mac polls every 20 seconds. Refused on a thread already held, one with no
-    files, and one whose `check` is missing or not tracked.
+    Typed in the cluster checkout, in any workspace. A path is a file or a
+    directory, workspace-relative, and must exist; the id is `--as` or a slug
+    of the first path's name. A bare `board hold` holds the sitting in
+    `live/state.json`: its thread, its homework file, its chapter's directory,
+    or its map box's files, and says which.
+
+    Records `relay/holds/<id>.json`, commits it alone and pushes it. Until
+    `board release`, the held files are the cluster's: the Mac's turns refuse
+    to write them, and the Mac polls every 20 seconds.
+
+    The check is `--check` (a tracked script), else the thread's `check`,
+    else the workspace's `check` in tutorboard.json. A workspace whose output
+    is closed (`holds.output_open`) refuses a hold with none.
     """
-    tid, _ = _job_thread(live, list(args), "board hold")
-    if not tid:
+    target, said = _hold_target(live, args)
+    if not target:
         return 1
-    ok, lines = holds.hold(live.root, tid)
+    ok, lines = holds.hold(live.root, target, said=said)
     for line in lines:
         print(line, file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1
 
 
 def cmd_release(live, args):
-    """End a hold: the Mac may write the thread's files again.
+    """End a hold: the Mac may write its files again.
 
-        board release [<thread>]
+        board release [<id>]
 
     Refused while a held file has uncommitted edits; `board send` them first.
     """
-    tid, _ = _job_thread(live, list(args), "board release")
-    if not tid:
+    hid = _held_id(live, list(args), "board release")
+    if not hid:
         return 1
-    ok, lines = holds.release(live.root, tid)
+    ok, lines = holds.release(live.root, hid)
     for line in lines:
         print(line, file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1
@@ -3029,14 +3113,15 @@ def cmd_release(live, args):
 def cmd_send(live, args):
     """The owner's one command per step of a sitting held at the cluster.
 
-        board send [<thread>] [--wait N|--no-wait] [--anyway]
-        board send --reply [<thread>]      print the coach's last reply
+        board send [<id>] [--wait N|--no-wait] [--anyway]
+        board send --reply [<id>]          print the coach's last reply
 
-    Commits the thread's changed files as `<thread>: step`, runs the thread's
-    check here and commits its report (`relay/reports/check-<thread>-<n>.json`:
-    exit code and RELAY: lines only), pushes both, and waits up to three
-    minutes for the coach's reply from the Mac. `--anyway` is the PHI check's
-    keyboard override, as for `board push`.
+    Commits the held files' changes as `<id>: step`, runs the hold's check
+    here and commits its report (`relay/reports/check-<id>-<n>.json`), pushes
+    both, and waits up to three minutes for the coach's reply from the Mac.
+    The report carries the exit code and RELAY: lines, and where this
+    workspace's output is open, the check's own output cut to fit.
+    `--anyway` is the PHI check's keyboard override, as for `board push`.
     """
     words = [a for a in args if not a.startswith("--")]
     wait = holds.WAIT_SECONDS
@@ -3051,19 +3136,17 @@ def cmd_send(live, args):
             return 1
         words = [w for w in words if w != args[i + 1]]
     if "--reply" in args:
-        standing = sorted(holds.holds(live.root))
-        tid = words[0] if words else (standing[0] if len(standing) == 1 else "")
-        if not tid:
-            print("board send --reply: name the thread", file=sys.stderr)
+        hid = _held_id(live, words, "board send --reply")
+        if not hid:
             return 1
-        step, body = holds.upstream_reply(live.root, tid)
+        step, body = holds.upstream_reply(live.root, hid)
         if not body:
-            print("no reply from the coach on %s yet" % tid)
+            print("no reply from the coach on %s yet" % hid)
             return 0
         print("step %d:\n\n%s" % (step, body))
         return 0
     if len(words) > 1:
-        print("board send: name at most one thread", file=sys.stderr)
+        print("board send: name at most one hold", file=sys.stderr)
         return 1
     return holds.send(live.root, words[0] if words else None, wait=wait,
                       anyway="--anyway" in args)
@@ -3072,11 +3155,12 @@ def cmd_send(live, args):
 def cmd_coach(live, args):
     """The coach's reply to a step held at the cluster. Body on stdin.
 
-        board coach <thread> [--step N] < reply.md
+        board coach [<id>] [--step N] < reply.md
 
-    Writes `relay/coach/<thread>.md`, commits it alone and pushes it; `board
+    Writes `relay/coach/<id>.md`, commits it alone and pushes it; `board
     send` on the cluster prints it. It is public: the code and the check's
-    aggregate numbers, never rows. `--step` defaults to the newest check.
+    result, and in a fenced workspace its aggregate numbers, never rows.
+    `--step` defaults to the newest check.
     """
     words = list(args)
     step = None
@@ -3088,10 +3172,10 @@ def cmd_coach(live, args):
             print("board coach: --step takes a number", file=sys.stderr)
             return 1
         del words[i:i + 2]
-    tid, _ = _job_thread(live, words, "board coach")
-    if not tid:
+    hid = _held_id(live, words, "board coach")
+    if not hid:
         return 1
-    ok, said = holds.write_coach(live.root, tid, sys.stdin.read(), step=step)
+    ok, said = holds.write_coach(live.root, hid, sys.stdin.read(), step=step)
     print(said if ok else "board coach: " + said,
           file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1

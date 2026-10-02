@@ -114,6 +114,45 @@ const sw = routes.slice(routes.indexOf('if path == "/switch"'));
 check('/switch reads the agent flag before starting one',
       /payload\.get\("agent", True\) is not False/.test(sw));
 
+// ------------------------------------------- learn, coach, build from the door
+function openAs(current, kind) {
+  const went = { href: null, switched: null };
+  const location = { set href(v) { went.href = v; } };
+  new Function('location', 'switchTo', fn(home, 'openAs') + '\nreturn openAs;')(
+    location, function (repo, addr, page, mapOnly) {
+      went.switched = { repo: repo, addr: addr, page: page, mapOnly: mapOnly };
+    })({ repo: 'Algo-Solutions', current: current }, kind);
+  return went;
+}
+w = openAs(false, 'coach');
+check('Coach on the sheet switches the board and lands on the lesson as coach',
+      w.switched && w.switched.repo === 'Algo-Solutions'
+      && w.switched.page === '/board?kind=coach' && !w.switched.mapOnly);
+w = openAs(true, 'build');
+check('and on the workspace already served it goes straight there',
+      w.href === '/board?kind=build' && !w.switched);
+
+function kindAsked(search) {
+  const replaced = [];
+  const window = { location: { search: search, pathname: '/board', hash: '#x' },
+                   history: { replaceState: function (a, b, u) { replaced.push(u); } } };
+  const got = new Function('window', fn(board, 'kindAsked') + '\nreturn kindAsked;')(
+    window)();
+  return { got: got, replaced: replaced };
+}
+let k = kindAsked('?kind=coach');
+check('the board reads the kind once and takes it out of the address',
+      k.got === 'coach' && k.replaced[0] === '/board#x');
+k = kindAsked('?map=1&kind=learn');
+check('leaving anything else in the address alone',
+      k.got === 'learn' && k.replaced[0] === '/board?map=1#x');
+check('a word that is not a kind is not read as one',
+      kindAsked('?kind=rm').got === '');
+check('and the board sets it as the sitting\'s aim, on the lesson',
+      /var kindWanted = kindAsked\(\);\s*if \(kindWanted\) \{ setAim\(KIND_AIMS\[kindWanted\]\); return; \}/
+        .test(board)
+      && board.indexOf('var kindWanted') < board.indexOf('if (mapAsked()) { openMap(); return; }'));
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nthe front door opens a workspace on its map');
 process.exit(errors.length ? 1 : 0);

@@ -421,6 +421,34 @@ setTimeout(() => {
   check('the overlay asks nothing: no buttons at all',
         !doc.querySelector('#busy button'));
 
+  // ---- learn, coach and build, on every workspace's sheet ----------------
+  const kindsOn = () => [...doc.querySelectorAll('#sheet-kinds [data-kind]')]
+    .map((b) => b.getAttribute('data-kind')).join('|');
+  const every = cards.map((card) => {
+    card.dispatchEvent(new window.Event('click'));
+    const shown = doc.getElementById('sheet-kinds').hidden === false
+                  && kindsOn() === 'learn|coach|build';
+    doc.getElementById('sheet-close').onclick();
+    return shown;
+  });
+  check('every workspace\'s sheet offers learn, coach and build',
+        every.length > 0 && every.every(Boolean));
+  // The switch above is still waiting for its board, and one at a time is the
+  // rule; tapping the overlay is how a person lets go of it.
+  doc.getElementById('busy').onclick();
+  const before = posted.filter((p) => p.repo).length;
+  [...doc.querySelectorAll('#cards .ws-card')][0]
+    .dispatchEvent(new window.Event('click'));
+  doc.getElementById('sheet-coach').onclick();
+  const moved = posted.filter((p) => p.repo);
+  check('and Coach moves the board there, closing the sheet',
+        moved.length === before + 1 && moved[moved.length - 1].repo === 'PSYCH-ASR'
+        && sheet.hidden === true);
+  check('to land on the lesson with the kind for board.js to set',
+        /var page = "\/board\?kind=" \+ encodeURIComponent\(kind\)/.test(js)
+        && /switchTo\(c\.repo, "", page\)/.test(js));
+  doc.getElementById('busy').onclick();
+
   // ---- a vendor tree is drawn, and is not a workspace -------------------
   // `atlas.json` made one claim out of two: the family was skipped because
   // nothing in it is the person's to be GRADED on. The ask was about TRACING.
@@ -451,7 +479,8 @@ setTimeout(() => {
   check('its sheet offers no board to move and no library, because nothing is '
         + 'handed in to somebody else\'s repository',
         doc.getElementById('sheet-open').hidden === true
-        && doc.getElementById('sheet-library').hidden === true);
+        && doc.getElementById('sheet-library').hidden === true
+        && doc.getElementById('sheet-kinds').hidden === true);
   check('and says so in words rather than leaving it to be discovered',
         /pulled, not written/.test(doc.getElementById('sheet-meta').textContent)
         && /never handed work/.test(doc.getElementById('sheet-meta').textContent));

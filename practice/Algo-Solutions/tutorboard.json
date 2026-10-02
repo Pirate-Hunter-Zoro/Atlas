@@ -1,4 +1,8 @@
 {
   "name": "Algo Solutions",
-  "check": "go test ./..."
+  "check": {
+    "all": ["go", "test", "./..."],
+    "one": ["go", "test", "./{dir}/..."],
+    "path": ["/usr/local/go/bin"]
+  }
 }

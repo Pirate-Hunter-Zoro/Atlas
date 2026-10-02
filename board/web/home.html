@@ -381,6 +381,24 @@
       <span id="sheet-next-text"></span>
     </p>
     <p class="sheet-line" id="sheet-meta"></p>
+    <!-- THE THREE KINDS OF SITTING, in every workspace: a course, a practice
+         repository, a research project or a tool, with a thread file or
+         without. Each moves the board here and sets the sitting's kind on it
+         (`/board?kind=`, which board.js reads once and sends to POST /aim). -->
+    <div class="sheet-kinds" id="sheet-kinds">
+      <button id="sheet-learn" class="action" type="button" data-kind="learn">
+        <span class="action-name">Learn</span>
+        <span class="action-sub">a board lesson: exercises, handwriting, a write-up</span>
+      </button>
+      <button id="sheet-coach" class="action" type="button" data-kind="coach">
+        <span class="action-name">Coach</span>
+        <span class="action-sub">you write the code; one step per card</span>
+      </button>
+      <button id="sheet-build" class="action" type="button" data-kind="build">
+        <span class="action-name">Build</span>
+        <span class="action-sub">the tutor does the work and reports</span>
+      </button>
+    </div>
     <div class="sheet-actions">
       <button id="sheet-open" class="action primary" type="button">
         <span class="action-name">Open this</span>
