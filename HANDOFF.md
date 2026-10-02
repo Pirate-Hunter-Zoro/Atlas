@@ -122,6 +122,30 @@ where `results/…` is absent, so a manuscript names one path on both machines.
   with `bash board/scripts/save-and-push.sh "msg" -- <paths>`.
 - `projects/libr-local-llm/HANDOFF.md` is that project's own handoff and stays live.
 
+## Start here — which machine does what
+
+**A session told to work from this file finds its machine and does that machine's items, in
+the order below, without being told which.** It is on the Mac if `uname` says Darwin, and on the
+cluster if `sbatch` exists.
+
+| Item | Runs on | When |
+|---|---|---|
+| 1. The Mac runs the board | Mac | first |
+| 10. One environment per workspace | Mac | after 1 |
+| 7. Providers on the Mac | Mac | after 10 |
+| 2, 3, 4, 5, 6, 9 | cluster | being built there now; a Mac session leaves them alone, and they leave this file when they land |
+| 8. The compute node stops serving | cluster | only once its two conditions hold; its prompt checks them |
+
+- On the Mac, a session does 1, then 10, then 7. Item 1 stops for the owner a few times: a
+  `sudo pmset` line, possibly `gh auth login`, and opening the board on the iPad. Then it goes
+  on by itself.
+- On the cluster, a session builds whatever cluster item is still in this file, then checks
+  item 8's conditions.
+- A session that finds its machine's items all gone says so, then turns to "The work it is
+  for".
+- Ultracode, where the owner asks for it, means parallel agents across that machine's
+  independent items. Items 1, 10 and 7 depend on one another, so on the Mac they run in order.
+
 ## How to work from this file
 
 1. Each item says what it depends on. Items with no dependency between them can go to parallel
