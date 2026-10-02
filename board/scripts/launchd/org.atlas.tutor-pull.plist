@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The Mac's periodic pull. Fires every two minutes; `tutor pull --hear`
+  decides whether a pull is due (two minutes while a relay request is out,
+  hourly otherwise) and the daily half runs once a day. launchd expands no
+  `~`, so the shell finds $HOME.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>org.atlas.tutor-pull</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>exec "$HOME/.local/bin/tutor-pull"</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>120</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

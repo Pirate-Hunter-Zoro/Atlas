@@ -86,6 +86,23 @@ if command -v systemctl >/dev/null 2>&1; then
     warn "tutor-pull.timer is not enabled; a machine left up will not pull"
     say  "        systemctl --user enable --now tutor-pull.timer"
   fi
+elif [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
+  # The Mac: a launchd agent firing every two minutes. COPIED for the same
+  # reason as the units; `tutor pull --hear` decides whether a pull is due.
+  AGENTS="$HOME/Library/LaunchAgents"
+  plist="$HERE/scripts/launchd/org.atlas.tutor-pull.plist"
+  mkdir -p "$AGENTS" 2>/dev/null
+  if ! cmp -s "$plist" "$AGENTS/$(basename "$plist")"; then
+    cp "$plist" "$AGENTS/" \
+      && launchctl bootout "gui/$(id -u)/org.atlas.tutor-pull" >/dev/null 2>&1
+    launchctl bootstrap "gui/$(id -u)" "$AGENTS/$(basename "$plist")" >/dev/null 2>&1
+  fi
+  if launchctl print "gui/$(id -u)/org.atlas.tutor-pull" >/dev/null 2>&1; then
+    good "org.atlas.tutor-pull (hears the cluster; pulls every 2 min while a request is out)"
+  else
+    warn "org.atlas.tutor-pull is not loaded; the cluster's reports will not be heard"
+    say  "        launchctl bootstrap gui/\$(id -u) $AGENTS/$(basename "$plist")"
+  fi
 else
   say  "  ----  no systemctl; the daily pull needs a login to happen"
 fi

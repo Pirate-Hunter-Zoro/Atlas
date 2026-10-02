@@ -424,11 +424,9 @@ def thread(clean, tid):
 # resolution: the file checked against the tree
 # ---------------------------------------------------------------------------
 def here(root, rel):
-    """Does this workspace really hold that path, inside itself?"""
-    if not rel:
-        return False
-    target = os.path.join(root, rel)
-    return toolpaths.within(target, root) and os.path.exists(target)
+    """Does this workspace really hold that path, inside itself? A `results/`
+    path counts where `exports/results/` holds it (`paths.present`)."""
+    return bool(toolpaths.present(root, rel))
 
 
 def resolve(root, clean):
