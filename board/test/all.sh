@@ -433,6 +433,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# And the Mac hears it: a pulled report wakes a turn once, the pull keeps time
+# with the requests, and results/ falls back to exports/results/.
+printf '%-12s ' "hearing"
+if out="$(python3 test/hearing.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

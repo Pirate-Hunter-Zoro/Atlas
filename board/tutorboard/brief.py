@@ -23,7 +23,7 @@ import os
 import re
 import time
 
-from . import carry, direction, handoff, progress
+from . import carry, direction, handoff, jobs, progress
 from .course import config
 from .course import homework
 from .course import map as course_map
@@ -246,6 +246,10 @@ def thread_sense(repo, st):
     if one["writes"]:
         out.append("Written up in: %s" % "; ".join(
             "%s under %r" % (w["file"], w["anchor"]) for w in one["writes"][:6]))
+    try:
+        out.extend(jobs.thread_relay(root, tid))
+    except Exception:                                        # noqa: BLE001
+        pass
     last = None
     try:
         last = lesson_archive.last_on_thread(repo, tid)

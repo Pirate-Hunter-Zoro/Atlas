@@ -58,6 +58,7 @@ import time
 from urllib.parse import unquote
 
 from .. import atlas, fenced
+from .. import paths as toolpaths
 
 # Where to look, and nowhere else. The allowlist, in the order a person would
 # look in them.
@@ -173,14 +174,9 @@ def _walk(root, suffixes=SUFFIXES, min_bytes=MIN_BYTES):
     stops the walk whatever either of them says -- because the first two are
     judgements about a tree and the third is the promise that a payload returns.
     """
-    found, seen = [], 0
+    found, seen, had = [], 0, set()
     root = os.path.realpath(root)
-    for name in LOOK_IN:
-        if fenced.refused(name):
-            continue
-        top = os.path.join(root, name)
-        if not os.path.isdir(top):
-            continue
+    for name, top in _tops(root):
         for here, dirs, files in os.walk(top):
             rel_dir = os.path.relpath(here, top)
             depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
@@ -195,9 +191,10 @@ def _walk(root, suffixes=SUFFIXES, min_bytes=MIN_BYTES):
                 if f.startswith(".") or not f.lower().endswith(suffixes):
                     continue
                 path = os.path.join(here, f)
-                rel = os.path.relpath(path, root)
-                if fenced.refused(rel):
+                rel = os.path.join(name, os.path.relpath(path, top))
+                if fenced.refused(rel) or rel in had:
                     continue
+                had.add(rel)
                 try:
                     st = os.stat(path)
                 except OSError:
@@ -206,6 +203,24 @@ def _walk(root, suffixes=SUFFIXES, min_bytes=MIN_BYTES):
                     continue
                 found.append((rel.replace(os.sep, "/"), st.st_mtime, st.st_size))
     return found
+
+
+def _tops(root):
+    """`(name, directory)` for each result directory here, in `LOOK_IN` order.
+
+    `results/` is followed by `exports/results/`, walked AS `results/`: a
+    figure the cluster exported has the path and the id it has there, and one
+    `results/` already holds is not offered twice.
+    """
+    out = []
+    for name in LOOK_IN:
+        if fenced.refused(name):
+            continue
+        tops = [os.path.join(root, name)]
+        if name == "results":
+            tops.append(os.path.join(root, toolpaths.EXPORTS, name))
+        out.extend((name, t) for t in tops if os.path.isdir(t))
+    return out
 
 
 def _figures(root):
@@ -279,7 +294,8 @@ def _bytes_of(root, ident_wanted, kind):
         return None, None
     if fenced.refused(rec["rel"]):
         return None, None
-    target = os.path.realpath(os.path.join(root, rec["rel"]))
+    target = os.path.realpath(toolpaths.present(root, rec["rel"]) or
+                              os.path.join(root, rec["rel"]))
     if not target.startswith(root + os.sep) or not os.path.isfile(target):
         return None, None
     label = rec["name"]
@@ -565,8 +581,8 @@ def browse(repo):
     out["workspace"] = atlas.identify(root)
     # WHERE IT LOOKED, SAID OUT LOUD. "Nothing here" is only useful beside the
     # list of places that were looked in, and the allowlist is that list.
-    out["looked"] = [n for n in LOOK_IN
-                     if os.path.isdir(os.path.join(root, n))]
+    real = os.path.realpath(root)
+    out["looked"] = [os.path.relpath(t, real) for _n, t in _tops(real)]
     # AND WHAT IT REFUSED TO LOOK IN, BY NAME. A workspace holding session
     # content must not be able to look like a workspace holding nothing.
     out["fenced"] = list(fenced.holds(root))

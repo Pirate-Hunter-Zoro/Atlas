@@ -858,6 +858,34 @@ TRD-EHR's `.gitignore` carries `!exports/**` for that. A refused export is liste
 **The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
 `/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
 skip reason, the last error and the last pushed commit.
+**The Mac hears the cluster through the same wake.** On a machine without Slurm, `jobs.report`
+also runs `jobs.hear`: it diffs `relay/reports/` from the commit it last heard
+(`live/jobs.reported/relay.heard`, ignored) to HEAD, so it catches whatever pulled. Each report
+now `completed`, `failed` or `refused` is claimed once per state and dropped as a `[job]` line
+through `jobs.drop`; `jobs.relay_sense` writes it from the report alone (state, exit, which
+`produces` exist on the cluster, exports landed, the `RELAY:` lines, the note), because the log
+stays on the cluster. A failed one says `board ask-cluster` has a turn read it there. Filing a
+request records HEAD as heard first, so a report in the very next pull is heard. The first look
+in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
+
+**The pull keeps time with the requests.** `scripts/tutor-pull` runs `tutor pull --hear` every
+time its timer fires (`scripts/launchd/org.atlas.tutor-pull.plist`, every 120 s), then the daily
+`tutor pull`. `hear_pass` in `bin/tutor` fast-forwards the repository with `sync` when
+`jobs.pull_due` says so — every `jobs.PULL_BUSY` (120 s) while any workspace has a request out,
+every `jobs.PULL_IDLE` (3600 s) otherwise, stamped in `~/.local/state/tutor-pull.heard` — and
+hears every workspace on every run. A timer firing a few seconds early still counts
+(`jobs.PULL_SLACK`). Where Slurm is, it does nothing: the relay pulls there. `install.sh` loads
+the launchd agent on a Mac. `tutor pull --hear --status` says the cadence.
+
+**`board brief` carries the cluster.** The thread section lists the thread's requests still out
+and its last ended report, with its `RELAY:` lines and note (`jobs.thread_relay`).
+
+**`results/` falls back to `exports/results/`.** `paths.present` is the rule: a `results/` path
+missing here is read at the same path under `exports/`. `threads.here` uses it, so `board thread
+--check` and a thread's outputs count an export as present. The library walks `exports/results/`
+as `results/`, so a figure keeps its path and id on both machines. Paper-Writer's builder
+(`building.exported_figures`) hands pandoc the export's path for a figure `results/` lacks, on
+stdin, never editing the source.
 
 ### The meeting deck
 
@@ -5992,7 +6020,7 @@ node test/who.js         that who writes this sitting is a choice on the glass, 
                          until the sitting opens, and that a workspace you are not
                          looking at can be handed a job
 
-bash test/all.sh         all of the above, in order, and Paper-Writer's 595 tests
+bash test/all.sh         all of the above, in order, and Paper-Writer's 601 tests
                          where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone

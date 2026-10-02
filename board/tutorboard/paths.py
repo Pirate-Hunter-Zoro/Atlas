@@ -110,3 +110,32 @@ def within(target, *roots):
         if target == r or target.startswith(r + os.sep):
             return True
     return False
+
+
+# A `results/` path the cluster exported is read from `exports/results/` where
+# `results/` lacks it, so a manuscript, a thread and the library name one path
+# on both machines. Nothing else falls back.
+EXPORTS = "exports"
+
+
+def exported(rel):
+    """The `exports/` twin of a workspace-relative `results/` path, or ""."""
+    rel = (rel or "").replace("\\", "/").lstrip("/")
+    return EXPORTS + "/" + rel if rel.startswith("results/") else ""
+
+
+def present(root, rel):
+    """Where `rel` really is in this workspace: itself, or its exported copy.
+
+    The absolute path, or "" where neither exists or either would leave the
+    workspace.
+    """
+    if not rel:
+        return ""
+    for cand in (rel, exported(rel)):
+        if not cand:
+            continue
+        target = os.path.join(root, cand)
+        if within(target, root) and os.path.exists(target):
+            return target
+    return ""

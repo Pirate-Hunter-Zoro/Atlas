@@ -540,10 +540,88 @@ def failed(rec):
     return (state != ["COMPLETED"]) or code.split(":")[0] not in ("", "0")
 
 
+def _thread_title(root, tid):
+    title = tid or "no thread"
+    try:
+        clean, _ = course_threads.read(root)
+        one = course_threads.thread(clean, tid) if clean else None
+        if one:
+            title = "%s (%s)" % (one["id"], one["title"])
+    except Exception:                                        # noqa: BLE001
+        pass
+    return title
+
+
+def _lines(value):
+    """A report's `relay` lines as a list, whichever shape the cluster wrote."""
+    if isinstance(value, str):
+        return [l for l in value.splitlines() if l.strip()]
+    return [str(l) for l in (value or []) if str(l).strip()]
+
+
+def relay_sense(root, rec):
+    """The `[job]` inbox line for a cluster report: `sense` for a request.
+
+    Everything the turn reports is in the report, because the log stays on the
+    cluster: the state, the exit, which `produces` paths now exist there, which
+    exports landed here, the `RELAY:` lines and the note.
+    """
+    tid = rec.get("thread")
+    state = str(rec.get("state") or "")
+    lines = [
+        "[job] A cluster report on thread %s has come back: %s."
+        % (_thread_title(root, tid), state.lower() or "unknown"),
+        "",
+        "  request  %s (%s)" % (rec.get("request"), rec.get("kind") or "recipe"),
+        "  state    %s" % state,
+    ]
+    if rec.get("slurm"):
+        lines.append("  job      %s, on the cluster" % rec["slurm"])
+    lines += ["  exit     %s" % (rec.get("exit") or "unknown"),
+              "  ended    %s" % (rec.get("ended") or "unknown"),
+              "  command  %s" % rec.get("cmd", "")]
+    made = set(rec.get("produced") or [])
+    if rec.get("produces"):
+        lines += ["", "What it was to produce, as the cluster found it:"]
+        lines += ["  %s %s" % ("present" if p in made else "MISSING", p)
+                  for p in rec["produces"]]
+    landed = list(rec.get("exported") or [])
+    if landed or rec.get("export"):
+        lines += ["", "Exports, copied into exports/ (pull brought them):"]
+        lines += ["  landed   %s" % p for p in landed]
+        lines += ["  NOT      %s" % p for p in rec.get("export") or []
+                  if p not in landed and "exports/" + p not in landed]
+    said = _lines(rec.get("relay"))
+    if said:
+        lines += ["", "What the job printed behind RELAY:"]
+        lines += ["  " + l for l in said]
+    if rec.get("problems"):
+        lines += ["", "Why the cluster refused it:"]
+        lines += ["  - %s" % p for p in rec["problems"]]
+    if rec.get("note"):
+        lines += ["", "The cluster's note:", "  " + str(rec["note"])]
+    lines += ["", "DO THIS: write one card reporting what finished, what it "
+              "produced, any non-zero exit, and the RELAY: lines."]
+    if state == "REFUSED":
+        lines.append("The cluster would not run it. Fix what it lists and file "
+                     "it again through `board job`.")
+    elif failed(rec):
+        lines.append("It did NOT end cleanly. Its log stays on the cluster. If "
+                     "the RELAY: lines do not say why, `board ask-cluster %s "
+                     "\"<what to read>\"` files a turn there to read it."
+                     % (tid or "<thread>"))
+    lines.append("Then move the thread on with `board thread`: tick the task "
+                 "this request was, and add the next one. A follow-up goes "
+                 "through `board job`, never a bare sbatch.")
+    return "\n".join(lines)
+
+
 def sense(root, rec):
     """The `[job]` inbox line: what ended, what it was to produce, and what to
     do. The log is named, never copied in -- the inbox is tracked in some
     workspaces, and a job's output is not the inbox's to carry."""
+    if rec.get("request") and str(rec.get("jobid", "")).startswith("relay:"):
+        return relay_sense(root, rec)
     produced = []
     for p in rec.get("produces") or []:
         produced.append("  %s %s" % ("present" if os.path.exists(
@@ -614,8 +692,13 @@ def drop(root, rec, now=None):
 
 
 def report(root, run=subprocess.run, now=None):
-    """One pass: poll, and drop a `[job]` line for every job that ended."""
-    ended, out = poll(root, run=run, now=now), []
+    """One pass: poll, and drop a `[job]` line for every job that ended.
+
+    On a machine without Slurm the endings are the cluster's, and `hear` drops
+    their lines: the same line, the same inbox, the same wake.
+    """
+    heard = [] if has_slurm() else hear(root, now=now)
+    ended, out = poll(root, run=run, now=now), heard
     for rec in ended:
         try:
             drop(root, rec, now=now)
@@ -1049,6 +1132,9 @@ def file_request(root, req, run=subprocess.run, push=True):
         json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
         fh.write("\n")
     course_threads.forget(root)
+    # Before the commit, so the report to this request is a change `hear`
+    # sees, even when it arrives in the first pull after filing.
+    _baseline(root)
     try:
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -1075,3 +1161,220 @@ def file_request(root, req, run=subprocess.run, push=True):
     except OSError as exc:
         return target, False, str(exc)
     return target, p.returncode == 0, (p.stdout or "").strip()[-800:]
+
+
+# ---------------------------------------------------------------------------
+# the Mac hears the cluster
+# ---------------------------------------------------------------------------
+# A REPORT A PULL BROUGHT TO AN END DROPS THE SAME `[job]` LINE A LOCAL ENDING
+# DOES, in the same inbox, so `board wait` wakes the same turn and
+# `turn_signal` reads it as `job`. Nothing else wakes a turn for the relay.
+#
+# "Brought by a pull" is read off git, not off the pull: whichever process
+# moved HEAD -- the timer, the transcript beat, a hand `git pull` -- the next
+# `hear` diffs `relay/reports/` from the commit it last heard to HEAD. A fresh
+# clone hears nothing of the reports it arrived with: the first `hear` records
+# HEAD and says nothing. Each ending is claimed once per (request, state), so
+# two hearers never drop it twice.
+
+ENDED_REPORTS = ("refused", "completed", "failed")
+HEARD = "relay.heard"
+
+# The pull's cadence on a machine without Slurm: every two minutes while a
+# request is out, hourly otherwise. The timer fires every two minutes and
+# `pull_due` decides.
+PULL_BUSY = 120
+PULL_IDLE = 3600
+
+
+def outstanding(root, tid=None):
+    """The requests here the cluster has not ended, oldest first."""
+    out = [r for r in relayed(root)
+           if (tid is None or r.get("thread") == tid)
+           and not course_threads.finished(r)]
+    out.sort(key=lambda r: float(r.get("submitted") or 0))
+    return out
+
+
+def pull_interval(roots):
+    """Seconds between pulls: `PULL_BUSY` while any request is out."""
+    for root in roots or ():
+        try:
+            if outstanding(root):
+                return PULL_BUSY
+        except Exception:                                    # noqa: BLE001
+            continue
+    return PULL_IDLE
+
+
+# A timer's fire drifts by a few seconds; without the slack a two-minute
+# cadence on a two-minute timer would pull every four.
+PULL_SLACK = 15
+
+
+def pull_due(last, now, interval):
+    """Is a pull due? A stamp from the future (a clock moved) is due too."""
+    last, now = float(last or 0), float(now)
+    return last <= 0 or last > now or now - last >= interval - PULL_SLACK
+
+
+def _when(value):
+    """A report's time as epoch seconds, whether written as a number or ISO."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return time.mktime(time.strptime(str(value)[:19], fmt))
+        except (TypeError, ValueError):
+            continue
+    return 0.0
+
+
+def last_report(root, tid):
+    """The newest ended report on this thread, as a registry record, or None."""
+    got = reports(root)
+    best, at = None, -1.0
+    for rec in relayed(root):
+        rep = got.get(rec["request"])
+        if rec.get("thread") != tid or not rep:
+            continue
+        if str(rep.get("state") or "").lower() not in ENDED_REPORTS:
+            continue
+        when = (_when(rep.get("ended")) or _when(rep.get("submitted"))
+                or float(rec.get("submitted") or 0))
+        if when >= at:
+            best, at = rec, when
+    return best
+
+
+def thread_relay(root, tid):
+    """`board brief`'s lines: the thread's requests still out, and its last
+    report. `[]` where it has neither."""
+    out = []
+    waiting = outstanding(root, tid)
+    if waiting:
+        out.append("Waiting on the cluster (the pull hears each ending as a "
+                   "[job] line):")
+        out.extend("  %s  %s  %s" % (r["request"], r["state"].lower(), r["cmd"])
+                   for r in waiting)
+    last = last_report(root, tid)
+    if last:
+        bits = [last["state"].lower()]
+        if last.get("exit") not in (None, ""):
+            bits.append("exit %s" % last["exit"])
+        if last.get("ended"):
+            bits.append("ended %s" % last["ended"])
+        out.append("The last cluster report: %s, %s." % (last["request"],
+                                                         ", ".join(bits)))
+        out.extend("  RELAY: %s" % l.split("RELAY:", 1)[-1].strip()
+                   for l in _lines(last.get("relay"))[:6])
+        if last.get("note"):
+            out.append("  note: %s" % str(last["note"])[:400])
+    return out
+
+
+def _git_text(root, argv):
+    try:
+        p = subprocess.run(["git"] + argv, cwd=root, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, universal_newlines=True,
+                           timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return p.stdout.strip() if p.returncode == 0 else None
+
+
+def _heard_path(root):
+    return os.path.join(root, "live", "jobs.reported", HEARD)
+
+
+def _set_heard(root, commit):
+    path = _heard_path(root)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = "%s.%d" % (path, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(commit + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def _baseline(root):
+    """Record HEAD as heard where nothing has been, and git ignores the ledger:
+    an untracked file here is a dirty tree to every guard that refuses to
+    commit over one."""
+    if os.path.exists(_heard_path(root)):
+        return
+    head = _git_text(root, ["rev-parse", "HEAD"])
+    if head and ignored(root, "live/jobs.reported/" + HEARD):
+        _set_heard(root, head)
+
+
+def _claim_once(root, key):
+    """True for the one hearer that may drop this ending. Never taken over."""
+    target = _marker(root, key)
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.close(os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
+    except OSError:
+        return False
+    return True
+
+
+def hear(root, now=None):
+    """Drop a `[job]` line for each report that reached an end since the
+    commit last heard. The records heard. Never raises; quiet outside git."""
+    try:
+        head = _git_text(root, ["rev-parse", "HEAD"])
+        if not head:
+            return []
+        try:
+            with open(_heard_path(root), "r", encoding="utf-8") as fh:
+                last = fh.read().strip()
+        except OSError:
+            last = ""
+        if last == head:
+            return []
+        if not last:
+            # Only where the relay is in use.
+            if os.path.isdir(os.path.join(root, RELAY)):
+                _baseline(root)
+            return []
+        changed = _git_lines(root, ["diff", "--name-only", "-z", "--relative",
+                                    last, head, "--", RELAY + "/reports"])
+        if not changed:
+            _set_heard(root, head)
+            return []
+        by_id = dict((r["request"], r) for r in relayed(root))
+        got = reports(root)
+        out, missed = [], False
+        for rel in sorted(changed):
+            rid = os.path.basename(rel)[:-len(".json")] if rel.endswith(
+                ".json") else ""
+            rep = got.get(rid)
+            if not rep:
+                continue
+            state = str(rep.get("state") or "").lower()
+            if state not in ENDED_REPORTS:
+                continue
+            key = "relay-%s.%s" % (rid, state)
+            if not _claim_once(root, key):
+                continue
+            rec = by_id.get(rid) or {
+                "jobid": "relay:" + rid, "request": rid, "kind": "",
+                "thread": rep.get("thread"), "cmd": "",
+                "state": _AS_SLURM.get(state, state.upper())}
+            try:
+                drop(root, rec, now=now)
+            except Exception:                                # noqa: BLE001
+                _unclaim(root, key)
+                missed = True
+                continue
+            out.append(rec)
+        if not missed:
+            _set_heard(root, head)
+        return out
+    except Exception:                                        # noqa: BLE001
+        return []

@@ -24,6 +24,7 @@ tutor -- start a tutoring session.
     tutor relay --once          one relay pass on the cluster (what scrontab runs)
     tutor relay --status        the last pass, and every workspace's requests
     tutor relay --install       write the relay's scrontab entry (--entry prints it)
+    tutor pull --hear [--status]  pull when the relay cadence says so; hear reports
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors] [--stale] [--wait] [--since T]
                                 restart every board here (and its tutor) on current code
@@ -2320,6 +2321,57 @@ def turn_signal(out):
         m = _SIGNAL_TAG.match(line)
         return m.group(1) if m else ""
     return ""
+
+
+# THE MAC'S EAR. On a machine without Slurm the cluster's reports arrive by
+# pull, so the pull's cadence follows the requests: `jobs.PULL_BUSY` while one
+# is out, `jobs.PULL_IDLE` otherwise. The timer runs `tutor pull --hear` every
+# two minutes and this decides; every run then hears every workspace, because
+# a transcript beat may have pulled in between.
+HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
+                          "tutor-pull.heard")
+
+
+def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
+              pull=None):
+    """Pull the repository when due, then hear every workspace's reports.
+
+    `(pulled, interval, heard)`: `pulled` is None where nothing was pulled
+    because the relay owns pulls here (Slurm), False where it was not due or
+    failed. Never raises.
+    """
+    if jobs.has_slurm():
+        return None, 0, []
+    stamp = stamp or HEAR_STAMP
+    now = time.time() if now is None else float(now)
+    try:
+        base = base or atlas.root()
+        roots = [w["root"] for w in atlas.workspaces(base)]
+    except Exception:                                        # noqa: BLE001
+        return False, 0, []
+    interval = jobs.pull_interval(roots)
+    try:
+        with open(stamp, "r", encoding="utf-8") as fh:
+            last = float(fh.read().strip() or 0)
+    except (OSError, ValueError):
+        last = 0
+    pulled = False
+    if force or jobs.pull_due(last, now, interval):
+        try:
+            pulled = (pull or sync)(base, quiet=quiet)
+        except Exception:                                    # noqa: BLE001
+            pulled = False
+        try:
+            os.makedirs(os.path.dirname(stamp), exist_ok=True)
+            with open(stamp, "w", encoding="utf-8") as fh:
+                fh.write("%f\n" % now)
+        except OSError:
+            pass
+    heard = []
+    for root in roots:
+        for rec in jobs.hear(root, now=now):
+            heard.append(dict(rec, workspace=atlas.identify(root) or root))
+    return pulled, jobs.pull_interval(roots), heard
 
 
 def open_mission(root):
@@ -7091,6 +7143,23 @@ def main(argv):
         # an unreachable git remote is not a reason to leave the VPN client a
         # year behind -- and the exit code is the worse of the two.
         quiet = "--quiet" in argv
+        if "--hear" in argv:
+            # The relay's half, which the timer runs every time it fires. On a
+            # machine with Slurm it does nothing: the relay pulls there.
+            pulled, interval, heard = hear_pass(force="--force" in argv,
+                                                quiet=quiet)
+            for rec in heard:
+                print("heard %s on %s: %s" % (rec.get("request"),
+                                              rec.get("workspace"),
+                                              str(rec.get("state")).lower()))
+            if "--status" in argv:
+                if pulled is None:
+                    print("this machine has Slurm; the relay pulls here")
+                else:
+                    print("pulls every %ds: %s" % (
+                        interval, "a request is out"
+                        if interval == jobs.PULL_BUSY else "nothing is out"))
+            return 0
         moved = [pull_vendor(quiet=quiet),
                  tailscale.update_userspace(quiet=quiet, force=True)]
         return 0 if all(m is not False for m in moved) else 1
