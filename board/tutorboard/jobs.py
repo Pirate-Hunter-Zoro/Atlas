@@ -118,34 +118,68 @@ def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
     if not jobid.split("_")[0].isdigit():
         return None, ("sbatch ran but printed no job id (%r), so nothing was "
                       "registered" % (p.stdout or "").strip()[-200:])
+    out, err = logs_of(jobid, cwd, run=run)
     rec = {
         "thread": thread,
         "jobid": jobid,
-        "cmd": shlex.join(argv)[:CMD_CHARS],
+        "cmd": " ".join(shlex.quote(a) for a in _redacted(argv))[:CMD_CHARS],
         "cwd": _relative(root, cwd),
         "produces": list(produces or []),
-        "log": _relative(root, stdout_of(jobid, cwd, run=run)),
+        "log": _relative(root, out),
         "submitted": float(now or time.time()),
     }
+    if err and err != out:
+        rec["err"] = _relative(root, err)
     append(root, rec)
     return rec, ""
 
 
+def _redacted(argv):
+    """The argv with every `--export` value reduced to its variable names.
+
+    The registry can be tracked in a public repository, and an exported value
+    is where a path to protected storage goes.
+    """
+    out, hide = [], False
+    for a in argv:
+        if hide:
+            out.append(_names(a))
+            hide = False
+        elif a == "--export":
+            out.append(a)
+            hide = True
+        elif a.startswith("--export="):
+            out.append("--export=" + _names(a[len("--export="):]))
+        else:
+            out.append(a)
+    return out
+
+
+def _names(spec):
+    return ",".join(p.split("=", 1)[0] + ("=..." if "=" in p else "")
+                    for p in spec.split(","))
+
+
 def _relative(root, path):
-    """A path inside the workspace as workspace-relative, anything else whole."""
+    """A path inside the workspace as workspace-relative; anything else by its
+    file name alone, because the registry may be public and an outside path
+    names storage it has no business naming."""
     if not path:
         return ""
-    path = os.path.abspath(path)
-    base = os.path.abspath(root)
-    if path == base:
+    real = os.path.realpath(path)
+    base = os.path.realpath(root)
+    if real == base:
         return "."
-    if path.startswith(base + os.sep):
-        return os.path.relpath(path, base)
-    return path
+    if real.startswith(base + os.sep):
+        return os.path.relpath(real, base)
+    return os.path.basename(real)
 
 
-def stdout_of(jobid, cwd, run=subprocess.run):
-    """Where the job writes its output, as Slurm says, or "".
+def logs_of(jobid, cwd, run=subprocess.run):
+    """`(stdout, stderr)`: where the job writes, as Slurm says, "" for unknown.
+
+    An array task's `%a` becomes `*`, because the id sbatch prints is the
+    array's and each task writes its own file: the path is a glob.
 
     Asked once, at submission, while `scontrol` still knows the job: it forgets
     a finished one within minutes, and the log is what a failure is reported
@@ -156,20 +190,23 @@ def stdout_of(jobid, cwd, run=subprocess.run):
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 universal_newlines=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
-        return ""
+        return "", ""
     fields = {}
     for word in (p.stdout or "").split():
         k, _, v = word.partition("=")
         fields.setdefault(k, v)
-    out = fields.get("StdOut", "")
-    if not out:
-        return ""
     base = str(jobid).split("_")[0]
-    for pat, val in (("%j", base), ("%A", base), ("%x", fields.get("JobName", "")),
-                     ("%u", fields.get("UserId", "").split("(")[0]),
-                     ("%%", "%")):
-        out = out.replace(pat, val)
-    return out if os.path.isabs(out) else os.path.join(cwd, out)
+
+    def filled(path):
+        if not path:
+            return ""
+        for pat, val in (("%j", base), ("%A", base), ("%a", "*"),
+                         ("%x", fields.get("JobName", "")),
+                         ("%u", fields.get("UserId", "").split("(")[0]),
+                         ("%%", "%")):
+            path = path.replace(pat, val)
+        return path if os.path.isabs(path) else os.path.join(cwd, path)
+    return filled(fields.get("StdOut", "")), filled(fields.get("StdErr", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -210,24 +247,46 @@ def sacct(ids, run=subprocess.run):
             pick = bad[0] if bad else got[0]
             out[base] = (pick[0], pick[1], max(e for _, _, e in got))
         else:
-            live = [s for s in states if s not in course_threads.TERMINAL]
+            live = [s for s in states
+                    if s.rstrip("+") not in course_threads.TERMINAL]
             out[base] = ("RUNNING" if "RUNNING" in live else live[0], "", "")
     return out
 
 
-def _claim(root, jobid):
+# A claim older than this on an ending still not marked reported is a reader
+# that died holding it, and the next pass takes it over.
+CLAIM_STALE = 10 * 60
+
+
+def _marker(root, jobid):
+    return os.path.join(root, "live", "jobs.reported",
+                        str(jobid).replace("/", "_"))
+
+
+def _claim(root, jobid, now=None):
     """Exactly one reader reports each ending. True for the one that may."""
-    d = os.path.join(root, "live", "jobs.reported")
-    os.makedirs(d, exist_ok=True)
+    target = _marker(root, jobid)
     try:
-        fd = os.open(os.path.join(d, str(jobid).replace("/", "_")),
-                     os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    except FileExistsError:
-        return False
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        try:
+            fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            age = float(now or time.time()) - os.path.getmtime(target)
+            if age < CLAIM_STALE:
+                return False
+            os.remove(target)
+            fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     except OSError:
         return False
     os.close(fd)
     return True
+
+
+def _unclaim(root, jobid):
+    try:
+        os.remove(_marker(root, jobid))
+    except OSError:
+        pass
 
 
 def poll(root, run=subprocess.run, now=None):
@@ -238,7 +297,14 @@ def poll(root, run=subprocess.run, now=None):
     """
     now = float(now or time.time())
     out = []
-    open_jobs = course_threads.unfinished(course_threads.jobs_of(root))
+    every = course_threads.merged(course_threads.jobs_of(root)).values()
+    # An ending recorded but never reported -- its reader died, or its inbox
+    # line could not be written -- is offered again, without asking sacct.
+    for j in every:
+        if (course_threads.finished(j) and not j.get("reported")
+                and _claim(root, j["jobid"], now)):
+            out.append(dict(j))
+    open_jobs = [j for j in every if not course_threads.finished(j)]
     if not open_jobs:
         return out
     by_base = {}
@@ -260,12 +326,13 @@ def poll(root, run=subprocess.run, now=None):
                     append(root, {"jobid": j["jobid"], "thread": j.get("thread"),
                                   "state": state, "seen": now})
                 continue
-            if not _claim(root, j["jobid"]):
-                continue
+            # The ending is recorded before it is claimed, so a reader that
+            # dies between the two leaves a finished job, not a running one.
             end_rec = {"jobid": j["jobid"], "thread": j.get("thread"),
-                       "state": state, "exit": code, "ended": end,
-                       "reported": now}
+                       "state": state, "exit": code, "ended": end}
             append(root, end_rec)
+            if not _claim(root, j["jobid"], now):
+                continue
             done = dict(j)
             done.update(end_rec)
             out.append(done)
@@ -306,14 +373,19 @@ def sense(root, rec):
     ]
     if rec.get("log"):
         lines.append("  log      %s" % rec["log"])
+    if rec.get("err"):
+        lines.append("  errors   %s" % rec["err"])
+    if "*" in (rec.get("log") or "") + (rec.get("err") or ""):
+        lines.append("  (a `*` is one file per array task: glob it)")
     if produced:
         lines += ["", "What it was to produce:"] + produced
     lines += ["", "DO THIS: write one card reporting what finished, what it "
               "produced, and any non-zero exit."]
     if failed(rec):
         lines.append("It did NOT end cleanly. Read the last 40 lines of its "
-                     "log and put the error on the card, in your own words, "
-                     "with the line it failed at.")
+                     "%s and put the error on the card, in your own words, "
+                     "with the line it failed at."
+                     % ("errors file" if rec.get("err") else "log"))
     lines.append("Then move the thread on with `board thread`: tick the task "
                  "this job was, and add the next one. A follow-up job goes "
                  "through `board job`, never a bare sbatch.")
@@ -343,10 +415,18 @@ def drop(root, rec, now=None):
 
 def report(root, run=subprocess.run, now=None):
     """One pass: poll, and drop a `[job]` line for every job that ended."""
-    ended = poll(root, run=run, now=now)
+    ended, out = poll(root, run=run, now=now), []
     for rec in ended:
-        drop(root, rec, now=now)
-    return ended
+        try:
+            drop(root, rec, now=now)
+        except Exception:                                    # noqa: BLE001
+            # No line, so no claim: the next pass offers it again.
+            _unclaim(root, rec["jobid"])
+            continue
+        append(root, {"jobid": rec["jobid"], "thread": rec.get("thread"),
+                      "reported": float(now or time.time())})
+        out.append(rec)
+    return out
 
 
 # ---------------------------------------------------------------------------

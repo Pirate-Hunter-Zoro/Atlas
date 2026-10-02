@@ -211,6 +211,21 @@ def _pointed_at(root):
     return None
 
 
+def _has_threads(root):
+    """Is this workspace planned by its thread file?
+
+    It is once the file carries any task, open or ticked: from then on a TODO
+    left on disk beside it is never shown as a second plan, even when every
+    task is done. A thread file with no task at all is a map only, and an old
+    plan's steps still land on its boxes.
+    """
+    from . import threads                                    # local: a cycle
+    clean, problems = threads.read(root)
+    if not clean or problems:
+        return False
+    return any(t["tasks"] for t in clean["threads"])
+
+
 def _thread_steps(root):
     """The open tasks of a workspace's thread file, as steps. Empty if none.
 
@@ -246,7 +261,7 @@ def _thread_steps(root):
 def paths(root):
     """Every plan this repository has, in the order it names them.
 
-    A thread file with an open task in it is the plan, alone.
+    A thread file that carries tasks is the plan, alone, open ones or none.
 
     Declared first, pointed at second, conventional third -- and a declaration
     stops the search, because a repository that says which file it plans in has
@@ -254,7 +269,7 @@ def paths(root):
     has three, and showing one of them as though it were the whole of what comes
     next is the failure this returns a list to prevent.
     """
-    if _thread_steps(root):
+    if _has_threads(root):
         from . import threads                                # local: a cycle
         return [threads.path(root)]
     said = _named(root)
@@ -392,9 +407,8 @@ def steps(root):
 
 
 def _steps(root):
-    mine = _thread_steps(root)
-    if mine:
-        return mine[:MAX_STEPS]
+    if _has_threads(root):
+        return _thread_steps(root)[:MAX_STEPS]
     out = []
     every = paths(root)
     for target in every:

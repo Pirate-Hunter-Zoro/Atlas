@@ -668,7 +668,9 @@ def stages(root):
                     except OSError:
                         texts[w["file"]] = ""
         dirty, jobs = dirty_of(root), jobs_of(root) + missions_of(root)
-        for t in threads:
+        # The thread as written, not as resolved: resolving drops a deleted
+        # file from `files`, and that deletion is an unsaved change.
+        for t in clean["threads"]:
             found[t["id"]] = stage(t, present, texts, dirty, jobs)
     _cache[key] = (time.time(), found)
     return found

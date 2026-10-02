@@ -228,6 +228,55 @@ check("but a minute on it is still out",
       jobs.poll(wholesale, run=slurm) == []
       and any(j["jobid"] == rec["jobid"] for j in jobs.running(wholesale)))
 
+# --- an ending is never lost, and a record publishes nothing private -----------
+spare = workspace(base, "spare", "live/\n")
+s2 = Slurm()
+xrec, _ = jobs.submit(spare, "knn", ["sbatch", "--export=ALL,DATA=/phi/x", "--export",
+                                    "OUT=/phi/y", "e.sbatch"], cwd=spare, run=s2)
+check("an --export value is kept out of the registry, its name kept",
+      "/phi" not in xrec["cmd"] and "DATA=..." in xrec["cmd"]
+      and "OUT=..." in xrec["cmd"])
+check("a log outside the workspace is stored by its name alone",
+      jobs._relative(spare, "/elsewhere/logs/a.out") == "a.out")
+
+
+class Split(Slurm):
+    def __call__(self, argv, **kw):
+        if os.path.basename(argv[0]) == "scontrol":
+            self.calls.append(list(argv))
+            return Done(0, "JobId=%s StdOut=logs/run_%%A_%%a.out "
+                           "StdErr=logs/run_%%A_%%a_err.txt\n" % argv[-1])
+        return Slurm.__call__(self, argv, **kw)
+
+
+s3 = Split()
+arec, _ = jobs.submit(spare, "knn", ["sbatch", "--array=1-3", "r.sbatch"],
+                     cwd=spare, run=s3)
+jid = arec["jobid"]
+check("a separate stderr file is registered beside the log, %a as a glob",
+      arec["err"] == "logs/run_%s_*_err.txt" % jid
+      and arec["log"] == "logs/run_%s_*.out" % jid)
+s3.states[jid] = [(jid + "_1", "PENDING", "0:0", "Unknown"),
+                  (jid + "_2", "CANCELLED+", "0:0", "x")]
+check("a pending task beside a CANCELLED+ one has not ended",
+      jobs.poll(spare, run=s3) == [])
+s3.states[jid] = [(jid + "_1", "FAILED", "1:0", "y"),
+                  (jid + "_2", "CANCELLED+", "0:0", "x")]
+_drop = jobs.drop
+jobs.drop = lambda *a, **k: (_ for _ in ()).throw(OSError("inbox full"))
+check("an ending whose inbox line cannot be written is not reported",
+      jobs.report(spare, run=s3) == [])
+jobs.drop = _drop
+threads._cache.clear()
+check("but the job reads ended, not running",
+      all(j["jobid"] != jid for j in jobs.running(spare)))
+again = jobs.report(spare, run=s3)
+check("and the next pass reports it, pointing at the errors file",
+      [e["jobid"] for e in again] == [jid]
+      and "errors file" in jobs.sense(spare, again[0])
+      and "glob it" in jobs.sense(spare, again[0]))
+check("once", jobs.report(spare, run=s3) == [])
+
 # --- the daemon's pass ------------------------------------------------------------
 _loader = importlib.machinery.SourceFileLoader("tutorcli_jobs", TUTOR)
 _spec = importlib.util.spec_from_loader("tutorcli_jobs", _loader)

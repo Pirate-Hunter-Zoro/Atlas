@@ -167,6 +167,9 @@ check("and its report names uncommitted files",
 check("so does a re-planning turn",
       "`board write pending`" in direction.CHANGED
       and "left uncommitted" in direction.CHANGED)
+check("and a thread's rethink turn",
+      "`board write pending`" in direction.RETHINK
+      and "left uncommitted" in direction.RETHINK)
 
 print("\n-- the board does not read a placeholder as an answer --")
 js = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()

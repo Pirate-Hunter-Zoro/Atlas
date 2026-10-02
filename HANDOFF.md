@@ -85,6 +85,9 @@ prefix against `threads.json` where one exists, and refuse an id it does not dec
   the line is a comment only.
 - `board/AI_INSTRUCTIONS.md` carries no `board job` rule. It is the contract for developing the
   tool, not one a turn's brief reads; the eight workspace contracts carry it.
+- A course shares only the map frame with a project. Its sittings, brief and next step still
+  come from `chapters.tsv` through the syllabus code, because a chapter sitting already knows
+  its chapter and a synthesized thread file would duplicate that without changing what is shown.
 - The assistant memory note `a-live-lesson-commits-your-board-work` describes a save that
   sweeps the whole tree. Delete it and its `MEMORY.md` line once this build ships.
 

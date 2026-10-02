@@ -326,6 +326,26 @@ try:
     check("a thread's own open task lands on its own box, and a ticked one does not",
           [s["label"] for s in on["knn"]["steps"]] == ["One more"])
 
+    no_open = json.loads(json.dumps(GOOD))
+    for t in no_open["threads"]:
+        t["tasks"] = [dict(x, done=True) for x in t.get("tasks", [])]
+    run(ws, ["thread"], json.dumps(no_open))
+    fresh()
+    check("a thread file with no open task is still the plan, and the old TODO "
+          "is not", plan.paths(ws) == [threads.path(ws)] and plan.steps(ws) == [])
+    run(ws, ["thread"], json.dumps(GOOD))
+
+    write(os.path.join(ws, "scripts", "knn.py"), "x = 1\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "everything")
+    fresh()
+    saved = threads.stages(ws)["knn"]["unsaved"]
+    os.remove(os.path.join(ws, "scripts", "knn.py"))
+    fresh()
+    check("deleting a thread's tracked file makes it unsaved",
+          saved is False and threads.stages(ws)["knn"]["unsaved"] is True)
+    fresh()
+
     # --- the three workspaces carry drafted thread files ---------------------
     psych = os.path.join(REPO, "research", "PSYCH-ASR")
     llm = os.path.join(REPO, "projects", "libr-local-llm")
