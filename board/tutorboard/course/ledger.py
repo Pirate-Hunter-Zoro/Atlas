@@ -510,6 +510,17 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
         except OSError:
             item["crop"] = ""
         item["drawn_on"] = (builds.get(item.get("ann")) or {}).get("digest") or current
+        # THE WORDS UNDER THE INK, taken while the build they were drawn on is
+        # the one on disk. Every later build re-anchors the ink to them, so a
+        # pair follows its words through a recompile, not its page coordinates.
+        # A round filed on an older build has none, and nothing needs it.
+        if pdf and item["drawn_on"] == current and item.get("box"):
+            try:
+                got = under(pdf, item["page"], item["box"])
+            except (OSError, ValueError, IndexError):
+                got = None
+            if got:
+                item["under"] = got
         png = item.pop("png", "")
         if png and item["page"] not in marked:
             name = "marked-p%d.png" % item["page"]
@@ -547,11 +558,12 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
         "how_to_answer": (
             "One entry in `answers` per id in `items`, keyed by the id: "
             "{\"disposition\": \"done\" | \"partly\" | \"not done\" | "
-            "\"pushed back\", \"did\": \"one sentence of what you did\", "
-            "\"new\": \"the new wording of the passage you changed, copied "
-            "exactly from the source (required for done and partly)\"}. An id "
-            "you could not find is still answered: not done, saying so. Change "
-            "nothing else in this file."),
+            "\"pushed back\", \"did\": \"one sentence of what you did; for not "
+            "done and pushed back, the reply the owner reads beside their "
+            "ink\", \"new\": \"the new wording of the passage you changed, "
+            "copied exactly from the source (required for done and partly)\"}. "
+            "An id you could not find is still answered: not done, saying so. "
+            "Change nothing else in this file."),
         "items": [_for_turn(root, note_path, i) for i in items],
         "answers": {},
     }
@@ -692,6 +704,11 @@ def reopened(root, doc):
                 "was": item.get("was") or item.get("kind"),
                 "text": item.get("text") or "",
                 "box": item.get("box"), "crop": item.get("crop") or "",
+                # The ink rides with it, so the next round's pair still shows
+                # what was written and where.
+                "strokes": item.get("strokes") or [],
+                "drawn_on": item.get("drawn_on") or "",
+                "under": item.get("under"),
                 "from": item.get("from") or rec["name"],
                 "reopened_in": rec["name"],
                 "why": st.get("why") or "",
@@ -928,6 +945,11 @@ def from_factory(items, record):
     return out, extra
 
 
+# The shape of `checked.json`. A change to what an answer carries bumps it, so
+# a cache written before the change is validated again rather than read short.
+CHECK_V = "v2:"
+
+
 def check(root, doc, note_path, later=False):
     """The round's answers, validated against its requests. Cached in the
     round's directory on the ledger's own stat, so it runs once per change.
@@ -940,7 +962,8 @@ def check(root, doc, note_path, later=False):
     where = round_dir(note_path)
     is_in = landed(root, doc, note_path, later)
     fac = factory_path(note_path)
-    key = "%s|%s|%d" % (_stat(ledger_path(note_path)), _stat(fac), int(is_in))
+    key = "%s%s|%s|%d" % (CHECK_V, _stat(ledger_path(note_path)), _stat(fac),
+                          int(is_in))
     cache = os.path.join(where, "checked.json")
     got = _read(cache, {}) or {}
     if got.get("key") == key:
@@ -963,8 +986,8 @@ def check(root, doc, note_path, later=False):
                     _write(ledger_path(note_path), led)
                 except OSError:
                     pass
-                key = "%s|%s|%d" % (_stat(ledger_path(note_path)), _stat(fac),
-                                    int(is_in))
+                key = "%s%s|%s|%d" % (CHECK_V, _stat(ledger_path(note_path)),
+                                      _stat(fac), int(is_in))
     before, after = _snapshots(root, doc, led or {}, note_path,
                                is_in and bool(answers))
     out, ids = {}, set()
@@ -985,15 +1008,17 @@ def check(root, doc, note_path, later=False):
         anchor = str(a.get("anchor") or "").strip()[:400]
         if disp in WORDED and not new and not anchor:
             problems.append("it says %s but gives no new wording" % disp)
-        old, old_from = _old_for(before, after, new), "before"
+        old, now = _pair_for(before, after, new)
+        old_from = "before"
         if not old and a.get("old"):
-            old, old_from = str(a.get("old")).strip()[:TEXT_MAX], "turn"
+            old, now, old_from = str(a.get("old")).strip()[:TEXT_MAX], "", "turn"
         if not old:
             old_from = ""
         out[item["id"]] = {
             "status": "answered" if disp else "not answered",
             "answer": ({"disposition": disp, "did": str(a.get("did") or "").strip()[:600],
                         "new": new, "old": old, "old_from": old_from,
+                        "now": now,
                         "anchor": anchor,
                         "by": a.get("by") or "turn"} if disp else None),
             "problems": problems}
@@ -1067,13 +1092,23 @@ def _old_for(before, after, new):
     wording in the after-copy, diff the two copies line by line, and take the
     before side of every change that touches those lines.
     """
+    return _pair_for(before, after, new)[0]
+
+
+def _pair_for(before, after, new):
+    """`(old, now)`: both sides of every line change touching `new`.
+
+    `now` is the after side of the same changes, so a word diff of the two
+    compares like with like -- whole changed lines -- rather than a paragraph
+    against the one sentence of it the turn quoted.
+    """
     if not (before and after and new):
-        return ""
+        return "", ""
     at = after.find(new)
     if at < 0:
         at = _fuzzy_find(after, new)
     if at < 0:
-        return ""
+        return "", ""
     a_lines = after.splitlines(True)
     b_lines = before.splitlines(True)
     # which after-lines the new wording spans
@@ -1086,15 +1121,37 @@ def _old_for(before, after, new):
             last = n
         pos += len(line)
     if first is None:
-        return ""
-    old = []
+        return "", ""
+    old, now = [], []
     sm = difflib.SequenceMatcher(None, b_lines, a_lines, autojunk=False)
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             continue
-        if j2 > first and j1 <= last or (j1 == j2 and first <= j1 <= last + 1):
-            old.extend(b_lines[i1:i2])
-    return "".join(old).strip()[:TEXT_MAX]
+        if not (j2 > first and j1 <= last or (j1 == j2 and first <= j1 <= last + 1)):
+            continue
+        if tag == "replace" and (i2 - i1 > 1 or j2 - j1 > 1):
+            # ONE BLOCK OF SEVERAL CHANGED PARAGRAPHS: each new line the wording
+            # spans is paired with the old line most like it, so two requests
+            # answered in neighbouring paragraphs do not share one diff.
+            mine = [j for j in range(j1, j2) if first <= j <= last]
+            took = []
+            for j in mine:
+                aw = a_lines[j].split()
+                best, score = None, 0.0
+                for i in range(i1, i2):
+                    r = difflib.SequenceMatcher(None, b_lines[i].split(), aw,
+                                                autojunk=False).ratio()
+                    if r > score:
+                        best, score = i, r
+                if best is not None and score >= 0.3 and best not in took:
+                    took.append(best)
+            if mine and took:
+                old.extend(b_lines[i] for i in sorted(took))
+                now.extend(a_lines[j] for j in mine)
+                continue
+        old.extend(b_lines[i1:i2])
+        now.extend(a_lines[j1:j2])
+    return "".join(old).strip()[:TEXT_MAX], "".join(now).strip()[:TEXT_MAX]
 
 
 def _fuzzy_find(text, passage):
@@ -1299,6 +1356,73 @@ def place(pdf, wording, hint=0, tex=True):
             "score": round(score, 3)}
 
 
+# HOW MANY WORDS UNDER A MARK ARE KEPT. Enough to find the passage again on a
+# rebuilt PDF; a ring round a whole paragraph is still found by its first forty.
+UNDER_MAX = 40
+# How far past the ink a word may sit and still be under it: a ring is drawn
+# round a word, not on it.
+UNDER_PAD = 0.006
+
+
+def under(pdf, page, box):
+    """The words of `pdf` under the ink box on `page`: `{page, box, text}`.
+
+    WHOLE LINES, not the words inside the box: a ring round half a line, or
+    a note in the margin beside it, is about that line, and the words of a
+    line are a run `place` can find again -- the scattered right halves of
+    three lines are not. The lines level with the box, a little padded, in
+    reading order; past `UNDER_MAX` words, the run of that many centred on
+    the word nearest the middle of the mark. As the folded words `place`
+    compares. None where the page has no words level with the ink.
+    """
+    if not (pdf and box and page):
+        return None
+    sizes, ws = words(pdf)
+    if not (0 < page <= len(sizes)):
+        return None
+    pw, ph = sizes[page - 1]
+    y0, y1 = box[1] - UNDER_PAD, box[3] + UNDER_PAD
+    hit = [w for w in ws if w[0] == page and w[2] / ph <= y1 and w[4] / ph >= y0]
+    if not hit:
+        return None
+    if len(hit) > UNDER_MAX:
+        cx, cy = (box[0] + box[2]) / 2 * pw, (box[1] + box[3]) / 2 * ph
+        mid = min(range(len(hit)), key=lambda i: (
+            ((hit[i][1] + hit[i][3]) / 2 - cx) ** 2
+            + ((hit[i][2] + hit[i][4]) / 2 - cy) ** 2))
+        start = max(0, min(mid - UNDER_MAX // 2, len(hit) - UNDER_MAX))
+        hit = hit[start:start + UNDER_MAX]
+    return {"page": page,
+            "box": [round(min(w[1] for w in hit) / pw, 4),
+                    round(min(w[2] for w in hit) / ph, 4),
+                    round(max(w[3] for w in hit) / pw, 4),
+                    round(max(w[4] for w in hit) / ph, 4)],
+            "text": " ".join(w[5] for w in hit)}
+
+
+def ink_where(pdf, digest, item):
+    """Where an inked request's words are on THIS build: `{by, page, box, dx, dy}`.
+
+    `same` where the ink was drawn on this very build, so it sits where it
+    was drawn. `text` where the words under it were found again, with the
+    shift from where they were. `gone` where they are not in the document any
+    more. None for a request with no ink.
+    """
+    if not item.get("strokes") and not item.get("under"):
+        return None
+    page = int(item.get("page") or 0)
+    if digest and item.get("drawn_on") == digest:
+        return {"by": "same", "page": page, "box": item.get("box"), "dx": 0, "dy": 0}
+    was = item.get("under") or {}
+    found = place(pdf, was.get("text") or "", hint=page, tex=False) \
+        if pdf and was.get("text") else None
+    if found and found.get("box") and was.get("box"):
+        return {"by": "text", "page": found["page"], "box": found["box"],
+                "dx": round(found["box"][0] - was["box"][0], 4),
+                "dy": round(found["box"][1] - was["box"][1], 4)}
+    return {"by": "gone"}
+
+
 def placements(repo, doc, note_path, pdf, digest, got, items):
     """Every request of one round on ONE BUILD of the PDF, cached by digest.
 
@@ -1307,11 +1431,17 @@ def placements(repo, doc, note_path, pdf, digest, got, items):
     the pages on the glass. Keyed as well on the validation, so an answer that
     changes is placed again.
     """
+    return anchors(repo, doc, note_path, pdf, digest, got, items)[0]
+
+
+def anchors(repo, doc, note_path, pdf, digest, got, items):
+    """`(placed, ink_at)` for one round on one build: where each answer is,
+    and where each request's ink is (`ink_where`). One cache file for both."""
     where = round_dir(note_path)
     cache = os.path.join(where, "placed-%s.json" % digest)
     hit = _read(cache, {}) or {}
-    if hit.get("key") == got.get("key"):
-        return hit.get("placed") or {}
+    if hit.get("key") == got.get("key") and "ink_at" in hit:
+        return hit.get("placed") or {}, hit.get("ink_at") or {}
     n = len(words(pdf)[0]) if pdf else 0
     src = str((_read(ledger_path(note_path), {}) or {}).get("source") or "")
     tex = not src or src.lower().endswith((".tex", ".ltx", ".sty", ".cls"))
@@ -1328,9 +1458,15 @@ def placements(repo, doc, note_path, pdf, digest, got, items):
             found = ({"page": min(page, n) if n else page, "box": None, "by": "page"}
                      if page else {"page": 0, "box": None, "by": "none"})
         out[item["id"]] = found
+    inks = {}
+    for item in items:
+        got_ink = ink_where(pdf, digest, item)
+        if got_ink:
+            inks[item["id"]] = got_ink
     try:
         os.makedirs(where, exist_ok=True)
-        _write(cache, {"key": got.get("key"), "digest": digest, "placed": out})
+        _write(cache, {"key": got.get("key"), "digest": digest, "placed": out,
+                       "ink_at": inks})
         # Four builds' placements are kept, as the page cache keeps four sets.
         old = sorted((f for f in os.listdir(where) if f.startswith("placed-")),
                      key=lambda f: _mtime(os.path.join(where, f)))
@@ -1338,6 +1474,94 @@ def placements(repo, doc, note_path, pdf, digest, got, items):
             os.remove(os.path.join(where, f))
     except OSError:
         pass
+    return out, inks
+
+
+# A run of unchanged words longer than this is cut to its ends in a diff.
+DIFF_KEEP = 16
+DIFF_END = 6
+
+
+def _span(words_, passage):
+    """`(start, end)` of `passage`'s words inside `words_`, compared folded,
+    or None. Anchored on its first words, and on its last ones for the end."""
+    want = [_norm(w) for w in passage.split()]
+    want = [w for w in want if w]
+    have = [_norm(w) for w in words_]
+    if not want or len(want) >= len(have):
+        return None
+    head, tail = want[:4], want[-4:]
+    for s in range(len(have) - len(head) + 1):
+        if have[s:s + len(head)] == head:
+            for e in range(len(have), s, -1):
+                if have[max(s, e - len(tail)):e] == tail:
+                    return s, e
+            return s, min(len(have), s + len(want))
+    return None
+
+
+def word_diff(old, new, tex=True, focus=""):
+    """Old wording against new, word by word: `[["=", t], ["-", t], ["+", t]]`.
+
+    Markup taken off first (`plain`), so the diff is of what the page reads.
+    `focus` is the passage the turn quoted, where `new` is the whole changed
+    paragraph round it: only the changes touching it are kept, so two
+    requests answered in one paragraph each show their own. An unchanged run
+    past `DIFF_KEEP` words keeps `DIFF_END` at each end it touches a change
+    on, and an ellipsis between. None where there is nothing to compare.
+    """
+    a = plain(old or "", tex).split()
+    b = plain(new or "", tex).split()
+    if not a and not b:
+        return None
+    ops = []
+
+    def put(op, ws):
+        if not ws:
+            return
+        if ops and ops[-1][0] == op:
+            ops[-1][1] += " " + " ".join(ws)
+        else:
+            ops.append([op, " ".join(ws)])
+
+    sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    codes = sm.get_opcodes()
+    span = _span(b, plain(focus, tex)) if focus else None
+    if span:
+        s, e = span
+        kept = []
+        for c in codes:
+            tag, i1, i2, j1, j2 = c
+            touches = (j1 < e and j2 > s) if j2 > j1 else (s <= j1 <= e)
+            if tag == "equal":
+                # Context: only the part of an unchanged run inside the focus.
+                lo, hi = max(j1, s), min(j2, e)
+                if lo < hi:
+                    kept.append(("equal", i1 + lo - j1, i1 + hi - j1, lo, hi))
+            elif touches:
+                kept.append(c)
+        if any(c[0] != "equal" for c in kept):
+            codes = kept
+    for tag, i1, i2, j1, j2 in codes:
+        if tag == "equal":
+            put("=", a[i1:i2])
+            continue
+        put("-", a[i1:i2])
+        put("+", b[j1:j2])
+    out = []
+    for n, (op, text) in enumerate(ops):
+        ws = text.split()
+        if op == "=" and len(ws) > DIFF_KEEP:
+            first, last = n == 0, n == len(ops) - 1
+            if first and last:
+                text = " ".join(ws[:DIFF_END]) + " … " + " ".join(ws[-DIFF_END:])
+            elif first:
+                text = "… " + " ".join(ws[-DIFF_END:])
+            elif last:
+                text = " ".join(ws[:DIFF_END]) + " …"
+            else:
+                text = " ".join(ws[:DIFF_END]) + " … " + " ".join(ws[-DIFF_END:])
+        out.append([op, text])
     return out
 
 
@@ -1359,22 +1583,30 @@ def view(repo, doc):
     root = repo.root
     pdf = library.path_of(root, doc, ".pdf")
     digest = paper._digest(pdf, paper.PAGE_WIDTH) if pdf else ""
+    try:
+        pages_now = int(doc.get("pages") or 0)
+    except (TypeError, ValueError):
+        pages_now = 0
     rs = rounds(root, doc)
     out = []
     for n, (rec, path) in enumerate(rs):
         got = check(root, doc, path, later=n < len(rs) - 1)
         items = items_of(path)
-        placed = (placements(repo, doc, path, pdf, digest, got, items)
-                  if pdf and got.get("landed") else {})
+        placed, inks = (anchors(repo, doc, path, pdf, digest, got, items)
+                        if pdf and got.get("landed") else ({}, {}))
         states = states_of(path)
         led = _read(ledger_path(path), {}) or {}
+        src = str(led.get("source") or "")
+        tex = not src or src.lower().endswith((".tex", ".ltx", ".sty", ".cls"))
         rows = []
         for item in items:
             r = got["items"].get(item["id"]) or {}
             st = states.get(item["id"]) or {}
             crop = item.get("crop") or ""
             home = item.get("from") or rec["name"]
-            rows.append({
+            pair = _pair(item, r.get("answer"), placed.get(item["id"]),
+                         inks.get(item["id"]), pages_now, tex)
+            rows.append(dict(pair, **{
                 "id": item["id"], "kind": item["kind"],
                 "was": item.get("was") or "",
                 "page": item.get("page") or 0,
@@ -1394,14 +1626,95 @@ def view(repo, doc):
                 "state": st.get("state") or "open",
                 "state_why": st.get("why") or "",
                 "carried": st.get("carried") or "",
-            })
+            }))
+        _number(rows)
+        landed_ = bool(got.get("landed"))
+        open_ = sum(1 for x in rows
+                    if x["state"] != "accepted" and not x["carried"])
         out.append({"note": rec["name"], "round": led.get("round") or n + 1,
                     "filed": led.get("filed") or "", "ask": led.get("ask") or "",
-                    "landed": bool(got.get("landed")),
+                    "landed": landed_,
                     "answered": sum(1 for x in rows if x["status"] == "answered"),
+                    "open": open_,
+                    "judged": sum(1 for x in rows if x["state"] != "open"),
+                    # EVERY PAIR SAID FINE (or carried into a later round): the
+                    # round collapses to one line on the glass.
+                    "done": landed_ and bool(rows) and not open_,
                     "items": rows, "extra": got.get("extra") or [],
                     "unknown": got.get("unknown") or [],
                     "broken": bool(got.get("broken"))})
     out.reverse()
     return {"ok": True, "document": doc["id"], "digest": digest,
             "summary": summary(root, doc), "rounds": out}
+
+
+def _pair(item, answer, placed, ink_at, pages_now, tex):
+    """The half of a row that makes it a PAIR: what was written, and the
+    revision that answers it, and where both are on the build on the glass.
+
+        ink      `{page, box, strokes, drawn_on}`, the slimmed strokes as filed
+        ink_at   where the ink's words are on this build (`ink_where`), or
+                 where its answer is when they are gone (`by: "answer"`,
+                 shifted down the page only)
+        at       `{page, y, box, by}`: where the pip goes and what a tap
+                 brings onto the glass -- the answer's box, else the ink's
+        diff     word ops, old against new (`word_diff`)
+        reply    the turn's sentence, where it answered without an edit
+        gone     the words it was written on are not in the document, and
+                 nothing else could be placed
+    """
+    strokes = item.get("strokes") or []
+    ink = ({"page": int(item.get("page") or 0), "box": item.get("box"),
+            "strokes": strokes, "drawn_on": item.get("drawn_on") or ""}
+           if strokes else None)
+    ink_at = dict(ink_at) if ink_at else None
+    ref = (item.get("under") or {}).get("box") or item.get("box")
+    # Words gone but the answer on the same page: the ink follows the answer
+    # down the page. Never onto another page, where it would sit over words it
+    # was never written about.
+    if ink_at and ink_at.get("by") == "gone" and placed and placed.get("box") and ref \
+            and placed.get("page") == int(item.get("page") or 0):
+        ink_at = {"by": "answer", "page": placed["page"], "box": None,
+                  "dx": 0, "dy": round(placed["box"][1] - ref[1], 4)}
+    at = None
+    if placed and placed.get("page") and placed.get("box"):
+        at = {"page": placed["page"], "y": placed["box"][1], "box": placed["box"],
+              "by": "answer"}
+    elif ink_at and ink_at.get("page") and ink_at.get("box"):
+        at = {"page": ink_at["page"], "y": ink_at["box"][1], "box": ink_at["box"],
+              "by": "ink"}
+    elif ink_at and ink_at.get("by") == "same" and item.get("box"):
+        at = {"page": ink_at["page"], "y": item["box"][1], "box": item["box"],
+              "by": "ink"}
+    elif placed and placed.get("page"):
+        at = {"page": placed["page"], "y": 0.02, "box": None, "by": "page"}
+    if at and pages_now and not 0 < at["page"] <= pages_now:
+        at = None
+    diff, reply = None, ""
+    if answer:
+        if answer.get("disposition") in ("pushed back", "not done"):
+            reply = answer.get("did") or ""
+        old = answer.get("old") or ""
+        new = answer.get("now") or answer.get("new") or ""
+        focus = answer.get("new") if answer.get("now") else ""
+        if old or new:
+            diff = (word_diff(old, new, tex, focus=focus or "") if old
+                    else [["+", " ".join(plain(answer.get("new") or new, tex).split())]])
+    gone = bool(ink_at and ink_at.get("by") == "gone"
+                and not (placed and placed.get("box")))
+    return {"ink": ink, "ink_at": ink_at, "at": at, "diff": diff,
+            "reply": reply, "gone": gone}
+
+
+def _number(rows):
+    """`n` onto a round's pairs, 1..N in document order: by page, then down the
+    page. A pair with nowhere to be goes last, in the order it was filed. The
+    pip and the row carry the same number."""
+    def pos(k):
+        r = rows[k]
+        at = r.get("at")
+        if at:
+            return (0, at["page"], at.get("y") or 0, k)
+        return (1, int(r.get("page") or 0) or 10 ** 6, 0, k)
+    for n, k in enumerate(sorted(range(len(rows)), key=pos), start=1):
+        rows[k]["n"] = n

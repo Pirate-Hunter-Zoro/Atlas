@@ -54,6 +54,9 @@ The assistant runs these. The student never does.
                                        submit long work registered to a thread;
                                        its ending wakes a turn that reports it.
                                        Never a bare sbatch. --show lists them
+    board round <document> [--print]   the ink on a paper, deck or write-up,
+                                       filed as a round of its ledger; prints
+                                       the ledger and the ids to answer
     board deckfig writeups/<deck> <ws> <id>
                                        copy one more figure into a deck made
                                        from sittings; prints the path to use
@@ -1985,6 +1988,79 @@ def cmd_direction(live, args):
     return 0
 
 
+def cmd_round(live, args):
+    """File the ink on one document as a round of its ledger, and print it.
+
+        board round <document>          file the marks on it as numbered
+                                        requests and print the ledger and ids
+        board round <document> --print  the same, with every request in full
+
+    INK ON A DOCUMENT IS ANSWERED IN ITS LEDGER. Marks on a paper, deck or
+    write-up reach a turn by more than one road -- the library's note panel,
+    the board's document drawer, a sitting -- and only a round in the ledger
+    turns them into pairs the owner can tap through, and takes them off the
+    page once answered. So a turn asked to act on marks runs this first, then
+    answers every id in the `answers` of the ledger it prints. Write no record
+    of your own beside it: ink answered anywhere else stays on the page.
+
+    `<document>` is either name a document has: the library's id, or the one
+    in a mark's key (`doc/<name>/p<n>`). Nothing is woken. Where the newest
+    round has not been answered yet, that round is printed rather than the
+    same ink filed twice. With no ink and nothing reopened, nothing is filed.
+    """
+    from tutorboard.course import ledger, library
+    from tutorboard.course.repo import Repo
+
+    want = [a for a in args if not a.startswith("--")]
+    if not want:
+        print("board round: which document? `board round <document>`; the "
+              "library's ids are on /library and in `board doctor`",
+              file=sys.stderr)
+        return 1
+    root = live.root
+    doc = library.find_any(root, want[0])
+    if not doc:
+        print("board round: this workspace has no document called %r" % want[0],
+              file=sys.stderr)
+        return 1
+    rs = ledger.rounds(root, doc)
+    if rs and not ledger.landed(root, doc, rs[-1][1]):
+        path, filed = rs[-1][1], False
+    else:
+        rec = library.write_note(Repo(root), doc["id"], "", hand_over=True)
+        if not rec.get("ok") or not rec.get("ledger"):
+            print("board round: nothing to file on %s: there is no ink on it "
+                  "and no request reopened. %s" % (doc["title"], rec.get("error") or ""),
+                  file=sys.stderr)
+            return 1
+        path, filed = rec["path"], True
+    led = ledger._read(ledger.ledger_path(path), {}) or {}
+    rel = os.path.relpath(ledger.ledger_path(path), root).replace(os.sep, "/")
+    ids = [i.get("id") for i in led.get("items") or [] if isinstance(i, dict)]
+    print(rel)
+    print("round %s of %s, %s: %d request%s, %s" % (
+        led.get("round") or "?", doc["title"],
+        "filed now" if filed else "filed %s and not answered yet" % (led.get("filed") or ""),
+        len(ids), "" if len(ids) == 1 else "s", ", ".join(ids)))
+    print("Answer every id in that file's `answers`: a disposition (done, partly, "
+          "not done, pushed back), `did` -- one sentence, and for not done and "
+          "pushed back the reply the owner reads beside their ink -- and for done "
+          "and partly `new`, the new wording copied exactly from the source.")
+    if "--print" in args:
+        for it in led.get("items") or []:
+            if not isinstance(it, dict):
+                continue
+            line = "%s  %s, page %s" % (it.get("id"), it.get("kind"), it.get("page") or "-")
+            if it.get("crop"):
+                line += "  crop %s" % it["crop"]
+            print(line)
+            if it.get("text"):
+                print("    " + str(it["text"]).replace("\n", "\n    "))
+            if it.get("reopened_because"):
+                print("    reopened because: %s" % it["reopened_because"])
+    return 0
+
+
 def cmd_deckfig(live, args):
     """Copy one more figure into a deck made from sittings.
 
@@ -3891,6 +3967,7 @@ COMMANDS = {
     "step": cmd_step,
     "thread": cmd_thread, "job": cmd_job, "notes": cmd_notes, "make": cmd_make,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
+    "round": cmd_round,
 }
 
 

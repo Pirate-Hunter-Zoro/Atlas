@@ -1173,6 +1173,184 @@ pp = ledger.place(pct_pdf, "Of the cohort, 5% were excluded because their record
 check("so a Markdown sentence with a percent in it is placed on its own words",
       pp and pp["page"] == 2 and pp["by"] == "text")
 
+# ---------------------------------------------------------------------------
+# A ROUND AS PAIRS: what was written, and what was done
+# ---------------------------------------------------------------------------
+# "Think of a slicker feature to show the most recent round of feedback and
+# corresponding revision, where when I tap on each such pair ... it'll take me
+# to that part of the paper." Every route that answers ink on a document files
+# a round first (`board round`); the words under the ink are kept at filing so
+# the ink re-anchors to its text on any later build; and each row of `view` is
+# a pair -- its number in document order, where its pip goes, the ink and
+# where it is now, the word diff, or the reply.
+import subprocess                                                     # noqa: E402
+
+pr_tmp = tempfile.mkdtemp(prefix="tutor-pairs-")
+with open(os.path.join(pr_tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Pairs Workspace"}, fh)
+os.makedirs(os.path.join(pr_tmp, "writeups", "pairs"))
+pr_tex = os.path.join(pr_tmp, "writeups", "pairs", "pairs.tex")
+pr_pdf = os.path.join(pr_tmp, "writeups", "pairs", "pairs.pdf")
+PR_BEFORE = ("\\documentclass{article}\n\\title{Pairs}\n\\begin{document}\n"
+             "Alpha bravo charlie delta.\n\nEcho foxtrot golf hotel.\n"
+             "India juliet kilo lima.\n\\end{document}\n")
+with open(pr_tex, "w", encoding="utf-8") as fh:
+    fh.write(PR_BEFORE)
+PAGE1 = ["Alpha bravo charlie delta.", "Echo foxtrot golf hotel."]
+with open(pr_pdf, "wb") as fh:
+    fh.write(pdf_lines([PAGE1, ["India juliet kilo lima."]]))
+prepo = course_repo.Repo(pr_tmp)
+library.forget()
+pdoc = [d for d in library.documents(pr_tmp) if d["stem"] == "pairs"][0]
+pdig0 = course_paper._digest(pr_pdf, course_paper.PAGE_WIDTH)
+sizes0, words0 = ledger.words(pr_pdf)
+echo = [w for w in words0 if w[5] == "echo"][0]
+ey0, ey1 = echo[2] / sizes0[0][1], echo[4] / sizes0[0][1]
+
+
+def pr_ink(page, strokes):
+    key = "doc/%s/p%d" % (pdoc["id"], page)
+    stem = writing_route.ann_file(key)
+    with open(os.path.join(prepo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "sent": False, "strokes": strokes,
+                   "build": {"digest": pdig0, "at": 1, "pages": 2}}, fh)
+    return stem
+
+
+# A ring round "foxtrot" on the second line, and a tick in the margin beside
+# the page-2 line.
+ring = S([0.30, ey0, 0.42, ey0, 0.42, ey1, 0.30, ey1])
+pr_stem = pr_ink(1, [ring])
+pr_ink(2, [S([0.03, 0.09, 0.05, 0.10])])
+check("the drawer's name for a document finds it too (`find_any`)",
+      library.find_any(pr_tmp, library.mark_idents(pr_tmp, pdoc)[-1])["id"] == pdoc["id"]
+      and library.find_any(pr_tmp, "no-such-thing") is None)
+said_doc = writing_route.ann_says("doc/%s/p1" % pdoc["id"], False)[1]
+check("a turn handed ink on a document is told to file it as a round",
+      "board round %s" % pdoc["id"] in said_doc)
+
+BOARD = os.path.join(ROOT, "bin", "board")
+
+
+def board_round(*args):
+    p = subprocess.run([sys.executable, BOARD, "round"] + list(args) + ["--repo", pr_tmp],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+    return p.returncode, p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")
+
+
+code, out = board_round(pdoc["id"])
+library.forget()
+pnotes = library.notes(pr_tmp, pdoc)
+pnote = os.path.join(library.feedback_dir(pr_tmp, pdoc), pnotes[-1]["name"]) if pnotes else ""
+check("`board round` files the ink on a document as a round and prints its ledger "
+      "and ids", code == 0 and pnote and ".ledger.json" in out and "R1.1, R1.2" in out)
+sent_now = lesson_notes.load_notes_sent(prepo)
+check("and hands the ink over, as a note does once its revision is asked",
+      all(sent_now.get(k) for k in ("doc/%s/p1" % pdoc["id"], "doc/%s/p2" % pdoc["id"])))
+code2, out2 = board_round(pdoc["id"])
+library.forget()
+check("asked again before the round is answered, it prints that round rather than "
+      "filing the same ink twice",
+      code2 == 0 and "not answered yet" in out2 and len(library.notes(pr_tmp, pdoc)) == 1)
+pitems = ledger.items_of(pnote) if pnote else []
+under1 = (pitems[0].get("under") or {}) if pitems else {}
+check("the words under the ink are kept at filing: the whole line it rings",
+      under1.get("text") == "echo foxtrot golf hotel" and under1.get("page") == 1)
+check("and ink in the margin keeps the line level with it",
+      (pitems[1].get("under") or {}).get("text") == "india juliet kilo lima")
+
+# THE TURN ANSWERS AND REBUILDS: a line added above, so the ringed words move.
+time.sleep(0.02)
+PR_AFTER = PR_BEFORE.replace("Echo foxtrot golf hotel.", "Echo foxtrot golf hotel indeed.")
+with open(pr_tex, "w", encoding="utf-8") as fh:
+    fh.write(PR_AFTER)
+with open(pr_pdf, "wb") as fh:
+    fh.write(pdf_lines([["A new opening line."] + [PAGE1[0], "Echo foxtrot golf hotel indeed."],
+                        ["India juliet kilo lima."]]))
+pled = json.load(open(ledger.ledger_path(pnote), encoding="utf-8"))
+pled["answers"] = {
+    "R1.1": {"disposition": "done", "did": "Said indeed.",
+             "new": "Echo foxtrot golf hotel indeed."},
+    "R1.2": {"disposition": "pushed back", "did": "The tick marks a line that is right."},
+}
+with open(ledger.ledger_path(pnote), "w", encoding="utf-8") as fh:
+    json.dump(pled, fh)
+library.forget()
+pdoc = [d for d in library.documents(pr_tmp) if d["stem"] == "pairs"][0]
+pv = ledger.view(prepo, pdoc)
+prow = {i["id"]: i for i in pv["rounds"][0]["items"]}
+p1 = prow["R1.1"]
+check("a pair carries the ink as filed", p1["ink"] and p1["ink"]["page"] == 1
+      and p1["ink"]["strokes"] and p1["ink"]["drawn_on"] == pdig0)
+check("on a rebuilt PDF the ink follows its words, shifted by how far they moved",
+      p1["ink_at"]["by"] == "text" and p1["ink_at"]["page"] == 1
+      and p1["ink_at"]["dy"] > 0.01 and abs(p1["ink_at"]["dx"]) < 0.01)
+check("and its pip is where the answer was found, in fractions of the page",
+      p1["at"]["by"] == "answer" and p1["at"]["page"] == 1
+      and p1["at"]["box"] == p1["placed"]["box"] and 0 < p1["at"]["y"] < 1)
+check("the revision is a word diff: what came in is marked",
+      p1["diff"] == [["=", "Echo foxtrot golf"], ["-", "hotel."], ["+", "hotel indeed."]])
+check("a pushed-back pair carries the turn's sentence as its reply",
+      prow["R1.2"]["reply"] == "The tick marks a line that is right." and not prow["R1.2"]["diff"])
+check("pairs are numbered in document order, the number the pip carries",
+      p1["n"] == 1 and prow["R1.2"]["n"] == 2)
+check("a landed round says how many pairs are open and is not done",
+      pv["rounds"][0]["open"] == 2 and not pv["rounds"][0]["done"])
+# Page 1's flag lost (a hand-over that never got written), page 2 drawn on
+# again since the round was filed.
+pr_ink(1, [ring])
+pr_ink(2, [S([0.03, 0.09, 0.05, 0.10]), S([0.5, 0.5, 0.6, 0.6])])
+gone = library.wipe_delivered(prepo, pdoc)
+check("once answered, the ink a round filed leaves the page, flag or no flag, "
+      "while it is the same strokes on the same build (the archive keeps them)",
+      gone == ["doc/%s/p1" % pdoc["id"]]
+      and not os.path.isfile(os.path.join(prepo.notes, pr_stem + ".json"))
+      and ledger.items_of(pnote)[0]["strokes"])
+check("and ink drawn since stays for the next round",
+      os.path.isfile(os.path.join(prepo.notes, writing_route.ann_file(
+          "doc/%s/p2" % pdoc["id"]) + ".json")))
+os.remove(os.path.join(prepo.notes, writing_route.ann_file("doc/%s/p2" % pdoc["id"]) + ".json"))
+pr_dig_same = ledger.ink_where(pr_pdf, pdig0, dict(pitems[0]))
+check("on the build it was drawn on the ink sits where it was drawn",
+      pr_dig_same["by"] == "same" and pr_dig_same["dx"] == 0)
+
+# A RECOMPILE THAT CUTS THE LINE: the anchor vanished, and the pair says so.
+time.sleep(0.02)
+with open(pr_pdf, "wb") as fh:
+    fh.write(pdf_lines([["Something else entirely now."], ["Nothing in common here."]]))
+library.forget()
+pdoc = [d for d in library.documents(pr_tmp) if d["stem"] == "pairs"][0]
+gv = {i["id"]: i for i in ledger.view(prepo, pdoc)["rounds"][0]["items"]}
+check("where the words under the ink are gone and nothing was placed, the pair "
+      "says so", gv["R1.1"]["ink_at"] == {"by": "gone"} and gv["R1.1"]["gone"]
+      and gv["R1.2"]["gone"])
+check("and with no answer found it still keeps its page, at the top",
+      gv["R1.1"]["at"] and gv["R1.1"]["at"]["by"] == "page" and gv["R1.1"]["at"]["page"] == 1)
+
+# FINE ON EVERY PAIR: the round is done.
+pn = os.path.basename(pnote)
+ledger.set_state(pr_tmp, pdoc, pn, "R1.1", "accepted")
+ledger.set_state(pr_tmp, pdoc, pn, "R1.2", "accepted")
+dv = ledger.view(prepo, pdoc)["rounds"][0]
+check("a round with every pair said fine is done", dv["done"] and dv["open"] == 0)
+
+# THE DIFF ITSELF.
+long_same = " ".join("w%d" % i for i in range(30))
+dd = ledger.word_diff(long_same + " old end.", long_same + " new end.", tex=False)
+check("a long unchanged run is trimmed to its last few words before a change",
+      dd[0][0] == "=" and dd[0][1].startswith("… ") and len(dd[0][1].split()) == 7
+      and dd[1:] == [["-", "old"], ["+", "new"], ["=", "end."]])
+mid = ledger.word_diff("a " + long_same + " b", "x " + long_same + " y", tex=False)
+check("and one between two changes keeps both ends",
+      mid[2][0] == "=" and " … " in mid[2][1] and len(mid[2][1].split()) == 13)
+foc = ledger.word_diff("One old. Two old.", "One new. Two new.", tex=False, focus="Two new.")
+check("a diff focused on the passage a request quoted shows only its own change",
+      foc == [["=", "Two"], ["-", "old."], ["+", "new."]])
+
+code3, out3 = board_round(pdoc["id"])
+check("with no ink and nothing reopened, `board round` refuses and says why",
+      code3 == 1 and "nothing to file" in out3)
+
 print()
 if fails:
     print("%d FAILURES" % len(fails))

@@ -1,27 +1,35 @@
 /* ==========================================================================
-   ledger.js -- what each request was, and what was done about it, as PINS.
+   ledger.js -- a round of feedback as PAIRS: what you wrote, and what was done.
 
    The owner's words: "I need some nifty way to keep track of what each edit
    request was, and what was done to address it, so that I don't have to read
-   the whole fucking paper again." So after a round lands the reader has a
-   CHANGES mode: a numbered pin in the margin at every changed spot, coloured
-   by what was done, with the changed passage lightly boxed. A tap on a pin is
-   a card -- the ink or the words the request was, what was done, and the old
-   and new wording side by side -- and the card is where a request is ACCEPTED
-   or REOPENED with a line of why. A list orders the same requests by page, and
-   `next change ›` steps through them.
+   the whole fucking paper again." And once a round was answered: the ink
+   still on the page "feels a little... messy". So an answered round takes its
+   ink OFF the page and puts it in a panel, a pair to a row: the ink as drawn
+   (its crop) or the words typed, and under it the revision -- the changed
+   wording with what went struck and what came in marked, or the turn's
+   one-line reply where it answered without an edit.
 
-   The server does the work (`course/ledger.py`): it split the round into
-   requests when it was filed, validated the turn's answers, and placed each
-   one on the build that is on disk now. This draws what `GET /library/ledger/
-   <id>` says, onto the reader's own `.lib-page` boxes, in fractions of the
-   page -- the frame the ink is in, so a pin follows the zoom the way ink does.
+   ON THE PAGE, a numbered pip in the margin where each pair is, the number its
+   row carries. A tap on a row brings its place onto the glass (zoomed to at
+   least `ZOOM_AT_LEAST`, centred), flashes the revised passage and lays a
+   faint ghost of the ink over it; a tap on a pip opens the panel at its row.
+   A pair is marked FINE (its pip goes) or NOT FIXED with a line of why (it
+   rides the next round under its id, and its ink stays at full strength). A
+   round with every pair fine is one line, "Round 3 done".
 
-   One module for both readers that load it. The meeting deck loads it and asks
-   nothing of it: its direction route changes nothing, so it has no ledger.
+   The server does the work (`course/ledger.py`): it filed the round, validated
+   the answers, and placed each pair on the build on disk -- `at` for the pip,
+   `ink_at` for the ghost, both in fractions of the page, so both scale with
+   the zoom exactly as the ink does. Nothing here is in pixels of the page.
 
-     Ledger.make({ pages, button, changed }) -> { open(doc, on), refresh(),
-                                                  toggle(), next(), close() }
+   THE PANEL NEVER COVERS THE JUMPED-TO PASSAGE: a rail at the right on a wide
+   landscape glass, with the pages narrowed beside it, and a sheet at the foot
+   otherwise, with the passage centred in what is left above it.
+
+     Ledger.make({ pages, button, changed, zoom, send, scrolled })
+       -> { open(doc, on), refresh(), toggle(), next(), close(), redraw(),
+            escape(), select(id), isOn(), showing() }
      Ledger.preview(el, items, merged, onMerge)   the filing panel's split
    ========================================================================== */
 
@@ -30,6 +38,14 @@
 
 var WORDS = { "done": "done", "partly": "partly done", "not done": "not done",
               "pushed back": "pushed back" };
+/* A jump brings the passage up to at least this zoom: at the fit a sentence
+   on a letter page is small enough to need a second look. */
+var ZOOM_AT_LEAST = 1.25;
+var FLASH_MS = 1200;
+/* `annotate.js` `PAGE_REF`: a page stroke's width is stored against it. */
+var PAGE_REF = 1240;
+var RAIL = "(min-width: 56rem) and (orientation: landscape)";
+var SVG = "http://www.w3.org/2000/svg";
 
 function el(tag, cls, text) {
   var e = document.createElement(tag);
@@ -45,7 +61,7 @@ function button(label, cls, fn) {
   return b;
 }
 
-/* Which colour a request is: what was done, or that nothing was said. */
+/* Which colour a pair is: what was done, or that nothing was said. */
 function tone(item) {
   if (item.answer) return item.answer.disposition.replace(/ /g, "-");
   return item.status === "waiting" ? "waiting" : "none";
@@ -56,76 +72,93 @@ function said(item) {
   return item.status === "waiting" ? "waiting for the revision" : "not answered";
 }
 
-function short(id) { return String(id || "").replace(/^R/, ""); }
-
-function where(item) {
-  var p = item.placed;
-  if (!p || !p.page) return item.page ? "was on page " + item.page : "";
-  return "page " + p.page + (p.by === "page" ? " (placed by page only)"
-    : p.by === "anchor" ? " (where it was restructured)" : "");
+/* INK THAT IS STILL OWED stays at full strength until it is judged: nothing
+   answered it, the turn could not do it, or it was sent back as not fixed. */
+function owed(item) {
+  if (item.carried) return false;
+  if (item.state === "reopened") return true;
+  if (item.state !== "open") return false;
+  return item.status === "not answered"
+    || !!(item.answer && item.answer.disposition === "not done");
 }
+
+function penOn() { return !!(window.Annotate && window.Annotate.isOn && window.Annotate.isOn()); }
 
 function make(opts) {
   var pages = opts.pages;
   var btn = opts.button || null;
+  var zoomer = opts.zoom || null;
+  var host = (pages && pages.parentNode) || document.body;
   var doc = null;
   var data = null;
   var pick = 0;               /* which round: 0 is the newest */
-  var on = false;
-  var at = -1;                /* where `next change ›` is */
+  var shown = false;          /* the panel */
+  var want = false;           /* open the panel once the round is in */
+  var sel = "";               /* the selected pair's id */
+  var full = "";              /* the pair whose full wording is out */
+  var unfold = {};            /* finished rounds opened anyway, by note */
   var asked = 0;
+  var flashing = 0;
 
-  /* THE BAR, the LIST and the CARD are this module's own, built once. */
-  var bar = el("p", "reader-said lg-bar");
-  bar.id = "lg-bar";
-  bar.hidden = true;
-  var sum = el("span", "lg-sum");
-  var pickRound = el("select", "lg-round");
-  pickRound.title = "which round";
-  pickRound.addEventListener("change", function () {
-    pick = +pickRound.value || 0;
-    at = -1;
-    paint();
-  });
-  var listBtn = button("☰ every request", "lg-list-btn", function () { showList(); });
-  var nextBtn = button("next change ›", "lg-next", function () { next(); });
-  bar.appendChild(sum);
-  bar.appendChild(pickRound);
-  bar.appendChild(listBtn);
-  bar.appendChild(nextBtn);
-  if (pages && pages.parentNode) pages.parentNode.insertBefore(bar, pages);
-
-  var list = el("div", "lg-over");
-  list.id = "lg-list";
-  list.hidden = true;
-  var listBox = el("div", "lg-box-panel");
-  list.appendChild(listBox);
-  document.body.appendChild(list);
-
-  /* THE CARD IS A SHEET AT THE FOOT OF THE GLASS, not a veil over it: a jump
-     to a change must leave the change in sight, and the sheet steps on to the
-     next one itself. Only the panel takes a touch; the pages above it scroll. */
-  var card = el("div", "lg-over lg-sheet");
-  card.id = "lg-card";
-  card.hidden = true;
-  var cardBox = el("div", "lg-box-panel");
-  card.appendChild(cardBox);
-  document.body.appendChild(card);
-  [list].forEach(function (o) {
-    o.addEventListener("click", function (ev) { if (ev.target === o) o.hidden = true; });
-  });
+  /* THE PANEL, built once, kept beside the reader. */
+  var panel = el("aside", "lg-panel");
+  panel.id = "lg-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "the round's notes and what was done");
+  var head = el("div", "lg-ph");
+  var title = el("strong", "lg-title");
+  var sub = el("span", "lg-sub");
+  var shut = button("✕", "lg-x", function () { hide(); });
+  shut.title = "close";
+  head.appendChild(title);
+  head.appendChild(sub);
+  head.appendChild(shut);
+  var body = el("div", "lg-scroll");
+  var foot = el("div", "lg-foot");
+  foot.hidden = true;
+  panel.appendChild(head);
+  panel.appendChild(body);
+  panel.appendChild(foot);
+  document.body.appendChild(panel);
 
   if (btn) btn.addEventListener("click", function () { toggle(); });
   if (btn) btn.hidden = true;
+
+  var rail = null;
+  try { rail = window.matchMedia ? window.matchMedia(RAIL) : null; } catch (e) { rail = null; }
+  function railed() { return !!(rail && rail.matches); }
+  if (rail && rail.addEventListener) rail.addEventListener("change", function () { place(); });
+  window.addEventListener("resize", function () { place(); });
 
   function round() { return (data && data.rounds && data.rounds[pick]) || null; }
 
   function has(d) { return !!(d && d.ledger && d.ledger.rounds); }
 
-  /* A document opened, or -- the same document with `want` unsaid -- its
-     record come back from a reload of the list, which keeps the mode. */
-  function open(d, want) {
-    if (doc && d && doc.id === d.id && want === undefined) {
+  /* The round the glass opens on: the newest that came back and still has a
+     pair nobody has judged, else the newest. */
+  function first() {
+    var rs = (data && data.rounds) || [];
+    for (var i = 0; i < rs.length; i++) {
+      if (rs[i].landed && !rs[i].done) return i;
+    }
+    return 0;
+  }
+
+  function rows(r) {
+    return ((r && r.items) || []).slice().sort(function (a, b) {
+      return (a.n || 0) - (b.n || 0);
+    });
+  }
+
+  function find(id) {
+    var r = round();
+    return ((r && r.items) || []).filter(function (i) { return i.id === id; })[0] || null;
+  }
+
+  /* A document opened, or -- the same document with `on` unsaid -- its record
+     come back from a reload of the list, which keeps what is showing. */
+  function open(d, on) {
+    if (doc && d && doc.id === d.id && on === undefined) {
       doc = d;
       label();
       if (has(d)) refresh();
@@ -134,8 +167,11 @@ function make(opts) {
     doc = d;
     data = null;
     pick = 0;
-    at = -1;
-    on = !!want;
+    sel = "";
+    full = "";
+    unfold = {};
+    want = !!on;
+    if (!on) hide(true);
     label();
     paint();
     if (has(d)) refresh();
@@ -144,15 +180,22 @@ function make(opts) {
   function label() {
     if (!btn) return;
     btn.hidden = !has(doc);
-    btn.classList.toggle("on", on);
-    btn.textContent = "◉ changes" + (has(doc) && doc.ledger.open
-      ? " · " + doc.ledger.open + " open" : "");
+    btn.classList.toggle("on", shown);
+    var r = data && data.rounds && data.rounds[0];
+    var t = "◉ notes";
+    if (r) {
+      var n = r.items.length;
+      t = "Round " + r.round + (!r.landed ? " · revising"
+        : r.done ? " done"
+        : r.judged ? " · " + r.open + " open"
+        : " · " + n + (n === 1 ? " note" : " notes"));
+    }
+    btn.textContent = t;
   }
 
-  /* Escape closes the card or the list, and says whether it did. */
+  /* Escape closes the panel, and says whether it did. */
   function escape() {
-    if (!card.hidden) { card.hidden = true; return true; }
-    if (!list.hidden) { list.hidden = true; return true; }
+    if (shown) { hide(); return true; }
     return false;
   }
 
@@ -165,228 +208,474 @@ function make(opts) {
       .then(function (r) { return r.json(); })
       .then(function (got) {
         if (mine !== asked || !doc || doc.id !== id) return;
+        var had = !!data;
         data = got && got.ok ? got : null;
-        if (pick >= ((data && data.rounds) || []).length) pick = 0;
+        if (!had || pick >= ((data && data.rounds) || []).length) pick = first();
+        if (sel && !find(sel)) sel = "";
+        label();
+        if (want && data) { want = false; show(); }
         paint();
       })
-      .catch(function () { /* the pins are extra; the pages are still there */ });
+      .catch(function () { /* the pairs are extra; the pages are still there */ });
   }
 
   function toggle() {
-    on = !on;
+    if (shown) hide(); else show();
+  }
+
+  function show() {
+    shown = true;
+    panel.hidden = false;
     label();
-    at = -1;
+    place();
     paint();
+  }
+
+  function hide(quiet) {
+    shown = false;
+    panel.hidden = true;
+    sel = "";
+    full = "";
+    host.classList.remove("lg-railed", "lg-sheeted");
+    label();
+    if (!quiet) paint();
   }
 
   function close() {
     doc = null;
     data = null;
-    on = false;
-    card.hidden = true;
-    list.hidden = true;
+    hide(true);
     if (btn) { btn.hidden = true; btn.classList.remove("on"); }
     paint();
   }
 
-  /* The requests with a pin, in the order a reader meets them: by page, then
-     down the page. */
-  function pinned() {
-    var r = round();
-    if (!r) return [];
-    return r.items.filter(function (i) { return i.placed && i.placed.page >= 1; })
-      .sort(function (a, b) {
-        return (a.placed.page - b.placed.page)
-          || (((a.placed.box || [0, 0])[1]) - ((b.placed.box || [0, 0])[1]));
-      });
+  /* Rail or sheet, and the pages making room for whichever it is. */
+  function place() {
+    var r = railed();
+    panel.classList.toggle("lg-rail", r);
+    panel.classList.toggle("lg-sheet", !r);
+    host.classList.toggle("lg-railed", shown && r);
+    host.classList.toggle("lg-sheeted", shown && !r);
+    if (pages && r) {
+      var top = pages.getBoundingClientRect().top;
+      panel.style.top = Math.max(0, Math.round(top)) + "px";
+    } else {
+      panel.style.top = "";
+    }
+  }
+
+  /* ---------------------------------------------------------- the pages */
+  function figure(page) {
+    return pages ? pages.querySelector('.lib-page[data-page="' + page + '"]') : null;
+  }
+
+  /* A pip shows while its round has come back, is not finished, and the pair
+     has not been said to be fine. */
+  function pipped(r, item) {
+    return !!(r && r.landed && !r.done && item.at && item.state !== "accepted"
+              && !item.carried);
   }
 
   function paint() {
     if (!pages) return;
-    Array.prototype.forEach.call(pages.querySelectorAll(".lg-pin, .lg-mark"),
+    Array.prototype.forEach.call(
+      pages.querySelectorAll(".lg-pip, .lg-mark, .lg-ghost"),
       function (n) { n.parentNode.removeChild(n); });
     var r = round();
-    bar.hidden = !on || !r;
-    if (!on || !r) return;
-    var counts = {};
-    r.items.forEach(function (i) { var t = said(i); counts[t] = (counts[t] || 0) + 1; });
-    sum.textContent = "Round " + r.round + ": " + r.items.length
-      + (r.items.length === 1 ? " request" : " requests") + " — "
-      + Object.keys(counts).map(function (k) { return counts[k] + " " + k; }).join(", ")
-      + (r.landed ? "." : ". The revision has not come back yet.")
-      + (r.broken ? " The revision left its ledger unreadable, so nothing in it "
-         + "counts as an answer." : "");
-    pickRound.innerHTML = "";
-    (data.rounds || []).forEach(function (x, n) {
-      var o = el("option", "", "round " + x.round + " · " + x.note.replace(/\.md$/, ""));
-      o.value = String(n);
-      if (n === pick) o.selected = true;
-      pickRound.appendChild(o);
-    });
-    pickRound.hidden = (data.rounds || []).length < 2;
-    var order = pinned();
-    nextBtn.disabled = !order.length;
-    order.forEach(function (item) {
-      var fig = pages.querySelector('.lib-page[data-page="' + item.placed.page + '"]');
-      if (!fig) return;
-      var box = item.placed.box;
-      var top = box ? box[1] : 0.01;
-      var pin = button(short(item.id), "lg-pin lg-" + tone(item), function (ev) {
-        ev.stopPropagation();
-        at = order.indexOf(item);
-        show(item);
+    if (r && doc) {
+      rows(r).forEach(function (item) {
+        if (pipped(r, item)) pip(item);
+        if (r.landed && owed(item)) ghost(item, "lg-full");
       });
-      pin.dataset.id = item.id;
-      pin.title = item.id + " — " + said(item);
-      pin.style.top = (top * 100).toFixed(2) + "%";
-      fig.appendChild(pin);
-      if (box) {
-        var m = el("div", "lg-mark lg-" + tone(item));
-        m.dataset.id = item.id;
-        m.style.left = (box[0] * 100).toFixed(2) + "%";
-        m.style.top = (box[1] * 100).toFixed(2) + "%";
-        m.style.width = ((box[2] - box[0]) * 100).toFixed(2) + "%";
-        m.style.height = ((box[3] - box[1]) * 100).toFixed(2) + "%";
-        fig.appendChild(m);
+      var s = sel ? find(sel) : null;
+      if (s) {
+        if (!(r.landed && owed(s))) ghost(s, "lg-faint");
+        mark(s);
       }
-    });
+    }
+    panelPaint();
   }
 
-  /* The next pin, by page, brought onto the glass and opened. */
-  function next() {
-    var order = pinned();
-    if (!order.length) return null;
-    at = (at + 1) % order.length;
-    var item = order[at];
-    goTo(item);
-    show(item);
+  function pip(item) {
+    var fig = figure(item.at.page);
+    if (!fig) return;
+    var p = button("", "lg-pip lg-" + tone(item)
+      + (item.id === sel ? " lg-on" : "") + (item.state === "reopened" ? " lg-back" : ""),
+      function (ev) {
+        ev.stopPropagation();
+        /* With the pen out a page is for writing on, and a pip is not a
+           button under the nib. */
+        if (penOn()) return;
+        select(item.id, "pip");
+      });
+    p.appendChild(el("span", "", String(item.n)));
+    p.dataset.id = item.id;
+    p.title = item.n + ". " + said(item);
+    p.style.top = (item.at.y * 100).toFixed(2) + "%";
+    fig.appendChild(p);
+  }
+
+  /* The revised passage, boxed while its pair is selected. */
+  function mark(item) {
+    if (!item.at || !item.at.box) return;
+    var fig = figure(item.at.page);
+    if (!fig) return;
+    var b = item.at.box;
+    var m = el("div", "lg-mark lg-" + tone(item) + (flashing ? " lg-flash" : ""));
+    m.dataset.id = item.id;
+    m.style.left = (b[0] * 100).toFixed(2) + "%";
+    m.style.top = (b[1] * 100).toFixed(2) + "%";
+    m.style.width = ((b[2] - b[0]) * 100).toFixed(2) + "%";
+    m.style.height = ((b[3] - b[1]) * 100).toFixed(2) + "%";
+    fig.appendChild(m);
+  }
+
+  /* THE INK AS IT WAS DRAWN, archived with the round and laid back on the
+     page: in the page's own units (`PAGE_REF` across), shifted by however far
+     its words moved, so it scales with the zoom the way live ink does. */
+  function ghost(item, strength) {
+    var ink = item.ink;
+    var at = item.ink_at;
+    if (!ink || !ink.strokes || !ink.strokes.length || !at || at.by === "gone") return;
+    var fig = figure(at.page || ink.page);
+    if (!fig) return;
+    var img = fig.querySelector("img");
+    var ratio = img && img.naturalWidth && img.naturalHeight
+      ? img.naturalHeight / img.naturalWidth
+      : (fig.offsetWidth && fig.offsetHeight ? fig.offsetHeight / fig.offsetWidth : 11 / 8.5);
+    var W = PAGE_REF, H = W * ratio;
+    var svg = document.createElementNS(SVG, "svg");
+    svg.setAttribute("class", "lg-ghost " + strength);
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H.toFixed(1));
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    svg.dataset.id = item.id;
+    var g = document.createElementNS(SVG, "g");
+    g.setAttribute("transform", "translate(" + ((at.dx || 0) * W).toFixed(1) + " "
+                   + ((at.dy || 0) * H).toFixed(1) + ")");
+    ink.strokes.forEach(function (s) {
+      var p = s.p || [];
+      var pts = [];
+      for (var i = 0; i + 1 < p.length; i += 2) {
+        pts.push((p[i] * W).toFixed(1) + "," + (p[i + 1] * H).toFixed(1));
+      }
+      if (!pts.length) return;
+      var line = document.createElementNS(SVG, "polyline");
+      line.setAttribute("points", pts.join(" "));
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", s.c || "#e8746c");
+      line.setAttribute("stroke-width", String(s.pg ? (s.w || 2) : (s.w || 2) * W / 800));
+      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("stroke-linejoin", "round");
+      g.appendChild(line);
+    });
+    svg.appendChild(g);
+    fig.appendChild(svg);
+  }
+
+  /* ONE PAIR, SELECTED. From a row or `next`, its place is brought onto the
+     glass; from a pip it is already there, and only the panel moves. */
+  function select(id, how) {
+    var item = find(id);
+    if (!item) return null;
+    sel = id;
+    full = "";
+    if (!shown) {
+      shown = true;
+      panel.hidden = false;
+      label();
+      place();
+    }
+    flashing = Date.now();
+    var mine = flashing;
+    paint();
+    setTimeout(function () {
+      if (flashing !== mine) return;
+      flashing = 0;
+      Array.prototype.forEach.call(pages.querySelectorAll(".lg-mark.lg-flash"),
+        function (m) { m.classList.remove("lg-flash"); });
+    }, FLASH_MS);
+    if (how !== "pip") goTo(item);
+    /* The row to the top of the panel, inside the panel only: the pages
+       have just been put where they should be. */
+    var row = body.querySelector('.lg-row[data-id="' + id + '"]');
+    if (row) {
+      body.scrollTop += row.getBoundingClientRect().top
+        - body.getBoundingClientRect().top - 6;
+    }
     return item;
   }
 
+  function deselect() {
+    sel = "";
+    full = "";
+    paint();
+  }
+
+  /* The pair's place, centred in what the panel leaves of the glass. */
   function goTo(item) {
-    if (!item.placed || !item.placed.page) return;
-    var pin = pages.querySelector('.lg-pin[data-id="' + item.id + '"]');
-    var target = pin || pages.querySelector(
-      '.lib-page[data-page="' + item.placed.page + '"]');
-    if (!target) return;
-    pages.scrollTop += target.getBoundingClientRect().top
-      - pages.getBoundingClientRect().top - 80;
+    if (!item.at || !pages) return;
+    if (zoomer && zoomer.zoom && zoomer.zoom() < ZOOM_AT_LEAST) zoomer.set(ZOOM_AT_LEAST);
+    var fig = figure(item.at.page);
+    if (!fig) return;
+    var fr = fig.getBoundingClientRect();
+    var pr = pages.getBoundingClientRect();
+    var b = item.at.box || [0.1, item.at.y, 0.9, item.at.y + 0.04];
+    var cx = fr.left + (b[0] + b[2]) / 2 * fr.width;
+    var cy = fr.top + (b[1] + b[3]) / 2 * fr.height;
+    var bottom = pr.bottom;
+    if (shown && !railed()) {
+      var t = panel.getBoundingClientRect().top;
+      if (t > pr.top && t < bottom) bottom = t;
+    }
+    pages.scrollTop += cy - (pr.top + (bottom - pr.top) / 2);
+    pages.scrollLeft += cx - (pr.left + pr.width / 2);
+    if (opts.scrolled) opts.scrolled();
   }
 
-  function section(title) {
-    var s = el("div", "lg-sec");
-    s.appendChild(el("div", "lg-head", title));
-    return s;
-  }
-
-  /* ONE REQUEST: what it was, what was done, old beside new, and the tap that
-     closes it or sends it back. */
-  function show(item) {
+  /* The next pair, in document order, round again at the end. */
+  function next() {
     var r = round();
-    cardBox.innerHTML = "";
-    var top = el("div", "lg-top");
-    top.appendChild(el("strong", "lg-id", item.id));
-    top.appendChild(el("span", "lg-chip lg-" + tone(item), said(item)));
-    var w = where(item);
-    if (w) top.appendChild(el("span", "muted lg-where", w));
-    cardBox.appendChild(top);
+    var list = rows(r);
+    if (!list.length) return null;
+    var at = -1;
+    list.forEach(function (x, i) { if (x.id === sel) at = i; });
+    return select(list[(at + 1) % list.length].id, "next");
+  }
 
-    var req = section(item.kind === "reopened" ? "What was asked, reopened"
-                                               : "What you asked");
+  /* ---------------------------------------------------------- the panel */
+  function heading(r) {
+    var n = r.items.length;
+    return "Round " + r.round + (r.done ? " done · " : " · ") + n + (n === 1 ? " note" : " notes");
+  }
+
+  function panelPaint() {
+    var r = round();
+    body.innerHTML = "";
+    foot.innerHTML = "";
+    foot.hidden = true;
+    if (!r) {
+      title.textContent = "No rounds yet";
+      sub.textContent = "";
+      return;
+    }
+    title.textContent = heading(r);
+    sub.textContent = !r.landed ? "waiting for the revision"
+      : r.done ? "every note is fine"
+      : r.open + " open";
+    if (r.broken) {
+      body.appendChild(el("p", "lg-note lg-bad", "The revision left its ledger "
+        + "unreadable, so nothing in it counts as an answer."));
+    }
+    if (r.done && !unfold[r.note]) {
+      body.appendChild(button("show the " + r.items.length + " notes", "lg-unfold",
+        function () { unfold[r.note] = true; panelPaint(); }));
+    } else {
+      var list = el("ol", "lg-rows");
+      rows(r).forEach(function (item) { list.appendChild(row(r, item)); });
+      body.appendChild(list);
+      (r.extra || []).forEach(function (x) {
+        body.appendChild(el("p", "lg-note", "The factory's own change: " + x.issue));
+      });
+    }
+    var others = (data.rounds || []).map(function (x, i) { return [x, i]; })
+      .filter(function (p) { return p[1] !== pick; });
+    if (others.length) {
+      var box = el("div", "lg-rounds");
+      box.appendChild(el("div", "lg-head", "Other rounds"));
+      others.forEach(function (p) {
+        var x = p[0];
+        var b = button(heading(x) + (x.done ? "" : !x.landed ? " · revising"
+          : " · " + x.open + " open"), "lg-round" + (x.done ? " lg-done-round" : ""),
+          function () {
+            pick = p[1];
+            sel = "";
+            full = "";
+            paint();
+          });
+        b.dataset.note = x.note;
+        box.appendChild(b);
+      });
+      body.appendChild(box);
+    }
+    var back = 0;
+    (data.rounds || []).forEach(function (x) {
+      if (!x.landed) return;
+      x.items.forEach(function (i) { if (i.state === "reopened" && !i.carried) back++; });
+    });
+    if (back && opts.send) {
+      foot.hidden = false;
+      foot.appendChild(button(back + " not fixed — send them", "lg-send", function () {
+        opts.send(doc);
+      }));
+    }
+  }
+
+  /* What was asked: the crop of the ink as drawn, or the words typed. */
+  function asked_(item) {
+    var box = el("div", "lg-ask");
     if (item.crop) {
       var img = el("img", "lg-crop");
+      img.loading = "lazy";
       img.src = item.crop;
-      img.alt = "your ink for " + item.id;
-      req.appendChild(img);
-    }
-    if (!item.crop && item.marked) {
-      /* No region to cut (ink the parser could not read): the whole marked
-         page the round kept, which is still the complaint, located. */
+      img.alt = "what you wrote, note " + item.n;
+      box.appendChild(img);
+    } else if (item.marked) {
       var pic = el("img", "lg-crop lg-marked");
+      pic.loading = "lazy";
       pic.src = item.marked;
-      pic.alt = "your marks on page " + item.page + " for " + item.id;
-      req.appendChild(pic);
+      pic.alt = "your marks on page " + item.page;
+      box.appendChild(pic);
     }
-    if (item.text) req.appendChild(el("p", "lg-words", item.text));
+    if (item.text) box.appendChild(el("blockquote", "lg-quote", item.text));
     if (!item.crop && !item.marked && !item.text) {
-      req.appendChild(el("p", "muted", item.kind === "ink"
+      box.appendChild(el("p", "lg-note", item.kind === "ink"
         ? "Ink on page " + item.page + "." : "(nothing kept)"));
     }
-    if (item.why) req.appendChild(el("p", "lg-why", "Reopened because: " + item.why));
-    if (item.previous) req.appendChild(el("p", "muted", "Last time: " + item.previous));
-    cardBox.appendChild(req);
+    if (item.why) box.appendChild(el("p", "lg-why", "Not fixed last time: " + item.why));
+    return box;
+  }
 
-    var did = section("What was done");
-    if (item.answer) {
-      did.appendChild(el("p", "lg-did", item.answer.did || "(no sentence given)"));
-    } else {
-      did.appendChild(el("p", "lg-did muted", item.status === "waiting"
+  /* What was done: the changed wording, or the reply. */
+  function revision(item) {
+    var box = el("div", "lg-rev");
+    if (!item.answer) {
+      box.appendChild(el("p", "lg-note", item.status === "waiting"
         ? "The revision has not come back yet."
-        : "Not answered: the revision said nothing about this request."));
+        : "Not answered: the revision said nothing about this note."));
+      return box;
+    }
+    if (item.reply) {
+      var p = el("p", "lg-reply");
+      p.appendChild(el("span", "lg-tag", item.answer.disposition === "pushed back"
+        ? "Pushed back" : "Not done"));
+      p.appendChild(document.createTextNode(" " + item.reply));
+      box.appendChild(p);
+    }
+    if (item.diff && item.diff.length) {
+      var d = el("p", "lg-diff");
+      item.diff.forEach(function (op, i) {
+        if (i) d.appendChild(document.createTextNode(" "));
+        if (op[0] === "-") d.appendChild(el("del", "", op[1]));
+        else if (op[0] === "+") d.appendChild(el("ins", "", op[1]));
+        else d.appendChild(document.createTextNode(op[1]));
+      });
+      box.appendChild(d);
+    } else if (!item.reply) {
+      box.appendChild(el("p", "lg-did", item.answer.did || "(no sentence given)"));
+    }
+    return box;
+  }
+
+  function row(r, item) {
+    var li = el("li", "lg-row lg-" + tone(item) + (item.id === sel ? " lg-sel" : "")
+      + (item.state === "accepted" ? " lg-fine" : "")
+      + (item.state === "reopened" ? " lg-back" : ""));
+    li.dataset.id = item.id;
+    var hit = button("", "lg-hit", function () {
+      if (sel === item.id) deselect();
+      else select(item.id, "row");
+    });
+    hit.setAttribute("aria-expanded", item.id === sel ? "true" : "false");
+    hit.appendChild(el("span", "lg-n", String(item.n)));
+    var main = el("span", "lg-main");
+    main.appendChild(asked_(item));
+    main.appendChild(revision(item));
+    if (item.gone) {
+      main.appendChild(el("p", "lg-gone",
+        "The words this was written on are no longer in the document."));
+    } else if (item.at && item.at.by === "page") {
+      main.appendChild(el("p", "lg-note", "Placed by page only: the new wording "
+        + "was not found on page " + item.at.page + "."));
+    } else if (!item.at && r.landed) {
+      main.appendChild(el("p", "lg-note", "Not on the pages."));
+    }
+    hit.appendChild(main);
+    if (item.state !== "open" || item.carried) {
+      hit.appendChild(el("span", "lg-state", item.carried ? "in a later round"
+        : item.state === "accepted" ? "fine ✓" : "not fixed"));
+    }
+    li.appendChild(hit);
+    if (item.id === sel) li.appendChild(more(r, item));
+    return li;
+  }
+
+  /* THE SELECTED ROW, opened: what was done in a sentence, the judgement,
+     the full wording on request, and on to the next. */
+  function more(r, item) {
+    var box = el("div", "lg-more");
+    if (item.answer && item.answer.did && !item.reply && item.diff && item.diff.length) {
+      box.appendChild(el("p", "lg-did", item.answer.did));
     }
     (item.problems || []).forEach(function (p) {
-      did.appendChild(el("p", "lg-problem", "But " + p + "."));
+      box.appendChild(el("p", "lg-note lg-bad", "But " + p + "."));
     });
-    if (item.placed && item.placed.by === "page") {
-      did.appendChild(el("p", "muted", "Placed by page only: the new wording was "
-        + "not found on the pages, so the pin is at the top of the page."));
-    }
-    cardBox.appendChild(did);
-
-    if (item.answer && (item.answer.old || item.answer.new)) {
+    if (full === item.id && item.answer) {
       var two = el("div", "lg-two");
       var was = el("div", "lg-was");
       was.appendChild(el("div", "lg-head", item.answer.old_from === "turn"
         ? "Before (as the revision remembered it)" : "Before"));
-      was.appendChild(el("pre", "lg-text", item.answer.old || "(nothing changed in "
-        + "the source)"));
+      was.appendChild(el("pre", "lg-text", item.answer.old || "(nothing found)"));
       var now = el("div", "lg-now");
       now.appendChild(el("div", "lg-head", "Now"));
       now.appendChild(el("pre", "lg-text", item.answer.new || "(no new wording given)"));
       two.appendChild(was);
       two.appendChild(now);
-      cardBox.appendChild(two);
+      box.appendChild(two);
     }
-
-    var acts = el("div", "lg-acts");
     var reason = el("input", "lg-reason");
     reason.type = "text";
-    reason.placeholder = "Why is it not done yet? One line.";
-    reason.hidden = item.state !== "reopened";
-    reason.value = item.state === "reopened" ? (item.state_why || "") : "";
-    var msg = el("p", "note-said lg-msg");
+    reason.placeholder = "What is still wrong? One line.";
+    reason.hidden = true;
+    var msg = el("p", "lg-msg");
     msg.hidden = true;
+    var acts = el("div", "lg-acts");
     if (item.carried) {
-      acts.appendChild(el("span", "muted", "Reopened: it rides the round "
+      acts.appendChild(el("span", "lg-note", "It rides the round "
         + item.carried.replace(/\.md$/, "") + " now."));
-    } else if (!r || !r.landed) {
-      /* NOTHING TO CLOSE YET. A request the revision is still working on is
-         neither done nor undone. */
-      acts.appendChild(el("span", "muted lg-wait",
-        "Accept or reopen it once the revision has come back."));
+    } else if (!r.landed) {
+      acts.appendChild(el("span", "lg-note", "Judge it once the revision has come back."));
     } else {
-      var accept = button(item.state === "accepted" ? "✓ accepted" : "accept",
-                          "lg-accept" + (item.state === "accepted" ? " on" : ""),
-                          function () { setState(r, item, "accepted", "", msg); });
-      var reopen = button(item.state === "reopened" ? "↺ reopened" : "reopen",
-                          "lg-reopen" + (item.state === "reopened" ? " on" : ""),
-                          function () {
-        if (reason.hidden) { reason.hidden = false; reason.focus(); return; }
-        setState(r, item, "reopened", reason.value, msg);
-      });
-      acts.appendChild(accept);
-      acts.appendChild(reopen);
+      acts.appendChild(button(item.state === "accepted" ? "fine ✓" : "fine",
+        "lg-fine-btn" + (item.state === "accepted" ? " on" : ""), function () {
+          setState(r, item, "accepted", "", msg);
+        }));
+      acts.appendChild(button(item.state === "reopened" ? "not fixed ↺" : "not fixed",
+        "lg-back-btn" + (item.state === "reopened" ? " on" : ""), function () {
+          if (reason.hidden) { reason.hidden = false; reason.focus(); return; }
+          var why = reason.value.trim();
+          if (why.length < 3) {
+            say(msg, "Say in a line what is still wrong.", true);
+            reason.focus();
+            return;
+          }
+          setState(r, item, "reopened", why, msg);
+        }));
     }
-    if (pinned().length) {
-      acts.appendChild(button("next change ›", "lg-card-next", function () { next(); }));
+    if (item.answer && (item.answer.old || item.answer.new)) {
+      acts.appendChild(button(full === item.id ? "hide wording" : "full wording",
+        "lg-full-btn", function () {
+          full = full === item.id ? "" : item.id;
+          panelPaint();
+        }));
     }
-    acts.appendChild(button("close", "quiet lg-close", function () { card.hidden = true; }));
-    cardBox.appendChild(reason);
-    cardBox.appendChild(msg);
-    cardBox.appendChild(acts);
-    list.hidden = true;
-    card.hidden = false;
-    card.dataset.id = item.id;
+    acts.appendChild(button("next ›", "lg-next", function () { next(); }));
+    box.appendChild(reason);
+    box.appendChild(acts);
+    box.appendChild(msg);
+    reason.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        var b = acts.querySelector(".lg-back-btn");
+        if (b) b.click();
+      }
+    });
+    return box;
+  }
+
+  function say(msg, text, bad) {
+    msg.hidden = false;
+    msg.className = "lg-msg" + (bad ? " lg-bad" : "");
+    msg.textContent = text;
   }
 
   function setState(r, item, state, why, msg) {
@@ -398,68 +687,38 @@ function make(opts) {
                              state: state, why: why })
     }).then(function (res) { return res.json(); }).then(function (got) {
       if (!got || !got.ok) {
-        msg.hidden = false;
-        msg.className = "note-said bad lg-msg";
-        msg.textContent = ((got && got.error) || "the board refused it") + ".";
+        say(msg, ((got && got.error) || "the board refused it") + ".", true);
         return;
       }
       item.state = state;
       item.state_why = why;
-      /* The card is drawn again, so its buttons say what is true now. */
-      if (!card.hidden && card.dataset.id === item.id) show(item);
-      msg = cardBox.querySelector(".lg-msg") || msg;
-      msg.hidden = false;
-      msg.className = "note-said lg-msg";
-      msg.textContent = state === "reopened"
-        ? "Reopened. It rides the next round you send, as " + item.id + "."
-        : "Accepted.";
+      var open_ = 0, judged = 0;
+      r.items.forEach(function (x) {
+        if (x.state !== "accepted" && !x.carried) open_++;
+        if (x.state !== "open") judged++;
+      });
+      r.open = open_;
+      r.judged = judged;
+      r.done = r.landed && !open_;
+      label();
+      paint();
+      var m = body.querySelector(".lg-row.lg-sel .lg-msg");
+      if (m) {
+        say(m, state === "reopened"
+          ? "Not fixed. It rides the next round you send, as " + item.id + "."
+          : "Fine.");
+      }
       refresh();
       if (opts.changed) opts.changed();
     }).catch(function () {
-      msg.hidden = false;
-      msg.className = "note-said bad lg-msg";
-      msg.textContent = "The board is not answering.";
+      say(msg, "The board is not answering.", true);
     });
-  }
-
-  /* EVERY REQUEST OF THE ROUND, BY PAGE. The ones with no page -- typed about
-     the document as a whole, and not found on the pages -- come last. */
-  function showList() {
-    var r = round();
-    if (!r) return;
-    listBox.innerHTML = "";
-    listBox.appendChild(el("strong", "", "Round " + r.round + ", by page"));
-    var rows = r.items.slice().sort(function (a, b) {
-      var pa = (a.placed && a.placed.page) || 1e6;
-      var pb = (b.placed && b.placed.page) || 1e6;
-      return pa - pb || String(a.id).localeCompare(String(b.id));
-    });
-    rows.forEach(function (item) {
-      var b = button("", "lg-row", function () {
-        goTo(item);
-        at = pinned().indexOf(item);
-        show(item);
-      });
-      b.dataset.id = item.id;
-      b.appendChild(el("span", "lg-chip lg-" + tone(item), short(item.id)));
-      b.appendChild(el("span", "lg-row-what", (item.text || (item.kind === "ink"
-        ? "ink on page " + item.page : item.kind)).slice(0, 90)));
-      b.appendChild(el("span", "muted lg-row-where",
-        (where(item) || "no page") + " · " + said(item)
-        + (item.state !== "open" ? " · " + item.state : "")));
-      listBox.appendChild(b);
-    });
-    (r.extra || []).forEach(function (x) {
-      listBox.appendChild(el("p", "muted lg-extra", "The factory's own change: "
-        + x.issue));
-    });
-    listBox.appendChild(button("close", "quiet lg-close", function () { list.hidden = true; }));
-    list.hidden = false;
   }
 
   return { open: open, refresh: refresh, toggle: toggle, next: next, close: close,
-           redraw: paint, escape: escape, bar: bar, isOn: function () { return on; },
-           showing: function () { return card.hidden ? "" : card.dataset.id; } };
+           redraw: paint, escape: escape, select: select, bar: null,
+           isOn: function () { return shown; },
+           showing: function () { return sel; } };
 }
 
 /* THE SPLIT, BEFORE IT IS SENT. What the filing panel's words and the page's
@@ -477,7 +736,7 @@ function preview(box, items, merged, onMerge) {
   items.forEach(function (it) {
     var line = el("div", "lg-pre");
     line.dataset.id = it.id;
-    line.appendChild(el("span", "lg-chip lg-waiting", short(it.id)));
+    line.appendChild(el("span", "lg-chip lg-waiting", String(it.id || "").replace(/^R/, "")));
     line.appendChild(el("span", "", it.kind === "ink"
       ? "ink on page " + it.page + (it.merged ? " (all of it, as one)" : "")
       : it.kind === "reopened" ? "reopened: " + it.text

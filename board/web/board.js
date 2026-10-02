@@ -151,6 +151,7 @@ var els = {
   paperGet: document.getElementById("paper-get"),
   paperInk: document.getElementById("paper-ink"),
   paperKeep: document.getElementById("paper-keep"),
+  paperRound: document.getElementById("paper-round"),
   keepwhat: document.getElementById("keepwhat"),
   paperPages: document.getElementById("paper-pages"),
   paperZoom: document.getElementById("paper-zoom"),
@@ -2890,6 +2891,7 @@ function openPaper(kind, label, then) {
          drawn off the store rather than off this session's strokes -- ink put on
          this document a week ago is still ink on this document. */
       paintKeep();
+      paintPaperRound(kind);
       /* The address bar now names this document, so a link to it can be copied
          off the glass. */
       mapRemember();
@@ -2949,6 +2951,31 @@ function paperSay(html) {
   els.paperPages.innerHTML = '<div class="paper-say">' + html + "</div>";
 }
 
+/* ITS ROUND, ONE TAP AWAY IN THE LIBRARY. The pairs -- what was written beside
+   what was done -- live in the library reader (`ledger.js`); a second panel of
+   them here would be a second ledger on the glass. So a document with rounds
+   says where its last one stands, and the chip opens it there. */
+function paintPaperRound(kind) {
+  var b = els.paperRound;
+  if (!b) return;
+  b.hidden = true;
+  if (kind.indexOf("doc/") !== 0 && kind.indexOf("shelf/") !== 0) return;
+  fetch("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
+        { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      var r = got && got.ok && got.rounds && got.rounds[0];
+      if (!r || paperOpen !== kind) return;
+      b.textContent = "Round " + r.round + (!r.landed ? " · revising"
+        : r.done ? " done" : " · " + r.open + " open") + " → read in the library";
+      b.onclick = function () {
+        window.location.href = "/library?doc=" + encodeURIComponent(got.document);
+      };
+      b.hidden = false;
+    })
+    .catch(function () { /* no rounds to point at */ });
+}
+
 function closePaper() {
   /* The pen goes with the panel. Leaving annotate mode on when the document
      closes drops somebody back into the lesson with the pen out and the
@@ -2959,6 +2986,7 @@ function closePaper() {
   paperOpen = null;
   closeKeep();
   if (els.paperKeep) els.paperKeep.hidden = true;
+  if (els.paperRound) els.paperRound.hidden = true;
   els.paper.hidden = true;
   document.body.classList.remove("papering");
   mapRemember();               /* and the address stops naming the document */

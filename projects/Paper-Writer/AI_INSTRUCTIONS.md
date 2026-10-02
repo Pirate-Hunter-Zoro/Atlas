@@ -289,6 +289,12 @@ in the repository.
 `board job <thread> [--produces <path>] -- sbatch <args>`, and its ending wakes a turn that
 reports it. A bare `sbatch` is work the board cannot see.
 
+**Ink on a document is answered in its ledger.** A turn asked to act on marks on a paper,
+deck or write-up runs `board round <document>` first and answers every id in the ledger it
+prints: a disposition, one sentence (for not done and pushed back, the reply the owner reads
+beside their ink), and for done and partly the new wording copied exactly. Write no record
+of your own beside it: ink answered anywhere else stays on the page.
+
 ## 10. Non-programming help
 
 Be materially helpful in either mode. Provide the finished artifact: revised prose,

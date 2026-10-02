@@ -552,6 +552,11 @@ Two rules about the commit, and neither is negotiable:
 - **Long work goes through `board job`.** A turn that starts a Slurm job submits it with
   `board job <thread> [--produces <path>] -- sbatch <args>`, and its ending wakes a turn that
   reports it. A bare `sbatch` is work the board cannot see.
+- **Ink on a document is answered in its ledger.** A turn asked to act on marks on a paper,
+  deck or write-up runs `board round <document>` first and answers every id in the ledger it
+  prints: a disposition, one sentence (for not done and pushed back, the reply the owner reads
+  beside their ink), and for done and partly the new wording copied exactly. Write no record
+  of your own beside it: ink answered anywhere else stays on the page.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like verification under section 5.
 - **`live/` is scratch space and is not tracked.** Anything that matters gets exported or written
