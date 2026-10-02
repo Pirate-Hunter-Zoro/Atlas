@@ -219,7 +219,7 @@ Parts of the item as written that proved wrong, one line each:
   exist. Their next steps are thread tasks; the owner decides where the rest goes before either
   is deleted.
 - **Mark exports.** For each Paper 1 thread, say which `results/` artifacts are aggregate and may
-  be published to `exports/`. Item 3 cannot show a figure on the Mac until this is done.
+  be published to `exports/`. The Mac cannot show a figure from the cluster until this is done.
 
 ## The work it is for
 
