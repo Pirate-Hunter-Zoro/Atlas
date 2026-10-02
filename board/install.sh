@@ -87,7 +87,7 @@ if command -v systemctl >/dev/null 2>&1; then
     say  "        systemctl --user enable --now tutor-pull.timer"
   fi
 elif [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
-  # The Mac: a launchd agent firing every two minutes. COPIED for the same
+  # The Mac: a launchd agent firing every twenty seconds. COPIED for the same
   # reason as the units; `tutor pull --hear` decides whether a pull is due.
   AGENTS="$HOME/Library/LaunchAgents"
   plist="$HERE/scripts/launchd/org.atlas.tutor-pull.plist"

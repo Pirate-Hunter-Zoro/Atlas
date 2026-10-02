@@ -2325,10 +2325,12 @@ def turn_signal(out):
 
 
 # THE MAC'S EAR. On a machine without Slurm the cluster's reports arrive by
-# pull, so the pull's cadence follows the requests: `jobs.PULL_BUSY` while one
-# is out, `jobs.PULL_IDLE` otherwise. The timer runs `tutor pull --hear` every
-# two minutes and this decides; every run then hears every workspace, because
-# a transcript beat may have pulled in between.
+# pull, so the pull's cadence follows the requests: `holds.POLL_SECONDS` while
+# a hold stands, `jobs.PULL_BUSY` while a request is out, `jobs.PULL_IDLE`
+# otherwise. The timer runs `tutor pull --hear` every twenty seconds and this
+# decides; every run then hears every workspace (`[job]` for a request's
+# report, `[coach]` for a held step's check), because a transcript beat may
+# have pulled in between.
 HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
                           "tutor-pull.heard")
 
@@ -2350,7 +2352,14 @@ def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
         roots = [w["root"] for w in atlas.workspaces(base)]
     except Exception:                                        # noqa: BLE001
         return False, 0, []
-    interval = jobs.pull_interval(roots)
+    from tutorboard import holds
+
+    def cadence():
+        try:
+            return holds.poll_seconds(roots, jobs.pull_interval(roots))
+        except Exception:                                    # noqa: BLE001
+            return jobs.pull_interval(roots)
+    interval = cadence()
     try:
         with open(stamp, "r", encoding="utf-8") as fh:
             last = float(fh.read().strip() or 0)
@@ -2372,7 +2381,15 @@ def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
     for root in roots:
         for rec in jobs.hear(root, now=now):
             heard.append(dict(rec, workspace=atlas.identify(root) or root))
-    return pulled, jobs.pull_interval(roots), heard
+        try:
+            woke = holds.wake(root, now=now)
+        except Exception:                                    # noqa: BLE001
+            woke = []
+        for rep in woke:
+            heard.append({"request": rep.get("id"), "state": "coach",
+                          "thread": rep.get("thread"),
+                          "workspace": atlas.identify(root) or root})
+    return pulled, cadence(), heard
 
 
 def open_mission(root):
@@ -7210,7 +7227,8 @@ def main(argv):
                     print("this machine has Slurm; the relay pulls here")
                 else:
                     print("pulls every %ds: %s" % (
-                        interval, "a request is out"
+                        interval, "a hold stands"
+                        if interval < jobs.PULL_BUSY else "a request is out"
                         if interval == jobs.PULL_BUSY else "nothing is out"))
             return 0
         moved = [pull_vendor(quiet=quiet),

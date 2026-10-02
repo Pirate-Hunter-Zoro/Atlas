@@ -124,6 +124,10 @@ lines, withheld = holds.relay_lines(
     "RELAY: phi/session_01\n", names_phi=lambda s: "phi/" in s)
 check("only RELAY: lines are kept, prefix dropped, a flagged one withheld",
       lines == ["n=120 mean=0.42", "ate=0.03"] and withheld == 1)
+check("an absolute or home path in a RELAY: line becomes <path>",
+      holds.relay_lines("RELAY: read 412 rows from /mnt/lab/storage/x.csv\n"
+                        "RELAY: and ~/scratch/y\n")[0]
+      == ["read 412 rows from <path>", "and <path>"])
 check("at most MAX_LINES of them",
       len(holds.relay_lines("RELAY: x\n" * 100)[0]) == holds.MAX_LINES)
 check("a crash is its exception type, never its message",

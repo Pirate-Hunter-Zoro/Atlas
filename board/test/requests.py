@@ -353,6 +353,27 @@ for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
     if os.path.isdir(root):
         check("%s: git would see a request" % ws, jobs.request_visible(root) == "")
 
+# --- a request is public the moment it is pushed --------------------------------
+leaky = tempfile.mkdtemp(prefix="tutor-leak-")
+try:
+    req = {"id": "x-1", "kind": "turn", "thread": "knn",
+           "brief": "read the traceback in /mnt/lab/storage/run.log"}
+    target, done, said = jobs.file_request(leaky, req, push=False)
+    check("a brief naming an absolute path is refused, and nothing is written",
+          not done and "path" in said and not os.path.exists(target))
+    from tutorboard import atlas, leaving
+    saved = dict(leaving._POLICY)
+    leaving._POLICY.update(root=atlas.root(),
+                           fn=lambda t: "SESSION-" in str(t))
+    try:
+        said = jobs.request_leak(leaky, dict(req, brief="what SESSION-4 said"))
+    finally:
+        leaving._POLICY.clear()
+        leaving._POLICY.update(saved)
+    check("and so is one the PHI policy matches", "PHI policy" in said)
+finally:
+    shutil.rmtree(leaky, ignore_errors=True)
+
 print()
 if fails:
     print("%d check(s) failed" % len(fails))

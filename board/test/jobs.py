@@ -17,6 +17,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -238,8 +239,13 @@ check("and the log is named, never copied into the inbox",
 
 rec, _ = jobs.submit_recipe(wholesale, "tripod", "slurm/a.sbatch",
                             env={"N": "0"}, run=slurm, now=time.time() - 3600)
-check("a wrapped job gone from squeue without its exit file DIED",
-      [(e["state"], e["exit"]) for e in jobs.poll(wholesale, run=slurm)]
+check("a wrapped job gone from squeue without its exit file is not called "
+      "on the first look: another node's NFS view may lag the exit file",
+      jobs.poll(wholesale, run=slurm) == []
+      and jobs.records(wholesale)[rec["jobid"]].get("gone_at"))
+check("a wrapped job still gone a minute later, without its exit file, DIED",
+      [(e["state"], e["exit"]) for e in jobs.poll(
+          wholesale, run=slurm, now=time.time() + jobs.GONE_GRACE + 1)]
       == [("DIED", "")])
 check("and its [job] line says a time limit, a node failure or a cancel",
       "time limit" in jobs.sense(wholesale, dict(rec, state="DIED")))
@@ -416,6 +422,28 @@ for ws in ("courses/Galois-Theory", "courses/Probability", "practice/Algo-Soluti
     check("%s: its contract says ink on a document is answered in its ledger" % ws,
           "**Ink on a document is answered in its ledger.**" in contract
           and "`board round <document>`" in contract)
+
+# --- an array: a task that wrote no exit file died --------------------------
+check("an array's task count is read off its header",
+      jobs.array_tasks(["#SBATCH --array=0-9%2"]) == 10
+      and jobs.array_tasks(["#SBATCH --array=1,3,5-7"]) == 5
+      and jobs.array_tasks(["#SBATCH -a 0-15:4"]) == 4
+      and jobs.array_tasks(["#SBATCH --time=1:00"]) is None
+      and jobs.array_tasks(["#SBATCH --array=weird"]) == 0)
+arr = tempfile.mkdtemp(prefix="tutor-array-")
+try:
+    write(os.path.join(arr, "relay", "state", "a_0.exit"), "0\n")
+    write(os.path.join(arr, "relay", "state", "a_1.exit"), "0\n")
+    one = {"exitfile": "relay/state/a.exit", "array_tasks": 3}
+    check("an array with a task file missing has no exit: it DIED",
+          jobs.exit_of(arr, one) is None
+          and jobs.ending(arr, dict(one, submitted=1), time.time())[0]
+          == "DIED")
+    write(os.path.join(arr, "relay", "state", "a_2.exit"), "0\n")
+    check("and with every task's file, the worst code is the job's",
+          jobs.exit_of(arr, one)[0] == 0)
+finally:
+    shutil.rmtree(arr, ignore_errors=True)
 
 print()
 if fails:

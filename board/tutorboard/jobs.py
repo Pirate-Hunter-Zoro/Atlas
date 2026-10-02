@@ -195,6 +195,34 @@ def header_of(text):
     return out
 
 
+_ARRAY_RE = re.compile(r"^#SBATCH\s+(?:--array[=\s]|-a\s*)\s*(\S+)")
+
+
+def array_tasks(header):
+    """How many tasks the header's `--array` asks for, None without one, or
+    0 where the spec cannot be read (every task file is then required, and
+    an unknown count reads as a death rather than a success). Pure."""
+    spec = None
+    for h in header or ():
+        m = _ARRAY_RE.match(h.strip())
+        if m:
+            spec = m.group(1)
+    if spec is None:
+        return None
+    total = 0
+    for part in spec.split("%", 1)[0].split(","):
+        m = re.fullmatch(r"(\d+)(?:-(\d+)(?::(\d+))?)?", part.strip())
+        if not m:
+            return 0
+        lo = int(m.group(1))
+        hi = int(m.group(2)) if m.group(2) else lo
+        step = int(m.group(3) or 1)
+        if hi < lo or step < 1:
+            return 0
+        total += len(range(lo, hi + 1, step))
+    return total
+
+
 def wrapper(header, command, exitfile, name=""):
     """A batch script: `header`, then `command`, then the exit code written to
     `exitfile` as its last act. Pure.
@@ -257,6 +285,9 @@ def submit_script(root, thread, header, command, key, label, produces=(),
     shown = " ".join([label] + ["%s=%s" % (k, env[k]) for k in sorted(env)])
     fields = {"cmd": shown[:CMD_CHARS], "key": key,
               "exitfile": _relative(root, exitfile)}
+    tasks = array_tasks(header)
+    if tasks is not None:
+        fields["array_tasks"] = tasks
     fields.update(extra or {})
     return submit(root, thread, sent, produces=produces, cwd=root, run=run,
                   now=now, export=export, env=sbatch_env, path=path,
@@ -404,7 +435,21 @@ def exit_of(root, rec):
     if not rel:
         return None
     full = os.path.join(root, rel)
-    found = ([full] if os.path.isfile(full) else []) + _array_exits(full)
+    # Listing the directory first makes an NFS client revalidate it, so a
+    # file written on a compute node seconds ago is not missed on a cached
+    # negative lookup.
+    try:
+        os.listdir(os.path.dirname(full))
+    except OSError:
+        pass
+    tasks = rec.get("array_tasks")
+    arrayed = _array_exits(full)
+    if tasks is not None and not isinstance(tasks, bool):
+        # An array task killed at its limit writes no file of its own, so a
+        # task file missing is a death, whatever the others wrote.
+        if not tasks or len(arrayed) < int(tasks):
+            return None
+    found = ([full] if os.path.isfile(full) else []) + arrayed
     codes, latest = [], 0.0
     for path in found:
         try:
@@ -438,6 +483,12 @@ def ending(root, rec, now):
     if rec.get("exitfile"):
         return "DIED", "", stamp
     return "ENDED", "", stamp
+
+
+# A job gone from squeue with no exit file is called DIED only once it has
+# been gone this long, seen by at least two passes: the wrapper writes the
+# file on a compute node, and another node's NFS view can lag behind it.
+GONE_GRACE = 60
 
 
 # A claim older than this on an ending still not marked reported is a reader
@@ -509,9 +560,10 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
         base = str(j["jobid"]).split("_")[0]
         state = said.get(base)
         if state is not None and state.rstrip("+") not in course_threads.TERMINAL:
-            if state != j.get("state"):
+            if state != j.get("state") or j.get("gone_at"):
                 append(root, {"jobid": j["jobid"], "thread": j.get("thread"),
-                              "state": state, "seen": now}, path=path)
+                              "state": state, "seen": now, "gone_at": 0},
+                       path=path)
             continue
         # Gone from squeue, or there in a terminal state it is about to leave
         # by: either way the wrapper's file, written before the job left, says
@@ -520,6 +572,13 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
         if got is None:
             continue
         state, code, end = got
+        if state == "DIED":
+            gone = j.get("gone_at")
+            if not gone:
+                append(root, {"jobid": j["jobid"], "gone_at": now}, path=path)
+                continue
+            if now - float(gone) < GONE_GRACE:
+                continue
         # The ending is recorded before it is claimed, so a reader that dies
         # between the two leaves a finished job, not a running one.
         end_rec = {"jobid": j["jobid"], "thread": j.get("thread"),
@@ -552,7 +611,7 @@ def _thread_title(root, tid):
     return title
 
 
-def _lines(value):
+def _relay_said(value):
     """A report's `relay` lines as a list, whichever shape the cluster wrote."""
     if isinstance(value, str):
         return [l for l in value.splitlines() if l.strip()]
@@ -591,7 +650,7 @@ def relay_sense(root, rec):
         lines += ["  landed   %s" % p for p in landed]
         lines += ["  NOT      %s" % p for p in rec.get("export") or []
                   if p not in landed and "exports/" + p not in landed]
-    said = _lines(rec.get("relay"))
+    said = _relay_said(rec.get("relay"))
     if said:
         lines += ["", "What the job printed behind RELAY:"]
         lines += ["  " + l for l in said]
@@ -1014,6 +1073,8 @@ def check(root, req, mine=False):
     `mine` is the cluster checking a request already filed, whose own id is
     therefore taken by itself.
     """
+    if isinstance(req, dict):
+        req = dict((k, v) for k, v in req.items() if k != FILE_KEY)
     recipe = req.get("recipe") if isinstance(req, dict) else None
     ctx = context(root, [recipe] if isinstance(recipe, str) else [])
     taken = ctx["taken"]
@@ -1040,7 +1101,9 @@ def new_id(thread, label, taken=(), now=None):
     return rid
 
 
-def _read_json_dir(path):
+def _read_json_dir(path, stem=None):
+    """Every JSON object in `path`. `stem` names a key that gets the file's
+    own name, less `.json`, which no payload can forge."""
     out = []
     try:
         names = sorted(os.listdir(path))
@@ -1056,13 +1119,20 @@ def _read_json_dir(path):
             continue
         if isinstance(rec, dict):
             rec.setdefault("id", name[:-len(".json")])
+            if stem:
+                rec[stem] = name[:-len(".json")]
             out.append(rec)
     return out
 
 
+# The key `requests` adds: the request file's own name, less `.json`.
+FILE_KEY = "_file"
+
+
 def requests(root):
-    """Every request filed in this workspace, as written."""
-    return _read_json_dir(requests_dir(root))
+    """Every request filed in this workspace, as written, each with its file's
+    name under `FILE_KEY`."""
+    return _read_json_dir(requests_dir(root), stem=FILE_KEY)
 
 
 def reports(root):
@@ -1147,6 +1217,9 @@ def file_request(root, req, run=subprocess.run, push=True):
     target = os.path.join(requests_dir(root), req["id"] + ".json")
     if os.path.exists(target):
         return target, False, "%s is already there" % target
+    leak = request_leak(root, req)
+    if leak:
+        return target, False, leak
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(target, "w", encoding="utf-8") as fh:
         json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
@@ -1158,6 +1231,41 @@ def file_request(root, req, run=subprocess.run, push=True):
     ok, said = commit_alone(root, target, "relay request %s" % req["id"],
                             run=run, push=push)
     return target, ok, said
+
+
+def request_leak(root, req):
+    """"" or why this request may not be published. A request is public the
+    moment it is pushed, and its brief is free text a turn may have written:
+    an absolute or home path (where lab storage gets named) is refused, and
+    so is anything the lab's PHI policy matches."""
+    from . import atlas, leaving
+    brief = req.get("brief") if isinstance(req, dict) else None
+    if isinstance(brief, str) and _BRIEF_PATH_RE.search(brief):
+        return ("the brief names an absolute or home path, and a request is "
+                "public; say it relative to the workspace")
+    try:
+        top = _git_text(root, ["rev-parse", "--show-toplevel"])
+        names_phi = leaving.policy(top or atlas.root())
+    except Exception:                                        # noqa: BLE001
+        names_phi = None
+    if names_phi is not None:
+        text = json.dumps(dict((k, v) for k, v in req.items()
+                               if k != FILE_KEY), sort_keys=True,
+                          ensure_ascii=False)
+        try:
+            flagged = names_phi(text) or (isinstance(brief, str)
+                                          and names_phi(brief))
+        except Exception:                                    # noqa: BLE001
+            flagged = True
+        if flagged:
+            return ("the PHI policy matches this request, and a request is "
+                    "public, so it was not filed")
+    return ""
+
+
+# The path `relay.public` redacts in a report.
+_BRIEF_PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*"
+                            r"[^\s/:'\",;)]+")
 
 
 def commit_alone(root, target, what, run=subprocess.run, push=True):
@@ -1305,7 +1413,7 @@ def thread_relay(root, tid):
         out.append("The last cluster report: %s, %s." % (last["request"],
                                                          ", ".join(bits)))
         out.extend("  RELAY: %s" % l.split("RELAY:", 1)[-1].strip()
-                   for l in _lines(last.get("relay"))[:6])
+                   for l in _relay_said(last.get("relay"))[:6])
         if last.get("note"):
             out.append("  note: %s" % str(last["note"])[:400])
     return out
@@ -1386,9 +1494,13 @@ def hear(root, now=None):
         by_id = dict((r["request"], r) for r in relayed(root))
         got = reports(root)
         out, missed = [], False
+        from . import holds
         for rel in sorted(changed):
             rid = os.path.basename(rel)[:-len(".json")] if rel.endswith(
                 ".json") else ""
+            if holds.is_check(rid):
+                # A held step's check: `holds.wake` drops its `[coach]` line.
+                continue
             rep = got.get(rid)
             if not rep:
                 continue

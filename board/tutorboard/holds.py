@@ -275,7 +275,7 @@ def _dirty(top):
     """Repository-relative paths with uncommitted edits, untracked included."""
     code, out = _git(top, "status", "--porcelain", "-z", "--untracked-files=all")
     if code != 0:
-        return []
+        return None
     got, fields, i = [], out.split("\0"), 0
     while i < len(fields):
         entry = fields[i]
@@ -314,13 +314,20 @@ def sync(top):
     if code == 0 and out.strip() == "0":
         return True, "already current"
     code, out = _git(top, "diff", "--name-only", "-z", "HEAD...@{upstream}")
-    incoming = set(x for x in out.split("\0") if x) if code == 0 else set()
-    clash = sorted(p for p in _dirty(top) if p in incoming)
+    if code != 0:
+        return False, ("could not read what origin changes, so nothing was "
+                       "pulled: %s" % out.strip()[-300:])
+    incoming = set(x for x in out.split("\0") if x)
+    dirty = _dirty(top)
+    if dirty is None:
+        return False, "git status failed, so nothing was pulled"
+    clash = sorted(p for p in dirty if p in incoming)
     if clash:
         return False, ("origin changes %s, which %s uncommitted edits here, so "
                        "nothing was pulled. Commit or send them, then pull"
                        % (", ".join(clash[:6]),
                           "has" if len(clash) == 1 else "have"))
+    stashed = _stashes(top)
     code, out = _git(top, "rebase", "--autostash", "--quiet", "@{upstream}",
                      timeout=300)
     if code != 0:
@@ -328,10 +335,27 @@ def sync(top):
         return False, ("the rebase onto origin stopped, so it was undone and "
                        "the tree is as it was: %s" % out.strip()[-300:])
     code, left = _git(top, "diff", "--name-only", "--diff-filter=U")
-    if left.strip():
+    if code != 0 or left.strip():
         return False, ("the edits set aside did not go back cleanly; they are "
                        "kept in `git stash list`: %s" % left.strip())
+    # The other way an autostash fails to go back: `stash apply` refuses (a
+    # file changed while the rebase ran), git still exits 0 and leaves no
+    # conflict, and the edits sit in the stash, gone from the tree.
+    after = _stashes(top)
+    if (stashed is None or after is None or after > stashed
+            or "resulted in conflicts" in out):
+        return False, ("the edits set aside did not go back; they are kept in "
+                       "`git stash list` (stash@{0}), so put them back with "
+                       "`git stash pop` before the next pull")
     return True, "pulled origin under the edits here"
+
+
+def _stashes(top):
+    """How many entries `git stash list` holds, or None if git would not say."""
+    code, out = _git(top, "stash", "list", timeout=20)
+    if code != 0:
+        return None
+    return len([l for l in out.splitlines() if l.strip()])
 
 
 def push(top):
@@ -489,17 +513,22 @@ def _message(root, what):
 def relay_lines(text, names_phi=None):
     """`(lines, withheld)`: what a report may carry out of a program's output.
 
-    Only lines behind `RELAY:`, prefix dropped, each cut to `MAX_LINE`, at most
-    `MAX_LINES`. A line the lab's PHI policy flags is withheld and counted.
+    Only lines behind `RELAY:`, prefix dropped, each through `relay.public`
+    (control characters gone, an absolute or home path made `<path>`, cut to
+    `MAX_LINE`), at most `MAX_LINES`. A line the lab's PHI policy flags is
+    withheld and counted.
     """
+    from . import relay
     out, withheld = [], 0
     for line in (text or "").splitlines():
         m = RELAY_LINE.match(line.rstrip("\r"))
         if not m:
             continue
-        said = "".join(c for c in m.group(1) if c >= " " or c == "\t")[:MAX_LINE]
-        if names_phi and names_phi(said):
+        said = relay.public(m.group(1), names_phi, MAX_LINE)
+        if said is None:
             withheld += 1
+            continue
+        if not said:
             continue
         if len(out) < MAX_LINES:
             out.append(said)

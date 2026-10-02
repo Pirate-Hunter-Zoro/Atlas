@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 114 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 117 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -902,11 +902,13 @@ request records HEAD as heard first, so a report in the very next pull is heard.
 in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
 
 **The pull keeps time with the requests.** `scripts/tutor-pull` runs `tutor pull --hear` every
-time its timer fires (`scripts/launchd/org.atlas.tutor-pull.plist`, every 120 s), then the daily
+time its timer fires (`scripts/launchd/org.atlas.tutor-pull.plist`, every 20 s), then the daily
 `tutor pull`. `hear_pass` in `bin/tutor` fast-forwards the repository with `sync` when
-`jobs.pull_due` says so — every `jobs.PULL_BUSY` (120 s) while any workspace has a request out,
-every `jobs.PULL_IDLE` (3600 s) otherwise, stamped in `~/.local/state/tutor-pull.heard` — and
-hears every workspace on every run. A timer firing a few seconds early still counts
+`jobs.pull_due` says so — every `holds.POLL_SECONDS` (20 s) while a hold stands, every
+`jobs.PULL_BUSY` (120 s) while any workspace has a request out, every `jobs.PULL_IDLE` (3600 s)
+otherwise, stamped in `~/.local/state/tutor-pull.heard` — and hears every workspace on every
+run: `jobs.hear` drops `[job]` for a request's report, `holds.wake` drops `[coach]` for a held
+step's check, and `jobs.hear` skips check reports so a check never wakes both. A timer firing a few seconds early still counts
 (`jobs.PULL_SLACK`). Where Slurm is, it does nothing: the relay pulls there. `install.sh` loads
 the launchd agent on a Mac. `tutor pull --hear --status` says the cadence.
 

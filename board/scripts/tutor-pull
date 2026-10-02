@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-#  tutor-pull -- the periodic pull, from a timer that fires every two minutes.
+#  tutor-pull -- the periodic pull, from a timer that fires every twenty seconds.
 #
 #      tutor-pull            hear the cluster; pull vendor and Tailscale daily
 #      tutor-pull --force    both, regardless
 #
 #  EVERY RUN: `tutor pull --hear`. On a machine without Slurm it pulls the
-#  repository every two minutes while a relay request is out and hourly
-#  otherwise, then drops a `[job]` line for each cluster report that ended.
+#  repository every twenty seconds while a hold stands, every two minutes
+#  while a relay request is out and hourly otherwise, then drops a `[job]`
+#  line for each cluster report that ended and a `[coach]` line for each held
+#  step's check.
 #  The cadence is decided there (`jobs.pull_due`), not by the timer. On a
 #  machine with Slurm it does nothing: the relay pulls there.
 #
@@ -31,7 +33,7 @@
 #  left alone. Merging somebody else's repository is not a decision a timer
 #  gets to make.
 #
-#  A launchd agent on the Mac (`scripts/launchd/`, every 120 seconds); a
+#  A launchd agent on the Mac (`scripts/launchd/`, every 20 seconds); a
 #  systemd --user timer on Linux, because pam refuses cron on this cluster.
 # ---------------------------------------------------------------------------
 set -uo pipefail

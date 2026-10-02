@@ -217,6 +217,9 @@ try:
 
     slurm = Slurm()
     os.environ["SLURM_JOB_ID"] = "999"          # as inside a scrontab job
+    # Colibri's queue is this test's, empty: never this machine's real one.
+    os.environ["COLI_QUEUE_ROOT"] = os.path.join(base, "queue")
+    os.makedirs(os.environ["COLI_QUEUE_ROOT"])
 
     def run_pass(now=None):
         return relay.run_pass(cluster, run=slurm, now=now)
@@ -344,7 +347,12 @@ try:
     # --- a job that leaves squeue without its exit file -----------------------
     jid3 = load(os.path.join(cws, "relay", "reports", "r3.json"))["jobid"]
     slurm.queue.pop(jid3)
-    run_pass(now=time.time() + jobs.GRACE + 30)
+    later = time.time() + jobs.GRACE + 30
+    run_pass(now=later)
+    rep = load(os.path.join(cws, "relay", "reports", "r3.json"))
+    check("a job just gone without its exit file is not called on one look",
+          rep["state"] == "submitted")
+    run_pass(now=later + jobs.GONE_GRACE + 1)
     rep = load(os.path.join(cws, "relay", "reports", "r3.json"))
     check("a job gone from squeue without an exit file failed, and the note "
           "says it died", rep["state"] == "failed" and rep["exit"] == ""
@@ -491,6 +499,158 @@ try:
     os.rename(os.path.join(base, "ai-config-away"),
               os.path.join(cluster, "ai-config"))
     leaving._POLICY["root"] = None
+
+    # --- what a turn may not run, enforced --------------------------------------
+    denied = claude.argv[claude.argv.index("--disallowedTools") + 1:]
+    check("a turn is denied every command that commits or pushes, in code",
+          "Bash(git push:*)" in denied and "Bash(git commit:*)" in denied
+          and "Bash(board push:*)" in denied
+          and any("save-and-push" in d for d in denied))
+    check("and a Colibri review turn keeps `board push`, the door with the "
+          "PHI check", "Bash(board push:*)" not in relay.disallowed(review=True)
+          and "Bash(git push:*)" in relay.disallowed(review=True))
+
+    # --- what reaches origin is what the pass wrote -------------------------------
+    write(os.path.join(cws, "exports", "results", "stray.csv"), "a,b\n1,2\n")
+    write(os.path.join(cws, "relay", "reports", "forged.json"), "{}\n")
+    file_from_mac(dict(good, id="r8"))
+    got = run_pass()
+    st = load(os.path.join(cluster, "relay", "state.json"))
+    shown = git(origin, "show", "--name-only", "--format=", "main")
+    check("a file in exports/ or relay/reports/ no pass wrote is never "
+          "committed", "r8.json" in origin_report("r8") or '"submitted"'
+          in origin_report("r8"))
+    check("and is named in relay/state.json instead",
+          "stray.csv" not in shown and "forged.json" not in shown
+          and any("stray.csv" in p for p in st["unpublished"])
+          and any("forged.json" in p for p in st["unpublished"]))
+    os.remove(os.path.join(cws, "exports", "results", "stray.csv"))
+    os.remove(os.path.join(cws, "relay", "reports", "forged.json"))
+
+    # --- a malformed request cannot stall or escape -----------------------------
+    reqdir = os.path.join(mws, "relay", "requests")
+    git(mac, "pull", "-q", "--rebase")
+    write(os.path.join(reqdir, "esc.json"), json.dumps(
+        {"id": "../../exports/results/x", "kind": "recipe", "thread": "knn",
+         "recipe": "slurm/sweep.sbatch", "filed": "yesterday"}))
+    write(os.path.join(reqdir, "nul.json"), json.dumps(
+        {"id": None, "kind": "recipe", "thread": "knn",
+         "recipe": "slurm/sweep.sbatch", "filed": 5}))
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "two requests no Mac would file")
+    git(mac, "push", "-q")
+    got = run_pass()
+    check("a bad id and a mixed `filed` are refused, not a crash of the pass",
+          not got["error"] and sorted(got["refused"]) == ["esc", "nul"]
+          and load(os.path.join(cws, "relay", "reports", "esc.json"))[
+              "state"] == "refused")
+    check("and the report is named for the request's file, never its id",
+          not os.path.exists(os.path.join(cws, "exports", "results", "x.json"))
+          and load(os.path.join(cws, "relay", "reports", "nul.json"))["id"]
+          == "nul")
+    before = git(origin, "rev-parse", "main")
+    got = run_pass()
+    check("and the next pass neither refuses them again nor commits",
+          got["refused"] == [] and git(origin, "rev-parse", "main") == before)
+
+    # --- a colibri request: filed as a task, reviewed by a turn of its own ------
+    from tutorboard import colibri as coli
+    git(mac, "pull", "-q", "--rebase")
+    conf = os.path.join(mws, "tutorboard.json")
+    write(conf, json.dumps({"name": "Proj",
+                            "relay": {"turns": True, "colibri": True}}))
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "Proj takes Colibri tasks")
+    git(mac, "push", "-q")
+    filed_tasks, passes = [], []
+    coli_reports = []
+
+    def fake_file(ws, req, start=None, now=None):
+        filed_tasks.append(req)
+        return {"id": req["id"], "kind": "colibri", "state": "submitted",
+                "task": "task-1", "note": "queued under /media/lab/q"}
+
+    def fake_pass(review=None, limit=1, now=None, start=None):
+        passes.append(review)
+        out = []
+        for ws_root, rep in coli_reports:
+            if rep.get("state") == "running" and review:
+                note = review(ws_root, {"id": "review-task-1", "kind": "turn",
+                                        "thread": "knn",
+                                        "brief": "review the loader"})
+                if note is not None:
+                    rep = dict(rep, state="completed", note=note)
+            out.append((ws_root, rep))
+        return out
+    real_file, real_pass = coli.relay_file, coli.relay_pass
+    coli.relay_file, coli.relay_pass = fake_file, fake_pass
+    try:
+        file_from_mac({"id": "c1", "kind": "colibri", "thread": "knn",
+                       "brief": "tidy the loader"})
+        got = run_pass()
+        c1 = load(os.path.join(cws, "relay", "reports", "c1.json"))
+        check("a colibri request is queued as a task, and the pass still "
+              "publishes", not got["error"] and filed_tasks
+              and filed_tasks[-1]["id"] == "c1" and c1["state"] == "submitted"
+              and '"submitted"' in origin_report("c1"))
+        check("its report is public: the path in the note is redacted",
+              "/media" not in c1["note"] and "<path>" in c1["note"])
+        check("and the Colibri step runs every pass, with a review", passes
+              and passes[-1] is not None)
+        coli_reports.append((cws, {"id": "c1", "kind": "colibri",
+                                   "state": "running", "task": "task-1",
+                                   "note": ""}))
+        n = len(slurm.scripts)
+        got = run_pass()
+        rid = "review-task-1"
+        recs = [r for r in jobs.records(cws, jobs.relay_registry(cws)).values()
+                if r.get("request") == rid]
+        check("a finished task's review is a turn job of its own",
+              len(slurm.scripts) == n + 1 and got["turn"] == rid
+              and recs and recs[0].get("review"))
+        check("whose request is kept in relay/state, never committed",
+              os.path.isfile(relay.review_path(cws, rid))
+              and git(cluster, "check-ignore", "-q", os.path.relpath(
+                  relay.review_path(cws, rid), cluster)) == "")
+        write(relay.note_path(cws, rid), "Shipped the loader change; 3 "
+              "files.\n")
+        write(os.path.join(cws, "relay", "state", rid + ".exit"), "0\n")
+        slurm.queue.pop(recs[0]["jobid"])
+        got = run_pass()
+        c1 = load(os.path.join(cws, "relay", "reports", "c1.json"))
+        check("once it has ended, its note completes the task's report",
+              not got["error"] and c1["state"] == "completed"
+              and "Shipped the loader" in c1["note"]
+              and '"completed"' in origin_report("c1"))
+    finally:
+        coli.relay_file, coli.relay_pass = real_file, real_pass
+
+    # --- a hold: the owner's edit to a held file does not skip the pass -------
+    git(mac, "pull", "-q", "--rebase")
+    write(os.path.join(mws, "relay", "holds", "knn.json"), json.dumps(
+        {"thread": "knn", "files": ["src/knn.py"], "at": time.time()}))
+    write(os.path.join(mws, "src", "knn.py"), "x = 1\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "knn: hold")
+    git(mac, "push", "-q")
+    run_pass()
+    write(os.path.join(cws, "src", "knn.py"), "x = 2  # the owner, mid-step\n")
+    git(mac, "pull", "-q", "--rebase")
+    write(os.path.join(mws, "notes.md"), "the Mac pushes elsewhere\n", "a")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "Mac work elsewhere")
+    git(mac, "push", "-q")
+    file_from_mac(dict(good, id="r9"))
+    got = run_pass()
+    check("an uncommitted edit to a held file does not skip the pass",
+          not got["skipped"] and "r9" in got["submitted"]
+          and '"submitted"' in origin_report("r9"))
+    check("and the edit survives the pull, uncommitted",
+          "mid-step" in open(os.path.join(cws, "src", "knn.py")).read()
+          and "src/knn.py" in git(cluster, "status", "--porcelain")
+          and "the Mac pushes elsewhere" in open(
+              os.path.join(cws, "notes.md")).read())
+    git(cluster, "checkout", "--", "research/Proj/src/knn.py")
 
     # --- the command, status and where ------------------------------------------
     bin_dir = os.path.join(base, "bin")

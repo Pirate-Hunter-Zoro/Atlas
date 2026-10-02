@@ -241,6 +241,33 @@ try:
           len(msgs) == 2 and "refused" in msgs[-1]["text"]
           and "env DATA is not declared" in msgs[-1]["text"])
 
+    # --- a held step's check: one [coach] line, never a [job] one -----------------
+    from tutorboard import holds
+    git(cluster, "pull", "-q", "--ff-only")
+    write(os.path.join(cws, "relay", "holds", "knn.json"), json.dumps(
+        {"thread": "knn", "files": ["src/knn.py"], "at": 1900.0}))
+    git(cluster, "add", "-A")
+    git(cluster, "commit", "-q", "-m", "knn: hold")
+    git(cluster, "push", "-q")
+    cluster_reports({"id": "check-knn-1", "thread": "knn", "step": 1,
+                     "state": "completed", "check": "src/knn.py", "exit": 0,
+                     "relay": ["n=120 mean=0.42"]})
+    before = len(inbox(ws))
+    got, interval, heard = tutorcli.hear_pass(stamp=stamp, now=2000, force=True)
+    msgs = inbox(ws)[before:]
+    check("a pulled check report drops exactly one [coach] line, no [job] line",
+          len(msgs) == 1 and msgs[0]["signal"] == "coach"
+          and msgs[0]["text"].startswith("[coach] Step 1 of thread knn")
+          and not any(m["text"].startswith("[job]") for m in msgs))
+    check("and while the hold stands the pull runs every POLL_SECONDS",
+          interval == holds.POLL_SECONDS)
+    tutorcli.hear_pass(stamp=stamp, now=2100, force=True)
+    check("and the next pull drops nothing more", len(inbox(ws)) == before + 1)
+    plist = open(os.path.join(ROOT, "scripts", "launchd",
+                              "org.atlas.tutor-pull.plist")).read()
+    check("the Mac's timer fires often enough for that cadence",
+          "<integer>%d</integer>" % holds.POLL_SECONDS in plist)
+
     # --- a fresh clone -----------------------------------------------------------
     fresh = os.path.join(base, "fresh")
     git(base, "clone", "-q", origin, fresh)
