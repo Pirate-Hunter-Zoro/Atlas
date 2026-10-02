@@ -1659,9 +1659,13 @@ function freshGesture(ev) {
   return ev.touches.length <= ev.changedTouches.length;
 }
 
+/* Where the latch refuses a pan natively: an ink layer, and a zoomable
+   reader's whole scroller (`#reader-pages` in `library.css`, `#paper-pages`
+   in `board.css`), whose bare strips are then scrolled by `handPan` too. */
 function onLayer(ev) {
   var t = ev && ev.target;
-  return !!(t && t.closest && t.closest("canvas." + LAYER + ", #reader-pages"));
+  return !!(t && t.closest
+            && t.closest("canvas." + LAYER + ", #reader-pages, #paper-pages"));
 }
 
 function onTouchStart(ev) {

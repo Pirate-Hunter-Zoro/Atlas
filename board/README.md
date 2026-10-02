@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 111 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 112 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -1209,6 +1209,20 @@ is wrong even when every suite is green.
   intersected down the tree, plus a refused `gesturestart` in `board.js`. Safari gives a page
   no way to undo its own pinch zoom. The writing surface and the map zoom themselves, from
   pointer events. Nothing on the page may put `pinch-zoom` back in a `touch-action`.
+- **A document zooms itself, and the page chrome never does.** Every document surface — the
+  board's `#paper` panel, the library reader the map's documents region opens, the meeting
+  deck — pinches through `web/readerzoom.js`, about the point under the fingers, by laying the
+  pages out at `--zoom`. It cancels the touchstart that makes two fingers and any touch joining
+  a live pinch, cancels touchmoves through a non-passive listener that exists only while the
+  pinch lasts, and refuses `gesturestart`/`gesturechange`/`gestureend`; otherwise iOS takes the
+  gesture. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends it. One
+  finger scrolls natively and the palm rules in `annotate.js` stand. The latch refuses a pan on
+  the whole scroller, so `annotate.js`'s `onLayer` names `#reader-pages` and `#paper-pages`
+  beside the ink layers, or a finger on a bare strip with the latch shut scrolls nothing.
+- **Annotations never distort or drift through a zoom.** Ink lives in the page picture's own
+  coordinates and scales with it uniformly: same place on the words at every zoom, identical
+  after zooming in and back out, drawn or moved with the lasso under the nib while zoomed, and
+  reloaded in place at any other zoom. `test/inkzoom.js` holds every reader to this within 1 px.
 - **They are z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
   95, so on the map the way back was painted over by the thing you were lost in. Raised only
   there: everywhere else 62 is right, over the lesson and under the menu. **`#redirect` is 97

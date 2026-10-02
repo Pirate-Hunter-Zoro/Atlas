@@ -1745,12 +1745,27 @@ body.viewing { overflow: hidden; }
 }
 /* Scrolls itself. The body is locked while this is up, so a two-finger drag
    inside the pages cannot end up panning the lesson underneath. */
+/* A BLOCK, NOT A CENTRED FLEX COLUMN: a page zoomed wider than the glass has
+   to overflow to the right, where it can be scrolled to, rather than to both
+   sides, where its left edge cannot. The pinch is `readerzoom.js`'s, which
+   adds `.zoomable` and sets `--zoom`. */
 .paper-pages {
-  flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto; overflow: auto; min-height: 0; -webkit-overflow-scrolling: touch;
   padding: 1rem max(.6rem, env(safe-area-inset-left))
            max(2rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-right));
-  display: flex; flex-direction: column; align-items: center; gap: .9rem;
+  overscroll-behavior: contain;
 }
+/* Above the pages while a pinch transforms them. */
+#paper > .paper-bar { position: relative; z-index: 1; }
+.paper-pages.pinching { will-change: transform; }
+/* The palm, as in the library reader: while the nib is down or only just
+   lifted, nothing the browser owns moves the pages; otherwise a finger pans a
+   zoomed page either way, over the ink layer too. */
+body.pen-writing .paper-pages.zoomable { touch-action: none; }
+body.annotating:not(.pen-writing) .paper-pages canvas.ann-layer {
+  touch-action: pan-x pan-y;
+}
+#paper-zoom { flex: none; }
 /* A page is white because paper is white -- the board's dark skin belongs to
    the lesson, and a typeset document inverted is a document nobody can read. */
 .paper-pages img {
@@ -1769,8 +1784,8 @@ body.viewing { overflow: hidden; }
    is absolutely positioned and would otherwise hang off `.paper-pages` and land
    on page one whichever page was written on. */
 .paper-page {
-  position: relative;
-  width: 100%; max-width: 46rem;
+  position: relative; margin: 0 auto .9rem;
+  width: calc(min(100%, 46rem) * var(--zoom, 1));
 }
 
 .paper-say {
