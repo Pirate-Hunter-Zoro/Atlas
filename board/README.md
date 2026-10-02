@@ -753,6 +753,11 @@ the README and plan.
   checks the thread against the file before anything starts, and a refusal lands in the sheet's
   sub line. Where a live mission names the thread, `thread_sheet`'s `mission` says so and the
   sheet shows it instead of the box.
+- **The thread sheet links its write-up.** Each `writes` row whose file has a built PDF in the
+  library carries that `doc` id and the `page` its anchor's words are on (`ledger.place`, asked
+  only where the anchor is found; 0 where it cannot be placed). Its tap opens
+  `/library?from=map&doc=<id>&page=<n>`, and the reader lands on that page the way a re-draw
+  puts it back (`keepPlace`).
 
 ### Jobs register to a thread and report themselves
 

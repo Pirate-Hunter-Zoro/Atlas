@@ -341,6 +341,10 @@ function board(W, H, face) {
     catch (e) { fail(f + ': ' + e.message); }
   }
   let src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
+  // Reading a document is a navigation, which jsdom cannot do; a test that
+  // wants to see where it went says so on `window.__readDoc`.
+  src = src.replace('function mapReadDoc(id, page) {',
+    'function mapReadDoc(id, page) {\n  if (window.__readDoc) return window.__readDoc(id, page);');
   src = src.replace('})();',
     'window.__render = render;\nwindow.__openMap = openMap;\n'
     + 'window.__closeMap = closeMap;\nwindow.__mapView = function () { return mapView; };\n'
@@ -1581,6 +1585,31 @@ const at = (doc, id) => {
       ? ok('a thread with a mission out says so instead of offering another')
       : fail('the sheet with a mission out drew ' + (out && out.textContent));
     delete sheets.knn.mission;
+  }
+  {
+    // A WRITE-UP ROW OPENS THE DELIVERABLE'S DOCUMENT AT ITS HEADING.
+    const w = board();
+    const doc = w.document;
+    const keep = sheets.knn.writes;
+    sheets.knn.writes = [
+      { file: 'paper/manuscript.md', anchor: '## Retrieval', found: true,
+        doc: 'paper-manuscript', page: 4 },
+      { file: 'notes/draft.md', anchor: '## Draft', found: false, doc: '', page: 0 }];
+    const opened = [];
+    w.__readDoc = (id, page) => opened.push([id, page]);
+    w.__render(payload({ map: makeThreads() }));
+    await sleep(15);
+    doc.querySelector('#map-sheet .node[data-id="knn"]').dispatchEvent(new w.Event('click'));
+    await sleep(15);
+    const row = doc.querySelector('#work button.thread-row[data-writes="paper-manuscript"]');
+    row && !doc.querySelector('#work button.thread-row[data-writes=""]')
+      ? ok('a write-up with a built document is a way into it; one without is only said')
+      : fail('the write-up rows are not tappable as they should be');
+    if (row) row.click();
+    JSON.stringify(opened) === JSON.stringify([['paper-manuscript', 4]])
+      ? ok('and its tap opens that document at the page its heading is on')
+      : fail('the write-up opened ' + JSON.stringify(opened));
+    sheets.knn.writes = keep;
   }
   {
     // A TURN THAT STOPPED WITHOUT A REPORT BADGES ITS THREAD'S BOX.

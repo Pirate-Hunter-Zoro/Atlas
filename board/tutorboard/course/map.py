@@ -1390,6 +1390,17 @@ def _jobs_of_thread(root, tid):
             for j in last.values() if j.get("thread") == tid]
 
 
+def _anchor_page(root, doc, write):
+    """The page of `doc`'s PDF a write-up anchor's words are on, or 0."""
+    try:
+        from . import ledger                                 # local: heavy
+        hit = ledger.place(os.path.join(root, doc["rel"]), write["anchor"],
+                           tex=write["file"].endswith(".tex"))
+    except Exception:                                        # noqa: BLE001
+        return 0
+    return int((hit or {}).get("page") or 0)
+
+
 def _mission_of_thread(root, tid):
     """The mission running here on this thread, as `{id, agent, task}`, or None.
 
@@ -1441,6 +1452,11 @@ def thread_sheet(root, tid, state=None, archived=None):
         return None
     st = threads.stages(root).get(t["id"]) or {}
 
+    try:
+        found = library.documents(root)
+    except Exception:                                        # noqa: BLE001
+        found = []
+
     writes = []
     for w in t["writes"]:
         text = ""
@@ -1450,8 +1466,17 @@ def thread_sheet(root, tid, state=None, archived=None):
                 text = fh.read()
         except OSError:
             pass
-        writes.append({"file": w["file"], "anchor": w["anchor"],
-                       "found": w["anchor"] in text})
+        row = {"file": w["file"], "anchor": w["anchor"],
+               "found": w["anchor"] in text, "doc": "", "page": 0}
+        # THE DELIVERABLE'S DOCUMENT, OPENED AT THAT HEADING: the library id of
+        # the write-up file's built PDF, and the page the anchor's words are on
+        # in it (`ledger.place`, the same placing a round's ink uses).
+        d = library_doc(found, w["file"])
+        if d and d.get("pdf"):
+            row["doc"] = d["id"]
+            if row["found"]:
+                row["page"] = _anchor_page(root, d, w)
+        writes.append(row)
 
     sittings, kind = [], ""
     if _on_thread(state, t["id"]) and not (state or {}).get("finished"):
@@ -1467,10 +1492,6 @@ def thread_sheet(root, tid, state=None, archived=None):
                              "opened": a.get("opened") or "",
                              "cards": a.get("cards") or 0})
 
-    try:
-        found = library.documents(root)
-    except Exception:                                        # noqa: BLE001
-        found = []
     docs, seen = [], set()
 
     def add(d, why):

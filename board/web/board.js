@@ -6296,9 +6296,10 @@ if (els.docNew) {
 /* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, send it, fixes or an
    overhaul, and directions -- the library's own page, on that document. The
    map is always the served workspace's, so nothing has to be switched first. */
-function mapReadDoc(id) {
+function mapReadDoc(id, page) {
   if (!id) return;
-  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id);
+  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id)
+    + (page > 0 ? "&page=" + Math.floor(page) : "");
 }
 
 /* ------------------------------------------------- one level down, on a tap */
@@ -7259,9 +7260,16 @@ function threadPaint(node, last) {
     return { text: (o.there ? "✓ " : "· ") + o.path,
              cls: o.there ? "" : "missing" };
   }));
+  /* A write-up whose document is built opens in the reader at the anchor's
+     page -- the first page where the server could not place it. */
   section("written up in", (sheet.writes || []).map(function (w) {
-    return { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
-             cls: w.found ? "" : "missing" };
+    var row = { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
+                cls: w.found ? "" : "missing" };
+    if (w.doc) {
+      row.data = ["writes", w.doc];
+      row.go = function () { mapReadDoc(w.doc, w.page || 0); };
+    }
+    return row;
   }));
   section("jobs", (sheet.jobs || []).map(function (j) {
     return { text: j.jobid + " · " + j.state.toLowerCase()

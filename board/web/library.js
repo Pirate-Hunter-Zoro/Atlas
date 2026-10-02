@@ -286,18 +286,25 @@ function paint(got) {
    does not have is a miss and opens nothing; asked once, so a reload of the
    list does not reopen a reader somebody has closed. */
 var docAsked = null;
+/* AND THE PAGE, where the caller named one: a thread sheet's write-up row asks
+   for the page its heading is on, with `&page=<n>`. */
+var pageAsked = 0;
 
 function openWanted() {
   if (docAsked === null) {
-    try { docAsked = new URLSearchParams(location.search).get("doc") || ""; }
-    catch (e) { docAsked = ""; }
+    try {
+      var q = new URLSearchParams(location.search);
+      docAsked = q.get("doc") || "";
+      pageAsked = Math.max(0, parseInt(q.get("page") || "0", 10) || 0);
+    } catch (e) { docAsked = ""; }
   }
   if (!docAsked) return;
   var want = docAsked;
   docs.forEach(function (d) {
     if (d.id === want && d.pdf && docAsked) {
       docAsked = "";
-      read(d);
+      read(d, false, pageAsked);
+      pageAsked = 0;
     }
   });
 }
@@ -512,7 +519,7 @@ function act(label, cls, fn) {
 }
 
 /* ------------------------------------------------------- reading one */
-function read(doc, changes) {
+function read(doc, changes, page) {
   if (!openDoc || openDoc.id !== doc.id) showCopy(null);
   openDoc = doc;
   /* THE ROUNDS' REQUESTS, as pins on these pages -- on from the row's "see the
@@ -526,7 +533,9 @@ function read(doc, changes) {
   els.reader.hidden = false;
   setZoom(1);
   els.readerPages.scrollTop = 0;
-  draw(doc, 0);
+  /* A page asked for is a place to be put, the way a re-draw puts the reader
+     back: `keepPlace` lands on it as the pictures above it arrive. */
+  draw(doc, page > 1 ? page : 0);
 }
 
 /* THE SAME DOCUMENT AGAIN, BECAUSE ITS BYTES MOVED. Asked for by the stamp
