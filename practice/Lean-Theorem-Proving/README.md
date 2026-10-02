@@ -161,8 +161,8 @@ following any of this by hand.
 
 - **Laureate compute node `compute301`** (RHEL 9, x86-64, 96 cores, 1 TB RAM), entirely in the
   home directory, no root. Mathlib compiled from source under Slurm.
-- **A personal Mac** (arm64, macOS 15). `elan` installed from `elan.lean-lang.org`, the same
-  `v4.34.0-rc2` toolchain, and Mathlib fetched from the prebuilt cache — the egress filtering
+- **A personal Mac** (arm64, macOS 15, now the Mac mini on macOS 27). `elan` installed from
+  `elan.lean-lang.org`, the toolchain in `lean-toolchain`, and Mathlib fetched from the prebuilt cache — the egress filtering
   that makes the cache unreachable from the cluster does not exist here, so what takes hours
   there takes minutes here. The `.olean` artifacts are architecture-specific and are **not**
   shared between the two: each machine builds its own `.lake/`, which is exactly why it is
@@ -173,8 +173,11 @@ following any of this by hand.
 `elan` was already installed at `~/.elan` — it is Lean's version manager, the equivalent of
 `rustup`, and it picks the compiler version per project by reading `lean-toolchain`.
 
-The pinned version is **`leanprover/lean4:v4.34.0-rc2`**, and it was not chosen — it was copied
-from Mathlib's own `lean-toolchain` after the dependency resolved. That matters: Mathlib's
+The pinned version is **`leanprover/lean4:v4.34.1`**, and it was not chosen — it is Mathlib's own
+`lean-toolchain` at the `v4.34.1` tag, which is the commit `lake-manifest.json` pins Mathlib to
+(the other eight packages are Mathlib's own manifest at that tag). It was `v4.34.0-rc2` until
+2 October 2026: that release's `lake` aborts on macOS 27 as each run exits (`pointer being freed
+was not allocated`), so toolchain and Mathlib moved forward together. That matters: Mathlib's
 compiled artifacts are only valid for the exact Lean version they were built against, so the
 project toolchain must track Mathlib's, not the other way round.
 
@@ -316,6 +319,13 @@ tracked; only its output is ignored.
 *Written 24 August 2026, updated 30 August 2026. Update this section as it changes; it is the
 handoff note.*
 
+**2 October 2026 — Lean v4.34.1 and Mathlib's `v4.34.1` tag.** The rc2 toolchain's `lake`
+crashed on the Mac mini's macOS 27 every time it exited, so the root `scripts/setup.sh` never got
+the cache. `lean-toolchain` and `lake-manifest.json` moved forward together; the cache came down
+on the Mac, `lake build` exits 0 with zero errors, and all 26 statements still elaborate, each on
+its one `sorry`. The cluster's `.lake/` is still built for rc2: a session that needs Lean there
+reruns `sbatch slurm_jobs/build_mathlib.sbatch` first.
+
 **30 August 2026 — this now builds on a personal Mac as well as on the cluster.** `elan`, the
 `v4.34.0-rc2` toolchain and all nine packages installed from scratch; Mathlib came from the
 **prebuilt cache**, not from source, because the egress filtering that makes the cache
@@ -340,7 +350,8 @@ Two things were fixed getting there, and both are the kind that lie to you:
 
 - Repository structure complete: 26 exercises across ten topic directories, `exercises.tsv`
   manifest, shared `LeanTP` library, scaffold/build/status scripts, Slurm job.
-- Toolchain resolved and pinned: `leanprover/lean4:v4.34.0-rc2`, copied from Mathlib's own pin.
+- Toolchain resolved and pinned: `leanprover/lean4:v4.34.1`, copied from Mathlib's own pin
+  (first `v4.34.0-rc2`; see 2 October 2026 above).
 - `lake update` complete — nine packages resolved, `lake-manifest.json` written.
 - **Mathlib is compiled.** All 8,787 modules built from source under Slurm. The artifacts live in
   `.lake/` and persist; they only need rebuilding when Mathlib or the toolchain is bumped. A

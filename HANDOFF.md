@@ -131,20 +131,19 @@ cluster if `sbatch` exists.
 | Item | Runs on | When |
 |---|---|---|
 | 6. Providers on the Mac | Mac | first |
-| 9. One environment per workspace: the Lean toolchain | Mac | after 6 |
 | 9. One environment per workspace: TRD-EHR's switch to the lockfile | cluster | now |
 
 The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
 host".
 
-- On the Mac, a session does 6, then 9's Lean part.
+- On the Mac, a session does 6.
 - On the cluster, a session does 9's TRD-EHR part. The relay, holds, the Mac's hearing and
   Colibri on demand are built, and no compute node serves a board: `board/README.md` has their
   rules.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
-  independent items. On the Mac, 6 and 9's Lean part are independent.
+  independent items.
 
 ## How to work from this file
 
@@ -183,7 +182,7 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
 ### 9. One environment per workspace: what is left — no dependency
 
 The rest of it landed: `board/README.md` §6 of the setup, "Each workspace's code has one
-environment". Two parts are left, one per machine.
+environment". One part is left, on the cluster.
 
 - **TRD-EHR's cluster switch from conda to the lockfile** (cluster). The conda environment on
   lab storage stays until the lockfile reproduces it. The cluster builds `uv.lock` into lab
@@ -198,21 +197,27 @@ environment". Two parts are left, one per machine.
   was not: TRD-EHR has not opted in to relay turns (`relay.turns: true` in its
   `tutorboard.json`), which puts an unattended agent beside the EHR and is the owner's to say.
   Once it has, the Mac files it; until then a cluster session working from this file does it.
-- **The Lean toolchain** (Mac). `lean-toolchain` pins v4.34.0-rc2, whose `lake` aborts on
-  macOS 27 as each run exits (`pointer being freed was not allocated`, in thread-local cleanup),
-  so the setup never gets the Mathlib cache and the workspace's check fails with exit 133.
-  `lean` itself runs, and v4.34.1's `lake` runs. Left because the fix moves Mathlib under the
-  exercises' statements: move `lean-toolchain` and Mathlib forward together, the toolchain
-  copied from Mathlib's, then rerun the setup and `bash scripts/build.sh`.
 
-> **Prompt:** Do item 9 of `HANDOFF.md`, the part for this machine. On the cluster: build
+Parts of the item as written that proved wrong, one line each:
+
+- **PSYCH-ASR has three environments, not one**: `diarizen_env` (torch 2.1.1) and `nemo_env`
+  (NeMo's own torch) each conflict with `asr_env`'s torch 2.8.0, so `diarizen` and `nemo` are in
+  no extra and stay conda prefixes for the Slurm jobs that import them.
+- **elan is not in the `Brewfile`**: Lean-Theorem-Proving's `scripts/setup.sh` installs it into
+  `~/.elan` on both machines, and a Homebrew copy would shadow that one on the Mac's PATH.
+- **Not every `pyproject.toml` has all three extras**: Paper-Writer's tests are `unittest`, so it
+  has no `test` extra and nothing GPU, so no `cluster`; libr-local-llm has no tests, so only
+  `cluster`. An empty extra would say a dependency exists where none does.
+- **practice/Algo-Solutions' check fails on the code**: `go test ./...` stops at
+  `leetcode/totalbeauty/totalbeauty.go`, which imports `algo-solutions/helpermath` and
+  `algo-solutions/leetcode` without using them. The item reports such a failure and does not
+  fix it; it is the owner's solution to finish.
+
+> **Prompt:** Do item 9 of `HANDOFF.md`, on the cluster. Build
 > TRD-EHR's `uv.lock` into lab storage through `UV_PROJECT_ENVIRONMENT` with the `test` and
 > `cluster` extras, rewrite `setup_envs.sh` to call that, run one real sweep and one causal run
 > on it, compare against the conda environment's last results, and only then remove both conda
-> environments. On the Mac: move Lean-Theorem-Proving's toolchain and Mathlib forward together
-> to a Lean whose `lake` runs on macOS 27, run the root `scripts/setup.sh`, and run the
-> workspace's check; an exercise statement that no longer elaborates is reported, not changed.
-> Ship with the repository's scripts.
+> environments. Ship with the repository's scripts.
 
 ### Left as they are
 
