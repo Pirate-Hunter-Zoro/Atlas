@@ -19,13 +19,14 @@ This file says what is left to build.
 | Runs | the board, tutor turns, compiles, decks, meetings | Slurm jobs, the relay, cluster turns |
 | Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
 | Providers | any, including DeepSeek | Claude with the PHI guard, and Colibri on LIBR hardware |
-| Writes to git | everything except `relay/reports/` and `exports/` | only `relay/reports/` and `exports/` |
+| Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, and the files of a thread held at the cluster |
 | iPad reaches it | over the owner's own tailnet | never |
 
 **Path ownership is what makes two writers on one branch safe.** The Mac never writes a
-report or an export. The cluster never writes anything else. So a pull on either side
-fast-forwards or rebases without a conflict. Code written on the cluster in an interactive
-session is committed and pushed like any other change, before the relay's next pass.
+report or an export. The cluster writes nothing else, except the files of a thread whose
+sitting is held at the cluster (item 5). While the hold lasts, those files are the cluster's
+and the Mac refuses to write them. So a pull on either side fast-forwards or rebases without a
+conflict.
 
 **The Mac holds no PHI by construction.** Every provider is therefore allowed there, and a
 PHI rule on the Mac is a rule about what the cluster may export.
@@ -143,11 +144,12 @@ where `results/…` is absent, so a manuscript names one path on both machines.
 1. In Energy settings, set the Mac to never sleep and to start up after a power failure.
 2. Install the Tailscale app and sign in to the tailnet the iPad is on.
 3. Install Homebrew, Claude Code, and the GitHub CLI. Log in to both.
-4. Clone into `~/Atlas` with submodules, then clone `ai-config` into `~/Atlas/ai-config` and run
+4. Clone into `~/Developer/Atlas` with submodules, then clone `ai-config` into
+   `~/Developer/Atlas/ai-config` and run
    its installer, as the root `README.md` says.
 5. Create `~/.config/tutor-board/keys.env` with the provider keys, the DeepSeek key included.
    It never goes through git.
-6. Open Claude Code in `~/Atlas` and give it the prompt below.
+6. Open Claude Code in `~/Developer/Atlas` and give it the prompt below.
 
 > **Prompt:** Bring up Atlas's board on this Mac mini so it replaces the compute node as the
 > host. Read the root `README.md`, `HANDOFF.md` (this item and "The split"), and
@@ -162,8 +164,10 @@ where `results/…` is absent, so a manuscript names one path on both machines.
 > board and the periodic pull back with nobody logged in. Serve on the tailnet with the Mac's
 > system Tailscale. `board/tutorboard/net/tailscale.py`'s userspace updater does not apply
 > here; make it stand down on a machine whose Tailscale it did not install. Confirm the
-> iPad's address for the atlas and for TRD-EHR, and put both in your report. Ship with the
-> repository's scripts.
+> iPad's address for the atlas and for TRD-EHR, and put both in your report. The clone is at
+> `~/Developer/Atlas`, not `~/Atlas`: find every place that assumes `$HOME/Atlas`
+> (`ai-config/scripts/audit.sh`'s `REPO_ROOTS` is one) and derive the path from the file's own
+> location instead. Ship with the repository's scripts.
 
 ### 2. A request and a report — depends on nothing
 
@@ -248,7 +252,57 @@ lock, and skip the pass if the lock is held):
 > `board thread --check`. Test the wake, the cadence, and a manuscript compiling on a tree with
 > no `results/`. Ship with the repository's scripts.
 
-### 5. Providers on the Mac — depends on 1
+### 5. Coding at the cluster, coached on the glass — depends on 2, 3 and 4
+
+The owner sometimes writes code on the cluster, beside the data: an estimator they are being
+coached on, or a fix that only real rows reproduce. The coach still lives on the Mac and the
+card still lands on the iPad. The step's check runs on the cluster, because it needs the data.
+
+**A sitting is held at the cluster.** `board hold <thread>`, run in the cluster checkout, records
+the hold in `relay/holds/<thread>.json` and pushes it. From then until `board release <thread>`:
+
+- The thread's `files` belong to the cluster. The Mac's turns refuse to write them and say why.
+  The tutor's plumbing for that thread waits for the release, or goes in files outside the
+  thread's list.
+- The relay's pass leaves the owner's uncommitted edits alone. It pulls with rebase and
+  autostash, which is safe because nothing upstream touches the held files.
+- The Mac polls every 20 seconds instead of on its usual cadence.
+
+**`board send`** is the owner's one command per step, typed in the cluster terminal:
+
+1. It commits the thread's changed `files` with the message `<thread>: step` and the owner as
+   author.
+2. It runs the thread's `check` right there, on the node the owner is on. `check` is a tracked
+   script named on the thread, written by the tutor, which prints only `RELAY:` lines. Its exit
+   code and those lines go into `relay/reports/check-<thread>-<n>.json`.
+3. It pushes both, then waits up to three minutes for the coach's reply and prints it in the
+   terminal.
+
+**On the Mac**, the pull carrying a `check-` report drops a `[coach]` message into the inbox. The
+woken turn is a coach turn under `board/TEACHING.md`. It reads the step's diff and the check's
+lines, and writes the next card on the board. It also writes the same text to
+`relay/coach/<thread>.md` and pushes it, which is what `board send` prints. The text is public:
+it talks about the code and the check's aggregate numbers, never about rows.
+
+A round trip takes about a minute or two: push, a 20-second poll, the turn, and the push back.
+
+**Coaching right here** stays possible. Claude Code on the cluster runs under the same contract,
+with the data beside it, and is faster. Its sitting records itself with `board push` like any
+turn, so the board shows the steps afterwards. `board hold` is for when the owner wants the
+iPad as the coach's page.
+
+> **Prompt:** Build item 5 of `HANDOFF.md`: holds, `board hold`, `board release`, `board send`,
+> the thread's `check`, the `[coach]` wake and `relay/coach/`. Read "The relay", items 2 to 4's
+> code, `board/TEACHING.md`'s coach section, and the coach division of labour in the workspace
+> contracts. Extend the validator so a hold is refused on a thread that already has one, a
+> `check` must be tracked, and a Mac turn writing a held file is refused. Make the relay's
+> rebase-with-autostash safe against the owner's edits, and prove it with a temp repository
+> where the owner has uncommitted edits to a held file while the Mac pushes elsewhere. Add a
+> test for each piece, plus one full round trip with fake push and pull. Then run one real round
+> trip on a TRD-EHR Paper 2 coach thread with a trivial check. Ship with the repository's
+> scripts.
+
+### 6. Providers on the Mac — depends on 1
 
 DeepSeek and the others are already in `board/tutorboard/keys.py` and `assistants.py`. On the
 Mac they become ordinary choices for any workspace: the Mac holds no PHI. What changes:
@@ -259,21 +313,21 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
 - A cluster `turn` always uses Claude under the PHI guard. Colibri remains the only model that
   reads PHI.
 
-> **Prompt:** Build item 5 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
+> **Prompt:** Build item 6 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
 > the egress rules in `board/tutorboard/net/`. Let `tutorboard.json` name a default provider per
 > sitting kind, show the choice on the sitting sheet, and keep the cluster's turn on Claude.
 > Confirm DeepSeek answers one real turn on this Mac using the key in
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
 
-### 6. The compute node stops serving — depends on 1, 3 and 4, after a week of use
+### 7. The compute node stops serving — depends on 1, 3, 4 and 5, after a week of use
 
 When the Mac has served a week of sittings and the relay has carried a real request each way,
 delete what only served boards from the cluster: `tutor serve`, `tutor watch`,
 `tutorboard/supervise.py`, `slurm/tutor-serve.sbatch`, `test/perpetual.py`, the `serve_*` keys,
 and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls.
 
-> **Prompt:** Build item 6 of `HANDOFF.md`. First confirm both conditions from
+> **Prompt:** Build item 7 of `HANDOFF.md`. First confirm both conditions from
 > `relay/state.json`, the reports, and the archive dates. If either is unmet, stop and say
 > which. Remove the serving chain the item lists, every reference to it in code, tests,
 > contracts and READMEs, and the suites that only test it. Cancel any `tutor-serve` jobs still
@@ -281,7 +335,7 @@ and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls.
 > and "The board is the way in" for the Mac host and the cluster relay, in the present tense.
 > Ship with the repository's scripts.
 
-### 7. Smaller board work left from the threads build — depends on nothing
+### 8. Smaller board work left from the threads build — depends on nothing
 
 Each is independent and small. Give one agent all five, one commit each.
 
@@ -296,7 +350,7 @@ Each is independent and small. Give one agent all five, one commit each.
 - **The thread sheet links its write-up.** Each `writes` anchor opens the deliverable's document
   at that heading.
 
-> **Prompt:** Build item 7 of `HANDOFF.md`: five small changes, one commit each, each with a
+> **Prompt:** Build item 8 of `HANDOFF.md`: five small changes, one commit each, each with a
 > test. Read `map.thread_sheet`, the sheet code in `board.js`, `cards.stopped_body`,
 > `report_owed`, and `cmd_push`. Ship with the repository's scripts.
 
@@ -339,8 +393,8 @@ In this order. Each is a thread, and its open tasks are on its box.
 3. **PSYCH-ASR `grid-sweep`**, as cluster requests, and the owner's `recording-review` at the
    institute.
 4. **Paper 2.** Learn sittings on `estimand-identification`, then coach sittings on the four
-   robustness rungs, with the owner's code tested on `test_data/` on the Mac and run on the
-   cluster as requests, then build.
+   robustness rungs. The owner writes that code on the Mac against `test_data/`, or on the
+   cluster under `board hold` when it needs real rows. Then build.
 
 ## On the glass
 
