@@ -358,6 +358,33 @@ def thread(clean, tid):
     return None
 
 
+# A commit subject's lead word: `<word>: the rest`. No slash, so a workspace id
+# (`research/TRD-EHR: ...`) is never read as a thread.
+PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]{0,59}):\s")
+
+
+def commit_prefix(clean, message, where=""):
+    """`(thread id, problem)` for the subject `board push` was handed. Pure.
+
+    The lead word before a colon must be a thread of `clean`. No lead word is
+    `("", None)`: a save with no thread named is still a save. `where` is the
+    workspace id, taken off the front first because the push puts it there.
+    """
+    text = (message or "").strip()
+    if where and text.startswith(where + ":"):
+        text = text[len(where) + 1:].lstrip()
+    m = PREFIX_RE.match(text)
+    if not m or not clean:
+        return "", None
+    word = m.group(1)
+    if thread(clean, word):
+        return word, None
+    ids = sorted(t["id"] for t in clean.get("threads") or [])
+    return "", ("`%s` is not a thread in %s. Lead the message with one of: %s "
+                "-- or leave the prefix off." % (word, NAME,
+                                                 ", ".join(ids) or "(none)"))
+
+
 # ---------------------------------------------------------------------------
 # resolution: the file checked against the tree
 # ---------------------------------------------------------------------------

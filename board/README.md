@@ -736,6 +736,13 @@ saying the thread is the scope; `sense.where_sense` sends a thread sitting to th
 the README and plan.
 `test/onthread.py` is the suite.
 
+### Threads on the glass and in commits
+
+- **A commit's thread is real.** Where a valid `threads.json` exists, `board push "<word>: msg"`
+  refuses a lead word that is not one of its thread ids, names the real ones, and commits
+  nothing (`threads.commit_prefix`; the workspace id in front is skipped). No lead word is a
+  plain save.
+
 ### Jobs register to a thread and report themselves
 
 **A turn that starts long work submits it through `board job`.** A bare `sbatch` is work the
