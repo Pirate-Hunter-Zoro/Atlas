@@ -136,6 +136,17 @@ try:
     write_cfg({"egress_probe": "https://example.invalid/x"})
     check("and a list written in the config beats the default",
           egress.egress_probe_urls() == ("https://example.invalid/x",))
+
+    # EACH CONFIGURED PROVIDER'S ENDPOINT IS ON THE LIST, after the machine's
+    # own and once each: on the Mac every provider is an ordinary choice, so a
+    # filter on one hostname is not a machine with no way out.
+    write_cfg({"default_agent": "claude"})
+    got = egress.egress_probe_urls(also=["https://api.deepseek.test/a",
+                                         egress.DEFAULT_EGRESS_PROBE[0],
+                                         "https://api.deepseek.test/a"])
+    check("each configured provider's endpoint joins the list, once, after "
+          "the default's",
+          got == egress.DEFAULT_EGRESS_PROBE + ("https://api.deepseek.test/a",))
 finally:
     paths.CONFIG = was_cfg
     egress.paths.CONFIG = was_cfg
@@ -248,7 +259,7 @@ check("and the same clearing answers both, because the same thing settles "
 
 check("asking about one provider is a different question from asking about the "
       "machine, and takes its own urls",
-      "def egress_ok(timeout=12, urls=None):" in lib)
+      "def egress_ok(timeout=12, urls=None, also=()):" in lib)
 
 # --- where it is used -------------------------------------------------------
 tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
@@ -256,7 +267,7 @@ check("the tutor asks whether the MACHINE can get out only after a turn has "
       "actually failed -- a round trip in front of every card is a round trip "
       "the student waits for",
       "if err:" in tutor_src and
-      tutor_src.index("if err:") < tutor_src.index("if not egress.egress_ok():"))
+      tutor_src.index("if err:") < tutor_src.index("if not egress.egress_ok(also="))
 check("with one exception, and it is the moment the question is cheap against "
       "what it saves: a recipe with a provider OF ITS OWN is asked about once "
       "before a turn is spent on it, since nothing else on the machine has an "
@@ -282,7 +293,7 @@ check("and says plainly when it could not repair it",
       "turns will keep " in tutor_src)
 
 check("and asks about the failed turn's OWN provider before the machine's",
-      tutor_src.index("egress.egress_ok(urls=") < tutor_src.index("if not egress.egress_ok():"))
+      tutor_src.index("egress.egress_ok(urls=") < tutor_src.index("if not egress.egress_ok(also="))
 check("standing a dark provider down is the same climb-down as an exhausted "
       "allowance: the message is re-answered by whoever can take it",
       "egress.mark_unreachable(" in tutor_src and
@@ -329,11 +340,26 @@ asked = []
 
 def answering(what):
     """`egress_ok` that says yes to everything except the named provider."""
-    def stub(timeout=12, urls=None):
+    def stub(timeout=12, urls=None, also=()):
         asked.append(tuple(urls or ()))
         return not (urls and any(what in u for u in urls))
     return stub
 
+
+# THE MACHINE-WIDE PROBE ASKS AFTER EVERY CONFIGURED PROVIDER, and only those:
+# a recipe whose command is here and whose key is in `keys.env`.
+from tutorboard import keys as _keys                            # noqa: E402
+was_unkeyed, was_missing = _keys.unkeyed, tutor.missing_command
+_keys.unkeyed = lambda spec: None
+tutor.missing_command = lambda cmd: None
+check("the providers this machine can run add their own endpoints",
+      tutor.provider_probe_urls(CFG)
+      == ["https://api.deepseek.test/anthropic/v1/messages"])
+_keys.unkeyed = lambda spec: "A_KEY"
+check("and one whose key is not here adds none",
+      tutor.provider_probe_urls(CFG) == [])
+_keys.unkeyed = was_unkeyed
+tutor.missing_command = was_missing
 
 was_ok = egress.egress_ok
 egress.egress_ok = answering("api.deepseek.test")
@@ -368,7 +394,7 @@ check("a recipe that talks to the machine's own provider is not probed at all, "
       "because the machine-wide probe on the failure path already answers for "
       "it", tutor.probe_before_turn(CFG, "claude") is None
       and egress.stood_down("claude") is None)
-egress.egress_ok = lambda timeout=12, urls=None: False
+egress.egress_ok = lambda timeout=12, urls=None, also=(): False
 egress.clear_unreachable("deepseek")
 tutor._PROBED.clear()
 check("and a machine with no egress at all is not this provider's fault, so "

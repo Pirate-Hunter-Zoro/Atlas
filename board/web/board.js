@@ -7275,6 +7275,16 @@ function threadPaint(node, last) {
     b.querySelector("strong").textContent = k.label
       + (k.kind === first && last ? " · last time" : "");
     b.querySelector("span").textContent = k.sub;
+    /* WHO TEACHES IT, before the tap: the workspace's provider for this kind,
+       else this machine's default (`sheet.agents`, from `kind_agents`). One
+       that cannot take a turn here says why, since another will take it. */
+    var who = sheet && sheet.agents && sheet.agents[k.kind];
+    if (who && who.agent) {
+      var w = document.createElement("em");
+      w.className = "work-agent" + (who.why ? " off" : "");
+      w.textContent = "with " + who.agent + (who.why ? " — " + who.why : "");
+      b.appendChild(w);
+    }
     b.onclick = function () { takeThread(node, k, threadChip(node)); };
     host.appendChild(b);
   });

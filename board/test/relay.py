@@ -486,6 +486,20 @@ try:
           and "Why did L1" in claude.argv[2])
     check("and its last message becomes the note",
           open(relay.note_path(cws, "t2")).read().strip() == "AUC 0.71 at k=12.")
+    # A WORKSPACE'S PROVIDER IS THE MAC'S, NEVER THE CLUSTER TURN'S: a
+    # `tutorboard.json` naming DeepSeek for every kind still gets Claude here.
+    tbj = os.path.join(cws, "tutorboard.json")
+    had = open(tbj).read() if os.path.exists(tbj) else None
+    write(tbj, json.dumps({"agent": {"learn": "deepseek", "coach": "deepseek",
+                                     "build": "deepseek"}}))
+    code = relay.run_turn(cws, "t2", run=claude)
+    check("a workspace naming another provider per kind still runs Claude on "
+          "the cluster", code == 0 and claude.argv[0] == "claude"
+          and "ANTHROPIC_BASE_URL" not in claude.kw["env"])
+    if had is None:
+        os.remove(tbj)
+    else:
+        write(tbj, had)
     del os.environ["ANTHROPIC_BASE_URL"]
 
     leaving._POLICY["root"] = None

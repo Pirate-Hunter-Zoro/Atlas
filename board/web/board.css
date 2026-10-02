@@ -2775,6 +2775,8 @@ body.papering .annbar { z-index: 96; }
 .work-way:hover { border-color: var(--accent); background: var(--paper-2); }
 /* The kind a thread's last sitting was, offered first. */
 .work-way.kind.last { border-color: var(--accent); }
+.work-way .work-agent { color: var(--ink-2); font-size: .74rem; font-style: normal; }
+.work-way .work-agent.off { color: var(--bad); }
 
 /* WHAT A THREAD HOLDS, as rows: code is never a box. */
 .thread-head {

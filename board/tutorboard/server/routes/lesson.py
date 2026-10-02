@@ -86,6 +86,7 @@ def get(h, repo, path):
         if not found:
             return h.send_json({"ok": False, "error": "no such thread"},
                                status=404)
+        found["agents"] = kind_agents(repo.root)
         found["ok"] = True
         return h.send_json(found)
 
@@ -127,6 +128,33 @@ def get(h, repo, path):
         return h.send_json(found)
 
     return NOT_MINE
+
+
+def kind_agents(root):
+    """Who a sitting of each kind opened from the thread sheet is taught by.
+
+    `{kind: {"agent": name, "why": unavailable-or-""}}`. A sheet's tap names no
+    assistant, so `resolve_agent` reads the workspace's `agent` for that kind,
+    then this machine's own default -- the `machine` the launcher reports. An
+    agent that cannot take a turn here says why, because `choose_agent` will
+    hand the turn to another and the sheet should not promise the first. {}
+    when the launcher could not be asked: the sheet then draws no names.
+    """
+    from ... import assistants
+    table = assistants.listing()
+    if not table:
+        return {}
+    cfg = config.read_config(root)
+    known = {a.get("name"): a for a in table.get("agents") or []}
+    out = {}
+    for kind in config.KINDS:
+        name = (config.workspace_agent(cfg, kind) or table.get("machine")
+                or table.get("default") or "")
+        one = known.get(name)
+        why = ("there is no assistant called '%s' here" % name if not one
+               else str(one.get("unavailable") or ""))
+        out[kind] = {"agent": name, "why": why}
+    return out
 
 
 def _mark(st, node, aim, agent=None, root=None, kind=None):

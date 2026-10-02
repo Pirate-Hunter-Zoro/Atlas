@@ -40,8 +40,15 @@ DEFAULT_EGRESS_PROBE = ("https://api.anthropic.com/v1/messages",)
 EGRESS_KNOWN_GOOD = os.path.join(paths.STATE_DIR, "egress-ok.json")
 
 
-def egress_probe_urls():
+def egress_probe_urls(also=()):
     """The endpoints whose reachability actually settles anything here.
+
+    `also` is each configured provider's own endpoints -- every recipe on this
+    machine that is installed and keyed names its `egress_probe`, and
+    `provider_probe_urls` in `bin/tutor` collects them -- appended after the
+    default's, once each. On the Mac every provider is an ordinary choice, so
+    "can a turn leave this machine" is asked of every host a turn here may open,
+    and a filter on one provider's name is not read as a machine with no way out.
 
     `egress_probe` in the config wins, always -- the board is not allowed to know
     which assistant is driving it, and a list of URLs is how that stays true.
@@ -59,12 +66,14 @@ def egress_probe_urls():
     urls = cfg.get("egress_probe")
     if isinstance(urls, str):
         urls = [urls]
-    if urls:
-        return tuple(urls)
-    return DEFAULT_EGRESS_PROBE
+    out = list(urls) if urls else list(DEFAULT_EGRESS_PROBE)
+    for url in also or ():
+        if url and url not in out:
+            out.append(url)
+    return tuple(out)
 
 
-def egress_ok(timeout=12, urls=None):
+def egress_ok(timeout=12, urls=None, also=()):
     """Can a turn reach what it needs from here?
 
     ANY http answer counts, including 401 and 405. We are asking whether the
@@ -82,7 +91,7 @@ def egress_ok(timeout=12, urls=None):
     """
     import urllib.error
     import urllib.request
-    for url in (urls if urls is not None else egress_probe_urls()):
+    for url in (urls if urls is not None else egress_probe_urls(also)):
         req = urllib.request.Request(url, data=b"{}", method="POST",
                                      headers={"Content-Type": "application/json"})
         try:

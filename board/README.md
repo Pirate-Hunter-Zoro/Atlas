@@ -2674,7 +2674,7 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
 |---|---|---|
 | `--agent opencode` | the command line | this once |
 | `"agent": "opencode"` | the sitting's own `live/state.json` | this evening's work — the only layer the iPad can reach |
-| `"agent": "opencode"` | the course's `tutorboard.json` | this course, on every machine |
+| `"agent": "opencode"` or `"agent": { "learn": "deepseek", "build": "claude" }` | the course's `tutorboard.json` | this course, on every machine — or per kind of sitting |
 | `"hosts": { "desk": "deepseek" }` | the config, by short hostname | this machine, every course |
 | `"default_agent"` | the config | everything else |
 
@@ -2690,6 +2690,27 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
   }
 }
 ```
+
+**A workspace names a provider per kind of sitting** where `agent` in its `tutorboard.json` is an
+object keyed by `learn`, `coach` and `build`: a course's learn sittings on DeepSeek, a research
+workspace's build sittings on Claude. The open sitting's own kind picks the entry
+(`config.workspace_agent`, read off `live/state.json` by `config.sitting_kind`), and a kind the
+object does not name falls through to the machine's layers. A name this machine has not got is
+refused rather than quietly replaced, as a plain `agent` is. **The thread sheet says who takes
+each kind** before the tap: each kind's button carries *with deepseek*, from `kind_agents` in
+`routes/lesson.py` — the workspace's choice for that kind, else `machine` from `tutor --agents
+--json` (the `hosts` entry, else `default_agent`) — and one that cannot take a turn here says why,
+because `choose_agent` will hand the turn to another. `test/agents.py` and `test/provider.py`.
+
+**On the Mac every provider is an ordinary choice**, because the Mac holds no PHI. DeepSeek is
+keyed there from `~/.config/tutor-board/keys.env` and answers turns on `deepseek-flash`. **The
+machine-wide egress probe asks after every configured provider**: `egress.egress_probe_urls(also)`
+appends each `egress_probe` of a recipe whose command is here and whose key is in the store
+(`provider_probe_urls` in `bin/tutor`) after the default's, so a filter on one provider's hostname
+is never read as a machine with no way out. **A cluster `turn` is Claude, always, under the PHI
+guard**: `relay.run_turn` runs `claude -p` with the routing variables scrubbed and never reads a
+workspace's `agent`, so a `tutorboard.json` naming DeepSeek for every kind changes nothing there.
+Colibri stays the only model that reads PHI, and it runs only on the cluster. `test/relay.py`.
 
 **A model is not a layer, and must never become one.** An agent entry is a command recipe, so a
 second model is a second entry whose `cmd` carries the flag — which is why "opencode with DeepSeek"

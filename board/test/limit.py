@@ -207,7 +207,7 @@ check("a limit is asked about before the network is blamed -- the turn itself "
       "answered that one, and a provider that could say so is a provider we "
       "plainly reached",
       src.index("reads_as_usage_limit")
-      < src.index("if not egress.egress_ok():"))
+      < src.index("if not egress.egress_ok(also="))
 check("the machine is marked, which is what /health then publishes",
       "limits.mark_limited(until, agent=agent_name)" in src)
 check("the message whose turn was lost is carried, not dropped -- and to "

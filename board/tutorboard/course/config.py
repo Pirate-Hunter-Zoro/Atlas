@@ -346,6 +346,41 @@ def clean_agent(agent):
     return agent if AGENT_RE.match(agent) else None
 
 
+def workspace_agent(cfg, kind=None):
+    """The assistant `tutorboard.json` names for a sitting of this kind, or None.
+
+    `agent` is a name, which holds for every sitting in the workspace, or an
+    object keyed by kind -- `{"learn": "deepseek", "build": "claude"}` -- where
+    a kind it does not name falls through to the machine's default. The name is
+    passed on as written, lowercased, so `resolve_agent` can refuse one this
+    machine has not got rather than quietly teach with another.
+    """
+    said = (cfg or {}).get("agent")
+    if isinstance(said, dict):
+        said = said.get(clean_kind(kind) or "")
+    if not isinstance(said, str):
+        return None
+    return said.strip().lower() or None
+
+
+def sitting_kind(root):
+    """The kind of the sitting open in this workspace, off its `state.json`, or ""."""
+    if not root:
+        return ""
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r",
+                  encoding="utf-8") as fh:
+            state = json.load(fh) or {}
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(state, dict):
+        return ""
+    try:
+        return kind_for(root, state) or ""
+    except Exception:                                        # noqa: BLE001
+        return ""
+
+
 def sitting_agent(root):
     """Which assistant THIS SITTING asked for, off its own `state.json`, or None.
 

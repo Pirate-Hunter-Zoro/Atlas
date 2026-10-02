@@ -1205,7 +1205,8 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
 
       1. --agent on the command line          -- this once
       2. "agent" in the sitting's state.json  -- this evening's work
-      3. "agent" in the course's tutorboard.json -- this course, everywhere
+      3. "agent" in the course's tutorboard.json -- this course, everywhere,
+                                     or per kind of sitting
       4. "hosts" in the config, by hostname   -- this machine, every course
       5. default_agent                        -- everything else
 
@@ -1246,7 +1247,13 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
             "falling back" % mine)
         mine = None
     picked = None
-    for pick in (override, mine, (course or {}).get("agent"),
+    # The workspace's layer is per KIND where `tutorboard.json` says so -- a
+    # course's learn sittings on DeepSeek, a project's build sittings on Claude
+    # -- read off the open sitting's own kind; see `config.workspace_agent`.
+    ws = config.workspace_agent(
+        course, config.sitting_kind((course or {}).get("root"))
+        if isinstance((course or {}).get("agent"), dict) else None)
+    for pick in (override, mine, ws,
                  (cfg.get("hosts") or {}).get(this_host()),
                  cfg.get("default_agent")):
         if pick and pick in cfg["agents"]:
@@ -1271,6 +1278,24 @@ def agent_probe_urls(spec):
     if isinstance(urls, str):
         urls = [urls]
     return [u for u in urls if u] if urls else None
+
+
+def provider_probe_urls(cfg):
+    """Every configured provider's own endpoints, for the machine-wide probe.
+
+    Configured means a recipe this machine could run: its command is here and
+    its key is in `keys.env`. A recipe with neither opens no connection from
+    here, so asking after its host would answer a question about nobody's turn.
+    """
+    out = []
+    for name in sorted(cfg.get("agents") or {}):
+        spec = cfg["agents"][name] or {}
+        if missing_command(spec.get("cmd")) or keys.unkeyed(spec):
+            continue
+        for url in agent_probe_urls(spec) or ():
+            if url not in out:
+                out.append(url)
+    return out
 
 
 # How long one answer about a third-party provider's reachability stands before
@@ -1308,7 +1333,8 @@ def probe_before_turn(cfg, name, log=None, now=None):
     if now - _PROBED.get(name, 0) < PROBE_TTL:
         return None
     _PROBED[name] = now
-    if egress.egress_ok(urls=own, timeout=8) or not egress.egress_ok():
+    if egress.egress_ok(urls=own, timeout=8) or not egress.egress_ok(
+            also=provider_probe_urls(cfg)):
         return None
     host = probe_host(own)
     egress.mark_unreachable(name, host)
@@ -4125,7 +4151,8 @@ def headless(cfg, course, agent_name, session):
             # add a round trip to the internet to every card the student waits
             # for, to answer a question that is almost always yes.
             own = agent_probe_urls(spec)
-            if own and not egress.egress_ok(urls=own) and egress.egress_ok():
+            if own and not egress.egress_ok(urls=own) and egress.egress_ok(
+                    also=provider_probe_urls(cfg)):
                 host = probe_host(own)
                 until = time.time() + egress.UNREACHABLE_WINDOW
                 egress.mark_unreachable(agent_name, host, until)
@@ -4162,7 +4189,7 @@ def headless(cfg, course, agent_name, session):
             # never once fired, because by the time the board read the record
             # the reason had been replaced by the exit code.
             dark_machine = False
-            if not egress.egress_ok():
+            if not egress.egress_ok(also=provider_probe_urls(cfg)):
                 dark_machine = True
                 log.write("!! nothing can get out from here; the turn may not be "
                           "the tutor's fault\n")
@@ -6500,6 +6527,11 @@ def main(argv):
             if "--json" in argv:
                 print(json.dumps({
                     "default": cfg["default_agent"],
+                    # What a sitting that names nobody, in a workspace that
+                    # names nobody for its kind, gets ON THIS MACHINE: the
+                    # `hosts` entry beats `default_agent`, as in
+                    # `resolve_agent`. The thread sheet draws it.
+                    "machine": resolve_agent(cfg, None, say=lambda m: None),
                     # Who reads an image for an assistant that cannot. Named
                     # here rather than guessed at by the caller, because the
                     # registry is this table and a second one drifts.

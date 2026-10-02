@@ -77,6 +77,41 @@ check("an unknown name resolves to nothing rather than to a wrong agent",
 check("a course with no opinion and no machine entry still resolves",
       tutor.resolve_agent(no_host, None) == "claude")
 
+# --- a provider per KIND of sitting -----------------------------------------
+# `agent` in `tutorboard.json` may be an object keyed by kind: a course's learn
+# sittings on DeepSeek, a project's build sittings on Claude. The open sitting's
+# own kind picks the entry; a kind it does not name falls through to the machine.
+kinded = tempfile.mkdtemp(prefix="agents-kind-")
+os.makedirs(os.path.join(kinded, "live"))
+
+
+def sit(kind):
+    with open(os.path.join(kinded, "live", "state.json"), "w", encoding="utf-8") as fh:
+        json.dump({"thread": "t", "kind": kind} if kind else {}, fh)
+
+
+by_kind = {"root": kinded, "agent": {"learn": "codex", "build": "claude"}}
+sit("learn")
+check("a learn sitting takes the workspace's learn provider",
+      tutor.resolve_agent(CFG, by_kind) == "codex")
+sit("build")
+check("a build sitting takes its build provider",
+      tutor.resolve_agent(CFG, by_kind) == "claude")
+sit("coach")
+check("a kind the workspace does not name falls through to the machine",
+      tutor.resolve_agent(CFG, by_kind) == "opencode")
+sit(None)
+check("and so does a sitting of no kind",
+      tutor.resolve_agent(CFG, by_kind) == "opencode")
+sit("learn")
+check("the sitting's own choice still beats the workspace's kind",
+      tutor.resolve_agent(CFG, by_kind, "opencode") == "opencode")
+check("a misspelt provider for a kind is refused, not quietly replaced",
+      tutor.resolve_agent(CFG, dict(by_kind, agent={"learn": "nonesuch"})) is None)
+check("a plain name still holds for every kind",
+      tutor.resolve_agent(CFG, {"root": kinded, "agent": "codex"}) == "codex")
+shutil.rmtree(kinded, ignore_errors=True)
+
 # --- the default, and where its permissions are NOT written ------------------
 # Claude Code is the default tutor. Headless there is nobody to approve anything,
 # and a refused tool is not an error -- the agent apologises into a log nobody
