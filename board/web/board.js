@@ -5225,9 +5225,11 @@ function mapThread(n) {
 }
 
 /* What a thread box says under its name: its status, and whether git shows
-   its paths changed. */
+   its paths changed. `requested` is a relay request the cluster has not
+   reported on, and the box says what it is waiting for. */
 function mapThreadSays(n) {
-  return n.thread + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
+  return (n.thread === "requested" ? "waiting for the cluster" : n.thread)
+         + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
          + (n.unsaved ? " · unsaved" : "");
 }
 
@@ -9812,9 +9814,13 @@ function paintBusy(data) {
     var job = !data.archived && (data.jobs || [])[0];
     if (job) {
       var more = data.jobs.length > 1 ? " (+" + (data.jobs.length - 1) + " more)" : "";
-      var word = "running — " + (job.title || job.thread || "a job") + ": job "
-        + job.jobid + (String(job.state).toUpperCase() === "PENDING" ? ", pending" : "")
-        + more;
+      var asked = String(job.state).toUpperCase() === "REQUESTED";
+      var word = asked
+        ? "waiting for the cluster — " + (job.title || job.thread || "a request")
+          + more
+        : "running — " + (job.title || job.thread || "a job") + ": job "
+          + job.jobid + (String(job.state).toUpperCase() === "PENDING" ? ", pending" : "")
+          + more;
       els.busy.hidden = false;
       els.busy.classList.remove("busy-bad");
       els.busyText.textContent = word;
