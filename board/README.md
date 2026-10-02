@@ -965,9 +965,11 @@ With one hold standing, every `<id>` may be left out.
   slug of the first path's name; it matches `jobs.REQUEST_ID_RE`, never starts `check-`, and is
   never another thread's id.
 - **The check** is the first of: `--check` (tracked and unchanged at HEAD), the thread's `check`,
-  the workspace's `check` in `tutorboard.json`:
+  the workspace's `check` in `tutorboard.json`. That is one shell command, run as `bash -c` over
+  the whole workspace, or an object that can also check only what is held:
 
   ```
+  "check": "uv run --extra test python -m pytest tests -q"
   "check": {"all": ["go", "test", "./..."], "one": ["go", "test", "./{dir}/..."],
             "path": ["/usr/local/go/bin"]}
   ```
@@ -978,9 +980,15 @@ With one hold standing, every `<id>` may be left out.
   (go, lake, uv, python3, bash, make) or a tracked workspace script. It runs with no shell, from
   the workspace root, `path` ahead of PATH, with a 30-minute cap. A closed workspace refuses a
   hold with no check; an open one allows it, and the step's report says `state: "unchecked"`.
+  No word of a check may name an absolute or home path, a `$` variable or a `..` step, and a
+  tracked script that is a symlink out of the workspace is not a check: its output is judged by
+  this workspace's fence, so it may not reach into another one.
 - **Whether output is open** is `holds.output_open`, and all four must hold: no fence directory
-  (`fenced.holds`), no `"phi": true` in `tutorboard.json`, a family other than `research`, and
-  the lab's `names_phi` loaded. TRD-EHR, PSYCH-ASR and libr-local-llm say `"phi": true`.
+  (`fenced.holds`); no `"phi": true` in `tutorboard.json`, on disk or at HEAD; a workspace of a
+  family other than `research`; and the lab's `names_phi` loaded. The repository's top, a
+  family's directory and a directory inside a workspace are closed, and `board hold` refuses
+  there, because only a workspace's own `relay/holds/` is read by the Mac. TRD-EHR, PSYCH-ASR
+  and libr-local-llm say `"phi": true`.
 - **A hold is checked whole** (`holds.validate_hold`, pure), every problem at once: not held
   already, has files, none under another hold and none holding one, and its check as above. It is
   made only where there is Slurm.
@@ -5974,7 +5982,8 @@ board is standard library only; the workspaces are not, and a tutor tests before
   `~/.local/state/atlas-setup/`, changes nothing on a second run, and exits non-zero if any
   workspace failed.
 - **Each workspace names its check** as `check` in its `tutorboard.json`: the test command,
-  run from the workspace root, through `uv run` for Python. The brief prints it under the
+  run from the workspace root, through `uv run` for Python, as one shell command or in the
+  object form a hold can narrow (*A sitting held at the cluster*). The brief prints it under the
   stance, and every workspace contract says that a turn that changed code runs it before it
   pushes and says in its report whether it passed. `test/jobs.py` holds the real tree to it:
   a contract without the rule, a workspace with code and no check, or a `pyproject.toml`

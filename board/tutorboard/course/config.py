@@ -15,6 +15,7 @@ never be the reason a board behaves differently from its neighbour.
 import json
 import os
 import re
+import shlex
 
 from .. import atlas
 
@@ -118,6 +119,21 @@ def check_program(word):
             and ("/" in rel or "." in os.path.basename(rel)))
 
 
+def _leaves(word):
+    """Does this word of a check name a path outside the workspace? An
+    absolute or home path, or a `..` step, anywhere in it: after `--opt=`,
+    or inside a `bash -c` line. A check runs from the workspace root, and its
+    output is judged by that workspace's fence, so it may not reach into
+    another one."""
+    for part in _WORD_SPLIT.split(str(word).replace("\\", "/")):
+        if part.startswith(("/", "~", "$")) or ".." in part.split("/"):
+            return True
+    return False
+
+
+_WORD_SPLIT = re.compile(r"[\s;&|()<>'\"=`:,]+")
+
+
 def check_line(chk):
     """The workspace check as one command line, for the brief. "" if none."""
     if not chk:
@@ -137,6 +153,14 @@ def clean_check(raw):
             return None, ["`check`, as a string, is one shell command with no "
                           "placeholders; `{dir}`, `{file}` and `{module}` need "
                           "the object form"]
+        try:
+            words = shlex.split(line)
+        except ValueError:
+            return None, ["`check` is not a command a shell can read"]
+        out = [w for w in words if _leaves(w)]
+        if out:
+            return None, ["`check` names %s, outside the workspace"
+                          % ", ".join(out[:3])]
         return {"all": ["bash", "-c", line], "line": line}, []
     if not isinstance(raw, dict):
         return None, ["`check` must be a shell command, or an object with "
@@ -154,6 +178,11 @@ def clean_check(raw):
             problems.append("`check.%s` starts with %r, which is neither one of "
                             "%s nor a workspace script"
                             % (key, argv[0], ", ".join(CHECK_PROGRAMS)))
+            continue
+        out_of = [w for w in argv if _leaves(w)]
+        if out_of:
+            problems.append("`check.%s` names %s, outside the workspace"
+                            % (key, ", ".join(out_of[:3])))
             continue
         holes = [x for w in argv for x in _HOLE_RE.findall(w)]
         wrong = [x for x in holes if x not in CHECK_HOLES or key == "all"]

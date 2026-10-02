@@ -139,6 +139,18 @@ check("a check that runs something not named is refused",
       and "neither" in config.clean_check({"all": ["/bin/rm"]})[1][0])
 check("and so is a placeholder in `all`, which has no held path to fill it",
       config.clean_check({"all": ["go", "test", "./{dir}"]})[0] is None)
+check("a check may be one shell command, which the brief prints as written",
+      config.clean_check("uv run --extra test python -m pytest tests -q")[0]
+      == {"all": ["bash", "-c", "uv run --extra test python -m pytest tests -q"],
+          "line": "uv run --extra test python -m pytest tests -q"}
+      and config.check_line(GO_CHECK) == "go test ./...")
+check("a check reaching outside the workspace is refused, in either form",
+      all(config.clean_check(c)[0] is None for c in (
+          "cd ../TRD-EHR && pytest", "cat $HOME/x",
+          {"all": ["go", "test", "../../research/x/..."]},
+          {"all": ["uv", "run", "--directory=../x", "pytest"]},
+          {"all": ["bash", "-c", "cd ../x && make"]},
+          {"all": ["make", "-C", "/elsewhere"]})))
 
 target = {"id": "coinchange", "files": ["leetcode/coinchange"],
           "dirs": ["leetcode/coinchange"]}
@@ -358,6 +370,30 @@ try:
           not holds.output_open(cl_algo))
     os.rmdir(os.path.join(cl_algo, "phi"))
     fenced.forget()
+    check("the repository's top and a family's directory are closed: each "
+          "holds a fenced workspace",
+          not holds.output_open(cl_top) and not holds.output_open(
+              os.path.join(cl_top, "research"))
+          and not holds.output_open(os.path.join(cl_algo, "leetcode")))
+    write(os.path.join(cl_algo, "tutorboard.json"), json.dumps({"phi": True}))
+    write(os.path.join(cl, "tutorboard.json"), json.dumps({"name": "Proj"}))
+    check("on-disk phi closes, and an edit dropping it does not open what "
+          "HEAD closes", not holds.output_open(cl_algo)
+          and holds._head_says_phi(cl) and not holds._head_says_phi(cl_algo))
+    git(cl_top, "checkout", "--", "practice/Algo/tutorboard.json",
+        "research/Proj/tutorboard.json")
+    os.symlink("../../research/Proj/checks/aipw.sh",
+               os.path.join(cl_algo, "leak.sh"))
+    git(cl_top, "add", "practice/Algo/leak.sh")
+    git(cl_top, "commit", "-q", "-m", "a symlink")
+    check("a tracked symlink out of the workspace is not a script it may run",
+          "leak.sh" not in holds._tracked(cl_algo)
+          and "go.mod" in holds._tracked(cl_algo))
+    git(cl_top, "reset", "-q", "--hard", "HEAD~1")
+    code, out = board(cl_top, on_cluster, "hold", "--check",
+                      "research/Proj/checks/aipw.sh", "--", "research/Proj/src")
+    check("a hold from the repository's top, over another workspace, is "
+          "refused", code == 1 and "not a workspace" in out)
 
     # --- what a bare `board hold` holds -------------------------------------------
     t, said, p = holds.resolve_target(cl_course, [], {
@@ -603,8 +639,16 @@ try:
     holds.wake(mac_course)
     said = inbox(mac_course)[-1]["text"]
     check("and the coach is told so", "this hold has no check" in said)
+    code, out = board(cl_course, on_cluster, "hold", "--", "chapters/ch01-groups")
+    check("a second hold stands beside it", code == 0)
     code, out = board(cl_course, on_cluster, "release", "hw01")
-    check("and released by its id", code == 0)
+    check("and one is released by its id while the other stands",
+          code == 0 and not git(origin, "show",
+                                "main:courses/Course/relay/holds/hw01.json")
+          and git(origin, "show",
+                  "main:courses/Course/relay/holds/ch01-groups.json"))
+    code, out = board(cl_course, on_cluster, "release", "ch01-groups")
+    check("and then the other", code == 0)
 finally:
     if saved_courses is None:
         os.environ.pop("TUTORBOARD_COURSES", None)

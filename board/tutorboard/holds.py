@@ -174,9 +174,11 @@ def output_open(root, names_phi=None, cfg=None):
     All four must hold, and any one failing closes it:
 
       1. the workspace holds no fence (`fenced.holds`), which PSYCH-ASR does;
-      2. its `tutorboard.json` does not say `"phi": true`;
-      3. it is not in the `research` family, which is closed by default,
-         because a research check can read patient rows with no fence on disk;
+      2. its `tutorboard.json` does not say `"phi": true`, on disk or at HEAD;
+      3. it is a workspace of a family, and not of `research`, which is closed
+         by default because a research check can read patient rows with no
+         fence on disk. The repository's top, a family's directory and a
+         directory inside a workspace are closed: each can hold a fenced one;
       4. the lab's PHI policy loaded (`names_phi`), so a checkout without the
          private `ai-config` is closed.
 
@@ -189,15 +191,28 @@ def output_open(root, names_phi=None, cfg=None):
         if fenced.holds(root):
             return False
         cfg = cfg if cfg is not None else config.read_config(root)
-        if cfg.get("phi") is True:
+        if cfg.get("phi") is True or _head_says_phi(root):
             return False
-        if atlas.family_of(root) == "research":
+        if atlas.family_of(root) in ("", "research"):
             return False
         if names_phi is None:
             names_phi = _policy(root)
         return callable(names_phi)
     except Exception:                                        # noqa: BLE001
         return False
+
+
+def _head_says_phi(root):
+    """Does the committed `tutorboard.json` say `"phi": true`? An edit on disk
+    that drops it does not open the workspace."""
+    code, out = _git(root, "show", "HEAD:./tutorboard.json", timeout=20)
+    if code != 0:
+        return False
+    try:
+        said = json.loads(out)
+    except ValueError:
+        return False
+    return isinstance(said, dict) and said.get("phi") is True
 
 
 # ---------------------------------------------------------------------------
@@ -696,11 +711,12 @@ def push(top):
 def _commit(top, rels, message):
     """Commit exactly `rels` (repository-relative), whatever else is staged.
 
-    A path already removed (`git rm`, or a deleted file whose directory went
-    with it) is not added: `--only` commits its removal from the index.
+    A path on disk, or deleted from disk but still in the index, is added. One
+    already out of the index (`git rm`) is not: `git add` would refuse it as
+    a pathspec matching nothing, and `--only` commits its removal anyway.
     """
     there = [r for r in rels if os.path.lexists(os.path.join(top, r))
-             or os.path.isdir(os.path.dirname(os.path.join(top, r)))]
+             or _git(top, "ls-files", "--", r, timeout=20)[1].strip()]
     if there:
         code, out = _git(top, "add", "-A", "--", *there)
         if code != 0:
@@ -715,11 +731,15 @@ def _rel_top(top, root, rel):
 
 
 def _tracked(root):
-    """Workspace-relative paths tracked and unchanged at HEAD."""
+    """Workspace-relative paths tracked and unchanged at HEAD, that resolve
+    inside the workspace: a tracked symlink to another workspace's script is
+    not this workspace's check."""
     tracked = set(jobs._git_lines(root, ["ls-files", "-z", "--", "."]))
     changed = set(jobs._git_lines(root, ["diff", "--name-only", "-z",
                                          "--relative", "HEAD", "--", "."]))
-    return tracked - changed
+    real = os.path.realpath(root)
+    return set(p for p in tracked - changed
+               if os.path.realpath(os.path.join(real, p)).startswith(real + os.sep))
 
 
 def visible(root):
@@ -743,6 +763,13 @@ def hold(root, target, now=None, said=""):
     if not jobs.has_slurm():
         return False, ["a hold is made in the cluster checkout, where the owner "
                        "writes the code; this machine has no Slurm"]
+    from . import atlas
+    if not atlas.family_of(root):
+        # Only a workspace's own `relay/holds/` is read by the Mac's refusal
+        # and its wake, so a hold made above one would hold nothing.
+        return False, ["%s is not a workspace of a family, so nothing was held. "
+                       "`cd` into the workspace the files are in, then hold "
+                       "them there" % root]
     hidden = visible(root)
     if hidden:
         return False, [hidden]

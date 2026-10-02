@@ -834,6 +834,10 @@ def post(h, repo, path):
                     st = repo.state()
                     st["session"] = kind
                     _mark(st, node, aim, agent, repo.root, kind_word)
+                    if stance:
+                        st["stance"] = stance
+                    else:
+                        st.pop("stance", None)
                 st["hw"] = chosen["rel"]
                 st["chapter"] = chosen["name"]
         else:
