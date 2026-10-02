@@ -3,40 +3,6 @@
 Each entry is a rule that is true of `board/` now. Fold an entry into `board/README.md` when you touch its area, then delete it here.
 
 
-- **A ROUND OF FEEDBACK IS A LEDGER OF NUMBERED REQUESTS, AND EVERY ONE IS
-  ANSWERED.** `course/ledger.py` and `web/ledger.js`; `board/README.md`, *A round
-  is a ledger of requests*, has the files. `write_note` splits a round into one
-  request per inked region (single-link within `GAP`) and one per typed paragraph,
-  shown first by `POST /library/ledger/preview`, with a page mergeable to one
-  request. `R3.4` is stored, and `ledger.next_round` is past every ledger there
-  has been, so a deleted note gives its ids to nobody. Typed paragraphs are in the
-  note once, under their ids: the factory reads the note's first 6000 characters.
-  `<note>.ledger.json` is the contract (items, and the turn's `answers`); the
-  board-only half — `items.json`, crops, `marked-p<n>.png`, `before`/`after`
-  snapshots, `states.json`, `checked.json`, `placed-<digest>.json` — lives in the
-  round's directory `<day>-v<n>/`, because the turn rewrites the ledger and a
-  board write there would move the stat the validation is keyed on. Validation is
-  lazy, on the wipe's GETs (`ledger.settle`): a missing id is NOT ANSWERED once
-  landed, WAITING before, and the board writes `## What was changed` from the
-  ledger. `sense.LEDGER_SENSE` names the path and ids; `bin/tutor` changed only in
-  its two revise prompts. **The board snapshots, it does not commit**: a commit of
-  a half-finished edit is a worse undo than none. `after.<ext>` is taken once and
-  never replaced (from the next round's `before` where there is one), so a
-  re-validation cannot copy later edits over a round's old wording. **A round whose
-  ask failed is `unsent`** and counted nowhere, so its retry counts each request
-  once. Accept and reopen only on a landed round; a reopened request rides the next
-  round under its id, carried only once the ask succeeded. Placement is
-  server-side over `pdftotext -bbox`, hyphen- and line-break-tolerant, anchored on
-  the rarest opening word, `%` a comment only in `.tex`, cached by `paper._digest`;
-  unplaced is *placed by page only*. **Paper-Writer writes what it APPLIED**
-  (`<note>.factory.json`), its editor citing `[R3.4]` per issue, and
-  `ledger.from_factory` turns that into answers; a structural edit is anchored on
-  its `find`, not flagged for wording it never had. The card is a sheet at the foot
-  of the glass with its own *next change ›*, so a jumped-to change stays in sight.
-  The meeting deck loads `ledger.js` and uses none of it: `POST /meeting/direction`
-  changes nothing, so it has no ledger. `test/library.py` and `test/library.js`
-  hold it.
-
 - **THE FRONT DOOR OPENS A WORKSPACE ON ITS MAP, WITH NO SITTING AND NO
   ASSISTANT.** `addrRoute` in `home.js` sends every address to the board
   whole, so a bare workspace address reaches `addrGo`, which opens the map.

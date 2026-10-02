@@ -184,7 +184,8 @@ def get(h, repo, path):
     # WHAT EACH REQUEST WAS AND WHAT WAS DONE ABOUT IT, placed on the build
     # that is on disk now. An id, matched against discovery like every other.
     if path.startswith("/library/ledger/"):
-        doc = library.find(repo.root, path[len("/library/ledger/"):])
+        # Either name: the board's document drawer asks by its own (`find_any`).
+        doc = library.find_any(repo.root, unquote(path[len("/library/ledger/"):]))
         if not doc:
             return h.send_json({"ok": False, "error": "no such document"},
                                status=404)

@@ -391,6 +391,9 @@ for ws in ("courses/Galois-Theory", "courses/Probability", "practice/Algo-Soluti
     check("%s: its contract says long work goes through `board job`" % ws,
           "**Long work goes through `board job`.**" in contract
           and "A bare `sbatch` is work the board cannot see." in contract)
+    check("%s: its contract says ink on a document is answered in its ledger" % ws,
+          "**Ink on a document is answered in its ledger.**" in contract
+          and "`board round <document>`" in contract)
 
 print()
 if fails:

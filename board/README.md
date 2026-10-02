@@ -4250,13 +4250,47 @@ because a write there would move the stat the validation is keyed on.
   (`POST /library/ledger/state`). A reopened request rides the next round under the
   id it has (`ledger.reopened`, `ledger.carry`, only once the revision is asked); a
   round of nothing but reopened requests can be filed. The row counts open requests.
-- **The glass** (`ledger.js`, loaded by the library reader and by `/meeting`, which
-  has no round and asks nothing of it): *◉ changes* pins each placed request in the
-  page's margin, in fractions of `.lib-page`, coloured by disposition, with the
-  passage boxed. A pin opens a card (the crop, or the kept marked page where there is
-  no crop, or the words; what was done; old beside new; accept / reopen once landed)
-  as a sheet at the foot of the glass, so the jumped-to change stays in sight and the
-  card's own *next change ›* steps on. *☰ every request* lists them by page.
+- **Every route that answers ink on a document files a round first.** `board round
+  <document>` (either name: `library.find_any`) files the marks as a round, hands the
+  ink over and prints the ledger and ids; asked again before that round is answered it
+  prints the same round, and with no ink and nothing reopened it refuses. A lesson turn
+  handed ink on a `doc/` key is told so (`writing.ann_says`), and every workspace
+  contract says it: ink answered anywhere else stays drawn over the revision.
+- **The wipe knows the ink a round filed.** Once a round lands, `wipe_delivered` deletes
+  `sent` ink and also ink that round filed and nobody touched since (same build, same
+  stroke count), so a hand-over that never got written does not leave it on the page.
+- **The ink re-anchors to its words, not its page coordinates.** `file_round` keeps
+  `under` per inked request: the whole lines level with the ink (at most 40 words),
+  on the build it was drawn on. `anchors` stores `ink_at` beside the placement in
+  `placed-<digest>.json`: `same` on that build, `text` with the shift `dx`/`dy` where
+  `place` finds the words again, `gone` otherwise. Words gone but the answer on the
+  same page: the ghost follows the answer down the page, never onto another page.
+- **A row of `view` is a pair**: `n` (document order, the pip's number), `at` (where
+  the pip goes and what a tap shows: the answer's box, else the ink's, else the top
+  of its page), `ink` (the archived strokes), `ink_at`, `diff` (word ops over
+  `plain(old)` and the changed lines, cut to the passage the turn quoted, unchanged
+  runs past 16 words cut to 6 at each end), `reply` (the turn's sentence for not
+  done and pushed back) and `gone` (its words left the document and nothing was
+  placed). A round carries `open`, `judged` and `done` (every pair fine or carried).
+  A reopened request carries its strokes into the next round.
+- **The glass** (`ledger.js`, `ledger.css`; loaded by the library reader, and by
+  `/meeting`, which has no round and asks nothing of it). `#reader-changes` reads
+  *Round 3 · 12 notes*, *· 4 open* or *Round 3 done* and opens the panel. A pip in the
+  page's margin marks each open placed pair of the round shown, sized in `cqw` of
+  `.lib-page` with a 32 px hit area, so it scales with the zoom exactly; a pair said
+  fine loses it, and with the pen out pips do not take a tap. Archived ink that is
+  still owed (not answered, not done, or not fixed) is drawn back at full strength
+  as an `.lg-ghost` SVG in page units (1240 across), shifted by `ink_at`. A row is
+  the crop or the typed words over the diff or the reply. Tapping a row zooms to at
+  least 125%, centres its place in what the panel leaves, flashes the revised
+  passage and lays a faint ghost of the ink over it; tapping a pip opens its row.
+  *Fine* and *not fixed* (a line of why, required) store `accepted` and `reopened`.
+  The panel is a right rail on a landscape glass at least 56rem wide, the pages
+  narrowed beside it, and a sheet at the foot otherwise: it never covers the passage
+  it jumped to. A finished round is one line, and other rounds are lines under the
+  rows. *N not fixed — send them* opens the filing panel. The board's `#paper`
+  drawer has no panel of its own: a chip there (*Round 3 · 4 open → read in the
+  library*) opens the document in the library reader.
 - **Paper-Writer** answers through its editor: the brief tells it to start each issue
   with the request's id, every sweep records applied and rejected edits
   (`revision.record_edits`), and delivery writes them beside the note. The board turns

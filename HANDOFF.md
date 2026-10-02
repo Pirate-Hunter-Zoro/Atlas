@@ -126,7 +126,8 @@ These are built and have never been used for real. Strike each one after an even
 - Zoom and palm rejection on a paper and a deck, and whether ink stays on its words through
   a pinch.
 - One document all the way round: ask, compile, read, ink, complain, revise.
-- The edit ledger on a real round of the TRD-EHR manuscript.
+- The round as pairs on the TRD-EHR manuscript: its 09-29 round is round 1, backfilled. Tap the
+  chip, a row and a pip, and mark pairs fine or not fixed.
 - The meeting deck written by a real turn.
 - Sending selected annotations.
 - A response typing out, and the typed half of the answer panel, in a real sitting.

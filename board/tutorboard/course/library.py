@@ -478,6 +478,25 @@ def find(root, ident_wanted):
     return None
 
 
+def find_any(root, ident_wanted):
+    """The document under either name it has, or None.
+
+    The library's id first (`find`), then any document whose `mark_idents`
+    holds it: the board's drawer and its ink name a document by the slug of
+    its filename. Still matched against discovery, never a path.
+    """
+    doc = find(root, ident_wanted)
+    if doc:
+        return doc
+    wanted = str(ident_wanted or "").strip().lower()
+    if not wanted:
+        return None
+    for doc in documents(root):
+        if wanted in mark_idents(root, doc):
+            return doc
+    return None
+
+
 def path_of(root, doc, ext=".pdf"):
     """Where one format of one document actually is, or "".
 
@@ -912,6 +931,18 @@ def wipe_delivered(repo, doc, sent=None):
 
     sent = lesson_notes.load_notes_sent(repo) if sent is None else sent
     wanted = set(mark_idents(repo.root, doc))
+    filed = _filed_ink(repo, doc)
+    if filed:
+        sent = dict(sent)
+        strokes_of = lesson_notes.load_notes(repo)
+        builds = lesson_notes.load_notes_builds(repo)
+        for key, (digest, count) in filed.items():
+            # INK A LANDED ROUND FILED, UNTOUCHED SINCE, IS DELIVERED even where
+            # its `sent` flag never got written: same build, same strokes. A
+            # stroke added since changes the count, and stays for the next round.
+            if not sent.get(key) and (builds.get(key) or {}).get("digest") == digest \
+                    and len(strokes_of.get(key) or []) == count:
+                sent[key] = True
     gone = []
     for key, was_sent in sent.items():
         found = writing.ann_doc_page(key)
@@ -925,6 +956,25 @@ def wipe_delivered(repo, doc, sent=None):
                 continue
         gone.append(key)
     return gone
+
+
+def _filed_ink(repo, doc):
+    """`{key: (drawn_on, strokes)}` for the ink every landed round filed: the
+    page it was on, the build it was drawn on and how many strokes it had."""
+    from . import ledger                              # local: avoids a cycle
+
+    out = {}
+    rs = ledger.rounds(repo.root, doc)
+    for n, (_rec, path) in enumerate(rs):
+        if not ledger.check(repo.root, doc, path, later=n < len(rs) - 1).get("landed"):
+            continue
+        per = {}
+        for it in ledger.items_of(path):
+            if it.get("kind") == "ink" and it.get("ann") and it.get("drawn_on"):
+                was = per.get(it["ann"], (it["drawn_on"], 0))
+                per[it["ann"]] = (was[0], was[1] + int(it.get("count") or 0))
+        out.update(per)
+    return out
 
 
 def _handed_over(repo, found):

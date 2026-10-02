@@ -636,14 +636,17 @@ els.readerPages.addEventListener("scroll", noteAnchor, { passive: true });
 [document.getElementById("reader-bar"), els.readerSaid, els.readerRebuilt,
  els.readerCopy].forEach(watchLayout);
 
-/* WHAT EACH REQUEST WAS AND WHAT WAS DONE, pinned on the pages: `ledger.js`.
-   Its bar sits above the pages like the lines above, so it is watched the same
-   way. A request closed or reopened asks for the list again, because the row
-   says how many are open. */
+/* THE ROUND AS PAIRS -- what was written, and what was done -- with a pip on
+   the page for each: `ledger.js`. A pair judged asks for the list again,
+   because the row says how many are open; a jump is a scroll of our own, so
+   the anchor is taken where it landed; and "not fixed — send them" is the
+   filing panel, which carries every reopened pair. */
 var ledger = window.Ledger ? window.Ledger.make({
   pages: els.readerPages, button: els.readerChanges, changed: load,
+  zoom: zoomer,
+  send: function (doc) { say(doc, 0); },
+  scrolled: function () { placeWanted = 0; noteAnchor(); },
 }) : null;
-if (ledger) watchLayout(ledger.bar);
 
 function draw(doc, place, at) {
   openPages = 0;

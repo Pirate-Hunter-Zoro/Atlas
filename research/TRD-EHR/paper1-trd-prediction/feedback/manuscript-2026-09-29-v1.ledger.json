@@ -1,0 +1,177 @@
+{
+ "version": 1,
+ "note": "manuscript-2026-09-29-v1.md",
+ "round": 1,
+ "document": "paper1-trd-prediction-manuscript",
+ "title": "Title page",
+ "ask": "revise",
+ "source": "paper1-trd-prediction/manuscript.md",
+ "pdf": "paper1-trd-prediction/manuscript.pdf",
+ "filed": "2026-09-29 14:51",
+ "before": {
+  "file": "before.md",
+  "commit": "627d0bfa6659d8be61f7a095c96ac96b450022b3",
+  "source": "paper1-trd-prediction/manuscript.md"
+ },
+ "backfilled": "Filed after the fact from review/round_2026-09-29.md, the round as it was answered in b6214bcf. Request 1 keeps the ink still on page 1; requests 2-14 were erased by hand on 2026-10-02 and are transcribed from that file.",
+ "how_to_answer": "This round is answered.",
+ "items": [
+  {
+   "id": "R1.1",
+   "kind": "ink",
+   "page": 1,
+   "strokes": 85,
+   "crop": "paper1-trd-prediction/feedback/manuscript-2026-09-29-v1/R1.1.svg"
+  },
+  {
+   "id": "R1.2",
+   "kind": "text",
+   "page": 2,
+   "text": "p2, Abstract Conclusions: \"and prioritize validation of the outcome, transportability, and clinical value before deployment.\" — \"What does this mean?\" (transcribed)"
+  },
+  {
+   "id": "R1.3",
+   "kind": "text",
+   "page": 3,
+   "text": "p3, Introduction: \"longitudinal\" — \"Meaning?\" (transcribed)"
+  },
+  {
+   "id": "R1.4",
+   "kind": "text",
+   "page": 4,
+   "text": "p4, end of Introduction: \"The comparison concerns complete representation pipelines because their field inventories were not identical.\" — \"I don't understand this sentence\" (transcribed)"
+  },
+  {
+   "id": "R1.5",
+   "kind": "text",
+   "page": 4,
+   "text": "p4, Study Design: \"The resulting sample was enriched … 12,530 eligible patients (29.4%) entered through the randomly sampled group.\" — sketch: 80% flagged, 20% random (transcribed)"
+  },
+  {
+   "id": "R1.6",
+   "kind": "text",
+   "page": 4,
+   "text": "p4, Participants: \"Index selection did not require …\" — \"How can index selection require anything?\" (transcribed)"
+  },
+  {
+   "id": "R1.7",
+   "kind": "text",
+   "page": 5,
+   "text": "p5, Figure 1 caption: \"The 57.9% annotation describes candidate index orders, not the final cohort.\" — \"This means AD prescription happened on same day of MDD prescription right? SAY that if so.\" (transcribed)"
+  },
+  {
+   "id": "R1.8",
+   "kind": "text",
+   "page": 5,
+   "text": "p5, Outcome: \"Standardized symptom response was unavailable, and dose and duration adequacy were not established …\" — \"Meaning?\" (transcribed)"
+  },
+  {
+   "id": "R1.9",
+   "kind": "text",
+   "page": 6,
+   "text": "p6, top: \"Access to depression treatment differs … 'TRD proxy' …\" — \"I don't understand this blurb\" (transcribed)"
+  },
+  {
+   "id": "R1.10",
+   "kind": "text",
+   "page": 6,
+   "text": "p6, Representations: \"this duration rule did not establish adequate dose.\" — \"Just time?\" (transcribed)"
+  },
+  {
+   "id": "R1.11",
+   "kind": "text",
+   "page": 7,
+   "text": "p7, Model Development: \"Tuning grids were identical across representations …\" — \"We didn't necessarily pick the same hyperparameters right?\" (transcribed)"
+  },
+  {
+   "id": "R1.12",
+   "kind": "text",
+   "page": 7,
+   "text": "p7, calibration: \"The supplementary calibration-curve summaries use slopes … not interchangeable.\" — \"What?\" (transcribed)"
+  },
+  {
+   "id": "R1.13",
+   "kind": "text",
+   "page": 7,
+   "text": "p7, \"Nonparametric bootstrap resampling of test patients provided 95% CIs.\" — \"what does this mean?\" (transcribed)"
+  },
+  {
+   "id": "R1.14",
+   "kind": "text",
+   "page": 7,
+   "text": "p7, comparisons passage, through the Youden J sentence — \"I don't understand this\" (transcribed)"
+  }
+ ],
+ "answers": {
+  "R1.1": {
+   "disposition": "partly",
+   "did": "Partly. Authors' Contributions now credits the writing correctly. The corresponding author is unchanged: moving it to Martin needs his agreement, so it is a question for him, not an edit.",
+   "new": "MF designed and implemented the analysis pipeline, performed all modeling and statistical analysis, produced all figures and tables, including those in Multimedia Appendix 1, and wrote the Methods and Results. MP directed the project, supervised its scientific design and interpretation, and wrote the rest of the manuscript."
+  },
+  "R1.2": {
+   "disposition": "done",
+   "did": "Done. The clause is now 3 named tests.",
+   "new": "These findings support structured features as a practical benchmark. Before either pipeline is used in care, 3 things need testing: whether the switching label reflects true treatment resistance, whether the models work in other health systems, and whether their predictions improve clinical decisions."
+  },
+  "R1.3": {
+   "disposition": "done",
+   "did": "Done.",
+   "new": "Electronic health records (EHRs) record diagnoses, prescribing, and health care use over time."
+  },
+  "R1.4": {
+   "disposition": "done",
+   "did": "Done, by cutting it. Methods, *Patient Representations and Missing Data*, already says in plain words which fields each pipeline had and lacked.",
+   "new": "We asked whether pretrained embeddings of rule-based patient narratives improve prediction of a treatment-switching proxy for TRD beyond structured feature vectors at the index antidepressant prescription. We compared the pipelines in the same patients, using a common temporal design and test set. Secondary analyses examined whether performance depended on the classifier or encoder, which clinical domains contributed, and whether embedding similarity supported prediction."
+  },
+  "R1.5": {
+   "disposition": "done",
+   "did": "Done, with one correction to the sketch. The shape is right: 2 groups, and some of the unflagged random sample still qualified. The proportions are reversed. Flagged patients are 20.0% of the extract (100,420) and the random unflagged sample is 80.0% (401,298), the 4:1 design in Supplement M1. The 29.4% is the unflagged share of the eligible cohort, not of the extract. The 20.0% and 80.0% carry no interval because they are the design's own counts, not estimates.",
+   "new": "We conducted a retrospective cohort study using a frozen, deidentified Epic EHR extract from Saint Francis Health System in Tulsa, Oklahoma. The extract contained 501,718 patients and included diagnoses, encounters, medications, procedures, and laboratory data. The extract combined 2 groups: every patient with a depression flag on the problem list (100,420, 20.0%) and a random sample of patients without that flag (401,298, 80.0%). Eligibility was then decided from diagnoses recorded at encounters, not from the flag. Some patients in the random sample therefore qualified: 12,530 of the 42,579 eligible patients (29.4%, 95% CI 29.0--29.9) had no depression flag. Because every flagged patient was kept, the sample over-represents depression, and its outcome frequency is not the health system's."
+  },
+  "R1.6": {
+   "disposition": "done",
+   "did": "Done, here and in Supplement M2.",
+   "new": "The index was chosen without looking at anything after it, such as later dose, duration, response, or switching."
+  },
+  "R1.7": {
+   "disposition": "done",
+   "did": "Done, and the figure changed. The reading is right in kind, but 57.9% was a share of upstream candidate orders, which no reader can place. The figure now counts patients in the cohort, read from the feature table: 25,645 of 42,579 (60.2%) were prescribed on the day of their first depression diagnosis. The figure also says \"index\" throughout instead of \"anchor\", the manuscript's one word for that date. Supplement M2 drops the 57.9% for the same count. Supplement S7's 27,906 counted diagnosis-to-prescription gaps of 0 or 1 day and called them \"same-day\"; it now says \"the day of diagnosis or the next day\".",
+   "new": "***Figure 1.** Prediction time and observation windows. The index is the earliest antidepressant prescription on or after the first recorded depression diagnosis. Clinical content comes from the preceding 730 days through the index date. Total recorded pre-index history length is a separate duration predictor and can exceed this window. The subsequent 365 days establish follow-up eligibility and the treatment-switching outcome. For 25,645 of the 42,579 patients (60.2%, 95% CI 59.8--60.7), the index prescription was written on the same day as the first depression diagnosis. EHR: electronic health record; MDD: major depressive disorder; TRD: treatment-resistant depression proxy.*"
+  },
+  "R1.8": {
+   "disposition": "done",
+   "did": "Done.",
+   "new": "No symptom rating scale, such as the PHQ-9, was available to show whether a patient improved. We also could not tell whether each counted treatment was given at an adequate dose for long enough."
+  },
+  "R1.9": {
+   "disposition": "done",
+   "did": "Done. The mechanism is now spelled out, and the duplicate section pointer went.",
+   "new": "Switching also depends on access to care, and in the United States access to depression treatment differs by race and ethnicity. A patient with poor access has fewer chances to switch, so is less likely to be labeled positive, whatever their illness. The label was not checked against charts or symptom scores (Multimedia Appendix 1, section M3). We therefore call the outcome a \"TRD proxy\" rather than TRD."
+  },
+  "R1.10": {
+   "disposition": "done",
+   "did": "Done. Yes, time only.",
+   "new": "A prior antidepressant trial was counted when the patient was on the drug for at least 42 continuous days. The rule counts time on the drug only, not dose."
+  },
+  "R1.11": {
+   "disposition": "done",
+   "did": "Done. His reading is correct: one grid, searched separately per representation. TRIPOD item 12c says the same.",
+   "new": "All models used one stratified 80:20 split: 34,063 training patients, including 5,964 outcome-positive patients, and 8,516 test patients, including 1,491 outcome-positive patients. We fitted logistic regression, random forest, gradient boosting, and XGBoost to each representation. Five-fold cross-validated grid search optimized ROC AUC within the training set. No resampling, class weighting, or other class-imbalance method was used. Scaling and category encoding were fitted within each training fold; the selected pipeline was then refitted on all training patients and applied to the test set. Each classifier searched the same hyperparameter grid for both representations, and the best setting was chosen separately for each, so the selected hyperparameters could differ (Multimedia Appendix 1, sections M7--M9)."
+  },
+  "R1.12": {
+   "disposition": "done",
+   "did": "Done, by cutting both sentences. The distinction between binned and individual-level slopes stays where a reader of those numbers meets it, Supplement M13, S3 and S9.",
+   "new": "We assessed ROC AUC, area under the precision--recall curve (AUPRC), Brier score, and calibration. All calibration estimates concern this enriched cohort."
+  },
+  "R1.13": {
+   "disposition": "done",
+   "did": "Done.",
+   "new": "95% CIs came from resampling the test patients with replacement (the bootstrap)."
+  },
+  "R1.14": {
+   "disposition": "done",
+   "did": "Done. Rewritten as the 2 comparisons we made, in order, with the reason the second is post hoc and what an interval through zero means.",
+   "new": "A difference between 2 models used the same resampled patients for both, which is called a paired bootstrap. We compared the representations in 2 ways. First, each classifier on embeddings was compared with the same classifier on feature vectors. Second, the best embedded model was compared with the best feature-vector model. Those 2 models were picked after seeing their test results, so the second comparison was not planned in advance. We set no margin for calling 2 models equivalent, so an interval that includes zero means no difference was found, not that the models are the same. Sensitivity and specificity at the threshold that maximized their sum in the test patients are given in Multimedia Appendix 1, section S12, as descriptions only."
+  }
+ }
+}

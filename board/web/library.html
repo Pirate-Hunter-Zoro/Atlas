@@ -17,6 +17,7 @@
      this page is read in the same room, on the same glass, as the lesson. -->
 <link rel="stylesheet" href="/static/board.css">
 <link rel="stylesheet" href="/static/library.css">
+<link rel="stylesheet" href="/static/ledger.css">
 <script src="/static/typeface.js" defer></script>
 </head>
 <body>
@@ -142,10 +143,10 @@
          never has to be told twice. -->
     <button id="reader-mode" type="button"
             title="what your marks on this document are for">ink: fixes</button>
-    <!-- WHAT EACH REQUEST WAS AND WHAT WAS DONE, as pins on the pages
-         (`ledger.js`). Shown only on a document with rounds of requests. -->
+    <!-- THE ROUND AS PAIRS: what was written beside what was done, a pip on
+         the page for each (`ledger.js`). Shown only on a document with rounds. -->
     <button id="reader-changes" type="button" hidden
-            title="every request of the last round, pinned where it was answered">◉ changes</button>
+            title="the last round's notes, each beside what was done">◉ notes</button>
     <button id="reader-say" type="button">say what is wrong</button>
     <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT, and a tap puts it back. -->
     <button id="reader-zoom" type="button" title="back to the page width" hidden>100%</button>

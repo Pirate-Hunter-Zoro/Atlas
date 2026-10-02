@@ -1,0 +1,249 @@
+/* ==========================================================================
+   ledger.css -- a round as pairs (`ledger.js`): pips on the pages, the panel
+   beside them, and the filing panel's split.
+
+   The palette is board.css's. Everything ON a page is in fractions of the
+   page box or in `cqw` of it, so it scales with `--zoom` exactly as the ink
+   does and never drifts off its words.
+   ========================================================================== */
+
+/* ONE COLOUR PER ANSWER, on the pip, the box, the number and the row: done,
+   partly, not done, pushed back, and the grey of a note nothing answered. */
+.lg-done { --lg: var(--good); }
+.lg-partly { --lg: var(--ask); }
+.lg-not-done { --lg: var(--bad); }
+.lg-pushed-back { --lg: #6b4fa0; }
+.lg-none, .lg-waiting { --lg: var(--ink-3); }
+
+#reader-changes.on { background: var(--note); border-color: var(--note); color: #fff; }
+.lib-ledger {
+  font: inherit; font-size: .78rem; cursor: pointer; align-self: flex-start;
+  padding: .1rem 0; border: 0; background: none; color: var(--note);
+  text-decoration: underline; text-underline-offset: .15rem;
+}
+.lib-ledger:disabled { color: var(--ink-3); cursor: default; text-decoration: none; }
+
+/* ---------- on the page ---------- */
+/* The page box is the unit a pip is sized in, so a pip is the same size
+   against its words at every zoom. */
+.lib-page { container-type: inline-size; }
+
+/* A PIP IN THE MARGIN, at the height of its pair, numbered as its row is. The
+   visible disc scales with the page; the hit area does not shrink below a
+   fingertip. */
+.lg-pip {
+  position: absolute; left: 1.6%; z-index: 3;
+  width: 3.2cqw; height: 3.2cqw; padding: 0;
+  transform: translateY(-15%);
+  border-radius: 50%; border: .25cqw solid #fff; cursor: pointer;
+  background: var(--lg); color: #fff;
+  font: 700 1.55cqw/1 var(--ui);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 .1cqw .5cqw rgba(0, 0, 0, .35);
+}
+.lg-pip::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: max(100%, 32px); height: max(100%, 32px);
+  transform: translate(-50%, -50%); border-radius: 50%;
+}
+.lg-pip.lg-on { outline: .35cqw solid var(--lg); outline-offset: .25cqw; }
+.lg-pip.lg-back { background: var(--paper); color: var(--lg); border-color: var(--lg); }
+body.annotating .lg-pip { pointer-events: none; opacity: .45; }
+
+/* The revised passage, boxed while its pair is selected, and flashed once. */
+.lg-mark {
+  position: absolute; z-index: 1; pointer-events: none;
+  box-sizing: content-box; margin: -.5cqw; padding: .5cqw;
+  border: .2cqw solid var(--lg); border-radius: .3cqw;
+  background: color-mix(in srgb, var(--lg) 10%, transparent);
+}
+.lg-mark.lg-flash { animation: lg-flash 1.2s ease-out; }
+@keyframes lg-flash {
+  0%, 30% { background: color-mix(in srgb, var(--lg) 38%, transparent);
+            box-shadow: 0 0 0 .8cqw color-mix(in srgb, var(--lg) 25%, transparent); }
+  100% { background: color-mix(in srgb, var(--lg) 10%, transparent);
+         box-shadow: 0 0 0 0 transparent; }
+}
+
+/* THE INK, AS IT WAS DRAWN, laid back over the page from the round's archive:
+   full strength while it is still owed, a ghost while its pair is selected. */
+.lg-ghost {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  z-index: 2; pointer-events: none; overflow: visible;
+}
+.lg-ghost.lg-faint { opacity: .35; }
+.lg-ghost.lg-full { opacity: 1; }
+
+/* ---------- the panel ---------- */
+/* A RAIL BESIDE THE PAGES on a wide landscape glass, the pages narrowed to
+   make room; a SHEET AT THE FOOT otherwise, the pages given room to scroll
+   their last passage above it. Never a veil over the passage it jumped to. */
+.lg-panel {
+  position: fixed; z-index: 45;
+  display: flex; flex-direction: column;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--ui);
+}
+.lg-panel[hidden] { display: none; }
+.lg-panel.lg-rail {
+  right: 0; bottom: 0; width: min(24rem, 38vw);
+  border-left: 1px solid var(--rule);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, .08);
+}
+.lg-panel.lg-sheet {
+  left: 0; right: 0; bottom: 0; height: 44vh;
+  border-top: 1px solid var(--rule); border-radius: .8rem .8rem 0 0;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .16);
+}
+#reader.lg-railed #reader-pages { margin-right: min(24rem, 38vw); }
+#reader.lg-sheeted #reader-pages { padding-bottom: 46vh; }
+
+.lg-ph {
+  display: flex; align-items: baseline; gap: .6rem;
+  padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--rule);
+  background: var(--paper-2);
+}
+.lg-sheet .lg-ph { border-radius: .8rem .8rem 0 0; }
+.lg-title { font-size: .9rem; white-space: nowrap; }
+.lg-sub { font-size: .74rem; color: var(--ink-3); flex: 1; white-space: nowrap; }
+.lg-x {
+  font: inherit; font-size: .9rem; cursor: pointer; line-height: 1;
+  padding: .3rem .5rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2);
+}
+.lg-scroll { flex: 1; min-height: 0; overflow: auto; padding: .5rem .6rem .8rem;
+             -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.lg-foot { padding: .6rem .9rem; border-top: 1px solid var(--rule); background: var(--paper-2); }
+.lg-foot[hidden] { display: none; }
+.lg-send {
+  width: 100%; font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer;
+  padding: .5rem .8rem; border-radius: .5rem;
+  border: 1px solid var(--bad); background: var(--bad); color: #fff;
+}
+
+/* ONE PAIR TO A ROW: its number, what was written, what was done. */
+.lg-rows { list-style: none; margin: 0; padding: 0;
+           display: flex; flex-direction: column; gap: .45rem; }
+.lg-row {
+  border: 1px solid var(--rule); border-radius: .55rem;
+  background: var(--paper); overflow: hidden;
+}
+.lg-row.lg-sel { border-color: var(--lg); box-shadow: 0 0 0 1px var(--lg); }
+.lg-row.lg-fine { opacity: .62; }
+.lg-row.lg-fine.lg-sel { opacity: 1; }
+.lg-hit {
+  display: grid; grid-template-columns: auto 1fr auto; gap: .6rem;
+  width: 100%; padding: .6rem .65rem; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; background: none; border: 0;
+}
+.lg-n {
+  width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; font-weight: 700; background: var(--lg); color: #fff;
+}
+.lg-back .lg-n { background: var(--paper); color: var(--lg); box-shadow: inset 0 0 0 2px var(--lg); }
+.lg-main { display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
+.lg-state { font-size: .72rem; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.lg-back .lg-state { color: var(--bad); }
+.lg-fine .lg-state { color: var(--good); }
+
+.lg-ask { display: flex; flex-direction: column; gap: .3rem; }
+.lg-crop {
+  display: block; max-width: 100%; max-height: 7.5rem; width: auto; object-fit: contain;
+  object-position: left top;
+  border: 1px solid var(--rule); border-radius: .35rem; background: #fff;
+}
+.lg-sel .lg-crop { max-height: 14rem; }
+.lg-quote {
+  /* The space above and below is border, not padding: a clamped quote clips at
+     its padding box, so no sliver of a fourth line shows under the third. */
+  margin: 0; padding: 0 .55rem; border: .3rem solid var(--paper-2);
+  border-left: 3px solid var(--lg);
+  background: var(--paper-2); border-radius: 0 .35rem .35rem 0;
+  font-size: .76rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+/* A row at rest is a glance: three lines of what was asked, five of what was
+   done. Selected, it is the whole of both. */
+.lg-row:not(.lg-sel) .lg-quote {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+  line-clamp: 3; overflow: hidden;
+}
+.lg-row:not(.lg-sel) .lg-diff, .lg-row:not(.lg-sel) .lg-reply {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5;
+  line-clamp: 5; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - .5em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - .5em), transparent);
+}
+.lg-rev p, .lg-more p { margin: 0; }
+.lg-diff, .lg-did, .lg-reply { font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }
+.lg-diff del {
+  color: var(--bad); text-decoration: line-through;
+  background: color-mix(in srgb, var(--bad) 10%, transparent); border-radius: .2rem;
+}
+.lg-diff ins {
+  color: var(--good); text-decoration: none; font-weight: 600;
+  background: color-mix(in srgb, var(--good) 13%, transparent); border-radius: .2rem;
+}
+.lg-tag {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--lg);
+}
+.lg-why { font-size: .8rem; color: var(--bad); margin: 0; }
+.lg-note { font-size: .78rem; color: var(--ink-3); margin: 0; }
+.lg-gone { font-size: .8rem; color: var(--bad); margin: 0; }
+.lg-bad { color: var(--bad); }
+
+.lg-more {
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: 0 .65rem .65rem calc(.65rem + 1.7rem + .6rem);
+}
+.lg-more .lg-did { color: var(--ink-2); font-size: .82rem; }
+.lg-acts { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.lg-acts button {
+  font: inherit; font-size: .8rem; cursor: pointer;
+  padding: .35rem .75rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.lg-acts .lg-fine-btn.on { border-color: var(--good); color: var(--good); font-weight: 600; }
+.lg-acts .lg-back-btn.on { border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.lg-acts .lg-next { margin-left: auto; }
+.lg-reason {
+  font: inherit; font-size: .86rem; padding: .45rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.lg-reason[hidden], .lg-msg[hidden] { display: none; }
+.lg-msg { font-size: .8rem; color: var(--ink-2); }
+/* OLD BESIDE NEW, asked for: the diff is the answer, this is the evidence. */
+.lg-two { display: grid; grid-template-columns: 1fr; gap: .4rem; }
+.lg-text {
+  margin: 0; white-space: pre-wrap; font-family: var(--mono); font-size: .72rem;
+  line-height: 1.5; padding: .45rem; border-radius: .4rem; max-height: 12rem; overflow: auto;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.lg-was .lg-text { border-left: 3px solid var(--bad); }
+.lg-now .lg-text { border-left: 3px solid var(--good); }
+.lg-head { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
+           color: var(--ink-3); margin-bottom: .2rem; }
+
+/* THE OTHER ROUNDS, one line each; a finished one says so. */
+.lg-rounds { margin-top: .9rem; display: flex; flex-direction: column; gap: .3rem; }
+.lg-round, .lg-unfold {
+  font: inherit; font-size: .82rem; text-align: left; cursor: pointer;
+  padding: .45rem .65rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.lg-done-round { color: var(--ink-3); }
+
+/* ---------- the filing panel's split ---------- */
+.lg-chip {
+  display: inline-block; font-size: .72rem; font-weight: 600;
+  padding: .1rem .5rem; border-radius: .7rem; color: #fff; background: var(--lg);
+}
+.lg-preview { display: flex; flex-direction: column; gap: .25rem; font-size: .82rem; }
+.lg-preview[hidden] { display: none; }
+.lg-pre { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.lg-merge {
+  font: inherit; font-size: .74rem; cursor: pointer; padding: .1rem .45rem;
+  border-radius: .4rem; border: 1px solid var(--rule); background: var(--paper);
+  color: var(--note);
+}

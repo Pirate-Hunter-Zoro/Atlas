@@ -45,6 +45,7 @@ function makeStub(tag) {
     clientWidth: 900, clientHeight: 600, scrollHeight: 600, width: 900, height: 600,
     addEventListener() {}, removeEventListener() {}, appendChild() {}, removeChild() {},
     setPointerCapture() {}, focus() {}, blur() {}, click() {},
+    setAttribute() {}, getAttribute: () => null, removeAttribute() {},
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 900, height: 600 }),
     querySelector: () => makeStub(),
     querySelectorAll: () => [],
