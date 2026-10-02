@@ -14,6 +14,7 @@ board not reading a placeholder as an answer.
 """
 
 import importlib.machinery
+import json
 import importlib.util
 import os
 import shutil
@@ -143,6 +144,49 @@ try:
           tutor.report_owed(ws, "aim", out) is None)
     check("no part file is left behind",
           not [n for n in os.listdir(room) if n.startswith(".")])
+
+    # -- on a thread, the stopped card lists what THAT thread left ------------
+    print("\n-- a stopped card on a thread lists its paths and its jobs --")
+    with open(os.path.join(ws, "threads.json"), "w") as fh:
+        json.dump({"version": 1,
+                   "deliverables": [{"id": "p1", "title": "Paper 1"}],
+                   "threads": [{"id": "fit", "deliverable": "p1",
+                                "title": "The fit", "files": ["fit.py"]},
+                               {"id": "other", "deliverable": "p1",
+                                "title": "Other", "files": ["kept.py"]}]}, fh)
+    with open(os.path.join(ws, "live", "state.json"), "w") as fh:
+        json.dump({"thread": "fit"}, fh)
+    code, path3 = board_write(ws, "Fitting again.\n", "pending", "again")
+    began = os.path.getmtime(path3)
+    with open(os.path.join(ws, "live", "jobs.jsonl"), "w") as fh:
+        fh.write(json.dumps({"thread": "fit", "jobid": "11", "cmd": "sbatch old.sbatch",
+                             "submitted": began - 3600}) + "\n")
+        fh.write(json.dumps({"thread": "fit", "jobid": "12", "cmd": "sbatch sweep.sbatch",
+                             "submitted": began + 1}) + "\n")
+    check("the sitting's thread and its paths are read off the thread file",
+          tutor.owed_thread(ws) == ("fit", ["fit.py"]))
+    tutor.report_owed(ws, "unfinished", line)
+    tmeta, tbody = cards.parse_front_matter(open(path3, encoding="utf-8").read())
+    check("the stopped card names its thread in its front matter",
+          tmeta.get("kind") == cards.STOPPED and tmeta.get("thread") == "fit")
+    check("and lists what is uncommitted under that thread's paths",
+          "Uncommitted on `fit`" in tbody and "`fit.py`" in tbody
+          and "`kept.py`" not in tbody)
+    check("and counts what else is uncommitted, so the list is not all there is",
+          "more path" in tbody and "elsewhere in this workspace" in tbody)
+    check("and names the job registered since the work began, not an older one",
+          "`12` on `fit`" in tbody and "sweep.sbatch" in tbody
+          and "`11`" not in tbody)
+    check("the newest card stopped on `fit`, so that thread is badged",
+          cards.stopped_thread(room) == "fit")
+    from tutorboard.course import map as mapping, threads as course_threads
+    course_threads._cache.clear()
+    mapping._cache.clear()
+    drawn = dict((n["id"], n) for n in mapping.status(ws, {"thread": "fit"})["nodes"])
+    check("the map badges that thread's box and no other",
+          drawn["fit"].get("stopped") is True and drawn["other"].get("stopped") is False)
+    code, _ = board_write(ws, "Next turn.\n", "lesson", "next")
+    check("and the next card takes the badge away", cards.stopped_thread(room) == "")
 finally:
     shutil.rmtree(base, ignore_errors=True)
 

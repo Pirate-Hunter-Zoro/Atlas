@@ -943,6 +943,13 @@ const named = (title) => rows().filter(
     && !missed.asked.some((u) => /library\/view\//.test(u))
     ? ok('and an id the list does not have opens nothing')
     : fail('?doc= with a miss opened something');
+  // A THREAD SHEET'S WRITE-UP ROW sends the page its heading is on.
+  const paged = opener('writeups-batch-size-batch-size&page=3');
+  await sleep(40);
+  !paged.w.window.document.getElementById('reader').hidden
+    && paged.w.window.placeWanted === 3 && wanted.w.window.placeWanted === 0
+    ? ok('&page=<n> opens the document to be put at that page')
+    : fail('&page= asked for page ' + paged.w.window.placeWanted);
 
   const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
   /\/library\?from=home/.test(home)

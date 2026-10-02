@@ -746,6 +746,35 @@ saying the thread is the scope; `sense.where_sense` sends a thread sitting to th
 the README and plan.
 `test/onthread.py` is the suite.
 
+### Threads on the glass and in commits
+
+- **A commit's thread is real.** Where a valid `threads.json` exists, `board push "<word>: msg"`
+  refuses a lead word that is not one of its thread ids, names the real ones, and commits
+  nothing (`threads.commit_prefix`; the workspace id in front is skipped). No lead word is a
+  plain save.
+- **A stopped card lists what the thread left.** Where the sitting is on a thread, `report_owed`
+  narrows the `stopped` card to the thread's files, outputs and write-up files
+  (`owed_thread`), counts what else is uncommitted, and names every job registered since the
+  placeholder was written (`jobs_since`). The card carries `thread:` in its front matter, and
+  while it is the newest card that thread's box says `stopped` and carries a red **!** chip
+  whose tap is the board (`cards.stopped_thread`, `map.status`).
+- **The thread sheet dispatches a mission.** Under the three kinds, a box and *Send as a mission*
+  post `/elsewhere` with this board's own workspace id, the thread and the words; the server
+  checks the thread against the file before anything starts, and a refusal lands in the sheet's
+  sub line. Where a live mission names the thread, `thread_sheet`'s `mission` says so and the
+  sheet shows it instead of the box.
+- **The thread sheet links its write-up.** Each `writes` row whose file has a built PDF in the
+  library carries that `doc` id and the `page` its anchor's words are on (`ledger.place`, asked
+  only where the anchor is found; 0 where it cannot be placed). Its tap opens
+  `/library?from=map&doc=<id>&page=<n>`, and the reader lands on that page the way a re-draw
+  puts it back (`keepPlace`).
+- **A proposed thread is accepted with one tap.** A card's fenced `thread` block holds the JSON
+  `board thread add` reads. `cards.extract_threads` draws it in words with a control line,
+  `@@THREAD:<id>:<state>@@`, re-read on every poll: `new` is an *Add this thread* button, `there`
+  means the file has the id, `bad` means the file would refuse it and says the first problem
+  (`threads.proposal`). The tap posts `/thread/accept {card, thread}`; the server reads the
+  thread back off that card's file (`cards.proposed`) and runs `board thread add` with it.
+
 ### Jobs register to a thread and report themselves
 
 **A turn that starts long work submits it through `board job`.** A bare `sbatch` is work the
@@ -1980,8 +2009,8 @@ back a plan and does nothing. `board direction --show` reads it from a terminal 
 sentence does not go to `DIRECTION.md`. It rides in the `[direction]` line, under
 `direction.RETHINK`, and in the new sitting's `rethink`, which the briefing's thread section
 quotes. The woken turn rewrites that thread's tasks with `board thread` and reports what changed.
-A sentence that names a new question is proposed as a thread in the report and added with `board
-thread add` once the owner says yes. The sitting reopens on the same `thread` and `kind`, named
+A sentence that names a new question is proposed as a thread in the report, in a fenced `thread`
+block, and added with one tap on the card (see *Threads on the glass and in commits*). The sitting reopens on the same `thread` and `kind`, named
 after the thread; the lesson is still archived and the tutor still replaced. A sitting on no
 thread takes the workspace-wide path above.
 

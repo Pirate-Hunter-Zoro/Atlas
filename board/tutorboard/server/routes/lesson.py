@@ -480,9 +480,46 @@ def _handover(h, repo):
     return h.send_json({"ok": True, "card": card})
 
 
+def _accept_thread(h, repo):
+    """`POST /thread/accept {card, thread}`: add a thread a card proposed.
+
+    The browser names the card and the id, and nothing else. The thread is read
+    back off that card's own file (`cards.proposed`) and handed to `board thread
+    add`, which validates it against the file like any other edit.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:                                        # noqa: BLE001
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    card = str(payload.get("card") or "").strip()
+    tid = str(payload.get("thread") or "").strip()
+    one = cards.proposed(repo.cards, card, tid) if threads.ID_RE.match(tid) else None
+    if not one:
+        return h.send_json({"ok": False, "error": "card %s proposes no thread %r"
+                            % (card, tid)}, status=404)
+    state, problems = threads.proposal(repo.root, one)
+    if state == "there":
+        return h.send_json({"ok": True, "thread": tid, "detail": "already there"})
+    if problems:
+        return h.send_json({"ok": False, "error": problems[0]}, status=400)
+    code, out = spawn.board_cli(repo.root, ["thread", "add", "--repo", repo.root],
+                                timeout=60, given=json.dumps(one))
+    threads.forget(repo.root)
+    h.server.hub.worker.dirty.set()
+    if code != 0:
+        return h.send_json({"ok": False, "error": (out or "").strip()[-300:]
+                            or "board thread add refused it"}, status=400)
+    return h.send_json({"ok": True, "thread": tid,
+                        "detail": (out or "").strip().splitlines()[0]
+                        if (out or "").strip() else "added"})
+
+
 def post(h, repo, path):
     if path == "/direction":
         return _direction(h, repo)
+
+    if path == "/thread/accept":
+        return _accept_thread(h, repo)
 
     if path == "/aim":
         return _aim(h, repo)

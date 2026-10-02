@@ -1472,7 +1472,9 @@ def cmd_push(live, args):
     `lesson_git.save_pathspec` builds for the save button too: never the tool,
     another workspace or NFS litter. `board push "msg" -- <paths>` narrows it
     to those paths, which is how a turn commits the work it did under a message
-    naming the thread; a path outside the workspace is refused.
+    naming the thread; a path outside the workspace is refused. Where a thread
+    file exists, a `<word>: ` lead must be one of its threads, or nothing is
+    committed (`threads.commit_prefix`).
     """
     from tutorboard.lesson import git as lesson_git
     only = None
@@ -1484,6 +1486,24 @@ def cmd_push(live, args):
                   file=sys.stderr)
             return 1
     message = " ".join(a for a in args if not a.startswith("--")) or "lesson complete"
+
+    # A SUBJECT THAT NAMES A THREAD NAMES A REAL ONE. `<thread>: msg` is how a
+    # turn files its work under the question it answers, and a typo there is a
+    # commit nobody finds by its thread again. Only where a valid thread file
+    # exists; a broken one is `board thread --check`'s to report, not a save's.
+    spine, broken = course_threads.read(live.root)
+    if spine and not broken:
+        _tid, wrong = course_threads.commit_prefix(
+            spine, message, atlas.identify(live.root))
+        if wrong:
+            detail = "nothing was committed: " + wrong
+            print(detail, file=sys.stderr)
+            with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+                json.dump({"ok": False, "at": time.time(),
+                           "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                           "detail": detail}, fh, indent=2)
+            return 1
+
     script = os.path.join(TOOL, "scripts", "save-and-push.sh")
     if not os.path.exists(script):
         print("this install has no %s, so there is nothing to push with"
