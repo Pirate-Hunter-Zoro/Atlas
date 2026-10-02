@@ -8,9 +8,10 @@
   with nobody at the keyboard, and unlike a daemon it runs where the login
   keychain is open -- which holds the git credential and the assistants' logins.
 
-  Hourly and at load, because `tutor-pull` keeps its own once-a-day stamp: the
-  same arrangement as the timer's Persistent=true, a run missed while the
-  machine was off happens the first hour it is back.
+  Every twenty seconds and at load. `tutor pull --hear` decides whether a
+  pull is due (twenty seconds while a hold stands, two minutes while a relay
+  request is out, hourly otherwise), and `tutor-pull` keeps its own once-a-day
+  stamp for the daily half: the timer's Persistent=true in launchd's words.
 
   launchd expands nothing, so `sh -c` supplies $HOME and a PATH holding
   Homebrew and ~/.local/bin.
@@ -28,7 +29,7 @@
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>3600</integer>
+  <integer>20</integer>
   <key>ProcessType</key>
   <string>Background</string>
 </dict>

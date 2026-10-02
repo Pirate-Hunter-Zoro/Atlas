@@ -21,6 +21,10 @@ tutor -- start a tutoring session.
     tutor cost [galois]         what the turns on this machine actually cost
     tutor cost --all            every course, one line each
     tutor pull                  move vendor/colibri forward and commit the pointer
+    tutor relay --once          one relay pass on the cluster (what scrontab runs)
+    tutor relay --status        the last pass, and every workspace's requests
+    tutor relay --install       write the relay's scrontab entry (--entry prints it)
+    tutor pull --hear [--status]  pull when the relay cadence says so; hear reports
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors] [--stale] [--wait] [--since T]
                                 restart every board here (and its tutor) on current code
@@ -60,9 +64,10 @@ from tutorboard import stamp
 if sys.argv[1:2] == ["headless"]:
     stamp.mark_loaded()
 from tutorboard import (atlas, choice, handoff, jobs, keys, limits, machine,
-                        missions, paths, processes, seeing, supervise,
+                        missions, paths, processes, relay, seeing, supervise,
                         worktree)
 from tutorboard.course import config
+from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress, tailscale
 
@@ -2319,25 +2324,72 @@ def turn_signal(out):
     return ""
 
 
-def job_pass(root, log=None, run=None):
-    """One poll of this workspace's registered jobs. The endings it reported.
+# THE MAC'S EAR. On a machine without Slurm the cluster's reports arrive by
+# pull, so the pull's cadence follows the requests: `holds.POLL_SECONDS` while
+# a hold stands, `jobs.PULL_BUSY` while a request is out, `jobs.PULL_IDLE`
+# otherwise. The timer runs `tutor pull --hear` every twenty seconds and this
+# decides; every run then hears every workspace (`[job]` for a request's
+# report, `[coach]` for a held step's check), because a transcript beat may
+# have pulled in between.
+HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
+                          "tutor-pull.heard")
 
-    Never raises: a daemon whose job poll threw would be a daemon that stopped
-    answering the student over a sacct hiccup.
+
+def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
+              pull=None):
+    """Pull the repository when due, then hear every workspace's reports.
+
+    `(pulled, interval, heard)`: `pulled` is None where nothing was pulled
+    because the relay owns pulls here (Slurm), False where it was not due or
+    failed. Never raises.
     """
+    if jobs.has_slurm():
+        return None, 0, []
+    stamp = stamp or HEAR_STAMP
+    now = time.time() if now is None else float(now)
     try:
-        ended = (jobs.report(root, run=run) if run is not None
-                 else jobs.report(root))
-    except Exception as exc:                                 # noqa: BLE001
-        if log:
-            log.write("-- the job poll failed: %s\n" % exc)
-        return []
-    for rec in ended:
-        if log:
-            log.write("-- job %s on `%s` ended %s; a [job] line is in the "
-                      "inbox\n" % (rec.get("jobid"), rec.get("thread"),
-                                   rec.get("state")))
-    return ended
+        base = base or atlas.root()
+        roots = [w["root"] for w in atlas.workspaces(base)]
+    except Exception:                                        # noqa: BLE001
+        return False, 0, []
+    from tutorboard import holds
+
+    def cadence():
+        try:
+            return holds.poll_seconds(roots, jobs.pull_interval(roots))
+        except Exception:                                    # noqa: BLE001
+            return jobs.pull_interval(roots)
+    interval = cadence()
+    try:
+        with open(stamp, "r", encoding="utf-8") as fh:
+            last = float(fh.read().strip() or 0)
+    except (OSError, ValueError):
+        last = 0
+    pulled = False
+    if force or jobs.pull_due(last, now, interval):
+        try:
+            pulled = (pull or sync)(base, quiet=quiet)
+        except Exception:                                    # noqa: BLE001
+            pulled = False
+        try:
+            os.makedirs(os.path.dirname(stamp), exist_ok=True)
+            with open(stamp, "w", encoding="utf-8") as fh:
+                fh.write("%f\n" % now)
+        except OSError:
+            pass
+    heard = []
+    for root in roots:
+        for rec in jobs.hear(root, now=now):
+            heard.append(dict(rec, workspace=atlas.identify(root) or root))
+        try:
+            woke = holds.wake(root, now=now)
+        except Exception:                                    # noqa: BLE001
+            woke = []
+        for rep in woke:
+            heard.append({"request": rep.get("id"), "state": "coach",
+                          "thread": rep.get("thread"),
+                          "workspace": atlas.identify(root) or root})
+    return pulled, cadence(), heard
 
 
 def open_mission(root):
@@ -2428,6 +2480,47 @@ def unfinished_line(out, card):
             % (time.strftime("%Y-%m-%d %H:%M:%S"), card, (out or "").strip()))
 
 
+def owed_thread(root):
+    """`(thread id, its paths)` for the sitting open here, or `("", [])`.
+
+    The paths are what the thread file says the thread is: its files, outputs
+    and write-up files. A sitting on no thread, or a workspace with no valid
+    thread file, has none, and the stopped card lists the whole workspace.
+    """
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r",
+                  encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        st = {}
+    tid = str(st.get("thread") or "").strip()
+    clean, problems = course_threads.read(root)
+    t = course_threads.thread(clean, tid) if tid and clean and not problems else None
+    if not t:
+        return "", []
+    paths = list(t["files"]) + list(t["outputs"]) + [w["file"] for w in t["writes"]]
+    return tid, [p for p in dict.fromkeys(paths) if p]
+
+
+def jobs_since(root, since):
+    """One line per job registered at or after `since`, oldest first."""
+    out = []
+    recs = sorted(jobs.records(root).values(),
+                  key=lambda r: float(r.get("submitted") or 0))
+    for r in recs:
+        try:
+            when = float(r.get("submitted") or 0)
+        except (TypeError, ValueError):
+            continue
+        if when < since:
+            continue
+        out.append("`%s` on `%s`, %s: %s" % (
+            r.get("jobid"), r.get("thread") or "no thread",
+            str(r.get("state") or "PENDING").lower(),
+            str(r.get("cmd") or "")[:160]))
+    return out
+
+
 def report_owed(root, this_signal, out, log=None):
     """What a turn owes once it exits with its newest card `pending`, or None.
 
@@ -2435,6 +2528,9 @@ def report_owed(root, this_signal, out, log=None):
     `[unfinished]` turn that also left it pending, nothing more is woken: the
     card is replaced by a `stopped` one listing what is uncommitted under the
     work, so the board never shows a placeholder for a turn that has ended.
+    On a thread, the card lists that thread's paths (`owed_thread`) and badges
+    its box; it always names the jobs registered since the placeholder was
+    written, which is when the work began.
     """
     path, meta = lesson_cards.newest(os.path.join(root, "live", "cards"))
     if not path or not lesson_cards.is_pending(meta):
@@ -2445,8 +2541,16 @@ def report_owed(root, this_signal, out, log=None):
             log.write("-- the turn exited with %s still pending; waking it once "
                       "more to report\n" % rel)
         return unfinished_line(out, rel)
-    changed = lesson_git.uncommitted(root) or []
-    wrote = lesson_cards.write_stopped(path, changed)
+    tid, paths = owed_thread(root)
+    everything = lesson_git.uncommitted(root) or []
+    changed = (lesson_git.uncommitted(root, paths) or []) if paths else everything
+    try:
+        since = os.path.getmtime(path)
+    except OSError:
+        since = 0.0
+    wrote = lesson_cards.write_stopped(
+        path, changed, jobs_since(root, since), thread=tid,
+        elsewhere=len(set(everything) - set(changed)))
     if log:
         log.write("-- %s is still pending after [unfinished]; %s\n"
                   % (rel, "replaced it with what is on disk" if wrote
@@ -3632,16 +3736,9 @@ def headless(cfg, course, agent_name, session):
                 time.sleep(1)
     threading.Thread(target=beat_transcript, daemon=True).start()
 
-    def beat_jobs():
-        # A job registered with `board job` reports itself: each pass asks
-        # sacct about the ones still out, and an ending becomes a `[job]` line
-        # in the inbox, which the `board wait` below picks up like any other.
-        while running["go"]:
-            job_pass(root, log)
-            end = time.time() + jobs.POLL_SECONDS
-            while running["go"] and time.time() < end:
-                time.sleep(1)
-    threading.Thread(target=beat_jobs, daemon=True).start()
+    # No job poll here. The cluster's relay polls every registered job on its
+    # five-minute pass (`tutor relay`), and an ending it drops in the inbox is
+    # picked up by the `board wait` below like any other line.
 
     turns = 0
     # Which chapter this daemon has actually been teaching, refreshed each turn.
@@ -5771,7 +5868,61 @@ def cmd_where(cfg, args):
     if rows == []:
         print("\n  no serving chain: this machine's board goes when its "
               "allocation does (tutor serve)")
+    said = relay.where_line()
+    if said:
+        print("\n  " + said)
     return 0
+
+
+def cmd_relay(cfg, args):
+    """The cluster's relay. See `tutorboard/relay.py`.
+
+        tutor relay [--once] [--quiet]   one pass: what the scrontab entry runs
+        tutor relay --status             the last pass, and the requests by state
+        tutor relay --entry              print the scrontab entry
+        tutor relay --install            write it into this user's scrontab
+        tutor relay --turn <ws> <id>     inside a turn's job: run that turn
+    """
+    if "--entry" in args:
+        sys.stdout.write(relay.scrontab_block())
+        return 0
+    if "--install" in args:
+        if not shutil.which("scrontab"):
+            print("no scrontab on this machine: the relay runs on the cluster",
+                  file=sys.stderr)
+            return 1
+        ok, said = relay.install()
+        print(said or ("scrontab entry installed: a pass every five minutes"
+                       if ok else "scrontab refused the entry"))
+        return 0 if ok else 1
+    if "--status" in args:
+        print(relay.status())
+        return 0
+    if "--turn" in args:
+        rest = args[args.index("--turn") + 1:]
+        if len(rest) < 2:
+            print("tutor relay --turn <workspace root> <request id>",
+                  file=sys.stderr)
+            return 2
+        return relay.run_turn(rest[0], rest[1])
+    if not jobs.has_slurm():
+        print("tutor relay: no Slurm here. The relay runs on the cluster; "
+              "this machine files requests with `board job`.", file=sys.stderr)
+        return 1
+    got = relay.run_pass(pull_vendor=pull_vendor)
+    if "--quiet" not in args or got.get("error"):
+        if got.get("skipped"):
+            print("relay: pass skipped: %s" % got["skipped"])
+        else:
+            print("relay: %d submitted, %d refused, %d ended%s"
+                  % (len(got.get("submitted") or []),
+                     len(got.get("refused") or []),
+                     len(got.get("ended") or []),
+                     ", turn %s started" % got["turn"] if got.get("turn")
+                     else ""))
+        if got.get("error"):
+            print("relay: %s" % got["error"], file=sys.stderr)
+    return 1 if got.get("error") else 0
 
 
 # ---------------------------------------------------------------------------
@@ -7083,6 +7234,9 @@ def main(argv):
     if args and args[0] == "where":
         return cmd_where(cfg, args[1:])
 
+    if args and args[0] == "relay":
+        return cmd_relay(cfg, argv[argv.index("relay") + 1:])
+
     # The allocation, rather than anything in it. `serve` is the chain that keeps
     # a machine under the board; `watch` is the loop that keeps the board up on
     # the machine, and is worth running by hand inside an `salloc` too.
@@ -7106,6 +7260,24 @@ def main(argv):
         # an unreachable git remote is not a reason to leave the VPN client a
         # year behind -- and the exit code is the worse of the two.
         quiet = "--quiet" in argv
+        if "--hear" in argv:
+            # The relay's half, which the timer runs every time it fires. On a
+            # machine with Slurm it does nothing: the relay pulls there.
+            pulled, interval, heard = hear_pass(force="--force" in argv,
+                                                quiet=quiet)
+            for rec in heard:
+                print("heard %s on %s: %s" % (rec.get("request"),
+                                              rec.get("workspace"),
+                                              str(rec.get("state")).lower()))
+            if "--status" in argv:
+                if pulled is None:
+                    print("this machine has Slurm; the relay pulls here")
+                else:
+                    print("pulls every %ds: %s" % (
+                        interval, "a hold stands"
+                        if interval < jobs.PULL_BUSY else "a request is out"
+                        if interval == jobs.PULL_BUSY else "nothing is out"))
+            return 0
         moved = [pull_vendor(quiet=quiet),
                  tailscale.update_userspace(quiet=quiet, force=True)]
         return 0 if all(m is not False for m in moved) else 1

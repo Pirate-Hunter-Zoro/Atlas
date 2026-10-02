@@ -1250,9 +1250,15 @@ def status(root, state=None, archived=None):
         return None
     filed = _filed(archived)
     counted = _doc_counts(root)
+    # THE THREAD WHOSE TURN STOPPED WITHOUT A REPORT, badged on its box while
+    # that `stopped` card is the newest. See `cards.stopped_thread`.
+    from ..lesson import cards as lesson_cards               # local: a cycle
+    halted = lesson_cards.stopped_thread(os.path.join(root, "live", "cards"))
     nodes = []
     for node in found["nodes"]:
         node = dict(node)
+        if "deliverable" in node:
+            node["stopped"] = bool(halted) and node["id"] == halted
         node["status"] = _stamp(node, state, filed)
         # WHAT IS IN THE DRAWER UNDER THIS BOX. A number, so the badge can be
         # drawn without a second request, and never the list.
@@ -1369,19 +1375,43 @@ def _on_thread(st, tid):
 
 
 def _jobs_of_thread(root, tid):
-    """The thread's registered jobs, a later line for a job id overriding."""
-    last = {}
-    for j in threads.jobs_of(root):
-        if isinstance(j, dict) and j.get("jobid"):
-            merged = dict(last.get(str(j["jobid"])) or {})
-            merged.update(j)
-            last[str(j["jobid"])] = merged
-    return [{"jobid": str(j.get("jobid")),
+    """The thread's registered jobs and relay requests, folded: `jobs.view`."""
+    from .. import jobs as slurm_jobs                        # local: a cycle
+    last = slurm_jobs.view(root)
+    return [{"jobid": str(j.get("slurm") or j.get("jobid")),
              "state": str(j.get("state") or "PENDING"),
              "cmd": str(j.get("cmd") or "")[:200],
              "produces": list(j.get("produces") or [])[:8],
              "submitted": j.get("submitted") or ""}
             for j in last.values() if j.get("thread") == tid]
+
+
+def _anchor_page(root, doc, write):
+    """The page of `doc`'s PDF a write-up anchor's words are on, or 0."""
+    try:
+        from . import ledger                                 # local: heavy
+        hit = ledger.place(os.path.join(root, doc["rel"]), write["anchor"],
+                           tex=write["file"].endswith(".tex"))
+    except Exception:                                        # noqa: BLE001
+        return 0
+    return int((hit or {}).get("page") or 0)
+
+
+def _mission_of_thread(root, tid):
+    """The mission running here on this thread, as `{id, agent, task}`, or None.
+
+    The sheet offers to dispatch one (`POST /elsewhere` with `thread`) and says
+    so instead where one is already out on the thread.
+    """
+    try:
+        from .. import missions                              # local: a cycle
+        rec = missions.live_mission(root)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not rec or rec.get("thread") != tid:
+        return None
+    return {"id": str(rec.get("id") or ""), "agent": str(rec.get("agent") or ""),
+            "task": str(rec.get("task") or "")[:200]}
 
 
 def _task_labels(root, t):
@@ -1418,6 +1448,11 @@ def thread_sheet(root, tid, state=None, archived=None):
         return None
     st = threads.stages(root).get(t["id"]) or {}
 
+    try:
+        found = library.documents(root)
+    except Exception:                                        # noqa: BLE001
+        found = []
+
     writes = []
     for w in t["writes"]:
         text = ""
@@ -1427,8 +1462,17 @@ def thread_sheet(root, tid, state=None, archived=None):
                 text = fh.read()
         except OSError:
             pass
-        writes.append({"file": w["file"], "anchor": w["anchor"],
-                       "found": w["anchor"] in text})
+        row = {"file": w["file"], "anchor": w["anchor"],
+               "found": w["anchor"] in text, "doc": "", "page": 0}
+        # THE DELIVERABLE'S DOCUMENT, OPENED AT THAT HEADING: the library id of
+        # the write-up file's built PDF, and the page the anchor's words are on
+        # in it (`ledger.place`, the same placing a round's ink uses).
+        d = library_doc(found, w["file"])
+        if d and d.get("pdf"):
+            row["doc"] = d["id"]
+            if row["found"]:
+                row["page"] = _anchor_page(root, d, w)
+        writes.append(row)
 
     sittings, kind = [], ""
     if _on_thread(state, t["id"]) and not (state or {}).get("finished"):
@@ -1444,10 +1488,6 @@ def thread_sheet(root, tid, state=None, archived=None):
                              "opened": a.get("opened") or "",
                              "cards": a.get("cards") or 0})
 
-    try:
-        found = library.documents(root)
-    except Exception:                                        # noqa: BLE001
-        found = []
     docs, seen = [], set()
 
     def add(d, why):
@@ -1482,6 +1522,7 @@ def thread_sheet(root, tid, state=None, archived=None):
                     for o in t["outputs"]],
         "writes": writes,
         "jobs": _jobs_of_thread(root, t["id"]),
+        "mission": _mission_of_thread(root, t["id"]),
         "sittings": sittings,
         "documents": docs,
         "kind": kind or "learn",

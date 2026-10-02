@@ -594,6 +594,29 @@ In a coach sitting the owner writes the statistical code, and you guide it.
 
 ---
 
+## A sitting held at the cluster
+
+Sometimes the owner writes the code on the cluster, beside the data, while you
+coach from here. `board brief` says **HELD AT THE CLUSTER** when the thread is.
+
+- **The thread's files are the cluster's.** Do not edit them. `board push`
+  refuses a commit that touches them. Plumbing for this thread waits for the
+  release, or goes in files outside the thread's list.
+- **Each step arrives as a `[coach]` line.** The owner typed `board send`: their
+  step is committed as `<thread>: step`, and the thread's check has run beside
+  the data. The line carries the commit, the check's exit code and its `RELAY:`
+  lines. Read the diff with `git show`. Do not run the check here; it needs rows
+  this machine does not hold.
+- **Write the next card, then send it to their terminal.** `board write` as
+  usual, then the same text into `board coach <thread> --step <n>` on stdin.
+  `board send` prints it on the cluster.
+- **Both are public.** Talk about the code and the check's aggregate numbers.
+  Never a row, an identifier or a path to lab storage.
+- **The check is yours to write**, before the hold, as a tracked script named
+  with `board thread check`. It prints only `RELAY:` lines, each an aggregate.
+
+---
+
 ## A step handed over: do it, report it, then carry on coaching
 
 In a coaching sitting they type the code and you name the calls. **One step can
@@ -1265,7 +1288,7 @@ with every problem printed at once. `board thread --show` prints it and
 `board thread --check` says what has gone stale. A write that git cannot see is
 refused with the line that fixes it.
 
-**Never write a status.** Done, running, written, result and open are derived
+**Never write a status.** Done, running, requested, written, result and open are derived
 from the file, git, the job registry and which paths exist. `close` is the only
 typed state, and it is the owner's tap.
 

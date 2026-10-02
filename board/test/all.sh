@@ -411,6 +411,61 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# A machine without Slurm files a relay request: checked whole, committed
+# alone, and read as `requested` until the cluster's report lands.
+printf '%-12s ' "requests"
+if out="$(python3 test/requests.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# The cluster's relay: a request pulled, run, ended from squeue and its exit
+# file, and reported through git, in a temp repository with a fake Slurm.
+printf '%-12s ' "relay"
+if out="$(python3 test/relay.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# And the Mac hears it: a pulled report wakes a turn once, the pull keeps time
+# with the requests, and results/ falls back to exports/results/.
+printf '%-12s ' "hearing"
+if out="$(python3 test/hearing.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# A sitting held at the cluster: the hold checked whole, the Mac refusing the
+# held files, the pull under the owner's edits, and one round trip.
+printf '%-12s ' "holds"
+if out="$(python3 test/holds.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# Colibri on demand: one generation per queue, a clone that resumes a task a
+# death interrupted, three deaths and it fails, against a fake Slurm.
+printf '%-12s ' "ondemand"
+if out="$(python3 test/ondemand.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

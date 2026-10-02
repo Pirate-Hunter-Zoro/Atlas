@@ -72,6 +72,13 @@ live/*
 # *.json rule above. `board thread --check` says what has gone stale in it.
 !threads.json
 
+# THE RELAY'S REQUESTS, REPORTS AND HOLDS ARE TRACKED: they are how the Mac and
+# the cluster talk, through the repository. Each must survive the blanket *.json
+# rule above.
+!relay/requests/*.json
+!relay/reports/*.json
+!relay/holds/*.json
+
 # the board's own config must survive the blanket *.json rule above
 !tutorboard.json
 

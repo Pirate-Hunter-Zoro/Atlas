@@ -75,7 +75,34 @@ coli_elders() {
 if coli_chain_stopped; then
     echo "colibri_serve: the chain was stopped ($(cat "$COLI_STOP_FILE" 2>/dev/null))."
     echo "               This generation is standing down. 'coli-up' starts it again."
+    coli_mark_exit "$MY_JOB" 0
     exit 0
+fi
+
+# ------------------------------------------------------------------ on demand
+# THE DEFAULT, AND THE CHAIN IS THE EXCEPTION. An on-demand generation works the
+# task queue and exits cleanly once it has been empty for COLI_IDLE_MIN minutes.
+# Its clone is submitted first, before anything that can die: it waits on this
+# job ending not-ok, so a timeout, a node failure or an out-of-memory kill
+# releases it, and a clean exit makes the dependency unmeetable and Slurm drops
+# it (`--kill-on-invalid-dep=yes`). The clone does the same in turn.
+#
+# A LINEAGE OF DEATHS IS CAPPED. COLI_LINEAGE counts the deaths behind this
+# generation; a clean exit ends a lineage, so only a run of deaths reaches the
+# cap, and that is a generation that cannot start rather than bad luck.
+DEMAND="${COLI_DEMAND:-1}"
+[ "${COLI_CHAIN:-0}" = "1" ] && DEMAND=0
+if [ "$DEMAND" = "1" ]; then
+    if [ "${COLI_LINEAGE:-0}" -ge "${COLI_LINEAGE_CAP:-6}" ] 2>/dev/null; then
+        echo "COLIBRI-SERVE CLONE none: ${COLI_LINEAGE} deaths in a row, which is the cap"
+    else
+        CLONE="$(coli_submit_clone "$MY_JOB")"
+        if [ -n "$CLONE" ]; then
+            echo "COLIBRI-SERVE CLONE job=${CLONE} after=notok:${MY_JOB}"
+        else
+            echo "COLIBRI-SERVE CLONE none: sbatch refused it, so a death here waits for the next task filed"
+        fi
+    fi
 fi
 
 coli_load_modules || exit 1
@@ -230,7 +257,7 @@ WARM
 # nothing to start and colibri's cost 68 minutes; that one number is the whole
 # difference between the two designs.
 (
-    [ "${COLI_CHAIN:-1}" = "1" ] || exit 0
+    [ "${COLI_CHAIN:-0}" = "1" ] || exit 0
     coli_chain_watch "$MY_JOB" "$MY_NODE"
 ) &
 
@@ -268,5 +295,32 @@ SERVE+=(--ctx "${COLI_CTX:-131072}")
 # needed yet, and quoting it would make it one argument.
 # shellcheck disable=SC2206
 [ -n "${COLI_SERVE_EXTRA:-}" ] && SERVE+=(${COLI_SERVE_EXTRA})
+
+# ------------------------------------------------------------- the task queue
+# `board/tutorboard/colibri.py` is the worker: it waits for this generation's
+# COLIBRI-SERVE READY, resumes any task a dead generation left running, and
+# works the queue one task at a time through `coli-code`. It prints ids and
+# states only -- this log is declared counts-only -- and the client's own output
+# goes nowhere: the transcript is behind the fence under COLI_SESSION_ROOT.
+WORKER=(env PYTHONPATH="$ATLAS_ROOT/board" python3 -m tutorboard.colibri work --job "$MY_JOB")
+
+if [ "$DEMAND" = "1" ]; then
+    # The server in the background and the worker in front, so the job lasts
+    # exactly as long as there is work. The exit code goes to the state file as
+    # the job's last act, because `sacct` is refused here and that file is how
+    # a clean exit is told from a death.
+    numactl --interleave=all "${SERVE[@]}" &
+    SERVER=$!
+    "${WORKER[@]}" --server-pid "$SERVER"
+    RC=$?
+    kill "$SERVER" 2>/dev/null
+    wait "$SERVER" 2>/dev/null
+    coli_mark_exit "$MY_JOB" "$RC"
+    echo "COLIBRI-SERVE EXIT code=${RC} at=$(date -Is)"
+    exit "$RC"
+fi
+
+# Warm: the worker beside a foreground server, with no idle exit.
+"${WORKER[@]}" --stay &
 
 exec numactl --interleave=all "${SERVE[@]}"

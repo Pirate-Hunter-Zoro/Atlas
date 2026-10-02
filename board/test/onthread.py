@@ -309,6 +309,45 @@ try:
     run(tmp, "open", "Proj", "--thread", "estimand")
     check("the rethink belongs to its sitting and is cleared by the next",
           "rethink" not in state(tmp))
+
+    # A thread proposed on the report, and accepted with one tap.
+    from tutorboard.lesson import cards
+    write(os.path.join(repo.cards, "0099-proposal.md"),
+          "---\nkind: lesson\n---\nThe tasks are rewritten.\n\n"
+          "```thread\n" + json.dumps(
+              {"id": "dims-table", "deliverable": "paper1",
+               "title": "Dimension counts as a table",
+               "question": "How many dimensions does each encoder keep?",
+               "tasks": [{"text": "Draft the table", "done": False}]})
+          + "\n```\n\n```thread\n" + json.dumps(
+              {"id": "lost", "deliverable": "nowhere", "title": "Lost"})
+          + "\n```\n")
+    fresh()
+
+    def drawn():
+        return [c for c in cards.load_cards(repo, []) if c["id"] == "0099"][0]["body"]
+    body = drawn()
+    check("a proposed thread is drawn in words with a one-tap control",
+          "**Proposed thread** `dims-table`" in body and "Draft the table" in body
+          and "@@THREAD:dims-table:new@@" in body and "```thread" not in body)
+    check("and one the file would refuse says why, with no control",
+          "@@THREAD:lost:bad@@" in body and "nowhere" in body)
+    status, said = post("/thread/accept", {"card": "0099", "thread": "dims-table"})
+    fresh()
+    added = threads.thread(threads.read(tmp)[0], "dims-table")
+    check("the tap runs `board thread add` with the card's own thread",
+          status == 200 and said.get("ok") and added
+          and added["tasks"] == [{"text": "Draft the table", "done": False}])
+    check("and the card then says it is there", "@@THREAD:dims-table:there@@" in drawn())
+    status, said = post("/thread/accept", {"card": "0099", "thread": "dims-table"})
+    check("a second tap adds nothing twice",
+          status == 200 and said.get("detail") == "already there"
+          and [t["id"] for t in threads.read(tmp)[0]["threads"]].count("dims-table") == 1)
+    status, said = post("/thread/accept", {"card": "0099", "thread": "lost"})
+    check("a proposal the file refuses is refused, in the file's words",
+          status == 400 and "nowhere" in said.get("error", ""))
+    status, said = post("/thread/accept", {"card": "0099", "thread": "knn-x"})
+    check("and a thread the card never proposed is not found", status == 404)
 finally:
     httpd.shutdown()
 

@@ -88,7 +88,8 @@ if command -v systemctl >/dev/null 2>&1; then
   fi
 elif command -v launchctl >/dev/null 2>&1; then
   # A MAC, which is a machine that comes back. launchd stands in for both
-  # halves of what a compute node gets: tutor-pull.plist for the timer, and
+  # halves of what a compute node gets: tutor-pull.plist for the timer (every twenty seconds,
+  # `tutor pull --hear` deciding whether a pull is due), and
   # tutor-watch.plist for the serving job's watch loop, so a reboot brings every
   # board back. LaunchAgents, COPIED for the reason the units are, and loaded in
   # the login session -- the Mac logs its owner in by itself, and the keychain

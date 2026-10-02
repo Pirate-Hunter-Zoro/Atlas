@@ -2546,11 +2546,12 @@ body.papering .annbar { z-index: 96; }
 /* And where they last opened something, which is where the course reopens. */
 .map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
 
-/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, written, result,
-   open — which outranks the plan's next and later. Unsaved work dashes the
-   outline: git shows a change under the thread's paths. */
+/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, requested,
+   written, result, open — which outranks the plan's next and later. Unsaved
+   work dashes the outline: git shows a change under the thread's paths. */
 .map-sheet .node.thread.t-done    rect.mark { fill: var(--good); }
 .map-sheet .node.thread.t-running rect.mark { fill: var(--ask); }
+.map-sheet .node.thread.t-requested rect.mark { fill: var(--ask); opacity: 0.5; }
 .map-sheet .node.thread.t-written rect.mark { fill: var(--note); }
 .map-sheet .node.thread.t-result  rect.mark { fill: var(--step-soon); }
 .map-sheet .node.thread.t-open    rect.mark { fill: var(--rule); }
@@ -2571,6 +2572,9 @@ body.papering .annbar { z-index: 96; }
 .map-sheet .chip.decision circle { fill: var(--paper); stroke: var(--bad);
                                    stroke-width: 1.8; }
 .map-sheet .chip.decision text { fill: var(--bad); }
+/* A TURN ON THE THREAD STOPPED WITHOUT A REPORT. */
+.map-sheet .chip.stopped circle { fill: var(--bad); stroke: none; }
+.map-sheet .chip.stopped text { fill: var(--paper); }
 
 /* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
 .map-sheet .chip { cursor: pointer; }
@@ -2787,6 +2791,28 @@ button.thread-row:hover { background: var(--paper-2); }
 .thread-row.on { background: var(--paper-2); font-weight: 650; }
 .thread-row.open { color: var(--bad); font-weight: 600; }
 .thread-row.missing, .thread-row.dir { color: var(--ink-3); }
+/* A THREAD PROPOSED ON A CARD, and the tap that adds it. */
+.thread-propose { margin: .3rem 0 .6rem; font: .78rem var(--ui); color: var(--ink-3); }
+.thread-accept { font: 600 .8rem var(--ui); cursor: pointer;
+                 padding: .4rem .75rem; border-radius: .4rem;
+                 border: 1px solid var(--accent); background: var(--accent);
+                 color: var(--paper); }
+.thread-accept[disabled] { opacity: .5; cursor: default; }
+.thread-refused { display: block; margin-top: .3rem; color: var(--bad); }
+
+/* OR A MISSION ON THE THREAD, under the three kinds. */
+.thread-mission { margin: .6rem 0 .2rem; }
+.thread-mission-task {
+  display: block; width: 100%; margin: 0 0 .35rem; box-sizing: border-box;
+  font: inherit; font-size: .8rem; padding: .45rem .55rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  resize: vertical;
+}
+.thread-mission-go { font: 600 .78rem var(--ui); cursor: pointer;
+                     padding: .4rem .7rem; border-radius: .4rem;
+                     border: 1px solid var(--accent); background: var(--accent);
+                     color: var(--paper); }
+.thread-mission-go[disabled] { opacity: .45; cursor: default; }
 
 /* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
    document viewer. One shape and one word, so it is recognised as the same

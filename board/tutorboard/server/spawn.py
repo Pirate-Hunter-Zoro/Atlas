@@ -37,14 +37,19 @@ from .. import paths
 _NO_STDIN = subprocess.DEVNULL
 
 
-def board_cli(repo, args, timeout=90):
-    """Drive the board command line from inside the server, for /switch."""
+def board_cli(repo, args, timeout=90, given=None):
+    """Drive the board command line from inside the server, for /switch.
+
+    `given` is text for its stdin (`board thread add` reads the thread there);
+    without it stdin is closed, for the reason `_NO_STDIN` gives.
+    """
     cli = os.path.join(paths.TOOL, "bin", "board")
     try:
         p = subprocess.run([sys.executable, cli] + list(args),
-                           cwd=repo, stdin=_NO_STDIN,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=timeout)
+                           stdin=_NO_STDIN if given is None else None,
+                           input=None if given is None else given.encode("utf-8"),
+                           cwd=repo, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, timeout=timeout)
         return p.returncode, p.stdout.decode("utf-8", "replace")
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 1, str(exc)
@@ -185,8 +190,11 @@ def wake_colibri(timeout=1800):
     colibri.submitted()
 
     def run():
+        # `--warm`: a sitting wants Colibri answering live, which is the
+        # chain. A task queued without a sitting is `board colibri`'s, on
+        # demand.
         try:
-            subprocess.run([cmd], cwd=paths.TOOL, stdin=_NO_STDIN,
+            subprocess.run([cmd, "--warm"], cwd=paths.TOOL, stdin=_NO_STDIN,
                            stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL, timeout=timeout)
         except (OSError, subprocess.TimeoutExpired):

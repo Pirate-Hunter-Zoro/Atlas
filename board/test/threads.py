@@ -247,6 +247,28 @@ try:
         {"id": "cover", "deliverable": "paper1", "title": "Cover letter"}))
     check("`add` adds a thread", code == 0
           and threads.thread(threads.read(ws)[0], "cover"))
+    # --- a commit's thread prefix names a real thread ----------------------
+    spine = threads.read(ws)[0]
+    check("a push naming a real thread passes, workspace id or not",
+          threads.commit_prefix(spine, "knn: draw the figure") == ("knn", None)
+          and threads.commit_prefix(spine, "research/Paper: knn: x",
+                                    "research/Paper") == ("knn", None))
+    check("and one with no prefix is a save with no thread named",
+          threads.commit_prefix(spine, "lesson complete") == ("", None))
+    tid, wrong = threads.commit_prefix(spine, "kNN: draw it")
+    check("a prefix that is no thread is refused, naming the real ones",
+          tid == "" and wrong and "kNN" in wrong and "knn" in wrong
+          and "cover" in wrong)
+    check("and with no thread file there is nothing to check against",
+          threads.commit_prefix(None, "anything: x") == ("", None))
+    heads = subprocess.run(["git", "rev-list", "--all", "--count"], cwd=repo,
+                           stdout=subprocess.PIPE).stdout
+    code, said = run(ws, ["push", "knnn: typo in the thread"])
+    check("`board push` refuses that subject and commits nothing",
+          code == 1 and "`knnn` is not a thread" in said
+          and subprocess.run(["git", "rev-list", "--all", "--count"], cwd=repo,
+                             stdout=subprocess.PIPE).stdout == heads)
+
     before = open(threads.path(ws), encoding="utf-8").read()
     code, said = run(ws, ["thread", "add"], json.dumps(
         {"id": "late", "deliverable": "ghost", "files": ["../x.py"]}))

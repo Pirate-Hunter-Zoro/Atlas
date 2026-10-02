@@ -58,11 +58,23 @@ MAX_TASKS = 40
 # no state at all -- is a job still out. LOST is the board's own word, for a job
 # Slurm has no record of at all: left out, it would hold its thread at
 # `running` for ever.
+# REFUSED is the relay's, for a request the cluster would not run. DIED and
+# ENDED are `jobs.ending`'s, for a job that left squeue without its exit file,
+# wrapped and not.
 TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
-            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST")
+            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST",
+            "REFUSED", "DIED", "ENDED")
 
-# The five stages, and the first true one wins.
-STAGES = ("done", "running", "written", "result", "open")
+# A relay request the cluster has not reported on yet. Not terminal: the
+# thread waits on it, and says `requested` rather than `running`.
+REQUESTED = "REQUESTED"
+
+# The six stages, and the first true one wins.
+STAGES = ("done", "running", "requested", "written", "result", "open")
+
+# What may be copied from `results/` into tracked `exports/`: aggregate
+# artifacts a reader can open, never a database or a pickle.
+EXPORT_EXTS = (".png", ".pdf", ".svg", ".csv", ".json")
 
 CACHE_SECONDS = 30
 _cache = {}
@@ -111,6 +123,57 @@ def _paths(value, where, field, problems):
         problems.append("%s: %d paths in `%s`, and the cap is %d"
                         % (where, len(out), field, MAX_PATHS))
     return out[:MAX_PATHS]
+
+
+def _exports(value, where, problems):
+    """A thread's `exports`: `[{path, aggregate}]`, each under `results/`.
+
+    `aggregate` is the owner's word that the file holds no row-level data, and
+    only a path carrying it may be published. A bare string is a path asked
+    for and not yet answered.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        problems.append("%s: `exports` must be a list of {path, aggregate}"
+                        % where)
+        return []
+    out, seen = [], set()
+    for e in value:
+        if isinstance(e, str):
+            e = {"path": e, "aggregate": False}
+        if not isinstance(e, dict):
+            problems.append("%s: an `exports` entry is not an object" % where)
+            continue
+        rel = _rel(e.get("path"))
+        if rel is None or not rel.startswith("results/"):
+            problems.append("%s: export %r must be a path under results/, the "
+                            "way it is copied into exports/results/"
+                            % (where, e.get("path")))
+            continue
+        if os.path.splitext(rel)[1].lower() not in EXPORT_EXTS:
+            problems.append("%s: export %s is not one of %s"
+                            % (where, rel, ", ".join(EXPORT_EXTS)))
+            continue
+        agg = e.get("aggregate", False)
+        if not isinstance(agg, bool):
+            problems.append("%s: export %s: `aggregate` must be true or false"
+                            % (where, rel))
+            agg = False
+        if rel in seen:
+            continue
+        seen.add(rel)
+        out.append({"path": rel, "aggregate": agg})
+    if len(out) > MAX_PATHS:
+        problems.append("%s: %d exports, and the cap is %d"
+                        % (where, len(out), MAX_PATHS))
+    return out[:MAX_PATHS]
+
+
+def exportable(t, rel):
+    """May `rel` be published off this thread? Only once the owner said so."""
+    return any(e["path"] == rel and e["aggregate"]
+               for e in (t or {}).get("exports") or [])
 
 
 def validate(raw):
@@ -195,6 +258,13 @@ def validate(raw):
 
         files = _paths(one.get("files"), where, "files", problems)
         outputs = _paths(one.get("outputs"), where, "outputs", problems)
+        exports = _exports(one.get("exports"), where, problems)
+        check = ""
+        if one.get("check"):
+            check = _rel(one.get("check")) or ""
+            if not check:
+                problems.append("%s: `check` %r is not a path inside this "
+                                "workspace" % (where, one.get("check")))
 
         writes = []
         w_in = one.get("writes") or []
@@ -283,8 +353,9 @@ def validate(raw):
         threads.append({
             "id": tid, "deliverable": deliv, "title": title,
             "question": question[:MAX_QUESTION],
-            "files": files, "outputs": outputs, "writes": writes,
-            "tasks": tasks[:MAX_TASKS], "decisions": decisions,
+            "files": files, "outputs": outputs, "exports": exports,
+            "check": check,
+            "writes": writes, "tasks": tasks[:MAX_TASKS], "decisions": decisions,
             "doc": doc, "blockedBy": blocked[:MAX_BLOCKED], "closed": closed,
         })
 
@@ -358,15 +429,54 @@ def thread(clean, tid):
     return None
 
 
+def proposal(root, one):
+    """`(state, problems)` for a thread proposed on a card, against this
+    workspace's thread file: `there` where the file has that id, `bad` where
+    adding it would be refused (every problem), `new` where one tap adds it."""
+    clean, broken = read(root) if root else (None, [])
+    if broken:
+        return "bad", list(broken)
+    raw = clean or {"version": VERSION, "deliverables": [], "threads": []}
+    if thread(clean, str((one or {}).get("id") or "")):
+        return "there", []
+    _ok, problems = validate(dict(raw, threads=list(raw["threads"]) + [one]))
+    return ("bad", problems) if problems else ("new", [])
+
+
+# A commit subject's lead word: `<word>: the rest`. No slash, so a workspace id
+# (`research/TRD-EHR: ...`) is never read as a thread.
+PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]{0,59}):\s")
+
+
+def commit_prefix(clean, message, where=""):
+    """`(thread id, problem)` for the subject `board push` was handed. Pure.
+
+    The lead word before a colon must be a thread of `clean`. No lead word is
+    `("", None)`: a save with no thread named is still a save. `where` is the
+    workspace id, taken off the front first because the push puts it there.
+    """
+    text = (message or "").strip()
+    if where and text.startswith(where + ":"):
+        text = text[len(where) + 1:].lstrip()
+    m = PREFIX_RE.match(text)
+    if not m or not clean:
+        return "", None
+    word = m.group(1)
+    if thread(clean, word):
+        return word, None
+    ids = sorted(t["id"] for t in clean.get("threads") or [])
+    return "", ("`%s` is not a thread in %s. Lead the message with one of: %s "
+                "-- or leave the prefix off." % (word, NAME,
+                                                 ", ".join(ids) or "(none)"))
+
+
 # ---------------------------------------------------------------------------
 # resolution: the file checked against the tree
 # ---------------------------------------------------------------------------
 def here(root, rel):
-    """Does this workspace really hold that path, inside itself?"""
-    if not rel:
-        return False
-    target = os.path.join(root, rel)
-    return toolpaths.within(target, root) and os.path.exists(target)
+    """Does this workspace really hold that path, inside itself? A `results/`
+    path counts where `exports/results/` holds it (`paths.present`)."""
+    return bool(toolpaths.present(root, rel))
 
 
 def resolve(root, clean):
@@ -554,15 +664,20 @@ def stage(t, present, texts, dirty, jobs):
         jobs     the job registry, as records
 
     Returns `{"status", "unsaved", "decisions", "tasks"}` -- the status is the
-    first true row of done, running, written, result, open.
+    first true row of done, running, requested, written, result, open. A job
+    still out is `running`; a relay request the cluster has not reported on,
+    with nothing else out, is `requested`.
     """
     outputs_there = all(o in present for o in t["outputs"])
     anchors_there = all(w["anchor"] in (texts.get(w["file"]) or "")
                         for w in t["writes"])
     if t["closed"]:
         status = "done"
-    elif unfinished(jobs, t["id"]):
+    elif any(str(j.get("state") or "").upper() != REQUESTED
+             for j in unfinished(jobs, t["id"])):
         status = "running"
+    elif unfinished(jobs, t["id"]):
+        status = "requested"
     elif (t["outputs"] or t["writes"]) and outputs_there and anchors_there:
         status = "written" if t["writes"] else "result"
     elif t["outputs"] and outputs_there:
@@ -597,6 +712,16 @@ def jobs_of(root):
     except OSError:
         return []
     return out
+
+
+def registered_of(root):
+    """Every job the registry's merged view holds: local jobs, relay requests
+    and their reports. See `jobs.view`."""
+    from .. import jobs as job_registry
+    try:
+        return list(job_registry.view(root).values())
+    except Exception:                                        # noqa: BLE001
+        return jobs_of(root)
 
 
 def missions_of(root):
@@ -667,7 +792,8 @@ def stages(root):
                             texts[w["file"]] = fh.read()
                     except OSError:
                         texts[w["file"]] = ""
-        dirty, jobs = dirty_of(root), jobs_of(root) + missions_of(root)
+        dirty = dirty_of(root)
+        jobs = registered_of(root) + missions_of(root)
         # The thread as written, not as resolved: resolving drops a deleted
         # file from `files`, and that deletion is an unsaved change.
         for t in clean["threads"]:
@@ -702,7 +828,9 @@ def from_map(written, deliverable_id, deliverable_title=""):
         threads.append({
             "id": n["id"], "deliverable": deliverable_id,
             "title": title[:MAX_TITLE], "question": question[:MAX_QUESTION],
-            "files": files, "outputs": [], "writes": [], "tasks": [],
+            "files": files, "outputs": [], "exports": [], "check": "",
+            "writes": [],
+            "tasks": [],
             "decisions": [], "doc": n.get("doc") or "",
             "blockedBy": list(n.get("blockedBy") or []), "closed": False,
         })

@@ -213,16 +213,17 @@ def convert(project_rec, paper_num, title, fmt, reference_docx=None, log_fn=None
     out_path = paths.built_path(pid, paper_num, title, fmt)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    command = [config.PANDOC_BIN, str(source), "-o", str(out_path),
+    resource = _resource_path(source, config.BUILD_RESOURCE_DIRS)
+    given, text = _pandoc_input(source, resource)
+    command = [config.PANDOC_BIN, *given, "-o", str(out_path),
                "--from", "markdown", "--standalone",
-               "--resource-path", _resource_path(source,
-                                                 config.BUILD_RESOURCE_DIRS)]
+               "--resource-path", resource]
     reference = reference_docx or config.REFERENCE_DOCX
     command += _format_flags(fmt, reference)
 
     try:
         result = subprocess.run(command, capture_output=True, text=True,
-                                timeout=_format_timeout(fmt))
+                                input=text, timeout=_format_timeout(fmt))
     except (OSError, subprocess.SubprocessError) as exc:
         if log_fn:
             log_fn(f"paper {paper_num}: could not run pandoc ({exc}). The manuscript "
@@ -248,6 +249,8 @@ def convert(project_rec, paper_num, title, fmt, reference_docx=None, log_fn=None
 # this project's documents and are deliberately not matched: a check that guesses is a
 # check nobody can act on.
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(<[^>]*>|[^)\s]+)")
+# The same, with the part before the target kept, for putting a path in.
+_IMAGE_SRC_RE = re.compile(r"(!\[[^\]]*\]\(\s*)(<[^>]*>|[^)\s]+)")
 
 _REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:)?//|^data:", re.IGNORECASE)
 
@@ -370,6 +373,52 @@ def _report_lost_figures(source, built, reference, log_fn, prefix=""):
     return lost
 
 
+def exported_figures(text, resource_dirs):
+    """`{target: path}` for each figure a document names under a `results/` that
+    lacks it, where the cluster's copy under `exports/results/` has it.
+
+    A machine without the cluster's `results/` holds only what the relay
+    exported, at the same path under `exports/`, so a manuscript names one path
+    on both machines. A figure found where it is named is left alone."""
+    out = {}
+    for target in _image_targets(text):
+        named = [target] if os.path.isabs(target) else [
+            os.path.join(d, target) for d in resource_dirs if d]
+        if any(os.path.exists(p) for p in named):
+            continue
+        for p in named:
+            parts = os.path.normpath(p).split(os.sep)
+            twins = [os.sep.join(parts[:i] + ["exports"] + parts[i:])
+                     for i in range(len(parts) - 1, -1, -1)
+                     if parts[i] == "results"]
+            hit = next((t for t in twins if os.path.isfile(t)), None)
+            if hit:
+                out[target] = hit
+                break
+    return out
+
+
+def _pandoc_input(source, resource):
+    """`(argv, stdin)`: the source as pandoc's argument, or its text with each
+    exported figure's path put in, on stdin. Nothing is written beside it."""
+    try:
+        text = source.read_text(encoding="utf-8")
+    except OSError:
+        return [str(source)], None
+    found = exported_figures(text, resource.split(os.pathsep))
+    if not found:
+        return [str(source)], None
+
+    def put(m):
+        target = m.group(2).strip("<>").strip()
+        path = found.get(target)
+        if not path:
+            return m.group(0)
+        return m.group(1) + ("<%s>" % path if " " in path else path)
+
+    return [], _IMAGE_SRC_RE.sub(put, text)
+
+
 def _resource_path(source, extra_roots):
     """Where pandoc looks for a figure, nearest first: the document's own directory,
     then whatever roots the caller added.
@@ -408,15 +457,17 @@ def convert_one(source, fmt, reference_docx=None, resource_roots=(), log_fn=None
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     roots = tuple(resource_roots) + config.BUILD_RESOURCE_DIRS
-    command = [config.PANDOC_BIN, str(source), "-o", str(out_path),
+    resource = _resource_path(source, roots)
+    given, text = _pandoc_input(source, resource)
+    command = [config.PANDOC_BIN, *given, "-o", str(out_path),
                "--from", "markdown", "--standalone",
-               "--resource-path", _resource_path(source, roots)]
+               "--resource-path", resource]
     reference = reference_docx or config.REFERENCE_DOCX
     command += _format_flags(fmt, reference)
 
     try:
         result = subprocess.run(command, capture_output=True, text=True,
-                                timeout=_format_timeout(fmt))
+                                input=text, timeout=_format_timeout(fmt))
     except (OSError, subprocess.SubprocessError) as exc:
         if log_fn:
             log_fn(f"could not run pandoc on {source.name} ({exc}). The Markdown is "

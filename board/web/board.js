@@ -378,6 +378,22 @@ function renderMarkdown(src) {
       continue;
     }
 
+    /* A THREAD PROPOSED ON THIS CARD, and the one tap that adds it. The server
+       wrote the proposal in words above this line (`cards.extract_threads`);
+       the state is the thread file's, read on every poll. */
+    var prop = line.match(/^\s*@@THREAD:([a-z0-9-]*):(new|there|bad)@@\s*$/);
+    if (prop) {
+      out.push('<div class="thread-propose" data-thread="' + prop[1]
+               + '" data-state="' + prop[2] + '">'
+               + (prop[2] === "new"
+                  ? '<button type="button" class="thread-accept">Add this thread</button>'
+                  : prop[2] === "there" ? "<span>on the map</span>"
+                  : "<span>not added: say what to change</span>")
+               + "</div>");
+      i++;
+      continue;
+    }
+
     /* heading */
     var h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
@@ -450,6 +466,7 @@ function renderMarkdown(src) {
            !/^\s*>/.test(lines[i]) &&
            !/^\s*([-*+]|\d+[.)])\s/.test(lines[i]) &&
            !/^\s*@@FIGURE:/.test(lines[i]) &&
+           !/^\s*@@THREAD:/.test(lines[i]) &&
            !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i])) {
       para.push(lines[i]);
       i++;
@@ -4806,6 +4823,49 @@ function askWriteup(makes, button) {
     .then(function () { if (button) button.disabled = false; });
 }
 
+/* ONE TAP ADDS A PROPOSED THREAD. The card and the id go over the wire and
+   nothing else; the server reads the thread back off the card. Painted as
+   added before the answer, for `handOver`'s reason, and put back on a no. */
+function acceptThread(card, tid, button) {
+  var box = button.parentNode;
+  button.disabled = true;
+  button.textContent = "adding\u2026";
+  fetch("/thread/accept", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card: card, thread: tid })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (got && got.ok) {
+      box.setAttribute("data-state", "there");
+      box.innerHTML = "<span>added \u2014 it is on the map</span>";
+      return;
+    }
+    button.disabled = false;
+    button.textContent = "Add this thread";
+    var why = document.createElement("span");
+    why.className = "thread-refused";
+    why.textContent = (got && got.error) || "the board refused it";
+    var old = box.querySelector(".thread-refused");
+    if (old) box.removeChild(old);
+    box.appendChild(why);
+  }).catch(function () {
+    button.disabled = false;
+    button.textContent = "Add this thread";
+  });
+}
+
+els.cards.addEventListener("click", function (ev) {
+  var b = ev.target && ev.target.closest && ev.target.closest(".thread-accept");
+  if (!b || b.disabled) return;
+  var card = b.closest("[data-card]");
+  var box = b.closest(".thread-propose");
+  if (!card || !box) return;
+  ev.preventDefault();
+  acceptThread(card.dataset.card, box.getAttribute("data-thread"), b);
+});
+
 /* One step, written for them, and the sitting stays a coaching one. Painted
    before the answer comes back for the reason `setAim` is: the payload that
    carries it is a poll away, and a control that does nothing for a second is a
@@ -5225,14 +5285,21 @@ function mapThread(n) {
 }
 
 /* What a thread box says under its name: its status, and whether git shows
-   its paths changed. */
+   its paths changed. `requested` is a relay request the cluster has not
+   reported on, and the box says what it is waiting for. */
 function mapThreadSays(n) {
-  return n.thread + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
-         + (n.unsaved ? " · unsaved" : "");
+  return (n.thread === "requested" ? "waiting for the cluster" : n.thread)
+         + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
+         + (n.unsaved ? " · unsaved" : "")
+         + (mapStopped(n) ? " · stopped" : "");
 }
 
 /* How many open decisions sit on this box, where it is a thread. */
 function mapDecisions(n) { return mapThread(n) ? (n.decisions || 0) : 0; }
+
+/* DID THIS THREAD'S LAST TURN STOP WITHOUT A REPORT? The server says so while
+   that `stopped` card is the newest on the board (`cards.stopped_thread`). */
+function mapStopped(n) { return mapThread(n) && !!n.stopped; }
 
 /* A TAP ON A TASK CHIP. On a thread it is the sheet, with that task chosen,
    because the kind of sitting is still the owner's to pick; anywhere else it
@@ -5258,7 +5325,8 @@ function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) 
 
    Everything is relative to the box's left edge; every box is `mapW` wide. */
 function mapChipPlan(node) {
-  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0);
+  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0)
+            + (mapStopped(node) ? 1 : 0);
   var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
   var left = MAP_PAD + MAP_MARK;
   /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
@@ -5968,6 +6036,23 @@ function mapDraw(info) {
       mapTappable(dchip, function () { openThread(n.id, ""); });
       g.appendChild(dchip);
     }
+    /* A TURN ON THIS THREAD STOPPED WITHOUT A REPORT: a chip after the rest,
+       and its tap is the board, where the stopped card lists what it left. */
+    if (mapStopped(n)) {
+      var sseat = plan.at[(n.steps || []).length + (mapDecisions(n) ? 1 : 0)]
+                  || { row: 0, col: 0 };
+      var sx = p.x + plan.left + MAP_CHIP_R + sseat.col * plan.step;
+      var sy = chipRow(sseat.row);
+      var schip = mapEl("g", { "class": "chip stopped", "data-stopped": n.id,
+                               tabindex: "0", role: "button",
+                               "aria-label": "a turn stopped without a report" });
+      schip.appendChild(mapEl("circle", { cx: sx, cy: sy, r: MAP_CHIP_R }));
+      var stx = mapEl("text", { x: sx, y: sy + 4, "text-anchor": "middle" });
+      stx.textContent = "!";
+      schip.appendChild(stx);
+      mapTappable(schip, function () { closeMap(); });
+      g.appendChild(schip);
+    }
     /* WHAT THIS BOX HAS WRITTEN, at the right end of the row of steps. Drawn
        only where there is something to open: a plate reading zero is a plate
        that teaches somebody not to look at plates.
@@ -6273,9 +6358,10 @@ if (els.docNew) {
 /* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, send it, fixes or an
    overhaul, and directions -- the library's own page, on that document. The
    map is always the served workspace's, so nothing has to be switched first. */
-function mapReadDoc(id) {
+function mapReadDoc(id, page) {
   if (!id) return;
-  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id);
+  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id)
+    + (page > 0 ? "&page=" + Math.floor(page) : "");
 }
 
 /* ------------------------------------------------- one level down, on a tap */
@@ -7118,10 +7204,12 @@ var THREAD_KINDS = [
 var threadAsking = "";
 var threadSheet = null;        /* what `/map/thread/<id>` last answered */
 var threadSaid = "";           /* a refusal, held over the sheet's repaint */
+var threadTask = "";           /* a mission's words, typed, held likewise */
 
 function openThread(id, step) {
   var node = workOn(id);
   if (!node) return;
+  if (threadAsking !== node.id) threadTask = "";
   threadSaid = "";
   var stale = els.work.querySelector(".work-blocked");
   if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
@@ -7190,6 +7278,7 @@ function threadPaint(node, last) {
     b.onclick = function () { takeThread(node, k, threadChip(node)); };
     host.appendChild(b);
   });
+  threadMission(host, node, sheet);
   if (!sheet) return;
 
   function section(title, rows) {
@@ -7233,9 +7322,16 @@ function threadPaint(node, last) {
     return { text: (o.there ? "✓ " : "· ") + o.path,
              cls: o.there ? "" : "missing" };
   }));
+  /* A write-up whose document is built opens in the reader at the anchor's
+     page -- the first page where the server could not place it. */
   section("written up in", (sheet.writes || []).map(function (w) {
-    return { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
-             cls: w.found ? "" : "missing" };
+    var row = { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
+                cls: w.found ? "" : "missing" };
+    if (w.doc) {
+      row.data = ["writes", w.doc];
+      row.go = function () { mapReadDoc(w.doc, w.page || 0); };
+    }
+    return row;
   }));
   section("jobs", (sheet.jobs || []).map(function (j) {
     return { text: j.jobid + " · " + j.state.toLowerCase()
@@ -7251,6 +7347,75 @@ function threadPaint(node, last) {
              data: ["sitting", s.id],
              go: function () { closeMap(); showSession(s.id); } };
   }));
+}
+
+/* OR SEND IT AS A MISSION. Long work on this thread that runs with the iPad
+   shut: `POST /elsewhere` into this workspace, with the thread named, which
+   the server checks against the thread file before anything starts. Where one
+   is already out on the thread, the sheet says so instead (`sheet.mission`). */
+function threadMission(host, node, sheet) {
+  var box = document.createElement("div");
+  box.className = "thread-mission";
+  var live = sheet && sheet.mission;
+  if (live) {
+    var on = document.createElement("p");
+    on.className = "thread-row";
+    on.textContent = "a mission is out on this thread"
+      + (live.agent ? " (" + live.agent + ")" : "") + ": " + live.task;
+    box.appendChild(on);
+    host.appendChild(box);
+    return;
+  }
+  var ask = document.createElement("textarea");
+  ask.className = "thread-mission-task";
+  ask.rows = 2;
+  ask.placeholder = "Or send it as a mission: what should be done on this thread";
+  ask.value = threadTask;
+  var go = document.createElement("button");
+  go.type = "button";
+  go.className = "thread-mission-go";
+  go.textContent = "Send as a mission";
+  var ready = function () { go.disabled = !ask.value.trim() || !boardId; };
+  ask.addEventListener("input", function () { threadTask = ask.value; ready(); });
+  go.onclick = function () {
+    if (!ask.value.trim() || !boardId) return;
+    threadDispatch(node, ask, go);
+  };
+  ready();
+  box.appendChild(ask);
+  box.appendChild(go);
+  host.appendChild(box);
+}
+
+function threadDispatch(node, ask, go) {
+  go.disabled = true;
+  threadSaid = "sending it\u2026";
+  els.workSub.textContent = threadSaid;
+  fetch("/elsewhere", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo: boardId, thread: node.id, agent: null,
+                           ship: false, task: ask.value.trim() })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (!got || got.ok === false) {
+      threadSaid = "That mission could not be sent: "
+        + ((got && got.error) || "the board refused it") + ".";
+      els.workSub.textContent = threadSaid;
+      go.disabled = false;
+      return;
+    }
+    threadTask = "";
+    ask.value = "";
+    threadSaid = "Sent as a mission on this thread. It keeps going with the "
+      + "iPad shut, and the bar says when it is done.";
+    els.workSub.textContent = threadSaid;
+  }).catch(function () {
+    threadSaid = "That mission could not be sent: the board did not answer.";
+    els.workSub.textContent = threadSaid;
+    go.disabled = false;
+  });
 }
 
 /* A FILE OF A THREAD OPENS IN THE CODE WALK, through the address resolver --
@@ -9812,9 +9977,13 @@ function paintBusy(data) {
     var job = !data.archived && (data.jobs || [])[0];
     if (job) {
       var more = data.jobs.length > 1 ? " (+" + (data.jobs.length - 1) + " more)" : "";
-      var word = "running — " + (job.title || job.thread || "a job") + ": job "
-        + job.jobid + (String(job.state).toUpperCase() === "PENDING" ? ", pending" : "")
-        + more;
+      var asked = String(job.state).toUpperCase() === "REQUESTED";
+      var word = asked
+        ? "waiting for the cluster — " + (job.title || job.thread || "a request")
+          + more
+        : "running — " + (job.title || job.thread || "a job") + ": job "
+          + job.jobid + (String(job.state).toUpperCase() === "PENDING" ? ", pending" : "")
+          + more;
       els.busy.hidden = false;
       els.busy.classList.remove("busy-bad");
       els.busyText.textContent = word;

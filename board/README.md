@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 112 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 117 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -619,6 +619,12 @@ every workspace without one. `test/threads.py` is the suite.
   `doc` is a **document id**, as `board read` lists them, never a path.
 - A decision with `"rule": null` is open. A rule is written in the present tense.
 - `files` are rows on the thread's sheet; a file opens in the code walk, a directory is only named.
+- `exports` is `[{path, aggregate}]`: `results/` artifacts (png, pdf, svg, csv, json) the relay
+  may copy into tracked `exports/`. Only `aggregate: true` may be published, and that is the
+  owner's word: `board thread export` lists a path unanswered and prints the question for the
+  turn's card; `--aggregate` records yes, `--drop` records no.
+- `check` is a workspace-relative script `board send` runs after each step of a held sitting.
+  The tutor writes it and commits it before the hold. It prints only `RELAY:` lines.
 
 ```
 board thread < threads.json          write the whole file
@@ -629,6 +635,8 @@ board thread task [<thread>] "<text>"
 board thread done [<thread>] <task>  by number or text
 board thread decide [<thread>] <decision> ["<rule>"]
 board thread close|reopen [<thread>]
+board thread export [<thread>] <results/path> [--aggregate|--drop]
+board thread check [<thread>] <script>|--drop
 ```
 
 `<thread>` may be left out where `live/state.json` names the sitting's `thread`. **Every write is
@@ -654,6 +662,7 @@ registry. The first true row wins:
 |---|---|
 | done | `closed` |
 | running | a job registered to it has no terminal state, or a live mission names it |
+| requested | a relay request on it has no report yet, and nothing else is out |
 | written | it has outputs or write-ups, every output exists, every anchor is in its file |
 | result | it has outputs and every one exists |
 | open | otherwise |
@@ -682,8 +691,9 @@ Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn
   frame with the same code as a whole picture, stacked down the plane. `blockedBy` is an arrow,
   across frames too. **A course is the same code path**: `_from_chapters` gives it one
   deliverable, `map.BOOK`, titled with the course's name, and its chapters are the boxes.
-- **A box is coloured by its derived status** (`t-done`, `t-running`, `t-written`, `t-result`,
-  `t-open` on the stripe), says it in words under its name with `blocked` and `unsaved` beside
+- **A box is coloured by its derived status** (`t-done`, `t-running`, `t-requested`,
+  `t-written`, `t-result`, `t-open` on the stripe), says it in words under its name (`requested`
+  reads *waiting for the cluster*) with `blocked` and `unsaved` beside
   it, and dashes its outline when unsaved. Its chips are its open tasks, then one **?** chip for
   its open decisions.
 - **Code is never a box.** A thread box has no look-inside control and `map.inside` answers
@@ -736,6 +746,35 @@ saying the thread is the scope; `sense.where_sense` sends a thread sitting to th
 the README and plan.
 `test/onthread.py` is the suite.
 
+### Threads on the glass and in commits
+
+- **A commit's thread is real.** Where a valid `threads.json` exists, `board push "<word>: msg"`
+  refuses a lead word that is not one of its thread ids, names the real ones, and commits
+  nothing (`threads.commit_prefix`; the workspace id in front is skipped). No lead word is a
+  plain save.
+- **A stopped card lists what the thread left.** Where the sitting is on a thread, `report_owed`
+  narrows the `stopped` card to the thread's files, outputs and write-up files
+  (`owed_thread`), counts what else is uncommitted, and names every job registered since the
+  placeholder was written (`jobs_since`). The card carries `thread:` in its front matter, and
+  while it is the newest card that thread's box says `stopped` and carries a red **!** chip
+  whose tap is the board (`cards.stopped_thread`, `map.status`).
+- **The thread sheet dispatches a mission.** Under the three kinds, a box and *Send as a mission*
+  post `/elsewhere` with this board's own workspace id, the thread and the words; the server
+  checks the thread against the file before anything starts, and a refusal lands in the sheet's
+  sub line. Where a live mission names the thread, `thread_sheet`'s `mission` says so and the
+  sheet shows it instead of the box.
+- **The thread sheet links its write-up.** Each `writes` row whose file has a built PDF in the
+  library carries that `doc` id and the `page` its anchor's words are on (`ledger.place`, asked
+  only where the anchor is found; 0 where it cannot be placed). Its tap opens
+  `/library?from=map&doc=<id>&page=<n>`, and the reader lands on that page the way a re-draw
+  puts it back (`keepPlace`).
+- **A proposed thread is accepted with one tap.** A card's fenced `thread` block holds the JSON
+  `board thread add` reads. `cards.extract_threads` draws it in words with a control line,
+  `@@THREAD:<id>:<state>@@`, re-read on every poll: `new` is an *Add this thread* button, `there`
+  means the file has the id, `bad` means the file would refuse it and says the first problem
+  (`threads.proposal`). The tap posts `/thread/accept {card, thread}`; the server reads the
+  thread back off that card's file (`cards.proposed`) and runs `board thread add` with it.
+
 ### Jobs register to a thread and report themselves
 
 **A turn that starts long work submits it through `board job`.** A bare `sbatch` is work the
@@ -743,27 +782,58 @@ board cannot see: its thread reads `open` while it runs and nobody hears when it
 workspace contract says so. `tutorboard/jobs.py` is the module; `test/jobs.py` is the suite.
 
 ```
-board job <thread> [--produces <path>]... -- sbatch <args>
-board job --show                     every registered job, folded to its last state
+board job <thread> [--produces <p>]... [--export <p>]... -- <recipe.sbatch> [VAR=value ...]
+board job <thread> [--produces <p>]... -- sbatch <args>     raw form, Slurm machines only
+board ask-cluster <thread> "<brief>"                         a `turn` request
+board job --show                     every job and request, folded to its last state
 ```
 
-It runs the `sbatch` from the caller's directory (adding `--parsable`), asks `scontrol` once for
-the job's `StdOut`, and appends `{thread, jobid, cmd, cwd, produces, log, submitted}` to the job
-registry. `--produces` paths are workspace-relative. The thread must exist in `threads.json`;
-`<thread>` may be left out where the sitting names one.
+**With Slurm (`jobs.has_slurm`: `sbatch` on PATH, or `TUTOR_SLURM=1`) it submits.** A recipe
+goes wrapped (`jobs.submit_recipe`, below) with `--export=ALL,VAR=value` from the workspace
+root; the raw form runs from
+the caller's directory. Either adds `--parsable`, asks `scontrol` once for the job's `StdOut`, and
+appends `{thread, jobid, cmd, cwd, produces, export, log, submitted}` to the job registry.
+`--produces` paths are workspace-relative. The thread must exist in `threads.json`; `<thread>`
+may be left out where the sitting names one.
+
+**Without Slurm it files a relay request** (HANDOFF.md, "The relay", is the shape):
+`relay/requests/<id>.json`, id `<date>-<thread>-<recipe stem>` made unique, plus a `filed` epoch.
+`jobs.file_request` commits that one file through `save-and-push.sh` with it as the whole
+pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `board
+ask-cluster` files a `turn` request the same way.
+
+**One validator, both machines.** `jobs.validate` is pure; `jobs.check` hands it the workspace's
+context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
+thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEAD, a variable its
+header does not declare or a value its pattern does not fully match (a comma, `=` or newline
+never passes), a `results/` export not marked aggregate on the thread, a `turn` where
+`tutorboard.json` lacks `relay.turns: true`, and a `colibri` task where it lacks
+`relay.colibri: true`. A recipe declares each variable in its header as
+`#RELAY-VAR NAME PATTERN`; `ALL`, `NONE`, `PATH`, `LD_PRELOAD` and the like are never accepted.
+The Mac refuses before it commits; the cluster calls it again with `mine=True` before it runs.
+
+**The registry is one view of three sources.** `jobs.view` merges `jobs.jsonl`, the requests and
+the reports under `relay/reports/`. A request reads `REQUESTED` until its report says
+`submitted`, `running`, `completed`, `failed` or `refused` (`REFUSED` is terminal). A report
+naming a Slurm job this machine registered folds into that job. `jobs.registry` stays the
+local file's path. The thread stages, the sheet's jobs and the busy strip read the view; the
+busy strip says *waiting for the cluster — (thread title)* for a request.
 
 **The registry is append-only and tracked.** It is `live/jobs.jsonl` where git can see it there
 (the course allowlists, PSYCH-ASR and libr-local-llm carry `!live/jobs.jsonl`), and `jobs.jsonl`
 at the workspace root where `live/` is ignored wholesale (TRD-EHR, Paper-Writer). Whichever
 exists wins. A reader folds records by `jobid` in file order (`threads.merged`).
 
-**The per-board tutor daemon polls it.** `headless` in `bin/tutor` runs `job_pass` on a thread
-beside the transcript beat, every `jobs.POLL_SECONDS` (60). Each pass asks `sacct` about the jobs
-with no terminal state, and appends a state change short of the end (PENDING to RUNNING). On a
-terminal state it claims the ending once (`O_EXCL` under `live/jobs.reported/`, so two daemons
-never report one job twice), appends `{state, exit, ended}`, and drops a `[job]` line in the
-inbox. `board wait` hands that line over like any other, and `turn_signal` reads `job` off it. A
-job sacct has never heard of fifteen minutes after submission is `LOST`, which is terminal.
+**The cluster's relay polls it** (below), never the board daemon. `sacct` is refused on this
+cluster, so a job's end is `squeue` plus an exit file. `jobs.submit_recipe` submits a recipe as
+a wrapper at `relay/state/<key>.sbatch`: the recipe's `#SBATCH` lines, then `bash <recipe>`,
+then the exit code written to `relay/state/<key>.exit` (`_<task>.exit` per array task). No trap,
+so a killed job leaves no file. Gone from `squeue` with the file is `COMPLETED` on 0 and
+`FAILED` otherwise. Without it, `DIED`: a time limit, a node failure or a cancel. A raw sbatch
+has no wrapper, so its leaving is `ENDED`, exit unknown. `jobs.GRACE` (60 s) covers a job just
+submitted. A state change short of the end is appended. An ending is claimed once (`O_EXCL`
+under `live/jobs.reported/`), appended as `{state, exit, ended}`, and dropped in the inbox as a
+`[job]` line, which `turn_signal` reads as `job`.
 
 **The `[job]` turn reports.** The line names the job, its state, exit code, command, log path and
 whether each `--produces` path exists. The turn writes one card on what finished, what it
@@ -776,6 +846,166 @@ the busy strip says *running — (thread title): job N*, with *pending* while it
 job's own clock, off the payload's `jobs` (`jobs.running`). A mission dispatched with a `thread`
 (`POST /elsewhere`, refused where that workspace has no such thread) carries it in its record,
 and while the mission is live its thread says `running` too.
+
+### The relay runs requests on the cluster
+
+**`tutor relay` is one pass, and a `scrontab` entry runs it every five minutes on `c3_short`.**
+`tutorboard/relay.py` is the module; `test/relay.py` is the suite (a bare origin, two clones, a
+fake Slurm). `tutor relay --entry` prints the entry. `tutor relay --install` writes it, replacing
+its own marked block in `scrontab -l`. Run the install from the cluster checkout, because the
+entry names that checkout's `bin/tutor`. `tutor relay --once` is a pass by hand, `tutor relay
+--status` shows the last pass and every workspace's requests by state, and `tutor where` ends on
+the last pass. The relay refuses to run without Slurm.
+
+A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
+
+1. **Pull, fast-forward only.** The pass skips, saying why in `relay/state.json`, on a merge or
+   rebase in progress, a detached HEAD, or a tracked edit or unpushed commit outside the
+   cluster's paths. Those are each workspace's `relay/reports/` and `exports/`, and the
+   `vendor/colibri` pointer. A workspace's job registry may be dirty, because only a Slurm
+   machine appends to it; the relay leaves it uncommitted. Then `pull_vendor`.
+2. **Each request with no report** is checked with `jobs.check(mine=True)`. A refusal is a
+   `refused` report listing every problem. A recipe goes through `jobs.submit_recipe` in an
+   environment stripped of `SLURM_*`. It is registered in the ignored `relay/state/jobs.jsonl`,
+   not the tracked registry, and its report says `submitted` with the job id.
+3. **Poll** the workspace registry (`jobs.report`) and the relay's (`jobs.poll`). `RUNNING`
+   moves a report to `running`. An ending writes `completed` or `failed` with `exit`, `ended`,
+   `produced`, `missing`, the `RELAY:` lines, and for a Python crash `error`, the exception type
+   only. A completed recipe's exports are copied to `exports/<results path>`.
+4. **One `turn` at a time** runs as its own Slurm job on `c3_short`: `tutor relay --turn <ws>
+   <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
+   PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
+   The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
+5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
+   push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
+
+**A report is public, and the code makes it so.** Only lines the job printed behind `RELAY:`
+reach it: the last 40, 200 characters each. Every string goes through `relay.public`. An
+absolute or home path becomes `<path>`, and a string the lab's `names_phi` matches is dropped; a
+matched note is withheld and stays in `relay/state/`. An export is copied only if it is under
+`results/`, png/pdf/svg/csv/json, marked aggregate on the thread now, a regular file of at most
+5 MB, unmatched by `names_phi` in its path or text, and a path git tracks under `exports/`.
+TRD-EHR's `.gitignore` carries `!exports/**` for that. A refused export is listed in
+`export_refused` with its reason.
+
+**The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
+`/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
+skip reason, the last error and the last pushed commit.
+**The Mac hears the cluster through the same wake.** On a machine without Slurm, `jobs.report`
+also runs `jobs.hear`: it diffs `relay/reports/` from the commit it last heard
+(`live/jobs.reported/relay.heard`, ignored) to HEAD, so it catches whatever pulled. Each report
+now `completed`, `failed` or `refused` is claimed once per state and dropped as a `[job]` line
+through `jobs.drop`; `jobs.relay_sense` writes it from the report alone (state, exit, which
+`produces` exist on the cluster, exports landed, the `RELAY:` lines, the note), because the log
+stays on the cluster. A failed one says `board ask-cluster` has a turn read it there. Filing a
+request records HEAD as heard first, so a report in the very next pull is heard. The first look
+in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
+
+**The pull keeps time with the requests.** `scripts/tutor-pull` runs `tutor pull --hear` every
+time its timer fires (`scripts/launchd/tutor-pull.plist`, every 20 s), then the daily
+`tutor pull`. `hear_pass` in `bin/tutor` fast-forwards the repository with `sync` when
+`jobs.pull_due` says so — every `holds.POLL_SECONDS` (20 s) while a hold stands, every
+`jobs.PULL_BUSY` (120 s) while any workspace has a request out, every `jobs.PULL_IDLE` (3600 s)
+otherwise, stamped in `~/.local/state/tutor-pull.heard` — and hears every workspace on every
+run: `jobs.hear` drops `[job]` for a request's report, `holds.wake` drops `[coach]` for a held
+step's check, and `jobs.hear` skips check reports so a check never wakes both. A timer firing a few seconds early still counts
+(`jobs.PULL_SLACK`). Where Slurm is, it does nothing: the relay pulls there. `install.sh` loads
+the launchd agent on a Mac. `tutor pull --hear --status` says the cadence.
+
+**`board brief` carries the cluster.** The thread section lists the thread's requests still out
+and its last ended report, with its `RELAY:` lines and note (`jobs.thread_relay`).
+
+**`results/` falls back to `exports/results/`.** `paths.present` is the rule: a `results/` path
+missing here is read at the same path under `exports/`. `threads.here` uses it, so `board thread
+--check` and a thread's outputs count an export as present. The library walks `exports/results/`
+as `results/`, so a figure keeps its path and id on both machines. Paper-Writer's builder
+(`building.exported_figures`) hands pandoc the export's path for a figure `results/` lacks, on
+stdin, never editing the source.
+### A sitting held at the cluster
+
+The owner writes a thread's code on the cluster, beside the data, and the coach on the Mac answers
+on the iPad. `tutorboard/holds.py` is the module; `test/holds.py` is the suite.
+
+```
+board hold [<thread>]                cluster: relay/holds/<thread>.json, committed alone, pushed
+board send [<thread>] [--wait N|--no-wait] [--anyway]
+                                     cluster: commit the step, run the check, push, print the reply
+board send --reply [<thread>]        cluster: the coach's last reply
+board release [<thread>]             cluster: remove the hold, committed alone, pushed
+board coach <thread> [--step N] < reply.md
+                                     Mac: relay/coach/<thread>.md, committed alone, pushed
+```
+
+- **A hold is checked whole** (`holds.validate_hold`, pure): the thread exists, is not held
+  already, has `files`, none of them under another hold, and a `check` tracked and unchanged at
+  HEAD. It is made only where there is Slurm.
+- **While it stands, the thread's `files` are the cluster's.** The hold's own list and the
+  thread's current one both count. `holds.refusal` is asked by `board push` and the save button
+  on a machine without Slurm, and refuses a commit touching one, naming the file. `board brief`
+  says *held at the cluster* on the thread.
+- **`holds.sync` is the cluster's pull.** It fetches, refuses with nothing moved if origin changes
+  a path that has uncommitted edits here, then `git rebase --autostash` onto the upstream; a
+  rebase that stops is aborted. The relay's pass and every hold command pull through it.
+  `holds.push` answers a rejection with one `sync` and one more push, never force.
+- **`board send` is one step.** It commits the thread's changed files as `<thread>: step`, as the
+  owner. It runs the check from the workspace root (`.py` with `python3`, `.sh` or non-executable
+  with `bash`; a check needing an environment is a `.sh` that enters it), with a 30-minute cap.
+  `relay/reports/check-<thread>-<n>.json` carries `kind: check`, `step`, `files`, `exit`,
+  `state`, the `RELAY:` lines (prefix dropped, 40 at most, a line the PHI policy flags withheld
+  and counted) and a crash's exception type. Nothing else the check prints leaves the terminal.
+  It commits that alone as `<thread>: check <n>`, pushes both, and polls origin's
+  `relay/coach/<thread>.md` every 10 seconds for three minutes.
+- **On the Mac, `holds.wake` drops a `[coach]` line** for each held thread's newest check report
+  that has no reply yet, once (`O_EXCL` under `live/coach.woken/`). The line names the step's
+  commit (the parent of the commit that added the report, when its subject is `<thread>:
+  step`), the check's exit and its `RELAY:` lines. The woken turn follows TEACHING.md, "A sitting
+  held at the cluster". A check report is not a request's report: `holds.is_check` tells them
+  apart, the registry's view ignores it, and a request id may not start `check-`.
+- **The coach file** starts `<!-- coach <thread> step <n> -->`; `board send` prints the body when
+  `n` reaches its step. `board coach` refuses text the PHI policy flags.
+- **The Mac's pull runs every `holds.POLL_SECONDS` (20) while any hold stands**
+  (`holds.poll_seconds`). `holds.owned` lists what the cluster writes in a workspace now: its
+  reports, exports and holds, and every held thread's files.
+- **`board release` refuses while a held file has uncommitted edits.** Send them as a step first.
+### Colibri runs on demand
+
+**Colibri is not kept warm. It runs while it has a task and stops when it has none.**
+`tutorboard/colibri.py` drives it; `test/ondemand.py` is the suite, against a fake `sbatch` and
+`squeue`.
+
+```
+board colibri <thread> "<task>"     cluster: queue it; Mac: file a `colibri` relay request
+board colibri --show                the queue, oldest first
+```
+
+- **The queue is mission records** with `kind: "task"` in libr-local-llm's ignored
+  `live/missions/` (`missions.file_task`), because a task may name session content. A task
+  carries its thread, `brief`, `workspace`, `queue` state, `attempts`, `deaths` and the `session`
+  uuid `coli-code` resumes by. No board rule carries, freezes or briefs it as a mission.
+- **Filing starts a generation if none is queued or running** (`colibri.file`, under
+  `flock` on `slurm_jobs/state/queue.lock`), through `coli-up --detach`. A clone standing by on
+  a dependency, and a generation that has written `closing-<job>`, do not count. Where `squeue`
+  cannot be asked, nothing is started.
+- **The generation works the queue** (`python3 -m tutorboard.colibri work`, from
+  `colibri_serve.sbatch`): it waits for `COLIBRI-SERVE READY`, takes the oldest task, runs it
+  through `coli-code -d <workspace> --yes` with `COLI_SESSION_ID` and `COLI_JOB`, and exits 0
+  once the queue has been empty for `COLI_IDLE_MIN` (20) minutes. The client's output goes
+  nowhere; the job log gets ids and states only.
+- **Each generation submits its own clone at start**, `--dependency=afternotok:<self>
+  --kill-on-invalid-dep=yes`. A death releases it; a clean exit lets Slurm drop it.
+  `COLI_LINEAGE` counts deaths in a row and stops cloning at 6.
+- **An end is read off `slurm_jobs/state/gen-<job>.exit`**, the job's last act, because `sacct`
+  is refused. A running task whose generation left `squeue` with 0 there is requeued free; without
+  it, it is a death, resumed with `-c` on the same session. The third death fails it for good.
+- **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), for a sitting that wants Colibri live;
+  the board's start button uses it. Its handover writes 0 for the incumbent before cancelling it.
+- **The relay hook.** A `colibri` request (`id`, `kind`, `thread`, `brief`, `filed`) needs
+  `relay.colibri: true` in that workspace's `tutorboard.json`. The relay files it with
+  `colibri.relay_file(root, req)` and, every pass, writes what `colibri.relay_pass(review)` returns:
+  `(workspace root, report)` per request-filed task. `review(root, turn_request)` is the relay's
+  headless Claude turn; it reviews the diff, ships it with `board push` (which runs `names_phi`),
+  and returns a public note. One review per pass. A report carries state, task id, attempts,
+  deaths, job id and that note — never the brief.
 
 ### The meeting deck
 
@@ -1781,8 +2011,8 @@ back a plan and does nothing. `board direction --show` reads it from a terminal 
 sentence does not go to `DIRECTION.md`. It rides in the `[direction]` line, under
 `direction.RETHINK`, and in the new sitting's `rethink`, which the briefing's thread section
 quotes. The woken turn rewrites that thread's tasks with `board thread` and reports what changed.
-A sentence that names a new question is proposed as a thread in the report and added with `board
-thread add` once the owner says yes. The sitting reopens on the same `thread` and `kind`, named
+A sentence that names a new question is proposed as a thread in the report, in a fenced `thread`
+block, and added with one tap on the card (see *Threads on the glass and in commits*). The sitting reopens on the same `thread` and `kind`, named
 after the thread; the lesson is still archived and the tutor still replaced. A sitting on no
 thread takes the workspace-wide path above.
 
@@ -5774,8 +6004,8 @@ Tailscale is the system's.
 **`bash board/install.sh` loads two LaunchAgents** from `scripts/launchd/`, beside the systemd
 units, copied into `~/Library/LaunchAgents` for the reason the units are copied:
 
-- `tutor-board.tutor-pull` — `tutor-pull` at load and hourly; its own stamp keeps it to once a day,
-  which is the timer's `Persistent=true` in launchd's words.
+- `tutor-board.tutor-pull` — `tutor-pull` at load and every 20 s; `tutor pull --hear` decides
+  whether a pull is due, and its own stamp keeps the daily half to once a day.
 - `tutor-board.tutor-watch` — `tutor watch`, kept alive by launchd. It repairs only what has a
   record in a workspace's `live/`, so a reboot brings back exactly the boards that were up, and a
   `board stop` keeps one down. Its log is `~/.local/state/tutor-watch.log`. A ship reaches it
@@ -5969,7 +6199,7 @@ node test/who.js         that who writes this sitting is a choice on the glass, 
                          until the sitting opens, and that a workspace you are not
                          looking at can be handed a job
 
-bash test/all.sh         all of the above, in order, and Paper-Writer's 595 tests
+bash test/all.sh         all of the above, in order, and Paper-Writer's 601 tests
                          where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone

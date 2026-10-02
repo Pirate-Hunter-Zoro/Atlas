@@ -378,10 +378,14 @@ else:
     up = open(os.path.join(LLM, "bin", "coli-up"), encoding="utf-8").read()
     down = open(os.path.join(LLM, "bin", "coli-down"), encoding="utf-8").read()
 
+    watch = env[env.index("coli_chain_watch() {"):]
     check("a successor OVERLAPS its incumbent rather than following it: there is "
           "no dependency anywhere in the chain, because a load that begins at the "
           "handover is an hour with no server",
-          "--dependency" not in code(job) and "--dependency" not in code(env))
+          "--dependency" not in code(job) and "--dependency" not in code(watch))
+    check("the only dependency is the on-demand clone's, on its parent ending "
+          "not-ok", code(env).count("--dependency") == 1
+          and '--dependency="afternotok:$1"' in env)
     check("and it is told to land somewhere else, because two 800 GB jobs do not "
           "fit on a 1 TB box",
           '--exclude="$NODE"' in env)

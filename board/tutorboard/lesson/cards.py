@@ -9,6 +9,7 @@ See `has_body`.
 """
 
 import hashlib
+import json
 import os
 import re
 import time
@@ -75,6 +76,93 @@ def extract_tikz(body, jobs, repo):
     return TIKZ_BLOCK.sub(sub, body)
 
 
+# ---------------------------------------------------------------------------
+# a thread proposed on a card, accepted with one tap
+# ---------------------------------------------------------------------------
+# A rethink that finds a NEW question proposes it as a thread, in a fenced
+# `thread` block holding the JSON `board thread add` reads. The block is drawn
+# as the proposal and a control, `@@THREAD:<id>:<state>@@`; the tap posts the
+# card and the id, and the server reads the thread back off the card file
+# itself -- nothing the browser sends is made into the thread.
+THREAD_BLOCK = re.compile(
+    r"^[ \t]*```[ \t]*thread[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def proposals(body):
+    """Every thread proposed on a card body, parsed: `[(dict or None, raw)]`."""
+    out = []
+    for m in THREAD_BLOCK.finditer(body or ""):
+        try:
+            one = json.loads(m.group(1))
+        except ValueError:
+            one = None
+        out.append((one if isinstance(one, dict) else None, m.group(1)))
+    return out
+
+
+def extract_threads(body, root):
+    """Replace each `thread` block with the proposal in words and its control.
+
+    The state is read off the thread file every time, so a card proposing a
+    thread that has since been added says so: `new` (one tap adds it),
+    `there` (the file has that id) or `bad` (the file would refuse it, and the
+    first problem is said).
+    """
+    if "```" not in (body or "") or "thread" not in body:
+        return body
+    from ..course import threads                             # local: a cycle
+
+    def sub(match):
+        try:
+            one = json.loads(match.group(1))
+        except ValueError:
+            one = None
+        if not isinstance(one, dict):
+            return ("\n\n**A proposed thread** that is not valid JSON, so it "
+                    "cannot be added from here.\n\n@@THREAD::bad@@\n\n")
+        state, problems = threads.proposal(root, one)
+        tid = str(one.get("id") or "")
+        tasks = [t.get("text") if isinstance(t, dict) else t
+                 for t in (one.get("tasks") or [])]
+        lines = ["**Proposed thread** `%s`: %s" % (tid, one.get("title") or "")]
+        if one.get("question"):
+            lines.append(str(one["question"]))
+        if tasks and tasks[0]:
+            lines.append("First task: %s" % tasks[0])
+        if problems:
+            lines.append("It cannot be added as written: %s" % problems[0])
+        safe = tid if threads.ID_RE.match(tid) else ""
+        return ("\n\n" + "\n\n".join(lines)
+                + "\n\n@@THREAD:%s:%s@@\n\n" % (safe, state))
+
+    return THREAD_BLOCK.sub(sub, body)
+
+
+def proposed(cards_dir, card_id, tid):
+    """The thread `tid` as proposed on card `card_id`, read off its file, or None."""
+    if not re.match(r"^\d{4}$", str(card_id or "")):
+        return None
+    try:
+        names = os.listdir(cards_dir)
+    except OSError:
+        return None
+    for name in sorted(names):
+        m = CARD_RE.match(name)
+        if not m or m.group(1) != card_id or PART_RE.match(name):
+            continue
+        try:
+            with open(os.path.join(cards_dir, name), "r", encoding="utf-8") as fh:
+                _meta, body = parse_front_matter(fh.read())
+        except OSError:
+            return None
+        for one, _raw in proposals(body):
+            if one and one.get("id") == tid:
+                return one
+    return None
+
+
 # Parsed cards, keyed by path, valid while (mtime, size) hold. The poll runs four
 # times a second and this home directory is a shared network filesystem, so
 # re-reading and re-parsing every card in the lesson on every tick is real cost
@@ -134,7 +222,8 @@ def load_cards(repo, jobs):
             # diagram finishes -- so the body is re-scanned even on a hit. It is
             # a regex over a string already in memory, not a read and a parse.
             card = dict(hit[1])
-            card["body"] = extract_tikz(hit[2], jobs, repo)
+            card["body"] = extract_tikz(
+                extract_threads(hit[2], getattr(repo, "root", None)), jobs, repo)
             cards.append(card)
             continue
         try:
@@ -158,7 +247,9 @@ def load_cards(repo, jobs):
         root = getattr(repo, "root", None)
         if root:
             rawbody = results.embed_ids(root, rawbody)
-        body = extract_tikz(rawbody, jobs, repo)
+        # A proposed thread is re-read on every poll, like a figure's status:
+        # whether it is still `new` is a fact about the thread file, not the card.
+        body = extract_tikz(extract_threads(rawbody, root), jobs, repo)
         cards.append({
             "id": m.group(1),
             "slug": m.group(2),
@@ -214,38 +305,51 @@ def is_pending(meta):
     return ((meta or {}).get("kind") or "").lower() == PENDING
 
 
-def stopped_body(changed, jobs=None):
+def stopped_body(changed, jobs=None, thread="", elsewhere=0):
     """The card that replaces a placeholder whose turn never reported.
 
-    `changed` is `git status` under the work's paths, workspace-relative.
-    `jobs` is whatever was registered while the turn ran, one line each.
+    `changed` is `git status` under the work's paths, workspace-relative: the
+    thread's paths where the sitting is on one. `elsewhere` counts what else
+    is uncommitted in the workspace, so a narrowed list never reads as all
+    there is. `jobs` is whatever was registered while the turn ran, one line
+    each.
     """
     lines = ["The turn stopped without reporting. Here is what changed on disk.", ""]
+    under = (" on `%s`" % thread) if thread else ""
     if changed:
-        lines += ["Uncommitted:", ""]
+        lines += ["Uncommitted%s:" % under, ""]
         lines += ["- `%s`" % name for name in changed[:STOPPED_NAMES]]
         if len(changed) > STOPPED_NAMES:
             lines.append("- and %d more" % (len(changed) - STOPPED_NAMES))
+    elif thread:
+        lines.append("Nothing under `%s`'s paths is uncommitted." % thread)
     else:
         lines.append("Nothing under this work is uncommitted.")
+    if elsewhere:
+        lines += ["", "And %d more path%s uncommitted elsewhere in this workspace."
+                  % (elsewhere, "" if elsewhere == 1 else "s")]
     if jobs:
         lines += ["", "Jobs registered since:", ""]
         lines += ["- %s" % job for job in jobs]
     return "\n".join(lines)
 
 
-def write_stopped(path, changed, jobs=None):
+def write_stopped(path, changed, jobs=None, thread="", elsewhere=0):
     """Replace the placeholder at `path` with a `stopped` card. True if written.
 
-    Same directory and `os.replace`, as `board write` does, so a poll sees the
-    old card or the new one and never an empty file.
+    The card names its `thread` in its front matter, which is how the map
+    badges that thread's box (`stopped_thread`). Same directory and
+    `os.replace`, as `board write` does, so a poll sees the old card or the new
+    one and never an empty file.
     """
-    head = "---\nkind: %s\n---\n" % STOPPED
+    head = "---\nkind: %s\n%s---\n" % (
+        STOPPED, ("thread: %s\n" % thread) if thread else "")
     tmp = os.path.join(os.path.dirname(path),
                        ".%s.%d.part" % (os.path.basename(path), os.getpid()))
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(head + stopped_body(changed, jobs).rstrip() + "\n")
+            fh.write(head + stopped_body(changed, jobs, thread,
+                                         elsewhere).rstrip() + "\n")
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)
@@ -256,3 +360,15 @@ def write_stopped(path, changed, jobs=None):
             pass
         return False
     return True
+
+
+def stopped_thread(cards_dir):
+    """The thread whose turn stopped without a report, or "".
+
+    Only while that `stopped` card is the newest: the next card written is the
+    next turn, and the badge goes with it.
+    """
+    _path, meta = newest(cards_dir)
+    if ((meta or {}).get("kind") or "").lower() != STOPPED:
+        return ""
+    return str(meta.get("thread") or "").strip()
