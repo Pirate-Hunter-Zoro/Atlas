@@ -24,7 +24,10 @@ from .. import atlas
 # question or was given the default -- see `said_stance`.
 STANCES = ("teach", "do")
 
-DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach"}
+# `check` is the workspace's test command, run with `uv run` where it has a
+# pyproject.toml; the brief names it, and the contracts say a turn that changed
+# code runs it before it pushes.
+DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach", "check": ""}
 
 
 def read_config(root):

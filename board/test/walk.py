@@ -307,6 +307,14 @@ try:
     line = brief.briefing(rt, sense)
     check("and names it once when they agree",
           "stance: teach" in line and "tutorboard.json says" not in line)
+    check("a workspace that names no check gets no check line",
+          "\ncheck: " not in line)
+    json.dump({"name": "PSYCH-ASR", "check": "uv run --extra test python -m pytest tests -q"},
+              open(os.path.join(teach_repo, "tutorboard.json"), "w"))
+    line = brief.briefing(rt, sense)
+    check("the briefing names the workspace's check, to run before a push",
+          "check: uv run --extra test python -m pytest tests -q" in line
+          and "before a push" in line)
 finally:
     shutil.rmtree(teach_repo, ignore_errors=True)
     shutil.rmtree(do_repo, ignore_errors=True)

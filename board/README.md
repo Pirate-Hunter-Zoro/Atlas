@@ -5990,7 +5990,8 @@ machine here with an administrator, and it is a machine that comes back, so the 
 compute node bend in three places: it has a package manager, its boards are supervised, and its
 Tailscale is the system's.
 
-**Homebrew installs what the board and the paper builders need, and nothing else:**
+**Homebrew installs what the board, the paper builders and the workspaces' code need, and
+nothing else.** The root `Brewfile` is this table:
 
 | Formula | For |
 |---|---|
@@ -6000,6 +6001,44 @@ Tailscale is the system's.
 | `pandoc` | Paper-Writer's conversions |
 | `node` | the test suite's headless browser |
 | `gh`, `tailscale` | git over HTTPS with the owner's login, and the tailnet |
+| `uv` | every workspace's Python environment |
+| `libomp` | OpenMP, which the Mac wheels of xgboost and lightgbm load |
+| `go` | `practice/Algo-Solutions` |
+
+Lean's `elan` is not in it: `practice/Lean-Theorem-Proving/scripts/setup.sh` installs it into
+`~/.elan` on both machines, and a Homebrew one beside it would shadow that one on the PATH.
+
+**Each workspace's code has one environment, on both machines, built by one command.** The
+board is standard library only; the workspaces are not, and a tutor tests before it pushes.
+
+- A workspace with Python has a `pyproject.toml` and a committed `uv.lock`. `uv sync` builds
+  `.venv/` inside it, which is ignored. The base dependencies are what the code and its tests
+  import. A `test` extra holds pytest. A `cluster` extra holds what only a GPU node runs (torch
+  with CUDA, vLLM, whisperx), and only a machine with Slurm installs it. `[tool.uv]` says
+  `package = false`, because every entry point runs from the workspace root, and locks for two
+  machines only: macOS on arm64 and Linux on x86_64. The pins are the cluster's: TRD-EHR's are
+  `setup_envs.sh`'s main environment, PSYCH-ASR's cluster extra is its `asr_env`.
+- `bash scripts/setup.sh`, at the root, builds everything. On a Mac it runs
+  `brew bundle --no-upgrade` on the `Brewfile`; elsewhere it installs `uv` into `~/.local/bin`
+  if it is missing. Then it finds the workspaces through `atlas.workspaces`, never from a list,
+  and builds each by what it holds: `uv sync --locked` with its extras for a `pyproject.toml`,
+  the workspace's own `scripts/setup.sh` for a `lean-toolchain` (elan, the toolchain, the
+  Mathlib cache, the build), and `go mod download` for a `go.mod`. It prints one line per
+  workspace, keeps what each step said in `~/.local/state/atlas-setup/`, changes nothing on a
+  second run, and exits non-zero if any workspace failed.
+- **Each workspace names its check** as `check` in its `tutorboard.json`: the test command,
+  run from the workspace root, through `uv run` for Python. The brief prints it under the
+  stance, and every workspace contract says that a turn that changed code runs it before it
+  pushes and says in its report whether it passed. `test/jobs.py` holds the real tree to it:
+  a contract without the rule, a workspace with code and no check, or a `pyproject.toml`
+  without its `uv.lock` fails the suite.
+- TRD-EHR's check runs with `--env-file .env.example`. Its modules read their settings from
+  the environment at import, the real `.env` names lab storage and is never on the Mac, and the
+  tests use none of those paths, so the example's keys are what lets them import on both
+  machines alike.
+- PSYCH-ASR's `diarizen_env` and `nemo_env` are not in its `pyproject.toml`. Each pins a torch
+  that conflicts with `asr_env`'s, so they stay conda prefix environments built by its
+  `scripts/setup_envs.sh`, for the Slurm jobs that need them.
 
 **`bash board/install.sh` loads two LaunchAgents** from `scripts/launchd/`, beside the systemd
 units, copied into `~/Library/LaunchAgents` for the reason the units are copied:

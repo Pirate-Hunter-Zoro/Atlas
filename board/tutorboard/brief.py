@@ -401,7 +401,8 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
     # that it is a choice somebody made this evening rather than the standing
     # answer, because the two are written down in different places and only one
     # of them survives the sitting.
-    declared = config.read_config(root).get("stance") or "teach"
+    cfg = config.read_config(root)
+    declared = cfg.get("stance") or "teach"
     stance = config.stance_for(root, st)
     if stance == declared:
         out.append("stance: %s" % stance)
@@ -409,6 +410,13 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
         out.append("stance: %s  (this sitting only -- tutorboard.json says %s, "
                    "and that is what the next sitting goes back to)"
                    % (stance, declared))
+    # The workspace's check, which the contract says a turn that changed code
+    # runs before it pushes. Named here so the turn runs THIS command rather
+    # than whichever it guesses; the environment it runs in is the workspace's
+    # own, built by the root `scripts/setup.sh`.
+    if cfg.get("check"):
+        out.append("check: %s  (from the workspace root, before a push that "
+                   "changed code; the report says whether it passed)" % cfg["check"])
 
     # WHAT THIS WORKSPACE IS FOR, when they have said so -- above the method,
     # above the contract, above everything. A direction is changed at the moment

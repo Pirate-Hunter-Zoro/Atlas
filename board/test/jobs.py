@@ -422,6 +422,24 @@ for ws in ("courses/Galois-Theory", "courses/Probability", "practice/Algo-Soluti
     check("%s: its contract says ink on a document is answered in its ledger" % ws,
           "**Ink on a document is answered in its ledger.**" in contract
           and "`board round <document>`" in contract)
+    check("%s: its contract says code is checked before it is pushed" % ws,
+          "**Code is checked before it is pushed.**" in contract
+          and "`check` in `tutorboard.json`" in contract)
+    # A workspace with code names its check, and one with a pyproject.toml has the
+    # lockfile `scripts/setup.sh` builds from (`uv sync --locked`).
+    has_code = [m for m in ("pyproject.toml", "lean-toolchain", "go.mod")
+                if os.path.isfile(os.path.join(root, m))]
+    if has_code:
+        try:
+            with open(os.path.join(root, "tutorboard.json"), encoding="utf-8") as fh:
+                named = json.load(fh).get("check")
+        except (OSError, ValueError):
+            named = None
+        check("%s: it holds %s, and its tutorboard.json names its check"
+              % (ws, has_code[0]), bool(named))
+    if "pyproject.toml" in has_code:
+        check("%s: its pyproject.toml has a uv.lock beside it" % ws,
+              os.path.isfile(os.path.join(root, "uv.lock")))
 
 # --- an array: a task that wrote no exit file died --------------------------
 check("an array's task count is read off its header",
