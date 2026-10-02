@@ -147,8 +147,9 @@ git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~
 cd ~/Developer/Atlas && claude
 ```
 
-Then: *"Do HANDOFF item 1."* Tailscale and Homebrew are already on the Mac. The provider keys
-are in `~/.config/api-keys/`, one file per key, named like `deepseek_key`.
+Then: *"Do HANDOFF item 1."* Tailscale and Homebrew are already on the Mac. Claude Code and
+Codex sign in to the owner's enterprise plan and need no API key. DeepSeek is the only provider
+that needs one, and it is in `~/.config/api-keys/deepseek_key`.
 
 **The agent's part, in order.** Where a step needs `sudo` or an interactive login, give the owner
 the one command to type with the `!` prefix and wait for it. Never ask for a password in chat.
@@ -165,10 +166,12 @@ the one command to type with the `!` prefix and wait for it. Never ask for a pas
 4. **Keys.** Write `~/.config/tutor-board/keys.env`, mode 600, from the files in
    `~/.config/api-keys/`. Name each variable the way `board/tutorboard/keys.py` and the recipes
    that use them expect (`deepseek_key` becomes `DEEPSEEK_API_KEY`). Never print a value, never
-   put one on a command line, and never commit one. Name any key a recipe needs that has no
+   put one on a command line, and never commit one. Claude and Codex recipes use their
+   enterprise logins, so they need no key here. Name any other key a recipe needs that has no
    file, in one line.
-5. **Codex.** The owner installs Codex. Register it as an agent recipe the way
-   `board/tutorboard/assistants.py` registers the others, so it can be chosen per sitting.
+5. **Codex.** The owner installs Codex and signs in to the enterprise plan. Register it as an
+   agent recipe the way `board/tutorboard/assistants.py` registers the others, using that
+   login, so it can be chosen per sitting.
 
 > **Prompt:** Do item 1 of `HANDOFF.md` on this Mac mini, so it replaces the compute node as the
 > board's host. Do the five steps above first, in order. Then read the root `README.md`,
