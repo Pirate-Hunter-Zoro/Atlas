@@ -7,6 +7,8 @@
 #SBATCH --mem=200G
 #SBATCH -o slurm_jobs/quick_runs/logs/neighbor_count_sweep_%j_out.txt
 #SBATCH -e slurm_jobs/quick_runs/logs/neighbor_count_sweep_%j_err.txt
+#RELAY-VAR EMBEDDER [A-Za-z0-9][A-Za-z0-9._-]{0,79}
+#RELAY-VAR REDRAW [01]
 
 # Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
 # pool: importance-weighted cosine, plain cosine, and random neighbours with uniform
