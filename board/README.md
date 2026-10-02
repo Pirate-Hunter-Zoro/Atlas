@@ -852,7 +852,7 @@ board coach <thread> [--step N] < reply.md
   commit (the parent of the commit that added the report, when its subject is `<thread>:
   step`), the check's exit and its `RELAY:` lines. The woken turn follows TEACHING.md, "A sitting
   held at the cluster". A check report is not a request's report: `holds.is_check` tells them
-  apart, and the registry's view ignores it.
+  apart, the registry's view ignores it, and a request id may not start `check-`.
 - **The coach file** starts `<!-- coach <thread> step <n> -->`; `board send` prints the body when
   `n` reaches its step. `board coach` refuses text the PHI policy flags.
 - **The Mac's pull runs every `holds.POLL_SECONDS` (20) while any hold stands**
