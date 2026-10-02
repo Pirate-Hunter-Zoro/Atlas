@@ -3856,16 +3856,6 @@ def cmd_vpn(live, args):
         print(held)
         return 0
 
-    if sub == "down":
-        ts("down")
-        subprocess.run(["pkill", "-f", "tailscaled --tun=userspace-networking"])
-        try:
-            os.remove(TS_OWNER)
-        except OSError:
-            pass
-        print("tailscale stopped")
-        return 0
-
     prefix, kind = tailscale.tailscale_cli()
     if kind == "system":
         # Tailscale is already installed and running here -- a Mac, typically.
@@ -3898,6 +3888,18 @@ def cmd_vpn(live, args):
                       "  admin console -> DNS -> HTTPS Certificates -> Enable",
                       file=sys.stderr)
             return code
+
+    # Ours to stop only once the system branch above has had its say: on a Mac
+    # a bare `tailscale down` here took the owner's own Tailscale off the tailnet.
+    if sub == "down":
+        ts("down")
+        subprocess.run(["pkill", "-f", "tailscaled --tun=userspace-networking"])
+        try:
+            os.remove(TS_OWNER)
+        except OSError:
+            pass
+        print("tailscale stopped")
+        return 0
 
     if kind == "missing":
         print("tailscale is not installed. To reach the board from another\n"

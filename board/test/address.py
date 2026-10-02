@@ -211,6 +211,10 @@ src_board = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
     "one that points at a port nothing answers on")
 (ok if 'if host == "0.0.0.0"' in src_serve else fail)(
     "but not on the LAN unless somebody asked for that")
+_vpn = src_board[src_board.index("def cmd_vpn("):]
+(ok if _vpn.index('if kind == "system":') < _vpn.index('ts("down")') else fail)(
+    "`board vpn down` asks whose Tailscale this is before it stops one, so on a "
+    "Mac it leaves the owner's own link alone")
 
 
 # ---- the version the install hint names --------------------------------------
