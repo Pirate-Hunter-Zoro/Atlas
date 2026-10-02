@@ -2546,11 +2546,12 @@ body.papering .annbar { z-index: 96; }
 /* And where they last opened something, which is where the course reopens. */
 .map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
 
-/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, written, result,
-   open — which outranks the plan's next and later. Unsaved work dashes the
-   outline: git shows a change under the thread's paths. */
+/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, requested,
+   written, result, open — which outranks the plan's next and later. Unsaved
+   work dashes the outline: git shows a change under the thread's paths. */
 .map-sheet .node.thread.t-done    rect.mark { fill: var(--good); }
 .map-sheet .node.thread.t-running rect.mark { fill: var(--ask); }
+.map-sheet .node.thread.t-requested rect.mark { fill: var(--ask); opacity: 0.5; }
 .map-sheet .node.thread.t-written rect.mark { fill: var(--note); }
 .map-sheet .node.thread.t-result  rect.mark { fill: var(--step-soon); }
 .map-sheet .node.thread.t-open    rect.mark { fill: var(--rule); }

@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 112 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 113 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -619,6 +619,10 @@ every workspace without one. `test/threads.py` is the suite.
   `doc` is a **document id**, as `board read` lists them, never a path.
 - A decision with `"rule": null` is open. A rule is written in the present tense.
 - `files` are rows on the thread's sheet; a file opens in the code walk, a directory is only named.
+- `exports` is `[{path, aggregate}]`: `results/` artifacts (png, pdf, svg, csv, json) the relay
+  may copy into tracked `exports/`. Only `aggregate: true` may be published, and that is the
+  owner's word: `board thread export` lists a path unanswered and prints the question for the
+  turn's card; `--aggregate` records yes, `--drop` records no.
 
 ```
 board thread < threads.json          write the whole file
@@ -629,6 +633,7 @@ board thread task [<thread>] "<text>"
 board thread done [<thread>] <task>  by number or text
 board thread decide [<thread>] <decision> ["<rule>"]
 board thread close|reopen [<thread>]
+board thread export [<thread>] <results/path> [--aggregate|--drop]
 ```
 
 `<thread>` may be left out where `live/state.json` names the sitting's `thread`. **Every write is
@@ -654,6 +659,7 @@ registry. The first true row wins:
 |---|---|
 | done | `closed` |
 | running | a job registered to it has no terminal state, or a live mission names it |
+| requested | a relay request on it has no report yet, and nothing else is out |
 | written | it has outputs or write-ups, every output exists, every anchor is in its file |
 | result | it has outputs and every one exists |
 | open | otherwise |
@@ -682,8 +688,9 @@ Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn
   frame with the same code as a whole picture, stacked down the plane. `blockedBy` is an arrow,
   across frames too. **A course is the same code path**: `_from_chapters` gives it one
   deliverable, `map.BOOK`, titled with the course's name, and its chapters are the boxes.
-- **A box is coloured by its derived status** (`t-done`, `t-running`, `t-written`, `t-result`,
-  `t-open` on the stripe), says it in words under its name with `blocked` and `unsaved` beside
+- **A box is coloured by its derived status** (`t-done`, `t-running`, `t-requested`,
+  `t-written`, `t-result`, `t-open` on the stripe), says it in words under its name (`requested`
+  reads *waiting for the cluster*) with `blocked` and `unsaved` beside
   it, and dashes its outline when unsaved. Its chips are its open tasks, then one **?** chip for
   its open decisions.
 - **Code is never a box.** A thread box has no look-inside control and `map.inside` answers
@@ -743,14 +750,40 @@ board cannot see: its thread reads `open` while it runs and nobody hears when it
 workspace contract says so. `tutorboard/jobs.py` is the module; `test/jobs.py` is the suite.
 
 ```
-board job <thread> [--produces <path>]... -- sbatch <args>
-board job --show                     every registered job, folded to its last state
+board job <thread> [--produces <p>]... [--export <p>]... -- <recipe.sbatch> [VAR=value ...]
+board job <thread> [--produces <p>]... -- sbatch <args>     raw form, Slurm machines only
+board ask-cluster <thread> "<brief>"                         a `turn` request
+board job --show                     every job and request, folded to its last state
 ```
 
-It runs the `sbatch` from the caller's directory (adding `--parsable`), asks `scontrol` once for
-the job's `StdOut`, and appends `{thread, jobid, cmd, cwd, produces, log, submitted}` to the job
-registry. `--produces` paths are workspace-relative. The thread must exist in `threads.json`;
-`<thread>` may be left out where the sitting names one.
+**With Slurm (`jobs.has_slurm`: `sbatch` on PATH, or `TUTOR_SLURM=1`) it submits.** A recipe
+goes as `sbatch --export=ALL,VAR=value <recipe>` from the workspace root; the raw form runs from
+the caller's directory. Either adds `--parsable`, asks `scontrol` once for the job's `StdOut`, and
+appends `{thread, jobid, cmd, cwd, produces, export, log, submitted}` to the job registry.
+`--produces` paths are workspace-relative. The thread must exist in `threads.json`; `<thread>`
+may be left out where the sitting names one.
+
+**Without Slurm it files a relay request** (HANDOFF.md, "The relay", is the shape):
+`relay/requests/<id>.json`, id `<date>-<thread>-<recipe stem>` made unique, plus a `filed` epoch.
+`jobs.file_request` commits that one file through `save-and-push.sh` with it as the whole
+pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `board
+ask-cluster` files a `turn` request the same way.
+
+**One validator, both machines.** `jobs.validate` is pure; `jobs.check` hands it the workspace's
+context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
+thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEAD, a variable its
+header does not declare or a value its pattern does not fully match (a comma, `=` or newline
+never passes), a `results/` export not marked aggregate on the thread, and a `turn` where
+`tutorboard.json` lacks `relay.turns: true`. A recipe declares each variable in its header as
+`#RELAY-VAR NAME PATTERN`; `ALL`, `NONE`, `PATH`, `LD_PRELOAD` and the like are never accepted.
+The Mac refuses before it commits; the cluster calls it again with `mine=True` before it runs.
+
+**The registry is one view of three sources.** `jobs.view` merges `jobs.jsonl`, the requests and
+the reports under `relay/reports/`. A request reads `REQUESTED` until its report says
+`submitted`, `running`, `completed`, `failed` or `refused` (`REFUSED` is terminal). A report
+naming a Slurm job this machine registered folds into that job. `jobs.registry` stays the
+local file's path. The thread stages, the sheet's jobs and the busy strip read the view; the
+busy strip says *waiting for the cluster — (thread title)* for a request.
 
 **The registry is append-only and tracked.** It is `live/jobs.jsonl` where git can see it there
 (the course allowlists, PSYCH-ASR and libr-local-llm carry `!live/jobs.jsonl`), and `jobs.jsonl`
