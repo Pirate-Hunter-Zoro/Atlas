@@ -7141,10 +7141,12 @@ var THREAD_KINDS = [
 var threadAsking = "";
 var threadSheet = null;        /* what `/map/thread/<id>` last answered */
 var threadSaid = "";           /* a refusal, held over the sheet's repaint */
+var threadTask = "";           /* a mission's words, typed, held likewise */
 
 function openThread(id, step) {
   var node = workOn(id);
   if (!node) return;
+  if (threadAsking !== node.id) threadTask = "";
   threadSaid = "";
   var stale = els.work.querySelector(".work-blocked");
   if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
@@ -7213,6 +7215,7 @@ function threadPaint(node, last) {
     b.onclick = function () { takeThread(node, k, threadChip(node)); };
     host.appendChild(b);
   });
+  threadMission(host, node, sheet);
   if (!sheet) return;
 
   function section(title, rows) {
@@ -7274,6 +7277,75 @@ function threadPaint(node, last) {
              data: ["sitting", s.id],
              go: function () { closeMap(); showSession(s.id); } };
   }));
+}
+
+/* OR SEND IT AS A MISSION. Long work on this thread that runs with the iPad
+   shut: `POST /elsewhere` into this workspace, with the thread named, which
+   the server checks against the thread file before anything starts. Where one
+   is already out on the thread, the sheet says so instead (`sheet.mission`). */
+function threadMission(host, node, sheet) {
+  var box = document.createElement("div");
+  box.className = "thread-mission";
+  var live = sheet && sheet.mission;
+  if (live) {
+    var on = document.createElement("p");
+    on.className = "thread-row";
+    on.textContent = "a mission is out on this thread"
+      + (live.agent ? " (" + live.agent + ")" : "") + ": " + live.task;
+    box.appendChild(on);
+    host.appendChild(box);
+    return;
+  }
+  var ask = document.createElement("textarea");
+  ask.className = "thread-mission-task";
+  ask.rows = 2;
+  ask.placeholder = "Or send it as a mission: what should be done on this thread";
+  ask.value = threadTask;
+  var go = document.createElement("button");
+  go.type = "button";
+  go.className = "thread-mission-go";
+  go.textContent = "Send as a mission";
+  var ready = function () { go.disabled = !ask.value.trim() || !boardId; };
+  ask.addEventListener("input", function () { threadTask = ask.value; ready(); });
+  go.onclick = function () {
+    if (!ask.value.trim() || !boardId) return;
+    threadDispatch(node, ask, go);
+  };
+  ready();
+  box.appendChild(ask);
+  box.appendChild(go);
+  host.appendChild(box);
+}
+
+function threadDispatch(node, ask, go) {
+  go.disabled = true;
+  threadSaid = "sending it\u2026";
+  els.workSub.textContent = threadSaid;
+  fetch("/elsewhere", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo: boardId, thread: node.id, agent: null,
+                           ship: false, task: ask.value.trim() })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (!got || got.ok === false) {
+      threadSaid = "That mission could not be sent: "
+        + ((got && got.error) || "the board refused it") + ".";
+      els.workSub.textContent = threadSaid;
+      go.disabled = false;
+      return;
+    }
+    threadTask = "";
+    ask.value = "";
+    threadSaid = "Sent as a mission on this thread. It keeps going with the "
+      + "iPad shut, and the bar says when it is done.";
+    els.workSub.textContent = threadSaid;
+  }).catch(function () {
+    threadSaid = "That mission could not be sent: the board did not answer.";
+    els.workSub.textContent = threadSaid;
+    go.disabled = false;
+  });
 }
 
 /* A FILE OF A THREAD OPENS IN THE CODE WALK, through the address resolver --

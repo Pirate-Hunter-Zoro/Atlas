@@ -194,6 +194,19 @@ try:
           == [None, "The best k per encoder"])
     check("a thread the file does not declare has no sheet",
           mapping.thread_sheet(ws, "ghost", {}, []) is None)
+    from tutorboard import missions
+    check("with no mission out, the sheet offers one", sheet["mission"] is None)
+    real = missions.live_mission
+    missions.live_mission = lambda root, now=None: {
+        "id": "t0042", "agent": "colibri", "task": "Rerun the sweep", "thread": "knn"}
+    try:
+        check("a mission out on the thread is on its sheet",
+              mapping.thread_sheet(ws, "knn", {}, archived)["mission"]
+              == {"id": "t0042", "agent": "colibri", "task": "Rerun the sweep"})
+        check("and not on another thread's",
+              mapping.thread_sheet(ws, "tripod", {}, archived)["mission"] is None)
+    finally:
+        missions.live_mission = real
 
     # --- the route ------------------------------------------------------------
     repo = Repo(ws)

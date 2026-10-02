@@ -1390,6 +1390,23 @@ def _jobs_of_thread(root, tid):
             for j in last.values() if j.get("thread") == tid]
 
 
+def _mission_of_thread(root, tid):
+    """The mission running here on this thread, as `{id, agent, task}`, or None.
+
+    The sheet offers to dispatch one (`POST /elsewhere` with `thread`) and says
+    so instead where one is already out on the thread.
+    """
+    try:
+        from .. import missions                              # local: a cycle
+        rec = missions.live_mission(root)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not rec or rec.get("thread") != tid:
+        return None
+    return {"id": str(rec.get("id") or ""), "agent": str(rec.get("agent") or ""),
+            "task": str(rec.get("task") or "")[:200]}
+
+
 def _task_labels(root, t):
     """The thread's tasks, each open one carrying the plan label `/session`
     looks it up by. Paired in file order, because `plan.steps` makes one step
@@ -1488,6 +1505,7 @@ def thread_sheet(root, tid, state=None, archived=None):
                     for o in t["outputs"]],
         "writes": writes,
         "jobs": _jobs_of_thread(root, t["id"]),
+        "mission": _mission_of_thread(root, t["id"]),
         "sittings": sittings,
         "documents": docs,
         "kind": kind or "learn",

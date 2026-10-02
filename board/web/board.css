@@ -2790,6 +2790,19 @@ button.thread-row:hover { background: var(--paper-2); }
 .thread-row.on { background: var(--paper-2); font-weight: 650; }
 .thread-row.open { color: var(--bad); font-weight: 600; }
 .thread-row.missing, .thread-row.dir { color: var(--ink-3); }
+/* OR A MISSION ON THE THREAD, under the three kinds. */
+.thread-mission { margin: .6rem 0 .2rem; }
+.thread-mission-task {
+  display: block; width: 100%; margin: 0 0 .35rem; box-sizing: border-box;
+  font: inherit; font-size: .8rem; padding: .45rem .55rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  resize: vertical;
+}
+.thread-mission-go { font: 600 .78rem var(--ui); cursor: pointer;
+                     padding: .4rem .7rem; border-radius: .4rem;
+                     border: 1px solid var(--accent); background: var(--accent);
+                     color: var(--paper); }
+.thread-mission-go[disabled] { opacity: .45; cursor: default; }
 
 /* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
    document viewer. One shape and one word, so it is recognised as the same

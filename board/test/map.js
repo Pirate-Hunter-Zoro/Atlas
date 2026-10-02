@@ -47,6 +47,10 @@ const posts = [];
 // a reason and `/session` refuses, which is the one thing that puts the sheet
 // in front of somebody who only tapped a box.
 let refuse = '';
+// What `/health` names this board as, where a test needs it; otherwise unanswered.
+let healthId = '';
+// And what `/elsewhere` says no with, where a test wants a refusal.
+let refuseMission = '';
 const insideAsks = [];
 const treeAsks = [];
 // What `map.inside` answers with, keyed by the id that was asked for. `evaluate`
@@ -280,10 +284,15 @@ function board(W, H, face) {
         json: () => Promise.resolve(answer || { ok: false, error: 'no such tree' }),
       });
     }
+    if (healthId && /^\/health$/.test(String(u))) {
+      return Promise.resolve({ json: () => Promise.resolve({ ok: true, id: healthId }) });
+    }
     if (opts && opts.body) {
       posts.push({ url: String(u), body: JSON.parse(opts.body) });
       const said = refuse && /\/session$/.test(String(u))
-        ? { ok: false, error: refuse } : { ok: true };
+        ? { ok: false, error: refuse }
+        : refuseMission && /\/elsewhere$/.test(String(u))
+          ? { ok: false, error: refuseMission } : { ok: true };
       return Promise.resolve({ json: () => Promise.resolve(said) });
     }
     return new Promise(() => {});
@@ -1518,6 +1527,60 @@ const at = (doc, id) => {
     && picked && picked.classList.contains('on')
       ? ok('a file on the sheet opens in the code walk, chosen')
       : fail('the file did not open in the code walk');
+  }
+  {
+    // THE SHEET DISPATCHES A MISSION ON ITS THREAD, into this workspace.
+    healthId = 'research/TRD-EHR';
+    const w = board();
+    const doc = w.document;
+    w.__render(payload({ map: makeThreads() }));
+    await sleep(15);
+    doc.querySelector('#map-sheet .node[data-id="knn"]').dispatchEvent(new w.Event('click'));
+    await sleep(15);
+    const ask = doc.querySelector('#work .thread-mission-task');
+    const go = doc.querySelector('#work .thread-mission-go');
+    ask && go && go.disabled
+      ? ok('the thread sheet offers a mission, off until it is told what to do')
+      : fail('the sheet has no mission control, or it starts on');
+    ask.value = 'Rerun the sweep on bge-small';
+    ask.dispatchEvent(new w.Event('input'));
+    posts.length = 0;
+    go.click();
+    await sleep(10);
+    const sent = posts.filter((p) => /\/elsewhere$/.test(p.url))[0];
+    sent && sent.body.repo === 'research/TRD-EHR' && sent.body.thread === 'knn'
+    && sent.body.task === 'Rerun the sweep on bge-small' && sent.body.ship === false
+      ? ok('and sends it to /elsewhere, into this workspace, on this thread')
+      : fail('the mission went as ' + JSON.stringify(sent && sent.body));
+    /Sent as a mission/.test(doc.getElementById('work-sub').textContent)
+    && doc.querySelector('#work .thread-mission-task').value === ''
+      ? ok('and says it went, with the box emptied')
+      : fail('the sheet said ' + doc.getElementById('work-sub').textContent);
+    refuseMission = 'colibri is busy in PSYCH-ASR';
+    const ask2 = doc.querySelector('#work .thread-mission-task');
+    ask2.value = 'again';
+    ask2.dispatchEvent(new w.Event('input'));
+    doc.querySelector('#work .thread-mission-go').click();
+    await sleep(10);
+    /colibri is busy in PSYCH-ASR/.test(doc.getElementById('work-sub').textContent)
+      ? ok('a refusal lands on the sheet, in the server\'s words')
+      : fail('the refusal read ' + doc.getElementById('work-sub').textContent);
+    refuseMission = '';
+    healthId = '';
+
+    const w2 = board();
+    sheets.knn.mission = { id: 't0042', agent: 'colibri', task: 'Rerun the sweep' };
+    w2.__render(payload({ map: makeThreads() }));
+    await sleep(15);
+    w2.document.querySelector('#map-sheet .node[data-id="knn"]')
+      .dispatchEvent(new w2.Event('click'));
+    await sleep(15);
+    const out = w2.document.querySelector('#work .thread-mission');
+    out && /mission is out on this thread \(colibri\): Rerun the sweep/.test(out.textContent)
+    && !w2.document.querySelector('#work .thread-mission-task')
+      ? ok('a thread with a mission out says so instead of offering another')
+      : fail('the sheet with a mission out drew ' + (out && out.textContent));
+    delete sheets.knn.mission;
   }
   {
     // A TURN THAT STOPPED WITHOUT A REPORT BADGES ITS THREAD'S BOX.

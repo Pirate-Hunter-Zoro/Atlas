@@ -748,6 +748,11 @@ the README and plan.
   placeholder was written (`jobs_since`). The card carries `thread:` in its front matter, and
   while it is the newest card that thread's box says `stopped` and carries a red **!** chip
   whose tap is the board (`cards.stopped_thread`, `map.status`).
+- **The thread sheet dispatches a mission.** Under the three kinds, a box and *Send as a mission*
+  post `/elsewhere` with this board's own workspace id, the thread and the words; the server
+  checks the thread against the file before anything starts, and a refusal lands in the sheet's
+  sub line. Where a live mission names the thread, `thread_sheet`'s `mission` says so and the
+  sheet shows it instead of the box.
 
 ### Jobs register to a thread and report themselves
 
