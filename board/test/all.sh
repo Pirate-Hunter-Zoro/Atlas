@@ -411,6 +411,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# A machine without Slurm files a relay request: checked whole, committed
+# alone, and read as `requested` until the cluster's report lands.
+printf '%-12s ' "requests"
+if out="$(python3 test/requests.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

@@ -1369,14 +1369,10 @@ def _on_thread(st, tid):
 
 
 def _jobs_of_thread(root, tid):
-    """The thread's registered jobs, a later line for a job id overriding."""
-    last = {}
-    for j in threads.jobs_of(root):
-        if isinstance(j, dict) and j.get("jobid"):
-            merged = dict(last.get(str(j["jobid"])) or {})
-            merged.update(j)
-            last[str(j["jobid"])] = merged
-    return [{"jobid": str(j.get("jobid")),
+    """The thread's registered jobs and relay requests, folded: `jobs.view`."""
+    from .. import jobs as slurm_jobs                        # local: a cycle
+    last = slurm_jobs.view(root)
+    return [{"jobid": str(j.get("slurm") or j.get("jobid")),
              "state": str(j.get("state") or "PENDING"),
              "cmd": str(j.get("cmd") or "")[:200],
              "produces": list(j.get("produces") or [])[:8],
