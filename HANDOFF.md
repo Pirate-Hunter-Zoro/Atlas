@@ -116,7 +116,7 @@ where `results/…` is absent, so a manuscript names one path on both machines.
   cluster makes outbound git calls to GitHub and nothing else. If GitHub is unreachable from a
   compute node, stop and tell the owner in one line. Do not route around it.
 - Provider keys live in `~/.config/tutor-board/keys.env` on each machine and are never
-  committed. If an item needs a key that file lacks, say so in one line naming the path.
+  committed. On the Mac it is written from `~/.config/api-keys/` (item 1). If an item needs a key that file lacks, say so in one line naming the path.
 - `bash board/test/all.sh` is green before and after. Bump `VERSION` in `board/web/sw.js` if a
   shell file changed. Ship `board/` with `bash board/scripts/ship.sh`. Ship everything else
   with `bash board/scripts/save-and-push.sh "msg" -- <paths>`.
@@ -138,37 +138,56 @@ where `results/…` is absent, so a manuscript names one path on both machines.
 
 ## What to build
 
-### 1. The Mac mini runs the board — depends on nothing; the owner's hands, then an agent
+### 1. The Mac mini runs the board — depends on nothing
 
-**The owner does these by hand, once:**
+**The owner's part:** Claude Code and Codex installed, and this repository cloned:
 
-1. In Energy settings, set the Mac to never sleep and to start up after a power failure.
-2. Install the Tailscale app and sign in to the tailnet the iPad is on.
-3. Install Homebrew, Claude Code, and the GitHub CLI. Log in to both.
-4. Clone into `~/Developer/Atlas` with submodules, then clone `ai-config` into
-   `~/Developer/Atlas/ai-config` and run
-   its installer, as the root `README.md` says.
-5. Create `~/.config/tutor-board/keys.env` with the provider keys, the DeepSeek key included.
-   It never goes through git.
-6. Open Claude Code in `~/Developer/Atlas` and give it the prompt below.
+```bash
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Developer/Atlas
+cd ~/Developer/Atlas && claude
+```
 
-> **Prompt:** Bring up Atlas's board on this Mac mini so it replaces the compute node as the
-> host. Read the root `README.md`, `HANDOFF.md` (this item and "The split"), and
-> `board/README.md` on install, serving, autostart and networking. Install what the board and
-> the paper builders need on macOS with Homebrew, and nothing else. Find that list by reading
-> the code, not by guessing: python3 at the version the README states, a TeX distribution with
-> latexmk, poppler for pdftotext, and node for the test suite's headless browser. Run
-> `bash board/install.sh`, then `bash board/test/all.sh`. Where a suite fails only because it
-> assumes Linux or Slurm, make the code notice the platform, the way the README says the Slurm
-> parts already do. Do not skip the suite. Add launchd autostart beside
-> `board/scripts/systemd/` (the tutor-pull service and timer), so that a reboot brings every
-> board and the periodic pull back with nobody logged in. Serve on the tailnet with the Mac's
-> system Tailscale. `board/tutorboard/net/tailscale.py`'s userspace updater does not apply
-> here; make it stand down on a machine whose Tailscale it did not install. Confirm the
-> iPad's address for the atlas and for TRD-EHR, and put both in your report. The clone is at
+Then: *"Do HANDOFF item 1."* Tailscale and Homebrew are already on the Mac. The provider keys
+are in `~/.config/api-keys/`, one file per key, named like `deepseek_key`.
+
+**The agent's part, in order.** Where a step needs `sudo` or an interactive login, give the owner
+the one command to type with the `!` prefix and wait for it. Never ask for a password in chat.
+
+1. **Power.** Read `pmset -g` and `pmset -g custom`. The Mac must not sleep, must not spin down
+   its disk, must wake on network access, and must start after a power failure: `sleep 0`,
+   `disksleep 0`, `womp 1`, `autorestart 1` on AC power. Display sleep is fine. Set whatever
+   differs with one `sudo pmset` command for the owner, then read it back and confirm each value.
+2. **Tailscale.** Confirm the system Tailscale is up on the tailnet the iPad is on, and record
+   this Mac's tailnet name and address. If it is logged out, give the owner the login command.
+3. **GitHub.** Confirm `gh auth status`. If it fails, `brew install gh` and give the owner
+   `gh auth login`. Clone the private `ai-config` into `~/Developer/Atlas/ai-config` and run its
+   installer, as the root `README.md` says.
+4. **Keys.** Write `~/.config/tutor-board/keys.env`, mode 600, from the files in
+   `~/.config/api-keys/`. Name each variable the way `board/tutorboard/keys.py` and the recipes
+   that use them expect (`deepseek_key` becomes `DEEPSEEK_API_KEY`). Never print a value, never
+   put one on a command line, and never commit one. Name any key a recipe needs that has no
+   file, in one line.
+5. **Codex.** The owner installs Codex. Register it as an agent recipe the way
+   `board/tutorboard/assistants.py` registers the others, so it can be chosen per sitting.
+
+> **Prompt:** Do item 1 of `HANDOFF.md` on this Mac mini, so it replaces the compute node as the
+> board's host. Do the five steps above first, in order. Then read the root `README.md`,
+> "The split", and `board/README.md` on install, serving, autostart and networking. Install
+> what the board and the paper builders need on macOS with Homebrew, and nothing else. Find
+> that list by reading the code, not by guessing: python3 at the version the README states, a
+> TeX distribution with latexmk, poppler for pdftotext, and node for the test suite's headless
+> browser. Run `bash board/install.sh`, then `bash board/test/all.sh`. Where a suite fails only
+> because it assumes Linux or Slurm, make the code notice the platform, the way the README says
+> the Slurm parts already do. Do not skip the suite. Add launchd autostart beside
+> `board/scripts/systemd/` (the tutor-pull service and timer), so a reboot brings every board
+> and the periodic pull back with nobody logged in. Serve on the tailnet with the Mac's system
+> Tailscale. `board/tutorboard/net/tailscale.py`'s userspace updater does not apply here; make
+> it stand down on a machine whose Tailscale it did not install. The clone is at
 > `~/Developer/Atlas`, not `~/Atlas`: find every place that assumes `$HOME/Atlas`
 > (`ai-config/scripts/audit.sh`'s `REPO_ROOTS` is one) and derive the path from the file's own
-> location instead. Ship with the repository's scripts.
+> location instead. Finish by opening the atlas and TRD-EHR from the iPad's point of view (the
+> tailnet address), and report both URLs, the power settings as read back, and the test result.
+> Ship with the repository's scripts. Then do item 7.
 
 ### 2. A request and a report — depends on nothing
 
