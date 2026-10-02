@@ -2143,7 +2143,12 @@ to `STATE_DIR/ship-<host>.json`, and every record carries each process's last ou
 current stamp.
 
 The running `serve run` keeps the `watch_once` it loaded, so a change to `ship_beat` itself
-reaches the serving node only at the chain's next generation.
+reaches the serving node only at the chain's next generation. **`tutor watch` puts itself on the
+tree's code.** After each pass it compares the stamp it loaded with the tree's (`watch_stale`),
+under the beat's guards: a busy or detached checkout waits, and a tree that does not import keeps
+the loop on its code. A loop that is behind says so in its log and execs itself on the new code
+with the same pid, so the Mac's LaunchAgent, which only a reboot would otherwise restart, never
+goes on repairing with code the tree has moved past.
 
 ### Headless — no terminal at all
 
@@ -5773,7 +5778,8 @@ units, copied into `~/Library/LaunchAgents` for the reason the units are copied:
   which is the timer's `Persistent=true` in launchd's words.
 - `tutor-board.tutor-watch` — `tutor watch`, kept alive by launchd. It repairs only what has a
   record in a workspace's `live/`, so a reboot brings back exactly the boards that were up, and a
-  `board stop` keeps one down. Its log is `~/.local/state/tutor-watch.log`.
+  `board stop` keeps one down. Its log is `~/.local/state/tutor-watch.log`. A ship reaches it
+  without a reboot: the loop execs itself onto a tree whose stamp has moved (`watch_stale`).
 
 They are agents rather than daemons because the login keychain holds git's credential and the
 assistants' logins, and it is open only in the owner's session. **The Mac logs its owner in by

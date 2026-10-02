@@ -6317,12 +6317,59 @@ def cmd_watch(cfg, args):
         if supervise.stopped():
             say("tutor serve stop was called; the watch loop is standing down")
             break
+        if watch_stale(memo, say):
+            watch_reexec()             # normally never returns
         end = time.time() + interval
         while time.time() < end and not stopping["now"]:
             time.sleep(0.5)
         if stopping["now"]:
             break
     return 0
+
+
+def watch_stale(memo, say):
+    """Is the watch loop itself running code the tree has moved past?
+
+    `ship_beat` puts this node's boards and tutors on the tree's stamp, and
+    nothing put the loop doing it there. A loop that runs for weeks -- the Mac's
+    LaunchAgent, which only a reboot restarts -- would go on repairing with the
+    code it read at boot, fixes on disk and nowhere in the process making the
+    decisions. So the loop compares its own stamp (`stamp.LOADED`, taken before
+    `bin/tutor` imported anything) with the tree's, under `ship_beat`'s guards:
+    a busy or detached checkout waits, and a tree that does not import keeps the
+    loop on what it has, with the import check shared with the beat's memo.
+    """
+    loaded, tree = stamp.LOADED, stamp.tree()
+    if not loaded or not tree or loaded == tree or stamp.blocked(TOOL):
+        return False
+    m = memo.setdefault("#ship", {"said": [], "checked": {}, "boards": {},
+                                  "tutors": {}, "results": {}})
+    got = m["checked"].get(tree) or stamp.imports(TOOL)
+    if got[0] is not None:
+        m["checked"][tree] = got
+    if not got[0]:
+        return False
+    say("the watch loop is on %s and the tree is at %s; it restarts itself on "
+        "the tree's code" % (loaded, tree))
+    return True
+
+
+def watch_reexec():
+    """Replace the watch loop with itself on the tree's code, same pid.
+
+    The same pid on purpose: the serving job's Slurm step, the LaunchAgent's
+    KeepAlive and `watch.json` all follow the process, and an exec keeps every
+    one of them pointing at it. Flushed first, for `tool_reexec`'s reason: the
+    log is a file, and the line saying why would be lost in the exec.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    try:
+        os.execve(sys.executable,
+                  [sys.executable, os.path.realpath(__file__)] + sys.argv[1:],
+                  dict(os.environ))
+    except OSError:
+        pass
 
 
 def ensure_successor(cfg, job, say):

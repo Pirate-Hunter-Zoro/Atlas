@@ -634,6 +634,34 @@ try:
           and asked["code"].get("tree") == "bbbbbbbbbbbb"
           and "tutor" in asked["code"])
     httpd.shutdown()
+
+    # =======================================================================
+    # The watch loop puts itself on the tree's code too
+    # =======================================================================
+    said = []
+    memo = {}
+    stamp.LOADED = "aaaaaaaaaaaa"
+    stamp.tree = lambda tool=None: "aaaaaaaaaaaa"
+    blocked["now"] = None
+    imports_ok["now"] = (True, "")
+    check("a watch loop on the tree's stamp stays as it is",
+          tutor.watch_stale(memo, said.append) is False)
+    stamp.tree = lambda tool=None: "cccccccccccc"
+    blocked["now"] = "a rebase is in progress"
+    check("a watch loop behind a busy checkout waits for the next pass",
+          tutor.watch_stale(memo, said.append) is False)
+    blocked["now"] = None
+    imports_ok["now"] = (False, "SyntaxError")
+    check("a watch loop stays on its code when the tree does not import",
+          tutor.watch_stale(memo, said.append) is False)
+    memo = {}
+    imports_ok["now"] = (True, "")
+    check("a watch loop behind a tree that imports restarts itself, and says so",
+          tutor.watch_stale(memo, said.append) is True
+          and any("cccccccccccc" in l for l in said))
+    stamp.LOADED = None
+    check("a watch loop that never learned its own stamp is left alone",
+          tutor.watch_stale({}, said.append) is False)
 finally:
     try:
         os.kill = real_kill
