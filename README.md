@@ -143,8 +143,9 @@ Inside the tree because one directory should be the whole of the work — a mach
 and one command. Ignored because a public repository must not carry it.
 
 ```bash
-git clone https://github.com/Pirate-Hunter-Zoro/ai-config.git ~/Atlas/ai-config
-bash ~/Atlas/ai-config/scripts/install.sh
+cd ~/Developer/Atlas            # wherever the clone is; ~/Atlas on the cluster
+gh repo clone Pirate-Hunter-Zoro/ai-config ai-config
+bash ai-config/scripts/install.sh
 ```
 
 **It is deliberately not tied to one AI provider.** The contract names no vendor, and neither

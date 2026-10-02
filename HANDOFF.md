@@ -24,7 +24,7 @@ This file says what is left to build.
 
 **Path ownership is what makes two writers on one branch safe.** The Mac never writes a
 report or an export. The cluster writes nothing else, except the files of a thread whose
-sitting is held at the cluster (item 5). While the hold lasts, those files are the cluster's
+sitting is held at the cluster (item 4). While the hold lasts, those files are the cluster's
 and the Mac refuses to write them. So a pull on either side fast-forwards or rebases without a
 conflict.
 
@@ -40,7 +40,7 @@ PHI rule on the Mac is a rule about what the cluster may export.
 - **research/PSYCH-ASR:** code on the Mac. Every run on the cluster. The owner listens to the
   recordings at the institute, never through the relay.
 - **projects/libr-local-llm:** the deck and the learning sittings on the Mac. Colibri runs on
-  the cluster only while it has a task (item 6). `vendor/colibri` moves forward on the cluster's
+  the cluster only while it has a task (item 5). `vendor/colibri` moves forward on the cluster's
   relay pass.
 - **projects/Paper-Writer:** all on the Mac.
 
@@ -116,7 +116,7 @@ where `results/…` is absent, so a manuscript names one path on both machines.
   cluster makes outbound git calls to GitHub and nothing else. If GitHub is unreachable from a
   compute node, stop and tell the owner in one line. Do not route around it.
 - Provider keys live in `~/.config/tutor-board/keys.env` on each machine and are never
-  committed. On the Mac it is written from `~/.config/api-keys/` (item 1). If an item needs a key that file lacks, say so in one line naming the path.
+  committed. On the Mac it is written from `~/.config/api-keys/`. If an item needs a key that file lacks, say so in one line naming the path.
 - `bash board/test/all.sh` is green before and after. Bump `VERSION` in `board/web/sw.js` if a
   shell file changed. Ship `board/` with `bash board/scripts/ship.sh`. Ship everything else
   with `bash board/scripts/save-and-push.sh "msg" -- <paths>`.
@@ -130,21 +130,21 @@ cluster if `sbatch` exists.
 
 | Item | Runs on | When |
 |---|---|---|
-| 1. The Mac runs the board | Mac | first |
-| 10. One environment per workspace | Mac | after 1 |
-| 7. Providers on the Mac | Mac | after 10 |
-| 2, 3, 4, 5, 6, 9 | cluster | being built there now; a Mac session leaves them alone, and they leave this file when they land |
-| 8. The compute node stops serving | cluster | now, as soon as 2–6 and 9 land; nothing waits on the Mac |
+| 9. One environment per workspace | Mac | first |
+| 6. Providers on the Mac | Mac | after 9 |
+| 1, 2, 3, 4, 5, 8 | cluster | being built there now; a Mac session leaves them alone, and they leave this file when they land |
+| 7. The compute node stops serving | cluster | now, as soon as 1–5 and 8 land; nothing waits on the Mac |
 
-- On the Mac, a session does 1, then 10, then 7. Item 1 stops for the owner a few times: a
-  `sudo pmset` line, possibly `gh auth login`, and opening the board on the iPad. Then it goes
-  on by itself.
+The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
+host".
+
+- On the Mac, a session does 9, then 6.
 - On the cluster, a session builds whatever cluster item is still in this file, then does
-  item 8.
+  item 7.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
-  independent items. Items 1, 10 and 7 depend on one another, so on the Mac they run in order.
+  independent items. Items 9 and 6 depend on one another, so on the Mac they run in order.
 
 ## How to work from this file
 
@@ -162,61 +162,7 @@ cluster if `sbatch` exists.
 
 ## What to build
 
-### 1. The Mac mini runs the board — depends on nothing
-
-**The owner's part:** Claude Code and Codex installed, and this repository cloned:
-
-```bash
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Developer/Atlas
-cd ~/Developer/Atlas && claude
-```
-
-Then: *"Do HANDOFF item 1."* Tailscale and Homebrew are already on the Mac. Claude Code and
-Codex sign in to the owner's enterprise plan and need no API key. DeepSeek is the only provider
-that needs one, and it is in `~/.config/api-keys/deepseek_key`.
-
-**The agent's part, in order.** Where a step needs `sudo` or an interactive login, give the owner
-the one command to type with the `!` prefix and wait for it. Never ask for a password in chat.
-
-1. **Power.** Read `pmset -g` and `pmset -g custom`. The Mac must not sleep, must not spin down
-   its disk, must wake on network access, and must start after a power failure: `sleep 0`,
-   `disksleep 0`, `womp 1`, `autorestart 1` on AC power. Display sleep is fine. Set whatever
-   differs with one `sudo pmset` command for the owner, then read it back and confirm each value.
-2. **Tailscale.** Confirm the system Tailscale is up on the tailnet the iPad is on, and record
-   this Mac's tailnet name and address. If it is logged out, give the owner the login command.
-3. **GitHub.** Confirm `gh auth status`. If it fails, `brew install gh` and give the owner
-   `gh auth login`. Clone the private `ai-config` into `~/Developer/Atlas/ai-config` and run its
-   installer, as the root `README.md` says.
-4. **Keys.** Write `~/.config/tutor-board/keys.env`, mode 600, from the files in
-   `~/.config/api-keys/`. Name each variable the way `board/tutorboard/keys.py` and the recipes
-   that use them expect (`deepseek_key` becomes `DEEPSEEK_API_KEY`). Never print a value, never
-   put one on a command line, and never commit one. Claude and Codex recipes use their
-   enterprise logins, so they need no key here. Name any other key a recipe needs that has no
-   file, in one line.
-5. **Codex.** The owner installs Codex and signs in to the enterprise plan. Register it as an
-   agent recipe the way `board/tutorboard/assistants.py` registers the others, using that
-   login, so it can be chosen per sitting.
-
-> **Prompt:** Do item 1 of `HANDOFF.md` on this Mac mini, so it replaces the compute node as the
-> board's host. Do the five steps above first, in order. Then read the root `README.md`,
-> "The split", and `board/README.md` on install, serving, autostart and networking. Install
-> what the board and the paper builders need on macOS with Homebrew, and nothing else. Find
-> that list by reading the code, not by guessing: python3 at the version the README states, a
-> TeX distribution with latexmk, poppler for pdftotext, and node for the test suite's headless
-> browser. Run `bash board/install.sh`, then `bash board/test/all.sh`. Where a suite fails only
-> because it assumes Linux or Slurm, make the code notice the platform, the way the README says
-> the Slurm parts already do. Do not skip the suite. Add launchd autostart beside
-> `board/scripts/systemd/` (the tutor-pull service and timer), so a reboot brings every board
-> and the periodic pull back with nobody logged in. Serve on the tailnet with the Mac's system
-> Tailscale. `board/tutorboard/net/tailscale.py`'s userspace updater does not apply here; make
-> it stand down on a machine whose Tailscale it did not install. The clone is at
-> `~/Developer/Atlas`, not `~/Atlas`: find every place that assumes `$HOME/Atlas`
-> (`ai-config/scripts/audit.sh`'s `REPO_ROOTS` is one) and derive the path from the file's own
-> location instead. Finish by opening the atlas and TRD-EHR from the iPad's point of view (the
-> tailnet address), and report both URLs, the power settings as read back, and the test result.
-> Ship with the repository's scripts. Then do item 10, then item 7.
-
-### 2. A request and a report — depends on nothing
+### 1. A request and a report — depends on nothing
 
 Extend `board/tutorboard/jobs.py`. Do not add a second registry beside it.
 
@@ -236,7 +182,7 @@ Extend `board/tutorboard/jobs.py`. Do not add a second registry beside it.
 - Every assistant contract says: **long work goes through `board job`.** On the Mac that means
   a request, and a bare `sbatch` there is an error.
 
-> **Prompt:** Build item 2 of `HANDOFF.md`: requests and reports in `board/tutorboard/jobs.py`,
+> **Prompt:** Build item 1 of `HANDOFF.md`: requests and reports in `board/tutorboard/jobs.py`,
 > `board job` writing a request on a machine without Slurm, `board ask-cluster`, the merged
 > registry, the `requested` status, the shared validator, and the thread file's `exports` with
 > `board thread export`. Read "The relay" and "Rules that bind every item" first. The JSON
@@ -245,7 +191,7 @@ Extend `board/tutorboard/jobs.py`. Do not add a second registry beside it.
 > derivation with a request outstanding, and the request commit touching only `relay/requests/`.
 > Update all eight workspace contracts. Ship with the repository's scripts.
 
-### 3. The relay on the cluster — depends on 2
+### 2. The relay on the cluster — depends on 1
 
 A `scrontab` entry, every five minutes, runs `tutor relay` once. `scrontab` is available on
 this cluster. Each pass does the following, in order, and is safe to run twice at once (take a
@@ -272,8 +218,8 @@ lock, and skip the pass if the lock is held):
 `tutor relay --once` and `tutor relay --status` run it by hand and show what it sees.
 `relay/state.json` records the last pass, the last error and the last pushed commit.
 
-> **Prompt:** Build item 3 of `HANDOFF.md`: `tutor relay` and its scrontab entry on this
-> cluster. Read "The relay", "Rules that bind every item", and item 2's code. First prove that a
+> **Prompt:** Build item 2 of `HANDOFF.md`: `tutor relay` and its scrontab entry on this
+> cluster. Read "The relay", "Rules that bind every item", and item 1's code. First prove that a
 > compute node in the `c3_short` partition can reach github.com with git over HTTPS. If it
 > cannot, stop and report that in one line. Reuse `jobs.submit`, `jobs.poll` and `pull_vendor`.
 > `sacct` is refused here: end jobs from `squeue` plus the exit-code file, and test a job that
@@ -285,9 +231,9 @@ lock, and skip the pass if the lock is held):
 > Then run one real request end to end: the TRD-EHR neighbour-count sweep on its smallest
 > embedder, filed from the Mac side of the code. Ship with the repository's scripts.
 
-### 4. The Mac hears the cluster — depends on 2
+### 3. The Mac hears the cluster — depends on 1
 
-- The Mac's periodic pull (item 1's launchd timer, `tutor-pull`) runs every two minutes while a
+- The Mac's periodic pull (the `tutor-board.tutor-pull` LaunchAgent, `board/scripts/launchd/`) runs every two minutes while a
   request is outstanding, and hourly otherwise.
 - A report that changed state in a pull drops a `[job]` message in that workspace's inbox, the
   way `jobs.poll` does now. That wakes a turn through `turn_signal`. The turn reports what
@@ -297,14 +243,14 @@ lock, and skip the pass if the lock is held):
 - The paper builders and the library resolve a missing `results/…` path to `exports/results/…`.
   `board thread --check` counts a path present in either place as present.
 
-> **Prompt:** Build item 4 of `HANDOFF.md`: the Mac side of the relay. Read item 2's code and
+> **Prompt:** Build item 3 of `HANDOFF.md`: the Mac side of the relay. Read item 1's code and
 > `jobs.poll`'s inbox wake. Make a pulled report wake a turn the way a finished local job does,
 > without a second wake mechanism. Make the pull's cadence depend on outstanding requests, and
 > make `results/` paths fall back to `exports/results/` in the paper builders, the library and
 > `board thread --check`. Test the wake, the cadence, and a manuscript compiling on a tree with
 > no `results/`. Ship with the repository's scripts.
 
-### 5. Coding at the cluster, coached on the glass — depends on 2, 3 and 4
+### 4. Coding at the cluster, coached on the glass — depends on 1, 2 and 3
 
 The owner sometimes writes code on the cluster, beside the data: an estimator they are being
 coached on, or a fix that only real rows reproduce. The coach still lives on the Mac and the
@@ -343,8 +289,8 @@ with the data beside it, and is faster. Its sitting records itself with `board p
 turn, so the board shows the steps afterwards. `board hold` is for when the owner wants the
 iPad as the coach's page.
 
-> **Prompt:** Build item 5 of `HANDOFF.md`: holds, `board hold`, `board release`, `board send`,
-> the thread's `check`, the `[coach]` wake and `relay/coach/`. Read "The relay", items 2 to 4's
+> **Prompt:** Build item 4 of `HANDOFF.md`: holds, `board hold`, `board release`, `board send`,
+> the thread's `check`, the `[coach]` wake and `relay/coach/`. Read "The relay", items 1 to 3's
 > code, `board/TEACHING.md`'s coach section, and the coach division of labour in the workspace
 > contracts. Extend the validator so a hold is refused on a thread that already has one, a
 > `check` must be tracked, and a Mac turn writing a held file is refused. Make the relay's
@@ -354,7 +300,7 @@ iPad as the coach's page.
 > trip on a TRD-EHR Paper 2 coach thread with a trivial check. Ship with the repository's
 > scripts.
 
-### 6. Colibri on demand — depends on 3
+### 5. Colibri on demand — depends on 2
 
 Colibri is not kept warm. It runs while it has work and stops when it has none. A task survives
 the job running it.
@@ -383,20 +329,20 @@ the job running it.
 - The board's Colibri status (`off`, `queued`, `loading`, `warm`) stays, and `off` is now the
   normal state with nothing queued.
 
-> **Prompt:** Build item 6 of `HANDOFF.md`: Colibri on demand. Read `projects/libr-local-llm/`
+> **Prompt:** Build item 5 of `HANDOFF.md`: Colibri on demand. Read `projects/libr-local-llm/`
 > `README.md` §4c, its `HANDOFF.md` ("The guarantee, and what it does not cover", and the
 > traps), `slurm_jobs/colibri_serve.sbatch`, `bin/coli-up` and `bin/coli-code`,
 > `board/tutorboard/colibri.py` and `missions.py`. Extend the mission record into the task
 > queue; do not build a second queue. Add the self-clone with a not-ok dependency and
 > kill-on-invalid-dependency, idle exit after 20 minutes of an empty queue, the three-death cap,
 > `board colibri`, the relay's `colibri` request kind, and `coli-up --warm` for the old chain.
-> `sacct` is refused on this cluster, so tell a clean exit from a death the way item 3 does.
+> `sacct` is refused on this cluster, so tell a clean exit from a death the way item 2 does.
 > Test with fake `sbatch` and `squeue`: a death mid-task resumed by the clone, a clean exit
 > dropping the clone, the cap, and two tasks filed at once starting one generation. Then run
 > one real small task end to end. Update that project's `README.md` and `HANDOFF.md` to
 > describe on-demand as the default, in the present tense. Ship with the repository's scripts.
 
-### 7. Providers on the Mac — depends on 1
+### 6. Providers on the Mac — depends on 9
 
 DeepSeek and the others are already in `board/tutorboard/keys.py` and `assistants.py`. On the
 Mac they become ordinary choices for any workspace: the Mac holds no PHI. What changes:
@@ -405,16 +351,16 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
   DeepSeek for learn sittings in a course and Claude for build sittings in research.
 - `board/tutorboard/net/egress.py`'s endpoint list includes each configured provider.
 - A cluster `turn` always uses Claude under the PHI guard. Colibri remains the only model that
-  reads PHI, and it runs only on the cluster (item 6).
+  reads PHI, and it runs only on the cluster (item 5).
 
-> **Prompt:** Build item 7 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
+> **Prompt:** Build item 6 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
 > the egress rules in `board/tutorboard/net/`. Let `tutorboard.json` name a default provider per
 > sitting kind, show the choice on the sitting sheet, and keep the cluster's turn on Claude.
 > Confirm DeepSeek answers one real turn on this Mac using the key in
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
 
-### 8. The compute node stops serving — depends on 2 to 6 and 9 landing
+### 7. The compute node stops serving — depends on 1 to 5 and 8 landing
 
 The institute's firewall ends board hosting on the compute node, so the serving chain goes now.
 The Mac is the only host. Delete what only served boards from the cluster: `tutor serve`,
@@ -422,7 +368,12 @@ The Mac is the only host. Delete what only served boards from the cluster: `tuto
 `serve_*` keys, and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls,
 and keep everything the relay, `board job`, `board send` and Colibri use.
 
-> **Prompt:** Do item 8 of `HANDOFF.md`. Cancel every `tutor-serve` job queued or running for
+- **Keep `tutor watch` and what it calls in `supervise.py`** (`answering`, `board_verdict`, `tutor_verdict`,
+  `next_try`, `note_watch`, `stopped`, `POLL`): the Mac's `tutor-board.tutor-watch` LaunchAgent
+  runs it, and it is what brings every board back after a reboot there. Only the Slurm chain
+  around it goes.
+
+> **Prompt:** Do item 7 of `HANDOFF.md`. Cancel every `tutor-serve` job queued or running for
 > this user, and any board or tutor process it left on a node. Remove the serving chain the
 > item lists, every reference to it in code, tests, contracts and READMEs, and the suites that
 > only test it. Keep the relay and everything it calls working: `bash board/test/all.sh` green,
@@ -430,7 +381,7 @@ and keep everything the relay, `board job`, `board send` and Colibri use.
 > this was built for" and "The board is the way in" for the Mac host and the cluster relay, in
 > the present tense. Ship with the repository's scripts.
 
-### 9. Smaller board work left from the threads build — depends on nothing
+### 8. Smaller board work left from the threads build — depends on nothing
 
 Each is independent and small. Give one agent all five, one commit each.
 
@@ -445,11 +396,11 @@ Each is independent and small. Give one agent all five, one commit each.
 - **The thread sheet links its write-up.** Each `writes` anchor opens the deliverable's document
   at that heading.
 
-> **Prompt:** Build item 9 of `HANDOFF.md`: five small changes, one commit each, each with a
+> **Prompt:** Build item 8 of `HANDOFF.md`: five small changes, one commit each, each with a
 > test. Read `map.thread_sheet`, the sheet code in `board.js`, `cards.stopped_body`,
 > `report_owed`, and `cmd_push`. Ship with the repository's scripts.
 
-### 10. One environment per workspace, on both machines — depends on 1
+### 9. One environment per workspace, on both machines — depends on nothing
 
 The board's own code is stdlib only. The workspaces' code is not. A tutor tests before it
 pushes, so every workspace with code says what it needs in a file, and one command builds all
@@ -463,7 +414,8 @@ of it.
 - **Lean is `elan`.** `practice/Lean-Theorem-Proving/lean-toolchain` pins the version, and the
   setup fetches the mathlib cache with `lake` before building.
 - **System tools are a root `Brewfile`:** TeX with latexmk, poppler, node, uv, elan, gh, and
-  whatever item 1 found the paper builders need. On the cluster, the same tools come from
+  what the board and the paper builders need on the Mac: `texlive`, `dvisvgm`, `poppler`, `pandoc`
+  and `node` (`board/README.md` §6). On the cluster, the same tools come from
   modules or from a user-level install of `uv` and `elan`, both without root.
 - **`bash scripts/setup.sh` builds everything.** It runs `brew bundle` on a Mac, then `uv sync` in
   each workspace with a `pyproject.toml`, and the Lean build. It is idempotent, prints one line
@@ -478,7 +430,7 @@ of it.
   Rewrite `setup_envs.sh` to call that, and confirm one real sweep runs on the new environment
   before removing the conda one.
 
-> **Prompt:** Do item 10 of `HANDOFF.md`. Survey every workspace for code and the imports it
+> **Prompt:** Do item 9 of `HANDOFF.md`. Survey every workspace for code and the imports it
 > really makes. Read TRD-EHR's `setup_envs.sh` for its pins, plus any requirements, conda or
 > Lean files. Write each workspace's `pyproject.toml` with the base, test and cluster extras,
 > lock it with uv, and write the root `Brewfile` and `scripts/setup.sh`. Run the setup on this
@@ -486,7 +438,7 @@ of it.
 > the code, not the environment, is reported, not fixed. Add the check to each `tutorboard.json`
 > and the before-pushing rule to every workspace contract. Write the root `README.md`'s setup
 > section in the present tense. Leave TRD-EHR's cluster switch from conda to the lockfile as
-> the last part. It needs the cluster, so file it as a relay `turn` request (item 3) with this
+> the last part. It needs the cluster, so file it as a relay `turn` request (item 2) with this
 > item's text, rather than doing it from the Mac. Ship with the repository's scripts.
 
 ### Left as they are
@@ -507,7 +459,7 @@ of it.
   exist. Their next steps are thread tasks; the owner decides where the rest goes before either
   is deleted.
 - **Mark exports.** For each Paper 1 thread, say which `results/` artifacts are aggregate and may
-  be published to `exports/`. Item 4 cannot show a figure on the Mac until this is done.
+  be published to `exports/`. Item 3 cannot show a figure on the Mac until this is done.
 
 ## The work it is for
 
