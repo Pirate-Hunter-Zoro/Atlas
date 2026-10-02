@@ -2458,6 +2458,12 @@ body.papering .annbar { z-index: 96; }
   transform-origin: 0 0; will-change: transform;
 }
 .map-sheet svg { display: block; overflow: visible; }
+/* Text is laid out at its own size, not at the size the zoom puts on the
+   glass. Without this, WebKit and Blink re-hint a 12px line drawn at half
+   scale up to 9% wider than the gauge measured, so the fitted view -- the one
+   every map opens at -- ran descriptions out of their boxes, and pinching
+   changed the width of a line nobody had redrawn. */
+.map-sheet svg text { text-rendering: geometricPrecision; }
 
 /* A BOX. The status is a class on the group and the whole visual language is
    here, so what `done` looks like can change without touching the generator. */

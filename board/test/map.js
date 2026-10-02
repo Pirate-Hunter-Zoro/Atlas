@@ -1531,9 +1531,13 @@ const at = (doc, id) => {
     const long = 'Logistic-regression-weighted nearest neighbours across four encoders';
     const longest = 'Final consistency pass across manuscript, supplement, '
                   + 'checklist and cover letter, and then the whole packet again, '
-                  + 'read aloud from the first page to the last by somebody new';
+                  + 'read aloud from the first page to the last by somebody new, '
+                  + 'and then once more by the senior author with the reviewers\' '
+                  + 'letters open beside it, line by line, until nothing disagrees';
     map.nodes[0].name = long;
     map.nodes[1].name = longest;
+    const real = 'Final consistency pass across manuscript, supplement, checklist and cover letter';
+    map.nodes[2].name = real;
     map.deliverables[1].title = 'Paper 2 — counterfactual antidepressant selection';
     w.__render(payload({ map }));
     await sleep(15);
@@ -1565,11 +1569,15 @@ const at = (doc, id) => {
       ? ok('the boxes widened to carry it (' + width + ' wide)')
       : fail('the box is ' + width + ' wide');
     const cut = lines('tripod');
-    cut.length === 3 && /…$/.test(cut[2])
+    cut.length === 5 && /…$/.test(cut[4])
     && (doc.querySelector('#map-sheet .node[data-id="tripod"] > title') || {})
          .textContent === longest
-      ? ok('past three lines a title ellipsizes, and the whole of it is the tooltip')
+      ? ok('past five lines a title ellipsizes, and the whole of it is the tooltip')
       : fail('the longest title came out as ' + JSON.stringify(cut));
+    const whole = lines('slides');
+    whole.length <= 5 && whole.join(' ') === real
+      ? ok('an eighty-character title is shown whole, never cut to a tooltip')
+      : fail('the eighty-character title came out as ' + JSON.stringify(whole));
     const fr = doc.querySelector('#map-sheet .frame[data-frame="deck"]');
     const fw = +fr.querySelector('rect').getAttribute('width');
     const ft = [...fr.querySelectorAll('.frame-name')];

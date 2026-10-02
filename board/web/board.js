@@ -5020,8 +5020,10 @@ document.getElementById("btn-review-close").onclick = function () {
    in `MAP_NAME_LINES` lines at that width widens every box together, in steps,
    up to `MAP_W_MOST`: a title cut to "Reviewer findings, the…" is a box
    nobody can tell from its neighbour, and that was the complaint. Past the
-   widest, the name ellipsizes and the whole of it rides on the box as its
-   tooltip. `mapW` is the width the picture on the glass was laid out at. */
+   widest, the name takes up to `MAP_NAME_MOST` lines, because a tooltip is
+   nothing on a touch screen and the name is what the box is for; only past
+   that does it ellipsize, with the whole of it on the box as its tooltip.
+   `mapW` is the width the picture on the glass was laid out at. */
 var MAP_W = 226;
 var MAP_W_MOST = 340;
 var mapW = MAP_W;
@@ -5031,7 +5033,7 @@ var MAP_GAP_X = 92;          /* the gutter an arrow turns in */
 var MAP_GAP_Y = 22;
 var MAP_MARGIN = 34;
 var MAP_NAME = 15, MAP_ALSO = 11, MAP_DOES = 12;
-var MAP_NAME_LINES = 3, MAP_DOES_LINES = 3;
+var MAP_NAME_LINES = 3, MAP_NAME_MOST = 5, MAP_DOES_LINES = 3;
 var MAP_CHIP_R = 11;         /* a numbered step, on the box it is about */
 var MAP_CHIP_GAP = 6;
 /* Below this the ranks stop being columns and become one column: a wide graph
@@ -5239,6 +5241,9 @@ function mapShape(node) {
      short of it. The lines below it clear the circle and keep the full room. */
   var nameRoom = room - (mapOpens(node) ? 28 : 0);
   var name = mapLines(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
+  if (!mapFits(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES)) {
+    name = mapLines(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_MOST);
+  }
   var said = mapThread(node) ? mapThreadSays(node) : node.also;
   var also = said ? mapWrap(said, MAP_ALSO, 400, room, 1) : [];
   var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
