@@ -130,20 +130,21 @@ cluster if `sbatch` exists.
 
 | Item | Runs on | When |
 |---|---|---|
-| 9. One environment per workspace | Mac | first |
-| 6. Providers on the Mac | Mac | after 9 |
+| 6. Providers on the Mac | Mac | first |
+| 9. One environment per workspace: the Lean toolchain | Mac | after 6 |
+| 9. One environment per workspace: TRD-EHR's switch to the lockfile | cluster | after 7 |
 | 7. The compute node stops serving | cluster | now; the cluster session is doing it |
 
 The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
 host".
 
-- On the Mac, a session does 9, then 6.
-- On the cluster, a session does item 7. The relay, holds, the Mac's hearing and Colibri on
+- On the Mac, a session does 6, then 9's Lean part.
+- On the cluster, a session does item 7, then 9's TRD-EHR part. The relay, holds, the Mac's hearing and Colibri on
   demand are built: `board/README.md` has their rules.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
-  independent items. Items 9 and 6 depend on one another, so on the Mac they run in order.
+  independent items. On the Mac, 6 and 9's Lean part are independent.
 
 ## How to work from this file
 
@@ -161,7 +162,7 @@ host".
 
 ## What to build
 
-### 6. Providers on the Mac — depends on 9
+### 6. Providers on the Mac — depends on nothing
 
 DeepSeek and the others are already in `board/tutorboard/keys.py` and `assistants.py`. On the
 Mac they become ordinary choices for any workspace: the Mac holds no PHI. What changes:
@@ -200,46 +201,39 @@ and keep everything the relay, `board job`, `board send` and Colibri use.
 > this was built for" and "The board is the way in" for the Mac host and the cluster relay, in
 > the present tense. Ship with the repository's scripts.
 
-### 9. One environment per workspace, on both machines — depends on nothing
+### 9. One environment per workspace: what is left — no dependency
 
-The board's own code is stdlib only. The workspaces' code is not. A tutor tests before it
-pushes, so every workspace with code says what it needs in a file, and one command builds all
-of it.
+The rest of it landed: `board/README.md` §6 of the setup, "Each workspace's code has one
+environment". Two parts are left, one per machine.
 
-- **Python is `uv`.** Each workspace with Python code has a `pyproject.toml` and a committed
-  `uv.lock`. `uv sync` builds `.venv/` inside the workspace, which is ignored. The base
-  dependencies are what the code and its tests need. GPU-only packages (torch with CUDA, vllm,
-  and the like) go in an optional `cluster` extra, which only the cluster installs. A test
-  extra holds pytest and its friends.
-- **Lean is `elan`.** `practice/Lean-Theorem-Proving/lean-toolchain` pins the version, and the
-  setup fetches the mathlib cache with `lake` before building.
-- **System tools are a root `Brewfile`:** TeX with latexmk, poppler, node, uv, elan, gh, and
-  what the board and the paper builders need on the Mac: `texlive`, `dvisvgm`, `poppler`, `pandoc`
-  and `node` (`board/README.md` §6). On the cluster, the same tools come from
-  modules or from a user-level install of `uv` and `elan`, both without root.
-- **`bash scripts/setup.sh` builds everything.** It runs `brew bundle` on a Mac, then `uv sync` in
-  each workspace with a `pyproject.toml`, and the Lean build. It is idempotent, prints one line
-  per workspace, and finds workspaces by looking, never from a list. It installs the `cluster`
-  extra only where Slurm exists.
-- **Each workspace names its check** in `tutorboard.json`: the test command, run with `uv run`.
-  Every assistant contract says that a turn changing code runs the check in the workspace's
-  environment before it pushes, and says in its report whether the check passed.
-- **TRD-EHR's conda environment on lab storage stays as it is** until the `pyproject.toml`
-  reproduces it. The cluster then builds from the lockfile into lab storage, through
-  `UV_PROJECT_ENVIRONMENT`, so the pipeline's environment and the Mac's come from one file.
-  Rewrite `setup_envs.sh` to call that, and confirm one real sweep runs on the new environment
-  before removing the conda one.
+- **TRD-EHR's cluster switch from conda to the lockfile** (cluster). The conda environment on
+  lab storage stays until the lockfile reproduces it. The cluster builds `uv.lock` into lab
+  storage through `UV_PROJECT_ENVIRONMENT` with `uv sync --locked --extra test --extra cluster`,
+  `setup_envs.sh` is rewritten to call that, one real sweep runs on the new environment, and only
+  then is the conda one removed. `causal_forest_env` folds in too: the `pyproject.toml` carries
+  econml 0.17.0, which accepts the pipeline's scikit-learn 1.7.1, where that environment held
+  0.16.0 on 1.6.1, so one causal run on the new environment is part of the confirmation. Until
+  then the root `scripts/setup.sh` on the cluster syncs the `cluster` extra into each
+  workspace's `.venv/` in the home directory; the switch decides how that and
+  `UV_PROJECT_ENVIRONMENT` meet. It was to be filed from the Mac with `board ask-cluster` and
+  was not: TRD-EHR has not opted in to relay turns (`relay.turns: true` in its
+  `tutorboard.json`), which puts an unattended agent beside the EHR and is the owner's to say.
+  Once it has, the Mac files it; until then a cluster session working from this file does it.
+- **The Lean toolchain** (Mac). `lean-toolchain` pins v4.34.0-rc2, whose `lake` aborts on
+  macOS 27 as each run exits (`pointer being freed was not allocated`, in thread-local cleanup),
+  so the setup never gets the Mathlib cache and the workspace's check fails with exit 133.
+  `lean` itself runs, and v4.34.1's `lake` runs. Left because the fix moves Mathlib under the
+  exercises' statements: move `lean-toolchain` and Mathlib forward together, the toolchain
+  copied from Mathlib's, then rerun the setup and `bash scripts/build.sh`.
 
-> **Prompt:** Do item 9 of `HANDOFF.md`. Survey every workspace for code and the imports it
-> really makes. Read TRD-EHR's `setup_envs.sh` for its pins, plus any requirements, conda or
-> Lean files. Write each workspace's `pyproject.toml` with the base, test and cluster extras,
-> lock it with uv, and write the root `Brewfile` and `scripts/setup.sh`. Run the setup on this
-> Mac, and run every workspace's check in its environment. A check that fails for a reason in
-> the code, not the environment, is reported, not fixed. Add the check to each `tutorboard.json`
-> and the before-pushing rule to every workspace contract. Write the root `README.md`'s setup
-> section in the present tense. Leave TRD-EHR's cluster switch from conda to the lockfile as
-> the last part. It needs the cluster, so file it as a relay `turn` request (`board ask-cluster`) with this
-> item's text, rather than doing it from the Mac. Ship with the repository's scripts.
+> **Prompt:** Do item 9 of `HANDOFF.md`, the part for this machine. On the cluster: build
+> TRD-EHR's `uv.lock` into lab storage through `UV_PROJECT_ENVIRONMENT` with the `test` and
+> `cluster` extras, rewrite `setup_envs.sh` to call that, run one real sweep and one causal run
+> on it, compare against the conda environment's last results, and only then remove both conda
+> environments. On the Mac: move Lean-Theorem-Proving's toolchain and Mathlib forward together
+> to a Lean whose `lake` runs on macOS 27, run the root `scripts/setup.sh`, and run the
+> workspace's check; an exercise statement that no longer elaborates is reported, not changed.
+> Ship with the repository's scripts.
 
 ### Left as they are
 

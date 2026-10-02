@@ -569,6 +569,12 @@ Two rules about the commit, and neither is negotiable:
   prints: a disposition, one sentence (for not done and pushed back, the reply the owner reads
   beside their ink), and for done and partly the new wording copied exactly. Write no record
   of your own beside it: ink answered anywhere else stays on the page.
+- **Code is checked before it is pushed.** A turn that changed code runs the workspace's
+  check — `check` in `tutorboard.json`, which the brief prints — from the workspace root, in
+  the environment the root `scripts/setup.sh` builds (`uv run` where there is a `pyproject.toml`),
+  before it pushes. Its report says whether the check passed, and what failed if it did not. A
+  check that cannot run on this machine is reported as not run, never as passed. A workspace
+  whose `tutorboard.json` names no check holds no code to check.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like verification under section 5.
 - **`live/` is scratch space and is not tracked.** The project's deliverables and threads live in

@@ -1,0 +1,3 @@
+{
+  "check": "uv run python -c 'import aiohttp, transformers' && uv run python -m py_compile slurm_jobs/p0/bench_tier1.py"
+}

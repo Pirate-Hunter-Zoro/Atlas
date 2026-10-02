@@ -1,3 +1,4 @@
 {
-  "name": "Algo Solutions"
+  "name": "Algo Solutions",
+  "check": "go test ./..."
 }

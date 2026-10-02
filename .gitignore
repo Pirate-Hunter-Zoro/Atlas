@@ -29,6 +29,8 @@ __pycache__/
 *.pyc
 *.pyo
 node_modules/
+# A workspace's environment, which `uv sync` builds from its uv.lock.
+.venv/
 *.log
 
 # Lean's compiled Mathlib: 14 GB across 150,582 files, and `lake build`

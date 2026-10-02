@@ -16,6 +16,8 @@ slurm_jobs/logs/*
 # OPENCODE_CONFIG at it where it sits. Left ignored, a fresh clone has the
 # command and not the provider it points at.
 !config/opencode-deepseek.json
+# The board's file for this workspace: its name and the check a turn runs.
+!/tutorboard.json
 *.jsonl
 
 # so must the markdown linter's, which is config and not data

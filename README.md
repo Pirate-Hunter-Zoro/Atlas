@@ -18,6 +18,8 @@ Atlas/
   README.md          this file
   atlas.json         the families, in the order the front door draws them
   HANDOFF.md         what is left to build, in order
+  Brewfile           the Mac's system tools
+  scripts/setup.sh   builds every workspace's environment — see "Setting up a machine"
   board/             Tutor-Board — the tool. `bash board/install.sh` installs it.
                      README.md is its architecture, SETTLED.md the rules already built
 
@@ -154,6 +156,36 @@ under whatever filename it happens to look for. Moving to another provider is ad
 not a rewrite of the safety rules under time pressure. `ai-config/README.md` is the whole of
 it, including the one thing that does *not* port: an assistant with no pre-tool hook cannot be
 fenced off from this data at all.
+
+---
+
+## Setting up a machine
+
+One command builds every workspace's environment, on the Mac and on the cluster alike:
+
+```bash
+bash scripts/setup.sh          # once per machine, and again whenever a lockfile moves
+bash board/install.sh          # the board itself, which needs nothing but python3
+```
+
+- **System tools are the root `Brewfile`** on the Mac: TeX Live with latexmk, dvisvgm, poppler,
+  pandoc, node, gh, Tailscale, uv, libomp and go. `setup.sh` runs `brew bundle --no-upgrade` on
+  it, which installs what is missing and moves nothing that is there. On the cluster the same
+  tools come from modules, and `setup.sh` installs `uv` into `~/.local/bin` without root.
+- **Python is `uv`.** Each workspace with Python has a `pyproject.toml` and a committed
+  `uv.lock`, and `uv sync` builds `.venv/` inside the workspace, which git ignores. The `test`
+  extra holds pytest. The `cluster` extra holds the GPU packages, and only a machine with Slurm
+  installs it.
+- **Lean is `elan`.** `practice/Lean-Theorem-Proving/lean-toolchain` pins the version, and that
+  workspace's own `scripts/setup.sh` installs elan into `~/.elan`, fetches the Mathlib cache with
+  `lake` and builds.
+- **Go is the `go` on the PATH**, and `setup.sh` downloads `practice/Algo-Solutions`' modules.
+
+`setup.sh` finds the workspaces the way the board does, by looking, prints one line for each,
+and keeps what every step printed in `~/.local/state/atlas-setup/`. Each workspace names its
+check, the command a turn runs before it pushes code, as `check` in its `tutorboard.json`; for
+Python it runs through `uv run`, in that workspace's environment. `board/README.md` §6 of the
+setup has the rest.
 
 ---
 

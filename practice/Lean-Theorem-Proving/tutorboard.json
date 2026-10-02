@@ -1,3 +1,4 @@
 {
-  "name": "Lean Theorem Proving"
+  "name": "Lean Theorem Proving",
+  "check": "bash scripts/build.sh"
 }

@@ -1,4 +1,5 @@
 {
   "name": "TRD-EHR",
-  "stance": "do"
+  "stance": "do",
+  "check": "uv run --env-file .env.example --extra test python -m pytest tests -q"
 }

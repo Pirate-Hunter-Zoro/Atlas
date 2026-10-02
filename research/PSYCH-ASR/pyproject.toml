@@ -1,0 +1,42 @@
+# One environment for this workspace on the Mac, built by `uv sync --extra test`
+# into .venv/. The base is what the package's stdlib-light core and its tests
+# import; the cluster extra is scripts/setup_envs.sh's asr_env pin set, the one
+# whisperx's ~= chain locks.
+#
+# Not here: diarizen_env (torch 2.1.1, a source install of DiariZen) and nemo_env
+# (nemo_toolkit's own torch and transformers). Each pins a torch that conflicts
+# with asr_env's, so they stay conda prefix environments built by setup_envs.sh,
+# and the code that needs them -- diarize/diarizen_arm.py, diarize/sortformer_arm.py,
+# the NeMo typists -- runs only in a Slurm job.
+[project]
+name = "psych-asr"
+version = "0.0.0"
+requires-python = "==3.11.*"
+dependencies = [
+    "numpy==2.2.6",
+    "pandas==2.3.1",
+    "scipy",
+    "python-dotenv==1.1.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+cluster = [
+    "whisperx==3.8.6",
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+    "torchvision==0.23.0",
+    "ctranslate2==4.8.1",
+    "faster-whisper==1.2.1",
+    "pyannote.audio==4.0.7",
+    "transformers==4.55.4",
+    "soundfile",
+]
+
+[tool.uv]
+# Not a package: every entry point is `python -m psych_asr.cli.<name>` from here.
+package = false
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]

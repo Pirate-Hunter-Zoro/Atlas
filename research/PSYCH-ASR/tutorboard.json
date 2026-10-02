@@ -1,3 +1,4 @@
 {
-  "name": "PSYCH-ASR"
+  "name": "PSYCH-ASR",
+  "check": "uv run --extra test python -m pytest tests -q"
 }
