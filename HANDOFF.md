@@ -134,13 +134,13 @@ cluster if `sbatch` exists.
 | 10. One environment per workspace | Mac | after 1 |
 | 7. Providers on the Mac | Mac | after 10 |
 | 2, 3, 4, 5, 6, 9 | cluster | being built there now; a Mac session leaves them alone, and they leave this file when they land |
-| 8. The compute node stops serving | cluster | only once its two conditions hold; its prompt checks them |
+| 8. The compute node stops serving | cluster | now, as soon as 2–6 and 9 land; nothing waits on the Mac |
 
 - On the Mac, a session does 1, then 10, then 7. Item 1 stops for the owner a few times: a
   `sudo pmset` line, possibly `gh auth login`, and opening the board on the iPad. Then it goes
   on by itself.
-- On the cluster, a session builds whatever cluster item is still in this file, then checks
-  item 8's conditions.
+- On the cluster, a session builds whatever cluster item is still in this file, then does
+  item 8.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
@@ -414,20 +414,21 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
 
-### 8. The compute node stops serving — depends on 1, 3, 4 and 5, after a week of use
+### 8. The compute node stops serving — depends on 2 to 6 and 9 landing
 
-When the Mac has served a week of sittings and the relay has carried a real request each way,
-delete what only served boards from the cluster: `tutor serve`, `tutor watch`,
-`tutorboard/supervise.py`, `slurm/tutor-serve.sbatch`, `test/perpetual.py`, the `serve_*` keys,
-and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls.
+The institute's firewall ends board hosting on the compute node, so the serving chain goes now.
+The Mac is the only host. Delete what only served boards from the cluster: `tutor serve`,
+`tutor watch`, `tutorboard/supervise.py`, `slurm/tutor-serve.sbatch`, `test/perpetual.py`, the
+`serve_*` keys, and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls,
+and keep everything the relay, `board job`, `board send` and Colibri use.
 
-> **Prompt:** Build item 8 of `HANDOFF.md`. First confirm both conditions from
-> `relay/state.json`, the reports, and the archive dates. If either is unmet, stop and say
-> which. Remove the serving chain the item lists, every reference to it in code, tests,
-> contracts and READMEs, and the suites that only test it. Cancel any `tutor-serve` jobs still
-> queued for this user. Rewrite the root `README.md` sections "The machine this was built for"
-> and "The board is the way in" for the Mac host and the cluster relay, in the present tense.
-> Ship with the repository's scripts.
+> **Prompt:** Do item 8 of `HANDOFF.md`. Cancel every `tutor-serve` job queued or running for
+> this user, and any board or tutor process it left on a node. Remove the serving chain the
+> item lists, every reference to it in code, tests, contracts and READMEs, and the suites that
+> only test it. Keep the relay and everything it calls working: `bash board/test/all.sh` green,
+> and `tutor relay --once` clean afterwards. Rewrite the root `README.md` sections "The machine
+> this was built for" and "The board is the way in" for the Mac host and the cluster relay, in
+> the present tense. Ship with the repository's scripts.
 
 ### 9. Smaller board work left from the threads build — depends on nothing
 
