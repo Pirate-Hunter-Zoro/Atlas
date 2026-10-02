@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 113 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 114 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -757,7 +757,8 @@ board job --show                     every job and request, folded to its last s
 ```
 
 **With Slurm (`jobs.has_slurm`: `sbatch` on PATH, or `TUTOR_SLURM=1`) it submits.** A recipe
-goes as `sbatch --export=ALL,VAR=value <recipe>` from the workspace root; the raw form runs from
+goes wrapped (`jobs.submit_recipe`, below) with `--export=ALL,VAR=value` from the workspace
+root; the raw form runs from
 the caller's directory. Either adds `--parsable`, asks `scontrol` once for the job's `StdOut`, and
 appends `{thread, jobid, cmd, cwd, produces, export, log, submitted}` to the job registry.
 `--produces` paths are workspace-relative. The thread must exist in `threads.json`; `<thread>`
@@ -790,13 +791,16 @@ busy strip says *waiting for the cluster — (thread title)* for a request.
 at the workspace root where `live/` is ignored wholesale (TRD-EHR, Paper-Writer). Whichever
 exists wins. A reader folds records by `jobid` in file order (`threads.merged`).
 
-**The per-board tutor daemon polls it.** `headless` in `bin/tutor` runs `job_pass` on a thread
-beside the transcript beat, every `jobs.POLL_SECONDS` (60). Each pass asks `sacct` about the jobs
-with no terminal state, and appends a state change short of the end (PENDING to RUNNING). On a
-terminal state it claims the ending once (`O_EXCL` under `live/jobs.reported/`, so two daemons
-never report one job twice), appends `{state, exit, ended}`, and drops a `[job]` line in the
-inbox. `board wait` hands that line over like any other, and `turn_signal` reads `job` off it. A
-job sacct has never heard of fifteen minutes after submission is `LOST`, which is terminal.
+**The cluster's relay polls it** (below), never the board daemon. `sacct` is refused on this
+cluster, so a job's end is `squeue` plus an exit file. `jobs.submit_recipe` submits a recipe as
+a wrapper at `relay/state/<key>.sbatch`: the recipe's `#SBATCH` lines, then `bash <recipe>`,
+then the exit code written to `relay/state/<key>.exit` (`_<task>.exit` per array task). No trap,
+so a killed job leaves no file. Gone from `squeue` with the file is `COMPLETED` on 0 and
+`FAILED` otherwise. Without it, `DIED`: a time limit, a node failure or a cancel. A raw sbatch
+has no wrapper, so its leaving is `ENDED`, exit unknown. `jobs.GRACE` (60 s) covers a job just
+submitted. A state change short of the end is appended. An ending is claimed once (`O_EXCL`
+under `live/jobs.reported/`), appended as `{state, exit, ended}`, and dropped in the inbox as a
+`[job]` line, which `turn_signal` reads as `job`.
 
 **The `[job]` turn reports.** The line names the job, its state, exit code, command, log path and
 whether each `--produces` path exists. The turn writes one card on what finished, what it
@@ -809,6 +813,51 @@ the busy strip says *running — (thread title): job N*, with *pending* while it
 job's own clock, off the payload's `jobs` (`jobs.running`). A mission dispatched with a `thread`
 (`POST /elsewhere`, refused where that workspace has no such thread) carries it in its record,
 and while the mission is live its thread says `running` too.
+
+### The relay runs requests on the cluster
+
+**`tutor relay` is one pass, and a `scrontab` entry runs it every five minutes on `c3_short`.**
+`tutorboard/relay.py` is the module; `test/relay.py` is the suite (a bare origin, two clones, a
+fake Slurm). `tutor relay --entry` prints the entry. `tutor relay --install` writes it, replacing
+its own marked block in `scrontab -l`. Run the install from the cluster checkout, because the
+entry names that checkout's `bin/tutor`. `tutor relay --once` is a pass by hand, `tutor relay
+--status` shows the last pass and every workspace's requests by state, and `tutor where` ends on
+the last pass. The relay refuses to run without Slurm.
+
+A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
+
+1. **Pull, fast-forward only.** The pass skips, saying why in `relay/state.json`, on a merge or
+   rebase in progress, a detached HEAD, or a tracked edit or unpushed commit outside the
+   cluster's paths. Those are each workspace's `relay/reports/` and `exports/`, and the
+   `vendor/colibri` pointer. A workspace's job registry may be dirty, because only a Slurm
+   machine appends to it; the relay leaves it uncommitted. Then `pull_vendor`.
+2. **Each request with no report** is checked with `jobs.check(mine=True)`. A refusal is a
+   `refused` report listing every problem. A recipe goes through `jobs.submit_recipe` in an
+   environment stripped of `SLURM_*`. It is registered in the ignored `relay/state/jobs.jsonl`,
+   not the tracked registry, and its report says `submitted` with the job id.
+3. **Poll** the workspace registry (`jobs.report`) and the relay's (`jobs.poll`). `RUNNING`
+   moves a report to `running`. An ending writes `completed` or `failed` with `exit`, `ended`,
+   `produced`, `missing`, the `RELAY:` lines, and for a Python crash `error`, the exception type
+   only. A completed recipe's exports are copied to `exports/<results path>`.
+4. **One `turn` at a time** runs as its own Slurm job on `c3_short`: `tutor relay --turn <ws>
+   <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
+   PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
+   The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
+5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
+   push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
+
+**A report is public, and the code makes it so.** Only lines the job printed behind `RELAY:`
+reach it: the last 40, 200 characters each. Every string goes through `relay.public`. An
+absolute or home path becomes `<path>`, and a string the lab's `names_phi` matches is dropped; a
+matched note is withheld and stays in `relay/state/`. An export is copied only if it is under
+`results/`, png/pdf/svg/csv/json, marked aggregate on the thread now, a regular file of at most
+5 MB, unmatched by `names_phi` in its path or text, and a path git tracks under `exports/`.
+TRD-EHR's `.gitignore` carries `!exports/**` for that. A refused export is listed in
+`export_refused` with its reason.
+
+**The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
+`/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
+skip reason, the last error and the last pushed commit.
 
 ### The meeting deck
 

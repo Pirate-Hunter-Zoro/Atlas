@@ -16,11 +16,15 @@ WHERE IT LIVES is `live/jobs.jsonl` where git can see it there, and
 `jobs.jsonl` at the workspace root where `live/` is ignored wholesale. It is
 tracked either way, because a job outlives the machine that submitted it.
 
-THE PER-BOARD TUTOR DAEMON POLLS IT. Each pass `report` asks `sacct` about the
-jobs that have not finished. A job that has reached a terminal state is claimed
-once (`O_EXCL`, so two daemons never report the same job twice), its ending is
-appended, and a `[job]` line is dropped in the inbox. That line wakes a turn the
-way `[direction]` does, and the turn reports what finished.
+THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every five minutes).
+`sacct` is refused on this cluster, so a job's end is read from `squeue` and
+an exit-code file: `submit_recipe` wraps every recipe so its last act writes
+its exit code to `relay/state/<key>.exit`, which is ignored. A job that has
+left `squeue` with that file ended with that code; one that left without it
+DIED (timeout, node failure, a cancel). A raw `sbatch` has no wrapper, so its
+leaving is ENDED, exit unknown. An ending is claimed once (`O_EXCL`, so two
+passes never report the same job twice), appended, and a `[job]` line is
+dropped in the inbox. That line wakes a turn the way `[direction]` does.
 
 A MACHINE WITHOUT SLURM FILES A REQUEST INSTEAD (the relay section below), and
 `view` is the one registry a reader sees: local jobs, requests, and the
@@ -29,6 +33,7 @@ cluster's reports on them, merged.
 Standard library only, like everything else.
 """
 
+import glob
 import json
 import os
 import re
@@ -41,14 +46,13 @@ from .course import threads as course_threads
 
 NAME = "jobs.jsonl"
 
-# A job sacct has never heard of, this long after it was submitted, is LOST.
-# sacct knows a job from the moment sbatch accepts it, so a quarter of an hour
-# of silence is a different cluster, a purged database or a typed id.
-LOST_AFTER = 15 * 60
+# A job missing from `squeue` this soon after submission, with no exit file,
+# is given one more pass before it is called DIED.
+GRACE = 60
 
-# How often the daemon asks. A job is minutes to hours long; a minute late on
-# its ending costs nothing, and sacct is a database call on a shared server.
-POLL_SECONDS = 60
+# Where a wrapped job's exit code, its wrapper and the relay's own registry
+# live in a workspace. Ignored by the root .gitignore.
+STATE = os.path.join("relay", "state")
 
 CMD_CHARS = 600
 
@@ -81,8 +85,9 @@ def ignored(root, rel):
     return p.returncode == 0
 
 
-def append(root, rec):
-    path = registry(root, create=True)
+def append(root, rec, path=None):
+    """Append one record to the registry, or to `path` (the relay's own)."""
+    path = path or registry(root, create=True)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
@@ -90,20 +95,50 @@ def append(root, rec):
     return path
 
 
-def records(root):
-    """`{jobid: record}`, folded."""
-    return course_threads.merged(course_threads.jobs_of(root))
+def _lines(path):
+    out = []
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return out
+
+
+def records(root, path=None):
+    """`{jobid: record}`, folded. `path` reads the relay's registry instead."""
+    raw = _lines(path) if path else course_threads.jobs_of(root)
+    return course_threads.merged(raw)
+
+
+def state_dir(root):
+    return os.path.join(root, STATE)
+
+
+def relay_registry(root):
+    """The jobs the relay submitted for requests. Ignored: their tracked
+    record is the request's report, and the cluster commits nothing else."""
+    return os.path.join(state_dir(root), "jobs.jsonl")
 
 
 # ---------------------------------------------------------------------------
 # submitting
 # ---------------------------------------------------------------------------
 def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
-           now=None, export=()):
+           now=None, export=(), env=None, path=None, extra=None):
     """Run `sbatch`, and register the job to `thread`. `(record, error)`.
 
     `argv` must start with `sbatch`. `--parsable` is added where it is missing,
-    so the id is read rather than scraped out of a sentence.
+    so the id is read rather than scraped out of a sentence. `env` is the
+    environment sbatch runs in; `path` the registry it is recorded in; `extra`
+    fields the record carries besides (a `cmd` there overrides the argv's).
     """
     argv = list(argv or [])
     if not argv or os.path.basename(argv[0]) != "sbatch":
@@ -111,9 +146,10 @@ def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
                       "the sbatch command after `--`." % (argv[:1] or [""])[0])
     cwd = os.path.abspath(cwd or os.getcwd())
     sent = argv[:1] + ([] if "--parsable" in argv else ["--parsable"]) + argv[1:]
+    kw = {"env": env} if env is not None else {}
     try:
         p = run(sent, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                universal_newlines=True, timeout=120)
+                universal_newlines=True, timeout=120, **kw)
     except (OSError, subprocess.SubprocessError) as exc:
         return None, "sbatch did not run: %s" % exc
     if p.returncode != 0:
@@ -138,8 +174,114 @@ def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
         rec["err"] = _relative(root, err)
     if export:
         rec["export"] = list(export)
-    append(root, rec)
+    rec.update(extra or {})
+    if path:
+        # The relay's registry is ignored, so it may hold where the log really
+        # is, outside the workspace too: the `RELAY:` lines are read out of it.
+        rec["log_path"], rec["err_path"] = out, err
+    append(root, rec, path=path)
     return rec, ""
+
+
+def header_of(text):
+    """The `#SBATCH` lines of a script's header, which sbatch reads, in order."""
+    out = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if s and not s.startswith("#"):
+            break
+        if s.startswith("#SBATCH"):
+            out.append(s)
+    return out
+
+
+def wrapper(header, command, exitfile, name=""):
+    """A batch script: `header`, then `command`, then the exit code written to
+    `exitfile` as its last act. Pure.
+
+    No trap: a job killed at its time limit must leave NO file, because that
+    absence is how a death is told from an ending. An array task writes
+    `<stem>_<task>.exit`.
+    """
+    lines = ["#!/bin/bash"] + list(header)
+    if name and not any(re.match(r"#SBATCH\s+(--job-name|-J)\b", h)
+                        for h in header):
+        lines.append("#SBATCH --job-name=%s" % name)
+    stem = exitfile[:-len(".exit")] if exitfile.endswith(".exit") else exitfile
+    lines += [
+        "# Written by the relay: runs the command below, then records its exit",
+        "# code. That file is how the end of this job is read without sacct.",
+        " ".join(shlex.quote(c) for c in command),
+        "code=$?",
+        'out=%s"${SLURM_ARRAY_TASK_ID:+_$SLURM_ARRAY_TASK_ID}".exit'
+        % shlex.quote(stem),
+        'printf \'%s\\n\' "$code" > "$out.tmp" && mv -f "$out.tmp" "$out"',
+        'exit "$code"',
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def local_key(now=None):
+    """The key of a job `board job` submits directly: never a request id."""
+    return "local-%d-%d" % (int(float(now or time.time()) * 1000), os.getpid())
+
+
+def submit_script(root, thread, header, command, key, label, produces=(),
+                  export=(), env=None, run=subprocess.run, now=None,
+                  sbatch_env=None, path=None, extra=None):
+    """Write the wrapper for `command` at `relay/state/<key>.sbatch` and submit
+    it from the workspace root. `(record, error)`.
+
+    `env` is the `{NAME: value}` the job gets through `--export=ALL,...`,
+    checked by `validate` before it gets here.
+    """
+    env = dict(env or {})
+    sdir = state_dir(root)
+    os.makedirs(sdir, exist_ok=True)
+    exitfile = os.path.join(sdir, key + ".exit")
+    for stale in [exitfile] + _array_exits(exitfile):
+        try:
+            os.remove(stale)
+        except OSError:
+            pass
+    script = os.path.join(sdir, key + ".sbatch")
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-",
+                  os.path.splitext(os.path.basename(label.split()[0]))[0])[:40]
+    with open(script, "w", encoding="utf-8") as fh:
+        fh.write(wrapper(header, command, exitfile, name=name))
+    sent = ["sbatch"]
+    if env:
+        sent.append("--export=ALL," + ",".join(
+            "%s=%s" % (k, env[k]) for k in sorted(env)))
+    sent.append(script)
+    shown = " ".join([label] + ["%s=%s" % (k, env[k]) for k in sorted(env)])
+    fields = {"cmd": shown[:CMD_CHARS], "key": key,
+              "exitfile": _relative(root, exitfile)}
+    fields.update(extra or {})
+    return submit(root, thread, sent, produces=produces, cwd=root, run=run,
+                  now=now, export=export, env=sbatch_env, path=path,
+                  extra=fields)
+
+
+def submit_recipe(root, thread, recipe, env=None, produces=(), export=(),
+                  key=None, run=subprocess.run, now=None, sbatch_env=None,
+                  path=None, extra=None):
+    """Submit a tracked recipe, wrapped so its ending can be read.
+
+    The recipe runs where it is, under `bash`, from the workspace root: its
+    `#SBATCH` lines, `$SLURM_SUBMIT_DIR` and log paths are what a bare sbatch
+    of it would give.
+    """
+    full = os.path.join(root, recipe)
+    try:
+        with open(full, "r", encoding="utf-8", errors="replace") as fh:
+            header = header_of(fh.read())
+    except OSError as exc:
+        return None, "the recipe %s cannot be read: %s" % (recipe, exc)
+    return submit_script(root, thread, header, ["bash", full],
+                         key or local_key(now), recipe, produces=produces,
+                         export=export, env=env, run=run, now=now,
+                         sbatch_env=sbatch_env, path=path, extra=extra)
 
 
 def _redacted(argv):
@@ -220,45 +362,82 @@ def logs_of(jobid, cwd, run=subprocess.run):
 # ---------------------------------------------------------------------------
 # polling
 # ---------------------------------------------------------------------------
-def sacct(ids, run=subprocess.run):
-    """`{base jobid: (state, exit, end)}` for the jobs sacct knows. None when
-    sacct could not be asked at all, which is not the same as knowing nothing.
+def squeue(run=subprocess.run, user=None):
+    """`{base jobid: state}` for this user's jobs Slurm still holds. None when
+    squeue could not be asked at all, which is not the same as knowing nothing.
 
-    An array job is several rows under one id. It is finished only when every
-    row is, and it ended badly if any row did.
+    `sacct` is refused on this cluster, so this is all Slurm says: a job is
+    PENDING, RUNNING, or gone. An array is under its base id while any of its
+    tasks is, RUNNING if any task is.
     """
-    if not ids:
-        return {}
+    import getpass
     try:
-        p = run(["sacct", "-X", "-n", "-P", "-j", ",".join(ids),
-                 "-o", "JobID,State,ExitCode,End"],
+        p = run(["squeue", "-h", "-u", user or getpass.getuser(),
+                 "-o", "%i|%T"],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 universal_newlines=True, timeout=60)
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, KeyError):
         return None
     if p.returncode != 0:
         return None
-    rows = {}
+    out = {}
     for line in (p.stdout or "").splitlines():
         parts = line.strip().split("|")
-        if len(parts) < 4 or not parts[0]:
+        if len(parts) < 2 or not parts[0]:
             continue
         base = parts[0].split("_")[0].split(".")[0]
-        rows.setdefault(base, []).append(
-            (parts[1].split()[0].upper() if parts[1].strip() else "",
-             parts[2], parts[3]))
-    out = {}
-    for base, got in rows.items():
-        states = [s for s, _, _ in got]
-        if all(s.rstrip("+") in course_threads.TERMINAL for s in states):
-            bad = [g for g in got if g[0] != "COMPLETED"]
-            pick = bad[0] if bad else got[0]
-            out[base] = (pick[0], pick[1], max(e for _, _, e in got))
-        else:
-            live = [s for s in states
-                    if s.rstrip("+") not in course_threads.TERMINAL]
-            out[base] = ("RUNNING" if "RUNNING" in live else live[0], "", "")
+        state = parts[1].strip().upper() or "PENDING"
+        if out.get(base) != "RUNNING":
+            out[base] = state
     return out
+
+
+def _array_exits(exitfile):
+    stem = exitfile[:-len(".exit")] if exitfile.endswith(".exit") else exitfile
+    return sorted(glob.glob(glob.escape(stem) + "_*.exit"))
+
+
+def exit_of(root, rec):
+    """`(code, mtime)` the wrapper wrote for this job, or None if it wrote
+    none. An array is the worst of its tasks' codes."""
+    rel = rec.get("exitfile")
+    if not rel:
+        return None
+    full = os.path.join(root, rel)
+    found = ([full] if os.path.isfile(full) else []) + _array_exits(full)
+    codes, latest = [], 0.0
+    for path in found:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                codes.append(int(fh.read().strip() or "1"))
+            latest = max(latest, os.path.getmtime(path))
+        except (OSError, ValueError):
+            codes.append(1)
+    if not codes:
+        return None
+    bad = [c for c in codes if c != 0]
+    return (bad[0] if bad else 0), latest
+
+
+def ending(root, rec, now):
+    """`(state, exit, ended)` for a job that has left `squeue`, or None while
+    it is too fresh to call.
+
+    With the wrapper's file: COMPLETED on 0, FAILED otherwise. Wrapped and
+    without it: DIED -- a time limit, a node failure or a cancel. Not wrapped
+    (a raw sbatch): ENDED, exit unknown.
+    """
+    got = exit_of(root, rec)
+    if got is not None:
+        code, when = got
+        return (("COMPLETED" if code == 0 else "FAILED"), "%d:0" % code,
+                time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(when)))
+    if now - float(rec.get("submitted") or now) < GRACE:
+        return None
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))
+    if rec.get("exitfile"):
+        return "DIED", "", stamp
+    return "ENDED", "", stamp
 
 
 # A claim older than this on an ending still not marked reported is a reader
@@ -266,14 +445,14 @@ def sacct(ids, run=subprocess.run):
 CLAIM_STALE = 10 * 60
 
 
-def _marker(root, jobid):
-    return os.path.join(root, "live", "jobs.reported",
+def _marker(root, jobid, claims=None):
+    return os.path.join(claims or os.path.join(root, "live", "jobs.reported"),
                         str(jobid).replace("/", "_"))
 
 
-def _claim(root, jobid, now=None):
+def _claim(root, jobid, now=None, claims=None):
     """Exactly one reader reports each ending. True for the one that may."""
-    target = _marker(root, jobid)
+    target = _marker(root, jobid, claims)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         try:
@@ -290,60 +469,67 @@ def _claim(root, jobid, now=None):
     return True
 
 
-def _unclaim(root, jobid):
+def _unclaim(root, jobid, claims=None):
     try:
-        os.remove(_marker(root, jobid))
+        os.remove(_marker(root, jobid, claims))
     except OSError:
         pass
 
 
-def poll(root, run=subprocess.run, now=None):
-    """Ask sacct about every unfinished job. Returns the ones that ended now.
+def relay_claims(root):
+    return os.path.join(state_dir(root), "jobs.reported")
 
-    A state change short of the end (PENDING to RUNNING) is appended too, so the
-    board can say which. Nothing is appended for a job whose state is unchanged.
+
+def poll(root, run=subprocess.run, now=None, path=None, claims=None):
+    """Ask squeue about every unfinished job. Returns the ones that ended now.
+
+    `path` and `claims` are the relay's registry and claim directory; the
+    default is the workspace's own. A state change short of the end (PENDING
+    to RUNNING) is appended too, so the board can say which. Nothing is
+    appended for a job whose state is unchanged.
     """
     now = float(now or time.time())
     out = []
-    every = course_threads.merged(course_threads.jobs_of(root)).values()
+    every = records(root, path).values()
     # An ending recorded but never reported -- its reader died, or its inbox
-    # line could not be written -- is offered again, without asking sacct.
+    # line could not be written -- is offered again, without asking squeue.
     for j in every:
         if (course_threads.finished(j) and not j.get("reported")
-                and _claim(root, j["jobid"], now)):
+                and _claim(root, j["jobid"], now, claims)):
             out.append(dict(j))
-    open_jobs = [j for j in every if not course_threads.finished(j)]
+    open_jobs = [j for j in every if not course_threads.finished(j)
+                 and str(j.get("state") or "").upper()
+                 != course_threads.REQUESTED]
     if not open_jobs:
         return out
-    by_base = {}
-    for j in open_jobs:
-        by_base.setdefault(str(j["jobid"]).split("_")[0], []).append(j)
-    said = sacct(sorted(by_base), run=run)
+    said = squeue(run=run)
     if said is None:
         return out
-    for base, recs in sorted(by_base.items()):
-        for j in recs:
-            got = said.get(base)
-            if got is None:
-                if now - float(j.get("submitted") or now) < LOST_AFTER:
-                    continue
-                got = ("LOST", "", "")
-            state, code, end = got
-            if state.rstrip("+") not in course_threads.TERMINAL:
-                if state and state != j.get("state"):
-                    append(root, {"jobid": j["jobid"], "thread": j.get("thread"),
-                                  "state": state, "seen": now})
-                continue
-            # The ending is recorded before it is claimed, so a reader that
-            # dies between the two leaves a finished job, not a running one.
-            end_rec = {"jobid": j["jobid"], "thread": j.get("thread"),
-                       "state": state, "exit": code, "ended": end}
-            append(root, end_rec)
-            if not _claim(root, j["jobid"], now):
-                continue
-            done = dict(j)
-            done.update(end_rec)
-            out.append(done)
+    for j in open_jobs:
+        base = str(j["jobid"]).split("_")[0]
+        state = said.get(base)
+        if state is not None and state.rstrip("+") not in course_threads.TERMINAL:
+            if state != j.get("state"):
+                append(root, {"jobid": j["jobid"], "thread": j.get("thread"),
+                              "state": state, "seen": now}, path=path)
+            continue
+        # Gone from squeue, or there in a terminal state it is about to leave
+        # by: either way the wrapper's file, written before the job left, says
+        # how it ended.
+        got = ending(root, j, now)
+        if got is None:
+            continue
+        state, code, end = got
+        # The ending is recorded before it is claimed, so a reader that dies
+        # between the two leaves a finished job, not a running one.
+        end_rec = {"jobid": j["jobid"], "thread": j.get("thread"),
+                   "state": state, "exit": code, "ended": end}
+        append(root, end_rec, path=path)
+        if not _claim(root, j["jobid"], now, claims):
+            continue
+        done = dict(j)
+        done.update(end_rec)
+        out.append(done)
     return out
 
 
@@ -389,7 +575,13 @@ def sense(root, rec):
         lines += ["", "What it was to produce:"] + produced
     lines += ["", "DO THIS: write one card reporting what finished, what it "
               "produced, and any non-zero exit."]
-    if failed(rec):
+    if str(rec.get("state") or "") == "DIED":
+        lines.append("It left the queue without writing its exit code: a time "
+                     "limit, a node failure or a cancel.")
+    elif str(rec.get("state") or "") == "ENDED":
+        lines.append("It was a raw sbatch, so how it ended is unknown: read "
+                     "the end of its log before you say.")
+    if failed(rec) and str(rec.get("state") or "") != "ENDED":
         lines.append("It did NOT end cleanly. Read the last 40 lines of its "
                      "%s and put the error on the card, in your own words, "
                      "with the line it failed at."
@@ -800,7 +992,8 @@ def relayed(root):
             "export": list(req.get("export") or []),
             "submitted": float(rep.get("submitted") or req.get("filed") or 0),
         }
-        for key in ("exit", "ended", "note", "produced", "exported", "relay",
+        for key in ("exit", "ended", "note", "produced", "missing",
+                    "exported", "export_refused", "relay", "error",
                     "problems"):
             if rep.get(key) not in (None, "", []):
                 rec[key] = rep[key]

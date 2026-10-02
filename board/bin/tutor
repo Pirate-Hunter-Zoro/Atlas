@@ -21,6 +21,9 @@ tutor -- start a tutoring session.
     tutor cost [galois]         what the turns on this machine actually cost
     tutor cost --all            every course, one line each
     tutor pull                  move vendor/colibri forward and commit the pointer
+    tutor relay --once          one relay pass on the cluster (what scrontab runs)
+    tutor relay --status        the last pass, and every workspace's requests
+    tutor relay --install       write the relay's scrontab entry (--entry prints it)
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors] [--stale] [--wait] [--since T]
                                 restart every board here (and its tutor) on current code
@@ -60,7 +63,7 @@ from tutorboard import stamp
 if sys.argv[1:2] == ["headless"]:
     stamp.mark_loaded()
 from tutorboard import (atlas, choice, handoff, jobs, keys, limits, machine,
-                        missions, paths, processes, seeing, supervise,
+                        missions, paths, processes, relay, seeing, supervise,
                         worktree)
 from tutorboard.course import config
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
@@ -2319,27 +2322,6 @@ def turn_signal(out):
     return ""
 
 
-def job_pass(root, log=None, run=None):
-    """One poll of this workspace's registered jobs. The endings it reported.
-
-    Never raises: a daemon whose job poll threw would be a daemon that stopped
-    answering the student over a sacct hiccup.
-    """
-    try:
-        ended = (jobs.report(root, run=run) if run is not None
-                 else jobs.report(root))
-    except Exception as exc:                                 # noqa: BLE001
-        if log:
-            log.write("-- the job poll failed: %s\n" % exc)
-        return []
-    for rec in ended:
-        if log:
-            log.write("-- job %s on `%s` ended %s; a [job] line is in the "
-                      "inbox\n" % (rec.get("jobid"), rec.get("thread"),
-                                   rec.get("state")))
-    return ended
-
-
 def open_mission(root):
     """The newest mission record in this workspace that has not ended, or None.
 
@@ -3632,16 +3614,9 @@ def headless(cfg, course, agent_name, session):
                 time.sleep(1)
     threading.Thread(target=beat_transcript, daemon=True).start()
 
-    def beat_jobs():
-        # A job registered with `board job` reports itself: each pass asks
-        # sacct about the ones still out, and an ending becomes a `[job]` line
-        # in the inbox, which the `board wait` below picks up like any other.
-        while running["go"]:
-            job_pass(root, log)
-            end = time.time() + jobs.POLL_SECONDS
-            while running["go"] and time.time() < end:
-                time.sleep(1)
-    threading.Thread(target=beat_jobs, daemon=True).start()
+    # No job poll here. The cluster's relay polls every registered job on its
+    # five-minute pass (`tutor relay`), and an ending it drops in the inbox is
+    # picked up by the `board wait` below like any other line.
 
     turns = 0
     # Which chapter this daemon has actually been teaching, refreshed each turn.
@@ -5771,7 +5746,61 @@ def cmd_where(cfg, args):
     if rows == []:
         print("\n  no serving chain: this machine's board goes when its "
               "allocation does (tutor serve)")
+    said = relay.where_line()
+    if said:
+        print("\n  " + said)
     return 0
+
+
+def cmd_relay(cfg, args):
+    """The cluster's relay. See `tutorboard/relay.py`.
+
+        tutor relay [--once] [--quiet]   one pass: what the scrontab entry runs
+        tutor relay --status             the last pass, and the requests by state
+        tutor relay --entry              print the scrontab entry
+        tutor relay --install            write it into this user's scrontab
+        tutor relay --turn <ws> <id>     inside a turn's job: run that turn
+    """
+    if "--entry" in args:
+        sys.stdout.write(relay.scrontab_block())
+        return 0
+    if "--install" in args:
+        if not shutil.which("scrontab"):
+            print("no scrontab on this machine: the relay runs on the cluster",
+                  file=sys.stderr)
+            return 1
+        ok, said = relay.install()
+        print(said or ("scrontab entry installed: a pass every five minutes"
+                       if ok else "scrontab refused the entry"))
+        return 0 if ok else 1
+    if "--status" in args:
+        print(relay.status())
+        return 0
+    if "--turn" in args:
+        rest = args[args.index("--turn") + 1:]
+        if len(rest) < 2:
+            print("tutor relay --turn <workspace root> <request id>",
+                  file=sys.stderr)
+            return 2
+        return relay.run_turn(rest[0], rest[1])
+    if not jobs.has_slurm():
+        print("tutor relay: no Slurm here. The relay runs on the cluster; "
+              "this machine files requests with `board job`.", file=sys.stderr)
+        return 1
+    got = relay.run_pass(pull_vendor=pull_vendor)
+    if "--quiet" not in args or got.get("error"):
+        if got.get("skipped"):
+            print("relay: pass skipped: %s" % got["skipped"])
+        else:
+            print("relay: %d submitted, %d refused, %d ended%s"
+                  % (len(got.get("submitted") or []),
+                     len(got.get("refused") or []),
+                     len(got.get("ended") or []),
+                     ", turn %s started" % got["turn"] if got.get("turn")
+                     else ""))
+        if got.get("error"):
+            print("relay: %s" % got["error"], file=sys.stderr)
+    return 1 if got.get("error") else 0
 
 
 # ---------------------------------------------------------------------------
@@ -7035,6 +7064,9 @@ def main(argv):
 
     if args and args[0] == "where":
         return cmd_where(cfg, args[1:])
+
+    if args and args[0] == "relay":
+        return cmd_relay(cfg, argv[argv.index("relay") + 1:])
 
     # The allocation, rather than anything in it. `serve` is the chain that keeps
     # a machine under the board; `watch` is the loop that keeps the board up on

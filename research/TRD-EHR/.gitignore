@@ -53,3 +53,8 @@ formats/TripodAI.pdf
 # published something about the PHI. `.env.example` carries the KEYS, so a
 # clone knows what to fill in and learns nothing about this machine.
 .env
+
+# THE RELAY'S EXPORTS ARE TRACKED: aggregate artifacts the cluster copied out of
+# results/, each checked against the thread file, its extension and the 5 MB
+# cap. They keep their results/ path under exports/, so no rule above reaches them.
+!exports/**

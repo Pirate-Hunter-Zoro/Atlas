@@ -5,7 +5,7 @@ What the checks are about:
 
   * `board job` SUBMITS AND REGISTERS. The sbatch runs, the id is read, and one
     record lands in the registry, in the place git can see.
-  * THE POLL REPORTS EACH ENDING ONCE. sacct is asked about the jobs still out;
+  * THE POLL REPORTS EACH ENDING ONCE. squeue and the wrapper's exit file say;
     an ending is appended and becomes one `[job]` line in the inbox, which
     wakes a turn the way `[direction]` does.
   * RUNNING IS VISIBLE. The thread says `running` while a job is out, and the
@@ -59,12 +59,12 @@ class Done:
 
 
 class Slurm:
-    """sbatch, scontrol and sacct, answering from a table."""
+    """sbatch, scontrol and squeue, answering from a table."""
 
     def __init__(self):
         self.calls = []
-        self.states = {}           # jobid -> list of (JobID, State, Exit, End)
-        self.sacct_ok = True
+        self.queue = {}            # squeue's %i -> %T, for jobs still held
+        self.squeue_ok = True
         self.next_id = 1000
 
     def __call__(self, argv, **kw):
@@ -76,14 +76,13 @@ class Slurm:
         if name == "scontrol":
             return Done(0, "JobId=%s JobName=sweep UserId=me(1) "
                            "StdOut=logs/sweep-%%j.out WorkDir=/x\n" % argv[-1])
-        if name == "sacct":
-            if not self.sacct_ok:
+        if name == "squeue":
+            if not self.squeue_ok:
                 return Done(1, "", "slurm_load_jobs error")
-            ids = argv[argv.index("-j") + 1].split(",")
-            rows = []
-            for i in ids:
-                rows += ["|".join(r) for r in self.states.get(i, [])]
-            return Done(0, "\n".join(rows) + "\n")
+            return Done(0, "".join("%s|%s\n" % kv
+                                   for kv in sorted(self.queue.items())))
+        if name == "sacct":
+            raise AssertionError("sacct is refused on this cluster")
         raise AssertionError("unexpected command %r" % argv)
 
 
@@ -154,27 +153,35 @@ check("and the payload carries it for the busy strip, titled",
       jobs.running(wholesale)[0]["title"] == "Weighted neighbours"
       and jobs.running(wholesale)[0]["state"] == "PENDING")
 
-# --- polling --------------------------------------------------------------------
-slurm.states["1001"] = [("1001", "RUNNING", "0:0", "Unknown")]
-check("a job still running ends nothing", jobs.poll(wholesale, run=slurm) == [])
+# --- polling: squeue, and the wrapper's exit file ------------------------------
+t0 = rec["submitted"]
+slurm.queue["1001"] = "RUNNING"
+check("a job still running ends nothing",
+      jobs.poll(wholesale, run=slurm, now=t0 + 5) == [])
 check("but the change to RUNNING is appended, once",
       jobs.records(wholesale)["1001"]["state"] == "RUNNING")
 n = len(threads.jobs_of(wholesale))
-jobs.poll(wholesale, run=slurm)
+jobs.poll(wholesale, run=slurm, now=t0 + 6)
 check("and an unchanged state appends nothing", len(threads.jobs_of(wholesale)) == n)
+check("squeue is asked, and sacct never",
+      any(os.path.basename(c[0]) == "squeue" for c in slurm.calls)
+      and not any(os.path.basename(c[0]) == "sacct" for c in slurm.calls))
 
-slurm.sacct_ok = False
-check("sacct that cannot be asked reports nothing and ends nothing",
-      jobs.poll(wholesale, run=slurm) == []
+slurm.squeue_ok = False
+del slurm.queue["1001"]
+check("squeue that cannot be asked reports nothing and ends nothing",
+      jobs.poll(wholesale, run=slurm, now=t0 + 600) == []
       and jobs.records(wholesale)["1001"]["state"] == "RUNNING")
-slurm.sacct_ok = True
+slurm.squeue_ok = True
+check("a raw job gone from squeue within the grace is waited on",
+      jobs.poll(wholesale, run=slurm, now=t0 + jobs.GRACE / 2) == [])
 
-slurm.states["1001"] = [("1001", "COMPLETED", "0:0", "2026-10-01T10:00:00")]
-ended = jobs.report(wholesale, run=slurm)
-check("a terminal state is reported", len(ended) == 1
-      and ended[0]["state"] == "COMPLETED" and ended[0]["exit"] == "0:0")
+ended = jobs.report(wholesale, run=slurm, now=t0 + 600)
+check("a raw sbatch gone from squeue is ENDED, exit unknown",
+      len(ended) == 1 and ended[0]["state"] == "ENDED"
+      and ended[0]["exit"] == "")
 check("and a second pass does not report it again",
-      jobs.report(wholesale, run=slurm) == [])
+      jobs.report(wholesale, run=slurm, now=t0 + 700) == [])
 threads._cache.clear()
 check("its thread is no longer running",
       threads.stages(wholesale)["knn"]["status"] == "open"
@@ -190,54 +197,98 @@ said = lines[0]["text"]
 check("it names the thread, the job, the exit and what it was to produce",
       "knn (Weighted neighbours)" in said and "1001" in said
       and "MISSING results/knn.csv" in said and "board thread" in said)
-check("and a clean ending asks for no log", "did NOT end cleanly" not in said)
+check("and says how a raw job ended is unknown, without calling it a failure",
+      "unknown" in said and "did NOT end cleanly" not in said)
 
-# A failure, an array, and a job Slurm never heard of.
-rec, _ = jobs.submit(wholesale, "tripod", ["sbatch", "a.sbatch"], run=slurm,
-                     cwd=wholesale)
-slurm.states[rec["jobid"]] = [(rec["jobid"], "FAILED", "1:0", "2026-10-01T11:00:00")]
+# --- a wrapped recipe writes its exit code as its last act ---------------------
+write(os.path.join(wholesale, "slurm", "a.sbatch"),
+      "#!/bin/bash\n#SBATCH --time=00:05:00\n#SBATCH -o logs/a-%j.out\n"
+      "#RELAY-VAR N [0-9]\n\nset -e\necho RELAY: n=$N\nexit $N\n")
+rec, why = jobs.submit_recipe(wholesale, "tripod", "slurm/a.sbatch",
+                              env={"N": "3"}, run=slurm, now=time.time())
+script = os.path.join(wholesale, "relay", "state", rec["key"] + ".sbatch")
+with open(script, encoding="utf-8") as fh:
+    body = fh.read()
+sent = [c for c in slurm.calls if os.path.basename(c[0]) == "sbatch"][-1]
+check("a recipe is submitted as a wrapper under relay/state/, its header kept",
+      os.path.isfile(script) and "#SBATCH --time=00:05:00" in body
+      and "#SBATCH -o logs/a-%j.out" in body and "--job-name=a" in body
+      and sent[-1] == script and "--export=ALL,N=3" in sent)
+check("registered under the recipe's name, with its exit file named",
+      rec["cmd"] == "slurm/a.sbatch N=3"
+      and rec["exitfile"] == "relay/state/%s.exit" % rec["key"])
+check("and a raw sbatch gets no wrapper", "exitfile" not in
+      jobs.records(wholesale)["1001"])
+ran = subprocess.run(["bash", script], cwd=wholesale, env=dict(os.environ, N="3"),
+                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+check("the wrapper runs the recipe and exits with its code",
+      ran.returncode == 3 and b"RELAY: n=3" in ran.stdout)
+slurm.queue[rec["jobid"]] = "RUNNING"
+check("the exit file alone does not end a job squeue still holds",
+      jobs.poll(wholesale, run=slurm) == [])
+del slurm.queue[rec["jobid"]]
 ended = jobs.poll(wholesale, run=slurm)
 text = jobs.sense(wholesale, ended[0])
+check("gone from squeue with exit 3 written: FAILED, 3:0, no grace needed",
+      ended[0]["state"] == "FAILED" and ended[0]["exit"] == "3:0")
 check("a failed job is reported with its log named and the tail asked for",
-      ended[0]["state"] == "FAILED" and "did NOT end cleanly" in text
-      and "logs/sweep-%s.out" % rec["jobid"] in text and "last 40 lines" in text)
+      "did NOT end cleanly" in text and "last 40 lines" in text)
 check("and the log is named, never copied into the inbox",
-      "Traceback" not in text)
+      "RELAY: n=3" not in text)
 
-rec, _ = jobs.submit(wholesale, "tripod", ["sbatch", "--array=1-2", "a.sbatch"],
-                     run=slurm, cwd=wholesale)
-jid = rec["jobid"]
-slurm.states[jid] = [(jid + "_1", "COMPLETED", "0:0", "2026-10-01T11:00:00"),
-                     (jid + "_2", "RUNNING", "0:0", "Unknown")]
-check("an array with one task still running has not ended",
-      jobs.poll(wholesale, run=slurm) == [])
-slurm.states[jid] = [(jid + "_1", "COMPLETED", "0:0", "2026-10-01T11:00:00"),
-                     (jid + "_2", "TIMEOUT", "0:0", "2026-10-01T12:00:00")]
-ended = jobs.poll(wholesale, run=slurm)
-check("and once every task has, it ended the worst way any of them did",
-      len(ended) == 1 and ended[0]["state"] == "TIMEOUT"
-      and ended[0]["ended"] == "2026-10-01T12:00:00")
-
-rec, _ = jobs.submit(wholesale, "tripod", ["sbatch", "b.sbatch"], run=slurm,
-                     cwd=wholesale, now=time.time() - 3600)
-check("a job sacct has never heard of, an hour on, is LOST and reported",
-      [e["state"] for e in jobs.poll(wholesale, run=slurm)] == ["LOST"])
-rec, _ = jobs.submit(wholesale, "tripod", ["sbatch", "c.sbatch"], run=slurm,
-                     cwd=wholesale)
+rec, _ = jobs.submit_recipe(wholesale, "tripod", "slurm/a.sbatch",
+                            env={"N": "0"}, run=slurm, now=time.time() - 3600)
+check("a wrapped job gone from squeue without its exit file DIED",
+      [(e["state"], e["exit"]) for e in jobs.poll(wholesale, run=slurm)]
+      == [("DIED", "")])
+check("and its [job] line says a time limit, a node failure or a cancel",
+      "time limit" in jobs.sense(wholesale, dict(rec, state="DIED")))
+rec, _ = jobs.submit_recipe(wholesale, "tripod", "slurm/a.sbatch",
+                            env={"N": "0"}, run=slurm)
 check("but a minute on it is still out",
       jobs.poll(wholesale, run=slurm) == []
       and any(j["jobid"] == rec["jobid"] for j in jobs.running(wholesale)))
+write(os.path.join(wholesale, rec["exitfile"]), "0\n")
+check("and once its file says 0 it COMPLETED",
+      [(e["state"], e["exit"]) for e in jobs.poll(wholesale, run=slurm)]
+      == [("COMPLETED", "0:0")])
+
+# An array writes one exit file per task, and ends the worst way any did.
+rec, _ = jobs.submit_recipe(wholesale, "tripod", "slurm/a.sbatch",
+                            env={"N": "0"}, run=slurm)
+stem = os.path.join(wholesale, rec["exitfile"])[:-len(".exit")]
+write(stem + "_1.exit", "0\n")
+slurm.queue[rec["jobid"] + "_2"] = "RUNNING"
+check("an array with one task still in squeue has not ended",
+      jobs.poll(wholesale, run=slurm) == [])
+del slurm.queue[rec["jobid"] + "_2"]
+write(stem + "_2.exit", "137\n")
+ended = jobs.poll(wholesale, run=slurm)
+check("and once every task has left, it ended the worst way any of them did",
+      len(ended) == 1 and ended[0]["state"] == "FAILED"
+      and ended[0]["exit"] == "137:0")
+env_task = dict(os.environ, N="0", SLURM_ARRAY_TASK_ID="4")
+subprocess.run(["bash", os.path.join(wholesale, "relay", "state",
+                                     rec["key"] + ".sbatch")],
+               cwd=wholesale, env=env_task, stdout=subprocess.DEVNULL)
+check("a task's wrapper writes <key>_<task>.exit",
+      open(stem + "_4.exit").read().strip() == "0")
+check("relay/state/ is the relay's, and the root .gitignore keeps it out",
+      "relay/state/" in open(os.path.join(REPO, ".gitignore")).read())
 
 # --- an ending is never lost, and a record publishes nothing private -----------
 spare = workspace(base, "spare", "live/\n")
 s2 = Slurm()
-xrec, _ = jobs.submit(spare, "knn", ["sbatch", "--export=ALL,DATA=/phi/x", "--export",
-                                    "OUT=/phi/y", "e.sbatch"], cwd=spare, run=s2)
+xrec, _ = jobs.submit(spare, "knn", ["sbatch", "--export=ALL,DATA=/secret/x",
+                                    "--export", "OUT=/secret/y", "e.sbatch"],
+                      cwd=spare, run=s2)
 check("an --export value is kept out of the registry, its name kept",
-      "/phi" not in xrec["cmd"] and "DATA=..." in xrec["cmd"]
+      "/secret" not in xrec["cmd"] and "DATA=..." in xrec["cmd"]
       and "OUT=..." in xrec["cmd"])
 check("a log outside the workspace is stored by its name alone",
       jobs._relative(spare, "/elsewhere/logs/a.out") == "a.out")
+check("and its real path only in a registry the relay keeps ignored",
+      "log_path" not in xrec)
 
 
 class Split(Slurm):
@@ -251,17 +302,15 @@ class Split(Slurm):
 
 s3 = Split()
 arec, _ = jobs.submit(spare, "knn", ["sbatch", "--array=1-3", "r.sbatch"],
-                     cwd=spare, run=s3)
+                      cwd=spare, run=s3, now=time.time() - 3600)
 jid = arec["jobid"]
 check("a separate stderr file is registered beside the log, %a as a glob",
       arec["err"] == "logs/run_%s_*_err.txt" % jid
       and arec["log"] == "logs/run_%s_*.out" % jid)
-s3.states[jid] = [(jid + "_1", "PENDING", "0:0", "Unknown"),
-                  (jid + "_2", "CANCELLED+", "0:0", "x")]
-check("a pending task beside a CANCELLED+ one has not ended",
+s3.queue[jid + "_[2-3]"] = "PENDING"
+check("a pending task holds the array open",
       jobs.poll(spare, run=s3) == [])
-s3.states[jid] = [(jid + "_1", "FAILED", "1:0", "y"),
-                  (jid + "_2", "CANCELLED+", "0:0", "x")]
+del s3.queue[jid + "_[2-3]"]
 _drop = jobs.drop
 jobs.drop = lambda *a, **k: (_ for _ in ()).throw(OSError("inbox full"))
 check("an ending whose inbox line cannot be written is not reported",
@@ -271,50 +320,23 @@ threads._cache.clear()
 check("but the job reads ended, not running",
       all(j["jobid"] != jid for j in jobs.running(spare)))
 again = jobs.report(spare, run=s3)
-check("and the next pass reports it, pointing at the errors file",
+check("and the next pass reports it, pointing at the log as a glob",
       [e["jobid"] for e in again] == [jid]
-      and "errors file" in jobs.sense(spare, again[0])
       and "glob it" in jobs.sense(spare, again[0]))
 check("once", jobs.report(spare, run=s3) == [])
 
-# --- the daemon's pass ------------------------------------------------------------
+# --- the poll is the relay's now ---------------------------------------------------
 _loader = importlib.machinery.SourceFileLoader("tutorcli_jobs", TUTOR)
 _spec = importlib.util.spec_from_loader("tutorcli_jobs", _loader)
 tutorcli = importlib.util.module_from_spec(_spec)
 _loader.exec_module(tutorcli)
-
-slurm.states[rec["jobid"]] = [(rec["jobid"], "CANCELLED by 1", "0:15", "x")]
-
-
-class Log:
-    def __init__(self):
-        self.said = []
-
-    def write(self, s):
-        self.said.append(s)
-
-
-log = Log()
-got = tutorcli.job_pass(wholesale, log, run=slurm)
-check("the daemon's pass reports the ending and says so in its log",
-      [g["state"] for g in got] == ["CANCELLED"]
-      and any("[job] line is in the inbox" in s for s in log.said))
-
-
-def broken(*a, **k):
-    raise RuntimeError("the filer went away")
-
-
-jobs.submit(wholesale, "tripod", ["sbatch", "d.sbatch"], run=slurm,
-            cwd=wholesale)
-log = Log()
-check("and a pass that throws is logged, not raised",
-      tutorcli.job_pass(wholesale, log, run=broken) == []
-      and any("job poll failed" in s for s in log.said))
 check("the inbox line wakes a turn signalled `job`, the way [direction] does",
       tutorcli.turn_signal("[2026-10-01 10:00:00] " + said) == "job")
-check("the daemon runs the pass on a beat of its own",
-      "beat_jobs" in open(TUTOR, encoding="utf-8").read())
+source = open(TUTOR, encoding="utf-8").read()
+check("the board daemon no longer polls jobs; the relay's pass does",
+      "beat_jobs" not in source and "def job_pass" not in source
+      and "jobs.report(ws" in open(os.path.join(ROOT, "tutorboard", "relay.py"),
+                                   encoding="utf-8").read())
 
 # --- the command ------------------------------------------------------------------
 bin_dir = os.path.join(base, "bin")

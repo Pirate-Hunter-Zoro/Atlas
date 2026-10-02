@@ -2706,7 +2706,8 @@ def cmd_job(live, args):
     thread (`board thread export`). `<thread>` may be left out where the
     sitting open now is on a thread.
 
-    ON A MACHINE WITH SLURM it submits through `sbatch --export=ALL,...` and
+    ON A MACHINE WITH SLURM it submits the recipe wrapped so its exit code is
+    written to `relay/state/` (`jobs.submit_recipe`, `--export=ALL,...`), and
     appends the job to this workspace's registry. While it is out its thread
     says `running`; when it ends, a `[job]` line wakes a turn that reports it.
 
@@ -2807,13 +2808,10 @@ def cmd_job(live, args):
             print("  " + line, file=sys.stderr)
         return 1
     if slurm:
-        sent = ["sbatch"]
-        if env:
-            sent.append("--export=ALL," + ",".join(
-                "%s=%s" % (k, env[k]) for k in sorted(env)))
-        sent.append(recipe)
-        return _job_submitted(root, tid, jobs.submit(
-            root, tid, sent, produces=produces, export=export, cwd=root))
+        # Wrapped, so its exit code is written where the relay's poll reads
+        # it: sacct is refused on this cluster.
+        return _job_submitted(root, tid, jobs.submit_recipe(
+            root, tid, recipe, env=env, produces=produces, export=export))
     return _request_filed(root, ok)
 
 
