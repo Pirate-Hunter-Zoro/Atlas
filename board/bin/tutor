@@ -388,6 +388,14 @@ DEFAULT_CONFIG = {
             # rather than summing -- see `read_codex_usage`.
             "usage": "codex-jsonl",
             "usage_args": ["--json"],
+            # ITS OWN HOST, like deepseek's above: a Codex turn opens nothing on
+            # api.anthropic.com, so without this the machine-wide probe never
+            # asks after the one host a Codex turn needs, and a filter on it is
+            # read as a healthy network. Logged in with a ChatGPT plan (the Mac's
+            # `auth_mode` is `chatgpt`), a turn goes to the ChatGPT backend, not
+            # api.openai.com -- measured from `~/.codex/logs_2.sqlite`. An
+            # unauthenticated POST there answers 405, which `egress_ok` counts.
+            "egress_probe": ["https://chatgpt.com/backend-api/codex/responses"],
             # AND NO MODEL PINNED, DELIBERATELY, which is the opposite of the
             # decision taken for deepseek one entry up. There the endpoint maps
             # an unrecognised name onto a text-only model that quietly discards

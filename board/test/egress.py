@@ -355,6 +355,9 @@ tutor.missing_command = lambda cmd: None
 check("the providers this machine can run add their own endpoints",
       tutor.provider_probe_urls(CFG)
       == ["https://api.deepseek.test/anthropic/v1/messages"])
+check("Codex names its own host, so a filter on it is asked after",
+      tutor.agent_probe_urls(tutor.DEFAULT_CONFIG["agents"]["codex"])
+      == ["https://chatgpt.com/backend-api/codex/responses"])
 _keys.unkeyed = lambda spec: "A_KEY"
 check("and one whose key is not here adds none",
       tutor.provider_probe_urls(CFG) == [])

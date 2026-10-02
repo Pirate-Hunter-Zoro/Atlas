@@ -2707,7 +2707,8 @@ keyed there from `~/.config/tutor-board/keys.env` and answers turns on `deepseek
 machine-wide egress probe asks after every configured provider**: `egress.egress_probe_urls(also)`
 appends each `egress_probe` of a recipe whose command is here and whose key is in the store
 (`provider_probe_urls` in `bin/tutor`) after the default's, so a filter on one provider's hostname
-is never read as a machine with no way out. **A cluster `turn` is Claude, always, under the PHI
+is never read as a machine with no way out. DeepSeek names `api.deepseek.com`, and Codex,
+logged in with a ChatGPT plan, names `chatgpt.com/backend-api/codex/responses`. **A cluster `turn` is Claude, always, under the PHI
 guard**: `relay.run_turn` runs `claude -p` with the routing variables scrubbed and never reads a
 workspace's `agent`, so a `tutorboard.json` naming DeepSeek for every kind changes nothing there.
 Colibri stays the only model that reads PHI, and it runs only on the cluster. `test/relay.py`.
