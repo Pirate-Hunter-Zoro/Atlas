@@ -234,7 +234,58 @@ function gesture(target, name) {
     ? ok('with the pen on, a finger scrolls and a palm or a hand beside the Pencil moves nothing')
     : fail('palm rejection on a document: finger ' + nib.defaultPrevented + ', palm '
            + hand.defaultPrevented + ', beside the Pencil ' + beside.defaultPrevented);
+
+  /* The latch refuses a pan on the whole panel (`body.pen-writing
+     .paper-pages.zoomable`), its bare strips too, so a finger landing on one
+     of those is scrolled by hand like a finger on an ink layer. */
+  {
+    const sheet = doc.createElement('style');
+    sheet.textContent = '#paper-pages { overflow-y: auto; }';
+    doc.head.appendChild(sheet);
+    Object.defineProperty(pages, 'scrollHeight', { configurable: true, value: 5000 });
+    Object.defineProperty(pages, 'clientHeight', { configurable: true, value: 700 });
+    pages.scrollTop = 100;
+    doc.body.classList.add('pen-writing');
+    const tp = (name, target, y) => {
+      const ev = new window.Event(name, { bubbles: true, cancelable: true });
+      const t = { identifier: 3, clientX: 400, clientY: y, touchType: 'direct', radiusX: 10 };
+      Object.defineProperty(ev, 'touches', { value: name === 'touchend' ? [] : [t] });
+      Object.defineProperty(ev, 'changedTouches', { value: [t] });
+      target.dispatchEvent(ev);
+    };
+    tp('touchstart', pages, 400);
+    tp('touchmove', pages, 380);
+    tp('touchmove', pages, 340);
+    tp('touchend', pages, 340);
+    const moved = pages.scrollTop;
+    doc.body.classList.remove('pen-writing');
+    delete pages.scrollHeight; delete pages.clientHeight;
+    pages.scrollTop = 0;
+    sheet.remove();
+    moved === 160
+      ? ok('a finger on the panel between the pages, with the latch shut, still scrolls it')
+      : fail('a finger on the bare panel with the latch shut does not scroll: scrollTop '
+             + moved + ', not 160');
+  }
   A.setOn(false);
+
+  /* A pinch whose lift never came is not left standing: a cancel ends it,
+     and so does a finger landing on its own. */
+  {
+    touch(pages, 'touchstart', [[100, 300], [200, 300]]);
+    touch(pages, 'touchcancel', [[100, 300], [200, 300]]);
+    const after = touch(pages, 'touchstart', [[100, 300]]);
+    touch(pages, 'touchend', []);
+    touch(pages, 'touchstart', [[100, 300], [200, 300]]);
+    const lone = touch(pages, 'touchstart', [[100, 300]]);
+    const loneMove = touch(pages, 'touchmove', [[100, 200]]);
+    touch(pages, 'touchend', []);
+    !after.defaultPrevented && !lone.defaultPrevented && !loneMove.defaultPrevented
+      && !pages.classList.contains('pinching')
+      ? ok('a cancelled or orphaned pinch ends, and the next finger scrolls')
+      : fail('a pinch outlived its fingers: after cancel ' + after.defaultPrevented
+             + ', lone ' + lone.defaultPrevented + ', move ' + loneMove.defaultPrevented);
+  }
 
   chip.click();
   zoom() === '1' && chip.hidden

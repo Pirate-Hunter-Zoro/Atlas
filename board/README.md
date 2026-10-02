@@ -1215,11 +1215,14 @@ is wrong even when every suite is green.
   pages out at `--zoom`. It cancels the touchstart that makes two fingers and any touch joining
   a live pinch, cancels touchmoves through a non-passive listener that exists only while the
   pinch lasts, and refuses `gesturestart`/`gesturechange`/`gestureend`; otherwise iOS takes the
-  gesture. One finger scrolls natively and the palm rules in `annotate.js` stand.
+  gesture. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends it. One
+  finger scrolls natively and the palm rules in `annotate.js` stand. The latch refuses a pan on
+  the whole scroller, so `annotate.js`'s `onLayer` names `#reader-pages` and `#paper-pages`
+  beside the ink layers, or a finger on a bare strip with the latch shut scrolls nothing.
 - **Annotations never distort or drift through a zoom.** Ink lives in the page picture's own
   coordinates and scales with it uniformly: same place on the words at every zoom, identical
-  after zooming in and back out, drawn under the nib while zoomed, and reloaded in place at any
-  other zoom. `test/inkzoom.js` holds every reader to this within 1 px.
+  after zooming in and back out, drawn or moved with the lasso under the nib while zoomed, and
+  reloaded in place at any other zoom. `test/inkzoom.js` holds every reader to this within 1 px.
 - **They are z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
   95, so on the map the way back was painted over by the thing you were lost in. Raised only
   there: everywhere else 62 is right, over the lesson and under the menu. **`#redirect` is 97

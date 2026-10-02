@@ -150,6 +150,9 @@ function make(opts) {
 
   el.addEventListener("touchstart", function (ev) {
     var f = fingers(ev);
+    /* A pinch whose fingers are all gone without a lift reaching here is
+       committed now, so a finger landing on its own scrolls. */
+    if (pinch && ev.touches.length < 2) end();
     if (pinch) {
       /* Anything landing on a live pinch is the pinch's: a third finger, a
          palm. The Pencil ends it, and is still refused to the browser. */
@@ -177,7 +180,9 @@ function make(opts) {
 
   function done(ev) { if (pinch && fingers(ev).length < 2) end(); }
   el.addEventListener("touchend", done);
-  el.addEventListener("touchcancel", done);
+  /* A cancel is the system taking the gesture: the pinch ends with it,
+     whatever the event says is still on the glass. */
+  el.addEventListener("touchcancel", function () { if (pinch) end(); });
 
   /* Safari's own pinch, refused while a document is open: two zooms at once is
      the page scaling under a reader that is also re-laying it out. */

@@ -341,6 +341,48 @@ module.exports = async function inkFollowsZoom(w, t) {
       ? ok(say('ink saved at 250% and reloaded at 75% comes back within a pixel of its words'))
       : fail(say('a reload at another zoom moved the ink: ' + show(seen(f1, RING)) + ' / '
                  + show(seen(f1, LINE))));
+
+    // 3b. INK MOVED WITH THE LASSO WHILE ZOOMED AND SCROLLED lands where the
+    //     hand put it, and stays there at every other zoom and after a reload.
+    const MOVE = '#6c8ee8';
+    await pinchTo(2, 300, 450);
+    scroll.left = 400;
+    A.setPen(MOVE, 2.2);
+    const tick = [];
+    for (let i = 0; i <= 10; i++) tick.push([0.6 + 0.08 * i / 10, 0.3 + 0.02 * i / 10]);
+    await drawOn(f1, tick);
+    const drawn = seen(f1, MOVE);
+    A.setTool('lasso');
+    await drawOn(f1, [[0.57, 0.27], [0.71, 0.27], [0.71, 0.35], [0.57, 0.35], [0.57, 0.27]]);
+    const caught = A.picked() === 1;
+    /* Dragged 0.05 of the picture right and 0.04 down, by the nib. */
+    await drawOn(f1, [[0.64, 0.31], [0.66, 0.33], [0.69, 0.35]]);
+    A.deselect();
+    A.setTool('pen');
+    const moved = seen(f1, MOVE);
+    const want = drawn && { x0: drawn.x0 + 0.05, x1: drawn.x1 + 0.05,
+                            y0: drawn.y0 + 0.04, y1: drawn.y1 + 0.04 };
+    caught && moved && offPx(moved, want) <= 1
+      ? ok(say('ink lassoed and moved at 200%, scrolled sideways, lands under the nib'))
+      : fail(say('the lasso at 200% put the ink ' + offPx(moved, want).toFixed(2)
+                 + ' px from the nib (picked ' + A.picked() + '): ' + show(moved)));
+    scroll.left = 0;
+    for (const [z, cx, cy] of [[0.5, 850, 600], [3, 200, 300], [1, 700, 500]]) {
+      await pinchTo(z, cx, cy);
+      const got = seen(f1, MOVE);
+      same(got, moved) && samePx(got, moved)
+        ? ok(say('at ' + Math.round(z * 100) + '% the moved ink is within a pixel of where it was put'))
+        : fail(say('moved ink drifted ' + offPx(got, moved).toFixed(2) + ' px at ' + z
+                   + ': ' + show(got)));
+    }
+    const kept = JSON.parse(JSON.stringify(A.payload(K1, false).strokes));
+    await pinchTo(1.5, 450, 350);
+    A.drop(K1);
+    A.load({ [K1]: kept });
+    A.redrawAll();
+    samePx(seen(f1, MOVE), moved) && samePx(seen(f1, RING), at1)
+      ? ok(say('and reloaded at 150% it is still where it was put'))
+      : fail(say('moved ink reloaded off its place: ' + show(seen(f1, MOVE))));
     await pinchTo(1);
 
     // 4. INK ALREADY ON DISK, saved against the figure -- picture and caption
