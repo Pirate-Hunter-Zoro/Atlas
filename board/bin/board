@@ -61,6 +61,10 @@ The assistant runs these. The student never does.
     board ask-cluster <thread> "<brief>"
                                        file a `turn` request: a cluster turn
                                        beside the data, its note public
+    board colibri <thread> "<task>"    queue a Colibri task: on the cluster it
+                                       starts a generation if none is up; on
+                                       the Mac it files a `colibri` request.
+                                       --show lists the queue
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
@@ -2934,6 +2938,75 @@ def cmd_ask_cluster(live, args):
     return _request_filed(root, ok)
 
 
+def cmd_colibri(live, args):
+    """Queue a task for Colibri, the local model that may read PHI.
+
+        board colibri [<thread>] "<task>"
+        board colibri --show            the queue, oldest first (on the cluster)
+
+    ON THE CLUSTER it writes the task into the queue -- libr-local-llm's
+    ignored `live/missions/` -- and starts an on-demand generation if none is
+    queued or running. The generation loads (about 68 minutes cold), works the
+    queue one task at a time in the workspace each task names, and exits once
+    the queue has been empty for 20 minutes. A generation that dies is replaced
+    by its clone, which resumes the task by name; three deaths fail it.
+
+    ON THE MAC it files a `colibri` relay request instead, committed and pushed
+    like `board job`'s. The workspace opts in with `relay.colibri: true` in its
+    tutorboard.json.
+
+    Colibri's output never leaves the machine directly. A hosted follow-up turn
+    reviews the diff and ships it with `board push`, which runs the PHI check,
+    and a relay report carries only state and that turn's public note.
+    """
+    from tutorboard import colibri, missions
+    root = live.root
+    words = list(args)
+    if words[:1] == ["--show"]:
+        q = colibri.queue_root()
+        recs = missions.tasks(q) if q else []
+        if not recs:
+            print("the Colibri queue is empty.")
+            return 0
+        for r in recs:
+            print("%-26s %-9s %-24s %-22s attempts %d, deaths %d" % (
+                r.get("id"), r.get("queue"), r.get("workspace"),
+                r.get("thread"), int(r.get("attempts") or 0),
+                int(r.get("deaths") or 0)))
+        return 0
+    if not words or not words[-1].strip():
+        print("board colibri: say what the task is", file=sys.stderr)
+        return 1
+    brief = words[-1].strip()
+    tid, clean = _job_thread(live, words[:-1], "board colibri")
+    if not tid:
+        return 1
+    if len(brief) > jobs.MAX_BRIEF:
+        print("board colibri: the task is %d characters and the cap is %d"
+              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
+        return 1
+    if jobs.has_slurm():
+        rec, said = colibri.file(tid, brief, root)
+        if rec is None:
+            print("board colibri: %s. Nothing was queued." % said,
+                  file=sys.stderr)
+            return 1
+        print("task %s for `%s`: %s. `board colibri --show` lists the queue."
+              % (rec["id"], tid, said))
+        return 0
+    taken = set(r["id"] for r in jobs.requests(root))
+    req = {"id": jobs.new_id(tid, "colibri", taken), "kind": "colibri",
+           "thread": tid, "brief": brief, "filed": round(time.time(), 3)}
+    ok, problems = jobs.check(root, req)
+    if problems:
+        print("board colibri: %d problem(s), and nothing was filed:"
+              % len(problems), file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
+    return _request_filed(root, ok)
+
+
 def inside_a_daemon_turn(live):
     """Is a headless turn in flight on this machine right now?
 
@@ -4182,6 +4255,7 @@ COMMANDS = {
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,
     "thread": cmd_thread, "job": cmd_job, "ask-cluster": cmd_ask_cluster,
+    "colibri": cmd_colibri,
     "notes": cmd_notes, "make": cmd_make,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
     "round": cmd_round,

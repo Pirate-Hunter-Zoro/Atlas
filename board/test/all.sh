@@ -422,6 +422,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# Colibri on demand: one generation per queue, a clone that resumes a task a
+# death interrupted, three deaths and it fails, against a fake Slurm.
+printf '%-12s ' "ondemand"
+if out="$(python3 test/ondemand.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

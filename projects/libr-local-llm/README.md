@@ -545,7 +545,8 @@ cannot leave the building; use §4a for everything else.
 | Command | Does |
 | --- | --- |
 | `coli-build [clean]` | Compiles the engine with `ARCH=native CUDA=1 CUDA_ARCH=sm_86`. |
-| `coli-up [-t hours] [-c cpus] [-M gb] [--once]` | Starts the **chain**, waits for the engine to load, then **warms it with one real generation** and only then reports success. `--once` submits a single generation that ends at its walltime. |
+| `coli-up [-t hours] [-c cpus] [-M gb] [--warm\|--once] [--detach]` | Starts one **on-demand** generation, waits for the engine to load, then **warms it with one real generation** and only then reports success. `--warm` starts the chain instead; `--once` a single generation that ends at its walltime; `--detach` submits and returns at once. |
+| `board colibri <thread> "<task>"` | Queues a task and starts a generation if none is queued or running. `board colibri --show` lists the queue. |
 | `coli-code [-d dir] [-a claude\|opencode] [--yes] [message…]` | Opens a coding agent in any directory, pointed at the served model. No message → the TUI; a message → one shot. |
 | `coli-ask [-f file] [-n tokens] [--think] "question"` | One question, no agent, no tools, no preamble. |
 | `coli-down` | Ends the chain: writes the stop flag, **then** cancels every generation. It holds most of a node — run it. |
@@ -572,7 +573,34 @@ loading, costing nothing, and `COLIBRI-SERVE READY` carries the prompt-token cou
 count and the seconds — not a rate, because that clock is mostly the load and a tok/s computed from
 it would look like a benchmark and not be one. `--no-warm` skips the wait and says what it skipped.
 
-### The chain: the server is always up, and it moves node rather than going away
+### On demand: the default
+
+**Colibri runs while it has a task and stops when it has none.** `board colibri <thread>
+"<task>"` on the cluster, or a relay `colibri` request from the Mac, writes a task into this
+workspace's ignored `live/missions/` and runs `coli-up --detach` if no generation is queued or
+running. The generation loads (68 minutes cold), works the queue one task at a time through
+`coli-code` in the workspace each task names, and exits cleanly once the queue has been empty for
+`COLI_IDLE_MIN` (20) minutes. `board/README.md`, *Colibri runs on demand*, has the rules.
+
+- **Each generation submits its own clone at start**: `coli_submit_clone`, which is
+  `--dependency=afternotok:<self> --kill-on-invalid-dep=yes`. A death — timeout, node failure, out
+  of memory — releases it. A clean exit makes the dependency unmeetable and Slurm drops it. The
+  clone does the same in turn, so a death costs one cold load and no work. `COLI_LINEAGE` counts
+  deaths in a row, and the sixth generation of one stops cloning.
+- **A task a death interrupted is resumed by the clone**, by name: `COLI_SESSION_ID` is minted
+  when the task is filed, and every attempt after the first passes `-c`. The third death on one
+  task fails it, and it is not retried.
+- **A clean exit is told from a death without `sacct`.** The job's last act writes its exit code to
+  `slurm_jobs/state/gen-<job>.exit` (`coli_mark_exit`). Left `squeue` with 0 there: on purpose.
+  Left without it: died.
+- **What comes back is public only through a hosted turn.** The worker sends the client's output
+  nowhere and prints ids and states to the job log. A finished task waits for the relay's hosted
+  review turn, which reads the diff, ships it with `board push` (`names_phi` runs there) and
+  writes the public note a relay report carries.
+- **A sitting that wants Colibri live uses `coli-up --warm`**, the chain below. The board's start
+  button does.
+
+### The chain: `coli-up --warm`, the server always up, moving node rather than going away
 
 `c3_short` caps a job at nine hours and `c3` is refused on measurement — a `c3_short` job at
 `PriorityTier=20` `SIGSTOP`s a `c3` job on the same node, four seconds after submission, with no

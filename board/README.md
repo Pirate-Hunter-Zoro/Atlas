@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 113 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 114 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -773,8 +773,9 @@ ask-cluster` files a `turn` request the same way.
 context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
 thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEAD, a variable its
 header does not declare or a value its pattern does not fully match (a comma, `=` or newline
-never passes), a `results/` export not marked aggregate on the thread, and a `turn` where
-`tutorboard.json` lacks `relay.turns: true`. A recipe declares each variable in its header as
+never passes), a `results/` export not marked aggregate on the thread, a `turn` where
+`tutorboard.json` lacks `relay.turns: true`, and a `colibri` task where it lacks
+`relay.colibri: true`. A recipe declares each variable in its header as
 `#RELAY-VAR NAME PATTERN`; `ALL`, `NONE`, `PATH`, `LD_PRELOAD` and the like are never accepted.
 The Mac refuses before it commits; the cluster calls it again with `mine=True` before it runs.
 
@@ -809,6 +810,46 @@ the busy strip says *running — (thread title): job N*, with *pending* while it
 job's own clock, off the payload's `jobs` (`jobs.running`). A mission dispatched with a `thread`
 (`POST /elsewhere`, refused where that workspace has no such thread) carries it in its record,
 and while the mission is live its thread says `running` too.
+
+### Colibri runs on demand
+
+**Colibri is not kept warm. It runs while it has a task and stops when it has none.**
+`tutorboard/colibri.py` drives it; `test/ondemand.py` is the suite, against a fake `sbatch` and
+`squeue`.
+
+```
+board colibri <thread> "<task>"     cluster: queue it; Mac: file a `colibri` relay request
+board colibri --show                the queue, oldest first
+```
+
+- **The queue is mission records** with `kind: "task"` in libr-local-llm's ignored
+  `live/missions/` (`missions.file_task`), because a task may name session content. A task
+  carries its thread, `brief`, `workspace`, `queue` state, `attempts`, `deaths` and the `session`
+  uuid `coli-code` resumes by. No board rule carries, freezes or briefs it as a mission.
+- **Filing starts a generation if none is queued or running** (`colibri.file`, under
+  `flock` on `slurm_jobs/state/queue.lock`), through `coli-up --detach`. A clone standing by on
+  a dependency, and a generation that has written `closing-<job>`, do not count. Where `squeue`
+  cannot be asked, nothing is started.
+- **The generation works the queue** (`python3 -m tutorboard.colibri work`, from
+  `colibri_serve.sbatch`): it waits for `COLIBRI-SERVE READY`, takes the oldest task, runs it
+  through `coli-code -d <workspace> --yes` with `COLI_SESSION_ID` and `COLI_JOB`, and exits 0
+  once the queue has been empty for `COLI_IDLE_MIN` (20) minutes. The client's output goes
+  nowhere; the job log gets ids and states only.
+- **Each generation submits its own clone at start**, `--dependency=afternotok:<self>
+  --kill-on-invalid-dep=yes`. A death releases it; a clean exit lets Slurm drop it.
+  `COLI_LINEAGE` counts deaths in a row and stops cloning at 6.
+- **An end is read off `slurm_jobs/state/gen-<job>.exit`**, the job's last act, because `sacct`
+  is refused. A running task whose generation left `squeue` with 0 there is requeued free; without
+  it, it is a death, resumed with `-c` on the same session. The third death fails it for good.
+- **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), for a sitting that wants Colibri live;
+  the board's start button uses it. Its handover writes 0 for the incumbent before cancelling it.
+- **The relay hook.** A `colibri` request (`id`, `kind`, `thread`, `brief`, `filed`) needs
+  `relay.colibri: true` in that workspace's `tutorboard.json`. The relay files it with
+  `colibri.relay_file(root, req)` and, every pass, writes what `colibri.relay_pass(review)` returns:
+  `(workspace root, report)` per request-filed task. `review(root, turn_request)` is the relay's
+  headless Claude turn; it reviews the diff, ships it with `board push` (which runs `names_phi`),
+  and returns a public note. One review per pass. A report carries state, task id, attempts,
+  deaths, job id and that note — never the brief.
 
 ### The meeting deck
 

@@ -96,9 +96,18 @@ COLI_NOTHING_YET=76
 # stale the moment a job ends, squeue never does. Under a chain there can be two
 # generations running at once for an hour, so this asks which one can ANSWER
 # rather than taking whichever Slurm listed first.
-JOB_ID="$(coli_serving_job)"
+#
+# A DRIVER THAT IS INSIDE A GENERATION NAMES IT. The task queue's worker runs in
+# the on-demand generation it is working for, and `COLI_JOB` is that job: the
+# task goes to the server it was claimed on, not to whichever one Slurm lists.
+# Matched rather than trusted, because it is handed to srun as a job id.
+JOB_ID=""
+if printf '%s' "${COLI_JOB:-}" | grep -Eq '^[0-9]+$'; then
+    JOB_ID="$(coli_jobs | awk -v j="$COLI_JOB" '$1 == j && $2 == "RUNNING" { print $1 }')"
+fi
+[ -n "$JOB_ID" ] || JOB_ID="$(coli_serving_job)"
 if [ -z "$JOB_ID" ]; then
-    PENDING="$(coli_jobs | awk '$2 != "RUNNING" { print $1; exit }')"
+    PENDING="$(coli_live_jobs | awk '$2 != "RUNNING" { print $1; exit }')"
     if [ -n "$PENDING" ]; then
         echo "The server is queued as job ${PENDING} and has not started yet." >&2
         echo "Reason: $(squeue -j "$PENDING" -h -o '%r')" >&2

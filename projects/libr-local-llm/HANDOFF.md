@@ -11,17 +11,17 @@ read before touching any of it; `P0-STATUS.md` findings 16–22 are the measurem
 repair.** It is below, in the owner's own words, with the scoring already decided. Everything under
 *Settled* is machinery that now exists to make it one tap.
 
-**The board owes this job nothing further** — a mission dispatched from the iPad is a record that
-outlives it, says whether it is still running, and can be told to ship when it finishes; all of it
-is under *Settled* in `../../HANDOFF.md`. Two facts from this project decided how that got built,
+**Colibri runs on demand.** A task filed with `board colibri` (or a relay `colibri` request) is a
+record that outlives the generation running it; a generation starts for it, works the queue, and
+exits 20 minutes after the queue empties. Two facts from this project decided how that got built,
 and they still govern running it:
 
 - **A colibrì turn runs inside the SERVE JOB'S allocation.** `coli-code` steps into it with `srun
   --overlap` rather than ssh, because the endpoint is loopback-only on the serving node. So a
   TURN's ceiling is the serve job's walltime — 9 h, which is both the `c3_short` cap and the
-  default — and `coli-up -t` is the only lever, downward only. **The mission is not the turn**: it
-  is picked up on the generation the chain brings up, so work longer than one allocation finishes
-  across several. *The guarantee, and what it does not cover* below is the whole of it.
+  default — and `coli-up -t` is the only lever, downward only. **The task is not the turn**: a
+  generation that dies releases its clone, which resumes it, so work longer than one allocation
+  finishes across several. *The guarantee, and what it does not cover* below is the whole of it.
 - **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
   that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
   eyes on a local model's diff — a turn that could not have read the session content it is
@@ -84,63 +84,54 @@ conversation; do not merge them.
 
 ## How to start it
 
-From the iPad, from any board: **⇥ put an assistant to work elsewhere** in the bar menu, pick
-`PSYCH-ASR`, pick `colibri`, and give it the ask above. Or from a terminal: `coli-up`, then
-`coli-code -d ~/Atlas/research/PSYCH-ASR --yes "…"`.
+**File it as a task.** In the cluster checkout, inside `research/PSYCH-ASR`:
+`board colibri <thread> "<the ask above>"`. From the Mac, the same command files a relay `colibri`
+request, once `research/PSYCH-ASR/tutorboard.json` says `relay: {colibri: true}`. Filing starts a
+generation if none is queued or running; nothing else needs starting.
 
-`PSYCH-ASR` is the workspace it is allowed to open in, and that is not an accident:
-`research/PSYCH-ASR/.gitignore` excludes `live/*`, so a card written there is never tracked. A
-colibrì sitting refuses to open anywhere its cards would be committed, and says which line
-changes that.
+`PSYCH-ASR` is the workspace it runs in, and that is not an accident:
+`research/PSYCH-ASR/.gitignore` excludes `live/*`, so nothing the board writes there is tracked.
 
-**Start it early because it is cheaper, not because it has to finish tonight.** The first turn is
-hours rather than minutes: prefill on a 15,900-token preamble is two to three hours. After it the
-KV prefix carries the preamble, so the thing not to do is kill it at the ninety-minute mark and
-start again — that is the whole cost, paid twice. Leave the server up between tasks for the same
-reason; `coli-down` between two jobs is expensive.
+**The first task in a generation pays the preamble.** Prefill on a 15,900-token preamble is two to
+three hours, and a generation that loads for a task costs 68 minutes before that. Tasks filed
+together share one generation and its warm KV prefix, so file related asks together rather than
+one a day.
 
 ---
 
 ## The guarantee, and what it does not cover
 
-**A mission dispatched at any moment, against a generation with any amount of walltime left,
-finishes.** Up to nine hours of work, which is what this job needs and what one allocation holds.
-The turn dies with its generation; the work crosses to the next one.
+**A task filed at any moment finishes, across deaths of the generation running it.** The turn dies
+with its generation; the work crosses to the clone.
 
-**How.** `coli-code` is a step of the serve job's allocation, so it dies when that generation
-cancels itself. It asks `squeue` whether the job it stepped into is still `RUNNING` and exits
-**75** where it is gone — that number is the only thing that tells a hop from a bad answer, since
-the exit code cannot and `sacct` is refused on this cluster. The board's daemon re-queues the same
-task as a `[carry]` line and the next turn resumes the same conversation by name on the successor.
-Where the BOARD's own allocation ended in the same minute, the next board's hub derives the
-pick-up from the mission record alone and starts the daemon back up. Two drivers, because nothing
-that runs without admin outlives both allocations.
+**How.** Each on-demand generation submits its own clone at start, `afternotok` on itself with
+`--kill-on-invalid-dep=yes`. A death — timeout, node failure, out of memory — releases the clone.
+The task the dead generation was running is still `running` in its record with that job's id; the
+clone's worker sees that job gone from `squeue` with no 0 in `slurm_jobs/state/gen-<job>.exit`,
+counts a death, and resumes the task by its conversation name with `coli-code -c`. A clean exit
+writes the 0, so Slurm drops the clone. `sacct` is refused on this cluster, which is why the file
+exists.
 
-**What a hop costs.** One client start and the re-prefill a resumed conversation needs — minutes,
-against the two to three hours a fresh session pays. The transcript is on the shared home under
-`$COLI_SESSION_ROOT`, so a node change does not touch it. A conversation the record cannot name is
-the exception: the pick-up runs, fails in seconds and starts a fresh session, which is the safe
-way round — *the newest conversation in the store* is somebody else's as often as it is this
-mission's.
+**What a death costs.** One cold load, about 68 minutes, and the re-prefill a resumed conversation
+needs — minutes, against the two to three hours a fresh session pays. The transcript is on the
+shared home under `$COLI_SESSION_ROOT`, so a node change does not touch it. A conversation that was
+never written is the exception: the resume fails in seconds and the task restarts fresh under the
+same name.
 
-**What a person still does.** Dispatch it whenever it suits; starting early buys the preamble
-being paid once rather than being a condition of finishing. Check the chain is up first — `coli`
-says in one line, and **nothing here starts the server**: a mission dispatched with no generation
-running and none queued waits out its budget and fails. And **write the ask so the work lands on
-disk as it goes**; the carry prompt says so too, but a model holding results in its head loses
-them at the hop and nothing can enforce that from outside.
+**What a person still does.** **Write the ask so the work lands on disk as it goes**; the task
+prompt says so too, but a model holding results in its head loses them at a death and nothing can
+enforce that from outside. Then wait for the relay's hosted review: it reads the diff, ships it
+with `board push`, and its public note is what the relay report carries.
 
 **What it does not cover.**
 
-- **The board chain stopping.** If no board comes up, nothing sweeps: the mission waits until
-  somebody logs in and runs `tutor resume`.
-- **More than the budget.** 18 h from dispatch including every re-prefill, 6 pick-ups, or 2
-  pick-ups that produce nothing — any of the three fails the mission and says which.
-- **The colibrì chain being down.** Nothing here submits a server job; the front door's colibrì
-  tap is the lever.
-- **A mission somebody has already looked at.** A record read and acted on is never revived under
-  them, even where the reason was a hop.
-- **A turn that wedges.** Eight hours is the cap, and it burns a pick-up.
+- **Three deaths on one task.** It is failed and not retried; `board colibri --show` says so.
+- **Six deaths in a row.** `COLI_LINEAGE` reaches its cap and that generation submits no clone. The
+  next task filed starts a fresh one.
+- **A generation that cannot load.** Its worker exits not-ok and the clone tries again, inside the
+  same cap.
+- **A turn that is wrong rather than dead.** A non-zero exit from `coli-code` other than 75 or 76
+  fails the task at once.
 
 ---
 

@@ -470,7 +470,7 @@ def running(root):
 # machines never write the same file. The shapes are HANDOFF.md's "The relay".
 
 RELAY = "relay"
-KINDS = ("recipe", "turn")
+KINDS = ("recipe", "turn", "colibri")
 REPORT_STATES = ("refused", "submitted", "running", "completed", "failed")
 
 # A report's state, as the registry's Slurm-shaped one. `REFUSED` is terminal;
@@ -493,6 +493,7 @@ REQUEST_KEYS = {
     "recipe": ("id", "kind", "thread", "recipe", "env", "produces", "export",
                "filed"),
     "turn": ("id", "kind", "thread", "brief", "filed"),
+    "colibri": ("id", "kind", "thread", "brief", "filed"),
 }
 MAX_BRIEF = 2000
 MAX_VALUE = 200
@@ -552,7 +553,8 @@ def _plain_list(value, field, problems):
     return value
 
 
-def validate(req, clean, tracked, declared, taken=(), turns=False):
+def validate(req, clean, tracked, declared, taken=(), turns=False,
+             colibri=False):
     """`(request, problems)`: may this request run? PURE, and both machines
     call it -- the Mac before it commits, the cluster before it submits.
 
@@ -562,6 +564,8 @@ def validate(req, clean, tracked, declared, taken=(), turns=False):
         declared  `{recipe: (declared, problems)}`, `declarations` per recipe
         taken     request ids already filed
         turns     has this workspace opted in to `turn` requests
+        colibri   has this workspace opted in to `colibri` requests, which
+                  queue a Colibri task (`colibri.relay_file`)
 
     Refused whole, with every problem at once, like the thread file.
     """
@@ -596,16 +600,21 @@ def validate(req, clean, tracked, declared, taken=(), turns=False):
     if filed is not None:
         out["filed"] = filed
 
-    if kind == "turn":
+    if kind in ("turn", "colibri"):
         brief = req.get("brief")
         if not isinstance(brief, str) or not brief.strip():
-            problems.append("a turn request needs a `brief`")
+            problems.append("a %s request needs a `brief`" % kind)
         elif len(brief) > MAX_BRIEF:
             problems.append("the brief is %d characters and the cap is %d"
                             % (len(brief), MAX_BRIEF))
-        if not turns:
+        if kind == "turn" and not turns:
             problems.append("this workspace has not opted in to turns: "
                             "`relay.turns: true` in its tutorboard.json")
+        # Colibri reads PHI, unattended, so a workspace opts in to it the way
+        # it opts in to a turn.
+        if kind == "colibri" and not colibri:
+            problems.append("this workspace has not opted in to Colibri tasks: "
+                            "`relay.colibri: true` in its tutorboard.json")
         out["brief"] = brief.strip() if isinstance(brief, str) else ""
         return (None, problems) if problems else (out, [])
 
@@ -699,16 +708,19 @@ def context(root, recipes=()):
         except OSError:
             declared[rel] = ({}, [])
     clean, _ = course_threads.read(root)
-    turns = False
+    relay = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r",
                   encoding="utf-8") as fh:
-            turns = ((json.load(fh) or {}).get("relay") or {}).get("turns") is True
+            relay = (json.load(fh) or {}).get("relay") or {}
     except (OSError, ValueError, AttributeError):
         pass
+    if not isinstance(relay, dict):
+        relay = {}
     taken = set(r["id"] for r in requests(root))
     return {"clean": clean, "tracked": tracked, "declared": declared,
-            "taken": taken, "turns": turns}
+            "taken": taken, "turns": relay.get("turns") is True,
+            "colibri": relay.get("colibri") is True}
 
 
 def check(root, req, mine=False):
@@ -723,7 +735,7 @@ def check(root, req, mine=False):
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
     return validate(req, ctx["clean"], ctx["tracked"], ctx["declared"],
-                    taken, ctx["turns"])
+                    taken, ctx["turns"], ctx["colibri"])
 
 
 def _slug(text):
@@ -788,6 +800,8 @@ def relayed(root):
                               course_threads.REQUESTED)
         if req.get("kind") == "turn":
             cmd = "turn: " + str(req.get("brief") or "")[:120]
+        elif req.get("kind") == "colibri":
+            cmd = "colibri: " + str(req.get("brief") or "")[:120]
         else:
             cmd = " ".join([str(req.get("recipe") or "")] + [
                 "%s=%s" % (k, v) for k, v in sorted(

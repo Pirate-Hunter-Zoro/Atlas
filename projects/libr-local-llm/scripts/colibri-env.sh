@@ -71,7 +71,20 @@ export COLI_MEM_GB="${COLI_MEM_GB:-800}"
 # is the number to minimise and a shorter walltime buys nothing.
 export COLI_HOURS="${COLI_HOURS:-9}"
 
+# ------------------------------------------------------------------- on demand
+#
+# COLIBRI RUNS WHILE IT HAS WORK AND STOPS WHEN IT HAS NONE. That is the default:
+# filing a task (`board colibri`, or a relay `colibri` request) starts a
+# generation if none is queued or running; the generation loads, works through
+# the task queue one task at a time, and exits cleanly once the queue has been
+# empty for `COLI_IDLE_MIN` minutes. `coli-up --warm` is the other mode: the
+# overlapping chain below, for a session that wants Colibri answering live.
+export COLI_DEMAND="${COLI_DEMAND:-1}"
+export COLI_IDLE_MIN="${COLI_IDLE_MIN:-20}"
+
 # ---------------------------------------------------------------------- the chain
+#
+# OFF BY DEFAULT; `coli-up --warm` turns it on.
 #
 # THE SERVER IS ALWAYS UP, AND IT MOVES NODE RATHER THAN GOING AWAY. A generation
 # lasts one walltime. `COLI_CHAIN_LEAD_MIN` before its own end it submits the next
@@ -85,7 +98,7 @@ export COLI_HOURS="${COLI_HOURS:-9}"
 # job teardown), but two 800 GB jobs do not fit on a 1 TB box, so an overlapping
 # successor is always somewhere else and always cold. Availability was chosen over
 # the cheap hop deliberately.
-export COLI_CHAIN="${COLI_CHAIN:-1}"
+export COLI_CHAIN="${COLI_CHAIN:-0}"
 
 # Two hours: a cold pin is 68 minutes measured, and the rest is queue wait and
 # margin. Too short and the incumbent's walltime ends with the successor still
@@ -223,6 +236,19 @@ coli_mark_stopped() {
 }
 coli_clear_stopped() { rm -f "$COLI_STOP_FILE"; }
 
+# ------------------------------------------------ how a generation ended
+# `sacct` is refused on this cluster, so a generation's end cannot be read from
+# Slurm's accounting. Its last act writes its exit code here instead, and the
+# chain's handover writes 0 before it cancels the incumbent. A generation that
+# has left `squeue` with a 0 here ended on purpose; one that left without it, or
+# with anything else, died -- a timeout, a node failure, out of memory, a cancel.
+# `board/tutorboard/colibri.py` reads the same file by the same name.
+coli_exit_file() { printf '%s/gen-%s.exit\n' "$COLI_STATE_DIR" "$1"; }
+coli_mark_exit() {
+    mkdir -p "$COLI_STATE_DIR"
+    printf '%s\n' "$2" > "$(coli_exit_file "$1")"
+}
+
 # ------------------------------------------------------------ submit one of them
 #
 # THE ONE PLACE A GENERATION IS SUBMITTED, because there are now two callers --
@@ -246,10 +272,42 @@ coli_submit() {
                --time="${COLI_HOURS}:00:00" \
                --output="$(coli_log_out %j)" \
                --error="$(coli_log_err %j)" \
-               --export="ALL,LLM_REPO=${LLM_REPO},COLI_PORT=${COLI_PORT},COLI_MODEL=${COLI_MODEL},COLI_MODEL_ID=${COLI_MODEL_ID},COLI_CHAIN=${COLI_CHAIN}" \
+               --export="ALL,LLM_REPO=${LLM_REPO},COLI_PORT=${COLI_PORT},COLI_MODEL=${COLI_MODEL},COLI_MODEL_ID=${COLI_MODEL_ID},COLI_CHAIN=${COLI_CHAIN},COLI_DEMAND=${COLI_DEMAND},COLI_IDLE_MIN=${COLI_IDLE_MIN},COLI_LINEAGE=${COLI_LINEAGE:-0}" \
                "$@" \
                "$LLM_REPO/slurm_jobs/colibri_serve.sbatch"
     )
+}
+
+# ------------------------------------------------------ the self-clone
+#
+# EACH ON-DEMAND GENERATION SUBMITS ITS OWN CLONE AT START, depending on itself
+# ending not-ok, and killed if that dependency can never be met. A generation
+# that dies -- timeout, node failure, out of memory -- releases the clone, which
+# loads and resumes the interrupted task by name. A clean exit makes the
+# dependency unmeetable and Slurm drops the clone. The clone does the same in
+# turn. So a death costs one cold load, about 68 minutes, and no work.
+#
+#     coli_submit_clone <job id>      prints the clone's job id, or nothing
+coli_submit_clone() {
+    COLI_LINEAGE=$(( ${COLI_LINEAGE:-0} + 1 )) \
+        coli_submit --dependency="afternotok:$1" --kill-on-invalid-dep=yes
+}
+
+# Every generation that is serving or will serve: `coli_jobs` without a clone
+# standing by on its parent's dependency, and without a generation that has
+# decided to exit on an empty queue (`closing-<job>`, written by the worker
+# under the queue lock). Neither is a server anybody can use, and neither is "a
+# generation already queued".
+coli_live_jobs() {
+    local id state rest
+    coli_jobs | while read -r id state rest; do
+        [ -n "$id" ] || continue
+        [ -e "$COLI_STATE_DIR/closing-$id" ] && continue
+        if [ "$state" = PENDING ]; then
+            case "$rest" in *Dependency*) continue ;; esac
+        fi
+        printf '%s %s %s\n' "$id" "$state" "$rest"
+    done
 }
 
 # ------------------------------------------------- which generation to talk to
@@ -334,6 +392,10 @@ coli_chain_watch() {
         SLOG="$(coli_log_out "$SUCCESSOR")"
         if grep -q 'COLIBRI-SERVE LOADED' "$SLOG" 2>/dev/null; then
             echo "CHAIN successor=${SUCCESSOR} is loaded; giving ${NODE} back at=$(date -Is)"
+            # A handover is an end on purpose, not a death: a task the
+            # incumbent was running is resumed by the successor without being
+            # counted against its three.
+            coli_mark_exit "$JOB" 0
             scancel "$JOB"
             return 0
         fi
