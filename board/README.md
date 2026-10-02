@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 107 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 111 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -673,7 +673,7 @@ plan files and code. TRD-EHR's plan lives only there: Paper 1 and
 Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn*, *Coach* or
 *Build*, where that is fixed.
 
-#### The map draws deliverables and threads
+### The map draws deliverables and threads
 
 `test/threadmap.py` and the thread block of `test/map.js` are the suites.
 
@@ -695,7 +695,7 @@ Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn
   chip opens the same sheet with that task chosen. Nothing opens until a kind is picked.
 - **The sheet is fetched on the tap**, `GET /map/thread/<id>` → `map.thread_sheet`: files,
   outputs (and which exist), write-up anchors (and which are found), jobs from
-  `live/jobs.jsonl`, past sittings from the archive by `thread` or `node`, documents (the
+  the job registry, past sittings from the archive by `thread` or `node`, documents (the
   thread's `doc` and the library documents of its write-up files), tasks with the plan label
   `/session` looks each up by, decisions, and `kind`. `kind` is the open sitting's when it is
   on this thread, else the newest archived one's, else `learn`. `archive.list_archive` carries
@@ -1497,7 +1497,7 @@ uncommitted, so the board and the disk cannot disagree without the card saying s
   loop settles what a turn owes. The turn resumes its own session, keeps its assistant and runs
   on a doing turn's clock.
 - **If that turn also leaves it `pending`, the daemon replaces it** with a `kind: stopped` card:
-  "the turn stopped without reporting", then `git status` under the work's paths
+  "the turn stopped without reporting", then `git status` under the workspace
   (`lesson.git.uncommitted`, which skips `live/`). Nothing more is woken.
 - **On the glass**, `pending` is badged *working* and never counts as an answer landing, so the
   strip stays up behind it; `stopped` is badged *stopped without a report* in the failure colour.

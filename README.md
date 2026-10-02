@@ -82,7 +82,7 @@ None of those three comes from a status somebody typed into a file by hand.
 **A course has a spine and a project needs one.** A course's spine is its book: `chapters.tsv`,
 one sitting per chapter. A project's spine is its deliverables and the threads under them, each
 one a question with its code, outputs, write-up and jobs. Each sitting on a thread has a kind:
-learn, coach or build. `HANDOFF.md` is that build, and the order it lands in.
+learn, coach or build. `HANDOFF.md` is what is left to build.
 
 ---
 
@@ -178,7 +178,7 @@ And the rest of it, in the order it bites:
 - **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new in the cache
   list), or the installed app serves its cached copy and the work is invisible.
-- **Run `bash board/test/all.sh` before every ship.** 107 suites. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 111 suites. Keep them green.
 - **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs early and refuses
   PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
   anywhere in the repository. This is public, and git remembers.
