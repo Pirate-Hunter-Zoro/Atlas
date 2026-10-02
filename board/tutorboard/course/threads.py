@@ -58,10 +58,12 @@ MAX_TASKS = 40
 # no state at all -- is a job still out. LOST is the board's own word, for a job
 # Slurm has no record of at all: left out, it would hold its thread at
 # `running` for ever.
-# REFUSED is the relay's, for a request the cluster would not run.
+# REFUSED is the relay's, for a request the cluster would not run. DIED and
+# ENDED are `jobs.ending`'s, for a job that left squeue without its exit file,
+# wrapped and not.
 TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
             "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST",
-            "REFUSED")
+            "REFUSED", "DIED", "ENDED")
 
 # A relay request the cluster has not reported on yet. Not terminal: the
 # thread waits on it, and says `requested` rather than `running`.

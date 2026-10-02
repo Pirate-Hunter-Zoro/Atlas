@@ -45,6 +45,15 @@ build/
 *.fdb_latexmk
 *.synctex.gz
 
+# ---- the relay's own state, on the cluster ----
+# The pass's lock and `state.json` at the root; in each workspace the wrapped
+# job scripts, their exit codes, the turns' logs and notes, and the registry of
+# what the relay submitted. A log can print anything, so none of it is tracked;
+# a report under `relay/reports/` is what crosses.
+**/relay/state/
+/relay/state.json
+/relay/.lock
+
 # ---- the meeting deck's pointer, and the pictures of its marks ----
 # The deck itself lives in its host workspace's `writeups/meeting/`, where its
 # `.tex` is tracked and a fenced host's push scan reads it. `meetings/` holds
