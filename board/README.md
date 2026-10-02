@@ -5902,7 +5902,8 @@ board is standard library only; the workspaces are not, and a tutor tests before
 
 - A workspace with Python has a `pyproject.toml` and a committed `uv.lock`. `uv sync` builds
   `.venv/` inside it, which is ignored. The base dependencies are what the code and its tests
-  import. A `test` extra holds pytest. A `cluster` extra holds what only a GPU node runs (torch
+  import. A `test` extra holds pytest where the tests use it (Paper-Writer's are `unittest`, and
+  libr-local-llm has none). A `cluster` extra holds what only a GPU node runs (torch
   with CUDA, vLLM, whisperx), and only a machine with Slurm installs it. `[tool.uv]` says
   `package = false`, because every entry point runs from the workspace root, and locks for two
   machines only: macOS on arm64 and Linux on x86_64. The pins are the cluster's: TRD-EHR's are
@@ -5912,9 +5913,11 @@ board is standard library only; the workspaces are not, and a tutor tests before
   if it is missing. Then it finds the workspaces through `atlas.workspaces`, never from a list,
   and builds each by what it holds: `uv sync --locked` with its extras for a `pyproject.toml`,
   the workspace's own `scripts/setup.sh` for a `lean-toolchain` (elan, the toolchain, the
-  Mathlib cache, the build), and `go mod download` for a `go.mod`. It prints one line per
-  workspace, keeps what each step said in `~/.local/state/atlas-setup/`, changes nothing on a
-  second run, and exits non-zero if any workspace failed.
+  Mathlib cache, the build; the toolchain is Mathlib's own pin at the tag the manifest names,
+  v4.34.1, whose `lake` runs on macOS 27 where rc2's aborted), and `go mod download` for a
+  `go.mod`. It prints one line per workspace, keeps what each step said in
+  `~/.local/state/atlas-setup/`, changes nothing on a second run, and exits non-zero if any
+  workspace failed.
 - **Each workspace names its check** as `check` in its `tutorboard.json`: the test command,
   run from the workspace root, through `uv run` for Python. The brief prints it under the
   stance, and every workspace contract says that a turn that changed code runs it before it
