@@ -1250,9 +1250,15 @@ def status(root, state=None, archived=None):
         return None
     filed = _filed(archived)
     counted = _doc_counts(root)
+    # THE THREAD WHOSE TURN STOPPED WITHOUT A REPORT, badged on its box while
+    # that `stopped` card is the newest. See `cards.stopped_thread`.
+    from ..lesson import cards as lesson_cards               # local: a cycle
+    halted = lesson_cards.stopped_thread(os.path.join(root, "live", "cards"))
     nodes = []
     for node in found["nodes"]:
         node = dict(node)
+        if "deliverable" in node:
+            node["stopped"] = bool(halted) and node["id"] == halted
         node["status"] = _stamp(node, state, filed)
         # WHAT IS IN THE DRAWER UNDER THIS BOX. A number, so the badge can be
         # drawn without a second request, and never the list.

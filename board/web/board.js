@@ -5228,11 +5228,16 @@ function mapThread(n) {
    its paths changed. */
 function mapThreadSays(n) {
   return n.thread + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
-         + (n.unsaved ? " · unsaved" : "");
+         + (n.unsaved ? " · unsaved" : "")
+         + (mapStopped(n) ? " · stopped" : "");
 }
 
 /* How many open decisions sit on this box, where it is a thread. */
 function mapDecisions(n) { return mapThread(n) ? (n.decisions || 0) : 0; }
+
+/* DID THIS THREAD'S LAST TURN STOP WITHOUT A REPORT? The server says so while
+   that `stopped` card is the newest on the board (`cards.stopped_thread`). */
+function mapStopped(n) { return mapThread(n) && !!n.stopped; }
 
 /* A TAP ON A TASK CHIP. On a thread it is the sheet, with that task chosen,
    because the kind of sitting is still the owner's to pick; anywhere else it
@@ -5258,7 +5263,8 @@ function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) 
 
    Everything is relative to the box's left edge; every box is `mapW` wide. */
 function mapChipPlan(node) {
-  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0);
+  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0)
+            + (mapStopped(node) ? 1 : 0);
   var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
   var left = MAP_PAD + MAP_MARK;
   /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
@@ -5967,6 +5973,23 @@ function mapDraw(info) {
       dchip.appendChild(dt);
       mapTappable(dchip, function () { openThread(n.id, ""); });
       g.appendChild(dchip);
+    }
+    /* A TURN ON THIS THREAD STOPPED WITHOUT A REPORT: a chip after the rest,
+       and its tap is the board, where the stopped card lists what it left. */
+    if (mapStopped(n)) {
+      var sseat = plan.at[(n.steps || []).length + (mapDecisions(n) ? 1 : 0)]
+                  || { row: 0, col: 0 };
+      var sx = p.x + plan.left + MAP_CHIP_R + sseat.col * plan.step;
+      var sy = chipRow(sseat.row);
+      var schip = mapEl("g", { "class": "chip stopped", "data-stopped": n.id,
+                               tabindex: "0", role: "button",
+                               "aria-label": "a turn stopped without a report" });
+      schip.appendChild(mapEl("circle", { cx: sx, cy: sy, r: MAP_CHIP_R }));
+      var stx = mapEl("text", { x: sx, y: sy + 4, "text-anchor": "middle" });
+      stx.textContent = "!";
+      schip.appendChild(stx);
+      mapTappable(schip, function () { closeMap(); });
+      g.appendChild(schip);
     }
     /* WHAT THIS BOX HAS WRITTEN, at the right end of the row of steps. Drawn
        only where there is something to open: a plate reading zero is a plate

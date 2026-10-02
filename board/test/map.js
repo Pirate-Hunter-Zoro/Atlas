@@ -1519,6 +1519,32 @@ const at = (doc, id) => {
       ? ok('a file on the sheet opens in the code walk, chosen')
       : fail('the file did not open in the code walk');
   }
+  {
+    // A TURN THAT STOPPED WITHOUT A REPORT BADGES ITS THREAD'S BOX.
+    const w = board();
+    const doc = w.document;
+    const map = makeThreads();
+    map.nodes[0].stopped = true;
+    w.__render(payload({ map }));
+    await sleep(15);
+    const knn = doc.querySelector('#map-sheet .node[data-id="knn"]');
+    knn.querySelector('.chip.stopped[data-stopped="knn"]')
+    && !doc.querySelector('#map-sheet .node[data-id="tripod"] .chip.stopped')
+      ? ok('a thread whose turn stopped without a report carries a badge')
+      : fail('the stopped badge is missing, or on the wrong box');
+    /stopped/.test(knn.getAttribute('aria-label'))
+      ? ok('and says so in words under its name')
+      : fail('the box does not say it stopped: ' + knn.getAttribute('aria-label'));
+    w.__openMap();
+    await sleep(10);
+    const upBefore = !doc.getElementById('map').hidden;
+    doc.querySelector('#map-sheet .node[data-id="knn"] .chip.stopped')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(10);
+    upBefore && doc.getElementById('map').hidden
+      ? ok('and its tap is the board, where the stopped card is')
+      : fail('the badge tap left the map up');
+  }
 
   // ------------------------------------------- a long title fits its box
   // From the iPad: "the titles of each box are an eyesore and on the first one,

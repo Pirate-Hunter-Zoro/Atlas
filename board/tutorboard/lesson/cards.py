@@ -214,38 +214,51 @@ def is_pending(meta):
     return ((meta or {}).get("kind") or "").lower() == PENDING
 
 
-def stopped_body(changed, jobs=None):
+def stopped_body(changed, jobs=None, thread="", elsewhere=0):
     """The card that replaces a placeholder whose turn never reported.
 
-    `changed` is `git status` under the work's paths, workspace-relative.
-    `jobs` is whatever was registered while the turn ran, one line each.
+    `changed` is `git status` under the work's paths, workspace-relative: the
+    thread's paths where the sitting is on one. `elsewhere` counts what else
+    is uncommitted in the workspace, so a narrowed list never reads as all
+    there is. `jobs` is whatever was registered while the turn ran, one line
+    each.
     """
     lines = ["The turn stopped without reporting. Here is what changed on disk.", ""]
+    under = (" on `%s`" % thread) if thread else ""
     if changed:
-        lines += ["Uncommitted:", ""]
+        lines += ["Uncommitted%s:" % under, ""]
         lines += ["- `%s`" % name for name in changed[:STOPPED_NAMES]]
         if len(changed) > STOPPED_NAMES:
             lines.append("- and %d more" % (len(changed) - STOPPED_NAMES))
+    elif thread:
+        lines.append("Nothing under `%s`'s paths is uncommitted." % thread)
     else:
         lines.append("Nothing under this work is uncommitted.")
+    if elsewhere:
+        lines += ["", "And %d more path%s uncommitted elsewhere in this workspace."
+                  % (elsewhere, "" if elsewhere == 1 else "s")]
     if jobs:
         lines += ["", "Jobs registered since:", ""]
         lines += ["- %s" % job for job in jobs]
     return "\n".join(lines)
 
 
-def write_stopped(path, changed, jobs=None):
+def write_stopped(path, changed, jobs=None, thread="", elsewhere=0):
     """Replace the placeholder at `path` with a `stopped` card. True if written.
 
-    Same directory and `os.replace`, as `board write` does, so a poll sees the
-    old card or the new one and never an empty file.
+    The card names its `thread` in its front matter, which is how the map
+    badges that thread's box (`stopped_thread`). Same directory and
+    `os.replace`, as `board write` does, so a poll sees the old card or the new
+    one and never an empty file.
     """
-    head = "---\nkind: %s\n---\n" % STOPPED
+    head = "---\nkind: %s\n%s---\n" % (
+        STOPPED, ("thread: %s\n" % thread) if thread else "")
     tmp = os.path.join(os.path.dirname(path),
                        ".%s.%d.part" % (os.path.basename(path), os.getpid()))
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(head + stopped_body(changed, jobs).rstrip() + "\n")
+            fh.write(head + stopped_body(changed, jobs, thread,
+                                         elsewhere).rstrip() + "\n")
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)
@@ -256,3 +269,15 @@ def write_stopped(path, changed, jobs=None):
             pass
         return False
     return True
+
+
+def stopped_thread(cards_dir):
+    """The thread whose turn stopped without a report, or "".
+
+    Only while that `stopped` card is the newest: the next card written is the
+    next turn, and the badge goes with it.
+    """
+    _path, meta = newest(cards_dir)
+    if ((meta or {}).get("kind") or "").lower() != STOPPED:
+        return ""
+    return str(meta.get("thread") or "").strip()

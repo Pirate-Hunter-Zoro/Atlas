@@ -742,6 +742,12 @@ the README and plan.
   refuses a lead word that is not one of its thread ids, names the real ones, and commits
   nothing (`threads.commit_prefix`; the workspace id in front is skipped). No lead word is a
   plain save.
+- **A stopped card lists what the thread left.** Where the sitting is on a thread, `report_owed`
+  narrows the `stopped` card to the thread's files, outputs and write-up files
+  (`owed_thread`), counts what else is uncommitted, and names every job registered since the
+  placeholder was written (`jobs_since`). The card carries `thread:` in its front matter, and
+  while it is the newest card that thread's box says `stopped` and carries a red **!** chip
+  whose tap is the board (`cards.stopped_thread`, `map.status`).
 
 ### Jobs register to a thread and report themselves
 

@@ -2571,6 +2571,9 @@ body.papering .annbar { z-index: 96; }
 .map-sheet .chip.decision circle { fill: var(--paper); stroke: var(--bad);
                                    stroke-width: 1.8; }
 .map-sheet .chip.decision text { fill: var(--bad); }
+/* A TURN ON THE THREAD STOPPED WITHOUT A REPORT. */
+.map-sheet .chip.stopped circle { fill: var(--bad); stroke: none; }
+.map-sheet .chip.stopped text { fill: var(--paper); }
 
 /* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
 .map-sheet .chip { cursor: pointer; }
