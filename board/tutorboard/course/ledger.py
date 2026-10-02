@@ -1278,16 +1278,37 @@ _TEX_CMD = re.compile(r"\\[a-zA-Z@]+\*?\s*(?:\[[^\]]*\])?")
 _MATH = re.compile(r"\$\$.*?\$\$|\$[^$]*\$|\\\(.*?\\\)|\\\[.*?\\\]", re.S)
 
 
-def plain(source_text, tex=True):
+# Inline math as the diff shows it: the few symbols a sentence carries, by
+# their glyph. Anything else loses its backslash and keeps its name.
+_GLYPH = {"alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
+          "lambda": "λ", "mu": "μ", "pi": "π", "rho": "ρ", "sigma": "σ",
+          "tau": "τ", "theta": "θ", "chi": "χ", "le": "≤", "leq": "≤", "ge": "≥",
+          "geq": "≥", "ne": "≠", "neq": "≠", "approx": "≈", "times": "×",
+          "pm": "±", "to": "→", "infty": "∞", "cdot": "·", "sim": "~"}
+
+
+def _math_words(m):
+    """One piece of math as it reads: delimiters, braces and backslashes off."""
+    t = m.group(0)
+    t = re.sub(r"^(\$\$|\$|\\\(|\\\[)|(\$\$|\$|\\\)|\\\])$", "", t)
+    t = re.sub(r"\\([a-zA-Z]+)", lambda c: _GLYPH.get(c.group(1), c.group(1)), t)
+    t = re.sub(r"[{}^_\\]", "", t)
+    return " %s " % t.strip()
+
+
+def plain(source_text, tex=True, math=False):
     """Source wording as it reads on the page: LaTeX and Markdown taken off.
 
     `%` starts a comment in LaTeX only. In Markdown -- what Paper-Writer
     delivers -- it is a percent sign, and `5% were excluded` is five words.
+    Math is dropped for matching against the PDF's words; with `math`, as a
+    diff shows it to the owner, it is kept as it reads (`k=300`, `α=1`), so
+    "near $k=300$" never reads as "near".
     """
     t = source_text or ""
     if tex:
         t = re.sub(r"(?<!\\)%.*", " ", t)
-    t = _MATH.sub(" ", t)
+    t = _MATH.sub(_math_words if math else " ", t)
     t = _TEX_DROP.sub(" ", t)
     t = _TEX_CMD.sub(" ", t)
     t = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)
@@ -1362,6 +1383,9 @@ UNDER_MAX = 40
 # How far past the ink a word may sit and still be under it: a ring is drawn
 # round a word, not on it.
 UNDER_PAD = 0.006
+# The fewest words a half of them may be looked for by, when the whole run is
+# not on the page any more: fewer is a phrase found anywhere.
+PART_MIN = 5
 
 
 def under(pdf, page, box):
@@ -1414,12 +1438,29 @@ def ink_where(pdf, digest, item):
     if digest and item.get("drawn_on") == digest:
         return {"by": "same", "page": page, "box": item.get("box"), "dx": 0, "dy": 0}
     was = item.get("under") or {}
+    if not was.get("text"):
+        # FILED OFF AN OLDER BUILD, so no words were kept to look for. That is
+        # not evidence the words went: the ink sits where it was drawn, as the
+        # live ink on a rebuilt page does.
+        return {"by": "drawn", "page": page, "box": item.get("box"), "dx": 0, "dy": 0}
     found = place(pdf, was.get("text") or "", hint=page, tex=False) \
         if pdf and was.get("text") else None
     if found and found.get("box") and was.get("box"):
         return {"by": "text", "page": found["page"], "box": found["box"],
                 "dx": round(found["box"][0] - was["box"][0], 4),
                 "dy": round(found["box"][1] - was["box"][1], 4)}
+    # THE WORDS WERE EDITED, NOT ALL OF THEM GONE. The revision usually
+    # rewrites the line the ink was about and leaves its neighbours, so the
+    # run's first words are looked for alone, then its last: the top of what
+    # is found against the top of what was, or bottom against bottom.
+    ws = (was.get("text") or "").split()
+    if pdf and was.get("box") and len(ws) >= 2 * PART_MIN:
+        half = max(PART_MIN, len(ws) // 2)
+        for part, end in ((ws[:half], 1), (ws[-half:], 3)):
+            got = place(pdf, " ".join(part), hint=page, tex=False)
+            if got and got.get("box") and got.get("page") == page:
+                return {"by": "part", "page": page, "box": None, "dx": 0,
+                        "dy": round(got["box"][end] - was["box"][end], 4)}
     return {"by": "gone"}
 
 
@@ -1434,13 +1475,18 @@ def placements(repo, doc, note_path, pdf, digest, got, items):
     return anchors(repo, doc, note_path, pdf, digest, got, items)[0]
 
 
+# The shape of a placement cache's `ink_at`: a change to how ink re-anchors
+# bumps it, so a cache written by the old rule is placed again.
+ANCHOR_V = 2
+
+
 def anchors(repo, doc, note_path, pdf, digest, got, items):
     """`(placed, ink_at)` for one round on one build: where each answer is,
     and where each request's ink is (`ink_where`). One cache file for both."""
     where = round_dir(note_path)
     cache = os.path.join(where, "placed-%s.json" % digest)
     hit = _read(cache, {}) or {}
-    if hit.get("key") == got.get("key") and "ink_at" in hit:
+    if hit.get("key") == got.get("key") and hit.get("v") == ANCHOR_V:
         return hit.get("placed") or {}, hit.get("ink_at") or {}
     n = len(words(pdf)[0]) if pdf else 0
     src = str((_read(ledger_path(note_path), {}) or {}).get("source") or "")
@@ -1465,8 +1511,8 @@ def anchors(repo, doc, note_path, pdf, digest, got, items):
             inks[item["id"]] = got_ink
     try:
         os.makedirs(where, exist_ok=True)
-        _write(cache, {"key": got.get("key"), "digest": digest, "placed": out,
-                       "ink_at": inks})
+        _write(cache, {"key": got.get("key"), "v": ANCHOR_V, "digest": digest,
+                       "placed": out, "ink_at": inks})
         # Four builds' placements are kept, as the page cache keeps four sets.
         old = sorted((f for f in os.listdir(where) if f.startswith("placed-")),
                      key=lambda f: _mtime(os.path.join(where, f)))
@@ -1500,6 +1546,18 @@ def _span(words_, passage):
     return None
 
 
+def _readable(text, tex):
+    """The words of `text` as the diff shows them: math kept (`plain`), and a
+    stop or comma left alone after it put back on the word before."""
+    out = []
+    for w in plain(text or "", tex, math=True).split():
+        if out and re.fullmatch(r"[.,;:!?)\]]+", w):
+            out[-1] += w
+        else:
+            out.append(w)
+    return out
+
+
 def word_diff(old, new, tex=True, focus=""):
     """Old wording against new, word by word: `[["=", t], ["-", t], ["+", t]]`.
 
@@ -1510,8 +1568,8 @@ def word_diff(old, new, tex=True, focus=""):
     past `DIFF_KEEP` words keeps `DIFF_END` at each end it touches a change
     on, and an ellipsis between. None where there is nothing to compare.
     """
-    a = plain(old or "", tex).split()
-    b = plain(new or "", tex).split()
+    a = _readable(old, tex)
+    b = _readable(new, tex)
     if not a and not b:
         return None
     ops = []
@@ -1526,7 +1584,7 @@ def word_diff(old, new, tex=True, focus=""):
 
     sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
     codes = sm.get_opcodes()
-    span = _span(b, plain(focus, tex)) if focus else None
+    span = _span(b, " ".join(_readable(focus, tex))) if focus else None
     if span:
         s, e = span
         kept = []
@@ -1594,6 +1652,15 @@ def view(repo, doc):
         items = items_of(path)
         placed, inks = (anchors(repo, doc, path, pdf, digest, got, items)
                         if pdf and got.get("landed") else ({}, {}))
+        if pdf and not got.get("landed"):
+            # A NOT-FIXED PAIR RIDING A ROUND STILL BEING REVISED: its live ink
+            # went when the last round landed, so the glass draws it back from
+            # the archive, and needs to know where its words are now.
+            for item in items:
+                if item.get("kind") == "reopened" and item.get("strokes"):
+                    got_ink = ink_where(pdf, digest, item)
+                    if got_ink:
+                        inks[item["id"]] = got_ink
         states = states_of(path)
         led = _read(ledger_path(path), {}) or {}
         src = str(led.get("source") or "")
@@ -1699,7 +1766,7 @@ def _pair(item, answer, placed, ink_at, pages_now, tex):
         focus = answer.get("new") if answer.get("now") else ""
         if old or new:
             diff = (word_diff(old, new, tex, focus=focus or "") if old
-                    else [["+", " ".join(plain(answer.get("new") or new, tex).split())]])
+                    else [["+", " ".join(_readable(answer.get("new") or new, tex))]])
     gone = bool(ink_at and ink_at.get("by") == "gone"
                 and not (placed and placed.get("box")))
     return {"ink": ink, "ink_at": ink_at, "at": at, "diff": diff,

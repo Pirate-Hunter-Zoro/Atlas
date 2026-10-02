@@ -1503,6 +1503,7 @@ const named = (title) => rows().filter(
   await inkFollowsZoom();
   await inkIsKept();
   await changesArePins();
+  await pipsAndOwedInk();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');
@@ -2312,4 +2313,63 @@ async function changesArePins() {
   /2 requests, R3\.1, R3\.2/.test(D.getElementById('note-said').textContent)
     ? ok('ledger: the reply names the ids the revision will answer')
     : fail('the reply says: ' + D.getElementById('note-said').textContent);
+}
+
+/* THE PIPS KEEP APART, AND OWED INK IS DRAWN FROM EVERY ROUND. Two pairs a
+   line apart must not put one disc over the other; ink still owed in a round
+   the panel is not showing is still on the page; and a not-fixed pair riding
+   a round still being revised keeps its ink at full strength. */
+async function pipsAndOwedInk() {
+  const S = { c: '#e8746c', w: 3, pg: 1, p: [0.1, 0.3, 0.3, 0.32] };
+  const ink = (page) => ({ page: page, box: [0.1, 0.3, 0.3, 0.32], strokes: [S], drawn_on: 'd0' });
+  const row = (o) => Object.assign({ kind: 'text', text: '', why: '', previous: '', count: 0,
+    crop: '', marked: '', status: 'answered', problems: [], state: 'open', state_why: '',
+    carried: '', ink: null, ink_at: null, at: null, diff: null, reply: '', gone: false,
+    answer: { disposition: 'done', did: 'Done.', old: 'a', new: 'b', old_from: 'before' } }, o);
+  const at = (page, y) => ({ page: page, y: y, box: [0.1, y, 0.5, y + 0.01], by: 'answer' });
+  const LED = { ok: true, document: 'x', digest: 'd1', rounds: [
+    { note: 'b.md', round: 3, landed: false, open: 1, judged: 0, done: false, items: [
+      row({ id: 'R2.2', n: 1, kind: 'reopened', page: 1, status: 'waiting', answer: null,
+            ink: ink(1), ink_at: { by: 'text', page: 1, box: [0.1, 0.3, 0.3, 0.32], dx: 0, dy: 0.01 } })] },
+    { note: 'a.md', round: 2, landed: true, open: 3, judged: 1, done: false, items: [
+      row({ id: 'R2.1', n: 1, page: 1, at: at(1, 0.300) }),
+      row({ id: 'R2.2', n: 2, page: 1, at: at(1, 0.305), state: 'reopened', carried: 'b.md',
+            ink: ink(1), ink_at: { by: 'same', page: 1, box: [0.1, 0.3, 0.3, 0.32], dx: 0, dy: 0 } }),
+      row({ id: 'R2.3', n: 3, page: 1, at: at(1, 0.310) }),
+      row({ id: 'R2.4', n: 4, page: 2, at: at(2, 0.5), status: 'not answered', answer: null,
+            ink: ink(2), ink_at: { by: 'same', page: 2, box: [0.1, 0.3, 0.3, 0.32], dx: 0, dy: 0 } })] },
+    { note: '0.md', round: 1, landed: true, open: 0, judged: 1, done: true, items: [
+      row({ id: 'R1.1', n: 1, page: 2, at: at(2, 0.1), state: 'accepted' })] }] };
+  const d = new JSDOM('<!doctype html><div id="reader"><div id="reader-pages">'
+    + '<figure class="lib-page" data-page="1"><img></figure>'
+    + '<figure class="lib-page" data-page="2"><img></figure></div></div>'
+    + '<button id="chip"></button>', { runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = d.window;
+  const D = w.document;
+  w.HTMLImageElement.prototype.__defineGetter__('naturalWidth', () => 1240);
+  w.HTMLImageElement.prototype.__defineGetter__('naturalHeight', () => 1754);
+  w.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(LED) });
+  w.eval(fs.readFileSync(path.join(WEB, 'ledger.js'), 'utf8'));
+  const L = w.Ledger.make({ pages: D.getElementById('reader-pages'), button: D.getElementById('chip') });
+  L.open({ id: 'x', ledger: { rounds: 3 } });
+  await sleep(20);
+  const tops = Array.prototype.map.call(D.querySelectorAll('.lib-page[data-page="1"] .lg-pip'),
+                                        (p) => parseFloat(p.style.top));
+  const gap = 100 * 0.036 * 1240 / 1754;
+  tops.length === 2 && Math.abs(tops[0] - 30) < 1e-6 && Math.abs(tops[1] - tops[0] - gap) < 0.01
+    ? ok('ledger: two pairs a line apart get pips a disc apart, in % of the page')
+    : fail('pips on page 1 at ' + tops.join(', ') + '%');
+  const fulls = Array.prototype.map.call(D.querySelectorAll('.lg-ghost.lg-full'),
+    (g) => g.dataset.id + '@' + g.closest('.lib-page').dataset.page).sort().join(' ');
+  fulls === 'R2.2@1 R2.4@2'
+    ? ok('ledger: a not-fixed pair riding a round still being revised keeps its ink at full strength, once')
+    : fail('full-strength ghosts: ' + fulls);
+  L.toggle();
+  const other = Array.prototype.filter.call(D.querySelectorAll('.lg-round'),
+                                            (b) => b.dataset.note === '0.md')[0];
+  if (other) other.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(5);
+  D.querySelectorAll('.lg-ghost.lg-full[data-id="R2.4"]').length === 1
+    ? ok('ledger: ink still owed stays on the page while the panel shows another round')
+    : fail('owed ink went when another round was shown');
 }

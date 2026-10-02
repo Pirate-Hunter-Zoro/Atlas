@@ -44,6 +44,9 @@ var ZOOM_AT_LEAST = 1.25;
 var FLASH_MS = 1200;
 /* `annotate.js` `PAGE_REF`: a page stroke's width is stored against it. */
 var PAGE_REF = 1240;
+/* The least distance between two pips' tops, in widths of the page: the
+   disc is 3.2cqw across, so 3.6 leaves a hair between them. */
+var PIP_GAP = 0.036;
 var RAIL = "(min-width: 56rem) and (orientation: landscape)";
 var SVG = "http://www.w3.org/2000/svg";
 
@@ -283,9 +286,16 @@ function make(opts) {
       function (n) { n.parentNode.removeChild(n); });
     var r = round();
     if (r && doc) {
-      rows(r).forEach(function (item) {
-        if (pipped(r, item)) pip(item);
-        if (r.landed && owed(item)) ghost(item, "lg-full");
+      var pips = rows(r).filter(function (item) { return pipped(r, item); });
+      apart(pips).forEach(function (p) { pip(p[0], p[1]); });
+      /* OWED INK FROM EVERY ROUND, not only the one the panel shows: the live
+         ink went when its round landed, so this is the only place it is still
+         on the page. A not-fixed pair riding a round still being revised is
+         owed too -- its ink must not vanish while the turn works on it. */
+      (data.rounds || []).forEach(function (x) {
+        (x.items || []).forEach(function (item) {
+          if (x.landed ? owed(item) : item.kind === "reopened") ghost(item, "lg-full");
+        });
       });
       var s = sel ? find(sel) : null;
       if (s) {
@@ -296,7 +306,37 @@ function make(opts) {
     panelPaint();
   }
 
-  function pip(item) {
+  /* The page's height over its width, from the picture where it has loaded. */
+  function aspect(fig) {
+    var img = fig.querySelector("img");
+    return img && img.naturalWidth && img.naturalHeight
+      ? img.naturalHeight / img.naturalWidth
+      : (fig.offsetWidth && fig.offsetHeight ? fig.offsetHeight / fig.offsetWidth : 11 / 8.5);
+  }
+
+  /* PIPS NEVER SIT ON EACH OTHER. Two pairs a line apart would put one disc
+     over the other, and neither number could be read or tapped. Down each
+     page, a pip closer than `PIP_GAP` of the page's width to the one above is
+     pushed down to that gap. The gap is a fraction of the page, so the
+     spacing scales with the zoom like everything else on it. -> [[item, y]] */
+  function apart(list) {
+    var out = [], last = {};
+    list.slice().sort(function (a, b) {
+      return a.at.page - b.at.page || a.at.y - b.at.y;
+    }).forEach(function (item) {
+      var fig = figure(item.at.page);
+      if (!fig) return;
+      var gap = PIP_GAP / aspect(fig);
+      var y = item.at.y;
+      var above = last[item.at.page];
+      if (above !== undefined && y < above + gap) y = above + gap;
+      last[item.at.page] = y;
+      out.push([item, y]);
+    });
+    return out;
+  }
+
+  function pip(item, y) {
     var fig = figure(item.at.page);
     if (!fig) return;
     var p = button("", "lg-pip lg-" + tone(item)
@@ -311,7 +351,7 @@ function make(opts) {
     p.appendChild(el("span", "", String(item.n)));
     p.dataset.id = item.id;
     p.title = item.n + ". " + said(item);
-    p.style.top = (item.at.y * 100).toFixed(2) + "%";
+    p.style.top = ((y === undefined ? item.at.y : y) * 100).toFixed(2) + "%";
     fig.appendChild(p);
   }
 
@@ -339,11 +379,7 @@ function make(opts) {
     if (!ink || !ink.strokes || !ink.strokes.length || !at || at.by === "gone") return;
     var fig = figure(at.page || ink.page);
     if (!fig) return;
-    var img = fig.querySelector("img");
-    var ratio = img && img.naturalWidth && img.naturalHeight
-      ? img.naturalHeight / img.naturalWidth
-      : (fig.offsetWidth && fig.offsetHeight ? fig.offsetHeight / fig.offsetWidth : 11 / 8.5);
-    var W = PAGE_REF, H = W * ratio;
+    var W = PAGE_REF, H = W * aspect(fig);
     var svg = document.createElementNS(SVG, "svg");
     svg.setAttribute("class", "lg-ghost " + strength);
     svg.setAttribute("viewBox", "0 0 " + W + " " + H.toFixed(1));

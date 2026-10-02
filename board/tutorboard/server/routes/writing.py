@@ -113,15 +113,20 @@ def ann_says(key, answering_now):
                       "against that card's own text in live/cards/.")
     m = ann_doc_page(key)
     if m:
-        # INK ON A DOCUMENT IS ANSWERED IN ITS LEDGER, whichever surface it was
-        # sent from: answered anywhere else, it stays drawn over the revision.
+        # INK ASKING FOR A CHANGE TO A DOCUMENT IS ANSWERED IN ITS LEDGER,
+        # whichever surface it was sent from: answered anywhere else, it stays
+        # drawn over the revision. A mark asking a question about the page --
+        # a sitting's "why is this true?" on its own write-up -- is the lesson's,
+        # and filing it as a round would spend a revision on a question.
         return ("they wrote on page %d of the document `%s`"
                 % (m[1], m[0]),
                 "Open the image to see the marks. The document itself is one "
                 "this workspace offers -- `board doctor` lists them -- and the "
-                "address of that page is #/w/<family>/<workspace>/%s. This is "
-                "feedback on the document, not the lesson: run `board round %s` "
-                "and answer every id in the ledger it prints." % (key, m[0]))
+                "address of that page is #/w/<family>/<workspace>/%s. Where the "
+                "marks ask for changes to the document, they are feedback on it, "
+                "not the lesson: run `board round %s` and answer every id in the "
+                "ledger it prints. Where they ask a question about the page, "
+                "answer it in the lesson." % (key, m[0]))
     return "they wrote on %s" % key, "Open the image to see the marks."
 
 

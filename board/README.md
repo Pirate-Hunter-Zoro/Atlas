@@ -4254,7 +4254,8 @@ because a write there would move the stat the validation is keyed on.
   <document>` (either name: `library.find_any`) files the marks as a round, hands the
   ink over and prints the ledger and ids; asked again before that round is answered it
   prints the same round, and with no ink and nothing reopened it refuses. A lesson turn
-  handed ink on a `doc/` key is told so (`writing.ann_says`), and every workspace
+  handed ink on a `doc/` key is told to file it where the marks ask for changes, and
+  to answer a question about the page in the lesson (`writing.ann_says`), and every workspace
   contract says it: ink answered anywhere else stays drawn over the revision.
 - **The wipe knows the ink a round filed.** Once a round lands, `wipe_delivered` deletes
   `sent` ink and also ink that round filed and nobody touched since (same build, same
@@ -4263,12 +4264,16 @@ because a write there would move the stat the validation is keyed on.
   `under` per inked request: the whole lines level with the ink (at most 40 words),
   on the build it was drawn on. `anchors` stores `ink_at` beside the placement in
   `placed-<digest>.json`: `same` on that build, `text` with the shift `dx`/`dy` where
-  `place` finds the words again, `gone` otherwise. Words gone but the answer on the
-  same page: the ghost follows the answer down the page, never onto another page.
+  `place` finds the words again, `part` where only their first or last half is found
+  (the inked line rewritten, its neighbour kept; `dy` only), `drawn` where the round
+  was filed off an older build and kept no words (the ink sits as drawn), `gone`
+  otherwise. Words gone but the answer on the same page: the ghost follows the answer
+  down the page, never onto another page. `ANCHOR_V` bumps the cache when this rule
+  changes.
 - **A row of `view` is a pair**: `n` (document order, the pip's number), `at` (where
   the pip goes and what a tap shows: the answer's box, else the ink's, else the top
-  of its page), `ink` (the archived strokes), `ink_at`, `diff` (word ops over
-  `plain(old)` and the changed lines, cut to the passage the turn quoted, unchanged
+  of its page), `ink` (the archived strokes), `ink_at`, `diff` (word ops over the
+  old and the changed lines as they read, inline math kept as `k=300`, cut to the passage the turn quoted, unchanged
   runs past 16 words cut to 6 at each end), `reply` (the turn's sentence for not
   done and pushed back) and `gone` (its words left the document and nothing was
   placed). A round carries `open`, `judged` and `done` (every pair fine or carried).
@@ -4277,10 +4282,13 @@ because a write there would move the stat the validation is keyed on.
   `/meeting`, which has no round and asks nothing of it). `#reader-changes` reads
   *Round 3 · 12 notes*, *· 4 open* or *Round 3 done* and opens the panel. A pip in the
   page's margin marks each open placed pair of the round shown, sized in `cqw` of
-  `.lib-page` with a 32 px hit area, so it scales with the zoom exactly; a pair said
-  fine loses it, and with the pen out pips do not take a tap. Archived ink that is
-  still owed (not answered, not done, or not fixed) is drawn back at full strength
-  as an `.lg-ghost` SVG in page units (1240 across), shifted by `ink_at`. A row is
+  `.lib-page` with a 32 px hit area, so it scales with the zoom exactly; a pip closer
+  than `PIP_GAP` of the page's width to the one above is pushed down to it, so two
+  never overlap; a pair said fine loses it, and with the pen out pips do not take a
+  tap. Archived ink still owed (not answered, not done, or not fixed) in any landed
+  round, and a not-fixed pair riding a round still being revised, is drawn back at
+  full strength as an `.lg-ghost` SVG in page units (1240 across), shifted by
+  `ink_at`: its live ink went when its round landed. A row is
   the crop or the typed words over the diff or the reply. Tapping a row zooms to at
   least 125%, centres its place in what the panel leaves, flashes the revised
   passage and lays a faint ghost of the ink over it; tapping a pip opens its row.

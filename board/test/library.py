@@ -1327,6 +1327,34 @@ check("where the words under the ink are gone and nothing was placed, the pair "
 check("and with no answer found it still keeps its page, at the top",
       gv["R1.1"]["at"] and gv["R1.1"]["at"]["by"] == "page" and gv["R1.1"]["at"]["page"] == 1)
 
+# THE LINE THE INK WAS ABOUT REWRITTEN, ITS NEIGHBOUR KEPT, a line put above
+# both: the ink follows the line that is still there, not the answer's box.
+part_pdf = os.path.join(pr_tmp, "part.pdf")
+with open(part_pdf, "wb") as fh:
+    fh.write(pdf_lines([["Alpha bravo charlie delta echo foxtrot.",
+                         "Golf hotel india juliet kilo lima."]]))
+part_under = ledger.under(part_pdf, 1, [0.1, 0.05, 0.9, 0.12])
+with open(part_pdf, "wb") as fh:
+    fh.write(pdf_lines([["A line put above.", "Alpha bravo charlie delta echo foxtrot.",
+                         "Something new said here instead."]]))
+part_at = ledger.ink_where(part_pdf, "another-build",
+                           {"strokes": [ring], "page": 1, "drawn_on": "old",
+                            "under": part_under})
+check("words edited rather than gone: the ink follows the half of them still "
+      "there, shifted by how far that half moved",
+      part_under and len(part_under["text"].split()) == 12
+      and part_at["by"] == "part" and part_at["page"] == 1
+      and 0.02 < part_at["dy"] < 0.04)
+stale = ledger.ink_where(part_pdf, "another-build",
+                         {"strokes": [ring], "page": 1, "drawn_on": "old",
+                          "box": [0.3, 0.2, 0.4, 0.3]})
+check("ink filed off an older build, with no words kept, sits where it was drawn "
+      "rather than being called gone",
+      stale["by"] == "drawn" and stale["box"] == [0.3, 0.2, 0.4, 0.3] and stale["dy"] == 0)
+check("a diff keeps the math a sentence reads with, and its stop on the word",
+      ledger.word_diff("flat past $k=300$.", "flat past $k=295$ for $\\alpha=1$.")
+      == [["=", "flat past"], ["-", "k=300."], ["+", "k=295 for α=1."]])
+
 # FINE ON EVERY PAIR: the round is done.
 pn = os.path.basename(pnote)
 ledger.set_state(pr_tmp, pdoc, pn, "R1.1", "accepted")
