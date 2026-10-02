@@ -1265,7 +1265,7 @@ with every problem printed at once. `board thread --show` prints it and
 `board thread --check` says what has gone stale. A write that git cannot see is
 refused with the line that fixes it.
 
-**Never write a status.** Done, running, written, result and open are derived
+**Never write a status.** Done, running, requested, written, result and open are derived
 from the file, git, the job registry and which paths exist. `close` is the only
 typed state, and it is the owner's tap.
 
