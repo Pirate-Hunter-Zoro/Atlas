@@ -190,7 +190,7 @@ the one command to type with the `!` prefix and wait for it. Never ask for a pas
 > (`ai-config/scripts/audit.sh`'s `REPO_ROOTS` is one) and derive the path from the file's own
 > location instead. Finish by opening the atlas and TRD-EHR from the iPad's point of view (the
 > tailnet address), and report both URLs, the power settings as read back, and the test result.
-> Ship with the repository's scripts. Then do item 7.
+> Ship with the repository's scripts. Then do item 10, then item 7.
 
 ### 2. A request and a report — depends on nothing
 
@@ -423,6 +423,46 @@ Each is independent and small. Give one agent all five, one commit each.
 > **Prompt:** Build item 9 of `HANDOFF.md`: five small changes, one commit each, each with a
 > test. Read `map.thread_sheet`, the sheet code in `board.js`, `cards.stopped_body`,
 > `report_owed`, and `cmd_push`. Ship with the repository's scripts.
+
+### 10. One environment per workspace, on both machines — depends on 1
+
+The board's own code is stdlib only. The workspaces' code is not. A tutor tests before it
+pushes, so every workspace with code says what it needs in a file, and one command builds all
+of it.
+
+- **Python is `uv`.** Each workspace with Python code has a `pyproject.toml` and a committed
+  `uv.lock`. `uv sync` builds `.venv/` inside the workspace, which is ignored. The base
+  dependencies are what the code and its tests need. GPU-only packages (torch with CUDA, vllm,
+  and the like) go in an optional `cluster` extra, which only the cluster installs. A test
+  extra holds pytest and its friends.
+- **Lean is `elan`.** `practice/Lean-Theorem-Proving/lean-toolchain` pins the version, and the
+  setup fetches the mathlib cache with `lake` before building.
+- **System tools are a root `Brewfile`:** TeX with latexmk, poppler, node, uv, elan, gh, and
+  whatever item 1 found the paper builders need. On the cluster, the same tools come from
+  modules or from a user-level install of `uv` and `elan`, both without root.
+- **`bash scripts/setup.sh` builds everything.** It runs `brew bundle` on a Mac, then `uv sync` in
+  each workspace with a `pyproject.toml`, and the Lean build. It is idempotent, prints one line
+  per workspace, and finds workspaces by looking, never from a list. It installs the `cluster`
+  extra only where Slurm exists.
+- **Each workspace names its check** in `tutorboard.json`: the test command, run with `uv run`.
+  Every assistant contract says that a turn changing code runs the check in the workspace's
+  environment before it pushes, and says in its report whether the check passed.
+- **TRD-EHR's conda environment on lab storage stays as it is** until the `pyproject.toml`
+  reproduces it. The cluster then builds from the lockfile into lab storage, through
+  `UV_PROJECT_ENVIRONMENT`, so the pipeline's environment and the Mac's come from one file.
+  Rewrite `setup_envs.sh` to call that, and confirm one real sweep runs on the new environment
+  before removing the conda one.
+
+> **Prompt:** Do item 10 of `HANDOFF.md`. Survey every workspace for code and the imports it
+> really makes. Read TRD-EHR's `setup_envs.sh` for its pins, plus any requirements, conda or
+> Lean files. Write each workspace's `pyproject.toml` with the base, test and cluster extras,
+> lock it with uv, and write the root `Brewfile` and `scripts/setup.sh`. Run the setup on this
+> Mac, and run every workspace's check in its environment. A check that fails for a reason in
+> the code, not the environment, is reported, not fixed. Add the check to each `tutorboard.json`
+> and the before-pushing rule to every workspace contract. Write the root `README.md`'s setup
+> section in the present tense. Leave TRD-EHR's cluster switch from conda to the lockfile as
+> the last part. It needs the cluster, so file it as a relay `turn` request (item 3) with this
+> item's text, rather than doing it from the Mac. Ship with the repository's scripts.
 
 ### Left as they are
 
