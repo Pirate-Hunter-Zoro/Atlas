@@ -257,6 +257,12 @@ def validate(raw):
         files = _paths(one.get("files"), where, "files", problems)
         outputs = _paths(one.get("outputs"), where, "outputs", problems)
         exports = _exports(one.get("exports"), where, problems)
+        check = ""
+        if one.get("check"):
+            check = _rel(one.get("check")) or ""
+            if not check:
+                problems.append("%s: `check` %r is not a path inside this "
+                                "workspace" % (where, one.get("check")))
 
         writes = []
         w_in = one.get("writes") or []
@@ -346,6 +352,7 @@ def validate(raw):
             "id": tid, "deliverable": deliv, "title": title,
             "question": question[:MAX_QUESTION],
             "files": files, "outputs": outputs, "exports": exports,
+            "check": check,
             "writes": writes, "tasks": tasks[:MAX_TASKS], "decisions": decisions,
             "doc": doc, "blockedBy": blocked[:MAX_BLOCKED], "closed": closed,
         })
@@ -780,7 +787,8 @@ def from_map(written, deliverable_id, deliverable_title=""):
         threads.append({
             "id": n["id"], "deliverable": deliverable_id,
             "title": title[:MAX_TITLE], "question": question[:MAX_QUESTION],
-            "files": files, "outputs": [], "exports": [], "writes": [],
+            "files": files, "outputs": [], "exports": [], "check": "",
+            "writes": [],
             "tasks": [],
             "decisions": [], "doc": n.get("doc") or "",
             "blockedBy": list(n.get("blockedBy") or []), "closed": False,

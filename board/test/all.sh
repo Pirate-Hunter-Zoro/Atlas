@@ -422,6 +422,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# A sitting held at the cluster: the hold checked whole, the Mac refusing the
+# held files, the pull under the owner's edits, and one round trip.
+printf '%-12s ' "holds"
+if out="$(python3 test/holds.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

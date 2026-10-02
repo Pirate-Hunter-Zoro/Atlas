@@ -219,6 +219,17 @@ def thread_sense(repo, st):
     status = stage.get("status") or "open"
     out.append("Status: %s%s." % (status, ", with unsaved changes under its "
                                    "paths" if stage.get("unsaved") else ""))
+    try:
+        from . import holds
+        held = holds.holds(root).get(tid)
+    except Exception:                                        # noqa: BLE001
+        held = None
+    if held:
+        out.append("HELD AT THE CLUSTER: the owner writes this thread's code "
+                   "there, and its files are the cluster's until `board "
+                   "release`. Do not edit them here; `board push` refuses. "
+                   "Each step comes back as a `[coach]` line -- TEACHING.md, "
+                   "\"A sitting held at the cluster\".")
     said = (st or {}).get("rethink")
     if said:
         out.append("THEIR RETHINK OF THIS THREAD, in their own words, and it "

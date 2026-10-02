@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 113 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 114 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -623,6 +623,8 @@ every workspace without one. `test/threads.py` is the suite.
   may copy into tracked `exports/`. Only `aggregate: true` may be published, and that is the
   owner's word: `board thread export` lists a path unanswered and prints the question for the
   turn's card; `--aggregate` records yes, `--drop` records no.
+- `check` is a workspace-relative script `board send` runs after each step of a held sitting.
+  The tutor writes it and commits it before the hold. It prints only `RELAY:` lines.
 
 ```
 board thread < threads.json          write the whole file
@@ -634,6 +636,7 @@ board thread done [<thread>] <task>  by number or text
 board thread decide [<thread>] <decision> ["<rule>"]
 board thread close|reopen [<thread>]
 board thread export [<thread>] <results/path> [--aggregate|--drop]
+board thread check [<thread>] <script>|--drop
 ```
 
 `<thread>` may be left out where `live/state.json` names the sitting's `thread`. **Every write is
@@ -809,6 +812,53 @@ the busy strip says *running — (thread title): job N*, with *pending* while it
 job's own clock, off the payload's `jobs` (`jobs.running`). A mission dispatched with a `thread`
 (`POST /elsewhere`, refused where that workspace has no such thread) carries it in its record,
 and while the mission is live its thread says `running` too.
+
+### A sitting held at the cluster
+
+The owner writes a thread's code on the cluster, beside the data, and the coach on the Mac answers
+on the iPad. `tutorboard/holds.py` is the module; `test/holds.py` is the suite.
+
+```
+board hold [<thread>]                cluster: relay/holds/<thread>.json, committed alone, pushed
+board send [<thread>] [--wait N|--no-wait] [--anyway]
+                                     cluster: commit the step, run the check, push, print the reply
+board send --reply [<thread>]        cluster: the coach's last reply
+board release [<thread>]             cluster: remove the hold, committed alone, pushed
+board coach <thread> [--step N] < reply.md
+                                     Mac: relay/coach/<thread>.md, committed alone, pushed
+```
+
+- **A hold is checked whole** (`holds.validate_hold`, pure): the thread exists, is not held
+  already, has `files`, none of them under another hold, and a `check` tracked and unchanged at
+  HEAD. It is made only where there is Slurm.
+- **While it stands, the thread's `files` are the cluster's.** The hold's own list and the
+  thread's current one both count. `holds.refusal` is asked by `board push` and the save button
+  on a machine without Slurm, and refuses a commit touching one, naming the file. `board brief`
+  says *held at the cluster* on the thread.
+- **`holds.sync` is the cluster's pull.** It fetches, refuses with nothing moved if origin changes
+  a path that has uncommitted edits here, then `git rebase --autostash` onto the upstream; a
+  rebase that stops is aborted. The relay's pass and every hold command pull through it.
+  `holds.push` answers a rejection with one `sync` and one more push, never force.
+- **`board send` is one step.** It commits the thread's changed files as `<thread>: step`, as the
+  owner. It runs the check from the workspace root (`.py` with `python3`, `.sh` or non-executable
+  with `bash`; a check needing an environment is a `.sh` that enters it), with a 30-minute cap.
+  `relay/reports/check-<thread>-<n>.json` carries `kind: check`, `step`, `files`, `exit`,
+  `state`, the `RELAY:` lines (prefix dropped, 40 at most, a line the PHI policy flags withheld
+  and counted) and a crash's exception type. Nothing else the check prints leaves the terminal.
+  It commits that alone as `<thread>: check <n>`, pushes both, and polls origin's
+  `relay/coach/<thread>.md` every 10 seconds for three minutes.
+- **On the Mac, `holds.wake` drops a `[coach]` line** for each held thread's newest check report
+  that has no reply yet, once (`O_EXCL` under `live/coach.woken/`). The line names the step's
+  commit (the parent of the commit that added the report, when its subject is `<thread>:
+  step`), the check's exit and its `RELAY:` lines. The woken turn follows TEACHING.md, "A sitting
+  held at the cluster". A check report is not a request's report: `holds.is_check` tells them
+  apart, and the registry's view ignores it.
+- **The coach file** starts `<!-- coach <thread> step <n> -->`; `board send` prints the body when
+  `n` reaches its step. `board coach` refuses text the PHI policy flags.
+- **The Mac's pull runs every `holds.POLL_SECONDS` (20) while any hold stands**
+  (`holds.poll_seconds`). `holds.owned` lists what the cluster writes in a workspace now: its
+  reports, exports and holds, and every held thread's files.
+- **`board release` refuses while a held file has uncommitted edits.** Send them as a step first.
 
 ### The meeting deck
 

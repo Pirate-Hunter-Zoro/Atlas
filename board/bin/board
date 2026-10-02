@@ -61,6 +61,12 @@ The assistant runs these. The student never does.
     board ask-cluster <thread> "<brief>"
                                        file a `turn` request: a cluster turn
                                        beside the data, its note public
+    board hold|release <thread>        on the cluster: the thread's files are
+                                       written there, coached from the Mac
+    board send [<thread>]              on the cluster, after each step: commit
+                                       it, run the thread's check, push, and
+                                       print the coach's reply
+    board coach <thread> < reply.md    on the Mac: the coach's reply to a step
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
@@ -128,7 +134,7 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (assistants, atlas, brief, carry, direction, handoff,
+from tutorboard import (assistants, atlas, brief, carry, direction, handoff, holds,
                         jobs, keys, leaving, limits, machine, manuscript, meeting,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sittings, tex, worktree)
@@ -1519,6 +1525,18 @@ def cmd_push(live, args):
                            "detail": phi}, fh, indent=2)
             return 1
 
+    # A THREAD HELD AT THE CLUSTER IS THE CLUSTER'S. Its files are being written
+    # there, beside the data; a commit of them from here is the one thing that
+    # makes the two machines' pulls conflict. See `tutorboard/holds.py`.
+    held = holds.refusal(live.root, only)
+    if held:
+        print(held, file=sys.stderr)
+        with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ok": False, "at": time.time(),
+                       "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                       "detail": held}, fh, indent=2)
+        return 1
+
     # The write-up is part of the work, so it is part of the commit.
     #
     # An exercise is finished when it is typeset, not when it is agreed: the
@@ -2419,6 +2437,10 @@ def cmd_thread(live, args):
                                              published to exports/
         board thread export [<thread>] <results/path> --drop
                                              the owner said no: unlisted
+        board thread check [<thread>] <script>|--drop
+                                             the tracked script `board send`
+                                             runs on the cluster after each
+                                             step; it prints only RELAY: lines
 
     `<thread>` may be left out where the sitting open now is on a thread.
 
@@ -2496,7 +2518,7 @@ def cmd_thread(live, args):
         return _thread_store(root, raw, "written")
 
     if verb not in ("add", "task", "done", "decide", "close", "reopen",
-                    "export"):
+                    "export", "check"):
         print("board thread: %r is not a subcommand; `board thread --help` "
               "lists them" % verb, file=sys.stderr)
         return 1
@@ -2632,6 +2654,18 @@ def cmd_thread(live, args):
                       "  no:  board thread export %s %s --drop"
                       % (want, tid, want, tid, want))
             return code
+    elif verb == "check":
+        if rest == ["--drop"]:
+            one["check"] = ""
+            said = "`%s` has no check" % tid
+        elif len(rest) == 1:
+            one["check"] = rest[0]
+            said = ("`%s`: its check is %s. Commit it before `board hold`: a "
+                    "hold refuses a check that is not tracked" % (tid, rest[0]))
+        else:
+            print("board thread check: name one script, or --drop",
+                  file=sys.stderr)
+            return 1
     elif verb == "close":
         one["closed"] = True
         said = "`%s` is closed" % tid
@@ -2932,6 +2966,113 @@ def cmd_ask_cluster(live, args):
             print("  " + line, file=sys.stderr)
         return 1
     return _request_filed(root, ok)
+
+
+def cmd_hold(live, args):
+    """Hold a thread's sitting at the cluster, so the owner writes its code here.
+
+        board hold [<thread>]
+
+    Typed in the cluster checkout. Records `relay/holds/<thread>.json`,
+    commits it alone and pushes it. Until `board release`, the thread's
+    `files` are the cluster's: the Mac's turns refuse to write them, and the
+    Mac polls every 20 seconds. Refused on a thread already held, one with no
+    files, and one whose `check` is missing or not tracked.
+    """
+    tid, _ = _job_thread(live, list(args), "board hold")
+    if not tid:
+        return 1
+    ok, lines = holds.hold(live.root, tid)
+    for line in lines:
+        print(line, file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
+
+
+def cmd_release(live, args):
+    """End a hold: the Mac may write the thread's files again.
+
+        board release [<thread>]
+
+    Refused while a held file has uncommitted edits; `board send` them first.
+    """
+    tid, _ = _job_thread(live, list(args), "board release")
+    if not tid:
+        return 1
+    ok, lines = holds.release(live.root, tid)
+    for line in lines:
+        print(line, file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
+
+
+def cmd_send(live, args):
+    """The owner's one command per step of a sitting held at the cluster.
+
+        board send [<thread>] [--wait N|--no-wait] [--anyway]
+        board send --reply [<thread>]      print the coach's last reply
+
+    Commits the thread's changed files as `<thread>: step`, runs the thread's
+    check here and commits its report (`relay/reports/check-<thread>-<n>.json`:
+    exit code and RELAY: lines only), pushes both, and waits up to three
+    minutes for the coach's reply from the Mac. `--anyway` is the PHI check's
+    keyboard override, as for `board push`.
+    """
+    words = [a for a in args if not a.startswith("--")]
+    wait = holds.WAIT_SECONDS
+    if "--no-wait" in args:
+        wait = 0
+    if "--wait" in args:
+        i = args.index("--wait")
+        try:
+            wait = int(args[i + 1])
+        except (IndexError, ValueError):
+            print("board send: --wait takes seconds", file=sys.stderr)
+            return 1
+        words = [w for w in words if w != args[i + 1]]
+    if "--reply" in args:
+        standing = sorted(holds.holds(live.root))
+        tid = words[0] if words else (standing[0] if len(standing) == 1 else "")
+        if not tid:
+            print("board send --reply: name the thread", file=sys.stderr)
+            return 1
+        step, body = holds.upstream_reply(live.root, tid)
+        if not body:
+            print("no reply from the coach on %s yet" % tid)
+            return 0
+        print("step %d:\n\n%s" % (step, body))
+        return 0
+    if len(words) > 1:
+        print("board send: name at most one thread", file=sys.stderr)
+        return 1
+    return holds.send(live.root, words[0] if words else None, wait=wait,
+                      anyway="--anyway" in args)
+
+
+def cmd_coach(live, args):
+    """The coach's reply to a step held at the cluster. Body on stdin.
+
+        board coach <thread> [--step N] < reply.md
+
+    Writes `relay/coach/<thread>.md`, commits it alone and pushes it; `board
+    send` on the cluster prints it. It is public: the code and the check's
+    aggregate numbers, never rows. `--step` defaults to the newest check.
+    """
+    words = list(args)
+    step = None
+    if "--step" in words:
+        i = words.index("--step")
+        try:
+            step = int(words[i + 1])
+        except (IndexError, ValueError):
+            print("board coach: --step takes a number", file=sys.stderr)
+            return 1
+        del words[i:i + 2]
+    tid, _ = _job_thread(live, words, "board coach")
+    if not tid:
+        return 1
+    ok, said = holds.write_coach(live.root, tid, sys.stdin.read(), step=step)
+    print(said if ok else "board coach: " + said,
+          file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
 
 
 def inside_a_daemon_turn(live):
@@ -4182,6 +4323,8 @@ COMMANDS = {
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,
     "thread": cmd_thread, "job": cmd_job, "ask-cluster": cmd_ask_cluster,
+    "hold": cmd_hold, "release": cmd_release, "send": cmd_send,
+    "coach": cmd_coach,
     "notes": cmd_notes, "make": cmd_make,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
     "round": cmd_round,

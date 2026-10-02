@@ -400,8 +400,12 @@ def sense(root, rec):
     return "\n".join(lines)
 
 
-def drop(root, rec, now=None):
-    """Put the `[job]` line in the inbox, where `board wait` picks it up."""
+def drop(root, rec, now=None, text=None, signal="job"):
+    """Put the `[job]` line in the inbox, where `board wait` picks it up.
+
+    `text` and `signal` put another machinery line the same way: a step's
+    check is `[coach]` (`holds.wake`).
+    """
     from .course.repo import Repo
     from .lesson import turns
     now = float(now or time.time())
@@ -413,7 +417,8 @@ def drop(root, rec, now=None):
         # `[ship]` line.
         "id": turns.next_turn_id(target), "rev": 0, "kind": "text",
         "answers": None, "t": now, "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "from": "student", "text": sense(root, rec), "signal": "job",
+        "from": "student", "text": text if text is not None else sense(root, rec),
+        "signal": signal,
         "read": False,
     }
     with open(target.messages_path, "a", encoding="utf-8") as fh:
@@ -582,6 +587,11 @@ def validate(req, clean, tracked, declared, taken=(), turns=False):
                         % (rid,))
     elif rid in set(taken or ()):
         problems.append("id %s is already filed; an id names one request" % rid)
+    elif rid.startswith("check-"):
+        # `relay/reports/check-<thread>-<n>.json` is a held step's check
+        # (`holds.is_check`), so a request named so would share its report.
+        problems.append("id %s starts with `check-`, which names a held "
+                        "step's check report" % rid)
     filed = req.get("filed")
     if filed is not None and (isinstance(filed, bool)
                               or not isinstance(filed, (int, float))):
@@ -842,12 +852,8 @@ def request_visible(root):
 def file_request(root, req, run=subprocess.run, push=True):
     """Write `relay/requests/<id>.json` and commit that one file, then push.
 
-    `(path, ok, said)`. The commit goes through the tool's own
-    `save-and-push.sh` with the request as its whole pathspec, so nothing else
-    in the tree rides along. `push=False` commits it with plain git, and
-    pushes nothing.
+    `(path, ok, said)`. `commit_alone` makes the commit.
     """
-    from . import atlas, paths
     target = os.path.join(requests_dir(root), req["id"] + ".json")
     if os.path.exists(target):
         return target, False, "%s is already there" % target
@@ -856,6 +862,20 @@ def file_request(root, req, run=subprocess.run, push=True):
         json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
         fh.write("\n")
     course_threads.forget(root)
+    ok, said = commit_alone(root, target, "relay request %s" % req["id"],
+                            run=run, push=push)
+    return target, ok, said
+
+
+def commit_alone(root, target, what, run=subprocess.run, push=True):
+    """Commit the one file `target`, written or removed, then push. `(ok, said)`.
+
+    The commit goes through the tool's own `save-and-push.sh` with that file as
+    its whole pathspec, so nothing else in the tree rides along. The message is
+    `<workspace>: <what>`. `push=False` commits it with plain git, and pushes
+    nothing.
+    """
+    from . import atlas, paths
     try:
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -863,22 +883,24 @@ def file_request(root, req, run=subprocess.run, push=True):
     except (OSError, subprocess.SubprocessError):
         top = ""
     if not top:
-        return target, False, "%s is not in a git repository" % root
-    rel = os.path.relpath(os.path.realpath(target), os.path.realpath(top))
+        return False, "%s is not in a git repository" % root
+    # The directory resolved, not the file: a removed file has no realpath.
+    rel = os.path.relpath(
+        os.path.join(os.path.realpath(os.path.dirname(target)),
+                     os.path.basename(target)), os.path.realpath(top))
     where = atlas.identify(root)
-    msg = ("%s: relay request %s" % (where, req["id"]) if where
-           else "relay request %s" % req["id"])
+    msg = "%s: %s" % (where, what) if where else what
     script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
     if push and os.path.exists(script):
         cmd = ["bash", script, msg, "--", rel]
     else:
-        cmd = ["bash", "-c", 'set -e; git add -- "$2"; '
+        cmd = ["bash", "-c", 'set -e; git add -A -- "$2"; '
                'git commit -q -m "$1" --only -- "$2"', "_", msg, rel]
     try:
         p = run(cmd, cwd=top, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 universal_newlines=True, timeout=180)
     except subprocess.TimeoutExpired:
-        return target, False, "timed out after 3 minutes"
+        return False, "timed out after 3 minutes"
     except OSError as exc:
-        return target, False, str(exc)
-    return target, p.returncode == 0, (p.stdout or "").strip()[-800:]
+        return False, str(exc)
+    return p.returncode == 0, (p.stdout or "").strip()[-800:]

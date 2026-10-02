@@ -47,11 +47,12 @@ live/*
 # above, or that rule is the last match and wins.
 !threads.json
 
-# THE RELAY'S REQUESTS AND REPORTS ARE TRACKED: they are how the Mac and the
-# cluster talk, through the repository. Each must survive the blanket *.json
+# THE RELAY'S REQUESTS, REPORTS AND HOLDS ARE TRACKED: they are how the Mac and
+# the cluster talk, through the repository. Each must survive the blanket *.json
 # rule above.
 !relay/requests/*.json
 !relay/reports/*.json
+!relay/holds/*.json
 
 # ---- LaTeX build artifacts ----
 # docs/*.tex is the source and docs/*.pdf is the deliverable; everything
