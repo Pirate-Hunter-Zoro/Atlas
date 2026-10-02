@@ -18,7 +18,7 @@ This file says what is left to build.
 |---|---|---|
 | Runs | the board, tutor turns, compiles, decks, meetings | Slurm jobs, the relay, cluster turns |
 | Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
-| Providers | any, including DeepSeek | Claude with the PHI guard, and Colibri on LIBR hardware |
+| Providers | any, including DeepSeek | Claude with the PHI guard, and Colibri on demand |
 | Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, and the files of a thread held at the cluster |
 | iPad reaches it | over the owner's own tailnet | never |
 
@@ -39,8 +39,9 @@ PHI rule on the Mac is a rule about what the cluster may export.
   requests.
 - **research/PSYCH-ASR:** code on the Mac. Every run on the cluster. The owner listens to the
   recordings at the institute, never through the relay.
-- **projects/libr-local-llm:** the deck and the learning sittings on the Mac. Colibri itself
-  stays on LIBR hardware. `vendor/colibri` moves forward on the cluster's relay pass.
+- **projects/libr-local-llm:** the deck and the learning sittings on the Mac. Colibri runs on
+  the cluster only while it has a task (item 6). `vendor/colibri` moves forward on the cluster's
+  relay pass.
 - **projects/Paper-Writer:** all on the Mac.
 
 ---
@@ -209,9 +210,13 @@ lock, and skip the pass if the lock is held):
    `vendor/colibri` forward with `pull_vendor`.
 2. For each request with no report, validate it. Then submit it through `jobs.submit`, or
    refuse it in a report.
-3. Poll `sacct` for unfinished jobs with the existing `jobs.poll`. The board daemon's poll moves
-   here. On a terminal state, copy the exports, check them against the thread file and the size
-   cap, and write the report.
+3. Poll unfinished jobs with the existing `jobs.poll`. The board daemon's poll moves here.
+   **`sacct` is refused on this cluster** (its database connection is refused), so a job's end
+   cannot be read from Slurm's accounting. `jobs.submit` wraps every recipe so its last act
+   writes the exit code to `relay/state/<id>.exit`, which is ignored. A job that has left
+   `squeue` with that file is ended with that code. A job that has left `squeue` without it
+   died: timeout, node failure or a cancel. On an ended job, copy the exports, check them
+   against the thread file and the size cap, and write the report.
 4. For a `turn` request in a workspace that opted in, run a headless Claude turn there, with the
    brief, the thread, and the rule that its note is public. Only one turn runs at a time; the
    rest wait for later passes.
@@ -225,10 +230,11 @@ lock, and skip the pass if the lock is held):
 > cluster. Read "The relay", "Rules that bind every item", and item 2's code. First prove that a
 > compute node in the `c3_short` partition can reach github.com with git over HTTPS. If it
 > cannot, stop and report that in one line. Reuse `jobs.submit`, `jobs.poll` and `pull_vendor`.
-> Write a report's note so it can be published, and enforce the `RELAY:` line rule and the
+> `sacct` is refused here: end jobs from `squeue` plus the exit-code file, and test a job that
+> leaves `squeue` without one. Write a report's note so it can be published, and enforce the `RELAY:` line rule and the
 > export checks in code, not only in the turn's instructions. Install the scrontab entry with a
 > command the README names, and make `tutor where` show the relay's last pass. Tests use a temp
-> repository with a fake `sbatch` and `sacct`, and cover: a request run, a refusal, two passes
+> repository with a fake `sbatch` and `squeue`, and cover: a request run, a refusal, two passes
 > at once, an export over the cap refused, a dirty tree skipping the pass, and a push retried.
 > Then run one real request end to end: the TRD-EHR neighbour-count sweep on its smallest
 > embedder, filed from the Mac side of the code. Ship with the repository's scripts.
@@ -302,7 +308,49 @@ iPad as the coach's page.
 > trip on a TRD-EHR Paper 2 coach thread with a trivial check. Ship with the repository's
 > scripts.
 
-### 6. Providers on the Mac — depends on 1
+### 6. Colibri on demand — depends on 3
+
+Colibri is not kept warm. It runs while it has work and stops when it has none. A task survives
+the job running it.
+
+- **A task queue on the cluster**, in the libr-local-llm workspace's ignored state, because a
+  Colibri task may name session content. A task has a thread, a brief, a state, an attempt
+  count, and the conversation name `coli-code` resumes by. It is filed by
+  `board colibri <thread> "<task>"` on the cluster, or by a `colibri` request through the relay
+  from the Mac.
+- **Filing a task starts a generation if none is queued or running.** The generation loads,
+  then works through the queue one task at a time. It exits cleanly once the queue has been
+  empty for 20 minutes.
+- **Each generation submits its own clone at start**, depending on itself ending not-ok and
+  killed if that dependency can never be met. A generation that dies (timeout, node failure,
+  out of memory) starts the clone. A clean exit lets Slurm drop it. The clone does the same in
+  turn. So a death costs one cold load, about 68 minutes, and no work.
+- **A task interrupted by a death is resumed by the clone**, through the existing exit-75 hop and
+  resume-by-name in `coli-code`. After three deaths on the same task, the task is marked failed
+  and is not retried.
+- **The warm overlapping chain (`coli_chain_watch`, `COLI_CHAIN`) is off by default.**
+  `coli-up --warm` turns it on for a session that wants Colibri answering live.
+- **What comes back is public.** Colibri may read PHI, so its output never goes into a report
+  directly. A finished task is shipped the way that project's HANDOFF already requires: a
+  hosted follow-up turn reviews the diff, `names_phi` runs before anything leaves the machine,
+  and the relay report carries only state and that turn's public note.
+- The board's Colibri status (`off`, `queued`, `loading`, `warm`) stays, and `off` is now the
+  normal state with nothing queued.
+
+> **Prompt:** Build item 6 of `HANDOFF.md`: Colibri on demand. Read `projects/libr-local-llm/`
+> `README.md` §4c, its `HANDOFF.md` ("The guarantee, and what it does not cover", and the
+> traps), `slurm_jobs/colibri_serve.sbatch`, `bin/coli-up` and `bin/coli-code`,
+> `board/tutorboard/colibri.py` and `missions.py`. Extend the mission record into the task
+> queue; do not build a second queue. Add the self-clone with a not-ok dependency and
+> kill-on-invalid-dependency, idle exit after 20 minutes of an empty queue, the three-death cap,
+> `board colibri`, the relay's `colibri` request kind, and `coli-up --warm` for the old chain.
+> `sacct` is refused on this cluster, so tell a clean exit from a death the way item 3 does.
+> Test with fake `sbatch` and `squeue`: a death mid-task resumed by the clone, a clean exit
+> dropping the clone, the cap, and two tasks filed at once starting one generation. Then run
+> one real small task end to end. Update that project's `README.md` and `HANDOFF.md` to
+> describe on-demand as the default, in the present tense. Ship with the repository's scripts.
+
+### 7. Providers on the Mac — depends on 1
 
 DeepSeek and the others are already in `board/tutorboard/keys.py` and `assistants.py`. On the
 Mac they become ordinary choices for any workspace: the Mac holds no PHI. What changes:
@@ -311,23 +359,23 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
   DeepSeek for learn sittings in a course and Claude for build sittings in research.
 - `board/tutorboard/net/egress.py`'s endpoint list includes each configured provider.
 - A cluster `turn` always uses Claude under the PHI guard. Colibri remains the only model that
-  reads PHI.
+  reads PHI, and it runs only on the cluster (item 6).
 
-> **Prompt:** Build item 6 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
+> **Prompt:** Build item 7 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
 > the egress rules in `board/tutorboard/net/`. Let `tutorboard.json` name a default provider per
 > sitting kind, show the choice on the sitting sheet, and keep the cluster's turn on Claude.
 > Confirm DeepSeek answers one real turn on this Mac using the key in
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
 
-### 7. The compute node stops serving — depends on 1, 3, 4 and 5, after a week of use
+### 8. The compute node stops serving — depends on 1, 3, 4 and 5, after a week of use
 
 When the Mac has served a week of sittings and the relay has carried a real request each way,
 delete what only served boards from the cluster: `tutor serve`, `tutor watch`,
 `tutorboard/supervise.py`, `slurm/tutor-serve.sbatch`, `test/perpetual.py`, the `serve_*` keys,
 and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls.
 
-> **Prompt:** Build item 7 of `HANDOFF.md`. First confirm both conditions from
+> **Prompt:** Build item 8 of `HANDOFF.md`. First confirm both conditions from
 > `relay/state.json`, the reports, and the archive dates. If either is unmet, stop and say
 > which. Remove the serving chain the item lists, every reference to it in code, tests,
 > contracts and READMEs, and the suites that only test it. Cancel any `tutor-serve` jobs still
@@ -335,7 +383,7 @@ and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls.
 > and "The board is the way in" for the Mac host and the cluster relay, in the present tense.
 > Ship with the repository's scripts.
 
-### 8. Smaller board work left from the threads build — depends on nothing
+### 9. Smaller board work left from the threads build — depends on nothing
 
 Each is independent and small. Give one agent all five, one commit each.
 
@@ -350,7 +398,7 @@ Each is independent and small. Give one agent all five, one commit each.
 - **The thread sheet links its write-up.** Each `writes` anchor opens the deliverable's document
   at that heading.
 
-> **Prompt:** Build item 8 of `HANDOFF.md`: five small changes, one commit each, each with a
+> **Prompt:** Build item 9 of `HANDOFF.md`: five small changes, one commit each, each with a
 > test. Read `map.thread_sheet`, the sheet code in `board.js`, `cards.stopped_body`,
 > `report_owed`, and `cmd_push`. Ship with the repository's scripts.
 
