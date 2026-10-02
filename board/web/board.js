@@ -5012,17 +5012,26 @@ document.getElementById("btn-review-close").onclick = function () {
    AND A GESTURE NEVER REDRAWS IT. The SVG is built once per payload that changes
    it; panning and pinching are a transform on one wrapper. */
 
-/* One box. `MAP_W` is the width every box shares -- a ragged right edge on a
-   diagram reads as a mistake -- and the text is wrapped to what is left after
-   the padding and the status stripe. */
+/* One box. Every box on a picture shares one width -- a ragged right edge on
+   a diagram reads as a mistake -- and the text is wrapped to what is left after
+   the padding and the status stripe.
+
+   `MAP_W` is the narrowest that width gets. A picture whose names do not fit
+   in `MAP_NAME_LINES` lines at that width widens every box together, in steps,
+   up to `MAP_W_MOST`: a title cut to "Reviewer findings, the…" is a box
+   nobody can tell from its neighbour, and that was the complaint. Past the
+   widest, the name ellipsizes and the whole of it rides on the box as its
+   tooltip. `mapW` is the width the picture on the glass was laid out at. */
 var MAP_W = 226;
+var MAP_W_MOST = 340;
+var mapW = MAP_W;
 var MAP_PAD = 13;
 var MAP_MARK = 5;            /* the status stripe down the left edge */
 var MAP_GAP_X = 92;          /* the gutter an arrow turns in */
 var MAP_GAP_Y = 22;
 var MAP_MARGIN = 34;
 var MAP_NAME = 15, MAP_ALSO = 11, MAP_DOES = 12;
-var MAP_NAME_LINES = 2, MAP_DOES_LINES = 3;
+var MAP_NAME_LINES = 3, MAP_DOES_LINES = 3;
 var MAP_CHIP_R = 11;         /* a numbered step, on the box it is about */
 var MAP_CHIP_GAP = 6;
 /* Below this the ranks stop being columns and become one column: a wide graph
@@ -5108,9 +5117,48 @@ function mapEl(tag, attrs) { return window.Gauge.el(tag, attrs); }
    These four are the names the rest of this file already calls. They stay. */
 function mapUiFace() { return window.Gauge.uiFace(); }
 function mapFont(size, weight) { return window.Gauge.font(size, weight); }
-function mapWidth(text, size, weight) { return window.Gauge.width(text, size, weight); }
+function mapWidth(text, size, weight) {
+  return window.Gauge.width(text, size, weight) * mapSkew;
+}
 function mapWrap(text, size, weight, room, maxLines) {
-  return window.Gauge.wrap(text, size, weight, room, maxLines);
+  return window.Gauge.wrap(text, size, weight, room / mapSkew, maxLines);
+}
+/* A name or a title: as few lines as it takes, balanced so the last line is
+   not one stranded word. */
+function mapLines(text, size, weight, room, maxLines) {
+  return window.Gauge.balance(text, size, weight, room / mapSkew, maxLines);
+}
+function mapFits(text, size, weight, room, maxLines) {
+  return window.Gauge.fits(text, size, weight, room / mapSkew, maxLines);
+}
+
+/* HOW MUCH WIDER THE GLASS PAINTS THAN THE GAUGE MEASURES. One, until a drawn
+   picture says otherwise. The canvas and the SVG are two renderers, and on the
+   iPad the names ran out of their boxes while every number here said they
+   fitted -- so after a picture is on the glass its lines are measured as they
+   were actually painted (`mapTrue`), and where the glass is wider this grows
+   and the picture is laid out once more. Thrown away when the face changes. */
+var mapSkew = 1;
+
+/* The width every box on this picture shares: the narrowest step from `MAP_W`
+   at which every name fits whole in its lines, never past `MAP_W_MOST`, and on
+   a narrow plane never wider than the plane. Arithmetic over the names alone,
+   so the same repository lays out the same way twice. */
+function mapBoxWide(nodes, wide) {
+  var most = MAP_W_MOST;
+  if (!wide) {
+    var cw = (els.mapPlane && els.mapPlane.clientWidth) || 0;
+    if (cw) most = Math.max(MAP_W, Math.min(most, cw - MAP_MARGIN * 2));
+  }
+  var w = MAP_W;
+  (nodes || []).forEach(function (n) {
+    var extra = MAP_PAD * 2 + MAP_MARK + (mapOpens(n) ? 28 : 0);
+    while (w < most
+           && !mapFits(n.name, MAP_NAME, 650, w - extra, MAP_NAME_LINES)) {
+      w = Math.min(most, w + 8);
+    }
+  });
+  return w;
 }
 
 /* HOW MANY DOCUMENTS THIS BOX HOLDS, as the plate reads. Off the payload, which
@@ -5158,7 +5206,7 @@ function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) 
    `mapShape` and the two have to agree about the number of rows. The answer
    rides on the shape and `mapDraw` reads it back.
 
-   Everything is relative to the box's left edge; every box is `MAP_W` wide. */
+   Everything is relative to the box's left edge; every box is `mapW` wide. */
 function mapChipPlan(node) {
   var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0);
   var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
@@ -5166,7 +5214,7 @@ function mapChipPlan(node) {
   /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
      so nothing of ours may pass `p.w - 30`. Without them the box's own padding
      is the edge. */
-  var right = MAP_W - (mapMore(node) ? 30 : MAP_PAD);
+  var right = mapW - (mapMore(node) ? 30 : MAP_PAD);
   var step = MAP_CHIP_R * 2 + MAP_CHIP_GAP;
   var at = [], row = 0, col = 0, i;
   for (i = 0; i < chips; i++) {
@@ -5185,12 +5233,12 @@ function mapChipPlan(node) {
 }
 
 function mapShape(node) {
-  var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
+  var room = mapW - MAP_PAD * 2 - MAP_MARK;
   /* The look-inside arrow is a filled circle at `p.w - 16`, radius 10, level
      with the first line of the name -- so a name in a box that opens wraps
      short of it. The lines below it clear the circle and keep the full room. */
   var nameRoom = room - (mapOpens(node) ? 28 : 0);
-  var name = mapWrap(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
+  var name = mapLines(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
   var said = mapThread(node) ? mapThreadSays(node) : node.also;
   var also = said ? mapWrap(said, MAP_ALSO, 400, room, 1) : [];
   var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
@@ -5202,7 +5250,7 @@ function mapShape(node) {
                           + (chips.rows - 1) * MAP_CHIP_GAP : 0)
         + MAP_PAD;
   return { name: name, also: also, does: does, chips: chips,
-           h: Math.max(60, h) };
+           nameRoom: nameRoom, room: room, h: Math.max(60, h) };
 }
 
 /* ---------------------------------------------------------- the layout */
@@ -5376,16 +5424,16 @@ function mapRegionShape(region, wide) {
   var groups = region.groups || [];
   var cols = [];
   /* Stacked, the plate is one column plus the padding on BOTH sides: a row's
-     highlight runs `MAP_W` from just left of the column, and with no right
+     highlight runs `mapW` from just left of the column, and with no right
      padding it stuck out past the plate's border. */
-  var w = wide ? 0 : MAP_W + MAP_PAD * 2;
+  var w = wide ? 0 : mapW + MAP_PAD * 2;
   if (wide) {
     var want = MAP_PAD * 2 + MAP_REGION_SPACE
                + mapWidth(MAP_REGION_WORDS[0] + " · " + (region.total || 0), 15, 700)
                + Math.round(mapWidth(MAP_REGION_NEW, 12, 600)) + 20;
     w = Math.ceil(want);
   }
-  var head = mapRegionHead(region, wide ? Math.max(w, MAP_W * 2) : w);
+  var head = mapRegionHead(region, wide ? Math.max(w, mapW * 2) : w);
   var x = MAP_PAD, y = head.h, tall = 0;
   groups.forEach(function (g) {
     var all = (g.docs || []).length;
@@ -5395,14 +5443,14 @@ function mapRegionShape(region, wide) {
             + (all > MAP_REGION_ROWS + 1 ? MAP_REGION_ROW : 0);
     cols.push({ group: g, x: x, y: y, rows: rows, open: open, h: h });
     if (wide) {
-      x += MAP_W + MAP_REGION_GAP;
+      x += mapW + MAP_REGION_GAP;
       tall = Math.max(tall, h);
     } else {
       y += h + 10;
       tall = y - head.h;
     }
   });
-  if (wide) w = Math.max(MAP_W * 2, x - MAP_REGION_GAP + MAP_PAD, w);
+  if (wide) w = Math.max(mapW * 2, x - MAP_REGION_GAP + MAP_PAD, w);
   head = mapRegionHead(region, w);
   return { cols: cols, w: w, h: head.h + tall + MAP_PAD, head: head };
 }
@@ -5425,6 +5473,7 @@ function mapFramesOf(info) {
 }
 
 function mapLayout(info, wide) {
+  mapW = mapBoxWide((info && info.nodes) || [], wide);
   var frames = mapFramesOf(info);
   if (!frames) return mapRegioned(info, mapGraph(info, wide), wide, []);
 
@@ -5438,14 +5487,22 @@ function mapLayout(info, wide) {
   frames.forEach(function (d) {
     var mine = nodes.filter(function (n) { return n.deliverable === d.id; });
     var inner = mapGraph({ nodes: mine, edges: info.edges || [] }, wide);
-    var right = MAP_MARGIN + MAP_W, bottom = MAP_MARGIN;
+    var right = MAP_MARGIN + mapW, bottom = MAP_MARGIN;
     inner.placed.forEach(function (p) {
       if (!p) return;
       right = Math.max(right, p.x + p.w);
       bottom = Math.max(bottom, p.y + p.h);
     });
     var w = right - MAP_MARGIN + MAP_FRAME_PAD * 2;
-    var title = mapWrap(d.title || d.id, 15, 700, w - MAP_FRAME_PAD * 2, 2);
+    /* THE FRAME'S TITLE IS NOT CUT TO ITS FIRST COLUMN. A deliverable with one
+       column of threads is a frame one box wide, and "Paper 2 — counterfactual…"
+       was all of its name there was room for. The frame widens to carry its
+       title on one line, as far as two columns of boxes; past that the title
+       wraps, balanced, to three. */
+    var said = d.title || d.id;
+    var one = Math.ceil(mapWidth(said, 15, 700)) + MAP_FRAME_PAD * 2 + 2;
+    w = Math.max(w, Math.min(one, mapW * 2 + MAP_GAP_X + MAP_FRAME_PAD * 2));
+    var title = mapLines(said, 15, 700, w - MAP_FRAME_PAD * 2, 3);
     var head = MAP_FRAME_HEAD + (title.length - 1) * 19;
     var dx = MAP_FRAME_PAD, dy = top - MAP_MARGIN + head;
     inner.placed.forEach(function (p) {
@@ -5455,8 +5512,8 @@ function mapLayout(info, wide) {
       placed[idx[p.node.id]] = p;
     });
     var h = head + (mine.length ? bottom - MAP_MARGIN : 0) + MAP_FRAME_PAD;
-    rects.push({ id: d.id, title: title, x: MAP_MARGIN, y: top, w: w, h: h,
-                 empty: !mine.length });
+    rects.push({ id: d.id, title: title, said: said, x: MAP_MARGIN, y: top,
+                 w: w, h: h, empty: !mine.length });
     top += h + MAP_FRAME_GAP;
   });
 
@@ -5503,7 +5560,7 @@ function mapGraph(info, wide) {
     var y = MAP_MARGIN;
     order.forEach(function (v) {
       placed[v] = { node: nodes[v], shape: shapes[v], x: MAP_MARGIN, y: y,
-                    w: MAP_W, h: shapes[v].h };
+                    w: mapW, h: shapes[v].h };
       y += shapes[v].h + MAP_GAP_Y;
     });
   } else {
@@ -5533,10 +5590,10 @@ function mapGraph(info, wide) {
            read as a rank rather than as a column of boxes that happen to be
            side by side. */
         var y = bandTop + (deep - high[b + k]) / 2;
-        var x = MAP_MARGIN + k * (MAP_W + MAP_GAP_X);
+        var x = MAP_MARGIN + k * (mapW + MAP_GAP_X);
         col.forEach(function (v) {
           placed[v] = { node: nodes[v], shape: shapes[v], x: x, y: y,
-                        w: MAP_W, h: shapes[v].h };
+                        w: mapW, h: shapes[v].h };
           y += shapes[v].h + MAP_GAP_Y;
         });
       });
@@ -5552,15 +5609,19 @@ function mapGraph(info, wide) {
     var loose = [];
     for (i = 0; i < nodes.length; i++) if (!joined[i]) loose.push(i);
     if (loose.length) {
-      var across = Math.max(1, Math.min(MAP_RANKS_ACROSS, byRank.length || 1));
-      var rowTop = MAP_MARGIN + tall + MAP_GAP_Y * 3 + (byRank.length ? 20 : 0);
+      /* With no graph above to take its width from, the band is as near
+         square as it goes rather than one column a screen and a half tall. */
+      var across = byRank.length
+        ? Math.max(1, Math.min(MAP_RANKS_ACROSS, byRank.length))
+        : Math.max(1, Math.min(MAP_RANKS_ACROSS, Math.ceil(Math.sqrt(loose.length))));
+      var rowTop = MAP_MARGIN + (byRank.length ? tall + MAP_GAP_Y * 3 + 20 : 0);
       var rowHigh = 0;
       loose.forEach(function (v, k) {
         var col = k % across;
         if (col === 0 && k) { rowTop += rowHigh + MAP_GAP_Y; rowHigh = 0; }
         placed[v] = { node: nodes[v], shape: shapes[v],
-                      x: MAP_MARGIN + col * (MAP_W + MAP_GAP_X), y: rowTop,
-                      w: MAP_W, h: shapes[v].h, apart: true };
+                      x: MAP_MARGIN + col * (mapW + MAP_GAP_X), y: rowTop,
+                      w: mapW, h: shapes[v].h, apart: true };
         rowHigh = Math.max(rowHigh, shapes[v].h);
       });
     }
@@ -5686,10 +5747,12 @@ function mapDraw(info) {
                                    rx: 15 }));
     f.title.forEach(function (line, i) {
       var ft = mapEl("text", { "class": "frame-name", x: f.x + MAP_FRAME_PAD,
-                               y: f.y + 28 + i * 19 });
+                               y: f.y + 28 + i * 19,
+                               "data-fit": "15 700 " + (f.w - MAP_FRAME_PAD * 2) });
       ft.textContent = line;
       fg.appendChild(ft);
     });
+    mapNameTip(fg, f.title, f.said);
     svg.appendChild(fg);
   });
 
@@ -5723,7 +5786,7 @@ function mapDraw(info) {
          behind the box between its ends -- is not drawn at all, and the full
          word rides on the arrow as its tooltip either way. */
       var span = path.dir === "right" ? (b.x - 8) - (a.x + a.w)
-               : path.dir === "down" ? MAP_W : Infinity;
+               : path.dir === "down" ? mapW : Infinity;
       var text = mapWrap(e.label, 10.5, 500, span - 10, 1)[0] || "";
       var w = mapWidth(text, 10.5, 500) + 10;
       var px0 = path.mx - w / 2, py0 = path.my - 8;
@@ -5775,13 +5838,16 @@ function mapDraw(info) {
     var tx = p.x + MAP_PAD + MAP_MARK;
     var ty = p.y + MAP_PAD + 13;
     p.shape.name.forEach(function (line) {
-      var t = mapEl("text", { "class": "name", x: tx, y: ty });
+      var t = mapEl("text", { "class": "name", x: tx, y: ty,
+                              "data-fit": MAP_NAME + " 650 " + p.shape.nameRoom });
       t.textContent = line;
       g.appendChild(t);
       ty += 19;
     });
+    mapNameTip(g, p.shape.name, n.name);
     p.shape.also.forEach(function (line) {
-      var t = mapEl("text", { "class": "also", x: tx, y: ty + 1 });
+      var t = mapEl("text", { "class": "also", x: tx, y: ty + 1,
+                              "data-fit": MAP_ALSO + " 400 " + p.shape.room });
       t.textContent = line;
       g.appendChild(t);
       ty += 15;
@@ -5789,7 +5855,8 @@ function mapDraw(info) {
     if (p.shape.does.length) {
       ty += 5;
       p.shape.does.forEach(function (line) {
-        var t = mapEl("text", { "class": "does", x: tx, y: ty });
+        var t = mapEl("text", { "class": "does", x: tx, y: ty,
+                                "data-fit": MAP_DOES + " 400 " + p.shape.room });
         t.textContent = line;
         g.appendChild(t);
         ty += 16;
@@ -5842,6 +5909,8 @@ function mapDraw(info) {
       dchip.appendChild(mapEl("circle", { cx: dx, cy: dy, r: MAP_CHIP_R }));
       var dt = mapEl("text", { x: dx, y: dy + 4, "text-anchor": "middle" });
       dt.textContent = n.decisions > 1 ? "?" + n.decisions : "?";
+      /* Two characters in an eleven-unit circle: smaller, or they touch it. */
+      if (n.decisions > 1) dt.setAttribute("style", "font-size: 8.5px");
       dchip.appendChild(dt);
       mapTappable(dchip, function () { openThread(n.id, ""); });
       g.appendChild(dchip);
@@ -5950,7 +6019,57 @@ function mapDraw(info) {
   els.mapSheet.style.width = out.box.x1 + "px";
   els.mapSheet.style.height = out.box.y1 + "px";
   els.mapSheet.appendChild(svg);
+  /* Painted wider than measured: measure the glass, and lay out once more. */
+  if (mapTrue(svg) && !mapDraw.again) {
+    mapDraw.again = true;
+    try { return mapDraw(info); } finally { mapDraw.again = false; }
+  }
   return out.placed.length;
+}
+
+/* A NAME CUT SHORT STILL SAYS ALL OF ITSELF, as the tooltip on its box. */
+function mapNameTip(g, lines, said) {
+  var last = lines[lines.length - 1] || "";
+  if (!/…$/.test(last) || /…$/.test(String(said || ""))) return;
+  var full = mapEl("title", {});
+  full.textContent = said;
+  g.insertBefore(full, g.firstChild);
+}
+
+/* EVERY LINE AS IT WAS ACTUALLY PAINTED, against the room it was wrapped to.
+
+   Each wrapped line carries its size, weight and room in `data-fit`. Where the
+   glass paints one wider than its room, `mapSkew` is raised by the worst
+   ratio of painted to measured and the answer is yes: lay out again. On the
+   second pass a line that still does not fit is squeezed to its room, so no
+   renderer can run a name out of its box. A plane that is not on the glass
+   measures zero and says nothing. */
+function mapTrue(svg) {
+  var lines = svg.querySelectorAll("text[data-fit]");
+  var worst = 1, over = [];
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i];
+    if (typeof t.getComputedTextLength !== "function") return false;
+    var painted = 0;
+    try { painted = t.getComputedTextLength(); } catch (e) { painted = 0; }
+    if (!(painted > 0)) continue;
+    var fit = t.getAttribute("data-fit").split(" ");
+    var room = +fit[2];
+    if (painted <= room + 0.5) continue;
+    over.push([t, room]);
+    var said = mapWidth(t.textContent, +fit[0], +fit[1]);
+    if (said > 0) worst = Math.max(worst, painted / said);
+  }
+  if (!over.length) return false;
+  if (!mapDraw.again && worst > 1.001) {
+    mapSkew = Math.min(2, mapSkew * worst * 1.01);
+    return true;
+  }
+  over.forEach(function (o) {
+    o[0].setAttribute("textLength", o[1]);
+    o[0].setAttribute("lengthAdjust", "spacingAndGlyphs");
+  });
+  return false;
 }
 
 /* One tappable thing inside the region: a `g` that answers a tap and a key,
@@ -5993,7 +6112,7 @@ function mapRegionDraw(r) {
   make.appendChild(mt);
   g.appendChild(make);
 
-  var room = MAP_W - 8;
+  var room = mapW - 8;
   r.cols.forEach(function (c) {
     var gx = r.x + c.x, gy = r.y + c.y;
     var docs = c.group.docs || [];
@@ -6007,7 +6126,7 @@ function mapRegionDraw(r) {
         "data-doc": doc.id,
         "aria-label": "read " + (doc.name || doc.file || doc.id)
       }), function () { mapReadDoc(doc.id); });
-      row.appendChild(mapEl("rect", { x: gx - 4, y: y, width: MAP_W,
+      row.appendChild(mapEl("rect", { x: gx - 4, y: y, width: mapW,
                                       height: MAP_REGION_ROW - 2, rx: 5 }));
       var t = mapEl("text", { x: gx + 2, y: y + 14 });
       /* The glyph is measured, not assumed: the label gets what is left of the
@@ -6032,7 +6151,7 @@ function mapRegionDraw(r) {
         mapDrawn = "";
         paintMap(mapInfo, (lastLive && lastLive.state) || {});
       });
-      more.appendChild(mapEl("rect", { x: gx - 4, y: my, width: MAP_W,
+      more.appendChild(mapEl("rect", { x: gx - 4, y: my, width: mapW,
                                        height: MAP_REGION_ROW - 2, rx: 5 }));
       var mt2 = mapEl("text", { x: gx + 2, y: my + 14 });
       mt2.textContent = c.open ? "show fewer"
@@ -6377,6 +6496,7 @@ function paintMap(info, state) {
    changed. Nothing is fetched and no payload is involved. */
 if (window.Gauge && window.Gauge.onFace) {
   window.Gauge.onFace(function () {
+    mapSkew = 1;
     if (!mapInfo) return;
     mapDrawn = "";
     paintMap(mapInfo, (lastLive && lastLive.state) || {});

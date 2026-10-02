@@ -159,27 +159,46 @@ function width(text, size, weight) {
   return w;
 }
 
-/* Wrap to a measured width, and tell the truth when it does not fit. */
+/* Wrap to a measured width, and tell the truth when it does not fit.
+
+   A WORD MAY BREAK AT ITS OWN JOINTS. "Logistic-regression-weighted" is one
+   word to a space-splitter and wider than a box, and cutting it by characters
+   came out as "Logistic-regressi-" over "on-weighted" -- a hyphen nobody wrote,
+   in the middle of a syllable. So a word is split after every hyphen, dash,
+   underscore and slash first, and the pieces are laid like words that need no
+   space between them. A piece that still does not fit is cut, as before. */
+function pieces(text) {
+  var out = [];
+  String(text || "").trim().split(/\s+/).filter(Boolean).forEach(function (w) {
+    /* No lookbehind: an iPad a few versions old refuses the whole file. */
+    (w.match(/[^\-\u2010-\u2014_\/]*[\-\u2010-\u2014_\/]+|[^\-\u2010-\u2014_\/]+/g)
+     || [w]).forEach(function (bit, i) {
+      out.push({ s: bit, glued: i > 0 });
+    });
+  });
+  return out;
+}
+
 function wrap(text, size, weight, room, maxLines) {
-  var words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  var words = pieces(text);
   var lines = [], line = "";
   while (words.length && lines.length < maxLines) {
     var word = words[0];
-    var probe = line ? line + " " + word : word;
+    var probe = line ? line + (word.glued ? "" : " ") + word.s : word.s;
     if (width(probe, size, weight) <= room) {
       line = probe;
       words.shift();
       continue;
     }
     if (!line) {
-      /* One word wider than the box -- a long path, usually. Break it rather
+      /* One piece wider than the box -- a long path, usually. Break it rather
          than let it run out of the box, which is the whole defect this
          measuring exists to fix. */
-      var cut = word;
+      var cut = word.s;
       while (cut.length > 1 && width(cut + "-", size, weight) > room) {
         cut = cut.slice(0, -1);
       }
-      words[0] = word.slice(cut.length);
+      words[0] = { s: word.s.slice(cut.length), glued: true };
       line = cut + "-";
     }
     lines.push(line);
@@ -194,6 +213,32 @@ function wrap(text, size, weight, room, maxLines) {
     lines[lines.length - 1] = last.replace(/[ ,;:.\-]+$/, "") + "…";
   }
   return lines;
+}
+
+/* Does this text fit in `room` within `maxLines`, whole -- no ellipsis and no
+   piece cut by characters? */
+function fits(text, size, weight, room, maxLines) {
+  var lines = wrap(text, size, weight, room, maxLines);
+  var last = lines[lines.length - 1] || "";
+  if (/…$/.test(last) && !/…$/.test(String(text || "").trim())) return false;
+  var joined = lines.join("").replace(/\s+/g, "");
+  return joined === String(text || "").replace(/\s+/g, "");
+}
+
+/* The same lines, balanced: the narrowest room that still takes the text in
+   as few lines as `room` does. A two-line title reads as two halves rather
+   than a full line over a single word. Where the text does not fit whole it is
+   left as `wrap` gives it -- balancing an ellipsis only moves where it falls. */
+function balance(text, size, weight, room, maxLines) {
+  var lines = wrap(text, size, weight, room, maxLines);
+  if (lines.length < 2 || !fits(text, size, weight, room, maxLines)) return lines;
+  var n = lines.length, lo = room / n, hi = room;
+  for (var k = 0; k < 12 && hi - lo > 1; k++) {
+    var mid = (lo + hi) / 2;
+    var got = wrap(text, size, weight, mid, n);
+    if (got.length <= n && fits(text, size, weight, mid, n)) hi = mid; else lo = mid;
+  }
+  return wrap(text, size, weight, hi, n);
 }
 
 /* An SVG element with its attributes set. Every plane builds its picture out
@@ -214,6 +259,8 @@ window.Gauge = {
   font: font,
   width: width,
   wrap: wrap,
+  fits: fits,
+  balance: balance,
   el: el,
   onFace: onFace,
   faceChanged: faceChanged,

@@ -1520,6 +1520,66 @@ const at = (doc, id) => {
       : fail('the file did not open in the code walk');
   }
 
+  // ------------------------------------------- a long title fits its box
+  // From the iPad: "the titles of each box are an eyesore and on the first one,
+  // text overflows". The first box was this thread, cut to two lines in a box
+  // 226 wide, with "Logistic-regressi-" broken mid-syllable.
+  {
+    const w = board();
+    const doc = w.document;
+    const map = makeThreads();
+    const long = 'Logistic-regression-weighted nearest neighbours across four encoders';
+    const longest = 'Final consistency pass across manuscript, supplement, '
+                  + 'checklist and cover letter, and then the whole packet again, '
+                  + 'read aloud from the first page to the last by somebody new';
+    map.nodes[0].name = long;
+    map.nodes[1].name = longest;
+    map.deliverables[1].title = 'Paper 2 — counterfactual antidepressant selection';
+    w.__render(payload({ map }));
+    await sleep(15);
+    const lines = (id) => [...doc.querySelectorAll(
+      '#map-sheet .node[data-id="' + id + '"] text.name')].map((t) => t.textContent);
+    const over = [];
+    doc.querySelectorAll('#map-sheet .node').forEach((g) => {
+      const box = g.querySelector('rect.box');
+      const x0 = +box.getAttribute('x'), x1 = x0 + +box.getAttribute('width');
+      g.querySelectorAll('text.name').forEach((t) => {
+        const x = +t.getAttribute('x');
+        const room = x1 - 13 - (g.querySelector('.dig') ? 28 : 0);
+        if (x + w.__width(t.textContent, 15, 650) > room + 0.5) over.push(t.textContent);
+      });
+    });
+    !over.length
+      ? ok('no line of a long title runs past its box')
+      : fail('a title overflows its box: ' + JSON.stringify(over));
+    const got = lines('knn');
+    got.length <= 3 && got.join(' ').replace(/- /g, '-') === long
+      ? ok('a long title is the whole title, in at most three lines')
+      : fail('the long title came out as ' + JSON.stringify(got));
+    got.every((l) => !/[a-z]-$/.test(l) || /(regression|Logistic)-$/.test(l))
+      ? ok('and a hyphenated word breaks at its own hyphen, never mid-syllable')
+      : fail('a word was cut mid-syllable: ' + JSON.stringify(got));
+    const width = +doc.querySelector('#map-sheet .node[data-id="knn"] rect.box')
+      .getAttribute('width');
+    width > 226 && width <= 340
+      ? ok('the boxes widened to carry it (' + width + ' wide)')
+      : fail('the box is ' + width + ' wide');
+    const cut = lines('tripod');
+    cut.length === 3 && /…$/.test(cut[2])
+    && (doc.querySelector('#map-sheet .node[data-id="tripod"] > title') || {})
+         .textContent === longest
+      ? ok('past three lines a title ellipsizes, and the whole of it is the tooltip')
+      : fail('the longest title came out as ' + JSON.stringify(cut));
+    const fr = doc.querySelector('#map-sheet .frame[data-frame="deck"]');
+    const fw = +fr.querySelector('rect').getAttribute('width');
+    const ft = [...fr.querySelectorAll('.frame-name')];
+    ft.length === 1 && w.__width(ft[0].textContent, 15, 700) <= fw - 36 + 0.5
+    && !/…$/.test(ft[0].textContent)
+      ? ok('a one-column frame widens to carry its whole title on one line')
+      : fail('the frame title came out as '
+             + JSON.stringify(ft.map((t) => t.textContent)) + ' in ' + fw);
+  }
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe repository has a picture, and it is the way in');
   process.exit(errors.length ? 1 : 0);
