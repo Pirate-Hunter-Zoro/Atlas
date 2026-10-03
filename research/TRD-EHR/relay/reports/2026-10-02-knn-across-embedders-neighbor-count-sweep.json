@@ -1,10 +1,19 @@
 {
+  "ended": "2026-10-02T22:13:25",
+  "error": "FileNotFoundError",
+  "exit": "1:0",
+  "exported": [],
   "id": "2026-10-02-knn-across-embedders-neighbor-count-sweep",
   "jobid": "2110916",
   "kind": "recipe",
-  "started": 1790995808.3874924,
-  "state": "running",
+  "missing": [],
+  "note": "It failed, exit 1. 1 of 1 outputs present. The log stays on the cluster; a `turn` request can read it.",
+  "produced": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep"
+  ],
+  "relay": [],
+  "state": "failed",
   "submitted": 1790969706.3477614,
   "thread": "knn-across-embedders",
-  "updated": 1790995808.387
+  "updated": 1790997307.485
 }
