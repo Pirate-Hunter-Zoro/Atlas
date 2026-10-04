@@ -28,7 +28,8 @@
    two spellings of one answer, which is the argument `gauge.js` already makes
    and pays for.
 
-   Loaded before board.js and before home.js.
+   Loaded before board.js, home.js and readerzoom.js, which asks `unzoom` to
+   put a page zoom back when a document opens over one.
    ========================================================================== */
 
 (function () {

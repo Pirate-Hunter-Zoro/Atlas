@@ -168,7 +168,7 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   pixel (`pageOffset`). The block `6e1` in `test/library.js` is the contract.
 
 - **THE READER AND THE DECK ZOOM THEMSELVES, AND A PALM DOES NOT SCROLL.**
-  `readerzoom.js`, loaded by `library.html` and `meeting.html`. A pinch changes
+  `readerzoom.js`, loaded by `library.html`, `meeting.html` and `board.html`. A pinch changes
   `--zoom` on `#reader-pages`, which sets the width `.lib-page` is laid out at
   (0.5× to 3×; the pages are drawn 1240 px wide), so ink and pictures re-lay out
   rather than magnify. During the pinch the scroller is only transformed; the
@@ -181,16 +181,20 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   `pen-writing` also puts `touch-action: none` on `#reader-pages.zoomable`. The
   reader's ink layers are `pan-x pan-y` so a finger pans a zoomed page sideways.
   The Pencil on the glass, a contact over 40 px radius, or `pen-writing` is
-  never a pinch. While a document is open, two fingertips on its scroller or
-  bar are refused at touchstart (bar buttons too; a tap there is clicked back)
-  and every touchmove; any other pair, a palm beside a finger or a finger on
+  never a pinch. While a document is open, two fingertips on its reader
+  (`#reader`, `#paper`: bar, strips, pages; never an overlay) are refused at
+  touchstart (bar buttons too; a tap there is clicked back, held however long,
+  if unmoved and the pair's gap unchanged) and every touchmove, and a pinch
+  that never moved commits nothing; any other pair, a palm beside a finger or a finger on
   an overlay, keeps its touchstart and has its moves refused once its gap
   changes (with a palm, once the palm itself sweeps toward or away from the
   other), so a finger beside a resting palm still scrolls with the pen off.
   No `touch-action` changes for this, and the palm rules in `annotate.js` are
-  untouched. The chip `#reader-zoom` shows only off the
-  fit and a tap resets it. `6e1b` in `test/library.js` and the zoom line in
-  `test/deck.js` are the contract.
+  untouched. A page zoom in effect when a document opens, or appearing while
+  one is open, is reset through `Recentre.unzoom`, and a gesture beginning on
+  a magnified page is left to Safari. The chip `#reader-zoom` shows only off the
+  fit and a tap resets it. `6e1b` in `test/library.js`, `test/paperzoom.js`
+  and the zoom line in `test/deck.js` are the contract.
 
 - **INK ON A PAGE IS IN THE PAGE'S UNITS, SO IT FOLLOWS THE ZOOM.** A reader
   page (`library.js`, `meeting.js`, the board drawer's `.paper-page`) carries

@@ -2806,6 +2806,7 @@ function paperZoomReady() {
   if (paperZoomer || !window.ReaderZoom || !els.paperPages) return paperZoomer;
   paperZoomer = window.ReaderZoom.make({
     scroller: els.paperPages,
+    surface: els.paper,
     bar: els.paper ? els.paper.querySelector(".paper-bar") : null,
     chip: els.paperZoom,
     page: ".paper-page",

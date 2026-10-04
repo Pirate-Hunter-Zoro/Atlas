@@ -228,7 +228,8 @@ function gesture(target, name) {
   /* A TAP ON A BAR BUTTON BESIDE A RESTING THUMB. Its touch is cancelled like
      any other two-fingertip touch on the document -- a second finger on the
      bar is how a wide shut starts -- and the click that costs is given back
-     once the finger lifts as a tap: soon, unmoved, and no pinch made of it. */
+     once the finger lifts as a tap: unmoved, the pair's gap unchanged, however
+     long it was held. */
   {
     const btn = el('paper-ink');
     let clicks = 0;
@@ -248,16 +249,21 @@ function gesture(target, name) {
     touch(pages, 'touchstart', [thumb], undefined, { changed: [1], ts: 1000 });
     touch(btn, 'touchstart', [thumb, [400, 40, 'direct', 10, 2]], undefined,
           { changed: [2], ts: 1010 });
+    touch(btn, 'touchmove', [thumb, [403, 42, 'direct', 10, 2]], undefined, { ts: 1500 });
     touch(btn, 'touchend', [thumb], undefined, { changed: [2], ts: 1900 });
     touch(pages, 'touchend', [], undefined, { changed: [1], ts: 1950 });
+    clicks === 2 && zoom() === '1' && !pages.style.transform
+      ? ok('a deliberate press on a bar button, held 890 ms beside a thumb, clicks it once, and zooms nothing')
+      : fail('a held press on a bar button beside a thumb: clicks ' + clicks + ' (want 2), --zoom='
+             + zoom() + ', transform ' + JSON.stringify(pages.style.transform));
     touch(pages, 'touchstart', [thumb], undefined, { changed: [1] });
     touch(btn, 'touchstart', [thumb, [400, 40, 'direct', 10, 2]], undefined, { changed: [2] });
     touch(btn, 'touchmove', [[175, 235, 'direct', 10, 1], [325, 105, 'direct', 10, 2]]);
     touch(btn, 'touchend', [[175, 235, 'direct', 10, 1]], undefined, { changed: [2] });
     touch(pages, 'touchend', [], undefined, { changed: [1] });
-    clicks === 1 && Number(zoom()) < 0.6
-      ? ok('a finger held on a bar button, or pinched from it, clicks nothing')
-      : fail('a hold or a pinch on a bar button clicked it: clicks ' + clicks
+    clicks === 2 && Number(zoom()) < 0.6
+      ? ok('a finger pinched from a bar button clicks nothing')
+      : fail('a pinch from a bar button clicked it: clicks ' + clicks
              + ', --zoom=' + zoom());
     window.removeEventListener('click', count, true);
     chip.click();
@@ -475,6 +481,21 @@ function gesture(target, name) {
              + ', lone ' + lone.defaultPrevented + ', move ' + loneMove.defaultPrevented);
   }
 
+  /* THE WHOLE PANEL IS THE READER'S, not only its pages and bar: a second
+     finger on the panel itself, between the two, is cancelled at its
+     touchstart and pinches the document. */
+  {
+    chip.click();
+    touch(pages, 'touchstart', [[100, 300]]);
+    const s2 = touch(el('paper'), 'touchstart', [[100, 300], [300, 300]]);
+    const m2 = touch(el('paper'), 'touchmove', [[50, 300], [350, 300]]);
+    touch(el('paper'), 'touchend', []);
+    s2.defaultPrevented && m2.defaultPrevented && zoom() === '1.5'
+      ? ok('a finger on the panel outside its pages and bar is the reader\'s from its touchstart')
+      : fail('a finger on #paper itself: start refused ' + s2.defaultPrevented + ', move '
+             + m2.defaultPrevented + ', --zoom=' + zoom());
+  }
+
   chip.click();
   zoom() === '1' && chip.hidden
     ? ok('a tap on the chip puts the page width back')
@@ -483,11 +504,25 @@ function gesture(target, name) {
   touch(pages, 'touchstart', [[100, 300], [200, 300]]);
   touch(pages, 'touchmove', [[50, 300], [250, 300]]);
   touch(pages, 'touchend', []);
+  /* A PAGE ZOOM IN EFFECT WHEN A DOCUMENT OPENS IS PUT BACK, through
+     `recentre.js`'s clamp on the viewport declaration. */
+  const vp = doc.querySelector('meta[name="viewport"]');
+  const vpWas = vp.getAttribute('content');
+  window.visualViewport = Object.assign(new window.EventTarget(),
+    { scale: 1.6, width: 640, height: 480, offsetLeft: 0, offsetTop: 0 });
   window.__openDoc('paper1-trd-prediction', 'Paper 1');
   await sleep(20);
   zoom() === '1' && chip.hidden
     ? ok('and every document opens at the page width, whatever the last was left at')
     : fail('a document opened at the last one\'s zoom: ' + zoom());
+  /maximum-scale=1/.test(vp.getAttribute('content'))
+    ? ok('a document opening on a page Safari has zoomed to 160% asks for the page\'s scale back')
+    : fail('a document opened over a page zoom and left it: ' + vp.getAttribute('content'));
+  window.visualViewport.scale = 1;
+  window.dispatchEvent(new window.Event('pointerdown'));
+  vp.getAttribute('content') === vpWas
+    ? ok('and the clamp is lifted again, so the page is not left unzoomable')
+    : fail('the viewport clamp stayed: ' + vp.getAttribute('content'));
 
   const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
   /width: calc\(min\(100%, 46rem\) \* var\(--zoom, 1\)\)/.test(css)
@@ -613,6 +648,170 @@ function gesture(target, name) {
       ? ok('two fingers in the note panel over the reader scroll it and zoom nothing, theirs or Safari\'s')
       : fail('the note panel over the reader: start ' + n1.defaultPrevented + ', scroll '
              + n2.defaultPrevented + ', spread ' + n3.defaultPrevented + ', --zoom=' + lz());
+  }
+
+  /* ---- the library page: its strips, a page zoom, and the record ------- */
+  {
+    const LIB_HTML = fs.readFileSync(path.join(WEB, 'library.html'), 'utf8');
+    const order = (LIB_HTML.match(/src="\/static\/[\w.-]+"/g) || [])
+      .map((m) => /static\/([\w.-]+)/.exec(m)[1]);
+    order.indexOf('recentre.js') >= 0 && order.indexOf('recentre.js') < order.indexOf('readerzoom.js')
+      ? ok('library.html loads recentre.js, the way back from a page zoom, before the reader')
+      : fail('library.html does not load recentre.js before readerzoom.js: ' + order.join(', '));
+    const lib = new JSDOM(LIB_HTML,
+      { runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
+    const w = lib.window;
+    const ld = w.document;
+    const vv = Object.assign(new w.EventTarget(),
+      { scale: 1.6, width: 640, height: 480, offsetLeft: 0, offsetTop: 0 });
+    w.visualViewport = vv;
+    let redraws = 0, commits = 0;
+    w.Annotate = { isOn: () => false, redrawAll: () => { redraws++; } };
+    w.eval(fs.readFileSync(path.join(WEB, 'recentre.js'), 'utf8'));
+    w.eval(fs.readFileSync(path.join(WEB, 'readerzoom.js'), 'utf8'));
+    const sc = ld.getElementById('reader-pages');
+    const reader = ld.getElementById('reader');
+    let isOpen = false;
+    const z = w.ReaderZoom.make({ scroller: sc, surface: reader,
+      bar: ld.getElementById('reader-bar'), chip: ld.getElementById('reader-zoom'),
+      open: () => isOpen, committed: () => { commits++; } });
+    const meta = ld.querySelector('meta[name="viewport"]');
+    const was = meta.getAttribute('content');
+    const clamped = () => /maximum-scale=1/.test(meta.getAttribute('content'));
+    /* Safari obliging the clamp: the scale drops, and the next touch lifts it. */
+    const obliged = () => { vv.scale = 1; w.dispatchEvent(new w.Event('pointerdown')); };
+    /* `pts` are [x, y, id]; `o.changed` the ids it is for, `o.cancelable` false
+       for a move WebKit will not let be cancelled. */
+    const t = (name, pts, at, o) => {
+      o = o || {};
+      const ev = new w.Event(name, { bubbles: true, cancelable: o.cancelable !== false });
+      const list = pts.map(([x, y, id], i) => ({ identifier: id === undefined ? i : id,
+        clientX: x, clientY: y, touchType: 'direct', radiusX: 10 }));
+      Object.defineProperty(ev, 'touches', { value: list });
+      if (o.changed) Object.defineProperty(ev, 'changedTouches', { value: o.changed.map(
+        (id) => list.find((p) => p.identifier === id) || { identifier: id }) });
+      (at || sc).dispatchEvent(ev);
+      return ev;
+    };
+    const lz = () => sc.style.getPropertyValue('--zoom');
+
+    /* A PAGE ZOOM IN EFFECT IS PUT BACK, on opening and whenever it appears. */
+    reader.hidden = false;
+    isOpen = true;
+    z.live(true);
+    clamped()
+      ? ok('a document opening at visualViewport.scale 1.6 resets the page zoom')
+      : fail('a document opened over a 160% page zoom and left it: ' + meta.getAttribute('content'));
+    obliged();
+    meta.getAttribute('content') === was
+      ? ok('and the clamp is lifted, so the page can still be zoomed later')
+      : fail('the viewport clamp stayed: ' + meta.getAttribute('content'));
+    vv.scale = 1.5;
+    vv.dispatchEvent(new w.Event('resize'));
+    clamped()
+      ? ok('a page zoom appearing while the document is open is reset as it appears')
+      : fail('a scale change while open was left: ' + meta.getAttribute('content'));
+    obliged();
+    const note = ld.getElementById('note-text');
+    ld.getElementById('note').hidden = false;
+    note.focus();
+    vv.scale = 1.4;
+    vv.dispatchEvent(new w.Event('resize'));
+    const typing = !clamped() && ld.activeElement === note;
+    note.blur();
+    await sleep(5);
+    typing && clamped()
+      ? ok('a field being typed in keeps Safari\'s zoom until it lets go, and then the page is reset')
+      : fail('a focused field: kept its zoom and focus ' + typing + ', reset after the blur '
+             + clamped());
+    obliged();
+    ld.getElementById('note').hidden = true;
+
+    /* WHERE SAFARI IGNORES THE CLAMP, a gesture on the magnified page is
+       Safari's own, so its pinch out is a way back; at 100% it is the reader's. */
+    vv.scale = 1.5;
+    const a1 = t('touchstart', [[100, 300], [200, 300]]);
+    const a2 = t('touchmove', [[150, 300], [160, 300]]);
+    const ag = new w.Event('gesturestart', { bubbles: true, cancelable: true });
+    ld.dispatchEvent(ag);
+    t('touchend', []);
+    obliged();
+    const b1 = t('touchstart', [[100, 300], [200, 300]]);
+    t('touchend', []);
+    !a1.defaultPrevented && !a2.defaultPrevented && !ag.defaultPrevented && lz() === ''
+      && b1.defaultPrevented
+      ? ok('a gesture beginning on a magnified page is left to Safari, to pinch it back out')
+      : fail('a gesture on a magnified page: refused ' + a1.defaultPrevented + '/'
+             + a2.defaultPrevented + '/' + ag.defaultPrevented + ', --zoom=' + lz()
+             + ', the next at 100% refused ' + b1.defaultPrevented);
+
+    /* THE STRIPS UNDER THE BAR ARE THE READER'S: a second finger on one is
+       cancelled at its touchstart and pinches the document. */
+    for (const id of ['reader-said', 'reader-copy', 'reader-rebuilt']) {
+      const strip = ld.getElementById(id);
+      strip.hidden = false;
+      z.set(1);
+      t('touchstart', [[100, 300]]);
+      const s2 = t('touchstart', [[100, 300], [300, 300]], strip);
+      const m2 = t('touchmove', [[50, 300], [350, 300]], strip);
+      t('touchend', [], strip);
+      strip.hidden = true;
+      s2.defaultPrevented && m2.defaultPrevented && lz() === '1.5'
+        ? ok('a second finger on #' + id + ' is the reader\'s from its touchstart, and pinches it')
+        : fail('a finger on #' + id + ': start refused ' + s2.defaultPrevented + ', move '
+               + m2.defaultPrevented + ', --zoom=' + lz());
+    }
+
+    /* A TAP BESIDE A RESTING FINGERTIP COMMITS NOTHING: no re-draw of the
+       ink, no `committed` (the library's place is not given up). */
+    z.set(1);
+    redraws = 0;
+    commits = 0;
+    const btn = ld.getElementById('reader-say');
+    let clicks = 0;
+    w.addEventListener('click', (e) => { if (e.target === btn) clicks++; }, true);
+    t('touchstart', [[100, 300, 1]], sc, { changed: [1] });
+    t('touchstart', [[100, 300, 1], [400, 40, 2]], btn, { changed: [2] });
+    t('touchmove', [[101, 301, 1], [403, 42, 2]], btn);
+    t('touchend', [[101, 301, 1]], btn, { changed: [2] });
+    t('touchend', [], sc, { changed: [1] });
+    clicks === 1 && redraws === 0 && commits === 0 && lz() === '1' && !sc.style.transform
+      ? ok('a tap beside a resting fingertip clicks once and commits no zoom: no re-draw, no committed()')
+      : fail('a tap beside a fingertip: clicks ' + clicks + ', re-draws ' + redraws
+             + ', commits ' + commits + ', --zoom=' + lz());
+    t('touchstart', [[100, 300, 1]], sc, { changed: [1] });
+    t('touchstart', [[100, 300, 1], [400, 40, 2]], btn, { changed: [2] });
+    t('touchmove', [[100, 330, 1], [400, 70, 2]], btn);
+    t('touchend', [[100, 330, 1]], btn, { changed: [2] });
+    t('touchend', [], sc, { changed: [1] });
+    t('touchstart', [[100, 300], [200, 300]]);
+    t('touchmove', [[50, 300], [250, 300]]);
+    t('touchend', []);
+    clicks === 1 && commits === 2 && redraws === 2 && lz() === '2'
+      ? ok('a button finger dragged with its pair clicks nothing, and a real pinch commits once')
+      : fail('after a drag and a pinch: clicks ' + clicks + ', commits ' + commits
+             + ', re-draws ' + redraws + ', --zoom=' + lz());
+
+    /* THE RECORD: with no `BoardTrace` on the page, every cancelled touchstart
+       and the cancelled moves are still written down, with whether WebKit
+       let each be cancelled. */
+    const from = w.ReaderZoom.trace().length;
+    t('touchstart', [[100, 300], [200, 300]]);
+    t('touchmove', [[90, 300], [210, 300]]);
+    t('touchmove', [[80, 300], [220, 300]]);
+    const stuck = t('touchmove', [[70, 300], [230, 300]], sc, { cancelable: false });
+    t('touchend', []);
+    const rec = w.ReaderZoom.trace().slice(from);
+    const starts = rec.filter((r) => r.what === 'zoom-start');
+    const moves = rec.filter((r) => r.what === 'zoom-refuse' && r.of.on === 'touchmove');
+    !w.BoardTrace && starts.length === 1 && starts[0].of.cancelable && starts[0].of.prevented
+      && moves.length === 2 && moves[0].of.cancelable && moves[0].of.prevented
+      && !moves[1].of.cancelable && !moves[1].of.prevented && !stuck.defaultPrevented
+      && rec.some((r) => r.what === 'page-zoom') === false
+      && w.ReaderZoom.trace().some((r) => r.what === 'page-zoom' && r.of.reset)
+      ? ok('the library page keeps its own record: each cancelled touch, and whether WebKit let it be cancelled')
+      : fail('the reader\'s record: ' + JSON.stringify(rec));
+    z.live(false);
   }
 
   console.log(errors.length ? errors.length + ' failed' : 'all passed');

@@ -639,6 +639,7 @@ function watchLayout(el) {
    restore, and the page it lands on is the new anchor. */
 var zoomer = window.ReaderZoom ? window.ReaderZoom.make({
   scroller: els.readerPages,
+  surface: els.reader,
   bar: document.getElementById("reader-bar"),
   chip: els.readerZoom,
   open: function () { return !els.reader.hidden; },
