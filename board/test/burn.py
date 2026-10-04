@@ -224,8 +224,13 @@ def library_section(tmp):
             rec = json.load(fh)
         check("and a re-save of the same strokes naming no build keeps it",
               rec.get("build", {}).get("digest") == view["digest"])
-        js("/annotate/save", {"card": key, "strokes": [stroke(0.4)],
+        # A fix and a direction on one page: the marked copy keeps both.
+        way = dict(stroke(0.6, colour="#2f7d4f"), dir=1)
+        js("/annotate/save", {"card": key, "strokes": [stroke(0.4), way],
                               "build": view["build"]})
+        on_p2 = burn.strokes_by_page(lrepo, "", 3, idents=[ident]).get(2) or []
+        check("the marked copy is burned from both kinds of ink on a page",
+              len(on_p2) == 2 and any(s.get("dir") for s in on_p2))
 
         # ---- NO OVERWRITE FROM THE LIBRARY ---------------------------------
         for mode in ("same", "none"):

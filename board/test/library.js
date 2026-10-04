@@ -825,24 +825,34 @@ const named = (title) => rows().filter(
     : fail('library.js reaches for the lesson');
 
   // 7b. FIXES BEFORE THE MEETING, DIRECTIONS AFTER IT. One switch on the
-  //     reader bar says what the ink on this document is for, and the note
-  //     panel follows it: a direction never goes near `/library/feedback`.
+  //     reader bar says what the NEXT ink on this document is for, and each
+  //     kind has its own send: a direction never goes near `/library/feedback`.
+  //     The ink itself is `inkHasAKind`, below.
   {
     const mode = doc.getElementById('reader-mode');
     const sayBtn = doc.getElementById('reader-say');
+    const direct = doc.getElementById('reader-direct');
     /fixes/.test(mode.textContent) && /say what is wrong/.test(sayBtn.textContent)
-      ? ok('a document opens with its ink as fixes')
+      && direct.hidden
+      ? ok('a document opens with its ink as fixes, and no directions to send')
       : fail('the ink mode opened as: ' + mode.textContent);
     tap(mode);
-    /directions/.test(mode.textContent) && /send as directions/.test(sayBtn.textContent)
-      ? ok('one tap after the meeting makes it directions, and the send says so')
-      : fail('the switch did not take: ' + mode.textContent + ' / ' + sayBtn.textContent);
+    /directions/.test(mode.textContent) && /say what is wrong/.test(sayBtn.textContent)
+      && !direct.hidden && window.Annotate.kind() === 'dir'
+      ? ok('one tap after the meeting draws directions, with a send of their own')
+      : fail('the switch did not take: ' + mode.textContent + ' / ' + sayBtn.textContent
+             + ' / ' + (direct.hidden ? 'no directions send' : direct.textContent));
     window.localStorage.getItem('library.inkmode:docs-stage1-pipeline-walkthrough')
       === 'directions'
       ? ok('and it is remembered for this document')
       : fail('the ink mode is not remembered');
-    sent.length = 0;
     tap(sayBtn);
+    !doc.getElementById('ask-revise').hidden && doc.getElementById('ask-direction').hidden
+      ? ok('say what is wrong is a fix in either mode')
+      : fail('say what is wrong opened the direction panel');
+    doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    sent.length = 0;
+    tap(direct);
     !doc.getElementById('ask-direction').hidden
       && doc.getElementById('ask-revise').hidden
       && doc.getElementById('ask-rework').hidden
@@ -867,8 +877,8 @@ const named = (title) => rows().filter(
       : fail('nothing said the direction went');
     doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
     tap(mode);
-    /fixes/.test(mode.textContent)
-      ? ok('and the switch goes back to fixes')
+    /fixes/.test(mode.textContent) && direct.hidden && window.Annotate.kind() === null
+      ? ok('and the switch goes back to fixes, with no directions left to send')
       : fail('the switch would not go back');
     sent.length = 0;
   }
@@ -1509,6 +1519,7 @@ const named = (title) => rows().filter(
 
   await inkFollowsZoom();
   await inkIsKept();
+  await inkHasAKind();
   await changesArePins();
   await pipsAndOwedInk();
 
@@ -1965,6 +1976,359 @@ async function inkIsKept() {
   p6.byId('note-purpose-box').hidden && p6.byId('ask-revise').classList.contains('on')
     ? ok('a tap on the ask with nothing typed after it is kept with the draft')
     : fail('the ask switched without a keystroke came back as an overhaul');
+}
+
+/* ==========================================================================
+   EDITS AND DIRECTIONS, EACH SENT ON ITS OWN. Asked as: "we know if ink
+   corresponds to directions or edits because of the mode I was in at the
+   time of making them. Give two different options to send in edits or to
+   send in directions." So every stroke keeps the toggle it was drawn under
+   (`dir: 1` on a direction), *say what is wrong* carries the edits and *send
+   directions* the directions, each picture shows only its own kind, and a
+   sent direction leaves the glass. On a DOM of its own, with real strokes
+   drawn by the pen and a canvas that records the colours it paints.
+   ========================================================================== */
+async function inkHasAKind() {
+  const ID = 'writeups-kinds-kinds';
+  const P1 = 'doc/' + ID + '/p1';
+  const P2 = 'doc/' + ID + '/p2';
+  const P3 = 'doc/' + ID + '/p3';
+  const OLD = { c: '#e8746c', w: 3, pg: 1, p: [0.1, 0.1, 0.3, 0.12], pr: [0.5, 0.5] };
+  const FIX_C = '#e0b45c';
+  const DIR_C = '#3366cc';
+  const HALO = 'rgba(47,125,79,0.22)';
+  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/kinds', stem: 'kinds', title: 'A deck after the meeting',
+    kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/kinds/kinds.pdf',
+    pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [], made: 'board',
+    marks: { pages: 1, strokes: 1, waiting: 1, dir: { pages: 2, strokes: 3 } },
+  }] };
+  const net = { save: 'ok', ink: {} };
+  const log = [];
+  const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                 url: 'https://board.test/library' });
+  const w = d.window;
+  const D = w.document;
+  /* A canvas that remembers every colour it stroked or filled with, and a
+     picture of it that says which those were. */
+  w.HTMLCanvasElement.prototype.getContext = function () {
+    const cv = this;
+    cv._ops = cv._ops || [];
+    const st = { strokeStyle: '', fillStyle: '' };
+    return new Proxy({}, {
+      get: (o, k) => {
+        if (k === 'stroke') return () => cv._ops.push(st.strokeStyle);
+        if (k === 'fill') return () => cv._ops.push(st.fillStyle);
+        return k in st ? st[k] : () => {};
+      },
+      set: (o, k, v) => { st[k] = v; return true; },
+    });
+  };
+  w.HTMLCanvasElement.prototype.toDataURL = function () {
+    return 'data:image/png;base64,'
+      + Buffer.from(JSON.stringify(Array.from(new Set(this._ops || [])))).toString('base64');
+  };
+  const colours = (png) => {
+    try { return JSON.parse(Buffer.from(String(png).split('base64,')[1], 'base64').toString()); }
+    catch (e) { return null; }
+  };
+  w.Element.prototype.setPointerCapture = function () {};
+  w.Element.prototype.releasePointerCapture = function () {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w.fetch = (u, o) => {
+    const url = String(u);
+    log.push({ url: url, opts: o || {} });
+    const reply = (x) => Promise.resolve({ ok: true, json: () => Promise.resolve(x) });
+    if (/library\.json/.test(url)) return reply(LIB);
+    if (/library\/stamp/.test(url)) return reply({ ok: true, stamp: 's', documents: { [ID]: 'x' } });
+    if (/library\/view\//.test(url)) {
+      return reply({ ok: true, n: 3, truncated: false, digest: 'k1',
+                     pages: ['/paper/k-1.png', '/paper/k-2.png', '/paper/k-3.png'],
+                     ink: { [P1]: [OLD] }, build: { digest: 'k1', at: 1790000000, pages: 3 },
+                     rebuilt: null });
+    }
+    if (/annotate\/save/.test(url)) {
+      if (net.save === 'down') return Promise.reject(new TypeError('Failed to fetch'));
+      return reply({ ok: true });
+    }
+    if (/library\/feedback/.test(url)) {
+      return reply({ ok: true, rel: 'writeups/kinds/feedback/2026-10-01-v1.md', asked: true,
+                     revise: 'board', detail: 'The tutor has been asked to revise it.' });
+    }
+    if (/library\/direction/.test(url)) {
+      return reply({ ok: true, turn: 't0101', pages: [1, 3], images: [],
+                     detail: 'Your marks on pages 1, 3 went as a proposed direction.',
+                     ink: net.ink });
+    }
+    return new Promise(() => {});
+  };
+  w.addEventListener('error', (e) => fail('uncaught (kinds page): ' + e.message));
+  for (const f of LIB_SCRIPTS) {
+    try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ': ' + e.message); }
+  }
+  w.INK_RETRY_MS = 100000;
+  w.STAMP_EVERY = 100000;
+  try { w.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+  catch (e) { fail('library.js (kinds page): ' + e.message); }
+  await sleep(20);
+  const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const byId = (id) => D.getElementById(id);
+  const A = w.Annotate;
+
+  /lib-marks/.test(D.querySelector('.lib-row').innerHTML)
+    && /marked up on 1 page, 1 stroke, directions on 2 pages/.test(
+      D.querySelector('.lib-row').textContent)
+    ? ok('kinds: the row says how much of each kind of ink is on the document')
+    : fail('kinds: the row reads ' + D.querySelector('.lib-row').textContent);
+
+  click(D.querySelector('.lib-row .lib-name'));
+  await sleep(30);
+  const fig = (n) => D.querySelector('.lib-page[data-page="' + n + '"]');
+  const rect = (l, t, wd, ht) => ({ left: l, top: t, width: wd, height: ht,
+                                    right: l + wd, bottom: t + ht, x: l, y: t });
+  [1, 2, 3].forEach((n) => {
+    const f = fig(n);
+    const img = f.querySelector('img');
+    Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 1240 });
+    Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 930 });
+    Object.defineProperty(img, 'complete', { configurable: true, value: true });
+    f.getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 600);
+    img.getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 600);
+  });
+  A.redrawAll();
+  click(byId('reader-pen'));
+  function pointer(type, target, x, y) {
+    const e = new w.Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperties(e, {
+      clientX: { value: x }, clientY: { value: y }, pointerType: { value: 'pen' },
+      pointerId: { value: 7 }, pressure: { value: 0.5 },
+    });
+    target.dispatchEvent(e);
+  }
+  /* A stroke through page fractions, the way the Pencil leaves one. */
+  async function drawOn(n, fracs) {
+    const r = fig(n).getBoundingClientRect();
+    const at = fracs.map(([fx, fy]) => [r.left + fx * r.width, r.top + fy * r.height]);
+    const cv = fig(n).querySelector('canvas.ann-layer');
+    pointer('pointerdown', cv, at[0][0], at[0][1]);
+    for (let i = 1; i < at.length; i++) pointer('pointermove', cv, at[i][0], at[i][1]);
+    pointer('pointerup', w, at[at.length - 1][0], at[at.length - 1][1]);
+    await sleep(15);
+  }
+  const line = (y) => [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6].map((x) => [x, y]);
+  const kinds = (id) => JSON.stringify(A.kinds(id));
+  const mode = byId('reader-mode');
+  const direct = byId('reader-direct');
+
+  A.kind() === null && /fixes/.test(mode.textContent) && direct.hidden
+    ? ok('kinds: a document opens drawing edits, with no directions to send')
+    : fail('kinds: opened as ' + mode.textContent + ', kind ' + A.kind()
+           + ', send directions ' + (direct.hidden ? 'hidden' : 'shown'));
+
+  A.setPen(FIX_C, 2);
+  await drawOn(2, line(0.5));
+  const p2drawn = A.payload(P2, false).strokes;
+  p2drawn.length === 1 && !('dir' in p2drawn[0])
+    ? ok('kinds: a stroke drawn while the toggle says fixes carries no kind')
+    : fail('kinds: the fix stroke saved as ' + JSON.stringify(p2drawn));
+
+  click(mode);
+  A.kind() === 'dir' && !direct.hidden && direct.textContent === 'send directions'
+    && byId('reader-say').textContent === 'say what is wrong'
+    ? ok('kinds: the toggle sets the kind of new ink, shows the directions\' own send, '
+         + 'and leaves the edits\' send as it was')
+    : fail('kinds: after the toggle: kind ' + A.kind() + ', ' + direct.textContent
+           + ' / ' + byId('reader-say').textContent);
+
+  A.setPen(DIR_C, 2);
+  await drawOn(1, line(0.5));
+  const p1drawn = A.payload(P1, false).strokes;
+  p1drawn.length === 2 && p1drawn[1].dir === 1 && !('dir' in p1drawn[0])
+    ? ok('kinds: a stroke drawn after the toggle is saved as a direction, the ink '
+         + 'before it untouched')
+    : fail('kinds: page 1 saves as ' + JSON.stringify(p1drawn));
+  JSON.stringify(p1drawn[0]) === JSON.stringify(OLD)
+    ? ok('kinds: ink from before kinds existed is saved back byte for byte, a fix')
+    : fail('kinds: the old stroke came back as ' + JSON.stringify(p1drawn[0]));
+  direct.textContent === 'send directions · 1'
+    ? ok('kinds: the directions\' send counts the pages carrying them')
+    : fail('kinds: the send reads ' + direct.textContent);
+  const ops1 = fig(1).querySelector('canvas.ann-layer')._ops || [];
+  const ops2 = fig(2).querySelector('canvas.ann-layer')._ops || [];
+  ops1.indexOf(HALO) >= 0 && ops2.indexOf(HALO) < 0 && ops2.indexOf(FIX_C) >= 0
+    ? ok('kinds: a direction is drawn over a green halo on the glass, and a fix is not')
+    : fail('kinds: page 1 painted ' + JSON.stringify(Array.from(new Set(ops1)))
+           + ', page 2 ' + JSON.stringify(Array.from(new Set(ops2))));
+
+  await drawOn(3, line(0.5));
+  // The rubber across the middle of page 1's direction: two pieces, still directions.
+  A.setTool('erase');
+  await drawOn(1, [[0.4, 0.4], [0.4, 0.45], [0.4, 0.5], [0.4, 0.55], [0.4, 0.6]]);
+  A.setTool('pen');
+  kinds(P1) === '{"fix":1,"dir":2}'
+    ? ok('kinds: the pieces an erase leaves of a direction are directions')
+    : fail('kinds: after the erase page 1 is ' + kinds(P1));
+
+  click(mode);
+  A.undo();
+  const undone = kinds(P1);
+  A.redo();
+  undone === '{"fix":1,"dir":1}' && kinds(P1) === '{"fix":1,"dir":2}'
+    ? ok('kinds: undo and redo after the toggle bring back the kinds the ink was drawn as')
+    : fail('kinds: undo gave ' + undone + ', redo ' + kinds(P1));
+  !direct.hidden && direct.textContent === 'send directions · 2'
+    ? ok('kinds: back on edits, the directions\' send stays while directions are on the glass')
+    : fail('kinds: on edits with directions drawn, the send reads '
+           + (direct.hidden ? 'hidden' : direct.textContent));
+
+  // A loop round page 3's direction, then a drag of it: still a direction.
+  A.setTool('lasso');
+  await drawOn(3, [[0.15, 0.4], [0.65, 0.4], [0.65, 0.6], [0.15, 0.6], [0.15, 0.42]]);
+  const picked = A.picked();
+  await drawOn(3, [[0.4, 0.5], [0.4, 0.53], [0.4, 0.56]]);
+  const moved = A.payload(P3, false).strokes;
+  picked === 1 && moved.length === 1 && moved[0].dir === 1 && moved[0].p[1] > 0.52
+    ? ok('kinds: a direction moved with the loop is still a direction')
+    : fail('kinds: picked ' + picked + ', page 3 after the move ' + JSON.stringify(moved));
+  // Copied and pasted: a paste is ink made now, of the kind the toggle says.
+  A.copy();
+  A.paste();
+  const pastedFix = kinds(P3);
+  click(mode);
+  A.paste();
+  const pastedDir = kinds(P3);
+  A.undo();
+  A.undo();
+  A.deselect();
+  A.setTool('pen');
+  pastedFix === '{"fix":1,"dir":1}' && pastedDir === '{"fix":1,"dir":2}'
+    && kinds(P3) === '{"fix":0,"dir":1}'
+    ? ok('kinds: a paste takes the toggle\'s kind: an edit on edits, a direction on directions')
+    : fail('kinds: pasted on edits ' + pastedFix + ', on directions ' + pastedDir
+           + ', after undo ' + kinds(P3));
+  await sleep(1100);
+
+  // ---- THE EDITS GO, AND ONLY THE EDITS --------------------------------
+  click(byId('reader-say'));
+  !byId('ask-revise').hidden && !byId('ask-rework').hidden && byId('ask-direction').hidden
+    ? ok('kinds: say what is wrong opens the fix panel though the toggle says directions')
+    : fail('kinds: say what is wrong in directions mode opened the direction panel');
+  log.length = 0;
+  click(byId('note-send'));
+  await sleep(60);
+  const pics = (k) => log.filter((r) => /annotate\/save/.test(r.url))
+    .map((r) => JSON.parse(r.opts.body || '{}'))
+    .filter((b) => /^data:image\/png/.test(b.png || '') && (b.png_kind || 'fix') === k);
+  const fixPics = pics('fix');
+  const fp1 = fixPics.filter((b) => b.card === P1)[0];
+  fixPics.map((b) => b.card).sort().join('|') === [P1, P2].join('|') && !pics('dir').length
+    ? ok('kinds: the edits\' pictures are saved for the pages with edits on them, and '
+         + 'a page of directions alone is left out')
+    : fail('kinds: the fix send saved pictures for ' + fixPics.map((b) => b.card).join(', ')
+           + ' and ' + pics('dir').length + ' direction pictures');
+  fp1 && JSON.stringify(colours(fp1.png)) === JSON.stringify([OLD.c])
+    ? ok('kinds: and a page carrying both shows the edits alone, with no halo')
+    : fail('kinds: page 1\'s fix picture painted ' + JSON.stringify(fp1 && colours(fp1.png)));
+  log.some((r) => /library\/feedback/.test(r.url)) && !log.some((r) => /library\/direction/.test(r.url))
+    ? ok('kinds: and the edits go as a revision, never as a direction')
+    : fail('kinds: the fix send asked ' + log.map((r) => r.url).join(' '));
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  // ---- THE DIRECTIONS GO, AND ONLY THE DIRECTIONS ----------------------
+  // The server takes the sent directions off their pages and hands back what
+  // is left; page 2's one edit is what this device already has.
+  net.ink = { [P1]: [OLD], [P2]: [{ c: FIX_C, w: 2, pg: 1, p: [0.2, 0.5, 0.6, 0.5] }] };
+  log.length = 0;
+  click(direct);
+  !byId('ask-direction').hidden && byId('ask-revise').hidden && byId('ask-rework').hidden
+    && /propose it/.test(byId('note-send').textContent) && !byId('note-send').disabled
+    && /direction marks on 2 pages/.test(byId('note-marks').textContent)
+    ? ok('kinds: send directions opens the direction panel, live on the direction ink alone')
+    : fail('kinds: the direction panel: ' + byId('note-marks').textContent + ' / '
+           + byId('note-send').textContent);
+  click(byId('note-send'));
+  await sleep(60);
+  const dirPics = pics('dir');
+  const dp1 = dirPics.filter((b) => b.card === P1)[0];
+  dirPics.map((b) => b.card).sort().join('|') === [P1, P3].join('|') && !pics('fix').length
+    ? ok('kinds: the directions\' pictures are saved as directions, for the pages carrying them')
+    : fail('kinds: the direction send saved pictures for '
+           + dirPics.map((b) => b.card).join(', ') + ' and ' + pics('fix').length + ' fix ones');
+  dp1 && JSON.stringify(colours(dp1.png)) === JSON.stringify([DIR_C])
+    ? ok('kinds: and a page carrying both shows the directions alone')
+    : fail('kinds: page 1\'s direction picture painted ' + JSON.stringify(dp1 && colours(dp1.png)));
+  const dpost = log.filter((r) => /library\/direction/.test(r.url))[0];
+  dpost && JSON.parse(dpost.opts.body).page === 0
+    && !log.some((r) => /library\/feedback/.test(r.url))
+    ? ok('kinds: the directions go to /library/direction, every page of them, and no revision')
+    : fail('kinds: the direction send asked ' + log.map((r) => r.url).join(' '));
+  kinds(P1) === '{"fix":1,"dir":0}' && A.marked().indexOf(P3) < 0
+    && kinds(P2) === '{"fix":1,"dir":0}'
+    ? ok('kinds: sent directions leave the glass, and the edits beside them stay')
+    : fail('kinds: after the send: page 1 ' + kinds(P1) + ', page 2 ' + kinds(P2)
+           + ', marked ' + A.marked().join(','));
+  direct.textContent === 'send directions'
+    ? ok('kinds: and the send says nothing is left to send')
+    : fail('kinds: after the send it reads ' + direct.textContent);
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  // ---- WHAT THE SERVER HANDS BACK ---------------------------------------
+  // Page 2 drawn on again while the board is down: still owed, so a reply
+  // with fewer strokes on it leaves it alone; page 1 is saved, and the
+  // reply's two strokes replace its one.
+  net.save = 'down';
+  await drawOn(2, line(0.7));
+  net.ink = { [P1]: [OLD, { c: FIX_C, w: 2, pg: 1, p: [0.1, 0.8, 0.3, 0.8] }],
+              [P2]: [{ c: FIX_C, w: 2, pg: 1, p: [0.2, 0.5, 0.6, 0.5] }] };
+  click(direct);
+  click(byId('note-send'));
+  await sleep(80);
+  kinds(P1) === '{"fix":2,"dir":0}' && kinds(P2) === '{"fix":1,"dir":1}'
+    ? ok('kinds: a reply with a different count replaces a saved page and leaves an owed one alone')
+    : fail('kinds: after the reply page 1 is ' + kinds(P1) + ', page 2 ' + kinds(P2));
+  net.save = 'ok';
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  click(mode);
+  A.undo();
+  A.kind() === null && direct.hidden
+    ? ok('kinds: back on edits with no directions on the glass, there is no directions\' send')
+    : fail('kinds: on edits with nothing to send, it is ' + (direct.hidden ? 'hidden' : 'shown')
+           + ' and the kind is ' + A.kind());
+
+  // ---- ONE DRAFT PER SEND ------------------------------------------------
+  click(mode);
+  click(direct);
+  byId('note-text').value = 'Dr. Paulus: try the MDD-only cohort.';
+  byId('note-text').dispatchEvent(new w.Event('input', { bubbles: true }));
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  click(byId('reader-say'));
+  byId('note-text').value === ''
+    ? ok('kinds: words typed for a direction never come back in the fix panel')
+    : fail('kinds: the fix panel opened with ' + JSON.stringify(byId('note-text').value));
+  byId('note-text').value = 'Slide 4 has the old n.';
+  byId('note-text').dispatchEvent(new w.Event('input', { bubbles: true }));
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  click(direct);
+  /Paulus/.test(byId('note-text').value)
+    ? ok('kinds: and the direction panel has its own')
+    : fail('kinds: the direction panel opened with ' + JSON.stringify(byId('note-text').value));
+  click(byId('note-send'));
+  await sleep(60);
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  click(byId('reader-say'));
+  byId('note-text').value === 'Slide 4 has the old n.'
+    && !w.localStorage.getItem('library.draft-dir:' + ID)
+    ? ok('kinds: a direction sent drops its own draft and leaves the fix draft')
+    : fail('kinds: after the direction went the fix panel reads '
+           + JSON.stringify(byId('note-text').value));
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  click(byId('reader-close'));
+  A.kind() === null
+    ? ok('kinds: closing the reader puts the pen back to edits')
+    : fail('kinds: the pen still draws ' + A.kind() + ' after the reader closed');
 }
 
 /* ==========================================================================

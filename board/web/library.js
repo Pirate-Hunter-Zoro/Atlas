@@ -59,6 +59,7 @@ var els = {
   readerPages: document.getElementById("reader-pages"),
   readerPen: document.getElementById("reader-pen"),
   readerSay: document.getElementById("reader-say"),
+  readerDirect: document.getElementById("reader-direct"),
   readerChanges: document.getElementById("reader-changes"),
   readerMode: document.getElementById("reader-mode"),
   readerClose: document.getElementById("reader-close"),
@@ -175,6 +176,7 @@ var drawnPages = 0;          /* how many it had when the ink on it was drawn */
 var noteFor = null;          /* the document a note is being written about */
 var notePage = 0;
 var noteAsk = "revise";      /* which of the three asks the panel is on */
+var noteKind = "fixes";      /* which ink the panel sends: "fixes" or "directions" */
 
 /* HOW OFTEN THE CHEAP QUESTION IS ASKED, and only while the page is visible.
    The stamp is a walk and a stat per document with no `pdfinfo` in it, so this
@@ -245,6 +247,7 @@ function paint(got) {
   if (openDoc) {
     docs.forEach(function (d) { if (d.id === openDoc.id) openDoc = d; });
     if (ledger && !els.reader.hidden) ledger.open(openDoc);
+    paintSends();
   }
   if (noteFor) {
     docs.forEach(function (d) { if (d.id === noteFor.id) noteFor = d; });
@@ -445,13 +448,19 @@ function row(doc) {
     box.appendChild(old);
   }
 
-  if (doc.marks && doc.marks.pages) {
+  var dirOn = (doc.marks && doc.marks.dir && doc.marks.dir.pages) || 0;
+  if (doc.marks && (doc.marks.pages || dirOn)) {
     var ink = document.createElement("span");
     ink.className = "lib-marks";
-    ink.textContent = "marked up on " + doc.marks.pages
-      + (doc.marks.pages === 1 ? " page" : " pages")
-      + ", " + doc.marks.strokes
-      + (doc.marks.strokes === 1 ? " stroke" : " strokes");
+    ink.textContent = [
+      doc.marks.pages
+        ? "marked up on " + doc.marks.pages
+          + (doc.marks.pages === 1 ? " page" : " pages")
+          + ", " + doc.marks.strokes
+          + (doc.marks.strokes === 1 ? " stroke" : " strokes")
+        : "",
+      dirOn ? "directions on " + dirOn + (dirOn === 1 ? " page" : " pages") : ""
+    ].filter(Boolean).join(", ");
     box.appendChild(ink);
   }
 
@@ -503,7 +512,7 @@ function row(doc) {
     acts.appendChild(act("read it", "quiet", function () { read(doc); }));
   }
   acts.appendChild(act("say what is wrong", "quiet", function () {
-    say(doc, 0);
+    say(doc, 0, "fixes");
   }));
   box.appendChild(acts);
   return box;
@@ -653,7 +662,7 @@ els.readerPages.addEventListener("scroll", noteAnchor, { passive: true });
 var ledger = window.Ledger ? window.Ledger.make({
   pages: els.readerPages, button: els.readerChanges, changed: load,
   zoom: zoomer,
-  send: function (doc) { say(doc, 0); },
+  send: function (doc) { say(doc, 0, "fixes"); },
   scrolled: function () { placeWanted = 0; noteAnchor(); },
 }) : null;
 
@@ -722,22 +731,7 @@ function draw(doc, place, at) {
          pages: this page holds no live payload to read them out of, because
          it opens no sitting. KEPT ACROSS A RE-DRAW for the same reason -- the
          keys are `doc/<id>/p<n>` and are the document's, not this drawing's. */
-      /* SPENT INK GOES FROM THE GLASS TOO. Once a revision lands the server
-         deletes the marks it delivered (`library.wipe_delivered`), but `load`
-         never takes a mark away -- this device's copy wins -- so a saved mark
-         the server no longer has is dropped here. Unsaved ink is still being
-         drawn and is never touched. */
-      if (window.Annotate && window.Annotate.drop) {
-        var have = got.ink || {};
-        var owed = window.Annotate.unsaved();
-        var mine = "doc/" + doc.id + "/";
-        window.Annotate.marked().forEach(function (id) {
-          if (id.indexOf(mine) === 0 && !(id in have) && owed.indexOf(id) < 0) {
-            window.Annotate.drop(id);
-          }
-        });
-      }
-      if (window.Annotate) window.Annotate.load(got.ink || {});
+      takeInk(doc, got.ink || {});
       /* THE BUILD ON THE GLASS, handed back with every save of this
          document's ink -- and the flag, when ink on it was drawn on another. */
       openBuild = got.build || null;
@@ -761,6 +755,30 @@ function draw(doc, place, at) {
     });
 }
 
+/* THE SERVER'S INK FOR `doc`, put on the glass. SPENT INK GOES FROM IT TOO:
+   a landed round wipes the fix ink it delivered (`library.wipe_delivered`)
+   and a sent direction is taken off its page (`library.strip_kind`), but
+   `load` never takes a mark away -- this device's copy wins -- so a saved
+   page the server no longer has, or has with a different number of strokes,
+   is dropped here and taken again. A count, not the strokes themselves,
+   because Python and the browser write the same float differently. Unsaved
+   ink is still being drawn and is never touched. */
+function takeInk(doc, have) {
+  if (!window.Annotate) return;
+  if (window.Annotate.drop) {
+    var owed = window.Annotate.unsaved();
+    var mine = "doc/" + doc.id + "/";
+    window.Annotate.marked().forEach(function (id) {
+      if (id.indexOf(mine) !== 0 || owed.indexOf(id) >= 0) return;
+      if (!(id in have)
+          || window.Annotate.payload(id, false).strokes.length !== (have[id] || []).length) {
+        window.Annotate.drop(id);
+      }
+    });
+  }
+  window.Annotate.load(have);
+}
+
 function closeReader() {
   /* Whatever is owed goes now. A page closed with ink that never reached disk
      is ink somebody drew and the board silently dropped. */
@@ -771,6 +789,7 @@ function closeReader() {
        page 1. Keeping last document's ink keyed against it would draw one
        paper's marks over another's. */
     window.Annotate.forget();
+    if (window.Annotate.setKind) window.Annotate.setKind(null);
   }
   openDoc = null;
   openBuild = null;
@@ -784,6 +803,7 @@ function closeReader() {
   paintRebuilt(null);
   paintPen();
   paintKept();
+  paintSends();
 }
 
 /* ------------------------------------------------------------- the pen */
@@ -824,24 +844,27 @@ if (window.ViewPin) {
   if (annBar) window.ViewPin.pin(annBar.node, { edge: "bottom" });
 }
 
-/* Each marked page of `docId`, saved with a picture of the page and its ink
-   (`Annotate.picture`), so the note's "open the image" has an image to open.
+/* Each page of `docId` marked with `kind` of ink ("fix" or "dir"), saved with
+   a picture of the page and that kind of ink alone (`Annotate.picture`), so
+   the note's "open the image" has an image to open and it shows only what
+   this send is about. A direction's picture is its own file (`png_kind`).
    A page not drawn in the reader has no picture to make and is left alone:
    its strokes are already on disk. Never a send -- the note is the send. */
-function savePictures(docId) {
+function savePictures(docId, kind) {
   if (!window.Annotate || !window.Annotate.picture || !openDoc
       || openDoc.id !== docId) return Promise.resolve([]);
   var mine = "doc/" + docId + "/p";
   var jobs = window.Annotate.marked().filter(function (id) {
-    return id.indexOf(mine) === 0;
+    return id.indexOf(mine) === 0 && window.Annotate.kinds(id)[kind] > 0;
   }).map(function (id) {
     var n = id.slice(mine.length);
     var fig = els.readerPages.querySelector('.lib-page[data-page="' + n + '"]');
     var img = fig && fig.querySelector("img");
-    var png = img ? window.Annotate.picture(id, img) : "";
+    var png = img ? window.Annotate.picture(id, img, kind) : "";
     if (!png) return Promise.resolve(null);
     var body = window.Annotate.payload(id, false);
     body.png = png;
+    if (kind === "dir") body.png_kind = "dir";
     return fetch("/annotate/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -903,6 +926,7 @@ if (keeper) {
     keeper.queue();
     paintPen();
     paintKept();
+    paintSends();
   });
 }
 /* ------------------------------------------------ ⤓ keep a marked copy */
@@ -1072,7 +1096,10 @@ els.readerClose.onclick = closeReader;
 /* WHICH PAGE THEY ARE LOOKING AT. A note written while reading page 14 is
    about page 14, and asking for the number is a question whose answer is on the
    screen already -- so it is read off the scroll rather than typed. */
-els.readerSay.onclick = function () { say(openDoc, pageInView()); };
+els.readerSay.onclick = function () { say(openDoc, pageInView(), "fixes"); };
+if (els.readerDirect) {
+  els.readerDirect.onclick = function () { say(openDoc, pageInView(), "directions"); };
+}
 
 function pageInView() {
   var pages = els.readerPages.querySelectorAll(".lib-page");
@@ -1090,10 +1117,12 @@ function pageInView() {
 }
 
 /* ----------------------------------------------- what the ink is for */
-/* FIXES OR DIRECTIONS, per document, remembered on this device. Before a
-   meeting every mark on a deck is a correction; after it, every mark is a
-   mentor's suggestion -- and a suggestion sent as a correction spends a turn
-   polishing slides while throwing the suggestion away. */
+/* FIXES OR DIRECTIONS, per document, remembered on this device. The toggle
+   says what the NEXT stroke is: each stroke keeps the kind it was drawn as
+   (`dir: 1` on a direction, `Annotate.setKind`), so a page can carry a fix and
+   a mentor's suggestion side by side. Each kind has its own send -- a
+   suggestion sent as a correction spends a turn polishing slides while
+   throwing the suggestion away. */
 var MODE_KEY = "library.inkmode:";
 
 function modeOf(doc) {
@@ -1108,9 +1137,33 @@ function paintMode() {
   els.readerMode.textContent = m === "directions" ? "ink: directions" : "ink: fixes";
   els.readerMode.classList.toggle("directions", m === "directions");
   els.readerMode.title = m === "directions"
-    ? "your marks are mentors' suggested directions — tap to make them fixes again"
-    : "your marks are fixes to this document — tap after the meeting to make them directions";
-  els.readerSay.textContent = m === "directions" ? "send as directions" : "say what is wrong";
+    ? "new marks are directions (green halo) — tap to draw edits"
+    : "new marks are edits — tap to draw directions";
+  if (window.Annotate && window.Annotate.setKind) {
+    window.Annotate.setKind(openDoc && m === "directions" ? "dir" : null);
+  }
+  paintSends();
+}
+
+/* HOW MANY PAGES ON THE GLASS CARRY DIRECTION INK. Exact from here: a sent
+   direction is taken off its page, so every direction stroke on the glass is
+   one not yet sent. The panel is opened for directions only from the reader,
+   so this is the count it needs. */
+function dirPages() {
+  if (!window.Annotate || !window.Annotate.kinds || !openDoc) return 0;
+  return window.Annotate.marked().filter(function (id) {
+    return mineKey(id) && window.Annotate.kinds(id).dir > 0;
+  }).length;
+}
+
+/* THE DIRECTIONS' SEND, shown while the pen draws directions or while any
+   direction ink is on the glass -- in directions mode with nothing drawn it
+   is still offered, because a direction can be said in words alone. */
+function paintSends() {
+  if (!els.readerDirect) return;
+  var n = dirPages();
+  els.readerDirect.hidden = !openDoc || (modeOf(openDoc) !== "directions" && !n);
+  els.readerDirect.textContent = "send directions" + (n ? " · " + n : "");
 }
 
 if (els.readerMode) {
@@ -1123,16 +1176,19 @@ if (els.readerMode) {
 }
 
 /* ---------------------------------------------------- saying what is wrong */
-function say(doc, page) {
+/* `kind` is which ink this panel sends: "fixes" (the default, and every route
+   from outside the reader) or "directions" (*send directions*). */
+function say(doc, page, kind) {
   if (!doc) return;
   noteFor = doc;
   notePage = page || 0;
+  noteKind = kind === "directions" ? "directions" : "fixes";
   els.noteTitle.textContent = doc.title || doc.stem;
   els.noteWhere.textContent = doc.rel;
   /* WHAT WAS BEING TYPED, BACK. Kept on this device per document on every
      keystroke, so a reload, a closed tab or an app evicted overnight costs
      nothing -- and gone only when the note is actually filed. */
-  var draft = draftOf(doc.id);
+  var draft = draftOf(doc.id, noteKind);
   els.noteText.value = (draft && draft.text) || "";
   els.purpose.value = (draft && draft.purpose) || "";
   els.noteSaid.hidden = true;
@@ -1146,7 +1202,7 @@ function say(doc, page) {
   els.askRework.title = els.askRework.disabled
     ? "the manuscript factory wrote this one, and an overhaul is asked for there"
     : "restructure, cut and rewrite it to a new purpose";
-  var dir = modeOf(doc) === "directions";
+  var dir = noteKind === "directions";
   els.askRevise.hidden = dir;
   els.askRework.hidden = dir;
   if (els.askDirection) els.askDirection.hidden = !dir;
@@ -1232,18 +1288,20 @@ els.askRevise.onclick = function () { setAsk("revise"); keepDraft(); };
 els.askRework.onclick = function () { setAsk("rework"); keepDraft(); };
 if (els.askDirection) els.askDirection.onclick = function () { setAsk("direction"); keepDraft(); };
 
-/* WHAT GOES, SAID FOR THE ASK THE PANEL IS ON. A direction is ONE page -- the
-   one being read -- and only that page's ink goes; the rest stays for a fix. */
+/* WHAT GOES, SAID FOR THE ASK THE PANEL IS ON. A direction carries every page
+   of direction ink on the glass, and only that ink; the fixes stay for a
+   note. With no direction ink, the words go as a direction from the page
+   being read. */
 function paintMarksLine() {
   if (noteAsk === "direction") {
-    var n = inkWaiting(noteFor);
+    var n = dirPages();
     els.noteMarks.hidden = false;
     els.noteMarks.textContent = n
-      ? "Your marks on " + n + (n === 1 ? " page go" : " pages go")
+      ? "Your direction marks on " + n + (n === 1 ? " page go" : " pages go")
         + " to the tutor as proposed directions, not fixes. It writes one card "
         + "saying what it would change; nothing changes until you tap "
         + "⟳ rethink on the board."
-      : "Nothing is marked yet. Draw the direction on the page, or say it here "
+      : "No direction is drawn yet. Draw it on the page, or say it here "
         + "and it goes as a direction from page " + (notePage || 1) + ".";
     return;
   }
@@ -1262,10 +1320,11 @@ function paintMarksLine() {
    on disk, so nothing has to be collected here -- the server reads them where
    it reads the text. An overhaul is live on its PURPOSE instead: the words are
    optional there and the sentence saying what the document is for is not. */
-/* HOW MANY MARKED PAGES A NOTE WOULD CARRY. Ink an earlier round delivered is
-   still drawn but does not go again -- `library.unsent` -- so the panel counts
-   the pages still waiting where the server says, and every marked page where
-   an older one does not. */
+/* HOW MANY PAGES OF FIX INK A NOTE WOULD CARRY. On a deck made from sittings,
+   ink an earlier round delivered is still drawn but does not go again
+   (`library.carried`), so the panel counts the pages still waiting where the
+   server says, and every fix page where an older server does not. Direction
+   ink is never in it (`dirPages` counts that). */
 function reopenedOn(doc) {
   return (doc && doc.ledger && doc.ledger.reopened) || 0;
 }
@@ -1282,33 +1341,55 @@ function paintSend() {
   els.noteSend.disabled = noteAsk === "rework"
     ? els.purpose.value.trim().length < PURPOSE_LEAST
     : noteAsk === "direction"
-    ? !els.noteText.value.trim() && !ink
+    ? !els.noteText.value.trim() && !dirPages()
     : !els.noteText.value.trim() && !ink && !reopenedOn(noteFor);
 }
 
 /* ------------------------------------------------------ drafts, kept */
+/* ONE DRAFT PER KIND OF SEND, so words about a direction never come back in a
+   fix's panel and filing one leaves the other. A direction draft kept under
+   the fixes' key (`ask: "direction"`) is read by the directions' panel only. */
 var DRAFT_KEY = "library.draft:";
+var DRAFT_DIR_KEY = "library.draft-dir:";
 
-function draftOf(id) {
+function draftKey(id, kind) {
+  return (kind === "directions" ? DRAFT_DIR_KEY : DRAFT_KEY) + id;
+}
+
+function readDraft(key) {
   try {
-    var d = JSON.parse(localStorage.getItem(DRAFT_KEY + id) || "null");
+    var d = JSON.parse(localStorage.getItem(key) || "null");
     return d && typeof d === "object" ? d : null;
   } catch (e) { return null; }
+}
+
+function draftOf(id, kind) {
+  var fix = readDraft(draftKey(id, "fixes"));
+  var asDir = fix && fix.ask === "direction" ? fix : null;
+  if (kind === "directions") return readDraft(draftKey(id, "directions")) || asDir;
+  return asDir ? null : fix;
 }
 
 function keepDraft() {
   if (!noteFor) return;
   var text = els.noteText.value;
   var aim = els.purpose.value;
+  var key = draftKey(noteFor.id, noteAsk === "direction" ? "directions" : "fixes");
   try {
-    if (!text.trim() && !aim.trim()) localStorage.removeItem(DRAFT_KEY + noteFor.id);
-    else localStorage.setItem(DRAFT_KEY + noteFor.id, JSON.stringify(
+    if (!text.trim() && !aim.trim()) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(
       { text: text, purpose: aim, ask: noteAsk, at: Date.now() }));
   } catch (e) { /* private mode or full: the textarea still holds it */ }
 }
 
-function dropDraft(id) {
-  try { localStorage.removeItem(DRAFT_KEY + id); } catch (e) {}
+function dropDraft(id, kind) {
+  try {
+    localStorage.removeItem(draftKey(id, kind));
+    var fix = readDraft(draftKey(id, "fixes"));
+    if (kind === "directions" && fix && fix.ask === "direction") {
+      localStorage.removeItem(draftKey(id, "fixes"));
+    }
+  } catch (e) {}
 }
 
 els.noteText.addEventListener("input", paintSend);
@@ -1367,15 +1448,15 @@ els.roundClose.onclick = function () { els.round.hidden = true; };
    never a revision. */
 function sendDirection(said) {
   if (!noteFor) return;
-  /* Every page whose ink has gone nowhere yet; a page is named only when there
-     is no ink at all and the words are the direction. */
+  /* Every page with direction ink on it; a page is named only when there is
+     no direction ink at all and the words are the direction. */
   var forDoc = noteFor.id;
-  var page = inkWaiting(noteFor) ? 0 : (notePage || 1);
+  var page = dirPages() ? 0 : (notePage || 1);
   var was = els.noteSend.textContent;
   els.noteSend.disabled = true;
   els.noteSend.textContent = "proposing…";
-  savePen().then(function () { return savePictures(forDoc); },
-                 function () { return savePictures(forDoc); })
+  savePen().then(function () { return savePictures(forDoc, "dir"); },
+                 function () { return savePictures(forDoc, "dir"); })
   .then(function () {
     return fetch("/library/direction", {
       method: "POST",
@@ -1398,7 +1479,11 @@ function sendDirection(said) {
     els.noteSaid.textContent = got.detail || "Sent as a proposed direction.";
     els.noteSend.textContent = "proposed";
     els.noteText.value = "";
-    dropDraft(forDoc);
+    dropDraft(forDoc, "directions");
+    /* THE SENT DIRECTIONS LEAVE THE GLASS: the server took them off their
+       pages, and hands back what is left. */
+    if (got.ink && openDoc && openDoc.id === forDoc) takeInk(openDoc, got.ink);
+    paintSends();
     load();
   }).catch(function () {
     els.noteSaid.hidden = false;
@@ -1424,10 +1509,11 @@ els.noteSend.onclick = function () {
   els.noteSend.textContent = asked === "rework" ? "overhauling…" : "sending…";
   /* THE PICTURES GO FIRST. The note tells the turn to open each page's image,
      and an autosave never carries one (`Annotate.payload` makes it only for a
-     send). So each marked page of the open document is saved once more with
-     its ink drawn over the page itself, and only then is the note filed. */
-  savePen().then(function () { return savePictures(forDoc); },
-                 function () { return savePictures(forDoc); })
+     send). So each page of the open document carrying fix ink is saved once
+     more with that ink drawn over the page itself, and only then is the note
+     filed. */
+  savePen().then(function () { return savePictures(forDoc, "fix"); },
+                 function () { return savePictures(forDoc, "fix"); })
   .then(function () { return fetch("/library/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1466,7 +1552,7 @@ els.noteSend.onclick = function () {
     els.purpose.value = "";
     /* FILED, so the draft goes -- here and nowhere earlier. A refusal above
        returned before this line, and its words are still waiting. */
-    dropDraft(forDoc);
+    dropDraft(forDoc, "fixes");
     /* WHAT IS NOW IN FLIGHT. The reply says a turn was woken, which is not the
        same as the document having changed -- so this is held against the
        document's own stamp and is cleared by its bytes moving, nothing else. */

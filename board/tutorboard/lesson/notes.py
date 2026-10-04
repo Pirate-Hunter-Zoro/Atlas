@@ -62,6 +62,20 @@ def waiting(repo, limit=400):
     return {"since": oldest, "count": count, "signal": signal}
 
 
+# WHICH KIND OF INK A STROKE IS. The library reader stamps `dir: 1` on a stroke
+# drawn while its toggle says *directions*; nothing else ever does. So a stroke
+# with no field is a fix: legacy ink, a board card, the board's own viewer and
+# the meeting deck all read as fixes here, and fix ink saves byte-identical.
+def is_dir(s):
+    return isinstance(s, dict) and bool(s.get("dir"))
+
+
+def of_kind(strokes, kind):
+    """The strokes of one kind: `"dir"` for directions, anything else for fixes."""
+    want = kind == "dir"
+    return [s for s in strokes or [] if is_dir(s) == want]
+
+
 def load_notes_sent(repo):
     """Which cards' marks have already been handed to the tutor.
 

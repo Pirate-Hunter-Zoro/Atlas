@@ -781,8 +781,9 @@ def next_note(root, doc, day=None):
 # document is one document and its ink is its ink, so a note carries whatever is
 # there under either.
 
-def marked_pages(repo):
-    """Every page of every document that has ink on it. `{ident: {page: n}}`.
+def marked_pages(repo, kind="fix", strokes_of=None):
+    """Every page of every document with ink of one kind on it.
+    `{ident: {page: n}}`, `n` counting that kind's strokes only.
 
     ONE PASS OVER THE DRAWER, FOR THE WHOLE LIBRARY. Asked per document it is a
     read and a parse of every annotation record per document, which on a
@@ -793,16 +794,22 @@ def marked_pages(repo):
     A page count is NOT consulted here, deliberately. `pdfinfo` missing is a
     page count of zero, and deriving "which pages could be marked" from it would
     lose the ink for a reason that has nothing to do with the ink.
+
+    `kind` is `"fix"` (a stroke with no `dir`) or `"dir"`; `strokes_of` is
+    `load_notes`, for a caller that asks both and reads the drawer once.
     """
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
 
+    if strokes_of is None:
+        strokes_of = lesson_notes.load_notes(repo)
     out = {}
-    for key, strokes in lesson_notes.load_notes(repo).items():
+    for key, strokes in strokes_of.items():
         found = writing.ann_doc_page(key)
-        if not found or not strokes:
+        n = len(lesson_notes.of_kind(strokes, kind)) if found else 0
+        if not n:
             continue
-        out.setdefault(found[0], {})[found[1]] = len(strokes)
+        out.setdefault(found[0], {})[found[1]] = n
     return out
 
 
@@ -817,20 +824,24 @@ def mark_idents(root, doc):
     return out
 
 
-def marks(repo, doc, index=None):
-    """Every marked page of one document, in page order.
+def marks(repo, doc, index=None, kind="fix"):
+    """Every page of one document marked with one kind of ink, in page order.
 
     `[{page, ident, key, strokes, png}]`, where `png` is repository-relative and
     is the picture of that page's ink the viewer saved beside the strokes. The
     strokes themselves are coordinates and are no use to a reader; the image is
     the thing a revision turn opens.
 
-    `index` is `marked_pages`, which a caller asking about every document in a
-    workspace reads once and passes in.
+    FIX INK UNLESS ASKED: a note is a revision, and a mentor's direction drawn
+    on the same page must never ride it. `kind="dir"` is the direction ink,
+    with its own picture (`writing.png_path`).
+
+    `index` is `marked_pages` of the same kind, which a caller asking about
+    every document in a workspace reads once and passes in.
     """
     from ..server.routes import writing               # local: avoids a cycle
 
-    index = marked_pages(repo) if index is None else index
+    index = marked_pages(repo, kind) if index is None else index
     if not index:
         return []
     out = []
@@ -841,7 +852,7 @@ def marks(repo, doc, index=None):
             # does that derivation, never rebuilt here. It is the rule this
             # system is load-bearing on for security, and a second
             # implementation of it is the way that rule stops holding.
-            png = os.path.join(repo.notes, writing.ann_file(key) + ".png")
+            png = writing.png_path(repo, key, kind)
             out.append({"page": page, "ident": ident, "key": key,
                         "strokes": strokes,
                         "png": (os.path.relpath(png, repo.root).replace(os.sep, "/")
@@ -912,12 +923,14 @@ def wipe_delivered(repo, doc, sent=None):
     A mark is spent once the revision it asked for came back: left on the
     page, it sits over a slide that has already been changed, and on a deck
     whose slides renumber it sits over the wrong one. So once the newest round
-    has landed (`last_round_landed`, and there must BE a round), every mark on
-    this document that a note carried (`sent`) goes, picture and all. Ink
-    drawn since is `sent: false` -- `/annotate/save` writes that on every
-    change -- and stays for the next round. A round that has not landed keeps
-    everything, so a retry is still a tap. What a round's requests point at --
-    the crops and the page pictures -- is the round's own and is never wiped.
+    has landed (`last_round_landed`, and there must BE a round), every page of
+    this document that a note carried (`sent`) loses its FIX strokes and their
+    picture (`strip_kind`). Direction strokes on it stay, because no round
+    carried them. Ink drawn since is `sent: false` -- `/annotate/save` writes
+    that on every change -- and stays for the next round. A round that has not
+    landed keeps everything, so a retry is still a tap. What a round's requests
+    point at -- the crops and the page pictures -- is the round's own and is
+    never wiped.
     """
     if not notes(repo.root, doc) or not last_round_landed(repo.root, doc):
         return []
@@ -941,21 +954,70 @@ def wipe_delivered(repo, doc, sent=None):
             # its `sent` flag never got written: same build, same strokes. A
             # stroke added since changes the count, and stays for the next round.
             if not sent.get(key) and (builds.get(key) or {}).get("digest") == digest \
-                    and len(strokes_of.get(key) or []) == count:
+                    and len(lesson_notes.of_kind(strokes_of.get(key) or [],
+                                                 "fix")) == count:
                 sent[key] = True
     gone = []
     for key, was_sent in sent.items():
         found = writing.ann_doc_page(key)
         if not was_sent or not found or found[0] not in wanted:
             continue
-        stem = os.path.join(repo.notes, writing.ann_file(key))
-        for ext in (".json", ".png"):
-            try:
-                os.remove(stem + ext)
-            except OSError:
-                continue
-        gone.append(key)
+        if strip_kind(repo, key, "fix"):
+            gone.append(key)
     return gone
+
+
+def strip_kind(repo, key, kind):
+    """Take one kind of ink off one page, strokes and picture. True if anything
+    went.
+
+    THE OTHER KIND STAYS: a delivered fix leaves the directions drawn beside
+    it, and a sent direction leaves the fixes. What is left keeps its build.
+    `sent` is fix delivery, so it is kept when the directions go and cleared
+    when the fixes do. A page with nothing left goes whole, both pictures.
+    """
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
+
+    import json as _json
+    other = "fix" if kind == "dir" else "dir"
+    path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
+    changed = False
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = _json.load(fh)
+    except (OSError, ValueError):
+        rec = None
+    if isinstance(rec, dict):
+        strokes = rec.get("strokes") or []
+        kept = lesson_notes.of_kind(strokes, other)
+        if not kept:
+            try:
+                os.remove(path)
+                changed = True
+            except OSError:
+                pass
+            try:
+                os.remove(writing.png_path(repo, key, other))
+            except OSError:
+                pass
+        elif len(kept) != len(strokes) or (kind == "fix" and rec.get("sent")):
+            out = {"card": rec.get("card") or key, "strokes": kept,
+                   "sent": bool(rec.get("sent")) if kind == "dir" else False}
+            if isinstance(rec.get("build"), dict):
+                out["build"] = rec["build"]
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    _json.dump(out, fh)
+                changed = True
+            except OSError:
+                pass
+    try:
+        os.remove(writing.png_path(repo, key, kind))
+        changed = True
+    except OSError:
+        pass
+    return changed
 
 
 def _filed_ink(repo, doc):
@@ -1239,12 +1301,16 @@ def status(repo):
         found = documents(root)
     except Exception:                                        # noqa: BLE001
         found = []
-    try:
-        index = marked_pages(repo)
-    except Exception:                                        # noqa: BLE001
-        index = {}
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
+    # FIX INK AND DIRECTION INK, COUNTED APART: a note carries the one and
+    # *send directions* the other, and the row says both.
+    try:
+        strokes_of = lesson_notes.load_notes(repo)
+        index = marked_pages(repo, "fix", strokes_of)
+        dindex = marked_pages(repo, "dir", strokes_of)
+    except Exception:                                        # noqa: BLE001
+        index, dindex = {}, {}
     try:
         sent = lesson_notes.load_notes_sent(repo)
     except Exception:                                        # noqa: BLE001
@@ -1260,7 +1326,8 @@ def status(repo):
             doc["ledger"] = None
         # SPENT INK GOES FIRST, so the counts below are of what is still on
         # the page. `index` and `sent` were read before it, so they are pruned
-        # of what went rather than read again.
+        # of what went rather than read again. A wipe takes fix ink only, so
+        # `dindex` stands.
         try:
             for key in wipe_delivered(repo, doc, sent):
                 sent.pop(key, None)
@@ -1283,8 +1350,16 @@ def status(repo):
             waiting = len(carried(repo, doc, ink, sent))
         except Exception:                                    # noqa: BLE001
             waiting = len(ink)
+        # Every direction stroke on disk is unsent (a sent one is stripped),
+        # so the direction count needs no `waiting`.
+        try:
+            dink = marks(repo, doc, index=dindex, kind="dir")
+        except Exception:                                    # noqa: BLE001
+            dink = []
         doc["marks"] = {"pages": len(ink),
                         "strokes": sum(m["strokes"] for m in ink),
-                        "waiting": waiting}
+                        "waiting": waiting,
+                        "dir": {"pages": len(dink),
+                                "strokes": sum(m["strokes"] for m in dink)}}
     return {"workspace": atlas.identify(root), "documents": found,
             "writeups": WRITEUPS}

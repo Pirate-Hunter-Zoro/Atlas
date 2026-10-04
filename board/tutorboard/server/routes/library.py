@@ -327,6 +327,10 @@ def post(h, repo, path):
         from ... import proposals                      # local: avoids a cycle
         rec = proposals.from_document(repo, doc, payload.get("page"),
                                       payload.get("text") or "")
+        # THE INK LEFT ON THE DOCUMENT, so the reader takes the sent direction
+        # strokes off its glass: `Annotate.load` never takes a mark away.
+        if rec.get("ok"):
+            rec["ink"] = library.ink(repo, doc)
         h.server.hub.worker.dirty.set()
         return h.send_json(rec, status=200 if rec.get("ok") else 400)
 

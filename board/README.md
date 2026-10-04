@@ -1237,14 +1237,19 @@ are the suites.
   wrong" is an ordinary library revision, redrawn in place; `_revise` adds
   `sense.DECK_BRIEF_SENSE` when `_brief.md` sits beside the document. It never goes through
   `proposals.py`: the meeting deck's ink is direction, and this deck's ink is a revision.
-- **Fixes or directions** (`#reader-mode`, remembered per document on the device). In *fixes* the note panel offers a fix or an overhaul. In *directions*, for after a meeting, it offers only *a new direction*: `POST /library/direction` → `proposals.from_document` writes one `[direction]` turn in this workspace (`sense.doc_direction_sense`, the meeting deck's propose-only steps) with every undelivered marked page, copies their pictures to `live/directions/` because `writeups/` is tracked and public, and marks the ink delivered so no fix carries it. Nothing is applied until ⟳ rethink. `/annotate/save` keeps `sent` when the strokes are unchanged, so re-saving a page for its picture does not re-send delivered ink.
-- **The note's pictures.** An autosave carries no image (`Annotate.payload` makes one only for a send), so at *send it* the reader re-saves each marked page of the open document with `Annotate.picture`, the page image with the ink over it in its own colours, and files the note after. Without it every mark reads "no image was saved" to the turn.
-- **Spent ink is wiped** (`library.wipe_delivered`). Once a document's newest round has landed, every mark a note delivered on it (`sent`) is deleted, record and picture, on the next `/library.json` or `/library/view`; ink drawn since is `sent: false` and stays. The round's own crops and page pictures are in its directory and are never wiped. A round that has not landed keeps everything. The reader drops any saved mark the view no longer hands back (`Annotate.drop`), because `Annotate.load` never takes one away.
-- **Resending** (`library.carried`). A deck made from sittings carries only marks no earlier
+- **Fixes or directions.** `#reader-mode` (per document, in `localStorage` as `library.inkmode:<id>`) sets the kind of each NEW stroke (`Annotate.setKind`). A direction stroke carries `dir: 1`; a stroke with no field is a fix, which covers unstamped ink, board cards, the board's `#paper` viewer and `/meeting`, none of which ever stamps one. On the reader's glass a direction is painted over a translucent green halo (`annotate.js` `halo`, one path at one width, under all the ink); pictures and the burned copy draw no halo. Erase pieces and moved strokes keep their kind (`like`); a paste takes the toggle's. Two sends, each carrying only its own kind:
+  - *say what is wrong* (`#reader-say`, and the row's and the ledger's) is the fix or overhaul note, `POST /library/feedback`. `library.marks`, `ledger.split` and `wipe_delivered` read fix strokes only (`notes.of_kind`).
+  - *send directions* (`#reader-direct`, shown in directions mode or while direction ink is on the glass, counting its pages) offers only *a new direction*: `POST /library/direction` → `proposals.from_document` writes one `[direction]` turn in this workspace (`sense.doc_direction_sense`, the meeting deck's propose-only steps) with every page of direction ink, copies their pictures to `live/directions/` because `writeups/` is tracked and public, then takes those strokes and their picture off the pages (`library.strip_kind`). The reply carries the ink left (`ink`), and the reader takes it. Nothing is applied until ⟳ rethink.
+
+  `sent` means a page's FIX ink is delivered. `/annotate/save` keeps it while the fix strokes are unchanged, so a re-save for a picture, or a direction drawn beside delivered fixes, does not re-send them. Every direction stroke on disk is unsent, so a direction needs no flag. `/library.json` counts the two apart: `marks` is fix pages, strokes and `waiting`, and `marks.dir` is direction pages and strokes.
+- **The note's pictures.** An autosave carries no image (`Annotate.payload` makes one only for a send), so each send first re-saves each page of the open document carrying its kind of ink with `Annotate.picture(id, img, kind)`: the page image with that kind's ink over it in its own colours, cropped to it. A fix picture is `<stem>.png`; a direction picture is saved with `png_kind: "dir"` to `<stem>.dir.png` (`writing.png_path`), so neither send can file the other's. Without them every mark reads "no image was saved" to the turn.
+- **Spent ink is wiped** (`library.wipe_delivered`). Once a document's newest round has landed, every page a note delivered (`sent`) loses its fix strokes and `.png` on the next `/library.json` or `/library/view` (`strip_kind`); its direction strokes stay, and a page with nothing left is deleted. Ink drawn since is `sent: false` and stays. The round's own crops and page pictures are in its directory and are never wiped. A round that has not landed keeps everything. The reader drops a saved page the view no longer hands back, or hands back with a different stroke count, and takes the server's (`takeInk`), because `Annotate.load` never takes one away; `Annotate.drop` clears that page from undo too. A page still owed a save is left alone.
+- **Resending** (`library.carried`, fix ink only). A deck made from sittings carries only marks no earlier
   round delivered, because its slides renumber when redrawn; a page drawn on again goes whole.
   If the last round did not come back (no `## What was changed`, no PDF newer than the note),
   every mark goes again. Every other document sends all its ink every round. Ink is recorded
-  as delivered only once the revision was actually asked.
+  as delivered only once the revision was actually asked. A delivered direction with no `dir`
+  field (`sent: true`, unstamped) reads as delivered fix ink, so on a plain paper the next note can carry it once, until a round lands and wipes it.
 - **Ready** is the deck's own PDF. `writeups._landed` freezes `done` on the first document to
   change, which is the `.tex` before it is built. **Did not land** (`_unbuilt`) is the host
   having taken the ask (inbox line read) with no turn working now and the deck folder quiet
@@ -4340,7 +4345,9 @@ because the strokes are coordinates and the image is what a reader opens. So the
 send button is live with an empty box on a document somebody has marked, the row
 says how much ink is on it, and the marks are recorded as handed over — the same
 flag `/annotate/save` sets when ink is sent as a turn, so the board stops
-offering them as unsent.
+offering them as unsent. That is fix ink: a direction drawn on the same page is
+sent on its own (*Fixes or directions*, above). `writing.ann_doc_page` is the one
+place a key is taken apart.
 
 **And the ring is drawn on the page being read.** `✎ mark it up` in the reader
 bar; each page carries `data-ann="doc/<id>/p<n>"` and `annotate.js` attaches to
@@ -4363,24 +4370,35 @@ because a second copy is how one reader ends up cleaning a page on a 500. A save
 that fails keeps the page unsaved and is retried on a backing-off timer, on
 `online`, and on `visibilitychange` back to visible; going hidden flushes what is
 owed at once with `fetch(…, {keepalive: true})`, because that is the event iOS
-fires when the lid shuts and `pagehide` is not. The page keeps its own copy of
+fires when the lid shuts and `pagehide` is not. Keepalive bodies share a
+60000-byte budget per flush, because browsers reject keepalive requests past about
+64 KB; a heavier page goes as an ordinary request. The page keeps its own copy of
 every unconfirmed body (`owed`), so ink whose save failed as the reader closed is
 still retried after `Annotate.forget`. One save per key is in the air at a time,
-and a key is cleaned only if the strokes on the glass are the ones that went.
+`savePen` waits on the ones already in the air, and a key is cleaned only if the
+strokes on the glass are the ones that went.
 
-**What is typed is kept too.** The note text, its ask and an overhaul's purpose
-go to `localStorage` under `library.draft:<id>` on every input, come back when
-that document's note opens, and are removed only when the note is filed — a
-refusal leaves them.
+**What is typed is kept too, one draft per send.** The note text, its ask and an
+overhaul's purpose go to `localStorage` on every input and on a tap of the ask:
+under `library.draft:<id>` for a fix or overhaul, and `library.draft-dir:<id>` for
+a direction (an older direction draft under the first key, `ask: "direction"`, is
+read by the direction panel only). Each comes back when that document's panel of
+its kind opens, and is removed only when that kind is filed (the
+`/library/feedback` or `/library/direction` reply is ok) — a refusal leaves it,
+and filing one kind leaves the other.
 
 **Ink knows its build.** `/library/view/<id>` answers with `build` —
 `{digest, at, pages}`, the digest being `paper._digest`'s name for that exact
 PDF — and the reader sends it with every save of that document's ink, so each
-record in `live/annotations/` carries the build it was drawn on (a save naming
-none keeps the recorded one while the strokes are unchanged). `library.drawn_on`
-compares them with the PDF on disk; where any page was drawn on another build the
-view carries `rebuilt`, and `#reader-rebuilt` says above the pages *these marks
-were drawn on the 28 Sep 21:40 build; the document has been rebuilt since*.
+record in `live/annotations/` carries the build it was drawn on
+(`writing.clean_build`; a save naming none keeps the recorded one while the
+strokes are unchanged). `library.drawn_on` compares them with the PDF on disk;
+where any page was drawn on another build the view carries `rebuilt`, and
+`#reader-rebuilt` says above the pages *these marks were drawn on the 28 Sep
+21:40 build; the document has been rebuilt since*. A page's stamp covers all its
+strokes, so new ink on a rebuilt page re-stamps the old strokes on it. Unstamped
+ink (older records, the board viewer, `/meeting`) goes with whichever build is
+burned.
 
 **⤓ keep a marked copy** burns the ink into a **new** PDF and never over the
 original: `POST /annotate/burn` with kind `library/<id>` is `burn.burn_library`,
@@ -4391,7 +4409,10 @@ is never walked by the library, so the copy is never offered back as a document 
 to a revision as a source, and the directory carries its own `*` ignore rule and
 is then asked of `git check-ignore` — a copy git would carry is refused, so a
 marked copy of fenced content stays on the disk it came from. A document inside a
-fence is refused by name. The strokes are read under every `mark_idents` name. A
+fence (`fenced.NEVER` anywhere in its path, or `fenced.refused_in`) is refused by
+name with `why: fenced`. The strokes, fixes and directions both, are read under
+every `mark_idents` name, and *keep a marked copy* waits for every save in the air
+before it burns. A
 rebuilt document is burned from the cached pages of the build the marks were drawn
 on (`paper.cached` of the stamped digest, PNGs embedded with the PNG predictor);
 if that set has left the cache, or the marks span two builds, it says a copy cannot

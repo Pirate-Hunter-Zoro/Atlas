@@ -73,8 +73,16 @@ function like(s, p, pr) {
   var out = { c: s.c, w: s.w, p: p, pr: pr };
   if (s.pg) out.pg = 1;
   else if (typeof s._k === "string") out._k = s._k;
+  if (s.dir) out.dir = 1;
   return out;
 }
+
+/* WHICH KIND OF INK THE NEXT STROKE IS. The library reader sets it from its
+   toggle: `"dir"` stamps `dir: 1` on every stroke drawn or pasted from now on,
+   because that ink is a direction for the work and is sent apart from the
+   fixes. Nothing else sets it, so a stroke with no field is a fix -- on the
+   board, on `/meeting`, and in any unstamped ink. */
+var penKind = null;
 
 /* Painted-path caches live on the stroke but never reach the disk: a path in
    pixels of one geometry is no use to any other, and it is most of the bytes. */
@@ -105,7 +113,9 @@ function onPage(s, aspect) {
   }
   var p = s.p.slice();
   for (var i = 1; i < p.length; i += 2) p[i] *= k;
-  return { c: s.c, w: w, p: p, pr: (s.pr || []).slice(), pg: 1 };
+  var out = { c: s.c, w: w, p: p, pr: (s.pr || []).slice(), pg: 1 };
+  if (s.dir) out.dir = 1;
+  return out;
 }
 
 /* A stroke as it goes to disk. Ink saved by an older viewer arrives carrying
@@ -414,8 +424,11 @@ function bboxOf(s, cv) {
     if (y > y1) y1 = y;
   }
   /* The curve runs a little outside the samples it was fitted through, and the
-     line has width. Both are small and both are why this is generous. */
-  var m = widthOf(s, cv) * 1.6 + 4;
+     line has width. Both are small and both are why this is generous. A
+     direction's halo (`halo`) is wider than its line, and is inside the box
+     too, or a repair would leave a ring of it behind. */
+  var w = widthOf(s, cv);
+  var m = s.dir ? Math.max(w * 1.6 + 4, w * 1.3 + 7) : w * 1.6 + 4;
   cache(s, "_boxKey", key);
   cache(s, "_box", { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m });
   return s._box;
@@ -477,6 +490,35 @@ function paintFrom(ctx, dense, from, base) {
   }
 }
 
+/* A DIRECTION, SEEN AS ONE AT A GLANCE: a translucent green band under the
+   line, so a page carrying fixes and directions shows which is which in the
+   ink's own colours. One path at one width, never `paintFrom`'s runs: that
+   starts a new path at every width change, and a translucent stroke drawn that
+   way darkens wherever two runs' round caps overlap. The reader's glass only --
+   `png`, `pictureOver` and the burned copy draw the ink alone. */
+var HALO = "rgba(47,125,79,0.22)";
+
+function halo(ctx, dense, base) {
+  if (!dense.length) return;
+  ctx.save();
+  ctx.strokeStyle = HALO;
+  ctx.fillStyle = HALO;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  var w = base * 2.6 + 5;
+  ctx.beginPath();
+  if (dense.length === 1) {
+    ctx.arc(dense[0][0], dense[0][1], w / 2, 0, 6.2832);
+    ctx.fill();
+  } else {
+    ctx.lineWidth = w;
+    ctx.moveTo(dense[0][0], dense[0][1]);
+    for (var i = 1; i < dense.length; i++) ctx.lineTo(dense[i][0], dense[i][1]);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function context(canvas) {
   var ctx = canvas.getContext("2d");
   if (!ctx) return null;
@@ -505,10 +547,17 @@ function repair(id, cv, box) {
   ctx.rect(x0, y0, x1 - x0, y1 - y0);
   ctx.clip();
   ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
-  (store[id] || []).forEach(function (s) {
-    if (!s.p || s.p.length < 2) return;
+  var here = (store[id] || []).filter(function (s) {
+    if (!s.p || s.p.length < 2) return false;
     var bb = bboxOf(s, cv);
-    if (bb.x1 < x0 || bb.x0 > x1 || bb.y1 < y0 || bb.y0 > y1) return;
+    return !(bb.x1 < x0 || bb.x0 > x1 || bb.y1 < y0 || bb.y0 > y1);
+  });
+  /* The halos first, all of them, so no direction's band tints a line drawn
+     before it. */
+  here.forEach(function (s) {
+    if (s.dir) halo(ctx, pathOf(s, cv), widthOf(s, cv));
+  });
+  here.forEach(function (s) {
     paint(ctx, s, pathOf(s, cv), s.c || pen.colour, 1, cv);
   });
   /* The selection's own dashed box, inside the same clip: whatever rectangle was
@@ -648,13 +697,18 @@ function png(id) {
    ring with nothing under it says nothing about what it rings. So this draws
    the page image first, at its native resolution, and the ink over it in the
    colours it was drawn in -- the whole page, widened to take in any mark that
-   strays past its edge. `img` is the page's own <img>, already loaded. */
-function pictureOver(id, img) {
+   strays past its edge. `img` is the page's own <img>, already loaded.
+
+   `kind` ("fix" or "dir") keeps that kind of ink only, cropped to it: a note
+   about fixes is shown no direction, and a direction no fix. */
+function pictureOver(id, img, kind) {
   var src = nodeFor(id);
   if (!src || !img || !img.naturalWidth) return "";
   var live = src.querySelector("canvas." + LAYER);
   if (!live || !live._w) return "";
-  var strokes = (store[id] || []).filter(function (s) { return s.p && s.p.length >= 2; });
+  var strokes = (store[id] || []).filter(function (s) {
+    return s.p && s.p.length >= 2 && (!kind || !!s.dir === (kind === "dir"));
+  });
   if (!strokes.length) return "";
   var r = src.getBoundingClientRect(), ir = img.getBoundingClientRect();
   if (!ir.width || !ir.height) return "";
@@ -1013,6 +1067,8 @@ var CLIP = {
          line in its own colour, which is the nearest true thing. */
       var got = { c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr };
       if (cv._page) { got.w = got.w * PAGE_REF / w; got.pg = 1; }
+      /* A paste is ink made now, so it is the kind the pen is drawing. */
+      if (penKind === "dir") got.dir = 1;
       all.push(got);
     });
     store[id] = all;
@@ -1802,6 +1858,7 @@ function begin(ev, card) {
     erasing: tool === "erase",
     stroke: { c: pen.colour, w: pen.width, p: [], pr: [] },
   };
+  if (penKind === "dir") d.stroke.dir = 1;
   /* Before the layer is sized, because what it is sized to depends on whether
      anything is going to be drawn on it -- and this is that. */
   drawing = d;
@@ -2338,6 +2395,12 @@ window.Annotate = {
     delete dirty[id];
     delete handed[id];
     delete asLoaded[id];
+    /* And out of the history: an undo would otherwise put back ink the server
+       has already wiped or sent. */
+    var keep = function (snap) { return snap.id !== id; };
+    var p = past.filter(keep), f = future.filter(keep);
+    past.length = 0; Array.prototype.push.apply(past, p);
+    future.length = 0; Array.prototype.push.apply(future, f);
     var node = nodeFor(id);
     if (node) draw(node);
     return true;
@@ -2357,8 +2420,18 @@ window.Annotate = {
     draw(nodeFor(id));
     onChange();
   },
-  /* One page's ink over the page itself, for a note about a document. */
-  picture: function (id, img) { return pictureOver(id, img); },
+  /* One page's ink over the page itself, for a note about a document; one
+     kind of it when `kind` is "fix" or "dir". */
+  picture: function (id, img, kind) { return pictureOver(id, img, kind); },
+  /* How many strokes of each kind are on one key. */
+  kinds: function (id) {
+    var n = { fix: 0, dir: 0 };
+    (store[id] || []).forEach(function (s) { if (s.dir) n.dir++; else n.fix++; });
+    return n;
+  },
+  /* The kind of ink the pen draws and pastes from now on: "dir", or a fix. */
+  setKind: function (k) { penKind = k === "dir" ? "dir" : null; },
+  kind: function () { return penKind; },
   payload: function (id, send) {
     /* The picture ONLY when it is actually going to the tutor.
 

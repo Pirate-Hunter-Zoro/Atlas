@@ -253,9 +253,9 @@ def send(repo, base=None):
 # Where the picture of a document page marked as a direction is kept, under the
 # workspace's own `live/`. Not beside the document: `writeups/` is tracked and
 # this repository is public, and the picture is of a slide whose figures are
-# kept out of it on purpose. Not in `live/annotations/` either, which the
-# library wipes once a revision lands -- and this picture must outlast that
-# until the turn that reads it has run.
+# kept out of it on purpose. Not in `live/annotations/` either, where the
+# direction ink and its picture are removed the moment the turn is written --
+# and this picture must outlast that until the turn that reads it has run.
 DIRECTIONS = "directions"
 
 
@@ -268,28 +268,25 @@ def from_document(repo, doc, page=0, words=""):
     which frame the ink is on, because every page of a workspace's own
     document is about that workspace.
 
-    `page` names one page; without it, EVERY page whose ink has not gone
-    anywhere yet goes. The ink is then marked delivered, so a later fix does
-    not carry a mentor's suggestion into a revision of the slides, and the
-    library wipes it once the document's newest round has landed.
+    DIRECTION INK ONLY: the strokes the reader drew with its toggle on
+    *directions* (`dir: 1`). Fix ink on the same page is left for the next
+    note. `page` names one page; without it, every page carrying direction
+    ink goes. Once the turn is written those strokes and their picture come
+    off the page (`library.strip_kind`), because the turn has its own copy of
+    the picture under `live/directions/` -- so every direction stroke on disk
+    is one not yet sent, and none ever rides a revision of the slides.
     Returns `{ok, turn, pages, images, detail}`.
     """
     from .course import library                        # local: avoids a cycle
-    from .lesson import notes as lesson_notes          # local: avoids a cycle
     from .server import spawn                          # local: avoids a cycle
-    from .server.routes import writing                 # local: avoids a cycle
 
     try:
         page = int(page or 0)
     except (TypeError, ValueError):
         page = 0
     words = (words or "").strip()
-    marked = library.marks(repo, doc)
-    if page:
-        chosen = [m for m in marked if m["page"] == page]
-    else:
-        sent = lesson_notes.load_notes_sent(repo)
-        chosen = [m for m in marked if not sent.get(m["key"])]
+    marked = library.marks(repo, doc, kind="dir")
+    chosen = [m for m in marked if m["page"] == page] if page else marked
     if not chosen and not (page and words):
         return {"ok": False,
                 "error": ("there is nothing marked to send -- draw the "
@@ -300,9 +297,9 @@ def from_document(repo, doc, page=0, words=""):
     where = os.path.join(os.path.dirname(repo.notes), DIRECTIONS)
     images = []
     for m in chosen:
-        src = os.path.join(repo.notes, writing.ann_file(m["key"]) + ".png")
-        if not os.path.isfile(src):
+        if not m["png"]:
             continue
+        src = os.path.join(repo.root, *m["png"].split("/"))
         try:
             os.makedirs(where, exist_ok=True)
             target = os.path.join(where, "%s-p%d-%s.png"
@@ -331,7 +328,8 @@ def from_document(repo, doc, page=0, words=""):
     except OSError as exc:
         return {"ok": False, "error": "nothing could be asked: %s" % exc}
 
-    _sent(repo, [m["key"] for m in chosen])
+    for m in chosen:
+        library.strip_kind(repo, m["key"], "dir")
     spawn.wake_tutor(repo)
     said = ("page %d" % pages[0]) if len(pages) == 1 \
         else "pages " + ", ".join(str(p) for p in pages)
