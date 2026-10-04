@@ -710,7 +710,7 @@ function draw(doc, place, at) {
         var img = document.createElement("img");
         img.src = url;
         img.alt = "page " + (i + 1);
-        img.loading = i < 2 ? "eager" : "lazy";
+        img.setAttribute("loading", i < 2 ? "eager" : "lazy");
         fig.appendChild(img);
         var n = document.createElement("figcaption");
         n.textContent = i + 1;
@@ -745,6 +745,7 @@ function draw(doc, place, at) {
       keepPlace();
       paintPen();
       paintKept();
+      paintSends();
       paintReaderSaid();
       /* The pins go on the pages just drawn, and are asked for again: a
          re-draw is a rebuild, and a rebuild is where a round's answers land. */
@@ -756,22 +757,21 @@ function draw(doc, place, at) {
 }
 
 /* THE SERVER'S INK FOR `doc`, put on the glass. SPENT INK GOES FROM IT TOO:
-   a landed round wipes the fix ink it delivered (`library.wipe_delivered`)
-   and a sent direction is taken off its page (`library.strip_kind`), but
-   `load` never takes a mark away -- this device's copy wins -- so a saved
-   page the server no longer has, or has with a different number of strokes,
-   is dropped here and taken again. A count, not the strokes themselves,
-   because Python and the browser write the same float differently. Unsaved
-   ink is still being drawn and is never touched. */
-function takeInk(doc, have) {
+   a landed round wipes the fix ink it delivered (`library.wipe_delivered`),
+   but `load` never takes a mark away -- this device's copy wins -- so a saved
+   page the server no longer has is dropped here. A page the server still has
+   keeps this device's copy, because a view can be older than the last save.
+   `refresh` names the pages the server is known to have changed (the
+   `stripped` of a direction sent), and those are dropped and taken again.
+   Unsaved ink is still being drawn and is never touched. */
+function takeInk(doc, have, refresh) {
   if (!window.Annotate) return;
   if (window.Annotate.drop) {
     var owed = window.Annotate.unsaved();
     var mine = "doc/" + doc.id + "/";
     window.Annotate.marked().forEach(function (id) {
       if (id.indexOf(mine) !== 0 || owed.indexOf(id) >= 0) return;
-      if (!(id in have)
-          || window.Annotate.payload(id, false).strokes.length !== (have[id] || []).length) {
+      if (!(id in have) || (refresh && refresh.indexOf(id) >= 0)) {
         window.Annotate.drop(id);
       }
     });
@@ -844,35 +844,79 @@ if (window.ViewPin) {
   if (annBar) window.ViewPin.pin(annBar.node, { edge: "bottom" });
 }
 
+/* HOW LONG A SEND WAITS FOR ONE PAGE'S IMAGE. A page is rendered by the board
+   on first ask, so this is generous; past it the page goes without a picture,
+   and a direction's server keeps that page's ink and says so.
+   `window.PICTURE_WAIT_MS` overrides it. */
+var PICTURE_WAIT = 10000;
+
+function decoded(img) { return !!img && img.naturalWidth > 0; }
+
+/* ONE PAGE'S IMAGE, LOADED AND DECODED, before a picture is made of it. Pages
+   past the second are `loading="lazy"`, so one never scrolled to has no pixels
+   and no height, and `Annotate.picture` makes nothing of it. So the image is
+   asked for now and waited on. Resolves to whether it decoded. */
+function decodePage(img) {
+  if (!img) return Promise.resolve(false);
+  if (decoded(img)) return Promise.resolve(true);
+  img.setAttribute("loading", "eager");
+  return new Promise(function (resolve) {
+    var done = false;
+    var finish = function () {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(decoded(img));
+    };
+    var timer = setTimeout(finish, window.PICTURE_WAIT_MS || PICTURE_WAIT);
+    if (typeof img.decode === "function") img.decode().then(finish, finish);
+    else {
+      img.addEventListener("load", finish);
+      img.addEventListener("error", finish);
+    }
+  });
+}
+
 /* Each page of `docId` marked with `kind` of ink ("fix" or "dir"), saved with
    a picture of the page and that kind of ink alone (`Annotate.picture`), so
    the note's "open the image" has an image to open and it shows only what
    this send is about. A direction's picture is its own file (`png_kind`).
-   A page not drawn in the reader has no picture to make and is left alone:
-   its strokes are already on disk. Never a send -- the note is the send. */
+   EVERY SUCH PAGE IS DECODED FIRST (`decodePage`), and the layers are sized
+   against the decoded pages, because a page with no picture is a page the
+   send cannot carry. A page not drawn in the reader has no picture to make and
+   is left alone: its strokes are already on disk. Never a send -- the note is
+   the send. */
 function savePictures(docId, kind) {
   if (!window.Annotate || !window.Annotate.picture || !openDoc
       || openDoc.id !== docId) return Promise.resolve([]);
   var mine = "doc/" + docId + "/p";
-  var jobs = window.Annotate.marked().filter(function (id) {
-    return id.indexOf(mine) === 0 && window.Annotate.kinds(id)[kind] > 0;
-  }).map(function (id) {
+  var imgOf = function (id) {
     var n = id.slice(mine.length);
     var fig = els.readerPages.querySelector('.lib-page[data-page="' + n + '"]');
-    var img = fig && fig.querySelector("img");
-    var png = img ? window.Annotate.picture(id, img, kind) : "";
-    if (!png) return Promise.resolve(null);
-    var body = window.Annotate.payload(id, false);
-    body.png = png;
-    if (kind === "dir") body.png_kind = "dir";
-    return fetch("/annotate/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(body)
-    }).catch(function () { return null; });
+    return fig && fig.querySelector("img");
+  };
+  var ids = window.Annotate.marked().filter(function (id) {
+    return id.indexOf(mine) === 0 && window.Annotate.kinds(id)[kind] > 0;
   });
-  return Promise.all(jobs);
+  var waited = ids.some(function (id) { return !decoded(imgOf(id)); });
+  return Promise.all(ids.map(function (id) { return decodePage(imgOf(id)); }))
+  .then(function () {
+    if (waited) window.Annotate.redrawAll();
+    return Promise.all(ids.map(function (id) {
+      var img = imgOf(id);
+      var png = img ? window.Annotate.picture(id, img, kind) : "";
+      if (!png) return Promise.resolve(null);
+      var body = window.Annotate.payload(id, false);
+      body.png = png;
+      if (kind === "dir") body.png_kind = "dir";
+      return fetch("/annotate/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body)
+      }).catch(function () { return null; });
+    }));
+  });
 }
 
 /* WHERE THE INK IS, SAID ON THE BAR. The save itself -- kept owed on a
@@ -1475,15 +1519,27 @@ function sendDirection(said) {
       els.noteSend.textContent = was;
       return;
     }
-    els.noteSaid.className = "note-said";
-    els.noteSaid.textContent = got.detail || "Sent as a proposed direction.";
-    els.noteSend.textContent = "proposed";
+    /* A PAGE WITH NO PICTURE STAYED BEHIND (`kept`): its ink is still on
+       disk and on the glass, and the panel stays live to send it again. */
+    var kept = (got.kept || []).length;
+    els.noteSaid.className = kept ? "note-said bad" : "note-said";
+    els.noteSaid.textContent = (got.detail || "Sent as a proposed direction.")
+      + (kept ? " " + kept + (kept === 1 ? " page was" : " pages were")
+                + " not sent; send again." : "");
     els.noteText.value = "";
     dropDraft(forDoc, "directions");
-    /* THE SENT DIRECTIONS LEAVE THE GLASS: the server took them off their
-       pages, and hands back what is left. */
-    if (got.ink && openDoc && openDoc.id === forDoc) takeInk(openDoc, got.ink);
+    /* THE SENT DIRECTIONS LEAVE THE GLASS: the server took them off the pages
+       it names in `stripped`, and hands back what is left. */
+    if (got.ink && openDoc && openDoc.id === forDoc) {
+      takeInk(openDoc, got.ink, got.stripped || []);
+    }
     paintSends();
+    if (kept) {
+      els.noteSend.textContent = was;
+      paintSend();
+    } else {
+      els.noteSend.textContent = "proposed";
+    }
     load();
   }).catch(function () {
     els.noteSaid.hidden = false;

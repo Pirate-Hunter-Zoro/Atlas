@@ -1315,12 +1315,16 @@ DOC_DIRECTION_SENSE = (
 )
 
 
-def doc_direction_sense(doc_rel, pages, images, words=""):
+def doc_direction_sense(doc_rel, pages, images, words="", missing=()):
     """The inbox line for pages of a document marked as a direction.
 
-    `images` is `[(page, repository-relative picture)]`.
+    `images` is `[(page, repository-relative picture)]`; `missing` is the
+    marked pages with no picture, which stay on the page to be sent again.
     """
-    shown = "\n".join("  - page %s: `%s`" % (p, img) for p, img in images) \
+    shown = "\n".join(
+        ["  - page %s: `%s`" % (p, img) for p, img in images]
+        + ["  - page %s: no picture was saved of the marks; they stay on the "
+           "page and come in a later direction" % p for p in missing]) \
         or "  - (no picture was saved of the marks)"
     said = (words or "").strip() or "(nothing -- the marks are all of it)"
     return DOC_DIRECTION_SENSE % {

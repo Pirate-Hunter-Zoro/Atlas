@@ -958,6 +958,47 @@ post("/annotate/save", {"card": p9, "strokes": same["strokes"] + same["strokes"]
 check("while drawing fixes on the page again puts it back in the next round",
       not lesson_notes.load_notes_sent(repo).get(p9))
 
+# A PAGE WHOSE PICTURE NEVER REACHED THE BOARD IS NOT SENT. The reader skips a
+# page whose image had not decoded; its direction ink must stay on disk rather
+# than be stripped with nothing of it in the turn. Page 9's direction is taken
+# off first, so pages 10 and 11 are the only directions on the deck.
+p9_now = json.load(open(p9_stem + ".json", encoding="utf-8"))
+write(p9_stem + ".json", json.dumps(dict(p9_now, strokes=lesson_notes.of_kind(
+    p9_now["strokes"], "fix"))))
+p10 = "doc/%s/p10" % fdoc["id"]
+p11 = "doc/%s/p11" % fdoc["id"]
+p11_stem = os.path.join(repo.notes, writing_route.ann_file(p11))
+ink(p10, kind="dir")
+ink(p11, kind="dir")
+os.remove(p11_stem + ".dir.png")
+p11_before = json.load(open(p11_stem + ".json", encoding="utf-8"))
+library.forget()
+status, said = post("/library/direction", {"document": fdoc["id"], "text": ""})
+with open(repo.messages_path, encoding="utf-8") as fh:
+    last = [json.loads(l) for l in fh if l.strip()][-1]["text"]
+check("a direction whose page had no picture sends the pictured page and keeps "
+      "the other, saying which",
+      status == 200 and said.get("ok") and said.get("pages") == [10]
+      and said.get("kept") == [11] and said.get("stripped") == [p10])
+check("the page with no picture keeps its direction ink on disk, untouched",
+      json.load(open(p11_stem + ".json", encoding="utf-8")) == p11_before
+      and [m["page"] for m in library.marks(repo, fdoc, kind="dir")] == [11])
+check("and the turn names it as having no picture",
+      "page 11: no picture was saved" in last and "page 10: `live/directions/" in last)
+check("the reply's ink still carries the kept page for the reader",
+      said.get("ink", {}).get(p11) == p11_before["strokes"]
+      and p10 not in said.get("ink", {}))
+with open(repo.messages_path, encoding="utf-8") as fh:
+    before = sum(1 for l in fh if l.strip())
+status, said = post("/library/direction", {"document": fdoc["id"], "text": ""})
+with open(repo.messages_path, encoding="utf-8") as fh:
+    after = sum(1 for l in fh if l.strip())
+check("with no picture of any page and no words, nothing is written and nothing "
+      "is stripped",
+      status == 400 and not said.get("ok") and said.get("kept") == [11]
+      and after == before
+      and json.load(open(p11_stem + ".json", encoding="utf-8")) == p11_before)
+
 httpd.shutdown()
 print()
 if fails:

@@ -78,7 +78,8 @@ function like(s, p, pr) {
 }
 
 /* WHICH KIND OF INK THE NEXT STROKE IS. The library reader sets it from its
-   toggle: `"dir"` stamps `dir: 1` on every stroke drawn or pasted from now on,
+   toggle: `"dir"` stamps `dir: 1` on every stroke drawn from now on (a paste
+   keeps the kind it was copied with),
    because that ink is a direction for the work and is sent apart from the
    fixes. Nothing else sets it, so a stroke with no field is a fix -- on the
    board, on `/meeting`, and in any unstamped ink. */
@@ -494,8 +495,9 @@ function paintFrom(ctx, dense, from, base) {
    line, so a page carrying fixes and directions shows which is which in the
    ink's own colours. One path at one width, never `paintFrom`'s runs: that
    starts a new path at every width change, and a translucent stroke drawn that
-   way darkens wherever two runs' round caps overlap. The reader's glass only --
-   `png`, `pictureOver` and the burned copy draw the ink alone. */
+   way darkens wherever two runs' round caps overlap. Every layer draws it, so
+   any surface holding direction ink shows it (the board's `#paper` viewer
+   too); `png`, `pictureOver` and the burned copy draw the ink alone. */
 var HALO = "rgba(47,125,79,0.22)";
 
 function halo(ctx, dense, base) {
@@ -968,7 +970,11 @@ function toPixels(s, cv) {
     pts.push([s.p[i] * w + pl, s.p[i + 1] * h + pt,
               s.pr && s.pr[n] !== undefined ? s.pr[n] : 0.5]);
   }
-  return { c: s.c || pen.colour, w: widthOf(s, cv), hl: false, pts: pts };
+  var out = { c: s.c || pen.colour, w: widthOf(s, cv), hl: false, pts: pts };
+  /* Its kind crosses with it (`ink-clip.js` carries it), so a direction cut
+     and pasted is still a direction. */
+  if (s.dir) out.dir = 1;
+  return out;
 }
 
 /* Which card a paste lands on: the one holding the selection, else the one last
@@ -1067,8 +1073,9 @@ var CLIP = {
          line in its own colour, which is the nearest true thing. */
       var got = { c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr };
       if (cv._page) { got.w = got.w * PAGE_REF / w; got.pg = 1; }
-      /* A paste is ink made now, so it is the kind the pen is drawing. */
-      if (penKind === "dir") got.dir = 1;
+      /* A paste keeps the kind it was drawn as, whatever the toggle says
+         now: only a stroke drawn fresh takes the pen's kind. */
+      if (s.dir) got.dir = 1;
       all.push(got);
     });
     store[id] = all;
@@ -2429,7 +2436,7 @@ window.Annotate = {
     (store[id] || []).forEach(function (s) { if (s.dir) n.dir++; else n.fix++; });
     return n;
   },
-  /* The kind of ink the pen draws and pastes from now on: "dir", or a fix. */
+  /* The kind of ink the pen draws from now on: "dir", or a fix. */
   setKind: function (k) { penKind = k === "dir" ? "dir" : null; },
   kind: function () { return penKind; },
   payload: function (id, send) {

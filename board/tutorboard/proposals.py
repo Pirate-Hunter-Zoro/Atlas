@@ -275,7 +275,16 @@ def from_document(repo, doc, page=0, words=""):
     off the page (`library.strip_kind`), because the turn has its own copy of
     the picture under `live/directions/` -- so every direction stroke on disk
     is one not yet sent, and none ever rides a revision of the slides.
-    Returns `{ok, turn, pages, images, detail}`.
+
+    ONLY A PAGE WHOSE PICTURE WAS COPIED IS SENT. The strokes are coordinates
+    and the turn reads the picture, so a page with no picture (its image had
+    not decoded in the reader) keeps its direction ink on disk, is named in
+    the turn as having no picture, and comes back in `kept` for the reader to
+    send again. Marks with no picture at all and no words are refused, and
+    nothing is written.
+    Returns `{ok, turn, pages, kept, stripped, images, detail}`: `pages` sent,
+    `kept` the pages left on disk, `stripped` the keys whose direction ink
+    came off.
     """
     from .course import library                        # local: avoids a cycle
     from .server import spawn                          # local: avoids a cycle
@@ -296,6 +305,7 @@ def from_document(repo, doc, page=0, words=""):
     stamp = time.strftime("%y%m%d-%H%M%S")
     where = os.path.join(os.path.dirname(repo.notes), DIRECTIONS)
     images = []
+    pictured = []
     for m in chosen:
         if not m["png"]:
             continue
@@ -307,11 +317,18 @@ def from_document(repo, doc, page=0, words=""):
             shutil.copyfile(src, target)
         except OSError:
             continue
+        pictured.append(m)
         images.append((m["page"],
                        os.path.relpath(target, repo.root).replace(os.sep, "/")))
+    sent_keys = set(m["key"] for m in pictured)
+    kept = sorted(set(m["page"] for m in chosen if m["key"] not in sent_keys))
+    if chosen and not pictured and not words:
+        return {"ok": False, "kept": kept,
+                "error": ("no picture of the direction marks reached the board, "
+                          "so nothing was sent -- send again")}
 
     line = "[direction] " + sense.doc_direction_sense(
-        doc["rel"], pages, images, words)
+        doc["rel"], pages, images, words, missing=kept)
     tid = turns.next_turn_id(repo)
     record = {
         "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
@@ -328,14 +345,18 @@ def from_document(repo, doc, page=0, words=""):
     except OSError as exc:
         return {"ok": False, "error": "nothing could be asked: %s" % exc}
 
-    for m in chosen:
+    stripped = []
+    for m in pictured:
         library.strip_kind(repo, m["key"], "dir")
+        stripped.append(m["key"])
     spawn.wake_tutor(repo)
-    said = ("page %d" % pages[0]) if len(pages) == 1 \
-        else "pages " + ", ".join(str(p) for p in pages)
-    return {"ok": True, "turn": tid, "pages": pages,
-            "images": [img for _, img in images],
-            "detail": ("Your marks on %s went as a proposed direction. The "
-                       "tutor writes one card on this workspace's board saying "
-                       "what it would change; nothing changes until you tap "
-                       "⟳ rethink there." % said)}
+    sent = sorted(set(m["page"] for m in pictured)) if chosen else pages
+    said = ("page %d" % sent[0]) if len(sent) == 1 \
+        else "pages " + ", ".join(str(p) for p in sent)
+    detail = ("Your marks on %s went as a proposed direction. The tutor writes "
+              "one card on this workspace's board saying what it would change; "
+              "nothing changes until you tap ⟳ rethink there." % said) \
+        if sent else "Your words went as a proposed direction."
+    return {"ok": True, "turn": tid, "pages": sent, "kept": kept,
+            "stripped": stripped, "images": [img for _, img in images],
+            "detail": detail}

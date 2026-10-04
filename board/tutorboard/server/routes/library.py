@@ -328,7 +328,8 @@ def post(h, repo, path):
         rec = proposals.from_document(repo, doc, payload.get("page"),
                                       payload.get("text") or "")
         # THE INK LEFT ON THE DOCUMENT, so the reader takes the sent direction
-        # strokes off its glass: `Annotate.load` never takes a mark away.
+        # strokes off its glass: `Annotate.load` never takes a mark away. The
+        # reader refreshes only the keys named in `stripped`.
         if rec.get("ok"):
             rec["ink"] = library.ink(repo, doc)
         h.server.hub.worker.dirty.set()

@@ -120,7 +120,7 @@ window.InkClip = {
       ox: b.x0, oy: b.y0,
       w: Math.max(1, b.x1 - b.x0), h: Math.max(1, b.y1 - b.y0),
       strokes: strokes.map(function (s) {
-        return {
+        var out = {
           c: s.c, w: s.w, hl: !!s.hl,
           pts: s.pts.map(function (q) {
             return [Math.round((q[0] - b.x0) * 10) / 10,
@@ -128,6 +128,10 @@ window.InkClip = {
                     q.length > 2 ? Math.round(q[2] * 100) / 100 : 0.5];
           }),
         };
+        /* A document's direction ink stays one when pasted (`annotate.js`);
+           the slate ignores it. */
+        if (s.dir) out.dir = 1;
+        return out;
       }),
     };
     if (count(clip) > MAX_PTS) return null;
