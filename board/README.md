@@ -1499,11 +1499,25 @@ is wrong even when every suite is green.
 - **A document zooms itself, and the page chrome never does.** Every document surface — the
   board's `#paper` panel, the library reader the map's documents region opens, the meeting
   deck — pinches through `web/readerzoom.js`, about the point under the fingers, by laying the
-  pages out at `--zoom`. It cancels the touchstart that makes two fingers and any touch joining
-  a live pinch, cancels touchmoves through a non-passive listener that exists only while the
-  pinch lasts, and refuses `gesturestart`/`gesturechange`/`gestureend`; otherwise iOS takes the
-  gesture. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends it. One
-  finger scrolls natively and the palm rules in `annotate.js` stand. The latch refuses a pan on
+  pages out at `--zoom`. While a document is open (`live(true)`) its listeners sit on the
+  document in the capture phase, and `gesturestart`/`gesturechange`/`gestureend` are refused;
+  otherwise iOS takes the gesture, and a shut it takes bounces the whole page. Two fingertips
+  on the document's own surface (the scroller or the `bar` it is made with: `#reader-bar`,
+  `.paper-bar`) are the reader's: the touchstart that makes them is cancelled whatever it lands
+  on, bar buttons included, and so is every move. A bar button whose touch that cancelled is
+  clicked by `readerzoom.js` if it lifts within 400 ms, unmoved, with no pinch made of it. A
+  pinch is built from them only if the second lands within 200 ms of the first or the first
+  has not scrolled 10 px; a thumb landing mid-scroll is refused, not zoomed. Any other pair --
+  a palm (radius over 40) beside a finger, a finger on an overlay (`#note`, `#steer`, `#calc`,
+  the annotation bar) -- keeps its touchstart, so a finger beside a resting palm and two fingers
+  in a textarea scroll natively; its moves are cancelled once its gap changes by over 10 px
+  (with a palm in it, once the palm's own move, toward or away from the other, passes 5 px:
+  a resting palm stays put, a flat thumb in a shut sweeps). iOS fixes a gesture from its
+  first touch, so the non-passive touchmove is armed at that touch and dropped once every
+  finger lifts or a lone finger passes 10 px, so one finger scrolls without waiting on the
+  main thread. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends a pinch.
+  The library locks the list behind the reader (`body.reading`), as the board does with
+  `body.papering`. The palm rules in `annotate.js` stand. The latch refuses a pan on
   the whole scroller, so `annotate.js`'s `onLayer` names `#reader-pages` and `#paper-pages`
   beside the ink layers, or a finger on a bare strip with the latch shut scrolls nothing.
 - **Annotations never distort or drift through a zoom.** Ink lives in the page picture's own

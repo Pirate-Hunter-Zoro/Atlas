@@ -531,6 +531,11 @@ function read(doc, changes, page) {
   openPages = 0;
   drawnPages = 0;
   els.reader.hidden = false;
+  /* THE LIBRARY BEHIND THE READER DOES NOT SCROLL. A finger on the bar would
+     otherwise pan the list under it, and a pan already under way makes the
+     second finger of a pinch one the page can no longer refuse. */
+  document.body.classList.add("reading");
+  if (zoomer) zoomer.live(true);
   setZoom(1);
   els.readerPages.scrollTop = 0;
   /* A page asked for is a place to be put, the way a re-draw puts the reader
@@ -634,6 +639,7 @@ function watchLayout(el) {
    restore, and the page it lands on is the new anchor. */
 var zoomer = window.ReaderZoom ? window.ReaderZoom.make({
   scroller: els.readerPages,
+  bar: document.getElementById("reader-bar"),
   chip: els.readerZoom,
   open: function () { return !els.reader.hidden; },
   committed: function () { placeWanted = 0; noteAnchor(); },
@@ -779,6 +785,8 @@ function closeReader() {
   placeWanted = 0;
   if (ledger) ledger.close();
   els.reader.hidden = true;
+  document.body.classList.remove("reading");
+  if (zoomer) zoomer.live(false);
   els.readerSaid.hidden = true;
   showCopy(null);
   paintRebuilt(null);

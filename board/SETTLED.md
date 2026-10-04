@@ -181,7 +181,14 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   `pen-writing` also puts `touch-action: none` on `#reader-pages.zoomable`. The
   reader's ink layers are `pan-x pan-y` so a finger pans a zoomed page sideways.
   The Pencil on the glass, a contact over 40 px radius, or `pen-writing` is
-  never a pinch. The chip `#reader-zoom` shows only off the
+  never a pinch. While a document is open, two fingertips on its scroller or
+  bar are refused at touchstart (bar buttons too; a tap there is clicked back)
+  and every touchmove; any other pair, a palm beside a finger or a finger on
+  an overlay, keeps its touchstart and has its moves refused once its gap
+  changes (with a palm, once the palm itself sweeps toward or away from the
+  other), so a finger beside a resting palm still scrolls with the pen off.
+  No `touch-action` changes for this, and the palm rules in `annotate.js` are
+  untouched. The chip `#reader-zoom` shows only off the
   fit and a tap resets it. `6e1b` in `test/library.js` and the zoom line in
   `test/deck.js` are the contract.
 

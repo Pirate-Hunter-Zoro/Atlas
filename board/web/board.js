@@ -2806,6 +2806,7 @@ function paperZoomReady() {
   if (paperZoomer || !window.ReaderZoom || !els.paperPages) return paperZoomer;
   paperZoomer = window.ReaderZoom.make({
     scroller: els.paperPages,
+    bar: els.paper ? els.paper.querySelector(".paper-bar") : null,
     chip: els.paperZoom,
     page: ".paper-page",
     open: function () { return !!paperOpen; },
@@ -2822,7 +2823,7 @@ function openPaper(kind, label, then) {
   els.paper.hidden = false;
   document.body.classList.add("papering");
   /* Every document opens at the page width, whatever the last was left at. */
-  if (paperZoomReady()) paperZoomer.set(1);
+  if (paperZoomReady()) { paperZoomer.live(true); paperZoomer.set(1); }
   var have = papers[kind];
   /* The caller's label first. A shelf row knows the document by the title the
      workspace gave it; `have.name` is the filename the PDF will be SAVED
@@ -3006,6 +3007,7 @@ function closePaper() {
   if (els.paperRound) els.paperRound.hidden = true;
   els.paper.hidden = true;
   document.body.classList.remove("papering");
+  if (paperZoomer) paperZoomer.live(false);
   mapRemember();               /* and the address stops naming the document */
   /* The pictures go with it. A hundred decoded pages held behind a closed
      panel is memory the iPad wants for the lesson. */
