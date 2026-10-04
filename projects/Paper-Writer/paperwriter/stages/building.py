@@ -48,6 +48,10 @@ from ..infra import storage
 from ..memory import store
 from . import reporting, splitting, sweep
 
+# Fits a PDF's tables, code blocks and long inline code to the page; see the
+# file. The .docx needs none of it, so `_format_flags` passes it for PDF only.
+PDF_FIT = Path(__file__).with_name("pdf_fit.lua")
+
 
 def _front_matter(plan, paper_num, ledger):
     """Title, authors, and the abstract's home, as a YAML block pandoc understands."""
@@ -182,7 +186,7 @@ def _format_flags(fmt, reference):
         return ["--reference-doc", str(reference)] if reference else []
     if fmt != "pdf":
         return []
-    out = []
+    out = ["--lua-filter", str(PDF_FIT)]
     if config.PDF_ENGINE:
         out += ["--pdf-engine", config.PDF_ENGINE]
     for name, value in (("mainfont", config.PDF_MAINFONT),

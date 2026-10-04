@@ -11,6 +11,7 @@ brew "pandoc"
 brew "node"          # the test suite's headless browser
 brew "gh"
 brew "tailscale"
+cask "font-dejavu"   # the PDF face Paper-Writer names: it has the ₀ ρ ≈ − a paper uses
 
 # the workspaces' code. Not elan: practice/Lean-Theorem-Proving/scripts/setup.sh
 # installs it into ~/.elan on both machines, and a second one here would shadow it.

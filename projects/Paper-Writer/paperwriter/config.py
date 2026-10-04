@@ -953,7 +953,8 @@ BUILD_FORMATS = tuple(f.strip() for f in
 # Pandoc reports each one as "Missing character" on stderr and exits 0, so the symbol
 # is simply not on the page — a ρ dropped out of "ρ = 0.41" is a silent change to what
 # the paper says, in the direction nobody checks. So the face is named, and it is one
-# with the coverage: DejaVu Sans is installed on every machine this runs on.
+# with the coverage: DejaVu Sans, which the root `Brewfile` installs on the Mac.
+# Without it fontspec stops every PDF with "The font "DejaVu Sans" cannot be found".
 #
 # Both are overridable because a journal that wants a serif is a real request and this
 # is not the place to argue with it — but then the glyph coverage is the setter's
