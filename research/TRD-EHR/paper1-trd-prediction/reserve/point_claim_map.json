@@ -95,11 +95,10 @@
         "p.2"
       ],
       "headline": true,
-      "claim": "At its own best k, chosen on the test patients, importance-weighted retrieval reached ROC AUC 0.625 (95% CI 0.610-0.641, k = 295) and plain cosine 0.618 (95% CI 0.602-0.634, k = 757), against 0.500 for random retrieval (2.5th-97.5th percentile across 1,000 draws 0.484-0.515) and 0.432 (95% CI 0.416-0.449) for farthest retrieval, so proximity in the embedding tracks the outcome.",
+      "claim": "Scored at every k from 1 to 34,063 for nearest and random neighbors, logistic-regression-weighted retrieval peaked at ROC AUC 0.625 (95% CI 0.610-0.641, k = 295) and plain cosine at 0.618 (95% CI 0.602-0.634, k = 757), each at a best k chosen on the test patients, against at most 0.500 for random retrieval (2.5th-97.5th percentile across 1,000 draws 0.484-0.515), so proximity in the embedding tracks the outcome.",
       "evidence": [
         "e.sweep.best_k",
-        "e.sweep.random",
-        "e.knn.farthest"
+        "e.sweep.random"
       ]
     },
     {
@@ -109,7 +108,7 @@
       "serves": [
         "p.2"
       ],
-      "claim": "For the primary encoder, the best retrieval result over every k and exponent, 0.625 (95% CI 0.610-0.640; importance-weighted, alpha 2, k = 1,090), fell short of feature-vector XGBoost by 0.024 (95% CI 0.012-0.036) and of embedded logistic regression by 0.032 (95% CI 0.022-0.043) on paired intervals that exclude zero, and retrieval stayed below both classifiers at every k from 1 to 34,063.",
+      "claim": "For the primary encoder, the best retrieval result over every k and exponent, 0.625 (95% CI 0.610-0.640; logistic-regression-weighted, alpha 2, k = 1,090), fell short of feature-vector XGBoost by 0.024 (95% CI 0.012-0.036) and of embedded logistic regression by 0.032 (95% CI 0.022-0.043) on paired intervals that exclude zero, and retrieval stayed below both classifiers at every k from 1 to 34,063.",
       "evidence": [
         "e.sweep.paired_deltas",
         "e.sweep.curve",
@@ -127,6 +126,32 @@
       "evidence": [
         "e.sweep.paired_deltas",
         "e.sweep.curve"
+      ]
+    },
+    {
+      "id": "c.21",
+      "paper": 1,
+      "kind": "comparative",
+      "serves": [
+        "p.2"
+      ],
+      "claim": "For each of the other three encoders, both nearest-neighbor curves stayed below that encoder's embedded logistic regression at every k: logistic-regression-weighted retrieval peaked at 0.606 (95% CI 0.590-0.620), 0.631 (95% CI 0.616-0.646) and 0.623 (95% CI 0.607-0.639) against 0.645 (95% CI 0.629-0.660), 0.655 (95% CI 0.641-0.670) and 0.655 (95% CI 0.641-0.670), without paired contrasts.",
+      "evidence": [
+        "e.cross.sweep",
+        "e.enc.1"
+      ]
+    },
+    {
+      "id": "c.22",
+      "paper": 1,
+      "kind": "descriptive",
+      "serves": [
+        "p.2"
+      ],
+      "claim": "The fewest logistic-regression dimensions holding 90% of absolute coefficient mass, 253, 271, 1,626 and 236 across the four encoders, did not order best k: Qwen3-Embedding-4B used the most dimensions and its best k lay inside the other encoders' range.",
+      "evidence": [
+        "e.cross.dims",
+        "e.cross.sweep"
       ]
     },
     {
@@ -291,5 +316,5 @@
       ]
     }
   ],
-  "_note": "The point-and-claim map this packet is gated against. TWO points, and the claims about hand-picked patient data (c.9, c.10, c.11) serve BOTH rather than forming a third: they are a scope condition on two answers, not a third answer. Point 2's claims (c.6-c.8) describe the primary encoder only: retrieval for the other encoders is not reported (Supplement M12). Retrieval numbers are at each arm's test-selected best k, from results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas}.json. Run this through paperwriter.gates.ladder.check to reproduce the verdict in review/two_points_rationale.md section 5b. Evidence ids here are the map's own labels, not the frozen ledger's."
+  "_note": "The point-and-claim map this packet is gated against. TWO points, and the claims about hand-picked patient data (c.9, c.10, c.11) serve BOTH rather than forming a third: they are a scope condition on two answers, not a third answer. Point 2's claims c.6-c.8 describe the primary encoder; c.21 and c.22 describe all four encoders, without paired contrasts outside the primary. Retrieval is a sweep over every k, and any single value is at an arm's test-selected best k. Primary-encoder numbers are from results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas}.json; cross-encoder numbers from results/cross_embedder_retrieval/cross_embedder_retrieval.csv. Run this through paperwriter.gates.ladder.check to reproduce the verdict in review/two_points_rationale.md section 5b. Evidence ids here are the map's own labels, not the frozen ledger's."
 }

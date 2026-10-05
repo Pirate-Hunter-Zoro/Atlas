@@ -23,7 +23,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 | FEATURE | Random forest | 0.139 (0.134--0.144) | 0.018 (0.011--0.026) |
 | FEATURE | Gradient boosting | 0.138 (0.133--0.143) | 0.010 (0.005--0.018) |
 | FEATURE | XGBoost | 0.138 (0.132--0.143) | 0.012 (0.006--0.020) |
-| Retrieval | Importance-weighted cosine, k = 295 | 0.140 (0.134--0.145) | 0.005 (0.003--0.014) |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 0.140 (0.134--0.145) | 0.005 (0.003--0.014) |
 | Retrieval | Plain cosine, k = 757 | 0.141 (0.135--0.146) | 0.009 (0.004--0.016) |
 | Retrieval | Random, uniform weights, k = 32,720 | 0.144 (0.139--0.150) | 0.00001* (0.0001--0.009) |
 
@@ -41,7 +41,7 @@ Table S4. Slopes and intercepts fitted to the binned calibration curves, with bo
 | FEATURE | Random forest | 1.84 (1.41--2.23) | −0.15 (−0.22 to −0.08) |
 | FEATURE | Gradient boosting | 0.87 (0.28--1.48) | +0.04 (−0.11 to +0.19) |
 | FEATURE | XGBoost | 1.02 (0.53--1.52) | +0.02 (−0.09 to +0.13) |
-| Retrieval | Importance-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
 | Retrieval | Plain cosine, k = 757 | 2.66 (1.30--2.78) | −0.27 (−0.29 to −0.05) |
 | Retrieval | Random, uniform weights, k = 32,720 | not estimable | not estimable |
 
@@ -53,7 +53,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/calibration_curves/calibration_curve_xgboost_FEATURE.png){width=5.8in}
 
-C Importance-weighted nearest retrieval, k = 295
+C Logistic-regression-weighted nearest retrieval, k = 295
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 

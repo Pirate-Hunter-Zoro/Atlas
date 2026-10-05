@@ -12,43 +12,53 @@ THE PAPER MAKES TWO POINTS.
   1. The embedding does not significantly outperform the feature vector:
      best against best, +0.008 ROC AUC (95% CI -0.003 to 0.019).
   2. Nearest-neighbor retrieval over the embedding carries real signal and
-     still loses to a trained classifier at every k from 1 to 34,063. Best
-     retrieval over every k and exponent (logistic-regression-weighted, alpha 2,
-     k = 1,090) 0.625 against 0.649 and 0.657; paired intervals exclude zero.
-     The abstract's 0.625 (0.610-0.641) is logistic-regression-weighted at alpha 1,
-     k = 295, the arm Figure 4 draws; name the configuration wherever either
-     is quoted, because their intervals differ.
+     still loses to a trained classifier at every k from 1 to 34,063.
 
 EVERY NUMBER CARRIES AN INTERVAL, on the owner's instruction. Classifier
 AUPRC, Brier and calibration intervals are in results/review/metric_intervals/
 (scripts/pipeline/review/metric_intervals.py); subgroup calibration intervals
 in results/review/subgroups/subgroup_performance.csv; permutation deltas in
 results/.../ablation_summary.csv. A random-arm interval is a percentile across
-draws and is labeled as such, never as a 95% CI.
+draws and is labeled as such, never as a 95% CI. Counts of dimensions a fitted
+model uses describe that model and carry no sampling interval.
 
-THE RETRIEVAL SLATE IS TWO ARMS: plain cosine and logistic-regression-weighted cosine
-(Equations 1-2), each read at its own best k (757 and 295), chosen on the test
-patients and said to be optimistic wherever a maximum is quoted. Random neighbors
-with uniform weights, swept over the same k in 1,000 draws, are the floor;
-farthest at k = 50 is a second control, the one arm with no best k of its own
-(its maximum is the full pool, which is the nearest arms' all-neighbours value).
-No other number in either document is read at k = 50. The LLM clinical-similarity judge, uniform and combined weighting,
-and subsampled retrieval are out of the main text and the supplement; the
-judge is complete in reserve/llm_similarity_judge.md. Every retrieval number
-is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas,best_k_panels}.json,
+RETRIEVAL IS A SWEEP, NOT A k, on the owner's direction. Neighbors are chosen
+two ways, nearest and random, giving three arms: nearest under plain cosine and
+under logistic-regression-weighted cosine (Equations 1-2), and random with
+uniform weights (1,000 draws). Each arm is scored at every k from 1 to all 34,063 training patients, and the curve is
+the result; no single k is the headline, and the abstract and cover letter
+quote a maximum without its k. A value read at one k is at the arm's best k,
+chosen on the test patients and called optimistic wherever it is quoted: 295
+(weighted), 757 (plain) and 32,720 (random) for the primary encoder. ROC curves
+and confusion matrices exist only at those best k (Supplement S6). The best
+value over every k and exponent (weighted, alpha 2, k = 1,090, 0.625,
+0.610-0.640) carries the paired contrasts; 0.625 (0.610-0.641) is weighted at
+alpha 1, k = 295, the arm Figure 4 draws. Name the configuration wherever
+either is quoted, because their intervals differ.
+
+THOSE THREE ARMS ARE THE WHOLE SLATE, on the owner's instruction: add no other
+retrieval scheme or control arm. The LLM clinical-similarity judge, uniform and combined weighting, and
+subsampled retrieval are out of the main text and the supplement; the judge is
+complete in reserve/llm_similarity_judge.md. Every primary-encoder retrieval
+number is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas,best_k_panels}.json,
 drawn by scripts/pipeline/predictions/{plot_neighbor_sweep_figure,best_k_panels}.py.
-The other 3 encoders' retrieval (Nearest-Neighbor Retrieval Across Encoders,
-Figure 5) is read from results/cross_embedder_retrieval/cross_embedder_retrieval.csv
-and each encoder's sweep_intervals.csv, drawn by
-scripts/pipeline/predictions/plot_cross_embedder_retrieval.py. No paired contrast
-exists for them; do not quote a retrieval-minus-classifier difference for any
-encoder but the primary. The LR-dimensions-vs-best-k scatter in that folder stays
-out of both documents until the authors have discussed it.
+
+THE OTHER 3 ENCODERS (Nearest-Neighbor Retrieval Across Encoders). Figure 5 is
+one Figure-4-style panel per encoder, each drawn by plot_neighbor_sweep_figure.py
+into results/<encoder>/google_medgemma-27b-text-it/neighbor_count_sweep/; the
+primary encoder's panel is Figure 4 and is not repeated. Numbers are read from
+results/cross_embedder_retrieval/cross_embedder_retrieval.csv and each
+encoder's sweep_intervals.csv. No paired contrast exists for them; do not quote
+a retrieval-minus-classifier difference for any encoder but the primary.
+Figure 6 is results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png, in
+the main text on the owner's answer: the fewest dimensions holding 90% of each
+encoder's absolute logistic-regression coefficient mass (253, 271, 1,626, 236)
+against each metric's best k, drawn by plot_cross_embedder_retrieval.py.
 
 INDEX DATES ARE 2013-2025, measured over all 42,579 patients. Paper-Writer's
 numbers gate skips four-digit years, so nothing catches this but reading.
 
-SUBGROUPS are 240 contrasts over the two-arm slate at each arm's best k, 23 surviving BH, from
+SUBGROUPS are 240 contrasts over the two nearest-neighbor metrics at each one's best k, 23 surviving BH, from
 results/review/subgroups/subgroup_summary.json.
 
 SUPPLEMENT POINTERS follow supplement.md, which is the senior author's
@@ -95,7 +105,7 @@ Sandip Sen 0000-0001-6107-4095
 
 **Methods:** This retrospective study included 42,579 patients with depression from one community health system. The outcome required at least 3 distinct antidepressant treatments, including the index agent, within 365 days. Clinical predictors were derived from a 730-day lookback window. We evaluated 4 classifiers on each representation using a shared 80:20 training and test split, with preprocessing and tuning confined to training data. Four embedding encoders were evaluated; Qwen3-Embedding-8B was primary. The pipelines used the same source records. We assessed discrimination, calibration, and paired bootstrap differences, and used concept permutation and neighbor retrieval to examine the predictive signal.
 
-**Results:** The outcome occurred in 7,455 patients (17.5%, 95% CI 17.2--17.9). In 8,516 test patients, embedded logistic regression achieved a receiver operating characteristic area under the curve (ROC AUC) of 0.657 (95% CI 0.643--0.672), compared with 0.649 (95% CI 0.634--0.664) for feature-vector XGBoost. The post hoc difference between these leading models was 0.008 (95% CI −0.003 to 0.019). Embeddings improved logistic regression by 0.028 (95% CI 0.017--0.039) but reduced discrimination for the 3 tree ensembles, by 0.013 (95% CI 0.001--0.026) to 0.022 (95% CI 0.011--0.033). Across encoders, embedded logistic regression reached 0.645 (95% CI 0.629--0.660) to 0.657. Permuting psychiatric history produced the largest loss for the primary encoder, 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; medication burden and prior treatment exposure also contributed. Permuting race/ethnicity or recorded social determinants changed ROC AUC by no more than 0.003, and every such interval included zero. Nearest-neighbor retrieval stayed below both leading classifiers at every neighborhood size. Logistic-regression-weighted retrieval reached 0.625 (95% CI 0.610--0.641) at 295 neighbors, a size chosen on the test patients. Randomly chosen neighbors reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515).
+**Results:** The outcome occurred in 7,455 patients (17.5%, 95% CI 17.2--17.9). In 8,516 test patients, embedded logistic regression achieved a receiver operating characteristic area under the curve (ROC AUC) of 0.657 (95% CI 0.643--0.672), compared with 0.649 (95% CI 0.634--0.664) for feature-vector XGBoost. The post hoc difference between these leading models was 0.008 (95% CI −0.003 to 0.019). Embeddings improved logistic regression by 0.028 (95% CI 0.017--0.039) but reduced discrimination for the 3 tree ensembles, by 0.013 (95% CI 0.001--0.026) to 0.022 (95% CI 0.011--0.033). Across encoders, embedded logistic regression reached 0.645 (95% CI 0.629--0.660) to 0.657. Permuting psychiatric history produced the largest loss for the primary encoder, 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; medication burden and prior treatment exposure also contributed. Permuting race/ethnicity or recorded social determinants changed ROC AUC by no more than 0.003, and every such interval included zero. Nearest-neighbor retrieval, scored at every neighborhood size from 1 to 34,063, stayed below both leading classifiers at every size. Its maximum, 0.625 (95% CI 0.610--0.641) for logistic-regression-weighted retrieval, was read at a size chosen on the test patients and is optimistic. Randomly chosen neighbors stayed at chance, at most 0.500 (2.5th--97.5th percentile across draws 0.484--0.515).
 
 **Conclusions:** Narrative embeddings did not demonstrate superior discrimination over the strongest structured feature model for this treatment-switching proxy. Performance depended on the classifier, and neither pipeline established clinical utility. These findings support structured features as a practical benchmark. Before either pipeline is used in care, 3 things need testing: whether the switching label reflects true treatment resistance, whether the models work in other health systems, and whether their predictions improve clinical decisions.
 
@@ -163,7 +173,7 @@ $$\mathrm{sim}_w(x,y)=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)
 
 $$\hat{r}(x)=\frac{\sum_{i\in N_k(x)} s_i^{\alpha}\,y_i}{\sum_{i\in N_k(x)} s_i^{\alpha}},\qquad s_i=\max\{\mathrm{sim}(x,i),0\}\qquad(2)$$
 
-Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. We scored every k from 1 to all 34,063 training patients, under α = 1, 2, and 5. Each similarity metric was reported at its best k, the k with the highest ROC AUC in the test patients. Because k was chosen on the test patients, these values are optimistic. As a floor, random retrieval averaged the outcomes of k training patients drawn at random, with equal weights. It was scored at the same k in 1,000 seeded draws, and its interval is the 2.5th to 97.5th percentile across draws. Farthest retrieval, which averaged the 50 least similar patients, was a second negative control. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
+Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. Neighbors were chosen in 2 ways, nearest and random. Random retrieval averaged the outcomes of k training patients drawn at random, with equal weights, in 1,000 seeded draws; its interval is the 2.5th to 97.5th percentile across draws. Both were scored at every k from 1 to all 34,063 training patients, nearest retrieval under α = 1, 2, and 5. Each retrieval arm, the 2 nearest-neighbor metrics and random retrieval, therefore yields a curve over k, not a value at one k. Where a single value is reported, including the ROC curves and confusion matrices, it is at the arm's best k, the k with the highest ROC AUC in the test patients. Because that k was chosen on the test patients, these values are optimistic. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
 
 Additional analyses examined encoder robustness, model dimensionality, record length, and subgroup performance. Subgroup comparisons used held-out predictions without refitting and Benjamini--Hochberg adjustment across 240 contrasts. Full methods and results appear in Multimedia Appendix 1. All random processes were seeded; analyses used Python, scikit-learn, XGBoost, and sentence-transformers \[22,26,27\].
 
@@ -266,25 +276,41 @@ Logistic regression was the strongest embedded classifier for all 4 encoders, wi
 
 ## Retrieval and Subgroup Performance
 
-Random retrieval stayed at chance at every k: at its best k, 32,720, it reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515). Farthest retrieval yielded 0.432 (95% CI 0.416--0.449). Neighborhood size mattered more than the similarity metric (Figure 4). Discrimination rose with k up to a few hundred neighbors. From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988. At its best k, logistic-regression-weighted retrieval reached 0.625 (95% CI 0.610--0.641) at k = 295, and plain cosine 0.618 (95% CI 0.602--0.634) at k = 757. They exceeded random retrieval by 0.125 (95% CI 0.103--0.147) and 0.118 (95% CI 0.096--0.140), respectively. The paired difference between the 2 metrics was 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was logistic-regression-weighted retrieval with α = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Because the best k was chosen on test patients, these maxima are optimistic. Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (95% CI 0.607--0.639) for logistic-regression-weighted retrieval and 0.608 (95% CI 0.592--0.624) for plain cosine (Multimedia Appendix 1, section S6).
+Retrieval is reported as a curve over neighborhood size (Figure 4). At every k from 1 to 34,063, both nearest-neighbor metrics stayed below both leading classifiers, and random retrieval stayed at chance. Neighborhood size mattered more than the similarity metric. Discrimination rose with k up to a few hundred neighbors. From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988. Each arm's maximum was read at its best k, chosen on the test patients, so these maxima are optimistic. Logistic-regression-weighted retrieval reached 0.625 (95% CI 0.610--0.641) at k = 295, plain cosine 0.618 (95% CI 0.602--0.634) at k = 757, and random retrieval 0.500 (2.5th--97.5th percentile across draws 0.484--0.515) at k = 32,720, a best k that is noise. The 2 nearest-neighbor metrics exceeded random retrieval by 0.125 (95% CI 0.103--0.147) and 0.118 (95% CI 0.096--0.140), respectively, and differed from each other by 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was logistic-regression-weighted retrieval with α = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (95% CI 0.607--0.639) for logistic-regression-weighted retrieval and 0.608 (95% CI 0.592--0.624) for plain cosine. ROC curves and confusion matrices at each arm's best k are in Multimedia Appendix 1, section S6.
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=6in}
 
-***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients at every k from 1 to 34,063 for logistic-regression-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Points mark each arm's best k, chosen on the test patients, so the values there are optimistic; the random arm's best k is noise. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002.*
+***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients at every k from 1 to 34,063 for logistic-regression-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Points mark each arm's best k, chosen on the test patients, so the values there are optimistic; the random arm's best k is noise. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002. Figure 5 draws the same plot for the other 3 encoders.*
 
 Subgroup analyses scored each retrieval arm at its best k. Of 240 subgroup contrasts, 23 survived multiplicity adjustment; 19 involved depression recurrence. Discrimination was higher with recurrent coding in all 10 models contrasted and lower with single-episode coding in 9. Performance was lower among never-married patients for 2 embedded classifiers and logistic-regression-weighted retrieval, and among patients aged 18--29 for feature-vector XGBoost. Sex contrasts did not show clear differences. White-minus-non-White ROC AUC differences were consistently positive (0.005--0.046), but none survived adjustment. For feature-vector logistic regression, individual-level calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories. These findings do not establish equitable performance (Multimedia Appendix 1, section S9).
 
 ## Nearest-Neighbor Retrieval Across Encoders
 
-We repeated the neighborhood-size sweep for the other 3 encoders under the same rules. Each encoder's logistic-regression-weighted similarity used the coefficients of that encoder's own embedded logistic regression. Each metric was read at its own best k under α = 1, chosen on the test patients, so these maxima are optimistic. Retrieval stayed below embedded logistic regression for every encoder (Figure 5).
+We repeated the neighborhood-size sweep for the other 3 encoders under the same rules, for both nearest-neighbor metrics and random retrieval. Each encoder's logistic-regression-weighted similarity used the coefficients of that encoder's own embedded logistic regression. For every encoder, both nearest-neighbor curves stayed below that encoder's embedded logistic regression at every k (Figure 5). Each metric's maximum was read at its own best k under α = 1, chosen on the test patients, so these maxima are optimistic.
 
 Logistic-regression-weighted retrieval at its best k reached 0.606 (95% CI 0.590--0.620) at k = 579 for bge-small-en-v1.5, 0.631 (95% CI 0.616--0.646) at k = 1,519 for bge-en-icl, 0.623 (95% CI 0.607--0.639) at k = 684 for Qwen3-Embedding-4B, and 0.625 (95% CI 0.610--0.641) at k = 295 for Qwen3-Embedding-8B. Embedded logistic regression reached 0.645 (95% CI 0.629--0.660), 0.655 (95% CI 0.641--0.670), 0.655 (95% CI 0.641--0.670), and 0.657 (95% CI 0.643--0.672) for the same encoders. For each encoder, the upper bound of the retrieval interval lay below the logistic-regression estimate. Paired contrasts were computed for the primary encoder only.
 
-Plain cosine retrieval peaked at k = 1,243, 413, 493, and 757 for the same 4 encoders. It reached 0.602 (95% CI 0.586--0.618), 0.620 (95% CI 0.605--0.637), 0.621 (95% CI 0.605--0.637), and 0.618 (95% CI 0.602--0.634), lower than the weighted metric for every encoder. Only the primary encoder's difference was tested, 0.007 (95% CI −0.001 to 0.014). Every best k for either metric lay between 295 and 1,519. Using all 34,063 training patients as neighbors, weighted retrieval gave 0.617 (95% CI 0.600--0.633) to 0.629 (95% CI 0.614--0.645) for the 3 larger encoders. For bge-small-en-v1.5 it fell to 0.580 (95% CI 0.565--0.595), the only encoder whose weighted curve declined at large k.
+Plain cosine retrieval peaked at k = 1,243, 413, 493, and 757 for the same 4 encoders. It reached 0.602 (95% CI 0.586--0.618), 0.620 (95% CI 0.605--0.637), 0.621 (95% CI 0.605--0.637), and 0.618 (95% CI 0.602--0.634), lower than the weighted metric for every encoder. Only the primary encoder's difference was tested, 0.007 (95% CI −0.001 to 0.014). Every best k for either metric lay between 295 and 1,519. Using all 34,063 training patients as neighbors, weighted retrieval gave 0.617 (95% CI 0.600--0.633) to 0.629 (95% CI 0.614--0.645) for the 3 larger encoders. For bge-small-en-v1.5 it fell to 0.580 (95% CI 0.565--0.595), the only encoder whose weighted curve declined at large k. ROC curves and confusion matrices for each encoder's nearest-neighbor metrics at their best k are in Multimedia Appendix 1, section S6.
 
-![](../results/cross_embedder_retrieval/cross_embedder_sweep.png){width=6in}
+A bge-small-en-v1.5
 
-***Figure 5.** Retrieval discrimination by neighborhood size for the 4 encoders. ROC AUC in 8,516 test patients at every k from 1 to 34,063, under α = 1, for logistic-regression-weighted (left panel) and plain cosine retrieval (right panel). Each encoder's weights come from its own embedded logistic regression. Points mark each encoder's best k, chosen on the test patients, so the values there are optimistic. The dotted line marks chance. Bootstrap bands are omitted for legibility; Figure 4 draws them for the primary encoder.*
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
+
+B bge-en-icl
+
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
+
+C Qwen3-Embedding-4B
+
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
+
+***Figure 5.** Retrieval discrimination by neighborhood size for the other 3 encoders: (A) bge-small-en-v1.5, (B) bge-en-icl, and (C) Qwen3-Embedding-4B. Figure 4 is the same plot for Qwen3-Embedding-8B. Each panel draws ROC AUC in 8,516 test patients at every k from 1 to 34,063 for logistic-regression-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Each encoder's weights come from its own embedded logistic regression. Points mark each arm's best k, chosen on the test patients, so the values there are optimistic. Horizontal lines mark that encoder's embedded logistic regression and feature-vector XGBoost, which is the same in every panel. Curves use α = 1.*
+
+The number of embedding dimensions each logistic regression relied on was similar for 3 of the 4 encoders. The fewest dimensions holding 90% of the absolute coefficient mass were 253 for bge-small-en-v1.5, 271 for bge-en-icl, 1,626 for Qwen3-Embedding-4B, and 236 for Qwen3-Embedding-8B. These counts describe each fitted model and carry no sampling interval. Best k did not follow them. Qwen3-Embedding-4B used the most dimensions, yet its best k, 684 and 493 for the 2 metrics, lay inside the range of the other encoders (Figure 6). With 4 encoders, this comparison describes a relation and does not test one.
+
+![](../results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png){width=5in}
+
+***Figure 6.** Logistic-regression dimensions against best k for the 4 encoders. The horizontal axis is the fewest embedding dimensions holding 90% of the absolute coefficient mass of each encoder's embedded logistic regression. The vertical axis is the best k of logistic-regression-weighted (filled markers) and plain cosine retrieval (open markers), chosen on the test patients and therefore optimistic. Both axes are logarithmic.*
 
 # Discussion
 

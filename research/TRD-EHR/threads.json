@@ -29,10 +29,14 @@
       ],
       "outputs": [
         "results/cross_embedder_retrieval/cross_embedder_retrieval.csv",
-        "results/cross_embedder_retrieval/cross_embedder_sweep.png",
         "results/cross_embedder_retrieval/embedding_dimensions_vs_lr_dimensions.png",
-        "results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png"
+        "results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png",
+        "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+        "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+        "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
       ],
+      "exports": [],
+      "check": "",
       "writes": [
         {
           "file": "paper1-trd-prediction/manuscript.md",
@@ -50,7 +54,7 @@
         },
         {
           "text": "Discuss the dimension-count vs best-k scatter with the owner. It stays out of the write-up until then: four points, and only Qwen3-4B (1,626) sits far from about 250",
-          "done": false
+          "done": true
         },
         {
           "text": "Finish the rename to logistic-regression-weighted nearest neighbours: the docstring of plot_neighbor_sweep_figure.py still says importance-weighted",
@@ -58,10 +62,30 @@
         },
         {
           "text": "Re-split parts/ so the section PDFs carry the new KNN section",
-          "done": false
+          "done": true
         },
         {
           "text": "Learn: why ROC AUC against k has its shape: the random arm at 1/2, k = 1, the climb in log k, the right edge, and why every best k is optimistic",
+          "done": false
+        },
+        {
+          "text": "Fix plot_neighbor_sweep_figure.py for the 3 non-primary encoders: read the classifier lines from classical_ml_results_{EMBEDDED,FEATURE}.json and skip paired deltas when test_predictions_*.parquet is absent (job 2110916)",
+          "done": false
+        },
+        {
+          "text": "Rerun neighbor_count_sweep.sbatch: bge-small-en-v1.5 with --fixes 2026-10-02-knn-across-embedders-neighbor-count-sweep, then bge-en-icl and Qwen-Qwen3-Embedding-4B, for Figure 5 and Figures S8-S9",
+          "done": false
+        },
+        {
+          "text": "After the reruns, check each Figure S8-S9 panel path against that encoder's best_k_panels.json (k is in the filename) and the manuscript's cross-encoder numbers against cross_embedder_retrieval.csv",
+          "done": false
+        },
+        {
+          "text": "Add a tracked recipe that runs plot_cross_embedder_retrieval after all 4 sweeps and mirrors it into results/cross_embedder_retrieval/ for Figure 6; fix its docstring, which says the plot is not in the manuscript",
+          "done": false
+        },
+        {
+          "text": "Bring the new figures to the Mac (owner marks each PNG aggregate) or build on the cluster, then rebuild parts/ and run scripts/rebuild-packet.sh --strict. Every .docx and .pdf predates the 2026-10-05 text",
           "done": false
         }
       ],
@@ -73,6 +97,22 @@
         {
           "q": "Paired retrieval-minus-classifier contrasts outside the primary encoder",
           "rule": "None. The other three encoders' per-patient classifier test predictions are not on disk, so their retrieval is reported at each metric's best k without a paired contrast."
+        },
+        {
+          "q": "How retrieval is framed in the paper",
+          "rule": "Nearest and random neighbours, each swept over every k from 1 to 34,063; no single k is the headline. ROC curves and confusion matrices only at each arm's best k. No farthest-neighbour retrieval in any document."
+        },
+        {
+          "q": "Where the dimensions-vs-best-k plot goes",
+          "rule": "Main text, on the owner's answer: manuscript Figure 6, in Nearest-Neighbor Retrieval Across Encoders. Its dimension counts describe fitted models and carry no sampling interval."
+        },
+        {
+          "q": "Best-k ROC curves and confusion matrices: all four encoders or the primary only",
+          "rule": "All four, on the owner's answer: supplement S6, Figures S8-S9. A-C are the primary's 3 arms, D-I each other encoder's 2 nearest-neighbour metrics. Random does not use the embedding, so it is drawn once."
+        },
+        {
+          "q": "Per-encoder retrieval figure",
+          "rule": "Figure 5 is a Figure-4-style panel per non-primary encoder, each that encoder's neighbor_count_sweep_manuscript.png. Figure 4 is the primary's and is not repeated. The bandless overlay is out."
         }
       ],
       "doc": "knn-ksweep",
@@ -92,6 +132,8 @@
         "homework/retrieval-and-subgroups"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -187,6 +229,8 @@
         "scripts/rebuild-packet.sh"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -231,6 +275,8 @@
         "scripts/data_loading/features.py"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -261,6 +307,8 @@
         "paper2-counterfactual/causal_validation_summary.txt"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -313,6 +361,8 @@
         "results/counterfactual_pipeline/bupropion_vs_ssri/effect_results.json",
         "results/counterfactual_pipeline/bupropion_vs_snri/effect_results.json"
       ],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -359,6 +409,8 @@
         "scripts/pipeline/counterfactual/core.py"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -397,6 +449,8 @@
         "scripts/pipeline/counterfactual/core.py"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -421,6 +475,8 @@
       "question": "How strong would an unmeasured confounder have to be to explain each contrast away, against the strongest measured covariate?",
       "files": [],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -444,6 +500,8 @@
       "question": "Does the identical pipeline find an effect on an outcome the drug class cannot plausibly cause? A non-zero one indicts the design.",
       "files": [],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [
         {
@@ -479,6 +537,8 @@
         "results/causal_pipeline/leaderboard.csv",
         "results/causal_pipeline/validation_report.json"
       ],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [],
       "decisions": [
@@ -502,6 +562,8 @@
       "question": "Does clinic or provider prescribing lean shift a patient's class strongly enough to give a LATE among preference-sensitive patients? The only route that addresses unmeasured confounding.",
       "files": [],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [],
       "decisions": [],
@@ -518,6 +580,8 @@
         "planning/NextSteps.pdf"
       ],
       "outputs": [],
+      "exports": [],
+      "check": "",
       "writes": [],
       "tasks": [],
       "decisions": [

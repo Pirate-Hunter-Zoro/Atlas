@@ -50,7 +50,7 @@ helps only under retrieval schemes that are deliberately uninformative.
 
 ## 1. The result the paper rests on
 
-The full four-by-four grid of retrieval scheme against weighting strategy, on
+The grid of retrieval scheme against weighting strategy, on
 the primary `Qwen3-Embedding-8B` encoder and the 8,516 held-out anchors, is
 below. The two right-hand columns are the judge-derived weightings. The two
 left-hand columns are what the submitted paper reports (main text, Table 6).
@@ -66,7 +66,6 @@ embedded logistic regression on the same patients reaches 0.657.*
 | Nearest | 0.5934 | 0.5939 | 0.5947 | 0.5955 |
 | Subsampled | 0.5428 | 0.5439 | 0.5541 | 0.5522 |
 | Random | 0.4945 | 0.4989 | 0.5170 | 0.5117 |
-| Farthest | 0.4341 | 0.4321 | 0.4358 | 0.4338 |
 
 Three things follow, and the first is the one that decided the section's fate.
 
@@ -482,7 +481,7 @@ of the multiplicity denominator, not the evidence.
 
 | Quantity | File |
 | --- | --- |
-| The four-by-four retrieval grid, with intervals and effective sample sizes | `../../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/knn_results.json` |
+| The retrieval grid, with intervals and effective sample sizes | `../../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/knn_results.json` |
 | Cached pairwise judgements | the judgement cache written by the neighbor pipeline |
 | Worked-example judgements | `../../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/llm_audit/` |
 | Re-judging under the corrected rubric | `../../results/review/judge_prompt/judge_prompt_agreement.{json,png}`, `judge_prompt_pairs.csv` |
