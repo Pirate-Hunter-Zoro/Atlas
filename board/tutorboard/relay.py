@@ -431,6 +431,20 @@ def _unwind(base, ref, opted):
     return files
 
 
+# A NEW FILE SYNCS ONLY AS SOURCE OR PROSE. The `board push` check reads a
+# file's contents only in a fenced workspace, and the cluster is where patient
+# rows are; a stray table, record, notebook or dump written beside the code
+# stays on the cluster for the owner to commit by hand. A file git already
+# tracks passed the ship check once and syncs whatever its extension.
+SYNC_NEW = (".py", ".sh", ".sbatch", ".md", ".tex", ".bib", ".toml", ".yaml",
+            ".yml", ".cfg", ".ini", ".lean", ".go", ".js", ".css", ".html")
+
+
+def _tracked(base, rel):
+    code, _ = _git(base, "ls-files", "--error-unmatch", "--", rel)
+    return code == 0
+
+
 def _sync_refusal(base, rel, names_phi, incoming, flagged):
     """Why the pass leaves this owner's edit uncommitted, or ""."""
     if names_phi is None:
@@ -448,6 +462,10 @@ def _sync_refusal(base, rel, names_phi, incoming, flagged):
     full = os.path.join(base, rel)
     if os.path.islink(full):
         return "it is a symlink, which the owner commits by hand"
+    if (os.path.exists(full) and not rel.lower().endswith(SYNC_NEW)
+            and not _tracked(base, rel)):
+        return ("a new file of this kind may hold data, so the owner commits "
+                "it by hand")
     try:
         if os.path.isfile(full) and os.path.getsize(full) > CAP:
             return "it is over the 5 MB cap"
