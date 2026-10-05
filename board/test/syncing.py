@@ -92,6 +92,24 @@ POLICY = ("import re\n\ndef names_phi(text):\n"
 
 base = tempfile.mkdtemp(prefix="tutor-syncing-")
 saved_env = dict(os.environ)
+# --- the repository's default, a workspace's word over it ---------------------
+_box = tempfile.mkdtemp(prefix="relayopts-")
+try:
+    write(os.path.join(_box, "atlas.json"), json.dumps(
+        {"families": [], "relay": {"sync": True, "colibri": True}}))
+    for _ws, _cfg in (("a/one", {}), ("a/two", {"relay": {"sync": False}}),
+                      ("a/three", {"relay": {"colibri": True}})):
+        write(os.path.join(_box, _ws, "tutorboard.json"), json.dumps(_cfg))
+    _o = lambda ws: jobs.relay_opts(os.path.join(_box, ws))
+    check("atlas.json's relay.sync is every workspace's default",
+          _o("a/one").get("sync") is True and _o("a/three").get("sync") is True)
+    check("a workspace's own sync: false overrides it",
+          _o("a/two").get("sync") is False)
+    check("colibri is never inherited from atlas.json; only a workspace says it",
+          "colibri" not in _o("a/one") and _o("a/three").get("colibri") is True)
+finally:
+    shutil.rmtree(_box, ignore_errors=True)
+
 try:
     os.environ["COLI_QUEUE_ROOT"] = os.path.join(base, "queue")
     os.makedirs(os.environ["COLI_QUEUE_ROOT"])

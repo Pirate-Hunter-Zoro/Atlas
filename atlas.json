@@ -21,6 +21,12 @@
     "       a tap, or an aim in a workspace's own tutorboard.json, is honoured",
     "       exactly as written. A 'teach' default applies as it always has.",
     "",
+    "  relay.sync  true: the cluster's relay pass commits and pushes the owner's",
+    "       edits in every workspace (board/README.md, the relay pass). A workspace",
+    "       opts out with \"relay\": {\"sync\": false} in its tutorboard.json. Only",
+    "       sync is a default: a Colibri opt-in is a permission over one",
+    "       workspace's data and is written in that workspace's file alone.",
+    "",
     "That is ALL this file holds. It does not list the workspaces. A workspace",
     "is a second-level directory that holds tutorboard.json, AI_INSTRUCTIONS.md",
     "or live/ -- discovered, never registered -- because a file that has to be",
@@ -86,5 +92,8 @@
       "blurb": "Pulled, not written. Tracked by pointer at a commit.",
       "vendor": true
     }
-  ]
+  ],
+  "relay": {
+    "sync": true
+  }
 }

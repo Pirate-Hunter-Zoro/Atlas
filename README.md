@@ -268,8 +268,8 @@ runs on an institute machine, for any vendor** (`projects/libr-local-llm/docs/de
 - **Code typed on the cluster comes back through `board hold` and `board send`**, and the Mac's
   coach answers.
 - **The Mac pulls every five minutes** (faster with a request out or a hold standing) and before
-  every turn. The relay commits the owner's cluster edits only in a workspace whose
-  `tutorboard.json` says `"relay": {"sync": true}`.
+  every turn. The relay commits the owner's cluster edits in every workspace: `atlas.json`
+  says `"relay": {"sync": true}`, and a workspace's own `tutorboard.json` may say `false`.
 
 GitHub is the only channel between them. `HANDOFF.md` has the split and `board/README.md`, "The
 Mac is the only brain", the rules.

@@ -105,7 +105,8 @@ These hold everywhere; each line names where the detail is.
   the ignored `phi/`, and a change git can see fails the task. *Colibri runs on demand*.
 - **Sync**: the Mac pulls every 5 minutes, every 2 with a request out, every 20 s while a hold
   stands, and at the top of every turn; the relay passes every 5 minutes. The pass commits the
-  owner's cluster edits only in a workspace with `relay.sync: true`, and none has it yet.
+  owner's cluster edits in every workspace that syncs: `relay.sync` is on in `atlas.json`, and a
+  workspace's own `tutorboard.json` overrides it.
 
 ---
 
@@ -915,9 +916,9 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    rebase in progress, a detached HEAD, or a tracked edit or unpushed commit outside the
    cluster's paths. Those are each workspace's `relay/reports/` and `exports/`, and the
    `vendor/colibri` pointer. A workspace's job registry may be dirty, because only a Slurm
-   machine appends to it; the relay leaves it uncommitted. A workspace whose `tutorboard.json`
-   says `"relay": {"sync": true}` (`jobs.relay_opts`) does not skip: its edits are step 5's to
-   commit. No workspace says so until the owner decides which may. Then `pull_vendor`.
+   machine appends to it; the relay leaves it uncommitted. A workspace that syncs
+   (`jobs.relay_opts`: `atlas.json`'s `relay.sync`, which its own `tutorboard.json` overrides)
+   does not skip: its edits are step 5's to commit. Then `pull_vendor`.
 2. **Each request with no report** is checked with `jobs.check(mine=True)`. A refusal is a
    `refused` report listing every problem. A recipe goes through `jobs.submit_recipe` in an
    environment stripped of `SLURM_*`. It is registered in the ignored `relay/state/jobs.jsonl`,
