@@ -196,16 +196,22 @@ def reason(root, base=None):
         return None
 
 
-def _reason(root, base=None):
+def refused(root, paths, base=None):
+    """Which of these repository-relative paths the check refuses.
+
+    The one rule `reason` applies, over the paths a caller is about to commit:
+    the relay's sync asks it of the owner's edits it would push. `[]` where
+    the policy or a fence is missing, exactly as `reason` is None there.
+    """
     names_phi = policy(base)
     if not names_phi:
-        return None
+        return []
     guarded = fenced_roots(base)
     if not guarded:
-        return None
+        return []
     top = _top(root)
     hit = []
-    for path in pending(root):
+    for path in paths:
         full = os.path.realpath(os.path.join(top, path))
         if not any(full == g or full.startswith(g + os.sep) for g in guarded):
             continue
@@ -218,6 +224,13 @@ def _reason(root, base=None):
                 else _whole(top, path))
         if text and names_phi(text):
             hit.append(path)
+    return hit
+
+
+def _reason(root, base=None):
+    if not policy(base) or not fenced_roots(base):
+        return None
+    hit = refused(root, pending(root), base)
     if not hit:
         return None
     shown = hit[:NAME_MOST]

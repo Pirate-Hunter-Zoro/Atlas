@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 121 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 122 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -885,7 +885,9 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    rebase in progress, a detached HEAD, or a tracked edit or unpushed commit outside the
    cluster's paths. Those are each workspace's `relay/reports/` and `exports/`, and the
    `vendor/colibri` pointer. A workspace's job registry may be dirty, because only a Slurm
-   machine appends to it; the relay leaves it uncommitted. Then `pull_vendor`.
+   machine appends to it; the relay leaves it uncommitted. A workspace whose `tutorboard.json`
+   says `"relay": {"sync": true}` (`jobs.relay_opts`) does not skip: its edits are step 5's to
+   commit. No workspace says so until the owner decides which may. Then `pull_vendor`.
 2. **Each request with no report** is checked with `jobs.check(mine=True)`. A refusal is a
    `refused` report listing every problem. A recipe goes through `jobs.submit_recipe` in an
    environment stripped of `SLURM_*`. It is registered in the ignored `relay/state/jobs.jsonl`,
@@ -902,6 +904,24 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    task; any other is a request the owner writes by hand, and a `turn` cannot carry `fixes`.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
+
+**A synced workspace's edits are committed by the pass** (`relay.sync_commit`), one commit per
+workspace, `<workspace>: cluster sync`, pushed by the same `publish`. The rules:
+
+- A path counts only inside exactly one opted-in workspace. A tracked edit or untracked file
+  elsewhere still skips the pass, named in `relay/state.json`.
+- A held file and a live Colibri task's workspace stay the owner's, uncommitted.
+- An untracked file is added unless ignored.
+- Each path passes `leaving.refused`, the check `board push` uses. It also passes `names_phi`
+  on its path. A symlink, a file over 5 MB, a path origin also changed, and everything in a
+  checkout without the policy are refused.
+- A refused path stays uncommitted. `relay/state.json` names it under `sync_left` with why;
+  `synced` lists what went up.
+- Never forced. A rebase that stops or a push that is refused undoes the sync commit into
+  unstaged edits (`relay._unwind`), names each path, and the next pass tries again. A sync
+  commit a killed pass left unpushed does not skip the next pass.
+
+`test/syncing.py` is the suite.
 
 **A report is public, and the code makes it so.** Only lines the job printed behind `RELAY:`
 reach it: the last 40, 200 characters each. Every string goes through `relay.public`. An
@@ -939,7 +959,8 @@ never descending into a withheld directory except to count. TRD-EHR's
 
 **The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
 `/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
-skip reason, the last error and the last pushed commit.
+skip reason, the last error, the last pushed commit, and a synced workspace's `synced` and
+`sync_left`.
 **The Mac hears the cluster through the same wake.** On a machine without Slurm, `jobs.report`
 also runs `jobs.hear`: it diffs `relay/reports/` from the commit it last heard
 (`live/jobs.reported/relay.heard`, ignored) to HEAD, so it catches whatever pulled. Each report
@@ -973,12 +994,19 @@ A rerun that completes closes the repair. `test/repair.py` is the suite.
 time its timer fires (`scripts/launchd/tutor-pull.plist`, every 20 s), then the daily
 `tutor pull`. `hear_pass` in `bin/tutor` fast-forwards the repository with `sync` when
 `jobs.pull_due` says so — every `holds.POLL_SECONDS` (20 s) while a hold stands, every
-`jobs.PULL_BUSY` (120 s) while any workspace has a request out, every `jobs.PULL_IDLE` (3600 s)
+`jobs.PULL_BUSY` (120 s) while any workspace has a request out, every `jobs.PULL_IDLE` (300 s)
 otherwise, stamped in `~/.local/state/tutor-pull.heard` — and hears every workspace on every
 run: `jobs.hear` drops `[job]` or `[repair]` for a request's report, `holds.wake` drops `[coach]` for a held
 step's check, and `jobs.hear` skips check reports so a check never wakes both. A timer firing a few seconds early still counts
 (`jobs.PULL_SLACK`). Where Slurm is, it does nothing: the relay pulls there. `install.sh` loads
 the launchd agent on a Mac. `tutor pull --hear --status` says the cadence.
+
+**Every daemon turn pulls first.** `turn_pull` in `bin/tutor` runs `sync` once at the top of
+each turn, before the client starts. It does nothing where Slurm is, logs and skips while a
+held thread has edits here (`holds.refusal`) or a merge or rebase is open
+(`worktree.busy_reason`), and never moves over an edit the pull would change (`--ff-only`). The
+pull is capped at `TURN_PULL_SECONDS` (20); a failure is one `--` line in `agent.log` and the
+turn runs on what is here.
 
 **`board brief` carries the cluster.** The thread section lists the thread's requests still out
 and its last ended report, with its `RELAY:` lines and note (`jobs.thread_relay`).

@@ -9,8 +9,8 @@ What the checks are about:
   * THE BASELINE IS SET AT FILING. A refusal arriving in the very first pull
     after a request is filed is still heard; a fresh clone hears nothing of
     the reports it arrived with.
-  * THE CADENCE FOLLOWS THE REQUESTS. Two minutes while one is out, hourly
-    otherwise, decided by `jobs.pull_due`, never by the timer.
+  * THE CADENCE FOLLOWS THE REQUESTS. Two minutes while one is out, five
+    minutes otherwise, decided by `jobs.pull_due`, never by the timer.
   * ONE PATH ON BOTH MACHINES. A `results/` path the tree lacks is read from
     `exports/results/` by the thread check and the results library.
 
@@ -120,11 +120,11 @@ try:
     stamp = os.path.join(base, "heard.stamp")
 
     # --- the cadence ----------------------------------------------------------
-    check("nothing out: the pull is hourly",
-          jobs.pull_interval([ws]) == jobs.PULL_IDLE == 3600)
+    check("nothing out: the pull is every five minutes",
+          jobs.pull_interval([ws]) == jobs.PULL_IDLE == 300)
     check("a pull is due on a fresh stamp, or one from the future",
           jobs.pull_due(0, 100, 3600) and jobs.pull_due(500, 100, 3600))
-    check("an hourly pull is not due after two minutes",
+    check("a five-minute pull is not due after two minutes",
           not jobs.pull_due(1000, 1120, jobs.PULL_IDLE))
     check("a two-minute pull is due on a timer that fired a few seconds early",
           jobs.pull_due(1000, 1112, jobs.PULL_BUSY))
@@ -215,7 +215,7 @@ try:
           and "board diagnose knn --fixes %s" % req["id"] in text
           and "board push" in text and "ask-cluster" not in text
           and "relay.turns" not in text and "tick the task" not in text)
-    check("and the pull is hourly again", interval == jobs.PULL_IDLE)
+    check("and the pull is every five minutes again", interval == jobs.PULL_IDLE)
 
     tutorcli.hear_pass(stamp=stamp, now=1600, force=True)
     check("heard once: the next pass drops nothing", len(inbox(ws)) == 1)

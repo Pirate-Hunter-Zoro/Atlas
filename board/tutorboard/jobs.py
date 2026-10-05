@@ -1552,7 +1552,7 @@ def context(root, recipes=()):
 
 def relay_opts(root):
     """The `relay` object of this workspace's `tutorboard.json`, `{}` where
-    it has none: `turns` and `colibri` are its opt-ins."""
+    it has none: `turns`, `colibri` and `sync` are its opt-ins."""
     relay = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r",
@@ -1839,10 +1839,11 @@ ENDED_REPORTS = ("refused", "completed", "failed")
 HEARD = "relay.heard"
 
 # The pull's cadence on a machine without Slurm: every two minutes while a
-# request is out, hourly otherwise. The timer fires every two minutes and
+# request is out, every five minutes otherwise, so a cluster commit is here
+# within one relay pass and one poll. The timer fires every twenty seconds and
 # `pull_due` decides.
 PULL_BUSY = 120
-PULL_IDLE = 3600
+PULL_IDLE = 300
 
 
 def outstanding(root, tid=None):

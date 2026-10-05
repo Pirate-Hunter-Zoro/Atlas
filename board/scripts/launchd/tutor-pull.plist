@@ -10,7 +10,7 @@
 
   Every twenty seconds and at load. `tutor pull --hear` decides whether a
   pull is due (twenty seconds while a hold stands, two minutes while a relay
-  request is out, hourly otherwise), and `tutor-pull` keeps its own once-a-day
+  request is out, five minutes otherwise), and `tutor-pull` keeps its own once-a-day
   stamp for the daily half: the timer's Persistent=true in launchd's words.
 
   launchd expands nothing, so `sh -c` supplies $HOME and a PATH holding

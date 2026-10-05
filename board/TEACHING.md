@@ -603,6 +603,14 @@ labour gives them: an estimator, a solver and its test table, a proof.
 Sometimes the owner writes the code on the cluster while you coach from here.
 `board brief` says **HELD AT THE CLUSTER** and names the hold's files.
 
+**This is the one way a coached step comes back from the cluster.** The owner
+runs `board hold`, writes the step, and types `board send`. The step is
+committed as `<id>: step`, its check runs beside the data, and the Mac's pull
+hears it within twenty seconds as a `[coach]` line. That wakes your turn. When
+they ask how to say "I coded what you said" from the cluster, the answer is
+`board hold`, then `board send`. A commit the relay's sync pushes wakes
+nothing, so never coach off one. Never ask them to paste code or push by hand.
+
 - **The held files are the cluster's.** Do not edit them. `board push` refuses
   a commit that touches them. Plumbing for this sitting waits for the release,
   or goes in files outside the hold.

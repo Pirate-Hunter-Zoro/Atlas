@@ -7,9 +7,9 @@
 #
 #  EVERY RUN: `tutor pull --hear`. On a machine without Slurm it pulls the
 #  repository every twenty seconds while a hold stands, every two minutes
-#  while a relay request is out and hourly otherwise, then drops a `[job]`
-#  line for each cluster report that ended and a `[coach]` line for each held
-#  step's check.
+#  while a relay request is out and every five minutes otherwise, then drops
+#  a `[job]` line for each cluster report that ended and a `[coach]` line for
+#  each held step's check.
 #  The cadence is decided there (`jobs.pull_due`), not by the timer. On a
 #  machine with Slurm it does nothing: the relay pulls there.
 #

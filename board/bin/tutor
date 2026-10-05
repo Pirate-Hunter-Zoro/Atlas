@@ -3031,7 +3031,7 @@ def headless_stop(cfg, args):
     return 0
 
 
-def sync(root, quiet=False):
+def sync(root, quiet=False, timeout=60, say=None):
     """Pull whatever another machine pushed, before the session starts.
 
     The point of the handoff is that a course can be picked up somewhere else,
@@ -3046,22 +3046,29 @@ def sync(root, quiet=False):
     in. A course is somewhere its owner works, not only somewhere they are
     taught; a fast-forward arriving in the middle of their rebase is the tutor
     reaching into a terminal it knows nothing about.
+
+    `timeout` bounds the pull, the one step that waits on a network. `say`,
+    where given, hears every line `quiet` would otherwise drop.
     """
+    def tell(msg):
+        if say is not None:
+            say(msg.strip())
+        elif not quiet:
+            print(msg)
     if not worktree.git_dir(root):
         return None
     busy = worktree.busy_reason(root)
     if busy:
-        if not quiet:
-            print("  not synced: %s here, so the repository is left exactly as it is"
-                  % busy)
+        tell("  not synced: %s here, so the repository is left exactly as it is"
+             % busy)
         return False
     # A pull needs the index too, so a lock a killed git left behind stops a
     # session opening up to date just as surely as it stops a commit. Rubbish
     # goes out here as well; a lock somebody is holding is left, and the pull
     # below fails and says so in the usual way.
     cleared = worktree.clear_stale_lock(root)
-    if cleared and not quiet:
-        print("  " + cleared)
+    if cleared:
+        tell("  " + cleared)
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
     def git(*args, **kw):
         return subprocess.run(["git"] + list(args), cwd=root, env=env,
@@ -3071,22 +3078,56 @@ def sync(root, quiet=False):
         if git("remote", "get-url", "origin").returncode != 0:
             return None
         before = git("rev-parse", "HEAD").stdout.decode().strip()
-        p = git("pull", "--ff-only", timeout=60)
+        # Fast-forward only: git refuses, moving nothing, where an edit here
+        # is a file the pull would change.
+        p = git("pull", "--ff-only", timeout=timeout)
         after = git("rev-parse", "HEAD").stdout.decode().strip()
     except (OSError, subprocess.TimeoutExpired):
-        if not quiet:
-            print("  could not reach the remote; working with what is here")
+        tell("  could not reach the remote; working with what is here")
         return False
     if p.returncode != 0:
         out = p.stdout.decode("utf-8", "replace").strip().splitlines()
-        if not quiet:
-            print("  not synced: %s" % (out[-1] if out else "pull failed"))
-            print("  the session will start anyway, on what is here")
+        tell("  not synced: %s" % (out[-1] if out else "pull failed"))
+        if say is None:
+            tell("  the session will start anyway, on what is here")
         return False
-    if before != after and not quiet:
+    if before != after:
         n = git("rev-list", "--count", "%s..%s" % (before, after)).stdout.decode().strip()
-        print("  pulled %s commit(s) from another machine" % n)
+        tell("  pulled %s commit(s) from another machine" % n)
     return True
+
+
+# A TURN NEVER COACHES AGAINST A STALE TREE. The daemon pulls once at the top
+# of every turn, through `sync` and its guards: not where Slurm is (the relay
+# pulls there), not while a held thread has edits here (`holds.refusal`), not
+# mid-merge or mid-rebase (`worktree.busy_reason`), and never over an edit the
+# pull would change (`--ff-only`). A dead remote costs the turn at most
+# `TURN_PULL_SECONDS` and one line in `agent.log`.
+TURN_PULL_SECONDS = 20
+
+
+def turn_pull(root, log, pull=None):
+    """Pull once before a turn. True if pulled, False if not, None where the
+    relay pulls. Never raises; whatever stopped it is logged."""
+    try:
+        if jobs.has_slurm():
+            return None
+        from tutorboard import holds
+        held = holds.refusal(root)
+        if held:
+            log.write("-- not pulled before the turn: a held thread has edits "
+                      "here (%s)\n" % held)
+            return False
+        said = []
+        got = (pull or sync)(root, quiet=True, timeout=TURN_PULL_SECONDS,
+                             say=said.append)
+        for line in said:
+            log.write("-- before the turn, %s\n" % line)
+        return got
+    except Exception as exc:                                 # noqa: BLE001
+        log.write("-- not pulled before the turn: %s: %s\n"
+                  % (type(exc).__name__, exc))
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -4153,6 +4194,7 @@ def headless(cfg, course, agent_name, session):
                     turn_started=time.time(), turn_signal=this_signal,
                     turn_repairs=turn_repairs)
         log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
+        turn_pull(root, log)
 
         # Keep saying so while the turn runs. The heartbeat used to be written
         # only at these boundaries, so a turn that took longer than the board's

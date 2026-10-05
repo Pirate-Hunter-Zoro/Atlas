@@ -433,6 +433,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# Sync both ways: a workspace that opts in has the owner's cluster edits
+# committed and pushed, a conflict is named, and every Mac turn pulls first.
+printf '%-12s ' "syncing"
+if out="$(python3 test/syncing.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 # And the Mac hears it: a pulled report wakes a turn once, the pull keeps time
 # with the requests, and results/ falls back to exports/results/.
 printf '%-12s ' "hearing"
