@@ -1516,15 +1516,48 @@ is wrong even when every suite is green.
 - **The board page is never pinched**: `html { touch-action: pan-x pan-y }` in `board.css`,
   intersected down the tree, plus a refused `gesturestart` in `board.js`. Safari gives a page
   no way to undo its own pinch zoom. The writing surface and the map zoom themselves, from
-  pointer events. Nothing on the page may put `pinch-zoom` back in a `touch-action`.
+  pointer events. Nothing on the page may put `pinch-zoom` back in a `touch-action`, with one
+  exception: `html.page-magnified` (below), the way out of a page zoom Safari will not undo.
 - **A document zooms itself, and the page chrome never does.** Every document surface — the
   board's `#paper` panel, the library reader the map's documents region opens, the meeting
   deck — pinches through `web/readerzoom.js`, about the point under the fingers, by laying the
-  pages out at `--zoom`. It cancels the touchstart that makes two fingers and any touch joining
-  a live pinch, cancels touchmoves through a non-passive listener that exists only while the
-  pinch lasts, and refuses `gesturestart`/`gesturechange`/`gestureend`; otherwise iOS takes the
-  gesture. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends it. One
-  finger scrolls natively and the palm rules in `annotate.js` stand. The latch refuses a pan on
+  pages out at `--zoom`. While a document is open (`live(true)`) its listeners sit on the
+  document in the capture phase, and `gesturestart`/`gesturechange`/`gestureend` are refused;
+  otherwise iOS takes the gesture, and a shut it takes bounces the whole page. Two fingertips
+  on the document's own surface (the whole reader, its `surface`: `#reader` or `#paper`, so the
+  bar, the strips under it and the pages, but not an overlay) are the reader's: the touchstart
+  that makes them is cancelled whatever it lands on, bar buttons included, and so is every
+  move. A bar button whose touch that cancelled is clicked by `readerzoom.js` when it lifts,
+  however long it was held, if it has not moved 10 px, the pair's gap has not changed 10 px and
+  the pair's midpoint has not moved 10 px. Those are the bounds a pinch passes to have moved, so
+  the pinch built beside such a tap has not moved, and a pinch that has not moved commits
+  nothing: no `--zoom`, no `Annotate.redrawAll`, no `committed`. The pages follow the fingers
+  from where they land; the bounds decide only whether the lift commits. A
+  pinch is built from them only if the second lands within 200 ms of the first or the first
+  has not scrolled 10 px; a thumb landing mid-scroll is refused, not zoomed. Any other pair --
+  a palm (radius over 40) beside a finger, a finger on an overlay (`#note`, `#steer`, `#calc`,
+  the annotation bar) -- keeps its touchstart, so a finger beside a resting palm and two fingers
+  in a textarea scroll natively; its moves are cancelled once its gap changes by over 10 px
+  (with a palm in it, once the palm's own move, toward or away from the other, passes 5 px:
+  a resting palm stays put, a flat thumb in a shut sweeps). iOS fixes a gesture from its
+  first touch, so the non-passive touchmove is armed at that touch and dropped once every
+  finger lifts or a lone finger passes 10 px, so one finger scrolls without waiting on the
+  main thread. A `touchcancel`, or a lone finger landing on a pinch with no lift, ends a pinch.
+  **A page zoom already in effect is put back**, because a reader fixed to the layout viewport
+  with every pinch refused leaves no way out of one: a document opening, or `visualViewport`
+  reporting a scale over 1.01 while one is open, calls `Recentre.unzoom` (so every page with a
+  reader loads `recentre.js`). A focused field keeps its zoom until it blurs, because the reset
+  blurs it. Where Safari ignores the clamp its own pinch out is the way back, so while a document
+  is open on a page magnified past 1.01, `<html>` carries `page-magnified`: `board.css` gives the
+  page and the reader `touch-action: manipulation` (a hand writing keeps its `none`), `board.js`
+  refuses no gesture event, and a gesture that begins there is Safari's, nothing in it cancelled.
+  The class goes the moment the scale is back or the document shuts. `ReaderZoom.trace()`, and
+  `BoardTrace` on the board, record each touchstart the reader cancels, a gesture's first
+  cancelled move and any move that was not `cancelable`, each page-zoom reset, and each gesture
+  left to Safari. A refusal is recorded only with a pinch under way or two contacts that are not
+  a hand writing, so a palm refused under every Pencil stroke records nothing.
+  The library locks the list behind the reader (`body.reading`), as the board does with
+  `body.papering`. The palm rules in `annotate.js` stand. The latch refuses a pan on
   the whole scroller, so `annotate.js`'s `onLayer` names `#reader-pages` and `#paper-pages`
   beside the ink layers, or a finger on a bare strip with the latch shut scrolls nothing.
 - **Annotations never distort or drift through a zoom.** Ink lives in the page picture's own

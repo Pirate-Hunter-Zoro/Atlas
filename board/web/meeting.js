@@ -265,7 +265,9 @@ var annBar = window.AnnBar && window.Annotate
    finish marking or send it. */
 /* A pinch is the deck's own, and a palm does not scroll it: `readerzoom.js`. */
 if (window.ReaderZoom) {
-  window.ReaderZoom.make({ scroller: els.readerPages, chip: els.readerZoom });
+  window.ReaderZoom.make({ scroller: els.readerPages, chip: els.readerZoom,
+                          surface: document.getElementById("reader"),
+                          bar: document.getElementById("reader-bar") });
 }
 
 if (window.ViewPin) {

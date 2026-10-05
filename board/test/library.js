@@ -650,12 +650,55 @@ const named = (title) => rows().filter(
     scroller.style.getPropertyValue('--zoom') === '1' && chip.hidden
       ? ok('and a tap on it puts the page width back')
       : fail('the zoom chip does not reset');
-    touch('touchstart', [[100, 300], [200, 300, 'direct', 80]]);
-    touch('touchmove', [[50, 300], [250, 300, 'direct', 80]]);
+    const palmStart = touch('touchstart', [[100, 300], [200, 300, 'direct', 80]]);
+    const palmMove = touch('touchmove', [[50, 300], [250, 300, 'direct', 80]]);
     touch('touchend', []);
     scroller.style.getPropertyValue('--zoom') === '1'
       ? ok('a palm beside a finger is not a pinch')
       : fail('a palm zoomed the page');
+    !palmStart.defaultPrevented && palmMove.defaultPrevented
+      ? ok('and it is not Safari\'s either: its moves are refused once the pair spreads')
+      : fail('a palm beside a finger: start refused ' + palmStart.defaultPrevented
+             + ' (a resting palm must not stop a scroll), spreading move refused '
+             + palmMove.defaultPrevented);
+    const restStart = touch('touchstart', [[400, 500, 'direct', 80], [100, 300]]);
+    const restMove = touch('touchmove', [[401, 500, 'direct', 80], [100, 180]]);
+    touch('touchend', []);
+    !restStart.defaultPrevented && !restMove.defaultPrevented
+      ? ok('with the pen off, a finger beside a resting palm scrolls natively')
+      : fail('a resting palm stops a finger scrolling: ' + restStart.defaultPrevented
+             + '/' + restMove.defaultPrevented);
+    /* A REAL BUTTON ON THE BAR. A second finger on it is refused to Safari
+       like any other, and a tap there still clicks it, once. */
+    {
+      const btn = doc.getElementById('reader-say');
+      const at = (target, name, pts, changed) => {
+        const ev = new window.Event(name, { bubbles: true, cancelable: true });
+        const list = pts.map(([x, y, id]) => ({ identifier: id, clientX: x, clientY: y,
+                                               touchType: 'direct', radiusX: 10 }));
+        Object.defineProperty(ev, 'touches', { value: list });
+        Object.defineProperty(ev, 'changedTouches', { value: changed.map(
+          (id) => list.find((p) => p.identifier === id) || { identifier: id }) });
+        target.dispatchEvent(ev);
+        return ev;
+      };
+      let clicks = 0;
+      const count = (e) => { if (e.target === btn) { clicks++; e.stopPropagation(); } };
+      window.addEventListener('click', count, true);
+      at(scroller, 'touchstart', [[100, 300, 1]], [1]);
+      const s2 = at(btn, 'touchstart', [[100, 300, 1], [400, 40, 2]], [2]);
+      at(btn, 'touchend', [[100, 300, 1]], [2]);
+      at(scroller, 'touchend', [], [1]);
+      window.removeEventListener('click', count, true);
+      s2.defaultPrevented && clicks === 1
+        ? ok('a second finger on a #reader-bar button is refused to Safari, and a tap there clicks once')
+        : fail('a #reader-bar button beside a thumb: start refused ' + s2.defaultPrevented
+               + ', clicks ' + clicks);
+    }
+    doc.body.classList.contains('reading') && !doc.getElementById('reader').hidden
+      ? ok('the library behind an open reader is locked, so a finger on the bar pans nothing')
+      : fail('the page behind the reader can still scroll: body.reading '
+             + doc.body.classList.contains('reading'));
     const g = new window.Event('gesturestart', { bubbles: true, cancelable: true });
     doc.dispatchEvent(g);
     g.defaultPrevented
@@ -1813,6 +1856,9 @@ async function inkIsKept() {
   p.draw(P1);
   p.click(p.byId('reader-close'));
   await sleep(30);
+  p.byId('reader').hidden && !p.w.document.body.classList.contains('reading')
+    ? ok('closing the reader gives the library its scroll back')
+    : fail('the library stays locked after the reader closed');
   net.save = 'ok';
   before = p.saves().length;
   p.w.dispatchEvent(new p.w.Event('online'));

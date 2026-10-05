@@ -76,6 +76,20 @@ html { background: none; }
    surface and the map zoom themselves, and `#findink` and `#mapback` put those
    back. `board.js` also refuses Safari's `gesturestart`. */
 html { touch-action: pan-x pan-y; }
+/* THE ONE EXCEPTION: A PAGE ALREADY MAGNIFIED UNDER AN OPEN DOCUMENT. Where
+   Safari ignores `Recentre.unzoom`, its own pinch out is the only way back,
+   and the rule above forbids it. `readerzoom.js` puts `page-magnified` on
+   <html> while a document is open and `visualViewport.scale` is over 1.01,
+   and takes it off the moment either stops. The reader (`#reader`, `#paper`)
+   and everything in it get the pinch as well, because `touch-action` is
+   intersected down the tree; `!important` because the ink layers' and the
+   bars' own rules are more specific. A hand writing (`pen-writing`) keeps
+   its `none`. */
+html.page-magnified { touch-action: manipulation; }
+html.page-magnified body:not(.pen-writing) :is(#reader, #paper),
+html.page-magnified body:not(.pen-writing) :is(#reader, #paper) * {
+  touch-action: manipulation !important;
+}
 
 html, body {
   margin: 0; padding: 0;
