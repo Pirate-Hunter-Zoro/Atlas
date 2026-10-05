@@ -12,6 +12,12 @@ the `vision` route. The rules underneath:
   - A TURN REACHES THE HARNESS THE WAY THE DAEMON SENDS IT: the model on the
     command line, the key from `keys.env` through the environment, `PWD` equal
     to the directory the turn runs in.
+  - WHAT RAN IS READ FROM THE SESSION, not the argv: `opencode export` names
+    every answer's provider, and one that is not deepseek-flash fails. A
+    resume with no session id is not the same session, and a check.py the
+    turn rewrote is not doctor's check.
+  - THE INTERACTIVE SITTING IS PINNED LIKE A TURN: the TUI with `--pure`,
+    `-m`, the opener as `--prompt`, and the recipe's env.
   - AN IMAGE READ PROVES NOTHING IF ANOTHER TOOL COULD HAVE READ IT. Check 4a
     fails a turn that shelled out, whatever digits it brought back.
   - ONE FAILURE IS EXIT 1, with the provider's own sentence on the line, and
@@ -69,6 +75,19 @@ cwd = os.getcwd()
 with open(os.path.join(state, "argv.jsonl"), "a") as fh:
     fh.write(json.dumps(argv) + "\n")
 
+# `opencode export <session>`: what the session's own record says answered.
+if "export" in argv:
+    sid = argv[argv.index("export") + 1]
+    if not os.path.isfile(os.path.join(state, "answered-" + sid)):
+        sys.exit("Session not found: " + sid)
+    who = open(os.path.join(state, "answered-" + sid)).read().split()
+    print(json.dumps({"info": {"id": sid}, "messages": [
+        {"info": {"role": "user", "model": {"providerID": "deepseek",
+                                             "modelID": "deepseek-flash"}}}] + [
+        {"info": {"role": "assistant", "providerID": w.split("/")[0],
+                  "modelID": w.split("/")[1]}} for w in who]}))
+    sys.exit(0)
+
 def emit(kind, sid, **kw):
     kw.update({"type": kind, "timestamp": int(time.time() * 1000),
                "sessionID": sid})
@@ -100,6 +119,15 @@ if "--continue" in argv:
 else:
     sid = "ses_%d" % len(os.listdir(state))
     open(last, "w").write(sid)
+# What the session's record will say answered this turn. `astray` puts one
+# answer on another provider, as a default model in opencode.jsonc would.
+with open(os.path.join(state, "answered-" + sid), "a") as fh:
+    fh.write("deepseek/deepseek-flash\n")
+    if mode == "astray" and "coding tools" in [a for a in argv if " " in a][0]:
+        fh.write("openrouter/some-free-model\n")
+real = sid
+if mode == "nosid" and "--continue" in argv:
+    sid = ""
 
 def step():
     emit("step_finish", sid, part={"type": "step-finish", "cost": 0.5,
@@ -122,7 +150,7 @@ if "code word for later" in prompt:
     step()
     emit("text", sid, part={"type": "text", "text": "Done."})
 elif "What code word" in prompt:
-    word = open(os.path.join(state, "word-" + sid)).read()
+    word = open(os.path.join(state, "word-" + real)).read()
     emit("text", sid, part={"type": "text",
                             "text": word if mode != "forget" else "no idea"})
 elif "coding tools" in prompt:
@@ -132,8 +160,11 @@ elif "coding tools" in prompt:
     tool("bash", command="python3 sum.py")
     write("sum.py", "print(sum(range(1, %d)))\n" % (n + 1))
     tool("edit", filePath="sum.py")
-    write("out.txt", "%d\n" % (n * (n + 1) // 2))
+    write("out.txt", "%d\n" % (n * (n + 1) // 2 if mode != "cheat" else 0))
     tool("bash", command="python3 sum.py > out.txt")
+    if mode == "cheat":
+        write("check.py", "print('PASS')\n")
+        tool("write", filePath="check.py")
     step()
 elif "image reading" in prompt:
     if mode == "shellout":
@@ -231,10 +262,15 @@ code, said, state = doctor()
 lines = [l for l in said.splitlines() if l.startswith(("PASS", "FAIL"))]
 check("a good provider passes all six lines and exits 0",
       code == 0 and len(lines) == 6 and all(l.startswith("PASS") for l in lines))
-check("each line names the harness and the route it used",
-      all("opencode -m deepseek/deepseek-flash" in l for l in lines
-          if " 4b " not in l and " 5 " not in l)
+check("the header names what the recipe asks for",
+      "which asks for opencode -m deepseek/deepseek-flash" in said)
+check("each turn's line names the route its session export recorded, not the "
+      "argv", all(re.search(r"opencode -> deepseek/deepseek-flash in ses_\d", l)
+                  for l in lines if " 4b " not in l and " 5 " not in l)
       and "seeing.ask -> 127.0.0.1 deepseek-flash" in said)
+check("the session was read back with opencode export",
+      any(json.loads(l)[1:2] == ["export"]
+          for l in open(os.path.join(state, "argv.jsonl"))))
 check("the resumed turn says --continue and recalls turn 1's word in turn 1's "
       "session", "--continue: recalled turn 1's code word in session ses_" in said)
 check("the coding turn's workspace check passed and its tools are named",
@@ -271,6 +307,34 @@ if ws:
 code, said, _ = doctor("forget")
 check("a resumed turn that forgot fails 3 and nothing else",
       code == 1 and re.search(r"^FAIL  3 ", said, re.M) is not None
+      and said.count("FAIL") == 1)
+if kept(said):
+    shutil.rmtree(os.path.dirname(kept(said)), ignore_errors=True)
+
+code, said, _ = doctor("astray")
+check("a turn whose session holds an answer from another provider fails, "
+      "though its work is right",
+      code == 1 and re.search(r"^FAIL  2 .*opencode -> deepseek/deepseek-flash, "
+                              r"openrouter/some-free-model in ses_\d+: 1 of 2 "
+                              r"answers came from openrouter/some-free-model",
+                              said, re.M) is not None
+      and said.count("FAIL") == 1)
+if kept(said):
+    shutil.rmtree(os.path.dirname(kept(said)), ignore_errors=True)
+
+code, said, _ = doctor("nosid")
+check("a resume that reports no session id fails 3 with a clear line, not as "
+      "the same session",
+      code == 1 and re.search(r"^FAIL  3 .*cannot tell whether it resumed turn "
+                              r"1: turn 3 reported no session id", said, re.M)
+      is not None and said.count("FAIL") == 1)
+if kept(said):
+    shutil.rmtree(os.path.dirname(kept(said)), ignore_errors=True)
+
+code, said, _ = doctor("cheat")
+check("a coding turn that rewrites check.py fails 2, though the check says PASS",
+      code == 1 and re.search(r"^FAIL  2 .*check.py is not the file doctor "
+                              r"wrote", said, re.M) is not None
       and said.count("FAIL") == 1)
 if kept(said):
     shutil.rmtree(os.path.dirname(kept(said)), ignore_errors=True)
@@ -319,6 +383,61 @@ check("an error event is read for the failure reason",
       == "Insufficient Balance (exit 1)")
 check("a turn's PWD is the directory it runs in",
       tutor.at_root("/tmp/x", {"PWD": "/elsewhere"})["PWD"] == "/tmp/x")
+
+check("a row priced at exactly $0.0 is priced",
+      tutor.doctor_priced({"rate": {"window": "off"}, "usd": 0.0}))
+check("a row with no usd, or a non-number, is not",
+      not tutor.doctor_priced({"rate": {"window": "off"}})
+      and not tutor.doctor_priced({"rate": {"window": "off"}, "usd": None})
+      and not tutor.doctor_priced({"rate": {"window": "off"}, "usd": True})
+      and not tutor.doctor_priced({"usd": 0.1}))
+check("a turn's session id is read from OpenCode, Claude and Codex output",
+      tutor.turn_session('{"type":"text","sessionID":"ses_a"}') == "ses_a"
+      and tutor.turn_session('{"type":"result","session_id":"u-1"}') == "u-1"
+      and tutor.turn_session('{"type":"thread.started","thread_id":"t"}') == "t"
+      and tutor.turn_session('{"type":"text","sessionID":""}') == "")
+
+# ---- the interactive sitting -------------------------------------------------
+# A bare positional to the OpenCode TUI is a project path, so the opener is
+# `--prompt`, and the sitting runs with the recipe's env exactly as a turn does.
+with open(paths.KEYS, "w", encoding="utf-8") as fh:
+    fh.write("DEEPSEEK_API_KEY=sk-fake\n")
+os.chmod(paths.KEYS, 0o600)
+keys.forget()
+opener = "Read live/BRIEF.md, then begin."
+course = os.path.join(box, "course")
+argv, env, told = tutor.interactive_launch(ds, course, opener)
+check("an interactive deepseek sitting is the TUI pinned to deepseek-flash, "
+      "--pure, the opener as --prompt",
+      argv == ["opencode", "--pure", "-m", "deepseek/deepseek-flash",
+               "--prompt", opener] and told is None)
+check("and it runs with the recipe's env: keys.env's key, the overlay, PWD",
+      env.get("DEEPSEEK_API_KEY") == "sk-fake"
+      and "{env:DEEPSEEK_API_KEY}" in env.get("OPENCODE_CONFIG_CONTENT", "")
+      and json.loads(env["OPENCODE_CONFIG_CONTENT"])["permission"]
+      == {"skill": "deny"} and env.get("PWD") == course)
+os.environ["TUTOR_TEST_LEAK"] = "x"
+argv, env, told = tutor.interactive_launch(
+    {"cmd": ["mine"], "prompt": "argv", "env": {"MINE_KEY": "{DEEPSEEK_API_KEY}",
+                                                "MINE_MODE": "on"}},
+    course, opener)
+check("any recipe with env gets it applied on the interactive launch",
+      argv == ["mine", opener] and env.get("MINE_KEY") == "sk-fake"
+      and env.get("MINE_MODE") == "on" and env.get("TUTOR_TEST_LEAK") == "x")
+argv, env, told = tutor.interactive_launch(
+    tutor.DEFAULT_CONFIG["agents"]["claude"], course, opener)
+check("claude is unchanged: the opener appended, this environment, PWD only",
+      argv == ["claude", opener] and told is None
+      and env == dict(os.environ, PWD=course))
+argv, env, told = tutor.interactive_launch(
+    tutor.DEFAULT_CONFIG["agents"]["opencode"], course, opener)
+check("plain opencode takes the opener as --prompt too",
+      argv == ["opencode", "--prompt", opener])
+argv, env, told = tutor.interactive_launch(
+    tutor.DEFAULT_CONFIG["agents"]["aider"], course, opener)
+check("a prompt: none recipe launches bare and the opener is told",
+      argv == ["aider"] and told == opener)
+del os.environ["TUTOR_TEST_LEAK"]
 
 # `tutor cost` on unpriced turns says so instead of $0.00.
 plain = os.path.join(box, "plain")

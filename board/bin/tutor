@@ -86,6 +86,10 @@ DEFAULT_CONFIG = {
     "agents": {
         # `prompt: argv`  -- the brief is passed as a final argument
         # `prompt: none`  -- the agent is launched bare and told where to read
+        # `prompt: --flag` -- the brief is passed as that flag's value
+        #
+        # `cmd` is the interactive launch. It runs with the recipe's `env`
+        # applied and `PWD` set to the course, exactly as a headless turn does.
         #
         # `headless` is how to run one turn without a terminal: a command that
         # takes a prompt, does the work, and exits. {prompt} is substituted.
@@ -218,7 +222,12 @@ DEFAULT_CONFIG = {
         # OpenRouter key in the home directory, and posted the slate to two
         # other providers from a script it wrote. A tutor turn needs no skill.
         "deepseek": {
-            "cmd": ["opencode"], "prompt": "argv",
+            # THE INTERACTIVE SITTING IS PINNED THE SAME WAY. A bare positional
+            # to the TUI is a project directory, not a message, so the opener
+            # goes in as `--prompt`. The TUI asks before a tool runs, so there
+            # is no `--auto`; `--pure`, `-m` and the `env` overlay are the same.
+            "cmd": ["opencode", "--pure", "-m", "deepseek/deepseek-flash"],
+            "prompt": "--prompt",
             "headless_first": ["opencode", "--pure", "run", "--auto",
                                "-m", "deepseek/deepseek-flash", "{prompt}"],
             "headless": ["opencode", "--pure", "run", "--auto",
@@ -310,7 +319,7 @@ DEFAULT_CONFIG = {
             },
         },
         "opencode": {
-            "cmd": ["opencode"], "prompt": "argv",
+            "cmd": ["opencode"], "prompt": "--prompt",
             "headless_first": ["opencode", "run", "{prompt}"],
             "headless": ["opencode", "run", "--continue", "{prompt}"],
         },
@@ -364,10 +373,11 @@ DEFAULT_CONFIG = {
             # AND NO MODEL PINNED, DELIBERATELY, which is the opposite of the
             # decision taken for deepseek above. There an unset model is
             # whatever opencode.jsonc names, which on this machine is another
-            # provider entirely. Codex has no such trap: unset means `~/.codex/config.toml`, which is this
-            # machine owner's own choice of model, and overriding it from here
-            # would be this file making a teaching decision it does not get to
-            # make. `env` or `-c model=...` is where it goes if that changes.
+            # provider entirely. Codex has no such trap: unset means
+            # `~/.codex/config.toml`, which is this machine owner's own choice
+            # of model, and overriding it from here would be this file making a
+            # teaching decision it does not get to make. `env` or
+            # `-c model=...` is where it goes if that changes.
             "env": {},
             # No price table, so a Codex turn records its tokens and NO dollar
             # figure. That is the honest answer rather than a wrong number: the
@@ -891,6 +901,29 @@ def turn_environment(spec, base=None):
         if filled is not None:
             env[str(name)] = filled
     return env
+
+
+def interactive_launch(spec, root, opener):
+    """The terminal session a recipe opens: `(argv, env, told)`.
+
+    `argv` is `cmd` with the opener placed the way the recipe's `prompt` says:
+    `argv` appends it, a value starting `-` passes it as that flag's value, and
+    anything else leaves it to `told`, the line printed for the person to
+    paste. `env` is what a headless turn of the same recipe runs with: the
+    recipe's `env` through `turn_environment`, and `PWD` naming the course,
+    because OpenCode takes its directory from `PWD`. A recipe with no `env`
+    runs with this process's environment and only `PWD` set.
+    """
+    cmd = list(spec.get("cmd") or [])
+    how = spec.get("prompt")
+    told = None
+    if how == "argv":
+        cmd.append(opener)
+    elif isinstance(how, str) and how.startswith("-"):
+        cmd += [how, opener]
+    else:
+        told = opener
+    return cmd, at_root(root, turn_environment(spec)), told
 
 
 def turn_words(path, offset):
@@ -5944,17 +5977,79 @@ WRITE_TOOLS = ("write",) + EDIT_TOOLS
 SHELL_TOOLS = ("bash", "shell")
 
 
-def doctor_route(spec):
-    """The harness, the model and the host a recipe's turns use, as one phrase."""
+def doctor_asked(spec):
+    """`(harness, model)` a recipe's turns ASK for: argv[0] and its `-m`."""
     argv = list(spec.get("headless_first") or spec.get("headless") or [])
     model = None
     for flag in ("-m", "--model"):
         if flag in argv and argv.index(flag) + 1 < len(argv):
             model = argv[argv.index(flag) + 1]
-    harness = os.path.basename((spec.get("cmd") or argv or ["?"])[0])
+    return os.path.basename((argv or spec.get("cmd") or ["?"])[0]), model
+
+
+def doctor_route(spec):
+    """What a recipe asks for, as one phrase. A claim, not a measurement."""
+    harness, model = doctor_asked(spec)
     host = probe_host(agent_probe_urls(spec) or [])
     return "%s%s%s" % (harness, " -m %s" % model if model else "",
                        " -> %s" % host if host else "")
+
+
+def turn_session(said):
+    """The conversation id a turn reported, or "" if it reported none.
+
+    OpenCode's events carry `sessionID`, Claude Code's result `session_id`,
+    Codex's `thread.started` a `thread_id`. The last one seen wins.
+    """
+    found = ""
+    for line in (said or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(d, dict):
+            for key in ("sessionID", "session_id", "thread_id"):
+                if isinstance(d.get(key), str) and d[key]:
+                    found = d[key]
+    return found
+
+
+def session_models(harness, session, root, env=None):
+    """`(models, problem)`: every assistant message's `provider/model` in an
+    OpenCode session, read from `opencode export` rather than from the argv
+    that asked for it. `problem` is a sentence when the export cannot say."""
+    try:
+        got = subprocess.run([harness, "--pure", "export", session],
+                             cwd=root, env=at_root(root, env),
+                             stdin=subprocess.DEVNULL, capture_output=True,
+                             text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return [], "`%s export %s` did not run: %s" % (harness, session, exc)
+    out = got.stdout or ""
+    try:
+        data = json.loads(out[out.index("{"):])
+    except ValueError:
+        return [], "`%s export %s` gave no session (exit %d)" % (
+            harness, session, got.returncode)
+    models = []
+    for m in data.get("messages") or []:
+        info = (m or {}).get("info") or {}
+        if info.get("role") == "assistant":
+            models.append("%s/%s" % (info.get("providerID"), info.get("modelID")))
+    if not models:
+        return [], "session %s holds no answer from any model" % session
+    return models, None
+
+
+def doctor_priced(row):
+    """A cost row carries a dollar figure: a rate, and `usd` present and a
+    number. $0.0 is a price; a missing key is not."""
+    usd = row.get("usd")
+    return (isinstance(row.get("rate"), dict) and bool(row["rate"])
+            and isinstance(usd, (int, float)) and not isinstance(usd, bool))
 
 
 def doctor_tools(said):
@@ -5973,12 +6068,16 @@ def cmd_doctor(cfg, args):
         tutor doctor claude       any other built-in recipe
         tutor doctor --keep       and leave the workspace for reading
 
-    Five checks, one line each, naming the harness and the route:
+    Five checks, one line each. The header names what the recipe asks for;
+    each turn's line names what its session recorded (`opencode export`), and
+    an answer from any other model fails that check:
 
       1. a text turn: `headless_first` writes a card and exits 0;
       2. a coding turn: the turn writes a file, edits it, runs it through the
-         shell, and the workspace's `check` passes;
-      3. a resumed turn: `headless` remembers a word given in turn 1;
+         shell, and the workspace's `check` -- still byte for byte doctor's --
+         passes;
+      3. a resumed turn: `headless` remembers a word given in turn 1, in a
+         session both turns name;
       4. an image, twice: (a) the turn opens a PNG with its own tools; (b) the
          recipe's `vision` route reads one through `seeing.ask`, with the witness
          code drawn in the strip and absent from the prompt. 4b must pass; 4a
@@ -6008,7 +6107,12 @@ def cmd_doctor(cfg, args):
     first = spec.get("headless_first") or spec.get("headless")
     resume = spec.get("headless") or first
     route = doctor_route(spec)
-    print("tutor doctor: the built-in `%s` recipe, %s" % (name, route))
+    harness, want = doctor_asked(spec)
+    # WHAT RAN IS READ BACK FROM THE SESSION, not from this argv: an OpenCode
+    # turn's session is exported and every answer in it must name `want`.
+    confirms = spec.get("usage") == "opencode-json" and bool(want)
+    print("tutor doctor: the built-in `%s` recipe, which asks for %s"
+          % (name, route))
     shadow = config_shadows().get(name)
     if shadow:
         print("  %s holds its own copy of `%s` (%s differ). Turns on this "
@@ -6036,8 +6140,9 @@ def cmd_doctor(cfg, args):
     with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "tutor doctor", "stance": "do",
                    "check": "python3 check.py"}, fh)
-    with open(os.path.join(ws, "check.py"), "w", encoding="utf-8") as fh:
-        fh.write(DOCTOR_CHECK % {"want": n * (n + 1) // 2})
+    check_bytes = (DOCTOR_CHECK % {"want": n * (n + 1) // 2}).encode("utf-8")
+    with open(os.path.join(ws, "check.py"), "wb") as fh:
+        fh.write(check_bytes)
     git = ["git", "-C", ws, "-c", "user.name=tutor doctor",
            "-c", "user.email=doctor@localhost"]
     for step in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "doctor"]):
@@ -6052,8 +6157,13 @@ def cmd_doctor(cfg, args):
     turns = [0]
     passed = []
 
+    # Set by `turn` when the session's own record names another model: the
+    # check then fails whatever the turn did.
+    astray = [None]
+
     def turn(template, prompt, fresh):
         turns[0] += 1
+        astray[0] = None
         cmd = with_usage(spec, [a.replace("{prompt}", prompt) for a in template])
         log.write("\n=== doctor turn %d (%s) ===\n"
                   % (turns[0], "fresh" if fresh else "resumed"))
@@ -6077,7 +6187,21 @@ def cmd_doctor(cfg, args):
         elif seeing.blind_answer(turn_text(said)):
             err = ("the model answered around %s"
                    % seeing.blind_answer(turn_text(said)))
-        return err, said, time.time() - t0
+        where = "%s (provider not confirmed: no session export)" % route
+        if confirms and not err:
+            sid = turn_session(said)
+            models, problem = (session_models(harness, sid, ws, env) if sid
+                               else ([], "the turn reported no session id"))
+            stray = sorted(set(m for m in models if m != want))
+            seen = ", ".join(sorted(set(models))) or "?"
+            where = "%s -> %s in %s" % (harness, seen, sid or "no session")
+            if problem:
+                astray[0] = "provider unconfirmed: %s" % problem
+            elif stray:
+                astray[0] = ("%d of %d answers came from %s, not %s"
+                             % (sum(m != want for m in models), len(models),
+                                ", ".join(stray), want))
+        return err, said, time.time() - t0, where, astray[0]
 
     def line(number, label, ok, how, where=route):
         passed.append(ok)
@@ -6090,14 +6214,17 @@ def cmd_doctor(cfg, args):
         return "" if used is None else "; tools %s" % (", ".join(used) or "none")
 
     # 1, then 3 straight after it, so `--continue` resumes turn 1's session.
-    err, said1, took = turn(first, DOCTOR_TEXT_PROMPT % {"secret": secret}, True)
+    err, said1, took, at, off = turn(
+        first, DOCTOR_TEXT_PROMPT % {"secret": secret}, True)
+    err = err or off
     card = os.path.join(live, "cards", "001.md")
     wrote = os.path.isfile(card) and os.path.getsize(card) > 0
     line("1", "text turn", not err and wrote,
          "%s (%.0f s)" % (err or ("card written, exit 0" if wrote
-                                  else "exit 0 but no live/cards/001.md"), took))
+                                  else "exit 0 but no live/cards/001.md"), took),
+         where=at)
 
-    err, said3, took = turn(resume, DOCTOR_RESUME_PROMPT, False)
+    err, said3, took, at, off = turn(resume, DOCTOR_RESUME_PROMPT, False)
     on_disk = []
     for top, dirs, files in os.walk(ws):
         dirs[:] = [d for d in dirs if d != ".git"]
@@ -6109,31 +6236,50 @@ def cmd_doctor(cfg, args):
                         on_disk.append(f)
             except OSError:
                 pass
-    one = read_opencode_usage(said1).get("session") or ""
-    two = read_opencode_usage(said3).get("session") or ""
-    same = (not one or not two) or one == two
+    # A MISSING ID IS NOT THE SAME SESSION. Without both ids nothing says the
+    # resume continued turn 1 rather than some other conversation.
+    one, two = turn_session(said1), turn_session(said3)
+    same = bool(one and two) and one == two
     recalled = secret in turn_text(said3)
-    line("3", "resumed turn", not err and recalled and not on_disk and same,
+    line("3", "resumed turn",
+         not err and not off and recalled and not on_disk and same,
          "%s (%.0f s)" % (
-             err or ("the code word was written to %s, so recalling it proves "
-                     "nothing" % ", ".join(on_disk) if on_disk
+             err or ("cannot tell whether it resumed turn 1: turn %s "
+                     "reported no session id" % " and turn ".join(
+                         t for t, sid in (("1", one), ("3", two)) if not sid)
+                     if not (one and two)
+                     else off if off
+                     else "the code word was written to %s, so recalling it "
+                          "proves nothing" % ", ".join(on_disk) if on_disk
                      else "resumed a different session (%s, not %s)" % (two, one)
                      if not same
                      else "recalled turn 1's code word%s"
                      % (" in session %s" % one if one else "") if recalled
                      else "did not recall turn 1's code word: %s"
                      % turn_text(said3).strip()[:120].replace("\n", " ")),
-             took), where=route + " --continue")
+             took), where=at + ", --continue")
 
-    err, said2, took = turn(first, DOCTOR_CODE_PROMPT % {"n": n}, True)
-    chk, _ = config.clean_check("python3 check.py")
+    err, said2, took, at, off = turn(first, DOCTOR_CODE_PROMPT % {"n": n}, True)
+    err = err or off
+    # THE CHECK IS DOCTOR'S, BYTE FOR BYTE, or its PASS is the model's word.
+    # The turn has a shell and an edit tool in the same directory.
     try:
-        ran = subprocess.run(chk["all"], cwd=ws, capture_output=True, text=True,
-                             timeout=60, env=at_root(ws))
-        verdict = (ran.stdout + ran.stderr).strip().splitlines()[-1:] or [""]
-        checked = ran.returncode == 0
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        verdict, checked = [str(exc)], False
+        with open(os.path.join(ws, "check.py"), "rb") as fh:
+            intact = fh.read() == check_bytes
+    except OSError:
+        intact = False
+    chk, _ = config.clean_check("python3 check.py")
+    if not intact:
+        verdict, checked = ["check.py is not the file doctor wrote, so its "
+                            "verdict proves nothing"], False
+    else:
+        try:
+            ran = subprocess.run(chk["all"], cwd=ws, capture_output=True,
+                                 text=True, timeout=60, env=at_root(ws))
+            verdict = (ran.stdout + ran.stderr).strip().splitlines()[-1:] or [""]
+            checked = ran.returncode == 0
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            verdict, checked = [str(exc)], False
     used = doctor_tools(said2)
     tooled = used is None or (any(t in EDIT_TOOLS for t in used)
                               and any(t in SHELL_TOOLS for t in used)
@@ -6144,11 +6290,12 @@ def cmd_doctor(cfg, args):
                      else "workspace check passed, but no edit and shell tool "
                           "call was seen" if checked
                      else "workspace check failed: %s" % verdict[0][:120]),
-             tools_note(said2), took))
+             tools_note(said2), took), where=at)
 
     code_a = seeing._code()
     seeing._token_png(code_a, os.path.join(ws, "slate.png"))
-    err, said4, took = turn(first, DOCTOR_IMAGE_PROMPT, True)
+    err, said4, took, at, off = turn(first, DOCTOR_IMAGE_PROMPT, True)
+    err = err or off
     try:
         with open(os.path.join(ws, "seen.txt"), encoding="utf-8") as fh:
             seen = fh.read().strip()
@@ -6174,7 +6321,7 @@ def cmd_doctor(cfg, args):
                      if not opened
                      else "read %s off slate.png" % code_a if read_it
                      else "wrote %r for %s" % (seen[:40], code_a)),
-             tools_note(said4), took))
+             tools_note(said4), took), where=at)
 
     vision = spec.get("vision") or {}
     where = ("%s %s" % (probe_host([vision["endpoint"]]), vision.get("model"))
@@ -6227,8 +6374,7 @@ def cmd_doctor(cfg, args):
         ok = False
         how = ("%d of %d turns wrote a line to live/cost.jsonl; the `%s` parser "
                "found no usage in the rest" % (len(rows), turns[0], spec["usage"]))
-    elif spec.get("prices") and not all(r.get("rate") and r.get("usd")
-                                        for r in rows):
+    elif spec.get("prices") and not all(doctor_priced(r) for r in rows):
         ok = False
         how = "the turns were counted but `priced` wrote no dollar figure"
     else:
@@ -7277,7 +7423,6 @@ def main(argv):
               file=sys.stderr)
         return 1
 
-    cmd = list(spec.get("cmd", []))
     opener = ("Read live/BRIEF.md, then run `board brief` and `board recap` and "
               "begin. Those two commands are the method, this course's unbendable "
               "rules, the handoff and the lesson; AI_INSTRUCTIONS.md and "
@@ -7285,10 +7430,9 @@ def main(argv):
               "and reading either in full costs about ten thousand tokens you "
               "will then carry all session. The board is already running; do not "
               "start another.")
-    if spec.get("prompt") == "argv":
-        cmd.append(opener)
-    else:
-        print("\n  then tell it:  %s" % opener)
+    cmd, env, told = interactive_launch(spec, course["root"], opener)
+    if told:
+        print("\n  then tell it:  %s" % told)
 
     print("\nstarting %s in %s\n" % (name, course["dir"]))
     # Say on the board that somebody is attached. `execvp` replaces this process
@@ -7301,7 +7445,7 @@ def main(argv):
                 started=time.time(), turns=0, last_error=None)
     try:
         os.chdir(course["root"])
-        os.execvp(cmd[0], cmd)          # hand the terminal over entirely
+        os.execvpe(cmd[0], cmd, env)    # hand the terminal over entirely
     except OSError as exc:
         print("could not start %s: %s" % (name, exc), file=sys.stderr)
         print("check `tutor --agents`, or edit %s" % CONFIG, file=sys.stderr)

@@ -2696,15 +2696,18 @@ request with a 502 if you ask it to.
     "claude":   { "cmd": ["claude"],   "prompt": "argv",
                   "headless_first": ["claude", "-p", "{prompt}"],
                   "headless":       ["claude", "-p", "{prompt}", "--continue"] },
-    "opencode": { "cmd": ["opencode"], "prompt": "argv" },
+    "opencode": { "cmd": ["opencode"], "prompt": "--prompt" },
     "aider":    { "cmd": ["aider"],    "prompt": "none" }
   }
 }
 ```
 
 `cmd` is whatever launches it. `prompt: "argv"` appends the opening brief as a final argument;
-`prompt: "none"` launches it bare and prints the one line to paste. Add an entry for anything that
-runs in a terminal — nothing in the launcher knows which assistant it is starting.
+a value starting `-` passes it as that flag (`--prompt` for the OpenCode TUI, which reads a bare
+positional as a project directory); `prompt: "none"` launches it bare and prints the one line to
+paste. The launch runs with the recipe's `env` and `PWD` set to the course, as a headless turn does
+(`interactive_launch`). Add an entry for anything that runs in a terminal — nothing in the launcher
+knows which assistant it is starting.
 
 #### A provider is a recipe plus a key, and that is the whole of it
 
@@ -2760,17 +2763,19 @@ PHI, on the cluster, and DeepSeek never runs there.
 
 **`tutor doctor` proves a built-in recipe against its live provider** (`deepseek` unless another is
 named; a few cents a run). It works in a throwaway git workspace and prints one PASS or FAIL line a
-check, naming the harness and the route:
+check. The header names what the recipe asks for; each turn's line names what its session
+recorded, read back with `opencode export`, and fails if any answer came from another model:
 
 1. a text turn: `headless_first` writes a card and exits 0;
 2. a coding turn: the turn writes a file, edits it, runs it in the shell, and the workspace `check`
-   passes;
-3. a resumed turn: `headless` recalls a word given in turn 1, in turn 1's session;
+   passes — only if `check.py` is still byte for byte the file doctor wrote;
+3. a resumed turn: `headless` recalls a word given in turn 1, in turn 1's session. A turn that
+   reports no session id fails: nothing then says it resumed turn 1;
 4. an image twice: (a) the turn opens a PNG with its own read tool and no other tool; (b) the
    recipe's `vision` route reads one through `seeing.ask`, the witness code drawn in the strip and
    absent from the prompt;
-5. usage and price: every turn wrote a priced line to `live/cost.jsonl`, and `tutor cost` on the
-   workspace is printed beneath.
+5. usage and price: every turn wrote a line to `live/cost.jsonl` carrying a rate and a numeric
+   `usd` ($0.0 counts), and `tutor cost` on the workspace is printed beneath.
 
 It tests the built-in recipe, not this machine's config, and names any machine copy that shadows it.
 It writes nothing outside the workspace, exits 1 on any failure, and then keeps the workspace
@@ -2825,7 +2830,8 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
   "agents": {
     "claude":   { "cmd": ["claude"], "prompt": "argv",
                   "headless": ["claude", "-p", "{prompt}", "--continue"] },
-    "deepseek": { "cmd": ["opencode"], "prompt": "argv",
+    "deepseek": { "cmd": ["opencode", "--pure", "-m", "deepseek/deepseek-flash"],
+                  "prompt": "--prompt",
                   "headless": ["opencode", "--pure", "run", "--auto",
                                "-m", "deepseek/deepseek-flash", "--continue", "{prompt}"] }
   }
