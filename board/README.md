@@ -940,7 +940,9 @@ workspace, `<workspace>: cluster sync`, pushed by the same `publish`. The rules:
 - A held file and the workspace of a Colibri task that is queued, running, done and not yet
   checked, or failed stay the owner's, uncommitted, and do not skip the pass. A pass that
   cannot read the holds or the Colibri queue syncs nothing.
-- An untracked file is added unless ignored.
+- An untracked file is added unless ignored, and only as source or prose (`relay.SYNC_NEW`:
+  `.py`, `.sh`, `.sbatch`, `.md`, `.tex` and config files). A new table, text file, notebook or
+  dump may hold data and stays on the cluster, named. A tracked file syncs whatever its kind.
 - Each path passes `leaving.refused`, the check `board push` uses. It also passes `names_phi`
   on its path. A symlink, a file over 5 MB, a path origin also changed, and everything in a
   checkout without the policy are refused.

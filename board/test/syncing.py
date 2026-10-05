@@ -201,6 +201,8 @@ try:
     write(os.path.join(cws, "notes", "idea.md"), "a new file\n")
     write(os.path.join(cws, "notes", "SESSION-3.md"), "named for a session\n")
     write(os.path.join(cws, "scratch.tmp"), "ignored\n")
+    write(os.path.join(cws, "notes", "rows.csv"), "id,value\nA1,3\n")
+    write(os.path.join(cws, "notes", "dump.txt"), "a record\n")
     os.makedirs(os.path.join(cws, "phi"))
     fenced._SEEN.clear()
     leaving._POLICY["root"] = None
@@ -235,6 +237,10 @@ try:
           "board push" in left.get("research/Proj/src/quote.py", "")
           and origin_file("research/Proj/src/quote.py").startswith("fatal")
           and os.path.isfile(os.path.join(cws, "src", "quote.py")))
+    check("a new table or text file stays on the cluster, named: it may hold data",
+          all("by hand" in left.get("research/Proj/notes/%s" % f, "")
+              and origin_file("research/Proj/notes/%s" % f).startswith("fatal")
+              for f in ("rows.csv", "dump.txt")))
     check("an ignored file is not added, and not named",
           "research/Proj/scratch.tmp" not in left
           and origin_file("research/Proj/scratch.tmp").startswith("fatal"))
@@ -243,6 +249,8 @@ try:
           and "mid-step" not in origin_file("research/Proj/src/held.py")
           and "mid-step" in read(os.path.join(cws, "src", "held.py")))
     os.remove(os.path.join(cws, "notes", "SESSION-3.md"))
+    os.remove(os.path.join(cws, "notes", "rows.csv"))
+    os.remove(os.path.join(cws, "notes", "dump.txt"))
     os.remove(os.path.join(cws, "src", "quote.py"))
     git(cluster, "checkout", "--", "research/Proj/src/held.py")
     git(cluster, "rm", "-q", "research/Proj/relay/holds/h1.json")
