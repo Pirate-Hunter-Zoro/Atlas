@@ -58,6 +58,10 @@ export PSYCH_ASR_DATA
 DATA_ROOT="$PSYCH_ASR_DATA"
 INPUT_DIR="$DATA_ROOT/inbox"
 
+# A failed job prints its RELAY: lines -- stage, exception type, file and line,
+# counts -- and never a name from `phi/`. Here, so every recipe gets it.
+source "$_JOB_ENV_LIB/relay_trap.sh"
+
 VENV_ROOT="${PSYCH_ASR_VENV_ROOT:-/media/studies/ehr_study/analysis/mferguson/venvs}"
 MODELS_ROOT="${PSYCH_ASR_MODELS_ROOT:-/media/studies/ehr_study/analysis/mferguson/models}"
 ANACONDA_MODULE="${PSYCH_ASR_ANACONDA_MODULE:-Anaconda3/2025.06-0}"

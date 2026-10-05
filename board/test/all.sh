@@ -444,6 +444,28 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# A failed relay job is repaired on the Mac: a [repair] line wakes a doing turn
+# whatever the stance, `board brief` names the failure, and nothing loops.
+printf '%-12s ' "repair"
+if out="$(python3 test/repair.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# And the failure says what it was: the recipes' RELAY: helper, run for real
+# in a copy, prints names and counts on failure and nothing on success.
+printf '%-12s ' "relayhook"
+if out="$(python3 test/relayhook.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 # A sitting held at the cluster: the hold checked whole, the Mac refusing the
 # held files, the pull under the owner's edits, and round trips in a fenced
 # workspace, an open one with no thread file, and a course's homework.

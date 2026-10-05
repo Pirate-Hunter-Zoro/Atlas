@@ -10,6 +10,9 @@
 # exist on disk. Starts straight at the vLLM servers + prediction + analysis,
 # skipping the ~1h json/embedding re-run.
 
+# A failure prints its RELAY: lines (slurm_jobs/lib/relay_trap.sh).
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
 ENV_FILE="${SLURM_SUBMIT_DIR}/.env"
 # Source the file for NUM_VLLM_SERVERS, ENDPOINTS_DIR, COMPUTE_LLM_SIMILARITY, and other flags.
 set -a; source "${ENV_FILE}"; set +a

@@ -145,6 +145,11 @@ echo 'ValueError: patient 1234 has a bad value' >&2
 exit 1
 """
 
+DIAGNOSE = """#!/bin/bash
+#SBATCH --time=00:05:00
+echo "RELAY: has RESULTS_DIR/trained_models entries 0"
+"""
+
 SPINE = {
     "version": 1,
     "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": ""}],
@@ -184,6 +189,7 @@ try:
     write(os.path.join(proj, "threads.json"), json.dumps(SPINE))
     write(os.path.join(proj, "slurm", "sweep.sbatch"), RECIPE)
     write(os.path.join(proj, "slurm", "crash.sbatch"), CRASH)
+    write(os.path.join(proj, "slurm", "diagnose.sbatch"), DIAGNOSE)
     write(os.path.join(proj, "jobs.jsonl"), "")
     git(seed, "add", "-A")
     git(seed, "commit", "-q", "-m", "seed")
@@ -528,105 +534,92 @@ try:
           "--allowedTools" not in claude.argv
           and "Bash(board job:*)" not in denied)
 
-    # --- a fix turn: it diagnoses on the cluster, and the Mac fixes ------------
+    # --- a failed recipe: asked with a diagnostic, repaired on the Mac ---------
     file_from_mac({"id": "k1", "kind": "recipe", "thread": "knn",
                    "recipe": "slurm/crash.sbatch"})
     run_pass()
     k1 = load(os.path.join(cws, "relay", "reports", "k1.json"))
     slurm.run_job(k1["jobid"])
     run_pass()
-    check("a crash recipe fails, the origin of the fixes below",
-          load(os.path.join(cws, "relay", "reports", "k1.json"))["state"]
-          == "failed")
+    k1 = load(os.path.join(cws, "relay", "reports", "k1.json"))
+    check("a crash recipe fails, by its exception type, and its note names "
+          "no cluster turn", k1["state"] == "failed"
+          and k1["error"] == "ValueError" and "turn" not in k1["note"]
+          and "diagnostic recipe" in k1["note"])
     ok, problems = file_from_mac({"id": "fx1", "kind": "turn", "thread": "knn",
-                                  "brief": "Diagnose fix attempt 1 of 2 for "
-                                           "k1.", "fixes": "k1"})
+                                  "brief": "Diagnose it.", "fixes": "r2"})
     got = run_pass()
-    check("the Mac files fix turn fx1 and the pass submits it",
-          problems == [] and got["turn"] == "fx1")
-    fixer = Claude()
-    relay.run_turn(cws, "fx1", run=fixer)
-    prompt = fixer.argv[2]
-    check("a fix turn's prompt names the failed request, its log and the "
-          "thread's files, and says its note is public",
-          "src/knn.py" in prompt and "slurm/crash.sbatch" in prompt
-          and "The failed request is k1" in prompt
-          and "logs/job-%s.out" % k1["jobid"] in prompt
-          and "PUBLISHED" in prompt and "Copy no line of the log" in prompt)
-    check("it is told to edit nothing, and to start its note with CAUSE: and "
-          "FIX:, or UNKNOWN:",
-          "edit nothing" in prompt and "CAUSE:" in prompt and "FIX:" in prompt
-          and "UNKNOWN:" in prompt and "another engineer" in prompt)
-    denied = fixer.argv[fixer.argv.index("--disallowedTools") + 1:]
-    check("it is granted nothing: no `--allowedTools`",
-          "--allowedTools" not in fixer.argv)
-    check("and is denied its edit tools, `board job` and sbatch, and every "
-          "command that commits or pushes",
-          all(d in denied for d in relay.NO_EDIT + relay.NO_SUBMIT
-              + relay.NO_PUBLISH) and "Bash(board push:*)" in denied)
+    fx1 = load(os.path.join(cws, "relay", "reports", "fx1.json"))
+    check("a turn carrying `fixes` is refused on both machines: no model "
+          "diagnoses beside the data",
+          problems and "fx1" in got["refused"] and fx1["state"] == "refused"
+          and any("`fixes`" in p for p in fx1["problems"]))
 
     before = git(origin, "rev-parse", "main").strip()
-    write(relay.note_path(cws, "fx1"),
-          "CAUSE: the recipe exits 1 by design.\n"
-          "FIX: in slurm/crash.sbatch, make the last line exit 0. Same VARs.\n")
-    write(os.path.join(cws, "relay", "state", "fx1.exit"), "0\n")
-    fx1 = load(os.path.join(cws, "relay", "reports", "fx1.json"))
-    slurm.queue.pop(fx1["jobid"])
+    ok, problems = file_from_mac({"id": "dg1", "kind": "recipe",
+                                  "thread": "knn",
+                                  "recipe": "slurm/diagnose.sbatch",
+                                  "fixes": "k1"})
     got = run_pass()
-    fx1 = load(os.path.join(cws, "relay", "reports", "fx1.json"))
+    dg1 = load(os.path.join(cws, "relay", "reports", "dg1.json"))
+    check("the Mac files a diagnostic, a recipe like any other, and the pass "
+          "submits it", problems == [] and got["submitted"] == ["dg1"])
+    slurm.run_job(dg1["jobid"])
+    run_pass()
+    dg1 = load(os.path.join(cws, "relay", "reports", "dg1.json"))
     touched = set(git(origin, "log", "--name-only", "--format=",
                       "%s..main" % before).split())
-    check("a finished fix turn publishes its report and nothing else",
-          not got["error"] and fx1["state"] == "completed"
-          and fx1["note"].startswith("CAUSE:")
-          and touched == {"research/Proj/relay/reports/fx1.json"}
-          and "fixed" not in fx1 and "fix_withheld" not in fx1)
-
+    check("it completes with only its RELAY: lines, and publishes its reports "
+          "and nothing else", dg1["state"] == "completed"
+          and dg1["relay"] == ["has RESULTS_DIR/trained_models entries 0"]
+          and touched == {"research/Proj/relay/reports/dg1.json",
+                          "research/Proj/relay/requests/dg1.json"})
     git(mac, "pull", "-q", "--rebase")
-    rec = dict((r["request"], r) for r in jobs.relayed(mws))["fx1"]
+    rec = dict((r["request"], r) for r in jobs.relayed(mws))["dg1"]
     said = jobs.relay_sense(mws, rec)
-    check("the Mac's [job] line applies the FIX there, then reruns with "
-          "`board job --fixes`",
-          "Apply that FIX yourself" in said and "board push" in said
+    check("the Mac's [repair] line applies what it found, then reruns the "
+          "failed recipe with `board job --fixes`",
+          said.startswith("[repair]") and "it came back" in said
+          and "board push" in said
           and "board job knn --fixes k1 -- slurm/crash.sbatch" in said)
     check("and a plain rerun of the recipe is refused on the Mac meanwhile",
           jobs.open_fix(mws, "knn", "slurm/crash.sbatch") == "k1")
 
-    file_from_mac({"id": "fx2", "kind": "turn", "thread": "knn",
-                   "brief": "Diagnose fix attempt 2 of 2 for k1.",
-                   "fixes": "k1"})
+    for rid in ("rk2", "rk3"):
+        ok, problems = file_from_mac({"id": rid, "kind": "recipe",
+                                      "thread": "knn",
+                                      "recipe": "slurm/crash.sbatch",
+                                      "fixes": "k1"})
     got = run_pass()
-    check("a second fix turn is submitted", got["turn"] == "fx2")
+    check("two reruns are submitted: three attempts in all",
+          problems == [] and sorted(got["submitted"]) == ["rk2", "rk3"])
     git(mac, "pull", "-q", "--rebase")
-    write(os.path.join(mws, "relay", "requests", "fx3.json"), json.dumps(
-        {"id": "fx3", "kind": "turn", "thread": "knn", "brief": "again",
-         "fixes": "k1", "filed": time.time()}))
+    write(os.path.join(mws, "relay", "requests", "dg4.json"), json.dumps(
+        {"id": "dg4", "kind": "recipe", "thread": "knn",
+         "recipe": "slurm/diagnose.sbatch", "fixes": "k1",
+         "filed": time.time()}))
     git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "a third fix turn no Mac would file")
+    git(mac, "commit", "-q", "-m", "a fourth attempt no Mac would file")
     git(mac, "push", "-q")
     got = run_pass()
-    fx3 = load(os.path.join(cws, "relay", "reports", "fx3.json"))
-    check("a third fix turn for one request is refused at the cap",
-          "fx3" in got["refused"] and fx3["state"] == "refused"
-          and any("cap is 2" in p for p in fx3["problems"]))
+    dg4 = load(os.path.join(cws, "relay", "reports", "dg4.json"))
+    check("a fourth attempt for one request is refused at the cap, "
+          "diagnostic or not", "dg4" in got["refused"]
+          and dg4["state"] == "refused"
+          and any("cap is 3" in p for p in dg4["problems"]))
     git(mac, "pull", "-q", "--rebase")
-    rec = dict((r["request"], r) for r in jobs.relayed(mws))["fx3"]
+    rec = dict((r["request"], r) for r in jobs.relayed(mws))["dg4"]
     said = jobs.relay_sense(mws, rec)
     check("and its [job] line invites no refile",
           "Do not file it again" in said and "owner decides" in said
           and "through `board job`" not in said)
-    fx2 = load(os.path.join(cws, "relay", "reports", "fx2.json"))
-    write(relay.note_path(cws, "fx2"), "UNKNOWN: read the log.\n")
-    write(os.path.join(cws, "relay", "state", "fx2.exit"), "0\n")
-    slurm.queue.pop(fx2["jobid"])
-    run_pass()
-    file_from_mac({"id": "fx4", "kind": "turn", "thread": "knn",
-                   "brief": "x", "fixes": "r1"})
+    file_from_mac({"id": "dg5", "kind": "recipe", "thread": "knn",
+                   "recipe": "slurm/diagnose.sbatch", "fixes": "r1"})
     got = run_pass()
-    fx4 = load(os.path.join(cws, "relay", "reports", "fx4.json"))
-    check("the cluster refuses a fix turn whose request did not fail",
-          fx4["state"] == "refused"
-          and any("saying it failed" in p for p in fx4["problems"]))
+    dg5 = load(os.path.join(cws, "relay", "reports", "dg5.json"))
+    check("the cluster refuses an attempt whose request did not fail",
+          dg5["state"] == "refused"
+          and any("saying it failed" in p for p in dg5["problems"]))
 
     # --- what reaches origin is what the pass wrote -------------------------------
     write(os.path.join(cws, "exports", "results", "stray.csv"), "a,b\n1,2\n")

@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 119 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 121 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -794,9 +794,9 @@ board cannot see: its thread reads `open` while it runs and nobody hears when it
 workspace contract says so. `tutorboard/jobs.py` is the module; `test/jobs.py` is the suite.
 
 ```
-board job <thread> [--produces <p>]... [--export <p>]... [--fixes <id>] -- <recipe.sbatch> [VAR=value ...]
+board job <thread> [--produces <p>]... [--export <p>]... [--fixes <id>] [--fresh] -- <recipe.sbatch> [VAR=value ...]
 board job <thread> [--produces <p>]... -- sbatch <args>     raw form, Slurm machines only
-board ask-cluster <thread> [--fixes <id>] "<brief>"          a `turn` request
+board diagnose <thread> --fixes <id> -- <recipe.sbatch> [VAR=value ...]   `board job`, for a diagnostic
 board job --show                     every job and request, folded to its last state
 ```
 
@@ -811,12 +811,15 @@ may be left out where the sitting names one.
 **Without Slurm it files a relay request** (HANDOFF.md, "The relay", is the shape):
 `relay/requests/<id>.json`, id `<date>-<thread>-<recipe stem>` made unique, plus a `filed` epoch.
 `jobs.file_request` commits that one file through `save-and-push.sh` with it as the whole
-pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `board
-ask-cluster` files a `turn` request the same way. `--fixes <id>` on either links it to the
-recipe request that failed first; with Slurm, `board job` refuses it. Without Slurm, `board job`
-refuses a rerun of a recipe whose fix chain is open unless it carries `--fixes`
-(`jobs.open_fix`): a recipe request with fix turns filed for it, whose chain's newest recipe is
-this one and failed. A rerun outside the chain would restart the count of fix turns.
+pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `--fixes <id>`
+files an attempt to repair the recipe request that failed first: a rerun of its recipe, or a
+diagnostic, which is any other recipe. With Slurm, `board job` refuses it. Without Slurm,
+`board job` refuses a plain request whose recipe and values match the thread's newest such
+request while that request's repair is open (`jobs.open_fix`: the newest run of its recipe in
+the repair failed), because a rerun outside the repair would restart the count. `--fresh` files
+it as a new request anyway; it is the owner's way to start again, and a daemon turn is refused
+it. `board diagnose` is `board job` under another name and validates no differently. `board
+ask-cluster` is retired: it says what replaced it and files nothing.
 
 **One validator, both machines.** `jobs.validate` is pure; `jobs.check` hands it the workspace's
 context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
@@ -824,9 +827,10 @@ thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEA
 header does not declare or a value its pattern does not fully match (a comma, `=` or newline
 never passes), a `results/` export not marked aggregate on the thread, a `turn` where
 `tutorboard.json` lacks `relay.turns: true`, a `colibri` task where it lacks
-`relay.colibri: true`, a `fixes` that is not a filed recipe request on the same thread with
-no `fixes` of its own and a report saying it failed, and a third fix turn for one request
-(`jobs.MAX_FIXES`). A recipe declares each variable in its header as
+`relay.colibri: true`, a `fixes` on anything but a recipe, a `fixes` that is not a filed recipe
+request on the same thread with no `fixes` of its own and a report saying it failed, and a
+fourth attempt for one request, diagnostic or rerun (`jobs.MAX_FIXES`, 3, counted off
+`relay/requests/`). A recipe declares each variable in its header as
 `#RELAY-VAR NAME PATTERN`; `ALL`, `NONE`, `PATH`, `LD_PRELOAD` and the like are never accepted.
 The Mac refuses before it commits; the cluster calls it again with `mine=True` before it runs.
 
@@ -894,13 +898,7 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
    PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
    The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
-   A fix turn is a turn whose request carries `fixes`, and it is read-only like any other. Its
-   prompt (`relay.fix_prompt`) names the failed request's log and the thread's files. It
-   is told to edit nothing and is denied `Edit`, `Write` and `NotebookEdit`; a stray change
-   is never published either, because the pass commits only reports and exports. It is also
-   denied `board job` and `sbatch`, because on the cluster those submit outside the relay. Its note, public under the
-   same rules, starts `CAUSE:` with one sentence, then `FIX:` with the exact change in words
-   and code identifiers, or `UNKNOWN:` with what it checked. No line of the log.
+   No turn diagnoses a failed job: a `turn` cannot carry `fixes`.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
 
@@ -913,6 +911,21 @@ matched note is withheld and stays in `relay/state/`. An export is copied only i
 TRD-EHR's `.gitignore` carries `!exports/**` for that. A refused export is listed in
 `export_refused` with its reason.
 
+**A recipe says why it failed, behind `RELAY:`.** Every TRD-EHR recipe sources
+`slurm_jobs/lib/relay_trap.sh` first, after `set -e`; PSYCH-ASR's `job_env.sh` sources its
+twin. On a non-zero exit only, its EXIT trap prints `recipe <path> failed: exit <n> after line
+<n>, checkout <sha>`. It keeps the exit status, writes no file, and runs a recipe's own cleanup
+through `relay_on_exit`, since a second `trap ... EXIT` would replace it. It puts `slurm_jobs/lib`
+on `PYTHONPATH`, where `sitecustomize.py` installs `relay_hook.py`'s excepthook in every Python.
+That prints the exception type, file and line, the step, a library's own frame, a missing file,
+the inputs the failing frames held with row or byte counts, and shapes. Never a value, a row or
+a message. A path is its `.env` key (`RELAY_PATH_KEYS`). Its basename is printed only under
+`RELAY_OPEN_KEYS` (TRD-EHR: `RESULTS_DIR`, `EMBEDDINGS_DIR`) and never when it looks like an id,
+because per-patient files are named by patient id. PSYCH-ASR (`RELAY_NAMES=0`) names no file at
+all, only extensions. `python -m relay_hook` is the diagnostic probe, under the same rules;
+TRD-EHR's `slurm_jobs/quick_runs/diagnose.sbatch` runs it and produces nothing. The two Python
+copies are one file. `test/relayhook.py` runs them for real.
+
 **The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
 `/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
 skip reason, the last error and the last pushed commit.
@@ -922,17 +935,24 @@ also runs `jobs.hear`: it diffs `relay/reports/` from the commit it last heard
 now `completed`, `failed` or `refused` is claimed once per state and dropped as a `[job]` line
 through `jobs.drop`; `jobs.relay_sense` writes it from the report alone (state, exit, which
 `produces` exist on the cluster, exports landed, the `RELAY:` lines, the note), because the log
-stays on the cluster. A failed recipe in a workspace with `relay.turns: true` tells the turn to
-file the diagnosis itself, `board ask-cluster <thread> --fixes <first id>`, with the brief
-written by code. A fix turn whose note gives `CAUSE:` and `FIX:` tells the Mac turn to apply the
-fix in the thread's files and recipe, run the workspace's `check` and the thread's own, ship it
-with `board push`, then rerun with the exact `board job --fixes` command built from the
-chain's latest recipe. A failed check stops it before the rerun. An `UNKNOWN:` note, any other
-note, or a failure after the second fix attempt ends the chain, and the card says what was
-checked and that the owner decides. A refused fix turn or rerun ends it the same way, never
-inviting a refile. Where relay turns are off, a failed one names `board ask-cluster` and the
-opt-in. Filing a request records HEAD as heard first, so a report in the very next pull is heard. The first look
-in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
+stays on the cluster. Filing a request records HEAD as heard first, so a report in the very
+next pull is heard. The first look in a clone, and a workspace with no `relay/`, hear nothing.
+`test/hearing.py` is the suite.
+
+**A failed recipe wakes a `[repair]` turn on the Mac.** A recipe that failed, and a diagnostic
+that completed, drop `[repair]` instead of `[job]` (`jobs.repairs`), carrying the request id.
+It is a doing turn whatever the workspace teaches under, wired like a mission: `doing_now` in
+`bin/tutor` gives it the doing clock, and `board brief` answers doing for it off `turn_signal` in
+`live/agent.json`. The brief prints `jobs.repair_brief` under the stance: the request, its
+recipe, the file and line from its `RELAY:` lines, the recipe line it stopped after, and
+`relay/reports/<id>.json` to read whole. The line offers two routes. A: fix it in the thread's
+files and recipe, run the workspace's `check` and the thread's own, ship with `board push`, and
+rerun with the exact `board job --fixes` command built from the latest rerun. A failed check or
+a refused push stops it before the rerun. B: where the report does not say enough, file a
+diagnostic with `board diagnose`, naming the workspace's `diagnose*.sbatch` recipes
+(`jobs.diagnostics`). The last attempt offers no B. Past `jobs.MAX_FIXES` the line lists each
+attempt and the owner decides; a refused attempt ends it the same way, never inviting a refile.
+A rerun that completes closes the repair. `test/repair.py` is the suite.
 
 **The pull keeps time with the requests.** `scripts/tutor-pull` runs `tutor pull --hear` every
 time its timer fires (`scripts/launchd/tutor-pull.plist`, every 20 s), then the daily
@@ -940,7 +960,7 @@ time its timer fires (`scripts/launchd/tutor-pull.plist`, every 20 s), then the 
 `jobs.pull_due` says so — every `holds.POLL_SECONDS` (20 s) while a hold stands, every
 `jobs.PULL_BUSY` (120 s) while any workspace has a request out, every `jobs.PULL_IDLE` (3600 s)
 otherwise, stamped in `~/.local/state/tutor-pull.heard` — and hears every workspace on every
-run: `jobs.hear` drops `[job]` for a request's report, `holds.wake` drops `[coach]` for a held
+run: `jobs.hear` drops `[job]` or `[repair]` for a request's report, `holds.wake` drops `[coach]` for a held
 step's check, and `jobs.hear` skips check reports so a check never wakes both. A timer firing a few seconds early still counts
 (`jobs.PULL_SLACK`). Where Slurm is, it does nothing: the relay pulls there. `install.sh` loads
 the launchd agent on a Mac. `tutor pull --hear --status` says the cadence.

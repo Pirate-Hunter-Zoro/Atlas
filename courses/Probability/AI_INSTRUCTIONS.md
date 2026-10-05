@@ -679,7 +679,8 @@ Two rules about the commit, and neither is negotiable:
   With Slurm it submits; on the Mac it files a request the cluster's relay runs, and the
   thread reads `requested` until the report lands. Either way its ending wakes a turn that
   reports it. A bare `sbatch` is work the board cannot see. On the Mac it is an error.
-  Judgement beside the data is `board ask-cluster <thread> "<brief>"`. Publishing an artifact
+  A failed job wakes a `[repair]` turn that fixes it here; to ask the data more, file a
+  diagnostic recipe with `board diagnose`. Publishing an artifact
   to `exports/` is the owner's call: `board thread export <thread> <path>` prints the question
   for your card.
 - **Work held at the cluster is the cluster's.** While `board brief` says *held at the

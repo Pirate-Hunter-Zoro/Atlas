@@ -1824,9 +1824,12 @@ def doing_now(root, signal=""):
     product rather than a style, so the sitting still says `drill` or `trace`
     while this turn writes one and compiles it. So the state says `teach` and is
     right about the evening; only the signal this turn was woken with says what
-    THIS turn does.
+    THIS turn does. A REPAIR answers it the same way: a failed cluster job,
+    fixed, checked, shipped and rerun, whatever its workspace teaches under
+    (`jobs.relay_sense`).
     """
-    if signal in ("handover", "rework", "ship", "writeup", "unfinished"):
+    if signal in ("handover", "rework", "ship", "writeup", "unfinished",
+                  "repair"):
         # An UNFINISHED turn finishes a doing turn's report, on its clock.
         # A step handed over writes code. A ship reads a diff, judges it and
         # runs a push against a remote over a tailnet -- neither is a card, and

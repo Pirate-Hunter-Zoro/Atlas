@@ -15,6 +15,7 @@
 
 # Exit immediately if command fails
 set -e
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
 
 # ---- Conda configuration ----
 # The causal stack (econml/CausalForestDML) lives in its OWN env, NOT the

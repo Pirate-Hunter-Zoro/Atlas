@@ -10,6 +10,9 @@
 #SBATCH --gres=gpu:2
 #SBATCH --array=0-0
 
+# A failure prints its RELAY: lines (slurm_jobs/lib/relay_trap.sh).
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
 GPUS=2
 CONDA_ENV=/media/studies/ehr_study/analysis/mferguson/venvs/embedder_pipeline
 TP_SIZE=$GPUS

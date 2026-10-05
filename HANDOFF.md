@@ -77,8 +77,8 @@ A request has one of two kinds.
   `--export` built from the declared variables, through `jobs.submit`.
 
 **`turn`** wakes a headless Claude turn on the cluster, in that workspace, under the PHI guard.
-It is for work that needs judgement next to the data: diagnosing a failed job, choosing a rerun
-or reading an output too large to export.
+It is for work that needs judgement next to the data: choosing a rerun or reading an output too
+large to export. It never diagnoses a failed job.
 
 ```json
 {"id": "2026-10-03-why-l1-dense", "kind": "turn", "thread": "knn-across-embedders",
@@ -89,16 +89,21 @@ or reading an output too large to export.
   because it is an unattended agent beside the data.
 - The turn ends on a report, like a board turn. Its prose goes in the report's `note`, written
   for a public repository: aggregate numbers only, no patient-level values, no identifiers.
-- A `turn` with `fixes` is a fix turn, filed by the Mac itself when a recipe fails, at most two
-  per failed request. It reads the log and edits nothing. Its note gives `CAUSE:` and `FIX:`,
-  or `UNKNOWN:`. The Mac applies the fix, runs the workspace's check, pushes it, and reruns
-  with `board job --fixes`. The fix is made on the Mac because the cluster's only PHI content
-  gate, `ai-config/policy/phi.py`, cannot see EHR identifiers or row values. TRD-EHR has opted in.
+
+**A failed recipe is repaired on the Mac.** Its recipe sources `slurm_jobs/lib/relay_trap.sh`,
+which prints the failure behind `RELAY:` (exception type, file and line, inputs by name and
+count, never a value). The report wakes a `[repair]` turn, a doing turn whatever the stance. It
+fixes the code, runs the check, ships with `board push`, and reruns with `board job --fixes
+<first id>`. Where the report does not say enough it files a diagnostic, a tracked recipe that
+prints `RELAY:` lines and produces nothing, with `board diagnose --fixes <first id>`. Three
+attempts per failure, diagnostics and reruns alike, then the owner decides; `board job --fresh`
+is theirs. The fix is made on the Mac because the cluster's only PHI content gate,
+`ai-config/policy/phi.py`, cannot see EHR identifiers or row values.
 
 **A report is public.** It carries state, Slurm job id, times, exit code, which `produces` paths
 now exist, which exports landed, and a `note`. It never carries a raw log tail, because a log
 can print anything. It carries only lines the job printed behind a `RELAY:` prefix, plus the
-exception type of a crash. The full log stays on the cluster. A `turn` request reads it there.
+exception type of a crash. The full log stays on the cluster.
 
 **An export is a copy of an aggregate artifact into tracked `exports/`**, at the same relative
 path it has under `results/`. Only a path the thread file marks exportable goes there. Paths in

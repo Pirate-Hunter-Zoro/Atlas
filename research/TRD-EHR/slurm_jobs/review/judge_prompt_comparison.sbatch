@@ -28,6 +28,7 @@
 # =============================================================================
 
 set -e
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
 
 CONDA_ENV=/media/studies/ehr_study/analysis/mferguson/venvs/embedder_pipeline
 N_PAIRS="${N_PAIRS:-5000}"
@@ -72,7 +73,8 @@ cleanup() {
   kill "${VLLM_PID}" 2>/dev/null || true
   wait "${VLLM_PID}" 2>/dev/null || true
 }
-trap cleanup EXIT
+# Through relay_trap.sh, whose EXIT trap a second `trap` would replace.
+relay_on_exit cleanup
 
 export VLLM_URL="http://127.0.0.1:${PORT}"
 

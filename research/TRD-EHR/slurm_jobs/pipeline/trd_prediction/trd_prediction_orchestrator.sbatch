@@ -6,6 +6,9 @@
 #SBATCH -o slurm_jobs/pipeline/trd_prediction/logs/trd_prediction_orchestrator_out.txt
 #SBATCH -e slurm_jobs/pipeline/trd_prediction/logs/trd_prediction_orchestrator_err.txt
 
+# A failure prints its RELAY: lines (slurm_jobs/lib/relay_trap.sh).
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
 ENV_FILE="${SLURM_SUBMIT_DIR}/.env"
 # Source the file for NUM_VLLM_SERVERS, ENDPOINTS_DIR, COMPUTE_LLM_SIMILARITY, and other flags.
 set -a; source "${ENV_FILE}"; set +a
