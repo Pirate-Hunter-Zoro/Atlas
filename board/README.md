@@ -2771,7 +2771,8 @@ recorded, read back with `opencode export`, and fails if any answer came from an
    passes — only if `check.py` is still byte for byte the file doctor wrote;
 3. a resumed turn: `headless` recalls a word given in turn 1, in turn 1's session. A turn that
    reports no session id fails: nothing then says it resumed turn 1;
-4. an image twice: (a) the turn opens a PNG with its own read tool and no other tool; (b) the
+4. an image twice: (a) the turn opens a PNG with its own read tool, and no tool besides read,
+   write, glob, list and grep runs, because those look at local files and send nothing; (b) the
    recipe's `vision` route reads one through `seeing.ask`, the witness code drawn in the strip and
    absent from the prompt;
 5. usage and price: every turn wrote a line to `live/cost.jsonl` carrying a rate and a numeric
