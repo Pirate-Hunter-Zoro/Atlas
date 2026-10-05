@@ -20,6 +20,7 @@ tutor -- start a tutoring session.
     tutor agent stop galois     ask it to write its handoff and go
     tutor cost [galois]         what the turns on this machine actually cost
     tutor cost --all            every course, one line each
+    tutor doctor [agent] [--keep]  prove a built-in recipe against its live provider
     tutor pull                  move vendor/colibri forward and commit the pointer
     tutor relay --once          one relay pass on the cluster (what scrontab runs)
     tutor relay --status        the last pass, and every workspace's requests
@@ -157,57 +158,84 @@ DEFAULT_CONFIG = {
             # "THE BINARY THAT IS INSTALLED HERE ANYWAY" IS THE PREMISE, AND A
             # RECIPE CAN BREAK IT. `board see` is run by the tutor's own Bash
             # tool, inside a turn whose environment the running recipe wrote --
-            # so in a DeepSeek sitting `ANTHROPIC_BASE_URL` is inherited and
-            # this command is not Claude at all. Measured: 14.4 s and a correct
-            # transcription in a clean environment, 180 s and a refusal with
-            # those four variables exported. `seeing.ROUTING` is the scrub that
-            # makes the premise true again, and `env` here is how a recipe
+            # so a sitting whose recipe exports `ANTHROPIC_BASE_URL` makes this
+            # command something other than Claude. Measured: 14.4 s and a
+            # correct transcription in a clean environment, 180 s and a refusal
+            # with routing variables exported. `seeing.ROUTING` is the scrub
+            # that keeps the premise true, and `env` here is how a recipe
             # overrides it -- a value of None unsets.
             "vision": {"cmd": ["claude", "-p", "{prompt}"],
                        "model": "whatever this machine's Claude Code settings "
                                 "select",
                        "sighted": True},
         },
-        # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND FOUR VARIABLES DO IT.
-        # DeepSeek serves an Anthropic-format `/messages` endpoint, so the
-        # agent that runs it is the `claude` executable already installed here
-        # with the environment below -- and every part of this tool that knows
-        # how to drive Claude Code goes on working unchanged:
-        # `headless_first` / `headless`, the `--continue` resume, the
-        # `--output-format json` accounting in `read_turn_usage`, the timeouts,
-        # and the `ai-config` pre-tool hook, which fences PHI by intercepting
-        # the binary's tool calls and therefore fences this provider too, for
-        # free. Codex has no such hook; this one inherits the fence that already
-        # exists.
+        # DEEPSEEK, THROUGH ITS OWN HARNESS. Each provider runs through the
+        # client built for it -- `claude` for Anthropic, `codex` for OpenAI,
+        # `opencode` for DeepSeek -- and no provider's endpoint is driven by
+        # another provider's client. OpenCode ships a DeepSeek provider: it
+        # authenticates from `DEEPSEEK_API_KEY`, drives Edit, Write and Bash
+        # against DeepSeek's OpenAI-format endpoint, reads an image with its own
+        # Read tool, and reports tokens per round trip under `--format json`.
+        # `tutor doctor` proves all of that against the live provider: a text
+        # turn, a coding turn, a resumed turn, an image both ways, and the bill.
         #
-        # What it is NOT, so nobody builds it twice. Not an entry driven through
-        # `opencode`: that is a second agent's config file, a second credential
-        # store and a second thing to keep in step, for a provider the binary we
-        # already run reaches directly. Not a descriptor in `ai-config` either:
-        # that layer keys on the ASSISTANT and its filenames, and the assistant
-        # here is Claude Code, so a second descriptor for one binary is two
-        # installers writing the same symlink.
+        # What OpenCode lacks is the `ai-config` pre-tool hook that fences PHI
+        # for the `claude` binary. That fence matters beside the data, on the
+        # cluster, and DeepSeek never runs there.
         #
-        # AND THE ONE THING THE VARIABLES CANNOT SUPPLY IS A ROUTE. The
-        # variables are client-side and correct; a turn still only leaves this
-        # machine if the network carries it, and from here the TLS handshake to
-        # `api.deepseek.com` is reset on the ClientHello. The same address under
-        # its CloudFront name completes, so the drop keys on the HOSTNAME, and
-        # no environment variable reaches that -- the ask is a firewall
-        # exception, not a line of Python. What it costs while the name is
-        # filtered: a turn spends about three minutes retrying and dies as
-        # `API Error: Connection dropped (ECONNRESET)`. `egress_probe` is what
-        # makes that one stood-down turn rather than every turn, by name. The
-        # measurement, the controls that place the device, and the exception to
-        # ask for are in `projects/libr-local-llm/docs/deepseek-egress.md`.
+        # EVERY FLAG IS LOAD-BEARING.
+        # - `-m deepseek/deepseek-flash`. This machine's
+        #   `~/.config/opencode/opencode.jsonc` names a free OpenRouter model as
+        #   its default, so a recipe without the flag sends the sitting to
+        #   OpenRouter and says nothing.
+        # - `--pure`: no external plugins. This machine's `vision-bridge.ts`
+        #   adds an image-describing tool that posts the slate to OpenRouter, a
+        #   second provider inside a DeepSeek turn.
+        # - `--auto`. `opencode run` auto-rejects every permission it would have
+        #   asked for, so without the flag a turn that writes anything depends
+        #   on opencode.jsonc happening to say `allow`.
+        # - `--continue` resumes the newest session in the turn's directory.
+        #   OpenCode takes that directory from `$PWD`, not from the process's
+        #   working directory, which is why `run_turn` sets both.
+        # No `--` before `{prompt}`: `with_usage` appends `--format json` after
+        # it. The prompt reaches the model inside literal quotes, because `run`
+        # joins its words and quotes any that hold a space; that is cosmetic.
+        #
+        # `env` MAKES `keys.env` THE KEY. OpenCode reads `DEEPSEEK_API_KEY`, but
+        # a key saved with `opencode auth login` outranks it, so the variable
+        # alone is not what authenticates. `OPENCODE_CONFIG_CONTENT` sets the
+        # provider's key to `{env:DEEPSEEK_API_KEY}`, which outranks both --
+        # measured: a bogus value in the variable answers 401 with the overlay
+        # and succeeds without it. The same overlay points `small_model`, which
+        # writes session titles, at DeepSeek rather than at the provider
+        # opencode.jsonc names. `keys.fill` leaves the overlay's JSON braces
+        # alone; only `{NAME}` is a key.
+        #
+        # AND IT TURNS SKILLS OFF, because `--pure` does not. This machine's
+        # `~/.config/opencode/skills/describe-image` tells the model it is
+        # blind and must hand every image to another service. Measured with
+        # skills on: asked to read a PNG, the turn loaded that skill, found the
+        # OpenRouter key in the home directory, and posted the slate to two
+        # other providers from a script it wrote. A tutor turn needs no skill.
         "deepseek": {
-            "cmd": ["claude"], "prompt": "argv",
-            "headless_first": ["claude", "-p", "{prompt}"],
-            "headless": ["claude", "-p", "{prompt}", "--continue"],
-            "usage": "claude-json",
-            "usage_args": ["--output-format", "json"],
+            "cmd": ["opencode"], "prompt": "argv",
+            "headless_first": ["opencode", "--pure", "run", "--auto",
+                               "-m", "deepseek/deepseek-flash", "{prompt}"],
+            "headless": ["opencode", "--pure", "run", "--auto",
+                         "-m", "deepseek/deepseek-flash", "--continue",
+                         "{prompt}"],
+            "usage": "opencode-json",
+            "usage_args": ["--format", "json"],
             "extra_args": [],
             "needs_key": "DEEPSEEK_API_KEY",
+            "env": {
+                "DEEPSEEK_API_KEY": "{DEEPSEEK_API_KEY}",
+                "OPENCODE_CONFIG_CONTENT": json.dumps({
+                    "small_model": "deepseek/deepseek-flash",
+                    "permission": {"skill": "deny"},
+                    "provider": {"deepseek": {"options": {
+                        "apiKey": "{env:DEEPSEEK_API_KEY}"}}}}),
+            },
             # THE HOST A TURN ACTUALLY OPENS, so a failure can be attributed to
             # it. A recipe pointed at a third party talks to a host the
             # machine-wide `egress_probe` never asks about, and a network that
@@ -216,104 +244,43 @@ DEFAULT_CONFIG = {
             # a healthy network and `exit 1`. Asked only of a turn that has
             # already failed; see `agent_probe_urls` and
             # `egress.mark_unreachable`.
-            "egress_probe": ["https://api.deepseek.com/anthropic/v1/messages"],
-            # `[claude-code:unrecognized_model]` ON STDERR IS COSMETIC, and it
-            # prints on every turn here. The binary emits it for any id outside
-            # Anthropic's own lineup and then dispatches the request anyway --
-            # its one effect is that fast mode is off. It is not a refusal: a
-            # turn that fails after printing it failed of something else, and
-            # that something is named in the `result` field of the JSON result
-            # object; see `result_object_error`.
             #
-            # `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
-            # `_SUPPORTED_CAPABILITIES` siblings do not belong here: they add an
-            # entry to the interactive `/model` picker, which a `-p` turn never
-            # opens. `--model` on the command line is the same selection the
-            # variable below already makes. Measured, all three routes put the
-            # identical request on the wire.
-            #
-            # PIN THE MODEL OR LOSE THE HANDWRITING. Unpinned, the endpoint maps
-            # by NAME: an id starting `claude-opus` lands on `deepseek-v4-pro`,
-            # which is text-only and SUBSTITUTES A PLACEHOLDER FOR AN IMAGE
-            # BLOCK rather than failing. The literal text is
-            # `[Unsupported Image]`, returned with HTTP 200 and a normal result
-            # object, so a tutor handed a slate PNG answers confidently about
-            # nothing and no exit code says so. Measured elsewhere, the same 71 KB JPEG both
-            # times: 403 input tokens on `deepseek-flash` against 102 on
-            # `deepseek-v4-pro`, which is the image not arriving. That string in
-            # a reply is the detector, and `seeing.blind_answer` is where it is
-            # read.
-            #
-            # EVERY SLOT, NOT THE TWO OBVIOUS ONES. This machine's Claude Code
-            # settings say `opus[1m]`, which is exactly the name that lands on
-            # the text-only model -- but the binary does not resolve one id per
-            # turn. It resolves the `opus`, `sonnet` and `haiku` ALIASES through
-            # `ANTHROPIC_DEFAULT_*_MODEL`, spawns a Task-tool subagent on
-            # `CLAUDE_CODE_SUBAGENT_MODEL`, and picks its own cheap calls off
-            # the small one. Any slot left unset is a request that goes out
-            # under a `claude-*` name and comes back from a model that cannot
-            # see, in the middle of a turn that was reading handwriting.
-            # `ANTHROPIC_SMALL_FAST_MODEL` is marked deprecated in the client's
-            # own environment reference and `ANTHROPIC_DEFAULT_HAIKU_MODEL` is
-            # its replacement: both are set, because which one the installed
-            # binary reads is not a thing this file gets to assume.
-            #
-            # AND THE BARE ID RATHER THAN `deepseek-flash[1m]`, WHICH IS THE ONE
-            # OPEN QUESTION HERE. The `[1m]` suffix is how the client selects a
-            # long-context variant of a name it knows, and the model's own window
-            # is a million tokens -- so an unrecognised id may well be sized off
-            # the client's default table instead. Third parties driving this
-            # endpoint write the suffix and report working turns; DeepSeek's own
-            # integration guide writes the bare name. Neither settles it, and it
-            # cannot be settled from here: the only test is a live turn, and the
-            # hostname is filtered. So the bare id, which is the spelling the
-            # provider documents. If the suffix is tried once the firewall
-            # opens and the first turn comes back 400 naming the model, that is
-            # the answer and it goes straight back. The small, haiku and
-            # subagent slots stay bare either way -- those calls are short and
-            # do not want the long-context weighting.
-            "env": {
-                "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-                "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}",
-                "ANTHROPIC_MODEL": "deepseek-flash",
-                "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash",
-                "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
-                "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
-                "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-flash",
-                "ANTHROPIC_SMALL_FAST_MODEL": "deepseek-flash",
-            },
+            # The institute's network is one that filters it: on the compute
+            # nodes the TLS handshake to `api.deepseek.com` is reset on the
+            # ClientHello, by hostname, and the owner has not asked for an
+            # exception (`projects/libr-local-llm/docs/deepseek-egress.md`). The
+            # Mac is outside that filter. No hosted model runs on the cluster,
+            # so the probe is here for any other network that does the same.
+            "egress_probe": ["https://api.deepseek.com/chat/completions"],
             # WHY `deepseek-flash` AND NOT THE PRO, and THE SAME ID DOES BOTH
             # JOBS. It serves DeepSeek-V4.1-Flash: a multimodal model that
             # natively processes images and text, 1M-token context, DocVQA 95.6
             # -- which is the document-reading benchmark a photograph of a slate
             # is scored by -- and ahead of `deepseek-v4-pro` on the coding and
             # mathematics benchmarks as well as cheaper. The API serves exactly
-            # two ids: this one and `deepseek-v4-pro`, which is text-only.
-            # `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` are
-            # deprecated aliases onto this one. There is no separate eyes model
-            # to reach for: DeepSeek-OCR-2 reads documents better and is
-            # published as open weights, not as an id this endpoint accepts, so
-            # it is a self-hosting project rather than a one-string change here.
+            # two ids: this one and `deepseek-v4-pro`, which is text-only and
+            # SUBSTITUTES A PLACEHOLDER FOR AN IMAGE BLOCK rather than failing.
+            # The literal text is `[Unsupported Image]`, returned with HTTP 200,
+            # so a tutor handed a slate PNG answers confidently about nothing;
+            # `seeing.blind_answer` reads that string off every turn. There is
+            # no separate eyes model to reach for: DeepSeek-OCR-2 is open
+            # weights, not an id this endpoint accepts.
             #
-            # WHAT CAN BE RE-CHECKED FROM HERE, AND WHAT CANNOT, because this is
-            # the field that goes stale and the obvious way to check it is shut.
-            # `api.deepseek.com` and `api-docs.deepseek.com` are both filtered,
-            # so `GET https://api.deepseek.com/models` dies in the same
-            # handshake as a turn. `huggingface.co` and `github.com` are NOT,
-            # and the provider's own answer lives there: the model card at
-            # `deepseek-ai/DeepSeek-V4.1-Flash` carries the `image-text-to-text`
-            # tag and the 1M window, and `github.com/deepseek-ai/deepseek-recipe`
-            # is the protocol adapter this endpoint is built from, with
-            # `deepseek-flash` as the id throughout. Re-check against those two
-            # rather than waiting for the firewall.
+            # WHERE TO RE-CHECK THE ID, because it is the field that goes stale.
+            # The model card at huggingface.co `deepseek-ai/DeepSeek-V4.1-Flash`
+            # carries the `image-text-to-text` tag and the 1M window;
+            # `github.com/deepseek-ai/deepseek-recipe` uses `deepseek-flash`
+            # throughout; and `opencode models deepseek` lists what OpenCode's
+            # provider serves. A rename is two strings: `-m` above and
+            # `vision.model` below.
             #
-            # Where `board see` sends an image when the assistant running the
-            # sitting has no eyes. The OpenAI-format endpoint rather than the
-            # Anthropic one, because that is a single request rather than an
-            # agent loop. It accepts an `image_url` part whose url is a base64
-            # data URL, in four media types and no others -- jpeg, png, gif,
-            # webp -- which is `seeing.IMAGES` exactly, so a fifth extension
-            # added there is a 400 from here.
+            # Where `board see` sends an image. One HTTP request to the
+            # OpenAI-format endpoint, independent of the harness, so its proof
+            # holds whatever OpenCode does with an image. It accepts an
+            # `image_url` part whose url is a base64 data URL, in four media
+            # types and no others -- jpeg, png, gif, webp -- which is
+            # `seeing.IMAGES` exactly, so a fifth extension added there is a 400
+            # from here.
             "vision": {
                 "endpoint": "https://api.deepseek.com/v1/chat/completions",
                 "model": "deepseek-flash",
@@ -326,15 +293,13 @@ DEFAULT_CONFIG = {
                 # says `false` is never handed a page at all.
                 "sighted": True,
             },
-            # WHAT A TURN COST, IN DOLLARS, COMPUTED HERE. The binary emits
-            # `total_cost_usd` and it is WRONG for this provider: those are
-            # Anthropic's prices. The token counts in the same object are the
-            # model's own report and are right, so `read_turn_usage` keeps
-            # those and `priced` does the arithmetic off this table. Per
-            # million tokens, and the peak window is DeepSeek's own, in UTC on
-            # weekdays. What is recorded in `cost.jsonl` is the RATE THAT
-            # APPLIED rather than the window -- a table of windows goes stale
-            # silently and a recorded rate cannot.
+            # WHAT A TURN COST, IN DOLLARS, COMPUTED HERE. OpenCode reports a
+            # `cost` per round trip at one flat rate with no peak window, so
+            # `read_turn_usage` keeps its token counts and `priced` does the
+            # arithmetic off this table. Per million tokens, and the peak window
+            # is DeepSeek's own, in UTC on weekdays. What is recorded in
+            # `cost.jsonl` is the RATE THAT APPLIED rather than the window -- a
+            # table of windows goes stale silently and a recorded rate cannot.
             "prices": {
                 "peak": {"in": 0.30, "cache_write": 0.30,
                          "cache_read": 0.006, "out": 1.20},
@@ -397,10 +362,9 @@ DEFAULT_CONFIG = {
             # unauthenticated POST there answers 405, which `egress_ok` counts.
             "egress_probe": ["https://chatgpt.com/backend-api/codex/responses"],
             # AND NO MODEL PINNED, DELIBERATELY, which is the opposite of the
-            # decision taken for deepseek one entry up. There the endpoint maps
-            # an unrecognised name onto a text-only model that quietly discards
-            # images, so leaving it unset loses handwriting. Codex has no such
-            # mapping: unset means `~/.codex/config.toml`, which is this
+            # decision taken for deepseek above. There an unset model is
+            # whatever opencode.jsonc names, which on this machine is another
+            # provider entirely. Codex has no such trap: unset means `~/.codex/config.toml`, which is this
             # machine owner's own choice of model, and overriding it from here
             # would be this file making a teaching decision it does not get to
             # make. `env` or `-c model=...` is where it goes if that changes.
@@ -814,7 +778,7 @@ def failure_reason(text, code_note):
     dropped (ECONNRESET)` reaches the board as `exit 1`. That is the same banner
     every other cause wears, which is the dead end this function exists to end.
     """
-    said = result_object_error(text)
+    said = result_object_error(text) or opencode_error(text)
     if said:
         return "%s (%s)" % (said[:160], code_note)
     lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
@@ -1085,11 +1049,110 @@ def read_codex_usage(blob):
     }
 
 
+def opencode_events(blob):
+    """`opencode run --format json`, one event a line, as dicts. Never raises.
+
+    Every event is `{type, timestamp, sessionID, part}` -- or `error` in place
+    of `part` -- and the types are `step_start`, `step_finish`, `tool_use`,
+    `text`, `reasoning` and `error`. Anything else in the log is skipped.
+    """
+    out = []
+    for line in (blob or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{") or '"type"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(d, dict) and d.get("type") and "sessionID" in d:
+            out.append(d)
+    return out
+
+
+def turn_text(said):
+    """What the model said in words this turn: the raw output, or for OpenCode
+    the `text` events alone.
+
+    OpenCode's JSON carries every tool's output too -- a file the turn read,
+    verbatim -- so a scan of the whole stream for a provider's placeholder
+    would fire on any turn that opened a document quoting it.
+    """
+    events = opencode_events(said)
+    if not events:
+        return said or ""
+    return "\n".join(str((d.get("part") or {}).get("text") or "")
+                     for d in events if d.get("type") == "text")
+
+
+def read_opencode_usage(blob):
+    """OpenCode's `--format json` event stream.
+
+    ONE `step_finish` PER ROUND TRIP, AND THEY ARE SUMMED: each carries its own
+    trip's `tokens` and `cost`, not a running total. Measured against a real
+    DeepSeek session: `total = input + output + reasoning + cache.read +
+    cache.write`, `input` excludes the cache reads, and reasoning is billed at
+    the output rate -- so it is counted as output here. The `cost` OpenCode
+    adds up is kept as `usd` and is replaced wherever the recipe has a price
+    table, because it is one flat rate with no peak window.
+    """
+    trips, session = [], ""
+    for d in opencode_events(blob):
+        session = d.get("sessionID") or session
+        part = d.get("part") or {}
+        if d.get("type") == "step_finish" and isinstance(part.get("tokens"), dict):
+            trips.append(part)
+    if not trips:
+        return {}
+
+    def summed(*path):
+        n = 0
+        for part in trips:
+            got = part.get("tokens")
+            for key in path:
+                got = got.get(key) if isinstance(got, dict) else None
+            n += int(got or 0)
+        return n
+    got_in, out = summed("input"), summed("output") + summed("reasoning")
+    read, written = summed("cache", "read"), summed("cache", "write")
+    return {
+        "tokens": got_in + out + read + written,
+        "in": got_in,
+        "out": out,
+        "cache_write": written,
+        "cache_read": read,
+        "requests": len(trips),
+        "usd": round(sum(float(p.get("cost") or 0.0) for p in trips), 6),
+        "models": [],
+        "session": session,
+    }
+
+
+def opencode_error(text):
+    """What an OpenCode `error` event says went wrong, or None. The last one.
+
+    `opencode run` exits 1 on a provider error and prints the reason only as a
+    JSON event -- `{"type": "error", "error": {"name", "data": {"message"}}}` --
+    which no marker prefix in `failure_reason` matches. The provider's own
+    sentence is the useful one: an invalid key, an empty balance, a model
+    that does not exist.
+    """
+    for d in reversed(opencode_events(text)):
+        if d.get("type") != "error":
+            continue
+        err = d.get("error") or {}
+        data = err.get("data") if isinstance(err.get("data"), dict) else {}
+        said = data.get("message") or err.get("message") or err.get("name")
+        return str(said).strip() if said else "OpenCode reported an error"
+    return None
+
+
 # Which parser reads which agent's report. A provider is a parser added beside
 # the others; nothing else in this file learns a new name.
 USAGE_PARSERS = {
     "claude-json": read_claude_usage,
     "codex-jsonl": read_codex_usage,
+    "opencode-json": read_opencode_usage,
 }
 
 
@@ -1895,6 +1958,19 @@ def drop_waiter(p, log=None):
                   "been killed; asking again\n" % WAIT_CEILING)
 
 
+def at_root(root, env=None):
+    """A turn's environment with `PWD` saying where the turn actually runs.
+
+    `cwd=` moves the process and leaves `PWD` naming wherever the daemon was
+    started. OpenCode takes its directory from `PWD`, measured: a turn started
+    with `cwd` set to a course wrote its files into the daemon's directory and
+    filed its session there, so `--continue` resumed the wrong conversation.
+    """
+    env = dict(env if env is not None else os.environ)
+    env["PWD"] = os.path.abspath(root)
+    return env
+
+
 def run_turn(cmd, root, log, timeout, env=None):
     """Run one turn to completion or to its cap. `(returncode, timed_out)`.
 
@@ -1915,7 +1991,7 @@ def run_turn(cmd, root, log, timeout, env=None):
     # one level down, where it covers every way a turn is started.
     p = subprocess.Popen(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
                          stdin=subprocess.DEVNULL,
-                         start_new_session=True, env=env)
+                         start_new_session=True, env=at_root(root, env))
     try:
         return p.wait(timeout), False
     except subprocess.TimeoutExpired:
@@ -4005,10 +4081,11 @@ def headless(cfg, course, agent_name, session):
         #
         # The list is imported rather than repeated: a second copy of a
         # provider's placeholder wording is a table that goes stale in the file
-        # nobody is looking at. Asked of the whole turn, not of a card, because
-        # the substitution happens wherever the image was handed over.
+        # nobody is looking at. Asked of everything the model said this turn,
+        # not of a card, because the substitution happens wherever the image
+        # was handed over -- and not of the tools' output, which quotes files.
         if not err:
-            blind = seeing.blind_answer(said)
+            blind = seeing.blind_answer(turn_text(said))
             if blind:
                 err = ("the page never reached the model -- it answered around "
                        "%s, so anything it said about the handwriting is "
@@ -4355,9 +4432,12 @@ def headless(cfg, course, agent_name, session):
         except OSError:
             before = 0
         try:
+            # Nothing on stdin, for `run_turn`'s reason: `opencode run` reads a
+            # stdin that is not a terminal into the prompt and waits for it.
             done = subprocess.run(cmd, cwd=root, stdout=log,
                                   stderr=subprocess.STDOUT,
-                                  env=turn_environment(spec),
+                                  stdin=subprocess.DEVNULL,
+                                  env=at_root(root, turn_environment(spec)),
                                   timeout=cfg.get("handoff_timeout", 600))
             # The wrap-up is a turn and it is billed like one, so it is counted
             # like one. It used to be the most expensive turn of the session --
@@ -5698,7 +5778,7 @@ def cmd_cost(cfg, args):
         if not rows:
             print("no turn has reported a cost on this machine yet.")
             print("Turns record one only on a recipe whose `usage` names a "
-                  "parser -- `claude-json` or `codex-jsonl`; see "
+                  "parser -- `claude-json`, `codex-jsonl` or `opencode-json`; see "
                   "`tutor --agents`.")
             return 0
         print("%-22s %6s %8s %11s %10s  %s" %
@@ -5717,7 +5797,11 @@ def cmd_cost(cfg, args):
                  share(total)))
         return 0
 
-    if rest:
+    if rest and os.path.isfile(os.path.join(rest[0], "live", COST_LOG)):
+        # A directory that is not a course, such as `tutor doctor --keep`'s.
+        course = {"dir": os.path.basename(os.path.abspath(rest[0])),
+                  "root": os.path.abspath(rest[0])}
+    elif rest:
         course = pick(found, rest[0])
     else:
         # The course an assistant is actually attached to, or the only one that
@@ -5770,8 +5854,16 @@ def cmd_cost(cfg, args):
     print("  %s tokens a turn%s, %.1f round trips a turn"
           % (thousands(tokens / float(n)), share(tokens / float(n)),
              sum(t.get("requests", 0) for t in rows) / float(n)))
-    print("  %s tokens in total%s, $%.2f" % (thousands(tokens), share(tokens),
-                                             sum(t.get("usd", 0) for t in rows)))
+    # $0.00 is a claim about money. A turn with no price table and no figure
+    # of its own is unpriced, and the line says that instead.
+    priced_rows = [t for t in rows if t.get("rate") or t.get("usd")]
+    money = sum(t.get("usd", 0) for t in rows)
+    print("  %s tokens in total%s, %s"
+          % (thousands(tokens), share(tokens),
+             "no price table — tokens only" if not priced_rows
+             else ("$%.2f" % money) if len(priced_rows) == n
+             else "$%.2f for %d priced turn(s); %d unpriced"
+             % (money, len(priced_rows), n - len(priced_rows))))
     dear = max(rows, key=lambda t: t.get("tokens", 0))
     print("  dearest turn: %s tokens%s over %d round trips (%s)"
           % (thousands(dear.get("tokens", 0)), share(dear.get("tokens", 0)),
@@ -5790,6 +5882,383 @@ def cmd_cost(cfg, args):
                  "flat, which is the point" if late <= early * 1.25
                  else "RISING: a turn is carrying context it could read back"))
     return 0
+
+
+# ---------------------------------------------------------------------------
+# tutor doctor: one recipe, proved against its live provider
+# ---------------------------------------------------------------------------
+DOCTOR_TURN_SECONDS = 600
+
+# The workspace check the coding turn has to pass. `%(want)d` is the answer,
+# written in by `cmd_doctor`, so the check is a fact about the run.
+DOCTOR_CHECK = '''import os, subprocess, sys
+want = "%(want)d"
+if not os.path.isfile("sum.py"):
+    sys.exit("FAIL: no sum.py")
+got = subprocess.run([sys.executable, "sum.py"], capture_output=True,
+                     text=True).stdout.strip()
+if got != want:
+    sys.exit("FAIL: sum.py printed %%r, not %%s" %% (got, want))
+if not os.path.isfile("out.txt") or open("out.txt").read().strip() != want:
+    sys.exit("FAIL: out.txt does not hold %%s" %% want)
+print("PASS")
+'''
+
+DOCTOR_TEXT_PROMPT = (
+    "This is a check of the tutoring harness, run by `tutor doctor`. Do exactly "
+    "this and nothing else. Write a file live/cards/001.md holding one short "
+    "sentence that greets the student. Also remember this code word for later in "
+    "this conversation: %(secret)s. Do not write the code word to any file and "
+    "do not repeat it in your reply. Then stop."
+)
+DOCTOR_RESUME_PROMPT = (
+    "Same conversation, next turn. What code word did I ask you to remember in "
+    "my previous message? Answer from memory, in one line. Do not read any file "
+    "or run any command to find it."
+)
+DOCTOR_CODE_PROMPT = (
+    "This is a check of the coding tools, run by `tutor doctor`. Do the work; "
+    "do not explain it.\n"
+    "1. Create a file sum.py that prints the sum of the integers from 1 to 10.\n"
+    "2. Run `python3 sum.py` in the shell.\n"
+    "3. With your edit tool, change the 10 in sum.py to %(n)d. Edit the "
+    "existing file; do not rewrite it.\n"
+    "4. Run `python3 sum.py > out.txt` in the shell.\n"
+    "5. Run `python3 check.py` in the shell, and stop when it prints PASS."
+)
+DOCTOR_IMAGE_PROMPT = (
+    "This is a check of image reading, run by `tutor doctor`. There is an image "
+    "file, slate.png, in this directory. Open it with your own file-reading "
+    "tool and look at it. Write the six digits printed on it, and nothing else, "
+    "into seen.txt. Use only your file-reading and file-writing tools: run no "
+    "shell command and ask no other service. If you cannot see the image, "
+    "write CANNOT into seen.txt instead: never guess."
+)
+DOCTOR_SEE_PROMPT = ("What six-digit number is printed on the second image? "
+                     "Answer with the digits only.")
+
+# The names a harness gives its file-changing and shell tools, as reported in
+# OpenCode's `tool_use` events.
+EDIT_TOOLS = ("edit", "multiedit", "patch", "apply_patch")
+WRITE_TOOLS = ("write",) + EDIT_TOOLS
+SHELL_TOOLS = ("bash", "shell")
+
+
+def doctor_route(spec):
+    """The harness, the model and the host a recipe's turns use, as one phrase."""
+    argv = list(spec.get("headless_first") or spec.get("headless") or [])
+    model = None
+    for flag in ("-m", "--model"):
+        if flag in argv and argv.index(flag) + 1 < len(argv):
+            model = argv[argv.index(flag) + 1]
+    harness = os.path.basename((spec.get("cmd") or argv or ["?"])[0])
+    host = probe_host(agent_probe_urls(spec) or [])
+    return "%s%s%s" % (harness, " -m %s" % model if model else "",
+                       " -> %s" % host if host else "")
+
+
+def doctor_tools(said):
+    """The tools a turn used, in order, from OpenCode's events. None if unknown."""
+    events = opencode_events(said)
+    if not events:
+        return None
+    return [str((d.get("part") or {}).get("tool") or "")
+            for d in events if d.get("type") == "tool_use"]
+
+
+def cmd_doctor(cfg, args):
+    """Prove one BUILT-IN recipe against its live provider, in a scratch workspace.
+
+        tutor doctor              the deepseek recipe
+        tutor doctor claude       any other built-in recipe
+        tutor doctor --keep       and leave the workspace for reading
+
+    Five checks, one line each, naming the harness and the route:
+
+      1. a text turn: `headless_first` writes a card and exits 0;
+      2. a coding turn: the turn writes a file, edits it, runs it through the
+         shell, and the workspace's `check` passes;
+      3. a resumed turn: `headless` remembers a word given in turn 1;
+      4. an image, twice: (a) the turn opens a PNG with its own tools; (b) the
+         recipe's `vision` route reads one through `seeing.ask`, with the witness
+         code drawn in the strip and absent from the prompt. 4b must pass; 4a
+         failing means the turn prompts must send images through `board see`;
+      5. usage and price: every turn wrote a line to `live/cost.jsonl`, priced
+         off the recipe's table when it has one. `tutor cost` on the workspace
+         is printed beneath.
+
+    THE BUILT-IN RECIPE, NOT THIS MACHINE'S. A copy in the machine config
+    shadows the built-in field by field (`config_shadows`), and a proof of the
+    copy says nothing about what the repository ships. The copy is named when
+    there is one. Nothing outside the scratch workspace is written: no
+    stand-down, no allowance mark, no cost line in a course. Exits 1 on any
+    failure, and the workspace is then kept.
+    """
+    import tempfile
+    keep = "--keep" in args
+    named = [a for a in args if not a.startswith("-")]
+    name = named[0] if named else "deepseek"
+    built = DEFAULT_CONFIG["agents"].get(name)
+    if not isinstance(built, dict) or not (built.get("headless")
+                                           or built.get("headless_first")):
+        print("tutor doctor: there is no built-in headless recipe called '%s'"
+              % name, file=sys.stderr)
+        return 2
+    spec = json.loads(json.dumps(built))
+    first = spec.get("headless_first") or spec.get("headless")
+    resume = spec.get("headless") or first
+    route = doctor_route(spec)
+    print("tutor doctor: the built-in `%s` recipe, %s" % (name, route))
+    shadow = config_shadows().get(name)
+    if shadow:
+        print("  %s holds its own copy of `%s` (%s differ). Turns on this "
+              "machine run that copy; these checks run the built-in."
+              % (CONFIG, name, ", ".join(shadow)))
+
+    stop = (missing_command(spec.get("cmd")) or missing_command(first))
+    stop = (("`%s` is not on the path here" % stop) if stop else None)
+    if not stop and keys.unkeyed(spec):
+        stop = "%s is not in %s" % (keys.unkeyed(spec), keys.store())
+    own = agent_probe_urls(spec)
+    if not stop and own and not egress.egress_ok(urls=own, timeout=8):
+        stop = "%s does not answer from this machine" % probe_host(own)
+    if stop:
+        print("FAIL  every check: %s" % stop)
+        return 1
+
+    box = tempfile.mkdtemp(prefix="tutor-doctor-")
+    ws = os.path.join(box, "workspace")
+    live = os.path.join(ws, "live")
+    os.makedirs(os.path.join(live, "cards"))
+    secret = "%s-%d" % (("heron", "quartz", "lantern", "maple")[os.urandom(1)[0] % 4],
+                        1000 + int.from_bytes(os.urandom(2), "big") % 9000)
+    n = 20 + os.urandom(1)[0] % 80
+    with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
+        json.dump({"name": "tutor doctor", "stance": "do",
+                   "check": "python3 check.py"}, fh)
+    with open(os.path.join(ws, "check.py"), "w", encoding="utf-8") as fh:
+        fh.write(DOCTOR_CHECK % {"want": n * (n + 1) // 2})
+    git = ["git", "-C", ws, "-c", "user.name=tutor doctor",
+           "-c", "user.email=doctor@localhost"]
+    for step in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "doctor"]):
+        subprocess.run(git[:3] + step if step[0] == "init" else git + step,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # The log is beside the workspace rather than in it, so the resumed turn
+    # cannot find the code word by reading the first turn's output.
+    logpath = os.path.join(box, "agent.log")
+    log = open(logpath, "a", buffering=1)
+    env = turn_environment(spec)
+    turns = [0]
+    passed = []
+
+    def turn(template, prompt, fresh):
+        turns[0] += 1
+        cmd = with_usage(spec, [a.replace("{prompt}", prompt) for a in template])
+        log.write("\n=== doctor turn %d (%s) ===\n"
+                  % (turns[0], "fresh" if fresh else "resumed"))
+        mark = os.path.getsize(logpath)
+        t0 = time.time()
+        try:
+            rc, timed_out = run_turn(cmd, ws, log, DOCTOR_TURN_SECONDS, env=env)
+        except OSError as exc:
+            rc, timed_out = 127, False
+            log.write("!! %s\n" % exc)
+        said = turn_output(logpath, mark, cap=4000000)
+        record_cost(live, log, turns[0], name, fresh,
+                    read_turn_usage(logpath, mark, spec.get("usage"), spec))
+        err = None
+        if timed_out:
+            err = "timed out after %d s" % DOCTOR_TURN_SECONDS
+        elif rc != 0:
+            err = failure_reason(said, "exit %d" % rc)
+        elif result_object_error(said):
+            err = "the agent reported a failure and exited 0"
+        elif seeing.blind_answer(turn_text(said)):
+            err = ("the model answered around %s"
+                   % seeing.blind_answer(turn_text(said)))
+        return err, said, time.time() - t0
+
+    def line(number, label, ok, how, where=route):
+        passed.append(ok)
+        print("%s  %-3s %-15s %s: %s" % ("PASS" if ok else "FAIL", number, label,
+                                        where, how))
+        sys.stdout.flush()
+
+    def tools_note(said):
+        used = doctor_tools(said)
+        return "" if used is None else "; tools %s" % (", ".join(used) or "none")
+
+    # 1, then 3 straight after it, so `--continue` resumes turn 1's session.
+    err, said1, took = turn(first, DOCTOR_TEXT_PROMPT % {"secret": secret}, True)
+    card = os.path.join(live, "cards", "001.md")
+    wrote = os.path.isfile(card) and os.path.getsize(card) > 0
+    line("1", "text turn", not err and wrote,
+         "%s (%.0f s)" % (err or ("card written, exit 0" if wrote
+                                  else "exit 0 but no live/cards/001.md"), took))
+
+    err, said3, took = turn(resume, DOCTOR_RESUME_PROMPT, False)
+    on_disk = []
+    for top, dirs, files in os.walk(ws):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for f in files:
+            try:
+                with open(os.path.join(top, f), encoding="utf-8",
+                          errors="replace") as fh:
+                    if secret in fh.read():
+                        on_disk.append(f)
+            except OSError:
+                pass
+    one = read_opencode_usage(said1).get("session") or ""
+    two = read_opencode_usage(said3).get("session") or ""
+    same = (not one or not two) or one == two
+    recalled = secret in turn_text(said3)
+    line("3", "resumed turn", not err and recalled and not on_disk and same,
+         "%s (%.0f s)" % (
+             err or ("the code word was written to %s, so recalling it proves "
+                     "nothing" % ", ".join(on_disk) if on_disk
+                     else "resumed a different session (%s, not %s)" % (two, one)
+                     if not same
+                     else "recalled turn 1's code word%s"
+                     % (" in session %s" % one if one else "") if recalled
+                     else "did not recall turn 1's code word: %s"
+                     % turn_text(said3).strip()[:120].replace("\n", " ")),
+             took), where=route + " --continue")
+
+    err, said2, took = turn(first, DOCTOR_CODE_PROMPT % {"n": n}, True)
+    chk, _ = config.clean_check("python3 check.py")
+    try:
+        ran = subprocess.run(chk["all"], cwd=ws, capture_output=True, text=True,
+                             timeout=60, env=at_root(ws))
+        verdict = (ran.stdout + ran.stderr).strip().splitlines()[-1:] or [""]
+        checked = ran.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        verdict, checked = [str(exc)], False
+    used = doctor_tools(said2)
+    tooled = used is None or (any(t in EDIT_TOOLS for t in used)
+                              and any(t in SHELL_TOOLS for t in used)
+                              and any(t in WRITE_TOOLS for t in used))
+    line("2", "coding turn", not err and checked and tooled,
+         "%s%s (%.0f s)" % (
+             err or ("workspace check passed" if checked and tooled
+                     else "workspace check passed, but no edit and shell tool "
+                          "call was seen" if checked
+                     else "workspace check failed: %s" % verdict[0][:120]),
+             tools_note(said2), took))
+
+    code_a = seeing._code()
+    seeing._token_png(code_a, os.path.join(ws, "slate.png"))
+    err, said4, took = turn(first, DOCTOR_IMAGE_PROMPT, True)
+    try:
+        with open(os.path.join(ws, "seen.txt"), encoding="utf-8") as fh:
+            seen = fh.read().strip()
+    except OSError:
+        seen = ""
+    read_it = re.sub(r"\D", "", code_a) in re.sub(r"\D", "", seen)
+    # ITS OWN READ, AND NOTHING ELSE. The right digits prove only that
+    # something saw the image; a turn that shelled out to another provider
+    # gets them too. So where the harness reports its tools, the slate must have
+    # been opened with `read` and no other tool may have run.
+    used = doctor_tools(said4)
+    opened = used is None or any(
+        (d.get("part") or {}).get("tool") == "read"
+        and str(((d.get("part") or {}).get("state") or {}).get("input", {})
+                .get("filePath", "")).endswith("slate.png")
+        for d in opencode_events(said4) if d.get("type") == "tool_use")
+    other = sorted(set(t for t in (used or []) if t not in ("read", "write")))
+    line("4a", "image, own read", not err and read_it and opened and not other,
+         "%s%s (%.0f s)" % (
+             err or ("used %s besides its own read, so the digits prove "
+                     "nothing about it" % ", ".join(other) if other
+                     else "never opened slate.png with its read tool"
+                     if not opened
+                     else "read %s off slate.png" % code_a if read_it
+                     else "wrote %r for %s" % (seen[:40], code_a)),
+             tools_note(said4), took))
+
+    vision = spec.get("vision") or {}
+    where = ("%s %s" % (probe_host([vision["endpoint"]]), vision.get("model"))
+             if vision.get("endpoint")
+             else " ".join((vision.get("cmd") or ["?"])[:1]))
+    where = "seeing.ask -> %s" % where
+    code_b = seeing._code()
+    page = seeing._token_png(code_b, os.path.join(box, "page.png"))
+    asked = {}
+    real_code, real_answer = seeing._code, seeing._answer
+
+    def drawn():
+        asked["code"] = real_code()
+        return asked["code"]
+
+    def sent(settings, images, prompt):
+        asked["prompt"] = prompt
+        return real_answer(settings, images, prompt)
+    seeing._code, seeing._answer = drawn, sent
+    t0 = time.time()
+    try:
+        if not vision:
+            raise seeing.Refused("the recipe has no `vision` block")
+        got, problem = seeing.ask(dict(vision), [page], DOCTOR_SEE_PROMPT), None
+    except seeing.Refused as exc:
+        got, problem = "", str(exc)
+    finally:
+        seeing._code, seeing._answer = real_code, real_answer
+    digits = lambda s: re.sub(r"\D", "", s or "")
+    hidden = bool(asked.get("code")) and digits(asked["code"]) not in digits(
+        asked.get("prompt"))
+    right = digits(code_b) in digits(got)
+    line("4b", "image, board see", not problem and hidden and right,
+         "%s (%.0f s)" % (
+             problem[:200] if problem
+             else "the witness code %s was in the prompt" % asked.get("code")
+             if not hidden
+             else "witness %s read back from the strip, absent from the "
+                  "prompt; page read as %s" % (asked["code"], code_b) if right
+             else "witness read back, but the page came back as %r, not %s"
+             % (got[:40], code_b),
+             time.time() - t0), where=where)
+
+    rows = read_costs(ws)
+    if not spec.get("usage"):
+        ok = True
+        how = ("this recipe reports no usage, so its turns are recorded with no "
+               "dollar figure and `tutor cost` says so")
+    elif len(rows) != turns[0] or not all(r.get("tokens") for r in rows):
+        ok = False
+        how = ("%d of %d turns wrote a line to live/cost.jsonl; the `%s` parser "
+               "found no usage in the rest" % (len(rows), turns[0], spec["usage"]))
+    elif spec.get("prices") and not all(r.get("rate") and r.get("usd")
+                                        for r in rows):
+        ok = False
+        how = "the turns were counted but `priced` wrote no dollar figure"
+    else:
+        ok = True
+        total = sum(r.get("usd", 0) for r in rows)
+        how = ("%d turns, %s tokens, $%.4f%s, recorded in live/cost.jsonl"
+               % (len(rows), thousands(sum(r.get("tokens", 0) for r in rows)),
+                  total, " at the %s rate" % rows[-1]["rate"]["window"]
+                  if rows[-1].get("rate") else " as the agent reported it"
+                  if total else " (no price table)"))
+    line("5", "usage and price", ok, how,
+         where="%s parser" % (spec.get("usage") or "no"))
+    if rows:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cmd_cost(cfg, [ws])
+        print("\ntutor cost %s:" % ws)
+        for text in buf.getvalue().rstrip().splitlines():
+            print("  " + text)
+    log.close()
+
+    good = all(passed)
+    if good and not keep:
+        shutil.rmtree(box, ignore_errors=True)
+    else:
+        print("\nworkspace kept: %s (the turns' output is in %s)" % (ws, logpath))
+    print("\n%s" % ("all %d checks passed" % len(passed) if good
+                    else "%d of %d checks failed"
+                    % (passed.count(False), len(passed))))
+    return 0 if good else 1
 
 
 def cmd_where(cfg, args):
@@ -6696,6 +7165,9 @@ def main(argv):
 
     if args and args[0] == "cost":
         return cmd_cost(cfg, args[1:])
+
+    if args and args[0] == "doctor":
+        return cmd_doctor(cfg, argv[argv.index("doctor") + 1:])
 
     if args and args[0] == "resume":
         rest = argv[argv.index("resume") + 1:]

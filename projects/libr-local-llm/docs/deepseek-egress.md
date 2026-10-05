@@ -78,14 +78,9 @@ nothing about a per-hostname filter.
 
 ## The client is not the problem
 
-**The `claude` binary dispatches to whatever `ANTHROPIC_BASE_URL` names, carrying whatever
-`ANTHROPIC_MODEL` says.** Pointed at a local listener with `ANTHROPIC_MODEL=deepseek-flash`, 2.1.281
-POSTs `/v1/messages?beta=true` with `"model":"deepseek-flash"` in the body and reports the
-listener's status back as the turn's error. The `[claude-code:unrecognized_model]` line it prints
-on stderr for any id outside Anthropic's own lineup is cosmetic: its one effect is that fast mode
-is off. Read as a refusal it sends the reader looking for a client setting that does not exist,
-and `duration_api_ms: 0` alongside it is what a request that errored reports rather than evidence
-that none was made.
+No client setting reaches a device that resets the handshake. The `deepseek` recipe in
+`board/bin/tutor` runs DeepSeek through `opencode -m deepseek/deepseek-flash`, on the Mac, which is
+outside this filter.
 
 ## Why this machine needs it
 
@@ -95,7 +90,8 @@ traffic is one HTTPS POST per turn carrying course mathematics and the owner's h
 
 **No PHI goes near this route, and that is enforced in code.** `ai-config/policy/phi.py` fences the
 `phi/` directory and every session-derived artifact by name, in front of the tool call, for every
-assistant — this one included, since it runs through the same binary and inherits the same hook.
+assistant that runs through the `claude` binary. DeepSeek runs through `opencode`, which has no such
+hook, so it runs only on the Mac, which holds no PHI.
 `ai-config/policy/egress.py` is the other half, refusing the network verbs to anything that read
 inside the fence. The therapy audio in `research/PSYCH-ASR/phi/` is served only by colibrì, the
 local model held warm behind a loopback gateway, and that does not change.
@@ -109,13 +105,14 @@ The owner has decided not to request it.
 ## Re-test, only if the policy ever changes
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' https://api.deepseek.com/anthropic/v1/messages
+curl -sS -o /dev/null -w '%{http_code}\n' https://api.deepseek.com/chat/completions
 ```
 
 Any HTTP status, 401 and 405 included, means the path is open. That URL is the endpoint the
 `deepseek` recipe in `board/bin/tutor` already probes, so a number there is the number the tutor
 sees.
 
-Check the model name in the same sitting. `ANTHROPIC_MODEL` in that recipe is the one field that
-goes stale, and `GET https://api.deepseek.com/models` dies in the same handshake as a turn, so it
-cannot be checked until the name is open.
+Check the model name in the same sitting. `-m deepseek/deepseek-flash` and `vision.model` in that
+recipe are the fields that go stale, and `GET https://api.deepseek.com/models` dies in the same
+handshake as a turn, so it cannot be checked from the nodes until the name is open. From the Mac,
+`tutor doctor` checks it against the live provider.

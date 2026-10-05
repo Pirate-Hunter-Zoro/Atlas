@@ -31,6 +31,7 @@ not become a stat and a parse four times a second either.
 """
 
 import os
+import re
 import stat
 import time
 
@@ -38,6 +39,7 @@ from . import paths
 
 
 TTL = 900.0
+_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _CACHE = {"at": 0.0, "was": None, "path": None, "why": None}
 
 
@@ -127,6 +129,10 @@ def fill(value):
     `{DEEPSEEK_API_KEY}` handed to a provider verbatim is an authentication
     failure in a log file, which is the least actionable thing the person
     holding the iPad could be given. Absent is a fact the chooser can draw.
+
+    Only `{NAME}` is a key: a brace that does not open a bare name is text.
+    `OPENCODE_CONFIG_CONTENT` is a JSON object whose own placeholder is
+    `{env:NAME}`, and both pass through untouched.
     """
     text = str(value)
     out = []
@@ -141,6 +147,10 @@ def fill(value):
             out.append(text[i:])
             return "".join(out)
         name = text[a + 1:b]
+        if not _NAME.match(name):
+            out.append(text[i:a + 1])
+            i = a + 1
+            continue
         got = get(name)
         if got is None:
             return None

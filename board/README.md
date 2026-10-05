@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 118 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 119 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -2606,20 +2606,21 @@ round trips times context: it is what grew without bound while a session was
 resumed for twelve turns, and it is what a turn being its own session holds flat.
 
 **And the reading is a dispatch, not one provider.** `usage` on a recipe names a
-parser — `claude-json`, `codex-jsonl` — so a provider is a parser added beside
+parser — `claude-json`, `codex-jsonl`, `opencode-json` — so a provider is a parser added beside
 the others, and `tutor cost` splits the evening by agent, because the reason to
 have three is to see which one it went on.
 
 **The dollars are computed from the recipe where it has a price table.** A
-provider driven through somebody else's binary reports its token counts
-correctly — they are the model's own — and the price wrong, because the prices
-compiled into that binary are its vendor's. So the counts come from the parser
-and the money from a `prices` block: input, cached input, cache write and output
+harness reports token counts correctly — they are the model's own — but its
+price is a flat rate at best: OpenCode's `cost` knows no peak window. So the
+counts come from the parser and the money from a `prices` block: input, cached input, cache write and output
 per million, with the provider's own peak window in UTC. **What is recorded is
 the rate that applied**, not the window it was derived from: a table of windows
 in the reader goes stale silently and a recorded rate cannot. A recipe with no
 price table records its tokens and *no* dollar figure, which is the honest answer
-rather than a wrong number.
+rather than a wrong number, and `tutor cost` says *no price table — tokens only*
+rather than `$0.00`. `tutor cost <dir>` reads any directory holding a
+`live/cost.jsonl`, such as a kept `tutor doctor` workspace.
 
 The flag is appended from the recipe's `usage_args` rather than written into its
 `headless` command, and that is not fussiness. A machine's config file overrides
@@ -2732,31 +2733,53 @@ its title, the daemon refuses to start on it, and an automatic swap never falls 
 drawn, tapped, and dying in a log file hands the person holding the iPad the one thing they cannot
 act on.
 
-**DeepSeek cannot be used from the Laureate compute nodes, and that is final.** IT's network filters `api.deepseek.com` by hostname as a security policy. No exception is requested, and no exit node, tunnel or proxy is used to get past the filter, because that would be evading a site security control. The recipe below stays installed, and on these nodes it stands itself aside before a
-turn is spent on it (*When the provider does not answer from this machine at all*, below). It is
-still the worked example of a provider recipe.
+**Each provider runs through its own harness:** `claude` for Anthropic, `codex` for OpenAI,
+`opencode` for DeepSeek. One provider's endpoint is never driven by another provider's client.
 
-`deepseek` is the worked example and it is cheap for one reason: DeepSeek serves an Anthropic-format
-`/messages` endpoint, so the agent that runs it is **the `claude` executable already installed
-here**, with eight environment variables. Every part of this tool that knows how to drive Claude
-Code drives it unchanged — the resume, the `--output-format json` accounting, the timeouts, and the
-`ai-config` pre-tool hook, which fences PHI by intercepting the binary's tool calls and therefore
-fences this provider too, for free.
+**DeepSeek runs on the Mac.** The institute's network filters `api.deepseek.com` by hostname on the
+compute nodes as a security policy. No exception is requested and nothing is tunnelled past it, so
+no DeepSeek turn runs there (`projects/libr-local-llm/docs/deepseek-egress.md`). On any network that
+filters it, the recipe stands itself aside before a turn is spent (*When the provider does not
+answer from this machine at all*, below).
 
-**Every slot the binary can choose a model from is pinned, and that is the one decision in the
-entry.** Unpinned, the endpoint maps by name: an id starting `claude-opus` lands on the older
-text-only model, which **substitutes a placeholder for an image block rather than failing** — so a
-tutor handed a slate PNG answers confidently about nothing and no exit code says so. Six slots name
-`deepseek-flash`, which takes image input natively and is the cheaper of the two anyway:
-`ANTHROPIC_MODEL`, the three `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` aliases the binary
-resolves a named tier through, `CLAUDE_CODE_SUBAGENT_MODEL` for a Task-tool subagent, and
-`ANTHROPIC_SMALL_FAST_MODEL` for its own cheap calls. Six rather than two because any one left unset
-is a route back onto the text-only model, and that route loses handwriting silently.
+The `deepseek` recipe is `opencode --pure run --auto -m deepseek/deepseek-flash {prompt}`, and the
+same with `--continue` for a resumed turn. Each piece is there because a turn goes wrong without it:
+
+| Piece | Why |
+|---|---|
+| `-m deepseek/deepseek-flash` | this machine's OpenCode default is a free OpenRouter model, and without the flag the sitting goes there silently. `deepseek-v4-pro` is text-only |
+| `--pure` | no external plugins: the machine's vision plugin posts images to OpenRouter |
+| `--auto` | `opencode run` rejects every permission it would ask for, so without it a turn writes nothing unless OpenCode's own config says `allow` |
+| `env.DEEPSEEK_API_KEY` | the key, from `keys.env` |
+| `env.OPENCODE_CONFIG_CONTENT` | points DeepSeek's key at that variable (a saved `opencode auth login` outranks it otherwise), sends session titles to DeepSeek, and turns skills off — the machine's `describe-image` skill tells the model it is blind and has it post the slate to other providers |
+| `usage: opencode-json` | `--format json` prints one `step_finish` per round trip; `read_opencode_usage` sums them and `priced` applies the recipe's peak or off-peak rate |
+
+OpenCode takes its directory from `$PWD`, not from the process's working directory, so `run_turn`
+sets both to the course root. OpenCode has no `ai-config` pre-tool hook. That fence matters beside
+PHI, on the cluster, and DeepSeek never runs there.
+
+**`tutor doctor` proves a built-in recipe against its live provider** (`deepseek` unless another is
+named; a few cents a run). It works in a throwaway git workspace and prints one PASS or FAIL line a
+check, naming the harness and the route:
+
+1. a text turn: `headless_first` writes a card and exits 0;
+2. a coding turn: the turn writes a file, edits it, runs it in the shell, and the workspace `check`
+   passes;
+3. a resumed turn: `headless` recalls a word given in turn 1, in turn 1's session;
+4. an image twice: (a) the turn opens a PNG with its own read tool and no other tool; (b) the
+   recipe's `vision` route reads one through `seeing.ask`, the witness code drawn in the strip and
+   absent from the prompt;
+5. usage and price: every turn wrote a priced line to `live/cost.jsonl`, and `tutor cost` on the
+   workspace is printed beneath.
+
+It tests the built-in recipe, not this machine's config, and names any machine copy that shadows it.
+It writes nothing outside the workspace, exits 1 on any failure, and then keeps the workspace
+(`--keep` keeps it anyway). `board/test/doctor.py` runs it against a faked OpenCode and endpoint.
 
 **And the placeholder is caught on the way back, because pinning cannot be the only guard.** A tutor
 whose model can see is told to open the slate PNG itself, so the image never passes through `board
-see` and never meets `blind_answer` there. The turn's own output is scanned for the same
-placeholders instead, and a turn carrying one fails with *the page never reached the model* rather
+see` and never meets `blind_answer` there. What the model said in the turn — not the tools' output,
+which quotes files — is scanned for the same placeholders instead, and a turn carrying one fails with *the page never reached the model* rather
 than landing a fluent card about a page nobody read. `board/test/seeing.py`.
 
 **`claude` is the default**, and it is the only one this has been taught with at length. Claude
@@ -2802,8 +2825,9 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
   "agents": {
     "claude":   { "cmd": ["claude"], "prompt": "argv",
                   "headless": ["claude", "-p", "{prompt}", "--continue"] },
-    "deepseek": { "cmd": ["opencode", "--model", "…"], "prompt": "argv",
-                  "headless": ["opencode", "run", "--continue", "{prompt}"] }
+    "deepseek": { "cmd": ["opencode"], "prompt": "argv",
+                  "headless": ["opencode", "--pure", "run", "--auto",
+                               "-m", "deepseek/deepseek-flash", "--continue", "{prompt}"] }
   }
 }
 ```
@@ -3094,7 +3118,7 @@ session whose last turn stood its own provider down falls out of the bottom stil
 one, and spends the wrap-up on the single recipe that cannot take it. Measured: the log said *the
 next turn goes to `claude`*, and the wrap-up three seconds later ran on DeepSeek's base URL, died
 `ECONNRESET` after 179 seconds, was billed to DeepSeek, and wrote nothing. The name **and** the
-recipe are rebound, because the environment is what actually points the binary. **And where nothing
+recipe are rebound, because the recipe's argv and environment are what point the harness. **And where nothing
 on the machine can write one it is skipped rather than attempted**, with the reason in the log:
 three minutes of known-dead retries is worse than no handoff, because the `finish-restart` window
 burns with them and the next daemon waits behind a turn that was never going to answer. A session
@@ -3104,10 +3128,10 @@ that ends without one is a session the next reconstructs from the cards.
 
 An allowance that runs out is the provider working. A hostname this network drops is the provider
 being unreachable, and it looks identical from a lesson: a tutor listening, a student sending, and
-nothing coming back. `api.deepseek.com` is dropped at the TLS ClientHello here — the same address
-answers under its CloudFront name, so the filter keys on the hostname and no client setting reaches
-it. That filter is IT security policy, and nothing here routes around it. The recipe is correct and
-stays; what changes is everything around it.
+nothing coming back. On the institute's compute nodes `api.deepseek.com` is dropped at the TLS
+ClientHello — the same address answers under its CloudFront name, so the filter keys on the hostname
+and no client setting reaches it. That filter is IT security policy, and nothing routes around it.
+The Mac is outside it. What follows is how any machine behind such a filter stands the recipe aside.
 
 **A recipe with a provider of its own is probed before a turn is spent on it.** Only such a recipe:
 anything driving the machine's default provider is covered by the machine-wide probe the failure
@@ -3525,9 +3549,9 @@ placeholder fails with *the page never reached the model* rather than writing a 
 handwriting nobody was shown.
 
 **A command route runs without the sitting's routing variables.** `board see` is run by the tutor's
-own Bash tool, inside a turn whose environment the running recipe wrote — so in a DeepSeek sitting
-`ANTHROPIC_BASE_URL` is inherited and the `claude` route, whose whole premise is *the binary that is
-installed here anyway*, is the provider it is falling back FROM reached through a second door.
+own Bash tool, inside a turn whose environment the running recipe wrote — so in a sitting whose
+recipe exports `ANTHROPIC_BASE_URL`, the `claude` route, whose whole premise is *the binary that is
+installed here anyway*, would be that recipe's provider reached through a second door.
 Measured on the same PNG both ways: 14.4 s and a correct transcription with `seeing.ROUTING`
 scrubbed out, 180 s and a timeout with those variables exported. `env` on a `vision` block is
 applied after the scrub, so a route that genuinely wants one of them says so where the command is.
@@ -6282,6 +6306,9 @@ python3 test/seeing.py   that no card is written off a page a model never saw: t
                          placeholder for a dropped image is read as the failure it is
 python3 test/tokens.py   what a turn is allowed to read, what it must not run, and that
                          what it cost is measured rather than argued about
+python3 test/doctor.py   that `tutor doctor` proves the built-in recipe against a faked
+                         OpenCode and endpoint, one line a check, and fails 4a on a
+                         turn that read the slate through anything but its own read
 python3 test/colibri.py  that the local model is a recipe and not a feature: the sitting
                          resolves it, its clock is hours rather than minutes, `squeue`
                          answers which of four states its server is in, and the two

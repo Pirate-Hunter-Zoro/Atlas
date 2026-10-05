@@ -76,15 +76,15 @@ IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 # THE VARIABLES A RECIPE USES TO POINT A BINARY SOMEWHERE ELSE, and the reason
 # a command route has to be run without them. `board see` is run by the tutor's
 # own Bash tool, inside a turn whose environment the RUNNING recipe wrote -- so
-# in a DeepSeek sitting `ANTHROPIC_BASE_URL` is inherited, and claude's vision
-# route, whose whole premise is "the binary that is installed here anyway", is
-# not Claude at all. It is the provider that just went dark, reached a second
-# time through a second door.
+# in a sitting whose recipe exports `ANTHROPIC_BASE_URL`, claude's vision route,
+# whose whole premise is "the binary that is installed here anyway", is not
+# Claude at all. It is that recipe's provider, reached a second time through a
+# second door.
 #
 # Measured on this machine, the same PNG both ways: 14.4 s and a correct
 # transcription in a clean environment; 180 s and `\`claude\` did not answer
 # within 180 s` with those variables exported. That is the whole of the
-# handwriting fallback for a DeepSeek sitting, and it is why this list is a
+# handwriting fallback for such a sitting, and it is why this list is a
 # constant here rather than a habit somewhere.
 #
 # A recipe overrides it: `env` on the `vision` block is applied after the scrub,

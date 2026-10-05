@@ -159,110 +159,71 @@ check("and the reason is written beside the function rather than in a commit "
 # ---- the whole of a provider: one entry and one line -----------------------
 D = tutor.DEFAULT_CONFIG
 ds = D["agents"]["deepseek"]
-check("deepseek runs the claude binary, so every part of this tool that knows "
-      "how to drive Claude Code drives it unchanged",
-      ds["cmd"] == ["claude"] and ds["headless_first"][0] == "claude")
-check("it resumes the way the claude recipe does",
+check("deepseek runs through opencode, its own harness, and never through "
+      "another provider's client",
+      ds["cmd"] == ["opencode"] and ds["headless_first"][0] == "opencode"
+      and ds["headless"][0] == "opencode"
+      and "claude" not in ds["headless_first"] + ds["headless"])
+check("the model is named on the command line of both turns, because this "
+      "machine's opencode default is another provider",
+      all(t[t.index("-m") + 1] == "deepseek/deepseek-flash"
+          for t in (ds["headless_first"], ds["headless"])))
+check("and it is the model the vision route reads with, so a rename is one "
+      "id in two places that a test holds together",
+      ds["headless_first"][ds["headless_first"].index("-m") + 1]
+      == "deepseek/" + ds["vision"]["model"])
+check("it resumes with --continue, and only the resumed turn does",
       "--continue" in ds["headless"] and "--continue" not in ds["headless_first"])
-check("it reports what it cost", ds["usage"] == "claude-json")
+check("no external plugin and no permission prompt: --pure and --auto on both",
+      all("--pure" in t and "--auto" in t
+          for t in (ds["headless_first"], ds["headless"])))
+check("no `--` before the prompt, because `with_usage` appends flags after it",
+      "--" not in ds["headless_first"] and "--" not in ds["headless"])
+check("it reports what it cost through its own parser",
+      ds["usage"] == "opencode-json" and ds["usage_args"] == ["--format", "json"]
+      and "opencode-json" in tutor.USAGE_PARSERS)
 check("it names the key it needs", ds["needs_key"] == "DEEPSEEK_API_KEY")
-check("the endpoint is the Anthropic-format one, which is why the binary works",
-      ds["env"]["ANTHROPIC_BASE_URL"].endswith("/anthropic"))
-check("AND EVERY MODEL SLOT IS PINNED. Unpinned, a `claude-opus` name maps to a "
-      "text-only model that substitutes `[Unsupported Image]` for an image "
-      "block and answers HTTP 200 -- a tutor handed a slate PNG would answer "
-      "about nothing and no exit code would say so",
-      sorted(k for k in ds["env"] if "MODEL" in k)
-      == ["ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL",
-          "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_MODEL",
-          "ANTHROPIC_SMALL_FAST_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL"])
-check("including the three ALIASES, which are the ones that lose the "
-      "handwriting: the binary resolves `opus`, `sonnet` and `haiku` through "
-      "their own variables, and a slot left unset is a request that goes out "
-      "under a `claude-*` name",
-      all(ds["env"].get("ANTHROPIC_DEFAULT_%s_MODEL" % a)
-          for a in ("OPUS", "SONNET", "HAIKU")))
-check("and the subagent slot, because a Task-tool subagent reading the page is "
-      "the same turn on a different model",
-      bool(ds["env"].get("CLAUDE_CODE_SUBAGENT_MODEL")))
-check("the deprecated small-fast name is kept BESIDE its replacement rather "
-      "than swapped for it, because which one the installed binary reads is "
-      "not a thing this tree gets to assume",
-      ds["env"]["ANTHROPIC_SMALL_FAST_MODEL"]
-      == ds["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"])
-check("and the placeholder string is named where somebody debugging a "
-      "confident answer about nothing would look for it",
-      "[Unsupported Image]" in tutor_src)
-check("and the reason is next to the pin",
-      "PIN THE MODEL OR LOSE THE HANDWRITING" in tutor_src)
-check("it is not driven through opencode, which would be a second agent's "
-      "config file and a second credential store for one binary",
-      ds["cmd"] != ["opencode"])
-
-# AND THE ENV IS A CONTRACT WITH A BINARY THIS TREE DOES NOT OWN, so it is
-# pinned here: eight names, and the failure of any of them is silent rather than
-# loud. `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
-# `_SUPPORTED_CAPABILITIES` siblings read as if they belong in this list and do
-# not: they add an entry to the interactive `/model` picker, which a `-p` turn
-# never opens.
-check("the routing is exactly these eight names, so a variable that does "
-      "nothing cannot drift in beside the ones that do",
-      sorted(ds["env"]) == ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
-                            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-                            "ANTHROPIC_DEFAULT_OPUS_MODEL",
-                            "ANTHROPIC_DEFAULT_SONNET_MODEL",
-                            "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL",
-                            "CLAUDE_CODE_SUBAGENT_MODEL"])
-# THE THREE PLACES THE MODEL NAME APPEARS ARE ASKED TO AGREE WITH EACH OTHER,
-# and deliberately not compared to a literal. The recipe's own comment calls
-# this "the field that goes stale, and it is a one-string change when it does";
-# a test holding a fourth copy makes it a four-string change and fires on the
-# CORRECT action. What must not drift is the three against each other.
-check("every variable that selects a model selects the SAME one, and so does "
-      "the eye `board see` lends a sitting -- so updating a renamed model stays "
-      "the one-string change the recipe says it is",
-      len(set(v for k, v in ds["env"].items() if "MODEL" in k)
-          | {ds["vision"]["model"]}) == 1)
+check("and no ANTHROPIC_* routing is left anywhere in the recipe",
+      not any(k.startswith(("ANTHROPIC_", "CLAUDE_CODE_")) for k in ds["env"]))
 check("the credential is named rather than written, so the tree holds no key",
-      ds["env"]["ANTHROPIC_AUTH_TOKEN"] == "{DEEPSEEK_API_KEY}")
+      ds["env"]["DEEPSEEK_API_KEY"] == "{DEEPSEEK_API_KEY}")
+overlay = __import__("json").loads(ds["env"]["OPENCODE_CONFIG_CONTENT"])
+check("the overlay makes keys.env the key OpenCode uses, over a saved login",
+      overlay["provider"]["deepseek"]["options"]["apiKey"]
+      == "{env:DEEPSEEK_API_KEY}")
+check("titles go to DeepSeek too, not to the machine's small model",
+      overlay["small_model"] == "deepseek/deepseek-flash")
+check("and skills are off: this machine's describe-image skill sends a slate "
+      "to another provider", overlay["permission"]["skill"] == "deny")
+
+real_env = tutor.turn_environment(ds, {})
+check("the real recipe spends the key through the environment",
+      real_env["DEEPSEEK_API_KEY"] == "sk-abc123")
+check("and the overlay's own braces pass through keys.fill untouched",
+      __import__("json").loads(real_env["OPENCODE_CONFIG_CONTENT"]) == overlay)
+check("keys.fill leaves a brace that does not open a bare name alone",
+      keys.fill('{"a": "{env:X}"}') == '{"a": "{env:X}"}'
+      and keys.fill("{env:X} {DEEPSEEK_API_KEY}") == "{env:X} sk-abc123")
 
 # THE ARGV RULE, ASKED OF THE REAL RECIPE rather than of a stand-in, because
 # this is the one that is unrecoverable: `ps` is readable by every account on
 # this machine and a leaked key cannot be un-leaked.
-real_env = tutor.turn_environment(ds, {})
-check("the real recipe spends the key through the environment",
-      real_env["ANTHROPIC_AUTH_TOKEN"] == "sk-abc123"
-      and real_env["ANTHROPIC_MODEL"] == "deepseek-flash")
 real_cmd = tutor.with_usage(ds, [a.replace("{prompt}", "hello")
                                  for a in ds["headless"]])
 check("and nothing of it reaches the command line",
-      not any("sk-abc123" in a or "DEEPSEEK" in a or "AUTH_TOKEN" in a
-              for a in real_cmd))
-
-# AND THE PRECONDITION NO VARIABLE SUPPLIES: a route to the host. The variables
-# are correct and a turn still dies if the network drops the name, so the recipe
-# names the host it opens and the reasons are beside it rather than in a log.
-check("the recipe names the host its turns open, and it is the host the base "
-      "URL points at rather than a second guess about it",
-      ds["egress_probe"] and all(u.startswith(ds["env"]["ANTHROPIC_BASE_URL"])
+      not any("sk-abc123" in a or "DEEPSEEK" in a for a in real_cmd))
+check("the recipe names the host its turns open",
+      ds["egress_probe"] and all(u.startswith("https://api.deepseek.com/")
                                  for u in ds["egress_probe"]))
-check("the stderr line this provider prints on every turn is written off where "
-      "the next person reads it, rather than re-diagnosed as a refusal",
-      "ON STDERR IS COSMETIC" in tutor_src)
-check("and the one thing the variables cannot supply is stated with them",
-      "THE VARIABLES CANNOT SUPPLY IS A ROUTE" in tutor_src)
-# AND THE CLAIM THE RECIPE MAKES ABOUT ITS OWN MODEL IS A CHECKABLE ONE. The
-# comment used to say the pin "cannot be re-checked from this machine", which
-# was true of the API host and false of the two places the provider publishes
-# the answer -- and a comment that says do not bother looking is a comment
-# nobody looks past.
-check("the recipe says WHERE to re-check the model id, rather than saying it "
-      "cannot be re-checked",
-      "huggingface.co" in tutor_src and "deepseek-recipe" in tutor_src
-      and "cannot be re-checked from this machine" not in tutor_src)
+check("the recipe says WHERE to re-check the model id",
+      "huggingface.co" in tutor_src and "deepseek-recipe" in tutor_src)
+check("and does not describe the institute's hostname filter as this "
+      "machine's", "from here the TLS handshake" not in tutor_src)
 check("and the vision block says whether its model has eyes, since an answer "
       "from a blind route is indistinguishable from a transcription",
       ds["vision"]["sighted"] is True)
+check("the vision route is the raw OpenAI-format request, independent of the "
+      "harness", ds["vision"]["endpoint"].endswith("/v1/chat/completions"))
 
 # ---- and the refusals, on the surfaces that draw them ----------------------
 unkeyed_cfg = {"default_agent": "ghost", "agents": {

@@ -280,9 +280,12 @@ finally:
 # C. the branch that wires those two together, read as source
 # ---------------------------------------------------------------------------
 SRC = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# The daemon's own body: `tutor doctor` runs turns through `run_turn` too.
+DAEMON = SRC.split("\ndef headless(")[1].split("\ndef ")[0]
 check("the daemon runs every turn through `run_turn`, including the retry, or "
       "one of the two paths leaves an orphan behind",
-      SRC.count("tutor.run_turn") == 0 and SRC.count("= run_turn(") == 2
+      SRC.count("tutor.run_turn") == 0
+      and DAEMON.count("= run_turn(") == 2
       and "subprocess.run(cmd, cwd=root, stdout=log" not in
       SRC.split("def headless")[-1].split("handoff ===")[0])
 check("a chain gap waits under `CARRY_BACKOFF` rather than asking squeue in a "
