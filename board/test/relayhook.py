@@ -280,7 +280,7 @@ try:
     write(os.path.join(lab, "patients", "ID0001XQ.json"), "{}")
     write(os.path.join(lab, "person.csv"), "id,dob\nID0001XQ,1950\n")
     write(os.path.join(ws, "results", "cross_embedder_retrieval",
-                       "cross_embedder_sweep.png"), "png")
+                       "lr_dimensions_vs_best_k.png"), "png")
     write(os.path.join(ws, "results", "ID0004CD.csv"), "a\n")
     env = {"RESULTS_DIR": res, "EMBEDDINGS_DIR": emb, "ARTIFACTS_DIR": art,
            "PATIENT_JSON_DIR": os.path.join(lab, "patients"),
@@ -318,7 +318,7 @@ if __name__ == "__main__":
 
 def main():
     a_figure = os.path.join("results", "cross_embedder_retrieval",
-                            "cross_embedder_sweep.png")
+                            "lr_dimensions_vs_best_k.png")
     b_stray = os.path.join("results", "ID0004CD.csv")
     c_tree = os.path.join(os.environ["RESULTS_DIR"], "ID0003AB.json")
     raise KeyError("ID0003AB")
@@ -398,7 +398,7 @@ exit "${STATUS}"
           code == 1 and "RELAY: error KeyError at scripts/mirror.py:9 in main"
           in said
           and "RELAY: input results/cross_embedder_retrieval/"
-          "cross_embedder_sweep.png bytes 3" in said
+          "lr_dimensions_vs_best_k.png bytes 3" in said
           and "RELAY: input results/<file> ext csv" in said
           and "RELAY: input RESULTS_DIR/<file> ext json" in said
           and clean_lines(said))
