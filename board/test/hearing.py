@@ -210,6 +210,9 @@ try:
     check("it tells the turn to move the thread on through `board job`",
           "board thread" in text and "board job" in text
           and "board ask-cluster knn" in text)
+    check("and, relay turns being off here, names the opt-in that would "
+          "have a cluster turn diagnose it",
+          "relay.turns" in text and "--fixes" not in text)
     check("and the pull is hourly again", interval == jobs.PULL_IDLE)
 
     tutorcli.hear_pass(stamp=stamp, now=1600, force=True)
@@ -303,6 +306,180 @@ try:
           and len(results.figures(ws)) == 1)
 finally:
     shutil.rmtree(base, ignore_errors=True)
+
+# --- a failed job where relay turns are on: diagnosed there, fixed here ---------
+import shlex                                                           # noqa: E402
+
+ORIGIN = "2026-10-02-knn-sweep"
+FIRST = {"id": ORIGIN, "kind": "recipe", "thread": "knn",
+         "recipe": "slurm/sweep.sbatch", "env": {"EMBEDDER": "bge-small"},
+         "produces": ["results/knn/best.json"], "export": [], "filed": 100.0}
+FAILED = {"state": "failed", "exit": "1:0", "error": "FileNotFoundError",
+          "jobid": "2110916", "ended": "2026-10-02T22:13:25"}
+CHECK = "uv run --extra test python -m pytest tests -q"
+scenes = tempfile.mkdtemp(prefix="tutor-fixing-")
+
+
+def scene(reqs, reps, turns=True):
+    """A workspace on disk holding these requests and reports. `{id: rec}`."""
+    ws = tempfile.mkdtemp(dir=scenes)
+    write(threads.path(ws), json.dumps(SPINE))
+    write(os.path.join(ws, "tutorboard.json"),
+          json.dumps({"name": "Proj", "check": CHECK,
+                      "relay": {"turns": turns}}))
+    for r in reqs:
+        write(os.path.join(ws, "relay", "requests", r["id"] + ".json"),
+              json.dumps(r))
+    for rid, rep in reps.items():
+        write(os.path.join(ws, "relay", "reports", rid + ".json"),
+              json.dumps(dict(rep, id=rid)))
+    threads._cache.clear()
+    return ws, dict((r["request"], r) for r in jobs.relayed(ws))
+
+
+def fix_turn(n, filed):
+    return {"id": "fx%d" % n, "kind": "turn", "thread": "knn",
+            "brief": "Diagnose fix attempt %d" % n, "fixes": ORIGIN,
+            "filed": filed}
+
+
+try:
+    ws, recs = scene([FIRST], {ORIGIN: FAILED})
+    text = jobs.relay_sense(ws, recs[ORIGIN])
+    line = next((l.strip() for l in text.splitlines()
+                 if l.strip().startswith("board ask-cluster")), "")
+    words = shlex.split(line)
+    brief = words[-1] if len(words) == 6 else ""
+    check("a failed recipe, relay turns on: the turn files fix attempt 1 itself",
+          words[:5] == ["board", "ask-cluster", "knn", "--fixes", ORIGIN]
+          and "fix attempt 1 of 2" in text and "tick the task" not in text)
+    check("with one brief the code wrote: under the cap, diagnose and edit "
+          "nothing, CAUSE/FIX or UNKNOWN, the exit and error, publishable",
+          0 < len(brief) <= jobs.MAX_BRIEF and "Do not edit anything" in brief
+          and "CAUSE:" in brief and "FIX:" in brief and "UNKNOWN:" in brief
+          and "exit 1" in brief and "FileNotFoundError" in brief
+          and "`" not in brief and "$" not in brief
+          and jobs.request_leak(ws, {"id": "x", "kind": "turn",
+                                     "thread": "knn", "brief": brief}) == "")
+    check("no rerun while no fix turn is filed for it",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == "")
+
+    ws, recs = scene([FIRST], {ORIGIN: {"state": "refused",
+                                        "problems": ["env DATA ..."]}})
+    check("a refused recipe files no fix",
+          "--fixes" not in jobs.relay_sense(ws, recs[ORIGIN]))
+
+    plain = {"id": "t1", "kind": "turn", "thread": "knn", "brief": "look",
+             "filed": 50.0}
+    ws, recs = scene([plain], {"t1": FAILED})
+    text = jobs.relay_sense(ws, recs["t1"])
+    check("a failed turn that is no fix keeps the plain wording",
+          "--fixes" not in text and 'board ask-cluster knn "<what to read>"'
+          in text and "tick the task" in text)
+
+    rerun = dict(FIRST, id="r2", fixes=ORIGIN, filed=300.0)
+    ws, recs = scene([FIRST, fix_turn(1, 200.0), rerun],
+                     {ORIGIN: FAILED,
+                      "fx1": {"state": "completed",
+                              "note": "CAUSE: a path. FIX: in run.py ..."},
+                      "r2": FAILED})
+    text = jobs.relay_sense(ws, recs["r2"])
+    check("a failed rerun after one fix files attempt 2 of 2, for the first",
+          "fix attempt 2 of 2" in text and "--fixes %s" % ORIGIN in text
+          and "Request r2 ran" in text)
+    check("a plain rerun of that recipe is refused: its chain is open",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ORIGIN
+          and jobs.open_fix(ws, "knn", "slurm/other.sbatch") == ""
+          and jobs.open_fix(ws, "tripod", "slurm/sweep.sbatch") == "")
+    ws, recs = scene([FIRST, fix_turn(1, 200.0), rerun],
+                     {ORIGIN: FAILED, "fx1": {"state": "completed",
+                                              "note": "CAUSE: x\nFIX: y"},
+                      "r2": {"state": "completed", "exit": "0:0"}})
+    check("and allowed once the newest rerun in the chain completed",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == "")
+    ws, recs = scene([FIRST, fix_turn(1, 200.0), rerun],
+                     {ORIGIN: FAILED, "fx1": {"state": "completed",
+                                              "note": "CAUSE: x\nFIX: y"}})
+    check("or while that rerun is still out",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == "")
+
+    ws, recs = scene([FIRST, fix_turn(1, 200.0), fix_turn(2, 400.0),
+                      dict(rerun, id="r3", filed=500.0)],
+                     {ORIGIN: FAILED,
+                      "fx1": {"state": "completed", "note": "CAUSE: one"},
+                      "fx2": {"state": "completed", "note": "CAUSE: two"},
+                      "r3": FAILED})
+    text = jobs.relay_sense(ws, recs["r3"])
+    check("after two fix turns it gives up, naming each and what it said",
+          "gave up" in text and "fx1: CAUSE: one" in text
+          and "fx2: CAUSE: two" in text and "board ask-cluster" not in text
+          and "owner decides" in text)
+    check("and a plain rerun is still refused at the cap; `--fixes` is the "
+          "owner's way back in",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ORIGIN)
+
+    def after_fix(rep, more=()):
+        ws, recs = scene([FIRST, fix_turn(1, 200.0)] + list(more),
+                         {ORIGIN: FAILED, "fx1": rep})
+        return jobs.relay_sense(ws, recs["fx1"])
+    text = after_fix({"state": "completed", "exit": "0:0",
+                      "note": "CAUSE: the sweep read a missing panel file.\n"
+                              "FIX: in load_panel, read PANEL_DIR."})
+    rerun_line = ("board job knn --fixes %s --produces results/knn/best.json "
+                  "-- slurm/sweep.sbatch EMBEDDER=bge-small" % ORIGIN)
+    check("a CAUSE/FIX note: the Mac turn applies the fix in the thread's "
+          "files, runs the workspace's check, ships it with `board push`",
+          "Apply that FIX yourself" in text
+          and "results/knn/sweep.png" in text and CHECK in text
+          and 'board push "knn: <what changed>"' in text
+          and "tick the task" not in text)
+    check("and reruns with the exact `board job --fixes` command, last",
+          rerun_line in text
+          and text.index("board push") < text.index(rerun_line)
+          and "the rerun is filed" in text)
+    check("a FIX line may sit past the first line, under markdown",
+          "Apply that FIX" in after_fix(
+              {"state": "completed", "exit": "0:0",
+               "note": "**CAUSE:** a path.\n\n- **FIX:** read PANEL_DIR."}))
+    text = after_fix({"state": "completed", "exit": "0:0",
+                      "note": "UNKNOWN: read the log and the loader; no "
+                              "single cause."})
+    check("an UNKNOWN note: no rerun, the card says what it checked and the "
+          "owner decides",
+          "board job knn --fixes" not in text and "owner decides" in text
+          and "what it checked" in text and "board ask-cluster" not in text
+          and "tick the task" not in text)
+    text = after_fix({"state": "completed", "exit": "0:0",
+                      "note": "CAUSE: a path, and no fix given."})
+    check("a CAUSE with no FIX is no fix either",
+          "board job knn --fixes" not in text and "owner decides" in text)
+    text = after_fix({"state": "failed", "exit": "124:0",
+                      "note": "The turn left no note."})
+    check("a fix turn that itself failed files attempt 2",
+          "fix attempt 2 of 2" in text
+          and "board ask-cluster knn --fixes %s" % ORIGIN in text)
+
+    text = after_fix({"state": "refused", "problems": ["the cap is 2"]})
+    check("a refused fix turn invites no refile: the owner decides",
+          "file it again through `board job`" not in text
+          and "Do not file it again" in text and "owner decides" in text
+          and "tick the task" not in text)
+    ws, recs = scene([FIRST, fix_turn(1, 200.0), rerun],
+                     {ORIGIN: FAILED, "fx1": {"state": "completed",
+                                              "note": "CAUSE: x\nFIX: y"},
+                      "r2": {"state": "refused", "problems": ["env ..."]}})
+    text = jobs.relay_sense(ws, recs["r2"])
+    check("and so does a refused rerun",
+          "rerun for %s" % ORIGIN in text and "Do not file it again" in text
+          and "file it again through `board job`" not in text)
+
+    ws, recs = scene([dict(FIRST, filed="soon")], {})
+    check("a malformed `filed` reads as 0 in the registry, and every reader "
+          "still reads it", recs[ORIGIN]["submitted"] == 0.0
+          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ""
+          and jobs.context(ws)["failed"] == set())
+finally:
+    shutil.rmtree(scenes, ignore_errors=True)
 
 print()
 if fails:

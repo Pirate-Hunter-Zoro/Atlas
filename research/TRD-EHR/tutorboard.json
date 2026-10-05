@@ -2,5 +2,6 @@
   "name": "TRD-EHR",
   "stance": "do",
   "phi": true,
-  "check": "uv run --env-file .env.example --extra test python -m pytest tests -q"
+  "check": "uv run --env-file .env.example --extra test python -m pytest tests -q",
+  "relay": {"turns": true}
 }

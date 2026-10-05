@@ -17,7 +17,9 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
    copied and checked, and its report written.
 4. One `turn` request at a time runs as a Slurm job of its own, a headless
    Claude turn in that workspace (`tutor relay --turn`), denied in code every
-   command that commits or pushes (`disallowed`).
+   command that commits or pushes (`disallowed`). A fix turn (a request with
+   `fixes`) reads a failed job's log and writes the fix into its note; it
+   edits nothing, and is denied `board job` and `sbatch` too.
 4b. A `colibri` request is queued as a task (`colibri.relay_file`), and
    `colibri.relay_pass` reports each task; a finished task's hosted review is
    a turn job like any other, one turn at a time across both.
@@ -621,6 +623,14 @@ def turn_note(ws, req, rec, names_phi=None):
     return said
 
 
+# The paragraph every turn's prompt ends on.
+_PUBLISHED = (
+    "YOUR LAST MESSAGE IS THE REPORT'S NOTE, AND IT IS PUBLISHED in a "
+    "public repository. Aggregate numbers only: no patient-level values, "
+    "no rows, no patient or participant identifiers, no paths to lab "
+    "storage, no log lines. Under %d characters." % (MAX_NOTE - 200))
+
+
 def turn_prompt(ws, req, title=""):
     return (
         "You are a headless turn on the cluster, started by the relay. Nobody "
@@ -632,14 +642,65 @@ def turn_prompt(ws, req, title=""):
         "the PHI rules in the repository's root README.md. Long work goes "
         "through `board job`, never a bare sbatch. Do not commit, push or "
         "edit tracked files.\n\n"
-        "YOUR LAST MESSAGE IS THE REPORT'S NOTE, AND IT IS PUBLISHED in a "
-        "public repository. Aggregate numbers only: no patient-level values, "
-        "no rows, no patient or participant identifiers, no paths to lab "
-        "storage, no log lines. Under %(cap)d characters. Say what you found "
-        "and what the owner should do next."
+        "%(published)s Say what you found and what the owner should do next."
         % {"ws": os.path.basename(ws), "thread": req.get("thread"),
            "title": " (%s)" % title if title else "",
-           "brief": req.get("brief") or "", "cap": MAX_NOTE - 200})
+           "brief": req.get("brief") or "", "published": _PUBLISHED})
+
+
+def fix_prompt(ws, req, title, files, logs, failing):
+    """A fix turn's prompt: diagnose the failed request from its log, and
+    write the fix into the note for the Mac to apply. It edits nothing and
+    submits nothing."""
+    return (
+        "You are a headless fix turn on the cluster, started by the relay. "
+        "Nobody is at a terminal, and nobody will read stdout except to keep "
+        "your last message.\n\n"
+        "Workspace: %(ws)s. Thread: %(thread)s%(title)s. A relay job on this "
+        "thread failed, and the Mac asked, without the owner:\n\n"
+        "%(brief)s\n\n"
+        "The failed request is %(failing)s. Its log: %(logs)s. The thread's "
+        "files, relative to the workspace:\n%(files)s\n\n"
+        "Read the log here and find the cause. Do not fix it yourself: edit "
+        "nothing, commit nothing, submit nothing. `board job` and sbatch are "
+        "denied, because on the cluster they run outside the relay. The Mac "
+        "applies the fix your note describes to the thread's files, runs the "
+        "workspace's check, and reruns the job through `board job`. Whoever "
+        "applies it never sees the log, so the fix must stand on its own.\n\n"
+        "Work under this workspace's AI_INSTRUCTIONS.md and the PHI rules in "
+        "the repository's root README.md.\n\n"
+        "%(published)s Copy no line of the log. Start the note with CAUSE: "
+        "and one sentence. Then FIX: and the exact change to make in the "
+        "thread's code or the recipe's job spec, in words and code "
+        "identifiers (file, function, variable, VAR value), small enough for "
+        "another engineer to apply without the log. If you cannot tell, "
+        "start the note with UNKNOWN: and say what you checked."
+        % {"ws": os.path.basename(ws), "thread": req.get("thread"),
+           "title": " (%s)" % title if title else "",
+           "brief": req.get("brief") or "", "failing": failing or "unknown",
+           "logs": ", ".join(logs) if logs else "unknown",
+           "files": "\n".join("  " + f for f in files) or "  (none)",
+           "published": _PUBLISHED})
+
+
+def _failing(ws, origin):
+    """`(request id, [log, errors])` of the newest recipe in the chain of
+    `origin` whose report says failed, read off the relay's own registry."""
+    _, recipes = jobs.fix_chain(ws, origin)
+    first = [r for r in jobs.relayed(ws) if r["request"] == origin]
+    chain = [r for r in first + recipes if r.get("state") == "FAILED"]
+    rid = chain[-1]["request"] if chain else origin
+    mine = [r for r in jobs.records(ws, jobs.relay_registry(ws)).values()
+            if r.get("request") == rid and not r.get("review")]
+    if not mine:
+        return rid, ["not in the relay registry; look under relay/state/ and "
+                     "the recipe's #SBATCH --output"]
+    rec = max(mine, key=lambda r: float(r.get("submitted") or 0))
+    logs = [rec.get("log_path") or rec.get("log") or ""]
+    err = rec.get("err_path") or rec.get("err") or ""
+    if err and err not in logs:
+        logs.append(err)
+    return rid, [l for l in logs if l]
 
 
 def turn_header(ws, rid):
@@ -668,10 +729,17 @@ NO_PUBLISH = ("Bash(git commit:*)", "Bash(git push:*)", "Bash(git -C:*)",
               "Bash(board hold:*)", "Bash(board release:*)",
               "Bash(board ask-cluster:*)")
 NO_PUSH = ("Bash(board push:*)",)
+# A fix turn diagnoses and the Mac fixes and reruns. On the cluster `board job`
+# and sbatch run outside the relay, so the Mac would never hear the rerun and
+# the cap on fix attempts could not count it. Its edit tools are denied too:
+# the fix is applied on the Mac, past the Mac's checks.
+NO_SUBMIT = ("Bash(board job:*)", "Bash(sbatch:*)")
+NO_EDIT = ("Edit", "Write", "NotebookEdit")
 
 
-def disallowed(review=False):
-    return list(NO_PUBLISH) + ([] if review else list(NO_PUSH))
+def disallowed(review=False, fix=False):
+    return (list(NO_PUBLISH) + ([] if review else list(NO_PUSH))
+            + (list(NO_SUBMIT) + list(NO_EDIT) if fix else []))
 
 
 def review_path(ws, rid):
@@ -702,15 +770,24 @@ def run_turn(ws, rid, run=subprocess.run):
         return 2
     clean, _ = course_threads.read(ws)
     one = course_threads.thread(clean, req.get("thread")) if clean else None
-    prompt = (req.get("brief") or "") if review else turn_prompt(
-        ws, req, (one or {}).get("title", ""))
+    fix = bool(req.get("fixes")) and not review
+    if review:
+        prompt = req.get("brief") or ""
+    elif fix:
+        failing, logs = _failing(ws, req["fixes"])
+        files = [f for f in (course_threads._rel(p) for p in
+                             (one or {}).get("files") or []) if f]
+        prompt = fix_prompt(ws, req, (one or {}).get("title", ""), files,
+                            logs, failing)
+    else:
+        prompt = turn_prompt(ws, req, (one or {}).get("title", ""))
     # Claude, always: a routing variable inherited from a DeepSeek sitting
     # would make this some other model beside the data.
     env = dict((k, v) for k, v in os.environ.items()
                if k not in seeing.ROUTING)
     try:
         p = run(["claude", "-p", prompt, "--output-format", "json",
-                 "--disallowedTools"] + disallowed(review), cwd=ws,
+                 "--disallowedTools"] + disallowed(review, fix), cwd=ws,
                 env=env, stdout=subprocess.PIPE, stderr=None,
                 stdin=subprocess.DEVNULL, universal_newlines=True,
                 timeout=TURN_SECONDS)

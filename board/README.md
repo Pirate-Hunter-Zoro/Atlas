@@ -794,9 +794,9 @@ board cannot see: its thread reads `open` while it runs and nobody hears when it
 workspace contract says so. `tutorboard/jobs.py` is the module; `test/jobs.py` is the suite.
 
 ```
-board job <thread> [--produces <p>]... [--export <p>]... -- <recipe.sbatch> [VAR=value ...]
+board job <thread> [--produces <p>]... [--export <p>]... [--fixes <id>] -- <recipe.sbatch> [VAR=value ...]
 board job <thread> [--produces <p>]... -- sbatch <args>     raw form, Slurm machines only
-board ask-cluster <thread> "<brief>"                         a `turn` request
+board ask-cluster <thread> [--fixes <id>] "<brief>"          a `turn` request
 board job --show                     every job and request, folded to its last state
 ```
 
@@ -812,15 +812,21 @@ may be left out where the sitting names one.
 `relay/requests/<id>.json`, id `<date>-<thread>-<recipe stem>` made unique, plus a `filed` epoch.
 `jobs.file_request` commits that one file through `save-and-push.sh` with it as the whole
 pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `board
-ask-cluster` files a `turn` request the same way.
+ask-cluster` files a `turn` request the same way. `--fixes <id>` on either links it to the
+recipe request that failed first; with Slurm, `board job` refuses it. Without Slurm, `board job`
+refuses a rerun of a recipe whose fix chain is open unless it carries `--fixes`
+(`jobs.open_fix`): a recipe request with fix turns filed for it, whose chain's newest recipe is
+this one and failed. A rerun outside the chain would restart the count of fix turns.
 
 **One validator, both machines.** `jobs.validate` is pure; `jobs.check` hands it the workspace's
 context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
 thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEAD, a variable its
 header does not declare or a value its pattern does not fully match (a comma, `=` or newline
 never passes), a `results/` export not marked aggregate on the thread, a `turn` where
-`tutorboard.json` lacks `relay.turns: true`, and a `colibri` task where it lacks
-`relay.colibri: true`. A recipe declares each variable in its header as
+`tutorboard.json` lacks `relay.turns: true`, a `colibri` task where it lacks
+`relay.colibri: true`, a `fixes` that is not a filed recipe request on the same thread with
+no `fixes` of its own and a report saying it failed, and a third fix turn for one request
+(`jobs.MAX_FIXES`). A recipe declares each variable in its header as
 `#RELAY-VAR NAME PATTERN`; `ALL`, `NONE`, `PATH`, `LD_PRELOAD` and the like are never accepted.
 The Mac refuses before it commits; the cluster calls it again with `mine=True` before it runs.
 
@@ -888,6 +894,12 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
    PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
    The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
+   A fix turn is a turn whose request carries `fixes`, and it is read-only like any other. Its
+   prompt (`relay.fix_prompt`) names the failed request's log and the thread's files. It
+   edits nothing: it is denied `Edit`, `Write` and `NotebookEdit`, and `board job` and
+   `sbatch`, because on the cluster those submit outside the relay. Its note, public under the
+   same rules, starts `CAUSE:` with one sentence, then `FIX:` with the exact change in words
+   and code identifiers, or `UNKNOWN:` with what it checked. No line of the log.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
 
@@ -909,7 +921,16 @@ also runs `jobs.hear`: it diffs `relay/reports/` from the commit it last heard
 now `completed`, `failed` or `refused` is claimed once per state and dropped as a `[job]` line
 through `jobs.drop`; `jobs.relay_sense` writes it from the report alone (state, exit, which
 `produces` exist on the cluster, exports landed, the `RELAY:` lines, the note), because the log
-stays on the cluster. A failed one says `board ask-cluster` has a turn read it there. Filing a
+stays on the cluster. A failed recipe in a workspace with `relay.turns: true` tells the turn to
+file the diagnosis itself, `board ask-cluster <thread> --fixes <first id>`, with the brief
+written by code. A fix turn whose note gives `CAUSE:` and `FIX:` tells the Mac turn to apply the
+fix in the thread's files and recipe, run the workspace's `check` and the thread's own, ship it
+with `board push`, then rerun with the exact `board job --fixes` command built from the
+chain's latest recipe. A failed check stops it before the rerun. An `UNKNOWN:` note, any other
+note, or a failure after the second fix attempt ends the chain, and the card says what was
+checked and that the owner decides. A refused fix turn or rerun ends it the same way, never
+inviting a refile. Where relay turns are off, a failed one names `board ask-cluster` and the
+opt-in. Filing a
 request records HEAD as heard first, so a report in the very next pull is heard. The first look
 in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
 

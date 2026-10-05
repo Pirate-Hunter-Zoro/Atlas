@@ -89,6 +89,11 @@ or reading an output too large to export.
   because it is an unattended agent beside the data.
 - The turn ends on a report, like a board turn. Its prose goes in the report's `note`, written
   for a public repository: aggregate numbers only, no patient-level values, no identifiers.
+- A `turn` with `fixes` is a fix turn, filed by the Mac itself when a recipe fails, at most two
+  per failed request. It reads the log and edits nothing. Its note gives `CAUSE:` and `FIX:`,
+  or `UNKNOWN:`. The Mac applies the fix, runs the workspace's check, pushes it, and reruns
+  with `board job --fixes`. The fix is made on the Mac because the cluster's only PHI content
+  gate, `ai-config/policy/phi.py`, cannot see EHR identifiers or row values. TRD-EHR has opted in.
 
 **A report is public.** It carries state, Slurm job id, times, exit code, which `produces` paths
 now exist, which exports landed, and a `note`. It never carries a raw log tail, because a log
@@ -175,10 +180,8 @@ environment". One part is left, on the cluster.
   0.16.0 on 1.6.1, so one causal run on the new environment is part of the confirmation. Until
   then the root `scripts/setup.sh` on the cluster syncs the `cluster` extra into each
   workspace's `.venv/` in the home directory; the switch decides how that and
-  `UV_PROJECT_ENVIRONMENT` meet. It was to be filed from the Mac with `board ask-cluster` and
-  was not: TRD-EHR has not opted in to relay turns (`relay.turns: true` in its
-  `tutorboard.json`), which puts an unattended agent beside the EHR and is the owner's to say.
-  Once it has, the Mac files it; until then a cluster session working from this file does it.
+  `UV_PROJECT_ENVIRONMENT` meet. A cluster session working from this file does it, because the
+  switch edits tracked files and a relay turn edits none.
 
 Parts of the item as written that proved wrong, one line each:
 
