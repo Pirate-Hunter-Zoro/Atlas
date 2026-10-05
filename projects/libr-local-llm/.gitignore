@@ -6,6 +6,9 @@ slurm_jobs/logs/*
 # ---- Never commit ----
 # No PHI should ever reach this repo -- it holds infrastructure only, no data
 # and no transcripts. These patterns are belt-and-braces.
+# A Colibri task writes its outputs here, and `relay.check_task` fails a task
+# whose workspace has a change git can see, so the fence is ignored whole.
+/phi/
 *.m4a
 *.wav
 *.mp3
