@@ -15,7 +15,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under importance-weighted similarity (k = 295), and 2 controls, uniform random retrieval (k = 32,720) and farthest retrieval (k = 50). Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls. The best k was chosen on all test patients, not within each subgroup.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for the primary encoder, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
@@ -99,7 +99,7 @@ Table S10. Discrimination and calibration by sociodemographic stratum, one repre
 | Religion: Protestant | 4,654 | 793 | F LR | 0.642 (0.620--0.662) | 0.135 (0.128--0.142) | 1.05 (0.88--1.19) | +0.002 (−0.007 to +0.013) |
 | Religion: Protestant | 4,654 | 793 | N WTD | 0.632 (0.609--0.653) | 0.136 (0.130--0.143) | 1.19 (0.99--1.40) | −0.003 (−0.012 to +0.007) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: importance-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
 ## S9 3 Clinical strata
 
@@ -138,7 +138,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD recurrence: Single Episode | 5,723 | 954 | F LR | 0.605 (0.584--0.626) | 0.136 (0.130--0.143) | 0.83 (0.67--0.99) | −0.000 (−0.011 to +0.009) |
 | MDD recurrence: Single Episode | 5,723 | 954 | N WTD | 0.603 (0.584--0.623) | 0.136 (0.130--0.143) | 1.03 (0.83--1.22) | −0.004 (−0.014 to +0.006) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: importance-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
 ## S9 4 Adjusted Subgroup Comparisons
 
@@ -166,9 +166,9 @@ All 10 White-minus-non-White AUC contrasts were positive (0.005--0.046); 5 exclu
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
-Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; importance-weighted +0.064, adjusted P=.18).
+Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; logistic-regression-weighted +0.064, adjusted P=.18).
 
-The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in importance-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
+The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in logistic-regression-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 

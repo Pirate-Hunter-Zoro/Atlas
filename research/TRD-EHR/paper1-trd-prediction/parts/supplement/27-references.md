@@ -36,5 +36,3 @@ Section heading: References
 13\. Zhang Y, Li M, Long D, Zhang X, Lin H, Yang B, et al. Qwen3 embedding: advancing text embedding and reranking through foundation models. arXiv:2506.05176. 2025.
 
 14\. Hegselmann S, von Arnim G, Rheude T, Kronenberg N, Sontag D, Hindricks G, et al. Large language models are powerful electronic health record encoders. arXiv:2502.17403. 2025.
-
-15\. Varma S, Simon R. Bias in error estimation when using cross-validation for model selection. BMC Bioinformatics. 2006;7:91. doi:10.1186/1471-2105-7-91.

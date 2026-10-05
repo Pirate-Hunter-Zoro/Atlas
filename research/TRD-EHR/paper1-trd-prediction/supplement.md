@@ -8,25 +8,34 @@ converted, with the retrieval direction applied. Keep his wording elsewhere.
 WHAT IS NOT IN IT, and must not come back without a reason tied to one of the
 paper's two points: the LLM clinical-similarity judge (complete in
 reserve/llm_similarity_judge.md), uniform and combined weighting, subsampled
-retrieval, and the nearest-farthest fusion, which rested on uniform weighting.
+retrieval, and any retrieval scheme or control beyond the three arms below.
 
-RETRIEVAL is two arms, plain cosine and logistic-regression-weighted cosine (M10), each
-at its own best k (757 and 295), with random (uniform weights, 1,000 draws, every
-k, best k 32,720) and farthest (k = 50, the one arm with no best k of its own) as
-controls. Every best k was chosen on the test patients and is called optimistic
-wherever it is quoted. Tables S1, S3 and S4 hold the classifiers and the three
-retrieval arms as rows of one table each.
+RETRIEVAL IS A SWEEP, NOT A k (M10). Neighbors are chosen two ways, nearest and
+random, giving three arms: nearest under plain cosine and under
+logistic-regression-weighted cosine, and random (uniform weights, 1,000 draws).
+Each is scored at every k, and no single k is the headline. A value read at
+one k is at the arm's best k (757, 295 and 32,720 for the primary encoder),
+chosen on the test patients and called optimistic wherever it is quoted.
+Tables S1, S3 and S4 hold the classifiers and the three arms as rows of one
+table each. ROC curves and confusion matrices (Figures S8-S9) are drawn only at
+best k, for all four encoders on the owner's answer: the primary encoder's
+three arms, then each other encoder's two nearest-neighbor metrics. The random
+arm does not use the embedding, so it is drawn once.
 
 EVERY NUMBER CARRIES AN INTERVAL. Classifier AUPRC, Brier, WCE and binned
 calibration intervals (Tables S1-S4), the encoder AUPRCs (Table S2), and the S7
 correlations and proportions with Figure S10D come from
 scripts/pipeline/review/metric_intervals.py, in results/review/metric_intervals/.
 S9's calibration intervals are in results/review/subgroups/subgroup_performance.csv. Figures S4C-E, S5C-E, S8 and S9 are drawn at each arm's
-best k by scripts/pipeline/predictions/best_k_panels.py. Table S8 is
+best k by scripts/pipeline/predictions/best_k_panels.py, run per encoder by
+slurm_jobs/quick_runs/neighbor_count_sweep.sbatch into
+results/<encoder>/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/.
+The panel filenames carry k: if a sweep is rerun, check the k in each path
+against that encoder's best_k_panels.json. Table S8 is
 scripts/pipeline/review/history_quintiles.py. The subgroup analysis (S9) reads
-both nearest arms and the uniform random arm at their best k and farthest at
-k = 50, via scripts/pipeline/review/subgroups/run_subgroups.py (--replot redraws
-the tables and forest plot from the saved CSVs).
+both nearest arms and the uniform random arm at their best k, via
+scripts/pipeline/review/subgroups/run_subgroups.py (--replot redraws the tables
+and forest plot from the saved CSVs).
 -->
 
 # Contents
@@ -200,9 +209,9 @@ Two similarity metrics were compared. Plain cosine similarity used the raw embed
 
 $$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \qquad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
 
-The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass.
+The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass. To compare encoders whose logistic regressions were fitted under different penalties, the dimensions each model used were counted as the fewest holding 90% of its absolute coefficient mass, because a non-zero count is the full width under an L2 penalty. These counts describe the fitted models and carry no sampling interval.
 
-A sweep evaluated every k from 1 to all 34,063 training patients for both metrics, under $\alpha$ = 1, 2, and 5. Nearest retrieval selected the k most similar training patients. Each metric was reported at its best k, the k with the highest test AUC, the smallest on a tie: 295 for logistic-regression-weighted and 757 for plain cosine similarity, under $\alpha$ = 1. Random retrieval drew k training patients at random for each test patient and averaged their outcomes with equal weights. It was scored at every k, nested so that k + 1 neighbors extend the k already drawn, and repeated in 1,000 draws seeded from the study seed; its band at each k is the 2.5th to 97.5th percentile of the AUC across draws, and its best k is the highest mean across draws. Farthest retrieval, which selected the 50 least similar patients, served as a second negative control. It has no best k of its own: adding neighbors only moves it toward the all-patients value of the nearest arms. Every best k was selected on the test patients, so the values at it are optimistic. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
+Neighbors were chosen in 2 ways, nearest and random. Nearest retrieval selected the k most similar training patients. Random retrieval drew k training patients at random for each test patient and averaged their outcomes with equal weights. A sweep evaluated every k from 1 to all 34,063 training patients for both, nearest retrieval under both metrics and $\alpha$ = 1, 2, and 5. Random retrieval was nested so that k + 1 neighbors extend the k already drawn, and repeated in 1,000 draws seeded from the study seed; its band at each k is the 2.5th to 97.5th percentile of the AUC across draws. Each retrieval arm, the 2 nearest-neighbor metrics and random retrieval, therefore yields a curve over k, and no single k is the result. Where one value is needed, including ROC curves and confusion matrices, it is read at the arm's best k: the k with the highest test AUC, the smallest on a tie, and for random retrieval the highest mean across draws. For the primary encoder, the best k was 295 for logistic-regression-weighted and 757 for plain cosine similarity under $\alpha$ = 1, and 32,720 for random retrieval. Every best k was selected on the test patients, so the values at it are optimistic. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
 
 # M11 Concept Permutation
 
@@ -224,7 +233,7 @@ Permutation does not establish equitable labeling or performance. Correlated dia
 
 # M12 Evaluation Coverage
 
-Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. The primary Qwen3-Embedding-8B encoder received both similarity metrics, the negative controls, and the neighborhood-size sweep. The other 3 encoders received both similarity metrics and the neighborhood-size sweep under the same rules, each weighted by its own embedded logistic regression (manuscript, Nearest-Neighbor Retrieval Across Encoders; Figure 5). Paired contrasts, farthest retrieval, the best-k panels reported here, and the subgroup analyses describe the primary encoder only.
+Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. All 4 encoders received both similarity metrics, random retrieval, and the neighborhood-size sweep under the same rules, each weighted by its own embedded logistic regression (manuscript, Nearest-Neighbor Retrieval Across Encoders; Figures 4--6). ROC curves and confusion matrices at best k are reported for all 4 encoders (section S6). Paired contrasts, the precision--recall and calibration panels at best k (sections S2--S3), and the subgroup analyses describe the primary encoder only.
 
 # M13 Performance Metrics and Uncertainty
 
@@ -552,13 +561,13 @@ TRD-negative example.
 
 # S6 Neighbor Prediction
 
-Retrieval over the embedding carried outcome information but did not reach the trained classifiers. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise. Farthest retrieval reached 0.432 (95% CI 0.416--0.449) (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
+Retrieval over the embedding carried outcome information but did not reach the trained classifiers at any k. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
 
 Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4). From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the logistic-regression-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
 
 The best retrieval result over every k and exponent was logistic-regression-weighted retrieval with $\alpha$ = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It remained below feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and below embedded logistic regression by 0.032 (95% CI 0.022--0.043), from paired bootstrap resampling of the 8,516 test patients.
 
-Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval scheme, similarity metric, and neighborhood size, with $\alpha$ = 1. Best k is the test-selected maximum and is optimistic. The uniform random row gives the mean across 1,000 draws and the 2.5th--97.5th percentile of the draws. Farthest retrieval uses the retrieval pipeline's k = 50 and $\alpha$ = 5.
+Table S7. Neighbor-prediction ROC AUC for the primary encoder by neighbor selection, similarity metric, and neighborhood size, with $\alpha$ = 1. Best k is the test-selected maximum and is optimistic. The uniform random row gives the mean across 1,000 draws and the 2.5th--97.5th percentile of the draws.
 
 | **Retrieval** | **Similarity** | **Neighbors (k)** | **ROC AUC (95% CI)** |
 | ---------- | -------------------- | ------------------ | ---------------------- |
@@ -567,35 +576,84 @@ Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval schem
 | Nearest | Plain cosine | all, 34,063 | 0.608 (0.592--0.624) |
 | Nearest | Logistic-regression-weighted | all, 34,063 | 0.624 (0.607--0.639) |
 | Random | Uniform | best, 32,720 | 0.500 (0.484--0.515) |
-| Farthest | Plain cosine | 50 | 0.432 (0.416--0.449) |
 
-A Logistic-regression-weighted nearest retrieval, k = 295
+Figures S8 and S9 draw ROC curves and confusion matrices only at each arm's best k, for all 4 encoders. Panels A--C are the primary encoder's 3 arms. Panels D--I are each other encoder's 2 nearest-neighbor metrics, whose ROC AUCs at those k are reported in the manuscript (Nearest-Neighbor Retrieval Across Encoders). Random retrieval does not use the embedding, so it is drawn once, in panel C.
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
+A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-B Plain-cosine nearest retrieval, k = 757
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
+B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-C Random retrieval, uniform weights, k = 32,720
-
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
-
-Figure S8. ROC curves for logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C), each at its own test-selected best k, with $\alpha$ = 1 for A and B. C is the draw whose AUC at that k is closest to the mean of 1,000 draws. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
-
-A Logistic-regression-weighted nearest retrieval, k = 295
-
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
-
-B Plain-cosine nearest retrieval, k = 757
-
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=5.8in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=4in}
 
-Figure S9. Confusion matrices for the three arms of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
+D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
+
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+
+E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
+
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+
+F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
+
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+
+G bge-en-icl, plain-cosine nearest retrieval, k = 413
+
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+
+H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
+
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+
+I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
+
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+
+Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+
+A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
+
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+
+B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
+
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+
+C Random retrieval, uniform weights, k = 32,720
+
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=4in}
+
+D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
+
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+
+E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
+
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+
+F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
+
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+
+G bge-en-icl, plain-cosine nearest retrieval, k = 413
+
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+
+H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
+
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+
+I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
+
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+
+Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
 
 # S7 Record Length and Prediction
 
@@ -698,7 +756,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and 2 controls, uniform random retrieval (k = 32,720) and farthest retrieval (k = 50). Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls. The best k was chosen on all test patients, not within each subgroup.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for the primary encoder, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
@@ -1050,5 +1108,3 @@ Table S15. Embedded logistic-regression discrimination by encoder. EPV is 5,964 
 13\. Zhang Y, Li M, Long D, Zhang X, Lin H, Yang B, et al. Qwen3 embedding: advancing text embedding and reranking through foundation models. arXiv:2506.05176. 2025.
 
 14\. Hegselmann S, von Arnim G, Rheude T, Kronenberg N, Sontag D, Hindricks G, et al. Large language models are powerful electronic health record encoders. arXiv:2502.17403. 2025.
-
-15\. Varma S, Simon R. Bias in error estimation when using cross-validation for model selection. BMC Bioinformatics. 2006;7:91. doi:10.1186/1471-2105-7-91.

@@ -35,7 +35,7 @@ Figure S10. Record length, diagnosis-to-index interval, encounter count, and out
 
 The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6. The best k was chosen on all test patients, so these values are optimistic in the same way.
 
-Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (embedded representation, held-out test set, $\alpha$ = 1), with bootstrap 95% CIs within each quintile. Days are the quintile's bounds of pre-index history. Weighted: importance-weighted cosine; plain: plain cosine. Random retrieval uses uniform weights and the draw whose AUC at its best k is closest to the mean of 1,000 draws.
+Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (embedded representation, held-out test set, $\alpha$ = 1), with bootstrap 95% CIs within each quintile. Days are the quintile's bounds of pre-index history. Weighted: logistic-regression-weighted cosine; plain: plain cosine. Random retrieval uses uniform weights and the draw whose AUC at its best k is closest to the mean of 1,000 draws.
 
 | **Days** | **n** | **Events** | **Weighted, k = 295** | **Plain, k = 757** | **Random, k = 32,720** |
 | -------------- | --------: | --------: | ------------------------ | ------------------------ | ------------------------ |
@@ -45,6 +45,6 @@ Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (e
 | 2,067--2,733 | 1,704 | 282 | 0.633 (0.598--0.669) | 0.626 (0.592--0.663) | 0.487 (0.449--0.523) |
 | 2,734--5,288 | 1,701 | 230 | 0.619 (0.580--0.655) | 0.598 (0.561--0.636) | 0.479 (0.437--0.519) |
 
-AUC ranged from 0.600 to 0.633 for importance-weighted and 0.598 to 0.626 for plain cosine retrieval, without a monotonic trend, and every quintile's interval overlapped the others. Random retrieval stayed near 0.5, and its interval included 0.5 in every quintile. This does not establish independence from record volume; differing case mix and imprecision within strata limit interpretation.
+AUC ranged from 0.600 to 0.633 for logistic-regression-weighted and 0.598 to 0.626 for plain cosine retrieval, without a monotonic trend, and every quintile's interval overlapped the others. Random retrieval stayed near 0.5, and its interval included 0.5 in every quintile. This does not establish independence from record volume; differing case mix and imprecision within strata limit interpretation.
 
 The stratification covers neighbor prediction only, not the trained classifiers. Each quintile contained about 1,700 patients.

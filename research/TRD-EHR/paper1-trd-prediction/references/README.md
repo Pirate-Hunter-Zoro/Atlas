@@ -48,7 +48,7 @@ physical copy here so this library is self-contained; the primary copies live un
 | # | File                                            | Role                                                            |
 |---|-------------------------------------------------|-----------------------------------------------------------------|
 | 2 | `02_Pedregosa2011_scikit-learn_JMLR.pdf`        | scikit-learn — classical-ML pipeline, GridSearchCV, metrics     |
-| 20 | `20_VarmaSimon2006_CV-selection-bias_BMCBioinformatics.pdf` | Cross-validation selection bias — the methodological warrant for scoring the tuned fusion variants out of fold rather than in sample (Supplement S7.1; obtained 2026-08-10, open access) |
+| 20 | `20_VarmaSimon2006_CV-selection-bias_BMCBioinformatics.pdf` | Cross-validation selection bias. Not cited in the packet (open access) |
 | 3 | `03_ChenGuestrin2016_XGBoost_KDD.pdf`           | XGBoost — one of the four classifiers                           |
 | 4 | `04_ReimersGurevych2019_SentenceBERT_EMNLP.pdf` | Sentence-BERT / sentence-transformers — the embedding framework |
 

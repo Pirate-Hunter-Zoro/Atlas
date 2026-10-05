@@ -15,10 +15,11 @@ enforced rather than remembered: the point-and-claim map is gated by Paper-Write
    against best, +0.008 ROC AUC (95% CI −0.003 to +0.019).
 2. Nearest-neighbor retrieval over that embedding — the clinical digital-twin premise
    — captures real label-informative structure and still loses decisively to a trained
-   model. For the primary encoder, at every neighbourhood size from 1 to 34,063, the
-   best retrieval result, 0.625 (95% CI 0.610–0.640), is 0.032 (95% CI 0.022–0.043)
-   below embedded logistic regression. The other three encoders' retrieval is reported
-   at each metric's best k, without paired contrasts (manuscript Figure 5).
+   model. Retrieval is a sweep over every neighbourhood size from 1 to 34,063, nearest
+   and random neighbours alike, and no single k is the headline. For the primary
+   encoder the best retrieval result over that sweep, 0.625 (95% CI 0.610–0.640), is
+   0.032 (95% CI 0.022–0.043) below embedded logistic regression. The other three
+   encoders get the same plot (manuscript Figure 5), without paired contrasts.
 
 **And one emphasis that runs through both.** In both arms the patient data were
 hand-picked: predictor selection ran once, before either representation existed, and
@@ -43,7 +44,7 @@ beside one.
 | Document | What it is |
 | --- | --- |
 | `manuscript.md` | the manuscript |
-| `supplement.md` | Supplementary Methods (M1–M13) and supplementary results (S1–S11) |
+| `supplement.md` | Supplementary Methods (M1–M13) and supplementary results (S1–S12) |
 | `tripod_ai_checklist.md` | the TRIPOD+AI reporting checklist, item by item |
 | `cover_letter.md` | the cover letter |
 
@@ -95,7 +96,7 @@ header comment saying what its status is and why it is held back.
 | Document | What it holds |
 | --- | --- |
 | `grounding.json` | the terminology lock, the estimand, the reader, and the reporting checklist. "Feature matrix" is a banned alias, and the approved second names for each arm are declared in `also_called` rather than left for the drift check to guess at |
-| `point_claim_map.json` | the point-and-claim map this packet was gated against: two points, twenty claims, every claim serving a point or declaring a role. Run it through `paperwriter.gates.ladder.check` to reproduce the verdict quoted in `review/two_points_rationale.md` |
+| `point_claim_map.json` | the point-and-claim map this packet was gated against: two points, twenty-two claims, every claim serving a point or declaring a role. Run it through `paperwriter.gates.ladder.check` to reproduce the verdict quoted in `review/two_points_rationale.md` |
 | `llm_similarity_judge.md` | the LLM clinical-similarity judge, complete: the full four-by-four retrieval grid, the verbatim rubric and prompts, the worked examples, the sub-score audit, and the re-judging experiment. Held back because it changed nothing where retrieval works — 0.5939 under cosine weighting against 0.5947 under the judge — and helped only under the negative controls |
 | `methods_reserve.md` | the eight passages the Methods condensation removed that survive nowhere in the packet, each verbatim with the reviewer question that would want it back. It also carries the rule that keeps Methods from re-inflating: **Methods does not grow** |
 | `limitations_reserve.md` | **not the submitted text.** The audit of where each limitation also lives outside the Discussion; its section 4 is a Limitations text the packet does not use |

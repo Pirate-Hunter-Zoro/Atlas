@@ -68,9 +68,8 @@ embedded classifier under all four encoders, across a narrow band of 0.645 to 0.
 and the smallest encoder trailed the largest by 0.013 despite using a tenth as many
 dimensions. The fitted model was sparse: 385 of 4,096 coefficients were non-zero. The
 neighbour-weighted predictor confirmed that the embedding space is organised around the
-outcome. Nearest-neighbour retrieval reached 0.593, random retrieval 0.494 to 0.517, and
-farthest-neighbour retrieval inverted to 0.434. All three stayed below the trained
-classifiers. Permutation localised the signal to three concepts. Psychiatric history
+outcome. Nearest-neighbour retrieval reached 0.593 and random retrieval 0.494 to 0.517.
+Both stayed below the trained classifiers. Permutation localised the signal to three concepts. Psychiatric history
 cost -0.028 (-0.039 to -0.017), medication burden -0.027 (-0.037 to -0.018), and prior
 treatment exposure -0.019 (-0.027 to -0.011). Permuting race, social determinants, or
 treatment contraindications cost nothing measurable.
@@ -290,7 +289,7 @@ test set. Supplement M9 gives the grids.
 We also estimated risk on the embedded representation as a weighted mean of TRD labels
 among retrieved training-set neighbours. Weighting was uniform, by cosine similarity, by
 an outcome-blind clinical-similarity score from `MedGemma-27B` [15], or by the harmonic
-mean of the last two. Retrieval schemes selected the nearest, farthest, or random
+mean of the last two. Retrieval schemes selected the nearest or random
 neighbours, or the nearest within a randomly subsampled candidate pool. The judge
 compared deterministic narratives under a fixed 6-domain rubric and returned a structured
 0-100 similarity score, rescaled to 0-1. It never received or predicted patient outcomes.
@@ -445,9 +444,7 @@ fields directly. It does not establish that the model is fair.
 
 The embedding space is organised around the outcome, and weakly. A neighbour-weighted
 predictor using nearest-neighbour retrieval reached ROC AUC 0.593. Random retrieval
-reached 0.494 to 0.517 depending on the weighting, which is chance. Farthest-neighbour
-retrieval inverted to 0.434, below chance, which is what a genuine outcome gradient
-predicts and what a spurious one would not produce.
+reached 0.494 to 0.517 depending on the weighting, which is chance.
 
 Retrieval scheme dominated weighting strategy throughout. The four weightings within
 nearest-neighbour retrieval span 0.593 to 0.595, a range narrower than the difference
