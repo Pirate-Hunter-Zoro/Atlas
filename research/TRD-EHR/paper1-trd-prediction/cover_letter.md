@@ -59,7 +59,8 @@ determinants changed ROC AUC by no more than 0.003, and every such interval
 included zero. Nearest-neighbor retrieval over the embedding showed that
 proximity tracks outcome risk, but it stayed below both leading classifiers
 at every neighborhood size from 1 to 34,063, for all four encoders. Its
-maximum for the primary encoder, 0.625 (95% CI 0.610-0.641), was read at a
+maximum for the primary encoder at similarity exponent 1, 0.625 (95% CI
+0.610-0.641), was read at a
 size chosen on the test patients. Randomly chosen neighbors stayed at
 chance, at most 0.500 (2.5th-97.5th percentile across 1,000 draws
 0.484-0.515).
