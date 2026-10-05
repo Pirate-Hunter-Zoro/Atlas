@@ -1,12 +1,18 @@
 {
   "attempts": 1,
+  "changed": 0,
   "deaths": 0,
+  "ended": 1791242147.167801,
   "id": "2026-10-05-colibri-colibri",
   "jobid": "2119308",
   "kind": "colibri",
-  "note": "",
-  "state": "running",
+  "note": "Colibri finished, and its workspace has no change git can see.",
+  "relay": [
+    "python 3.12.3",
+    "slurm_jobs tracked files 17"
+  ],
+  "state": "completed",
   "submitted": 1791221733.5417836,
   "task": "coli-20261005-123533-adb9",
-  "updated": 1791222326.457
+  "updated": 1791242402.863
 }
