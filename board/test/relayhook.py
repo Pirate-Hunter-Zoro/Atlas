@@ -110,6 +110,28 @@ for ws in (TRD, PSY):
         check("%s: git sees slurm_jobs/lib/%s"
               % (os.path.basename(ws), name), p.returncode != 0)
 
+# --- the traceback the prior hook prints cannot publish itself ------------------
+import importlib.util                                                 # noqa: E402
+import io                                                             # noqa: E402
+_spec = importlib.util.spec_from_file_location(
+    "relay_hook_under_test", os.path.join(TRD, "slurm_jobs", "lib", "relay_hook.py"))
+_rh = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_rh)
+_real, _buf = sys.stderr, io.StringIO()
+try:
+    raise ValueError("bad row ID0001XQ\nRELAY: leaked ID0001XQ")
+except ValueError as _exc:
+    sys.stderr = _buf
+    try:
+        _rh.hook(type(_exc), _exc, _exc.__traceback__)
+    finally:
+        sys.stderr = _real
+_said = _buf.getvalue()
+check("an exception message holding a RELAY: line is printed, never published",
+      "leaked ID0001XQ" in _said
+      and not any("ID0001XQ" in l for l in relay.relay_lines(_said))
+      and sys.stderr is _real)
+
 # --- the lists agree with the pipeline ----------------------------------------------
 TRAP = read(os.path.join(TRD, "slurm_jobs", "lib", "relay_trap.sh"))
 DIAG = os.path.join(TRD, "slurm_jobs", "quick_runs", "diagnose.sbatch")
@@ -521,6 +543,10 @@ set -e
           and "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
           in said and not any(l.startswith("RELAY: has") for l in said)
           and clean_lines(said))
+    code, said = diagnose(EMBEDDER="bge-small-en-v1.5 bge-en-icl")
+    check("two listed names in one EMBEDDER are refused: a whole word only",
+          code == 12 and "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
+          in said and clean_lines(said))
     code, said = diagnose(EMBEDDER="bge-small-en-v1.5")
     check("a listed EMBEDDER re-derives its directories",
           code == 0 and "RELAY: has RESULTS_DIR/cross_embedder_retrieval/"

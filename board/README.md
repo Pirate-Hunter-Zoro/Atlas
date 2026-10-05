@@ -898,8 +898,8 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
    PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
    The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
-   Nothing in the board files a `turn`; one runs only from a request the owner writes by hand,
-   and a `turn` cannot carry `fixes`.
+   No board command files a `turn`. The relay runs its own review turn for a finished Colibri
+   task; any other is a request the owner writes by hand, and a `turn` cannot carry `fixes`.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
 

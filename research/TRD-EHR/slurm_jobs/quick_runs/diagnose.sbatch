@@ -77,9 +77,14 @@ scripts.pipeline.vectors.forge_vectors
 
 # Checked here as well as by the relay, so a bare sbatch is held to the same
 # lists. A refused value is never echoed.
-if [[ -n "${EMBEDDER:-}" && " ${RELAY_ENCODERS} " != *" ${EMBEDDER} "* ]]; then
-  echo "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
-  exit 12
+if [[ -n "${EMBEDDER:-}" ]]; then
+  # One whole word of the list: a value holding a space is two names.
+  _known=0
+  for _e in ${RELAY_ENCODERS}; do [[ "${EMBEDDER}" == "${_e}" ]] && _known=1; done
+  if [[ "${_known}" != 1 ]]; then
+    echo "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
+    exit 12
+  fi
 fi
 if [[ -n "${MODULE:-}" && "${DIAGNOSABLE}" != *$'\n'"${MODULE}"$'\n'* ]]; then
   echo "RELAY: probe MODULE refused: not one of DIAGNOSABLE"

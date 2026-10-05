@@ -2464,7 +2464,8 @@ def turn_signal(out):
 # step handed over, a rework, a ship, a write-up -- and all of them are doing
 # turns already. `turn_repairs` names every [repair] request in the batch, so
 # `board brief` names each.
-REPAIR_KEEPS = ("carry", "unfinished", "handover", "rework", "ship", "writeup")
+REPAIR_KEEPS = ("carry", "unfinished", "handover", "rework", "revise", "ship",
+                "writeup")
 
 
 def woken_for(root, out):

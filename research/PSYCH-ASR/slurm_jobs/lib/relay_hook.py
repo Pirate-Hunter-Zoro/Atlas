@@ -483,7 +483,10 @@ def lines(etype, value, tb):
             p = _pathish(val)
             if p is None or len(inputs) >= MAX_INPUTS:
                 continue
-            full = os.path.realpath(p)
+            try:
+                full = os.path.realpath(p)
+            except (ValueError, UnicodeError, OSError):
+                continue
             if full in seen or full == root or not os.path.exists(full):
                 continue
             seen.add(full)
@@ -496,8 +499,38 @@ def say(line, stream=None):
     stream.write("RELAY: %s\n" % line[:MAX_LINE])
 
 
+class _Disarmed(object):
+    """Stderr for the prior excepthook. The traceback it prints carries the
+    exception's own message, and the relay publishes every log line that
+    starts with `RELAY:`, so a message holding a newline and that word would
+    publish itself. Such a line gets a leading space, which the relay skips."""
+
+    def __init__(self, stream):
+        self._stream, self._fresh = stream, True
+
+    def write(self, text):
+        out = []
+        for piece in str(text).splitlines(True):
+            if self._fresh and piece.lstrip().startswith("RELAY:"):
+                piece = " " + piece
+            out.append(piece)
+            self._fresh = piece.endswith(("\n", "\r"))
+        return self._stream.write("".join(out))
+
+    def flush(self):
+        return self._stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
 def hook(etype, value, tb, prior=None):
-    (prior or sys.__excepthook__)(etype, value, tb)
+    real = sys.stderr
+    sys.stderr = _Disarmed(real)
+    try:
+        (prior or sys.__excepthook__)(etype, value, tb)
+    finally:
+        sys.stderr = real
     try:
         for line in lines(etype, value, tb):
             say(line)

@@ -77,9 +77,9 @@ A request has one of two kinds.
   `--export` built from the declared variables, through `jobs.submit`.
 
 **`turn`** wakes a headless Claude turn on the cluster, in that workspace, under the PHI guard.
-Nothing in the board files one: a failed job is repaired on the Mac, and a question about the
-cluster's files is a diagnostic recipe. A `turn` runs only from a request the owner writes by
-hand, and it cannot carry `fixes`.
+No board command files one: a failed job is repaired on the Mac, and a question about the
+cluster's files is a diagnostic recipe. The relay runs its own review turn for a finished
+Colibri task; any other `turn` is a request the owner writes by hand, and it cannot carry `fixes`.
 
 ```json
 {"id": "2026-10-03-why-l1-dense", "kind": "turn", "thread": "knn-across-embedders",

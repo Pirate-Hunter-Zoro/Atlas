@@ -407,6 +407,9 @@ try:
           tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
                              "finished\n" + batch) == ("ship", rids)
           and tutorcli.woken_for(ws, tutorcli.carry_line(batch))[1] == rids)
+    check("a revision ahead of a repair stays a revision, its own prompt and "
+          "session", tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [revise] the "
+                                        "deck\n" + batch) == ("revise", rids))
     check("a batch with no [repair] in it is what turn_signal says",
           tutorcli.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
     write(os.path.join(ws, "live", "agent.json"), json.dumps(
