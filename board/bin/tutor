@@ -1906,9 +1906,12 @@ def doing_now(root, signal=""):
     product rather than a style, so the sitting still says `drill` or `trace`
     while this turn writes one and compiles it. So the state says `teach` and is
     right about the evening; only the signal this turn was woken with says what
-    THIS turn does.
+    THIS turn does. A REPAIR answers it the same way: a failed cluster job,
+    fixed, checked, shipped and rerun, whatever its workspace teaches under
+    (`jobs.relay_sense`).
     """
-    if signal in ("handover", "rework", "ship", "writeup", "unfinished"):
+    if signal in ("handover", "rework", "ship", "writeup", "unfinished",
+                  "repair"):
         # An UNFINISHED turn finishes a doing turn's report, on its clock.
         # A step handed over writes code. A ship reads a diff, judges it and
         # runs a push against a remote over a tailnet -- neither is a card, and
@@ -2535,6 +2538,30 @@ def turn_signal(out):
     return ""
 
 
+# A BATCH WITH A [repair] IN IT IS A REPAIR TURN, wherever in the batch the line
+# sits. `board inbox` hands a turn every unread message at once, and the first
+# one's signal is what `turn_signal` reads; a failed job's line behind a
+# student's message would otherwise be briefed as a lesson. The signals kept are
+# the ones whose own machinery the turn needs -- a pick-up, an owed report, a
+# step handed over, a rework, a ship, a write-up -- and all of them are doing
+# turns already. `turn_repairs` names every [repair] request in the batch, so
+# `board brief` names each.
+REPAIR_KEEPS = ("carry", "unfinished", "handover", "rework", "revise", "ship",
+                "writeup")
+
+
+def woken_for(root, out):
+    """`(signal, repair request ids)` for the batch `out`. Never raises."""
+    signal = turn_signal(out)
+    try:
+        repairs = jobs.batch_repairs(root, out)
+    except Exception:                                        # noqa: BLE001
+        repairs = []
+    if repairs and signal not in REPAIR_KEEPS:
+        signal = jobs.REPAIR
+    return signal, repairs
+
+
 # THE MAC'S EAR. On a machine without Slurm the cluster's reports arrive by
 # pull, so the pull's cadence follows the requests: `holds.POLL_SECONDS` while
 # a hold stands, `jobs.PULL_BUSY` while a request is out, `jobs.PULL_IDLE`
@@ -2945,6 +2972,7 @@ def mark_waking(live, agent_name, pid=None):
                            waking_at=time.time(), restarting=False,
                            handover=None, host=this_host(), code=None,
                            stopped_at=0, turn_started=0, turn_signal="",
+                           turn_repairs=[],
                            **not_this_agents_failure(live, agent_name))
     except OSError:
         return None
@@ -4108,7 +4136,7 @@ def headless(cfg, course, agent_name, session):
         # at the worst possible moment.
         owe(out)
         turns += 1
-        this_signal = turn_signal(out)
+        this_signal, turn_repairs = woken_for(root, out)
         # `turn_started` is the daemon's clock, and the board needs it: its own
         # measure of how long a turn has been going starts when it first SEES
         # the working state, which on a reload or a second device is nowhere
@@ -4122,7 +4150,8 @@ def headless(cfg, course, agent_name, session):
         # `lesson.state._failure`, which does not report one older than the turn
         # in flight.
         agent_state(live, state="working", turns=turns,
-                    turn_started=time.time(), turn_signal=this_signal)
+                    turn_started=time.time(), turn_signal=this_signal,
+                    turn_repairs=turn_repairs)
         log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
 
         # Keep saying so while the turn runs. The heartbeat used to be written
@@ -4207,7 +4236,8 @@ def headless(cfg, course, agent_name, session):
         turn_env = turn_environment(spec, turn_env)
         started_at = time.time()
         timed_out = False
-        cap = turn_timeout(cfg, root, spec, this_signal)
+        cap = turn_timeout(cfg, root, spec,
+                           jobs.REPAIR if turn_repairs else this_signal)
         try:
             rc, timed_out = run_turn(cmd, root, log, cap, env=turn_env)
             err = None if rc == 0 else ("timed out" if timed_out

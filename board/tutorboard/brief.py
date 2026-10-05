@@ -345,7 +345,8 @@ def beside_sense(repo):
     return "\n".join(out)
 
 
-def briefing(repo, sense, chapter=None, doing=None, mission=False):
+def briefing(repo, sense, chapter=None, doing=None, mission=False,
+             repair=None):
     """The whole cold briefing as one string.
 
     `sense` is `tutorboard.sense`, passed in rather than imported, because it
@@ -362,6 +363,11 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
     it: a workspace that teaches briefs a mission as a lesson, and a lesson
     asks a question instead of doing the work. The record is passed rather than
     a flag because the trail below is named for it.
+
+    `repair` is the section a `[repair]` turn reads (`jobs.repair_brief`):
+    the failed request, its recipe, the file and line it failed at and the
+    report to read whole. It sits under the stance it overrides, and comes
+    with `doing=True`.
     """
     root = repo.root
     st = repo.state()
@@ -424,6 +430,8 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
         out.append("check: %s  (from the workspace root, before a push that "
                    "changed code; the report says whether it passed)"
                    % cfg["check_line"])
+    if repair:
+        out.append("\n" + "\n".join(repair))
 
     # WHAT THIS WORKSPACE IS FOR, when they have said so -- above the method,
     # above the contract, above everything. A direction is changed at the moment

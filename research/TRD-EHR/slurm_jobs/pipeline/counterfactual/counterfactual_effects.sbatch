@@ -32,6 +32,7 @@
 
 # Exit immediately if command fails
 set -e
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
 
 # ---- Conda configuration ----
 # NOT causal_forest_env. This package imports classical_ml.make_classifier to

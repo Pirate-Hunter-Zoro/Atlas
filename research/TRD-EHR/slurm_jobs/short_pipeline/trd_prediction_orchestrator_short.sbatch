@@ -35,6 +35,9 @@
 # =============================================================================
 
 # ---- Conda (needed to read the ablation-spec count from the registry) ----
+# A failure prints its RELAY: lines (slurm_jobs/lib/relay_trap.sh).
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
 CONDA_ENV=/media/studies/ehr_study/analysis/mferguson/venvs/embedder_pipeline
 module purge
 module load Anaconda3/2025.06-0

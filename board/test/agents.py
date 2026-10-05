@@ -990,7 +990,8 @@ check("a turn that goes through is what clears it, and the daemon still does tha
 check("and the turn that merely STARTS does not, which is what the docstring "
       "above says happens",
       'agent_state(live, state="working", turns=turns,\n'
-      '                    turn_started=time.time(), turn_signal=this_signal)'
+      '                    turn_started=time.time(), turn_signal=this_signal,\n'
+      '                    turn_repairs=turn_repairs)'
       in tool_src)
 check("what stops the board painting last time's failure over a turn in flight "
       "is the reader, which does not report one older than the running turn",

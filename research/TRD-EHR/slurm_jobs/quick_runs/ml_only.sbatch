@@ -11,6 +11,7 @@
 
 # Exit immediately if command fails
 set -e
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
 
 # ---- Conda configuration ----
 CONDA_ENV=/media/studies/ehr_study/analysis/mferguson/venvs/embedder_pipeline

@@ -169,17 +169,16 @@ check("and is refused where it has not",
 check("a turn with no brief is refused",
       vc(dict(turn, brief="  "), turns=True)[0] is None)
 
-# --- `fixes`: a fix turn or a rerun, linked to the request that failed first --
+# --- `fixes`: a diagnostic or a rerun, linked to the request that failed first --
 origin = "2026-10-03-knn-sweep"
-fix = dict(turn, id="2026-10-03-knn-fix", fixes=origin)
-ok, problems = vc(fix, turns=True)
-check("a turn with a valid `fixes` passes, carrying it",
-      problems == [] and ok["fixes"] == origin)
-check("a `fixes` that is not a request id is refused",
-      any("`fixes`" in p for p in vc(dict(fix, fixes="BAD ID"),
+fix = dict(good, id="2026-10-03-knn-fix", fixes=origin)
+check("a turn carrying `fixes` is refused: no cluster turn diagnoses",
+      any("`fixes`" in p for p in vc(dict(turn, fixes=origin),
                                       turns=True)[1]))
+check("a `fixes` that is not a request id is refused",
+      any("`fixes`" in p for p in vc(dict(fix, fixes="BAD ID"))[1]))
 check("and so is one naming the request itself",
-      vc(dict(fix, fixes=fix["id"]), turns=True)[0] is None)
+      vc(dict(fix, fixes=fix["id"]))[0] is None)
 ok, problems = vc(dict(good, id="2026-10-03-knn-rerun", fixes=origin))
 check("a recipe with `fixes` passes, carrying it",
       problems == [] and ok["fixes"] == origin)
@@ -193,7 +192,7 @@ failed_first = dict(good, id=origin)
 on_disk = [failed_first]
 failed = {origin}
 check("fix_problems: no `fixes`, no problems",
-      jobs.fix_problems(turn, on_disk, failed) == [])
+      jobs.fix_problems(good, on_disk, failed) == [])
 check("fix_problems: a `fixes` naming nothing filed is refused",
       any("not a filed request" in p for p in jobs.fix_problems(
           dict(fix, fixes="2026-01-01-ghost"), on_disk, failed)))
@@ -208,25 +207,25 @@ check("fix_problems: a `fixes` naming a rerun is refused: name the first",
 check("fix_problems: a `fixes` naming another thread's request is refused",
       any("thread tripod" in p for p in jobs.fix_problems(
           fix, [dict(failed_first, thread="tripod")], failed)))
-one_prior = on_disk + [dict(fix, id="f-1", filed=1.0)]
-two_prior = one_prior + [dict(fix, id="f-2", filed=2.0)]
-check("fix_problems: one fix turn before it, still allowed",
-      jobs.fix_problems(fix, one_prior, failed) == [])
-said = jobs.fix_problems(dict(fix, filed=3.0), two_prior, failed)
-check("fix_problems: two before it, the third is refused at the cap",
-      len(said) == 1 and "cap is 2" in said[0])
+diagnostic = dict(fix, recipe="slurm/diagnose.sbatch", env={})
+two_prior = on_disk + [dict(diagnostic, id="f-1", filed=1.0),
+                       dict(fix, id="f-2", filed=2.0)]
+three_prior = two_prior + [dict(fix, id="f-3", filed=3.0)]
+check("fix_problems: two attempts before it, still allowed",
+      jobs.fix_problems(dict(fix, filed=3.0), two_prior, failed) == [])
+said = jobs.fix_problems(dict(fix, filed=4.0), three_prior, failed)
+check("fix_problems: three before it, a diagnostic and two reruns, and the "
+      "fourth is refused at the cap", len(said) == 1 and "cap is 3" in said[0]
+      and jobs.fix_problems(dict(diagnostic, filed=4.0), three_prior,
+                            failed) != [])
 check("fix_problems: the cluster checking one filed counts only those "
-      "before it", jobs.fix_problems(dict(fix, id="f-2", filed=2.0),
-                                     two_prior, failed, mine=True) == [])
-check("fix_problems: a rerun recipe is not a fix turn and has no cap",
-      jobs.fix_problems(dict(good, id="rr", fixes=origin), two_prior,
-                        failed) == [])
+      "before it", jobs.fix_problems(dict(fix, id="f-3", filed=3.0),
+                                     three_prior, failed, mine=True) == [])
 said = jobs.fix_problems(fix, on_disk, set())
 check("fix_problems: a `fixes` naming a request with no failed report is "
-      "refused, for a fix turn and a rerun alike",
+      "refused, for a diagnostic and a rerun alike",
       len(said) == 1 and "saying it failed" in said[0]
-      and jobs.fix_problems(dict(good, id="rr", fixes=origin), on_disk, ())
-      != [])
+      and jobs.fix_problems(diagnostic, on_disk, ()) != [])
 
 # --- the merged registry, and `requested` ----------------------------------------
 base = tempfile.mkdtemp(prefix="tutor-requests-")
@@ -320,6 +319,8 @@ try:
     write(os.path.join(proj, ".gitignore"), "live/\nresults/\n")
     write(os.path.join(proj, "slurm", "sweep.sbatch"),
           RECIPE.replace("#RELAY-VAR PATH .*\n", ""))
+    write(os.path.join(proj, "slurm", "diagnose.sbatch"),
+          "#!/bin/bash\necho 'RELAY: has RESULTS_DIR entries 0'\n")
     write(os.path.join(proj, "notes.md"), "draft\n")
     write(threads.path(proj), json.dumps(SPINE))
     git(top, "add", "-A")
@@ -379,30 +380,27 @@ try:
           and "relay:" in out and "REQUESTED" in out)
 
     code, out = board("ask-cluster", "knn", "Why did L1 keep every dimension?")
-    check("ask-cluster is refused where the workspace has not opted in",
-          code == 1 and "relay.turns" in out)
+    check("ask-cluster is retired, and names `board diagnose`",
+          code == 2 and "retired" in out and "board diagnose" in out)
 
-    # --- `--fixes`: the Mac files a fix turn, then the rerun ------------------
-    write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Proj", "relay": {"turns": True}}))
+    # --- `--fixes`: the Mac files a diagnostic, then the rerun ----------------
     first = filed[0]["id"]
-    code, out = board("ask-cluster", "knn", "--fixes", first,
-                      "Read the log and say the fix.")
+    code, out = board("diagnose", "knn", "--fixes", first, "--",
+                      "slurm/diagnose.sbatch")
     check("`--fixes` naming a request with no failed report is refused",
           code == 1 and "saying it failed" in out
-          and not [r for r in jobs.requests(proj) if r.get("kind") == "turn"])
+          and len(jobs.requests(proj)) == 1)
     write(os.path.join(proj, "relay", "reports", first + ".json"),
           json.dumps({"id": first, "state": "failed", "exit": "1:0"}))
-    code, out = board("ask-cluster", "knn", "--fixes", first,
-                      "Read the log and say the fix.")
-    fixed = [r for r in jobs.requests(proj) if r.get("kind") == "turn"]
-    check("`board ask-cluster --fixes` files a fix turn naming the request",
-          code == 0 and len(fixed) == 1 and fixed[0]["fixes"] == first
-          and "-fix" in fixed[0]["id"]
-          and fixed[0]["brief"] == "Read the log and say the fix.")
+    code, out = board("diagnose", "knn", "--fixes", first, "--",
+                      "slurm/diagnose.sbatch")
+    fixed = [r for r in jobs.requests(proj) if r.get("fixes")]
+    check("`board diagnose --fixes` files it as `board job` would, naming "
+          "the request", code == 0 and len(fixed) == 1
+          and fixed[0]["fixes"] == first and fixed[0]["kind"] == "recipe")
     code, out = board("job", "knn", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-small")
-    check("then a rerun without `--fixes` is refused, naming the flag",
+    check("then a plain rerun is refused, naming the flag",
           code == 1 and "--fixes %s" % first in out
           and len(jobs.requests(proj)) == 2)
     code, out = board("job", "knn", "--fixes", first, "--",
@@ -410,8 +408,8 @@ try:
     rerun = [r for r in jobs.requests(proj)
              if r.get("kind") == "recipe" and r.get("fixes")]
     check("`board job --fixes` files the rerun, naming it too",
-          code == 0 and len(rerun) == 1 and rerun[0]["fixes"] == first
-          and rerun[0]["env"] == {"EMBEDDER": "bge-small"})
+          code == 0 and len(rerun) == 2 and rerun[-1]["fixes"] == first
+          and rerun[-1]["env"] == {"EMBEDDER": "bge-small"})
     p = subprocess.run([sys.executable, BOARD, "job", "knn", "--fixes", first,
                         "--", "slurm/sweep.sbatch"], cwd=proj,
                        env=dict(env, TUTOR_SLURM="1"), stdout=subprocess.PIPE,
@@ -444,8 +442,14 @@ with open(recipe, encoding="utf-8") as fh:
     names, said = jobs.declarations(fh.read())
 check("TRD-EHR's neighbour sweep declares EMBEDDER and REDRAW for the relay",
       said == [] and sorted(names) == ["EMBEDDER", "REDRAW"])
-check("TRD-EHR has opted in to relay turns, so a failed job is diagnosed there",
-      jobs.context(os.path.join(REPO, "research", "TRD-EHR"))["turns"] is True)
+with open(os.path.join(REPO, "research", "TRD-EHR", "slurm_jobs", "quick_runs",
+                       "diagnose.sbatch"), encoding="utf-8") as fh:
+    names, said = jobs.declarations(fh.read())
+check("TRD-EHR has a diagnostic recipe, declaring EMBEDDER, LOOK and MODULE",
+      said == [] and sorted(names) == ["EMBEDDER", "LOOK", "MODULE"]
+      and jobs.diagnostics(os.path.join(REPO, "research", "TRD-EHR"))
+      == [("slurm_jobs/quick_runs/diagnose.sbatch",
+           ["EMBEDDER", "LOOK", "MODULE"])])
 for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):

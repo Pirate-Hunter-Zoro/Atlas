@@ -14,6 +14,9 @@
 # Submit THIS, not the sweep/leaderboard/validate directly.
 
 # Build a cancel list so a single script tears the whole chain down.
+# A failure prints its RELAY: lines (slurm_jobs/lib/relay_trap.sh).
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
 CANCEL_SCRIPT="${SLURM_SUBMIT_DIR}/slurm_jobs/pipeline/causal/cancel_causal.sh"
 echo "#!/bin/bash" > "${CANCEL_SCRIPT}"
 echo "echo 'Killing causal forest sweep + leaderboard + validate...'" >> "${CANCEL_SCRIPT}"

@@ -21,6 +21,7 @@
 
 # Exit immediately if command fails
 set -e
+source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
 
 module purge
 
