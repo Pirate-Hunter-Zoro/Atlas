@@ -80,7 +80,9 @@ nothing about a per-hostname filter.
 
 No client setting reaches a device that resets the handshake. The `deepseek` recipe in
 `board/bin/tutor` runs DeepSeek through `opencode -m deepseek/deepseek-flash`, on the Mac, which is
-outside this filter.
+outside this filter. The Mac is the system's only brain precisely because this side is filtered:
+this file is the node-side half of that rule, and the comment above the `deepseek` recipe in
+`board/bin/tutor` is the client-side half.
 
 ## Why this machine needs it
 

@@ -160,7 +160,11 @@ def route(agent=None, table=None):
     table = registry() if table is None else table
     agents = {a.get("name"): a for a in (table.get("agents") or [])}
     tried, dark, blind = [], [], []
-    for name in (agent, table.get("vision_agent"), table.get("default")):
+    # The switch's own recipe is asked right after the running agent: under
+    # `only_agent` every other name is barred, so a `vision_agent` or default
+    # still naming one would leave no route at all.
+    only = (table.get("only") or {}).get("agent")
+    for name in (agent, only, table.get("vision_agent"), table.get("default")):
         if not name or name in tried:
             continue
         tried.append(name)

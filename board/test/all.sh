@@ -717,6 +717,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# Claude is gone: only_agent deepseek in a temporary config, claude and codex
+# off the PATH, and every turn, the listing and the agent suites still land.
+printf '%-12s ' "onlyagent"
+if out="$(python3 test/onlyagent.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "watching"
 if out="$(python3 test/watching.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

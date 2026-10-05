@@ -14,10 +14,11 @@ The same turned out to be true of being walked through code on a tablet — and,
 the two wanted the *same* board rather than two. A repository declares nothing about its subject
 now: one interface, one method, whether the exercises are proofs or functions.
 
-**It is written for one machine: a compute node on a Slurm cluster, with no administrator rights,
-on a shared home.** Nothing needs `sudo`, nothing is supervised, and nothing assumes the machine
-will still be yours tomorrow — see [The machine this is written
-for](#the-machine-this-is-written-for).
+**It runs on one machine, the owner's Mac mini, and that is the only place a model is called.**
+The cluster keeps the data, the GPUs and Slurm, and talks to the Mac only through git — see
+[The Mac is the only brain](#the-mac-is-the-only-brain). The code still needs no `sudo` and
+assumes no supervisor, because the relay runs on a compute node with neither — see [The machine
+this is written for](#the-machine-this-is-written-for).
 
 **Contents** — [What it is not](#what-it-is-not) · [The surfaces](#the-surfaces) ·
 [Commands](#commands) · [Writing a card](#writing-a-card) · [The slate](#the-slate--writing-by-hand)
@@ -48,7 +49,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 122 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 123 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -75,8 +76,36 @@ page loads fine — extend those two when something is wrong on a device.
 - **What a usage limit prints.** The phrases in `usage_limit_says` are what the default
   agent is documented to say. Everything downstream of the match is under test; a miss falls
   back to the ordinary failed-turn path, so it costs one list in the config and no code.
-- **macOS.** The platform paths in `tutorboard/`, `bootstrap.sh` and the LaunchAgent come
-  from documentation. Everything this runs on is Linux.
+
+### The Mac is the only brain
+
+These hold everywhere; each line names where the detail is.
+
+- **Every model turn runs on the Mac mini**: tutor turns, repairs, coaching, `board see`. The
+  cluster runs Slurm jobs, the relay pass and Colibri. §6 of the setup, and the root `HANDOFF.md`.
+- **No hosted model call runs on an institute machine, for any vendor.** The institute filters
+  `api.deepseek.com` by hostname and no exception is asked
+  (`projects/libr-local-llm/docs/deepseek-egress.md`); the same reasoning refuses every hosted
+  provider. `jobs.validate` refuses a `turn` request on both machines.
+- **Each provider runs through its own harness**: `claude` for Anthropic, `codex` for OpenAI,
+  `opencode` for DeepSeek with `-m deepseek/deepseek-flash` on the command line. *A provider is a
+  recipe plus a key*.
+- **`only_agent` runs one provider.** `tutor agent only deepseek` sets it in
+  `~/.config/tutor-board/config.json`; `tutor agent only --off` lifts it. Nothing requires the
+  `claude` binary: `test/onlyagent.py` runs the turn path, the board's listing and the agent
+  suites with claude and codex off the PATH. *Which one, for this course, on this machine*.
+- **A failed job is fixed on the Mac.** The recipe's `RELAY:` lines reach the report, the Mac's
+  pull hears it, and a `[repair]` doing turn fixes the code, ships it and reruns; after three
+  attempts the owner decides. *The relay runs requests on the cluster*.
+- **Code written on the cluster comes back as a held sitting.** `board hold`, then `board send`
+  per step; the Mac's `[coach]` turn answers through `board coach`. *A sitting held at the
+  cluster*, and `TEACHING.md`.
+- **Colibri is read-only analysis.** It is the one model on the node, local, started and directed
+  only by a relay request from the Mac in a workspace with `relay.colibri: true`. It writes under
+  the ignored `phi/`, and a change git can see fails the task. *Colibri runs on demand*.
+- **Sync**: the Mac pulls every 5 minutes, every 2 with a request out, every 20 s while a hold
+  stands, and at the top of every turn; the relay passes every 5 minutes. The pass commits the
+  owner's cluster edits only in a workspace with `relay.sync: true`, and none has it yet.
 
 ---
 
@@ -2715,11 +2744,11 @@ tutor where
 ```
 
 ```
-this machine: compute301
+this machine: mac-mini
 
-  Galois Theory            board:up :8787   agent:opencode listening
+  Galois Theory            board:up :8787   agent:deepseek listening
   Probability              board:-          agent:-
-  TRD-EHR                  board:on compute302  agent:claude listening on compute302
+  TRD-EHR                  board:up :8790   agent:deepseek working
 
   reachable at https://board.<tailnet>.ts.net/
 ```
@@ -2865,10 +2894,10 @@ see` and never meets `blind_answer` there. What the model said in the turn — n
 which quotes files — is scanned for the same placeholders instead, and a turn carrying one fails with *the page never reached the model* rather
 than landing a fluent card about a page nobody read. `board/test/seeing.py`.
 
-**`claude` is the default**, and it is the only one this has been taught with at length. Claude
-Code arrives with the course repository already in front of it, which is most of a tutor: it reads
-the slate PNG itself rather than through a transcription model, writes the card, and edits the
-course's own `.tex` when a homework sitting needs it.
+**The built-in `default_agent` is `claude`; the Mac's config names `deepseek`.** Under
+`only_agent` a default naming another recipe is overruled like any other layer, and `board see`
+asks the switch's recipe right after the running agent's, so a `vision_agent` still naming claude
+leaves an image a route.
 
 #### What a headless tutor is allowed to do, and where that is written
 
@@ -2904,7 +2933,7 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
 ```json
 {
   "default_agent": "claude",
-  "hosts": { "desk": "deepseek", "compute301": "claude" },
+  "hosts": { "mac-mini": "deepseek" },
   "agents": {
     "claude":   { "cmd": ["claude"], "prompt": "argv",
                   "headless": ["claude", "-p", "{prompt}", "--continue"] },
@@ -3563,8 +3592,9 @@ it is ordinary and safe in both directions. `test/beside.py` holds it, against r
 
 ## The machine this is written for
 
-**A compute node on a Slurm cluster, with no administrator rights, on a shared home.** Every
-decision in here follows from those four facts, and it is worth saying which ones:
+**The board and every model turn run on the Mac mini (§6 of the setup). The code is still
+written for the cluster's side too: a compute node on Slurm, with no administrator rights, on a
+shared home, where the relay and Colibri run.** These rules follow from that side:
 
 - **Nothing needs `sudo`, ever.** The server is standard-library Python, the pages are plain
   browser JavaScript, KaTeX is vendored, and `tailscaled` runs in userspace mode out of `$HOME`.

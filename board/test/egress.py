@@ -329,10 +329,13 @@ tutor = importlib.util.module_from_spec(tspec)
 sys.modules["tutor_probe"] = tutor
 loader.exec_module(tutor)
 
+# Both run under this interpreter, which `missing_command` always counts as
+# installed: the climb-down below must not depend on which assistants this
+# machine has (test/onlyagent.py runs this suite with claude off the PATH).
 CFG = {"agents": {
-    "deepseek": {"cmd": ["claude"], "headless": ["claude"],
-                 "egress_probe": ["https://api.deepseek.test/anthropic/v1/messages"]},
-    "claude": {"cmd": ["claude"], "headless": ["claude"]},
+    "deepseek": {"cmd": [sys.executable], "headless": [sys.executable],
+                 "egress_probe": ["https://api.deepseek.test/v1/chat/completions"]},
+    "claude": {"cmd": [sys.executable], "headless": [sys.executable]},
 }}
 
 asked = []
@@ -354,7 +357,7 @@ _keys.unkeyed = lambda spec: None
 tutor.missing_command = lambda cmd: None
 check("the providers this machine can run add their own endpoints",
       tutor.provider_probe_urls(CFG)
-      == ["https://api.deepseek.test/anthropic/v1/messages"])
+      == ["https://api.deepseek.test/v1/chat/completions"])
 check("Codex names its own host, so a filter on it is asked after",
       tutor.agent_probe_urls(tutor.DEFAULT_CONFIG["agents"]["codex"])
       == ["https://chatgpt.com/backend-api/codex/responses"])

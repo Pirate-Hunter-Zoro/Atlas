@@ -215,7 +215,7 @@ And the rest of it, in the order it bites:
 - **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new in the cache
   list), or the installed app serves its cached copy and the work is invisible.
-- **Run `bash board/test/all.sh` before every ship.** 122 suites. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 123 suites. Keep them green.
 - **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs early and refuses
   PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
   anywhere in the repository. This is public, and git remembers.
@@ -255,17 +255,24 @@ error; `bootstrap.sh` repairs it.
 
 ## The machine this was built for
 
-Two machines, and they never talk directly.
+Two machines, and they never talk directly. **The Mac is the only brain: no hosted model call
+runs on an institute machine, for any vendor** (`projects/libr-local-llm/docs/deepseek-egress.md`).
 
-- **The Mac mini** hosts the board, the tutor turns, compiles, decks and meetings. It holds the
-  whole repository and no PHI, so any provider may run there.
-- **The cluster** keeps what must stay at the institute: the data, the GPUs and Slurm. It hosts
-  no board. A scrontab entry runs `tutor relay --once` every five minutes: the relay pulls,
-  submits each new request in `relay/requests/` as a Slurm job, and commits its state to
-  `relay/reports/`. Colibri runs there only while it has a task.
+| | Mac mini (home) | Cluster (institute) |
+|---|---|---|
+| Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, `tutor relay --once` from scrontab every five minutes, Colibri while it has a task |
+| Models | each provider through its own harness: `claude`, `codex`, and DeepSeek through `opencode -m deepseek/deepseek-flash`. `tutor agent only deepseek` (the `only_agent` key) runs one and bars the rest | Colibri only: local, read-only analysis that writes under the ignored `phi/`; a change git can see fails the task |
+| Holds | the whole repository, no PHI | the repository, `results/`, `phi/`, models |
 
-GitHub is the only channel between them. `HANDOFF.md` has the split and `board/README.md` the
-relay.
+- **A failed job is fixed on the Mac**: its report wakes a `[repair]` doing turn there.
+- **Code typed on the cluster comes back through `board hold` and `board send`**, and the Mac's
+  coach answers.
+- **The Mac pulls every five minutes** (faster with a request out or a hold standing) and before
+  every turn. The relay commits the owner's cluster edits only in a workspace whose
+  `tutorboard.json` says `"relay": {"sync": true}`.
+
+GitHub is the only channel between them. `HANDOFF.md` has the split and `board/README.md`, "The
+Mac is the only brain", the rules.
 
 Python standard library only; plain browser JavaScript; nothing that needs a package manager at
 runtime.

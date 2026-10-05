@@ -1,13 +1,14 @@
 # HANDOFF — the Mac hosts, the cluster computes
 
-**The board, the tutor and every writing turn run on the owner's Mac mini at home. The cluster
+**The board, the tutor and every model turn run on the owner's Mac mini at home. The cluster
 keeps only what must stay at the institute: the data, the GPUs and Slurm.** The two never talk
 directly. They talk through the repository: the Mac commits a *request*, the cluster pulls it
 on a timer, does the work, and commits a *report*. GitHub is the only channel, over the same
 outbound HTTPS git already uses. Nothing tunnels into the cluster, and nothing here works
 around the institute's network controls.
 
-`board/README.md` is the architecture. `board/SETTLED.md` holds the rules already built.
+`board/README.md` is the architecture, and its "The Mac is the only brain" is where every model
+runs. `board/SETTLED.md` holds the rules already built.
 This file says what is left to build.
 
 ---
@@ -16,15 +17,15 @@ This file says what is left to build.
 
 | | Mac mini (home) | Cluster (institute) |
 |---|---|---|
-| Runs | the board, tutor turns, compiles, decks, meetings | Slurm jobs, the relay, Colibri tasks |
+| Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, the relay, Colibri tasks |
 | Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
-| Providers | any, including DeepSeek | Colibri on demand only; no hosted model call |
-| Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, and the files of a thread held at the cluster |
+| Providers | each through its own harness: `claude`, `codex`, DeepSeek through `opencode -m deepseek/deepseek-flash`; `only_agent` runs one | Colibri on demand only; no hosted model call |
+| Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, the files of a thread held at the cluster, and the owner's edits in a workspace with `relay.sync: true` |
 | iPad reaches it | over the owner's own tailnet | never |
 
 **Path ownership is what makes two writers on one branch safe.** The Mac never writes a
 report or an export. The cluster writes nothing else, except the files of a thread whose
-sitting is held at the cluster (`board hold`). While the hold lasts, those files are the cluster's
+sitting is held at the cluster (`board hold`) and a synced workspace's edits (below). While the hold lasts, those files are the cluster's
 and the Mac refuses to write them. So a pull on either side fast-forwards or rebases without a
 conflict.
 
@@ -114,6 +115,15 @@ csv or json, and each file is at most 5 MB. Whether a csv or json is aggregate i
 call, made once per path on the thread. The Mac's paper builder reads `exports/results/…`
 where `results/…` is absent, so a manuscript names one path on both machines.
 
+**Code typed on the cluster comes back as a held sitting.** `board hold`, then `board send` per
+step: the step is committed, the check runs beside the data, and the Mac's `[coach]` turn
+answers through `board coach`.
+
+**Sync.** The Mac pulls every five minutes, every two while a request is out, every 20 seconds
+while a hold stands, and at the top of every turn. The relay passes every five minutes. It
+commits the owner's cluster edits only in a workspace whose `tutorboard.json` says
+`"relay": {"sync": true}`, and no workspace says so until the owner decides which may.
+
 ---
 
 ## Rules that bind every item
@@ -188,7 +198,7 @@ environment". One part is left, on the cluster.
   then the root `scripts/setup.sh` on the cluster syncs the `cluster` extra into each
   workspace's `.venv/` in the home directory; the switch decides how that and
   `UV_PROJECT_ENVIRONMENT` meet. A cluster session working from this file does it, because the
-  switch edits tracked files and a relay turn edits none.
+  switch edits tracked files, which only a person at the cluster does.
 
 Parts of the item as written that proved wrong, one line each:
 

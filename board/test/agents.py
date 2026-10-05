@@ -444,6 +444,17 @@ _got, _no = seeing.route("claude", {"vision_agent": "claude", "agents": [
      "vision": {"cmd": ["claude"], "sighted": True}}]})
 check("a barred recipe's vision route is refused, with the switch's sentence",
       _got is None and POLICY in (_no or ""))
+_got, _no = seeing.route(None, {
+    "vision_agent": "claude", "default": "claude",
+    "only": {"agent": "deepseek", "why": POLICY},
+    "agents": [{"name": "claude", "barred": POLICY,
+                "vision": {"cmd": ["claude"], "sighted": True}},
+               {"name": "deepseek",
+                "vision": {"endpoint": "https://api.deepseek.test/v1",
+                           "model": "m"}}]})
+check("and the switch's own recipe is asked, so a vision_agent and default "
+      "still naming claude leave an image a route",
+      (_got or {}).get("agent") == "deepseek")
 
 # --- AND IT IS ASKED EVERY TURN ----------------------------------------------
 src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
