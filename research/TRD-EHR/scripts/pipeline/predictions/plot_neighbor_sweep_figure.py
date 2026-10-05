@@ -6,21 +6,34 @@ moves nothing (alpha 1, 2 and 5 agree to three decimals) and the question is onl
 whether retrieval reaches a trained classifier at any neighborhood size. This script
 draws that figure from the sweep's own outputs and refits nothing:
 
-  * one curve per cosine metric at alpha 1, with the bootstrap 95% band from
-    sweep_intervals.csv;
+  * one curve per cosine metric at alpha 1, logistic-regression-weighted and plain,
+    with the bootstrap 95% band from sweep_intervals.csv;
   * the random-neighbor arm with uniform weights, its mean AUC across draws at every
     k inside the band of the 2.5th to 97.5th percentile across draws, from
     random_neighbour_curve.csv;
   * a point at each arm's best k, the k its panels (best_k_panels) are drawn at;
-  * horizontal lines at the two leading trained classifiers, each with its own
-    bootstrap 95% band over the same resamples of test patients.
+  * horizontal lines at the two leading trained classifiers, each with its 95% band.
+
+It runs once per encoder, on that encoder's RESULTS_DIR: Figure 4 is the primary
+encoder's, and each panel of Figure 5 is another encoder's.
+
+WHERE EACH CLASSIFIER LINE COMES FROM. Where a classifier's per-patient test
+predictions (test_predictions_{EMBEDDED,FEATURE}.parquet) sit in RESULTS_DIR, its line
+is bootstrapped over the same resamples of test patients as the retrieval contrasts,
+and the retrieval-minus-classifier contrast is written. Only the primary encoder has
+those files. Elsewhere the line is read from classical_ml_results_{source}.json, the
+AUC and bootstrap CI classical_ml recorded, and no contrast against that classifier is
+written. Feature-vector XGBoost does not depend on the encoder, so its line is read
+from FEATURE_RESULTS_DIR when that is set; the recipe points it at the primary
+encoder, which keeps that line the same in every panel.
 
 It also writes the contrasts the Results paragraph quotes, so every number there is
-on disk: the best retrieval predictions against each leading classifier and the
-importance-weighted metric against plain cosine, paired over resampled test patients
-seeded off SEED; and each cosine metric against the random arm, each at its own best
-k, whose interval also spans the 1,000 random draws (delta_against_random_draws). Best k is chosen on those same patients, so every best-k
-number is optimistic.
+on disk: the best retrieval predictions against each leading classifier whose
+per-patient predictions exist, and the logistic-regression-weighted metric against
+plain cosine, paired over resampled test patients seeded off SEED; and each cosine
+metric against the random arm, each at its own best k, whose interval also spans the
+1,000 random draws (delta_against_random_draws). Best k is chosen on those same
+patients, so every best-k number is optimistic.
 
 Outputs:
     RESULTS_DIR/neighbor_count_sweep/neighbor_count_sweep_manuscript.png
@@ -65,10 +78,12 @@ METRIC_COLOR = {"weighted": "#2a78d6", "plain": "#eb6834", "random": "#1baf7a"}
 # cosine curves have already climbed away.
 LABEL_OFFSET = {"weighted": (6, 8), "plain": (8, -34), "random": (6, 10)}
 
-# The two leading trained classifiers, as (label, representation, model column).
+# The two leading trained classifiers, as (label, representation, model column, shared).
+# A shared classifier does not depend on the encoder, so one copy of it serves every
+# encoder's panel (FEATURE_RESULTS_DIR).
 REFERENCES = (
-    ("EMBEDDED logistic regression", "EMBEDDED", "logistic_regression"),
-    ("FEATURE XGBoost",              "FEATURE",  "xgboost"),
+    ("EMBEDDED logistic regression", "EMBEDDED", "logistic_regression", False),
+    ("FEATURE XGBoost",              "FEATURE",  "xgboost",             True),
 )
 
 # Which best-k prediction file stands for each retrieval arm in the paired contrasts.
@@ -85,16 +100,57 @@ RANDOM_CURVE = "random_neighbour_curve.csv"
 RANDOM_DRAWS_AT_BEST = "random_draw_aucs_at_best_k.csv"
 
 
-def load_predictions(results_dir: Path) -> pd.DataFrame:
-    """Join the retrieval and classifier held-out predictions on test patient.
+def classifier_source(results_dir: Path, source: str, shared: bool) -> tuple[str, Path]:
+    """Where one classifier line is read from: per-patient predictions, or a summary.
+
+    Args:
+        results_dir (Path): RESULTS_DIR for the active encoder/judge pair.
+        source (str): EMBEDDED or FEATURE.
+        shared (bool): True for a classifier that does not depend on the encoder; it is
+            read from FEATURE_RESULTS_DIR when that is set.
+
+    Returns:
+        tuple[str, Path]: ("predictions", the parquet) when the per-patient test
+            predictions are this RESULTS_DIR's own and on disk, otherwise ("summary",
+            the classical_ml_results JSON the line is read from).
+    """
+    home = results_dir
+    if shared and os.environ.get("FEATURE_RESULTS_DIR"):
+        home = Path(os.environ["FEATURE_RESULTS_DIR"])
+    parquet = home / f"test_predictions_{source}.parquet"
+    if home.resolve() == results_dir.resolve() and parquet.exists():
+        return "predictions", parquet
+    return "summary", home / f"classical_ml_results_{source}.json"
+
+
+def summary_line(path: Path, model: str) -> tuple:
+    """A classifier's test ROC AUC and its bootstrap CI, as classical_ml recorded them.
+
+    Args:
+        path (Path): classical_ml_results_{source}.json.
+        model (str): The model key in it, e.g. logistic_regression.
+
+    Returns:
+        tuple: (auc, ci_low, ci_high).
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"{path.name} is absent: no classifier line to draw.")
+    entry = json.loads(path.read_text())[model]
+    return (float(entry["roc_score"]), float(entry["roc_score_ci_low"]),
+            float(entry["roc_score_ci_high"]))
+
+
+def load_predictions(results_dir: Path) -> tuple[pd.DataFrame, list[str]]:
+    """Join the retrieval held-out predictions, and this encoder's per-patient classifier ones, on test patient.
 
     Args:
         results_dir (Path): RESULTS_DIR for the active encoder/judge pair.
 
     Returns:
-        pd.DataFrame: One row per test patient: true_label, best_retrieval,
-            weighted, plain, and one column per reference
-            classifier label.
+        tuple[pd.DataFrame, list[str]]: One row per test patient: true_label,
+            best_retrieval, weighted, plain, and one column per reference classifier
+            whose per-patient predictions are in RESULTS_DIR; and those classifiers'
+            labels, the ones a paired contrast can be read against.
     """
     sweep_dir = results_dir / SWEEP_DIR_NAME
     frame = pd.read_csv(sweep_dir / BEST_RETRIEVAL).rename(
@@ -103,12 +159,17 @@ def load_predictions(results_dir: Path) -> pd.DataFrame:
         other = pd.read_csv(sweep_dir / name)[["anchor_patient_id", "predicted_risk"]]
         frame = frame.merge(other.rename(columns={"predicted_risk": metric}),
                             on="anchor_patient_id", validate="one_to_one")
-    for label, source, model in REFERENCES:
-        classifier = pd.read_parquet(results_dir / f"test_predictions_{source}.parquet")
+    paired = []
+    for label, source, model, shared in REFERENCES:
+        kind, path = classifier_source(results_dir, source, shared)
+        if kind != "predictions":
+            continue
+        classifier = pd.read_parquet(path)
         classifier = classifier[["patient_id", model]].rename(
             columns={"patient_id": "anchor_patient_id", model: label})
         frame = frame.merge(classifier, on="anchor_patient_id", validate="one_to_one")
-    return frame
+        paired.append(label)
+    return frame, paired
 
 
 def paired_delta(y_true: np.ndarray, a: np.ndarray, b: np.ndarray,
@@ -306,15 +367,19 @@ def main():
     """Write the manuscript retrieval figure and its paired contrasts into RESULTS_DIR."""
     results_dir = Path(os.environ["RESULTS_DIR"])
     sweep_dir = results_dir / SWEEP_DIR_NAME
-    frame = load_predictions(results_dir)
+    frame, paired = load_predictions(results_dir)
     y_true = frame.true_label.to_numpy()
     sample_indices = bootstrap_sample_indices(len(frame))
 
     deltas = {
         f"best_retrieval_minus_{label}": paired_delta(
             y_true, frame.best_retrieval.to_numpy(), frame[label].to_numpy(), sample_indices)
-        for label, _, _ in REFERENCES
+        for label in paired
     }
+    for label, _, _, _ in REFERENCES:
+        if label not in paired:
+            print(f"No per-patient predictions for {label} in this RESULTS_DIR: "
+                  "its line is read from classical_ml_results, with no contrast against it.")
     deltas["weighted_minus_plain_at_own_best_k"] = paired_delta(
         y_true, frame.weighted.to_numpy(), frame.plain.to_numpy(), sample_indices)
     random_path = sweep_dir / RANDOM_CURVE
@@ -328,8 +393,13 @@ def main():
         print(f"WARNING: {draws_path} is absent; no contrast against the random arm.")
     (sweep_dir / DELTAS_NAME).write_text(json.dumps(deltas, indent=2))
 
-    reference_aucs = {label: auc_interval(y_true, frame[label].to_numpy(), sample_indices)
-                      for label, _, _ in REFERENCES}
+    reference_aucs = {}
+    for label, source, model, shared in REFERENCES:
+        if label in paired:
+            reference_aucs[label] = auc_interval(y_true, frame[label].to_numpy(), sample_indices)
+        else:
+            reference_aucs[label] = summary_line(
+                classifier_source(results_dir, source, shared)[1], model)
     draw(pd.read_csv(sweep_dir / "sweep_curve.csv"),
          pd.read_csv(sweep_dir / "sweep_intervals.csv"),
          reference_aucs, sweep_dir / FIGURE_NAME,

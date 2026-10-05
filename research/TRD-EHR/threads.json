@@ -24,6 +24,8 @@
         "scripts/pipeline/predictions/plot_neighbor_sweep_figure.py",
         "scripts/pipeline/predictions/plot_cross_embedder_retrieval.py",
         "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+        "scripts/pipeline/predictions/best_k_panels.py",
+        "slurm_jobs/quick_runs/plot_cross_embedder_retrieval.sbatch",
         "homework/knn-ksweep",
         "writeups/deck-260925-0942"
       ],
@@ -35,7 +37,100 @@
         "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
         "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
       ],
-      "exports": [],
+      "exports": [
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
+          "aggregate": false
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png",
+          "aggregate": false
+        }
+      ],
       "check": "",
       "writes": [
         {
@@ -58,7 +153,7 @@
         },
         {
           "text": "Finish the rename to logistic-regression-weighted nearest neighbours: the docstring of plot_neighbor_sweep_figure.py still says importance-weighted",
-          "done": false
+          "done": true
         },
         {
           "text": "Re-split parts/ so the section PDFs carry the new KNN section",
@@ -70,7 +165,7 @@
         },
         {
           "text": "Fix plot_neighbor_sweep_figure.py for the 3 non-primary encoders: read the classifier lines from classical_ml_results_{EMBEDDED,FEATURE}.json and skip paired deltas when test_predictions_*.parquet is absent (job 2110916)",
-          "done": false
+          "done": true
         },
         {
           "text": "Rerun neighbor_count_sweep.sbatch: bge-small-en-v1.5 with --fixes 2026-10-02-knn-across-embedders-neighbor-count-sweep, then bge-en-icl and Qwen-Qwen3-Embedding-4B, for Figure 5 and Figures S8-S9",
@@ -82,7 +177,7 @@
         },
         {
           "text": "Add a tracked recipe that runs plot_cross_embedder_retrieval after all 4 sweeps and mirrors it into results/cross_embedder_retrieval/ for Figure 6; fix its docstring, which says the plot is not in the manuscript",
-          "done": false
+          "done": true
         },
         {
           "text": "Bring the new figures to the Mac (owner marks each PNG aggregate) or build on the cluster, then rebuild parts/ and run scripts/rebuild-packet.sh --strict. Every .docx and .pdf predates the 2026-10-05 text",

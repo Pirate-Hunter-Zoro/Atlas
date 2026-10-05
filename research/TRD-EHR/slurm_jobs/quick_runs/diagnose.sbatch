@@ -54,6 +54,7 @@ scripts.pipeline.predictions.feature_importance
 scripts.pipeline.predictions.fusion_analysis
 scripts.pipeline.predictions.neighbor_count_sweep
 scripts.pipeline.predictions.plot_cross_embedder
+scripts.pipeline.predictions.plot_cross_embedder_retrieval
 scripts.pipeline.predictions.plot_discrimination_forest
 scripts.pipeline.predictions.plot_neighbor_sweep_figure
 scripts.pipeline.predictions.plot_time_zero_timeline

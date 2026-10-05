@@ -6,7 +6,8 @@ NUM_NEIGHBOR_PATIENTS = 50, a size that was inherited, never chosen. The neighbo
 sweep scores every k, so this draws the same six panels for three arms, each at its own
 best k:
 
-  * importance-weighted cosine, alpha 1;
+  * logistic-regression-weighted cosine, alpha 1 (mode prefix
+    NEAREST_IMPORTANCE_WEIGHTED, kept so the paper's panel paths hold);
   * plain cosine, alpha 1;
   * random neighbours with uniform weights, from the draw whose AUC at the arm's best k
     sits closest to the mean across draws (neighbor_count_sweep.representative_draw).

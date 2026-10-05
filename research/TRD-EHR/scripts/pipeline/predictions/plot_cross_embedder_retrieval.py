@@ -1,16 +1,17 @@
 """Logistic-regression-weighted nearest neighbors across the four encoders.
 
 Reads each encoder's neighbor_count_sweep outputs and its fitted embedded logistic
-regression, refits nothing, and writes three figures and one table:
+regression, refits nothing, and writes two figures and one table:
 
-  * cross_embedder_sweep.png: ROC AUC against k for every encoder, one panel for
-    logistic-regression-weighted cosine and one for plain cosine, alpha 1, each curve's
-    best k marked;
   * embedding_dimensions_vs_lr_dimensions.png: each encoder's embedding width against
     how many dimensions its logistic regression uses, counted two ways (below);
-  * lr_dimensions_vs_best_k.png: that count against each metric's best k. Exploratory,
-    and not in the manuscript until the authors decide what it means;
-  * cross_embedder_retrieval.csv: one row per encoder, every number the figures draw.
+  * lr_dimensions_vs_best_k.png: the 90%-mass count against each metric's best k.
+    Manuscript Figure 6;
+  * cross_embedder_retrieval.csv: one row per encoder, every number the figures draw,
+    and the source of the manuscript's cross-encoder retrieval numbers.
+
+Each encoder's ROC AUC against k is not drawn here. It is that encoder's own
+Figure-4-style panel (plot_neighbor_sweep_figure), with its bootstrap bands.
 
 TWO COUNTS OF "DIMENSIONS THE LOGISTIC REGRESSION USES", BECAUSE THE PENALTY DIFFERS.
 The grid search picked an elastic-net penalty for bge-en-icl and Qwen3-8B, which zeroes
@@ -22,9 +23,10 @@ under either penalty and is the one the comparison can rest on.
 Best k is chosen on the test patients, so every best-k value here is optimistic, as it
 is in each encoder's own sweep.
 
-Outputs land in ARTIFACTS_DIR/cross_embedder_retrieval. Run it with
--m scripts.pipeline.predictions.plot_cross_embedder_retrieval after every encoder's
-neighbor_count_sweep has finished.
+Outputs land in ARTIFACTS_DIR/cross_embedder_retrieval.
+slurm_jobs/quick_runs/plot_cross_embedder_retrieval.sbatch runs it, after every
+encoder's neighbor_count_sweep has finished, and mirrors that folder into
+results/cross_embedder_retrieval/, which the manuscript links.
 """
 
 import json
@@ -120,32 +122,6 @@ def plain_log_ticks(axis, ticks) -> None:
     axis.set_minor_formatter(matplotlib.ticker.NullFormatter())
 
 
-def plot_sweeps(table: pd.DataFrame) -> Path:
-    """ROC AUC against k, one curve per encoder, one panel per metric."""
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
-    for ax, metric in zip(axes, METRIC_DISPLAY):
-        for i, embedder in enumerate(EMBEDDERS):
-            curve = pd.read_csv(results_dir(embedder) / SWEEP_DIR_NAME / "sweep_curve.csv")
-            curve = curve[(curve["metric"] == metric) & (curve["alpha"] == ALPHA)]
-            ax.plot(curve["n_neighbors"], curve["roc_auc"], color=EMBEDDER_COLOR[i],
-                    linewidth=1.4, label=SHORT_NAME_EMBS[i])
-            best = table.loc[embedder]
-            ax.plot(best[f"{metric}_best_k"], best[f"{metric}_best_roc_auc"], marker="o",
-                    color=EMBEDDER_COLOR[i], markersize=6, markeredgecolor="white")
-        ax.axhline(0.5, color="#555555", linestyle=":", linewidth=1)
-        ax.set_xscale("log")
-        ax.set_xlabel("Neighbors, k")
-        ax.set_title(METRIC_DISPLAY[metric])
-        ax.grid(True, which="major", color="#e6e6e6", linewidth=0.6)
-    axes[0].set_ylabel("ROC AUC, test patients")
-    axes[1].legend(loc="lower right", frameon=False)
-    fig.tight_layout()
-    path = OUT_DIR / "cross_embedder_sweep.png"
-    fig.savefig(path, dpi=FIGURE_DPI)
-    plt.close(fig)
-    return path
-
-
 def plot_dimension_counts(table: pd.DataFrame) -> Path:
     """Embedding width against the dimensions the logistic regression uses."""
     mass_column = f"lr_dimensions_holding_{MASS_SHARE:.0%}_mass"
@@ -225,7 +201,7 @@ def main():
     table = pd.DataFrame([encoder_row(e) for e in EMBEDDERS]).set_index("embedder", drop=False)
     table.to_csv(OUT_DIR / "cross_embedder_retrieval.csv", index=False)
     print(table.drop(columns="embedder").T.to_string(), flush=True)
-    for path in (plot_sweeps(table), plot_dimension_counts(table), plot_dimensions_vs_best_k(table)):
+    for path in (plot_dimension_counts(table), plot_dimensions_vs_best_k(table)):
         print(f"wrote {path}", flush=True)
 
 

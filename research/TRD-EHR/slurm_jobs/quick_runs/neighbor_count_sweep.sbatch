@@ -11,10 +11,12 @@
 #RELAY-VAR REDRAW [01]
 
 # Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
-# pool: importance-weighted cosine, plain cosine, and random neighbours with uniform
-# weights (1,000 seeded draws). Then Figure 4, and the ROC / PR / calibration / decision /
-# ESS / confusion-matrix panels at each arm's best k. No GPU and no vLLM server: the
-# importance-weighted metric is read off the already-fitted logistic regression and plain
+# pool: logistic-regression-weighted cosine, plain cosine, and random neighbours with
+# uniform weights (1,000 seeded draws). Then that encoder's Figure-4-style panel (Figure 4
+# for the primary encoder, a panel of Figure 5 for the others), and the ROC / PR /
+# calibration / decision / ESS / confusion-matrix panels at each arm's best k (Figures
+# S8-S9). No GPU and no vLLM server: the
+# weighted metric is read off the already-fitted logistic regression and plain
 # cosine needs nothing at all, so this is two BLAS matmuls, a lot of sorting, and the
 # random draws spread over every CPU. The memory request holds the three per-alpha risk
 # matrices, each n_anchors x n_pool; the metrics run one after another and free theirs
@@ -37,6 +39,12 @@
 # It needs that model's embeddings.db and fitted logistic regression already on disk.
 # .env derives EMBEDDINGS_DIR and RESULTS_DIR from EMBEDDER_MODEL_NAME, so both are
 # re-derived here after it is sourced.
+#
+# Only the primary encoder (PRIMARY_EMBEDDER) has per-patient classifier test
+# predictions. For the others the figure reads each classifier line from
+# classical_ml_results_*.json and writes no retrieval-minus-classifier contrast; the
+# feature-vector XGBoost line, which no encoder changes, is always the primary's
+# (FEATURE_RESULTS_DIR), so it is the same in every panel.
 
 # Exit immediately if command fails
 set -e
@@ -65,6 +73,8 @@ if [[ -n "${EMBEDDER:-}" ]]; then
   export EMBEDDINGS_DIR="${ARTIFACTS_DIR}/${EMBEDDER_MODEL_NAME}"
   export RESULTS_DIR="${ARTIFACTS_DIR}/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}"
 fi
+PRIMARY_EMBEDDER=Qwen-Qwen3-Embedding-8B
+export FEATURE_RESULTS_DIR="${ARTIFACTS_DIR}/${PRIMARY_EMBEDDER}/${VLLM_MODEL_NAME}"
 echo "Sweeping ${EMBEDDER_MODEL_NAME}: results in ${RESULTS_DIR}"
 
 echo "Running on $(hostname) with ${SLURM_CPUS_PER_TASK} cpus"
