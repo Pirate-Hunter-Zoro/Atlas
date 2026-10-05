@@ -49,7 +49,7 @@ build/
 
 # ---- the relay's own state, on the cluster ----
 # The pass's lock and `state.json` at the root; in each workspace the wrapped
-# job scripts, their exit codes, the turns' logs and notes, and the registry of
+# job scripts, their exit codes, and the registry of
 # what the relay submitted. A log can print anything, so none of it is tracked;
 # a report under `relay/reports/` is what crosses.
 **/relay/state/

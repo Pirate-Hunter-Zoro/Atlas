@@ -1121,6 +1121,14 @@ try:
         check("the assistant that pushes is one that could not have read the "
               "fenced content it is checking the diff for",
               _spawn.shipper() == "claude")
+        from tutorboard import jobs as _jobs_mod
+        _had = _jobs_mod.has_slurm
+        _jobs_mod.has_slurm = lambda: True
+        try:
+            check("where Slurm is, nothing ships: every shipper is hosted",
+                  _spawn.shipper() is None)
+        finally:
+            _jobs_mod.has_slurm = _had
 
         # A mission that FAILED is not shipped. Its changes may well be in the
         # tree and pushing them is the opposite of what "failed" means to the

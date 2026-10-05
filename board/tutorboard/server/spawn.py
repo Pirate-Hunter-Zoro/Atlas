@@ -250,8 +250,12 @@ def shipper():
     have read what it is checking. The machine's default first, because that is
     what every other unattended turn in this workspace already runs as.
     """
-    from .. import assistants
+    from .. import assistants, jobs
 
+    # No hosted model call on an institute machine: a board serving where
+    # Slurm is ships no mission, because every shipper here is hosted.
+    if jobs.has_slurm():
+        return None
     reg = assistants.listing() or {}
     agents = reg.get("agents") or []
     ok = [a for a in agents

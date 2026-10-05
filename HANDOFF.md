@@ -81,7 +81,7 @@ outputs under the workspace's ignored `phi/`. It never changes a tracked file.
 
 ```json
 {"id": "2026-10-03-grade-diarization", "kind": "colibri", "thread": "diarization",
- "brief": "Grade the diarization of every session in phi/ against its reference; report mean DER."}
+ "brief": "Grade every session's diarization against its reference; report mean DER."}
 ```
 
 - Off by default. A workspace opts in with `relay.colibri: true` in its `tutorboard.json`.

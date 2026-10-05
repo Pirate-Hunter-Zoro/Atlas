@@ -300,8 +300,8 @@ SERVE+=(--ctx "${COLI_CTX:-131072}")
 # `board/tutorboard/colibri.py` is the worker: it waits for this generation's
 # COLIBRI-SERVE READY, resumes any task a dead generation left running, and
 # works the queue one task at a time through `coli-code`. It prints ids and
-# states only -- this log is declared counts-only -- and the client's own output
-# goes nowhere: the transcript is behind the fence under COLI_SESSION_ROOT.
+# states only -- this log is declared counts-only. The client's own output goes
+# to $COLI_SESSION_ROOT/tasks/<id>.out, behind the fence, with the transcript.
 WORKER=(env PYTHONPATH="$ATLAS_ROOT/board" python3 -m tutorboard.colibri work --job "$MY_JOB")
 
 if [ "$DEMAND" = "1" ]; then
