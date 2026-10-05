@@ -24,7 +24,7 @@ ENV_SH = os.path.join(ATLAS, "projects", "libr-local-llm", "scripts",
                       "colibri-env.sh")
 sys.path.insert(0, ROOT)
 
-from tutorboard import colibri, jobs, missions                # noqa: E402
+from tutorboard import colibri, jobs, missions, relay         # noqa: E402
 
 fails = []
 
@@ -270,7 +270,8 @@ check("and then exits cleanly on an empty queue", rc == 0)
 fake = os.path.join(BIN, "coli-code")
 with open(fake, "w") as fh:
     fh.write("#!/bin/bash\nprintf '%%s\\n' \"$COLI_SESSION_ID\" \"$COLI_JOB\" "
-             "\"$@\" > %s/argv\nexit 0\n" % TMP)
+             "\"$@\" > %s/argv\necho 'RELAY: graded 3 sessions'\nexit 0\n"
+             % TMP)
 os.chmod(fake, 0o755)
 os.environ["COLI_CODE"] = fake
 colibri.run_task(dict(after, attempts=2), "401")
@@ -281,8 +282,29 @@ check("a resumed task runs coli-code with --continue, its session and its job",
       and WS in lines)
 colibri.run_task(dict(after, attempts=1), "401")
 with open(os.path.join(TMP, "argv")) as fh:
-    check("a first attempt opens a fresh conversation",
-          "-c" not in fh.read().splitlines())
+    said = fh.read()
+check("a first attempt opens a fresh conversation",
+      "-c" not in said.splitlines())
+check("told its work is read-only: outputs under phi/, no tracked file "
+      "touched", "under this workspace's `phi/`" in said
+      and "Never edit, create, delete or rename a tracked file" in said
+      and "RELAY:" in said and "hosted" not in said and "ships" not in said)
+check("and so is a resumed one",
+      "`phi/`" in colibri.TASK_RESUME_PROMPT
+      and "tracked file" in colibri.TASK_RESUME_PROMPT)
+check("with no fence for its output, the client's output goes nowhere",
+      not missions.tasks(QUEUE)[0].get("out"))
+os.environ["COLI_SESSION_ROOT"] = os.path.join(TMP, "sessions", "phi")
+colibri.run_task(dict(after, attempts=1), "401")
+out = missions.tasks(QUEUE)[0].get("out")
+check("behind the fence, it is kept, and its path is on the task",
+      out == os.path.join(TMP, "sessions", "phi", "tasks",
+                          after["id"] + ".out")
+      and open(out).read() == "RELAY: graded 3 sessions\n")
+os.environ["COLI_SESSION_ROOT"] = os.path.join(TMP, "sessions")
+check("a session root that is not a phi/ directory is no fence",
+      colibri.output_path(after) is None)
+del os.environ["COLI_SESSION_ROOT"]
 
 # ---------------------------------------------------------------------------
 # 4. a clean exit drops the clone
@@ -363,26 +385,82 @@ check("its report never carries the brief",
 task = missions.tasks(QUEUE)[0]
 missions.claim_task(QUEUE, task, "101")
 missions.finish_task(QUEUE, missions.tasks(QUEUE)[0], True)
-reviewed = []
+checked = []
 
 
-def review(where, req):
-    reviewed.append((where, req))
-    return "the sweep reran; 4 panels changed; shipped"
+def clean_check(where, rec):
+    checked.append(where)
+    return {"changed": 0, "relay": ["graded 3 sessions"]}
 
 
-out = colibri.relay_pass(review=review, start=submitter(calls))
-check("a finished task gets one hosted review turn in its workspace",
-      len(reviewed) == 1 and reviewed[0][0] == WS
-      and reviewed[0][1]["kind"] == "turn")
-check("and the report says completed, with only that turn's public note",
-      out and out[0][1]["state"] == "completed"
-      and out[0][1]["note"].startswith("the sweep reran")
-      and out[0][1]["id"] == base["id"])
-out = colibri.relay_pass(review=review, start=submitter(calls))
-check("a reviewed task is not reviewed again", len(reviewed) == 1)
+out = colibri.relay_pass(check=clean_check, start=submitter(calls))
+check("a finished task is checked once, in its workspace", checked == [WS])
+check("with no change, the report says completed and carries only its "
+      "RELAY: lines", out and out[0][1]["state"] == "completed"
+      and out[0][1]["relay"] == ["graded 3 sessions"]
+      and out[0][1]["changed"] == 0 and out[0][1]["id"] == base["id"]
+      and "rerun it" not in json.dumps(out) and "diff" not in out[0][1])
+out = colibri.relay_pass(check=clean_check, start=submitter(calls))
+check("a checked task is not checked again", len(checked) == 1)
 check("and a pass starts no generation for a task already started",
       len(calls) == 1)
+
+reset()
+colibri.relay_file(WS, base, start=submitter([]))
+missions.claim_task(QUEUE, missions.tasks(QUEUE)[0], "102")
+missions.finish_task(QUEUE, missions.tasks(QUEUE)[0], True)
+out = colibri.relay_pass(check=lambda where, rec: None,
+                         start=submitter([]))
+check("a check that cannot read leaves the task done and unchecked",
+      out[0][1]["state"] == "running" and "check" in out[0][1]["note"]
+      and not missions.tasks(QUEUE)[0].get("checked"))
+out = colibri.relay_pass(start=submitter([]))
+check("and so does a pass with no check at all",
+      out[0][1]["state"] == "running")
+out = colibri.relay_pass(check=lambda where, rec: {"changed": 2, "relay": []},
+                         start=submitter([]))
+t = missions.tasks(QUEUE)[0]
+check("a task that changed tracked files is failed, with the reason",
+      t["queue"] == "failed" and t["reason"] == relay.CHANGED
+      and out[0][1]["state"] == "failed" and relay.CHANGED in out[0][1]["note"])
+check("and its report counts the paths and names none",
+      out[0][1]["changed"] == 2 and "2 path(s)" in out[0][1]["note"]
+      and "uncommitted" in out[0][1]["note"])
+
+# The check itself, on a real repository: what git can see, since the baseline.
+def g(*args):
+    return subprocess.run(["git"] + list(args), cwd=WS, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT).stdout.decode()
+
+
+g("init", "-q", "-b", "main")
+g("config", "user.email", "t@example.com")
+g("config", "user.name", "t")
+for rel, text in (("fit.py", "x = 1\n"), (".gitignore", "phi/\nlive/\n")):
+    with open(os.path.join(WS, rel), "w") as fh:
+        fh.write(text)
+g("add", "-A")
+g("commit", "-q", "-m", "seed")
+with open(os.path.join(WS, "owner.md"), "w") as fh:
+    fh.write("the owner's, before the task\n")
+reset()
+rec, _ = colibri.file("knn-across-embedders", "grade it", WS,
+                      start=submitter([]))
+check("filing keeps what git already sees changed as the task's baseline",
+      list(rec["baseline"]) == ["owner.md"])
+os.makedirs(os.path.join(WS, "phi"))
+with open(os.path.join(WS, "phi", "grades.json"), "w") as fh:
+    fh.write("{}\n")
+check("writing under the ignored phi/ is no change",
+      relay.check_task(WS, rec) == {"changed": 0, "relay": []})
+with open(os.path.join(WS, "fit.py"), "w") as fh:
+    fh.write("x = 2\n")
+with open(os.path.join(WS, "owner.md"), "a") as fh:
+    fh.write("and the task wrote here too\n")
+check("a tracked edit, and a baseline file changed again, are the task's",
+      relay.check_task(WS, rec)["changed"] == 2)
+check("a workspace git cannot read is checked again later, never passed",
+      relay.check_task(os.path.join(TMP, "nowhere"), rec) is None)
 
 shutil.rmtree(TMP, ignore_errors=True)
 print("%d failed" % len(fails) if fails else "all on-demand checks pass")

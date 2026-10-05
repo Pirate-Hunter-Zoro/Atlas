@@ -175,10 +175,14 @@ FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
           # task queue" below. `brief` is the whole task, `workspace` the
           # `family/name` it runs in, `queue` its state, `attempts` how many
           # generations began it, `deaths` how many of those died under it,
-          # `gen` the job running it, `request` the relay request that filed
-          # it, and `note` and `reviewed` the hosted review's public note.
+          # `gen` the job running it, and `request` the relay request that
+          # filed it. `baseline` is what git already saw changed in that
+          # workspace when it was filed, `out` where its client's output went
+          # (behind the fence), and `checked`, `changed` and `relay` the
+          # relay's check once it was done: when, how many paths git could
+          # see changed, and its public `RELAY:` lines.
           "kind", "brief", "workspace", "queue", "attempts", "deaths", "gen",
-          "request", "note", "reviewed")
+          "request", "baseline", "out", "checked", "changed", "relay")
 
 
 def _dir(root):
@@ -1180,8 +1184,10 @@ def task_id(now=None):
                            os.urandom(2).hex())
 
 
-def file_task(root, thread, brief, workspace, request="", now=None):
-    """Write one queued task into `root/live/missions/`. The record, or None."""
+def file_task(root, thread, brief, workspace, request="", now=None,
+              baseline=None):
+    """Write one queued task into `root/live/missions/`. The record, or None.
+    `baseline` is `relay.workspace_changes` of its workspace, or None."""
     import uuid
     now = float(now or time.time())
     rec = {
@@ -1192,7 +1198,8 @@ def file_task(root, thread, brief, workspace, request="", now=None):
         "queue": "queued", "attempts": 0, "deaths": 0, "gen": "",
         "session": str(uuid.uuid4()), "at": now, "from": "colibri queue",
         "host": machine.node_name(), "ended": "", "ended_at": 0.0,
-        "reason": "", "looked": 0.0, "note": "", "reviewed": 0.0,
+        "reason": "", "looked": 0.0, "baseline": baseline, "out": "",
+        "checked": 0.0, "changed": 0, "relay": [],
     }
     return rec if write(root, rec) else None
 
@@ -1308,10 +1315,9 @@ def recover_tasks(root, alive, ended_clean, now=None):
     return moved
 
 
-def review_task(root, rec, note, now=None):
-    """The hosted follow-up turn has reviewed this task; keep its public note."""
-    now = float(now or time.time())
+def update_task(root, rec, **fields):
+    """Set `fields` on a task as it is on disk now. The record."""
     out = _current(root, rec)
-    out.update(reviewed=now, note=str(note or "").strip())
+    out.update(fields)
     write(root, out)
     return out

@@ -17,14 +17,13 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
 3. Unfinished jobs are polled with `jobs.poll`: `squeue` plus the wrapper's
    exit file, because `sacct` is refused here. An ended job's exports are
    copied and checked, and its report written.
-4. One `turn` request at a time runs as a Slurm job of its own, a headless
-   Claude turn in that workspace (`tutor relay --turn`), denied in code every
-   command that commits or pushes (`disallowed`). A failed job is not one:
-   its recipe prints `RELAY:` lines (`slurm_jobs/lib/relay_trap.sh`), and the
-   Mac repairs it, asking with a diagnostic recipe where those do not say.
-4b. A `colibri` request is queued as a task (`colibri.relay_file`), and
-   `colibri.relay_pass` reports each task; a finished task's hosted review is
-   a turn job like any other, one turn at a time across both.
+4. A `colibri` request is queued as a task (`colibri.relay_file`), and
+   `colibri.relay_pass` reports each task. A Colibri task is read-only
+   analysis whose outputs go under the workspace's ignored `phi/`, so a
+   finished one is checked (`check_task`): any change git can see in its
+   workspace fails it, and nothing it wrote is committed. No model runs in
+   the pass: a failed job's recipe prints `RELAY:` lines
+   (`slurm_jobs/lib/relay_trap.sh`), and the Mac repairs it.
 5. Only what this pass wrote under `relay/reports/` and `exports/` is
    committed (`staged_paths`); anything else there is named in
    `relay/state.json`. Then a synced workspace's edits, one commit each
@@ -35,7 +34,8 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
    (`_unwind`). Never force.
 
 A held thread's files and a Colibri task's workspace are the owner's edits,
-left uncommitted: neither skips the pass, and the pull goes under them.
+left uncommitted: neither skips the pass, and the pull goes under them. A
+task's changes stay so when the check fails it, for the owner to settle.
 A request's report is named for its id where that is valid, else for its
 file, so no payload names a path outside `relay/reports/`.
 
@@ -74,12 +74,8 @@ MAX_LINE = 200
 READ_TAIL = 2 * 1024 * 1024
 MAX_NOTE = 2000
 
-# A cluster turn is a Slurm job of its own, so it outlives the pass.
-TURN_PARTITION = "c3_short"
-TURN_TIME = "01:00:00"
-TURN_SECONDS = 50 * 60
-
 # What the scrontab entry asks for. A pass is git and a few sbatch calls.
+SCRON_PARTITION = "c3_short"
 SCRON_TIME = "00:15:00"
 SCRON_BEGIN = "# BEGIN tutor-relay"
 SCRON_END = "# END tutor-relay"
@@ -214,9 +210,10 @@ def held_paths(where):
 
 
 def colibri_busy(base):
-    """Repository-relative workspace paths a Colibri task is working in, or
-    has finished in and awaits its review: its edits there are uncommitted
-    by design, and the review turn ships them."""
+    """Repository-relative workspace paths a Colibri task owns: one queued or
+    running there, one finished and not yet checked (`check_task`), and one
+    the queue failed, whose changes stay for the owner. Edits there are not
+    the pass's to commit, and they do not skip it."""
     from . import colibri, missions
     out = []
     try:
@@ -225,8 +222,8 @@ def colibri_busy(base):
             return []
         for rec in missions.tasks(root):
             q = rec.get("queue")
-            if q in ("queued", "running") or (q == "done"
-                                              and not rec.get("reviewed")):
+            if q in ("queued", "running", "failed") or (
+                    q == "done" and not rec.get("checked")):
                 found = atlas.find(rec.get("workspace") or "")
                 if found:
                     out.append(_rel(base, found["root"]))
@@ -347,14 +344,15 @@ def _space_of(rel, where):
     return hits[0] if len(hits) == 1 else None
 
 
-def _status(base, rel):
+def _status(base, rel, strict=False):
     """Repository-relative paths under `rel` git sees as changed or new:
-    tracked edits, both sides of a rename, untracked files not ignored."""
+    tracked edits, both sides of a rename, untracked files not ignored.
+    Where git fails, `[]`, or None when `strict`."""
     code, out = _git(base, "status", "--porcelain", "-z",
                      "--untracked-files=all", "--ignore-submodules=dirty",
                      "--", rel, raw=True)
     if code != 0:
-        return []
+        return None if strict else []
     got, fields, i = [], out.split("\0"), 0
     while i < len(fields):
         entry = fields[i]
@@ -579,7 +577,7 @@ def sync(base, where, pull_vendor=None, said=None):
 
 # What this pass wrote: every report and every landed export, absolute.
 # `publish` commits exactly these, so a file that reached `exports/` or
-# `relay/reports/` any other way (a turn, a recipe writing there itself) is
+# `relay/reports/` any other way (a task, a recipe writing there itself) is
 # never published unchecked.
 _WRITTEN = set()
 
@@ -814,20 +812,17 @@ def finish(ws, rec, req, clean, now, names_phi=None):
     crashed = crash_type(err) or crash_type(out)
     if crashed:
         rep["error"] = crashed
-    if req.get("kind") == "turn":
-        rep["note"] = turn_note(ws, req, rec, names_phi)
+    if state == "completed":
+        landed, refused = export(ws, dict(rec, export=req.get("export")),
+                                 clean, names_phi)
     else:
-        if state == "completed":
-            landed, refused = export(ws, dict(rec, export=req.get("export")),
-                                     clean, names_phi)
-        else:
-            landed = []
-            refused = [{"path": p, "why": "the job did not complete"}
-                       for p in req.get("export") or []]
-        rep["exported"] = landed
-        if refused:
-            rep["export_refused"] = refused
-        rep["note"] = recipe_note(rec, rep)
+        landed = []
+        refused = [{"path": p, "why": "the job did not complete"}
+                   for p in req.get("export") or []]
+    rep["exported"] = landed
+    if refused:
+        rep["export_refused"] = refused
+    rep["note"] = recipe_note(rec, rep)
     return write_report(ws, request_id(req), rep)
 
 
@@ -856,153 +851,70 @@ def recipe_note(rec, rep):
 
 
 # ---------------------------------------------------------------------------
-# turns
+# Colibri tasks: read-only analysis, checked when they finish
 # ---------------------------------------------------------------------------
-def note_path(ws, rid):
-    return os.path.join(jobs.state_dir(ws), rid + ".note")
+# A Colibri task reads the fenced data and writes what it makes under the
+# workspace's ignored `phi/` (`colibri.TASK_PROMPT`). Its work is never
+# tracked, so nothing of it needs a reviewer or a ship: the pass looks at the
+# workspace once the task is done, and a change git can see there fails it.
+CHANGED = ("a Colibri task changed tracked files; its work belongs in ignored "
+           "locations")
 
 
-def turn_note(ws, req, rec, names_phi=None):
-    """The turn's note, made public, or a sentence saying why there is none."""
+def _stamp(full):
+    """A file as it stands: size and modification time, or "gone"."""
     try:
-        with open(note_path(ws, request_id(req)), "r", encoding="utf-8",
-                  errors="replace") as fh:
-            text = fh.read()
+        st = os.lstat(full)
     except OSError:
-        text = ""
-    if not text.strip():
-        return ("The turn left no note (%s, exit %s)."
-                % (str(rec.get("state") or "").lower() or "ended",
-                   str(rec.get("exit") or "?").split(":")[0]))
-    said = public(text, names_phi, MAX_NOTE)
-    if said is None:
-        return ("The turn's note was withheld: the PHI policy matched it. It "
-                "stays on the cluster at relay/state/%s.note." % request_id(req))
-    return said
+        return "gone"
+    return "%d:%d" % (st.st_size, st.st_mtime_ns)
 
 
-# The paragraph every turn's prompt ends on.
-_PUBLISHED = (
-    "YOUR LAST MESSAGE IS THE REPORT'S NOTE, AND IT IS PUBLISHED in a "
-    "public repository. Aggregate numbers only: no patient-level values, "
-    "no rows, no patient or participant identifiers, no paths to lab "
-    "storage, no log lines. Under %d characters." % (MAX_NOTE - 200))
+def workspace_changes(ws):
+    """`{repository-relative path: _stamp}` for every change git can see under
+    workspace `ws` -- tracked edits and untracked files it does not ignore --
+    less what the cluster writes there: reports, holds, the job registry, and
+    what this pass wrote. None where git cannot say.
 
-
-def turn_prompt(ws, req, title=""):
-    return (
-        "You are a headless turn on the cluster, started by the relay. Nobody "
-        "is at a terminal, and nobody will read stdout except to keep your "
-        "last message.\n\n"
-        "Workspace: %(ws)s. Thread: %(thread)s%(title)s. The owner asked, "
-        "from the Mac:\n\n%(brief)s\n\n"
-        "Work beside the data under this workspace's AI_INSTRUCTIONS.md and "
-        "the PHI rules in the repository's root README.md. Long work goes "
-        "through `board job`, never a bare sbatch. Do not commit, push or "
-        "edit tracked files.\n\n"
-        "%(published)s Say what you found and what the owner should do next."
-        % {"ws": os.path.basename(ws), "thread": req.get("thread"),
-           "title": " (%s)" % title if title else "",
-           "brief": req.get("brief") or "", "published": _PUBLISHED})
-
-
-def turn_header(ws, rid):
-    return ["#SBATCH --partition=%s" % TURN_PARTITION,
-            "#SBATCH --time=%s" % TURN_TIME,
-            "#SBATCH --cpus-per-task=2",
-            "#SBATCH --mem=8G",
-            "#SBATCH --output=%s" % os.path.join(jobs.state_dir(ws),
-                                                 rid + ".log")]
-
-
-def tutor_cmd(ws, rid):
-    return [sys.executable, os.path.join(paths.TOOL, "bin", "tutor"),
-            "relay", "--turn", ws, rid]
-
-
-# What a headless turn may not run, enforced by Claude Code rather than asked
-# in the prompt: everything that commits or pushes, so what a turn beside the
-# data writes never leaves the machine without the owner. A Colibri review
-# turn exists to ship a task through `board push`, the one door that runs the
-# PHI check first, so `board push` is denied to every other turn only.
-NO_PUBLISH = ("Bash(git commit:*)", "Bash(git push:*)", "Bash(git -C:*)",
-              "Bash(bash scripts/save-and-push.sh:*)",
-              "Bash(scripts/save-and-push.sh:*)",
-              "Bash(board send:*)", "Bash(board coach:*)",
-              "Bash(board hold:*)", "Bash(board release:*)")
-NO_PUSH = ("Bash(board push:*)",)
-
-
-def disallowed(review=False):
-    return list(NO_PUBLISH) + ([] if review else list(NO_PUSH))
-
-
-def review_path(ws, rid):
-    """A Colibri review turn's request: written by the pass, never committed."""
-    return os.path.join(jobs.state_dir(ws), rid + ".review.json")
-
-
-def _review_request(ws, rid):
-    try:
-        with open(review_path(ws, rid), "r", encoding="utf-8") as fh:
-            got = json.load(fh)
-    except (OSError, ValueError):
+    `colibri.file` keeps this as a task's baseline, so the owner's edits from
+    before the task are not the task's."""
+    code, top = _git(ws, "rev-parse", "--show-toplevel")
+    if code != 0 or not top:
         return None
-    return got if isinstance(got, dict) else None
+    base = os.path.realpath(top)
+    rel = _rel(base, ws)
+    got = _status(base, rel, strict=True)
+    if got is None:
+        return None
+    from . import holds
+    prefix = "" if rel == "." else rel + "/"
+    mine = [prefix + jobs.RELAY + "/reports", prefix + jobs.RELAY + "/"
+            + holds.HOLDS, prefix + _rel(ws, jobs.registry(ws))]
+    written = set(_rel(base, p) for p in _WRITTEN)
+    return dict((p, _stamp(os.path.join(base, p))) for p in got
+                if not _under(p, mine) and p not in written)
 
 
-def run_turn(ws, rid, run=subprocess.run):
-    """Inside the turn's job: one headless Claude turn, its last message
-    written to `relay/state/<id>.note`. The exit code is the turn's."""
-    from . import seeing
-    req = next((r for r in jobs.requests(ws) if request_id(r) == rid), None)
-    review = False
-    if req is None:
-        req = _review_request(ws, rid)
-        review = bool(req and req.get("review"))
-    if not req or req.get("kind") != "turn":
-        print("no turn request %s in %s" % (rid, ws), file=sys.stderr)
-        return 2
-    clean, _ = course_threads.read(ws)
-    one = course_threads.thread(clean, req.get("thread")) if clean else None
-    if review:
-        prompt = req.get("brief") or ""
-    else:
-        prompt = turn_prompt(ws, req, (one or {}).get("title", ""))
-    # Claude, always: a routing variable inherited from a DeepSeek sitting
-    # would make this some other model beside the data.
-    env = dict((k, v) for k, v in os.environ.items()
-               if k not in seeing.ROUTING)
-    try:
-        p = run(["claude", "-p", prompt, "--output-format", "json",
-                 "--disallowedTools"] + disallowed(review), cwd=ws,
-                env=env, stdout=subprocess.PIPE, stderr=None,
-                stdin=subprocess.DEVNULL, universal_newlines=True,
-                timeout=TURN_SECONDS)
-    except subprocess.TimeoutExpired:
-        print("the turn ran past %d minutes" % (TURN_SECONDS // 60),
-              file=sys.stderr)
-        return 124
-    except OSError as exc:
-        print("claude did not start: %s" % exc, file=sys.stderr)
-        return 127
-    text = p.stdout or ""
-    try:
-        text = str((json.loads(text) or {}).get("result") or "")
-    except (ValueError, AttributeError):
-        pass
-    os.makedirs(jobs.state_dir(ws), exist_ok=True)
-    with open(note_path(ws, rid), "w", encoding="utf-8") as fh:
-        fh.write(text.strip() + "\n")
-    return p.returncode
+def check_task(ws, rec, names_phi=None):
+    """Did this finished task leave its workspace as git sees it? None where
+    that cannot be read, so the task is checked again next pass; else
+    `{"changed": count, "relay": lines}`.
 
-
-def _turn_busy(where):
-    for root, _ in where:
-        for rec in jobs.records(root, jobs.relay_registry(root)).values():
-            if rec.get("kind") == "turn" and not course_threads.finished(rec):
-                return True
-    return False
+    `changed` counts the paths changed since the task's baseline and never
+    names them: they may sit beside the data. A task with no baseline counts
+    every change. `relay` is the `RELAY:` lines of the client's output, made
+    public; without the policy, none."""
+    now = workspace_changes(ws)
+    if now is None:
+        return None
+    before = rec.get("baseline")
+    before = before if isinstance(before, dict) else {}
+    changed = [p for p, stamp in now.items() if before.get(p) != stamp]
+    lines = []
+    out = rec.get("out")
+    if names_phi is not None and isinstance(out, str) and out:
+        lines = relay_lines(_tail(out), names_phi)
+    return {"changed": len(changed), "relay": lines}
 
 
 # ---------------------------------------------------------------------------
@@ -1061,8 +973,8 @@ def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
 def _locked_pass(base, run, now, pull_vendor, push):
     t0 = float(now or time.time())
     st = read_state(base)
-    summary = {"submitted": [], "refused": [], "ended": [], "turn": "",
-               "skipped": "", "error": "", "synced": []}
+    summary = {"submitted": [], "refused": [], "ended": [], "skipped": "",
+               "error": "", "synced": []}
     errors = []
     said = {}
     _WRITTEN.clear()
@@ -1100,7 +1012,6 @@ def _locked_pass(base, run, now, pull_vendor, push):
                "push_pending": any("push rejected" in e for e in errors),
                "counts": dict((k, len(summary[k])) for k in
                               ("submitted", "refused", "ended")),
-               "turn": summary["turn"],
                # The owner's edits a synced workspace pushed this pass, and
                # those left uncommitted, each with why.
                "synced": summary["synced"][:50],
@@ -1127,61 +1038,28 @@ def _work(base, where, run, now, summary):
     from . import colibri
     names_phi = leaving.policy(base)
     env = sbatch_env()
-    pending_turns = []
     errors = summary.setdefault("errors", [])
     for ws, rel in where:
-        # One workspace's trouble is that workspace's: the others, the turn,
-        # the Colibri step and the publish still run.
+        # One workspace's trouble is that workspace's: the others, the
+        # Colibri step and the publish still run.
         try:
-            _work_space(ws, run, now, summary, names_phi, env, pending_turns)
+            _work_space(ws, run, now, summary, names_phi, env)
         except Exception as exc:                             # noqa: BLE001
             errors.append("%s: %s: %s" % (rel, type(exc).__name__, exc))
-    # --- 4. one turn at a time ---------------------------------------------
-    if pending_turns and not _turn_busy(where):
-        ws, req = sorted(pending_turns, key=lambda p: (_num(p[1].get("filed")),
-                                                       p[1]["id"]))[0]
-        rid = req["id"]
-        try:
-            if names_phi is None:
-                refuse(ws, req, [NO_POLICY], now)
-                summary["refused"].append(rid)
-            else:
-                rec, why = jobs.submit_script(
-                    ws, req["thread"], turn_header(ws, rid), tutor_cmd(ws, rid),
-                    rid, "relay-turn", run=run, now=now, sbatch_env=env,
-                    path=jobs.relay_registry(ws),
-                    extra={"request": rid, "kind": "turn"})
-                if not rec:
-                    refuse(ws, req, [why], now, names_phi)
-                    summary["refused"].append(rid)
-                else:
-                    rep = _base_report(req, "submitted", now, names_phi)
-                    rep.update({"jobid": rec["jobid"],
-                                "submitted": rec["submitted"]})
-                    write_report(ws, rid, rep)
-                    summary["turn"] = rid
-                    summary["submitted"].append(rid)
-        except Exception as exc:                             # noqa: BLE001
-            errors.append("turn %s: %s: %s" % (rid, type(exc).__name__, exc))
-    # --- 4b. Colibri: each task's report, and its hosted review -------------
+    # --- 4. Colibri: each task checked once it is done, and reported -------
     try:
-        _colibri_step(base, where, run, now, summary, names_phi, env, colibri)
+        _colibri_step(now, summary, names_phi, colibri)
     except Exception as exc:                                 # noqa: BLE001
         errors.append("colibri: %s: %s" % (type(exc).__name__, exc))
 
 
-def _work_space(ws, run, now, summary, names_phi, env, pending_turns):
+def _work_space(ws, run, now, summary, names_phi, env):
     from . import colibri
     reqs = jobs.requests(ws)
     if not reqs:
-        if jobs.records(ws, jobs.relay_registry(ws)):
-            # A Colibri review turn runs here for a task `board colibri`
-            # filed: its job is the relay's to poll.
-            _poll(ws, {}, run, now, summary, names_phi)
-        else:
-            # A workspace with no requests can still have jobs `board job`
-            # submitted here directly; their endings wake its inbox.
-            jobs.report(ws, run=run, now=now)
+        # A workspace with no requests can still have jobs `board job`
+        # submitted here directly; their endings wake its inbox.
+        jobs.report(ws, run=run, now=now)
         return
     reps = jobs.reports(ws)
     by_id = dict((request_id(r), r) for r in reqs)
@@ -1193,7 +1071,7 @@ def _work_space(ws, run, now, summary, names_phi, env, pending_turns):
             continue
         try:
             _one_request(ws, req, rid, run, now, summary, names_phi, env,
-                         pending_turns, colibri)
+                         colibri)
         except Exception as exc:                             # noqa: BLE001
             # Refused, so it is not tried again every pass for ever.
             refuse(ws, req, ["the relay failed on this request (%s)"
@@ -1203,15 +1081,11 @@ def _work_space(ws, run, now, summary, names_phi, env, pending_turns):
     _poll(ws, by_id, run, now, summary, names_phi)
 
 
-def _one_request(ws, req, rid, run, now, summary, names_phi, env,
-                 pending_turns, colibri):
+def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
     ok, problems = jobs.check(ws, req, mine=True)
     if problems:
         refuse(ws, req, problems, now, names_phi)
         summary["refused"].append(rid)
-        return
-    if ok["kind"] == "turn":
-        pending_turns.append((ws, ok))
         return
     if names_phi is None:
         refuse(ws, req, [NO_POLICY], now)
@@ -1257,44 +1131,22 @@ def _colibri_public(rep, rid, names_phi, now):
     for key in ("task", "jobid", "thread"):
         if key in out:
             out[key] = _field(str(out[key]), names_phi)
+    if "relay" in out:
+        # Scrubbed when the task was checked, and again here: nothing in a
+        # report is trusted to have been made public somewhere else.
+        said = [public(l, names_phi) for l in out.get("relay") or []
+                if isinstance(l, str)] if names_phi is not None else []
+        out["relay"] = [l for l in said if l][-MAX_LINES:]
     return out
 
 
-def _review_id(treq):
-    slug = re.sub(r"-+", "-", re.sub(r"[^a-z0-9-]+", "-",
-                                     str(treq.get("id") or "").lower()))
-    return slug.strip("-")[:80] or "review"
+def _colibri_step(now, summary, names_phi, colibri):
+    """Step 4. `colibri.relay_pass`, which checks each finished task with
+    `check_task`, and the report of each task a request filed."""
+    def check(ws, rec):
+        return check_task(ws, rec, names_phi)
 
-
-def _colibri_step(base, where, run, now, summary, names_phi, env, colibri):
-    """Step 4b. `colibri.relay_pass`, with a review that is a turn job of its
-    own like any other: submitted when no turn is out, its note read once it
-    has ended, one turn at a time across both."""
-    def review(ws, treq):
-        rid = _review_id(treq)
-        mine = [r for r in jobs.records(ws, jobs.relay_registry(ws)).values()
-                if r.get("request") == rid and r.get("review")]
-        if mine:
-            rec = max(mine, key=lambda r: float(r.get("submitted") or 0))
-            if not course_threads.finished(rec):
-                return None
-            return turn_note(ws, {"id": rid}, rec, names_phi)
-        if names_phi is None or summary.get("turn") or _turn_busy(where):
-            return None
-        os.makedirs(jobs.state_dir(ws), exist_ok=True)
-        with open(review_path(ws, rid), "w", encoding="utf-8") as fh:
-            json.dump(dict(treq, id=rid, review=True), fh, indent=2,
-                      sort_keys=True)
-        rec, _ = jobs.submit_script(
-            ws, treq.get("thread") or "", turn_header(ws, rid),
-            tutor_cmd(ws, rid), rid, "relay-review", run=run, now=now,
-            sbatch_env=env, path=jobs.relay_registry(ws),
-            extra={"request": rid, "kind": "turn", "review": True})
-        if rec:
-            summary["turn"] = rid
-        return None
-
-    for ws, rep in colibri.relay_pass(review=review, now=now):
+    for ws, rep in colibri.relay_pass(check=check, now=now):
         rid = rep.get("id")
         if not isinstance(rid, str) or not jobs.REQUEST_ID_RE.match(rid):
             continue
@@ -1317,7 +1169,7 @@ def _poll(ws, by_id, run, now, summary, names_phi):
     reps = jobs.reports(ws)
     for rec in jobs.records(ws, path).values():
         rid = rec.get("request")
-        if rec.get("review") or rid not in by_id:
+        if rid not in by_id:
             continue
         rep = reps.get(rid) or {}
         if (not course_threads.finished(rec) and rec.get("state") == "RUNNING"
@@ -1328,12 +1180,6 @@ def _poll(ws, by_id, run, now, summary, names_phi):
     clean, _ = course_threads.read(ws)
     for rec in ended:
         rid = rec.get("request")
-        if rec.get("review"):
-            # A Colibri review: its note is read by `_colibri_step`, and the
-            # task's report is the task's, so there is nothing to finish.
-            jobs.append(ws, {"jobid": rec["jobid"], "request": rid,
-                             "reported": float(now)}, path=path)
-            continue
         req = by_id.get(rid)
         try:
             if not req:
@@ -1415,7 +1261,7 @@ def scrontab_block(python=None, tutor=None, log=None):
     log = log or os.path.join(paths.STATE_DIR, "relay-scron.log")
     return "\n".join([
         SCRON_BEGIN + " (written by `tutor relay --install`)",
-        "#SCRON --partition=%s" % TURN_PARTITION,
+        "#SCRON --partition=%s" % SCRON_PARTITION,
         "#SCRON --time=%s" % SCRON_TIME,
         "#SCRON --cpus-per-task=1",
         "#SCRON --mem=2G",

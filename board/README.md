@@ -825,9 +825,10 @@ ask-cluster` is retired: it says what replaced it and files nothing.
 context. It refuses whole, every problem listed: an unknown kind or key, a bad or taken id, a
 thread the file lacks, a recipe that is not a tracked `.sbatch` unchanged at HEAD, a variable its
 header does not declare or a value its pattern does not fully match (a comma, `=` or newline
-never passes), a `results/` export not marked aggregate on the thread, a `turn` where
-`tutorboard.json` lacks `relay.turns: true`, a `colibri` task where it lacks
-`relay.colibri: true`, a `fixes` on anything but a recipe, a `fixes` that is not a filed recipe
+never passes), a `results/` export not marked aggregate on the thread, any `turn` (one
+sentence, `jobs.NO_TURN`: no hosted model call runs on an institute machine, citing
+`projects/libr-local-llm/docs/deepseek-egress.md`), a `colibri` task where `tutorboard.json`
+lacks `relay.colibri: true`, a `fixes` on anything but a recipe, a `fixes` that is not a filed recipe
 request on the same thread with no `fixes` of its own and a report saying it failed, and a
 fourth attempt for one request, diagnostic or rerun (`jobs.MAX_FIXES`, 3, counted off
 `relay/requests/`). A recipe declares each variable in its header as
@@ -896,12 +897,9 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    moves a report to `running`. An ending writes `completed` or `failed` with `exit`, `ended`,
    `produced`, `missing`, the `RELAY:` lines, and for a Python crash `error`, the exception type
    only. A completed recipe's exports are copied to `exports/<results path>`.
-4. **One `turn` at a time** runs as its own Slurm job on `c3_short`: `tutor relay --turn <ws>
-   <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
-   PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
-   The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
-   No board command files a `turn`. The relay runs its own review turn for a finished Colibri
-   task; any other is a request the owner writes by hand, and a `turn` cannot carry `fixes`.
+4. **Colibri.** `colibri.relay_pass(check)` reports each task a request filed, and checks each
+   finished task with `relay.check_task` (below). No model runs in the pass, and a `turn`
+   request is refused at step 2.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
 
@@ -910,9 +908,9 @@ workspace, `<workspace>: cluster sync`, pushed by the same `publish`. The rules:
 
 - A path counts only inside exactly one opted-in workspace. A tracked edit elsewhere still
   skips the pass, named in `relay/state.json`; an untracked file elsewhere is left alone.
-- A held file and a live Colibri task's workspace stay the owner's, uncommitted, and so does
-  the workspace of a task the queue gave up on. A pass that cannot read the holds or the
-  Colibri queue syncs nothing.
+- A held file and the workspace of a Colibri task that is queued, running, done and not yet
+  checked, or failed stay the owner's, uncommitted, and do not skip the pass. A pass that
+  cannot read the holds or the Colibri queue syncs nothing.
 - An untracked file is added unless ignored.
 - Each path passes `leaving.refused`, the check `board push` uses. It also passes `names_phi`
   on its path. A symlink, a file over 5 MB, a path origin also changed, and everything in a
@@ -1132,8 +1130,9 @@ board colibri --show                the queue, oldest first
 - **The generation works the queue** (`python3 -m tutorboard.colibri work`, from
   `colibri_serve.sbatch`): it waits for `COLIBRI-SERVE READY`, takes the oldest task, runs it
   through `coli-code -d <workspace> --yes` with `COLI_SESSION_ID` and `COLI_JOB`, and exits 0
-  once the queue has been empty for `COLI_IDLE_MIN` (20) minutes. The client's output goes
-  nowhere; the job log gets ids and states only.
+  once the queue has been empty for `COLI_IDLE_MIN` (20) minutes. The client's output goes to
+  `$COLI_SESSION_ROOT/tasks/<task>.out`, behind the `phi/` fence, or nowhere where that root is
+  not a `phi/` directory (`colibri.output_path`); the job log gets ids and states only.
 - **Each generation submits its own clone at start**, `--dependency=afternotok:<self>
   --kill-on-invalid-dep=yes`. A death releases it; a clean exit lets Slurm drop it.
   `COLI_LINEAGE` counts deaths in a row and stops cloning at 6.
@@ -1142,13 +1141,26 @@ board colibri --show                the queue, oldest first
   it, it is a death, resumed with `-c` on the same session. The third death fails it for good.
 - **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), for a sitting that wants Colibri live;
   the board's start button uses it. Its handover writes 0 for the incumbent before cancelling it.
+- **A task is read-only analysis.** Colibri reads the fenced data and writes every output (a
+  reconstructed transcript, a graded diarization) under the workspace's `phi/`, which git
+  ignores and `ai-config/policy/phi.py` fences by name. It never changes a tracked file.
+  `colibri.TASK_PROMPT` says so, and asks for its findings as `RELAY:` lines, aggregate numbers
+  only.
 - **The relay hook.** A `colibri` request (`id`, `kind`, `thread`, `brief`, `filed`) needs
   `relay.colibri: true` in that workspace's `tutorboard.json`. The relay files it with
-  `colibri.relay_file(root, req)` and, every pass, writes what `colibri.relay_pass(review)` returns:
-  `(workspace root, report)` per request-filed task. `review(root, turn_request)` is the relay's
-  headless Claude turn; it reviews the diff, ships it with `board push` (which runs `names_phi`),
-  and returns a public note. One review per pass. A report carries state, task id, attempts,
-  deaths, job id and that note — never the brief.
+  `colibri.relay_file(root, req)`, which keeps `relay.workspace_changes` as the task's
+  `baseline`. Every pass writes what `colibri.relay_pass(check)` returns: `(workspace root,
+  report)` per request-filed task. A done task is checked once by `relay.check_task`: git status
+  of its workspace, tracked edits and untracked files git does not ignore, less reports, holds,
+  the job registry and the baseline. No change: `completed`, carrying the task's `RELAY:` lines
+  through `relay.public` with `names_phi`, and no diff. Any change: `failed` with
+  `relay.CHANGED`, a count and no path, nothing committed, the changes left on the cluster for
+  the owner, and the Mac's `[job]` line says so. Where git cannot be read the task stays
+  unchecked and is asked about next pass. A report never carries the brief.
+- **Nothing replaces the hosted second pair of eyes, because nothing needs one: a Colibri task's
+  work is never tracked, and a tracked change fails the task.** What this does not catch is a
+  task writing identifiable content into an ignored location outside the `phi/` fence, since the
+  check sees only tracked files and untracked files git does not ignore.
 
 ### The meeting deck
 
@@ -2921,10 +2933,10 @@ machine-wide egress probe asks after every configured provider**: `egress.egress
 appends each `egress_probe` of a recipe whose command is here and whose key is in the store
 (`provider_probe_urls` in `bin/tutor`) after the default's, so a filter on one provider's hostname
 is never read as a machine with no way out. DeepSeek names `api.deepseek.com`, and Codex,
-logged in with a ChatGPT plan, names `chatgpt.com/backend-api/codex/responses`. **A cluster `turn` is Claude, always, under the PHI
-guard**: `relay.run_turn` runs `claude -p` with the routing variables scrubbed and never reads a
-workspace's `agent`, so a `tutorboard.json` naming DeepSeek for every kind changes nothing there.
-Colibri stays the only model that reads PHI, and it runs only on the cluster. `test/relay.py`.
+logged in with a ChatGPT plan, names `chatgpt.com/backend-api/codex/responses`. **No model turn
+runs on the cluster**: `jobs.validate` refuses a `turn` request on both machines, naming the policy
+and `projects/libr-local-llm/docs/deepseek-egress.md`, and the relay has no turn to run. Colibri
+stays the only model that reads PHI, and it runs only on the cluster. `test/relay.py`.
 
 **`only_agent` runs one provider and nothing else.** `tutor agent only deepseek` writes
 `"only_agent": "deepseek"` into the machine config; `tutor agent only --off` removes it. It is not

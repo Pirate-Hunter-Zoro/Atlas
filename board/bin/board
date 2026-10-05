@@ -3245,9 +3245,11 @@ def cmd_colibri(live, args):
     like `board job`'s. The workspace opts in with `relay.colibri: true` in its
     tutorboard.json.
 
-    Colibri's output never leaves the machine directly. A hosted follow-up turn
-    reviews the diff and ships it with `board push`, which runs the PHI check,
-    and a relay report carries only state and that turn's public note.
+    A task is read-only analysis: Colibri writes its outputs under the
+    workspace's ignored `phi/` and never changes a tracked file. When it is
+    done the relay checks the workspace; any change git can see fails the task
+    and stays on the cluster, uncommitted. A relay report carries only state,
+    counts and the task's public `RELAY:` lines.
     """
     from tutorboard import colibri, missions
     root = live.root

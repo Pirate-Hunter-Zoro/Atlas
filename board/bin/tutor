@@ -6707,7 +6707,6 @@ def cmd_relay(cfg, args):
         tutor relay --status             the last pass, and the requests by state
         tutor relay --entry              print the scrontab entry
         tutor relay --install            write it into this user's scrontab
-        tutor relay --turn <ws> <id>     inside a turn's job: run that turn
     """
     if "--entry" in args:
         sys.stdout.write(relay.scrontab_block())
@@ -6724,13 +6723,6 @@ def cmd_relay(cfg, args):
     if "--status" in args:
         print(relay.status())
         return 0
-    if "--turn" in args:
-        rest = args[args.index("--turn") + 1:]
-        if len(rest) < 2:
-            print("tutor relay --turn <workspace root> <request id>",
-                  file=sys.stderr)
-            return 2
-        return relay.run_turn(rest[0], rest[1])
     if not jobs.has_slurm():
         print("tutor relay: no Slurm here. The relay runs on the cluster; "
               "this machine files requests with `board job`.", file=sys.stderr)
@@ -6740,12 +6732,10 @@ def cmd_relay(cfg, args):
         if got.get("skipped"):
             print("relay: pass skipped: %s" % got["skipped"])
         else:
-            print("relay: %d submitted, %d refused, %d ended%s"
+            print("relay: %d submitted, %d refused, %d ended"
                   % (len(got.get("submitted") or []),
                      len(got.get("refused") or []),
-                     len(got.get("ended") or []),
-                     ", turn %s started" % got["turn"] if got.get("turn")
-                     else ""))
+                     len(got.get("ended") or [])))
         if got.get("error"):
             print("relay: %s" % got["error"], file=sys.stderr)
     return 1 if got.get("error") else 0

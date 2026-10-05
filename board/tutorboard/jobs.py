@@ -676,6 +676,13 @@ def relay_sense(root, rec):
     elif repair:
         said, move_on = _repair_said(root, rec)
         lines += said
+    elif rec.get("kind") == "colibri" and rec.get("changed"):
+        lines.append("It FAILED its check: the Colibri task changed %d "
+                     "tracked path(s) in its workspace, and its work belongs "
+                     "in ignored locations. Nothing was committed; the changes "
+                     "stay on the cluster, uncommitted, for the owner to "
+                     "settle, and the report names none of them."
+                     % int(rec["changed"]))
     elif failed(rec):
         lines.append("It did NOT end cleanly. Its log stays on the cluster, "
                      "and the RELAY: lines are what it says here.")
@@ -1237,6 +1244,8 @@ def running(root):
 # machines never write the same file. The shapes are HANDOFF.md's "The relay".
 
 RELAY = "relay"
+# `turn` is a kind only so that `validate` can refuse it by name: no hosted
+# model runs on an institute machine (`NO_TURN`).
 KINDS = ("recipe", "turn", "colibri")
 REPORT_STATES = ("refused", "submitted", "running", "completed", "failed")
 
@@ -1259,11 +1268,14 @@ FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
 REQUEST_KEYS = {
     "recipe": ("id", "kind", "thread", "recipe", "env", "produces", "export",
                "filed", "fixes"),
-    "turn": ("id", "kind", "thread", "brief", "filed"),
     "colibri": ("id", "kind", "thread", "brief", "filed"),
 }
 MAX_BRIEF = 2000
 MAX_VALUE = 200
+NO_TURN = ("a `turn` request asks for a hosted model on the cluster, and no "
+           "hosted model call runs on an institute machine, for any vendor "
+           "(projects/libr-local-llm/docs/deepseek-egress.md): file a recipe, "
+           "or a `colibri` task where the workspace takes them")
 # A failed recipe request gets at most this many automatic attempts to repair
 # it, diagnostics and reruns alike. `fixes` on each names the request that
 # failed first, so the chain stays flat and the count is the requests on disk
@@ -1325,8 +1337,7 @@ def _plain_list(value, field, problems):
     return value
 
 
-def validate(req, clean, tracked, declared, taken=(), turns=False,
-             colibri=False):
+def validate(req, clean, tracked, declared, taken=(), colibri=False):
     """`(request, problems)`: may this request run? PURE, and both machines
     call it -- the Mac before it commits, the cluster before it submits.
 
@@ -1335,7 +1346,6 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
         tracked   workspace-relative paths tracked and unchanged at HEAD
         declared  `{recipe: (declared, problems)}`, `declarations` per recipe
         taken     request ids already filed
-        turns     has this workspace opted in to `turn` requests
         colibri   has this workspace opted in to `colibri` requests, which
                   queue a Colibri task (`colibri.relay_file`)
 
@@ -1345,9 +1355,11 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
     if not isinstance(req, dict):
         return None, ["a request is an object, not a %s" % type(req).__name__]
     kind = req.get("kind")
+    if kind == "turn":
+        return None, [NO_TURN]
     if kind not in KINDS:
         return None, ["`kind` must be one of %s, not %r"
-                      % (", ".join(KINDS), kind)]
+                      % (", ".join(k for k in KINDS if k != "turn"), kind)]
     extra = sorted(k for k in req if k not in REQUEST_KEYS[kind])
     if extra:
         problems.append("a %s request has no %s" % (
@@ -1381,19 +1393,15 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
     if filed is not None:
         out["filed"] = filed
 
-    if kind in ("turn", "colibri"):
+    if kind == "colibri":
         brief = req.get("brief")
         if not isinstance(brief, str) or not brief.strip():
             problems.append("a %s request needs a `brief`" % kind)
         elif len(brief) > MAX_BRIEF:
             problems.append("the brief is %d characters and the cap is %d"
                             % (len(brief), MAX_BRIEF))
-        if kind == "turn" and not turns:
-            problems.append("this workspace has not opted in to turns: "
-                            "`relay.turns: true` in its tutorboard.json")
-        # Colibri reads PHI, unattended, so a workspace opts in to it the way
-        # it opts in to a turn.
-        if kind == "colibri" and not colibri:
+        # Colibri reads PHI, unattended, so a workspace opts in to it.
+        if not colibri:
             problems.append("this workspace has not opted in to Colibri tasks: "
                             "`relay.colibri: true` in its tutorboard.json")
         out["brief"] = brief.strip() if isinstance(brief, str) else ""
@@ -1545,14 +1553,14 @@ def context(root, recipes=()):
     taken = set(r["id"] for r in filed)
     failed_ids = set(r["request"] for r in relayed(root) if ended_failed(r))
     return {"clean": clean, "tracked": tracked, "declared": declared,
-            "taken": taken, "turns": relay.get("turns") is True,
-            "colibri": relay.get("colibri") is True, "filed": filed,
+            "taken": taken, "colibri": relay.get("colibri") is True,
+            "filed": filed,
             "failed": failed_ids}
 
 
 def relay_opts(root):
     """The `relay` object of this workspace's `tutorboard.json`, `{}` where
-    it has none: `turns`, `colibri` and `sync` are its opt-ins."""
+    it has none: `colibri` and `sync` are its opt-ins."""
     relay = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r",
@@ -1577,8 +1585,7 @@ def check(root, req, mine=False):
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
     ok, problems = validate(req, ctx["clean"], ctx["tracked"],
-                            ctx["declared"], taken, ctx["turns"],
-                            ctx["colibri"])
+                            ctx["declared"], taken, ctx["colibri"])
     extra = fix_problems(req, ctx["filed"], ctx["failed"], mine)
     if extra:
         return None, problems + extra
@@ -1661,10 +1668,8 @@ def relayed(root):
         rep = got.get(rid) or {}
         state = _AS_SLURM.get(str(rep.get("state") or "").lower(),
                               course_threads.REQUESTED)
-        if req.get("kind") == "turn":
-            cmd = "turn: " + str(req.get("brief") or "")[:120]
-        elif req.get("kind") == "colibri":
-            cmd = "colibri: " + str(req.get("brief") or "")[:120]
+        if req.get("kind") in ("turn", "colibri"):
+            cmd = "%s: %s" % (req["kind"], str(req.get("brief") or "")[:120])
         else:
             env = req.get("env")
             cmd = " ".join([str(req.get("recipe") or "")] + [
@@ -1684,7 +1689,7 @@ def relayed(root):
             rec["fixes"] = req["fixes"]
         for key in ("exit", "ended", "note", "produced", "missing",
                     "exported", "export_refused", "relay", "error",
-                    "problems"):
+                    "problems", "changed"):
             if rep.get(key) not in (None, "", []):
                 rec[key] = rep[key]
         if rep.get("jobid"):

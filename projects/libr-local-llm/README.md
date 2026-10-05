@@ -593,10 +593,11 @@ running. The generation loads (68 minutes cold), works the queue one task at a t
 - **A clean exit is told from a death without `sacct`.** The job's last act writes its exit code to
   `slurm_jobs/state/gen-<job>.exit` (`coli_mark_exit`). Left `squeue` with 0 there: on purpose.
   Left without it: died.
-- **What comes back is public only through a hosted turn.** The worker sends the client's output
-  nowhere and prints ids and states to the job log. A finished task waits for the relay's hosted
-  review turn, which reads the diff, ships it with `board push` (`names_phi` runs there) and
-  writes the public note a relay report carries.
+- **What comes back is its `RELAY:` lines.** A task writes its outputs under the workspace's
+  ignored `phi/` and never a tracked file. The worker keeps the client's output behind the fence
+  and prints ids and states to the job log. The relay checks a finished task's workspace: no
+  change git can see completes it, carrying its `RELAY:` lines through `names_phi`; any change
+  fails it, and nothing is committed.
 - **A sitting that wants Colibri live uses `coli-up --warm`**, the chain below. The board's start
   button does.
 

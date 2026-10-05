@@ -16,9 +16,9 @@ This file says what is left to build.
 
 | | Mac mini (home) | Cluster (institute) |
 |---|---|---|
-| Runs | the board, tutor turns, compiles, decks, meetings | Slurm jobs, the relay, cluster turns |
+| Runs | the board, tutor turns, compiles, decks, meetings | Slurm jobs, the relay, Colibri tasks |
 | Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
-| Providers | any, including DeepSeek | Claude with the PHI guard, and Colibri on demand |
+| Providers | any, including DeepSeek | Colibri on demand only; no hosted model call |
 | Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, and the files of a thread held at the cluster |
 | iPad reaches it | over the owner's own tailnet | never |
 
@@ -76,20 +76,21 @@ A request has one of two kinds.
 - The relay never runs a shell string from a request. It runs `sbatch` with the recipe path and
   `--export` built from the declared variables, through `jobs.submit`.
 
-**`turn`** wakes a headless Claude turn on the cluster, in that workspace, under the PHI guard.
-No board command files one: a failed job is repaired on the Mac, and a question about the
-cluster's files is a diagnostic recipe. The relay runs its own review turn for a finished
-Colibri task; any other `turn` is a request the owner writes by hand, and it cannot carry `fixes`.
+**`colibri`** queues a task for the local model, which reads the fenced data and writes its
+outputs under the workspace's ignored `phi/`. It never changes a tracked file.
 
 ```json
-{"id": "2026-10-03-why-l1-dense", "kind": "turn", "thread": "knn-across-embedders",
- "brief": "bge-small kept 384/384 dimensions. Read dimension_importance.json and say whether L1 took effect."}
+{"id": "2026-10-03-grade-diarization", "kind": "colibri", "thread": "diarization",
+ "brief": "Grade the diarization of every session in phi/ against its reference; report mean DER."}
 ```
 
-- Off by default. A workspace opts in with `relay.turns: true` in its `tutorboard.json`,
-  because it is an unattended agent beside the data.
-- The turn ends on a report, like a board turn. Its prose goes in the report's `note`, written
-  for a public repository: aggregate numbers only, no patient-level values, no identifiers.
+- Off by default. A workspace opts in with `relay.colibri: true` in its `tutorboard.json`.
+- A finished task's report says `completed` and carries its `RELAY:` lines. A task that left a
+  change git can see in the workspace is `failed`, by count, and nothing it wrote is committed.
+
+A `turn` request is refused on both machines: no hosted model call runs on an institute
+machine (`projects/libr-local-llm/docs/deepseek-egress.md`). A failed job is repaired on the
+Mac, and a question about the cluster's files is a diagnostic recipe.
 
 **A failed recipe is repaired on the Mac.** Its recipe sources `slurm_jobs/lib/relay_trap.sh`,
 which prints the failure behind `RELAY:` (exception type, file and line, inputs by key and

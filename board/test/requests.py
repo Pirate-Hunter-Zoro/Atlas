@@ -105,8 +105,8 @@ good = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "thread": "knn",
         "produces": ["results/knn/best.json"], "export": ["results/sweep.png"]}
 
 
-def v(req, taken=(), turns=False):
-    return jobs.validate(req, clean, tracked, declared, taken, turns)
+def v(req, taken=(), colibri=False):
+    return jobs.validate(req, clean, tracked, declared, taken, colibri)
 
 
 ok, problems = v(good)
@@ -116,8 +116,8 @@ check("a recipe whose header declares PATH refuses every request on it",
 declared_clean = {"slurm/sweep.sbatch": (declared["slurm/sweep.sbatch"][0], [])}
 
 
-def vc(req, taken=(), turns=False):
-    return jobs.validate(req, clean, tracked, declared_clean, taken, turns)
+def vc(req, taken=(), colibri=False):
+    return jobs.validate(req, clean, tracked, declared_clean, taken, colibri)
 
 
 ok, problems = vc(good)
@@ -162,19 +162,19 @@ check("each named: the id, the thread, the recipe, the key, the produces path",
 
 turn = {"id": "2026-10-03-knn-turn", "kind": "turn", "thread": "knn",
         "brief": "Read dimension_importance.json and say whether L1 took."}
-check("a turn request passes where the workspace opted in",
-      vc(turn, turns=True)[1] == [])
-check("and is refused where it has not",
-      any("relay.turns" in p for p in vc(turn)[1]))
-check("a turn with no brief is refused",
-      vc(dict(turn, brief="  "), turns=True)[0] is None)
+check("a turn request is refused, in one sentence naming the policy: no "
+      "hosted model call on an institute machine",
+      vc(turn) == (None, [jobs.NO_TURN])
+      and "institute machine" in jobs.NO_TURN
+      and "projects/libr-local-llm/docs/deepseek-egress.md" in jobs.NO_TURN)
+check("whatever the workspace's tutorboard.json says",
+      vc(turn, colibri=True) == (None, [jobs.NO_TURN]))
 
 # --- `fixes`: a diagnostic or a rerun, linked to the request that failed first --
 origin = "2026-10-03-knn-sweep"
 fix = dict(good, id="2026-10-03-knn-fix", fixes=origin)
 check("a turn carrying `fixes` is refused: no cluster turn diagnoses",
-      any("`fixes`" in p for p in vc(dict(turn, fixes=origin),
-                                      turns=True)[1]))
+      vc(dict(turn, fixes=origin)) == (None, [jobs.NO_TURN]))
 check("a `fixes` that is not a request id is refused",
       any("`fixes`" in p for p in vc(dict(fix, fixes="BAD ID"))[1]))
 check("and so is one naming the request itself",
@@ -185,8 +185,8 @@ check("a recipe with `fixes` passes, carrying it",
 check("a colibri request has no `fixes`",
       any("`fixes`" in p for p in jobs.validate(
           {"id": "c-1", "kind": "colibri", "thread": "knn", "brief": "x",
-           "fixes": origin}, clean, tracked, declared_clean, (), True,
-          True)[1]))
+           "fixes": origin}, clean, tracked, declared_clean, (),
+          colibri=True)[1]))
 
 failed_first = dict(good, id=origin)
 on_disk = [failed_first]
@@ -458,7 +458,7 @@ for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
 # --- a request is public the moment it is pushed --------------------------------
 leaky = tempfile.mkdtemp(prefix="tutor-leak-")
 try:
-    req = {"id": "x-1", "kind": "turn", "thread": "knn",
+    req = {"id": "x-1", "kind": "colibri", "thread": "knn",
            "brief": "read the traceback in /mnt/lab/storage/run.log"}
     target, done, said = jobs.file_request(leaky, req, push=False)
     check("a brief naming an absolute path is refused, and nothing is written",

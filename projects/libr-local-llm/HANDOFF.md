@@ -22,18 +22,15 @@ and they still govern running it:
   default — and `coli-up -t` is the only lever, downward only. **The task is not the turn**: a
   generation that dies releases its clone, which resumes it, so work longer than one allocation
   finishes across several. *The guarantee, and what it does not cover* below is the whole of it.
-- **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
-  that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
-  eyes on a local model's diff — a turn that could not have read the session content it is
-  checking for. **The machine half of that check is wired**: `names_phi` in
-  `ai-config/policy/phi.py` is loaded, not copied, by `board/tutorboard/leaving.py`, and both
-  `board push` and the board's save button call it before anything leaves the machine. It reads
-  the added lines of each changed file that lives inside a fenced workspace, and refuses naming
-  the file. It is a regex — it catches a diff reaching for session content or carrying a piece of
-  one with its shape still on it, and a bare sentence of dialogue with no path or extension around
-  it is not catchable that way. That last part is what the hosted turn's judgement is for.
-  `board push --anyway` is the override and is deliberately a keyboard act; the save button has
-  none.
+- **A task is read-only analysis, and nothing it does is shipped.** It decodes at 3.2–4.4 tok/s
+  and it is the one assistant that may read `phi`. It reads the fenced data and writes every
+  output under the workspace's ignored `phi/`, never a tracked file. When it finishes, the relay
+  checks the workspace (`relay.check_task`): no change git can see completes it with its public
+  `RELAY:` lines, and any change fails it, uncommitted. **Nothing replaces the hosted second pair
+  of eyes, because nothing needs one: a Colibri task's work is never tracked, and a tracked
+  change fails the task.** What this does not catch is a task writing identifiable content into
+  an ignored location outside the `phi/` fence, since the check sees only tracked files and
+  untracked files git does not ignore.
 
 ---
 
@@ -120,8 +117,8 @@ same name.
 
 **What a person still does.** **Write the ask so the work lands on disk as it goes**; the task
 prompt says so too, but a model holding results in its head loses them at a death and nothing can
-enforce that from outside. Then wait for the relay's hosted review: it reads the diff, ships it
-with `board push`, and its public note is what the relay report carries.
+enforce that from outside. Then read the relay report: its `RELAY:` lines are what the task found.
+A task the check failed left its changes on the cluster, uncommitted, for the owner to settle.
 
 **What it does not cover.**
 

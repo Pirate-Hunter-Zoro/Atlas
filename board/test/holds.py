@@ -108,7 +108,7 @@ check("a file another hold covers is refused, by name",
 check("an unknown thread is refused",
       holds.validate_hold(clean, "nope", {}, tracked)[0] is None)
 
-req = {"id": "check-aipw-1", "kind": "turn", "thread": "aipw", "brief": "x"}
+req = {"id": "check-aipw-1", "kind": "colibri", "thread": "aipw", "brief": "x"}
 _, problems = jobs.validate(req, clean, tracked, {}, (), True)
 check("a request is refused an id a step's check report would share",
       any("check-" in p for p in problems) and holds.is_check(req["id"]))

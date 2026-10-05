@@ -18,7 +18,7 @@ What the checks are about:
     open repair is refused, whatever its VAR values; `--fresh` is the
     owner's, never a turn's.
   * NO MODEL ON THE CLUSTER. `board ask-cluster` is retired, saying what
-    replaced it, and a `turn` request cannot carry `fixes`.
+    replaced it, and a `turn` request is refused by the policy.
 
 Synthetic workspaces only, plus a read of the real TRD-EHR failure 2110916.
 """
@@ -177,7 +177,8 @@ try:
     check("a recipe that completed is a plain [job] line, no repair",
           not jobs.repairs(ws, recs[ORIGIN]) and text.startswith("[job] ")
           and "tick the task" in text)
-    ws, recs = scene([dict(FIRST, kind="turn", brief="x")], {ORIGIN: FAILED})
+    ws, recs = scene([dict(FIRST, kind="colibri", brief="x")],
+                     {ORIGIN: FAILED})
     check("and a failed request that is no recipe is no repair either",
           not jobs.repairs(ws, recs[ORIGIN])
           and jobs.relay_sense(ws, recs[ORIGIN]).startswith("[job] "))
@@ -289,9 +290,9 @@ try:
               diag(1, 1.0), [FIRST], set())))
     ok, problems = jobs.validate(
         {"id": "t-1", "kind": "turn", "thread": "knn", "brief": "why",
-         "fixes": ORIGIN}, threads.validate(SPINE)[0], set(), {}, (), True)
-    check("a turn request cannot carry `fixes`: no hosted turn diagnoses",
-          ok is None and any("`fixes`" in p for p in problems))
+         "fixes": ORIGIN}, threads.validate(SPINE)[0], set(), {}, ())
+    check("a turn request is refused by the policy, `fixes` or not: no "
+          "hosted turn diagnoses", ok is None and problems == [jobs.NO_TURN])
 
     # --- heard: the [repair] line wakes a doing turn ---------------------------------
     top = tempfile.mkdtemp(dir=scenes)

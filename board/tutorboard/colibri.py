@@ -505,10 +505,22 @@ def file(thread, brief, workspace_root, request="", start=None, now=None):
         return None, "this machine has no %s workspace to queue in" % WORKSPACE
     with _Lock():
         rec = missions.file_task(root, thread, brief,
-                                 atlas.identify(workspace_root), request, now)
+                                 atlas.identify(workspace_root), request, now,
+                                 baseline=_baseline(workspace_root))
         if rec is None:
             return None, "the task could not be written under %s" % root
         return rec, "queued; " + _ensure(start)
+
+
+def _baseline(workspace_root):
+    """What git already sees changed in the workspace a task is filed for, so
+    the check when it finishes counts only the task's own (`relay.check_task`).
+    None where git cannot say, and then every change counts."""
+    from . import relay
+    try:
+        return relay.workspace_changes(workspace_root)
+    except Exception:                                        # noqa: BLE001
+        return None
 
 
 def _started_at():
@@ -564,32 +576,71 @@ def kick(start=None):
         return _ensure(start)
 
 
+# WHAT A TASK IS: read-only analysis. Colibri reads the fenced data and writes
+# what it makes -- a reconstructed transcript, a graded diarization -- under the
+# workspace's `phi/`, which git ignores and `ai-config/policy/phi.py` fences by
+# name. It never changes a tracked file, so nothing it does is ever committed,
+# and the relay fails a task that leaves a change git can see
+# (`relay.check_task`). What comes back is its `RELAY:` lines, made public.
+FENCE = "phi/"
+
+_TASK_RULES = (
+    "YOUR WORK IS READ-ONLY ANALYSIS. Write every output -- transcripts, "
+    "grades, tables, notes, scratch files -- under this workspace's `%s` "
+    "directory, which git ignores and the PHI policy fences by name. Never "
+    "edit, create, delete or rename a tracked file, and write nothing git "
+    "would see: when you finish, this workspace is checked, and any change "
+    "git can see fails the task. If this workspace has no `%s` directory, "
+    "write nothing and say so. Do not commit or push." % (FENCE, FENCE))
+
+_TASK_RELAY = (
+    "End your last message with what you found, as lines that each begin "
+    "`RELAY:`. They are published in a public repository: aggregate numbers "
+    "only -- counts, rates, scores -- and no patient-level values, no "
+    "identifiers, no quoted session text, no paths.")
+
 TASK_PROMPT = (
     "This is a task from the Colibri queue, set going by the owner. Nobody is "
     "watching this session, so do not stop to ask; do the task, here.\n\n"
-    "%s\n\n"
+    "%s\n\n" + _TASK_RULES + "\n\n"
     "Write files as you finish them rather than holding them: the node under "
-    "you can go away, and this conversation is then resumed on another. Do not "
-    "commit or push. A hosted turn reviews your diff and ships it."
+    "you can go away, and this conversation is then resumed on another.\n\n"
+    + _TASK_RELAY
 )
 
 TASK_RESUME_PROMPT = (
     "Your conversation is resumed. The node under you ended; nothing you did "
     "caused it, and your work on disk is untouched. Carry on from where you "
     "stopped, and redo only the tool call that was in flight. The task "
-    "again:\n\n%s\n\n"
-    "Write files as you finish them. Do not commit or push."
+    "again:\n\n%s\n\n" + _TASK_RULES + "\n\n"
+    "Write files as you finish them. " + _TASK_RELAY
 )
+
+
+def output_path(rec):
+    """Where a task's client output goes: `COLI_SESSION_ROOT/tasks/<id>.out`,
+    behind the fence, or None where that root is not a `phi/` directory.
+
+    It is the transcript's own fence, because the output can quote session
+    content; the relay reads only its `RELAY:` lines, through `relay.public`."""
+    root = os.environ.get("COLI_SESSION_ROOT") or ""
+    tid = str(rec.get("id") or "")
+    if not root or "phi" not in os.path.normpath(root).split(os.sep):
+        return None
+    if not tid or "/" in tid or tid.startswith("."):
+        return None
+    return os.path.join(root, "tasks", tid + ".out")
 
 
 def run_task(rec, job):
     """Run one task through `coli-code`, inside generation `job`. Its exit code.
 
-    The client's output goes nowhere: it may quote session content, and this
-    process's own output is the job log, which is counts-only. The transcript
-    is behind the fence under `COLI_SESSION_ROOT`. A task begun before resumes
-    its conversation by name, and falls back to a fresh one where the resume
-    fails in seconds -- the conversation was never written.
+    The client's output may quote session content, and this process's own
+    output is the job log, which is counts-only, so it goes behind the fence
+    (`output_path`), or nowhere where there is none. Its path is kept on the
+    task for the relay's check. A task begun before resumes its conversation
+    by name, and falls back to a fresh one where the resume fails in seconds
+    -- the conversation was never written.
     """
     from . import missions
     cmd = _tool("coli-code", "COLI_CODE")
@@ -599,17 +650,34 @@ def run_task(rec, job):
     env = dict(os.environ, COLI_SESSION_ID=str(rec.get("session") or ""),
                COLI_JOB=str(job))
     resume = int(rec.get("attempts") or 0) > 1
+    out = output_path(rec)
+    if out:
+        try:
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+        except OSError:
+            out = None
+    root = queue_root()
+    if root:
+        missions.update_task(root, rec, out=out or "")
 
     def go(cont):
         argv = [cmd, "-d", where["root"], "--yes"] + (["-c"] if cont else [])
         prompt = (TASK_RESUME_PROMPT if cont else TASK_PROMPT) % rec.get("brief")
         t0 = time.time()
+        sink = None
+        try:
+            sink = open(out, "a") if out else None
+        except OSError:
+            sink = None
         try:
             rc = subprocess.run(argv + ["--", prompt], stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL,
+                                stdout=sink or subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, env=env).returncode
         except OSError:
             rc = 2
+        finally:
+            if sink:
+                sink.close()
         return rc, time.time() - t0
 
     rc, ran = go(resume)
@@ -712,52 +780,42 @@ def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
 # --------------------------------------------------------------- the relay
 # THE HOOK THE RELAY PASS CALLS. A `colibri` request (`jobs.validate`) is filed
 # here, and every pass asks `relay_pass` for the reports of the tasks requests
-# filed. Colibri may read PHI, so its output never goes into a report: a
-# finished task is reviewed by a hosted follow-up turn, which ships the diff
-# through `board push` (`names_phi` runs there, before anything leaves the
-# machine), and the report carries only state and that turn's public note.
-
-REVIEW_BRIEF = (
-    "A Colibri task finished in this workspace, on thread `%(thread)s`, and its "
-    "changes are uncommitted here. You are not the model that made them, and "
-    "that is deliberate: Colibri may read PHI and you review what it wrote. "
-    "The task was:\n\n%(brief)s\n\n"
-    "Read `git status` and the diff. If the change is right and carries no "
-    "session content, ship it with `board push \"%(thread)s: <what changed>\"`; "
-    "`board push` runs the PHI check before anything leaves the machine. If it "
-    "is wrong, leave it uncommitted and say why. Your note is published in a "
-    "public repository: what changed and whether it shipped, aggregate numbers "
-    "only, no patient-level values, no identifiers, no quoted session text."
-)
-
-
-def review_request(rec):
-    """The hosted follow-up turn, shaped as a relay `turn` request."""
-    return {"id": "review-" + str(rec.get("id")), "kind": "turn",
-            "thread": rec.get("thread") or "",
-            "brief": REVIEW_BRIEF % {"thread": rec.get("thread") or "",
-                                     "brief": rec.get("brief") or ""}}
-
+# filed. Colibri may read PHI and its work is never tracked, so a finished task
+# is checked rather than reviewed: `check(workspace root, task)` is
+# `relay.check_task`, which counts the changes git can see there since the
+# task's baseline. None is done; any fails the task, nothing is committed, and
+# the changes stay on the cluster for the owner. A report carries state, counts
+# and the task's public `RELAY:` lines, never the brief and never a path.
 
 def relay_report(rec):
-    """A task as a relay report: state and the public note, never the brief."""
+    """A task as a relay report: state, counts and its public `RELAY:` lines,
+    never the brief."""
     q = rec.get("queue")
     state = {"queued": "submitted", "running": "running",
              "failed": "failed"}.get(q, "running")
     note = ""
     if q == "done":
-        if rec.get("reviewed"):
-            state, note = "completed", rec.get("note") or ""
+        if rec.get("checked"):
+            state = "completed"
+            note = ("Colibri finished, and its workspace has no change git can "
+                    "see.")
         else:
-            note = "Colibri finished; the hosted review is next."
+            note = "Colibri finished; the check of its workspace is next."
     elif q == "failed":
         note = rec.get("reason") or "the task failed"
+        if int(rec.get("changed") or 0):
+            note += (". %d path(s) changed; they stay on the cluster, "
+                     "uncommitted, for the owner, and nothing was committed."
+                     % int(rec["changed"]))
     elif rec.get("deaths"):
         note = "resumed after %d death(s) of its generation" % int(rec["deaths"])
     out = {"id": rec.get("request"), "kind": "colibri", "state": state,
            "task": rec.get("id"), "attempts": int(rec.get("attempts") or 0),
            "deaths": int(rec.get("deaths") or 0),
            "submitted": float(rec.get("at") or 0), "note": note}
+    if rec.get("checked"):
+        out["changed"] = int(rec.get("changed") or 0)
+        out["relay"] = [str(l) for l in rec.get("relay") or []]
     if rec.get("gen"):
         out["jobid"] = str(rec["gen"])
     if q in ("done", "failed"):
@@ -775,32 +833,45 @@ def relay_file(ws_root, req, start=None, now=None):
     return relay_report(rec)
 
 
-def relay_pass(review=None, limit=1, now=None, start=None):
+def settle(root, rec, got, now=None):
+    """Apply a check's verdict to a done task. The record.
+
+    `got` is `relay.check_task`'s: no change keeps it done, any fails it with
+    `relay.CHANGED`. Either way it is checked, and not checked again."""
+    from . import missions, relay
+    changed = int(got.get("changed") or 0)
+    rec = missions.update_task(root, rec, checked=float(now or time.time()),
+                               changed=changed,
+                               relay=list(got.get("relay") or []))
+    if changed:
+        rec = missions.finish_task(root, rec, False, relay.CHANGED, now)
+    return rec
+
+
+def relay_pass(check=None, now=None, start=None):
     """`[(workspace root, report)]` for every task a request filed. The hook.
 
-    `review(workspace root, turn request)` is the relay's own headless turn
-    runner; it returns that turn's public note, or None if it did not run (it
-    is asked again next pass). At most `limit` reviews run per pass, because
-    only one turn runs at a time. A task filed by `board colibri` on the
-    cluster is reviewed the same way and has no report. A task filed when no
-    generation could start gets one here (`kick`).
+    `check(workspace root, task)` is the relay's `check_task`; where it
+    returns None, or there is none, a done task stays unchecked and is asked
+    about again next pass. A task filed by `board colibri` on the cluster is
+    checked the same way and has no report. A task filed when no generation
+    could start gets one here (`kick`).
     """
     from . import missions
     root = queue_root()
     if not root:
         return []
     kick(start)
-    out, ran = [], 0
+    out = []
     for rec in missions.tasks(root):
         where = atlas.find(rec.get("workspace") or "")
         if not where:
             continue
-        if (rec.get("queue") == "done" and not rec.get("reviewed")
-                and review is not None and ran < limit):
-            ran += 1
-            note = review(where["root"], review_request(rec))
-            if note is not None:
-                rec = missions.review_task(root, rec, note, now)
+        if (rec.get("queue") == "done" and not rec.get("checked")
+                and check is not None):
+            got = check(where["root"], rec)
+            if got is not None:
+                rec = settle(root, rec, got, now)
         if rec.get("request"):
             out.append((where["root"], relay_report(rec)))
     return out
