@@ -100,9 +100,12 @@ These hold everywhere; each line names where the detail is.
 - **Code written on the cluster comes back as a held sitting.** `board hold`, then `board send`
   per step; the Mac's `[coach]` turn answers through `board coach`. *A sitting held at the
   cluster*, and `TEACHING.md`.
-- **Colibri is read-only analysis.** It is the one model on the node, local, started and directed
-  only by a relay request from the Mac in a workspace with `relay.colibri: true`. It writes under
-  the ignored `phi/`, and a change git can see fails the task. *Colibri runs on demand*.
+- **Colibri is the one model on the node, and it is local.** It serves on `127.0.0.1`, and
+  `coli-code` reaches it there with a local token, behind the egress hook. The Mac directs it one
+  way: `board colibri <thread> "<task>"` in a workspace with `relay.colibri: true` files a relay
+  request. Filing starts a generation if none is live, the generation stops itself after 20 idle
+  minutes, and the report is the answer. A task is read-only analysis: it writes under the ignored
+  `phi/`, and a change git can see fails it. *Colibri runs on demand*.
 - **Sync**: the Mac pulls every 5 minutes, every 2 with a request out, every 20 s while a hold
   stands, and at the top of every turn; the relay passes every 5 minutes. The pass commits the
   owner's cluster edits in every workspace that syncs: `relay.sync` is on in `atlas.json`, and a
@@ -1172,7 +1175,15 @@ board colibri --show                the queue, oldest first
   is refused. A running task whose generation left `squeue` with 0 there is requeued free; without
   it, it is a death, resumed with `-c` on the same session. The third death fails it for good.
 - **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), for a sitting that wants Colibri live;
-  the board's start button uses it. Its handover writes 0 for the incumbent before cancelling it.
+  the board's start button uses it, and only where `coli-up` is on the path. On the Mac the button
+  is refused, and a task is how a generation starts. Its handover writes 0 for the incumbent
+  before cancelling it.
+- **From the Mac, the report is the answer.** In the workspace's directory, `board colibri
+  <thread> "<brief>"` writes `relay/requests/<id>.json` and pushes it. The report at
+  `relay/reports/<id>.json` goes `submitted`, `running`, then `completed` with `changed: 0` and
+  the task's `RELAY:` lines, prefix dropped, in its `relay` field. A line counts only where
+  `RELAY:` starts it, so a brief that dictates its output asks for that at column 0. Even a
+  trivial task takes about five hours, most of it prefill of `coli-code`'s preamble.
 - **A task is read-only analysis.** Colibri reads the fenced data and writes every output (a
   reconstructed transcript, a graded diarization) under the workspace's `phi/`, which git
   ignores and `ai-config/policy/phi.py` fences by name. It never changes a tracked file.
