@@ -12141,9 +12141,12 @@ els.jump.onclick = function () {
 /* Safari pinches the page from `gesturestart` whatever `touch-action` says on
    some builds, so the page pinch is refused here as well as in `board.css`. The
    writing surface and the map read their pinch from pointer events, which this
-   does not touch. */
+   does not touch. Under `page-magnified` (`readerzoom.js`: a document open on
+   a page Safari has magnified) the pinch is Safari's, the way back out. */
 ["gesturestart", "gesturechange"].forEach(function (t) {
-  document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener(t, function (e) {
+    if (!document.documentElement.classList.contains("page-magnified")) e.preventDefault();
+  }, { passive: false });
 });
 
 function panicSoon() { if (window.Recentre) window.Recentre.soon(); }

@@ -184,15 +184,16 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   never a pinch. While a document is open, two fingertips on its reader
   (`#reader`, `#paper`: bar, strips, pages; never an overlay) are refused at
   touchstart (bar buttons too; a tap there is clicked back, held however long,
-  if unmoved and the pair's gap unchanged) and every touchmove, and a pinch
+  if unmoved and the pair's gap and midpoint unchanged) and every touchmove, and a pinch
   that never moved commits nothing; any other pair, a palm beside a finger or a finger on
   an overlay, keeps its touchstart and has its moves refused once its gap
   changes (with a palm, once the palm itself sweeps toward or away from the
   other), so a finger beside a resting palm still scrolls with the pen off.
-  No `touch-action` changes for this, and the palm rules in `annotate.js` are
-  untouched. A page zoom in effect when a document opens, or appearing while
-  one is open, is reset through `Recentre.unzoom`, and a gesture beginning on
-  a magnified page is left to Safari. The chip `#reader-zoom` shows only off the
+  The palm rules in `annotate.js` are untouched. A page zoom in effect when a
+  document opens, or appearing while one is open, is reset through
+  `Recentre.unzoom`. While a document is open on a magnified page, `<html>`
+  carries `page-magnified`, the one `touch-action` that gives Safari its
+  pinch back (`board.css`), and a gesture beginning there is left to Safari. The chip `#reader-zoom` shows only off the
   fit and a tap resets it. `6e1b` in `test/library.js`, `test/paperzoom.js`
   and the zoom line in `test/deck.js` are the contract.
 

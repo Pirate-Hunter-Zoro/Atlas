@@ -518,6 +518,14 @@ function gesture(target, name) {
   /maximum-scale=1/.test(vp.getAttribute('content'))
     ? ok('a document opening on a page Safari has zoomed to 160% asks for the page\'s scale back')
     : fail('a document opened over a page zoom and left it: ' + vp.getAttribute('content'));
+  const magnifiedHtml = () => doc.documentElement.classList.contains('page-magnified');
+  magnifiedHtml()
+    ? ok('a document open on a page at 160% gives <html> page-magnified, the pinch back out')
+    : fail('a document open on a magnified page: <html> has no page-magnified');
+  const gs = gesture(pages, 'gesturestart');
+  !gs.defaultPrevented
+    ? ok('and under it board.js refuses Safari no gesture event')
+    : fail('a gesture under page-magnified is refused: Safari cannot pinch the page back out');
   window.visualViewport.scale = 1;
   window.dispatchEvent(new window.Event('pointerdown'));
   vp.getAttribute('content') === vpWas
@@ -530,6 +538,10 @@ function gesture(target, name) {
     && !/touch-action:[^;]*pinch-zoom/.test(css)
     ? ok('board.css lays a page out at the zoom, and nothing gives the page its pinch back')
     : fail('board.css does not lay the panel\'s pages out at --zoom');
+  /html\.page-magnified \{ touch-action: manipulation; \}/.test(css)
+    && /html\.page-magnified body:not\(\.pen-writing\) :is\(#reader, #paper\) \* \{\s*touch-action: manipulation !important;/.test(css)
+    ? ok('board.css gives the page and the reader the pinch back under page-magnified, and only there')
+    : fail('board.css has no page-magnified rule for the page and the reader');
 
   /* ---- the ink stays on its words through a pinch ---------------------- */
   boxes.length && await require('./inkzoom')(window, {
@@ -551,6 +563,9 @@ function gesture(target, name) {
     const s2 = touch(doc.body, 'touchstart', [[100, 300], [400, 300]]);
     const m2 = touch(doc.body, 'touchmove', [[150, 300], [350, 300]]);
     touch(doc.body, 'touchend', []);
+    !doc.documentElement.classList.contains('page-magnified')
+      ? ok('closing the document takes page-magnified off <html>')
+      : fail('a shut document left page-magnified on <html>');
     gone.length === 1 && !s2.defaultPrevented && !m2.defaultPrevented
       ? ok('closing the document takes its touch listeners with it')
       : fail('a shut panel still listens: ' + gone.length + ' removed, start refused '
@@ -679,7 +694,12 @@ function gesture(target, name) {
     const was = meta.getAttribute('content');
     const clamped = () => /maximum-scale=1/.test(meta.getAttribute('content'));
     /* Safari obliging the clamp: the scale drops, and the next touch lifts it. */
-    const obliged = () => { vv.scale = 1; w.dispatchEvent(new w.Event('pointerdown')); };
+    const obliged = () => {
+      vv.scale = 1;
+      vv.dispatchEvent(new w.Event('resize'));
+      w.dispatchEvent(new w.Event('pointerdown'));
+    };
+    const mag = () => ld.documentElement.classList.contains('page-magnified');
     /* `pts` are [x, y, id]; `o.changed` the ids it is for, `o.cancelable` false
        for a move WebKit will not let be cancelled. */
     const t = (name, pts, at, o) => {
@@ -702,15 +722,21 @@ function gesture(target, name) {
     clamped()
       ? ok('a document opening at visualViewport.scale 1.6 resets the page zoom')
       : fail('a document opened over a 160% page zoom and left it: ' + meta.getAttribute('content'));
+    const magAt16 = mag();
     obliged();
+    const magAt1 = mag();
+    magAt16 && !magAt1
+      ? ok('<html> is page-magnified at scale 1.6, and not once the scale is back to 1.0')
+      : fail('page-magnified: at 1.6 ' + magAt16 + ', at 1.0 ' + magAt1);
     meta.getAttribute('content') === was
       ? ok('and the clamp is lifted, so the page can still be zoomed later')
       : fail('the viewport clamp stayed: ' + meta.getAttribute('content'));
     vv.scale = 1.5;
     vv.dispatchEvent(new w.Event('resize'));
-    clamped()
-      ? ok('a page zoom appearing while the document is open is reset as it appears')
-      : fail('a scale change while open was left: ' + meta.getAttribute('content'));
+    clamped() && mag()
+      ? ok('a page zoom appearing while the document is open is reset as it appears, and marked')
+      : fail('a scale change while open was left: ' + meta.getAttribute('content')
+             + ', page-magnified ' + mag());
     obliged();
     const note = ld.getElementById('note-text');
     ld.getElementById('note').hidden = false;
@@ -730,6 +756,23 @@ function gesture(target, name) {
     /* WHERE SAFARI IGNORES THE CLAMP, a gesture on the magnified page is
        Safari's own, so its pinch out is a way back; at 100% it is the reader's. */
     vv.scale = 1.5;
+    const asideMag = (() => {
+      const ev = new w.Event('touchstart', { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'touches', { value: [
+        { identifier: 7, clientX: 300, clientY: 400, touchType: 'direct', radiusX: 80 }] });
+      const was = w.Annotate.isOn;
+      w.Annotate.isOn = () => true;
+      sc.dispatchEvent(ev);
+      w.Annotate.isOn = was;
+      const lift = new w.Event('touchend', { bubbles: true, cancelable: true });
+      Object.defineProperty(lift, 'touches', { value: [] });
+      sc.dispatchEvent(lift);
+      return { refused: ev.defaultPrevented, mag: mag() };
+    })();
+    !asideMag.refused && asideMag.mag
+      ? ok('on a magnified page nothing is refused, a palm with the pen on included, and <html> is page-magnified')
+      : fail('a palm on a magnified page: refused ' + asideMag.refused + ', page-magnified '
+             + asideMag.mag);
     const a1 = t('touchstart', [[100, 300], [200, 300]]);
     const a2 = t('touchmove', [[150, 300], [160, 300]]);
     const ag = new w.Event('gesturestart', { bubbles: true, cancelable: true });
@@ -811,7 +854,85 @@ function gesture(target, name) {
       && w.ReaderZoom.trace().some((r) => r.what === 'page-zoom' && r.of.reset)
       ? ok('the library page keeps its own record: each cancelled touch, and whether WebKit let it be cancelled')
       : fail('the reader\'s record: ' + JSON.stringify(rec));
+
+    /* A RESTING FINGER SLIDING SQUARE TO THE GAP moves the pair's midpoint
+       12 px and its gap under 1 px: no longer a tap, so nothing is clicked. */
+    {
+      z.set(1);
+      let perp = 0;
+      const count = (e) => { if (e.target === btn) perp++; };
+      w.addEventListener('click', count, true);
+      t('touchstart', [[100, 300, 1]], sc, { changed: [1] });
+      t('touchstart', [[100, 300, 1], [400, 40, 2]], btn, { changed: [2] });
+      t('touchmove', [[116, 318, 1], [400, 40, 2]], btn);
+      t('touchend', [[116, 318, 1]], btn, { changed: [2] });
+      t('touchend', [], sc, { changed: [1] });
+      w.removeEventListener('click', count, true);
+      perp === 0
+        ? ok('a resting finger sliding square to the gap, the midpoint 12 px on, clicks nothing')
+        : fail('a perpendicular slide beside a bar button clicked it ' + perp + ' time(s)');
+    }
+
+    /* THE PAGES FOLLOW THE FINGERS FROM WHERE THEY LAND: under the 10 px
+       bounds the transform is already the fingers' ratio, so crossing them
+       is no jump; a pinch that stays under them still commits nothing. */
+    {
+      z.set(1);
+      commits = 0;
+      t('touchstart', [[100, 300], [200, 300]]);
+      t('touchmove', [[96, 300], [204, 300]]);
+      const under = sc.style.transform;
+      t('touchend', []);
+      const kept = commits === 0 && lz() === '1' && !sc.style.transform;
+      t('touchstart', [[100, 300], [200, 300]]);
+      t('touchmove', [[96, 300], [204, 300]]);
+      const before = sc.style.transform;
+      t('touchmove', [[94, 300], [206, 300]]);
+      const past = sc.style.transform;
+      t('touchend', []);
+      /scale\(1\.08\)/.test(under) && kept && /scale\(1\.08\)/.test(before)
+        && /scale\(1\.12\)/.test(past) && lz() === '1.12' && commits === 1
+        ? ok('a pinch follows the fingers from landing (108 px gap: 1.08, 112 px: 1.12), with no jump at 10 px, and only a moved one commits')
+        : fail('a pinch across the bounds: under ' + JSON.stringify(under) + ', kept ' + kept
+               + ', then ' + JSON.stringify(before) + ' -> ' + JSON.stringify(past)
+               + ', --zoom=' + lz() + ', commits ' + commits);
+      z.set(1);
+    }
+
+    /* A HAND WRITING IS NOT WRITTEN DOWN: fifty Pencil strokes with the pen
+       on, each with a palm resting beside the nib, add nothing to the record,
+       though every palm is still refused. */
+    {
+      const was = w.Annotate.isOn;
+      w.Annotate.isOn = () => true;
+      const pt = (name, list) => {
+        const ev = new w.Event(name, { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'touches', { value: list });
+        sc.dispatchEvent(ev);
+        return ev;
+      };
+      const nib = (x, y) => ({ identifier: 1, clientX: x, clientY: y, touchType: 'stylus', radiusX: 1 });
+      const heel = { identifier: 2, clientX: 600, clientY: 700, touchType: 'direct', radiusX: 80 };
+      const n0 = w.ReaderZoom.trace().length;
+      let refused = 0;
+      for (let i = 0; i < 50; i++) {
+        if (pt('touchstart', [nib(100, 300 + i)]).defaultPrevented) refused++;
+        if (pt('touchstart', [nib(100, 300 + i), heel]).defaultPrevented) refused++;
+        pt('touchmove', [nib(160, 310 + i), heel]);
+        pt('touchend', [heel]);
+        pt('touchend', []);
+      }
+      w.Annotate.isOn = was;
+      const added = w.ReaderZoom.trace().length - n0;
+      added === 0 && refused === 100
+        ? ok('fifty Pencil strokes with a palm beside the nib add 0 entries to the record, and every touch is still refused')
+        : fail('pen strokes: ' + added + ' entries added, ' + refused + ' of 100 touches refused');
+    }
+
     z.live(false);
+    !mag()
+      ? ok('a document shutting takes page-magnified off <html>')
+      : fail('page-magnified outlived the document');
   }
 
   console.log(errors.length ? errors.length + ' failed' : 'all passed');

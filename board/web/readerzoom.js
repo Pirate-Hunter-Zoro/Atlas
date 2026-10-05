@@ -30,9 +30,12 @@
        them is cancelled whatever it lands on, a bar button included, and so
        is every move while they last. A control whose touch that cancels gets
        its click back when it lifts, however long it was held, if its contact
-       has not moved past `SCROLL_SLOP` and the pair's gap has not changed by
-       `PINCH_SLOP`: the pinch built beside it is then one that never moved,
-       and a pinch that never moved commits nothing.
+       has not moved past `SCROLL_SLOP`, the pair's gap has not changed by
+       `PINCH_SLOP` and its midpoint has not moved past `SCROLL_SLOP`. Those
+       are the bounds a pinch must pass to have moved, so a tap that clicks
+       is never a pinch that moved, and a pinch that never moved commits
+       nothing. The pages follow the fingers from the moment they land; the
+       bounds decide only whether the lift commits.
      * A pinch is BUILT only from those, and only if the second landed within
        `PAIR_MS` of the first or the first has not begun a native scroll: a
        thumb landing during a scroll is refused, not turned into a zoom.
@@ -58,14 +61,23 @@
    `visualViewport` reporting a scale over `PAGE_ZOOMED` while one is open,
    asks `recentre.js` for the page's scale back (`Recentre.unzoom`, the clamp
    `#panic` uses). A focused field keeps its zoom until it lets go of focus,
-   because the reset blurs it. Where Safari ignores the clamp, a gesture that
-   begins on a magnified page is left to Safari (`aside`): its pinch out is
-   then the only way back, and nothing here refuses it.
+   because the reset blurs it. Where Safari ignores the clamp, Safari's own
+   pinch out is the only way back, so it is given one: while a document is
+   open on a page magnified past `PAGE_ZOOMED`, `<html>` carries
+   `page-magnified`, whose rule in `board.css` puts the browser's pinch back
+   in `touch-action` on the page and the reader (`html { touch-action: pan-x
+   pan-y }` forbids it otherwise), and the class goes the moment the scale is
+   back or the document shuts. A gesture that begins on such a page is
+   Safari's (`aside`): nothing here cancels its touches or its gesture
+   events, and `board.js` refuses no gesture event under that class.
 
    WHAT IT DID IS WRITTEN DOWN, for the device that saw it: every touchstart
    it cancels, the first touchmove of a gesture it cancels and any it could
    not (`ev.cancelable` false, WebKit having already taken the gesture), each
-   page-zoom reset, and each gesture left to Safari. Into `window.BoardTrace`
+   page-zoom reset, and each gesture left to Safari. A refusal is written
+   down only with a pinch under way or two contacts that are not a hand
+   writing: a palm refused under every Pencil stroke is not news, and would
+   push out the entries that are. Into `window.BoardTrace`
    when the page has one (the board), and always into `ReaderZoom.trace()`,
    the last `TRACE_MAX`, read from Web Inspector. Nothing leaves the page.
 
@@ -106,6 +118,17 @@ var PAGE_ZOOMED = 1.01;
 function pageScale() {
   var vv = window.visualViewport;
   return vv && vv.scale ? vv.scale : 1;
+}
+
+/* The readers that see their document open on a magnified page. While there
+   is one, `<html>` carries `page-magnified`, and `board.css` gives Safari
+   back the pinch that undoes the magnification. */
+var magnifiers = [];
+function magnify(who, on) {
+  var i = magnifiers.indexOf(who);
+  if (on && i < 0) magnifiers.push(who);
+  if (!on && i >= 0) magnifiers.splice(i, 1);
+  document.documentElement.classList.toggle("page-magnified", magnifiers.length > 0);
 }
 
 /* A field being typed in: Safari zoomed into it, and a reset blurs it. */
@@ -228,11 +251,11 @@ function make(opts) {
     if (f.length < 2) return;
     var now = spread(f[0], f[1]);
     pinch.now = now;
-    /* Not a pinch until the pair moves: a fingertip resting beside a tap
-       on a bar button changes nothing on the glass. */
-    if (!pinch.moved) {
-      if (Math.abs(now.d - pinch.d0) <= PINCH_SLOP
-          && Math.hypot(now.x - pinch.x, now.y - pinch.y) <= SCROLL_SLOP) return;
+    /* The pages follow the fingers from where they landed, so crossing the
+       bounds is not a jump. The bounds (`stillTap`'s) decide only whether
+       the lift commits: a fingertip resting beside a tap commits nothing. */
+    if (!pinch.moved && (Math.abs(now.d - pinch.d0) > PINCH_SLOP
+        || Math.hypot(now.x - pinch.x, now.y - pinch.y) > SCROLL_SLOP)) {
       pinch.moved = true;
     }
     pinch.z = clamp(pinch.z0 * now.d / pinch.d0);
@@ -281,6 +304,8 @@ function make(opts) {
   function refuse(ev, why) {
     var could = !!ev.cancelable;
     if (could) ev.preventDefault();
+    /* A hand writing is refused at every stroke and is not written down. */
+    if (!pinch && (writing(ev) || contacts(ev).length < 2)) return;
     if (ev.type === "touchmove") {
       if (movesSaid && (could || movesSaid > 4)) return;
       movesSaid++;
@@ -361,14 +386,22 @@ function make(opts) {
     return (pair.a.palm && sweeps(byA)) || (pair.b.palm && sweeps(byB));
   }
 
-  /* Still a tap: the control's contact has not moved, and the pair has not
-     changed its gap. */
+  /* Still a tap: the control's contact has not moved, and the pair has
+     neither changed its gap nor moved its midpoint -- the bounds a pinch
+     passes to have moved (`frame`), so a tap that clicks commits no zoom. A
+     resting finger sliding square to the gap moves the midpoint and not the
+     gap. */
   function stillTap(ev) {
     var t = find(ev, tap.k);
     if (t && apart(t, tap) > SCROLL_SLOP) return false;
     if (pair) {
       var a = find(ev, pair.a.k), b = find(ev, pair.b.k);
-      if (a && b && Math.abs(apart(a, b) - pair.d0) > PINCH_SLOP) return false;
+      if (a && b) {
+        if (Math.abs(apart(a, b) - pair.d0) > PINCH_SLOP) return false;
+        var mx = (a.clientX + b.clientX - pair.a.x - pair.b.x) / 2;
+        var my = (a.clientY + b.clientY - pair.a.y - pair.b.y) / 2;
+        if (Math.hypot(mx, my) > SCROLL_SLOP) return false;
+      }
     }
     return true;
   }
@@ -415,7 +448,11 @@ function make(opts) {
     trace("page-zoom", { scale: Math.round(k * 100) / 100, why: why, reset: can });
     if (can) window.Recentre.unzoom();
   }
-  function rescaled() { level("scale"); }
+  /* `page-magnified` on <html> for exactly as long as this open document
+     sits on a magnified page. */
+  var me = {};
+  function magnified() { magnify(me, listening && pageScale() > PAGE_ZOOMED); }
+  function rescaled() { magnified(); level("scale"); }
   function unfocused() { setTimeout(function () { if (listening) level("blur"); }, 0); }
 
   /* The contact this touchstart is for: the changed touch, or the newest. */
@@ -447,12 +484,16 @@ function make(opts) {
       firstAt = ev.timeStamp || 0;
       aside = pageScale() > PAGE_ZOOMED;
       if (aside) {
-        trace("zoom-aside", { scale: Math.round(pageScale() * 100) / 100 });
-        level("touch");
+        magnified();
+        if (!writing(ev)) {
+          trace("zoom-aside", { scale: Math.round(pageScale() * 100) / 100 });
+          level("touch");
+        }
       }
     }
-    /* A magnified page's gesture is Safari's, to pinch the page back out. */
-    if (aside) { palm(ev, f); return; }
+    /* A magnified page's gesture is Safari's, to pinch the page back out:
+       nothing in it is cancelled, a palm included. */
+    if (aside) return;
     if (ev.touches.length === 1) arm(ev.touches[0]);
     if (pinch) {
       /* Anything landing on a live pinch is the pinch's: a third finger, a
@@ -489,7 +530,7 @@ function make(opts) {
         el.style.transformOrigin = (s.x - box.left) + "px " + (s.y - box.top) + "px";
         el.classList.add("pinching");
       }
-      say(ev, built);
+      if (!writing(ev)) say(ev, built);
       if (own) return;
     }
     palm(ev, f);
@@ -536,7 +577,7 @@ function make(opts) {
   var listening = false;
   function live(on) {
     on = !!on;
-    if (on === listening) { if (on) level("open"); return; }
+    if (on === listening) { if (on) { magnified(); level("open"); } return; }
     listening = on;
     var vv = window.visualViewport;
     if (on) {
@@ -545,6 +586,7 @@ function make(opts) {
       document.addEventListener("touchcancel", cancelled, true);
       document.addEventListener("focusout", unfocused, true);
       if (vv) vv.addEventListener("resize", rescaled);
+      magnified();
       level("open");
     } else {
       document.removeEventListener("touchstart", land, CAPTURE);
@@ -552,6 +594,7 @@ function make(opts) {
       document.removeEventListener("touchcancel", cancelled, true);
       document.removeEventListener("focusout", unfocused, true);
       if (vv) vv.removeEventListener("resize", rescaled);
+      magnify(me, false);
       disarm();
       idle = true;
       pair = null;
@@ -562,10 +605,11 @@ function make(opts) {
   }
 
   /* Safari's own pinch, refused while a document is open: two zooms at once is
-     the page scaling under a reader that is also re-laying it out. */
+     the page scaling under a reader that is also re-laying it out. On a
+     magnified page it is Safari's, the way back out. */
   ["gesturestart", "gesturechange", "gestureend"].forEach(function (name) {
     document.addEventListener(name, function (ev) {
-      if (open() && !aside && ev.cancelable) ev.preventDefault();
+      if (open() && !aside && !(pageScale() > PAGE_ZOOMED) && ev.cancelable) ev.preventDefault();
     }, { passive: false });
   });
 
