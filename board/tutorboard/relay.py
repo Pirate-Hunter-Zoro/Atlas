@@ -688,7 +688,7 @@ def _failing(ws, origin):
     `origin` whose report says failed, read off the relay's own registry."""
     _, recipes = jobs.fix_chain(ws, origin)
     first = [r for r in jobs.relayed(ws) if r["request"] == origin]
-    chain = [r for r in first + recipes if r.get("state") == "FAILED"]
+    chain = [r for r in first + recipes if jobs.ended_failed(r)]
     rid = chain[-1]["request"] if chain else origin
     mine = [r for r in jobs.records(ws, jobs.relay_registry(ws)).values()
             if r.get("request") == rid and not r.get("review")]

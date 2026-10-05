@@ -846,7 +846,8 @@ def _apply_fix_lines(root, tid, origin, k, latest):
         % (" and ".join(tests) or "the tests the thread names (this "
                                   "workspace declares no check)"),
         "3. Ship it: board push \"%s: <what changed>\" -- <the paths you "
-        "changed>." % tid,
+        "changed>. If the push is refused, stop the same way: a rerun of "
+        "code the cluster has not pulled runs the old code." % tid,
         "4. Rerun with this exact command. Where the FIX is a VAR value, "
         "change that value and nothing else:",
         "",
@@ -1457,6 +1458,13 @@ def reports(root):
     return dict((r["id"], r) for r in _read_json_dir(reports_dir(root)))
 
 
+def _strings(value):
+    """A request's path list as strings, and `[]` for anything that is not a
+    list: `relayed` is read on every check on both machines, so one malformed
+    request file must not stop every check in the workspace."""
+    return [str(v) for v in value] if isinstance(value, list) else []
+
+
 def relayed(root):
     """The requests, each folded with its report, as registry records.
 
@@ -1475,15 +1483,17 @@ def relayed(root):
         elif req.get("kind") == "colibri":
             cmd = "colibri: " + str(req.get("brief") or "")[:120]
         else:
+            env = req.get("env")
             cmd = " ".join([str(req.get("recipe") or "")] + [
                 "%s=%s" % (k, v) for k, v in sorted(
-                    (req.get("env") or {}).items())])
+                    (env if isinstance(env, dict) else {}).items(),
+                    key=lambda kv: str(kv[0]))])
         rec = {
             "jobid": "relay:" + rid, "request": rid,
             "kind": req.get("kind") or "", "thread": req.get("thread"),
             "cmd": cmd[:CMD_CHARS], "state": state,
-            "produces": list(req.get("produces") or []),
-            "export": list(req.get("export") or []),
+            "produces": _strings(req.get("produces")),
+            "export": _strings(req.get("export")),
             # A malformed `filed` reads as 0 rather than stopping every reader.
             "submitted": _when(rep.get("submitted") or req.get("filed") or 0),
         }

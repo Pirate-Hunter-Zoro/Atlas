@@ -896,8 +896,9 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
    A fix turn is a turn whose request carries `fixes`, and it is read-only like any other. Its
    prompt (`relay.fix_prompt`) names the failed request's log and the thread's files. It
-   edits nothing: it is denied `Edit`, `Write` and `NotebookEdit`, and `board job` and
-   `sbatch`, because on the cluster those submit outside the relay. Its note, public under the
+   is told to edit nothing and is denied `Edit`, `Write` and `NotebookEdit`; a stray change
+   is never published either, because the pass commits only reports and exports. It is also
+   denied `board job` and `sbatch`, because on the cluster those submit outside the relay. Its note, public under the
    same rules, starts `CAUSE:` with one sentence, then `FIX:` with the exact change in words
    and code identifiers, or `UNKNOWN:` with what it checked. No line of the log.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
@@ -930,8 +931,7 @@ chain's latest recipe. A failed check stops it before the rerun. An `UNKNOWN:` n
 note, or a failure after the second fix attempt ends the chain, and the card says what was
 checked and that the owner decides. A refused fix turn or rerun ends it the same way, never
 inviting a refile. Where relay turns are off, a failed one names `board ask-cluster` and the
-opt-in. Filing a
-request records HEAD as heard first, so a report in the very next pull is heard. The first look
+opt-in. Filing a request records HEAD as heard first, so a report in the very next pull is heard. The first look
 in a clone, and a workspace with no `relay/`, hear nothing. `test/hearing.py` is the suite.
 
 **The pull keeps time with the requests.** `scripts/tutor-pull` runs `tutor pull --hear` every

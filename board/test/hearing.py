@@ -478,6 +478,13 @@ try:
           "still reads it", recs[ORIGIN]["submitted"] == 0.0
           and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ""
           and jobs.context(ws)["failed"] == set())
+
+    ws, recs = scene([dict(FIRST, env=["EMBEDDER", "x"], produces="out.csv",
+                           export=7)], {})
+    check("and so do a malformed `env`, `produces` and `export`",
+          recs[ORIGIN]["produces"] == [] and recs[ORIGIN]["export"] == []
+          and recs[ORIGIN]["cmd"].startswith("slurm/sweep.sbatch")
+          and jobs.context(ws)["failed"] == set())
 finally:
     shutil.rmtree(scenes, ignore_errors=True)
 
