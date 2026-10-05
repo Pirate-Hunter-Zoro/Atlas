@@ -1,8 +1,21 @@
 {
   "name": "Algo Solutions",
   "check": {
-    "all": ["go", "test", "./..."],
-    "one": ["go", "test", "./{dir}/..."],
-    "path": ["/usr/local/go/bin"]
+    "all": [
+      "go",
+      "test",
+      "./..."
+    ],
+    "one": [
+      "go",
+      "test",
+      "./{dir}/..."
+    ],
+    "path": [
+      "/usr/local/go/bin"
+    ]
+  },
+  "relay": {
+    "sync": true
   }
 }

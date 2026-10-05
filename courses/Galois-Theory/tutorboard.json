@@ -1,3 +1,6 @@
 {
-  "name": "Galois Theory"
+  "name": "Galois Theory",
+  "relay": {
+    "sync": true
+  }
 }

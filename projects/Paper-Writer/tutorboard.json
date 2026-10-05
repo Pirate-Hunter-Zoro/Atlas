@@ -2,5 +2,8 @@
   "name": "Paper-Writer",
   "subtitle": "A manuscript factory, and the prose contract it enforces",
   "stance": "do",
-  "check": "uv run python -m unittest discover -s tests"
+  "check": "uv run python -m unittest discover -s tests",
+  "relay": {
+    "sync": true
+  }
 }

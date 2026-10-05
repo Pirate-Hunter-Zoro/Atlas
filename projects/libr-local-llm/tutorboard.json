@@ -1,5 +1,9 @@
 {
   "name": "libr-local-llm",
   "phi": true,
-  "check": "uv run python -c 'import aiohttp, transformers' && uv run python -m py_compile slurm_jobs/p0/bench_tier1.py"
+  "check": "uv run python -c 'import aiohttp, transformers' && uv run python -m py_compile slurm_jobs/p0/bench_tier1.py",
+  "relay": {
+    "sync": true,
+    "colibri": true
+  }
 }

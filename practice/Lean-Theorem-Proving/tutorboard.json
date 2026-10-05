@@ -1,7 +1,17 @@
 {
   "name": "Lean Theorem Proving",
   "check": {
-    "all": ["bash", "scripts/build.sh"],
-    "one": ["bash", "scripts/build.sh", "{module}"]
+    "all": [
+      "bash",
+      "scripts/build.sh"
+    ],
+    "one": [
+      "bash",
+      "scripts/build.sh",
+      "{module}"
+    ]
+  },
+  "relay": {
+    "sync": true
   }
 }
