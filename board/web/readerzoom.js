@@ -441,11 +441,18 @@ function make(opts) {
   /* The page's magnification, put back if Safari has any. `why` is "open"
      for a document opening, which blurs a focused field to do it; anything
      later leaves a field being typed in alone until it lets go. */
+  /* One `page-zoom` entry per spell of magnification: Safari's own pinch back
+     out fires a resize every frame, and an entry each would bury the trace. */
+  var zoomSaid = false;
   function level(why) {
     var k = pageScale();
-    if (!(k > PAGE_ZOOMED) || (why !== "open" && editing())) return;
+    if (!(k > PAGE_ZOOMED)) { zoomSaid = false; return; }
+    if (why !== "open" && editing()) return;
     var can = !!(window.Recentre && window.Recentre.unzoom);
-    trace("page-zoom", { scale: Math.round(k * 100) / 100, why: why, reset: can });
+    if (!zoomSaid || why === "open") {
+      trace("page-zoom", { scale: Math.round(k * 100) / 100, why: why, reset: can });
+      zoomSaid = true;
+    }
     if (can) window.Recentre.unzoom();
   }
   /* `page-magnified` on <html> for exactly as long as this open document
@@ -595,6 +602,7 @@ function make(opts) {
       document.removeEventListener("focusout", unfocused, true);
       if (vv) vv.removeEventListener("resize", rescaled);
       magnify(me, false);
+      zoomSaid = false;
       disarm();
       idle = true;
       pair = null;

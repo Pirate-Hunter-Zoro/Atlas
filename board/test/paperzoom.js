@@ -737,6 +737,19 @@ function gesture(target, name) {
       ? ok('a page zoom appearing while the document is open is reset as it appears, and marked')
       : fail('a scale change while open was left: ' + meta.getAttribute('content')
              + ', page-magnified ' + mag());
+    {
+      /* Safari's own pinch back out fires a resize every frame. */
+      const from = w.ReaderZoom.trace().length;
+      for (let i = 0; i < 20; i++) {
+        vv.scale = 1.5 - i * 0.02;
+        vv.dispatchEvent(new w.Event('resize'));
+      }
+      const said = w.ReaderZoom.trace().slice(from)
+        .filter((r) => r.what === 'page-zoom').length;
+      said === 0
+        ? ok('a spell of magnification is written down once, not once a frame')
+        : fail('a pinch back out wrote ' + said + ' more page-zoom entries');
+    }
     obliged();
     const note = ld.getElementById('note-text');
     ld.getElementById('note').hidden = false;
