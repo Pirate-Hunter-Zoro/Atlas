@@ -393,6 +393,25 @@ function loop(slate, x0, y0, x1, y1, id) {
       : fail('a drag inside the selection moved nothing');
   }
 
+  // ----------------------- a direction copied in the library is a fix here
+  // Only the library reader sends direction ink apart from fixes, so a
+  // direction pasted onto a card (or `#paper`, or `/meeting`) arrives as a fix.
+  {
+    const held = window.Annotate.payload('c1', false).strokes.length;
+    window.InkClip.put([{ c: '#3366cc', w: 2, dir: 1,
+                          pts: [[10, 10, 0.5], [60, 40, 0.5]] }], { kind: 'doc' });
+    const clipped = window.InkClip.get();
+    const n = window.Annotate.paste();
+    const now = window.Annotate.payload('c1', false).strokes;
+    const pasted = now.slice(held);
+    clipped.strokes[0].dir === 1 && n === 1 && pasted.length === 1 && !('dir' in pasted[0])
+      ? ok('a direction pasted onto a card arrives as a fix')
+      : fail('the clip carried ' + JSON.stringify(clipped.strokes.map((x) => x.dir))
+             + ' and the card got ' + JSON.stringify(pasted));
+    window.Annotate.undo();
+    window.Annotate.deselect();
+  }
+
   // ------------------------------------------------------- the scrolling
   {
     window.Annotate.setOn(false);

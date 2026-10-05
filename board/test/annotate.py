@@ -33,6 +33,7 @@ from tutorboard.lesson import turns
 from tutorboard.server import handler
 from tutorboard.server import hub
 from tutorboard.server import tikz
+from tutorboard.server.routes import writing as writing_route
 from http.server import ThreadingHTTPServer
 
 fails = []
@@ -167,6 +168,24 @@ try:
     sent = turns.load_turns(repo)
     check("marking the same card again revises that turn", len(sent) == 1)
     check("and the revision is recorded", sent[0]["rev"] == 2)
+
+    # --- a page's direction picture is its own file ---------------------------
+    # The library reader saves one picture per kind of ink, so a page with a
+    # fix and a direction on it never has one kind filed as the other.
+    page = "doc/a-deck/p2"
+    stem = os.path.join(repo.notes, writing_route.ann_file(page))
+    fix = {"c": "#e8746c", "w": 3, "pg": 1, "p": [0.1, 0.1, 0.2, 0.2]}
+    way = dict(fix, dir=1)
+    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG})
+    fix_png = open(stem + ".png", "rb").read()
+    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG[:-4] + "AAAA",
+                            "png_kind": "dir"})
+    check("a picture saved for direction ink goes to <stem>.dir.png",
+          os.path.isfile(stem + ".dir.png"))
+    check("and the fix picture beside it is left alone",
+          open(stem + ".png", "rb").read() == fix_png)
+    check("a direction stroke is stored with its `dir` field, a fix with none",
+          notes.load_notes(repo)[page] == [fix, way])
 
     # --- saving mid-session must not end the session --------------------------
     # `board push` from a terminal archives a code session, because a commit is

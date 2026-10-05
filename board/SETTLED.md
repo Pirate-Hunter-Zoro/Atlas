@@ -217,69 +217,11 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   `_k` means already on the picture. `lift` waits for `img.naturalWidth`, and
   a stroke copied before then (erase pieces, a moved copy) keeps its `_k`
   (`like`). **Until a key is changed, its save sends the strokes exactly as
-  they came off the disk** (`asLoaded`): `/annotate/save` keeps `build` and
-  `sent` only for identical strokes, and the library re-saves every marked
-  page to attach its picture. `test/inkzoom.js` (run by `test/library.js` and
+  they came off the disk** (`asLoaded`): `/annotate/save` keeps `build` only
+  for identical strokes and `sent` only for identical fix strokes, and the
+  library re-saves every marked page to attach its picture. `test/inkzoom.js` (run by `test/library.js` and
   `test/deck.js`) and the conversion checks in `test/burn.py` are the
   contract.
-
-- **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
-  N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s
-  own answers. A failed save keeps the page unsaved and is retried on a timer
-  that backs off, on `online`, and on `visibilitychange` back to visible.
-  Going hidden flushes everything owed at once with `fetch(…, {keepalive:
-  true})`, because iOS fires that event when the lid shuts and does not
-  reliably fire `pagehide`. Keepalive bodies share a 60000-byte budget per
-  flush, because browsers reject keepalive requests past about 64 KB; a
-  heavier page goes as an ordinary request. The page keeps its own copy of
-  every unconfirmed body (`owed`), so ink whose save failed as the reader
-  closed is still retried after `Annotate.forget`. Only one save per key is in
-  flight at a time, and `savePen` waits on the ones already in flight. A key
-  is cleaned only if the strokes on the glass are the ones that went.
-  **Drafts are kept.** The note text, its ask and an overhaul's purpose go to
-  `localStorage` under `library.draft:<id>` on every input and on a tap of the
-  ask. They come back when that document's note opens. They are removed only
-  when the note is filed (the `/library/feedback` or `/library/direction`
-  reply is ok), so a refused send leaves them.
-  **Ink knows its build.** `/library/view/<id>` answers with `build` =
-  `{digest, at, pages}`, where the digest is `paper._digest`'s name for that
-  exact PDF. The reader sends it with every save of that document's ink, and
-  `/annotate/save` stores it on the record (`writing.clean_build`). A save
-  naming no build keeps the recorded one while the strokes are unchanged.
-  `library.drawn_on` compares the stamps with the PDF on disk. Where any
-  marked page was drawn on another build, the view carries `rebuilt` and the
-  reader says above the pages *these marks were drawn on the 28 Sep 21:40
-  build; the document has been rebuilt since*. It offers the copy while that
-  build's pages are still in `paper.cached`, and otherwise says a copy cannot
-  be made. Marks spanning two builds cannot be copied either. Unstamped ink
-  (older records, the board viewer, `/meeting`) goes with whichever build is
-  burned. A page's stamp covers all its strokes, so new ink on a rebuilt page
-  re-stamps the old strokes on it.
-  **A marked copy goes to `live/marked/<doc id>/<stem>-annotated-<day>.pdf` in
-  the serving workspace, never beside the document.** `live/` is in
-  `reading.IGNORE`, so the copy is never listed by the library and never
-  handed to a revision as a source. The directory writes its own `*` ignore
-  rule, as the page cache does, and is then checked with `git check-ignore`.
-  A copy git would carry is refused with nothing written, so a copy of fenced
-  (PSYCH-ASR) content stays inside its own workspace and out of every commit.
-  A document inside a fence (`fenced.NEVER` anywhere in its path, or
-  `fenced.refused_in`) is refused by name with `why: fenced`.
-  **No overwrite from the library.** `POST /annotate/burn` with kind
-  `library/<id>` is `burn.burn_library`. It takes `new` only and refuses
-  `same` and `none` (`why: no-overwrite`), because whatever made a library
-  document rebuilds it and Paper-Writer owns a delivered manuscript. The board
-  viewer's own same/new/none choice for `lesson`, `homework` and
-  `doc/<reading id>` stands. Strokes are read under every
-  `library.mark_idents` name. A copy of an older build is made from its cached
-  PNGs, embedded under FlateDecode with the PNG predictor, and a mark on a
-  page past that build's cached page count is not in it. *⤓ keep a marked
-  copy* waits until every save in flight has landed before it burns.
-  **Keeping a copy is not sending.** Burning marks nothing delivered: `sent`
-  stays false and the ink still goes with the next note. The reply names the
-  file and its `url`, and *save a copy* hands `GET /library/marked/<id>/<name>`
-  (an attachment, the name matched against that directory's listing) to the
-  share sheet, with the same fallbacks as `board.js` `saveCopy`.
-  `test/burn.py` and the ink sections of `test/library.js` are the contract.
 
 - **EVERY MAP CARRIES ITS DOCUMENTS AS ONE REGION, AND A TAP READS ONE.**
   `map.documents_region` is `library.documents`, the reader's own ids, with no
@@ -1807,13 +1749,6 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   copies nothing twice. The do-not-rewrite list skips `feedback/`, `parts/`,
   `sections/` and `report.md`: telling the factory not to rewrite its own report
   is telling it the report is the paper.
-- **The library reader takes ink.** Each page carries
-  `data-ann="doc/<id>/p<n>"`, `annotate.js` attaches to it, and the pen is off
-  until asked for so a long document still scrolls. `send` is never set from
-  that page — ink on a document is a complaint about the document and becomes a
-  turn when the note goes. The marks already on it arrive **with its pages**,
-  through `library.ink`, because that page opens no sitting and has no live
-  payload to read them out of.
 - **The board's suite runs the factory's.** The two repositories hold one seam
   and only the board's suite is a habit, so `test/all.sh` runs
   `projects/Paper-Writer`'s tests last, and skips loudly where it is not checked
@@ -1849,12 +1784,6 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   already is, and `length.check` takes `absolute=0` from that path: a forty-word
   data-availability statement is the right length, and a floor telling the
   editor to grow it is a gate asking for invented content.
-- **Ink is a complaint.** `library.marks` reads the strokes already stored
-  against `doc/<ident>/p<n>`, a note carries the marked pages and the picture of
-  each, the send button is live with an empty box, and the marks are recorded as
-  handed over. A document is asked for under both names it has — the drawer's
-  and the library's — because it is one document and its ink is its ink.
-  `writing.ann_doc_page` is the one place a key is taken apart.
 - **Fifty documents cost 0.74 s to open cold on the shared home**, 0.41 s on
   local disk, 0.1 s reopened, and 0.21 s on a machine with no poppler — where
   every document is still listed with its title, kind, formats and staleness,

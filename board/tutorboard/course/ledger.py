@@ -271,7 +271,8 @@ def split(repo, found, text, page=0, merge=()):
     strokes_of = lesson_notes.load_notes(repo) if found else {}
     items = []
     for mark in found or []:
-        strokes = strokes_of.get(mark["key"]) or []
+        # Fix ink only: a direction drawn on the same page is never a request.
+        strokes = lesson_notes.of_kind(strokes_of.get(mark["key"]) or [], "fix")
         regions = clusters(strokes)
         if mark["page"] in merge and len(regions) > 1:
             box = regions[0]["box"]

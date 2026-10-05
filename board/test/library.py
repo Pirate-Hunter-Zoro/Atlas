@@ -275,7 +275,8 @@ check("marks handed over this way are recorded as sent, so the board stops "
       all(lesson_notes.load_notes_sent(repo).get(m["key"]) for m in found))
 check("and the payload says a document has been drawn on",
       [d["marks"] for d in library.status(repo)["documents"]
-       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2}])
+       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2,
+                                        "dir": {"pages": 0, "strokes": 0}}])
 # A DOCUMENT NOT MADE FROM SITTINGS SENDS ALL ITS INK EVERY ROUND, as it always
 # has: `waiting` is every marked page. Only a deck with a brief beside it keeps
 # ink an earlier round delivered behind -- test/sittings.py.
@@ -572,8 +573,10 @@ try:
           status == 200 and body.get("ok") is True and body.get("marks") == 2)
 
     status, body = get("/library/view/" + mine["id"])
-    check("asking for the pages of a document reaches the renderer",
-          status == 200 and "ok" in body)
+    check("asking for the pages of a document reaches the renderer, and names "
+          "the strokes the board took off its pages",
+          status == 200 and "ok" in body
+          and (not body.get("ok") or isinstance(body.get("wiped"), dict)))
     status, body = get("/library/view/not-a-document")
     check("and a name that is not one of ours draws nothing",
           status == 200 and body.get("ok") is False and body.get("why") == "none")
@@ -1375,9 +1378,74 @@ foc = ledger.word_diff("One old. Two old.", "One new. Two new.", tex=False, focu
 check("a diff focused on the passage a request quoted shows only its own change",
       foc == [["=", "Two"], ["-", "old."], ["+", "new."]])
 
+# TWO KINDS OF INK ON ONE PAGE. A stroke drawn with the reader's toggle on
+# directions carries `dir: 1`: it is never a request, a fix's wipe leaves it,
+# and its picture is its own file.
+D = lambda pts: dict(S(pts), dir=1)                                  # noqa: E731
+mixed = "doc/%s/p1" % pdoc["id"]
+mstem = os.path.join(prepo.notes, writing_route.ann_file(mixed))
+dstroke = D([0.60, 0.60, 0.70, 0.70])
+
+
+def mixed_page(sent, build=True):
+    rec = {"card": mixed, "sent": sent, "strokes": [ring, dstroke]}
+    if build:
+        rec["build"] = {"digest": pdig0, "at": 1, "pages": 2}
+    with open(mstem + ".json", "w", encoding="utf-8") as fh:
+        json.dump(rec, fh)
+    for ext in (".png", ".dir.png"):
+        with open(mstem + ext, "wb") as fh:
+            fh.write(b"\x89PNG\r\n\x1a\n")
+
+
+mixed_page(False)
+library.forget()
+mk = library.marks(prepo, pdoc)
+check("a page carrying both kinds is a fix page of one stroke, with the fix picture",
+      [(m["page"], m["strokes"]) for m in mk] == [(1, 1)]
+      and mk[0]["png"].endswith(".png") and not mk[0]["png"].endswith(".dir.png"))
+dk = library.marks(prepo, pdoc, kind="dir")
+check("and a direction page of one stroke, with its own picture",
+      [(m["page"], m["strokes"]) for m in dk] == [(1, 1)]
+      and dk[0]["png"].endswith(".dir.png"))
+pv_items = ledger.preview(prepo, library.carried(prepo, pdoc, mk), "")
+split_items = ledger.split(prepo, mk, "")
+check("the filing panel's split makes no request out of direction ink",
+      [(i["kind"], i["page"], i["count"]) for i in pv_items] == [("ink", 1, 1)]
+      and [len(i["strokes"]) for i in split_items] == [1]
+      and not any(s.get("dir") for s in split_items[0]["strokes"]))
+st_marks = [d["marks"] for d in library.status(prepo)["documents"]
+            if d["id"] == pdoc["id"]][0]
+# `status` wipes first: the round has landed, and the fix stroke on page 1 is
+# the one it filed on the build it was filed against, so it went.
+check("the row counts fixes and directions apart, after the wipe took the "
+      "delivered fix",
+      st_marks["pages"] == 0 and st_marks["strokes"] == 0
+      and st_marks["dir"] == {"pages": 1, "strokes": 1})
+with open(mstem + ".json", encoding="utf-8") as fh:
+    left = json.load(fh)
+check("the filed-ink check counts fix strokes only: a landed round's ring goes "
+      "though a direction was drawn beside it",
+      left["strokes"] == [dstroke] and left["sent"] is False
+      and left.get("build", {}).get("digest") == pdig0)
+check("and the wipe deletes the fix picture and keeps the direction's",
+      not os.path.isfile(mstem + ".png") and os.path.isfile(mstem + ".dir.png"))
+mixed_page(True, build=False)
+gone = library.wipe_delivered(prepo, pdoc)
+with open(mstem + ".json", encoding="utf-8") as fh:
+    left = json.load(fh)
+check("a delivered fix page loses its fixes and keeps its directions, now unsent",
+      gone == [mixed] and left["strokes"] == [dstroke] and left["sent"] is False)
+
 code3, out3 = board_round(pdoc["id"])
-check("with no ink and nothing reopened, `board round` refuses and says why",
+check("with no ink and nothing reopened, `board round` refuses and says why -- "
+      "direction ink is nothing to file",
       code3 == 1 and "nothing to file" in out3)
+check("and the direction ink is left where it was",
+      os.path.isfile(mstem + ".json") and os.path.isfile(mstem + ".dir.png"))
+check("a page whose last ink is stripped goes whole, both pictures",
+      library.strip_kind(prepo, mixed, "dir")
+      and not os.path.isfile(mstem + ".json") and not os.path.isfile(mstem + ".dir.png"))
 
 print()
 if fails:

@@ -784,12 +784,17 @@ check("the brief sentence is only there when it is asked for",
                                             brief="writeups/d/_brief.md"))
 
 
-def ink(key, sent=False):
+def ink(key, sent=False, kind=None, also=()):
+    """One stroke on a page, a fix unless `kind` is "dir"; `also` is strokes
+    already on the page, kept."""
     stem = writing_route.ann_file(key)
+    stroke = {"p": [[0.1, 0.1], [0.2, 0.2]]}
+    if kind == "dir":
+        stroke["dir"] = 1
     write(os.path.join(repo.notes, stem + ".json"),
-          json.dumps({"card": key, "sent": sent,
-                      "strokes": [{"p": [[0.1, 0.1], [0.2, 0.2]]}]}))
-    write(os.path.join(repo.notes, stem + ".png"), b"\x89PNG\r\n\x1a\n")
+          json.dumps({"card": key, "sent": sent, "strokes": list(also) + [stroke]}))
+    write(os.path.join(repo.notes, stem + (".dir.png" if kind == "dir" else ".png")),
+          b"\x89PNG\r\n\x1a\n")
 
 
 ink("doc/%s/p2" % fdoc["id"])
@@ -869,19 +874,44 @@ again = library.write_note(repo, odoc["id"], "")
 check("a document with no brief beside it sends its ink every round, as before",
       again.get("ok") and again.get("marks") == 1)
 
+# A DIRECTION DRAWN ON THE SAME DOCUMENT IS NOT PART OF A NOTE. Page 1 carries
+# its fix and a direction; page 2 carries only a direction.
+o1 = "doc/%s/p1" % odoc["id"]
+with open(os.path.join(repo.notes, writing_route.ann_file(o1) + ".json"),
+          encoding="utf-8") as fh:
+    o1_fix = json.load(fh)["strokes"]
+ink(o1, sent=True, kind="dir", also=o1_fix)
+ink("doc/%s/p2" % odoc["id"], kind="dir")
+library.forget()
+mixed = library.write_note(repo, odoc["id"], "")
+mixed_text = open(mixed["path"], encoding="utf-8").read()
+check("a note carries fix ink only: the page with both kinds goes with its one "
+      "fix stroke, and the page of directions not at all",
+      mixed.get("ok") and mixed.get("marks") == 1
+      and "page 1, 1 stroke" in mixed_text and "page 2" not in mixed_text)
+
 # AFTER THE MEETING: THE INK IS A DIRECTION. `/library/direction` writes one
 # proposal turn in this workspace and never a revision.
 library.forget()
 with open(repo.messages_path, encoding="utf-8") as fh:
     before = sum(1 for l in fh if l.strip())
 status, said = post("/library/direction", {"document": fdoc["id"], "text": ""})
-check("with nothing marked and nothing said, a direction is refused",
-      status == 400 and not said.get("ok"))
-ink("doc/%s/p9" % fdoc["id"])
+check("with fix ink on the deck and no direction ink, nothing said, a direction "
+      "is refused",
+      status == 400 and not said.get("ok")
+      and library.marks(repo, fdoc) and not library.marks(repo, fdoc, kind="dir"))
+# Page 9: a fix a round already delivered, and a mentor's direction beside it.
+p9 = "doc/%s/p9" % fdoc["id"]
+p9_stem = os.path.join(repo.notes, writing_route.ann_file(p9))
+ink(p9, sent=True)
+with open(p9_stem + ".json", encoding="utf-8") as fh:
+    p9_fix = json.load(fh)["strokes"]
+ink(p9, sent=True, kind="dir", also=p9_fix)
 library.forget()
 status, said = post("/library/direction",
                     {"document": fdoc["id"],
-                     "text": "Dr. Paulus's idea, not confirmed yet."})
+                     "text": "Dr. Paulus's idea, not confirmed yet.",
+                     "pictured": [{"key": p9, "n": 1}]})
 with open(repo.messages_path, encoding="utf-8") as fh:
     lines = [json.loads(l) for l in fh if l.strip()]
 last = lines[-1]["text"]
@@ -895,21 +925,174 @@ check("which is told it proposes and does not apply, names the page, and "
 check("with a picture of the marks copied under live/, beside nothing tracked",
       said.get("images") and said["images"][0].startswith("live/directions/")
       and os.path.isfile(os.path.join(repo.root, said["images"][0])))
-check("and the ink is recorded as delivered, so a later fix does not carry it",
-      lesson_notes.load_notes_sent(repo).get("doc/%s/p9" % fdoc["id"]))
+left = json.load(open(p9_stem + ".json", encoding="utf-8"))
+check("and the direction strokes come off the page once sent, so no fix can "
+      "carry them, while the page's fix strokes and their delivery stay",
+      left["strokes"] == p9_fix and left["sent"] is True
+      and not os.path.exists(p9_stem + ".dir.png") and os.path.exists(p9_stem + ".png"))
+check("the reply hands back the ink left on the document, for the reader's glass",
+      said.get("ink", {}).get(p9) == p9_fix)
+check("and the fixes on the other pages were not touched by it",
+      lesson_notes.load_notes_sent(repo).get("doc/%s/p4" % fdoc["id"]))
 
-# A RE-SAVE THAT ONLY ATTACHES A PICTURE keeps ink delivered; a changed page
-# does not.
-p9 = "doc/%s/p9" % fdoc["id"]
-same = json.load(open(os.path.join(repo.notes, writing_route.ann_file(p9) + ".json")))
+# A RE-SAVE THAT ONLY ATTACHES A PICTURE keeps fix ink delivered; so does a
+# direction drawn beside it; new fix ink does not.
+same = json.load(open(p9_stem + ".json", encoding="utf-8"))
 post("/annotate/save", {"card": p9, "strokes": same["strokes"], "send": False,
                         "png": ""})
 check("re-saving the same strokes leaves them delivered",
       lesson_notes.load_notes_sent(repo).get(p9))
+post("/annotate/save", {"card": p9, "send": False, "png": "",
+                        "strokes": same["strokes"] + [{"p": [0.5, 0.5, 0.6, 0.6],
+                                                       "dir": 1}]})
+check("a direction drawn on a delivered fix page leaves the fixes delivered",
+      lesson_notes.load_notes_sent(repo).get(p9))
+post("/annotate/save", {"card": p9, "png": "data:image/png;base64,iVBORw0KGgo=",
+                        "png_kind": "dir", "send": False,
+                        "strokes": same["strokes"] + [{"p": [0.5, 0.5, 0.6, 0.6],
+                                                       "dir": 1}]})
+check("a direction's picture is saved beside the fix picture, not over it",
+      os.path.exists(p9_stem + ".dir.png") and os.path.exists(p9_stem + ".png")
+      and open(p9_stem + ".png", "rb").read() == b"\x89PNG\r\n\x1a\n")
 post("/annotate/save", {"card": p9, "strokes": same["strokes"] + same["strokes"],
                         "send": False, "png": ""})
-check("while drawing on the page again puts it back in the next round",
+check("while drawing fixes on the page again puts it back in the next round",
       not lesson_notes.load_notes_sent(repo).get(p9))
+
+# A PAGE WHOSE PICTURE NEVER REACHED THE BOARD IS NOT SENT. The reader skips a
+# page whose image had not decoded; its direction ink must stay on disk rather
+# than be stripped with nothing of it in the turn. Page 9's direction is taken
+# off first, so pages 10 and 11 are the only directions on the deck.
+p9_now = json.load(open(p9_stem + ".json", encoding="utf-8"))
+write(p9_stem + ".json", json.dumps(dict(p9_now, strokes=lesson_notes.of_kind(
+    p9_now["strokes"], "fix"))))
+p10 = "doc/%s/p10" % fdoc["id"]
+p11 = "doc/%s/p11" % fdoc["id"]
+p11_stem = os.path.join(repo.notes, writing_route.ann_file(p11))
+ink(p10, kind="dir")
+ink(p11, kind="dir")
+os.remove(p11_stem + ".dir.png")
+p11_before = json.load(open(p11_stem + ".json", encoding="utf-8"))
+library.forget()
+status, said = post("/library/direction", {"document": fdoc["id"], "text": "",
+                                           "pictured": [{"key": p10, "n": 1},
+                                                        {"key": p11, "n": 1}]})
+with open(repo.messages_path, encoding="utf-8") as fh:
+    last = [json.loads(l) for l in fh if l.strip()][-1]["text"]
+check("a direction whose page had no picture sends the pictured page and keeps "
+      "the other, saying which",
+      status == 200 and said.get("ok") and said.get("pages") == [10]
+      and said.get("kept") == [11] and said.get("stripped") == [p10])
+check("the page with no picture keeps its direction ink on disk, untouched",
+      json.load(open(p11_stem + ".json", encoding="utf-8")) == p11_before
+      and [m["page"] for m in library.marks(repo, fdoc, kind="dir")] == [11])
+check("and the turn names it as having no picture",
+      "page 11: no picture was saved" in last and "page 10: `live/directions/" in last)
+check("the reply's ink still carries the kept page for the reader",
+      said.get("ink", {}).get(p11) == p11_before["strokes"]
+      and p10 not in said.get("ink", {}))
+with open(repo.messages_path, encoding="utf-8") as fh:
+    before = sum(1 for l in fh if l.strip())
+status, said = post("/library/direction", {"document": fdoc["id"], "text": "",
+                                           "pictured": [{"key": p11, "n": 1}]})
+with open(repo.messages_path, encoding="utf-8") as fh:
+    after = sum(1 for l in fh if l.strip())
+check("with no picture of any page and no words, nothing is written and nothing "
+      "is stripped",
+      status == 400 and not said.get("ok") and said.get("kept") == [11]
+      and after == before
+      and json.load(open(p11_stem + ".json", encoding="utf-8")) == p11_before)
+
+# A STALE PICTURE IS NOT SENT. A `.dir.png` left from an earlier send is a
+# picture of whatever was on the page then. Only a page the reader pictured
+# for THIS send, with the direction strokes it had then, goes.
+p13 = "doc/%s/p13" % fdoc["id"]
+p13_stem = os.path.join(repo.notes, writing_route.ann_file(p13))
+ink(p13, kind="dir")                     # a direction, with a picture on disk
+os.remove(p11_stem + ".json")            # page 11 out of the way
+library.forget()
+status, said = post("/library/direction", {"document": fdoc["id"], "text": "go",
+                                           "pictured": []})
+check("a page with a picture on disk that this send did not take is kept, "
+      "not stripped",
+      status == 200 and said.get("kept") == [13] and said.get("stripped") == []
+      and os.path.isfile(p13_stem + ".dir.png")
+      and lesson_notes.of_kind(json.load(open(p13_stem + ".json"))["strokes"], "dir"))
+status, said = post("/library/direction", {"document": fdoc["id"], "text": "go",
+                                           "pictured": [{"key": p13, "n": 2}]})
+check("and so is one pictured with another number of direction strokes than "
+      "it has now",
+      status == 200 and said.get("kept") == [13] and said.get("stripped") == [])
+
+# A SAVE THAT CHANGES THE DIRECTION STROKES WITHOUT A NEW PICTURE deletes the
+# old one; the same strokes, or a new picture, keep it.
+p13_now = json.load(open(p13_stem + ".json", encoding="utf-8"))["strokes"]
+post("/annotate/save", {"card": p13, "strokes": p13_now, "png": ""})
+kept_same = os.path.isfile(p13_stem + ".dir.png")
+post("/annotate/save", {"card": p13, "strokes": p13_now + [{"p": [0.3, 0.3]}],
+                        "png": ""})
+kept_fix = os.path.isfile(p13_stem + ".dir.png")
+more = p13_now + [{"p": [0.3, 0.3]}, {"p": [0.7, 0.7, 0.8, 0.8], "dir": 1}]
+post("/annotate/save", {"card": p13, "strokes": more, "png": ""})
+gone_changed = not os.path.isfile(p13_stem + ".dir.png")
+post("/annotate/save", {"card": p13, "strokes": more + [{"p": [0.1, 0.9], "dir": 1}],
+                        "png": "data:image/png;base64,iVBORw0KGgo=", "png_kind": "dir"})
+check("a save that changes a page's direction strokes without a picture deletes "
+      "its direction picture; unchanged directions or a new picture keep one",
+      kept_same and kept_fix and gone_changed
+      and os.path.isfile(p13_stem + ".dir.png"))
+os.remove(p13_stem + ".json")
+os.remove(p13_stem + ".dir.png")
+
+# A MIXED PAGE ACROSS A LANDED ROUND, THE READER LEFT OPEN. The wipe takes the
+# delivered fix and buries it; the reader still showing it saves it back with a
+# new stroke, and the save refuses the buried one, so the next note carries the
+# new stroke alone.
+p12 = "doc/%s/p12" % fdoc["id"]
+p12_stem = os.path.join(repo.notes, writing_route.ann_file(p12))
+F = {"c": "#e0b45c", "w": 2, "pg": 1, "p": [0.11, 0.21, 0.31, 0.41], "pr": [0.5, 0.5]}
+D = {"c": "#3366cc", "w": 2, "pg": 1, "dir": 1, "p": [0.6, 0.6, 0.7, 0.7],
+     "pr": [0.5, 0.5]}
+N = {"c": "#e0b45c", "w": 2, "pg": 1, "p": [0.12, 0.81, 0.52, 0.81], "pr": [0.5, 0.5]}
+write(p12_stem + ".json", json.dumps({"card": p12, "sent": True, "strokes": [F, D]}))
+write(p12_stem + ".png", b"\x89PNG\r\n\x1a\n")
+newest = library.notes(fields, fdoc)[-1]["name"]
+with open(os.path.join(library.feedback_dir(fields, fdoc), newest), "a",
+          encoding="utf-8") as fh:
+    fh.write("\n## What was changed\n\nDone.\n")
+library.forget()
+row = [d for d in library.status(repo)["documents"] if d["id"] == fdoc["id"]][0]
+left = json.load(open(p12_stem + ".json", encoding="utf-8"))
+check("a landed round wipes the delivered fix off the mixed page and names it in "
+      "`wiped`, keeping the direction",
+      left["strokes"] == [D] and row.get("wiped", {}).get(p12) == [F]
+      and library.wiped(repo, fdoc).get(p12) == [F]
+      and os.path.isfile(writing_route.gone_path(repo, p12)))
+# The reader, left open, still holds F; it draws N and saves.
+post("/annotate/save", {"card": p12, "strokes": [F, D, N], "png": ""})
+left = json.load(open(p12_stem + ".json", encoding="utf-8"))
+library.forget()
+fixes = [m for m in library.marks(repo, fdoc) if m["key"] == p12]
+check("the open reader's next save cannot write the wiped stroke back: the page "
+      "keeps the direction and the new stroke, unsent",
+      left["strokes"] == [D, N] and left["sent"] is False
+      and [m["strokes"] for m in fixes] == [1])
+check("and the buried stroke stays named while a reader may still show it",
+      library.wiped(repo, fdoc).get(p12) == [F])
+post("/annotate/save", {"card": p12, "strokes": [D, N], "png": ""})
+check("a save without it means the reader caught up, and the record goes",
+      not os.path.isfile(writing_route.gone_path(repo, p12))
+      and json.load(open(p12_stem + ".json", encoding="utf-8"))["strokes"] == [D, N])
+# The same for a sent direction: it is buried when stripped.
+write(p12_stem + ".dir.png", b"\x89PNG\r\n\x1a\n")
+status, said = post("/library/direction", {"document": fdoc["id"], "text": "",
+                                           "pictured": [{"key": p12, "n": 1}]})
+post("/annotate/save", {"card": p12, "strokes": [D, N], "png": ""})
+check("a sent direction is buried too: the reply names it in `wiped`, and a "
+      "stale save of the page does not put it back",
+      status == 200 and said.get("stripped") == [p12]
+      and said.get("wiped", {}).get(p12) == [D]
+      and json.load(open(p12_stem + ".json", encoding="utf-8"))["strokes"] == [N])
 
 httpd.shutdown()
 print()
