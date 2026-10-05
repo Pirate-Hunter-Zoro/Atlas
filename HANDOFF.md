@@ -20,7 +20,7 @@ This file says what is left to build.
 | Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, the relay, Colibri tasks |
 | Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
 | Providers | each through its own harness: `claude`, `codex`, DeepSeek through `opencode -m deepseek/deepseek-flash`; `only_agent` runs one | Colibri on demand only; no hosted model call |
-| Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, the files of a thread held at the cluster, and the owner's edits in a workspace with `relay.sync: true` |
+| Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, the files of a thread held at the cluster, and the owner's edits in a workspace that syncs (`relay.sync`, on by default in `atlas.json`) |
 | iPad reaches it | over the owner's own tailnet | never |
 
 **Path ownership is what makes two writers on one branch safe.** The Mac never writes a
@@ -121,8 +121,8 @@ answers through `board coach`.
 
 **Sync.** The Mac pulls every five minutes, every two while a request is out, every 20 seconds
 while a hold stands, and at the top of every turn. The relay passes every five minutes. It
-commits the owner's cluster edits only in a workspace whose `tutorboard.json` says
-`"relay": {"sync": true}`, and no workspace says so until the owner decides which may.
+commits the owner's cluster edits in every workspace: `atlas.json` says `"relay": {"sync": true}`,
+and a workspace opts out with `"sync": false` in its own `tutorboard.json`.
 
 ---
 

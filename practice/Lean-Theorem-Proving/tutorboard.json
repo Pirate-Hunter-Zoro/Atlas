@@ -10,8 +10,5 @@
       "scripts/build.sh",
       "{module}"
     ]
-  },
-  "relay": {
-    "sync": true
   }
 }

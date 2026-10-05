@@ -1558,17 +1558,38 @@ def context(root, recipes=()):
             "failed": failed_ids}
 
 
-def relay_opts(root):
-    """The `relay` object of this workspace's `tutorboard.json`, `{}` where
-    it has none: `colibri` and `sync` are its opt-ins."""
-    relay = {}
+def _relay_of(path):
+    """The `relay` object of one JSON file, `{}` where it has none."""
     try:
-        with open(os.path.join(root, "tutorboard.json"), "r",
-                  encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             relay = (json.load(fh) or {}).get("relay") or {}
     except (OSError, ValueError, AttributeError):
-        pass
+        return {}
     return relay if isinstance(relay, dict) else {}
+
+
+def _repo_default(root):
+    """`sync` from the repository's `atlas.json`, the one place a machine-wide
+    habit is said once. Only `sync`: a Colibri opt-in is a permission over one
+    workspace's data, so no workspace inherits it."""
+    here = os.path.realpath(root)
+    while True:
+        up = os.path.dirname(here)
+        if up == here:
+            return {}
+        here = up
+        if os.path.isfile(os.path.join(here, "atlas.json")):
+            sync = _relay_of(os.path.join(here, "atlas.json")).get("sync")
+            return {"sync": sync} if isinstance(sync, bool) else {}
+
+
+def relay_opts(root):
+    """This workspace's relay opt-ins: `colibri` and `sync`. `sync` defaults to
+    the repository's `atlas.json` and the workspace's own `tutorboard.json`
+    overrides it; `colibri` is the workspace's alone."""
+    out = _repo_default(root)
+    out.update(_relay_of(os.path.join(root, "tutorboard.json")))
+    return out
 
 
 def check(root, req, mine=False):
