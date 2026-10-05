@@ -908,9 +908,11 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
 **A synced workspace's edits are committed by the pass** (`relay.sync_commit`), one commit per
 workspace, `<workspace>: cluster sync`, pushed by the same `publish`. The rules:
 
-- A path counts only inside exactly one opted-in workspace. A tracked edit or untracked file
-  elsewhere still skips the pass, named in `relay/state.json`.
-- A held file and a live Colibri task's workspace stay the owner's, uncommitted.
+- A path counts only inside exactly one opted-in workspace. A tracked edit elsewhere still
+  skips the pass, named in `relay/state.json`; an untracked file elsewhere is left alone.
+- A held file and a live Colibri task's workspace stay the owner's, uncommitted, and so does
+  the workspace of a task the queue gave up on. A pass that cannot read the holds or the
+  Colibri queue syncs nothing.
 - An untracked file is added unless ignored.
 - Each path passes `leaving.refused`, the check `board push` uses. It also passes `names_phi`
   on its path. A symlink, a file over 5 MB, a path origin also changed, and everything in a

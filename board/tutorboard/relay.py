@@ -311,9 +311,34 @@ NO_POLICY_SYNC = ("the PHI guard's policy (ai-config/policy/phi.py) is not "
 
 
 def sync_spaces(where):
-    """Repository-relative workspaces whose `jobs.relay_opts` says `sync`."""
-    return [ws for root, ws in where
-            if jobs.relay_opts(root).get("sync") is True]
+    """Repository-relative workspaces whose `jobs.relay_opts` says `sync`.
+
+    FAIL CLOSED. A workspace's holds and the Colibri queue are what tell the
+    owner's edits from a hold's or a task's, so a pass that cannot read either
+    syncs nothing. A task the queue gave up on (`failed`) still owns its
+    workspace until somebody settles it."""
+    asked = [(root, ws) for root, ws in where
+             if jobs.relay_opts(root).get("sync") is True]
+    if not asked:
+        return []
+    from . import colibri, holds, missions
+    try:
+        for root, _ in asked:
+            holds.owned(root)
+        given_up = []
+        queue = colibri.queue_root()
+        if queue:
+            given_up = [str(rec.get("workspace") or "").strip()
+                        for rec in missions.tasks(queue)
+                        if rec.get("queue") == "failed"]
+    except Exception:                                        # noqa: BLE001
+        return []
+
+    def taken(root, ws):
+        # The spellings `atlas.find` accepts: family/name, bare name, root.
+        return any(g and (g.strip("/") in (ws, os.path.basename(ws))
+                          or paths.same_dir(root, g)) for g in given_up)
+    return [ws for root, ws in asked if not taken(root, ws)]
 
 
 def _space_of(rel, where):
