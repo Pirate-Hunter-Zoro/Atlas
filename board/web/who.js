@@ -26,6 +26,11 @@
                 machine cannot open. Offered, dimmed, and the tap says so. It is
                 the only one of these that moves while the board is up, which is
                 why `assistants.TTL` is a minute
+     barred     the machine's switch (`only_agent`) rules it out -- "this
+                machine is running DeepSeek only". Drawn, dimmed, and a tap
+                says so and lands nowhere, so a greyed-out claude is a visible
+                fact rather than a mystery. `assistants.only` is the switch
+                itself, for the line under the buttons
    ========================================================================== */
 
 (function () {
@@ -47,12 +52,21 @@
      when it arrives. What must not happen is it being drawn as though nothing
      were wrong. */
   function choosable(assistants) {
-    return offerable(assistants).filter(function (a) { return !a.unkeyed; });
+    return offerable(assistants).filter(function (a) {
+      return !a.unkeyed && !a.barred;
+    });
+  }
+
+  /* The switch, as one line for under the buttons, or "". */
+  function only(assistants) {
+    var o = assistants && assistants.only;
+    return o ? o.why + " — tutor agent only --off lifts it" : "";
   }
 
   /* Why this one cannot be tapped, in words a person can act on, or "". */
   function blocked(a) {
     if (!a) return "";
+    if (a.barred) return a.barred;
     if (a.unkeyed) {
       return "needs " + a.unkeyed + " in " + (a.keys || "the key file")
            + " — one " + a.unkeyed + "=… line and it is here";
@@ -81,11 +95,11 @@
       b.textContent = a.name;
       b.title = title(a);
       if (a.name === now) b.className = "on" + (a.exclusive ? " local" : "");
-      if (a.unkeyed || a.unavailable || (opts.dim && opts.dim(a))) {
+      if (a.unkeyed || a.unavailable || a.barred || (opts.dim && opts.dim(a))) {
         b.classList.add("away");
       }
       b.onclick = function () {
-        if (a.unkeyed) {
+        if (a.unkeyed || a.barred) {
           if (opts.say) opts.say(blocked(a));
           return;
         }
@@ -96,5 +110,6 @@
   }
 
   window.WhoChoice = { offerable: offerable, choosable: choosable,
-                       blocked: blocked, title: title, draw: draw };
+                       blocked: blocked, title: title, draw: draw,
+                       only: only };
 }());

@@ -4625,7 +4625,10 @@ function paintWho() {
   var local = have.filter(function (a) { return a.exclusive; })[0];
   var picked = local && now === local.name;
   if (!picked || !colibriNow) {
-    els.kindWhoNote.textContent = "";
+    /* The switch, when it is on, is what the greyed-out buttons mean. A page
+       whose who.js predates it says nothing rather than throwing. */
+    els.kindWhoNote.textContent = window.WhoChoice.only
+      ? window.WhoChoice.only(assistants) : "";
     els.kindWhoUp.hidden = true;
     return;
   }

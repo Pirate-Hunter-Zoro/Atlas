@@ -496,6 +496,13 @@ def post(h, repo, path):
             return h.send_json({"ok": False,
                                 "detail": "'%s' is not an assistant on this "
                                           "machine" % want}, status=400)
+        if got.get("barred"):
+            # The switch outranks the machine default: writing one it bars
+            # would be a default no turn ever runs.
+            return h.send_json({"ok": False,
+                                "detail": "%s -- `tutor agent only --off` "
+                                          "lifts it" % got["barred"]},
+                               status=400)
         if got.get("missing"):
             return h.send_json({"ok": False,
                                 "detail": "`%s` is not installed here"

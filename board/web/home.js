@@ -2245,6 +2245,7 @@ els.busy.onclick = function () {
    The thing this is for is an evening that has run out. Until now that meant a
    laptop, an account page and a config file; it is a tap. */
 var whoSaved = null;
+var whoOnlyLine = "";
 
 function paintWho(assistants) {
   /* A FIRST RELOAD AFTER A SHIP STILL RUNS THE OLD SHELL, so this page can be
@@ -2263,6 +2264,15 @@ function paintWho(assistants) {
     say: function (m) { els.whoNote.textContent = m; },
     pick: function (a) { setDefaultAgent(a.name); }
   });
+  /* THE SWITCH, under the buttons it greys out, for as long as it is on. The
+     line owns the note only while nothing else has said anything there: a
+     tap's answer is not painted over by the next poll. A page from before
+     `only` existed in who.js draws no line rather than throwing. */
+  var line = window.WhoChoice.only ? window.WhoChoice.only(assistants) : "";
+  if (!els.whoNote.textContent || els.whoNote.textContent === whoOnlyLine) {
+    els.whoNote.textContent = line;
+  }
+  whoOnlyLine = line;
 }
 
 function setDefaultAgent(name) {

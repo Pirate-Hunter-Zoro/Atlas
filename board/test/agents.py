@@ -324,6 +324,127 @@ check("and when the allowance comes back we climb home, because the question "
       "is asked again every turn rather than answered once",
       tutor.choose_agent(THREE, "one") == ("one", None))
 
+# --- THE ONLY-AGENT SWITCH ---------------------------------------------------
+# One key, `only_agent`, and every other hosted recipe is unavailable here in
+# one sentence, whatever a sitting, a workspace, `hosts` or `default_agent`
+# asks for. The fenced reader is not a hosted provider and is not barred.
+ONLY = {"default_agent": "claude", "only_agent": "deepseek", "hosts": {},
+        "agents": {"claude": dict(SH, label="Claude"),
+                   "deepseek": dict(SH, label="DeepSeek"),
+                   "codex": {"cmd": ["a-command-no-machine-has"],
+                             "headless": ["a-command-no-machine-has"]},
+                   "colibri": dict(SH, private="it reads phi")}}
+POLICY = "this machine is running DeepSeek only"
+_said, _why = [], []
+check("a workspace naming claude lands on deepseek under the switch",
+      tutor.resolve_agent(ONLY, {"agent": "claude"}, say=_said.append,
+                          why=_why) == "deepseek")
+check("with the policy line, naming the layer it overruled and the config line "
+      "that did it",
+      len(_why) == 1 and _why == _said
+      and "this workspace's tutorboard.json asks for 'claude'" in _why[0]
+      and POLICY in _why[0] and '"only_agent": "deepseek"' in _why[0])
+check("--agent naming another is refused the same way",
+      tutor.resolve_agent(ONLY, {}, "claude", say=lambda m: None) == "deepseek")
+check("so is `default_agent`, which is the layer that named claude here",
+      tutor.resolve_agent(ONLY, {}, say=lambda m: None) == "deepseek")
+check("the fenced reader still resolves where a workspace asks for it by name",
+      tutor.resolve_agent(ONLY, {"agent": "colibri"}, say=lambda m: None)
+      == "colibri")
+check("and the switch naming a recipe that is not here resolves to nothing",
+      tutor.resolve_agent(dict(ONLY, only_agent="nonesuch"), {},
+                          say=lambda m: None) is None)
+check("with the switch off, claude is claude again",
+      tutor.resolve_agent(dict(ONLY, only_agent=None), {"agent": "claude"})
+      == "claude")
+
+check("agent_unavailable says the switch for every other hosted recipe",
+      tutor.agent_unavailable(ONLY, "claude") == POLICY)
+check("before any binary or key check: a recipe that is not installed says the "
+      "switch, not the missing binary",
+      tutor.agent_unavailable(ONLY, "codex") == POLICY)
+check("and nothing about the switch's own recipe or the fenced reader",
+      tutor.agent_unavailable(ONLY, "deepseek") is None
+      and tutor.agent_unavailable(ONLY, "colibri") is None)
+
+limits.clear_limited()
+_name, _why = tutor.choose_agent(ONLY, "claude")
+check("choose_agent hands a barred recipe's turn to the switch, and says so",
+      _name == "deepseek" and POLICY in (_why or ""))
+limits.mark_limited(time.time() + 900, agent="deepseek")
+check("and never crosses: the switch's recipe out of allowance keeps the turn "
+      "and fails where that is visible",
+      tutor.choose_agent(ONLY, "deepseek") == ("deepseek", None))
+check("even when the turn was wanted by a barred recipe",
+      tutor.choose_agent(ONLY, "claude")[0] == "deepseek")
+limits.clear_limited()
+
+# `tutor agent only <name>|--off` writes one key and leaves the rest alone.
+_only_box = tempfile.mkdtemp(prefix="tutor-only-")
+_was_config = tutor.CONFIG
+tutor.CONFIG = os.path.join(_only_box, "config.json")
+with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+    json.dump({"default_agent": "claude", "vision_agent": "deepseek"}, fh)
+_free = dict(ONLY, only_agent=None)
+_rc = tutor.agent_only(_free, ["deepseek"])
+with open(tutor.CONFIG, encoding="utf-8") as fh:
+    _on = json.load(fh)
+check("`tutor agent only deepseek` sets the key and keeps every other",
+      _rc == 0 and _on == {"default_agent": "claude", "vision_agent": "deepseek",
+                           "only_agent": "deepseek"})
+_rc = tutor.agent_only(_free, ["--off"])
+with open(tutor.CONFIG, encoding="utf-8") as fh:
+    _off = json.load(fh)
+check("and `--off` removes it", _rc == 0 and "only_agent" not in _off)
+check("the fenced reader, an unknown name and an uninstalled recipe are refused "
+      "before anything is written",
+      tutor.agent_only(_free, ["colibri"]) == 1
+      and tutor.agent_only(_free, ["nonesuch"]) == 1
+      and tutor.agent_only(_free, ["codex"]) == 1
+      and "only_agent" not in json.load(open(tutor.CONFIG, encoding="utf-8")))
+check("and neither a name with --off nor nothing at all is a command",
+      tutor.agent_only(_free, []) == 2
+      and tutor.agent_only(_free, ["deepseek", "--off"]) == 2)
+tutor.CONFIG = _was_config
+shutil.rmtree(_only_box, ignore_errors=True)
+
+# `tutor --agents --json` carries the switch, so the strip can grey the rest.
+import subprocess                                             # noqa: E402
+_xdg = tempfile.mkdtemp(prefix="tutor-only-xdg-")
+os.makedirs(os.path.join(_xdg, "tutor-board"))
+with open(os.path.join(_xdg, "tutor-board", "config.json"), "w",
+          encoding="utf-8") as fh:
+    json.dump({"only_agent": "deepseek"}, fh)
+_p = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "tutor"),
+                     "--agents", "--json"],
+                    env=dict(os.environ, XDG_CONFIG_HOME=_xdg),
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+try:
+    _table = json.loads(_p.stdout.decode().strip().splitlines()[-1])
+except (ValueError, IndexError):
+    _table = {}
+_rows = {a["name"]: a for a in _table.get("agents") or []}
+check("--agents --json names the switch",
+      (_table.get("only") or {}).get("agent") == "deepseek"
+      and (_table.get("only") or {}).get("why") == POLICY)
+check("and every barred recipe carries the sentence, the switch's own and the "
+      "fenced reader none",
+      (_rows.get("claude") or {}).get("barred") == POLICY
+      and (_rows.get("claude") or {}).get("unavailable") == POLICY
+      and not (_rows.get("deepseek") or {}).get("barred")
+      and not (_rows.get("colibri") or {}).get("barred"))
+check("and the machine's own answer is the switch's recipe",
+      _table.get("machine") == "deepseek")
+shutil.rmtree(_xdg, ignore_errors=True)
+
+# A barred recipe is no vision route either: an image is a call.
+from tutorboard import seeing                                 # noqa: E402
+_got, _no = seeing.route("claude", {"vision_agent": "claude", "agents": [
+    {"name": "claude", "barred": POLICY,
+     "vision": {"cmd": ["claude"], "sighted": True}}]})
+check("a barred recipe's vision route is refused, with the switch's sentence",
+      _got is None and POLICY in (_no or ""))
+
 # --- AND IT IS ASKED EVERY TURN ----------------------------------------------
 src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
 check("the recipe is re-bound inside the loop rather than above it",

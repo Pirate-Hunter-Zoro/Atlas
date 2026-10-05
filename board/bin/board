@@ -4463,25 +4463,28 @@ def cmd_doctor(live, args):
 def tutor_health(live):
     """Who teaches on this machine, and can they. Printed; True if they can.
 
-    Read off the config rather than by asking a provider, so `board doctor`
-    stays something you can run while somebody is waiting.
+    Read off the registry (`tutor --agents --json`) rather than by asking a
+    provider, so `board doctor` stays something you can run while somebody is
+    waiting -- and rather than off `config.json`, which holds only what this
+    machine overrides: a recipe it does not mention is the built-in one.
     """
-    cfg = {}
-    try:
-        with open(paths.CONFIG, "r", encoding="utf-8") as fh:
-            cfg = json.load(fh) or {}
-    except (OSError, ValueError):
-        pass
-    wanted = cfg.get("default_agent") or "(unset)"
+    table = assistants.listing()
+    if not table:
+        print("teaching: unknown -- `tutor --agents --json` did not answer")
+        return False
+    wanted = table.get("machine") or table.get("default") or "(unset)"
     print("teaching: '%s'" % wanted)
-    recipe = (cfg.get("agents") or {}).get(wanted) or {}
-    if wanted != "(unset)" and not shutil.which(recipe.get("cmd", [wanted])[0]):
+    if table.get("only"):
+        print("only:     %s  (tutor agent only --off lifts it)"
+              % table["only"].get("why"))
+    recipe = {a.get("name"): a for a in (table.get("agents") or [])}.get(wanted)
+    if wanted != "(unset)" and (recipe is None or recipe.get("missing")):
         print("          NOT INSTALLED here — every turn would fail into a log")
         return False
     # The second way a recipe cannot run, and it fails identically: a daemon
     # that listens and then dies every turn in a log nobody opens. Named here
     # because `board doctor` is what somebody runs while a student is waiting.
-    need = keys.unkeyed(recipe)
+    need = (recipe or {}).get("unkeyed")
     if need:
         print("          NEEDS %s in %s — put one `%s=...` line in it"
               % (need, keys.store(), need))
@@ -4506,7 +4509,6 @@ def tutor_health(live):
     # `tutorboard/assistants.py` is built on. Not fatal: a machine may have a
     # deliberate override, and this is the line that makes it a decision again
     # rather than something forgotten.
-    table = assistants.listing() or {}
     held = [(a.get("name"), a.get("shadowed"))
             for a in (table.get("agents") or []) if a.get("shadowed")]
     for name, fields in held:

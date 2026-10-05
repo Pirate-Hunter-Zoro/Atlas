@@ -164,6 +164,12 @@ def route(agent=None, table=None):
         if not name or name in tried:
             continue
         tried.append(name)
+        # A recipe the machine's switch bars is not a route, whatever its
+        # recipe says: `only_agent` is a promise about which provider is
+        # called, and an image is a call.
+        if (agents.get(name) or {}).get("barred"):
+            dark.append("'%s' is off (%s)" % (name, agents[name]["barred"]))
+            continue
         got = (agents.get(name) or {}).get("vision")
         if not got or not (got.get("endpoint") or got.get("cmd")):
             continue

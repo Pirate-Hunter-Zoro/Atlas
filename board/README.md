@@ -2861,6 +2861,17 @@ guard**: `relay.run_turn` runs `claude -p` with the routing variables scrubbed a
 workspace's `agent`, so a `tutorboard.json` naming DeepSeek for every kind changes nothing there.
 Colibri stays the only model that reads PHI, and it runs only on the cluster. `test/relay.py`.
 
+**`only_agent` runs one provider and nothing else.** `tutor agent only deepseek` writes
+`"only_agent": "deepseek"` into the machine config; `tutor agent only --off` removes it. It is not
+a sixth layer but a fence over all five: `resolve_agent` refuses whatever a layer names and logs
+which layer it overruled (*this workspace's tutorboard.json asks for 'claude'; this machine is
+running DeepSeek only …*), `agent_unavailable` gives every other hosted recipe that sentence
+before any binary or key check, `choose_agent` never crosses to another, `seeing.route` sends no
+image through one, and the front door refuses one as `default_agent`. `--agents --json` carries
+`only` and a `barred` sentence per recipe, so the strip draws the others greyed with the switch
+written under them. A `private` recipe is not barred: the switch is about hosted providers, and
+Colibri still resolves only where a workspace names it. `test/agents.py`, `test/who.js`.
+
 **A model is not a layer, and must never become one.** An agent entry is a command recipe, so a
 second model is a second entry whose `cmd` carries the flag — which is why "opencode with DeepSeek"
 and "opencode with something else" are two names in this file and nothing in the code changes.

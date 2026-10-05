@@ -18,6 +18,7 @@ tutor -- start a tutoring session.
     tutor agent status          which course has an assistant attached
     tutor agent start galois    attach one there, detaching whatever was elsewhere
     tutor agent stop galois     ask it to write its handoff and go
+    tutor agent only deepseek   run one assistant only on this machine (--off lifts it)
     tutor cost [galois]         what the turns on this machine actually cost
     tutor cost --all            every course, one line each
     tutor doctor [agent] [--keep]  prove a built-in recipe against its live provider
@@ -107,7 +108,7 @@ DEFAULT_CONFIG = {
         # second source of truth for one policy, and the two would drift the
         # first time either moved.
         "claude": {
-            "cmd": ["claude"], "prompt": "argv",
+            "cmd": ["claude"], "prompt": "argv", "label": "Claude",
             # `headless_first` opens the session; `headless` continues it, so the
             # agent is not re-reading the whole contract on every single turn.
             "headless_first": ["claude", "-p", "{prompt}"],
@@ -227,6 +228,7 @@ DEFAULT_CONFIG = {
             # goes in as `--prompt`. The TUI asks before a tool runs, so there
             # is no `--auto`; `--pure`, `-m` and the `env` overlay are the same.
             "cmd": ["opencode", "--pure", "-m", "deepseek/deepseek-flash"],
+            "label": "DeepSeek",
             "prompt": "--prompt",
             "headless_first": ["opencode", "--pure", "run", "--auto",
                                "-m", "deepseek/deepseek-flash", "{prompt}"],
@@ -319,7 +321,7 @@ DEFAULT_CONFIG = {
             },
         },
         "opencode": {
-            "cmd": ["opencode"], "prompt": "--prompt",
+            "cmd": ["opencode"], "prompt": "--prompt", "label": "OpenCode",
             "headless_first": ["opencode", "run", "{prompt}"],
             "headless": ["opencode", "run", "--continue", "{prompt}"],
         },
@@ -349,7 +351,7 @@ DEFAULT_CONFIG = {
         # `colibri` as the one assistant that may open it, a flag no automatic
         # choice crosses.
         "codex": {
-            "cmd": ["codex"], "prompt": "argv",
+            "cmd": ["codex"], "prompt": "argv", "label": "Codex",
             "headless_first": ["codex", "exec",
                                "--dangerously-bypass-approvals-and-sandbox",
                                "{prompt}"],
@@ -469,6 +471,15 @@ DEFAULT_CONFIG = {
     # limited, and never `private`, which is the fence flag and must not be
     # crossed into by a choice nobody made. See `choose_agent`.
     "fallback": None,
+    # THE ONE ASSISTANT THIS MACHINE RUNS, or null for any of them. Set with
+    # `tutor agent only <name>` and lifted with `tutor agent only --off`. When
+    # it names a recipe, every other hosted recipe is unavailable here in one
+    # sentence -- "this machine is running DeepSeek only" -- whatever a
+    # sitting, a workspace, `hosts` or `default_agent` asks for, and no
+    # fallback crosses to another. A `private` recipe is not barred: the switch
+    # is about hosted providers, and the fenced reader is still resolved only
+    # where a workspace asks for it by name. See `only_bars`.
+    "only_agent": None,
     "headless_timeout": 900,
     # ---------------------------------------------------------------------
     # AND HOW LONG A TURN THAT DOES THE WORK GETS, which is not the same number
@@ -1302,7 +1313,8 @@ def read_costs(root):
         return out
 
 
-def resolve_agent(cfg, course, override=None, interactive=False, say=None):
+def resolve_agent(cfg, course, override=None, interactive=False, say=None,
+                  why=None):
     """Which assistant tutors this course, on this machine, in this sitting.
 
     Most specific wins, and every layer is configuration rather than code:
@@ -1338,6 +1350,11 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
     Which model an assistant runs is not a layer here and never should be: an
     agent entry is a command recipe, so a second model is a second entry whose
     `cmd` carries the flag. Nothing in this file knows what a model is.
+
+    `only_agent` is not a sixth layer but a fence over all five: when it names
+    a recipe, whatever the layers picked is refused unless it is that recipe or
+    a `private` one, and the line saying which layer was overruled goes to `say`
+    and, when `why` is a list, onto it -- `for_this_turn` paints it.
     """
     say = say or (lambda m: print(m, file=sys.stderr))
     mine = config.sitting_agent((course or {}).get("root"))
@@ -1357,16 +1374,63 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
     ws = config.workspace_agent(
         course, config.sitting_kind((course or {}).get("root"))
         if isinstance((course or {}).get("agent"), dict) else None)
-    for pick in (override, mine, ws,
-                 (cfg.get("hosts") or {}).get(this_host()),
-                 cfg.get("default_agent")):
+    layer = None
+    for layer, pick in (("--agent", override), ("this sitting", mine),
+                        ("this workspace's tutorboard.json", ws),
+                        ("this machine's `hosts` entry",
+                         (cfg.get("hosts") or {}).get(this_host())),
+                        ("`default_agent`", cfg.get("default_agent"))):
         if pick and pick in cfg["agents"]:
             picked = pick
             break
         if pick:
             say("no agent called '%s'; try: tutor --agents" % pick)
             return None
+    # THE SWITCH IS ASKED LAST AND OVERRULES EVERY LAYER ABOVE IT, and says
+    # which layer it overruled: a workspace naming claude on a machine running
+    # DeepSeek only is refused rather than quietly re-read, and the next layer
+    # down is not consulted -- it is the switch's answer or nothing.
+    only = only_agent(cfg)
+    if only and (not picked or only_bars(cfg, picked)):
+        if only not in cfg["agents"]:
+            say("`only_agent` in %s names '%s', which is not an assistant "
+                "here; try: tutor agent only --off" % (CONFIG, only))
+            return None
+        if picked:
+            line = ("%s asks for '%s'; %s (\"only_agent\": \"%s\" in %s), so "
+                    "'%s' takes it" % (layer, picked, only_bars(cfg, picked),
+                                       only, CONFIG, only))
+            say(line)
+            if why is not None:
+                why.append(line)
+        picked = only
     return picked
+
+
+def only_agent(cfg):
+    """The one assistant this machine runs (`only_agent`), or None for any."""
+    name = (cfg or {}).get("only_agent")
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
+def agent_label(cfg, name):
+    """What a person calls a recipe: its `label`, or its name."""
+    return ((cfg.get("agents") or {}).get(name) or {}).get("label") or name
+
+
+def only_bars(cfg, name):
+    """The switch's sentence when `only_agent` rules `name` out, or None.
+
+    Every recipe but the one named, in one sentence the board can paint. A
+    `private` recipe is never barred: the switch is about hosted providers, and
+    the fenced reader is resolved only where a workspace names it anyway.
+    """
+    only = only_agent(cfg)
+    if not only or not name or name == only:
+        return None
+    if ((cfg.get("agents") or {}).get(name) or {}).get("private"):
+        return None
+    return "this machine is running %s only" % agent_label(cfg, only)
 
 
 def agent_probe_urls(spec):
@@ -1463,7 +1527,10 @@ def probe_host(urls):
 def agent_unavailable(cfg, name, now=None):
     """Why this agent cannot take a turn on this machine right now, or None.
 
-    Five reasons and they are all facts rather than opinions: the executable is
+    The switch first: with `only_agent` set, every other hosted recipe is
+    "this machine is running <label> only" and nothing else is asked of it.
+
+    Then five reasons and they are all facts rather than opinions: the executable is
     not here, the key is not here, the allowance is gone until a time somebody
     wrote down, the provider's own hostname does not answer from this machine, or
     its turns fail here for a reason the network is innocent of -- a renamed
@@ -1480,6 +1547,12 @@ def agent_unavailable(cfg, name, now=None):
     spec = (cfg.get("agents") or {}).get(name)
     if not spec:
         return "there is no recipe called '%s'" % name
+    # THE SWITCH FIRST, before any binary or key check: a machine running one
+    # provider only says so about every other, rather than whatever else is
+    # also true of them.
+    barred = only_bars(cfg, name)
+    if barred:
+        return barred
     if not (spec.get("headless") or spec.get("headless_first")):
         return "'%s' has no headless recipe" % name
     gone = missing_command(spec.get("cmd"))
@@ -1530,6 +1603,15 @@ def choose_agent(cfg, wanted, now=None):
     allowed to read `phi`, whose cards must not reach a remote -- and an
     automatic choice is exactly the kind of choice that must not cross it.
     """
+    # THE SWITCH NEVER CROSSES. With `only_agent` set, a turn wanted by any
+    # other hosted recipe goes to the switch's recipe whether or not that one
+    # can take it -- failing visibly on the provider the machine is running is
+    # the switch's whole promise -- and the loop below can only find the
+    # switch's recipe, because `agent_unavailable` bars every other.
+    only = only_agent(cfg)
+    if only and only_bars(cfg, wanted) and only in (cfg.get("agents") or {}):
+        return only, ("'%s' cannot take this turn -- %s; '%s' is taking it"
+                      % (wanted, only_bars(cfg, wanted), only))
     if wanted and not agent_unavailable(cfg, wanted, now):
         return wanted, None
     said = cfg.get("fallback")
@@ -3567,6 +3649,7 @@ def agent_stop(course, wait=False):
 
 def cmd_agent(cfg, args):
     """tutor agent status|start|ensure|stop|which [course]
+       tutor agent only <name>|--off
 
     The board drives this when a course is opened or left. Each course keeps its
     own assistant: they are cheap while idle, and one that survives being left
@@ -3574,6 +3657,8 @@ def cmd_agent(cfg, args):
     """
     sub = args[0] if args else "status"
     rest = [a for a in args[1:] if not a.startswith("--")]
+    if sub == "only":
+        return agent_only(cfg, args[1:])
     found = courses(cfg)
 
     if sub == "status":
@@ -3648,6 +3733,62 @@ def cmd_agent(cfg, args):
     return 1
 
 
+def agent_only(cfg, args):
+    """`tutor agent only <name>` sets the switch; `--off` lifts it.
+
+    One key, `only_agent`, in this machine's config, written the way the front
+    door writes `default_agent`: the file as it is on disk with one key
+    changed, atomically, because every `tutor` on the machine reads it. A name
+    the switch could not honour is refused before it is written -- a recipe
+    that is not here, the fenced reader, or one that cannot take a turn today
+    -- because a switch naming nothing runnable leaves the machine with no
+    tutor at all. A running daemon picks it up on its next turn.
+    """
+    off = "--off" in args
+    named = [a for a in args if not a.startswith("--")]
+    if off == bool(named):
+        print("usage: tutor agent only <name>   or   tutor agent only --off",
+              file=sys.stderr)
+        return 2
+    if named:
+        name = named[0]
+        spec = (cfg.get("agents") or {}).get(name)
+        bare = dict(cfg, only_agent=None)
+        why = (("there is no recipe called '%s'; try: tutor --agents" % name)
+               if not spec else
+               ("'%s' is the fenced reader, and the switch is about hosted "
+                "providers" % name) if spec.get("private") else
+               agent_unavailable(bare, name))
+        if why:
+            print("tutor agent only: %s" % why, file=sys.stderr)
+            return 1
+    try:
+        with open(CONFIG, "r", encoding="utf-8") as fh:
+            user = json.load(fh) or {}
+    except FileNotFoundError:
+        user = {}
+    except (OSError, ValueError) as exc:
+        print("tutor agent only: cannot read %s (%s)" % (CONFIG, exc),
+              file=sys.stderr)
+        return 1
+    if off:
+        user.pop("only_agent", None)
+    else:
+        user["only_agent"] = named[0]
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    tmp = CONFIG + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(user, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, CONFIG)
+    if off:
+        print("only_agent is off: every installed assistant is available again")
+    else:
+        print("this machine is running %s only (\"only_agent\": \"%s\" in %s)"
+              % (agent_label(cfg, named[0]), named[0], CONFIG))
+    return 0
+
+
 def _flag(args, name):
     for n, a in enumerate(args):
         if a == name and n + 1 < len(args):
@@ -3685,7 +3826,9 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     fresh = dict(course)
     fresh.update(read_course(course["root"]))
     fresh["root"] = course["root"]
-    wanted = resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m))
+    switched = []
+    wanted = resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m),
+                           why=switched)
     wanted = wanted or running
     # AND WHETHER THE ONE BEING ASKED FOR CAN BE REACHED AT ALL, before a turn
     # is spent finding out. Free for a recipe that talks to the machine's own
@@ -3709,11 +3852,20 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
         # choice against the one taking the turn. They differ for exactly as
         # long as the stand-down or the allowance lasts, and `choose_agent`'s
         # sentence already names the host and the hour.
+        # And the switch's own line for as long as it overrules what the
+        # sitting or workspace asked for, so a greyed-out claude on the strip
+        # is explained by the line that greyed it.
         return cfg, running, cfg["agents"].get(running) or {}, (
-            said if name != wanted else None)
+            said if name != wanted else (switched[0] if switched else None))
     holding = (cfg["agents"].get(running) or {}).get("private")
     taking = (cfg["agents"].get(name) or {}).get("private")
-    if carried > 0:
+    why = None
+    if only_bars(cfg, running) and not taking:
+        # A RECIPE THE SWITCH BARS TAKES NO FURTHER TURN, whatever its session
+        # holds: the switch is a promise about which provider is called, and
+        # the guards below protect a conversation, not a provider.
+        pass
+    elif carried > 0:
         why = "this agent's own session is carrying %d turn(s)" % carried
     elif signal == "carry":
         why = "a carry resumes a conversation by id"
@@ -3721,11 +3873,12 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
         why = "an unfinished report belongs to the session that did the work"
     elif holding or taking:
         why = "one of the two is the fenced reader, and that is nobody's automatic choice"
-    else:
+    if why is None:
+        said = said or (switched[0] if switched else None) or (
+            "the sitting now asks for '%s'" % name)
         if log:
-            log.write("-- %s\n" % (said or "the sitting now asks for '%s'" % name))
-        return cfg, name, cfg["agents"].get(name) or {}, (said or
-                "the sitting now asks for '%s'" % name)
+            log.write("-- %s\n" % said)
+        return cfg, name, cfg["agents"].get(name) or {}, said
     if log:
         log.write("-- staying on '%s' rather than '%s': %s\n" % (running, name, why))
     return cfg, running, cfg["agents"].get(running) or {}, None
@@ -6103,6 +6256,10 @@ def cmd_doctor(cfg, args):
         print("tutor doctor: there is no built-in headless recipe called '%s'"
               % name, file=sys.stderr)
         return 2
+    if only_bars(cfg, name):
+        print("tutor doctor: %s; `tutor agent only --off` before proving '%s'"
+              % (only_bars(cfg, name), name), file=sys.stderr)
+        return 2
     spec = json.loads(json.dumps(built))
     first = spec.get("headless_first") or spec.get("headless")
     resume = spec.get("headless") or first
@@ -7164,6 +7321,16 @@ def main(argv):
                     # here rather than guessed at by the caller, because the
                     # registry is this table and a second one drifts.
                     "vision_agent": cfg.get("vision_agent") or None,
+                    # THE SWITCH, so the strip can say why every other button
+                    # is grey: the recipe this machine runs only, its label,
+                    # and the sentence each barred recipe carries. Null when
+                    # it is off. See `only_bars`.
+                    "only": ({"agent": only_agent(cfg),
+                              "label": agent_label(cfg, only_agent(cfg)),
+                              "why": "this machine is running %s only"
+                                     % agent_label(cfg, only_agent(cfg)),
+                              "config": CONFIG}
+                             if only_agent(cfg) else None),
                     "agents": [
                         {"name": n,
                          "cmd": " ".join(spec.get("cmd", [])),
@@ -7204,6 +7371,10 @@ def main(argv):
                          # findings rather than measuring them, precisely so it
                          # can sit under a poll.
                          "unavailable": agent_unavailable(cfg, n),
+                         # And whether that is the switch rather than a fact
+                         # about the recipe: a barred button is not tappable
+                         # at all, where a stood-down one still is.
+                         "barred": only_bars(cfg, n),
                          # AND WHICH FIELDS OF IT THIS MACHINE'S CONFIG IS
                          # HOLDING DOWN. A merged field is frozen at the day
                          # somebody wrote it, so a fix shipped to the recipe
@@ -7218,13 +7389,18 @@ def main(argv):
             print("config: %s" % CONFIG)
             print("machine: %s (%s)" % (this_host(), machine.machine_shape()))
             print()
+            if only_agent(cfg):
+                print("only: this machine is running %s only (\"only_agent\": "
+                      "\"%s\"; tutor agent only --off lifts it)\n"
+                      % (agent_label(cfg, only_agent(cfg)), only_agent(cfg)))
             for n, spec in sorted(cfg["agents"].items()):
                 mark = "*" if n == cfg["default_agent"] else " "
                 gone = missing_command(spec.get("cmd"))
                 need = keys.unkeyed(spec)
                 print(" %s %-10s %-28s %s"
                       % (mark, n, " ".join(spec.get("cmd", [])),
-                         "not installed here" if gone
+                         "off: %s" % only_bars(cfg, n) if only_bars(cfg, n)
+                         else "not installed here" if gone
                          else ("needs %s in %s" % (need, keys.store())) if need
                          else ""))
                 if shadows.get(n):
