@@ -661,18 +661,258 @@ def relay_sense(root, rec):
         lines += ["", "The cluster's note:", "  " + str(rec["note"])]
     lines += ["", "DO THIS: write one card reporting what finished, what it "
               "produced, any non-zero exit, and the RELAY: lines."]
-    if state == "REFUSED":
+    move_on = True
+    if state == "REFUSED" and rec.get("fixes"):
+        lines += _refused_fix_said(rec)
+        move_on = False
+    elif state == "REFUSED":
         lines.append("The cluster would not run it. Fix what it lists and file "
                      "it again through `board job`.")
+    elif rec.get("kind") == "turn" and rec.get("fixes"):
+        said, move_on = _fix_turn_said(root, rec)
+        lines += said
+    elif (failed(rec) and rec.get("kind") == "recipe"
+          and relay_opts(root).get("turns") is True):
+        said, move_on = _failed_recipe_said(root, rec)
+        lines += said
     elif failed(rec):
         lines.append("It did NOT end cleanly. Its log stays on the cluster. If "
                      "the RELAY: lines do not say why, `board ask-cluster %s "
                      "\"<what to read>\"` files a turn there to read it."
                      % (tid or "<thread>"))
-    lines.append("Then move the thread on with `board thread`: tick the task "
-                 "this request was, and add the next one. A follow-up goes "
-                 "through `board job`, never a bare sbatch.")
+        if relay_opts(root).get("turns") is not True:
+            lines.append("A workspace with `relay.turns: true` in its "
+                         "tutorboard.json has this turn file a cluster turn "
+                         "that diagnoses it, and apply the fix itself.")
+    if move_on:
+        lines.append("Then move the thread on with `board thread`: tick the "
+                     "task this request was, and add the next one. A "
+                     "follow-up goes through `board job`, never a bare "
+                     "sbatch.")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# a failed relay job: diagnosed on the cluster, fixed on the Mac
+# ---------------------------------------------------------------------------
+# A FAILED RECIPE IN A WORKSPACE WITH RELAY TURNS ON IS DIAGNOSED BY A CLUSTER
+# TURN, which the `[job]` turn files itself (`board ask-cluster --fixes`). The
+# fix turn reads the log beside the data, edits nothing, and writes the cause
+# and the fix into its public note. Its report wakes the Mac, which applies the
+# fix, runs the workspace's check, ships it through `board push`, and reruns
+# through `board job --fixes`. `MAX_FIXES` fix turns per failed request,
+# counted off `relay/requests/`, and then the owner decides.
+
+_CAUSE_RE = re.compile(r"^[\s*_`#>]*CAUSE\s*:", re.I)
+_FIX_RE = re.compile(r"(^|\n)[\s*_`#>-]*FIX\s*:", re.I)
+_UNSAFE_BRIEF = re.compile(r"[`$]")
+
+
+def found_fix(note):
+    """Does a fix turn's note start with `CAUSE:` and go on to a `FIX:`? An
+    `UNKNOWN:` note, or any other, has no fix to apply."""
+    note = str(note or "")
+    return bool(_CAUSE_RE.match(note)) and bool(_FIX_RE.search(note))
+
+
+def ended_failed(rec):
+    """Did this relayed record end, and not cleanly? A refused, pending or
+    running request has not failed."""
+    state = str(rec.get("state") or "")
+    return state == "FAILED" or (state == "COMPLETED" and failed(rec))
+
+
+def _fix_brief(tid, origin, attempt, failing):
+    """The brief of fix attempt `attempt`, written by code: at most
+    `MAX_BRIEF` characters, no backticks or `$`, and nothing a turn wrote."""
+    code = str(failing.get("exit") or "").split(":")[0] or "unknown"
+    error = _UNSAFE_BRIEF.sub("", str(failing.get("error") or ""))[:80]
+    head = ("Diagnose fix attempt %d of %d for %s. Request %s ran "
+            % (attempt, MAX_FIXES, origin, failing.get("request")))
+    tail = (" and failed: exit %s%s. Read its log here and find the cause. "
+            "Do not edit anything. Start your note with CAUSE: and one "
+            "sentence, then FIX: the exact change to make in the files of "
+            "thread %s, or with UNKNOWN: and what you checked. The Mac "
+            "applies the fix and reruns it through board job."
+            % (code, ", " + error if error else "", tid))
+    cmd = _UNSAFE_BRIEF.sub("", str(failing.get("cmd") or "its recipe"))
+    room = MAX_BRIEF - len(head) - len(tail)
+    if len(cmd) > room:
+        cmd = cmd[:max(0, room - 3)] + "..."
+    return head + cmd + tail
+
+
+def _file_fix_lines(tid, origin, attempt, failing):
+    brief = _fix_brief(tid, origin, attempt, failing)
+    return [
+        "Before the card, file the diagnosis yourself with this exact "
+        "command, from the workspace:",
+        "",
+        "  board ask-cluster %s --fixes %s %s"
+        % (shlex.quote(tid or ""), origin, shlex.quote(brief)),
+        "",
+        "That turn reads the log beside the data and writes the cause and "
+        "the fix into its note; it edits nothing. Its report wakes you to "
+        "apply the fix here and rerun. The card says the job failed, what "
+        "the error and RELAY: lines say, and that you filed fix attempt %d "
+        "of %d for %s. Leave the thread's tasks as they are until the rerun "
+        "reports." % (attempt, MAX_FIXES, origin)]
+
+
+def _chain_records(root, origin):
+    """`(fix turns, the latest recipe record)` for the chain of `origin`."""
+    turns, recipes = fix_chain(root, origin)
+    latest = recipes[-1] if recipes else next(
+        (r for r in relayed(root) if r["request"] == origin), None)
+    return turns, latest
+
+
+def _failed_recipe_said(root, rec):
+    """A failed recipe where relay turns are on: file a fix, or give up."""
+    tid = rec.get("thread")
+    origin = rec.get("fixes") or rec["request"]
+    turns, _ = _chain_records(root, origin)
+    if len(turns) < MAX_FIXES:
+        return _file_fix_lines(tid, origin, len(turns) + 1, rec), False
+    lines = ["It did NOT end cleanly, and this was the last of %d automatic "
+             "fix attempts for %s. Do not file another or rerun it. The card "
+             "says it gave up after %d fix attempts, what each fix turn's "
+             "note said, and that the owner decides next. Leave the thread's "
+             "tasks as they are." % (MAX_FIXES, origin, MAX_FIXES), "",
+             "The fix turns:"]
+    lines += ["  %s: %s" % (t["request"], str(t.get("note") or "no note")[:300])
+              for t in turns]
+    return lines, False
+
+
+def _rerun_argv(root, tid, origin, latest):
+    """`board job` for the latest recipe in the chain, as a list of words."""
+    req = next((r for r in requests(root)
+                if r.get("id") == (latest or {}).get("request")), None) or {}
+    argv = ["board", "job", tid or "", "--fixes", origin]
+    for p in req.get("produces") or []:
+        argv += ["--produces", str(p)]
+    for p in req.get("export") or []:
+        argv += ["--export", str(p)]
+    argv += ["--", str(req.get("recipe") or "<recipe>")]
+    env = req.get("env") if isinstance(req.get("env"), dict) else {}
+    argv += ["%s=%s" % (k, env[k]) for k in sorted(env)]
+    return argv
+
+
+def _thread_files_and_check(root, tid):
+    """`(the thread's files, its own check script, the workspace's check)`,
+    each workspace-relative or `""`."""
+    from .course import config as course_config
+    files, own = [], ""
+    try:
+        clean, _ = course_threads.read(root)
+        one = course_threads.thread(clean, tid) if clean else None
+        files = [f for f in (course_threads._rel(p)
+                             for p in (one or {}).get("files") or []) if f]
+        own = str((one or {}).get("check") or "")
+    except Exception:                                        # noqa: BLE001
+        pass
+    try:
+        line = course_config.read_config(root).get("check_line") or ""
+    except Exception:                                        # noqa: BLE001
+        line = ""
+    return files, own, str(line)
+
+
+def _apply_fix_lines(root, tid, origin, k, latest):
+    """The Mac applies a fix turn's FIX, checks it, ships it, and reruns."""
+    files, own, check = _thread_files_and_check(root, tid)
+    argv = _rerun_argv(root, tid, origin, latest)
+    recipe = argv[argv.index("--") + 1]
+    if recipe not in files and recipe != "<recipe>":
+        files = files + [recipe]
+    tests = []
+    if check:
+        tests.append("the workspace's check, %s" % check)
+    if own:
+        tests.append("the thread's own check, %s" % own)
+    return [
+        "This was fix attempt %d of %d for %s. The cluster's note above "
+        "gives the CAUSE and the FIX. Before the card:" % (k, MAX_FIXES,
+                                                          origin),
+        "",
+        "1. Apply that FIX yourself, here, in the files of thread %s and its "
+        "recipe: %s. Change nothing else." % (tid, ", ".join(files)
+                                              or "(none listed)"),
+        "2. Run %s, and any test the thread names. If a check fails, or the "
+        "FIX cannot be applied as written, stop: do not rerun, and the card "
+        "says what you tried and that the owner decides."
+        % (" and ".join(tests) or "the tests the thread names (this "
+                                  "workspace declares no check)"),
+        "3. Ship it: board push \"%s: <what changed>\" -- <the paths you "
+        "changed>. If the push is refused, stop the same way: a rerun of "
+        "code the cluster has not pulled runs the old code." % tid,
+        "4. Rerun with this exact command. Where the FIX is a VAR value, "
+        "change that value and nothing else:",
+        "",
+        "  " + " ".join(shlex.quote(a) for a in argv),
+        "",
+        "The card says what the cluster found, what you changed, and that "
+        "the rerun is filed. Leave the thread's tasks as they are until the "
+        "rerun reports."]
+
+
+def _fix_turn_said(root, rec):
+    """A fix turn's report: apply its fix and rerun, file the next attempt,
+    or give up."""
+    tid, origin = rec.get("thread"), rec["fixes"]
+    turns, latest = _chain_records(root, origin)
+    ids = [t["request"] for t in turns]
+    k = ids.index(rec["request"]) + 1 if rec["request"] in ids else len(ids)
+    if not failed(rec) and found_fix(rec.get("note")):
+        return _apply_fix_lines(root, tid, origin, k, latest), False
+    if failed(rec) and len(turns) < MAX_FIXES:
+        return ["This fix turn, attempt %d of %d for %s, did NOT end cleanly."
+                % (k, MAX_FIXES, origin), ""] + _file_fix_lines(
+                    tid, origin, len(turns) + 1, latest or rec), False
+    if failed(rec):
+        why = ("it did not end cleanly, and it was the last of %d fix "
+               "attempts" % MAX_FIXES)
+    else:
+        why = "its note gives no CAUSE and FIX"
+    return ["This was fix attempt %d of %d for %s. It found no fix to apply: "
+            "%s. Do not rerun or file another fix. The card says what it "
+            "checked and that the owner decides next. Leave the thread's "
+            "tasks as they are." % (k, MAX_FIXES, origin, why)], False
+
+
+def _refused_fix_said(rec):
+    """A refused fix turn or rerun: the chain stops, and the owner decides."""
+    what = "fix turn" if rec.get("kind") == "turn" else "rerun"
+    return ["The cluster would not run this %s for %s. Do not file it again, "
+            "and file no other fix or rerun for %s: the card lists what it "
+            "refused and that the owner decides next. Leave the thread's "
+            "tasks as they are." % (what, rec["fixes"], rec["fixes"])]
+
+
+def open_fix(root, thread, recipe):
+    """`""`, or the request a plain `board job <thread> -- <recipe>` would
+    rerun outside its fix chain: a recipe request on the thread with fix turns
+    filed for it, whose chain's newest recipe is this one and failed. Such a
+    rerun carries `--fixes`, or the cap on fix turns could not count it."""
+    recipe = course_threads._rel(recipe) or ""
+    recs = relayed(root)
+    reqs = dict((r.get("id"), r) for r in requests(root))
+    origins = sorted(set(r["fixes"] for r in recs if r.get("kind") == "turn"
+                         and r.get("fixes")))
+    for origin in origins:
+        chain = [r for r in recs if r.get("kind") == "recipe" and (
+            r["request"] == origin or r.get("fixes") == origin)]
+        if not chain or reqs.get(origin, {}).get("thread") != thread:
+            continue
+        newest = max(chain, key=lambda r: (float(r.get("submitted") or 0),
+                                           r["request"]))
+        mine = course_threads._rel(
+            (reqs.get(newest["request"]) or {}).get("recipe")) or ""
+        if mine == recipe and ended_failed(newest):
+            return origin
+    return ""
 
 
 def sense(root, rec):
@@ -830,12 +1070,16 @@ FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
                   "SHELL", "IFS", "PROMPT_COMMAND")
 REQUEST_KEYS = {
     "recipe": ("id", "kind", "thread", "recipe", "env", "produces", "export",
-               "filed"),
-    "turn": ("id", "kind", "thread", "brief", "filed"),
+               "filed", "fixes"),
+    "turn": ("id", "kind", "thread", "brief", "filed", "fixes"),
     "colibri": ("id", "kind", "thread", "brief", "filed"),
 }
 MAX_BRIEF = 2000
 MAX_VALUE = 200
+# A failed recipe request gets at most this many automatic fix turns. `fixes`
+# on a turn or a rerun names the request that failed first, so the chain stays
+# flat and the count is the turns on disk whose `fixes` names it.
+MAX_FIXES = 2
 
 
 def has_slurm():
@@ -934,6 +1178,10 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
     if filed is not None and (isinstance(filed, bool)
                               or not isinstance(filed, (int, float))):
         problems.append("`filed` is seconds since the epoch")
+    fixes = req.get("fixes")
+    if "fixes" in req and (not isinstance(fixes, str)
+                           or not REQUEST_ID_RE.match(fixes) or fixes == rid):
+        problems.append("`fixes` names a request id")
 
     tid = req.get("thread")
     one = course_threads.thread(clean, tid) if clean else None
@@ -960,6 +1208,8 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
             problems.append("this workspace has not opted in to Colibri tasks: "
                             "`relay.colibri: true` in its tutorboard.json")
         out["brief"] = brief.strip() if isinstance(brief, str) else ""
+        if fixes is not None:
+            out["fixes"] = fixes
         return (None, problems) if problems else (out, [])
 
     recipe = course_threads._rel(req.get("recipe"))
@@ -1015,7 +1265,62 @@ def validate(req, clean, tracked, declared, taken=(), turns=False,
             export.append(rel)
     out.update({"recipe": recipe, "env": dict(env), "produces": produces,
                 "export": export})
+    if fixes is not None:
+        out["fixes"] = fixes
     return (None, problems) if problems else (out, [])
+
+
+def fix_problems(req, filed, failed_ids, mine=False):
+    """Every problem with this request's `fixes`, `[]` without one. PURE.
+
+        req         the request
+        filed       the requests already filed, as `requests` reads them
+        failed_ids  the ids of the requests whose report says they failed
+                    (`ended_failed`)
+        mine        the cluster checking a request already filed: only the
+                    fix turns filed before it count against the cap
+
+    `fixes` names a recipe request on the same thread that is itself no fix
+    and has failed: the one that failed first. A third fix turn for it is
+    refused, on both machines, which is what stops a job that keeps failing.
+    """
+    if not isinstance(req, dict) or req.get("fixes") is None:
+        return []
+    origin, rid = req.get("fixes"), req.get("id")
+    if not isinstance(origin, str):
+        return []                                   # `validate` says why
+    by_id = dict((r.get("id"), r) for r in filed or () if isinstance(r, dict))
+    target = by_id.get(origin)
+    if not target:
+        return ["`fixes` names %s, which is not a filed request" % origin]
+    problems = []
+    if target.get("kind") != "recipe":
+        problems.append("`fixes` names %s, which is a %s request, not a "
+                        "recipe" % (origin, target.get("kind") or "kindless"))
+    if target.get("thread") != req.get("thread"):
+        problems.append("`fixes` names %s, which is on thread %s, not %s"
+                        % (origin, target.get("thread"), req.get("thread")))
+    if target.get("fixes"):
+        problems.append("`fixes` names %s, which fixes %s itself; name the "
+                        "request that failed first" % (origin,
+                                                       target["fixes"]))
+    elif origin not in set(failed_ids or ()):
+        problems.append("`fixes` names %s, which has no report here saying "
+                        "it failed" % origin)
+    if req.get("kind") == "turn":
+        def when(r):
+            f = r.get("filed")
+            f = 0.0 if isinstance(f, bool) or not isinstance(
+                f, (int, float)) else float(f)
+            return (f, str(r.get("id") or ""))
+        before = [r for r in by_id.values()
+                  if r.get("kind") == "turn" and r.get("fixes") == origin
+                  and r.get("id") != rid
+                  and (not mine or when(r) < when(req))]
+        if len(before) >= MAX_FIXES:
+            problems.append("request %s has had %d automatic fix turns, and "
+                            "the cap is %d" % (origin, len(before), MAX_FIXES))
+    return problems
 
 
 def _git_lines(root, argv):
@@ -1052,6 +1357,19 @@ def context(root, recipes=()):
         except OSError:
             declared[rel] = ({}, [])
     clean, _ = course_threads.read(root)
+    relay = relay_opts(root)
+    filed = requests(root)
+    taken = set(r["id"] for r in filed)
+    failed_ids = set(r["request"] for r in relayed(root) if ended_failed(r))
+    return {"clean": clean, "tracked": tracked, "declared": declared,
+            "taken": taken, "turns": relay.get("turns") is True,
+            "colibri": relay.get("colibri") is True, "filed": filed,
+            "failed": failed_ids}
+
+
+def relay_opts(root):
+    """The `relay` object of this workspace's `tutorboard.json`, `{}` where
+    it has none: `turns` and `colibri` are its opt-ins."""
     relay = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r",
@@ -1059,12 +1377,7 @@ def context(root, recipes=()):
             relay = (json.load(fh) or {}).get("relay") or {}
     except (OSError, ValueError, AttributeError):
         pass
-    if not isinstance(relay, dict):
-        relay = {}
-    taken = set(r["id"] for r in requests(root))
-    return {"clean": clean, "tracked": tracked, "declared": declared,
-            "taken": taken, "turns": relay.get("turns") is True,
-            "colibri": relay.get("colibri") is True}
+    return relay if isinstance(relay, dict) else {}
 
 
 def check(root, req, mine=False):
@@ -1080,8 +1393,13 @@ def check(root, req, mine=False):
     taken = ctx["taken"]
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
-    return validate(req, ctx["clean"], ctx["tracked"], ctx["declared"],
-                    taken, ctx["turns"], ctx["colibri"])
+    ok, problems = validate(req, ctx["clean"], ctx["tracked"],
+                            ctx["declared"], taken, ctx["turns"],
+                            ctx["colibri"])
+    extra = fix_problems(req, ctx["filed"], ctx["failed"], mine)
+    if extra:
+        return None, problems + extra
+    return ok, problems
 
 
 def _slug(text):
@@ -1140,6 +1458,13 @@ def reports(root):
     return dict((r["id"], r) for r in _read_json_dir(reports_dir(root)))
 
 
+def _strings(value):
+    """A request's path list as strings, and `[]` for anything that is not a
+    list: `relayed` is read on every check on both machines, so one malformed
+    request file must not stop every check in the workspace."""
+    return [str(v) for v in value] if isinstance(value, list) else []
+
+
 def relayed(root):
     """The requests, each folded with its report, as registry records.
 
@@ -1158,17 +1483,22 @@ def relayed(root):
         elif req.get("kind") == "colibri":
             cmd = "colibri: " + str(req.get("brief") or "")[:120]
         else:
+            env = req.get("env")
             cmd = " ".join([str(req.get("recipe") or "")] + [
                 "%s=%s" % (k, v) for k, v in sorted(
-                    (req.get("env") or {}).items())])
+                    (env if isinstance(env, dict) else {}).items(),
+                    key=lambda kv: str(kv[0]))])
         rec = {
             "jobid": "relay:" + rid, "request": rid,
             "kind": req.get("kind") or "", "thread": req.get("thread"),
             "cmd": cmd[:CMD_CHARS], "state": state,
-            "produces": list(req.get("produces") or []),
-            "export": list(req.get("export") or []),
-            "submitted": float(rep.get("submitted") or req.get("filed") or 0),
+            "produces": _strings(req.get("produces")),
+            "export": _strings(req.get("export")),
+            # A malformed `filed` reads as 0 rather than stopping every reader.
+            "submitted": _when(rep.get("submitted") or req.get("filed") or 0),
         }
+        if req.get("fixes"):
+            rec["fixes"] = req["fixes"]
         for key in ("exit", "ended", "note", "produced", "missing",
                     "exported", "export_refused", "relay", "error",
                     "problems"):
@@ -1178,6 +1508,16 @@ def relayed(root):
             rec["slurm"] = str(rep["jobid"])
         out.append(rec)
     return out
+
+
+def fix_chain(root, origin):
+    """`(turns, recipes)`: the records whose `fixes` names `origin`, the fix
+    turns and the reruns, each oldest first."""
+    chain = sorted((r for r in relayed(root) if r.get("fixes") == origin),
+                   key=lambda r: (float(r.get("submitted") or 0),
+                                  r["request"]))
+    return ([r for r in chain if r.get("kind") == "turn"],
+            [r for r in chain if r.get("kind") == "recipe"])
 
 
 def view(root):

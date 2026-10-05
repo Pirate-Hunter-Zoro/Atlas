@@ -53,12 +53,13 @@ The assistant runs these. The student never does.
     board thread export <thread> <results/path> [--aggregate]
                                        ask the owner whether an artifact may
                                        be published to exports/; record yes
-    board job <thread> [--produces <p>] [--export <p>] -- <recipe> [VAR=v ...]
+    board job <thread> [--produces <p>] [--export <p>] [--fixes <id>]
+              -- <recipe> [VAR=v ...]
                                        long work registered to a thread: with
                                        Slurm it submits, without it files a
                                        relay request for the cluster. Its
                                        ending wakes a turn. --show lists them
-    board ask-cluster <thread> "<brief>"
+    board ask-cluster <thread> [--fixes <id>] "<brief>"
                                        file a `turn` request: a cluster turn
                                        beside the data, its note public
     board hold|release <thread>        on the cluster: the thread's files are
@@ -2757,14 +2758,18 @@ def cmd_job(live, args):
     """Long work, registered to a thread, so it reports itself.
 
         board job <thread> [--produces <path>]... [--export <path>]...
-            -- <recipe> [VAR=value ...]
+            [--fixes <id>] -- <recipe> [VAR=value ...]
 
     `<recipe>` is a tracked `.sbatch` file in this workspace. `VAR=value` sets
     a variable its header declares, one `#RELAY-VAR NAME PATTERN` line per
     variable; anything undeclared is refused. `--produces` and `--export` are
     workspace-relative; an `--export` path must be marked aggregate on the
     thread (`board thread export`). `<thread>` may be left out where the
-    sitting open now is on a thread.
+    sitting open now is on a thread. `--fixes <id>` files it as the rerun of
+    a recipe request that failed, naming the one that failed first; it is a
+    relay request's word, so with Slurm it is refused. Without Slurm, a rerun
+    of a recipe whose fix chain is open must carry it (`jobs.open_fix`), so
+    the cap on fix turns counts every attempt.
 
     ON A MACHINE WITH SLURM it submits the recipe wrapped so its exit code is
     written to `relay/state/` (`jobs.submit_recipe`, `--export=ALL,...`), and
@@ -2805,10 +2810,14 @@ def cmd_job(live, args):
         return 1
     cut = args.index("--")
     head, argv = args[:cut], args[cut + 1:]
-    produces, export, words, i = [], [], [], 0
+    produces, export, words, fixes, i = [], [], [], None, 0
     while i < len(head):
         if head[i] in ("--produces", "--export") and i + 1 < len(head):
             (produces if head[i] == "--produces" else export).append(head[i + 1])
+            i += 2
+            continue
+        if head[i] == "--fixes" and i + 1 < len(head):
+            fixes = head[i + 1]
             i += 2
             continue
         words.append(head[i])
@@ -2832,6 +2841,11 @@ def cmd_job(live, args):
     slurm = jobs.has_slurm()
     if not argv:
         print("board job: name the recipe after `--`", file=sys.stderr)
+        return 1
+    if fixes is not None and slurm:
+        print("board job: `--fixes` links a relay request; on the cluster "
+              "`board job` submits directly. Nothing was submitted.",
+              file=sys.stderr)
         return 1
 
     if os.path.basename(argv[0]) == "sbatch":
@@ -2860,7 +2874,15 @@ def cmd_job(live, args):
            "produces": produces, "export": export}
     if not slurm:
         req["filed"] = round(time.time(), 3)
+    if fixes is not None:
+        req["fixes"] = fixes
     ok, problems = jobs.check(root, req)
+    origin = "" if slurm or fixes is not None else jobs.open_fix(
+        root, tid, recipe)
+    if origin:
+        problems = list(problems) + [
+            "%s failed and has a fix chain open, so its rerun names it: add "
+            "`--fixes %s`" % (origin, origin)]
     if problems:
         print("board job: %d problem(s), and nothing was %s:" % (
             len(problems), "submitted" if slurm else "filed"), file=sys.stderr)
@@ -2959,7 +2981,7 @@ def _request_filed(root, req):
 def cmd_ask_cluster(live, args):
     """File a `turn` request: a headless turn on the cluster, beside the data.
 
-        board ask-cluster [<thread>] "<brief>"
+        board ask-cluster [<thread>] [--fixes <id>] "<brief>"
 
     For work that needs judgement next to the data: why a job failed, which
     rerun to choose, what an output too large to export says. The turn runs
@@ -2967,9 +2989,17 @@ def cmd_ask_cluster(live, args):
     carries aggregate numbers only. The workspace opts in with
     `relay.turns: true` in its tutorboard.json. Committed and pushed like a
     `board job` request.
+
+    `--fixes <id>` makes it a fix turn for that failed recipe request: it
+    reads the log, edits nothing, and its note gives the cause and the fix,
+    which the Mac applies before it reruns.
     """
     root = live.root
-    words = list(args)
+    words, fixes = list(args), None
+    if "--fixes" in words[:-1]:
+        at = words.index("--fixes")
+        fixes = words[at + 1]
+        del words[at:at + 2]
     if not words or not words[-1].strip():
         print("board ask-cluster: say what the cluster turn is to do",
               file=sys.stderr)
@@ -2979,9 +3009,11 @@ def cmd_ask_cluster(live, args):
     if not tid:
         return 1
     taken = set(r["id"] for r in jobs.requests(root))
-    req = {"id": jobs.new_id(tid, "turn", taken), "kind": "turn",
-           "thread": tid, "brief": brief.strip(),
+    req = {"id": jobs.new_id(tid, "fix" if fixes else "turn", taken),
+           "kind": "turn", "thread": tid, "brief": brief.strip(),
            "filed": round(time.time(), 3)}
+    if fixes is not None:
+        req["fixes"] = fixes
     ok, problems = jobs.check(root, req)
     if problems:
         print("board ask-cluster: %d problem(s), and nothing was filed:"

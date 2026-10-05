@@ -169,6 +169,65 @@ check("and is refused where it has not",
 check("a turn with no brief is refused",
       vc(dict(turn, brief="  "), turns=True)[0] is None)
 
+# --- `fixes`: a fix turn or a rerun, linked to the request that failed first --
+origin = "2026-10-03-knn-sweep"
+fix = dict(turn, id="2026-10-03-knn-fix", fixes=origin)
+ok, problems = vc(fix, turns=True)
+check("a turn with a valid `fixes` passes, carrying it",
+      problems == [] and ok["fixes"] == origin)
+check("a `fixes` that is not a request id is refused",
+      any("`fixes`" in p for p in vc(dict(fix, fixes="BAD ID"),
+                                      turns=True)[1]))
+check("and so is one naming the request itself",
+      vc(dict(fix, fixes=fix["id"]), turns=True)[0] is None)
+ok, problems = vc(dict(good, id="2026-10-03-knn-rerun", fixes=origin))
+check("a recipe with `fixes` passes, carrying it",
+      problems == [] and ok["fixes"] == origin)
+check("a colibri request has no `fixes`",
+      any("`fixes`" in p for p in jobs.validate(
+          {"id": "c-1", "kind": "colibri", "thread": "knn", "brief": "x",
+           "fixes": origin}, clean, tracked, declared_clean, (), True,
+          True)[1]))
+
+failed_first = dict(good, id=origin)
+on_disk = [failed_first]
+failed = {origin}
+check("fix_problems: no `fixes`, no problems",
+      jobs.fix_problems(turn, on_disk, failed) == [])
+check("fix_problems: a `fixes` naming nothing filed is refused",
+      any("not a filed request" in p for p in jobs.fix_problems(
+          dict(fix, fixes="2026-01-01-ghost"), on_disk, failed)))
+check("fix_problems: a `fixes` naming a turn is refused",
+      any("not a recipe" in p for p in jobs.fix_problems(
+          dict(fix, fixes="t-0"), on_disk + [dict(turn, id="t-0")], failed)))
+check("fix_problems: a `fixes` naming a rerun is refused: name the first",
+      any("failed first" in p for p in jobs.fix_problems(
+          dict(fix, fixes="rr"), on_disk + [dict(good, id="rr",
+                                                 fixes=origin)],
+          failed | {"rr"})))
+check("fix_problems: a `fixes` naming another thread's request is refused",
+      any("thread tripod" in p for p in jobs.fix_problems(
+          fix, [dict(failed_first, thread="tripod")], failed)))
+one_prior = on_disk + [dict(fix, id="f-1", filed=1.0)]
+two_prior = one_prior + [dict(fix, id="f-2", filed=2.0)]
+check("fix_problems: one fix turn before it, still allowed",
+      jobs.fix_problems(fix, one_prior, failed) == [])
+said = jobs.fix_problems(dict(fix, filed=3.0), two_prior, failed)
+check("fix_problems: two before it, the third is refused at the cap",
+      len(said) == 1 and "cap is 2" in said[0])
+check("fix_problems: the cluster checking one filed counts only those "
+      "before it", jobs.fix_problems(dict(fix, id="f-2", filed=2.0),
+                                     two_prior, failed, mine=True) == [])
+check("fix_problems: a rerun recipe is not a fix turn and has no cap",
+      jobs.fix_problems(dict(good, id="rr", fixes=origin), two_prior,
+                        failed) == [])
+said = jobs.fix_problems(fix, on_disk, set())
+check("fix_problems: a `fixes` naming a request with no failed report is "
+      "refused, for a fix turn and a rerun alike",
+      len(said) == 1 and "saying it failed" in said[0]
+      and jobs.fix_problems(dict(good, id="rr", fixes=origin), on_disk, ())
+      != [])
+
 # --- the merged registry, and `requested` ----------------------------------------
 base = tempfile.mkdtemp(prefix="tutor-requests-")
 try:
@@ -323,6 +382,43 @@ try:
     check("ask-cluster is refused where the workspace has not opted in",
           code == 1 and "relay.turns" in out)
 
+    # --- `--fixes`: the Mac files a fix turn, then the rerun ------------------
+    write(os.path.join(proj, "tutorboard.json"),
+          json.dumps({"name": "Proj", "relay": {"turns": True}}))
+    first = filed[0]["id"]
+    code, out = board("ask-cluster", "knn", "--fixes", first,
+                      "Read the log and say the fix.")
+    check("`--fixes` naming a request with no failed report is refused",
+          code == 1 and "saying it failed" in out
+          and not [r for r in jobs.requests(proj) if r.get("kind") == "turn"])
+    write(os.path.join(proj, "relay", "reports", first + ".json"),
+          json.dumps({"id": first, "state": "failed", "exit": "1:0"}))
+    code, out = board("ask-cluster", "knn", "--fixes", first,
+                      "Read the log and say the fix.")
+    fixed = [r for r in jobs.requests(proj) if r.get("kind") == "turn"]
+    check("`board ask-cluster --fixes` files a fix turn naming the request",
+          code == 0 and len(fixed) == 1 and fixed[0]["fixes"] == first
+          and "-fix" in fixed[0]["id"]
+          and fixed[0]["brief"] == "Read the log and say the fix.")
+    code, out = board("job", "knn", "--", "slurm/sweep.sbatch",
+                      "EMBEDDER=bge-small")
+    check("then a rerun without `--fixes` is refused, naming the flag",
+          code == 1 and "--fixes %s" % first in out
+          and len(jobs.requests(proj)) == 2)
+    code, out = board("job", "knn", "--fixes", first, "--",
+                      "slurm/sweep.sbatch", "EMBEDDER=bge-small")
+    rerun = [r for r in jobs.requests(proj)
+             if r.get("kind") == "recipe" and r.get("fixes")]
+    check("`board job --fixes` files the rerun, naming it too",
+          code == 0 and len(rerun) == 1 and rerun[0]["fixes"] == first
+          and rerun[0]["env"] == {"EMBEDDER": "bge-small"})
+    p = subprocess.run([sys.executable, BOARD, "job", "knn", "--fixes", first,
+                        "--", "slurm/sweep.sbatch"], cwd=proj,
+                       env=dict(env, TUTOR_SLURM="1"), stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, timeout=60)
+    check("and with Slurm `--fixes` is refused: it links a relay request",
+          p.returncode == 1 and b"--fixes" in p.stdout)
+
     # --- `board thread export` ---------------------------------------------------
     code, out = board("thread", "export", "tripod", "results/t.csv")
     check("`board thread export` lists it unanswered and prints the question",
@@ -348,6 +444,8 @@ with open(recipe, encoding="utf-8") as fh:
     names, said = jobs.declarations(fh.read())
 check("TRD-EHR's neighbour sweep declares EMBEDDER and REDRAW for the relay",
       said == [] and sorted(names) == ["EMBEDDER", "REDRAW"])
+check("TRD-EHR has opted in to relay turns, so a failed job is diagnosed there",
+      jobs.context(os.path.join(REPO, "research", "TRD-EHR"))["turns"] is True)
 for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):
