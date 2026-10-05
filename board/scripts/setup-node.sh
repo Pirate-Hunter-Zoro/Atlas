@@ -107,10 +107,16 @@ changed = False
 # a log while the board shows an assistant listening.
 import shutil
 agent = cfg.get("default_agent") or "claude"
-if agent != cfg.get("default_agent"):
+if shutil.which("sbatch"):
+    # No hosted model call on an institute machine: a node runs no tutor, so
+    # it names none, and every model turn is the Mac's.
+    print("  ok    no tutor on this node: every model turn runs on the Mac")
+elif agent != cfg.get("default_agent"):
     cfg["default_agent"] = agent
     changed = True
-if shutil.which(agent):
+if shutil.which("sbatch"):
+    pass
+elif shutil.which(agent):
     print("  ok    default_agent: %s" % agent)
 else:
     print("  ----  default_agent: %s — not on the path here, so every turn would"

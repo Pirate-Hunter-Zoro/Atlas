@@ -2685,7 +2685,7 @@ when                 turn session  trips     tokens  cacheread cachewrit      ou
 2026-09-08 11:34:11     1 fresh       10     442.6k     392.5k      43.0k     7.0k    0.804
 2026-09-08 11:38:02     2 fresh        6     225.5k     201.1k      21.2k     3.2k    0.394
 
-Galois-Theory — 2 turn(s) on compute301, 2 of them their own session
+Galois-Theory — 2 turn(s) on mac-mini, 2 of them their own session
   334.0k tokens a turn  (1.19% of a window), 8.0 round trips a turn
   668.1k tokens in total  (2.39% of a window), $1.20
   dearest turn: 442.6k tokens  (1.58% of a window) over 10 round trips
@@ -3156,15 +3156,15 @@ unrestartable while still answering perfectly.
 - **`board vpn up --hostname <name>`** sets the tailnet name, once. It moves the one origin the app
   is installed against, so nothing does it for you.
 
-> **If you are a tutor putting a compute node right, there is one command:**
+> **If you are putting a compute node right, there is one command:**
 >
 > ```
 > bash scripts/setup-node.sh [--tailnet-name <node-name>]
 > ```
 >
-> It pulls, checks the machine's name is not pinned, picks the tutor this machine can actually run,
-> and restarts the boards and tutors so they are on the code it just pulled. Every step is idempotent and reports what it found, so running it again
-> when you are unsure costs nothing.
+> It pulls and checks the machine's name is not pinned. It names no tutor where Slurm is, because
+> every model turn runs on the Mac. Every step is idempotent and reports what it found, so running
+> it again when you are unsure costs nothing.
 >
 > The one thing it will not do for you is `board vpn up --hostname <node-name>`, for the reason
 > above; it tells you when it is needed.

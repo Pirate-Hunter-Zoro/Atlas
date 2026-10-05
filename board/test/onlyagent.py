@@ -26,6 +26,7 @@ import importlib.util
 import io
 import json
 import os
+import atexit
 import shutil
 import subprocess
 import sys
@@ -51,6 +52,8 @@ def check(name, cond):
 
 
 box = tempfile.mkdtemp(prefix="onlyagent-")
+# Removed however the suite ends, an exception included.
+atexit.register(shutil.rmtree, box, True)
 
 # ---- the configuration: the machine's, copied, plus the switch ---------------
 real_dir = os.path.join(os.environ.get("XDG_CONFIG_HOME")
@@ -113,7 +116,8 @@ ENV = dict(os.environ,
            ONLY_FAKE_STATE=state,
            BOARD_STATE_DIR=os.path.join(box, "board-state"),
            BOARD_NO_TAILNET="1")
-for k in [k for k in ENV if k.startswith("ANTHROPIC_")]:
+# The shell's own provider variables would stand in for the copy's keys.env.
+for k in [k for k in ENV if k.startswith("ANTHROPIC_") or k == "DEEPSEEK_API_KEY"]:
     del ENV[k]
 os.environ.clear()
 os.environ.update(ENV)
@@ -233,8 +237,6 @@ for name in SUITES:
         for line in out.splitlines():
             if line.startswith("FAIL") or "Error" in line:
                 print("       " + line)
-
-shutil.rmtree(box, ignore_errors=True)
 
 print()
 if fails:
