@@ -1,11 +1,12 @@
 {
-  "attempts": 0,
+  "attempts": 1,
   "deaths": 0,
   "id": "2026-10-05-colibri-colibri",
+  "jobid": "2119308",
   "kind": "colibri",
   "note": "",
-  "state": "submitted",
+  "state": "running",
   "submitted": 1791221733.5417836,
   "task": "coli-20261005-123533-adb9",
-  "updated": 1791221727.125
+  "updated": 1791222326.457
 }
