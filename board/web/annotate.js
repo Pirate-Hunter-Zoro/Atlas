@@ -78,12 +78,15 @@ function like(s, p, pr) {
 }
 
 /* WHICH KIND OF INK THE NEXT STROKE IS. The library reader sets it from its
-   toggle: `"dir"` stamps `dir: 1` on every stroke drawn from now on (a paste
-   keeps the kind it was copied with),
+   toggle: `"dir"` stamps `dir: 1` on every stroke drawn from now on,
    because that ink is a direction for the work and is sent apart from the
    fixes. Nothing else sets it, so a stroke with no field is a fix -- on the
    board, on `/meeting`, and in any unstamped ink. */
 var penKind = null;
+/* WHETHER A PASTE KEEPS ITS KIND. Only the library reader sends the kinds
+   apart (`keepKinds`); pasted anywhere else, a copied direction is a fix,
+   because no other surface has a send that would ever carry it. */
+var kinded = false;
 
 /* Painted-path caches live on the stroke but never reach the disk: a path in
    pixels of one geometry is no use to any other, and it is most of the bytes. */
@@ -1074,8 +1077,8 @@ var CLIP = {
       var got = { c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr };
       if (cv._page) { got.w = got.w * PAGE_REF / w; got.pg = 1; }
       /* A paste keeps the kind it was drawn as, whatever the toggle says
-         now: only a stroke drawn fresh takes the pen's kind. */
-      if (s.dir) got.dir = 1;
+         now -- on a surface that keeps kinds at all (`kinded`). */
+      if (s.dir && kinded) got.dir = 1;
       all.push(got);
     });
     store[id] = all;
@@ -2439,6 +2442,31 @@ window.Annotate = {
   /* The kind of ink the pen draws from now on: "dir", or a fix. */
   setKind: function (k) { penKind = k === "dir" ? "dir" : null; },
   kind: function () { return penKind; },
+  /* Whether a pasted direction stays one on this page: the library reader's
+     call, and nobody else's. */
+  keepKinds: function (v) { kinded = !!v; },
+  /* Take off one key's strokes that `gone` says the server already took off
+     (`library.wiped`), keeping the rest, and save what is left. Out of the
+     undo history too, as `drop` does. Returns how many went. */
+  shed: function (id, gone) {
+    var list = store[id];
+    if (!list || !list.length || typeof gone !== "function") return 0;
+    var left = list.filter(function (s) { return !gone(saved(s)); });
+    if (left.length === list.length) return 0;
+    if (pick && pick.id === id) pick = null;
+    store[id] = left;
+    delete asLoaded[id];
+    dirty[id] = true;
+    handed[id] = false;
+    var keep = function (snap) { return snap.id !== id; };
+    var p = past.filter(keep), f = future.filter(keep);
+    past.length = 0; Array.prototype.push.apply(past, p);
+    future.length = 0; Array.prototype.push.apply(future, f);
+    var node = nodeFor(id);
+    if (node) draw(node);
+    onChange();
+    return list.length - left.length;
+  },
   payload: function (id, send) {
     /* The picture ONLY when it is actually going to the tutor.
 

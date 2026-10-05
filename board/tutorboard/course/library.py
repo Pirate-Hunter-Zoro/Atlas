@@ -32,6 +32,7 @@ Standard library only, like everything else.
 """
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -542,6 +543,7 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
         except Exception:                                    # noqa: BLE001
             pass
         out["ink"] = ink(repo, doc)
+        out["wiped"] = wiped(repo, doc)
         # THE BUILD ON THE GLASS, which the reader hands back with every save
         # so the record says what the marks were drawn on.
         out["build"] = {"digest": out.get("digest") or "",
@@ -975,6 +977,7 @@ def strip_kind(repo, key, kind):
     it, and a sent direction leaves the fixes. What is left keeps its build.
     `sent` is fix delivery, so it is kept when the directions go and cleared
     when the fixes do. A page with nothing left goes whole, both pictures.
+    The strokes taken are buried (`writing.bury`) and named by `wiped`.
     """
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
@@ -991,10 +994,14 @@ def strip_kind(repo, key, kind):
     if isinstance(rec, dict):
         strokes = rec.get("strokes") or []
         kept = lesson_notes.of_kind(strokes, other)
+        # WHAT GOES IS BURIED (`writing.bury`), once it has gone, so a reader
+        # still showing it cannot save it back.
+        taken = lesson_notes.of_kind(strokes, kind)
         if not kept:
             try:
                 os.remove(path)
                 changed = True
+                writing.bury(repo, key, taken)
             except OSError:
                 pass
             try:
@@ -1010,6 +1017,7 @@ def strip_kind(repo, key, kind):
                 with open(path, "w", encoding="utf-8") as fh:
                     _json.dump(out, fh)
                 changed = True
+                writing.bury(repo, key, taken)
             except OSError:
                 pass
     try:
@@ -1018,6 +1026,50 @@ def strip_kind(repo, key, kind):
     except OSError:
         pass
     return changed
+
+
+def wiped(repo, doc, buried=None):
+    """`{key: strokes}`: the strokes `strip_kind` took off this document's
+    pages that some reader may still be showing (`writing.gone_path`).
+
+    Every reply that hands ink to the reader carries it, because a page the
+    reader holds keeps its own copy (`Annotate.load` never takes a mark away):
+    told which strokes went, it drops them. `buried` is `buried_all`, for a
+    caller asking about every document.
+    """
+    from ..server.routes import writing               # local: avoids a cycle
+
+    buried = buried_all(repo) if buried is None else buried
+    wanted = set(mark_idents(repo.root, doc))
+    out = {}
+    for key, strokes in buried.items():
+        found = writing.ann_doc_page(key)
+        if found and found[0] in wanted and strokes:
+            out[key] = strokes
+    return out
+
+
+def buried_all(repo):
+    """`{key: strokes}` for every page with buried strokes, one pass."""
+    from ..server.routes import writing               # local: avoids a cycle
+
+    out = {}
+    try:
+        names = sorted(os.listdir(repo.notes))
+    except OSError:
+        return out
+    for name in names:
+        if not name.endswith(".gone"):
+            continue
+        try:
+            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        key = rec.get("card") if isinstance(rec, dict) else None
+        if key and writing.ann_ok(str(key)):
+            out[key] = writing.gone_of(repo, key)
+    return out
 
 
 def _filed_ink(repo, doc):
@@ -1315,6 +1367,7 @@ def status(repo):
         sent = lesson_notes.load_notes_sent(repo)
     except Exception:                                        # noqa: BLE001
         sent = {}
+    buried = None
     for doc in found:
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
@@ -1328,8 +1381,10 @@ def status(repo):
         # the page. `index` and `sent` were read before it, so they are pruned
         # of what went rather than read again. A wipe takes fix ink only, so
         # `dindex` stands.
+        went = []
         try:
-            for key in wipe_delivered(repo, doc, sent):
+            went = wipe_delivered(repo, doc, sent)
+            for key in went:
                 sent.pop(key, None)
                 got = writing.ann_doc_page(key)
                 if got and got[0] in index:
@@ -1361,5 +1416,14 @@ def status(repo):
                         "waiting": waiting,
                         "dir": {"pages": len(dink),
                                 "strokes": sum(m["strokes"] for m in dink)}}
+        # WHAT WAS TAKEN OFF ITS PAGES, read after the wipe above, because
+        # this list is often the reply a wipe happens in and an open reader
+        # drops these strokes from its glass (`wiped`).
+        try:
+            if buried is None or went:
+                buried = buried_all(repo)
+            doc["wiped"] = wiped(repo, doc, buried)
+        except Exception:                                    # noqa: BLE001
+            doc["wiped"] = {}
     return {"workspace": atlas.identify(root), "documents": found,
             "writeups": WRITEUPS}

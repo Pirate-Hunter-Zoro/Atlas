@@ -2003,9 +2003,10 @@ async function lazyPagesArePictured() {
     id: ID, dir: 'writeups/lazy', stem: 'lazy', title: 'A long deck',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/lazy/lazy.pdf',
     pages: 4, pdf: true, stale: false, iso: '2026-10-01', notes: [], made: 'board',
-    marks: { pages: 1, strokes: 1, waiting: 1, dir: { pages: 2, strokes: 2 } },
+    marks: { pages: 1, strokes: 1, waiting: 1, dir: { pages: 3, strokes: 3 } },
   }] };
-  const net = { view: { [key(1)]: [FIX], [key(3)]: [DIR], [key(4)]: [DIR] } };
+  const net = { view: { [key(1)]: [FIX], [key(3)]: [DIR], [key(4)]: [DIR], [key(5)]: [DIR] },
+                wiped: null, save: 'ok', hold: null };
   const log = [];
   const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
                                  url: 'https://board.test/library' });
@@ -2040,17 +2041,30 @@ async function lazyPagesArePictured() {
     if (/library\.json/.test(url)) return reply(LIB);
     if (/library\/stamp/.test(url)) return reply({ ok: true, stamp: 's', documents: { [ID]: 'x' } });
     if (/library\/view\//.test(url)) {
-      return reply({ ok: true, n: 4, truncated: false, digest: 'z1',
-                     pages: [1, 2, 3, 4].map((n) => '/paper/z-' + n + '.png'),
+      return reply({ ok: true, n: 5, truncated: false, digest: 'z1',
+                     pages: [1, 2, 3, 4, 5].map((n) => '/paper/z-' + n + '.png'),
                      ink: JSON.parse(JSON.stringify(net.view)),
-                     build: { digest: 'z1', at: 1790000000, pages: 4 }, rebuilt: null });
+                     wiped: JSON.parse(JSON.stringify(net.wiped || {})),
+                     build: { digest: 'z1', at: 1790000000, pages: 5 }, rebuilt: null });
     }
-    if (/annotate\/save/.test(url)) return reply({ ok: true });
+    if (/annotate\/save/.test(url)) {
+      return net.save === 'down' ? Promise.reject(new Error('down')) : reply({ ok: true });
+    }
+    if (/library\/direction/.test(url) && net.hold) {
+      // A send held in the air until the test lets it land.
+      return new Promise((res) => { net.hold.land = () => res({ ok: true, json: () =>
+        Promise.resolve({ ok: true, turn: 't0103', pages: [], kept: [], stripped: [],
+                          images: [], detail: 'Your words went.',
+                          ink: JSON.parse(JSON.stringify(net.view)) }) }); });
+    }
     if (/library\/direction/.test(url)) {
-      // The server's rule: a page whose direction picture arrived is sent and
-      // stripped; one without is kept.
-      const pictured = saves().filter((b) => b.png_kind === 'dir'
-                                       && /^data:image\/png/.test(b.png || '')).map((b) => b.card);
+      // The server's rule: a page the reader says it pictured for this send,
+      // with the direction strokes it has now, is sent and stripped; any
+      // other is kept.
+      const body = JSON.parse((o && o.body) || '{}');
+      net.pictured = body.pictured;
+      const pictured = (body.pictured || []).filter((x) => (net.view[x.key] || [])
+        .filter((y) => y.dir).length === x.n).map((x) => x.key);
       const dirs = Object.keys(net.view).filter((k) => net.view[k].some((x) => x.dir));
       const stripped = dirs.filter((k) => pictured.indexOf(k) >= 0);
       const kept = dirs.filter((k) => pictured.indexOf(k) < 0).map((k) => +k.split('/p')[1]);
@@ -2104,19 +2118,39 @@ async function lazyPagesArePictured() {
     };
   };
 
+  /* A page whose first decode is rejected -- switching lazy to eager started
+     a new request -- and whose image then arrives: the send waits for its
+     `load` and decodes it again. */
+  const retryPage = (n) => {
+    const img = fig(n).querySelector('img');
+    fig(n).getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 0);
+    img.getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 0);
+    let asked = 0;
+    img.decode = () => {
+      asked += 1;
+      if (asked === 1) {
+        setTimeout(() => { decodedPage(n); img.dispatchEvent(new w.Event('load')); }, 10);
+        return Promise.reject(new Error('EncodingError: a new request started'));
+      }
+      return Promise.resolve();
+    };
+    return () => asked;
+  };
+
   click(D.querySelector('.lib-row .lib-name'));
   await sleep(30);
   decodedPage(1);
   decodedPage(2);
   lazyPage(3, true);
   lazyPage(4, false);
+  const decodesOf5 = retryPage(5);
   A.redrawAll();
   const lazyAtFirst = fig(3).querySelector('img').getAttribute('loading') === 'lazy'
     && fig(4).querySelector('img').getAttribute('loading') === 'lazy';
   const flatAtFirst = layer(3)._h;
   const direct = byId('reader-direct');
-  lazyAtFirst && !direct.hidden && direct.textContent === 'send directions · 2'
-    ? ok('lazy: direction ink restored on two pages never scrolled to is offered to send')
+  lazyAtFirst && !direct.hidden && direct.textContent === 'send directions · 3'
+    ? ok('lazy: direction ink restored on pages never scrolled to is offered to send')
     : fail('lazy: pages 3, 4 load ' + fig(3).querySelector('img').getAttribute('loading')
            + '; the send reads ' + (direct.hidden ? 'hidden' : direct.textContent));
 
@@ -2130,9 +2164,15 @@ async function lazyPagesArePictured() {
     ? ok('lazy: the send asks for every page carrying direction ink at once')
     : fail('lazy: page 3 is ' + fig(3).querySelector('img').getAttribute('loading')
            + ', page 4 ' + fig(4).querySelector('img').getAttribute('loading'));
-  dirPics.map((b) => b.card).join('|') === key(3)
-    ? ok('lazy: the page that decoded is pictured, and the one that never did is not')
+  dirPics.map((b) => b.card).sort().join('|') === key(3) + '|' + key(5)
+    ? ok('lazy: the pages that decoded are pictured, and the one that never did is not')
     : fail('lazy: direction pictures were saved for ' + dirPics.map((b) => b.card).join(', '));
+  decodesOf5() === 2
+    ? ok('lazy: a decode rejected by the new request waits for the image and decodes once more')
+    : fail('lazy: page 5 was decoded ' + decodesOf5() + ' times');
+  JSON.stringify(net.pictured) === JSON.stringify([{ key: key(3), n: 1 }, { key: key(5), n: 1 }])
+    ? ok('lazy: the send names the pages it pictured, each with its direction strokes then')
+    : fail('lazy: the send named ' + JSON.stringify(net.pictured));
   flatAtFirst < 600 && layer(3)._h === 600
     ? ok('lazy: its layer is sized against the decoded page before the picture is made')
     : fail('lazy: page 3\'s layer was ' + flatAtFirst + ' tall and is ' + layer(3)._h);
@@ -2184,6 +2224,99 @@ async function lazyPagesArePictured() {
   A.marked().indexOf(key(1)) < 0
     ? ok('lazy: while a page the view no longer has is dropped')
     : fail('lazy: page 1 stayed after the view dropped it: ' + kinds(key(1)));
+
+  // ---- A MIXED PAGE ACROSS A LANDED ROUND, THE READER LEFT OPEN ----------
+  // Page 1 carries a delivered fix and a direction, saved. Page 2 the same,
+  // and a new fix is drawn on it while the board is down, so it is owed. The
+  // round lands: the view hands back each page's direction alone and names
+  // the wiped fixes. The saved page is dropped and taken again; the owed page
+  // keeps its new stroke and sheds the wiped one, so its save cannot write it
+  // back.
+  const F1 = { c: '#e0b45c', w: 2, pg: 1, p: [0.11, 0.21, 0.31, 0.21], pr: [0.5, 0.5] };
+  const F2 = { c: '#e0b45c', w: 2, pg: 1, p: [0.12, 0.31, 0.42, 0.31], pr: [0.5, 0.5] };
+  const D1 = { c: DIR_C, w: 2, pg: 1, dir: 1, p: [0.3, 0.7, 0.6, 0.7], pr: [0.5, 0.5] };
+  const D2 = { c: DIR_C, w: 2, pg: 1, dir: 1, p: [0.3, 0.8, 0.6, 0.8], pr: [0.5, 0.5] };
+  net.view = { [key(1)]: [F1, D1], [key(2)]: [F2, D2], [key(4)]: [DIR] };
+  click(D.querySelector('.lib-row .lib-name'));
+  await sleep(40);
+  [1, 2, 3, 4, 5].forEach(decodedPage);
+  A.redrawAll();
+  if (A.kind()) click(byId('reader-mode'));     // the pen draws fixes
+  net.save = 'down';
+  const r2 = fig(2).getBoundingClientRect();
+  const cv2 = layer(2);
+  pointer('pointerdown', cv2, r2.left + 150, r2.top + 500);
+  for (let x = 170; x <= 450; x += 20) pointer('pointermove', cv2, r2.left + x, r2.top + 500);
+  pointer('pointerup', w, r2.left + 450, r2.top + 500);
+  await sleep(1300);
+  const owedBefore = A.unsaved().indexOf(key(2)) >= 0 && kinds(key(2)) === '{"fix":2,"dir":1}';
+  net.view = { [key(1)]: [D1], [key(2)]: [D2], [key(4)]: [DIR] };
+  net.wiped = { [key(1)]: [F1], [key(2)]: [F2] };
+  click(D.querySelector('.lib-row .lib-name'));
+  await sleep(40);
+  const sig = (x) => JSON.stringify(x.p);
+  const p2 = A.payload(key(2), false).strokes;
+  owedBefore && kinds(key(1)) === '{"fix":0,"dir":1}'
+    ? ok('lazy: a landed round\'s wiped fix leaves a saved mixed page, its direction kept')
+    : fail('lazy: owed ' + owedBefore + '; page 1 after the landing is ' + kinds(key(1)));
+  kinds(key(2)) === '{"fix":1,"dir":1}' && !p2.some((x) => sig(x) === sig(F2))
+    && p2.some((x) => sig(x) === sig(D2)) && A.unsaved().indexOf(key(2)) >= 0
+    ? ok('lazy: an owed mixed page sheds the wiped fix and keeps its new stroke, still owed')
+    : fail('lazy: page 2 after the landing is ' + kinds(key(2)) + ': ' + JSON.stringify(p2));
+  net.save = 'ok';
+  log.length = 0;
+  click(byId('reader-pen'));                    // done marking: the save goes
+  await sleep(60);
+  const p2saves = saves().filter((b) => b.card === key(2));
+  const last2 = p2saves.length ? p2saves[p2saves.length - 1].strokes : [];
+  p2saves.length && !last2.some((x) => sig(x) === sig(F2)) && last2.length === 2
+    ? ok('lazy: and the save that follows does not write the wiped fix back')
+    : fail('lazy: page 2 was saved as ' + JSON.stringify(last2));
+  net.wiped = null;
+
+  // ---- THE PEN WAITS WHILE A SEND IS IN THE AIR --------------------------
+  click(byId('reader-pen'));                    // marking again
+  const pen = byId('reader-pen');
+  net.hold = {};
+  click(direct);
+  byId('note-text').value = 'one more thought';
+  byId('note-text').dispatchEvent(new w.Event('input', { bubbles: true }));
+  click(byId('note-send'));
+  await sleep(30);
+  const before3 = A.payload(key(2), false).strokes.length;
+  pointer('pointerdown', cv2, r2.left + 150, r2.top + 300);
+  for (let x = 170; x <= 450; x += 20) pointer('pointermove', cv2, r2.left + x, r2.top + 300);
+  pointer('pointerup', w, r2.left + 450, r2.top + 300);
+  const heldOff = !A.isOn() && pen.disabled && /sending/.test(pen.textContent);
+  A.payload(key(2), false).strokes.length === before3 && heldOff
+    ? ok('lazy: while a send is in the air the pen is off, says sending, and takes no stroke')
+    : fail('lazy: during the send the pen is ' + (A.isOn() ? 'on' : 'off') + ', the button says '
+           + JSON.stringify(pen.textContent) + (pen.disabled ? '' : ' and is live')
+           + '; page 2 went from ' + before3 + ' to ' + A.payload(key(2), false).strokes.length);
+  for (let i = 0; i < 50 && !net.hold.land; i++) await sleep(20);
+  const landed = !!net.hold.land;
+  if (landed) net.hold.land();
+  net.hold = null;
+  await sleep(30);
+  if (!landed) fail('lazy: the held send never reached the board');
+  A.isOn() && !pen.disabled && pen.textContent === '✎ done marking'
+    ? ok('lazy: and once the reply lands the pen is back as it was')
+    : fail('lazy: after the reply the pen is ' + (A.isOn() ? 'on' : 'off') + ' and says '
+           + JSON.stringify(pen.textContent));
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  // ---- A WIPE IN THE LIST'S OWN REPLY ------------------------------------
+  // The list can be the request a wipe happens in, with nothing moved that
+  // would re-draw the reader; what it names comes off the glass all the same.
+  LIB.documents[0].wiped = { [key(1)]: [D1] };
+  pointer('pointerdown', cv2, r2.left + 150, r2.top + 200);
+  for (let x = 170; x <= 450; x += 20) pointer('pointermove', cv2, r2.left + x, r2.top + 200);
+  pointer('pointerup', w, r2.left + 450, r2.top + 200);
+  await sleep(1400);
+  A.marked().indexOf(key(1)) < 0
+    ? ok('lazy: strokes the list names wiped leave the open reader too')
+    : fail('lazy: after the list named it wiped page 1 is ' + kinds(key(1)));
+  delete LIB.documents[0].wiped;
   click(byId('reader-close'));
 }
 

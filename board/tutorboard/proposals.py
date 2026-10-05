@@ -259,7 +259,7 @@ def send(repo, base=None):
 DIRECTIONS = "directions"
 
 
-def from_document(repo, doc, page=0, words=""):
+def from_document(repo, doc, page=0, words="", pictured=None):
     """This workspace's own document, marked as a DIRECTION.
 
     The library's directions mode. The same proposal the meeting deck makes --
@@ -276,12 +276,15 @@ def from_document(repo, doc, page=0, words=""):
     the picture under `live/directions/` -- so every direction stroke on disk
     is one not yet sent, and none ever rides a revision of the slides.
 
-    ONLY A PAGE WHOSE PICTURE WAS COPIED IS SENT. The strokes are coordinates
-    and the turn reads the picture, so a page with no picture (its image had
-    not decoded in the reader) keeps its direction ink on disk, is named in
-    the turn as having no picture, and comes back in `kept` for the reader to
-    send again. Marks with no picture at all and no words are refused, and
-    nothing is written.
+    ONLY A PAGE PICTURED FOR THIS SEND IS SENT. The strokes are coordinates
+    and the turn reads the picture, so a page goes only when its `.dir.png`
+    exists and, where `pictured` is given (`{key: direction strokes when the
+    picture was taken}`, the reader's own list), it is in it with the count
+    still on disk. Any other page (its image had not decoded, or its marks
+    changed since) keeps its direction ink on disk, is named in the turn as
+    having no picture, and comes back in `kept` for the reader to send again.
+    Marks with no picture at all and no words are refused, and nothing is
+    written. `pictured=None` trusts every picture on disk (callers in Python).
     Returns `{ok, turn, pages, kept, stripped, images, detail}`: `pages` sent,
     `kept` the pages left on disk, `stripped` the keys whose direction ink
     came off.
@@ -305,9 +308,11 @@ def from_document(repo, doc, page=0, words=""):
     stamp = time.strftime("%y%m%d-%H%M%S")
     where = os.path.join(os.path.dirname(repo.notes), DIRECTIONS)
     images = []
-    pictured = []
+    going = []
     for m in chosen:
         if not m["png"]:
+            continue
+        if pictured is not None and pictured.get(m["key"]) != m["strokes"]:
             continue
         src = os.path.join(repo.root, *m["png"].split("/"))
         try:
@@ -317,12 +322,12 @@ def from_document(repo, doc, page=0, words=""):
             shutil.copyfile(src, target)
         except OSError:
             continue
-        pictured.append(m)
+        going.append(m)
         images.append((m["page"],
                        os.path.relpath(target, repo.root).replace(os.sep, "/")))
-    sent_keys = set(m["key"] for m in pictured)
+    sent_keys = set(m["key"] for m in going)
     kept = sorted(set(m["page"] for m in chosen if m["key"] not in sent_keys))
-    if chosen and not pictured and not words:
+    if chosen and not going and not words:
         return {"ok": False, "kept": kept,
                 "error": ("no picture of the direction marks reached the board, "
                           "so nothing was sent -- send again")}
@@ -346,11 +351,11 @@ def from_document(repo, doc, page=0, words=""):
         return {"ok": False, "error": "nothing could be asked: %s" % exc}
 
     stripped = []
-    for m in pictured:
+    for m in going:
         library.strip_kind(repo, m["key"], "dir")
         stripped.append(m["key"])
     spawn.wake_tutor(repo)
-    sent = sorted(set(m["page"] for m in pictured)) if chosen else pages
+    sent = sorted(set(m["page"] for m in going)) if chosen else pages
     said = ("page %d" % sent[0]) if len(sent) == 1 \
         else "pages " + ", ".join(str(p) for p in sent)
     detail = ("Your marks on %s went as a proposed direction. The tutor writes "

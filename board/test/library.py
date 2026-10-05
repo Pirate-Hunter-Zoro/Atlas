@@ -573,8 +573,10 @@ try:
           status == 200 and body.get("ok") is True and body.get("marks") == 2)
 
     status, body = get("/library/view/" + mine["id"])
-    check("asking for the pages of a document reaches the renderer",
-          status == 200 and "ok" in body)
+    check("asking for the pages of a document reaches the renderer, and names "
+          "the strokes the board took off its pages",
+          status == 200 and "ok" in body
+          and (not body.get("ok") or isinstance(body.get("wiped"), dict)))
     status, body = get("/library/view/not-a-document")
     check("and a name that is not one of ours draws nothing",
           status == 200 and body.get("ok") is False and body.get("why") == "none")

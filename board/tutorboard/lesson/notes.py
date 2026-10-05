@@ -76,6 +76,25 @@ def of_kind(strokes, kind):
     return [s for s in strokes or [] if is_dir(s) == want]
 
 
+def stroke_sig(s):
+    """One stroke as a hashable value, for "is this the stroke that was taken
+    off". Every field but the `_` caches, numbers as floats: a stroke the
+    browser echoes back parses to the same floats it was written from, whatever
+    either side's JSON spelled them as."""
+    def freeze(x):
+        if isinstance(x, bool):
+            return x
+        if isinstance(x, (int, float)):
+            return float(x)
+        if isinstance(x, (list, tuple)):
+            return tuple(freeze(v) for v in x)
+        if isinstance(x, dict):
+            return tuple(sorted((str(k), freeze(v)) for k, v in x.items()
+                                if not str(k).startswith("_")))
+        return x
+    return freeze(s) if isinstance(s, dict) else None
+
+
 def load_notes_sent(repo):
     """Which cards' marks have already been handed to the tutor.
 
