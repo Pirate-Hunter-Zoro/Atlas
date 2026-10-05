@@ -29,6 +29,8 @@
 export RELAY_PATH_KEYS="PSYCH_ASR_DATA TORCH_HOME NLTK_DATA HF_HOME"
 export RELAY_OPEN_KEYS=""
 export RELAY_NAMES=0
+export RELAY_ENCODERS=""
+export RELAY_ALLOW=""
 
 # Physical paths (`pwd -P`), so a symlink on the way to the workspace cannot make
 # the recipe and the workspace disagree about where they are.
@@ -65,8 +67,11 @@ _relay_exit() {
             "${RELAY_STAGE}" "${status}" \
             "${_RELAY_LINE:+ after line ${_RELAY_LINE}}" "${sha:-unknown}" >&2
     fi
+    # Each cleanup starts with `$?` set to the job's status, so one that asks
+    # whether the job failed sees the answer and not the last command's.
     local fn
     for fn in ${_RELAY_ON_EXIT}; do
+        (exit "$status")
         "$fn"
     done
     return "$status"

@@ -814,9 +814,9 @@ may be left out where the sitting names one.
 pathspec, and pushes. A bare `sbatch` there is an error naming the recipe form. `--fixes <id>`
 files an attempt to repair the recipe request that failed first: a rerun of its recipe, or a
 diagnostic, which is any other recipe. With Slurm, `board job` refuses it. Without Slurm,
-`board job` refuses a plain request whose recipe and values match the thread's newest such
-request while that request's repair is open (`jobs.open_fix`: the newest run of its recipe in
-the repair failed), because a rerun outside the repair would restart the count. `--fresh` files
+`board job` refuses a plain request for the thread and recipe of an open repair, whatever its
+variable values (`jobs.open_fix`: the newest run of its recipe in the repair failed), because a
+rerun outside the repair, or with one VAR changed, would restart the count. `--fresh` files
 it as a new request anyway; it is the owner's way to start again, and a daemon turn is refused
 it. `board diagnose` is `board job` under another name and validates no differently. `board
 ask-cluster` is retired: it says what replaced it and files nothing.
@@ -898,7 +898,8 @@ A pass holds `relay/.lock` (`flock`), so a second pass at once skips. In order:
    <id>`, which is `claude -p` in the workspace with the routing variables scrubbed, under the
    PHI hook `ai-config` installs. A checkout without `ai-config/policy/phi.py` refuses turns.
    The turn's last message goes to `relay/state/<id>.note` and becomes the report's note.
-   No turn diagnoses a failed job: a `turn` cannot carry `fixes`.
+   Nothing in the board files a `turn`; one runs only from a request the owner writes by hand,
+   and a `turn` cannot carry `fixes`.
 5. **Commit** only `relay/reports/` and `exports/`, rebase onto origin with `--autostash`, and
    push. A rejected push sets `push_pending`, and the next pass pushes it. Never forced.
 
@@ -915,16 +916,26 @@ TRD-EHR's `.gitignore` carries `!exports/**` for that. A refused export is liste
 `slurm_jobs/lib/relay_trap.sh` first, after `set -e`; PSYCH-ASR's `job_env.sh` sources its
 twin. On a non-zero exit only, its EXIT trap prints `recipe <path> failed: exit <n> after line
 <n>, checkout <sha>`. It keeps the exit status, writes no file, and runs a recipe's own cleanup
-through `relay_on_exit`, since a second `trap ... EXIT` would replace it. It puts `slurm_jobs/lib`
+through `relay_on_exit`, since a second `trap ... EXIT` would replace it; each cleanup starts
+with `$?` set to the job's status. It puts `slurm_jobs/lib`
 on `PYTHONPATH`, where `sitecustomize.py` installs `relay_hook.py`'s excepthook in every Python.
 That prints the exception type, file and line, the step, a library's own frame, a missing file,
 the inputs the failing frames held with row or byte counts, and shapes. Never a value, a row or
-a message. A path is its `.env` key (`RELAY_PATH_KEYS`). Its basename is printed only under
-`RELAY_OPEN_KEYS` (TRD-EHR: `RESULTS_DIR`, `EMBEDDINGS_DIR`) and never when it looks like an id,
-because per-patient files are named by patient id. PSYCH-ASR (`RELAY_NAMES=0`) names no file at
-all, only extensions. `python -m relay_hook` is the diagnostic probe, under the same rules;
-TRD-EHR's `slurm_jobs/quick_runs/diagnose.sbatch` runs it and produces nothing. The two Python
-copies are one file. `test/relayhook.py` runs them for real.
+a message. A path is its `.env` key (`RELAY_PATH_KEYS`). Under `RELAY_OPEN_KEYS` (TRD-EHR:
+`RESULTS_DIR`, `EMBEDDINGS_DIR`) a file or directory name is printed only if it is in the
+allowlist, and from the first name that is not, the rest is one placeholder (`<dir>`, `<file>
+ext csv`, `<file 2 deep>`). No heuristic guesses what an id looks like. The allowlist is built
+from tracked files at report time (`relay_hook.allowlist`): every segment of threads.json's
+outputs and exports, of each tracked request's produces and export, and of every `results/`
+path a recipe names, plus `RELAY_ENCODERS` and `RELAY_ALLOW` in `relay_trap.sh`. In the
+workspace a tracked path is printed whole, and a code frame is reported only for a tracked
+file. PSYCH-ASR (`RELAY_NAMES=0`) names no file at all, only extensions. `python -m relay_hook`
+is the diagnostic probe: it lists only allowlisted children and counts the rest by extension,
+never descending into a withheld directory except to count. TRD-EHR's
+`slurm_jobs/quick_runs/diagnose.sbatch` runs it and produces nothing; its `EMBEDDER` is one of
+`RELAY_ENCODERS`, its `LOOK` an open key and allowlisted segments, its `MODULE` one of its own
+`DIAGNOSABLE` list, and a refused value is never echoed. The two Python copies are one file.
+`test/relayhook.py` runs them, and the real `diagnose.sbatch`, for real.
 
 **The relay's state is ignored.** The root `.gitignore` carries `**/relay/state/`,
 `/relay/state.json` and `/relay/.lock`. `relay/state.json` records the last pass, its host, the
@@ -941,9 +952,13 @@ next pull is heard. The first look in a clone, and a workspace with no `relay/`,
 
 **A failed recipe wakes a `[repair]` turn on the Mac.** A recipe that failed, and a diagnostic
 that completed, drop `[repair]` instead of `[job]` (`jobs.repairs`), carrying the request id.
-It is a doing turn whatever the workspace teaches under, wired like a mission: `doing_now` in
-`bin/tutor` gives it the doing clock, and `board brief` answers doing for it off `turn_signal` in
-`live/agent.json`. The brief prints `jobs.repair_brief` under the stance: the request, its
+It is a doing turn whatever the workspace teaches under, wired like a mission. Any `[repair]`
+in the batch a turn is woken with makes it one, wherever the line sits (`woken_for` in
+`bin/tutor`, `jobs.batch_repairs`): the daemon writes `turn_signal: repair`, unless the first
+line's signal has machinery of its own (`REPAIR_KEEPS`), and `turn_repairs`, every `[repair]`
+request in the batch, to `live/agent.json`. `doing_now` gives it the doing clock, and `board
+brief` answers doing off `turn_repairs`, or `turn_signal` where a record lacks it. The brief
+prints `jobs.repair_brief` under the stance for each of those requests: the request, its
 recipe, the file and line from its `RELAY:` lines, the recipe line it stopped after, and
 `relay/reports/<id>.json` to read whole. The line offers two routes. A: fix it in the thread's
 files and recipe, run the workspace's `check` and the thread's own, ship with `board push`, and

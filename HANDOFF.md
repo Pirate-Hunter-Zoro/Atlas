@@ -77,8 +77,9 @@ A request has one of two kinds.
   `--export` built from the declared variables, through `jobs.submit`.
 
 **`turn`** wakes a headless Claude turn on the cluster, in that workspace, under the PHI guard.
-It is for work that needs judgement next to the data: choosing a rerun or reading an output too
-large to export. It never diagnoses a failed job.
+Nothing in the board files one: a failed job is repaired on the Mac, and a question about the
+cluster's files is a diagnostic recipe. A `turn` runs only from a request the owner writes by
+hand, and it cannot carry `fixes`.
 
 ```json
 {"id": "2026-10-03-why-l1-dense", "kind": "turn", "thread": "knn-across-embedders",
@@ -91,8 +92,8 @@ large to export. It never diagnoses a failed job.
   for a public repository: aggregate numbers only, no patient-level values, no identifiers.
 
 **A failed recipe is repaired on the Mac.** Its recipe sources `slurm_jobs/lib/relay_trap.sh`,
-which prints the failure behind `RELAY:` (exception type, file and line, inputs by name and
-count, never a value). The report wakes a `[repair]` turn, a doing turn whatever the stance. It
+which prints the failure behind `RELAY:` (exception type, file and line, inputs by key and
+count, never a value; a file or directory name only from an allowlist built off tracked files). The report wakes a `[repair]` turn, a doing turn whatever the stance. It
 fixes the code, runs the check, ships with `board push`, and reruns with `board job --fixes
 <first id>`. Where the report does not say enough it files a diagnostic, a tracked recipe that
 prints `RELAY:` lines and produces nothing, with `board diagnose --fixes <first id>`. Three

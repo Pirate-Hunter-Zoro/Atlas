@@ -8,13 +8,15 @@ What the checks are about:
   * A DOING TURN WHATEVER THE STANCE. `doing_now` gives it a doing turn's
     clock, and `board brief` answers doing for it in a workspace that
     teaches, naming the request, its recipe, the file and line it failed at,
-    and the report to read whole.
+    and the report to read whole. Any [repair] in a batch makes the turn a
+    repair, and the brief names every one (`woken_for`).
   * FIX OR ASK. The line gives the fix-check-push-rerun steps with the exact
     `board job --fixes` command, or a diagnostic recipe to file with
     `board diagnose`; a diagnostic that comes back wakes the same turn.
   * NOTHING LOOPS. `MAX_FIXES` automatic attempts per failure, diagnostics
     and reruns alike, refused on both machines past it; a plain rerun of an
-    open repair is refused; `--fresh` is the owner's, never a turn's.
+    open repair is refused, whatever its VAR values; `--fresh` is the
+    owner's, never a turn's.
   * NO MODEL ON THE CLUSTER. `board ask-cluster` is retired, saying what
     replaced it, and a `turn` request cannot carry `fixes`.
 
@@ -243,15 +245,25 @@ try:
           and "owner decides" in text and "through `board job`" not in text)
 
     ws, recs = scene([FIRST], {ORIGIN: FAILED})
-    check("open_fix keys on the recipe AND its values: another embedder on "
-          "the same thread is a new request",
+    check("open_fix keys on thread and recipe alone: another value of a VAR "
+          "is the same repair; another recipe or thread is not",
           jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-small"}) == ORIGIN
           and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
-                            {"EMBEDDER": "bge-large"}) == ""
+                            {"EMBEDDER": "bge-large"}) == ORIGIN
+          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ORIGIN
           and jobs.open_fix(ws, "knn", "slurm/other.sbatch") == ""
           and jobs.open_fix(ws, "tripod", "slurm/sweep.sbatch",
                             {"EMBEDDER": "bge-small"}) == "")
+    ws, recs = scene([FIRST, diag(1, 200.0), rerun(2, 300.0),
+                      rerun(3, 400.0, EMBEDDER="bge-base")],
+                     {ORIGIN: FAILED, "d1": DONE, "r2": FAILED, "r3": FAILED})
+    check("a capped chain cannot restart by changing a VAR: the open repair "
+          "is still the first request's, and its cap still stands",
+          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+                        {"EMBEDDER": "bge-large"}) == ORIGIN
+          and jobs.fix_problems(rerun(4, 500.0, EMBEDDER="bge-large"),
+                                jobs.requests(ws), {ORIGIN}) != [])
     ws, recs = scene([dict(FIRST, filed="soon")], {})
     check("a malformed `filed` reads as 0, and every reader still reads it",
           recs[ORIGIN]["submitted"] == 0.0
@@ -361,6 +373,58 @@ try:
           code == 0 and "REPAIRS A FAILED" not in out)
     os.remove(os.path.join(ws, "live", "agent.json"))
 
+    # --- a batch: any [repair] in it makes the turn a repair, naming each -----------
+    SECOND = dict(FIRST, id="2026-10-02-tripod-sweep", thread="tripod",
+                  filed=150.0)
+    write(os.path.join(ws, "relay", "requests", SECOND["id"] + ".json"),
+          json.dumps(SECOND))
+    write(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"),
+          json.dumps(dict(FAILED, id=SECOND["id"])))
+    threads._cache.clear()
+    inbox = os.path.join(ws, "live", "inbox", "messages.jsonl")
+    with open(inbox, encoding="utf-8") as fh:
+        kept = [json.loads(l) for l in fh if l.strip()]
+    student = {"id": "s1", "rev": 0, "kind": "text", "answers": None,
+               "t": 400.0, "iso": "2026-10-02 22:19:00", "from": "student",
+               "text": "can you look at the knn figure?", "read": False}
+    with open(inbox, "w", encoding="utf-8") as fh:
+        for m in [student] + kept:
+            fh.write(json.dumps(m) + "\n")
+    second = dict((r["request"], r) for r in jobs.relayed(ws))[SECOND["id"]]
+    jobs.drop(ws, second, now=600.0, text=jobs.relay_sense(ws, second),
+              signal=jobs.REPAIR)
+    p = subprocess.run([sys.executable, BOARD, "inbox"], cwd=ws,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       timeout=120)
+    batch = p.stdout.decode("utf-8", "replace")
+    signal, rids = tutorcli.woken_for(ws, batch)
+    check("a batch whose first message is the student's, with two [repair] "
+          "lines behind it: turn_signal reads the student's, woken_for reads "
+          "repair and names both requests",
+          tutorcli.turn_signal(batch) == "" and signal == "repair"
+          and rids == [ORIGIN, SECOND["id"]])
+    check("a signal with machinery of its own is kept, the repairs still named",
+          tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
+                             "finished\n" + batch) == ("ship", rids)
+          and tutorcli.woken_for(ws, tutorcli.carry_line(batch))[1] == rids)
+    check("a batch with no [repair] in it is what turn_signal says",
+          tutorcli.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
+    write(os.path.join(ws, "live", "agent.json"), json.dumps(
+        {"state": "working", "mode": "headless", "pid": os.getpid(),
+         "turn_signal": "ship", "turn_repairs": rids}))
+    code, out = brief_now()
+    check("the brief is a doing turn's and names every [repair] request in "
+          "the batch, each with its report",
+          code == 0 and "THIS TURN REPAIRS A FAILED CLUSTER JOB" in out
+          and "woken for 2 [repair] requests" in out
+          and "request  %s" % ORIGIN in out
+          and "request  %s" % SECOND["id"] in out
+          and "report   relay/reports/%s.json" % SECOND["id"] in out)
+    os.remove(os.path.join(ws, "live", "agent.json"))
+    os.remove(os.path.join(ws, "relay", "requests", SECOND["id"] + ".json"))
+    os.remove(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"))
+    threads._cache.clear()
+
     # --- the commands ------------------------------------------------------------------
     env = dict(os.environ, TUTOR_SLURM="0")
 
@@ -384,6 +448,11 @@ try:
     check("a plain rerun of the failed request is refused, naming --fixes "
           "and --fresh", code == 1 and "--fixes %s" % ORIGIN in out
           and "--fresh" in out)
+    code, out = board("job", "knn", "--", "slurm/sweep.sbatch",
+                      "EMBEDDER=bge-large")
+    check("and so is one that changes a VAR: the repair is keyed on thread "
+          "and recipe", code == 1 and "--fixes %s" % ORIGIN in out
+          and len(jobs.requests(ws)) == 1)
     code, out = board("job", "knn", "--fresh", "--fixes", ORIGIN, "--",
                       "slurm/sweep.sbatch", "EMBEDDER=bge-small")
     check("--fresh and --fixes together are refused",
@@ -397,6 +466,13 @@ try:
           "the cap", code == 1 and "owner's" in out
           and len(jobs.requests(ws)) == 1)
     os.remove(os.path.join(ws, "live", "agent.json"))
+    code, out = board("job", "knn", "--fresh", "--", "slurm/sweep.sbatch",
+                      "EMBEDDER=bge-large")
+    fresh = [r for r in jobs.requests(ws) if r.get("id") != ORIGIN]
+    check("outside a turn --fresh files it as a new request, no `fixes`: "
+          "the owner's override", "its repair is open" not in out
+          and len(fresh) == 1 and "fixes" not in fresh[0]
+          and fresh[0].get("env") == {"EMBEDDER": "bge-large"})
 finally:
     shutil.rmtree(scenes, ignore_errors=True)
     shutil.rmtree(box, ignore_errors=True)

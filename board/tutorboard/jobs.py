@@ -968,22 +968,37 @@ def _refused_fix_said(rec):
             "thread's tasks as they are." % (rec["fixes"], rec["fixes"])]
 
 
-def repair_brief(root, rid):
-    """`board brief`'s section for a repair turn: the request, its recipe,
-    where it failed, and the report to read whole."""
+def repair_brief(root, rids):
+    """`board brief`'s section for a repair turn: for each request it was
+    woken for, the request, its recipe, where it failed, and the report to
+    read whole. `rids` is one id or a list of them."""
+    if isinstance(rids, str) or rids is None:
+        rids = [rids] if rids else []
+    rids = [r for i, r in enumerate(rids) if r and r not in rids[:i]]
     out = ["--- THIS TURN REPAIRS A FAILED CLUSTER JOB ---",
            "A doing turn, whatever the stance above says: its product is the "
            "fix, checked and filed, not a lesson about it. The [repair] line "
            "in the inbox has the steps and the exact rerun command."]
+    if len(rids) > 1:
+        out.append("This turn was woken for %d [repair] requests: %s. Repair "
+                   "each, every one under its own [repair] line."
+                   % (len(rids), ", ".join(rids)))
     recs = dict((r["request"], r) for r in relayed(root))
-    rec = recs.get(rid) if rid else None
-    if not rec:
-        return out
+    for rid in rids:
+        rec = recs.get(rid)
+        if not rec:
+            out.append("  request  %s (no report here yet)" % rid)
+            continue
+        out += _repair_lines(root, rid, rec, recs)
+    return out
+
+
+def _repair_lines(root, rid, rec, recs):
     req = _request(root, rid) or {}
     origin = rec.get("fixes") or rid
     failing = rec
-    out.append("  request  %s%s" % (rid, ", an attempt to repair %s" % origin
-                                    if rec.get("fixes") else ""))
+    out = ["  request  %s%s" % (rid, ", an attempt to repair %s" % origin
+                                if rec.get("fixes") else "")]
     out.append("  recipe   %s" % (req.get("recipe") or "unknown"))
     if is_diagnostic(root, rec) and not failed(rec):
         last = _last_run(root, origin)
@@ -1008,10 +1023,9 @@ def repair_brief(root, rid):
     return out
 
 
-def last_repair(root):
-    """The request the newest `[repair]` inbox line was dropped for, or ""."""
+def _messages(root):
     from .course.repo import Repo
-    rid = ""
+    out = []
     try:
         with open(Repo(root).messages_path, "r", encoding="utf-8") as fh:
             for line in fh:
@@ -1019,28 +1033,61 @@ def last_repair(root):
                     msg = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(msg, dict) and msg.get("signal") == REPAIR:
-                    rid = str(msg.get("request") or "")
+                if isinstance(msg, dict):
+                    out.append(msg)
     except OSError:
         pass
+    return out
+
+
+_STAMP_RE = re.compile(r"^(\[[^\]\n]*\]\s*)(?:\[carry\]\s*)?")
+
+
+def batch_repairs(root, out):
+    """The requests of every `[repair]` message in the batch `out`, the text
+    `board inbox` printed for one turn, in order. A message is in the batch
+    where its first printed line, `[<iso>] <text>`, is a line of `out`; a
+    `[carry]` tag after the stamp is read through."""
+    printed = set()
+    for line in (out or "").splitlines():
+        m = _STAMP_RE.match(line.strip())
+        if m:
+            printed.add(m.group(1).strip() + " " + line.strip()[m.end():])
+    rids = []
+    for msg in _messages(root):
+        if msg.get("signal") != REPAIR:
+            continue
+        text = str(msg.get("text") or "").splitlines()
+        head = "[%s] %s" % (msg.get("iso", "?"), text[0] if text else "")
+        rid = str(msg.get("request") or "")
+        if head.strip() in printed and rid and rid not in rids:
+            rids.append(rid)
+    return rids
+
+
+def last_repair(root):
+    """The request the newest `[repair]` inbox line was dropped for, or ""."""
+    rid = ""
+    for msg in _messages(root):
+        if msg.get("signal") == REPAIR:
+            rid = str(msg.get("request") or "")
     return rid
 
 
 def open_fix(root, thread, recipe, env=None):
     """`""`, or the request a plain `board job <thread> -- <recipe> [VAR=v]`
     would rerun outside its repair: the newest request on the thread with
-    this recipe and these values, where the newest run of the repair it
-    belongs to ended failed. Such a rerun carries `--fixes`, so the cap
-    counts it; `--fresh` is the owner's way past."""
+    this recipe, whatever its values, where the newest run of the repair it
+    belongs to ended failed. Keyed on thread and recipe alone, so a repair
+    capped at `MAX_FIXES` cannot restart by changing a VAR. Such a rerun
+    carries `--fixes`, so the cap counts it; `--fresh` is the owner's way
+    past. `env` is accepted and not read."""
     recipe = course_threads._rel(recipe) or ""
-    env = dict(env or {})
     reqs = requests(root)
     by_id = dict((r.get("id"), r) for r in reqs)
     runs = [r for r in reqs if r.get("kind") == "recipe"
             and r.get("thread") == thread
-            and course_threads._rel(r.get("recipe")) == recipe
-            and (r.get("env") if isinstance(r.get("env"), dict) else {})
-            == env]
+            and course_threads._rel(r.get("recipe")) == recipe]
     if not runs:
         return ""
     newest = max(runs, key=_filed_key)

@@ -13,24 +13,45 @@ prints to stderr:
     RELAY: shape <function>.<name> <type> (<r>, <c>) (arrays and frames it held)
 
 Nothing on success. A relay report is public, so it never prints a value, a
-row or the exception's message. A path is named by the `.env` key whose
-location holds it; its basename only under a key in RELAY_OPEN_KEYS, where
-the aggregate artifacts live. Everything else is `<withheld>`, with its
-extension: per-patient files are named by patient id.
+row or the exception's message.
+
+A PATH IS PRINTED ONE SEGMENT AT A TIME, AND A SEGMENT ONLY FROM AN ALLOWLIST.
+The location is its `.env` key. Under a key in RELAY_OPEN_KEYS, a file or
+directory name is printed only if it is in the allowlist; from the first
+name that is not, the rest is one placeholder, `<dir>` or `<file>` with its
+extension when the extension is a known one (`<file 2 deep>` for two).
+No heuristic decides what looks like an id: per-patient trees name files and
+directories by patient id in every shape there is, so only a name the
+repository itself publishes is ever said. The allowlist is built here, from
+tracked files only:
+
+    threads.json         every segment of each thread's `outputs` and
+                         `exports` paths
+    relay/requests/*     every segment of each request's `produces` and
+                         `export` paths
+    *.sbatch             every segment of each `results/...` path a recipe
+                         names
+    RELAY_ENCODERS       the encoder directory names (relay_trap.sh)
+    RELAY_ALLOW          the judge model and fixed pipeline directories
+
+Inside the workspace a path git tracks is code, and printed as it is. Code
+frames are reported only for tracked files.
 
     RELAY_ROOT       the workspace (relay_trap.sh sets it)
     RELAY_STAGE      the recipe (relay_trap.sh sets it)
     RELAY_PATH_KEYS  the environment variables that name data locations
-    RELAY_OPEN_KEYS  those of them whose files may be named
-    RELAY_NAMES      0 names no file at all, only extensions and counts
+    RELAY_OPEN_KEYS  those of them whose allowlisted names may be printed
+    RELAY_NAMES      0 names nothing at all, only keys, extensions and counts
 
 `python -m relay_hook [--look KEY/sub/dir] [--module a.b]` is the diagnostic
-probe a diagnostic recipe runs: the same naming rules, and exit 0.
+probe a diagnostic recipe runs: the same rules, and exit 0. It lists only
+allowlisted children; the rest of a directory is counts by extension.
 
 Standard library only. The twin copies in each workspace's
 `slurm_jobs/lib/` are byte-identical (`board/test/relayhook.py`).
 """
 
+import json
 import os
 import re
 import sys
@@ -41,13 +62,29 @@ MAX_INPUTS = 6
 MAX_FRAMES = 3
 COUNT_BYTES = 256 * 1024 * 1024
 MAX_PROBE = 30
+# Entries looked at when counting inside a directory whose name is withheld.
+COUNT_ENTRIES = 200000
 
-_IDLIKE = re.compile(r"\d{6,}|^[0-9a-fA-F-]{8,}$")
-_FENCED = ("phi", "data")
+# The extensions a placeholder may carry. An extension is part of a name, so it
+# is printed from a list too: `x.ID0001XQ` has no extension worth saying.
+EXTENSIONS = frozenset((
+    "csv tsv json jsonl txt parquet feather pkl pickle joblib npy npz db "
+    "sqlite png pdf svg html md log out err yaml yml toml pt bin safetensors "
+    "h5 gz zip tar wav rttm py sh sbatch").split())
+
+_SEGMENT = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$")
+_RESULTS_PATH = re.compile(
+    r"(?<![A-Za-z0-9_.$-])results(?:/[A-Za-z0-9_][A-Za-z0-9._-]*)+")
+_PYTHON_M = re.compile(r"\bpython[0-9.]*\s+-m\s+([A-Za-z_][A-Za-z0-9_.]*)")
+_CACHE = {}
 
 
 def _env_words(name):
     return [w for w in os.environ.get(name, "").split() if w]
+
+
+def _names_on():
+    return os.environ.get("RELAY_NAMES", "1") != "0"
 
 
 def _root():
@@ -60,19 +97,140 @@ def _under(path, top):
     return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
 
 
+# ---------------------------------------------------------------------------
+# the allowlist, from tracked files
+# ---------------------------------------------------------------------------
+def _git(root, argv):
+    import subprocess
+    try:
+        p = subprocess.run(["git", "-C", root] + argv, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=30)
+    except Exception:                                         # noqa: BLE001
+        return None
+    return p.stdout.decode("utf-8", "replace") if p.returncode == 0 else None
+
+
+def tracked(root=None):
+    """`(files, dirs)`: the workspace-relative paths git tracks under the
+    workspace, and every directory holding one. Empty outside a checkout."""
+    root = root or _root()
+    key = ("tracked", root)
+    if key not in _CACHE:
+        files, dirs = set(), set()
+        out = _git(root, ["ls-files", "-z"])
+        for rel in (out or "").split("\0"):
+            if not rel:
+                continue
+            files.add(rel)
+            parts = rel.split("/")
+            for i in range(1, len(parts)):
+                dirs.add("/".join(parts[:i]))
+        _CACHE[key] = (files, dirs)
+    return _CACHE[key]
+
+
+def _read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _strings(value):
+    if not isinstance(value, list):
+        return []
+    return [v for v in value if isinstance(v, str)]
+
+
+def _segments_of(path):
+    parts = [s for s in path.replace("\\", "/").split("/") if s]
+    if ".." in parts:
+        return []
+    return [s for s in parts if s != "." and _SEGMENT.match(s)]
+
+
+def published_paths(root=None):
+    """Every path the tracked sources publish: thread outputs and exports,
+    request produces and exports, and the `results/` paths recipes name."""
+    root = root or _root()
+    files, _ = tracked(root)
+    paths = []
+    if "threads.json" in files:
+        spine = _read_json(os.path.join(root, "threads.json"))
+        threads = spine.get("threads") if isinstance(spine, dict) else None
+        for t in threads if isinstance(threads, list) else []:
+            if not isinstance(t, dict):
+                continue
+            paths += _strings(t.get("outputs"))
+            for e in t.get("exports") if isinstance(t.get("exports"),
+                                                    list) else []:
+                if isinstance(e, dict) and isinstance(e.get("path"), str):
+                    paths.append(e["path"])
+    for rel in sorted(files):
+        if rel.startswith("relay/requests/") and rel.endswith(".json"):
+            req = _read_json(os.path.join(root, rel))
+            if isinstance(req, dict):
+                paths += _strings(req.get("produces"))
+                paths += _strings(req.get("export"))
+        elif rel.endswith(".sbatch"):
+            try:
+                with open(os.path.join(root, rel), "r", encoding="utf-8",
+                          errors="replace") as fh:
+                    paths += _RESULTS_PATH.findall(fh.read())
+            except OSError:
+                pass
+    return paths
+
+
+def allowlist():
+    """The path segments a report may print. Empty under RELAY_NAMES=0."""
+    root = _root()
+    key = ("allow", root, _names_on(), os.environ.get("RELAY_ALLOW", ""),
+           os.environ.get("RELAY_ENCODERS", ""))
+    if key not in _CACHE:
+        words = set()
+        if _names_on():
+            words.update(_env_words("RELAY_ENCODERS"))
+            words.update(_env_words("RELAY_ALLOW"))
+            for p in published_paths(root):
+                words.update(_segments_of(p))
+        _CACHE[key] = frozenset(w for w in words if _SEGMENT.match(w)
+                                and w not in (".", ".."))
+    return _CACHE[key]
+
+
+def recipe_modules(root=None):
+    """The modules a tracked recipe runs with `python -m`."""
+    root = root or _root()
+    files, _ = tracked(root)
+    out = set()
+    for rel in files:
+        if not rel.endswith(".sbatch"):
+            continue
+        try:
+            with open(os.path.join(root, rel), "r", encoding="utf-8",
+                      errors="replace") as fh:
+                out.update(_PYTHON_M.findall(fh.read()))
+        except OSError:
+            pass
+    out.discard("relay_hook")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# naming a path
+# ---------------------------------------------------------------------------
+def _ext_word(name):
+    ext = os.path.splitext(name)[1].lstrip(".").lower()
+    return ext if ext in EXTENSIONS else ""
+
+
 def _ext(path):
-    ext = os.path.splitext(path)[1].lstrip(".").lower()
     # Written without its dot: `.rttm`-shaped text is what the PHI policy
     # refuses, and an extension alone names nothing.
+    ext = _ext_word(os.path.basename(path))
     return " ext " + ext if ext else ""
-
-
-def _idlike(rel):
-    for seg in rel.split(os.sep):
-        stem = os.path.splitext(seg)[0]
-        if _IDLIKE.search(stem):
-            return True
-    return False
 
 
 def classify(path):
@@ -89,47 +247,88 @@ def classify(path):
     return best, where
 
 
+def _parts(rel):
+    return [s for s in rel.split(os.sep) if s and s != "."]
+
+
+def _render(parts, full, prefix_ok):
+    """`parts` joined, as far as `prefix_ok(i)` allows each; from the first
+    segment it does not, one placeholder: `<file>` (with its extension) or
+    `<dir>`, and `<file N deep>` where it stands for N segments. Nothing
+    follows a placeholder, so `/<...>` never reads as a path to the scrub."""
+    cut = next((i for i in range(len(parts)) if not prefix_ok(i)), None)
+    if cut is None:
+        return "/".join(parts)
+    kind = "dir" if os.path.isdir(full) else "file"
+    deep = len(parts) - cut
+    hidden = "<%s>" % kind if deep == 1 else "<%s %d deep>" % (kind, deep)
+    said = "/".join(parts[:cut] + [hidden])
+    return said + _ext(full) if kind == "file" else said
+
+
+def _open_ok(key, parts):
+    """May each of `parts`, under `key`, be printed?"""
+    allow = allowlist() if key in _env_words("RELAY_OPEN_KEYS") else ()
+    return lambda i: parts[i] in allow
+
+
+def _workspace_ok(parts):
+    """A segment in the workspace: tracked, or in the allowlist."""
+    if not _names_on():
+        return lambda i: False
+    files, dirs = tracked()
+    allow = allowlist()
+
+    def ok(i):
+        prefix = "/".join(parts[:i + 1])
+        return prefix in files or prefix in dirs or parts[i] in allow
+    return ok
+
+
 def describe(path):
-    """`path` as a report may say it: `KEY/rest`, `KEY/<withheld> ext x`, a
-    workspace-relative path, or `<outside the workspace>`. Never a location."""
+    """`path` as a report may say it: `KEY/rest`, a workspace-relative path,
+    or `<outside the workspace>`, every segment allowlisted or a placeholder.
+    Never a location."""
     try:
         p = os.path.realpath(os.fspath(path))
     except (TypeError, ValueError):
         return "<unnamed>"
-    names = os.environ.get("RELAY_NAMES", "1") != "0"
     key, loc = classify(p)
     if key:
-        rest = os.path.relpath(p, loc)
-        if rest == ".":
+        parts = _parts(os.path.relpath(p, loc))
+        if not parts:
             return key
-        if names and key in _env_words("RELAY_OPEN_KEYS") and not _idlike(rest):
-            return "%s/%s" % (key, rest)
-        return "%s/<withheld>%s" % (key, _ext(p))
+        return "%s/%s" % (key, _render(parts, p, _open_ok(key, parts)))
     root = _root()
     if _under(p, root):
-        rel = os.path.relpath(p, root)
-        if (names and not _idlike(rel)
-                and not any(s in _FENCED for s in rel.split(os.sep))):
-            return rel
-        return "workspace/<withheld>%s" % _ext(p)
+        parts = _parts(os.path.relpath(p, root))
+        if not parts:
+            return "workspace"
+        return _render(parts, p, _workspace_ok(parts))
     return "<outside the workspace>%s" % _ext(p)
 
 
 def _nameable(path):
-    """May this file be opened to count it? Only where its name may be said:
-    under an open key, or in the workspace outside its data. A location a
-    key names itself, a person-level CSV, is never opened."""
-    if os.environ.get("RELAY_NAMES", "1") == "0":
+    """May this file be opened to count it, or this directory listed? Only
+    where every segment of it may be said: under an open key, or in the
+    workspace. A location a key names itself, a person-level CSV, is never
+    opened."""
+    if not _names_on():
         return False
     p = os.path.realpath(path)
     key, loc = classify(p)
     if key:
-        return (key in _env_words("RELAY_OPEN_KEYS")
-                and not _idlike(os.path.relpath(p, loc)))
+        if key not in _env_words("RELAY_OPEN_KEYS"):
+            return False
+        parts = _parts(os.path.relpath(p, loc))
+        ok = _open_ok(key, parts)
+        return all(ok(i) for i in range(len(parts)))
     root = _root()
-    rel = os.path.relpath(p, root)
-    return (_under(p, root) and not _idlike(rel)
-            and not any(s in _FENCED for s in rel.split(os.sep)))
+    if not _under(p, root):
+        return False
+    parts = _parts(os.path.relpath(p, root))
+    ok = _workspace_ok(parts)
+    return all(ok(i) for i in range(len(parts)))
 
 
 def _count(path):
@@ -156,6 +355,9 @@ def _count(path):
     return " bytes %d" % size
 
 
+# ---------------------------------------------------------------------------
+# the hook
+# ---------------------------------------------------------------------------
 def _type_name(etype):
     mod = getattr(etype, "__module__", "") or ""
     name = getattr(etype, "__qualname__", None) or getattr(etype, "__name__", "?")
@@ -163,13 +365,24 @@ def _type_name(etype):
 
 
 def _library_path(filename):
-    """A library file by its path inside its package: `pandas/io/common.py`."""
+    """A library file by its path inside its package, `pandas/io/common.py`,
+    or "" where it is not in a library."""
     for mark in ("site-packages", "dist-packages"):
         cut = filename.rfind(os.sep + mark + os.sep)
         if cut >= 0:
             return filename[cut + len(mark) + 2:]
     m = re.search(r"[\\/]lib[\\/]python[\d.]+[\\/](.*)$", filename)
-    return m.group(1) if m else os.path.basename(filename)
+    return m.group(1) if m else ""
+
+
+def _tracked_rel(filename):
+    """A code file's workspace-relative path where git tracks it, or ""."""
+    root = _root()
+    p = os.path.realpath(filename)
+    if not _under(p, root):
+        return ""
+    rel = os.path.relpath(p, root).replace(os.sep, "/")
+    return rel if rel in tracked(root)[0] else ""
 
 
 def _stage():
@@ -180,9 +393,7 @@ def _stage():
     argv0 = sys.argv[0] if sys.argv else ""
     if argv0 in ("", "-c", "-"):
         return "python %s" % (argv0 or "-")
-    p = os.path.realpath(argv0)
-    root = _root()
-    return os.path.relpath(p, root) if _under(p, root) else os.path.basename(p)
+    return _tracked_rel(argv0) or describe(argv0)
 
 
 def _frames(tb):
@@ -229,13 +440,13 @@ def lines(etype, value, tb):
     root = _root()
     frames = _frames(tb)
     mine = [(f, n) for f, n in frames if _code_file(f)
-            and _under(os.path.realpath(f.f_code.co_filename), root)]
+            and _tracked_rel(f.f_code.co_filename)]
     out = []
     if mine:
         f, n = mine[-1]
-        rel = os.path.relpath(os.path.realpath(f.f_code.co_filename), root)
         out.append("error %s at %s:%d in %s"
-                   % (_type_name(etype), rel, n, f.f_code.co_name))
+                   % (_type_name(etype), _tracked_rel(f.f_code.co_filename),
+                      n, f.f_code.co_name))
     else:
         out.append("error %s, raised outside the workspace" % _type_name(etype))
     recipe = os.environ.get("RELAY_STAGE", "")
@@ -243,8 +454,9 @@ def lines(etype, value, tb):
     if frames and _code_file(frames[-1][0]) and (
             not mine or frames[-1][0] is not mine[-1][0]):
         f, n = frames[-1]
-        out.append("raised in %s:%d"
-                   % (_library_path(os.path.realpath(f.f_code.co_filename)), n))
+        lib = _library_path(os.path.realpath(f.f_code.co_filename))
+        if lib:
+            out.append("raised in %s:%d" % (lib, n))
     if isinstance(value, OSError):
         word = "missing" if isinstance(value, FileNotFoundError) else "path"
         for name in (getattr(value, "filename", None),
@@ -310,79 +522,167 @@ def install():
 # the probe a diagnostic recipe runs
 # ---------------------------------------------------------------------------
 def _sha():
-    import subprocess
-    try:
-        p = subprocess.run(["git", "-C", _root(), "rev-parse", "--short",
-                            "HEAD"], stdout=subprocess.PIPE,
-                           stderr=subprocess.DEVNULL, universal_newlines=True,
-                           timeout=20)
-        return p.stdout.strip() or "unknown"
-    except Exception:                                         # noqa: BLE001
-        return "unknown"
+    out = _git(_root(), ["rev-parse", "--short", "HEAD"])
+    return (out or "").strip() or "unknown"
+
+
+def _wrapped(head, words):
+    """`head word word ...`, as many lines as MAX_LINE needs."""
+    out, line = [], head
+    for w in words:
+        if len(line) + 1 + len(w) > MAX_LINE:
+            out.append(line)
+            line = head
+        line += " " + w
+    if line != head:
+        out.append(line)
+    return out
+
+
+def _ext_counts(counter):
+    return ", ".join("%s %d" % (k or "other", counter[k])
+                     for k in sorted(counter))
+
+
+def _withheld(top, hidden):
+    """The children of `top` whose names are withheld, as counts: files by
+    extension, and directories by what they hold, one level in."""
+    where = describe(top)
+    files, inner = {}, {}
+    ndirs = inner_dirs = scanned = 0
+    for name in hidden:
+        full = os.path.join(top, name)
+        if not os.path.isdir(full):
+            k = _ext_word(name)
+            files[k] = files.get(k, 0) + 1
+            continue
+        ndirs += 1
+        try:
+            with os.scandir(full) as it:
+                for e in it:
+                    scanned += 1
+                    if scanned > COUNT_ENTRIES:
+                        break
+                    if e.name.startswith("."):
+                        continue
+                    if e.is_dir():
+                        inner_dirs += 1
+                    else:
+                        k = _ext_word(e.name)
+                        inner[k] = inner.get(k, 0) + 1
+        except OSError:
+            continue
+    out = []
+    if files:
+        out.append("has %s/<file> x%d: %s"
+                   % (where, sum(files.values()), _ext_counts(files)))
+    if ndirs:
+        out.append("has %s/<dir> x%d: files %d%s, dirs %d%s"
+                   % (where, ndirs, sum(inner.values()),
+                      " (%s)" % _ext_counts(inner) if inner else "",
+                      inner_dirs,
+                      ", counted %d" % COUNT_ENTRIES
+                      if scanned > COUNT_ENTRIES else ""))
+    return out
 
 
 def _listing(top, depth, budget):
-    """`KEY/sub rows n` lines for a nameable directory, `depth` levels."""
+    """`KEY/sub rows n` lines for a nameable directory, `depth` levels: its
+    allowlisted children by name, the rest as counts."""
     out = []
+    if budget <= 0 or not _nameable(top):
+        return out
     try:
-        names = sorted(os.listdir(top))
+        names = sorted(n for n in os.listdir(top) if not n.startswith("."))
     except OSError:
         return out
-    for name in names:
+    allow = allowlist()
+    shown = [n for n in names if n in allow]
+    hidden = [n for n in names if n not in allow]
+    for i, name in enumerate(shown):
         if len(out) >= budget:
-            out.append("... %d more under %s" % (len(names) - len(out),
-                                                  describe(top)))
+            out.append("... %d more named under %s" % (len(shown) - i,
+                                                       describe(top)))
             break
         full = os.path.join(top, name)
-        if name.startswith("."):
-            continue
-        out.append("has %s%s" % (describe(full), _count(full)))
-        if depth > 1 and os.path.isdir(full) and _nameable(full):
-            out.extend(_listing(full, depth - 1, max(0, budget - len(out))))
-    return out[:budget + 1]
+        said = describe(full)
+        out.append("has %s%s" % (said, _count(full)))
+        # A child that is another key's location is listed under that key.
+        if depth > 1 and os.path.isdir(full) and "/" in said:
+            out.extend(_listing(full, depth - 1, budget - len(out)))
+    if hidden:
+        out.extend(_withheld(top, hidden))
+    return out
+
+
+def _look(look):
+    """`(directory, problem)`: where LOOK points, or why it is refused. The
+    value is never echoed: only its key and allowlisted segments."""
+    open_keys = _env_words("RELAY_OPEN_KEYS")
+    parts = [s for s in (look or "").strip().split("/") if s not in ("", ".")]
+    key = parts[0] if parts else ""
+    sub = parts[1:]
+    if key not in open_keys or not os.environ.get(key):
+        return "", "look refused: only %s are listed" % (
+            ", ".join(open_keys) or "none")
+    if ".." in sub:
+        return "", "look refused: a path under %s, not out of it" % key
+    allow = allowlist()
+    cut = next((i for i, s in enumerate(sub) if s not in allow), None)
+    if cut is not None:
+        deep = len(sub) - cut
+        return "", "look refused: %s names a directory that is not a " \
+            "published output" % "/".join([key] + sub[:cut] + [
+                "<dir>" if deep == 1 else "<dir %d deep>" % deep])
+    top = os.path.join(os.environ[key], *sub)
+    if not os.path.isdir(top):
+        return "", "look %s missing" % describe(top)
+    if not _nameable(top):
+        return "", "look refused: %s is not under %s" % (describe(top), key)
+    return top, ""
 
 
 def probe(look="", module=""):
     """The diagnostic's RELAY lines: the checkout, which data locations are
-    set and exist, a listing of the nameable ones, and whether `module`
-    imports. Reads names and counts only."""
+    set and exist, a listing of the open ones, and whether `module` is
+    found. Reads names and counts only."""
     out = ["probe checkout %s, recipe %s"
            % (_sha(), os.environ.get("RELAY_STAGE", "") or "none")]
-    unset = []
+    kinds = {"dir": [], "file": [], "missing": [], "unset": []}
     for key in _env_words("RELAY_PATH_KEYS"):
         value = os.environ.get(key, "")
-        if not value:
-            unset.append(key)
-            continue
-        kind = ("dir" if os.path.isdir(value) else "file"
-                if os.path.isfile(value) else "missing")
-        out.append("env %s %s" % (key, kind))
-    if unset:
-        out.append("env unset: %s" % " ".join(unset))
+        kinds["unset" if not value else "dir" if os.path.isdir(value)
+              else "file" if os.path.isfile(value) else "missing"].append(key)
+    for kind in ("dir", "file", "missing", "unset"):
+        out += _wrapped("env %s:" % kind, kinds[kind])
     if module:
-        import importlib.util
-        try:
-            found = importlib.util.find_spec(module) is not None
-        except (ImportError, ValueError):
-            found = False
-        out.append("module %s %s" % (module, "found" if found else "missing"))
+        if module not in recipe_modules():
+            out.append("module refused: not one a tracked recipe runs")
+        else:
+            import importlib.util
+            try:
+                found = importlib.util.find_spec(module) is not None
+            except (ImportError, ValueError):
+                found = False
+            out.append("module %s %s" % (module,
+                                         "found" if found else "missing"))
     tops = []
     if look:
-        key, _, sub = look.partition("/")
-        if ".." in sub.split("/") or sub.startswith("/"):
-            out.append("look refused: a path under %s, not out of it" % key)
-        elif key in _env_words("RELAY_OPEN_KEYS") and os.environ.get(key):
-            tops.append((os.path.join(os.environ[key], sub), 3))
+        top, problem = _look(look)
+        if problem:
+            out.append(problem)
         else:
-            out.append("look %s refused: only %s are listed" % (
-                key, ", ".join(_env_words("RELAY_OPEN_KEYS")) or "none"))
+            tops.append((top, 3))
     else:
-        tops = [(os.environ[k], 2) for k in _env_words("RELAY_OPEN_KEYS")
-                if os.environ.get(k)]
+        for k in _env_words("RELAY_OPEN_KEYS"):
+            value = os.environ.get(k)
+            if not value:
+                continue
+            if not os.path.isdir(value):
+                out.append("look %s missing" % k)
+                continue
+            tops.append((value, 2))
     for top, depth in tops:
-        if not os.path.isdir(top):
-            out.append("look %s missing" % describe(top))
-            continue
         out.extend(_listing(top, depth, MAX_PROBE - len(out)))
     for line in out[:MAX_PROBE + 5]:
         say(line, sys.stdout)

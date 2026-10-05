@@ -1836,19 +1836,26 @@ def cmd_brief(live, args):
 
 
 def _repairing(live):
-    """The request a `[repair]` turn in flight was woken for, `""` where the
-    inbox line does not say, or None when this is no repair turn.
+    """The requests a `[repair]` turn in flight was woken for -- `[""]` where
+    no inbox line says -- or None when this is no repair turn.
 
     A FAILED CLUSTER JOB IS REPAIRED BY A DOING TURN, whatever the workspace
     teaches under, the way a mission is: a teaching workspace would otherwise
-    brief a broken job as a lesson about it. The daemon records the signal
-    the turn was woken with (`turn_signal` in `live/agent.json`), and the
-    `[repair]` line carries the request (`jobs.drop`).
+    brief a broken job as a lesson about it. The daemon records every
+    `[repair]` request in the batch the turn was woken with (`turn_repairs` in
+    `live/agent.json`, `woken_for` in bin/tutor), so one behind a student's
+    message counts; a record without it falls back to the signal and the
+    newest `[repair]` line (`jobs.drop`).
     """
     st = inside_a_daemon_turn(live)
-    if not st or st.get("turn_signal") != jobs.REPAIR:
+    if not st:
         return None
-    return jobs.last_repair(live.root)
+    rids = st.get("turn_repairs")
+    if isinstance(rids, list) and [r for r in rids if isinstance(r, str) and r]:
+        return [r for r in rids if isinstance(r, str) and r]
+    if st.get("turn_signal") != jobs.REPAIR:
+        return None
+    return [jobs.last_repair(live.root)]
 
 
 def cmd_note(live, args):

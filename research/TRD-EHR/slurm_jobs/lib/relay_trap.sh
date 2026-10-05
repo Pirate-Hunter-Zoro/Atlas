@@ -25,8 +25,21 @@
 # ---------------------------------------------------------------------------
 
 # Every location `.env` sets, so a path is named by its key and never by where it
-# is. Only RESULTS_DIR and EMBEDDINGS_DIR hold aggregate artifacts whose files may
-# be named; the per-patient directories name their files by patient id.
+# is. Under RESULTS_DIR and EMBEDDINGS_DIR a file or directory name is printed only
+# from an allowlist; everywhere else, and for any other name, it is a placeholder,
+# because the per-patient trees name files and directories by patient id.
+#
+# The allowlist is built from tracked files when a report is written
+# (`relay_hook.allowlist`): every segment of threads.json's outputs and exports,
+# of each tracked request's produces and export, and of every `results/` path a
+# recipe names. These two lists are the names those files do not carry:
+#   RELAY_ENCODERS  the encoder directories, EMBEDDERS in
+#                   scripts/pipeline/predictions/plot_cross_embedder.py; the only
+#                   values diagnose.sbatch's EMBEDDER takes
+#   RELAY_ALLOW     the judge model's directory, and the fixed directories the
+#                   Python writes under RESULTS_DIR by name
+export RELAY_ENCODERS="bge-small-en-v1.5 bge-en-icl Qwen-Qwen3-Embedding-4B Qwen-Qwen3-Embedding-8B"
+export RELAY_ALLOW="google_medgemma-27b-text-it trained_models trained_models_pca feature_importance neighbor_count_sweep best_k_panels cross_embedder_retrieval review"
 export RELAY_PATH_KEYS="PREP_DATA_DIR OUTPUT_DATA_DIR PROCEDURE_CSV_PATH MEDICATION_CSV_PATH DIAGNOSIS_CSV_PATH ENCOUNTER_CSV_PATH VITALS_CSV_PATH PERSON_CSV_PATH TRD_LIST_PATH ANALYSIS_DIR MDD_MED_DATE_CSV_PATH PATIENT_JSON_DIR SLICED_PATIENT_JSON_DIR COHORT_PATH HF_HOME EMBEDDER_MODEL_PATH VLLM_MODEL_PATH ENDPOINTS_DIR ARTIFACTS_DIR NARRATIVES_DIR FEATURE_DATAFRAME_PATH EMBEDDINGS_DIR JUDGEMENTS_DIR RESULTS_DIR"
 export RELAY_OPEN_KEYS="RESULTS_DIR EMBEDDINGS_DIR"
 export RELAY_NAMES=1
@@ -66,8 +79,11 @@ _relay_exit() {
             "${RELAY_STAGE}" "${status}" \
             "${_RELAY_LINE:+ after line ${_RELAY_LINE}}" "${sha:-unknown}" >&2
     fi
+    # Each cleanup starts with `$?` set to the job's status, so one that asks
+    # whether the job failed sees the answer and not the last command's.
     local fn
     for fn in ${_RELAY_ON_EXIT}; do
+        (exit "$status")
         "$fn"
     done
     return "$status"
