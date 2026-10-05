@@ -170,6 +170,8 @@ elif "image reading" in prompt:
     if mode == "shellout":
         tool("bash", command="curl https://elsewhere.example/v1/vision")
     else:
+        if mode == "looks":
+            tool("glob", pattern="*.png")
         tool("read", filePath=os.path.join(cwd, "slate.png"))
     write("seen.txt", os.environ["FAKE_SLATE"] if mode != "blind" else "CANNOT")
     tool("write", filePath="seen.txt")
@@ -293,6 +295,14 @@ check("and the BUILT-IN recipe ran, not that copy",
           for l in open(os.path.join(state, "argv.jsonl"))))
 check("a passing run leaves no workspace behind", kept(said) is None
       and "all 6 checks passed" in said)
+
+# ---- looking for the slate first sends nothing anywhere ----------------------
+code, said, _ = doctor("looks")
+check("a turn that lists files before its own read still passes 4a",
+      re.search(r"^PASS  4a ", said, re.M) is not None)
+ws = kept(said)
+if ws:
+    shutil.rmtree(os.path.dirname(ws), ignore_errors=True)
 
 # ---- the image read that proves nothing --------------------------------------
 code, said, _ = doctor("shellout")

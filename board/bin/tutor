@@ -6268,7 +6268,9 @@ def cmd_doctor(cfg, args):
             intact = fh.read() == check_bytes
     except OSError:
         intact = False
-    chk, _ = config.clean_check("python3 check.py")
+    # `-I`: the script's directory is not on the import path, so a module the
+    # turn dropped beside check.py cannot stand in for one check.py imports.
+    chk, _ = config.clean_check("python3 -I check.py")
     if not intact:
         verdict, checked = ["check.py is not the file doctor wrote, so its "
                             "verdict proves nothing"], False
@@ -6312,7 +6314,10 @@ def cmd_doctor(cfg, args):
         and str(((d.get("part") or {}).get("state") or {}).get("input", {})
                 .get("filePath", "")).endswith("slate.png")
         for d in opencode_events(said4) if d.get("type") == "tool_use")
-    other = sorted(set(t for t in (used or []) if t not in ("read", "write")))
+    # Listing and searching local files sends nothing anywhere, so a turn that
+    # looked for the slate before opening it still proves its own read.
+    other = sorted(set(t for t in (used or [])
+                       if t not in ("read", "write", "glob", "list", "grep")))
     line("4a", "image, own read", not err and read_it and opened and not other,
          "%s%s (%.0f s)" % (
              err or ("used %s besides its own read, so the digits prove "
