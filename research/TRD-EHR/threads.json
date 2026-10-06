@@ -324,7 +324,164 @@
         "scripts/rebuild-packet.sh"
       ],
       "outputs": [],
-      "exports": [],
+      "exports": [
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/time_zero_timeline.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/discrimination_forest_EMBEDDED_vs_FEATURE.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/cross_embedder_robustness_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_cumulative_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_correlation_cumulative_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_logistic_regression_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_random_forest_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_gradient_boosting_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_xgboost_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/pr_curves/pr_curve_logistic_regression_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/pr_curves/pr_curve_xgboost_FEATURE.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/calibration_curves/calibration_curve_logistic_regression_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/calibration_curves/calibration_curve_xgboost_FEATURE.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_RANDOM_UNIFORM_k32720.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/review/metric_intervals/trd_rate_by_prescription_timing.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/review/subgroups/subgroup_forest.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_logistic_regression_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_xgboost_FEATURE.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_logistic_regression_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_logistic_regression.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_random_forest.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_gradient_boosting.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_xgboost.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/ablation_roc_ci_EMBEDDED.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/notebook_figures/bge_small_recurrence_bimodality.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/notebook_figures/bge_small_cluster0_subsplit.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/notebook_figures/density_pre_anchor_history_days.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/notebook_figures/density_mdd_to_anchor_days.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/notebook_figures/density_num_encounters.png",
+          "aggregate": true
+        }
+      ],
       "check": "",
       "writes": [],
       "tasks": [
