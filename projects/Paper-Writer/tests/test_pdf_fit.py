@@ -1,10 +1,11 @@
-"""A PDF's tables, code blocks and paths stay inside the page.
+"""A PDF's tables, figures, code blocks and paths stay inside the page.
 
 `stages/pdf_fit.lua` is passed to pandoc for a PDF and never for a .docx. These
 run the filter through pandoc's LaTeX writer, which is what the PDF is typeset
 from, and read the LaTeX: a TeX run would make the suite need TeX Live.
 """
 
+import re
 import shutil
 import subprocess
 import unittest
@@ -33,6 +34,49 @@ After.
 """
 
 
+# A pipe table with a line longer than pandoc's 72 columns takes its widths
+# from the dashes, and these give "Representation" a tenth of the line.
+GIVEN = """\
+| **Representation** | **Classifier** | **ROC AUC (95% CI)** | **AUPRC (95% CI)** | **Brier score (95% CI)** |
+| ---------- | ------------------- | ---------------------- | ---------------------- | ---------------------- |
+| EMBEDDED | Logistic regression | 0.657 (0.643--0.672) | 0.302 (0.281--0.325) | 0.137 (0.132--0.142) |
+"""
+
+# The same kind of table with dashes that already hold every word.
+GIVEN_ROOMY = """\
+| **Group** | **Value** |
+| ---------------------------------------- | ---------------------------------------- |
+| A label that is long enough to pass the seventy-two column mark | 1 |
+"""
+
+CELLS = """\
+  **Source field**     **Encoding**                     **Narrative**
+  -------------------- -------------------------------- -----------------------------------------
+  Benzodiazepine days  pre_anchor_history_days, float   BMI: N \\\| BP (mean): S/D, or Missing
+"""
+
+PANELS = """\
+Text before.
+
+A bge-small-en-v1.5
+
+![](a.png){width=4.5in}
+
+B bge-en-icl
+
+![](b.png){width=4.5in}
+
+***Figure 5.** Retrieval by neighborhood size.*
+
+After.
+"""
+
+CAPTIONED_TABLE = """\
+***Table 2.** Discrimination in the test patients.*
+
+""" + GIVEN
+
+
 def latex(markdown):
     out = subprocess.run(
         ["pandoc", "--from", "markdown", "--to", "latex", "--standalone",
@@ -59,6 +103,71 @@ class PdfFit(unittest.TestCase):
         tex = latex(NARROW)
         self.assertNotIn(r"\begingroup", tex)
         self.assertIn("@{}ll@{}", tex)
+
+    def test_given_widths_too_narrow_for_a_word_are_recomputed(self):
+        tex = latex(GIVEN)
+        widths = [float(x) for x in
+                  re.findall(r"\\real\{([\d.]+)\}", tex)]
+        self.assertEqual(len(widths), 5)
+        # The dashes gave Representation 0.105; a bold "Representation"
+        # needs about a fifth of a footnotesize line.
+        self.assertGreater(widths[0], 0.2)
+        self.assertRegex(tex, r"\\begingroup\\(small|footnotesize)")
+
+    def test_given_widths_that_hold_every_word_are_kept(self):
+        tex = latex(GIVEN_ROOMY)
+        self.assertNotIn(r"\begingroup", tex)
+        self.assertIn(r"\real{0.5000}", tex)
+
+    def test_identifiers_in_cells_break_after_underscores(self):
+        tex = latex(CELLS)
+        self.assertIn(r"pre\_\allowbreak{}anchor\_\allowbreak{}history", tex)
+
+    def test_escaped_pipe_in_a_cell_prints_as_a_pipe(self):
+        tex = latex(CELLS)
+        self.assertNotIn("textbackslash", tex)
+        self.assertRegex(tex, r"N (\\textbar\{\}|\|) BP")
+
+    def test_panel_label_is_boxed_with_its_image(self):
+        tex = latex(PANELS)
+        def boxed(label, image):
+            return (r"\\begin\{minipage\}\{\\linewidth\}\s*" + label
+                    + r"\s*(\\smallskip\s*)?[^\n]*includegraphics[^\n]*\{"
+                    + image + r"\}[^\n]*\s*\\end\{minipage\}")
+        self.assertRegex(tex, boxed("A bge-small-en-v1.5", r"a\.png"))
+        self.assertRegex(tex, boxed("B bge-en-icl", r"b\.png"))
+        # The caption after the last panel may not be broken from it.
+        self.assertRegex(tex, r"\\end\{minipage\}\\par\s*\\nopagebreak\s*"
+                              r"\\emph\{\\textbf\{Figure 5\.\}")
+        self.assertNotIn("needspace", tex)
+
+    def test_image_kept_with_text_leaves_room_for_it(self):
+        # An image as tall as the page, held to its caption, has nowhere to
+        # break, and TeX ships empty pages until it runs out of numbers.
+        tex = latex("![](a.png){width=5.6in}\n\n"
+                    "Figure S11. Subgroup discrimination.\n")
+        self.assertRegex(tex, r"\\includegraphics\[width=5\.6in,"
+                              r"height=0\.\d+\\textheight,keepaspectratio\]\{a\.png\}")
+        self.assertIn(r"\usepackage{graphicx}", tex)
+        self.assertRegex(tex, r"a\.png\}\s*\\nopagebreak\s*Figure S11\.")
+
+    def test_caption_after_an_image_is_not_boxed_with_the_next(self):
+        tex = latex("![](a.png){width=4in}\n\n"
+                    "Figure S3. Continued on the next page.\n\n"
+                    "![](b.png){width=4in}\n")
+        self.assertNotIn("minipage", tex)
+
+    def test_table_caption_asks_for_room_for_the_table(self):
+        tex = latex(CAPTIONED_TABLE)
+        self.assertIn(r"\usepackage{needspace}", tex)
+        self.assertRegex(tex, r"\\Needspace\{\d+\\baselineskip\}\s*"
+                              r"\\emph\{\\textbf\{Table 2\.\}")
+
+    def test_prose_is_not_boxed(self):
+        tex = latex("A sentence that happens to start with a capital.\n\n"
+                    "Another paragraph.\n")
+        self.assertNotIn("minipage", tex)
+        self.assertNotIn("nopagebreak", tex)
 
     def test_code_block_wraps_and_loads_fvextra(self):
         tex = latex(NARRATIVE)

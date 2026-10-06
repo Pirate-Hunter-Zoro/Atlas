@@ -1,10 +1,14 @@
--- pdf_fit.lua -- keep a PDF's tables, code and paths inside the page.
+-- pdf_fit.lua -- keep a PDF's tables, figures, code and paths inside the page.
 --
--- Pandoc's LaTeX writer leaves three things at their natural width, and on a
--- page that is narrower than them they run off the right edge with no error:
+-- Pandoc's LaTeX writer leaves each of these to go wrong with no error:
 --
 --   * a SIMPLE table gets no column widths, so each column is as wide as its
 --     longest cell and a six-column results table is wider than the page;
+--   * a table the source gave widths to (a pipe table with a long line, a grid
+--     or multiline table) takes them from its dashes, and a column whose dashes
+--     are shorter than its longest word prints that word over the next column;
+--   * a caption and a panel label are paragraphs of their own, so a page break
+--     can fall between one and the table or image it names;
 --   * a code block is `verbatim`, which never breaks a line, and a patient
 --     narrative is one long line per field;
 --   * inline code is `\texttt`, which never hyphenates, so a long file path
@@ -12,38 +16,123 @@
 --
 -- Only the PDF changes. A .docx lays its own tables out and wraps its own code,
 -- and the journal copy must not be touched by a fix for the reading copy.
+--
+-- Two passes. The first measures tables on their source text and then makes
+-- their cells breakable; the second rewrites code and paths everywhere else.
+-- One pass would measure a cell after its text had become raw LaTeX, which
+-- has no length.
 
 if not FORMAT:match("latex") then
   return {}
 end
 
--- About as many characters of DejaVu Sans as a line of the default page holds.
--- A table whose cells fit in this is left at its natural widths.
+-- The text width of pandoc's default page (article, 10pt, letter), in points.
+local LINE_PT = 345
+-- About as many characters of DejaVu Sans as that line holds at each face a
+-- table is set in. A table whose cells fit the first is left at its natural
+-- widths.
 local LINE_CHARS = 62
--- The same line at the two sizes a widened table is set in.
 local SMALL_CHARS = 68
 local FOOTNOTE_CHARS = 76
--- Each column keeps room for its longest word plus this much padding, because
--- a word is never broken and one wider than its column prints over the next.
--- Three, not two: a heading is bold, and bold DejaVu is wider.
-local WORD_PAD = 3
+local SCRIPT_CHARS = 88
+-- \tabcolsep in points: LaTeX's, and the tighter one the smallest faces take.
+-- It does not shrink with the face, so it costs a many-column table a lot.
+local TABCOLSEP = 6
+local TIGHT_TABCOLSEP = 3
+-- Room a cell needs beyond its text when the table is left at natural widths.
+local CELL_PAD = 3
+-- Each column keeps room for its longest unbreakable piece plus this, because
+-- a piece is never broken and one wider than its column prints over the next.
+local WORD_PAD = 1
+-- Bold DejaVu is wider than regular, and a heading is bold.
+local BOLD = 1.1
 -- Inline code shorter than this fits on any line and is left to pandoc.
 local LONG_CODE = 24
+-- A panel label ("A bge-small-en-v1.5") is a capital, a space and at most this
+-- many characters in all.
+local PANEL_LABEL = 160
+-- Lines a table needs below its caption -- heading and first row -- before the
+-- caption is worth starting on this page.
+local TABLE_LEAD = 8
+-- Lines of body text the default page holds (\textheight over \baselineskip,
+-- rounded down for the space round a paragraph).
+local PAGE_LINES = 43
 
-local function longest_word(text)
+-- Set when a rewrite needs a package, and read by `Meta`, which runs last.
+local wants_fvextra = false
+local wants_needspace = false
+local wants_graphicx = false
+
+local ESCAPE = {
+  ["\\"] = "\\textbackslash{}", ["{"] = "\\{", ["}"] = "\\}",
+  ["$"] = "\\$", ["&"] = "\\&", ["#"] = "\\#", ["%"] = "\\%",
+  ["^"] = "\\textasciicircum{}", ["~"] = "\\textasciitilde{}",
+  ["_"] = "\\_", ["|"] = "\\textbar{}",
+  ["<"] = "\\textless{}", [">"] = "\\textgreater{}",
+}
+
+-- The text, escaped for LaTeX, with a break allowed after each character in
+-- `after` -- where a path or an identifier reads naturally across two lines.
+-- A character mapped to a pattern breaks only before a character matching it.
+local function breakable(text, after)
+  local chars = {}
+  for ch in text:gmatch(utf8.charpattern) do chars[#chars + 1] = ch end
+  local out = {}
+  for i, ch in ipairs(chars) do
+    out[#out + 1] = ESCAPE[ch] or ch
+    local rule = after[ch]
+    if rule == true or (rule and chars[i + 1] and chars[i + 1]:match(rule)) then
+      out[#out + 1] = "\\allowbreak{}"
+    end
+  end
+  return table.concat(out)
+end
+
+local CODE_BREAKS = { ["/"] = true, ["_"] = true, ["."] = true, ["-"] = true }
+-- Prose keeps its hyphenation; a bare path there breaks only at a slash or an
+-- underscore, so a sentence's full stop never starts a line.
+local PATH_BREAKS = { ["/"] = true, ["_"] = true }
+-- A table cell breaks a snake_case identifier after an underscore, and a pair
+-- of words ("White/Caucasian") after the slash; "46/297" stays whole.
+local CELL_BREAKS = { ["_"] = true, ["/"] = "%a" }
+
+-- The longest piece of `text` that cannot break, in characters: words split
+-- where `CELL_BREAKS` lets them, after a hyphen, where TeX breaks by itself,
+-- and, if `dashes`, after an en dash, where it also does. An interval
+-- "(0.643–0.672)" is one piece or two depending on which is asked for.
+local function longest_word(text, dashes)
   local most = 0
   for word in text:gmatch("%S+") do
-    local len = utf8.len(word) or #word
-    if len > most then most = len end
+    local chars = {}
+    for ch in word:gmatch(utf8.charpattern) do chars[#chars + 1] = ch end
+    local run = 0
+    for i, ch in ipairs(chars) do
+      run = run + 1
+      if run > most then most = run end
+      local rule = CELL_BREAKS[ch]
+      if ch == "-" or (dashes and ch == "–")
+          or rule == true
+          or (rule and chars[i + 1] and chars[i + 1]:match(rule)) then
+        run = 0
+      end
+    end
   end
   return most
 end
 
--- Per column: the longest cell and the longest single word, in characters.
+local function is_bold(cell)
+  local bold = false
+  pandoc.Div(cell.contents):walk({ Strong = function() bold = true end })
+  return bold
+end
+
+-- Per column: the longest cell, and the longest piece that cannot break with
+-- and without a break at a dash, in characters, a bold piece counted at its
+-- bold width.
 local function widest(tbl)
   local n = #tbl.colspecs
-  local w, words = {}, {}
-  for i = 1, n do w[i] = 0; words[i] = 0 end
+  local w, whole, parts = {}, {}, {}
+  for i = 1, n do w[i] = 0; whole[i] = 0; parts[i] = 0 end
   local function take(rows)
     for _, row in ipairs(rows) do
       local col = 1
@@ -57,8 +146,9 @@ local function widest(tbl)
           if each > w[k] then w[k] = each end
         end
         if span == 1 and col <= n then
-          local lw = longest_word(text)
-          if lw > words[col] then words[col] = lw end
+          local scale = is_bold(cell) and BOLD or 1
+          whole[col] = math.max(whole[col], longest_word(text, false) * scale)
+          parts[col] = math.max(parts[col], longest_word(text, true) * scale)
         end
         col = col + span
       end
@@ -70,57 +160,272 @@ local function widest(tbl)
     take(body.body)
   end
   take(tbl.foot.rows)
-  return w, words
+  return w, whole, parts
+end
+
+-- The characters a row of `n` columns has for text at one face: the line, less
+-- the space between columns.
+local function room(chars, n, sep)
+  return chars * (1 - 2 * (n - 1) * sep / LINE_PT)
+end
+
+-- The faces a widened table is tried in, smallest last. \small is taken only
+-- with room to spare, because a table set small whose words exactly fill it
+-- wraps every cell.
+local SMALL = { size = "\\small", chars = SMALL_CHARS, sep = TABCOLSEP, fill = 0.85 }
+local FOOTNOTE = { size = "\\footnotesize", chars = FOOTNOTE_CHARS, sep = TABCOLSEP, fill = 1 }
+local TIGHT = { size = "\\footnotesize", chars = FOOTNOTE_CHARS, sep = TIGHT_TABCOLSEP, fill = 1 }
+local SCRIPT = { size = "\\scriptsize", chars = SCRIPT_CHARS, sep = TIGHT_TABCOLSEP, fill = 1 }
+-- Tried in order; the first face whose columns hold every piece is used.
+-- Whole intervals first, at the faces a reader reads without effort, and only
+-- then intervals broken at their dash, which costs a third line per cell;
+-- \scriptsize is the last resort before words overprint.
+local TRIES = {
+  { "whole", SMALL }, { "whole", FOOTNOTE }, { "whole", TIGHT },
+  { "parts", SMALL }, { "parts", FOOTNOTE }, { "parts", TIGHT },
+  { "parts", SCRIPT },
+}
+
+-- "N \| BP" in a cell is a pipe the source escaped twice; the reader sees a
+-- pipe.
+local function plain_pipe(str)
+  if str.text:find("\\|", 1, true) then
+    return pandoc.Str((str.text:gsub("\\|", "|")))
+  end
+end
+
+local function breakable_cells(tbl)
+  return tbl:walk({
+    Str = function(str)
+      if str.text:find("_", 1, true) or str.text:find("/%a") then
+        return pandoc.RawInline("latex", breakable(str.text, CELL_BREAKS))
+      end
+    end,
+    Code = function(code)
+      if code.text:find("[_/]") then
+        return pandoc.RawInline("latex",
+          "\\texttt{" .. breakable(code.text, CODE_BREAKS) .. "}")
+      end
+    end,
+  })
 end
 
 -- A TABLE TOO WIDE FOR THE LINE gets column widths, which turns its columns
--- into wrapping paragraphs. Each column first gets its longest word, and what
--- is left of the line goes to the columns in proportion to the text they have
--- beyond that word. A table the source already gave widths to (a pipe table
--- with a long line, a grid or multiline table) is the author's layout and is
--- left alone.
-function Table(tbl)
-  for _, spec in ipairs(tbl.colspecs) do
-    if spec[2] ~= nil then return nil end
-  end
-  local w, words = widest(tbl)
+-- into wrapping paragraphs. Each column first gets its longest unbreakable
+-- piece, and what is left of the line goes to the columns in proportion to
+-- the text they have beyond it. A table the source gave widths to keeps them
+-- while every column holds its longest piece; one that does not is laid out
+-- by the same rule, since the dashes of a pipe table were never a layout.
+local function Table(tbl)
+  tbl = tbl:walk({ Str = plain_pipe })
+  local w, whole, parts = widest(tbl)
+  local pieces = { whole = whole, parts = parts }
   local n = #w
-  local natural, floor, extra = 0, 0, 0
-  local base, more = {}, {}
+  local function floor_of(words)
+    local sum = 0
+    for i = 1, n do sum = sum + words[i] + WORD_PAD end
+    return sum
+  end
+  local natural = 0
+  for i = 1, n do natural = natural + w[i] + CELL_PAD end
+  local given = false
+  for _, spec in ipairs(tbl.colspecs) do
+    if spec[2] ~= nil then given = true end
+  end
+  if given then
+    -- At the source's widths TeX may break an interval at its dash, so only
+    -- a piece it cannot break has to fit.
+    local line = room(LINE_CHARS, n, TABCOLSEP)
+    local holds = true
+    for i, spec in ipairs(tbl.colspecs) do
+      if spec[2] * line < parts[i] + WORD_PAD then holds = false end
+    end
+    if holds then return breakable_cells(tbl) end
+  end
+  if natural <= LINE_CHARS then
+    for i, spec in ipairs(tbl.colspecs) do
+      tbl.colspecs[i] = { spec[1], nil }
+    end
+    return breakable_cells(tbl)
+  end
+  local face, words = SCRIPT, parts
+  for _, try in ipairs(TRIES) do
+    local f = try[2]
+    if floor_of(pieces[try[1]]) <= room(f.chars, n, f.sep) * f.fill then
+      face, words = f, pieces[try[1]]
+      break
+    end
+  end
+  local floor, extra = floor_of(words), 0
+  local more = {}
   for i = 1, n do
-    natural = natural + w[i] + WORD_PAD
-    base[i] = words[i] + WORD_PAD
     more[i] = math.max(0, w[i] - words[i])
-    floor = floor + base[i]
     extra = extra + more[i]
   end
-  if natural <= LINE_CHARS then return nil end
-  -- A table whose words alone nearly fill the line is set smaller, which is
-  -- what a typesetter does with a wide table rather than break its headings.
-  local size, line = "\\small", SMALL_CHARS
-  if floor > SMALL_CHARS * 0.85 then size, line = "\\footnotesize", FOOTNOTE_CHARS end
-  local spare = math.max(0, line - floor)
+  local spare = math.max(0, room(face.chars, n, face.sep) - floor)
   local chars, sum = {}, 0
   for i = 1, n do
-    chars[i] = base[i] + (extra > 0 and spare * more[i] / extra or 0)
+    chars[i] = words[i] + WORD_PAD + (extra > 0 and spare * more[i] / extra or 0)
     sum = sum + chars[i]
   end
-  -- Words that do not fit even one to a column overflow whatever is done;
+  -- Words that do not fit even the smallest face overflow whatever is done;
   -- shrinking every column by the same factor at least keeps them in order.
   for i = 1, n do
     tbl.colspecs[i] = { tbl.colspecs[i][1], chars[i] / sum }
   end
-  return { pandoc.RawBlock("latex", "\\begingroup" .. size), tbl,
+  local open = "\\begingroup" .. face.size
+  if face.sep ~= TABCOLSEP then
+    open = open .. "\\setlength{\\tabcolsep}{" .. face.sep .. "pt}"
+  end
+  return { pandoc.RawBlock("latex", open), breakable_cells(tbl),
            pandoc.RawBlock("latex", "\\endgroup") }
 end
 
--- Set when a code block is rewritten, and read by `Meta`, which pandoc runs
--- after every block.
-local wants_fvextra = false
+local function only_images(inlines)
+  local images = 0
+  for _, el in ipairs(inlines) do
+    if el.t == "Image" then
+      images = images + 1
+    elseif el.t ~= "Space" and el.t ~= "SoftBreak" and el.t ~= "LineBreak" then
+      return false
+    end
+  end
+  return images > 0
+end
+
+local function is_image(block)
+  if block == nil then return false end
+  if block.t == "Figure" then return true end
+  return (block.t == "Para" or block.t == "Plain") and only_images(block.content)
+end
+
+local function is_caption(block)
+  if block == nil or block.t ~= "Para" then return false end
+  local text = pandoc.utils.stringify(block)
+  return text:match("^Table %u?%d+%.") ~= nil or text:match("^Figure %u?%d+%.") ~= nil
+end
+
+local function is_panel_label(block)
+  if block == nil or (block.t ~= "Para" and block.t ~= "Plain") then
+    return false
+  end
+  local text = pandoc.utils.stringify(block)
+  return (utf8.len(text) or #text) <= PANEL_LABEL and text:match("^%u%s+%S") ~= nil
+end
+
+-- A table, or the group `Table` above opened around one.
+local function is_table(blocks, i)
+  local block = blocks[i]
+  if block == nil then return false end
+  if block.t == "Table" then return true end
+  return block.t == "RawBlock" and block.text:match("^\\begingroup") ~= nil
+     and blocks[i + 1] ~= nil and blocks[i + 1].t == "Table"
+end
+
+local function latex(text) return pandoc.RawBlock("latex", text) end
+
+local function lines_of(block)
+  local text = pandoc.utils.stringify(block)
+  return math.ceil((utf8.len(text) or #text) / LINE_CHARS)
+end
+
+-- An image may be as tall as the page, and one held to its label or caption
+-- then has nothing to break against: TeX ships empty pages until it runs out
+-- of page numbers. So an image kept with `lines` of text is capped at the
+-- page less those lines. It is written out here because pandoc drops
+-- keepaspectratio once an image has both a width and a height. An image with
+-- no width, a height of its own, or a path TeX would need escaped is left to
+-- pandoc.
+local function leave_room(block, lines)
+  if block.t ~= "Para" and block.t ~= "Plain" then return block end
+  local share = string.format("%.2f", 1 - (lines + 1) / PAGE_LINES)
+  return block:walk({
+    Image = function(image)
+      local width = image.attributes.width
+      if width == nil or image.attributes.height ~= nil
+          or image.src:find("[%s%%#{}\\]") then
+        return nil
+      end
+      local percent = width:match("^([%d.]+)%%$")
+      if percent then
+        width = string.format("%.4f\\linewidth", tonumber(percent) / 100)
+      elseif not width:match("^[%d.]+%a%a$") then
+        return nil
+      end
+      wants_graphicx = true
+      return pandoc.RawInline("latex", "\\includegraphics[width=" .. width
+        .. ",height=" .. share .. "\\textheight,keepaspectratio]{"
+        .. image.src .. "}")
+    end,
+  })
+end
+
+-- One unbreakable box holding `blocks`, which the page break goes around.
+local function unbroken(out, blocks)
+  out:insert(latex("\\par\\noindent\\begin{minipage}{\\linewidth}"))
+  for k, block in ipairs(blocks) do
+    if k > 1 then out:insert(latex("\\smallskip")) end
+    out:insert(block)
+  end
+  out:insert(latex("\\end{minipage}\\par"))
+end
+
+-- A CAPTION OR A PANEL LABEL STAYS WITH WHAT IT NAMES.
+--
+--   * A panel label and the image after it are one box, so the label is never
+--     the last line of a page with its panel on the next, and a two-line label
+--     never splits.
+--   * A caption before an image is boxed with it the same way, unless an
+--     image comes before it too: then it is that image's caption, and a chain
+--     of image, caption and image held together can outgrow the page.
+--   * A caption before a table asks, with needspace's \Needspace, for room
+--     for itself and the table's first rows, or starts a new page. A box
+--     cannot hold a longtable, and a \nopagebreak cannot either: longtable
+--     opens with a break of its own. Not the package's \needspace, whose
+--     break is decided only once the longtable has taken over the output
+--     routine, which then prints the table's heading above the caption.
+--   * A caption after an image may not be broken from it.
+--
+-- Each image kept this way is capped so that it and its text fit one page.
+local function Blocks(blocks)
+  local out = pandoc.Blocks({})
+  local i = 1
+  local after_image = false
+  while i <= #blocks do
+    local block, nxt = blocks[i], blocks[i + 1]
+    local image = false
+    if (is_panel_label(block) or (is_caption(block) and not after_image))
+        and is_image(nxt) then
+      local lines = lines_of(block)
+      local after = is_caption(blocks[i + 2]) and lines_of(blocks[i + 2]) or 0
+      unbroken(out, { block, leave_room(nxt, lines + after) })
+      i = i + 2
+      image = true
+      if after > 0 then out:insert(latex("\\nopagebreak")) end
+    elseif is_caption(block) and is_table(blocks, i + 1) then
+      wants_needspace = true
+      out:insert(latex(string.format("\\Needspace{%d\\baselineskip}",
+                                     lines_of(block) + TABLE_LEAD)))
+      out:insert(block)
+      i = i + 1
+    elseif is_image(block) and is_caption(nxt) then
+      out:insert(leave_room(block, lines_of(nxt)))
+      out:insert(latex("\\nopagebreak"))
+      i = i + 1
+      image = true
+    else
+      out:insert(block)
+      i = i + 1
+      image = is_image(block)
+    end
+    after_image = image
+  end
+  return out
+end
 
 -- A CODE BLOCK WRAPS. fvextra's Verbatim breaks a line at the margin and marks
 -- the break, and the text inside it is still taken literally.
-function CodeBlock(block)
+local function CodeBlock(block)
   if #block.classes > 0 then return nil end
   wants_fvextra = true
   return pandoc.RawBlock("latex",
@@ -128,31 +433,8 @@ function CodeBlock(block)
     .. "\n\\end{Verbatim}")
 end
 
-local ESCAPE = {
-  ["\\"] = "\\textbackslash{}", ["{"] = "\\{", ["}"] = "\\}",
-  ["$"] = "\\$", ["&"] = "\\&", ["#"] = "\\#", ["%"] = "\\%",
-  ["^"] = "\\textasciicircum{}", ["~"] = "\\textasciitilde{}",
-  ["_"] = "\\_",
-}
-
--- The text, escaped for LaTeX, with a break allowed after each character in
--- `after` -- where a path or an identifier reads naturally across two lines.
-local function breakable(text, after)
-  local out = {}
-  for ch in text:gmatch(utf8.charpattern) do
-    out[#out + 1] = ESCAPE[ch] or ch
-    if after[ch] then out[#out + 1] = "\\allowbreak{}" end
-  end
-  return table.concat(out)
-end
-
-local CODE_BREAKS = { ["/"] = true, ["_"] = true, ["."] = true, ["-"] = true }
--- Prose keeps its hyphenation; a bare path there breaks only at a slash or an
--- underscore, so a sentence's full stop never starts a line.
-local PATH_BREAKS = { ["/"] = true, ["_"] = true }
-
 -- LONG INLINE CODE MAY BREAK after a slash, an underscore, a dot or a hyphen.
-function Code(code)
+local function Code(code)
   if #code.text < LONG_CODE then return nil end
   return pandoc.RawInline("latex",
     "\\texttt{" .. breakable(code.text, CODE_BREAKS) .. "}")
@@ -160,25 +442,37 @@ end
 
 -- A LONG PATH WRITTEN AS PROSE is one word to TeX, which will not break it, so
 -- it sticks out past the margin of a justified paragraph.
-function Str(str)
+local function Str(str)
   if #str.text < LONG_CODE or not str.text:find("/", 1, true) then return nil end
   return pandoc.RawInline("latex", breakable(str.text, PATH_BREAKS))
 end
 
--- fvextra, for the code blocks above, added to whatever the document's own
--- header asks for rather than in place of it. Only where a code block needs
--- it: fvextra loads lineno, and lineno breaks a longtable whose rows run long
--- ("Dimension too large"), which is the TRIPOD checklist.
-function Meta(meta)
-  if not wants_fvextra then return nil end
-  local add = pandoc.RawBlock("latex", "\\usepackage{fvextra}")
+-- The packages the rewrites above need, added to whatever the document's own
+-- header asks for rather than in place of it, and only where used: fvextra
+-- loads lineno, and lineno breaks a longtable whose rows run long ("Dimension
+-- too large"), which is the TRIPOD checklist. graphicx is pandoc's own, which
+-- it loads only when it writes an image itself, and `leave_room` may have
+-- written every one.
+local function Meta(meta)
+  local adds = {}
+  if wants_fvextra then adds[#adds + 1] = "\\usepackage{fvextra}" end
+  if wants_needspace then adds[#adds + 1] = "\\usepackage{needspace}" end
+  if wants_graphicx then adds[#adds + 1] = "\\usepackage{graphicx}" end
+  if #adds == 0 then return nil end
   local have = meta["header-includes"]
   if have == nil then
-    meta["header-includes"] = pandoc.MetaList({ pandoc.MetaBlocks({ add }) })
-  elseif pandoc.utils.type(have) == "List" then
-    have:insert(pandoc.MetaBlocks({ add }))
-  else
-    meta["header-includes"] = pandoc.MetaList({ have, pandoc.MetaBlocks({ add }) })
+    have = pandoc.MetaList({})
+  elseif pandoc.utils.type(have) ~= "List" then
+    have = pandoc.MetaList({ have })
   end
+  for _, add in ipairs(adds) do
+    have:insert(pandoc.MetaBlocks({ pandoc.RawBlock("latex", add) }))
+  end
+  meta["header-includes"] = have
   return meta
 end
+
+return {
+  { Table = Table, Blocks = Blocks },
+  { CodeBlock = CodeBlock, Code = Code, Str = Str, Meta = Meta },
+}
