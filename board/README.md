@@ -5555,7 +5555,7 @@ because a slow nib never crosses the pan threshold in time.
 
 **ON A CARD THE LATCH SHUTS ONLY THE ZONE ROUND THE LAST STROKE.** The next stroke of a word
 lands beside the last, so that is all the gap has to cover. At each lift `zoneAt` sizes the
-card's `.ann-zone` to the stroke's box plus `ZONE_REACH` (120 px) a side, clipped to the layer,
+card's `.ann-zone` to the stroke's box plus `ZONE_REACH` (200 px) a side, clipped to the layer,
 and grows it while the latch stays shut; it carries `touch-action: none` and is hidden when the
 latch opens. The rest of every layer keeps its native pan, with momentum, so writing, swiping
 and writing again scrolls like any page: *"I couldn't scroll while annotating … I want both."*

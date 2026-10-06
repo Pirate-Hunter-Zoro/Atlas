@@ -319,7 +319,10 @@ function layerOf(card) {
    on its card exactly as the layer would; `begin` captures the pointer to the
    layer, so the rest of the stroke goes there. */
 var ZONE = "ann-zone";
-var ZONE_REACH = 120;
+/* About an inch and a half: far enough that the heel of a writing hand, which
+   rests below and beside the nib, lands inside it and is refused, and near
+   enough that a swipe elsewhere on the card still scrolls natively. */
+var ZONE_REACH = 200;
 
 function zoneOf(card) {
   var z = card.querySelector(":scope > ." + ZONE);

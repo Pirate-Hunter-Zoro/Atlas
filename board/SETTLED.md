@@ -1026,7 +1026,11 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   `handPan` never stands down when the page moves under it**: every gesture it
   follows is refused in CSS or at `touchstart`, so the mover is the board's own
   `holdAnchor` or a reveal, and standing down left the finger with no scroll of
-  either kind. Board-made scrolls go through `Annotate.ownScroll` and do not hold
+  either kind. **The zone is the trade, and it is deliberate**: a palm or a new
+  stroke more than `ZONE_REACH` from the last one, inside the gap, is not refused
+  in CSS, so a quick stroke there on a busy main thread can be read as a pan.
+  Widening the zone back to the whole layer is the bug above, not a fix for this.
+  Board-made scrolls go through `Annotate.ownScroll` and do not hold
   the latch for `PEN_MODE`. `test/link.js`, `latchFlow`, moves `pageYOffset`
   under a finger and checks the zone.
 - **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
