@@ -1,0 +1,14 @@
+{
+  "env": {},
+  "export": [
+    "results/cross_embedder_robustness_EMBEDDED.png"
+  ],
+  "filed": 1791269486.596,
+  "id": "2026-10-06-consistency-pass-plot-cross-embedder",
+  "kind": "recipe",
+  "produces": [
+    "results/cross_embedder_robustness_EMBEDDED.png"
+  ],
+  "recipe": "slurm_jobs/quick_runs/plot_cross_embedder.sbatch",
+  "thread": "consistency-pass"
+}
