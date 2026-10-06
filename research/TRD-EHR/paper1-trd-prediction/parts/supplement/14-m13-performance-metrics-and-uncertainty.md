@@ -9,7 +9,7 @@ Section heading: M13 Performance Metrics and Uncertainty
 
 # M13 Performance Metrics and Uncertainty
 
-Discrimination was summarized by ROC AUC and AUPRC. The original overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are retained in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
+Discrimination was summarized by ROC AUC and AUPRC. The overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
 
 Sensitivity, specificity, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
 

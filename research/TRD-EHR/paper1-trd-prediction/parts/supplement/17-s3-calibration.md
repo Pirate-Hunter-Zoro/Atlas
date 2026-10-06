@@ -9,7 +9,7 @@ Section heading: S3 Calibration
 
 # S3 Calibration
 
-Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Across the 8 classifiers, Brier scores ran from 0.137 (95% CI 0.132--0.142) to 0.140 (95% CI 0.134--0.145) and WCE from 0.004 (95% CI 0.003--0.013) to 0.018 (95% CI 0.011--0.026). The binned calibration slopes and intercepts originally reported in the manuscript are retained below, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
+Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Across the 8 classifiers, Brier scores ran from 0.137 (95% CI 0.132--0.142) to 0.140 (95% CI 0.134--0.145) and WCE from 0.004 (95% CI 0.003--0.013) to 0.018 (95% CI 0.011--0.026). Table S4 reports binned calibration slopes and intercepts, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
 
 Table S3. Brier score and weighted calibration error for all 8 primary representation--classifier combinations and the 3 retrieval arms, each arm at its own test-selected best k, with bootstrap 95% CIs. Both metrics describe the cohort's observed outcome frequency.
 
@@ -29,7 +29,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 
 \* The random arm's WCE lies below its own bootstrap interval. Its predicted risks all sit within 0.002 of the outcome rate, so on the full test set the binned error is almost zero. Every resample moves the observed rate away from those fixed risks, so the resampled errors are larger. The interval therefore describes resampling noise around a near-zero error, not uncertainty about a positive one.
 
-Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These descriptive values are retained from the original overall calibration analysis and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
+Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
 
 | **Representation** | **Model** | **Binned slope (95% CI)** | **Binned intercept (95% CI)** |
 | ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
@@ -65,4 +65,4 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S5. Calibration curves for embedded logistic regression (A), feature-vector XGBoost (B), and the 3 retrieval arms at their own test-selected best k (C--E). Panels C--E carry a 95% CI on each bin. Retrieval panels use 10 bins of equal patient count, because retrieval risks crowd near the outcome rate. Random risks all lie near 0.175, so panel E is one cluster of points. The diagonal indicates agreement between predicted and observed outcome frequency; points above it indicate underprediction in that bin, and points below indicate overprediction. The sample is enriched for depression.
+Figure S5. Calibration curves for embedded logistic regression (A), feature-vector XGBoost (B), and the 3 retrieval arms at their own test-selected best k (C--E). E is the same random draw as Figure S4E, the one of 1,000 whose ROC AUC at that k is closest to their mean. Panels C--E carry a 95% CI on each bin. Retrieval panels use 10 bins of equal patient count, because retrieval risks crowd near the outcome rate. Random risks all lie near 0.175, so panel E is one cluster of points. The diagonal indicates agreement between predicted and observed outcome frequency; points above it indicate underprediction in that bin, and points below indicate overprediction. The sample is enriched for depression.
