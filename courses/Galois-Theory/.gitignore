@@ -1,7 +1,37 @@
-# Kept deliberately minimal. Atlas's root .gitignore decides most of what this
-# workspace carries — it is the one that refuses the set text, the chapter
-# excerpts cut from it, and anything a command regenerates — and this file adds
-# only the live board's allowlist on top of it.
+# This course is its OWN private repository (github.com/Pirate-Hunter-Zoro/Galois-Theory),
+# ignored by Atlas, and this file is its whole ignore set: a nested repository
+# reads none of Atlas's root .gitignore. So the build, LaTeX and credential
+# rules are repeated here.
+#
+# The textbook, its chapter excerpts, the professor's slides and the assignment
+# sheets ARE tracked, because the repository is private.
+
+# ---- regenerated ----
+# A compiled PDF under build/ is tracked, so another machine can open it;
+# what LaTeX writes beside it is not.
+*.pyc
+*.pyo
+.venv/
+*.log
+*.out
+*.aux
+*.nav
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+**/relay/state/
+.vscode/
+.nfs*
+**/.claude/
+
+# ---- a credential dropped in the tree ----
+*-api-key
+*_api_key
+*.key
+keys.env
+.env
 
 __pycache__
 node_modules/

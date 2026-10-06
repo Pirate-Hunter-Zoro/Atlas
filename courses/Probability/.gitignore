@@ -1,11 +1,37 @@
-# Kept deliberately minimal: this matches the ignore set used in
-# Research-Journey. Build products, compiled PDFs, editor state and the work
-# written in here are tracked.
+# This course is its OWN private repository (github.com/Pirate-Hunter-Zoro/Probability),
+# ignored by Atlas, and this file is its whole ignore set: a nested repository
+# reads none of Atlas's root .gitignore. So the build, LaTeX and credential
+# rules are repeated here.
 #
-# What is NOT tracked is what somebody else wrote — the textbook, its chapter
-# excerpts, the professor's module slides and the assignment sheets. Those
-# rules live in the ROOT .gitignore, with the other categories of other
-# people's work, so a second course gets them without writing them again.
+# The textbook, its chapter excerpts, the professor's slides and the assignment
+# sheets ARE tracked, because the repository is private.
+
+# ---- regenerated ----
+# A compiled PDF under build/ is tracked, so another machine can open it;
+# what LaTeX writes beside it is not.
+*.pyc
+*.pyo
+.venv/
+*.log
+*.out
+*.aux
+*.nav
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+**/relay/state/
+.vscode/
+.nfs*
+**/.claude/
+
+# ---- a credential dropped in the tree ----
+*-api-key
+*_api_key
+*.key
+keys.env
+.env
 
 __pycache__
 node_modules/
