@@ -151,6 +151,11 @@ Thumbs.db
 # deliberately elsewhere.
 /ai-config/
 
+# Each course is its own private repository too (github.com/Pirate-Hunter-Zoro/<name>),
+# cloned into courses/<name>. It tracks its textbook, slides and sheets, so a
+# public repository must never carry a byte of it.
+/courses/*/
+
 # ---- a credential dropped in the tree, which is a thing that happens ----
 # A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside
 # this repository -- HANDOFF.md's *Before anything* says so. It still gets
