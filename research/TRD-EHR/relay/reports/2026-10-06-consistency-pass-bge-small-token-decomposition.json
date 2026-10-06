@@ -1,9 +1,26 @@
 {
+  "ended": "2026-10-06T01:56:53",
+  "exit": "0:0",
+  "exported": [
+    "results/notebook_figures/bge_small_recurrence_bimodality.png",
+    "results/notebook_figures/bge_small_cluster0_subsplit.png"
+  ],
   "id": "2026-10-06-consistency-pass-bge-small-token-decomposition",
   "jobid": "2120638",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0. 2 of 2 outputs present. 2 exported, 0 refused.",
+  "produced": [
+    "results/notebook_figures/bge_small_recurrence_bimodality.png",
+    "results/notebook_figures/bge_small_cluster0_subsplit.png"
+  ],
+  "relay": [
+    "S7 cohort token is the expected one: yes",
+    "S7 cluster A token is the expected one: yes",
+    "S7 cluster sizes A 14437 B 28142, cluster A nested silhouette 0.70"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "consistency-pass",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

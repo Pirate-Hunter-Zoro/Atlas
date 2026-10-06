@@ -1,9 +1,23 @@
 {
+  "ended": "2026-10-06T01:55:36",
+  "exit": "0:0",
+  "exported": [],
   "id": "2026-10-06-reviewer-findings-paper1-round2-questions-3",
   "jobid": "2120643",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0.",
+  "produced": [],
+  "relay": [
+    "op EMBEDDED logistic_regression: threshold 0.165, TP 964 FN 527 FP 2932 TN 4093",
+    "op EMBEDDED logistic_regression: sensitivity 0.647 (0.623 to 0.670) specificity 0.583 (0.570 to 0.594)",
+    "op EMBEDDED logistic_regression: f_score 0.36 (0.34 to 0.37) positive_likelihood_ratio 1.55 (1.48 to 1.62) negative_likelihood_ratio 0.61 (0.56 to 0.65)",
+    "op FEATURE xgboost: threshold 0.173, TP 917 FN 574 FP 2768 TN 4257",
+    "op FEATURE xgboost: sensitivity 0.615 (0.591 to 0.638) specificity 0.606 (0.594 to 0.618)",
+    "op FEATURE xgboost: f_score 0.35 (0.34 to 0.37) positive_likelihood_ratio 1.56 (1.48 to 1.63) negative_likelihood_ratio 0.64 (0.60 to 0.68)"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "reviewer-findings",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

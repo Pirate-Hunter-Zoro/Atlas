@@ -1,9 +1,31 @@
 {
+  "ended": "2026-10-06T01:55:36",
+  "exit": "0:0",
+  "exported": [],
   "id": "2026-10-06-reviewer-findings-paper1-round2-questions",
   "jobid": "2120641",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0.",
+  "produced": [],
+  "relay": [
+    "race 10 White-minus-non-White contrasts, lowest to highest delta",
+    "race EMBEDDED logistic_regression white_minus_non_white: +0.005 (-0.031 to +0.042) P 0.754 BH 0.914",
+    "race EMBEDDED xgboost white_minus_non_white: +0.023 (-0.017 to +0.059) P 0.224 BH 0.517",
+    "race EMBEDDED gradient_boosting white_minus_non_white: +0.023 (-0.018 to +0.060) P 0.254 BH 0.549",
+    "race FEATURE logistic_regression white_minus_non_white: +0.025 (-0.014 to +0.063) P 0.208 BH 0.494",
+    "race FEATURE gradient_boosting white_minus_non_white: +0.035 (-0.005 to +0.072) P 0.068 BH 0.237",
+    "race FEATURE xgboost white_minus_non_white: +0.040 (+0.004 to +0.077) P 0.030 BH 0.157",
+    "race EMBEDDED random_forest white_minus_non_white: +0.040 (+0.002 to +0.079) P 0.046 BH 0.190",
+    "race FEATURE random_forest white_minus_non_white: +0.042 (+0.003 to +0.080) P 0.038 BH 0.178",
+    "race KNN NEAREST_WEIGHTED white_minus_non_white: +0.045 (+0.005 to +0.085) P 0.026 BH 0.145",
+    "race KNN NEAREST_COSINE white_minus_non_white: +0.046 (+0.006 to +0.087) P 0.034 BH 0.174",
+    "sex largest |delta| FEATURE gradient_boosting male_minus_female: +0.012 (-0.021 to +0.046) P 0.432 BH 0.745",
+    "severe KNN NEAREST_COSINE mdd_severity:Severe_minus_rest: +0.053 (-0.008 to +0.104) P 0.084 BH 0.258",
+    "severe KNN NEAREST_WEIGHTED mdd_severity:Severe_minus_rest: +0.064 (+0.005 to +0.118) P 0.040 BH 0.178"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "reviewer-findings",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

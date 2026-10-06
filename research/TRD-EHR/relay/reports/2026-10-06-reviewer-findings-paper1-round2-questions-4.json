@@ -1,9 +1,23 @@
 {
+  "ended": "2026-10-06T01:55:34",
+  "exit": "0:0",
+  "exported": [],
   "id": "2026-10-06-reviewer-findings-paper1-round2-questions-4",
   "jobid": "2120644",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0.",
+  "produced": [],
+  "relay": [
+    "recurrence test group <empty string>: n 32 events 7",
+    "recurrence test group Dysthymia: n 584 events 97",
+    "recurrence test group Recurrent: n 2177 events 433",
+    "recurrence test group Single Episode: n 5723 events 954",
+    "recurrence cohort Single Episode 28206, Recurrent 11213, Dysthymia 3013, <empty string> 147",
+    "recurrence empty-level severity Unspecified 147"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "reviewer-findings",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

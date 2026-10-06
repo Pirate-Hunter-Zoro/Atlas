@@ -1,9 +1,36 @@
 {
+  "ended": "2026-10-06T01:57:22",
+  "exit": "0:0",
+  "exported": [
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_cumulative_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_correlation_cumulative_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_logistic_regression_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_random_forest_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_gradient_boosting_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_xgboost_EMBEDDED.png"
+  ],
   "id": "2026-10-06-consistency-pass-redraw-embedded-importance",
   "jobid": "2120636",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0. 6 of 6 outputs present. 6 exported, 0 refused.",
+  "produced": [
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_cumulative_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_correlation_cumulative_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_logistic_regression_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_random_forest_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_gradient_boosting_EMBEDDED.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_xgboost_EMBEDDED.png"
+  ],
+  "relay": [
+    "S1 logistic regression non-zero coefficients 385 of 4096",
+    "S1 logistic_regression K80 179 K90 236",
+    "S1 random_forest K80 2627 K90 3231",
+    "S1 gradient_boosting K80 750 K90 1156",
+    "S1 xgboost K80 3037 K90 3523"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "consistency-pass",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

@@ -1,9 +1,35 @@
 {
+  "ended": "2026-10-06T01:56:21",
+  "exit": "0:0",
+  "exported": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png"
+  ],
   "id": "2026-10-06-consistency-pass-redraw-cosine-check",
   "jobid": "2120637",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0. 4 of 4 outputs present. 4 exported, 0 refused.",
+  "produced": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png"
+  ],
+  "relay": [
+    "S6 encoder bge-small-en-v1.5",
+    "S6 random pairs 36256870, neighbor pairs 425800, median random 0.988, median neighbor 0.998",
+    "S6 encoder bge-en-icl",
+    "S6 random pairs 36256870, neighbor pairs 425800, median random 0.979, median neighbor 0.994",
+    "S6 encoder Qwen-Qwen3-Embedding-4B",
+    "S6 random pairs 36256870, neighbor pairs 425800, median random 0.885, median neighbor 0.964",
+    "S6 encoder Qwen-Qwen3-Embedding-8B",
+    "S6 random pairs 36256870, neighbor pairs 425800, median random 0.891, median neighbor 0.966"
+  ],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "consistency-pass",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

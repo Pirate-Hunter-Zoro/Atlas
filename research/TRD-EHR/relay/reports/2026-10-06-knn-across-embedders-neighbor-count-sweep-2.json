@@ -2,8 +2,9 @@
   "id": "2026-10-06-knn-across-embedders-neighbor-count-sweep-2",
   "jobid": "2120630",
   "kind": "recipe",
-  "state": "submitted",
+  "started": 1791270006.5411372,
+  "state": "running",
   "submitted": 1791269707.4685998,
   "thread": "knn-across-embedders",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }

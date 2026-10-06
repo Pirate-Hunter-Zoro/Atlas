@@ -1,10 +1,27 @@
 {
+  "ended": "2026-10-06T01:56:26",
+  "exit": "0:0",
+  "exported": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png"
+  ],
   "id": "2026-10-06-knn-across-embedders-neighbor-count-sweep",
   "jobid": "2120629",
   "kind": "recipe",
-  "started": 1791269707.4685998,
-  "state": "running",
+  "missing": [],
+  "note": "It completed, exit 0. 5 of 5 outputs present. 4 exported, 0 refused.",
+  "produced": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png"
+  ],
+  "relay": [],
+  "state": "completed",
   "submitted": 1791269707.4685998,
   "thread": "knn-across-embedders",
-  "updated": 1791269707.469
+  "updated": 1791270006.541
 }
