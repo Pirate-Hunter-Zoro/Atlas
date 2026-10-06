@@ -4,7 +4,7 @@ Thread knn-across-embedders (Paper 1). The owner's direction is applied to the t
 In the text now:
 - Retrieval is nearest and random neighbours, each scored at every k from 1 to 34,063; no single k is the headline. ROC curves and confusion matrices are shown only at each arm's best k.
 - Farthest-neighbour retrieval is gone from every document in paper1-trd-prediction/ except review/ and feedback/, which are records. It remains in research/TRD-EHR/README.md and in code (core.py, fusion_analysis.py, retriever.py, neighbor_scheme.py).
-- Figure 4 is the primary encoder's panel; Figure 5 is the other three encoders' panels (A-C); Figure 6 is dimensions holding 90% of |coefficient| mass against best k, in the main text (owner's answer).
+- Figure 4 is the primary encoder's panel; Figure 5 is one composite of the other three encoders' panels (A-C, results/cross_embedder_retrieval/neighbor_count_sweep_panels.png); Figure 6 is dimensions holding 90% of |coefficient| mass against best k, in the main text (owner's answer).
 - Best-k ROC and confusion panels for all four encoders (owner's answer) are Figures S8-S9.
 - parts/ is re-split. No PDF or .docx is rebuilt: the figures are not on this Mac.
 

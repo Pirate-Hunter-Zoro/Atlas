@@ -45,9 +45,10 @@ number is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_de
 drawn by scripts/pipeline/predictions/{plot_neighbor_sweep_figure,best_k_panels}.py.
 
 THE OTHER 3 ENCODERS (Nearest-Neighbor Retrieval Across Encoders). Figure 5 is
-one Figure-4-style panel per encoder, each drawn by plot_neighbor_sweep_figure.py
-into results/<encoder>/google_medgemma-27b-text-it/neighbor_count_sweep/; the
-primary encoder's panel is Figure 4 and is not repeated. Numbers are read from
+one composite, results/cross_embedder_retrieval/neighbor_count_sweep_panels.png:
+a Figure-4-style panel per encoder, A-C stacked with one shared legend, drawn by
+plot_cross_embedder_retrieval.py through plot_neighbor_sweep_figure.draw_curves;
+the primary encoder's panel is Figure 4 and is not repeated. Numbers are read from
 results/cross_embedder_retrieval/cross_embedder_retrieval.csv and each
 encoder's sweep_intervals.csv. No paired contrast exists for them; do not quote
 a retrieval-minus-classifier difference for any encoder but the primary.
