@@ -1,0 +1,12 @@
+{
+  "env": {
+    "QUESTION": "subgroup_race"
+  },
+  "export": [],
+  "filed": 1791269509.438,
+  "id": "2026-10-06-reviewer-findings-paper1-round2-questions",
+  "kind": "recipe",
+  "produces": [],
+  "recipe": "slurm_jobs/review/paper1_round2_questions.sbatch",
+  "thread": "reviewer-findings"
+}
