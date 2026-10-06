@@ -2575,6 +2575,52 @@ HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
                           "tutor-pull.heard")
 
 
+def adopt_private(base, quiet=True, run=subprocess.run):
+    """Clone or adopt each of atlas.json's "private" repositories that this
+    checkout lacks, through `bootstrap.sh --private-only`. True if it ran.
+
+    The pull that untracks a course from Atlas deletes its tracked files and
+    leaves the directory without a repository; the next pass puts its own
+    repository underneath it, so the Mac heals without anybody at it. A path
+    Atlas still TRACKS is left alone: a repository adopted under it would
+    lose its files to Atlas's next pull.
+    """
+    try:
+        with open(os.path.join(base, "atlas.json"), "r", encoding="utf-8") as fh:
+            private = json.load(fh).get("private") or {}
+    except (OSError, ValueError):
+        return False
+    missing = []
+    for path in private:
+        dest = os.path.join(base, path)
+        if os.path.exists(os.path.join(dest, ".git")):
+            continue
+        try:
+            tracked = subprocess.run(
+                ["git", "-C", base, "ls-files", "--", path],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                universal_newlines=True, timeout=30).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if not tracked:
+            missing.append(path)
+    if not missing:
+        return False
+    script = os.path.join(base, "board", "bootstrap.sh")
+    if not os.path.isfile(script):
+        return False
+    try:
+        p = run(["bash", script, "--private-only"], cwd=base,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                universal_newlines=True, timeout=600,
+                env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if not quiet:
+        print((p.stdout or "").rstrip())
+    return True
+
+
 def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
               pull=None):
     """Pull every repository when due, then hear every workspace's reports.
@@ -2614,6 +2660,7 @@ def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
         # Atlas's `.git`, and the git directory is what dedupes them: Atlas
         # once, each course once, Atlas first.
         repos = {}
+        adopt_private(base, quiet=quiet)
         for where in [base] + roots:
             try:
                 key = worktree.git_dir(where)
