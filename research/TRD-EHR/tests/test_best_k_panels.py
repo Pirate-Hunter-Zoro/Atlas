@@ -124,6 +124,29 @@ def test_a_missing_random_arm_is_skipped_not_invented(results_dir):
     assert set(best_k_panels.run(results_dir)) == {"weighted", "plain"}
 
 
+def test_random_arm_panels_label_their_band_as_the_representative_draws(results_dir, monkeypatch):
+    """The random arm's spread is the percentile across draws; its panels show one draw, so
+    their interval is that draw's bootstrap and never the arm's 95% CI."""
+    import matplotlib.figure
+    from matplotlib.text import Text
+    texts = {}
+    real_savefig = matplotlib.figure.Figure.savefig
+
+    def capturing(self, fname, *args, **kwargs):
+        texts[Path(str(fname)).name] = " ".join(t.get_text() for t in self.findobj(Text)).replace("\n", " ")
+        return real_savefig(self, fname, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.figure.Figure, "savefig", capturing)
+    best_k_panels.run(results_dir)
+    mode = f"RANDOM_UNIFORM_k{K['random']}"
+    for stem in ("roc_curve", "pr_curve", "calibration_curve", "confusion_matrix"):
+        text = texts[f"{stem}_{mode}.png"]
+        assert "representative draw" in text, stem
+        assert "95% CI " not in text.replace("bootstrap 95% CI of", ""), stem
+    weighted = f"NEAREST_IMPORTANCE_WEIGHTED_alpha1_k{K['weighted']}"
+    assert "(95% CI, bootstrap)" in texts[f"confusion_matrix_{weighted}.png"]
+
+
 def test_confusion_matrix_default_is_unchanged_and_bootstrap_adds_intervals(tmp_path):
     rng = np.random.default_rng(3)
     y = (rng.random(300) < 0.3).astype(int)
@@ -171,11 +194,19 @@ def test_figure_four_has_no_line_at_fifty_and_draws_the_random_band(tmp_path, mo
     assert vertical == []
     assert not any("k = 50" == text.get_text() for text in axis.texts)
     labels = [line.get_label() for line in axis.lines]
-    assert plot_neighbor_sweep_figure.METRIC_DISPLAY["random"] in labels
+    assert any(label.startswith(plot_neighbor_sweep_figure.METRIC_DISPLAY["random"]) for label in labels)
     low, high = axis.get_ylim()
     assert low <= 0.47 and high >= 0.67
-    assert sum("best k" in text.get_text() for text in axis.texts) == 3
+    # Each arm's best k is in its legend entry, not written on the plot beside the point.
+    assert len(axis.texts) == 0
+    assert sum("best k" in text for text in legend_texts(captured["figure"])) == 3
     plt.close("all")
+
+
+def legend_texts(figure) -> list[str]:
+    """Every legend entry's text in a figure, whichever axes holds the legend."""
+    return [t.get_text() for a in figure.axes if a.get_legend() is not None
+            for t in a.get_legend().get_texts()]
 
 
 def test_figure_four_still_draws_without_a_random_arm(tmp_path, monkeypatch):
@@ -183,7 +214,7 @@ def test_figure_four_still_draws_without_a_random_arm(tmp_path, monkeypatch):
     captured = {}
     monkeypatch.setattr(plt.Figure, "savefig", lambda self, *a, **k: captured.setdefault("figure", self))
     plot_neighbor_sweep_figure.draw(curve, intervals, {}, tmp_path / "f.png")
-    assert sum("best k" in text.get_text() for text in captured["figure"].axes[0].texts) == 2
+    assert sum("best k" in text for text in legend_texts(captured["figure"])) == 2
     plt.close("all")
 
 

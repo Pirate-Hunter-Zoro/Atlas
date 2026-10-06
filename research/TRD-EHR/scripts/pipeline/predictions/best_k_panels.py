@@ -22,7 +22,10 @@ all of it: its true AUC is 0.5 at every k.
 Every number carries an interval, a 95% percentile bootstrap over the test patients from
 bootstrap_sample_indices, the SEED-seeded resamples the ROC band uses. The confusion matrix
 holds its Youden J threshold fixed across resamples, so its intervals are the spread at
-that operating point, not of the choice of point.
+that operating point, not of the choice of point. The random arm's panels are one
+representative draw, so their intervals are labelled as that draw's bootstrap
+(RANDOM_DRAW_INTERVAL_LABEL), never as the arm's 95% CI: the arm's own spread is the
+2.5th-97.5th percentile across draws, which Figure 4 draws.
 
 Outputs, all under RESULTS_DIR/neighbor_count_sweep/:
     best_k_panels/{roc_curve,pr_curve,calibration_curve,decision_curve,
@@ -49,6 +52,8 @@ load_dotenv()
 from scripts.pipeline.predictions.redraw_manuscript_panels import CSV_ROUNDTRIP_TOLERANCE, report
 from scripts.pipeline.predictions.trd_prediction_computation import compute_metrics
 from scripts.shared.plots import (
+    DEFAULT_INTERVAL_LABEL,
+    RANDOM_DRAW_INTERVAL_LABEL,
     bootstrap_sample_indices,
     plot_calibration,
     plot_decision_curve_analysis,
@@ -133,13 +138,15 @@ def bootstrap_metrics(y_true: np.ndarray, y_prob: np.ndarray, ess: np.ndarray,
             for name in point}
 
 
-def draw_arm(frame: pd.DataFrame, mode: str, panel_dir: Path) -> dict:
+def draw_arm(frame: pd.DataFrame, mode: str, panel_dir: Path,
+             interval_label: str = DEFAULT_INTERVAL_LABEL) -> dict:
     """Write the six panels for one arm and return every number printed on them.
 
     Args:
         frame (pd.DataFrame): Columns true_label, predicted_risk, ess.
         mode (str): Filename suffix, carrying the arm and its k.
         panel_dir (Path): Where the PNGs go.
+        interval_label (str, optional): What the panels call their intervals.
 
     Returns:
         dict: roc_auc and average_precision with intervals, the calibration bins, the
@@ -148,15 +155,19 @@ def draw_arm(frame: pd.DataFrame, mode: str, panel_dir: Path) -> dict:
     y_true = frame["true_label"].to_numpy().astype(int)
     y_prob = frame["predicted_risk"].to_numpy().astype(float)
     ess = frame["ess"].to_numpy().astype(float)
-    roc = plot_receiving_operator_characteristic(y_true, y_prob, mode, save_dir=panel_dir)
-    precision_recall = plot_precision_recall(y_true, y_prob, mode, save_dir=panel_dir)
+    roc = plot_receiving_operator_characteristic(y_true, y_prob, mode, save_dir=panel_dir,
+                                                 interval_label=interval_label)
+    precision_recall = plot_precision_recall(y_true, y_prob, mode, save_dir=panel_dir,
+                                             interval_label=interval_label)
     # Quantile bins: retrieval risks crowd into a narrow band near the prevalence, where ten
     # equal-width bins would put nearly every patient into one or two points.
     calibration = plot_calibration(y_true, y_prob, mode, save_dir=panel_dir,
-                                   strategy="quantile", bootstrap=True)
+                                   strategy="quantile", bootstrap=True,
+                                   interval_label=interval_label)
     plot_decision_curve_analysis(y_true, y_prob, mode, save_dir=panel_dir)
     plot_effective_sample_size_distribution(ess, mode, save_dir=panel_dir)
-    confusion = plot_optimal_confusion_matrix(y_true, y_prob, mode, save_dir=panel_dir, bootstrap=True)
+    confusion = plot_optimal_confusion_matrix(y_true, y_prob, mode, save_dir=panel_dir, bootstrap=True,
+                                              interval_label=interval_label)
     return {
         "roc_auc": dict(zip(("value", "ci_low", "ci_high"), roc)),
         "average_precision": dict(zip(("value", "ci_low", "ci_high"), precision_recall)),
@@ -197,7 +208,8 @@ def run(results_dir: Path) -> dict:
         if "ess" not in frame.columns:
             raise ValueError(f"{path} has no ess column; it predates the ESS the sweep now "
                              "writes. Re-run neighbor_count_sweep.")
-        block = draw_arm(frame, mode, panel_dir)
+        label = RANDOM_DRAW_INTERVAL_LABEL if arm == "random" else DEFAULT_INTERVAL_LABEL
+        block = draw_arm(frame, mode, panel_dir, label)
         got = (block["roc_auc"]["value"], block["roc_auc"]["ci_low"], block["roc_auc"]["ci_high"])
         report(mode, got, record, CSV_ROUNDTRIP_TOLERANCE)
         block.update({"arm": arm, "mode": mode, "n_neighbors": k, "predictions": filename})

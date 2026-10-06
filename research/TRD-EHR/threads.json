@@ -129,6 +129,30 @@
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png",
           "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png",
+          "aggregate": true
+        },
+        {
+          "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_RANDOM_UNIFORM_k32720.png",
+          "aggregate": true
         }
       ],
       "check": "",
@@ -188,7 +212,7 @@
           "done": true
         },
         {
-          "text": "When plot_cross_embedder_retrieval reports (request 2026-10-06-...-plot-cross-embedder-retrieval), check the manuscript's cross-encoder numbers and dimension counts (253, 271, 1,626, 236) against cross_embedder_retrieval.csv. The 18 Figure ",
+          "text": "When plot_cross_embedder_retrieval reports (request 2026-10-06-...-plot-cross-embedder-retrieval), check the manuscript's cross-encoder numbers and dimension counts (253, 271, 1,626, 236) against cross_embedder_retrieval.csv. The 18 Figure",
           "done": false
         }
       ],
