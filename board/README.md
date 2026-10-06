@@ -105,7 +105,10 @@ These hold everywhere; each line names where the detail is.
   way: `board colibri <thread> "<task>"` in a workspace with `relay.colibri: true` files a relay
   request. Filing starts a generation if none is live, the generation stops itself after 20 idle
   minutes, and the report is the answer. A task is read-only analysis: it writes under the ignored
-  `phi/`, and a change git can see fails it. *Colibri runs on demand*.
+  `phi/`, and a change git can see fails it. Nothing on the node starts it otherwise: the board's
+  start button is refused where `jobs.has_slurm()`. `coli-code -a opencode` is refused wherever
+  `sbatch` is and in any workspace holding `phi/` or saying `"phi": true`, because opencode has
+  no hook to carry the egress guard. *Colibri runs on demand*.
 - **Sync**: the Mac pulls every 5 minutes, every 2 with a request out, every 20 s while a hold
   stands, and at the top of every turn; the relay passes every 5 minutes. The pass commits the
   owner's cluster edits in every workspace that syncs: `relay.sync` is on in `atlas.json`, and a
@@ -1174,10 +1177,10 @@ board colibri --show                the queue, oldest first
 - **An end is read off `slurm_jobs/state/gen-<job>.exit`**, the job's last act, because `sacct`
   is refused. A running task whose generation left `squeue` with 0 there is requeued free; without
   it, it is a death, resumed with `-c` on the same session. The third death fails it for good.
-- **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), for a sitting that wants Colibri live;
-  the board's start button uses it, and only where `coli-up` is on the path. On the Mac the button
-  is refused, and a task is how a generation starts. Its handover writes 0 for the incumbent
-  before cancelling it.
+- **`coli-up --warm` is the old chain** (`COLI_CHAIN=1`), run by hand. Its handover writes 0 for
+  the incumbent before cancelling it. The board's start button (`spawn.wake_colibri`) runs it only
+  where `coli-up` is on the path and Slurm is not, so on the cluster the button is refused, naming
+  `board colibri` on the Mac, and a task is how a generation starts. `test/colibri.py`.
 - **From the Mac, the report is the answer.** In the workspace's directory, `board colibri
   <thread> "<brief>"` writes `relay/requests/<id>.json` and pushes it. The report at
   `relay/reports/<id>.json` goes `submitted`, `running`, then `completed` with `changed: 0` and

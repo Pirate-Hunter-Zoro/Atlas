@@ -269,6 +269,9 @@ check("and a submit that never appeared does not claim to be queued for ever",
 # And the control refuses rather than submitting a second job.
 from tutorboard.server import spawn                          # noqa: E402
 
+# These stand in for the Mac's board, so they say so: on the cluster `sbatch`
+# is on the PATH and the button is refused before it reads the queue at all.
+os.environ["TUTOR_SLURM"] = "0"
 QUEUE["lines"] = "4231|PENDING||Priority"
 colibri.forget()
 colibri._ASKED["at"] = 0.0
@@ -281,6 +284,25 @@ with open(OUT, "w", encoding="utf-8") as fh:
 colibri.forget()
 started, said = spawn.wake_colibri()
 check("and does nothing at all against a warm one", started is False)
+
+# WHERE SLURM IS, THE BUTTON STARTS NOTHING. Colibri on the node is directed
+# only from the Mac, by a relay request; a board served on the cluster that
+# could start it from a button is a model turn nobody on the Mac asked for.
+QUEUE["lines"] = ""
+colibri.forget()
+colibri._ASKED["at"] = 0.0
+os.environ["TUTOR_SLURM"] = "1"
+_was_up = colibri.up_command
+colibri.up_command = lambda: "/bin/false"
+_asked_before = len(asked)
+started, said = spawn.wake_colibri()
+check("on a machine with Slurm the start button is refused and names the Mac route",
+      started is False and "relay request from the Mac" in said
+      and "board colibri" in said)
+check("and it is refused before Slurm is even asked, so nothing is submitted",
+      len(asked) == _asked_before and not colibri._ASKED["at"])
+colibri.up_command = _was_up
+os.environ.pop("TUTOR_SLURM", None)
 
 # ---------------------------------------------------------------------------
 # 3b. the chain, which is what makes the server always up

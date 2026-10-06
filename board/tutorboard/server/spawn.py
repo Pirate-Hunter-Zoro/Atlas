@@ -177,9 +177,17 @@ def wake_colibri(timeout=1800):
     Returns (started, what to say). A second tap does nothing and says why:
     `coli-up` itself refuses when a job is already submitted, and this refuses
     before it gets there so the answer comes back inside the request.
-    """
-    from .. import colibri
 
+    REFUSED WHERE SLURM IS. Colibri on the node is directed only from the Mac,
+    by a relay request; a board served on the cluster starting it from a
+    button is a model turn nobody on the Mac asked for.
+    """
+    from .. import colibri, jobs
+
+    if jobs.has_slurm():
+        return False, ("not from a board on the cluster: Colibri starts only "
+                       "for a relay request from the Mac — run `board "
+                       "colibri <thread> \"<task>\"` there")
     now = colibri.status(fresh=True)
     if now["state"] != "off":
         return False, "already %s" % now["detail"]

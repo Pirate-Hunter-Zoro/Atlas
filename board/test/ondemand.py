@@ -462,6 +462,95 @@ check("a tracked edit, and a baseline file changed again, are the task's",
 check("a workspace git cannot read is checked again later, never passed",
       relay.check_task(os.path.join(TMP, "nowhere"), rec) is None)
 
+# ---------------------------------------------------------------------------
+# the unguarded front end, which the node never runs
+#
+# `coli-code -a opencode` has no pre-tool hook, so it cannot carry the egress
+# guard and still gets a shell. Refused wherever Slurm is, and anywhere in a
+# workspace that holds phi/; and where it does run, no inherited opencode
+# config reaches it.
+# ---------------------------------------------------------------------------
+CODE = os.path.join(ATLAS, "projects", "libr-local-llm", "bin", "coli-code")
+CC = tempfile.mkdtemp(prefix="colicode-")
+WITH = os.path.join(CC, "with-slurm")
+WITHOUT = os.path.join(CC, "without-slurm")
+for d in (WITH, WITHOUT):
+    os.makedirs(d)
+
+
+def stub(where, name, body):
+    path = os.path.join(where, name)
+    with open(path, "w") as fh:
+        fh.write("#!/bin/bash\n" + body + "\n")
+    os.chmod(path, 0o755)
+
+
+stub(WITH, "sbatch", "exit 0")
+for d in (WITH, WITHOUT):
+    stub(d, "squeue", 'case "$*" in *"%i"*) [ -n "$CC_JOB" ] && '
+                      'echo "999 RUNNING node1 None 5:00:00" ;; '
+                      '*"%L"*) echo 5:00:00 ;; *"%N"*) echo node1 ;; esac; '
+                      'exit 0')
+    stub(d, "srun", 'env > "%s/srun.env"; printf "%%s\\n" "$@" > "%s/srun.argv"'
+                    % (CC, CC))
+# The rest of the PATH, less any real Slurm, so "no sbatch" means none.
+REST = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+        if d and not os.path.exists(os.path.join(d, "sbatch"))]
+
+
+def coli(slurm, workdir, *args, job=False):
+    env = dict(os.environ,
+               PATH=os.pathsep.join([WITH if slurm else WITHOUT] + REST),
+               COLI_SESSION_ROOT=os.path.join(CC, "sessions", "phi"),
+               OPENCODE_CONFIG=os.path.join(CC, "elsewhere.json"),
+               OPENCODE_CONFIG_CONTENT='{"enabled_providers": ["deepseek"]}',
+               CC_JOB="1" if job else "")
+    env.pop("COLI_JOB", None)
+    p = subprocess.run(["bash", CODE, "-d", workdir] + list(args), env=env,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, timeout=60)
+    return p.returncode, p.stderr.decode()
+
+
+PLAIN = os.path.join(CC, "plain")
+HOLDS = os.path.join(CC, "holds")
+SAYS = os.path.join(CC, "says")
+for d in (PLAIN, os.path.join(HOLDS, "phi"), os.path.join(SAYS, "src")):
+    os.makedirs(d)
+for d in (PLAIN, HOLDS, SAYS):
+    os.makedirs(os.path.join(d, ".git"))
+with open(os.path.join(SAYS, "tutorboard.json"), "w") as fh:
+    fh.write('{"phi": true}\n')
+
+rc, err = coli(True, PLAIN, "-a", "opencode", "hi")
+check("opencode is refused wherever Slurm is, in any directory",
+      rc == 2 and "runs Slurm" in err)
+rc, err = coli(True, PLAIN, "hi")
+check("and the guarded front end is not: it goes on to look for a server",
+      rc == 76 and "runs Slurm" not in err)
+rc, err = coli(False, HOLDS, "-a", "opencode", "hi")
+check("without Slurm, opencode is refused in a workspace that holds phi/",
+      rc == 2 and "holds phi/" in err)
+rc, err = coli(False, os.path.join(SAYS, "src"), "-a", "opencode", "hi")
+check("and below a tutorboard.json that says \"phi\": true",
+      rc == 2 and "holds phi/" in err)
+if not os.path.isfile(os.path.join(ATLAS, "ai-config", "adapters",
+                                   "generic.py")):
+    print("note ai-config is not checked out here; skipping the run that "
+          "reaches srun")
+else:
+    rc, err = coli(False, PLAIN, "-a", "opencode", "hi", job=True)
+    with open(os.path.join(CC, "srun.env")) as fh:
+        seen = fh.read()
+    with open(os.path.join(CC, "srun.argv")) as fh:
+        argv = fh.read()
+    check("where it does run, an inherited opencode config is not handed on",
+          rc == 0 and "OPENCODE_CONFIG" not in seen)
+    check("and the far side's login profile cannot set one either",
+          "unset OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT;" in argv
+          and argv.index("unset OPENCODE_CONFIG") < argv.index("exec opencode"))
+shutil.rmtree(CC, ignore_errors=True)
+
 shutil.rmtree(TMP, ignore_errors=True)
 print("%d failed" % len(fails) if fails else "all on-demand checks pass")
 sys.exit(1 if fails else 0)

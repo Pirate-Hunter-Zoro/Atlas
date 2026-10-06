@@ -55,21 +55,47 @@ esac
 [ -d "$WORKDIR" ] || { echo "coli-code: no such directory: $WORKDIR" >&2; exit 2; }
 WORKDIR="$(cd "$WORKDIR" && pwd -P)"
 
-# ONLY THE GUARDED FRONT END GOES BEHIND THE FENCE.
+# ONLY THE GUARDED FRONT END RUNS ON THE NODE.
 #
 # The egress guard below is a `PreToolUse` hook, which is a thing the claude
-# front end has and the other one does not. Both get a shell either way, so in
-# a fenced directory the unguarded one is a session that can read PHI and run
-# curl -- which is the exfiltration event the whole arrangement exists to
-# prevent. Outside the fence it is a coding agent like any other and is fine.
+# front end has and the other one does not. Both get a shell, and a shell on a
+# compute node has an outbound route and whatever credential the home holds --
+# so the unguarded one can read PHI and run curl, or start a hosted turn, which
+# are the two events this arrangement exists to prevent.
 #
-# The question "is this directory fenced" is the lab's, not this script's:
-# `generic.py --path` answers it with the same policy every other guard reads.
-#
-# Fail closed. A missing adapter is not an answer of "not fenced": it is no
-# answer, and the whole point of `generic.py` refusing an empty question is
-# that a guard which quietly stops being consulted is worse than none.
+# So it is refused three ways, each failing closed:
+#   1. wherever Slurm is (`sbatch` on the PATH), which is the cluster, whatever
+#      directory it is pointed at;
+#   2. in a workspace that holds `phi/` or whose `tutorboard.json` says
+#      "phi": true, looked for from the directory up to its repository root;
+#   3. where `generic.py --path` says the directory is fenced, which is the
+#      lab's question and answered by the policy every other guard reads. A
+#      missing adapter is no answer, not an answer of "not fenced".
+_refuse_unguarded() {
+    echo "coli-code: ${AGENT} has no pre-tool hook, so it cannot carry the egress" >&2
+    echo "guard, and $1. Use the default front end: coli-code -d ${WORKDIR}" >&2
+    exit 2
+}
+_phi_workspace() {
+    local d="$1"
+    while :; do
+        [ -d "$d/phi" ] && return 0
+        if [ -f "$d/tutorboard.json" ] && python3 -c \
+            'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("phi") is True else 1)' \
+            "$d/tutorboard.json" 2>/dev/null; then
+            return 0
+        fi
+        [ -e "$d/.git" ] || [ "$d" = / ] && return 1
+        d="$(dirname "$d")"
+    done
+}
 if [ "$AGENT" != claude ]; then
+    if command -v sbatch >/dev/null 2>&1; then
+        _refuse_unguarded "this machine runs Slurm, where only the guarded front end runs"
+    fi
+    if _phi_workspace "$WORKDIR"; then
+        _refuse_unguarded "${WORKDIR} is in a workspace that holds phi/"
+    fi
     _asks="$ATLAS_ROOT/ai-config/adapters/generic.py"
     if [ ! -r "$_asks" ]; then
         echo "coli-code: cannot tell whether ${WORKDIR} is behind the PHI fence --" >&2
@@ -77,10 +103,7 @@ if [ "$AGENT" != claude ]; then
         exit 1
     fi
     if ! python3 "$_asks" --path "$WORKDIR/" >/dev/null 2>&1; then
-        echo "coli-code: ${AGENT} has no pre-tool hook, so it cannot carry the" >&2
-        echo "egress guard, and ${WORKDIR} is behind the PHI fence. Use the" >&2
-        echo "default front end here: coli-code -d ${WORKDIR}" >&2
-        exit 2
+        _refuse_unguarded "${WORKDIR} is behind the PHI fence"
     fi
 fi
 
@@ -383,7 +406,13 @@ Q_DIR="$(printf '%q' "$WORKDIR")"
 # idea this one exists. The far side is a login shell, so the function is defined
 # there. `command opencode` would also reach past it, but not through `exec`:
 # `exec` takes a program, and `command` is a builtin, so the two do not compose.
-REMOTE="unset -f opencode 2>/dev/null; cd ${Q_DIR} && export ${Q_ENV} && exec ${Q_CLI}"
+#
+# OPENCODE_CONFIG and OPENCODE_CONFIG_CONTENT are unset on both sides of the
+# boundary. Either one, inherited from the caller or set by the far side's login
+# profile, is a config opencode merges over the fenced one written above -- a
+# second provider, a remote MCP server, the webfetch permission put back.
+unset OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT
+REMOTE="unset -f opencode 2>/dev/null; unset OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT; cd ${Q_DIR} && export ${Q_ENV} && exec ${Q_CLI}"
 
 cat >&2 <<BANNER
 Directory:  ${WORKDIR}
