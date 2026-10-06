@@ -1,0 +1,21 @@
+{
+  "env": {
+    "EMBEDDER": "Qwen-Qwen3-Embedding-4B"
+  },
+  "export": [
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png"
+  ],
+  "filed": 1791257767.634,
+  "id": "2026-10-05-knn-across-embedders-neighbor-count-sweep-3",
+  "kind": "recipe",
+  "produces": [
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
+  "recipe": "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+  "thread": "knn-across-embedders"
+}
