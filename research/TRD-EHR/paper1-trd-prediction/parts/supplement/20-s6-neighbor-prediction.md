@@ -29,76 +29,76 @@ Figures S8 and S9 draw ROC curves and confusion matrices only at each arm's best
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Legends round to 2 decimals. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
+Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold; the panels' F score is F1. These operating points were selected and evaluated in the same patients and are descriptive.

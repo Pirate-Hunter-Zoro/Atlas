@@ -53,7 +53,7 @@ We examined embedded-model reliance on 6 concepts by permuting one narrative sec
 
 We also predicted each test patient's outcome from its nearest training-set neighbors. Test patients served only as queries. The risk score was the similarity-weighted mean outcome of the k most similar training patients (Equation 2). Similarity was measured in 2 ways. Plain cosine similarity used the raw embeddings. Logistic-regression-weighted cosine similarity first standardized each embedding dimension with the embedded logistic regression's own scaler. It then weighted each dimension by its share of that model's absolute coefficients (Equation 1). The coefficients were fitted on training patients only, so no test outcome entered a risk score.
 
-$$\mathrm{sim}_w(x,y)=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)^2}\,\sqrt{\sum_d w_d\,z_d(y)^2}},\qquad w_d=\frac{|\beta_d|}{\sum_e |\beta_e|}\qquad(1)$$
+$$\begin{aligned}\mathrm{sim}_w(x,y)&=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)^2}\,\sqrt{\sum_d w_d\,z_d(y)^2}},\\ w_d&=\frac{|\beta_d|}{\sum_e |\beta_e|}\end{aligned}\qquad(1)$$
 
 $$\hat{r}(x)=\frac{\sum_{i\in N_k(x)} s_i^{\alpha}\,y_i}{\sum_{i\in N_k(x)} s_i^{\alpha}},\qquad s_i=\max\{\mathrm{sim}(x,i),0\}\qquad(2)$$
 

@@ -138,7 +138,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD recurrence: Single Episode | 5,723 | 954 | F LR | 0.605 (0.584--0.626) | 0.136 (0.130--0.143) | 0.83 (0.67--0.99) | −0.000 (−0.011 to +0.009) |
 | MDD recurrence: Single Episode | 5,723 | 954 | N WTD | 0.603 (0.584--0.623) | 0.136 (0.130--0.143) | 1.03 (0.83--1.22) | −0.004 (−0.014 to +0.006) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency. MDD recurrence: Unspecified is the 32 test patients with no recurrence code recorded; every one of them is also coded Unspecified severity.
 
 ## S9.4 Adjusted Subgroup Comparisons
 
@@ -149,26 +149,26 @@ Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 repo
 | **Contrast** | **Arm** | **Models surviving** | **ΔROC AUC range** | **Smallest P (BH)** |
 | -------------------------------------- | ----------------- | --------- | ---------------- | --------- |
 | Age: 18-29 vs rest | Feature vector | 1 of 4 | −0.068 (95% CI −0.117 to −0.022) | 0.042 |
-| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.015 |
-| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.015 |
-| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 to +0.060 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 to −0.065 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 to −0.056 | 0.027 |
-| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 to −0.047 | 0.027 |
-| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 to −0.051 | 0.015 |
-| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.079 to −0.011) | 0.042 |
+| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 (95% CI +0.030 to +0.089) to +0.072 (95% CI +0.041 to +0.104) | 0.015 |
+| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 (95% CI +0.027 to +0.091) to +0.068 (95% CI +0.037 to +0.100) | 0.015 |
+| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 (95% CI +0.022 to +0.085) to +0.060 (95% CI +0.028 to +0.091) | 0.015 |
+| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 (95% CI −0.105 to −0.039) to −0.065 (95% CI −0.096 to −0.035) | 0.015 |
+| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 (95% CI −0.098 to −0.030) to −0.056 (95% CI −0.088 to −0.024) | 0.027 |
+| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 (95% CI −0.090 to −0.026) to −0.047 (95% CI −0.079 to −0.014) | 0.027 |
+| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 (95% CI −0.090 to −0.019) to −0.051 (95% CI −0.086 to −0.016) | 0.015 |
+| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.080 to −0.012) | 0.042 |
 
-Ranges span the surviving models' point estimates. Every surviving contrast's own 95% CI excludes zero; 2 single-model rows show theirs.
+Ranges run from the smallest to the largest surviving point estimate, each with its own 95% CI; a single-model row shows that model's estimate and CI. Every surviving contrast's 95% CI excludes zero.
 
-All 10 male-minus-female AUC contrasts included zero; the largest absolute point difference was 0.012. This does not establish equivalent performance.
+All 10 male-minus-female AUC contrasts included zero; the largest absolute difference was +0.012 (95% CI −0.021 to +0.046), for FEATURE gradient boosting. This does not establish equivalent performance.
 
-All 10 White-minus-non-White AUC contrasts were positive (0.005--0.046); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories.
+All 10 White-minus-non-White AUC contrasts were positive, from +0.005 (95% CI −0.031 to +0.042) to +0.046 (95% CI +0.006 to +0.087); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories.
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
-Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; logistic-regression-weighted +0.064, adjusted P=.18).
+Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models, from +0.053 (95% CI +0.022 to +0.085) to +0.072 (95% CI +0.041 to +0.104). Single-episode coding was associated with lower discrimination, from −0.071 (95% CI −0.105 to −0.039) to −0.047 (95% CI −0.079 to −0.014), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, 95% CI −0.008 to +0.104, adjusted P=.26; logistic-regression-weighted +0.064, 95% CI +0.005 to +0.118, adjusted P=.18).
 
-The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in logistic-regression-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
+The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers, from −0.054 (95% CI −0.090 to −0.019) to −0.051 (95% CI −0.086 to −0.016; minimum adjusted P=.015), and in logistic-regression-weighted retrieval, −0.047 (95% CI −0.080 to −0.012; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost, −0.068 (95% CI −0.117 to −0.022; adjusted P=.04). Their causes were not established.
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 

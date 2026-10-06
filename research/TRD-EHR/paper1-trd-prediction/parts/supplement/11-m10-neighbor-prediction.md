@@ -21,7 +21,7 @@ which equals $k$ when all weights are equal and falls as weight concentrates on 
 
 Two similarity metrics were compared. Plain cosine similarity used the raw embeddings. Logistic-regression-weighted cosine similarity standardized each dimension with the embedded logistic regression's own scaler, $z_{d} = (x_{d} - \mu_{d})/\sigma_{d}$, and weighted dimension $d$ by its share of that model's absolute coefficients:
 
-$$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \qquad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
+$$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \quad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
 
 The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass. To compare encoders whose logistic regressions were fitted under different penalties, the dimensions each model used were counted as the fewest holding 90% of its absolute coefficient mass, because a non-zero count is the full width under an L2 penalty. These counts describe the fitted models and carry no sampling interval.
 

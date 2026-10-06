@@ -11,7 +11,7 @@ Section heading: S12 Additional Model Diagnostics and Encoder Estimates
 
 ## S12.1 Primary ROC Curves and Descriptive Operating Points
 
-The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.65 and 0.62 and specificity 0.58 and 0.61. They identified 964 and 917 of 1,491 positive patients, with 2,932 and 2,768 false positives, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
+The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F1 scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
 A Embedded logistic regression
 
@@ -31,7 +31,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png){width=5.8in}
 
-Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
+Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
 
 ## S12.2 Structured Feature Importance
 
@@ -53,7 +53,7 @@ D XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_xgboost.png){width=5.7in}
 
-Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show signed coefficients. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
+Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show coefficient magnitude, with color giving the coefficient's sign. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
 ## S12.3 Concept Permutation and Encoder Comparison
 

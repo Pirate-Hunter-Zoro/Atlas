@@ -208,7 +208,7 @@ which equals $k$ when all weights are equal and falls as weight concentrates on 
 
 Two similarity metrics were compared. Plain cosine similarity used the raw embeddings. Logistic-regression-weighted cosine similarity standardized each dimension with the embedded logistic regression's own scaler, $z_{d} = (x_{d} - \mu_{d})/\sigma_{d}$, and weighted dimension $d$ by its share of that model's absolute coefficients:
 
-$$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \qquad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
+$$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \quad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
 
 The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass. To compare encoders whose logistic regressions were fitted under different penalties, the dimensions each model used were counted as the fewest holding 90% of its absolute coefficient mass, because a non-zero count is the full width under an L2 penalty. These counts describe the fitted models and carry no sampling interval.
 
@@ -240,7 +240,7 @@ Standard classifiers, encoder comparisons, and concept permutations used the ful
 
 Discrimination was summarized by ROC AUC and AUPRC. The overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
 
-Sensitivity, specificity, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
+Sensitivity, specificity, F1 score, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Their 95% CIs come from the same bootstrap resampling of test patients, with the threshold held fixed. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
 
 Bootstrap resampling drew test patients with replacement. Paired contrasts applied identical resampled patient indices to both prediction vectors and recalculated their ROC AUC difference. The 2.5th and 97.5th percentiles formed the 95% CI.
 
@@ -341,7 +341,7 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Every panel's legend prints average precision. In panels C--E it differs from the table AUPRC in the third decimal, and the legend adds its bootstrap 95% CI and the no-skill reference, the positive rate, 0.175 (95% CI 0.167--0.183). The legends round the average precision, its CI and the no-skill reference to 2 decimals, so the no-skill reference reads 0.18.
+Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Every panel's legend prints average precision with its bootstrap 95% CI (in E, the CI of that one draw over test patients) and the no-skill reference, the positive rate, 0.175 (95% CI 0.167--0.183). Legend average precision differs from the table AUPRC by at most 0.001.
 
 # S3 Calibration
 
@@ -365,7 +365,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 
 \* The random arm's WCE lies below its own bootstrap interval. Its predicted risks all sit within 0.002 of the outcome rate, so on the full test set the binned error is almost zero. Every resample moves the observed rate away from those fixed risks, so the resampled errors are larger. The interval therefore describes resampling noise around a near-zero error, not uncertainty about a positive one.
 
-Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
+Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. The classifier rows fit a line through 10 equal-width bins, several of which hold few patients, so their intervals are wide. The retrieval rows use 10 bins of equal patient count, matching Figure S5. For random retrieval every predicted risk lies between 0.173 and 0.176, so its slope and intercept are not estimable.
 
 | **Representation** | **Model** | **Binned slope (95% CI)** | **Binned intercept (95% CI)** |
 | ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
@@ -377,9 +377,9 @@ Table S4. Slopes and intercepts fitted to the binned calibration curves, with bo
 | FEATURE | Random forest | 1.84 (1.41--2.23) | −0.15 (−0.22 to −0.08) |
 | FEATURE | Gradient boosting | 0.87 (0.28--1.48) | +0.04 (−0.11 to +0.19) |
 | FEATURE | XGBoost | 1.02 (0.53--1.52) | +0.02 (−0.09 to +0.13) |
-| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
-| Retrieval | Plain cosine, k = 757 | 2.66 (1.30--2.78) | −0.27 (−0.29 to −0.05) |
-| Retrieval | Random, uniform weights, k = 32,720 | not estimable | not estimable |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.13 (0.98--1.28) | −0.02 (−0.04 to +0.01) |
+| Retrieval | Plain cosine, k = 757 | 1.43 (1.23--1.63) | −0.07 (−0.10 to −0.03) |
+| Retrieval | Random, uniform weights, k = 32,720 | not estimable (predicted risk spans 0.173–0.176) | not estimable |
 
 A Embedded logistic regression
 
@@ -484,6 +484,10 @@ The original renderer uses "anchor" for the index and "Baseline window" for the 
 
 The examples show field asymmetries documented in section S10: narratives include vital signs, sexual orientation, index dates, raw sociodemographic values, and medication names. FEATURE omits some of these fields or uses coarser encodings, but includes total recorded history length. A missing sexual-orientation value appears as the literal token nan.
 
+```{=latex}
+\clearpage
+```
+
 TRD-positive example.
 
     ### COHORT & INDEX
@@ -519,6 +523,10 @@ TRD-positive example.
 
     ### SAFETY
     UNCONTROLLED_HTN: Present | EPILEPSY: Absent
+
+```{=latex}
+\clearpage
+```
 
 TRD-negative example.
 
@@ -578,79 +586,79 @@ Figures S8 and S9 draw ROC curves and confusion matrices only at each arm's best
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Legends round to 2 decimals. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
+Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold; the panels' F score is F1. These operating points were selected and evaluated in the same patients and are descriptive.
 
 # S7 Record Length and Prediction
 
@@ -874,7 +882,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD recurrence: Single Episode | 5,723 | 954 | F LR | 0.605 (0.584--0.626) | 0.136 (0.130--0.143) | 0.83 (0.67--0.99) | −0.000 (−0.011 to +0.009) |
 | MDD recurrence: Single Episode | 5,723 | 954 | N WTD | 0.603 (0.584--0.623) | 0.136 (0.130--0.143) | 1.03 (0.83--1.22) | −0.004 (−0.014 to +0.006) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency. MDD recurrence: Unspecified is the 32 test patients with no recurrence code recorded; every one of them is also coded Unspecified severity.
 
 ## S9.4 Adjusted Subgroup Comparisons
 
@@ -885,26 +893,26 @@ Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 repo
 | **Contrast** | **Arm** | **Models surviving** | **ΔROC AUC range** | **Smallest P (BH)** |
 | -------------------------------------- | ----------------- | --------- | ---------------- | --------- |
 | Age: 18-29 vs rest | Feature vector | 1 of 4 | −0.068 (95% CI −0.117 to −0.022) | 0.042 |
-| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.015 |
-| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.015 |
-| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 to +0.060 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 to −0.065 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 to −0.056 | 0.027 |
-| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 to −0.047 | 0.027 |
-| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 to −0.051 | 0.015 |
-| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.079 to −0.011) | 0.042 |
+| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 (95% CI +0.030 to +0.089) to +0.072 (95% CI +0.041 to +0.104) | 0.015 |
+| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 (95% CI +0.027 to +0.091) to +0.068 (95% CI +0.037 to +0.100) | 0.015 |
+| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 (95% CI +0.022 to +0.085) to +0.060 (95% CI +0.028 to +0.091) | 0.015 |
+| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 (95% CI −0.105 to −0.039) to −0.065 (95% CI −0.096 to −0.035) | 0.015 |
+| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 (95% CI −0.098 to −0.030) to −0.056 (95% CI −0.088 to −0.024) | 0.027 |
+| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 (95% CI −0.090 to −0.026) to −0.047 (95% CI −0.079 to −0.014) | 0.027 |
+| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 (95% CI −0.090 to −0.019) to −0.051 (95% CI −0.086 to −0.016) | 0.015 |
+| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.080 to −0.012) | 0.042 |
 
-Ranges span the surviving models' point estimates. Every surviving contrast's own 95% CI excludes zero; 2 single-model rows show theirs.
+Ranges run from the smallest to the largest surviving point estimate, each with its own 95% CI; a single-model row shows that model's estimate and CI. Every surviving contrast's 95% CI excludes zero.
 
-All 10 male-minus-female AUC contrasts included zero; the largest absolute point difference was 0.012. This does not establish equivalent performance.
+All 10 male-minus-female AUC contrasts included zero; the largest absolute difference was +0.012 (95% CI −0.021 to +0.046), for FEATURE gradient boosting. This does not establish equivalent performance.
 
-All 10 White-minus-non-White AUC contrasts were positive (0.005--0.046); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories.
+All 10 White-minus-non-White AUC contrasts were positive, from +0.005 (95% CI −0.031 to +0.042) to +0.046 (95% CI +0.006 to +0.087); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories.
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
-Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; logistic-regression-weighted +0.064, adjusted P=.18).
+Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models, from +0.053 (95% CI +0.022 to +0.085) to +0.072 (95% CI +0.041 to +0.104). Single-episode coding was associated with lower discrimination, from −0.071 (95% CI −0.105 to −0.039) to −0.047 (95% CI −0.079 to −0.014), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, 95% CI −0.008 to +0.104, adjusted P=.26; logistic-regression-weighted +0.064, 95% CI +0.005 to +0.118, adjusted P=.18).
 
-The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in logistic-regression-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
+The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers, from −0.054 (95% CI −0.090 to −0.019) to −0.051 (95% CI −0.086 to −0.016; minimum adjusted P=.015), and in logistic-regression-weighted retrieval, −0.047 (95% CI −0.080 to −0.012; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost, −0.068 (95% CI −0.117 to −0.022; adjusted P=.04). Their causes were not established.
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 
@@ -1009,7 +1017,7 @@ Table S14. Expanded cohort characteristics by TRD proxy status. Values are media
 
 ## S12.1 Primary ROC Curves and Descriptive Operating Points
 
-The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.65 and 0.62 and specificity 0.58 and 0.61. They identified 964 and 917 of 1,491 positive patients, with 2,932 and 2,768 false positives, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
+The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F1 scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
 A Embedded logistic regression
 
@@ -1029,7 +1037,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png){width=5.8in}
 
-Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
+Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
 
 ## S12.2 Structured Feature Importance
 
@@ -1051,7 +1059,7 @@ D XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_xgboost.png){width=5.7in}
 
-Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show signed coefficients. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
+Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show coefficient magnitude, with color giving the coefficient's sign. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
 ## S12.3 Concept Permutation and Encoder Comparison
 

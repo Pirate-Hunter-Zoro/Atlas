@@ -54,6 +54,12 @@ local PANEL_LABEL = 160
 -- Lines a table needs below its caption -- heading and first row -- before the
 -- caption is worth starting on this page.
 local TABLE_LEAD = 8
+-- Lines a section heading takes, with the space above and below it.
+local HEADING_LINES = 3
+-- A ragged-right column fills about this much of its width before a word
+-- wraps, and a table's rules and their padding cost about this many lines.
+local WRAP_FILL = 0.8
+local RULE_LINES = 1
 -- Lines of body text the default page holds (\textheight over \baselineskip,
 -- rounded down for the space round a paragraph).
 local PAGE_LINES = 43
@@ -64,6 +70,9 @@ local PT_PER_IN = 72.27
 -- Set when a rewrite needs a package, and read by `Meta`, which runs last.
 local wants_fvextra = false
 local wants_needspace = false
+-- Set once any figure may float; read by `Blocks` before a top-level heading.
+local wants_barrier = true
+local wants_placeins = false
 
 local ESCAPE = {
   ["\\"] = "\\textbackslash{}", ["{"] = "\\{", ["}"] = "\\}",
@@ -96,9 +105,14 @@ local function breakable(text, after)
 end
 
 local CODE_BREAKS = { ["/"] = true, ["_"] = true, ["."] = true, ["-"] = true }
+-- A slash with another after it is the first of a URL's "//", and a line
+-- ending "https:/" reads as a malformed address.
+local function not_doubled(chars, i)
+  return chars[i + 1] ~= "/"
+end
 -- Prose keeps its hyphenation; a bare path there breaks only at a slash or an
 -- underscore, so a sentence's full stop never starts a line.
-local PATH_BREAKS = { ["/"] = true, ["_"] = true }
+local PATH_BREAKS = { ["/"] = not_doubled, ["_"] = true }
 -- Letters running from the `i`th of `chars` in direction `step`, counted up
 -- to `need`.
 local function letters(chars, i, step, need)
@@ -388,6 +402,36 @@ local function leave_room(block, lines)
   })
 end
 
+-- Lines, at the body face, that a table's heading and first row need: each
+-- cell's text over the characters its share of the line holds at \small,
+-- tallest cell per row. Never less than TABLE_LEAD, never more than a page
+-- less the heading. An estimate on the high side, since \small lines are
+-- shorter than the body's.
+local function lead_lines(tbl)
+  local n = #tbl.colspecs
+  local function row_lines(row)
+    local most, col = 1, 1
+    for _, cell in ipairs(row.cells) do
+      local span = cell.col_span or 1
+      local share = 0
+      for k = col, math.min(n, col + span - 1) do
+        local w = tbl.colspecs[k][2]
+        share = share + ((type(w) == "number" and w > 0) and w or 1 / n)
+      end
+      local text = pandoc.utils.stringify(cell.contents)
+      local chars = math.max(1, share * SMALL_CHARS * WRAP_FILL)
+      most = math.max(most, math.ceil((utf8.len(text) or #text) / chars))
+      col = col + span
+    end
+    return most
+  end
+  local lines = RULE_LINES
+  for _, row in ipairs(tbl.head.rows) do lines = lines + row_lines(row) end
+  local first = tbl.bodies[1] and tbl.bodies[1].body[1]
+  if first then lines = lines + row_lines(first) end
+  return math.min(PAGE_LINES - HEADING_LINES, math.max(TABLE_LEAD, lines))
+end
+
 -- One unbreakable box holding `blocks`, which the page break goes around.
 local function unbroken(out, blocks)
   out:insert(latex("\\par\\noindent\\begin{minipage}{\\linewidth}"))
@@ -412,6 +456,9 @@ end
 --     opens with a break of its own. Not the package's \needspace, whose
 --     break is decided only once the longtable has taken over the output
 --     routine, which then prints the table's heading above the caption.
+--   * A heading directly above a table asks for the same room, because
+--     longtable's own opening break would otherwise leave the heading as
+--     the last line of a page.
 --   * A caption after an image may not be broken from it.
 --
 -- Each image kept this way is capped so that it and its text fit one page.
@@ -422,6 +469,13 @@ local function Blocks(blocks)
   while i <= #blocks do
     local block, nxt = blocks[i], blocks[i + 1]
     local image = false
+    -- A FIGURE STAYS IN ITS SECTION. A figure that floats is settled before
+    -- the next top-level heading, so the Discussion never opens between a
+    -- Results figure and its text.
+    if block.t == "Header" and block.level == 1 and wants_barrier then
+      out:insert(latex("\\FloatBarrier"))
+      wants_placeins = true
+    end
     if (is_panel_label(block) or (is_caption(block) and not after_image))
         and is_image(nxt) then
       local lines = lines_of(block)
@@ -430,6 +484,20 @@ local function Blocks(blocks)
       i = i + 2
       image = true
       if after > 0 then out:insert(latex("\\nopagebreak")) end
+    elseif block.t == "Header" and is_caption(nxt) and is_table(blocks, i + 2) then
+      wants_needspace = true
+      local tbl = blocks[i + 2].t == "Table" and blocks[i + 2] or blocks[i + 3]
+      out:insert(latex(string.format("\\Needspace{%d\\baselineskip}",
+                                     HEADING_LINES + lines_of(nxt) + lead_lines(tbl))))
+      out:insert(block)
+      i = i + 1
+    elseif block.t == "Header" and is_table(blocks, i + 1) then
+      wants_needspace = true
+      local tbl = blocks[i + 1].t == "Table" and blocks[i + 1] or blocks[i + 2]
+      out:insert(latex(string.format("\\Needspace{%d\\baselineskip}",
+                                     HEADING_LINES + lead_lines(tbl))))
+      out:insert(block)
+      i = i + 1
     elseif is_caption(block) and is_table(blocks, i + 1) then
       wants_needspace = true
       out:insert(latex(string.format("\\Needspace{%d\\baselineskip}",
@@ -483,6 +551,7 @@ local function Meta(meta)
   local adds = {}
   if wants_fvextra then adds[#adds + 1] = "\\usepackage{fvextra}" end
   if wants_needspace then adds[#adds + 1] = "\\usepackage{needspace}" end
+  if wants_placeins then adds[#adds + 1] = "\\usepackage{placeins}" end
   if #adds == 0 then return nil end
   local have = meta["header-includes"]
   if have == nil then

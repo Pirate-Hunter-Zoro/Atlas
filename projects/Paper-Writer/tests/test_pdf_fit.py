@@ -175,6 +175,16 @@ class PdfFit(unittest.TestCase):
         self.assertNotIn(r"S/\allowbreak", tex)
         self.assertNotIn(r"N/\allowbreak", tex)
 
+    def test_a_figure_does_not_float_into_the_next_section(self):
+        tex = latex("# Results\n\nText.\n\n# Discussion\n\nMore.\n")
+        self.assertIn(r"\usepackage{placeins}", tex)
+        self.assertRegex(tex, r"\\FloatBarrier\s*\\section\{Discussion\}")
+
+    def test_heading_over_a_caption_and_table_keeps_room(self):
+        tex = latex("## S9.3 Clinical strata\n\n" + CAPTIONED_TABLE)
+        self.assertRegex(tex, r"\\Needspace\{\d+\\baselineskip\}\s*"
+                              r"\\subsection\{S9\.3 Clinical strata\}")
+
     def test_panel_label_is_boxed_with_its_image(self):
         tex = latex(PANELS)
         def boxed(label, image):
