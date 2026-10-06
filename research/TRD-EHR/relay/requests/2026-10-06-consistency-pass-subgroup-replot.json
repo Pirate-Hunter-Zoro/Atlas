@@ -1,0 +1,14 @@
+{
+  "env": {},
+  "export": [
+    "results/review/subgroups/subgroup_forest.png"
+  ],
+  "filed": 1791269502.869,
+  "id": "2026-10-06-consistency-pass-subgroup-replot",
+  "kind": "recipe",
+  "produces": [
+    "results/review/subgroups/subgroup_forest.png"
+  ],
+  "recipe": "slurm_jobs/review/subgroup_replot.sbatch",
+  "thread": "consistency-pass"
+}
