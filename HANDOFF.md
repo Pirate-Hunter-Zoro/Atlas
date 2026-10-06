@@ -238,8 +238,14 @@ Parts of the item as written that proved wrong, one line each:
   workspace, applied with `board thread`. `PSYCH-ASR_TODO.txt` and `LOCAL-LLM_TODO.txt` still
   exist. Their next steps are thread tasks; the owner decides where the rest goes before either
   is deleted.
-- **Mark exports.** For each Paper 1 thread, say which `results/` artifacts are aggregate and may
-  be published to `exports/`. The Mac cannot show a figure from the cluster until this is done.
+- **Two checks only the cluster can answer.** No hosted model's credential may be readable on the
+  cluster, because the egress hook is defence in depth and a key is what a bypass would need. Run
+  this once on a login node; it prints yes or no per item and never a value, and any "yes" needs
+  removing:
+
+  ```
+  bash -c 'yn(){ if "$@" >/dev/null 2>&1; then echo yes; else echo no; fi; }; row(){ printf "%-66s %s\n" "$1" "$2"; }; envkey(){ env | grep -qE "^[A-Za-z0-9_]*_API_KEY=.|^ANTHROPIC_AUTH_TOKEN=."; }; S="$( { ls -d /etc/claude-code/*.json 2>/dev/null; find "$HOME" -maxdepth 7 \( -name phi -o -name node_modules -o -name .git \) -prune -o -path "*/.claude/settings*.json" -print 2>/dev/null; } )"; baseurl(){ local f; while IFS= read -r f; do [ -n "$f" ] && grep -qs ANTHROPIC_BASE_URL "$f" && return 0; done <<< "$S"; return 1; }; row "~/.claude/.credentials.json exists" "$(yn test -e "$HOME/.claude/.credentials.json")"; row "~/.config/tutor-board/keys.env sets a value" "$(yn grep -qsE "^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=[^[:space:]#]" "$HOME/.config/tutor-board/keys.env")"; row "~/.local/share/opencode/auth.json exists" "$(yn test -e "$HOME/.local/share/opencode/auth.json")"; row "a login profile names *_API_KEY or ANTHROPIC_AUTH_TOKEN" "$(yn grep -qsE "_API_KEY|ANTHROPIC_AUTH_TOKEN" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.zshenv")"; row "this login shell has a *_API_KEY or ANTHROPIC_AUTH_TOKEN set" "$(yn envkey)"; row "a .claude/settings*.json or /etc/claude-code/*.json names ANTHROPIC_BASE_URL" "$(yn baseurl)"'
+  ```
 
 ## The work it is for
 
