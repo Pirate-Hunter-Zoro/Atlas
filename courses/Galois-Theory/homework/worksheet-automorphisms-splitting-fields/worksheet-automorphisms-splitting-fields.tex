@@ -688,4 +688,53 @@ So $f = x\,h$ has $1 + (q - 1) = q$ distinct roots in $E$.
 \end{proof}
 % ===== END SOLUTION 12(a) =====
 
+\begin{problem}{12(b)}
+  Show that the roots of $f$ form a subfield of $E$. Conclude that this
+  subfield is all of $E$, so $|E| = q$ and $E$ consists of $0$ together with
+  the $(q-1)$-th roots of unity.
+\end{problem}
+
+% ===== SOLUTION 12(b) =====
+\begin{proof}
+Let $R = \{a \in E : a^q = a\}$, the set of roots of $f$ in $E$. Clearly
+$R \subseteq E$, and $R$ contains $0$ and $1$, since $0^q = 0$ and $1^q = 1$.
+
+\emph{Closure under addition.} In characteristic $p$,
+$(a+b)^p = a^p + b^p$. Suppose $(a+b)^{p^k} = a^{p^k} + b^{p^k}$. Then
+\[
+  (a+b)^{p^{k+1}} = \bigl((a+b)^{p^k}\bigr)^p
+  = \bigl(a^{p^k} + b^{p^k}\bigr)^p = a^{p^{k+1}} + b^{p^{k+1}},
+\]
+so by induction $(a+b)^{p^k} = a^{p^k} + b^{p^k}$ for every $k$. Taking
+$k = n$, for $a, b \in R$,
+\[
+  (a+b)^q = a^q + b^q = a + b,
+\]
+so $a + b \in R$.
+
+\emph{Closure under multiplication.} For $a, b \in R$,
+$(ab)^q = a^q b^q = ab$, so $ab \in R$.
+
+\emph{Negatives.} Let $a \in R$. Then $(-a)^q = (-1)^q a^q = (-1)^{p^n} a$.
+If $p$ is odd, $(-1)^{p^n} = -1$, so $(-a)^q = -a$. If $p = 2$, then
+$(-1)^{p^n} a = a$, but $-1 = 1$ in characteristic $2$, so $a = -a$ and again
+$(-a)^q = -a$. Either way $-a \in R$.
+
+\emph{Inverses.} For $a \in R$ with $a \neq 0$,
+$(a^{-1})^q = (a^q)^{-1} = a^{-1}$, so $a^{-1} \in R$.
+
+So $R$ is a subfield of $E$. It contains $1$, hence by closure under addition
+every sum $1 + 1 + \dots + 1$, which is all of $\mathbb{F}_p$. So $R$ is a
+subfield of $E$ containing $\mathbb{F}_p$ and every root of $f$. But $E$, as a
+splitting field, is the smallest such field, so $E = R$.
+
+By 12(a), $|E| = |R| = q$. The elements of $E$ are $0$ together with all
+$a \neq 0$ with $a^q = a$, and for $a \neq 0$,
+\[
+  a^q = a \iff a^{q-1} = 1,
+\]
+so these are exactly the $(q-1)$-th roots of unity.
+\end{proof}
+% ===== END SOLUTION 12(b) =====
+
 \end{document}
