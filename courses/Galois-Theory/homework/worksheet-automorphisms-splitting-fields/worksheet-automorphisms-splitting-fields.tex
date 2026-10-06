@@ -11,9 +11,7 @@
 %  SOLUTION / END SOLUTION pair. `board hw status` reads those markers to say
 %  what is written up and what is next, and it pairs them by label.
 %
-%  Problems 7, 8, 9 and 10 are the four chosen for this sitting. Problems 11
-%  and 12 are the finite-field pair and are not stated here; they get their own
-%  sheet when they are worked.
+%  Problems 7 to 12, each part stated here once it is agreed.
 % ===========================================================================
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
@@ -587,5 +585,77 @@ $\operatorname{Aut}(E/\mathbb{Q})$ is isomorphic to a subgroup of
 $\operatorname{Sym}(R) \cong S_3$.
 \end{proof}
 % ===== END SOLUTION 10(d) =====
+
+\begin{problem}{11(a)}
+  Let $K$ be a field and let $G \subseteq K^\times$ be a finite subgroup of
+  order $n$. Show that every element of $G$ is an $n$-th root of unity, and
+  that for each $d \geq 1$ there are at most $d$ elements $g \in K$ with
+  $g^d = 1$.
+\end{problem}
+
+% ===== SOLUTION 11(a) =====
+\begin{proof}
+\emph{Every $g \in G$ satisfies $g^n = 1$.} Let $g \in G$. By Lagrange's
+theorem the order of each element divides the order of the group, so
+$\operatorname{ord}(g) \mid n$. Write $n = \operatorname{ord}(g)\, m$. Then
+\[
+  g^n = g^{\operatorname{ord}(g)\, m} = \bigl(g^{\operatorname{ord}(g)}\bigr)^m
+  = 1^m = 1.
+\]
+
+\emph{At most $d$ elements $g \in K$ satisfy $g^d = 1$.} Let $d \geq 1$ and
+suppose $d+1$ distinct elements $g_1, \dots, g_{d+1} \in K$ satisfy
+$g_1^d = g_2^d = \dots = g_{d+1}^d = 1$. Then each $g_i$ is a root of
+$x^d - 1 \in K[x]$, which is nonzero of degree $d$ since its leading
+coefficient is $1$. So $x^d - 1$ has $d+1$ distinct roots in $K$, contradicting
+the fact that a nonzero polynomial of degree $d$ over a field has at most $d$
+roots in it.
+\end{proof}
+% ===== END SOLUTION 11(a) =====
+
+\begin{problem}{11(b)}
+  Show that $G$ is cyclic.
+\end{problem}
+
+% ===== SOLUTION 11(b) =====
+\begin{proof}
+For $d \mid n$ let $N(d)$ be the number of elements of $G$ of order exactly $d$.
+
+\emph{$N(d) \leq \varphi(d)$.} If $N(d) = 0$ there is nothing to show. Otherwise
+let $h \in G$ have order $d$. Then $1, h, \dots, h^{d-1}$ are $d$ distinct
+elements of $K$ with $(h^k)^d = (h^d)^k = 1$, so they are $d$ distinct roots of
+$x^d - 1$. By 11(a) there are no others. Any $g \in G$ of order $d$ has
+$g^d = 1$, so $g \in \langle h \rangle$. The elements of order $d$ in the
+cyclic group $\langle h \rangle$ of order $d$ are the $h^k$ with
+$\gcd(k, d) = 1$, and there are $\varphi(d)$ of them. So $N(d) \leq \varphi(d)$.
+
+\emph{Some element has order $n$.} Every $g \in G$ has exactly one order, and it
+divides $n$ by Lagrange's theorem, so
+\[
+  \sum_{d \mid n} N(d) = n = \sum_{d \mid n} \varphi(d).
+\]
+Subtracting,
+\[
+  \sum_{d \mid n} \bigl(\varphi(d) - N(d)\bigr) = 0,
+\]
+and every term is $\geq 0$ by the first part. Nonnegative terms summing to $0$
+are all $0$, so $N(d) = \varphi(d)$ for every $d \mid n$. In particular
+$N(n) = \varphi(n) \geq 1$, so some $g \in G$ has order $n = |G|$, and
+$G = \langle g \rangle$ is cyclic.
+\end{proof}
+% ===== END SOLUTION 11(b) =====
+
+\begin{problem}{11(c)}
+  Deduce that $\mathbb{F}_q^\times$ is cyclic for every finite field
+  $\mathbb{F}_q$.
+\end{problem}
+
+% ===== SOLUTION 11(c) =====
+\begin{proof}
+Take $K = \mathbb{F}_q$ and $G = \mathbb{F}_q^\times = K^\times$. This is a
+subgroup of $K^\times$, and it is finite, of order $q - 1$, because
+$\mathbb{F}_q$ is finite. By 11(b), $\mathbb{F}_q^\times$ is cyclic.
+\end{proof}
+% ===== END SOLUTION 11(c) =====
 
 \end{document}
