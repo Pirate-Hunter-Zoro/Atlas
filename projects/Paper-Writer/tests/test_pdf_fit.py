@@ -2,13 +2,18 @@
 
 `stages/pdf_fit.lua` is passed to pandoc for a PDF and never for a .docx. These
 run the filter through pandoc's LaTeX writer, which is what the PDF is typeset
-from, and read the LaTeX: a TeX run would make the suite need TeX Live.
+from, and read the LaTeX. One also builds a PDF, and skips that half where
+xelatex is not installed, so the suite does not need TeX Live.
 """
 
 import re
 import shutil
+import struct
 import subprocess
+import tempfile
 import unittest
+import zlib
+from pathlib import Path
 
 import support                                                      # noqa: F401
 from paperwriter.stages import building                             # noqa: E402
@@ -52,7 +57,8 @@ GIVEN_ROOMY = """\
 CELLS = """\
   **Source field**     **Encoding**                     **Narrative**
   -------------------- -------------------------------- -----------------------------------------
-  Benzodiazepine days  pre_anchor_history_days, float   BMI: N \\\| BP (mean): S/D, or Missing
+  Benzodiazepine days  pre_anchor_history_days, float   BMI: N \\\\\\| BP (mean): S/D, or Missing
+  Race                 White/Caucasian, N/A             Psych inpatient days: N \\| ED psych visits: N
 """
 
 PANELS = """\
@@ -77,12 +83,44 @@ CAPTIONED_TABLE = """\
 """ + GIVEN
 
 
-def latex(markdown):
-    out = subprocess.run(
-        ["pandoc", "--from", "markdown", "--to", "latex", "--standalone",
-         "--lua-filter", str(building.PDF_FIT)],
-        input=markdown, capture_output=True, text=True, check=True)
+def latex(markdown, cwd=None, resource=None):
+    command = ["pandoc", "--from", "markdown", "--to", "latex", "--standalone",
+               "--lua-filter", str(building.PDF_FIT)]
+    if resource:
+        command += ["--resource-path", str(resource)]
+    out = subprocess.run(command, input=markdown, capture_output=True,
+                         text=True, check=True, cwd=cwd)
     return out.stdout
+
+
+def png(path, width, height):
+    """A blank grey PNG of `width` by `height` pixels, written with zlib alone."""
+    def chunk(kind, data):
+        body = kind + data
+        return (struct.pack(">I", len(data)) + body
+                + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF))
+    rows = b"".join(b"\x00" + b"\x80" * width for _ in range(height))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b""))
+
+
+# A panel label, a tall image and its caption: the label and the image are
+# boxed together and the image is narrowed to leave room for both texts.
+TALL_PANEL = """\
+Text before.
+
+A bge-small-en-v1.5
+
+![](figs/tall.png){width=5.6in}
+
+Figure S11. Subgroup discrimination.
+
+After.
+"""
 
 
 @unittest.skipUnless(shutil.which("pandoc"), "pandoc is not installed")
@@ -123,10 +161,19 @@ class PdfFit(unittest.TestCase):
         tex = latex(CELLS)
         self.assertIn(r"pre\_\allowbreak{}anchor\_\allowbreak{}history", tex)
 
-    def test_escaped_pipe_in_a_cell_prints_as_a_pipe(self):
+    def test_a_literal_backslash_and_pipe_in_a_cell_is_kept(self):
+        # The source asked for a backslash and a pipe, and gets both.
         tex = latex(CELLS)
-        self.assertNotIn("textbackslash", tex)
-        self.assertRegex(tex, r"N (\\textbar\{\}|\|) BP")
+        self.assertRegex(tex, r"N \\textbackslash\{?\}?\s*\\textbar\{\} BP")
+        self.assertRegex(tex, r"days: N\s+\\textbar\{\} ED")
+
+    def test_slash_breaks_only_between_words(self):
+        tex = latex(CELLS)
+        self.assertIn(r"White/\allowbreak{}Caucasian", tex)
+        self.assertIn("S/D", tex)
+        self.assertIn("N/A", tex)
+        self.assertNotIn(r"S/\allowbreak", tex)
+        self.assertNotIn(r"N/\allowbreak", tex)
 
     def test_panel_label_is_boxed_with_its_image(self):
         tex = latex(PANELS)
@@ -143,13 +190,58 @@ class PdfFit(unittest.TestCase):
 
     def test_image_kept_with_text_leaves_room_for_it(self):
         # An image as tall as the page, held to its caption, has nowhere to
-        # break, and TeX ships empty pages until it runs out of numbers.
-        tex = latex("![](a.png){width=5.6in}\n\n"
-                    "Figure S11. Subgroup discrimination.\n")
-        self.assertRegex(tex, r"\\includegraphics\[width=5\.6in,"
-                              r"height=0\.\d+\\textheight,keepaspectratio\]\{a\.png\}")
+        # break, and TeX ships empty pages until it runs out of numbers. One
+        # three times as tall as it is wide, 5.6in across, is 16.8in tall.
+        with tempfile.TemporaryDirectory() as tmp:
+            png(Path(tmp) / "a.png", 60, 180)
+            tex = latex("![](a.png){width=5.6in}\n\n"
+                        "Figure S11. Subgroup discrimination.\n", cwd=tmp)
+        width = float(re.search(
+            r"\\includegraphics\[width=([\d.]+)in[^\]]*\]\{a\.png\}", tex).group(1))
+        # The page is 550pt (7.61in) tall; three widths must fit under it.
+        self.assertLess(width * 3, 550 / 72.27)
+        self.assertGreater(width * 3, 6.5)
         self.assertIn(r"\usepackage{graphicx}", tex)
         self.assertRegex(tex, r"a\.png\}\s*\\nopagebreak\s*Figure S11\.")
+
+    def test_short_image_keeps_its_width(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            png(Path(tmp) / "a.png", 200, 100)
+            tex = latex("![](a.png){width=5in}\n\n"
+                        "Figure S11. Subgroup discrimination.\n", cwd=tmp)
+        self.assertRegex(tex, r"\\includegraphics\[width=5in[^\]]*\]\{a\.png\}")
+
+    def test_boxed_image_resolves_through_the_resource_path(self):
+        # The figure is found only through --resource-path, from a directory
+        # that is neither the document's nor the figure's. The Image must reach
+        # pandoc's writer as an Image, which copies the file where TeX runs; a
+        # raw \includegraphics names a path TeX cannot find.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            png(root / "paper" / "figs" / "tall.png", 60, 180)
+            elsewhere = root / "elsewhere"
+            elsewhere.mkdir()
+            tex = latex(TALL_PANEL, cwd=elsewhere, resource=root / "paper")
+            self.assertRegex(
+                tex, r"\\begin\{minipage\}\{\\linewidth\}\s*A bge-small-en-v1\.5\s*"
+                     r"(\\smallskip\s*)?\\includegraphics\[width=[\d.]+in[^\]]*\]"
+                     r"\{figs/tall\.png\}\s*\\end\{minipage\}")
+            if not shutil.which("xelatex"):
+                self.skipTest("xelatex is not installed")
+            pdf = root / "out.pdf"
+            run = subprocess.run(
+                ["pandoc", "--from", "markdown", "--standalone",
+                 "--lua-filter", str(building.PDF_FIT), "--pdf-engine", "xelatex",
+                 "--resource-path", str(root / "paper"), "-o", str(pdf)],
+                input=TALL_PANEL, capture_output=True, text=True, cwd=elsewhere,
+                timeout=300)
+            self.assertEqual(run.returncode, 0, run.stderr[-2000:])
+            self.assertNotIn("Could not fetch", run.stderr)
+            if shutil.which("pdfimages"):
+                listed = subprocess.run(["pdfimages", "-list", str(pdf)],
+                                        capture_output=True, text=True,
+                                        check=True).stdout.splitlines()
+                self.assertEqual(len(listed) - 2, 1, "\n".join(listed))
 
     def test_caption_after_an_image_is_not_boxed_with_the_next(self):
         tex = latex("![](a.png){width=4in}\n\n"

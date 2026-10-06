@@ -57,11 +57,13 @@ local TABLE_LEAD = 8
 -- Lines of body text the default page holds (\textheight over \baselineskip,
 -- rounded down for the space round a paragraph).
 local PAGE_LINES = 43
+-- The default page's \textheight, in points, and the points in an inch.
+local PAGE_PT = 550
+local PT_PER_IN = 72.27
 
 -- Set when a rewrite needs a package, and read by `Meta`, which runs last.
 local wants_fvextra = false
 local wants_needspace = false
-local wants_graphicx = false
 
 local ESCAPE = {
   ["\\"] = "\\textbackslash{}", ["{"] = "\\{", ["}"] = "\\}",
@@ -71,17 +73,22 @@ local ESCAPE = {
   ["<"] = "\\textless{}", [">"] = "\\textgreater{}",
 }
 
+-- Whether `rule` lets a line break after the `i`th of `chars`: always (true),
+-- never (nil), or when the function says so.
+local function breaks(rule, chars, i)
+  if type(rule) == "function" then return rule(chars, i) end
+  return rule == true
+end
+
 -- The text, escaped for LaTeX, with a break allowed after each character in
 -- `after` -- where a path or an identifier reads naturally across two lines.
--- A character mapped to a pattern breaks only before a character matching it.
 local function breakable(text, after)
   local chars = {}
   for ch in text:gmatch(utf8.charpattern) do chars[#chars + 1] = ch end
   local out = {}
   for i, ch in ipairs(chars) do
     out[#out + 1] = ESCAPE[ch] or ch
-    local rule = after[ch]
-    if rule == true or (rule and chars[i + 1] and chars[i + 1]:match(rule)) then
+    if breaks(after[ch], chars, i) then
       out[#out + 1] = "\\allowbreak{}"
     end
   end
@@ -92,9 +99,26 @@ local CODE_BREAKS = { ["/"] = true, ["_"] = true, ["."] = true, ["-"] = true }
 -- Prose keeps its hyphenation; a bare path there breaks only at a slash or an
 -- underscore, so a sentence's full stop never starts a line.
 local PATH_BREAKS = { ["/"] = true, ["_"] = true }
+-- Letters running from the `i`th of `chars` in direction `step`, counted up
+-- to `need`.
+local function letters(chars, i, step, need)
+  local n = 0
+  while n < need and chars[i] and chars[i]:match("^%a$") do
+    n = n + 1
+    i = i + step
+  end
+  return n
+end
+
+-- A slash between two words of three letters or more ("White/Caucasian").
+-- "S/D", "N/A" and "46/297" stay whole: a line starting "/D" reads wrong.
+local function between_words(chars, i)
+  return letters(chars, i - 1, -1, 3) >= 3 and letters(chars, i + 1, 1, 3) >= 3
+end
+
 -- A table cell breaks a snake_case identifier after an underscore, and a pair
--- of words ("White/Caucasian") after the slash; "46/297" stays whole.
-local CELL_BREAKS = { ["_"] = true, ["/"] = "%a" }
+-- of words after the slash.
+local CELL_BREAKS = { ["_"] = true, ["/"] = between_words }
 
 -- The longest piece of `text` that cannot break, in characters: words split
 -- where `CELL_BREAKS` lets them, after a hyphen, where TeX breaks by itself,
@@ -109,10 +133,8 @@ local function longest_word(text, dashes)
     for i, ch in ipairs(chars) do
       run = run + 1
       if run > most then most = run end
-      local rule = CELL_BREAKS[ch]
       if ch == "-" or (dashes and ch == "–")
-          or rule == true
-          or (rule and chars[i + 1] and chars[i + 1]:match(rule)) then
+          or breaks(CELL_BREAKS[ch], chars, i) then
         run = 0
       end
     end
@@ -186,14 +208,6 @@ local TRIES = {
   { "parts", SCRIPT },
 }
 
--- "N \| BP" in a cell is a pipe the source escaped twice; the reader sees a
--- pipe.
-local function plain_pipe(str)
-  if str.text:find("\\|", 1, true) then
-    return pandoc.Str((str.text:gsub("\\|", "|")))
-  end
-end
-
 local function breakable_cells(tbl)
   return tbl:walk({
     Str = function(str)
@@ -217,7 +231,6 @@ end
 -- while every column holds its longest piece; one that does not is laid out
 -- by the same rule, since the dashes of a pipe table were never a layout.
 local function Table(tbl)
-  tbl = tbl:walk({ Str = plain_pipe })
   local w, whole, parts = widest(tbl)
   local pieces = { whole = whole, parts = parts }
   local n = #w
@@ -329,33 +342,48 @@ local function lines_of(block)
   return math.ceil((utf8.len(text) or #text) / LINE_CHARS)
 end
 
+-- A width pandoc reads, in inches; nil for a unit this does not know.
+local INCHES = { ["in"] = 1, cm = 1 / 2.54, mm = 1 / 25.4, pt = 1 / PT_PER_IN }
+
+local function inches(width)
+  local percent = width:match("^([%d.]+)%%$")
+  if percent then
+    return tonumber(percent) / 100 * LINE_PT / PT_PER_IN
+  end
+  local number, unit = width:match("^([%d.]+)(%a%a)$")
+  if number and INCHES[unit] and tonumber(number) then
+    return tonumber(number) * INCHES[unit]
+  end
+end
+
 -- An image may be as tall as the page, and one held to its label or caption
 -- then has nothing to break against: TeX ships empty pages until it runs out
--- of page numbers. So an image kept with `lines` of text is capped at the
--- page less those lines. It is written out here because pandoc drops
--- keepaspectratio once an image has both a width and a height. An image with
--- no width, a height of its own, or a path TeX would need escaped is left to
--- pandoc.
+-- of page numbers. So an image kept with `lines` of text is narrowed until it
+-- is no taller than the page less those lines. The Image stays an Image, so
+-- pandoc still finds its file on the resource path and copies it where TeX
+-- runs; only its width changes. An image with no width, a height of its own,
+-- or a file pandoc cannot read is left as it is.
 local function leave_room(block, lines)
   if block.t ~= "Para" and block.t ~= "Plain" then return block end
-  local share = string.format("%.2f", 1 - (lines + 1) / PAGE_LINES)
+  local room_in = (1 - (lines + 1) / PAGE_LINES) * PAGE_PT / PT_PER_IN
   return block:walk({
     Image = function(image)
       local width = image.attributes.width
-      if width == nil or image.attributes.height ~= nil
-          or image.src:find("[%s%%#{}\\]") then
-        return nil
-      end
-      local percent = width:match("^([%d.]+)%%$")
-      if percent then
-        width = string.format("%.4f\\linewidth", tonumber(percent) / 100)
-      elseif not width:match("^[%d.]+%a%a$") then
-        return nil
-      end
-      wants_graphicx = true
-      return pandoc.RawInline("latex", "\\includegraphics[width=" .. width
-        .. ",height=" .. share .. "\\textheight,keepaspectratio]{"
-        .. image.src .. "}")
+      if width == nil or image.attributes.height ~= nil then return nil end
+      local given = inches(width)
+      if given == nil then return nil end
+      local ok, _, contents = pcall(pandoc.mediabag.fetch, image.src)
+      if not ok or contents == nil then return nil end
+      local sized, size = pcall(pandoc.image.size, contents)
+      if not sized or not size.width or size.width == 0 then return nil end
+      -- Height over width as printed, which differs from the pixels' when the
+      -- file's two resolutions do.
+      local tall = (size.height / (size.dpi_vert or 72))
+                 / (size.width / (size.dpi_horz or 72))
+      if given * tall <= room_in then return nil end
+      image.attributes.width = string.format("%.2fin",
+        math.floor(room_in / tall * 100) / 100)
+      return image
     end,
   })
 end
@@ -450,14 +478,11 @@ end
 -- The packages the rewrites above need, added to whatever the document's own
 -- header asks for rather than in place of it, and only where used: fvextra
 -- loads lineno, and lineno breaks a longtable whose rows run long ("Dimension
--- too large"), which is the TRIPOD checklist. graphicx is pandoc's own, which
--- it loads only when it writes an image itself, and `leave_room` may have
--- written every one.
+-- too large"), which is the TRIPOD checklist.
 local function Meta(meta)
   local adds = {}
   if wants_fvextra then adds[#adds + 1] = "\\usepackage{fvextra}" end
   if wants_needspace then adds[#adds + 1] = "\\usepackage{needspace}" end
-  if wants_graphicx then adds[#adds + 1] = "\\usepackage{graphicx}" end
   if #adds == 0 then return nil end
   local have = meta["header-includes"]
   if have == nil then
