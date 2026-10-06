@@ -9,7 +9,7 @@ Section heading: S12 Additional Model Diagnostics and Encoder Estimates
 
 # S12 Additional Model Diagnostics and Encoder Estimates
 
-## S12 1 Primary ROC Curves and Descriptive Operating Points
+## S12.1 Primary ROC Curves and Descriptive Operating Points
 
 The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.65 and 0.62 and specificity 0.58 and 0.61. They identified 964 and 917 of 1,491 positive patients, with 2,932 and 2,768 false positives, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
@@ -33,7 +33,7 @@ B Feature vector XGBoost
 
 Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
 
-## S12 2 Structured Feature Importance
+## S12.2 Structured Feature Importance
 
 Positive logistic-regression coefficients included severe depression coding, suicidality, insomnia, obsessive-compulsive disorder, opioid use disorder, posttraumatic stress disorder, and anxiety. Negative coefficients included missing smoking status, hyperlipidemia, longer pre-index history, and male sex. Tree importance rankings varied and also emphasized record length, age, utilization, and psychiatric burden (Figure S14). For trees, plotted colors derive from univariate correlations and do not give the direction of the fitted model's conditional effect. None of these rankings supports causal interpretation.
 
@@ -57,7 +57,7 @@ D XGBoost
 
 Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show signed coefficients. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
-## S12 3 Concept Permutation and Encoder Comparison
+## S12.3 Concept Permutation and Encoder Comparison
 
 In the primary encoder, psychiatric-history permutation reduced AUC by 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; all paired CIs excluded zero. Medication burden reduced AUC by 0.003 (95% CI −0.004 to 0.011) to 0.027 (95% CI 0.018--0.037), with CIs excluding zero for 3 classifiers. Prior treatment reduced embedded logistic-regression AUC by 0.019 (95% CI 0.011--0.027) and the other models by 0.000 (95% CI −0.009 to 0.008) to 0.011 (95% CI 0.003--0.020), with CIs excluding zero for logistic regression and XGBoost. Among the remaining concepts, only the XGBoost contraindication contrast excluded zero (−0.005; 95% CI −0.008 to −0.001). Main-text Table 3 gives every difference with its paired CI; Figure S15 gives each model's absolute AUC.
 

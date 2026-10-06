@@ -31,7 +31,7 @@ D Outcome frequency by prescription timing
 
 ![](../results/review/metric_intervals/trd_rate_by_prescription_timing.png){width=5.7in}
 
-Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled in the original plots. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
+Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
 
 The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6. The best k was chosen on all test patients, so these values are optimistic in the same way.
 

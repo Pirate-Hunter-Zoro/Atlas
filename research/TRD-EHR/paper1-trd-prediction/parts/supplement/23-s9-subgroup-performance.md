@@ -11,19 +11,19 @@ Section heading: S9 Subgroup Performance
 
 Subgroup analyses address performance differences, a question distinct from direct-input reliance under permutation. They do not establish fairness of the outcome label or of a proposed clinical decision.
 
-## S9 1 Design
+## S9.1 Design
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
 The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for the primary encoder, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
 
-Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
+Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% (95% CI 98.7--99.1) of held-out patients preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
 Within-group CIs used percentile bootstrap resampling, and every within-group metric (ROC AUC, Brier score, logistic slope, mean risk difference) carries one, cut from the same resamples. Contrasts between disjoint groups used independent resampling of each group. Two-sided bootstrap P values were adjusted across 240 contrasts with the Benjamini--Hochberg procedure.
 
-The individual-level calibration slope was estimated by logistic regression of outcome on logit predicted risk. Mean predicted risk minus observed outcome frequency was also reported; the original table label "calibration-in-the-large" is retained as "mean risk difference" to identify the quantity actually calculated. This is not a logistic calibration intercept. Both differ from the binned-curve parameters in section S3.
+The individual-level calibration slope was estimated by logistic regression of outcome on logit predicted risk. Mean predicted risk minus observed outcome frequency was also reported, labeled "mean risk difference" rather than "calibration-in-the-large" to identify the quantity actually calculated. This is not a logistic calibration intercept. Both differ from the binned-curve parameters in section S3.
 
-## S9 2 Sociodemographic strata
+## S9.2 Sociodemographic strata
 
 Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
 
@@ -101,7 +101,7 @@ Table S10. Discrimination and calibration by sociodemographic stratum, one repre
 
 E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
-## S9 3 Clinical strata
+## S9.3 Clinical strata
 
 Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm.
 
@@ -125,9 +125,9 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD severity: Unspecified | 5,828 | 967 | E LR | 0.641 (0.621--0.660) | 0.133 (0.127--0.139) | 0.94 (0.81--1.07) | −0.000 (−0.010 to +0.009) |
 | MDD severity: Unspecified | 5,828 | 967 | F LR | 0.615 (0.595--0.634) | 0.134 (0.128--0.141) | 0.98 (0.83--1.15) | −0.001 (−0.011 to +0.009) |
 | MDD severity: Unspecified | 5,828 | 967 | N WTD | 0.609 (0.590--0.628) | 0.135 (0.129--0.142) | 1.14 (0.94--1.35) | −0.003 (−0.013 to +0.006) |
-| MDD recurrence: | 32 | 7 | E LR | not estimable | — | — | — |
-| MDD recurrence: | 32 | 7 | F LR | not estimable | — | — | — |
-| MDD recurrence: | 32 | 7 | N WTD | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | E LR | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | F LR | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | N WTD | not estimable | — | — | — |
 | MDD recurrence: Dysthymia | 584 | 97 | E LR | 0.690 (0.638--0.748) | 0.130 (0.113--0.149) | 1.33 (0.92--1.86) | +0.008 (−0.022 to +0.037) |
 | MDD recurrence: Dysthymia | 584 | 97 | F LR | 0.627 (0.565--0.687) | 0.134 (0.116--0.153) | 1.13 (0.59--1.75) | +0.010 (−0.020 to +0.038) |
 | MDD recurrence: Dysthymia | 584 | 97 | N WTD | 0.628 (0.567--0.688) | 0.135 (0.116--0.156) | 2.22 (1.18--3.50) | +0.003 (−0.028 to +0.032) |
@@ -140,7 +140,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 
 E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
-## S9 4 Adjusted Subgroup Comparisons
+## S9.4 Adjusted Subgroup Comparisons
 
 Of 240 contrasts, 58 had unadjusted CIs excluding zero and 23 survived Benjamini--Hochberg adjustment (Table S12).
 
@@ -148,15 +148,15 @@ Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 repo
 
 | **Contrast** | **Arm** | **Models surviving** | **ΔROC AUC range** | **Smallest P (BH)** |
 | -------------------------------------- | ----------------- | --------- | ---------------- | --------- |
-| Age: 18-29 vs rest | Feature vector | 1 of 4 | -0.068 (95% CI -0.117 to -0.022) | 0.042 |
+| Age: 18-29 vs rest | Feature vector | 1 of 4 | −0.068 (95% CI −0.117 to −0.022) | 0.042 |
 | MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.015 |
 | MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.015 |
 | MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 to +0.060 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | -0.071 to -0.065 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | -0.064 to -0.056 | 0.027 |
-| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | -0.058 to -0.047 | 0.027 |
-| Marital status: Never Married vs rest | Embedded | 2 of 4 | -0.054 to -0.051 | 0.015 |
-| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | -0.047 (95% CI -0.079 to -0.011) | 0.042 |
+| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 to −0.065 | 0.015 |
+| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 to −0.056 | 0.027 |
+| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 to −0.047 | 0.027 |
+| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 to −0.051 | 0.015 |
+| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.079 to −0.011) | 0.042 |
 
 Ranges span the surviving models' point estimates. Every surviving contrast's own 95% CI excludes zero; 2 single-model rows show theirs.
 

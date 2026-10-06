@@ -13,9 +13,10 @@ retrieval, and any retrieval scheme or control beyond the three arms below.
 RETRIEVAL IS A SWEEP, NOT A k (M10). Neighbors are chosen two ways, nearest and
 random, giving three arms: nearest under plain cosine and under
 logistic-regression-weighted cosine, and random (uniform weights, 1,000 draws).
-Each is scored at every k, and no single k is the headline. A value read at
-one k is at the arm's best k (757, 295 and 32,720 for the primary encoder),
-chosen on the test patients and called optimistic wherever it is quoted.
+Each is scored at every k, and no single k is the headline. A maximum, an
+ROC curve and a confusion matrix are at the arm's best k (757, 295 and 32,720
+for the primary encoder), chosen on the test patients and called optimistic
+wherever it is quoted; a value at any other k names that k.
 Tables S1, S3 and S4 hold the classifiers and the three arms as rows of one
 table each. ROC curves and confusion matrices (Figures S8-S9) are drawn only at
 best k, for all four encoders on the owner's answer: the primary encoder's
@@ -59,9 +60,9 @@ The delivering data team restricted the person table to one administrative divis
 
 Investigators prespecified the diagnosis code lists. Depression comprised ICD-9 codes 296.2, 296.3, 300.4, and 311 or ICD-10 codes F32.\*, F33.\*, and F34.1. Bipolar disorder comprised ICD-9 codes 296.0 and 296.4-296.8 or ICD-10 codes F30.\* and F31.\*. Schizophrenia-spectrum disorders comprised ICD-9 codes 295.\* and 298.\* or ICD-10 codes F20.\*, F23.\*, F25.\*, F28.\*, and F29.\*.
 
-The extract was assembled as a case-enriched sample. All patients with a depression diagnosis on the problem list were retained, and a random sample of patients without that flag was added at an approximate 4:1 unflagged-to-flagged ratio; the remaining tables were then linked to the person table. The delivered extract included 501,718 patients: 100,420 (20.0%) with and 401,298 (80.0%) without a problem-list depression flag.
+The extract was assembled as a case-enriched sample. All patients with a depression diagnosis on the problem list were retained, and a random sample of patients without that flag was added at an approximate 4:1 unflagged-to-flagged ratio; the remaining tables were then linked to the person table. The delivered extract included 501,718 patients: 100,420 (20.0%, 95% CI 19.9--20.1) with and 401,298 (80.0%, 95% CI 79.9--80.1) without a problem-list depression flag.
 
-Sampling used problem-list flags, whereas eligibility used encounter diagnoses. Of 42,579 eligible patients, 12,530 (29.4%) lacked the problem-list flag and entered through the randomly sampled group. The analytic cohort therefore does not enumerate all patients with depression in the health system. Its outcome and subgroup frequencies are sample descriptions, not population prevalence estimates. Both representations were evaluated in the same sampled patients.
+Sampling used problem-list flags, whereas eligibility used encounter diagnoses. Of 42,579 eligible patients, 12,530 (29.4%, 95% CI 29.0--29.9) lacked the problem-list flag and entered through the randomly sampled group. The analytic cohort therefore does not enumerate all patients with depression in the health system. Its outcome and subgroup frequencies are sample descriptions, not population prevalence estimates. Both representations were evaluated in the same sampled patients.
 
 The setting is a single community health system in Tulsa, Oklahoma, serving inpatient, outpatient, observation, and emergency care. Patients enter the cohort through routine antidepressant prescribing across those settings rather than through psychiatric specialty referral, and the index prescription may be written in any of them.
 
@@ -87,7 +88,7 @@ Upstream data preparation assembled, for each patient, all antidepressant medica
 
 The index was chosen without looking at anything after it, such as later dose, exposure duration, response, or switching. Post-index information was used to establish 365 days of follow-up and ascertain the outcome. Clinical content was restricted to the 730-day window ending on the index date. Total recorded pre-index history length (median 1,792 days) was retained separately as a duration variable, although clinical content outside the fixed window was not used.
 
-Prior antidepressant exposure did not exclude patients: 24.0% had some recorded pre-index exposure and 14.7% had a course meeting the 42-day duration threshold. The index was the first recorded prescription on or after a documented depression diagnosis, not necessarily the first lifetime exposure or first adequate trial.
+Prior antidepressant exposure did not exclude patients: 24.0% (95% CI 23.6--24.4) had some recorded pre-index exposure and 14.7% (95% CI 14.4--15.1) had a course meeting the 42-day duration threshold. The index was the first recorded prescription on or after a documented depression diagnosis, not necessarily the first lifetime exposure or first adequate trial.
 
 # M3 Outcome Definition
 
@@ -165,7 +166,7 @@ The pipelines share a source record and temporal cutoff but differ in field cont
 
 # M6 Missing Data
 
-No statistical imputation was performed. Mean body mass index and mean systolic and diastolic blood pressure were present in the intermediate feature file but removed from the FEATURE matrix at load time. Each value is the within-patient mean across that patient's own pre-index encounters, not a mean across patients. Mean body mass index was missing for 22.1% of patients, and at least one vital sign was absent for 21.0%. Body mass index was missing for 28.8% of TRD-positive and 20.6% of TRD-negative patients, an approximately 8-percentage-point difference.
+No statistical imputation was performed. Mean body mass index and mean systolic and diastolic blood pressure were present in the intermediate feature file but removed from the FEATURE matrix at load time. Each value is the within-patient mean across that patient's own pre-index encounters, not a mean across patients. Mean body mass index was missing for 22.1% (95% CI 21.7--22.5) of patients, and at least one vital sign was absent for 21.0%. Body mass index was missing for 28.8% of TRD-positive and 20.6% of TRD-negative patients, an approximately 8-percentage-point difference.
 
 Outcome-associated missingness argues against missing completely at random but does not establish missing not at random. The primary FEATURE analysis excluded the vital signs without imputation or continuous missingness indicators. A sensitivity analysis retaining them with missingness indicators and within-fold median imputation was reported to leave the best-model comparison nonsignificant. Quantitative results are not included here and are available from the corresponding author.
 
@@ -237,7 +238,7 @@ Standard classifiers, encoder comparisons, and concept permutations used the ful
 
 # M13 Performance Metrics and Uncertainty
 
-Discrimination was summarized by ROC AUC and AUPRC. The original overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are retained in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
+Discrimination was summarized by ROC AUC and AUPRC. The overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
 
 Sensitivity, specificity, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
 
@@ -251,7 +252,7 @@ No equivalence or noninferiority margin was prespecified. A paired confidence in
 
 Latent embedding coordinates do not have individual clinical interpretations. We therefore examined fitted sparsity, cumulative correlations, and performance after principal component reduction for Qwen3-Embedding-8B. These exploratory analyses describe the fitted representation rather than identify distinct clinical mechanisms.
 
-## S1 1 Sparsity and cumulative built in importance
+## S1.1 Sparsity and cumulative built-in importance
 
 The selected logistic regression used elastic-net regularization (l1_ratio=0.25; C=0.01). It assigned nonzero coefficients to 385 of 4,096 dimensions; approximately 80% of total absolute coefficient magnitude fell in 179 dimensions and 90% in 236 (Figure S1). These are model-specific measures of coefficient concentration, not estimates of intrinsic dimensionality or independent predictive information.
 
@@ -259,7 +260,7 @@ The selected logistic regression used elastic-net regularization (l1_ratio=0.25;
 
 Figure S1. Cumulative built-in importance across embedding dimensions, ranked within each classifier. For logistic regression, importance is absolute coefficient magnitude; tree models use native feature importance. K80 and K90 identify the numbers of coordinates accounting for 80% and 90% of that model-specific total.
 
-## S1 2 Cumulative univariate correlation
+## S1.2 Cumulative univariate correlation
 
 We ranked coordinates by absolute Spearman correlation with the outcome and, separately, with each classifier's predicted risk (Figure S2). The cumulative curves were broadly distributed. A sparse coefficient vector and diffuse marginal correlations can coexist because embedding coordinates are correlated; neither identifies unique clinical factors.
 
@@ -267,7 +268,7 @@ We ranked coordinates by absolute Spearman correlation with the outcome and, sep
 
 Figure S2. Cumulative absolute univariate (Spearman) correlation. One model-agnostic baseline curve ranks dimensions by \|ρ(dim, outcome)\|; the four per-classifier curves rank by \|ρ(dim, predicted risk)\|. Cumulative fraction of total \|ρ\| mass versus rank, with K₈₀ / K₉₀ knees in the legend.
 
-## S1 3 PCA K discrimination sweep
+## S1.3 PCA-K discrimination sweep
 
 Each classifier was retrained on the top K principal components, with K in {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}. Held-out ROC AUC generally improved as components were added, with model-specific plateaus and some deterioration at larger K (Figure S3). These curves do not identify a unique effective dimension, and choosing K from them would require further independent evaluation.
 
@@ -342,11 +343,11 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. C is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Retrieval panels print average precision, which differs from the table AUPRC in the third decimal. The no-skill reference is 0.175, the positive rate.
+Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Retrieval panels print average precision, which differs from the table AUPRC in the third decimal. The no-skill reference is 0.175, the positive rate.
 
 # S3 Calibration
 
-Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Across the 8 classifiers, Brier scores ran from 0.137 (95% CI 0.132--0.142) to 0.140 (95% CI 0.134--0.145) and WCE from 0.004 (95% CI 0.003--0.013) to 0.018 (95% CI 0.011--0.026). The binned calibration slopes and intercepts originally reported in the manuscript are retained below, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
+Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Across the 8 classifiers, Brier scores ran from 0.137 (95% CI 0.132--0.142) to 0.140 (95% CI 0.134--0.145) and WCE from 0.004 (95% CI 0.003--0.013) to 0.018 (95% CI 0.011--0.026). Table S4 reports binned calibration slopes and intercepts, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
 
 Table S3. Brier score and weighted calibration error for all 8 primary representation--classifier combinations and the 3 retrieval arms, each arm at its own test-selected best k, with bootstrap 95% CIs. Both metrics describe the cohort's observed outcome frequency.
 
@@ -366,7 +367,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 
 \* The random arm's WCE lies below its own bootstrap interval. Its predicted risks all sit within 0.002 of the outcome rate, so on the full test set the binned error is almost zero. Every resample moves the observed rate away from those fixed risks, so the resampled errors are larger. The interval therefore describes resampling noise around a near-zero error, not uncertainty about a positive one.
 
-Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These descriptive values are retained from the original overall calibration analysis and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
+Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
 
 | **Representation** | **Model** | **Binned slope (95% CI)** | **Binned intercept (95% CI)** |
 | ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
@@ -402,7 +403,7 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S5. Calibration curves for embedded logistic regression (A), feature-vector XGBoost (B), and the 3 retrieval arms at their own test-selected best k (C--E). Panels C--E carry a 95% CI on each bin. Retrieval panels use 10 bins of equal patient count, because retrieval risks crowd near the outcome rate. Random risks all lie near 0.175, so panel E is one cluster of points. The diagonal indicates agreement between predicted and observed outcome frequency; points above it indicate underprediction in that bin, and points below indicate overprediction. The sample is enriched for depression.
+Figure S5. Calibration curves for embedded logistic regression (A), feature-vector XGBoost (B), and the 3 retrieval arms at their own test-selected best k (C--E). E is the same random draw as Figure S4E, the one of 1,000 whose ROC AUC at that k is closest to their mean. Panels C--E carry a 95% CI on each bin. Retrieval panels use 10 bins of equal patient count, because retrieval risks crowd near the outcome rate. Random risks all lie near 0.175, so panel E is one cluster of points. The diagonal indicates agreement between predicted and observed outcome frequency; points above it indicate underprediction in that bin, and points below indicate overprediction. The sample is enriched for depression.
 
 # S4 Encoder Similarity Geometry
 
@@ -561,7 +562,7 @@ TRD-negative example.
 
 # S6 Neighbor Prediction
 
-Retrieval over the embedding carried outcome information but did not reach the trained classifiers at any k. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
+Retrieval over the embedding carried outcome information but did not reach the trained classifiers at any k. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at every k from 1 to 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
 
 Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4). From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the logistic-regression-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
 
@@ -679,7 +680,7 @@ D Outcome frequency by prescription timing
 
 ![](../results/review/metric_intervals/trd_rate_by_prescription_timing.png){width=5.7in}
 
-Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled in the original plots. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
+Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
 
 The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6. The best k was chosen on all test patients, so these values are optimistic in the same way.
 
@@ -752,19 +753,19 @@ The measured balance supports internal comparability. It does not establish dist
 
 Subgroup analyses address performance differences, a question distinct from direct-input reliance under permutation. They do not establish fairness of the outcome label or of a proposed clinical decision.
 
-## S9 1 Design
+## S9.1 Design
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
 The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for the primary encoder, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
 
-Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
+Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% (95% CI 98.7--99.1) of held-out patients preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
 Within-group CIs used percentile bootstrap resampling, and every within-group metric (ROC AUC, Brier score, logistic slope, mean risk difference) carries one, cut from the same resamples. Contrasts between disjoint groups used independent resampling of each group. Two-sided bootstrap P values were adjusted across 240 contrasts with the Benjamini--Hochberg procedure.
 
-The individual-level calibration slope was estimated by logistic regression of outcome on logit predicted risk. Mean predicted risk minus observed outcome frequency was also reported; the original table label "calibration-in-the-large" is retained as "mean risk difference" to identify the quantity actually calculated. This is not a logistic calibration intercept. Both differ from the binned-curve parameters in section S3.
+The individual-level calibration slope was estimated by logistic regression of outcome on logit predicted risk. Mean predicted risk minus observed outcome frequency was also reported, labeled "mean risk difference" rather than "calibration-in-the-large" to identify the quantity actually calculated. This is not a logistic calibration intercept. Both differ from the binned-curve parameters in section S3.
 
-## S9 2 Sociodemographic strata
+## S9.2 Sociodemographic strata
 
 Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
 
@@ -842,7 +843,7 @@ Table S10. Discrimination and calibration by sociodemographic stratum, one repre
 
 E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
-## S9 3 Clinical strata
+## S9.3 Clinical strata
 
 Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm.
 
@@ -866,9 +867,9 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD severity: Unspecified | 5,828 | 967 | E LR | 0.641 (0.621--0.660) | 0.133 (0.127--0.139) | 0.94 (0.81--1.07) | −0.000 (−0.010 to +0.009) |
 | MDD severity: Unspecified | 5,828 | 967 | F LR | 0.615 (0.595--0.634) | 0.134 (0.128--0.141) | 0.98 (0.83--1.15) | −0.001 (−0.011 to +0.009) |
 | MDD severity: Unspecified | 5,828 | 967 | N WTD | 0.609 (0.590--0.628) | 0.135 (0.129--0.142) | 1.14 (0.94--1.35) | −0.003 (−0.013 to +0.006) |
-| MDD recurrence: | 32 | 7 | E LR | not estimable | — | — | — |
-| MDD recurrence: | 32 | 7 | F LR | not estimable | — | — | — |
-| MDD recurrence: | 32 | 7 | N WTD | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | E LR | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | F LR | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | N WTD | not estimable | — | — | — |
 | MDD recurrence: Dysthymia | 584 | 97 | E LR | 0.690 (0.638--0.748) | 0.130 (0.113--0.149) | 1.33 (0.92--1.86) | +0.008 (−0.022 to +0.037) |
 | MDD recurrence: Dysthymia | 584 | 97 | F LR | 0.627 (0.565--0.687) | 0.134 (0.116--0.153) | 1.13 (0.59--1.75) | +0.010 (−0.020 to +0.038) |
 | MDD recurrence: Dysthymia | 584 | 97 | N WTD | 0.628 (0.567--0.688) | 0.135 (0.116--0.156) | 2.22 (1.18--3.50) | +0.003 (−0.028 to +0.032) |
@@ -881,7 +882,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 
 E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
-## S9 4 Adjusted Subgroup Comparisons
+## S9.4 Adjusted Subgroup Comparisons
 
 Of 240 contrasts, 58 had unadjusted CIs excluding zero and 23 survived Benjamini--Hochberg adjustment (Table S12).
 
@@ -889,15 +890,15 @@ Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 repo
 
 | **Contrast** | **Arm** | **Models surviving** | **ΔROC AUC range** | **Smallest P (BH)** |
 | -------------------------------------- | ----------------- | --------- | ---------------- | --------- |
-| Age: 18-29 vs rest | Feature vector | 1 of 4 | -0.068 (95% CI -0.117 to -0.022) | 0.042 |
+| Age: 18-29 vs rest | Feature vector | 1 of 4 | −0.068 (95% CI −0.117 to −0.022) | 0.042 |
 | MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.015 |
 | MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.015 |
 | MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 to +0.060 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | -0.071 to -0.065 | 0.015 |
-| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | -0.064 to -0.056 | 0.027 |
-| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | -0.058 to -0.047 | 0.027 |
-| Marital status: Never Married vs rest | Embedded | 2 of 4 | -0.054 to -0.051 | 0.015 |
-| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | -0.047 (95% CI -0.079 to -0.011) | 0.042 |
+| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | −0.071 to −0.065 | 0.015 |
+| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | −0.064 to −0.056 | 0.027 |
+| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | −0.058 to −0.047 | 0.027 |
+| Marital status: Never Married vs rest | Embedded | 2 of 4 | −0.054 to −0.051 | 0.015 |
+| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | −0.047 (95% CI −0.079 to −0.011) | 0.042 |
 
 Ranges span the surviving models' point estimates. Every surviving contrast's own 95% CI excludes zero; 2 single-model rows show theirs.
 
@@ -964,7 +965,7 @@ A sensitivity analysis added vital signs to FEATURE using missingness indicators
 
 Within-subgroup outcome frequency divides positive patients by all patients in that subgroup. This differs from the outcome-conditioned column percentages in the cohort table below. All frequencies describe the enriched analytic sample.
 
-Outcome frequency was 18.0% among female and 16.2% among male patients. It declined across age groups: 20.6% at 18--29 years (1,135/5,513), 20.3% at 30--44 (1,836/9,025), 18.4% at 45--64 (2,445/13,268), and 13.8% at 65 or older (2,039/14,773). Selected social-determinant strata had higher frequencies: upbringing-related issues, 33.0%; legal issues, 26.1%; employment issues, 24.0%; and family or support-group issues, 22.9%. Small counts limit these comparisons. Missing race/ethnicity was associated with a frequency of 15.5% (46/297), versus 17.5% overall.
+Outcome frequency was 18.0% (95% CI 17.6--18.4) among female and 16.2% (95% CI 15.6--16.9) among male patients. It declined across age groups: 20.6% (95% CI 19.5--21.7) at 18--29 years (1,135/5,513), 20.3% (95% CI 19.5--21.2) at 30--44 (1,836/9,025), 18.4% (95% CI 17.8--19.1) at 45--64 (2,445/13,268), and 13.8% (95% CI 13.3--14.4) at 65 or older (2,039/14,773). Selected social-determinant strata had higher frequencies: upbringing-related issues, 33.0% (95% CI 27.3--39.3); legal issues, 26.1% (95% CI 18.9--34.8); employment issues, 24.0% (95% CI 17.9--31.4); and family or support-group issues, 22.9% (95% CI 20.0--26.2). Small counts limit these comparisons. Missing race/ethnicity was associated with a frequency of 15.5% (46/297; 95% CI 11.8--20.0), versus 17.5% (95% CI 17.2--17.9) overall.
 
 Table S14. Expanded cohort characteristics by TRD proxy status. Values are median (IQR) or n (%); percentages within outcome columns use the corresponding outcome-group denominator. SMD: standardized mean difference; AD: antidepressant; ED: emergency department; MDD: major depressive disorder; PTSD: posttraumatic stress disorder. Total N=42,579; positive n=7,455; negative n=35,124.
 
@@ -1012,7 +1013,7 @@ Table S14. Expanded cohort characteristics by TRD proxy status. Values are media
 
 # S12 Additional Model Diagnostics and Encoder Estimates
 
-## S12 1 Primary ROC Curves and Descriptive Operating Points
+## S12.1 Primary ROC Curves and Descriptive Operating Points
 
 The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.65 and 0.62 and specificity 0.58 and 0.61. They identified 964 and 917 of 1,491 positive patients, with 2,932 and 2,768 false positives, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
@@ -1036,7 +1037,7 @@ B Feature vector XGBoost
 
 Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
 
-## S12 2 Structured Feature Importance
+## S12.2 Structured Feature Importance
 
 Positive logistic-regression coefficients included severe depression coding, suicidality, insomnia, obsessive-compulsive disorder, opioid use disorder, posttraumatic stress disorder, and anxiety. Negative coefficients included missing smoking status, hyperlipidemia, longer pre-index history, and male sex. Tree importance rankings varied and also emphasized record length, age, utilization, and psychiatric burden (Figure S14). For trees, plotted colors derive from univariate correlations and do not give the direction of the fitted model's conditional effect. None of these rankings supports causal interpretation.
 
@@ -1060,7 +1061,7 @@ D XGBoost
 
 Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show signed coefficients. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
-## S12 3 Concept Permutation and Encoder Comparison
+## S12.3 Concept Permutation and Encoder Comparison
 
 In the primary encoder, psychiatric-history permutation reduced AUC by 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; all paired CIs excluded zero. Medication burden reduced AUC by 0.003 (95% CI −0.004 to 0.011) to 0.027 (95% CI 0.018--0.037), with CIs excluding zero for 3 classifiers. Prior treatment reduced embedded logistic-regression AUC by 0.019 (95% CI 0.011--0.027) and the other models by 0.000 (95% CI −0.009 to 0.008) to 0.011 (95% CI 0.003--0.020), with CIs excluding zero for logistic regression and XGBoost. Among the remaining concepts, only the XGBoost contraindication contrast excluded zero (−0.005; 95% CI −0.008 to −0.001). Main-text Table 3 gives every difference with its paired CI; Figure S15 gives each model's absolute AUC.
 

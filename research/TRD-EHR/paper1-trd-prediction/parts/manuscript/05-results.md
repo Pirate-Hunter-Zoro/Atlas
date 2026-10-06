@@ -11,7 +11,7 @@ Section heading: Results
 
 ## Cohort Characteristics
 
-Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (17.5%, 95% CI 17.2--17.9) met the TRD proxy definition. Median age was 55 years (IQR 38--70); 72.5% were female, 80.0% were recorded as White/Caucasian, and 98.9% preferred English. Outcome-positive patients more often had coded suicidality, severe depression, anxiety, insomnia, and substance use disorders (Table 1). Expanded characteristics and subgroup outcome frequencies are in Multimedia Appendix 1, section S11.
+Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (17.5%, 95% CI 17.2--17.9) met the TRD proxy definition. Median age was 55 years (IQR 38--70); 72.5% (95% CI 72.0--72.9) were female, 80.0% (95% CI 79.7--80.4) were recorded as White/Caucasian, and 98.9% (95% CI 98.8--99.0) preferred English. Outcome-positive patients more often had coded suicidality, severe depression, anxiety, insomnia, and substance use disorders (Table 1). Expanded characteristics and subgroup outcome frequencies are in Multimedia Appendix 1, section S11.
 
 ***Table 1.** Selected cohort characteristics by TRD proxy status. Values are median (IQR) or n (%). SMD is the standardized mean difference between positive and negative groups. MDD: major depressive disorder; PTSD: posttraumatic stress disorder. Expanded characteristics appear in Multimedia Appendix 1, Table S14.*
 
@@ -77,7 +77,7 @@ The direction of the representation difference depended on the classifier. Embed
 
 ***Figure 2.** Discrimination by representation and classifier. A: ROC AUC with bootstrap 95% CIs for all primary models. B: paired differences, EMBEDDED minus FEATURE, with 95% CIs. Diamonds hold the classifier fixed; the star compares embedded logistic regression with feature-vector XGBoost, selected post hoc. An interval crossing zero does not demonstrate superiority or establish equivalence.*
 
-AUPRC was 0.302 (95% CI 0.281--0.325) for embedded logistic regression and 0.298 (95% CI 0.276--0.322) for feature-vector XGBoost, compared with the cohort's positive-rate reference of 0.175. Brier scores were 0.137 (95% CI 0.132--0.142) and 0.138 (95% CI 0.132--0.143), respectively. Calibration varied by model and method of assessment; the individual-level logistic calibration slope for embedded logistic regression was 0.97 (95% CI 0.88--1.06). Full calibration summaries, precision--recall curves, and descriptive operating points appear in Multimedia Appendix 1, sections S2--S3, S9, and S12.
+AUPRC was 0.302 (95% CI 0.281--0.325) for embedded logistic regression and 0.298 (95% CI 0.276--0.322) for feature-vector XGBoost, compared with the test patients' positive-rate reference of 0.175 (95% CI 0.167--0.183). Brier scores were 0.137 (95% CI 0.132--0.142) and 0.138 (95% CI 0.132--0.143), respectively. Calibration varied by model and method of assessment; the individual-level logistic calibration slope for embedded logistic regression was 0.97 (95% CI 0.88--1.06). Full calibration summaries, precision--recall curves, and descriptive operating points appear in Multimedia Appendix 1, sections S2--S3, S9, and S12.
 
 ## Clinical Contributions and Encoder Robustness
 
