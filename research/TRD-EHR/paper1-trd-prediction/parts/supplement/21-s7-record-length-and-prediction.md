@@ -15,17 +15,17 @@ Using the full recorded history, outcome correlations were small: Spearman œÅ=‚à
 
 A Pre-index history length
 
-![](../notebooks/figures/density_pre_anchor_history_days.png){width=5.7in}
+![](../results/notebook_figures/density_pre_anchor_history_days.png){width=5.7in}
 
 B Diagnosis-to-index interval
 
-![](../notebooks/figures/density_mdd_to_anchor_days.png){width=5.7in}
+![](../results/notebook_figures/density_mdd_to_anchor_days.png){width=5.7in}
 
 Figure S10. Continued on the next page.
 
 C Encounter count
 
-![](../notebooks/figures/density_num_encounters.png){width=5.7in}
+![](../results/notebook_figures/density_num_encounters.png){width=5.7in}
 
 D Outcome frequency by prescription timing
 

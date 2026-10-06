@@ -456,11 +456,11 @@ Within cluster B, similarity distributions showed little separation by the "Miss
 
 A All patients
 
-![](../notebooks/figures/bge_small_recurrence_bimodality.png){width=5.8in}
+![](../results/notebook_figures/bge_small_recurrence_bimodality.png){width=5.8in}
 
 B Cluster A
 
-![](../notebooks/figures/bge_small_cluster0_subsplit.png){width=5.8in}
+![](../results/notebook_figures/bge_small_cluster0_subsplit.png){width=5.8in}
 
 Figure S7. Pairwise similarity by agreement on "episode" across the cohort (A) and on "recurrent" within cluster A (B). Blue denotes token agreement, red disagreement, and gray all pairs. The analysis is descriptive and does not establish that wording alone causes the separation.
 
@@ -663,17 +663,17 @@ Using the full recorded history, outcome correlations were small: Spearman œÅ=‚à
 
 A Pre-index history length
 
-![](../notebooks/figures/density_pre_anchor_history_days.png){width=5.7in}
+![](../results/notebook_figures/density_pre_anchor_history_days.png){width=5.7in}
 
 B Diagnosis-to-index interval
 
-![](../notebooks/figures/density_mdd_to_anchor_days.png){width=5.7in}
+![](../results/notebook_figures/density_mdd_to_anchor_days.png){width=5.7in}
 
 Figure S10. Continued on the next page.
 
 C Encounter count
 
-![](../notebooks/figures/density_num_encounters.png){width=5.7in}
+![](../results/notebook_figures/density_num_encounters.png){width=5.7in}
 
 D Outcome frequency by prescription timing
 

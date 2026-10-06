@@ -59,11 +59,11 @@ Within cluster B, similarity distributions showed little separation by the "Miss
 
 A All patients
 
-![](../notebooks/figures/bge_small_recurrence_bimodality.png){width=5.8in}
+![](../results/notebook_figures/bge_small_recurrence_bimodality.png){width=5.8in}
 
 B Cluster A
 
-![](../notebooks/figures/bge_small_cluster0_subsplit.png){width=5.8in}
+![](../results/notebook_figures/bge_small_cluster0_subsplit.png){width=5.8in}
 
 Figure S7. Pairwise similarity by agreement on "episode" across the cohort (A) and on "recurrent" within cluster A (B). Blue denotes token agreement, red disagreement, and gray all pairs. The analysis is descriptive and does not establish that wording alone causes the separation.
 
