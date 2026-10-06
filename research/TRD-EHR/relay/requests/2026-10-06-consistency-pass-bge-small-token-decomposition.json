@@ -1,0 +1,16 @@
+{
+  "env": {},
+  "export": [
+    "results/notebook_figures/bge_small_recurrence_bimodality.png",
+    "results/notebook_figures/bge_small_cluster0_subsplit.png"
+  ],
+  "filed": 1791269499.646,
+  "id": "2026-10-06-consistency-pass-bge-small-token-decomposition",
+  "kind": "recipe",
+  "produces": [
+    "results/notebook_figures/bge_small_recurrence_bimodality.png",
+    "results/notebook_figures/bge_small_cluster0_subsplit.png"
+  ],
+  "recipe": "slurm_jobs/review/bge_small_token_decomposition.sbatch",
+  "thread": "consistency-pass"
+}
