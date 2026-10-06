@@ -1,0 +1,14 @@
+{
+  "env": {},
+  "export": [
+    "results/cross_embedder_retrieval/neighbor_count_sweep_panels.png"
+  ],
+  "filed": 1791269483.288,
+  "id": "2026-10-06-knn-across-embedders-plot-cross-embedder-retrieval-2",
+  "kind": "recipe",
+  "produces": [
+    "results/cross_embedder_retrieval/neighbor_count_sweep_panels.png"
+  ],
+  "recipe": "slurm_jobs/quick_runs/plot_cross_embedder_retrieval.sbatch",
+  "thread": "knn-across-embedders"
+}
