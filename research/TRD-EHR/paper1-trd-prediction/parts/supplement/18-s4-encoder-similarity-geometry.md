@@ -19,8 +19,6 @@ B bge-en-icl
 
 ![](../results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png){width=5.8in}
 
-Figure S6. Continued on the next page.
-
 C Qwen3-Embedding-4B
 
 ![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png){width=5.8in}

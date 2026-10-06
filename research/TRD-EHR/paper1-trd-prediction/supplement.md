@@ -280,8 +280,6 @@ B Random forest
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_random_forest_EMBEDDED.png){width=5.8in}
 
-Figure S3. Continued on the next page.
-
 C Gradient boosting
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_pca_sweep_gradient_boosting_EMBEDDED.png){width=5.8in}
@@ -343,7 +341,7 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Retrieval panels print average precision, which differs from the table AUPRC in the third decimal. The no-skill reference is 0.175, the positive rate; panel legends round both to 2 decimals.
+Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Every panel's legend prints average precision. In panels C--E it differs from the table AUPRC in the third decimal, and the legend adds its bootstrap 95% CI and the no-skill reference, the positive rate, 0.175 (95% CI 0.167--0.183). The legends round the average precision, its CI and the no-skill reference to 2 decimals, so the no-skill reference reads 0.18.
 
 # S3 Calibration
 
@@ -416,8 +414,6 @@ A bge-small-en-v1.5
 B bge-en-icl
 
 ![](../results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png){width=5.8in}
-
-Figure S6. Continued on the next page.
 
 C Qwen3-Embedding-4B
 
@@ -669,8 +665,6 @@ A Pre-index history length
 B Diagnosis-to-index interval
 
 ![](../results/notebook_figures/density_mdd_to_anchor_days.png){width=5.7in}
-
-Figure S10. Continued on the next page.
 
 C Encounter count
 
@@ -1048,8 +1042,6 @@ A Logistic regression
 B Random forest
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_random_forest.png){width=5.7in}
-
-Figure S14. Continued on the next page.
 
 C Gradient boosting
 

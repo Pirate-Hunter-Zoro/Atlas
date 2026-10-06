@@ -45,8 +45,6 @@ B Random forest
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_random_forest.png){width=5.7in}
 
-Figure S14. Continued on the next page.
-
 C Gradient boosting
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_gradient_boosting.png){width=5.7in}

@@ -21,8 +21,6 @@ B Diagnosis-to-index interval
 
 ![](../results/notebook_figures/density_mdd_to_anchor_days.png){width=5.7in}
 
-Figure S10. Continued on the next page.
-
 C Encounter count
 
 ![](../results/notebook_figures/density_num_encounters.png){width=5.7in}
