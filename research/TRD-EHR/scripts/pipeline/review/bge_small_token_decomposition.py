@@ -24,13 +24,17 @@ the same counts on the same bins.
 
 It prints RELAY: lines that say whether the redraw found what the paper describes:
 whether each driving token is the expected one (yes or no, never the word itself), the
-cluster sizes, and cluster A's nested silhouette. Writes both panels to
-results/notebook_figures/ and notebooks/figures/, so the copy export_paper_figures makes
-from the second cannot put the old title back.
+cluster sizes, and cluster A's nested silhouette. Both tokens are checked before any PNG
+is written: if either is not the expected one, it prints a RELAY: refusal and exits
+non-zero having written nothing, so a figure whose split disagrees with the caption can
+never be exported. Otherwise it writes both panels to results/notebook_figures/ and
+notebooks/figures/, so the copy export_paper_figures makes from the second cannot put
+the old title back.
 """
 
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -167,33 +171,46 @@ def load_bge_small() -> tuple[np.ndarray, list[str]]:
     return vectors / np.linalg.norm(vectors, axis=1, keepdims=True), [r[2].lower() for r in rows]
 
 
-def main():
+def main() -> int:
+    """Check both driving tokens, then draw both panels; draw nothing if either is wrong.
+
+    Returns:
+        int: 0 when both panels were written, 1 when a token was not the expected one
+            and nothing was written.
+    """
     seed = int(os.environ["SEED"])
     vectors, texts = load_bge_small()
     labels, cohort_token = cluster_vectors(vectors, texts, seed)
-    cohort_contains = np.array([cohort_token in t for t in texts])
-    draw(decomposition_counts(vectors, cohort_contains), cohort_token,
-         f"{ENCODER}: all pairs, split by agreement on '{cohort_token}'",
-         [d / FILE_NAMES["cohort"] for d in OUTPUT_DIRS])
-
     in_a = labels == CLUSTER_A_LABEL
     cluster_a = vectors[in_a]
     cluster_a_texts = [t for t, keep in zip(texts, in_a) if keep]
     sub_labels, sub_token = cluster_vectors(cluster_a, cluster_a_texts, seed)
+    silhouette = silhouette_score(cluster_a, sub_labels, metric="cosine", sample_size=5000,
+                                  random_state=seed)
+
+    expected = {"cohort": cohort_token == EXPECTED_TOKENS["cohort"],
+                "cluster_a": sub_token == EXPECTED_TOKENS["cluster_a"]}
+    print(f"RELAY: S7 cohort token is the expected one: "
+          f"{'yes' if expected['cohort'] else 'no'}", flush=True)
+    print(f"RELAY: S7 cluster A token is the expected one: "
+          f"{'yes' if expected['cluster_a'] else 'no'}", flush=True)
+    print(f"RELAY: S7 cluster sizes A {int(in_a.sum())} B {int((~in_a).sum())}, "
+          f"cluster A nested silhouette {silhouette:.2f}", flush=True)
+    if not all(expected.values()):
+        print("RELAY: S7 not drawn: a driving token is not the one the caption names, "
+              "so no PNG was written", flush=True)
+        return 1
+
+    cohort_contains = np.array([cohort_token in t for t in texts])
+    draw(decomposition_counts(vectors, cohort_contains), cohort_token,
+         f"{ENCODER}: all pairs, split by agreement on '{cohort_token}'",
+         [d / FILE_NAMES["cohort"] for d in OUTPUT_DIRS])
     sub_contains = np.array([sub_token in t for t in cluster_a_texts])
     draw(decomposition_counts(cluster_a, sub_contains), sub_token,
          f"Cluster A: pairs split by agreement on '{sub_token}'",
          [d / FILE_NAMES["cluster_a"] for d in OUTPUT_DIRS])
-
-    silhouette = silhouette_score(cluster_a, sub_labels, metric="cosine", sample_size=5000,
-                                  random_state=seed)
-    print(f"RELAY: S7 cohort token is the expected one: "
-          f"{'yes' if cohort_token == EXPECTED_TOKENS['cohort'] else 'no'}", flush=True)
-    print(f"RELAY: S7 cluster A token is the expected one: "
-          f"{'yes' if sub_token == EXPECTED_TOKENS['cluster_a'] else 'no'}", flush=True)
-    print(f"RELAY: S7 cluster sizes A {int(in_a.sum())} B {int((~in_a).sum())}, "
-          f"cluster A nested silhouette {silhouette:.2f}", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

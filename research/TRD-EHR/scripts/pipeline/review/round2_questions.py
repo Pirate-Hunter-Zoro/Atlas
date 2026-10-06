@@ -11,10 +11,13 @@ to disk, and nothing is refit.
   curve             bge-small-en-v1.5 / bge-en-icl plain cosine (alpha 1), ROC AUC at k
                     from 25,000 to the whole pool in steps of 250, and at the curve's
                     lowest point in that range. Each k is recomputed in float64 beside the
-                    float32 the sweep stores, with the spread and the distinct-value share
-                    of the risks across test patients, so a one-word flag can say why the
-                    curve drops near k = 30,000 (reason_flag). Runs on the encoder .env
-                    names; the recipe calls it once per encoder.
+                    float32 the sweep stores, with how many test patients' k-th and
+                    (k+1)-th similarities tie; at the lowest point and at k = 25,000 also
+                    the risks' spread and distinct-value count and how many patients'
+                    neighbourhoods reach a non-positive similarity. Raw values only: why
+                    the curve drops near k = 30,000 is the owner's reading, not this
+                    module's. Runs on the encoder .env names; the recipe calls it once per
+                    encoder.
   subgroup_race     the 10 White-minus-non-White contrasts with their bootstrap 95% CIs and
                     BH-adjusted P, the largest male-minus-female contrast, and the two
                     retrieval arms' "Severe vs rest" contrasts.
@@ -60,15 +63,6 @@ CURVE_START = 25_000
 CURVE_STEP = 250
 CURVE_ALPHA = 1.0
 CURVE_METRIC = "plain"
-
-# reason_flag's thresholds. A drop smaller than DROP_FLOOR is no drop; float32 storage is
-# the cause when it moves the AUC by more than PRECISION_GAP; ties when the distinct share
-# of risks at the trough falls below TIE_RATIO of its value at CURVE_START; near-uniform
-# risks when their spread falls below SPREAD_RATIO of the same.
-DROP_FLOOR = 0.01
-PRECISION_GAP = 0.005
-TIE_RATIO = 0.5
-SPREAD_RATIO = 0.25
 
 # Subgroup contrast keys, as run_subgroups writes them.
 RACE_CONTRAST = "white_minus_non_white"
@@ -129,25 +123,33 @@ def curve_grid(n_pool: int, trough_k: int = None, start: int = CURVE_START, step
 
 def risks_and_kth_similarity(anchors: np.ndarray, pool: np.ndarray, pool_labels: np.ndarray,
                              ks: np.ndarray, alpha: float, fallback_risk: float,
-                             block: int = 256) -> tuple[np.ndarray, np.ndarray]:
-    """Float64 risk at each k, ranked and weighted as the sweep ranks and weights them, and
-    each anchor's k-th largest similarity.
+                             block: int = 256) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Float64 risk at each k, ranked and weighted as the sweep ranks and weights them,
+    each anchor's k-th largest similarity, and whether it ties the (k+1)-th.
 
-    The risk equals neighbor_count_sweep.risk_at_counts at the same k; the k-th similarity
+    The risk equals neighbor_count_sweep.risk_at_counts at the same k. The k-th similarity
     says whether non-positive cosines (weight zero after clipping) have entered the
-    neighbourhood.
+    neighbourhood. A tie between the k-th and (k+1)-th similarity means the cut at k falls
+    inside a run of equal scores, so which of them is in the neighbourhood is set by the
+    sort's order, not by similarity. At k equal to the whole pool there is no (k+1)-th, and
+    no tie.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: (risk, kth_similarity), each (n_anchors, len(ks)).
+        tuple[np.ndarray, np.ndarray, np.ndarray]: (risk, kth_similarity, tied_at_cut),
+            each (n_anchors, len(ks)); tied_at_cut is boolean.
     """
     from scripts.pipeline.predictions.importance_weighted_knn import neighbour_weights
     labels_all = pool_labels.astype(np.float64)
+    n_pool = pool.shape[0]
+    width = min(int(ks.max()) + 1, n_pool)
+    has_next = ks < n_pool
     risk = np.empty((anchors.shape[0], ks.size))
     kth = np.empty((anchors.shape[0], ks.size))
+    tied = np.zeros((anchors.shape[0], ks.size), dtype=bool)
     for start in range(0, anchors.shape[0], block):
         stop = min(start + block, anchors.shape[0])
         similarities = anchors[start:stop] @ pool.T
-        order = np.argsort(-similarities, axis=1, kind='stable')[:, :int(ks.max())]
+        order = np.argsort(-similarities, axis=1, kind='stable')[:, :width]
         nearest = np.take_along_axis(similarities, order, axis=1).astype(np.float64)
         weights = neighbour_weights(nearest, alpha)
         numerator = np.cumsum(weights * labels_all[order], axis=1)[:, ks - 1]
@@ -156,20 +158,26 @@ def risks_and_kth_similarity(anchors: np.ndarray, pool: np.ndarray, pool_labels:
         np.divide(numerator, denominator, out=out, where=denominator > 0)
         risk[start:stop] = out
         kth[start:stop] = nearest[:, ks - 1]
-    return risk, kth
+        tied[start:stop, has_next] = nearest[:, ks[has_next] - 1] == nearest[:, ks[has_next]]
+    return risk, kth, tied
 
 
-def curve_diagnostics(y_true: np.ndarray, risk: np.ndarray, kth: np.ndarray) -> pd.DataFrame:
-    """Per k: the AUC in float64 and in float32, the risks' spread and distinct share, and
-    the share of anchors whose neighbourhood reaches a non-positive similarity.
+def curve_diagnostics(y_true: np.ndarray, risk: np.ndarray, kth: np.ndarray,
+                      tied: np.ndarray) -> pd.DataFrame:
+    """Per k, raw values only: the AUC in float64 and in float32, the risks' standard
+    deviation and count of distinct float32 values, the count of anchors whose
+    neighbourhood reaches a non-positive similarity, and the count whose k-th and
+    (k+1)-th similarities tie.
 
     Args:
         y_true (np.ndarray): 0/1 labels, shape (n,).
         risk (np.ndarray): Float64 risks, shape (n, n_k).
         kth (np.ndarray): k-th largest similarity, shape (n, n_k).
+        tied (np.ndarray): Boolean, k-th similarity equal to the (k+1)-th, shape (n, n_k).
 
     Returns:
-        pd.DataFrame: auc64, auc32, risk_sd, distinct_share, nonpositive_share, one row per k.
+        pd.DataFrame: auc64, auc32, risk_sd, distinct_risks, nonpositive_anchors,
+            tied_anchors, one row per k.
     """
     from scripts.pipeline.predictions.neighbor_count_sweep import roc_auc_by_column
     risk32 = risk.astype(np.float32)
@@ -177,53 +185,33 @@ def curve_diagnostics(y_true: np.ndarray, risk: np.ndarray, kth: np.ndarray) -> 
         "auc64": roc_auc_by_column(y_true, risk),
         "auc32": roc_auc_by_column(y_true, risk32),
         "risk_sd": risk.std(axis=0),
-        "distinct_share": [np.unique(risk32[:, j]).size / risk.shape[0] for j in range(risk.shape[1])],
-        "nonpositive_share": (kth <= 0).mean(axis=0),
+        "distinct_risks": [np.unique(risk32[:, j]).size for j in range(risk.shape[1])],
+        "nonpositive_anchors": (kth <= 0).sum(axis=0),
+        "tied_anchors": tied.sum(axis=0),
     })
-
-
-def reason_flag(trough: dict, reference: dict) -> str:
-    """One word for why the curve's lowest point in the range is low.
-
-    Args:
-        trough (dict): curve_diagnostics row at the lowest float64 AUC in the range.
-        reference (dict): The row at CURVE_START.
-
-    Returns:
-        str: "precision" (float32 storage moves the AUC), "none" (no drop worth the name),
-            "ties" (the risks collapse onto few distinct values), "uniform" (their spread
-            collapses), "clipping" (non-positive similarities, weight zero, have entered),
-            or "real" (none of these: the ordering of patients itself changes).
-    """
-    if abs(trough["auc32"] - trough["auc64"]) > PRECISION_GAP:
-        return "precision"
-    if reference["auc64"] - trough["auc64"] < DROP_FLOOR:
-        return "none"
-    if trough["distinct_share"] < TIE_RATIO * reference["distinct_share"]:
-        return "ties"
-    if trough["risk_sd"] < SPREAD_RATIO * reference["risk_sd"]:
-        return "uniform"
-    if trough["nonpositive_share"] > 0:
-        return "clipping"
-    return "real"
 
 
 def curve_lines(encoder: str, ks: np.ndarray, sweep_auc: np.ndarray, diagnostics: pd.DataFrame,
                 n_anchors: int, n_pool: int) -> list[str]:
-    """Every RELAY line the curve question prints for one encoder, about a dozen."""
+    """Every RELAY line the curve question prints for one encoder, about a dozen.
+
+    Raw values only, and no verdict: the lowest float64 AUC in the range and the first k
+    are printed in full, side by side, for the owner to read.
+    """
     lines = [f"curve {encoder} {CURVE_METRIC} alpha {CURVE_ALPHA:g}: {n_anchors} test patients, "
-             f"pool {n_pool}; k: sweep AUC / float64 AUC"]
-    items = [f"{k}:{s:.4f}/{a:.4f}" for k, s, a in zip(ks, sweep_auc, diagnostics.auc64)]
+             f"pool {n_pool}; k:sweep AUC/float64 AUC/patients whose k-th and (k+1)-th similarity tie"]
+    items = [f"{k}:{s:.4f}/{a:.4f}/{int(t)}"
+             for k, s, a, t in zip(ks, sweep_auc, diagnostics.auc64, diagnostics.tied_anchors)]
     lines += pack(f"curve {encoder}", items)
     in_range = diagnostics.reset_index(drop=True)
     trough_i = int(np.nanargmin(in_range.auc64.to_numpy()))
-    reference_i = int(np.flatnonzero(ks == ks.min())[0])
-    trough, reference = in_range.iloc[trough_i].to_dict(), in_range.iloc[reference_i].to_dict()
-    for name, i, row in (("trough", trough_i, trough), ("start", reference_i, reference)):
+    start_i = int(np.flatnonzero(ks == ks.min())[0])
+    for name, i in (("lowest", trough_i), ("start", start_i)):
+        row = in_range.iloc[i]
         lines.append(f"curve {encoder} {name} k {ks[i]}: AUC64 {row['auc64']:.4f} AUC32 {row['auc32']:.4f} "
-                     f"risk sd {row['risk_sd']:.2e} distinct {row['distinct_share']:.3f} "
-                     f"nonpositive {row['nonpositive_share']:.3f}")
-    lines.append(f"curve {encoder} reason {reason_flag(trough, reference)}")
+                     f"risk sd {row['risk_sd']:.2e} distinct risks {int(row['distinct_risks'])} "
+                     f"non-positive k-th similarity {int(row['nonpositive_anchors'])} "
+                     f"tied {int(row['tied_anchors'])}")
     return lines
 
 
@@ -248,8 +236,9 @@ def answer_curve() -> list[str]:
     ks = curve_grid(len(pool_ids), int(tail.idxmin()) if len(tail) else None)
     anchors = to_plain_space(load_raw_embeddings(anchor_ids))
     pool = to_plain_space(load_raw_embeddings(pool_ids))
-    risk, kth = risks_and_kth_similarity(anchors, pool, pool_labels, ks, CURVE_ALPHA, float(pool_labels.mean()))
-    diagnostics = curve_diagnostics(y, risk, kth)
+    risk, kth, tied = risks_and_kth_similarity(anchors, pool, pool_labels, ks, CURVE_ALPHA,
+                                               float(pool_labels.mean()))
+    diagnostics = curve_diagnostics(y, risk, kth, tied)
     return curve_lines(encoder, ks, curve.reindex(ks).to_numpy(), diagnostics, len(anchor_ids), len(pool_ids))
 
 
@@ -356,6 +345,20 @@ def answer_recurrence_level() -> list[str]:
 # ---------------------------------------------------------------------------
 # calibration bins
 # ---------------------------------------------------------------------------
+# The equal-count fit is kept because its bins are exactly the ones Figure S5 C-E draws:
+# best_k_panels.draw_arm calls plots.plot_calibration with strategy "quantile" on these
+# same three best-k prediction files (best_k_panels.ARMS), and plot_calibration cuts its
+# edges with calibration_bin_edges on the full predictions, assigns patients with
+# assign_calibration_bins and averages with calibration_points, all three of which are
+# what binned_line calls here. The bootstrap holds those edges fixed in every draw, as
+# plots.bootstrap_calibration_band does, over the same seeded bootstrap_sample_indices.
+# tests/test_round2_questions.py checks the bins against plot_calibration's own table.
+def binned_points(y_true: np.ndarray, y_prob: np.ndarray, edges: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Mean predicted, observed fraction and count per bin on fixed edges, as plot_calibration bins them."""
+    n_bins = len(edges) - 1
+    return calibration_points(y_true, y_prob, assign_calibration_bins(y_prob, edges), n_bins)
+
+
 def binned_line(y_true: np.ndarray, y_prob: np.ndarray, edges: np.ndarray) -> tuple[float, float, int]:
     """Unweighted least-squares line of observed on mean predicted, over non-empty bins.
 
@@ -365,8 +368,7 @@ def binned_line(y_true: np.ndarray, y_prob: np.ndarray, edges: np.ndarray) -> tu
         tuple[float, float, int]: (slope, intercept, non-empty bins); nan slope and
             intercept with fewer than 2 bins.
     """
-    n_bins = len(edges) - 1
-    predicted, observed, counts = calibration_points(y_true, y_prob, assign_calibration_bins(y_prob, edges), n_bins)
+    predicted, observed, counts = binned_points(y_true, y_prob, edges)
     drawn = counts > 0
     if drawn.sum() < 2:
         return float("nan"), float("nan"), int(drawn.sum())
@@ -380,7 +382,8 @@ def bootstrap_binned_line(y_true: np.ndarray, y_prob: np.ndarray, edges: np.ndar
 
     Returns:
         dict: slope and intercept as {value, ci_low, ci_high}, bins (point), and
-            draws_used and draws_with_other_bin_count.
+            draws_used and draws_with_other_bin_count. With no draw holding 2 non-empty
+            bins the interval is nan.
     """
     slope, intercept, bins = binned_line(y_true, y_prob, edges)
     draws = np.array([binned_line(y_true[rows], y_prob[rows], edges) for rows in sample_indices])
@@ -388,20 +391,26 @@ def bootstrap_binned_line(y_true: np.ndarray, y_prob: np.ndarray, edges: np.ndar
     out = {"bins": bins, "draws_used": int(usable.sum()),
            "draws_with_other_bin_count": int((draws[:, 2] != bins).sum())}
     for index, (name, value) in enumerate((("slope", slope), ("intercept", intercept))):
-        low, high = np.percentile(draws[usable, index], [2.5, 97.5])
+        low, high = np.percentile(draws[usable, index], [2.5, 97.5]) if usable.any() else (np.nan, np.nan)
         out[name] = {"value": value, "ci_low": float(low), "ci_high": float(high)}
     return out
 
 
 def calibration_lines(label: str, y_true: np.ndarray, y_prob: np.ndarray) -> list[str]:
-    """Equal-width (as Table S4) and equal-count (as Figure S5) fits for one arm."""
-    if np.ptp(y_prob) < 0.05:
-        return [f"cal {label}: predicted risk {y_prob.min():.3f} to {y_prob.max():.3f}; one equal-width bin, "
-                "no line fits"]
+    """Equal-width (as Table S4) and equal-count (as Figure S5) fits for one arm.
+
+    Both fits are printed for every arm. Where fewer than 2 bins hold patients no line
+    exists, and the line says so with the bin count rather than printing a slope.
+    """
     indices = bootstrap_sample_indices(len(y_true))
     lines = [f"cal {label}: predicted risk {y_prob.min():.3f} to {y_prob.max():.3f}"]
     for name, strategy in (("equal-width", "uniform"), ("equal-count", "quantile")):
-        fit = bootstrap_binned_line(y_true, y_prob, calibration_bin_edges(y_prob, strategy), indices)
+        edges = calibration_bin_edges(y_prob, strategy)
+        slope, _, bins = binned_line(y_true, y_prob, edges)
+        if np.isnan(slope):
+            lines.append(f"cal {label} {name} {bins} non-empty bin{'s' if bins != 1 else ''}: no line")
+            continue
+        fit = bootstrap_binned_line(y_true, y_prob, edges, indices)
         lines.append(
             f"cal {label} {name} {fit['bins']} bins: slope "
             f"{fmt_interval(fit['slope']['value'], fit['slope']['ci_low'], fit['slope']['ci_high'], digits=2)} "

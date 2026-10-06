@@ -3,8 +3,9 @@
 Their answers travel in a public relay report that keeps 40 lines of at most 200
 characters, so every question must fit that and print aggregates only. The numbers must
 also be the ones the pipeline's own code would give: the curve's risks are the sweep's,
-the equal-width calibration fit is compute_metrics', and the operating point is the one
-the confusion-matrix panel prints.
+the equal-width calibration fit is compute_metrics', the equal-count bins are the ones
+Figure S5 draws, and the operating point is the one the confusion-matrix panel prints.
+The curve question prints raw values and no verdict.
 
 Synthetic data only; nothing here reads a real RESULTS_DIR.
 """
@@ -21,7 +22,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 from scripts.pipeline.review import round2_questions as q
 from scripts.pipeline.predictions.neighbor_count_sweep import risk_at_counts
 from scripts.pipeline.predictions.trd_prediction_computation import compute_metrics
-from scripts.shared.plots import bootstrap_sample_indices, calibration_bin_edges, youden_operating_point
+from scripts.pipeline.predictions.best_k_panels import ARMS
+from scripts.shared.plots import (bootstrap_sample_indices, calibration_bin_edges, plot_calibration,
+                                  youden_operating_point)
 
 RELAY_LINES, RELAY_CHARS = 40, 190
 
@@ -46,34 +49,40 @@ def test_curve_risks_are_the_sweeps():
     pool = rng.normal(size=(90, 5)); pool /= np.linalg.norm(pool, axis=1, keepdims=True)
     labels = (rng.random(90) < 0.3).astype(float)
     ks = np.array([1, 7, 45, 89, 90])
-    ours, kth = q.risks_and_kth_similarity(anchors, pool, labels, ks, 1.0, 0.3, block=16)
+    ours, kth, tied = q.risks_and_kth_similarity(anchors, pool, labels, ks, 1.0, 0.3, block=16)
     theirs = risk_at_counts(anchors, pool, labels, ks, (1.0,), 0.3)[1.0]
     assert np.allclose(ours, theirs)
     sorted_sims = -np.sort(-(anchors @ pool.T), axis=1)
     assert np.allclose(kth, sorted_sims[:, ks - 1])
+    # Continuous similarities never tie, and the whole pool has no (k+1)-th to tie with.
+    assert not tied.any()
 
 
-@pytest.mark.parametrize("trough, expected", [
-    (dict(auc64=0.51, auc32=0.53, risk_sd=1e-3, distinct_share=1.0, nonpositive_share=0.0), "precision"),
-    (dict(auc64=0.585, auc32=0.585, risk_sd=1e-3, distinct_share=1.0, nonpositive_share=0.0), "none"),
-    (dict(auc64=0.51, auc32=0.51, risk_sd=1e-3, distinct_share=0.2, nonpositive_share=0.0), "ties"),
-    (dict(auc64=0.51, auc32=0.51, risk_sd=1e-4, distinct_share=1.0, nonpositive_share=0.0), "uniform"),
-    (dict(auc64=0.51, auc32=0.51, risk_sd=1e-3, distinct_share=1.0, nonpositive_share=0.4), "clipping"),
-    (dict(auc64=0.51, auc32=0.51, risk_sd=1e-3, distinct_share=1.0, nonpositive_share=0.0), "real"),
-])
-def test_reason_flag(trough, expected):
-    reference = dict(auc64=0.59, auc32=0.59, risk_sd=1e-3, distinct_share=1.0, nonpositive_share=0.0)
-    assert q.reason_flag(trough, reference) == expected
+def test_ties_at_the_cut_are_counted():
+    anchors = np.array([[1.0, 0.0], [0.0, 1.0]])
+    # Anchor 0 sees similarities 1, 0.6, 0.6, 0; anchor 1 sees 0, 0.8, 0.6, 1.
+    pool = np.array([[1.0, 0.0], [0.6, 0.8], [0.6, 0.6], [0.0, 1.0]])
+    ks = np.array([1, 2, 3, 4])
+    _, _, tied = q.risks_and_kth_similarity(anchors, pool, np.array([1.0, 0, 1, 0]), ks, 1.0, 0.5)
+    assert tied[0].tolist() == [False, True, False, False]
+    assert tied[1].tolist() == [False, False, False, False]
+    diagnostics = q.curve_diagnostics(np.array([1, 0]), np.array([[0.4] * 4, [0.6] * 4]),
+                                      np.zeros((2, 4)), tied)
+    assert diagnostics.tied_anchors.tolist() == [0, 1, 0, 0]
+    assert diagnostics.nonpositive_anchors.tolist() == [2, 2, 2, 2]
 
 
-def test_curve_answer_fits_a_report_for_both_encoders():
+def test_curve_answer_is_raw_values_and_fits_a_report_for_both_encoders():
     ks = q.curve_grid(34_063, trough_k=30_017)
     rng = np.random.default_rng(1)
     diagnostics = pd.DataFrame({"auc64": 0.58 + rng.normal(0, 0.01, ks.size), "auc32": 0.58,
-                                "risk_sd": 1e-3, "distinct_share": 1.0, "nonpositive_share": 0.0})
+                                "risk_sd": 1e-3, "distinct_risks": 8516, "nonpositive_anchors": 0,
+                                "tied_anchors": 12})
     one = q.curve_lines("bge-small-en-v1.5", ks, diagnostics.auc64.to_numpy(), diagnostics, 8516, 34063)
     assert fits_a_report(one + one)
-    assert one[-1].startswith("curve bge-small-en-v1.5 reason ")
+    assert not hasattr(q, "reason_flag")
+    assert not any("reason" in line for line in one)
+    assert "/12" in one[1] and "tied 12" in one[-1]
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +173,24 @@ def test_equal_width_fit_is_compute_metrics():
     assert bins == 6
 
 
+def test_retrieval_rows_read_the_files_figure_s5_draws():
+    assert {name for _, name in q.RETRIEVAL_FILES} == {filename for _, filename, _ in ARMS}
+
+
+def test_equal_count_bins_are_the_ones_figure_s5_draws(tmp_path):
+    rng = np.random.default_rng(6)
+    p = rng.uniform(0.12, 0.3, 3000)
+    y = (rng.random(3000) < p).astype(int)
+    drawn = plot_calibration(y, p, "check", save_dir=tmp_path, strategy="quantile")
+    edges = calibration_bin_edges(p, "quantile")
+    predicted, observed, counts = q.binned_points(y, p, edges)
+    ours = [(edges[b], edges[b + 1], counts[b], predicted[b], observed[b])
+            for b in range(len(counts)) if counts[b]]
+    theirs = [(row["bin_low"], row["bin_high"], row["n"], row["mean_predicted"], row["observed_fraction"])
+              for row in drawn]
+    assert np.allclose(np.array(ours, dtype=float), np.array(theirs, dtype=float), rtol=0, atol=0)
+
+
 def test_equal_count_fit_recovers_a_calibrated_line():
     rng = np.random.default_rng(4)
     p = rng.uniform(0.1, 0.3, 20_000)
@@ -181,7 +208,8 @@ def test_calibration_answer_fits_and_says_when_no_line_fits():
     lines = q.calibration_lines("plain", y, p)
     assert len(lines) == 3 and "equal-width" in lines[1] and "equal-count 10 bins" in lines[2]
     flat = q.calibration_lines("random", y, np.full(1500, 0.175) + rng.uniform(0, 0.002, 1500))
-    assert flat[0].endswith("no line fits")
+    assert flat[1] == "cal random equal-width 1 non-empty bin: no line"
+    assert "equal-count 10 bins: slope" in flat[2]
     assert fits_a_report(lines * 3 + flat)
 
 

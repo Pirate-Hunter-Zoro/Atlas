@@ -8,9 +8,12 @@
 #SBATCH -o slurm_jobs/quick_runs/logs/plot_cross_embedder_retrieval_%j_out.txt
 #SBATCH -e slurm_jobs/quick_runs/logs/plot_cross_embedder_retrieval_%j_err.txt
 
-# Manuscript Figure 6 (lr_dimensions_vs_best_k.png), the embedding-width plot beside
-# it, and cross_embedder_retrieval.csv, the table the manuscript's cross-encoder
-# retrieval numbers are read from. It reads every encoder's neighbor_count_sweep and
+# Manuscript Figure 5 (neighbor_count_sweep_panels.png: the three non-primary encoders'
+# retrieval curves as panels A-C over one shared legend row, one PNG that fits a page
+# with its caption; it fails rather than write a taller one), Figure 6
+# (lr_dimensions_vs_best_k.png), the embedding-width plot beside it, and
+# cross_embedder_retrieval.csv, the table the manuscript's cross-encoder retrieval
+# numbers are read from. It reads every encoder's neighbor_count_sweep and
 # fitted embedded logistic regression and refits nothing, so it runs only after all
 # four neighbor_count_sweep.sbatch runs have finished; it fails naming any encoder
 # whose sweep_summary.json is missing. Then ARTIFACTS_DIR/cross_embedder_retrieval is

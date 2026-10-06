@@ -15,9 +15,11 @@
 # category label. One question per job because a report keeps only 40 RELAY: lines.
 #
 #   QUESTION=curve             plain-cosine ROC AUC at k = 25,000 .. 34,063 for
-#                              bge-small-en-v1.5 and bge-en-icl, with a reason flag for
-#                              the drop near k = 30,000 (one process per encoder,
-#                              because each encoder's paths are read at import)
+#                              bge-small-en-v1.5 and bge-en-icl, with raw facts beside
+#                              it (float32 against float64 AUC, tied similarities at
+#                              the cut, risk spread); no verdict on the drop near
+#                              k = 30,000 (one process per encoder, because each
+#                              encoder's paths are read at import)
 #   QUESTION=subgroup_race     White-minus-non-White contrasts with their CIs
 #   QUESTION=subgroup_bh       the Table S12 contrasts with their CIs
 #   QUESTION=operating_point   S12.1 sensitivity/specificity with bootstrap CIs

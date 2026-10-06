@@ -1,8 +1,11 @@
 """Logistic-regression-weighted nearest neighbors across the four encoders.
 
 Reads each encoder's neighbor_count_sweep outputs and its fitted embedded logistic
-regression, refits nothing, and writes two figures and one table:
+regression, refits nothing, and writes three figures and one table:
 
+  * neighbor_count_sweep_panels.png: manuscript Figure 5, the Figure-4-style plot for
+    the three non-primary encoders as panels A-C, one above the other, sharing one
+    legend row (below);
   * embedding_dimensions_vs_lr_dimensions.png: each encoder's embedding width against
     how many dimensions its logistic regression uses, counted two ways (below);
   * lr_dimensions_vs_best_k.png: the 90%-mass count against each metric's best k.
@@ -10,8 +13,15 @@ regression, refits nothing, and writes two figures and one table:
   * cross_embedder_retrieval.csv: one row per encoder, every number the figures draw,
     and the source of the manuscript's cross-encoder retrieval numbers.
 
-Each encoder's ROC AUC against k is not drawn here. It is that encoder's own
-Figure-4-style panel (plot_neighbor_sweep_figure), with its bootstrap bands.
+FIGURE 5 IS ONE PNG, SO IT FITS ONE PAGE WITH ITS CAPTION. It is drawn at the 6in text
+width it is placed at, so its type prints at the point sizes set here, and is at most
+PANELS_MAX_HEIGHT tall. Every line comes from plot_neighbor_sweep_figure.draw_curves,
+the code that draws each encoder's own PNG, from the same files: the sweep's curves and
+bands, the encoder's embedded logistic regression from its classical_ml_results JSON,
+and feature-vector XGBoost from the primary encoder's, which is the same in every panel.
+What the arms and lines are is said once, in the shared legend row; each panel's own
+numbers (each arm's best k, ROC AUC and interval there, and its embedded logistic
+regression) sit beside that panel. Figure 4 is still the primary encoder's own PNG.
 
 TWO COUNTS OF "DIMENSIONS THE LOGISTIC REGRESSION USES", BECAUSE THE PENALTY DIFFERS.
 The grid search picked an elastic-net penalty for bge-en-icl and Qwen3-8B, which zeroes
@@ -50,6 +60,8 @@ from scripts.pipeline.predictions.importance_weighted_knn import (
     load_dimension_weights,
 )
 from scripts.pipeline.predictions.plot_cross_embedder import EMBEDDERS, SHORT_NAME_EMBS
+from scripts.pipeline.predictions import plot_neighbor_sweep_figure as sweep_figure
+from scripts.shared.display_names import encoder_display
 
 ARTIFACTS_DIR = Path(os.environ['ARTIFACTS_DIR'])
 VLLM_MODEL_NAME = os.environ['VLLM_MODEL_NAME']
@@ -70,6 +82,21 @@ METRIC_DISPLAY = {
 METRIC_MARKER = {"weighted": "o", "plain": "s"}
 # One colour per encoder, in EMBEDDERS order; the first three are the sweep figure's.
 EMBEDDER_COLOR = ["#2a78d6", "#eb6834", "#1baf7a", "#4B3F72"]
+
+# Figure 5: the encoders it draws, in panel order, and the primary encoder, whose plot is
+# Figure 4 and whose feature-vector XGBoost line every panel shares.
+PRIMARY_EMBEDDER = "Qwen-Qwen3-Embedding-8B"
+PANEL_EMBEDDERS = ("bge-small-en-v1.5", "bge-en-icl", "Qwen-Qwen3-Embedding-4B")
+PANELS_FIGURE_NAME = "neighbor_count_sweep_panels.png"
+# Inches, drawn at the size it is placed at. The saved PNG is trimmed to its content, so
+# PANELS_MAX_HEIGHT is checked on the trimmed image scaled to a 6in width.
+PANELS_FIGURE_SIZE = (6.0, 7.0)
+PANELS_PLACED_WIDTH = 6.0
+PANELS_MAX_HEIGHT = 7.5
+# Rows: three panels, then the shared legend. Columns: the plot, then its numbers.
+PANELS_HEIGHT_RATIOS = (1.0, 1.0, 1.0, 0.42)
+PANELS_WIDTH_RATIOS = (1.7, 1.0)
+PANELS_FONT_SIZES = {"tick": 8, "label": 8.5, "title": 9, "legend": 7.5}
 
 
 def results_dir(embedder: str) -> Path:
@@ -193,6 +220,144 @@ def plot_dimensions_vs_best_k(table: pd.DataFrame) -> Path:
     return path
 
 
+def panel_inputs(embedder: str, feature_line: tuple) -> dict:
+    """What one Figure 5 panel draws, read as plot_neighbor_sweep_figure reads it.
+
+    Args:
+        embedder (str): One of PANEL_EMBEDDERS.
+        feature_line (tuple): Feature-vector XGBoost's (AUC, ci_low, ci_high), the same
+            in every panel.
+
+    Returns:
+        dict: curve, intervals, random_curve (None when the sweep wrote none) and
+            reference_aucs in plot_neighbor_sweep_figure.REFERENCES order.
+    """
+    sweep_dir = results_dir(embedder) / SWEEP_DIR_NAME
+    random_path = sweep_dir / sweep_figure.RANDOM_CURVE
+    (embedded_label, embedded_source, embedded_model, _), (feature_label, *_) = sweep_figure.REFERENCES
+    return {
+        "curve": pd.read_csv(sweep_dir / "sweep_curve.csv"),
+        "intervals": pd.read_csv(sweep_dir / "sweep_intervals.csv"),
+        "random_curve": pd.read_csv(random_path) if random_path.exists() else None,
+        "reference_aucs": {
+            embedded_label: sweep_figure.summary_line(
+                results_dir(embedder) / f"classical_ml_results_{embedded_source}.json", embedded_model),
+            feature_label: feature_line,
+        },
+    }
+
+
+def panel_number_label(metric: str, best: pd.Series, low: float, high: float) -> str:
+    """An arm's entry beside its panel: best k, then ROC AUC and interval there."""
+    return f"best k {int(best.n_neighbors):,}: {best.roc_auc:.3f} ({low:.3f}\u2013{high:.3f})"
+
+
+def panel_reference_label(label: str, auc: float, low: float, high: float) -> str:
+    """A classifier line's entry beside its panel. The shared line is named once, in the
+    legend row, so it is left out here."""
+    if label == sweep_figure.REFERENCES[0][0]:
+        return f"{auc:.3f} ({low:.3f}\u2013{high:.3f})"
+    return "_shared"
+
+
+def shared_legend(figure, axis, feature_line: tuple, has_random: bool) -> None:
+    """The one legend row: what each arm and line is, and what its interval is."""
+    from matplotlib.lines import Line2D
+    marker = dict(marker="o", markersize=6, markeredgecolor="white", markeredgewidth=1.2, linewidth=2)
+    entries = [
+        (Line2D([], [], color=sweep_figure.METRIC_COLOR["weighted"], **marker),
+         f"{sweep_figure.METRIC_DISPLAY['weighted']}\nat best k (95% CI)"),
+        (Line2D([], [], color=sweep_figure.METRIC_COLOR["plain"], **marker),
+         f"{sweep_figure.METRIC_DISPLAY['plain']} at best k (95% CI)"),
+    ]
+    if has_random:
+        entries.append((Line2D([], [], color=sweep_figure.METRIC_COLOR["random"], **marker),
+                        f"{sweep_figure.METRIC_DISPLAY['random']} at best k\n"
+                        f"({sweep_figure.INTERVAL_NAME['random']})"))
+    auc, low, high = feature_line
+    entries += [
+        (Line2D([], [], color=sweep_figure.REFERENCE_COLOR, linestyle=sweep_figure.REFERENCE_STYLES[0], linewidth=1.2),
+         f"{sweep_figure.REFERENCES[0][0]},\nthe panel's encoder (95% CI)"),
+        (Line2D([], [], color=sweep_figure.REFERENCE_COLOR, linestyle=sweep_figure.REFERENCE_STYLES[1], linewidth=1.2),
+         f"{sweep_figure.REFERENCES[1][0]}, every panel:\n{auc:.3f} (95% CI {low:.3f}\u2013{high:.3f})"),
+    ]
+    handles, labels = zip(*entries)
+    axis.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=2,
+                frameon=False, fontsize=PANELS_FONT_SIZES["legend"], handlelength=2.4,
+                labelspacing=0.6, columnspacing=1.6)
+
+
+def build_panels(panels: list[tuple[str, dict]], feature_line: tuple):
+    """Figure 5, unsaved: one row per encoder, numbers beside each, one shared legend row.
+
+    Args:
+        panels (list[tuple[str, dict]]): (encoder, panel_inputs) in panel order.
+        feature_line (tuple): Feature-vector XGBoost's (AUC, ci_low, ci_high).
+
+    Returns:
+        tuple: (figure, list of plot axes in panel order).
+    """
+    figure = plt.figure(figsize=PANELS_FIGURE_SIZE)
+    grid = figure.add_gridspec(nrows=len(panels) + 1, ncols=2, height_ratios=PANELS_HEIGHT_RATIOS,
+                               width_ratios=PANELS_WIDTH_RATIOS, hspace=0.42, wspace=0.04)
+    axes = []
+    for row, (embedder, inputs) in enumerate(panels):
+        axis = figure.add_subplot(grid[row, 0], sharex=axes[0] if axes else None)
+        sweep_figure.draw_curves(axis, inputs["curve"], inputs["intervals"], inputs["reference_aucs"],
+                                 inputs["random_curve"], arm_label=panel_number_label,
+                                 reference_label=panel_reference_label)
+        axis.set_title(f"{chr(ord('A') + row)}   {encoder_display(embedder)}", loc="left",
+                       fontsize=PANELS_FONT_SIZES["title"], fontweight="bold")
+        axis.set_ylabel(sweep_figure.Y_LABEL, fontsize=PANELS_FONT_SIZES["label"])
+        axis.tick_params(axis="both", which="major", labelsize=PANELS_FONT_SIZES["tick"])
+        if row < len(panels) - 1:
+            axis.tick_params(axis="x", which="both", labelbottom=False)
+        numbers = figure.add_subplot(grid[row, 1])
+        numbers.axis("off")
+        handles, labels = axis.get_legend_handles_labels()
+        numbers.legend(handles, labels, loc="center left", frameon=False,
+                       fontsize=PANELS_FONT_SIZES["legend"], handlelength=2.0, labelspacing=0.55)
+        axes.append(axis)
+    axes[-1].set_xlabel(sweep_figure.X_LABEL, fontsize=PANELS_FONT_SIZES["label"])
+    legend_axis = figure.add_subplot(grid[len(panels), :])
+    legend_axis.axis("off")
+    shared_legend(figure, legend_axis, feature_line,
+                  any(inputs["random_curve"] is not None for _, inputs in panels))
+    return figure, axes
+
+
+def placed_height(path: Path, width: float = PANELS_PLACED_WIDTH) -> float:
+    """The saved PNG's height in inches when it is placed at width inches."""
+    from PIL import Image
+    with Image.open(path) as image:
+        pixels_wide, pixels_high = image.size
+    return width * pixels_high / pixels_wide
+
+
+def plot_sweep_panels() -> Path:
+    """Write Figure 5 and refuse it if it would not fit a page with its caption.
+
+    Returns:
+        Path: The PNG written.
+
+    Raises:
+        ValueError: If the PNG placed at PANELS_PLACED_WIDTH is taller than PANELS_MAX_HEIGHT.
+    """
+    feature_label, feature_source, feature_model, _ = sweep_figure.REFERENCES[1]
+    feature_line = sweep_figure.summary_line(
+        results_dir(PRIMARY_EMBEDDER) / f"classical_ml_results_{feature_source}.json", feature_model)
+    panels = [(embedder, panel_inputs(embedder, feature_line)) for embedder in PANEL_EMBEDDERS]
+    figure, _ = build_panels(panels, feature_line)
+    path = OUT_DIR / PANELS_FIGURE_NAME
+    figure.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.05)
+    plt.close(figure)
+    height = placed_height(path)
+    if height > PANELS_MAX_HEIGHT:
+        raise ValueError(f"{path.name} is {height:.2f}in tall at {PANELS_PLACED_WIDTH:g}in wide, "
+                         f"over the {PANELS_MAX_HEIGHT:g}in that fits a page with its caption.")
+    return path
+
+
 def main():
     missing = [e for e in EMBEDDERS if not (results_dir(e) / SWEEP_DIR_NAME / "sweep_summary.json").exists()]
     if missing:
@@ -201,7 +366,7 @@ def main():
     table = pd.DataFrame([encoder_row(e) for e in EMBEDDERS]).set_index("embedder", drop=False)
     table.to_csv(OUT_DIR / "cross_embedder_retrieval.csv", index=False)
     print(table.drop(columns="embedder").T.to_string(), flush=True)
-    for path in (plot_dimension_counts(table), plot_dimensions_vs_best_k(table)):
+    for path in (plot_sweep_panels(), plot_dimension_counts(table), plot_dimensions_vs_best_k(table)):
         print(f"wrote {path}", flush=True)
 
 

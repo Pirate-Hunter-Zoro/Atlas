@@ -13,7 +13,9 @@
 # module, with panel B titled "Cluster A". It reads the narratives' text to find the
 # driving token and prints only RELAY: yes/no on whether each token is the expected one,
 # the two cluster sizes, and cluster A's nested silhouette. Writes the two PNGs to
-# results/notebook_figures/ and notebooks/figures/; refits no prediction model.
+# results/notebook_figures/ and notebooks/figures/ only when both tokens are the expected
+# ones; otherwise it prints a RELAY: refusal and fails having written neither, so nothing
+# mismatched is exported. Refits no prediction model.
 #
 # Pairs are histogrammed one block of rows at a time; the KMeans fits and the vectorizer
 # over 42,579 narratives are what the memory is for.

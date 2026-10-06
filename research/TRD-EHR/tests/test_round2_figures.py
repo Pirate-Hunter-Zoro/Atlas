@@ -1,7 +1,8 @@
 """Guards on the figure text the 2026-10-06 pre-circulation review asked to change.
 
 (a) Figure 4/5: no best-k label sits on the plot; each arm's best k, value and interval
-    are in its legend entry, at a size that survives a 4.5in placement.
+    are in its legend entry. Figure 5 is one PNG, panels A-C over one shared legend row,
+    that fits a page with its caption at 6in wide.
 (b) Figure 3: 300 dpi, the paper's encoder names, panel B called concept permutation and
     its axis permuted minus baseline.
 (c) Every confusion-matrix panel prints "F score", never the variable name, and the
@@ -9,7 +10,8 @@
 (d) Display names: classifiers, the S11 retrieval arm, the random arm's interval label,
     three-decimal ROC and PR legends.
 (e) Figure S6 draws both distributions as densities, so the neighbour pairs show.
-(f) Figure S7's pair histograms, accumulated by block, equal the all-pairs histograms.
+(f) Figure S7's pair histograms, accumulated by block, equal the all-pairs histograms,
+    and a wrong driving token writes no PNG.
 
 Synthetic data only; nothing here reads a real RESULTS_DIR.
 """
@@ -35,6 +37,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from scripts.shared import plots
 from scripts.shared.display_names import CLASSIFIER_DISPLAY
 from scripts.pipeline.predictions import plot_neighbor_sweep_figure as sweep_figure
+from scripts.pipeline.predictions import plot_cross_embedder_retrieval as cross_retrieval
 from scripts.pipeline.predictions import plot_cross_embedder as cross_embedder
 from scripts.pipeline.predictions import redraw_manuscript_panels
 from scripts.pipeline.predictions import redraw_ablation_forest
@@ -104,6 +107,64 @@ def test_sweep_figure_is_written_at_300_dpi(tmp_path):
     sweep_figure.draw(curve, intervals, references, path, random_curve)
     dpi = Image.open(path).info["dpi"]
     assert round(dpi[0]) == 300
+
+
+def write_panel_sweep(directory: Path, embedded_auc: tuple) -> None:
+    """The files Figure 5 reads for one encoder, from sweep_inputs."""
+    curve, intervals, _, random_curve = sweep_inputs()
+    sweep = directory / sweep_figure.SWEEP_DIR_NAME
+    sweep.mkdir(parents=True)
+    curve.to_csv(sweep / "sweep_curve.csv", index=False)
+    intervals.to_csv(sweep / "sweep_intervals.csv", index=False)
+    random_curve.to_csv(sweep / sweep_figure.RANDOM_CURVE, index=False)
+    (directory / "classical_ml_results_EMBEDDED.json").write_text(json.dumps({"logistic_regression": dict(
+        zip(("roc_score", "roc_score_ci_low", "roc_score_ci_high"), embedded_auc))}))
+
+
+def test_figure_5_is_one_png_that_fits_a_page(tmp_path, monkeypatch, saved_text):
+    embedded = {"bge-small-en-v1.5": (0.645, 0.629, 0.660), "bge-en-icl": (0.655, 0.641, 0.670),
+                "Qwen-Qwen3-Embedding-4B": (0.656, 0.642, 0.671)}
+    for name, auc in embedded.items():
+        write_panel_sweep(tmp_path / name, auc)
+    primary = tmp_path / cross_retrieval.PRIMARY_EMBEDDER
+    primary.mkdir()
+    (primary / "classical_ml_results_FEATURE.json").write_text(json.dumps({"xgboost": dict(
+        roc_score=0.649, roc_score_ci_low=0.634, roc_score_ci_high=0.664)}))
+    monkeypatch.setattr(cross_retrieval, "results_dir", lambda name: tmp_path / name)
+    monkeypatch.setattr(cross_retrieval, "OUT_DIR", tmp_path)
+
+    path = cross_retrieval.plot_sweep_panels()
+    assert path == tmp_path / "neighbor_count_sweep_panels.png"
+    assert cross_retrieval.placed_height(path) <= 7.5
+    assert round(Image.open(path).info["dpi"][0]) == 300
+    text = saved_text[path.name]
+    titles = [t for t in text if re.match(r"^[ABC]   ", t)]
+    assert titles == ["A   bge-small-en-v1.5", "B   bge-en-icl", "C   Qwen3-Embedding-4B"]
+    # Each panel carries its own numbers; the shared line is named once, in the legend row.
+    assert sum("best k 3,000: 0.614 (0.604\u20130.624)" == t for t in text) == 3
+    for auc, low, high in embedded.values():
+        assert f"{auc:.3f} ({low:.3f}\u2013{high:.3f})" in text
+    assert sum("FEATURE XGBoost" in t for t in text) == 1
+    assert "0.649 (95% CI 0.634\u20130.664)" in [t for t in text if "FEATURE XGBoost" in t][0]
+    random_entries = [t for t in text if t.startswith("Random neighbors")]
+    assert len(random_entries) == 1 and "percentile of draws" in random_entries[0]
+
+
+def test_figure_5_draws_what_each_encoders_own_figure_draws():
+    """The composite and the single-encoder figure plot identical lines from the same inputs."""
+    curve, intervals, references, random_curve = sweep_inputs()
+    single, single_axis = sweep_figure.build(curve, intervals, references, random_curve)
+    inputs = {"curve": curve, "intervals": intervals, "random_curve": random_curve,
+              "reference_aucs": references}
+    panels, axes = cross_retrieval.build_panels([("bge-en-icl", inputs)] * 3, references["FEATURE XGBoost"])
+    def lines(axis):
+        return [(tuple(line.get_xdata()), tuple(line.get_ydata()), line.get_color(), line.get_linestyle())
+                for line in axis.get_lines()]
+    for axis in axes:
+        assert lines(axis) == lines(single_axis)
+        assert axis.get_ylim() == single_axis.get_ylim()
+    plt.close(single)
+    plt.close(panels)
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +348,23 @@ def test_figure_s7_panel_b_is_titled_cluster_a(tmp_path, saved_text):
     text = saved_text["b.png"]
     assert "Cluster A: pairs split by agreement on 'recurrent'" in text
     assert not any("Cluster 0" in t for t in text)
+
+
+def test_figure_s7_writes_nothing_when_a_token_is_not_the_expected_one(tmp_path, monkeypatch, capsys):
+    rng = np.random.default_rng(6)
+    a = rng.normal([1, 0, 0], 0.05, size=(40, 3))
+    b = rng.normal([0, 1, 0], 0.05, size=(40, 3))
+    vectors = np.vstack([a, b]).astype(np.float32)
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    texts = ["mdd recurrent episode note"] * 40 + ["mdd single note"] * 40
+    monkeypatch.setenv("SEED", "42")
+    monkeypatch.setattr(s7, "load_bge_small", lambda: (vectors, texts))
+    monkeypatch.setattr(s7, "OUTPUT_DIRS", (tmp_path / "results", tmp_path / "notebooks"))
+    monkeypatch.setattr(s7, "EXPECTED_TOKENS", {"cohort": "not-a-token", "cluster_a": "not-a-token"})
+    drawn = []
+    monkeypatch.setattr(s7, "draw", lambda *args, **kwargs: drawn.append(args))
+    assert s7.main() != 0
+    assert drawn == [] and not any(tmp_path.rglob("*.png"))
+    relay = [line for line in capsys.readouterr().out.splitlines() if line.startswith("RELAY:")]
+    assert "RELAY: S7 cohort token is the expected one: no" in relay
+    assert relay[-1].startswith("RELAY: S7 not drawn")
