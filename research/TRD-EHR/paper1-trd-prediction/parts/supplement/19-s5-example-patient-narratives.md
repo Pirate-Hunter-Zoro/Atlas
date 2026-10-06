@@ -15,6 +15,10 @@ The original renderer uses "anchor" for the index and "Baseline window" for the 
 
 The examples show field asymmetries documented in section S10: narratives include vital signs, sexual orientation, index dates, raw sociodemographic values, and medication names. FEATURE omits some of these fields or uses coarser encodings, but includes total recorded history length. A missing sexual-orientation value appears as the literal token nan.
 
+```{=latex}
+\clearpage
+```
+
 TRD-positive example.
 
     ### COHORT & INDEX
@@ -50,6 +54,10 @@ TRD-positive example.
 
     ### SAFETY
     UNCONTROLLED_HTN: Present | EPILEPSY: Absent
+
+```{=latex}
+\clearpage
+```
 
 TRD-negative example.
 

@@ -11,7 +11,7 @@ Section heading: M13 Performance Metrics and Uncertainty
 
 Discrimination was summarized by ROC AUC and AUPRC. The overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
 
-Sensitivity, specificity, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
+Sensitivity, specificity, F1 score, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Their 95% CIs come from the same bootstrap resampling of test patients, with the threshold held fixed. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
 
 Bootstrap resampling drew test patients with replacement. Paired contrasts applied identical resampled patient indices to both prediction vectors and recalculated their ROC AUC difference. The 2.5th and 97.5th percentiles formed the 95% CI.
 

@@ -240,7 +240,7 @@ Standard classifiers, encoder comparisons, and concept permutations used the ful
 
 Discrimination was summarized by ROC AUC and AUPRC. The overall calibration summaries fit a line to binned observed and predicted probabilities. These binned slopes and intercepts are in section S3 and are not conventional individual-level logistic calibration parameters. Section S9 separately reports logistic calibration slopes and mean predicted minus observed risk. All estimates describe the enriched sample.
 
-Sensitivity, specificity, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
+Sensitivity, specificity, F1 score, and likelihood ratios were calculated at the test-set threshold maximizing Youden J. Their 95% CIs come from the same bootstrap resampling of test patients, with the threshold held fixed. Selecting and evaluating a threshold in the same patients introduces optimism. These operating points are descriptive; a clinical threshold would require selection in development data and evaluation in an independent cohort.
 
 Bootstrap resampling drew test patients with replacement. Paired contrasts applied identical resampled patient indices to both prediction vectors and recalculated their ROC AUC difference. The 2.5th and 97.5th percentiles formed the 95% CI.
 
@@ -341,7 +341,7 @@ E Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Every panel's legend prints average precision. In panels C--E it differs from the table AUPRC in the third decimal, and the legend adds its bootstrap 95% CI and the no-skill reference, the positive rate, 0.175 (95% CI 0.167--0.183). The legends round the average precision, its CI and the no-skill reference to 2 decimals, so the no-skill reference reads 0.18.
+Figure S4. Precision--recall curves (held-out test set; primary Qwen3-Embedding-8B encoder). (A) Embedded logistic regression; (B) feature-vector XGBoost; (C--E) the 3 retrieval arms, each at its own test-selected best k. E is the draw of 1,000 whose ROC AUC at that k is closest to their mean. Every panel's legend prints average precision with its bootstrap 95% CI (in E, the CI of that one draw over test patients) and the no-skill reference, the positive rate, 0.175 (95% CI 0.167--0.183). Legend average precision differs from the table AUPRC by at most 0.001.
 
 # S3 Calibration
 
@@ -484,6 +484,10 @@ The original renderer uses "anchor" for the index and "Baseline window" for the 
 
 The examples show field asymmetries documented in section S10: narratives include vital signs, sexual orientation, index dates, raw sociodemographic values, and medication names. FEATURE omits some of these fields or uses coarser encodings, but includes total recorded history length. A missing sexual-orientation value appears as the literal token nan.
 
+```{=latex}
+\clearpage
+```
+
 TRD-positive example.
 
     ### COHORT & INDEX
@@ -519,6 +523,10 @@ TRD-positive example.
 
     ### SAFETY
     UNCONTROLLED_HTN: Present | EPILEPSY: Absent
+
+```{=latex}
+\clearpage
+```
 
 TRD-negative example.
 
@@ -578,77 +586,77 @@ Figures S8 and S9 draw ROC curves and confusion matrices only at each arm's best
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Legends round to 2 decimals. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+Figure S8. ROC curves at each arm's own test-selected best k, with $\alpha$ = 1 for nearest retrieval. A--C: the primary encoder, Qwen3-Embedding-8B, under logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C). D--I: logistic-regression-weighted and plain-cosine nearest retrieval for bge-small-en-v1.5 (D--E), bge-en-icl (F--G), and Qwen3-Embedding-4B (H--I), each weighted by its own embedded logistic regression. C is the draw whose AUC at that k is closest to the mean of 1,000 draws; its band, and the intervals in Figure S9C, are the bootstrap 95% CI of that one draw over test patients, not the 2.5th--97.5th percentile across draws in Table S7. Best k was chosen on the test patients, so every panel is optimistic. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
 
 A Qwen3-Embedding-8B, logistic-regression-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
 B Qwen3-Embedding-8B, plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
 C Random retrieval, uniform weights, k = 32,720
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
 D bge-small-en-v1.5, logistic-regression-weighted nearest retrieval, k = 579
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png){width=5.8in}
 
 E bge-small-en-v1.5, plain-cosine nearest retrieval, k = 1,243
 
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=4in}
+![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png){width=5.8in}
 
 F bge-en-icl, logistic-regression-weighted nearest retrieval, k = 1,519
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png){width=5.8in}
 
 G bge-en-icl, plain-cosine nearest retrieval, k = 413
 
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=4in}
+![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png){width=5.8in}
 
 H Qwen3-Embedding-4B, logistic-regression-weighted nearest retrieval, k = 684
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png){width=5.8in}
 
 I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=4in}
+![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
 Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
 
@@ -1009,7 +1017,7 @@ Table S14. Expanded cohort characteristics by TRD proxy status. Values are media
 
 ## S12.1 Primary ROC Curves and Descriptive Operating Points
 
-The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
+The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F1 scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
 A Embedded logistic regression
 
@@ -1051,7 +1059,7 @@ D XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_xgboost.png){width=5.7in}
 
-Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show signed coefficients. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
+Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show coefficient magnitude, with color giving the coefficient's sign. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
 ## S12.3 Concept Permutation and Encoder Comparison
 
