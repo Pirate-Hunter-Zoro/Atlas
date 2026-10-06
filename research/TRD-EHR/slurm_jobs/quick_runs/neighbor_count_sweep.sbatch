@@ -12,8 +12,9 @@
 
 # Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
 # pool: logistic-regression-weighted cosine, plain cosine, and random neighbours with
-# uniform weights (1,000 seeded draws). Then that encoder's Figure-4-style panel (Figure 4
-# for the primary encoder, a panel of Figure 5 for the others), and the ROC / PR /
+# uniform weights (1,000 seeded draws). Then that encoder's Figure-4-style plot (Figure 4
+# for the primary encoder; Figure 5 is one composite of the other three, drawn by
+# plot_cross_embedder_retrieval.sbatch after all four sweeps), and the ROC / PR /
 # calibration / decision / ESS / confusion-matrix panels at each arm's best k (Figures
 # S8-S9). No GPU and no vLLM server: the
 # weighted metric is read off the already-fitted logistic regression and plain

@@ -293,17 +293,7 @@ Logistic-regression-weighted retrieval at its best k reached 0.606 (95% CI 0.590
 
 Plain cosine retrieval peaked at k = 1,243, 413, 493, and 757 for the same 4 encoders. It reached 0.602 (95% CI 0.586--0.618), 0.620 (95% CI 0.605--0.637), 0.621 (95% CI 0.605--0.637), and 0.618 (95% CI 0.602--0.634), lower than the weighted metric for every encoder. Only the primary encoder's difference was tested, 0.007 (95% CI −0.001 to 0.014). Every best k for either metric lay between 295 and 1,519. Using all 34,063 training patients as neighbors, weighted retrieval gave 0.617 (95% CI 0.600--0.633) to 0.629 (95% CI 0.614--0.645) for the 3 larger encoders. For bge-small-en-v1.5 it fell to 0.580 (95% CI 0.565--0.595), the only encoder whose weighted curve declined at large k. ROC curves and confusion matrices for each encoder's nearest-neighbor metrics at their best k are in Multimedia Appendix 1, section S6.
 
-A bge-small-en-v1.5
-
-![](../results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
-
-B bge-en-icl
-
-![](../results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
-
-C Qwen3-Embedding-4B
-
-![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=4.5in}
+![](../results/cross_embedder_retrieval/neighbor_count_sweep_panels.png){width=6in}
 
 ***Figure 5.** Retrieval discrimination by neighborhood size for the other 3 encoders: (A) bge-small-en-v1.5, (B) bge-en-icl, and (C) Qwen3-Embedding-4B. Figure 4 is the same plot for Qwen3-Embedding-8B. Each panel draws ROC AUC in 8,516 test patients at every k from 1 to 34,063 for logistic-regression-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Each encoder's weights come from its own embedded logistic regression. Points mark each arm's best k, chosen on the test patients, so the values there are optimistic. Horizontal lines mark that encoder's embedded logistic regression and feature-vector XGBoost, which is the same in every panel. Curves use α = 1.*
 

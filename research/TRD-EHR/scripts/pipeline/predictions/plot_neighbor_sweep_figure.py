@@ -11,11 +11,16 @@ draws that figure from the sweep's own outputs and refits nothing:
   * the random-neighbor arm with uniform weights, its mean AUC across draws at every
     k inside the band of the 2.5th to 97.5th percentile across draws, from
     random_neighbour_curve.csv;
-  * a point at each arm's best k, the k its panels (best_k_panels) are drawn at;
+  * a point at each arm's best k, the k its panels (best_k_panels) are drawn at, whose
+    value and interval are printed in that arm's legend entry rather than beside the
+    point, where a label lands on whichever curve passes it;
   * horizontal lines at the two leading trained classifiers, each with its 95% band.
 
-It runs once per encoder, on that encoder's RESULTS_DIR: Figure 4 is the primary
-encoder's, and each panel of Figure 5 is another encoder's.
+It runs once per encoder, on that encoder's RESULTS_DIR. The primary encoder's PNG is
+Figure 4, placed at 6in. Figure 5 is not these PNGs: it is one composite of the other
+three encoders' panels sharing one legend row, drawn after every sweep by
+plot_cross_embedder_retrieval with draw_curves below, so the composite and each
+encoder's own PNG draw the same lines from the same files.
 
 WHERE EACH CLASSIFIER LINE COMES FROM. Where a classifier's per-patient test
 predictions (test_predictions_{EMBEDDED,FEATURE}.parquet) sit in RESULTS_DIR, its line
@@ -73,10 +78,24 @@ METRIC_DISPLAY = {
 # first three validate all-pairs for colour-vision deficiency.
 METRIC_COLOR = {"weighted": "#2a78d6", "plain": "#eb6834", "random": "#1baf7a"}
 
-# Where each best-k label sits relative to its point, in points, so the three labels do
-# not collide: weighted above, plain below, random above its near-0.5 band, where the
-# cosine curves have already climbed away.
-LABEL_OFFSET = {"weighted": (6, 8), "plain": (8, -34), "random": (6, 10)}
+# Type sizes in points on a FIGURE_SIZE canvas. The saved PNG is about 7.5in wide with
+# its legend, so at Figure 4's 6in placement every size shrinks by about 0.8.
+FIGURE_SIZE = (7.0, 6.6)
+# The plot over the legend's own row: three two-line arm entries and two reference lines.
+LEGEND_ROW_RATIOS = (3.2, 1.9)
+FONT_SIZES = {"tick": 13, "label": 14, "legend": 12}
+
+X_LABEL = "Number of neighbors, k (log scale)"
+Y_LABEL = "Test-set ROC AUC"
+# The classifier lines, in REFERENCES order.
+REFERENCE_COLOR = "#555555"
+REFERENCE_STYLES = (":", "--")
+
+# What each arm's interval is called in its legend entry. The cosine arms are bootstrapped
+# over test patients; the random arm's band is the spread across draws, which the paper
+# never calls a 95% CI.
+INTERVAL_NAME = {"weighted": "95% CI", "plain": "95% CI",
+                 "random": "2.5th–97.5th percentile of draws"}
 
 # The two leading trained classifiers, as (label, representation, model column, shared).
 # A shared classifier does not depend on the encoder, so one copy of it serves every
@@ -288,9 +307,133 @@ def best_point(line: pd.DataFrame) -> pd.Series:
     return line.iloc[int(np.nanargmax(line.roc_auc.to_numpy()))]
 
 
+def arm_legend_label(metric: str, best: pd.Series, low: float, high: float) -> str:
+    """One arm's legend entry: its name, then its best k with the value and interval there.
+
+    Args:
+        metric (str): weighted, plain or random.
+        best (pd.Series): best_point of the arm's line.
+        low (float): Lower end of the arm's interval at that k.
+        high (float): Upper end.
+
+    Returns:
+        str: Two lines, e.g. "Plain cosine" over "best k = 1,243: 0.602 (95% CI
+            0.586-0.618)", so the legend stays inside the plot's width.
+    """
+    return (f"{METRIC_DISPLAY[metric]}\nbest k = {int(best.n_neighbors):,}: "
+            f"{best.roc_auc:.3f} ({INTERVAL_NAME[metric]} {low:.3f}\u2013{high:.3f})")
+
+
+def arm_best(line: pd.DataFrame, band: pd.DataFrame) -> tuple[pd.Series, float, float]:
+    """An arm's best point and its interval there, read off the band at that k.
+
+    Args:
+        line (pd.DataFrame): The arm's curve, as arm_lines.
+        band (pd.DataFrame): The arm's band, as arm_lines.
+
+    Returns:
+        tuple[pd.Series, float, float]: (best_point row, ci_low, ci_high).
+    """
+    best = best_point(line)
+    low = float(np.interp(best.n_neighbors, band.n_neighbors, band.ci_low))
+    high = float(np.interp(best.n_neighbors, band.n_neighbors, band.ci_high))
+    return best, low, high
+
+
+def reference_legend_label(label: str, auc: float, low: float, high: float) -> str:
+    """A classifier line's legend entry on the single-encoder figure."""
+    return f"{label}, {auc:.3f} (95% CI {low:.3f}\u2013{high:.3f})"
+
+
+def draw_curves(axis, curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
+                random_curve: pd.DataFrame = None, arm_label=arm_legend_label,
+                reference_label=reference_legend_label) -> dict:
+    """Every curve, band, best-k point and classifier line of one encoder, on one axis.
+
+    Both the single-encoder figure (build) and Figure 5's composite draw through this,
+    so the two cannot disagree on what is drawn. Only the legend labels differ, and they
+    are passed in.
+
+    Args:
+        axis: The matplotlib axis to draw on.
+        curve (pd.DataFrame): sweep_curve.csv, every k.
+        intervals (pd.DataFrame): sweep_intervals.csv, bootstrap CIs at sampled k.
+        reference_aucs (dict): Reference classifier label to (AUC, ci_low, ci_high), in
+            REFERENCES order: the first is drawn dotted, the second dashed.
+        random_curve (pd.DataFrame, optional): random_neighbour_curve.csv; the random
+            arm is left out when None.
+        arm_label (callable): (metric, best, low, high) to the arm's legend label.
+        reference_label (callable): (label, auc, low, high) to the line's legend label;
+            a label starting with an underscore keeps the line out of the legend.
+
+    Returns:
+        dict: Arm to (best, ci_low, ci_high), as arm_best.
+    """
+    arms = arm_lines(curve, intervals, random_curve)
+    bests = {}
+    for metric, (line, band) in arms.items():
+        color = METRIC_COLOR[metric]
+        axis.fill_between(band.n_neighbors, band.ci_low, band.ci_high,
+                          color=color, alpha=0.15, linewidth=0)
+        best, low, high = bests[metric] = arm_best(line, band)
+        # The point sits on the curve and its numbers live in a legend: a label beside
+        # the point lands on whichever curve or band passes through that corner.
+        best_index = int(np.flatnonzero(line.n_neighbors.to_numpy() == best.n_neighbors)[0])
+        axis.plot(line.n_neighbors, line.roc_auc, color=color, linewidth=2,
+                  marker="o", markevery=[best_index], markersize=7,
+                  markeredgecolor="white", markeredgewidth=1.5,
+                  label=arm_label(metric, best, low, high))
+    for (label, (auc, low, high)), style in zip(reference_aucs.items(), REFERENCE_STYLES):
+        axis.axhspan(low, high, color=REFERENCE_COLOR, alpha=0.08, linewidth=0)
+        axis.axhline(auc, color=REFERENCE_COLOR, linestyle=style, linewidth=1.2,
+                     label=reference_label(label, auc, low, high))
+    axis.set_xscale("log")
+    axis.set_xlim(1, curve.n_neighbors.max())
+    axis.set_ylim(*y_limits(arms, reference_aucs))
+    axis.grid(True, which="major", color="#e6e6e6", linewidth=0.8)
+    for side in ("top", "right"):
+        axis.spines[side].set_visible(False)
+    return bests
+
+
+def build(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
+          random_curve: pd.DataFrame = None):
+    """The retrieval figure, unsaved, so its text can be checked before it is written.
+
+    Args:
+        curve (pd.DataFrame): sweep_curve.csv, every k.
+        intervals (pd.DataFrame): sweep_intervals.csv, bootstrap CIs at sampled k.
+        reference_aucs (dict): Reference classifier label to (AUC, ci_low, ci_high).
+        random_curve (pd.DataFrame, optional): random_neighbour_curve.csv; the random
+            arm is left out when None.
+
+    Returns:
+        tuple: (figure, axis).
+    """
+    # The legend gets a row of its own under the axes. Hung off the axes instead, it is
+    # counted as part of them by tight_layout, which then shrinks the plot to make room.
+    figure, (axis, legend_axis) = plt.subplots(
+        nrows=2, figsize=FIGURE_SIZE, gridspec_kw={"height_ratios": LEGEND_ROW_RATIOS})
+    legend_axis.axis("off")
+    draw_curves(axis, curve, intervals, reference_aucs, random_curve)
+    axis.set_xlabel(X_LABEL, fontsize=FONT_SIZES["label"])
+    axis.set_ylabel(Y_LABEL, fontsize=FONT_SIZES["label"])
+    axis.tick_params(axis="both", which="major", labelsize=FONT_SIZES["tick"])
+    # Below the axes, one entry per row: inside, every corner holds a curve or a band once
+    # the random arm sits along the bottom, and each entry now carries its numbers.
+    handles, labels = axis.get_legend_handles_labels()
+    legend = legend_axis.legend(handles, labels, loc="upper left", bbox_to_anchor=(-0.1, 1.0),
+                                ncol=1, frameon=False, fontsize=FONT_SIZES["legend"],
+                                handlelength=2.4, labelspacing=0.45)
+    # Out of tight_layout's reckoning, or it narrows the plot to any overhang; the save
+    # names it as an extra artist so the tight bounding box still takes it in.
+    legend.set_in_layout(False)
+    return figure, axis
+
+
 def draw(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
          save_path: Path, random_curve: pd.DataFrame = None) -> None:
-    """Draw the retrieval curves against the trained classifiers.
+    """Draw the retrieval curves against the trained classifiers and write the PNG.
 
     Args:
         curve (pd.DataFrame): sweep_curve.csv, every k.
@@ -300,44 +443,10 @@ def draw(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
         random_curve (pd.DataFrame, optional): random_neighbour_curve.csv; the random
             arm is left out when None.
     """
-    plt.rcParams.update({"font.size": 10})
-    figure, axis = plt.subplots(figsize=(7.0, 4.2))
-    arms = arm_lines(curve, intervals, random_curve)
-    for metric, (line, band) in arms.items():
-        color = METRIC_COLOR[metric]
-        axis.fill_between(band.n_neighbors, band.ci_low, band.ci_high,
-                          color=color, alpha=0.15, linewidth=0)
-        axis.plot(line.n_neighbors, line.roc_auc, color=color, linewidth=2,
-                  label=METRIC_DISPLAY[metric])
-        best = best_point(line)
-        low, high = np.interp(best.n_neighbors, band.n_neighbors, band.ci_low), \
-            np.interp(best.n_neighbors, band.n_neighbors, band.ci_high)
-        axis.plot(best.n_neighbors, best.roc_auc, "o", color=color, markersize=7,
-                  markeredgecolor="white", markeredgewidth=1.5)
-        axis.annotate(f"best k = {int(best.n_neighbors):,}: {best.roc_auc:.3f} "
-                      f"({low:.3f}\u2013{high:.3f})",
-                      (best.n_neighbors, best.roc_auc),
-                      textcoords="offset points",
-                      xytext=LABEL_OFFSET[metric],
-                      ha="left",
-                      fontsize=8.5, color="#333333")
-    for (label, (auc, low, high)), style in zip(reference_aucs.items(), (":", "--")):
-        axis.axhspan(low, high, color="#555555", alpha=0.08, linewidth=0)
-        axis.axhline(auc, color="#555555", linestyle=style, linewidth=1.2,
-                     label=f"{label}, {auc:.3f} ({low:.3f}\u2013{high:.3f})")
-    axis.set_xscale("log")
-    axis.set_xlim(1, curve.n_neighbors.max())
-    axis.set_ylim(*y_limits(arms, reference_aucs))
-    axis.set_xlabel("Number of neighbors, k (log scale)")
-    axis.set_ylabel("Test-set ROC AUC")
-    axis.grid(True, which="major", color="#e6e6e6", linewidth=0.8)
-    for side in ("top", "right"):
-        axis.spines[side].set_visible(False)
-    # Below the axes: inside, every corner holds a curve or a band once the random arm
-    # sits along the bottom.
-    axis.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False, fontsize=8.5)
+    figure, _ = build(curve, intervals, reference_aucs, random_curve)
     figure.tight_layout()
-    figure.savefig(save_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    legends = [a.get_legend() for a in figure.axes if a.get_legend() is not None]
+    figure.savefig(save_path, dpi=FIGURE_DPI, bbox_inches="tight", bbox_extra_artists=legends)
     plt.close(figure)
 
 

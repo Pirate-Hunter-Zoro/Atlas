@@ -63,8 +63,9 @@ from scripts.pipeline.review.subgroups.core import (
     subgroup_dir,
 )
 
-# The retrieval arm's representative: importance-weighted nearest neighbors, the arm
-# the main text reports beside its plain-cosine baseline. It must be one of
+# The retrieval arm's representative: logistic-regression-weighted nearest neighbors
+# (NEAREST_WEIGHTED in code), the arm the main text reports beside its plain-cosine
+# baseline. It must be one of
 # core.KNN_CONTRAST_MODELS, or the forest plot draws no retrieval points at all.
 PRIMARY_KNN_MODEL = "NEAREST_WEIGHTED"
 ARMS = (ARM_EMBEDDED, ARM_FEATURE, ARM_KNN)
@@ -80,7 +81,7 @@ PRIMARY_BY_ARM = {
 ARM_LABELS = {
     ARM_EMBEDDED: "Embedded (logistic regression)",
     ARM_FEATURE: "Feature vector (logistic regression)",
-    ARM_KNN: "Nearest neighbors (importance-weighted)",
+    ARM_KNN: "Nearest neighbors (logistic-regression-weighted)",
 }
 
 # Families reported as fairness evidence, against families reported as clinical

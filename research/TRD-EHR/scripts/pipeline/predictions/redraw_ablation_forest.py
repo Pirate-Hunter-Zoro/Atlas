@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from scripts.shared.display_names import classifier_display
+
 CLASSIFIER_ORDER = ["logistic_regression", "random_forest", "gradient_boosting", "xgboost"]
 DISPLAY = {
     "permute_psych_history": "Psychiatric history",
@@ -70,7 +72,7 @@ def redraw(results_dir: Path) -> Path:
         ax.set_yticks(np.arange(len(mids)))
         ax.set_yticklabels(labels)
         ax.invert_yaxis()
-        ax.set_title(clf.replace("_", " "))
+        ax.set_title(classifier_display(clf))
         if i >= 2:
             ax.set_xlabel("ROC AUC")
 

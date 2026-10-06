@@ -80,8 +80,11 @@ def redraw_one(y_true: np.ndarray, y_prob: np.ndarray, mode: str) -> tuple[float
     """
     score, ci_low, ci_high = plot_receiving_operator_characteristic(y_true, y_prob, mode)
     plot_precision_recall(y_true, y_prob, mode)
-    plot_calibration(y_true, y_prob, mode)
-    plot_optimal_confusion_matrix(y_true, y_prob, mode)
+    # Every number on a panel carries an interval (the packet's rule): the calibration
+    # bins and the confusion-matrix metrics are bootstrapped exactly as the best-k
+    # retrieval panels are, from the same SEED-seeded resamples as the ROC band.
+    plot_calibration(y_true, y_prob, mode, bootstrap=True)
+    plot_optimal_confusion_matrix(y_true, y_prob, mode, bootstrap=True)
     return score, ci_low, ci_high
 
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=plot_manuscript_figures
 #SBATCH --partition=c3_short
-#SBATCH --time=01:30:00
+#SBATCH --time=03:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -13,7 +13,9 @@
 #     above the paired EMBEDDED-minus-FEATURE differences
 #   - the four per-classifier feature-importance panels
 #   - the ROC, precision-recall, calibration and confusion-matrix panels, for both
-#     the classical and the neighbor-weighted arms
+#     the classical and the neighbor-weighted arms; calibration bins and every
+#     confusion-matrix metric carry a bootstrap 95% CI
+#   - the concept-permutation forest (Figure S15), from ablation_summary.csv
 # No step refits a model, so this is safe and cheap to re-run whenever only
 # figure styling changes. It needs a completed classical_ml + feature_importance
 # run to read from; it will fail loudly rather than recompute if either is absent.
@@ -26,7 +28,8 @@
 # mismatch: a restyle must not become a re-estimate. It reads the saved
 # per-patient predictions, so it fails loudly on a results tree that predates
 # summary_predictions.csv rather than silently skipping that arm. Its bootstrap
-# is the reason for the wall time -- 24 prediction columns x 1000 resamples.
+# is the reason for the wall time -- 24 prediction columns x 1000 resamples, three times
+# over (ROC band, calibration bins, confusion-matrix metrics).
 
 # Exit immediately if command fails
 set -e
@@ -55,6 +58,7 @@ python -m scripts.pipeline.predictions.plot_time_zero_timeline
 python -m scripts.pipeline.predictions.plot_discrimination_forest
 python -m scripts.pipeline.predictions.redraw_feature_importance
 python -m scripts.pipeline.predictions.redraw_manuscript_panels
+python -m scripts.pipeline.predictions.redraw_ablation_forest "${RESULTS_DIR}"
 
 # Mirror the regenerated figures into the repo-local results/ tree
 LOCAL_RESULTS_DIR="results/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}"
@@ -63,6 +67,7 @@ rsync -av "${RESULTS_DIR}/time_zero_timeline.png" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/discrimination_forest_EMBEDDED_vs_FEATURE.png" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/discrimination_paired_deltas.json" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/feature_importance/" "${LOCAL_RESULTS_DIR}/feature_importance/"
+rsync -av "${RESULTS_DIR}/ablation_roc_ci_EMBEDDED.png" "${LOCAL_RESULTS_DIR}/"
 for PANEL_DIR in roc_curves pr_curves calibration_curves confusion_matrices; do
   rsync -av "${RESULTS_DIR}/${PANEL_DIR}/" "${LOCAL_RESULTS_DIR}/${PANEL_DIR}/"
 done

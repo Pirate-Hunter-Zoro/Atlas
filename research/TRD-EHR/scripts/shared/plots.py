@@ -17,6 +17,14 @@ RECALL_GRID = np.linspace(0,1,100)
 # Bin count for every calibration curve in this module.
 CALIBRATION_BINS = 10
 
+# What every band and interval on these panels is called. The random retrieval arm is
+# drawn from ONE representative draw, whose band is the bootstrap over test patients of
+# that draw; the paper keeps "95% CI" for intervals and gives the random arm's
+# across-draw spread as a percentile band, so the representative draw's band says what
+# it is rather than borrowing either name.
+DEFAULT_INTERVAL_LABEL = "95% CI"
+RANDOM_DRAW_INTERVAL_LABEL = "bootstrap 95% CI of the representative draw"
+
 # Raster resolution for every figure written by this module. Matplotlib's default
 # of 100 dpi yields a 640x480 PNG, which is ~107 dpi once placed at the
 # manuscript's 6in text width -- legible but visibly soft in print. These figures
@@ -243,7 +251,7 @@ def bootstrap_roc_band(y_true: np.ndarray, y_prob: np.ndarray, sample_indices: n
         tpr_matrix[i] = interpolated_roc_curve
     return (tpr_matrix, auc_array)
 
-def plot_receiving_operator_characteristic(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None) -> tuple[float,float,float]:
+def plot_receiving_operator_characteristic(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None, interval_label: str = DEFAULT_INTERVAL_LABEL) -> tuple[float,float,float]:
     """Create and save the ROC AUC plot and return its score results
 
     Args:
@@ -254,6 +262,9 @@ def plot_receiving_operator_characteristic(y_true: np.ndarray, y_prob: np.ndarra
             Defaults to None.
         title (str, optional): Replace the axes title, for callers whose outcome is not
             TRD. Defaults to None (the generic title).
+        interval_label (str, optional): What the band and the AUC interval are called.
+            The random retrieval arm passes RANDOM_DRAW_INTERVAL_LABEL, because its
+            across-draw band is never called a 95% CI.
 
     Returns:
         tuple[float,float,float]: ROC score, lower 2.5% boostrapping CI bound, upper 97.5% boostrapping CI bound
@@ -269,11 +280,13 @@ def plot_receiving_operator_characteristic(y_true: np.ndarray, y_prob: np.ndarra
     # Error bands are 2.5 percentile and 97.5 percentile for each FP x-value on ROC curve which generates 95% confidence interval
     q_low = np.nanpercentile(interpolated_tp, 2.5, axis=0)
     q_high = np.nanpercentile(interpolated_tp, 97.5, axis=0)
-    plt.fill_between(FPR_GRID, q_low, q_high, color='gray', alpha=0.2, label='95% CI')
+    plt.fill_between(FPR_GRID, q_low, q_high, color='gray', alpha=0.2, label=interval_label)
     ci_low = np.nanpercentile(auc_arr, 2.5)
     ci_high = np.nanpercentile(auc_arr, 97.5)
     
-    plt.plot(false_positive_rate, true_positive_rate, color='red', label=f'ROC curve (score {score:.2f}, 95% CI [{ci_low:.2f},{ci_high:.2f}])')
+    # Three decimals, as the text quotes every AUC.
+    plt.plot(false_positive_rate, true_positive_rate, color='red',
+             label=f'ROC AUC {score:.3f} ({interval_label} {ci_low:.3f}\u2013{ci_high:.3f})')
     plt.plot([0,1], [0,1], color='green', linestyle='--')
     plt.title(title if title is not None else "Receiver Operating Characteristic")
     plt.xlabel("False Positive Rate")
@@ -286,7 +299,7 @@ def plot_receiving_operator_characteristic(y_true: np.ndarray, y_prob: np.ndarra
     plt.close()
     return float(score), float(ci_low), float(ci_high)
 
-def plot_precision_recall(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None) -> tuple[float,float,float]:
+def plot_precision_recall(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None, interval_label: str = DEFAULT_INTERVAL_LABEL) -> tuple[float,float,float]:
     """
     Create and save the precision recall graph for the given values and predictions
     
@@ -305,6 +318,8 @@ def plot_precision_recall(y_true: np.ndarray, y_prob: np.ndarray, mode: str, sav
     :type save_dir: Path
     :param title: Replace the axes title, for callers whose outcome is not TRD
     :type title: str
+    :param interval_label: What the band and the interval are called
+    :type interval_label: str
     :return: Average precision, lower 2.5% bootstrapping CI bound, upper 97.5% bound
     :rtype: tuple[float,float,float]
     """
@@ -321,11 +336,12 @@ def plot_precision_recall(y_true: np.ndarray, y_prob: np.ndarray, mode: str, sav
         RECALL_GRID,
         np.nanpercentile(interpolated_precision, 2.5, axis=0),
         np.nanpercentile(interpolated_precision, 97.5, axis=0),
-        color='gray', alpha=0.2, label='95% CI',
+        color='gray', alpha=0.2, label=interval_label,
     )
-    plt.plot(recall, precision, label=f'PR Curve (Average Precision = {score:.2f}, 95% CI [{ci_low:.2f},{ci_high:.2f}])')
+    # Three decimals: the text quotes AUPRC and the 0.175 reference to three.
+    plt.plot(recall, precision, label=f'Average precision {score:.3f} ({interval_label} {ci_low:.3f}\u2013{ci_high:.3f})')
     prevalence = float(np.mean(y_true))
-    plt.axhline(prevalence, color='green', linestyle='--', label=f'No-skill (prevalence = {prevalence:.2f})')
+    plt.axhline(prevalence, color='green', linestyle='--', label=f'No skill (prevalence {prevalence:.3f})')
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.title(title if title is not None else "Precision Recall Curve")
@@ -362,7 +378,7 @@ def _calibration_axis_limits(mean_predicted: np.ndarray, observed: np.ndarray, e
     return (max(0.0, low - pad), min(1.0, high + pad))
 
 
-def plot_calibration(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None, strategy: str = 'uniform', bootstrap: bool = False) -> list[dict]:
+def plot_calibration(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, title: str = None, strategy: str = 'uniform', bootstrap: bool = False, interval_label: str = DEFAULT_INTERVAL_LABEL) -> list[dict]:
     """
     Create and save the calibration graph for the given values and predictions
     
@@ -386,6 +402,8 @@ def plot_calibration(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir
     :type strategy: str
     :param bootstrap: Draw a 95% interval on each bin's observed fraction
     :type bootstrap: bool
+    :param interval_label: What the error bars are called in the legend
+    :type interval_label: str
     :return: One dict per NON-EMPTY bin, carrying its edges, n, mean predicted probability,
         observed fraction, and the interval bounds when bootstrap is on
     :rtype: list[dict]
@@ -415,7 +433,7 @@ def plot_calibration(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir
         plt.errorbar(
             prob_pred_per_bin[drawn], prob_true_per_bin[drawn],
             yerr=np.vstack([error_low[drawn], error_high[drawn]]),
-            marker='o', capsize=3, color='tab:blue', ecolor='gray', label="Model (95% CI)",
+            marker='o', capsize=3, color='tab:blue', ecolor='gray', label=f"Model ({interval_label})",
         )
     else:
         plt.plot(prob_pred_per_bin[drawn], prob_true_per_bin[drawn], marker='o', label="Model")
@@ -531,7 +549,7 @@ def plot_effective_sample_size_distribution(ess_values: np.ndarray, mode: str, s
 CONFUSION_METRIC_LABELS = {
     "sensitivity": "Sensitivity",
     "specificity": "Specificity",
-    "f_score": "F_Score",
+    "f_score": "F score",
     "positive_likelihood_ratio": "Positive Likelihood Ratio",
     "negative_likelihood_ratio": "Negative Likelihood Ratio",
 }
@@ -572,16 +590,53 @@ def confusion_metrics(y_true: np.ndarray, predictions: np.ndarray) -> dict[str, 
     }
 
 
-def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, bootstrap: bool = False) -> dict:
-    """
-    Create confusion matrix for the given probability estimates with the optimal threshold
-    
-    With bootstrap=True every printed metric carries a 95% percentile interval over the
+def youden_operating_point(y_true: np.ndarray, y_prob: np.ndarray, bootstrap: bool = False) -> dict:
+    """The Youden J operating point: its threshold, 2x2 counts and metrics.
+
+    With bootstrap=True every metric carries a 95% percentile interval over the
     SEED-seeded resamples of bootstrap_sample_indices, the same draws as the ROC band. The
     threshold is held at the full-sample Youden J cut point in every draw, so the interval
     is the sampling spread of the metrics AT that operating point; the choice of the
     point itself is not re-made per draw and is not in the interval.
-    
+
+    Args:
+        y_true (np.ndarray): 0/1 labels.
+        y_prob (np.ndarray): Predicted probabilities.
+        bootstrap (bool): Attach an interval to every metric.
+
+    Returns:
+        dict: threshold, confusion_matrix ([[tn, fp], [fn, tp]]), and each metric in
+            CONFUSION_METRIC_LABELS as its value, or as {value, ci_low, ci_high} when
+            bootstrap is on.
+    """
+    false_positive_rates, true_positive_rates, thresholds = sklearn.metrics.roc_curve(y_true=y_true, y_score=y_prob)
+    # Find threshold that accomplished peak model performance
+    j_statistics = true_positive_rates - false_positive_rates
+    threshold = thresholds[np.argmax(j_statistics)]
+    # Use threshold to make predictions
+    predictions = np.where(y_prob >= threshold, 1, 0)
+    matrix = sklearn.metrics.confusion_matrix(y_true=y_true, y_pred=predictions, labels=[0, 1])
+    point = confusion_metrics(y_true, predictions)
+    result = {"threshold": float(threshold), "confusion_matrix": matrix.tolist()}
+    if not bootstrap:
+        result.update({name: float(value) for name, value in point.items()})
+        return result
+    sample_indices = bootstrap_sample_indices(y_true.shape[0])
+    draws = np.array([list(confusion_metrics(y_true[rows], predictions[rows]).values()) for rows in sample_indices])
+    with np.errstate(invalid='ignore'):
+        lows = np.nanpercentile(draws, 2.5, axis=0)
+        highs = np.nanpercentile(draws, 97.5, axis=0)
+    for index, name in enumerate(CONFUSION_METRIC_LABELS):
+        result[name] = {"value": float(point[name]), "ci_low": float(lows[index]), "ci_high": float(highs[index])}
+    return result
+
+
+def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, bootstrap: bool = False, interval_label: str = DEFAULT_INTERVAL_LABEL) -> dict:
+    """
+    Create confusion matrix for the given probability estimates with the optimal threshold
+
+    The operating point and its intervals are youden_operating_point's.
+
     :param y_true: Actual labels
     :type y_true: np.ndarray
     :param y_prob: Predicted probability labels
@@ -592,37 +647,25 @@ def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: 
     :type save_dir: Path
     :param bootstrap: Print a 95% interval beside every metric
     :type bootstrap: bool
+    :param interval_label: What the printed intervals are called
+    :type interval_label: str
     :return: threshold, the 2x2 counts, and each metric as its value, or as a dict of
         value, ci_low and ci_high when bootstrap is on
     :rtype: dict
     """
-    false_positive_rates, true_positive_rates, thresholds = sklearn.metrics.roc_curve(y_true=y_true, y_score=y_prob)
-    # Find threshold that accomplished peak model performance
-    j_statistics = true_positive_rates - false_positive_rates
-    threshold = thresholds[np.argmax(j_statistics)]
-    # Use threshold to make predictions
-    predictions = np.where(y_prob >= threshold, 1, 0)
-    matrix = sklearn.metrics.confusion_matrix(y_true=y_true, y_pred=predictions, labels=[0, 1])
-    
-    # Obtain metric on the confusion matrix
-    point = confusion_metrics(y_true, predictions)
-    result = {"threshold": float(threshold), "confusion_matrix": matrix.tolist()}
+    result = youden_operating_point(y_true, y_prob, bootstrap=bootstrap)
+    threshold = result["threshold"]
+    matrix = np.array(result["confusion_matrix"])
     if bootstrap:
-        sample_indices = bootstrap_sample_indices(y_true.shape[0])
-        draws = np.array([list(confusion_metrics(y_true[rows], predictions[rows]).values()) for rows in sample_indices])
-        with np.errstate(invalid='ignore'):
-            lows = np.nanpercentile(draws, 2.5, axis=0)
-            highs = np.nanpercentile(draws, 97.5, axis=0)
-        for index, name in enumerate(CONFUSION_METRIC_LABELS):
-            result[name] = {"value": float(point[name]), "ci_low": float(lows[index]), "ci_high": float(highs[index])}
         # Short labels: an interval per line is wider than the text column otherwise holds.
         metrics = "\n".join(
-            f"{label}: {point[name]:.2f} ({lows[index]:.2f}\u2013{highs[index]:.2f})"
-            for index, (name, label) in enumerate(CONFUSION_METRIC_SHORT_LABELS.items()))
-        metrics += "\n(95% CI, bootstrap)"
+            f"{label}: {result[name]['value']:.2f} ({result[name]['ci_low']:.2f}\u2013{result[name]['ci_high']:.2f})"
+            for name, label in CONFUSION_METRIC_SHORT_LABELS.items())
+        note = "(95% CI, bootstrap)" if interval_label == DEFAULT_INTERVAL_LABEL else f"({interval_label})"
+        # A long note is broken before "of", so it stays inside the text column.
+        metrics += "\n" + note.replace(" of ", "\nof ")
     else:
-        result.update({name: float(value) for name, value in point.items()})
-        metrics = "\n".join(f"{label}: {point[name]:.2f}" for name, label in CONFUSION_METRIC_LABELS.items())
+        metrics = "\n".join(f"{label}: {result[name]:.2f}" for name, label in CONFUSION_METRIC_LABELS.items())
 
     # Create the confusion matrix display with the text report beside it rather
     # than beneath it. Hanging the metrics off the bottom of the axes with

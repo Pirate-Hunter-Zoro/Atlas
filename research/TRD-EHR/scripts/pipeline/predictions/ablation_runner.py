@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from scripts.data_loading.ablation_registry import ABLATIONS
 from scripts.pipeline.predictions.create_train_test_split import create_train_test_split
 from scripts.shared.utils import VectorSource
+from scripts.shared.display_names import classifier_display
 from scripts.shared.plots import (
     plot_receiving_operator_characteristic,
     plot_precision_recall,
@@ -111,7 +112,7 @@ def plot_ablation_roc_ci(rows: list[dict], baseline_metrics: dict[str, dict[str,
         # Every panel carries its own row labels now that they sit in a grid.
         ax.set_yticklabels(ablation_labels)
         ax.invert_yaxis() # Baseline row should go at top
-        ax.set_title(classifier.replace("_", " "))
+        ax.set_title(classifier_display(classifier))
         if i >= 2:
             ax.set_xlabel("ROC AUC")
     

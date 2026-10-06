@@ -18,6 +18,7 @@ from scipy.stats import spearmanr
 from scripts.pipeline.predictions.classical_ml import make_classifier
 from scripts.shared.utils import VectorSource
 from scripts.shared.feature_display_names import humanize_feature_names
+from scripts.shared.display_names import classifier_display
 from scripts.pipeline.predictions.classical_ml import load_data_set, model_cache_path
 from scripts.pipeline.predictions.create_train_test_split import create_train_test_split
 
@@ -28,6 +29,17 @@ load_dotenv()
 PCA_K_VALUES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 MODEL_NAMES = ("logistic_regression", "random_forest", "gradient_boosting", "xgboost")
 TOP_K = 20
+
+# Figures S1-S3 are placed at 5.8in from a 10in canvas, a 0.58 downscale; these sizes
+# print at about 8-9pt there.
+OVERLAY_FONT_SIZES = {"tick": 14, "label": 15, "title": 16, "legend": 13}
+FIGURE_DPI = 220
+# The model-agnostic curve of Figure S2, ranked by correlation with the outcome itself.
+OUTCOME_CURVE_LABEL = "TRD outcome (model-agnostic)"
+
+
+class CacheMiss(FileNotFoundError):
+    """A redraw found no cached model, and a redraw never refits."""
 
 def load_best_params(model_name: str, source: VectorSource) -> dict:
     """From the recorded results, find the best parameters associated with the given model operating on the input vector source
@@ -49,6 +61,7 @@ def refit_best_model(
     source: VectorSource,
     X_train: pd.DataFrame,
     y_train: np.ndarray,
+    cache_only: bool = False,
 ) -> Pipeline:
     """Given the model, load the cached fitted best estimator if available, otherwise load the best hyperparameters and use them to refit a fresh pipeline from the grid-search best params
 
@@ -57,6 +70,9 @@ def refit_best_model(
         source (VectorSource): Feature or embedded vectors
         X_train (pd.DataFrame): Training inputs to fit with
         y_train (np.ndarray): Training outputs to fit with
+        cache_only (bool, optional): Refuse rather than refit on a cache miss. A redraw
+            sets it: a refit can land on a different fit of equal discrimination, and
+            the supplement quotes this fit's coefficient counts.
 
     Returns:
         Pipeline: fitted sklearn Pipeline
@@ -65,6 +81,8 @@ def refit_best_model(
     if cache_path.exists():
         print(f"Loading cached best estimator for {model_name} on {source.name}...", flush=True)
         return joblib.load(cache_path).best_estimator_
+    if cache_only:
+        raise CacheMiss(f"No cached best estimator for {model_name}_{source.name}; a redraw does not refit.")
     print(f"Cache miss for {model_name}_{source.name}; refitting from grid-search best params...", flush=True)
     seed = int(os.environ['SEED'])
     models = {
@@ -169,7 +187,7 @@ def plot_feature_importance(
         else "direction unspecified"
     # Title is split across two lines: on one line the colour key overruns the
     # figure width and gets clipped.
-    pretty_name = model_name.replace('_', ' ').capitalize()
+    pretty_name = classifier_display(model_name)
     ax.set_title(f"{pretty_name}\n({suffix})", fontsize=LABEL_POINT_SIZE, fontweight='bold')
     ax.grid(axis='x', linestyle=':', linewidth=0.8, alpha=0.6)
     ax.set_axisbelow(True)
@@ -179,7 +197,7 @@ def plot_feature_importance(
     save_path = Path(os.environ['RESULTS_DIR']) / "feature_importance" /\
         f"feature_importance_{model_name}.png"
     os.makedirs(save_path.parent, exist_ok=True)
-    fig.savefig(str(save_path), dpi=220)
+    fig.savefig(str(save_path), dpi=FIGURE_DPI)
     plt.close(fig)
 
 def compute_univariate_spearman(
@@ -243,25 +261,33 @@ def plot_cumulative_magnitude_overlay(
 
     # Plot each model's correlation output
     for label, magnitudes in magnitudes_by_label.items():
-        # Sort by decreasing magnitude
-        sorted_magnitudes = np.sort(np.abs(magnitudes))[::-1]
-        cumulative = np.cumsum(sorted_magnitudes) # Last rank holds total mass
-        # Normalize to fraction of mass
-        fraction = cumulative / cumulative[-1]
+        fraction = cumulative_fraction(magnitudes)
         # Create plot of increasing 'rank-1' on the x-axis, farther to the left is where we have added the highest remaining magnitude correlation
         ranks = np.arange(1, len(fraction)+1)
-        knee_80 = np.searchsorted(fraction, 0.8) + 1
-        knee_90 = np.searchsorted(fraction, 0.9) + 1
+        knee_80, knee_90 = knees(magnitudes)
         ax.plot(ranks, fraction, linewidth=2, label=f"{label} (K₈₀={knee_80}, K₉₀={knee_90})")
-    ax.legend(loc='lower right', fontsize=9)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.legend(loc='lower right', fontsize=OVERLAY_FONT_SIZES["legend"])
+    ax.set_xlabel(xlabel, fontsize=OVERLAY_FONT_SIZES["label"])
+    ax.set_ylabel(ylabel, fontsize=OVERLAY_FONT_SIZES["label"])
+    ax.set_title(title, fontsize=OVERLAY_FONT_SIZES["title"])
+    ax.tick_params(axis='both', labelsize=OVERLAY_FONT_SIZES["tick"])
     fig.tight_layout()
     save_path = Path(os.environ['RESULTS_DIR']) / "feature_importance" / filename
     os.makedirs(save_path.parent, exist_ok=True)
-    fig.savefig(str(save_path), dpi=120)
+    fig.savefig(str(save_path), dpi=FIGURE_DPI)
     plt.close(fig)
+
+
+def cumulative_fraction(magnitudes: np.ndarray) -> np.ndarray:
+    """Cumulative share of total absolute mass, dimensions ranked largest first."""
+    cumulative = np.cumsum(np.sort(np.abs(magnitudes))[::-1]) # Last rank holds total mass
+    return cumulative / cumulative[-1]
+
+
+def knees(magnitudes: np.ndarray) -> tuple[int, int]:
+    """(K80, K90): the fewest top-ranked dimensions holding 80% and 90% of the mass."""
+    fraction = cumulative_fraction(magnitudes)
+    return int(np.searchsorted(fraction, 0.8) + 1), int(np.searchsorted(fraction, 0.9) + 1)
 
 def pca_cache_path(model_name: str, k: int) -> Path:
     """Given the model name and the number of PCA dimensions, return resulting path where the model should be saved
@@ -283,6 +309,7 @@ def plot_pca_k_vs_roc(
     X_test: pd.DataFrame,
     y_train: np.ndarray,
     y_test: np.ndarray,
+    cache_only: bool = False,
 ):
     """For each K in a pre-set list of values, refit one of the four classifiers on the embedded
   vectors projected to K principal components, score it on the held-out test set, and plot ROC AUC
@@ -294,6 +321,11 @@ def plot_pca_k_vs_roc(
         X_test (pd.DataFrame): Held-out embedded vectors
         y_train (np.ndarray): Train labels
         y_test (np.ndarray): Held-out labels
+        cache_only (bool, optional): Refuse rather than refit a PCA pipeline that is not
+            cached, as refit_best_model does.
+
+    Returns:
+        list[float]: Test ROC AUC at each retained component count.
     """
     base_models = {
         "logistic_regression": LogisticRegression(max_iter=1000, random_state=int(os.environ['SEED'])),
@@ -303,7 +335,10 @@ def plot_pca_k_vs_roc(
     }
     best_params = load_best_params(model_name, VectorSource.EMBEDDED)
     auc_scores = []
-    RELEVANT_PCA_VALUES = [v for v in PCA_K_VALUES if v <= min(X_train.shape)]
+    # A cache-only redraw loads no training rows; the held-out rows have the same width,
+    # and both splits hold far more patients than the largest K.
+    reference = X_test if X_train is None else X_train
+    RELEVANT_PCA_VALUES = [v for v in PCA_K_VALUES if v <= min(reference.shape)]
     
     for k in RELEVANT_PCA_VALUES:
         # Different number of PCA dimensions each time
@@ -311,6 +346,8 @@ def plot_pca_k_vs_roc(
         if pca_save_path.exists() and int(os.environ['SCRUB_TRAINED_MODELS']) == 0:
             print(f"Loading cached PCA-K{k} pipeline for {model_name}...", flush=True)
             pipeline = joblib.load(pca_save_path)
+        elif cache_only:
+            raise CacheMiss(f"No cached PCA-K{k} pipeline for {model_name}; a redraw does not refit.")
         else:
             pipeline = Pipeline(steps=\
                 [
@@ -325,18 +362,37 @@ def plot_pca_k_vs_roc(
         y_pred = pipeline.predict_proba(X_test)[:,1]
         score = float(roc_auc_score(y_true=y_test, y_score=y_pred))
         auc_scores.append(score)
+    save_dir = Path(os.environ['RESULTS_DIR']) / 'feature_importance'
+    os.makedirs(save_dir, exist_ok=True)
+    # The scores are kept beside the figure, so a later restyle reads them and loads no model.
+    (save_dir / f"pca_sweep_{model_name}_EMBEDDED.json").write_text(json.dumps(
+        {"pca_components": RELEVANT_PCA_VALUES, "roc_auc": auc_scores}, indent=2))
+    draw_pca_sweep(model_name, RELEVANT_PCA_VALUES, auc_scores,
+                   save_dir / f"feature_importance_pca_sweep_{model_name}_EMBEDDED.png")
+    return auc_scores
+
+
+def draw_pca_sweep(model_name: str, ks: list[int], auc_scores: list[float], save_path: Path):
+    """Figure S3, one panel: ROC AUC against retained principal components.
+
+    Args:
+        model_name (str): Classifier key; the title prints its display name.
+        ks (list[int]): Component counts, powers of 2.
+        auc_scores (list[float]): Test ROC AUC at each.
+        save_path (Path): Destination PNG.
+    """
     fig, ax = plt.subplots(figsize=(10,6))
-    ax.plot(RELEVANT_PCA_VALUES, auc_scores, marker='o', color='steelblue', linewidth=2)
+    ax.plot(ks, auc_scores, marker='o', color='steelblue', linewidth=2)
     ax.set_xscale('log', base=2) # Logarithmic x-scale since k-values are powers of 2
-    for k, auc in zip(RELEVANT_PCA_VALUES, auc_scores):
-        ax.text(k, auc, f"{auc:.3f}")
-    ax.set_xlabel("Truncated PCA components (K)")
-    ax.set_ylabel("Held-out ROC AUC")
-    ax.set_title(f"PCA-K vs ROC AUC - {model_name} (EMBEDDED)")
+    for k, auc in zip(ks, auc_scores):
+        ax.text(k, auc, f"{auc:.3f}", fontsize=OVERLAY_FONT_SIZES["legend"])
+    ax.set_xlabel("Retained principal components, K (log scale)", fontsize=OVERLAY_FONT_SIZES["label"])
+    ax.set_ylabel("Test-set ROC AUC", fontsize=OVERLAY_FONT_SIZES["label"])
+    ax.set_title(f"{classifier_display(model_name)}, embedded representation",
+                 fontsize=OVERLAY_FONT_SIZES["title"])
+    ax.tick_params(axis='both', labelsize=OVERLAY_FONT_SIZES["tick"])
     fig.tight_layout()
-    plot_save_path = Path(os.environ['RESULTS_DIR']) / 'feature_importance' / f"feature_importance_pca_sweep_{model_name}_EMBEDDED.png"
-    os.makedirs(plot_save_path.parent, exist_ok=True)
-    fig.savefig(str(plot_save_path), dpi=120)
+    fig.savefig(str(save_path), dpi=FIGURE_DPI)
     plt.close(fig)
 
 def write_feature_importance_summary(summary: dict[str, list[dict]]):
@@ -356,24 +412,36 @@ def write_feature_importance_summary(summary: dict[str, list[dict]]):
     with open(save_path, 'w') as f:
         json.dump(cleaned_summary, f, indent=4)
 
-def main():
-    (train_ids, test_ids) = create_train_test_split()
+def embedded_pass(train_ids, test_ids, cache_only: bool = False) -> dict:
+    """Figures S1-S3: the cumulative overlays and the PCA sweeps, embedded representation.
 
-    # EMBEDDED pass: single load, classifier loop builds the cumulative-magnitude overlays
+    Args:
+        train_ids: Training patient ids, as create_train_test_split.
+        test_ids: Held-out patient ids.
+        cache_only (bool, optional): Draw only from cached fitted models and raise
+            CacheMiss rather than refit; the training rows are not even loaded.
+
+    Returns:
+        dict: What the figures print that a redraw can be checked against: the logistic
+            regression's non-zero coefficient count and width, and each classifier's
+            importance knees (K80, K90).
+    """
     source = VectorSource.EMBEDDED
     print(f"Feature importance pass: {source.name} running...", flush=True)
-    (X_train, y_train) = load_data_set(train_ids, source)
+    (X_train, y_train) = (None, None) if cache_only else load_data_set(train_ids, source)
     (X_test, y_test) = load_data_set(test_ids, source)
     correlations_by_label: dict[str, np.ndarray] = {}
     importances_by_label: dict[str, np.ndarray] = {}
     feature_name_dims = [str(col) for col in X_test.columns]
     label_correlations = compute_univariate_spearman(X_test, y_test, feature_name_dims)
-    correlations_by_label['TRD label (model-agnostic)'] = label_correlations
+    correlations_by_label[OUTCOME_CURVE_LABEL] = label_correlations
+    checks = {"importance_knees": {}}
     for model_name in MODEL_NAMES:
         print(f"Running {model_name} feature importance under {source.name} vectors...")
-        model_pipeline = refit_best_model(model_name, source, X_train, y_train)
+        model_pipeline = refit_best_model(model_name, source, X_train, y_train, cache_only=cache_only)
         (feature_importances, _) = extract_feature_importances(model_pipeline, model_name)
-        importances_by_label[model_name] = feature_importances
+        importances_by_label[classifier_display(model_name)] = feature_importances
+        checks["importance_knees"][model_name] = knees(feature_importances)
         if model_name == "logistic_regression":
             (nonzero_count, total_count) = count_nonzero_lr_coefficients(model_pipeline)
             sparsity_path = Path(os.environ['RESULTS_DIR']) / "feature_importance_sparsity.json"
@@ -383,25 +451,34 @@ def main():
                     "nonzero_coefficients": nonzero_count,
                     "total_coefficients": total_count
                 }, f, indent=4)
+            checks["nonzero_coefficients"] = (nonzero_count, total_count)
         risk_scores = model_pipeline.predict_proba(X_test)[:, 1]
         feature_names = [str(col) for col in X_test.columns]
         correlations = compute_univariate_spearman(X_test, risk_scores, feature_names)
-        correlations_by_label[model_name] = correlations
-        plot_pca_k_vs_roc(model_name, X_train, X_test, y_train, y_test)
+        correlations_by_label[classifier_display(model_name)] = correlations
+        plot_pca_k_vs_roc(model_name, X_train, X_test, y_train, y_test, cache_only=cache_only)
     plot_cumulative_magnitude_overlay(
         magnitudes_by_label = correlations_by_label,
         xlabel = "Embedding dimension rank (by |Spearman ρ|, descending)",
         ylabel = f"Cumulative |Spearman ρ| fraction",
-        title = f"Cumulative correlation curve ({VectorSource.EMBEDDED.name})",
+        title = "Cumulative correlation, embedded representation",
         filename = f"feature_correlation_cumulative_{VectorSource.EMBEDDED.name}.png",
     )
     plot_cumulative_magnitude_overlay(
         magnitudes_by_label = importances_by_label,
         xlabel = "Embedding dimension rank (by importance, descending)",
         ylabel = f"Cumulative importance fraction",
-        title = f"Cumulative importance curve ({VectorSource.EMBEDDED.name})",
+        title = "Cumulative built-in importance, embedded representation",
         filename = f"feature_importance_cumulative_{VectorSource.EMBEDDED.name}.png",
     )
+    return checks
+
+
+def main():
+    (train_ids, test_ids) = create_train_test_split()
+
+    # EMBEDDED pass: single load, classifier loop builds the cumulative-magnitude overlays
+    embedded_pass(train_ids, test_ids)
 
     # FEATURE pass: single load, classifier loop emits per-classifier bar charts
     source = VectorSource.FEATURE
@@ -431,5 +508,22 @@ def main():
         summary[model_name] = classifier_top_rows
     write_feature_importance_summary(summary)
 
+
+def redraw_embedded():
+    """Redraw Figures S1-S3 from the cached fitted models, refitting nothing.
+
+    Prints RELAY: lines carrying the numbers the supplement quotes from these figures, so
+    the report says whether the redraw drew the same fit: the logistic regression's
+    non-zero coefficients and each classifier's K80/K90.
+    """
+    (train_ids, test_ids) = create_train_test_split()
+    checks = embedded_pass(train_ids, test_ids, cache_only=True)
+    nonzero, total = checks["nonzero_coefficients"]
+    print(f"RELAY: S1 logistic regression non-zero coefficients {nonzero} of {total}", flush=True)
+    for model_name, (k80, k90) in checks["importance_knees"].items():
+        print(f"RELAY: S1 {model_name} K80 {k80} K90 {k90}", flush=True)
+
+
 if __name__=="__main__":
-    main()
+    import sys
+    redraw_embedded() if "--redraw-embedded" in sys.argv[1:] else main()
