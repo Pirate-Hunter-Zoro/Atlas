@@ -43,3 +43,4 @@
 {"id": "t0099", "rev": 1, "kind": "text", "answers": "0001", "t": 1791244504.727764, "iso": "2026-10-05 18:55:04", "from": "student", "text": "Wait, sigma is an automorphism, so of course it is bijective", "signal": null, "read": false}
 {"id": "t0098", "rev": 42, "kind": "ink", "answers": "0001", "t": 1791244847.6949859, "iso": "2026-10-05 19:00:47", "from": "student", "page": 2, "strokes": 323, "png": "/answers/t0098-r42.png", "ink": "/answers/t0098-r42.json", "read": false}
 {"id": "t0098", "rev": 43, "kind": "ink", "answers": "0001", "t": 1791245050.112041, "iso": "2026-10-05 19:04:10", "from": "student", "page": 3, "strokes": 448, "png": "/answers/t0098-r43.png", "ink": "/answers/t0098-r43.json", "read": false}
+{"id": "t0098", "rev": 44, "kind": "ink", "answers": "0001", "t": 1791245548.200908, "iso": "2026-10-05 19:12:28", "from": "student", "page": 4, "strokes": 257, "png": "/answers/t0098-r44.png", "ink": "/answers/t0098-r44.json", "read": false}
