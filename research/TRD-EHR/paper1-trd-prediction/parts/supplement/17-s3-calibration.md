@@ -29,7 +29,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 
 \* The random arm's WCE lies below its own bootstrap interval. Its predicted risks all sit within 0.002 of the outcome rate, so on the full test set the binned error is almost zero. Every resample moves the observed rate away from those fixed risks, so the resampled errors are larger. The interval therefore describes resampling noise around a near-zero error, not uncertainty about a positive one.
 
-Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
+Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These values are descriptive and are not individual-level logistic calibration parameters. See section S9 for the latter. The classifier rows fit a line through 10 equal-width bins, several of which hold few patients, so their intervals are wide. The retrieval rows use 10 bins of equal patient count, matching Figure S5. For random retrieval every predicted risk lies between 0.173 and 0.176, so its slope and intercept are not estimable.
 
 | **Representation** | **Model** | **Binned slope (95% CI)** | **Binned intercept (95% CI)** |
 | ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
@@ -41,9 +41,9 @@ Table S4. Slopes and intercepts fitted to the binned calibration curves, with bo
 | FEATURE | Random forest | 1.84 (1.41--2.23) | −0.15 (−0.22 to −0.08) |
 | FEATURE | Gradient boosting | 0.87 (0.28--1.48) | +0.04 (−0.11 to +0.19) |
 | FEATURE | XGBoost | 1.02 (0.53--1.52) | +0.02 (−0.09 to +0.13) |
-| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
-| Retrieval | Plain cosine, k = 757 | 2.66 (1.30--2.78) | −0.27 (−0.29 to −0.05) |
-| Retrieval | Random, uniform weights, k = 32,720 | not estimable | not estimable |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.13 (0.98--1.28) | −0.02 (−0.04 to +0.01) |
+| Retrieval | Plain cosine, k = 757 | 1.43 (1.23--1.63) | −0.07 (−0.10 to −0.03) |
+| Retrieval | Random, uniform weights, k = 32,720 | not estimable (predicted risk spans 0.173–0.176) | not estimable |
 
 A Embedded logistic regression
 
