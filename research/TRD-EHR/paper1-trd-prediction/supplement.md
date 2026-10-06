@@ -658,7 +658,7 @@ I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
 ![](../results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png){width=5.8in}
 
-Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
+Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold; the panels' F score is F1. These operating points were selected and evaluated in the same patients and are descriptive.
 
 # S7 Record Length and Prediction
 
@@ -1037,7 +1037,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png){width=5.8in}
 
-Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
+Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
 
 ## S12.2 Structured Feature Importance
 

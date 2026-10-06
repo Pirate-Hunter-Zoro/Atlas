@@ -70,6 +70,9 @@ local PT_PER_IN = 72.27
 -- Set when a rewrite needs a package, and read by `Meta`, which runs last.
 local wants_fvextra = false
 local wants_needspace = false
+-- Set once any figure may float; read by `Blocks` before a top-level heading.
+local wants_barrier = true
+local wants_placeins = false
 
 local ESCAPE = {
   ["\\"] = "\\textbackslash{}", ["{"] = "\\{", ["}"] = "\\}",
@@ -466,6 +469,13 @@ local function Blocks(blocks)
   while i <= #blocks do
     local block, nxt = blocks[i], blocks[i + 1]
     local image = false
+    -- A FIGURE STAYS IN ITS SECTION. A figure that floats is settled before
+    -- the next top-level heading, so the Discussion never opens between a
+    -- Results figure and its text.
+    if block.t == "Header" and block.level == 1 and wants_barrier then
+      out:insert(latex("\\FloatBarrier"))
+      wants_placeins = true
+    end
     if (is_panel_label(block) or (is_caption(block) and not after_image))
         and is_image(nxt) then
       local lines = lines_of(block)
@@ -474,6 +484,13 @@ local function Blocks(blocks)
       i = i + 2
       image = true
       if after > 0 then out:insert(latex("\\nopagebreak")) end
+    elseif block.t == "Header" and is_caption(nxt) and is_table(blocks, i + 2) then
+      wants_needspace = true
+      local tbl = blocks[i + 2].t == "Table" and blocks[i + 2] or blocks[i + 3]
+      out:insert(latex(string.format("\\Needspace{%d\\baselineskip}",
+                                     HEADING_LINES + lines_of(nxt) + lead_lines(tbl))))
+      out:insert(block)
+      i = i + 1
     elseif block.t == "Header" and is_table(blocks, i + 1) then
       wants_needspace = true
       local tbl = blocks[i + 1].t == "Table" and blocks[i + 1] or blocks[i + 2]
@@ -534,6 +551,7 @@ local function Meta(meta)
   local adds = {}
   if wants_fvextra then adds[#adds + 1] = "\\usepackage{fvextra}" end
   if wants_needspace then adds[#adds + 1] = "\\usepackage{needspace}" end
+  if wants_placeins then adds[#adds + 1] = "\\usepackage{placeins}" end
   if #adds == 0 then return nil end
   local have = meta["header-includes"]
   if have == nil then

@@ -31,7 +31,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png){width=5.8in}
 
-Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B). TRD refers to the treatment-switching proxy.
+Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
 
 ## S12.2 Structured Feature Importance
 
