@@ -1,10 +1,25 @@
 {
+  "ended": "2026-10-06T00:18:27",
+  "exit": "0:0",
+  "exported": [
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png"
+  ],
   "id": "2026-10-05-knn-across-embedders-neighbor-count-sweep-2",
   "jobid": "2120584",
   "kind": "recipe",
-  "started": 1791262506.8567433,
-  "state": "running",
+  "missing": [],
+  "note": "It completed, exit 0. 2 of 2 outputs present. 5 exported, 0 refused.",
+  "produced": [
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep",
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
+  "relay": [],
+  "state": "completed",
   "submitted": 1791258006.6984842,
   "thread": "knn-across-embedders",
-  "updated": 1791262506.857
+  "updated": 1791264006.968
 }
