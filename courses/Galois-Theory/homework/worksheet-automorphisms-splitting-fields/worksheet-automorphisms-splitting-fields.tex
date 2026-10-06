@@ -737,4 +737,49 @@ so these are exactly the $(q-1)$-th roots of unity.
 \end{proof}
 % ===== END SOLUTION 12(b) =====
 
+\begin{problem}{12(c)}
+  Show that the Frobenius map $\varphi \colon E \to E$, $\varphi(a) = a^p$, is
+  an automorphism of $E$ fixing $\mathbb{F}_p$, and that it has order exactly
+  $n$.
+\end{problem}
+
+% ===== SOLUTION 12(c) =====
+\begin{proof}
+Every $a^p$ lies in $E$ because $E$ is a field, so $\varphi$ is a map
+$E \to E$.
+
+\emph{Homomorphism.} For $a, b \in E$, $\varphi(ab) = (ab)^p = a^p b^p
+= \varphi(a)\varphi(b)$, and by the identity $(a+b)^p = a^p + b^p$ from 12(b),
+$\varphi(a+b) = \varphi(a) + \varphi(b)$. Also $\varphi(1) = 1$.
+
+\emph{Fixes $\mathbb{F}_p$.} By Fermat's little theorem, $c^p = c$ for every
+$c \in \mathbb{F}_p$, so $\varphi(c) = c$.
+
+\emph{Injective.} Suppose $\varphi(a) = \varphi(b)$. Then
+$(a-b)^p = a^p - b^p = 0$, using $(a+b)^p = a^p + b^p$ and $(-b)^p = -b^p$
+(for $p = 2$, $-1 = 1$). A field has no zero divisors, so $a - b = 0$ and
+$a = b$.
+
+\emph{Surjective.} $E$ is finite, of order $q$ by 12(b), and an injective map
+from a finite set to itself is a bijection.
+
+So $\varphi$ is an automorphism of $E$ fixing $\mathbb{F}_p$.
+
+\emph{$\varphi^n$ is the identity.} For $a \in E$,
+$\varphi^n(a) = a^{p^n} = a^q = a$, since $E = R$ by 12(b).
+
+\emph{$\varphi^m$ is not the identity for $1 \leq m < n$.} Suppose
+$\varphi^m(a) = a$ for every $a \in E$. Then every $a \in E$ is a root of
+\[
+  g(x) = x^{p^m} - x \in \mathbb{F}_p[x].
+\]
+Since $p^m \geq 2 > 1$, the coefficient of $x^{p^m}$ in $g$ is $1$, so $g$ is
+nonzero, of degree $p^m$. By the root bound (11(a)), $g$ has at most $p^m$
+roots in $E$. But every element of $E$ is a root, and $|E| = q = p^n > p^m$
+since $n > m$. This is a contradiction.
+
+Hence $\varphi$ has order exactly $n$.
+\end{proof}
+% ===== END SOLUTION 12(c) =====
+
 \end{document}
