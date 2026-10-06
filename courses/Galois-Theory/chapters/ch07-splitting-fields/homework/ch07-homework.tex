@@ -11,23 +11,113 @@
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
 
-\title{Chapter 07 Homework --- Splitting fields}
+\title{Chapter 07 Homework --- The Galois correspondence and cyclotomic fields (Problems 13--19)}
 \author{Mikey Ferguson}
 \date{\today}
 
 \begin{document}
 \maketitle
 
-% ---------------------------------------------------------------------------
-% Assistant: replace this block with one problem/solution pair per assigned
-% exercise, in the order assigned, following the pattern below exactly.
-% ---------------------------------------------------------------------------
+% Source: worksheet "The Galois Correspondence and Cyclotomic Fields, Problems 13--19"
+% (photos in assignment-sheet/). Standing assumptions of the sheet:
+\noindent\textbf{Standing assumptions.} From here on we assume the fundamental theorem: for a finite Galois extension $K/F$, the maps $H\mapsto K^H$ and $L\mapsto \operatorname{Gal}(K/L)$ are mutually inverse, inclusion-reversing bijections between the subgroups of $\operatorname{Gal}(K/F)$ and the intermediate fields of $K/F$, with $[K:K^H]=|H|$; and $L/F$ is Galois exactly when $\operatorname{Gal}(K/L)$ is normal in $\operatorname{Gal}(K/F)$, in which case $\operatorname{Gal}(L/F)\cong \operatorname{Gal}(K/F)/\operatorname{Gal}(K/L)$. As before, $\zeta_n=e^{2\pi i/n}$, and all fields are subfields of $\CC$ unless stated otherwise.
 
-\begin{problem}{07.1}
-  \todo{statement not yet transcribed}
+\begin{problem}{13}
+  \textit{The subfields of $\QQ(\zeta_p)$}\par
+  Let $p$ be an odd prime, $\zeta=\zeta_p$, $K=\QQ(\zeta)$ and $G=\operatorname{Gal}(K/\QQ)$.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that $G$ is cyclic of order $p-1$.
+    \item Show that for each divisor $d$ of $p-1$ there is exactly one intermediate field $K_d$ with $[K_d:\QQ]=d$, and that every such $K_d$ is Galois over $\QQ$ with cyclic Galois group.
+    \item Take $p=13$. Check that $2$ is a primitive root modulo $13$, and use it to list every subgroup of $(\ZZ/13\ZZ)^\times$ together with the degree over $\QQ$ of the corresponding fixed field.
+    \item Let $H\le G$ be the subgroup of index $d$, viewed inside $(\ZZ/p\ZZ)^\times$, and set $\eta_H=\sum_{a\in H}\zeta^a$ (a \emph{Gaussian period}). Show that $K_d=\QQ(\eta_H)$. \emph{Hint:} $\zeta,\zeta^2,\dots,\zeta^{p-1}$ is a $\QQ$-basis of $K$.
+  \end{enumerate}
 \end{problem}
-% ===== SOLUTION 07.1 =====
+% ===== SOLUTION 13 =====
 % TODO(mferguson): your work goes here.
-% ===== END SOLUTION 07.1 =====
+% ===== END SOLUTION 13 =====
+
+\begin{problem}{14}
+  \textit{The lattice for $\QQ(\zeta_7)$}\par
+  Let $\zeta=\zeta_7$ and $K=\QQ(\zeta)$.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that $3$ is a primitive root modulo $7$, and deduce that $\operatorname{Gal}(K/\QQ)=\langle\sigma\rangle$ where $\sigma(\zeta)=\zeta^3$.
+    \item Let $\alpha=\zeta+\zeta^2+\zeta^4$ and $\beta=\zeta^3+\zeta^5+\zeta^6$. Show that $\alpha+\beta=-1$ and $\alpha\beta=2$, and deduce that the unique quadratic subfield of $K$ is $\QQ(\sqrt{-7})$.
+    \item Let $\eta=\zeta+\zeta^{-1}=2\cos(2\pi/7)$. Show that the minimal polynomial of $\eta$ over $\QQ$ is $x^3+x^2-2x-1$, and that $\QQ(\eta)$ is the unique cubic subfield of $K$.
+    \item Draw the lattice of intermediate fields of $K/\QQ$, and beside it the lattice of subgroups of $\operatorname{Gal}(K/\QQ)$ drawn \emph{upside down} (trivial subgroup at the top). Label every edge with the degree or index it represents, and match each subgroup with its fixed field.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 14 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 14 =====
+
+\begin{problem}{15}
+  \textit{The real subfield of a cyclotomic field}\par
+  Let $n\ge3$, $\zeta=\zeta_n$, $K=\QQ(\zeta)$, and $K^+=\QQ(\zeta+\zeta^{-1})$.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that complex conjugation restricts to an automorphism $c$ of $K$ with $c(\zeta)=\zeta^{-1}$, and that $c$ has order $2$.
+    \item Show that $\zeta$ is a root of $x^2-(\zeta+\zeta^{-1})x+1\in K^+[x]$, and deduce that $K^+=K^{\langle c\rangle}=K\cap\RR$ and $[K:K^+]=2$.
+    \item Deduce that $[K^+:\QQ]=\varphi(n)/2$ and that $K^+=\QQ(\cos(2\pi/n))$.
+    \item Take $n=5$. Show that $K^+=\QQ(\sqrt5)$, and deduce the exact value $\cos(2\pi/5)=\tfrac14(\sqrt5-1)$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 15 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 15 =====
+
+\begin{problem}{16}
+  \textit{Being Galois is not transitive}\par
+  Let $\alpha=\sqrt[4]{2}\in\RR$.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that $[\QQ(\alpha):\QQ]=4$ and that $\QQ(\sqrt2)$ is an intermediate field.
+    \item Show that $\QQ(\sqrt2)/\QQ$ and $\QQ(\alpha)/\QQ(\sqrt2)$ are both Galois.
+    \item Show that $\QQ(\alpha)/\QQ$ is \emph{not} Galois, in two ways: by computing $\Aut(\QQ(\alpha)/\QQ)$, and by exhibiting an irreducible polynomial over $\QQ$ with a root in $\QQ(\alpha)$ that does not split there.
+    \item Find the smallest extension of $\QQ(\alpha)$ that is Galois over $\QQ$, and compute its degree.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 16 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 16 =====
+
+\begin{problem}{17}
+  \textit{The Galois group of $x^4-2$}\par
+  Let $\alpha=\sqrt[4]{2}$ and $E=\QQ(\alpha,i)$, so $[E:\QQ]=8$ by Problem 16.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that there is a $\sigma\in\operatorname{Gal}(E/\QQ)$ with $\sigma(\alpha)=i\alpha$ and $\sigma(i)=i$, and let $\tau$ be complex conjugation. Show that $\sigma$ has order $4$, that $\tau$ has order $2$, and that $\tau\sigma\tau^{-1}=\sigma^{-1}$. Conclude $\operatorname{Gal}(E/\QQ)\cong D_4$, the symmetries of a square.
+    \item The three subgroups of order $4$ are $\langle\sigma\rangle$, $\langle\sigma^2,\tau\rangle$ and $\langle\sigma^2,\sigma\tau\rangle$. Show their fixed fields are $\QQ(i)$, $\QQ(\sqrt2)$ and $\QQ(\sqrt{-2})$ respectively.
+    \item The five subgroups of order $2$ are $\langle\sigma^2\rangle$, $\langle\tau\rangle$, $\langle\sigma^2\tau\rangle$, $\langle\sigma\tau\rangle$ and $\langle\sigma^3\tau\rangle$. Show that their fixed fields are $\QQ(i,\sqrt2)$, $\QQ(\alpha)$, $\QQ(i\alpha)$, $\QQ((1+i)\alpha)$ and $\QQ((1-i)\alpha)$ respectively. \emph{Hint:} it is enough to check that each listed field is fixed by the subgroup and has degree $4$ over $\QQ$; for the last two, look at the images under $\langle\sigma\rangle$.
+    \item Draw the lattice of all ten intermediate fields of $E/\QQ$. Which of them are Galois over $\QQ$? Reconcile your answer with Problem 16.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 17 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 17 =====
+
+\begin{problem}{18}
+  \textit{Gauss sums and the quadratic subfield of $\QQ(\zeta_p)$}\par
+  Let $p$ be an odd prime, $\zeta=\zeta_p$, and write $\left(\frac ap\right)$ for the Legendre symbol ($+1$ if $a$ is a nonzero square mod $p$, $-1$ if not). Define the Gauss sum \[ g=\sum_{k=1}^{p-1}\left(\frac kp\right)\zeta^k. \]
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that $\QQ(\zeta_p)$ has exactly one quadratic subfield.
+    \item Show that $\sigma_a(g)=\left(\frac ap\right)g$ for every $a\in(\ZZ/p\ZZ)^\times$, where $\sigma_a(\zeta)=\zeta^a$.
+    \item Show that $g^2=\left(\frac{-1}{p}\right)p=(-1)^{(p-1)/2}p$. \emph{Hint:} write $l=km$ in the double sum and sum over $k$ first.
+    \item Conclude that the quadratic subfield of $\QQ(\zeta_p)$ is $\QQ(\sqrt{p^*})$ with $p^*=(-1)^{(p-1)/2}p$. Check this against Problem 14 for $p=7$, and compute it for $p=5$ and $p=13$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 18 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 18 =====
+
+\begin{problem}{19}
+  \textit{$\bigstar$ Every quadratic field is cyclotomic}\par
+  Every quadratic field is $\QQ(\sqrt m)$ for a unique squarefree integer $m\ne0,1$; fix such an $m$.
+  \begin{enumerate}[label=(\alph*)]
+    \item Show that $\QQ(\zeta_a)\subseteq\QQ(\zeta_b)$ whenever $a\mid b$.
+    \item Show that $\QQ(i)$, $\QQ(\sqrt2)$ and $\QQ(\sqrt{-2})$ all lie inside $\QQ(\zeta_8)$.
+    \item Show that $\QQ(\sqrt m)\subseteq\QQ(\zeta_N)$ for $N=4|m|$.
+    \item For $m=3$, follow your proof of (c) to write $\sqrt3$ as a polynomial in $\zeta_{12}$, and check that the result agrees with $2\cos(\pi/6)=\zeta_{12}+\zeta_{12}^{-1}$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 19 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 19 =====
 
 \end{document}
