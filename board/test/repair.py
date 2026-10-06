@@ -482,8 +482,18 @@ finally:
     shutil.rmtree(box, ignore_errors=True)
 
 # --- the real failure: TRD-EHR's 2110916 -------------------------------------------
-trd = os.path.join(REPO, "research", "TRD-EHR")
+# Frozen as it was when it failed: the real workspace's own files, with only that
+# request and its report under relay/, so the requests filed since (its repair
+# among them) do not move what this checks.
 rid = "2026-10-02-knn-across-embedders-neighbor-count-sweep"
+live_trd = os.path.join(REPO, "research", "TRD-EHR")
+frozen = tempfile.mkdtemp(prefix="repair-2110916-")
+trd = os.path.join(frozen, "TRD-EHR")
+for _rel in ("threads.json", "tutorboard.json", "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+             "slurm_jobs/quick_runs/diagnose.sbatch", "relay/requests/%s.json" % rid,
+             "relay/reports/%s.json" % rid):
+    os.makedirs(os.path.dirname(os.path.join(trd, _rel)), exist_ok=True)
+    shutil.copy(os.path.join(live_trd, _rel), os.path.join(trd, _rel))
 real = dict((r["request"], r) for r in jobs.relayed(trd)).get(rid)
 check("2110916 is request %s, failed, in TRD-EHR" % rid,
       real is not None and real.get("slurm") == "2110916"
@@ -520,6 +530,8 @@ if real:
     check("and its diagnostic would pass the check, once the recipe is "
           "committed", not [p for p in problems
                             if "not tracked and unchanged" not in p])
+
+shutil.rmtree(frozen, ignore_errors=True)
 
 print()
 if fails:
