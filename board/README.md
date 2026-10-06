@@ -2292,12 +2292,13 @@ git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~
 bash ~/Atlas/board/bootstrap.sh
 ```
 
-It installs `tutor` and `board`, fills in the vendored submodules under `vendor/`, names this
-machine on the tailnet, and prints what is left to do. No `sudo`, nothing system-wide.
+It installs `tutor` and `board`, fills in the vendored submodules under `vendor/`, clones each
+private repository listed under `"private"` in `atlas.json` (`ai-config/` and every course) into
+place, names this machine on the tailnet, and prints what is left to do. No `sudo`, nothing
+system-wide.
 
-There is no list of repositories to keep anywhere. There is one repository, the courses arrive
-inside it, and a workspace is any second-level directory holding `tutorboard.json`,
-`AI_INSTRUCTIONS.md` or `live/` — discovered, never registered.
+The `"private"` list says only what to clone. A workspace is any second-level directory holding
+`tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` — discovered, never registered.
 
 ### One identity, whichever node you were given
 
@@ -3448,10 +3449,10 @@ repository cloned into the shared home offers every subject; a laptop with four 
 offers four.
 
 There is no list to edit and nothing that can disagree with reality, and nothing to pick between:
-the hub offers this machine's courses because this machine is the one serving the address. There is no subset to clone: a machine gets the
-whole repository in one `git clone --recurse-submodules`, and `bootstrap.sh` clones nothing but
-the vendored submodules. Offering less means pointing `courses_dir` at a directory holding fewer
-courses.
+the hub offers this machine's courses because this machine is the one serving the address. A
+machine gets Atlas in one `git clone --recurse-submodules`, and `bootstrap.sh` clones every course
+repository listed under `"private"` in `atlas.json`. Offering less means pointing `courses_dir` at a
+directory holding fewer courses.
 
 **A course that is not running is still offered**, because opening it is what starts it. What the
 hub must never do is claim one is running when it is not. A board that dies with its allocation
@@ -5202,10 +5203,20 @@ goes quiet for twenty seconds is a button somebody presses twice.
 
 ## Setting up a course repository
 
-The minimum is one marker: make the directory inside a family — `mkdir courses/Real-Analysis` —
-and put an `AI_INSTRUCTIONS.md` or a `tutorboard.json` in it. A directory with neither is not a
-course, and `board start` inside it walks up to the Atlas root and serves that instead. Everything
-else below is optional, and each item buys something specific.
+A course is its own private repository inside Atlas, because it tracks other people's books and
+slides and Atlas is public. Atlas ignores `/courses/*/`, so a directory made there and left alone
+is tracked by nothing. The minimum:
+
+1. **The repository.** `mkdir courses/Real-Analysis`, `git init -b main` inside it, a private
+   remote (`gh repo create Pirate-Hunter-Zoro/Real-Analysis --private`), and a first push with
+   upstream set.
+2. **`.githooks/commit-msg`**, copied from Atlas's, so commits carry no assistant trailers. The
+   first `save-and-push.sh` in the course sets `core.hooksPath`.
+3. **An entry under `"private"` in `atlas.json`**, so `bootstrap.sh` clones it on a new machine.
+4. **A marker**: an `AI_INSTRUCTIONS.md` or a `tutorboard.json`. A directory with neither is not a
+   course, and `board start` inside it walks up to the Atlas root and serves that instead.
+
+Everything else below is optional, and each item buys something specific.
 
 1. **`tutorboard.json`** — declare the name rather than having the directory's used.
    One command: `board init "Real Analysis"`. There is nothing else to declare unless the
@@ -5231,41 +5242,21 @@ else below is optional, and each item buys something specific.
    display; this is the contract. It is also what marks a directory as a course if you have no
    `tutorboard.json` yet.
 
-5. **A `.gitignore` that keeps runtime state local and tracks the transcript** — the lesson
-   transcript (`live/cards/`, `live/turns.jsonl`, `live/state.json`, `live/slate/`,
-   `live/answers/`, `live/archive/`, `live/inbox/`) is versioned, so a lecture — the cards, the
-   student's turns, their handwriting, the files they uploaded and the archive — is the same
-   whichever machine picks it up. What stays ignored is the per-machine runtime: `.board.json`,
-   `agent.json`, `board.log`, the compiled figure cache and exports. The exact block is the one
-   this repository's courses carry:
-
-   ```
-   live/*
-   !live/cards/
-   !live/slate/
-   !live/answers/
-   !live/archive/
-   !live/inbox/
-   !live/text/
-   !live/state.json
-   !live/turns.jsonl
-   ```
-
-   `!live/text/` is there because the per-question typed drafts are transcript too.
-
-6. **Somewhere for finished work** — a `handwritten/` folder, a `notes/` directory, whatever fits.
+5. **Somewhere for finished work** — a `handwritten/` folder, a `notes/` directory, whatever fits.
    The board hands the assistant a path to each slate page; where it should be filed afterwards is
    the repository's business, and `AI_INSTRUCTIONS.md` is where you say so.
 
-**Nothing about pushing.** `board/scripts/save-and-push.sh` is the only copy and it takes its
-repository from the working directory, so a new workspace needs no push script of its own — `⤓
-save` and `board push` both reach the same one.
+**The `.gitignore` is not optional, and it is the whole ignore set.** A course reads none of
+Atlas's root `.gitignore`, so copy an existing course's: the build, LaTeX and credential rules,
+and the `live/*` allowlist that versions the lesson transcript (`live/cards/`, `live/slate/`,
+`live/answers/`, `live/archive/`, `live/inbox/`, `live/text/`, `live/state.json`,
+`live/turns.jsonl`, `live/jobs.jsonl`) and keeps the per-machine runtime local. The textbook, its
+excerpts, the slides, the sheets and compiled `build/` PDFs are tracked, because the repository
+is private.
 
-**And nothing about other people's slides.** `/courses/**/lectures/*` and
-`/courses/**/assignment/*` in the root `.gitignore` reach a course the moment it exists, and
-`test/tracked.py` refuses either from the index for every course rather than the one they were
-found in. So the professor's decks and the assignment sheets go on disk, a `.gitkeep` holds each
-directory open, and there is no per-course rule to write.
+**Nothing about pushing.** `board/scripts/save-and-push.sh` is the only copy and it takes its
+repository from the working directory, so a course needs no push script of its own — `⤓ save`
+and `board push` both commit and push the course's own repository.
 
 ### Shipping a change
 

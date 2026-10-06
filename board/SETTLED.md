@@ -592,18 +592,14 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   config and refused as a JSON spelling in prose, because the same dead setting
   lands in the file and in the sentence about the file.
 
-- **OTHER PEOPLE'S SLIDES AND SHEETS ARE ON DISK AND OUT OF GIT, IN EVERY
-  COURSE.** Four lines in the root `.gitignore` do it: `/courses/**/lectures/*`
-  and `/courses/**/assignment/*`, each with a `.gitkeep` negation under it. The
-  leading slash anchors the pattern at the repository root and `**` reaches a
-  course at whatever depth it keeps a unit, so a second course gets the rule
-  without writing it again. **`*` excludes the FILES, not the directory**, which
-  is what lets git keep descending and lets the `.gitkeep` come back — a clone
-  arrives with the directories held open and nothing in them, and the owner
-  drops the slides back on disk. `test/tracked.py` refuses the same set from the
-  index, scoped to `courses/` and exempting `.gitkeep`, with **no extension
-  filter** so the two guards refuse the identical set and a `.docx` sheet cannot
-  fall between them. `textbook/` is held open by a `.gitkeep` too.
+- **EACH COURSE IS ITS OWN PRIVATE REPOSITORY, AND IT TRACKS ITS TEXT, SLIDES
+  AND SHEETS.** Atlas is public and ignores `/courses/*/`, so it carries nothing
+  of a course. The course repository is private, so the textbook, its excerpts,
+  the professor's slides, the assignment sheets and compiled `build/` PDFs are
+  tracked there and a clone arrives with all of them. Its own `.gitignore` is
+  its whole ignore set, because a nested repository reads none of Atlas's: it
+  repeats the build, LaTeX and credential rules beside the `live/*` allowlist.
+  `bootstrap.sh` clones each course listed under `"private"` in `atlas.json`.
 
 - **ONE `save-and-push.sh`, AND IT IS THE TOOL'S.** `board/scripts/save-and-push.sh`
   is the only copy in the tree and a workspace has none of its own. Both doors run

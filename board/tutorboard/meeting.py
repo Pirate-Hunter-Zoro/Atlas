@@ -250,6 +250,32 @@ def _git(base, args, timeout=30):
     return p.stdout.decode("utf-8", "replace")
 
 
+def repo_of(root, base):
+    """`(top, rel)`: the repository a workspace's history is in, and where the
+    workspace sits inside it -- `.` when the workspace IS the repository.
+
+    ASKED OF THE WORKSPACE, NOT OF ATLAS. A course is its own repository, and
+    Atlas ignores it: `git log -- courses/X` at Atlas's root answers with the
+    commits from before the course left, then nothing. So every read of a
+    workspace's history runs in the top git names from inside the workspace,
+    with a pathspec relative to that top. A workspace with no repository of
+    its own around it falls back to `base`, which is what it shares.
+
+    Both ends by their real names: the board can be reached through a symlink,
+    and git answers with the resolved path."""
+    real = os.path.realpath(root)
+    top = _git(real, ["rev-parse", "--show-toplevel"], timeout=10).strip()
+    top = os.path.realpath(top) if top else os.path.realpath(base)
+    return top, os.path.relpath(real, top)
+
+
+def prefix_of(rel):
+    """What a repository path starts with when it is inside `rel`: `""` for a
+    workspace that is the whole repository, else `rel/`."""
+    rel = (rel or ".").strip("/")
+    return "" if rel in ("", ".") else rel + "/"
+
+
 def _clip(text, limit):
     """Cut at a word, and say that it was cut."""
     text = str(text or "").strip()
@@ -279,12 +305,15 @@ def landed(base, rel, since_ts, until_ts=None):
 
 
 def closed(base, rel, root, since_ts, until_ts=None):
-    """Plan steps deleted in the period, read out of the plan's own diff."""
+    """Plan steps deleted in the period, read out of the plan's own diff.
+    `base` is the repository the workspace at `root` is in (`repo_of`)."""
     try:
         targets = plan.paths(root)
     except Exception:                                        # noqa: BLE001
         targets = []
-    rels = [os.path.relpath(t, base) for t in targets if paths.within(t, base)]
+    top = os.path.realpath(base)
+    rels = [os.path.relpath(os.path.realpath(t), top) for t in targets
+            if paths.within(os.path.realpath(t), top)]
     if not rels:
         return []
     raw = _git(base, ["log", "--since=@%d" % int(since_ts)] + _until(until_ts)
@@ -370,7 +399,7 @@ def classify(commit, ws_id, rel, ids):
         return "other"
     if is_save(commit["subject"], ids):
         return "save"
-    prefix = rel.rstrip("/") + "/"
+    prefix = prefix_of(rel)
     inside = [f for f in commit["files"] if f.startswith(prefix)]
     outside = [f for f in commit["files"] if not f.startswith(prefix)]
     story = set(prefix + s for s in STORY)
@@ -384,7 +413,7 @@ def _body(base, sha):
 
 
 def _story_rels(rel):
-    return [rel.rstrip("/") + "/" + s for s in STORY]
+    return [prefix_of(rel) + s for s in STORY]
 
 
 def _commit_story(base, sha, rel):
@@ -399,7 +428,9 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 def story_diff(base, rel, since_ts, until_ts=None):
     """`{name: diff}`: how HANDOFF.md and DIRECTION.md changed over the period.
     Against the working tree when the period is open, because the meeting is
-    now; a file nothing tracks yet is carried whole."""
+    now; a file nothing tracks yet is carried whole. `base` is the
+    workspace's own repository (`repo_of`), so the period's ends are commits of
+    that repository's history."""
     start = _git(base, ["rev-list", "-1", "--before=@%d" % int(since_ts),
                         "HEAD"]).strip() or EMPTY_TREE
     end = []
@@ -533,29 +564,33 @@ def _name_of(ws):
 def gather(base, ws, since_ts, until_ts=None, ids=None, rows=None):
     """Everything the period holds for one workspace, or None where nothing
     moved. `rows` is `sittings._shown`'s, passed in so a deck of five
-    workspaces walks the archives once."""
+    workspaces walks the archives once.
+
+    `base` is Atlas, and is what the brief names paths against; the history is
+    read in the workspace's own repository (`repo_of`), which for a course is
+    the course."""
     root = ws["root"]
-    rel = os.path.relpath(root, base)
+    top, rel = repo_of(root, base)
     if ids is None:
         ids = set(w["id"] for w in atlas.workspaces(base))
     work, saves = [], []
-    for c in _log(base, rel, since_ts, until_ts):
+    for c in _log(top, rel, since_ts, until_ts):
         kind = classify(c, ws["id"], rel, ids)
         if kind == "work":
             if len(work) < MOST_COMMITS:
-                c["body"] = _body(base, c["full"])
+                c["body"] = _body(top, c["full"])
                 # A FINDING WRITTEN INTO THE HANDOFF. `the KNN gap is
                 # neighbourhood size, not the metric` is a subject whose whole
                 # argument is the HANDOFF.md diff it carries.
                 story = set(_story_rels(rel))
-                c["diff"] = (_commit_story(base, c["full"], rel)
+                c["diff"] = (_commit_story(top, c["full"], rel)
                              if story & set(c["files"]) else "")
                 work.append(c)
             continue
         if len(saves) >= MOST_SAVES:
             continue
-        diff = _commit_story(base, c["full"], rel)
-        prefix = rel.rstrip("/") + "/"
+        diff = _commit_story(top, c["full"], rel)
+        prefix = prefix_of(rel)
         also = [f[len(prefix):] for f in c["files"] if f.startswith(prefix)
                 and f[len(prefix):] not in STORY]
         if not diff.strip() and not (kind == "save" and also):
@@ -564,7 +599,7 @@ def gather(base, ws, since_ts, until_ts=None, ids=None, rows=None):
                       "owner": owner_of(c["subject"], ids), "kind": kind,
                       "diff": diff, "also": also[:20] if kind == "save" else []})
 
-    story = story_diff(base, rel, since_ts, until_ts)
+    story = story_diff(top, rel, since_ts, until_ts)
 
     held = []
     if rows is not None:
@@ -579,12 +614,15 @@ def gather(base, ws, since_ts, until_ts=None, ids=None, rows=None):
         targets = plan.paths(root)
     except Exception:                                        # noqa: BLE001
         targets = []
-    plan_rels = []
+    # Two names for each plan: against Atlas for the brief, which names files
+    # the way the writer opens them, and against the top for git.
+    plan_rels, plan_git = [], []
     for t in targets:
         try:
             with open(t, "r", encoding="utf-8", errors="replace") as fh:
                 steps_now += open_steps(fh.read())
             plan_rels.append(os.path.relpath(t, base))
+            plan_git.append(os.path.relpath(os.path.realpath(t), top))
         except OSError:
             continue
     left = [_stems(s["title"] + " " + s["detail"]) for s in steps_now]
@@ -592,11 +630,11 @@ def gather(base, ws, since_ts, until_ts=None, ids=None, rows=None):
         head = _stems(_head_of(t)[0])
         return any(_same(_stems(t), k) or (head and head <= k) for k in left)
 
-    gone = [t for t in closed(base, rel, root, since_ts, until_ts)
+    gone = [t for t in closed(top, rel, root, since_ts, until_ts)
             if not still_open(t)]
     # A PLAN REWRITTEN IS NOT A PLAN DONE: most of it going at once is a change
     # of direction, and the brief says so rather than calling it finished.
-    was = _steps_at(base, plan_rels, since_ts)
+    was = _steps_at(top, plan_git, since_ts)
     dropped = []
     if len(gone) > 2 and 2 * len(gone) > max(was, len(gone)):
         dropped, gone = gone, []

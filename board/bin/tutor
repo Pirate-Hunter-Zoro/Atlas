@@ -433,11 +433,11 @@ DEFAULT_CONFIG = {
             # a card is how every turn reports. `research/PSYCH-ASR/.gitignore`
             # excludes `live/*` with `live/map.json` the single exception, so a
             # card there is never tracked; `courses/Galois-Theory/live/cards/` is
-            # in the pushed history. Same feature, two workspaces, and in one of
-            # them it pushes the local model's output to a remote where nothing
-            # can audit what it quoted. So the rule is about the ASSISTANT and is
-            # the same everywhere: refuse where the card would be tracked, and
-            # name the one line that changes it.
+            # tracked in the course's own repository. Same feature, two
+            # workspaces, and in one of them it pushes the local model's output
+            # to a remote where nothing can audit what it quoted. So the rule is
+            # about the ASSISTANT and is the same everywhere: refuse where the
+            # card would be tracked, and name the one line that changes it.
             "private": "it is the only assistant allowed to read `phi`, so its "
                        "cards must not reach a remote",
         },
@@ -2419,7 +2419,9 @@ HEADLESS_SHIP_PROMPT = (
     "`git diff` over what it names. You are looking at work another assistant "
     "did, so read it rather than trusting it.\n"
     "2. Judge whether it is the mission's work and whether it is safe to make "
-    "public. This repository is pushed to a remote anybody can read. The one "
+    "public. This repository may be pushed to a remote anybody can read: "
+    "Atlas is public, and a course's own repository is private but is held to "
+    "the same rule. The one "
     "thing that must never go is session content -- a transcript line, a "
     "quoted span, an example taken from real audio -- wherever it has been "
     "pasted, including a test fixture or a docstring. If you find any, STOP: "
@@ -2575,11 +2577,11 @@ HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
 
 def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
               pull=None):
-    """Pull the repository when due, then hear every workspace's reports.
+    """Pull every repository when due, then hear every workspace's reports.
 
     `(pulled, interval, heard)`: `pulled` is None where nothing was pulled
-    because the relay owns pulls here (Slurm), False where it was not due or
-    failed. Never raises.
+    because the relay owns pulls here (Slurm), True where any repository
+    pulled, False where it was not due or every pull failed. Never raises.
     """
     if jobs.has_slurm():
         return None, 0, []
@@ -2605,10 +2607,26 @@ def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
         last = 0
     pulled = False
     if force or jobs.pull_due(last, now, interval):
-        try:
-            pulled = (pull or sync)(base, quiet=quiet)
-        except Exception:                                    # noqa: BLE001
-            pulled = False
+        # ONE PULL PER REPOSITORY, NOT PER WORKSPACE. A course is its own
+        # private repository nested inside Atlas, and the cluster pushes that
+        # course's reports to the course's remote, so pulling Atlas alone
+        # leaves them unheard. research/, projects/ and practice/ share
+        # Atlas's `.git`, and the git directory is what dedupes them: Atlas
+        # once, each course once, Atlas first.
+        repos = {}
+        for where in [base] + roots:
+            try:
+                key = worktree.git_dir(where)
+            except Exception:                                # noqa: BLE001
+                key = None
+            if key and key not in repos:
+                repos[key] = where
+        for where in repos.values():
+            try:
+                if (pull or sync)(where, quiet=quiet) is True:
+                    pulled = True
+            except Exception:                                # noqa: BLE001
+                pass
         try:
             os.makedirs(os.path.dirname(stamp), exist_ok=True)
             with open(stamp, "w", encoding="utf-8") as fh:
@@ -3307,7 +3325,7 @@ def keep_transcript_files(root, git, note):
     # twice -- so a deletion paired with an addition of the same bytes is
     # reported as a RENAME, and a rename is not a deletion. The very files this
     # is here to protect are the ones most likely to hide behind it.
-    p = git("diff", "--cached", "--no-renames", "--name-only",
+    p = git("diff", "--cached", "--no-renames", "--name-only", "--relative",
             "--diff-filter=D", "--", *paths)
     if p.returncode != 0:
         return []
@@ -3351,8 +3369,8 @@ def keep_pulled_files(root, git, note, before):
     if not after or after == before:
         return []
     paths = list(TRANSCRIPT_DIRS) + list(TRANSCRIPT_FILES)
-    p = git("diff", "--no-renames", "--name-only", "--diff-filter=D",
-            before, after, "--", *paths)      # see above on --no-renames
+    p = git("diff", "--no-renames", "--name-only", "--relative",
+            "--diff-filter=D", before, after, "--", *paths)  # --no-renames: above
     if p.returncode != 0:
         return []
     gone = [l.strip() for l in p.stdout.decode("utf-8", "replace").splitlines()

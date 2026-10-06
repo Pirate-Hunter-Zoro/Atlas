@@ -212,9 +212,10 @@ def changes_since(root, since):
 
     `{"commits": [...], "files": [...], "dirty": n, "withheld": n}`.
 
-    SCOPED BY PATHSPEC, not filtered afterwards, because nine workspaces share
-    one repository and a pathspec is the only thing that makes the answer about
-    this one. `lesson/git.py` draws the same distinction for the same reason.
+    SCOPED BY PATHSPEC, not filtered afterwards, because a workspace may share
+    its repository with others (research, projects and practice share Atlas's)
+    or be its own (a course), and a pathspec makes the answer about this one
+    either way. `lesson/git.py` draws the same distinction for the same reason.
 
     `live/` is dropped: it is the board's own scratch, and reporting the cards
     the turn just wrote as *files it changed* counts the same work twice.
@@ -245,7 +246,7 @@ def changes_since(root, since):
     out["commits"] = out["commits"][:COMMITS_KEEP]
 
     # `git status --porcelain` prints paths relative to the GIT ROOT, so in a
-    # repository holding nine workspaces every name arrives with the
+    # repository holding several workspaces every name arrives with the
     # workspace's own directory on the front of it.
     #
     # BOTH ENDS RESOLVED BEFORE THEY ARE SUBTRACTED. This home directory is

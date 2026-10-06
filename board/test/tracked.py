@@ -30,9 +30,11 @@ import sys
 
 # The whole REPOSITORY, not the tool. This test lives in the board's own
 # test directory because that is where `test/all.sh` runs from, but what it
-# guards is every file in Atlas -- the courses, the research, the vendor
-# pointers. Asked of git rather than derived by counting `..`, so it is still
-# right if the board is ever vendored somewhere deeper.
+# guards is every file in Atlas -- the research, the projects, the vendor
+# pointers. A course is not in that list: each one is its own private
+# repository, and what is checked of it here is that Atlas cannot see it.
+# Asked of git rather than derived by counting `..`, so it is still right if
+# the board is ever vendored somewhere deeper.
 def repo_root():
     tool = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=tool,
@@ -86,12 +88,12 @@ def other_peoples_work(rel):
             return "an excerpt cut out of a set textbook"
     # A course's own instructor documents, which are the same thing one step
     # along: the professor's module slides and the assignment sheet as
-    # distributed. EVERY course, not the one this was found in -- a new course
-    # that commits its professor's deck goes red on the first run. The
-    # `.gitkeep` holding an empty directory open is the one file in there this
-    # repository wrote, so it is the one exemption. No extension filter on
-    # purpose: this and `/courses/**/lectures/*` in the root `.gitignore` then
-    # refuse the identical set, and a .docx sheet cannot fall between them.
+    # distributed. The course repositories track these privately; THIS one may
+    # never carry them, and the `courses/` guard below already refuses every
+    # path under `courses/`. This is the second guard behind it, so a deck
+    # forced into Atlas is named for what it is. The `.gitkeep` holding an
+    # empty directory open is the one exemption, and there is no extension
+    # filter, so a .docx sheet is refused the same as a PDF deck.
     if parts[0] == "courses" and parts[-1] != ".gitkeep":
         if "lectures" in parts:
             return "a professor's lecture slide deck"
@@ -186,6 +188,19 @@ for rel in files:
              "of it. Something has removed `/ai-config/` from the root "
              ".gitignore; put it back." % rel)
 
+    # ---- no course --------------------------------------------------------
+    # The same arrangement as `ai-config/`, one family over. Each course under
+    # `courses/` is its own PRIVATE repository, and it deliberately tracks what
+    # this one may not: the set textbook, its chapter excerpts, the
+    # professor's decks and sheets, the live transcript. The `/courses/*/`
+    # line in the root `.gitignore` is the only thing keeping all of that out
+    # of a public push, and a `git add -f` walks straight past it.
+    if low.startswith("courses/"):
+        fail("%s is inside a course. Each course is its own private "
+             "repository, tracked by its OWN git, and this public one carries "
+             "none of it; /courses/*/ belongs in the root .gitignore. Put the "
+             "rule back and `git rm --cached` the path." % rel)
+
     if base == ".env":
         fail("%s is a .env. TRD-EHR's enumerated the on-disk locations of "
              "identifiable patient data, which is exactly what a public "
@@ -218,9 +233,10 @@ for rel in files:
     # file that reads every tracked path. Both doors onto a commit -- the ⤓
     # save button through `lesson/git.py` and `board push` through `cmd_push`
     # -- resolve the script under the tool, so a second copy beside a sitting
-    # is not a fallback, it is a file nothing runs and everybody reads. One
-    # repository holds every workspace and the script takes its repository
-    # from the working directory, so a workspace needs none of its own.
+    # is not a fallback, it is a file nothing runs and everybody reads. The
+    # script takes its repository from the working directory -- Atlas for
+    # research, projects and practice, the course's own for a course -- so
+    # no workspace needs a copy of its own.
     if base == "save-and-push.sh" and low != "board/scripts/save-and-push.sh":
         fail("%s is a second copy of save-and-push.sh. There is one, "
              "`board/scripts/save-and-push.sh`, and both `lesson/git.py` and "
@@ -230,19 +246,16 @@ for rel in files:
              "copy." % rel)
 
 
-# ---- the two directories that live inside the tree and must stay invisible -
+# ---- the directories that live inside the tree and must stay invisible -----
 #
-# THESE USED TO BE FORBIDDEN HERE and they are not any more. Until 14 September
-# 2026 this block failed if either directory existed at all, on the reasoning
-# that an ignore rule is a guard somebody deletes by accident. The owner
-# decided the other way -- a project's data belongs with the project -- so the
-# rule changed shape rather than being dropped: they may be here, and git must
-# not be able to see one byte of either.
+# A project's data belongs with the project, and a course's repository belongs
+# where the course is, so these may be on disk here -- and git must not be
+# able to see one byte of any of them.
 #
-# Which turns a guard that was an assertion about the filesystem into one that
-# asks GIT ITSELF the question. `git status --porcelain --untracked-files=all`
-# over the directory is the whole test: it lists every file git would offer to
-# add, ignored ones excluded, so an empty answer is git saying it is blind to
+# The guard asks GIT ITSELF the question.
+# `git status --porcelain --untracked-files=all` over the directory is the
+# whole test: it lists every file git would offer to add, ignored ones
+# excluded, so an empty answer is git saying it is blind to
 # the tree. That is stronger than reading `.gitignore` and believing it -- the
 # pattern that once swallowed `psych_asr/artifacts/` was in the file and read
 # perfectly well, and only asking git would have caught it.
@@ -251,9 +264,26 @@ for rel in files:
 # rather than after, which for 308 MB of identifiable therapy audio in a public
 # repository is the difference that matters. A thing that is public for an hour
 # has been published.
-for held, what in (
-        ("research/PSYCH-ASR/phi", "308 MB of identifiable therapy session audio"),
-        ("research/TRD-EHR/results", "1.5 GB of regenerable job output")):
+# Every course on disk joins the list. A course must also carry its own
+# `.git`: without one it is an orphan tree whose only protection is the ignore
+# rule, and nothing commits or pushes its work anywhere.
+_HELD = [
+    ("research/PSYCH-ASR/phi", "308 MB of identifiable therapy session audio"),
+    ("research/TRD-EHR/results", "1.5 GB of regenerable job output")]
+_COURSES = os.path.join(HERE, "courses")
+for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
+    if _c.startswith(".") or not os.path.isdir(os.path.join(_COURSES, _c)):
+        continue
+    checked += 1
+    if not os.path.exists(os.path.join(_COURSES, _c, ".git")):
+        fail("courses/%s has no .git of its own. Each course is its own "
+             "private repository; without one this tree is hidden only by "
+             "the /courses/*/ ignore rule and its work is never pushed "
+             "anywhere. Clone the course's repository here." % _c)
+    _HELD.append(("courses/" + _c, "a private course repository -- the "
+                  "textbook, the professor's decks and the transcript"))
+
+for held, what in _HELD:
     checked += 1
     path = os.path.join(HERE, held)
     if os.path.islink(path):
@@ -311,15 +341,51 @@ for _ws in sorted(os.listdir(HERE)) if HERE else []:
             continue
         _rel = os.path.join(_ws, _name, _TRAIL)
         checked += 1
-        if subprocess.run(["git", "check-ignore", "-q", _rel], cwd=HERE,
+        # A workspace with its own `.git` is asked in its own repository.
+        # Asked from Atlas, `/courses/*/` ignores the whole course and the
+        # answer is yes for every path, which tests nothing; the course's own
+        # `live/*` rule is the one that decides whether its repository tracks
+        # the trail.
+        if os.path.exists(os.path.join(_root, ".git")):
+            _ask, _where = _TRAIL, _root
+        else:
+            _ask, _where = _rel, HERE
+        if subprocess.run(["git", "check-ignore", "-q", _ask], cwd=_where,
                           stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL).returncode != 0:
             fail("GIT CAN SEE %s. That file is a mission's progress trail -- "
                  "the assistant's own sentences about work it did, written in "
                  "a workspace that may hold session content -- and one commit "
-                 "from anywhere puts it in a public repository. `live/*` is "
-                 "what keeps it out; something has let a path under `live/` "
-                 "back in without narrowing it." % _rel)
+                 "from anywhere puts it in a repository. `live/*` is what "
+                 "keeps it out; something has let a path under `live/` back "
+                 "in without narrowing it." % _rel)
+
+
+# ---- A COURSE REPOSITORY CARRIES ITS OWN IGNORE RULES -----------------------
+#
+# A nested repository never reads Atlas's root `.gitignore`. So every generic
+# rule Atlas relies on -- relay state, NFS litter, the assistant's own
+# `.claude/`, credentials, LaTeX droppings -- has to be in each course's own
+# `.gitignore`, or the first save in that course commits it. Asked of git, on
+# paths that do not exist, for the same reason as the trail above.
+_COURSE_IGNORED = (
+    os.path.join("relay", "state", "x.exit"),
+    ".nfs0001",
+    os.path.join(".claude", "settings.json"),
+    "keys.env", ".env", "a.key",
+    "x.aux", "x.synctex.gz")
+for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
+    _croot = os.path.join(_COURSES, _c)
+    if not os.path.exists(os.path.join(_croot, ".git")):
+        continue                       # refused above, as an orphan tree
+    for _p in _COURSE_IGNORED:
+        checked += 1
+        if subprocess.run(["git", "-C", _croot, "check-ignore", "-q", _p],
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode != 0:
+            fail("courses/%s's own git can see %s. A course repository reads "
+                 "only its own .gitignore, never Atlas's, so that rule has to "
+                 "be in courses/%s/.gitignore." % (_c, _p, _c))
 
 
 # ---------------------------------------------------------------------------
@@ -359,11 +425,11 @@ def put(path, text):
 
 # ---- the instructor rule covers EVERY course, and only the `.gitkeep` escapes -
 #
-# The scan above is over the files that are tracked TODAY, so it goes green the
-# moment the decks are out of the index and stays green if somebody narrows the
-# rule to the one course the decks were found in. These four paths are the two
-# properties the rule is for: a course nobody has made yet is covered, and the
-# placeholder holding an empty directory open is not a lecture.
+# The scan above is over the files Atlas tracks TODAY, which under `courses/`
+# is none, so it says nothing about the shape of `other_peoples_work`. These
+# four paths are the properties the rule is for, should a deck ever be forced
+# into Atlas: a course nobody has made yet is covered, and the placeholder
+# holding an empty directory open is not a lecture.
 _INSTRUCTOR = (
     ("courses/Galois-Theory/chapters/ch01-groups/lectures/Deck.pdf", True),
     ("courses/A-Course-Nobody-Has-Made-Yet/homework/hw01/assignment/sheet.docx", True),

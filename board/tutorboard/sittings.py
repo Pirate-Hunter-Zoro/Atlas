@@ -244,7 +244,10 @@ def _rows(base):
             merged.append([live])
         if not merged:
             continue
-        rel = os.path.relpath(root, base)
+        # THE WORKSPACE'S OWN REPOSITORY. A course is one, and Atlas ignores
+        # it; its history, its plan and its handoff's revisions are read there,
+        # with `rel` relative to that top -- `.` for a course.
+        top, rel = meeting.repo_of(root, base)
         name = _name_of(ws)
         held = list(fenced.holds(root))
         rows = []
@@ -252,7 +255,7 @@ def _rows(base):
             rows.append({
                 "id": "%s@%s" % (ws["id"], members[0]["folder"] or "live"),
                 "ws": ws["id"], "ws_name": name, "ws_dir": ws["dir"],
-                "root": root, "rel": rel,
+                "root": root, "top": top, "rel": rel,
                 "label": _label(members),
                 "chapter": members[0]["chapter"],
                 "cards": sum(m["cards"] for m in members),
@@ -288,12 +291,12 @@ def noise(subject, ids):
 
 
 # ONE WORKSPACE'S HISTORY, KEPT, AND TOPPED UP RATHER THAN RE-READ. A pathspec
-# `git log` over this repository costs seconds for a course whose every save is
-# a commit -- Galois Theory's is over three -- and the sheet asks for every
-# workspace at once. So the whole of it is read once per board, and after that
-# only what landed since the head it was read at. Keyed by the workspace's path
-# in the repository; a head that is not an ancestor of the last one (a rewrite)
-# is read again whole.
+# `git log` over Atlas costs seconds for a workspace whose every save is a
+# commit, and the sheet asks for every workspace at once. So the whole of it is
+# read once per board, and after that only what landed since the head it was
+# read at. Keyed by the repository and the workspace's path in it -- a course
+# is its own repository, at `.` -- and a head that is not an ancestor of the
+# last one (a rewrite) is read again whole.
 _LOGS = {}
 _LOCK = threading.Lock()
 
@@ -364,15 +367,19 @@ def _shown(base):
     """Every row the sheet offers, newest workspace first."""
     groups, ids = _rows(base)
     out = []
-    head = _run(base, ["rev-parse", "HEAD"])[1].strip()
+    # ONE HEAD PER REPOSITORY: Atlas's for the workspaces it holds, a course's
+    # own for a course.
+    tops = sorted(set(rows[0]["top"] for _, _, rows in groups))
+    heads = dict((t, _run(t, ["rev-parse", "HEAD"])[1].strip()) for t in tops)
     # IN PARALLEL, because each is a wait on the disk rather than on a CPU, and
     # the slowest workspace is then the whole of the wait instead of the sum.
-    rels = sorted(set(rows[0]["rel"] for _, _, rows in groups))
-    with ThreadPoolExecutor(max_workers=max(1, min(8, len(rels)))) as pool:
-        logs = dict(zip(rels, pool.map(lambda r: history(base, r, head), rels)))
+    keys = sorted(set((rows[0]["top"], rows[0]["rel"]) for _, _, rows in groups))
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(keys)))) as pool:
+        logs = dict(zip(keys, pool.map(
+            lambda k: history(k[0], k[1], heads[k[0]]), keys)))
     for _, ws, rows in groups:
         for r in rows:
-            r["log"] = logs.get(r["rel"]) or []
+            r["log"] = logs.get((r["top"], r["rel"])) or []
             r["commits"] = len(_in(r["log"], r, ids))
         out.extend(rows)
     return out, ids
@@ -484,7 +491,7 @@ def _stamped(text, chapter):
     return bool(m and chapter and m.group(1).strip() == chapter.strip())
 
 
-def _handoff_of(base, row, newest):
+def _handoff_of(row, newest):
     """`(text, source)` of the handoff this sitting wrote, or `("", "")`.
 
     THE NEWEST SITTING ON A CHAPTER reads the file on disk -- the live one when
@@ -492,7 +499,8 @@ def _handoff_of(base, row, newest):
     written after the sitting opened: a handoff older than the sitting is the
     one it was handed, not the one it left. AN OLDER SITTING, or a newest one
     with no such file, reads the last revision committed inside its window
-    whose stamp names its chapter. None, and the sitting offers no bullets.
+    whose stamp names its chapter, in the workspace's own repository. None,
+    and the sitting offers no bullets.
     """
     root, chapter = row["root"], row["chapter"]
     if not chapter:
@@ -514,12 +522,13 @@ def _handoff_of(base, row, newest):
                     return fh.read(), os.path.relpath(parked, root)
         except OSError:
             pass
-    rel = os.path.join(row["rel"], "HANDOFF.md")
-    raw = meeting._git(base, ["log", "--since=@%d" % int(row["start"]),
+    top = row["top"]
+    rel = meeting.prefix_of(row["rel"]) + "HANDOFF.md"
+    raw = meeting._git(top, ["log", "--since=@%d" % int(row["start"]),
                               "--until=@%d" % int(row["end"]), "--no-merges",
                               "--pretty=%H", "--", rel])
     for sha in raw.split()[:10]:
-        text = meeting._git(base, ["show", "%s:%s" % (sha, rel)])
+        text = meeting._git(top, ["show", "%s:%s" % (sha, rel)])
         if _stamped(text, chapter):
             return text, "HANDOFF.md at %s" % sha[:8]
     return "", ""
@@ -559,17 +568,18 @@ def _open_steps(text):
     return out
 
 
-def _plan_at(base, rel, when):
-    """A plan file as it was committed at `when`, or None where it was not."""
-    sha = meeting._git(base, ["rev-list", "-1", "--before=@%d" % int(when),
-                              "HEAD", "--", rel]).strip()
+def _plan_at(top, rel, when):
+    """A plan file as it was committed at `when`, or None where it was not.
+    `rel` is the plan's path in the repository at `top`."""
+    sha = meeting._git(top, ["rev-list", "-1", "--before=@%d" % int(when),
+                             "HEAD", "--", rel]).strip()
     if not sha:
         return None
-    text = meeting._git(base, ["show", "%s:%s" % (sha, rel)])
+    text = meeting._git(top, ["show", "%s:%s" % (sha, rel)])
     return text if text.strip() else None
 
 
-def finished_steps(base, row):
+def finished_steps(row):
     """Plan steps this sitting FINISHED: listed as left when it opened, and gone
     -- or ticked -- when it ended.
 
@@ -584,12 +594,14 @@ def finished_steps(base, row):
         targets = plan.paths(row["root"])
     except Exception:                                        # noqa: BLE001
         return []
+    top = row["top"]
     out = []
     for target in targets:
-        if not paths.within(target, base):
+        real = os.path.realpath(target)
+        if not paths.within(real, top):
             continue
-        rel = os.path.relpath(target, base)
-        before = _plan_at(base, rel, row["start"])
+        rel = os.path.relpath(real, top)
+        before = _plan_at(top, rel, row["start"])
         if row["live"]:
             try:
                 with open(target, "r", encoding="utf-8", errors="replace") as fh:
@@ -598,7 +610,7 @@ def finished_steps(base, row):
                 after = None
         else:
             # Half-open, as the commits are: what was committed before the end.
-            after = _plan_at(base, rel, row["end"] - 1)
+            after = _plan_at(top, rel, row["end"] - 1)
         if not before or not after:
             continue
         was, now = _open_steps(before), _open_steps(after)
@@ -632,10 +644,11 @@ def _same_step(a, b):
     return len(a & b) >= 0.6 * max(len(a), len(b))
 
 
-def _body(base, sha):
+def _body(top, sha):
     """A commit's message, whole, clipped for the brief. Fetched by the server
-    because `git` is not something an unattended tutor may run."""
-    return meeting._clip(meeting._git(base, ["show", "-s", "--format=%B", sha]),
+    because `git` is not something an unattended tutor may run. `top` is the
+    row's own repository, which is where its commits are."""
+    return meeting._clip(meeting._git(top, ["show", "-s", "--format=%B", sha]),
                          BODY_CHARS)
 
 
@@ -653,11 +666,11 @@ def _items_of(base, row, rows, ids):
 
     for c in _in(row.get("log") or [], row, ids)[:MOST_COMMITS]:
         add("commit", c["sha"], c["subject"], c["sha"], sha=c["sha"])
-    for title in finished_steps(base, row)[:MOST_STEPS]:
+    for title in finished_steps(row)[:MOST_STEPS]:
         add("step", title, title, "")
     same = [r for r in rows if r["ws"] == ws and r["chapter"] == row["chapter"]]
     newest = bool(same) and max(same, key=lambda r: r["end"])["id"] == sid
-    text, source = _handoff_of(base, row, newest)
+    text, source = _handoff_of(row, newest)
     n = 0
     for heading, para in _paragraphs(text):
         if n >= MOST_HANDOFF:
@@ -1017,7 +1030,7 @@ def write_brief(base, root, slug, groups, wid="", host=""):
             if i["kind"] == "commit":
                 out.append("- **%s** (commit `%s` in %s)"
                            % (i["text"], i["sha"], g["ws"]))
-                body = _body(base, i["sha"])
+                body = _body(row["top"], i["sha"])
                 if body and body.strip() != i["text"].strip():
                     out.append("  > " + body.replace("\n", "\n  > "))
             elif i["kind"] == "handoff":

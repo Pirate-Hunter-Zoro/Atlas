@@ -45,11 +45,30 @@ def check(name, cond, detail=""):
                 print("       " + line)
 
 
+# Every tracked path matching `pattern`, relative to ROOT. Atlas's index is
+# not the whole of it: each course under `courses/` is its own repository,
+# which Atlas ignores, so its README, contracts and config are asked of the
+# course's own git and given their `courses/<X>/` prefix back. Without that a
+# course document drops out of every audit here and the suite stays green.
+def ls_files(pattern):
+    repos = [("", ROOT)]
+    courses = os.path.join(ROOT, "courses")
+    if os.path.isdir(courses):
+        for name in sorted(os.listdir(courses)):
+            top = os.path.join(courses, name)
+            if os.path.exists(os.path.join(top, ".git")):
+                repos.append(("courses/%s/" % name, top))
+    rels = []
+    for prefix, top in repos:
+        out = subprocess.run(
+            ["git", "-C", top, "ls-files", pattern],
+            capture_output=True, text=True, check=True).stdout
+        rels.extend(prefix + rel for rel in out.split("\n") if rel)
+    return rels
+
+
 def tracked_markdown():
-    out = subprocess.run(
-        ["git", "-C", ROOT, "ls-files", "*.md"],
-        capture_output=True, text=True, check=True).stdout
-    for rel in out.split("\n"):
+    for rel in ls_files("*.md"):
         if not rel or rel.startswith("vendor/"):
             continue
         # A lesson card is a transcript of something somebody said at the time.
@@ -189,10 +208,7 @@ check("every document that counts the families counts %d of them" % families,
 DEAD_KEYS = ("mode",)
 
 carried = []
-configs = subprocess.run(
-    ["git", "-C", ROOT, "ls-files", "*tutorboard.json"],
-    capture_output=True, text=True, check=True).stdout.split("\n")
-for rel in configs:
+for rel in ls_files("*tutorboard.json"):
     if not rel or "/live/" in rel:
         continue
     try:

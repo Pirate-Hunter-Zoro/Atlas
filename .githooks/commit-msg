@@ -7,9 +7,12 @@
 # and GitHub counts a co-author as a contributor. Instructing an assistant not to
 # is a rule it has to choose to follow; this is a rule git enforces.
 #
-# Enabled per clone, once:
-#     git config core.hooksPath .githooks
-# (scripts/save-and-push.sh does it for you if it is not already set.)
+# Enabled per clone, once, by core.hooksPath: `.githooks` in a repository that
+# carries its own copy (Atlas, each course), and the ABSOLUTE path to Atlas's
+# .githooks in one that does not (ai-config), because a relative path resolves
+# inside that repository and finds nothing. board/bootstrap.sh sets it for every
+# private repository atlas.json names, and board/scripts/save-and-push.sh sets it
+# on the first save in any repository where it is unset.
 #
 # It edits rather than rejects: a stripped trailer should never cost anyone a
 # commit, and a hook that blocks is a hook people bypass.

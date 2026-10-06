@@ -56,7 +56,7 @@ case "$shape" in
 esac
 
 # --- 1. catch up -----------------------------------------------------------
-# Nothing pulls this repository on a timer here, because nothing on a compute
+# Nothing pulls Atlas on a timer here, because nothing on a compute
 # node survives the allocation. So the pull is a step, and it has to come first
 # -- everything below is code that arrived in it.
 before="$(git rev-parse HEAD 2>/dev/null)"
@@ -71,6 +71,46 @@ else
   warn "pull did not run: $(printf '%s' "$out" | tail -1)"
   say  "        starting from what is on disk; a handoff pushed elsewhere may be missing"
 fi
+
+# --- 1b. the private repositories --------------------------------------------
+# Each course, and ai-config, is its own private repository inside Atlas and
+# ignored by it, so the pull above moved none of them -- and the relay commits
+# and pushes owner edits in them, which a stale clone turns into a rejected
+# non-fast-forward. Bootstrap's own step clones or adopts any that is missing
+# and sets its hook (one copy of that logic, not two); then each is pulled
+# `--ff-only`, unless a terminal is part-way through something in it.
+ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")"
+boot="$(bash "$HERE/bootstrap.sh" --private-only | grep '^  ')"
+[ -n "$boot" ] && printf '%s\n' "$boot"
+problems=$((problems + $(printf '%s\n' "$boot" | grep -c '^  ----' || true)))
+for dir in "$ROOT"/courses/*/ "$ROOT"/ai-config/; do
+  repo="${dir%/}"
+  [ -e "$repo/.git" ] || continue
+  rel="${repo#$ROOT/}"
+  gitdir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)"
+  busy=""
+  for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
+                REVERT_HEAD BISECT_LOG; do
+    [ -e "$gitdir/$marker" ] && busy="$marker is outstanding"
+  done
+  [ -z "$busy" ] && [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "HEAD" ] \
+    && busy="HEAD is detached"
+  if [ -n "$busy" ]; then
+    warn "$rel: $busy — not pulled, left exactly as it is"
+    continue
+  fi
+  before="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
+  if out="$(git -C "$repo" pull --ff-only 2>&1)"; then
+    after="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
+    if [ "$before" = "$after" ]; then
+      good "$rel: already current (${after:0:8})"
+    else
+      good "$rel: pulled ${before:0:8} -> ${after:0:8}"
+    fi
+  else
+    warn "$rel: pull did not run: $(printf '%s\n' "$out" | grep -v '^hint:' | tail -1)"
+  fi
+done
 
 # --- 2. the machine's name -------------------------------------------------
 # Reported, never pinned. See the header.

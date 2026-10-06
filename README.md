@@ -5,9 +5,12 @@ one, teaches it, writes it up, and says what is next.
 
 ```
 git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+bash Atlas/board/bootstrap.sh
 ```
 
-`--recurse-submodules` matters. Without it `vendor/` arrives empty.
+`--recurse-submodules` matters. Without it `vendor/` arrives empty. `bootstrap.sh` clones each
+private repository listed under `"private"` in `atlas.json` — `ai-config/` and every course —
+into place, and adopts one already there.
 
 ---
 
@@ -23,7 +26,8 @@ Atlas/
   board/             Tutor-Board — the tool. `bash board/install.sh` installs it.
                      README.md is its architecture, SETTLED.md the rules already built
 
-  courses/           a workspace per course
+  courses/           a workspace per course. Each is its OWN private repository,
+                     ignored by this one
   research/          a workspace per line of research
   projects/          a workspace per piece of infrastructure
   practice/          a workspace per thing kept sharp
@@ -43,8 +47,11 @@ then it is worse than nothing because a reader believes it.
 ls courses research projects practice      # or open the front door, which draws it
 ```
 
-Starting something new is `mkdir courses/Topology`. The front door draws it on the next poll;
-the board finds it; nothing needs telling.
+Starting something new is `mkdir projects/Topology`. The front door draws it on the next poll;
+the board finds it; nothing needs telling. A course is the exception, because Atlas ignores
+`courses/*/`: it needs `git init`, a private remote, its own `.githooks/` and `.gitignore`, and an
+entry under `"private"` in `atlas.json` so a new machine clones it. `board/README.md`, "Setting
+up a course repository", has the steps.
 
 Two levels, and they mean something. A **family** is a kind of work. A **workspace** is one
 course or one project — the board treats those identically, which is why there is one word for
@@ -113,7 +120,7 @@ it.** None of the three is trusted alone:
 | Therapy session audio (308 MB) | `research/PSYCH-ASR/phi/` | Identifiable PHI; the filenames carry participant IDs |
 | Job results and model dumps (1.5 GB) | `research/TRD-EHR/results/` | Regenerable, and seven files over GitHub's 50 MB warning |
 | Other authors' published papers | on disk, beside their citation library | Their copyright. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
-| A set textbook, a professor's lecture slides, an assignment sheet | on disk, in the course's own `textbook/`, `lectures/` and `assignment/` | Their copyright. What the owner wrote about them — the notes, the typeset solutions — is tracked, and a `.gitkeep` holds each directory open |
+| A course: its textbook, a professor's slides, an assignment sheet, the lesson transcript | `courses/<name>/`, its own private repository, which tracks all of it | Their copyright. Atlas ignores `courses/*/`, so a public repository carries nothing of a course |
 | The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage, and the PHI guard describes what it is guarding |
 
 **The directory is called `phi` because the fence matches that name, and nothing in the tree
@@ -131,28 +138,33 @@ the `live/*` allowlist (cards, slate, answers, archive, inbox, text, `state.json
 tracked, the rest ignored), which is what makes a lecture the same lesson on whichever machine
 picks it up. Nothing in the root file may shadow one of those: git will not descend into a
 directory ignored higher up, so a rule for `live/` at the root makes every deeper `!live/cards/`
-unreachable. The root `.gitignore` holds two categories: files a command regenerates, and other
-people's work — papers, books, lecture slides and assignment sheets.
+unreachable. The root `.gitignore` holds three categories: files a command regenerates, other
+people's papers, and the directories that are their own repositories. A course reads none of it,
+so each course's `.gitignore` carries its own build, LaTeX and credential rules.
 
-Galois-Theory's tracked `live/archive` is 114 MB of lesson transcript and Probability's tracked
-`live/` is another 20 MB. It is all small files and it is the transcript, so it is right that it
-is tracked. Do not "solve" it by untracking the transcript.
+A course's tracked `live/archive` runs to 100 MB of lesson transcript. It is all small files and
+it is the transcript, so it is right that it is tracked. Do not "solve" it by untracking the
+transcript.
 
-### `ai-config/` — inside the tree, tracked by its own git
+### `ai-config/` and the courses — inside the tree, tracked by their own git
 
-The last row of that table is the odd one, because it is *here* and still not part of this
-repository. `ai-config/` holds the operating contract every AI assistant reads, the PHI guard,
-and each vendor's settings files. It is its own repository, and `/ai-config/` is in the
-`.gitignore` above, so Atlas never tracks a byte of it.
+The last two rows of that table are *here* and still not part of this repository. `ai-config/`
+holds the operating contract every AI assistant reads, the PHI guard, and each vendor's
+settings files. Each course holds other people's books and slides. Each is its own private
+repository, and `/ai-config/` and `/courses/*/` are in the root `.gitignore`, so Atlas never
+tracks a byte of them.
 
 Inside the tree because one directory should be the whole of the work — a machine is one clone
-and one command. Ignored because a public repository must not carry it.
+and one command. Ignored because a public repository must not carry them. `bootstrap.sh` clones
+them; `ai-config` then installs itself:
 
 ```bash
-cd ~/Developer/Atlas            # wherever the clone is; ~/Atlas on the cluster
-gh repo clone Pirate-Hunter-Zoro/ai-config ai-config
 bash ai-config/scripts/install.sh
 ```
+
+A course repository commits through the same board save and `board push` as any workspace,
+into its own remote. It carries its own `.githooks/commit-msg`; the first `save-and-push.sh` in
+it sets `core.hooksPath`.
 
 **It is deliberately not tied to one AI provider.** The contract names no vendor, and neither
 do the rules deciding what counts as PHI; each assistant gets a thin adapter and a symlink
@@ -218,7 +230,8 @@ And the rest of it, in the order it bites:
 - **Run `bash board/test/all.sh` before every ship.** 123 suites. Keep them green.
 - **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs early and refuses
   PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
-  anywhere in the repository. This is public, and git remembers.
+  anywhere in Atlas. This is public, and git remembers. It does not audit a course repository,
+  which relies on its own `.gitignore`.
 - **The lesson must stay reachable.** Somebody is mid-proof on a tablet while the tool changes
   under them. Every surface added is one somebody can be stranded on.
 - **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg` strips
@@ -262,7 +275,7 @@ runs on an institute machine, for any vendor** (`projects/libr-local-llm/docs/de
 |---|---|---|
 | Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, `tutor relay --once` from scrontab every five minutes, Colibri while it has a task |
 | Models | each provider through its own harness: `claude`, `codex`, and DeepSeek through `opencode -m deepseek/deepseek-flash`. `tutor agent only deepseek` (the `only_agent` key) runs one and bars the rest | Colibri only: local, read-only analysis that writes under the ignored `phi/`; a change git can see fails the task |
-| Holds | the whole repository, no PHI | the repository, `results/`, `phi/`, models |
+| Holds | Atlas and every course repository, no PHI | Atlas, `results/`, `phi/`, models |
 
 - **A failed job is fixed on the Mac**: its report wakes a `[repair]` doing turn there.
 - **Code typed on the cluster comes back through `board hold` and `board send`**, and the Mac's

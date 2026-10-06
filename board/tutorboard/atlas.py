@@ -1,16 +1,17 @@
-"""The one repository, its families, and the workspaces inside it.
+"""The Atlas tree, its families, and the workspaces inside it.
 
-Everything used to be a sibling of the tool: `os.path.dirname(paths.TOOL)` was
-the whole of discovery, and a course was a directory sitting next to
-Tutor-Board. Eleven repositories are now one, two levels deep -- a FAMILY
-(`courses`, `research`, `projects`, `practice`) holding a WORKSPACE (one course
-or one project, which the board treats identically, which is why there is one
-word for both).
+The tree is two levels deep -- a FAMILY (`courses`, `research`, `projects`,
+`practice`) holding a WORKSPACE (one course or one project, which the board
+treats identically, which is why there is one word for both). Research,
+projects and practice are tracked by Atlas's own repository. Each course is
+its OWN private repository, cloned in place and ignored by Atlas through
+`/courses/*/`, the same arrangement as `ai-config/`. Discovery is by
+directory either way, so a course is found exactly like any other workspace.
 
-So one nested loop replaces one flat one, and this module is where that loop
-lives. Every other module asks here rather than taking a `dirname`, because
-there is now exactly one right answer to "where is the repository root" and it
-is worth having exactly one place that knows it.
+This module is where that nested loop lives. Every other module asks here
+rather than taking a `dirname`, because there is exactly one right answer to
+"where is the Atlas root" and it is worth having exactly one place that knows
+it.
 
 **Nothing is registered.** `atlas.json` names and orders the families, says
 which of them are somebody else's work -- which decides whether work can be

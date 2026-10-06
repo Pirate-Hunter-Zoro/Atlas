@@ -241,10 +241,11 @@ def _next_thread_task(root):
 def _last_touched(root):
     """When this workspace was last committed to, as a unix time, or 0.
 
-    Scoped to the workspace with a pathspec. There is one repository now, so an
-    unscoped `git log` would give every card the same date -- the date of
-    whatever was committed last, anywhere -- which is a field that looks like
-    information and is noise.
+    Scoped to the workspace with a pathspec. Research, projects and practice
+    share Atlas's repository, so an unscoped `git log` would give each of
+    those cards the same date -- the date of whatever was committed last,
+    anywhere -- which is a field that looks like information and is noise. A
+    course is its own repository, and the pathspec costs it nothing.
     """
     try:
         p = subprocess.run(["git", "--no-optional-locks", "log", "-1",

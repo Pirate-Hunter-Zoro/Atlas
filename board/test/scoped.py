@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """A save commits only its own workspace.
 
-One repository holds the tool and every workspace. A save tapped in one of them
+Atlas holds the tool and every workspace but the courses, which are their own
+private repositories and ignored by it. A save tapped in one of Atlas's
 -- the save button, `board push`, `board finish`'s offer -- commits that
 workspace's directory and nothing else: never `board/`, never another
 workspace, never an `.nfs*` file the NFS client left behind. `board push "msg"
 -- <paths>` narrows it further, which is how a turn commits the work it did
 under a message naming the thread.
 
-Run against a real repository laid out the way Atlas is, with a bare origin.
+Run against a real repository laid out the way Atlas is, with a bare origin and
+Atlas's real root .gitignore. The fixture workspace is practice/Alpha rather
+than a course, because that .gitignore ignores courses/*/ and a course here
+would be invisible to every save.
 """
 
 import json
@@ -65,7 +69,7 @@ try:
     origin = os.path.join(work, "atlas.git")
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin], check=True)
     repo = os.path.join(work, "atlas")
-    alpha = os.path.join(repo, "courses", "Alpha")
+    alpha = os.path.join(repo, "practice", "Alpha")
     beta = os.path.join(repo, "research", "Beta")
     write(os.path.join(alpha, "tutorboard.json"), "{}\n")
     write(os.path.join(alpha, "live", "slate", "page-01.json"), "{}\n")
@@ -95,8 +99,8 @@ try:
     got = committed(repo)
     check("a save from one workspace commits and pushes", rec.get("ok") is True)
     check("its work and its transcript go in the commit",
-          {"courses/Alpha/notes.md",
-           "courses/Alpha/live/slate/page-02.json"} <= got)
+          {"practice/Alpha/notes.md",
+           "practice/Alpha/live/slate/page-02.json"} <= got)
     check("board/ does not", not any(f.startswith("board/") for f in got))
     check("another workspace does not",
           not any(f.startswith("research/") for f in got))
@@ -106,7 +110,7 @@ try:
           {"board/x.py", "research/Beta/y.py"} <= left)
     check("and the .nfs file is still on disk, ignored rather than tracked",
           os.path.exists(os.path.join(alpha, ".nfs0000000000abcd00000001"))
-          and not git(repo, "ls-files", "courses/Alpha/.nfs*")[1])
+          and not git(repo, "ls-files", "practice/Alpha/.nfs*")[1])
     check("the subject names the workspace",
           git(repo, "log", "-1", "--format=%s")[1].endswith(
               "Alpha: lesson complete"))
@@ -127,12 +131,12 @@ try:
     code, out = board("push", "knn thread: weight by LR", "--no-build",
                       "--", "src/a.py")
     check("`board push msg -- <paths>` commits those paths", code == 0
-          and committed(repo) == {"courses/Alpha/src/a.py"})
+          and committed(repo) == {"practice/Alpha/src/a.py"})
     check("under a message naming the thread",
           git(repo, "log", "-1", "--format=%s")[1].endswith(
               "knn thread: weight by LR"))
     check("and leaves the rest of the workspace for its own commit",
-          "courses/Alpha/src/b.py" in dirty(repo))
+          "practice/Alpha/src/b.py" in dirty(repo))
 
     head = git(repo, "rev-parse", "HEAD")[1]
     code, out = board("push", "reach", "--", "../../board/x.py")
@@ -143,7 +147,7 @@ try:
     code, out = board("push", "everything", "--no-build")
     got = committed(repo)
     check("a bare `board push` is the same scope as the save button",
-          code == 0 and "courses/Alpha/src/b.py" in got
+          code == 0 and "practice/Alpha/src/b.py" in got
           and not any(f.startswith(("board/", "research/")) for f in got)
           and not any(".nfs" in f for f in got))
 

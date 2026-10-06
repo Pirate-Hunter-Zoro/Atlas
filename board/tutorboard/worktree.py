@@ -37,18 +37,18 @@ def git_dir(root):
     in a linked worktree or a submodule. Reading only the directory case is how
     a guard silently stops guarding for anybody working in a worktree.
 
-    It WALKS UP, and that is what the move to one repository changed. A
-    workspace used to be its own clone with its own `.git` beside its `live/`;
-    it is now `courses/Galois-Theory` inside Atlas, and the `.git` that decides
-    whether a commit is safe to make is several levels above it. A guard that
-    looked only in the workspace found nothing and concluded there was nothing
-    to guard -- which reads as "no repository here", and is the most dangerous
-    possible answer for a function whose whole job is to say "somebody is
-    part-way through a rebase, do not commit".
+    It WALKS UP and returns the NEAREST enclosing repository. A course is its
+    own repository, so its `.git` sits beside its `live/`; a research,
+    project or practice workspace shares Atlas's, several levels above it. A
+    guard that looked only in the workspace would find nothing there and
+    conclude there was nothing to guard -- the most dangerous possible answer
+    for a function whose whole job is to say "somebody is part-way through a
+    rebase, do not commit".
 
-    So a rebase outstanding anywhere in Atlas stops the transcript beat in
-    every workspace. That is correct and it is not over-cautious: there is one
-    index and one HEAD now, and they are what the rebase is holding.
+    So a rebase stops the transcript beat in every workspace that shares the
+    repository holding it, and in no other. That is correct and it is not
+    over-cautious: those workspaces share one index and one HEAD, and they
+    are what the rebase is holding.
     """
     here = os.path.realpath(root)
     for _ in range(40):

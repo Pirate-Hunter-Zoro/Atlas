@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
 """Putting a machine right does not take somebody's afternoon with it.
 
-`scripts/catch-up.sh` brings a machine onto what was pushed from elsewhere.
-Until 2026-09-03 it did that by resetting each of eleven course repositories
-onto its origin, on one condition -- diverged OR dirty -- and the dirty half was
-a bug with teeth. A repository sitting exactly on origin with uncommitted work
-in the tree took the reset branch: the tag it wrote first was placed at HEAD,
-which already was origin, so it preserved nothing, and the reset then threw the
-work away to move the repository nowhere. It did that to two research
-repositories in one afternoon, four times, before anybody worked out what was
-doing it.
-
-**The eleven are one now, and the reset is gone with them.** There is one
-working tree, and one `--ff-only` pull that cannot rewrite history, cannot move
-a dirty tree and cannot lose a commit -- the worst it does is decline. So the
-stash and the tag are not guards that were removed; they were rails on a cliff,
-and this file is now the proof that the cliff is not there.
+`scripts/catch-up.sh` brings a machine onto what was pushed from elsewhere:
+Atlas, then each private repository nested inside it -- every course, and
+ai-config -- which Atlas ignores and so cannot pull for them. Every pull is
+`--ff-only`, which cannot rewrite history, cannot move a dirty tree and cannot
+lose a commit; the worst it does is decline. Nothing resets, stashes or tags. A
+reset keyed on DIRTY throws away the afternoon of somebody sitting exactly on
+origin, and this file is the proof that no such branch exists.
 
 What is still guarded, and each of these still costs an afternoon when it goes
 wrong:
 
+* each nested repository is pulled from its OWN origin, one line each, and
+  one repository being busy never leaves another behind;
+* uncommitted work is asked of the repository that owns the workspace, since
+  Atlas cannot see inside a course;
 * work that was never pushed is still in the working tree afterwards;
 * commits origin does not have are still commits;
 * a repository somebody is part-way through an operation in is not touched, and
@@ -75,39 +71,18 @@ def write(path, text):
         fh.write(text)
 
 
-def make_atlas(work, name):
-    """One repository with an origin, and workspaces in three families.
+def make_repo(origin, seed, files):
+    """A bare origin, and a seed repository that has pushed `files` to it.
 
-    The shape the real one has: `atlas.json` at the root, a family directory,
-    and workspaces inside it that are directories rather than repositories.
-    Each case gets a private remote, because sharing one made the outcome of a
-    case depend on which case ran before it -- a test that passes for the wrong
-    reason.
-
-    Returns:
-        tuple[str, str]: The working tree, and a seed clone of the same origin
-            standing in for the other machine.
+    Args:
+        origin (str): Path of the bare repository to create.
+        seed (str): Path of the working repository to create and push from.
+        files (dict[str, str]): Relative path -> content, committed as one.
     """
-    origin = os.path.join(work, ".remotes", name + ".git")
     os.makedirs(os.path.dirname(origin), exist_ok=True)
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin], check=True)
-
-    seed = os.path.join(work, ".seeds", name)
-    write(os.path.join(seed, "atlas.json"), json.dumps({"families": [
-        {"id": "courses", "name": "Courses"},
-        {"id": "research", "name": "Research"},
-        {"id": "vendor", "name": "Vendor", "vendor": True},
-    ]}))
-    for rel in ("courses/Galois-Theory", "courses/Probability",
-                "research/PSYCH-ASR"):
-        write(os.path.join(seed, rel, "tutorboard.json"),
-              json.dumps({"name": os.path.basename(rel)}))
-        write(os.path.join(seed, rel, "README.md"), "seed\n")
-    # Somebody else's repository, and a directory that is not a workspace at
-    # all. Neither may turn up in the report.
-    write(os.path.join(seed, "vendor", "colibri", "README.md"), "not mine\n")
-    write(os.path.join(seed, "notes", "scratch.txt"), "not a workspace\n")
-
+    for rel, text in files.items():
+        write(os.path.join(seed, rel), text)
     subprocess.run(["git", "init", "-q", "-b", "main", seed], check=True)
     git(seed, "config", "user.email", "t@t")
     git(seed, "config", "user.name", "t")
@@ -116,11 +91,69 @@ def make_atlas(work, name):
     git(seed, "remote", "add", "origin", origin)
     git(seed, "push", "-q", "origin", "main")
 
-    root = os.path.join(work, name)
+
+def clone(origin, root):
     subprocess.run(["git", "clone", "-q", origin, root], check=True)
     git(root, "config", "user.email", "t@t")
     git(root, "config", "user.name", "t")
-    return root, seed
+
+
+def make_atlas(work, name):
+    """Atlas with an origin, and each course its own repository inside it.
+
+    The shape the real one has: `atlas.json` at the root, family directories,
+    workspaces inside them. A research workspace is a directory of Atlas. Each
+    course is its OWN repository with its own origin, cloned into
+    courses/<name> and ignored by Atlas's `/courses/*/` -- so Atlas's pull moves
+    none of them and Atlas's status says nothing about them. Each case gets
+    private remotes, because sharing one made the outcome of a case depend on
+    which case ran before it -- a test that passes for the wrong reason.
+
+    Returns:
+        tuple[str, str, dict[str, str]]: The Atlas working tree, a seed clone of
+            Atlas's origin standing in for the other machine, and course name
+            -> that course's seed, standing in for the other machine too.
+    """
+    remotes = os.path.join(work, ".remotes", name)
+    seeds = os.path.join(work, ".seeds", name)
+    files = {
+        "atlas.json": json.dumps({"families": [
+            {"id": "courses", "name": "Courses"},
+            {"id": "research", "name": "Research"},
+            {"id": "vendor", "name": "Vendor", "vendor": True},
+        ]}),
+        ".gitignore": "/courses/*/\n",
+        "research/PSYCH-ASR/tutorboard.json": json.dumps({"name": "PSYCH-ASR"}),
+        "research/PSYCH-ASR/README.md": "seed\n",
+        # Somebody else's repository, and a directory that is not a workspace
+        # at all. Neither may turn up in the report.
+        "vendor/colibri/README.md": "not mine\n",
+        "notes/scratch.txt": "not a workspace\n",
+    }
+    seed = os.path.join(seeds, "Atlas")
+    make_repo(os.path.join(remotes, "Atlas.git"), seed, files)
+    root = os.path.join(work, name)
+    clone(os.path.join(remotes, "Atlas.git"), root)
+
+    course_seeds = {}
+    for course in ("Galois-Theory", "Probability"):
+        cseed = os.path.join(seeds, course)
+        corigin = os.path.join(remotes, course + ".git")
+        make_repo(corigin, cseed, {
+            "tutorboard.json": json.dumps({"name": course}),
+            "README.md": "seed\n",
+        })
+        clone(corigin, os.path.join(root, "courses", course))
+        course_seeds[course] = cseed
+    return root, seed, course_seeds
+
+
+def push_from(seed, rel, text, msg):
+    """Commit one file in a seed and push it: work landing from elsewhere."""
+    write(os.path.join(seed, rel), text)
+    git(seed, "add", "-A")
+    git(seed, "commit", "-qm", msg)
+    git(seed, "push", "-q", "origin", "main")
 
 
 def run(root):
@@ -143,9 +176,11 @@ check("it cannot reset, force or stash, because a --ff-only pull cannot need to"
       "reset --hard" not in src and "stash push" not in src
       and "--force" not in src)
 check("and the board's own scratch does not count as somebody's work",
-      "grep -v '/live/'" in src)
+      "grep -Ev '(^|/)live/'" in src)
 check("nothing is done to a repository part-way through an operation",
       "rebase-merge" in src and "HEAD is detached" in src)
+check("each workspace's dirt is asked of the repository that owns it",
+      'git -C "$root" status --porcelain -- .' in src)
 check("what ran it is recorded, because working that out took longer than "
       "fixing what it did",
       "CATCHUP_LOG" in src and "ps -o args=" in src)
@@ -153,7 +188,7 @@ check("what ran it is recorded, because working that out took longer than "
 work = tempfile.mkdtemp(prefix="catchup-")
 try:
     # ---- CASE 1: current, and dirty. The one that used to destroy work. ----
-    current, _ = make_atlas(work, "Current")
+    current, _, _ = make_atlas(work, "Current")
     write(os.path.join(current, "courses", "Galois-Theory", "afternoon.md"),
           "hours of it\n")
     with open(os.path.join(current, "research", "PSYCH-ASR", "README.md"), "a") as fh:
@@ -166,107 +201,139 @@ try:
           and "edited" in open(os.path.join(current, "research", "PSYCH-ASR",
                                             "README.md")).read())
     check("nothing was stashed from it either, because nothing touched it",
-          git(current, "stash", "list") == "")
-    check("and it names the workspace the uncommitted work is in, not just a count",
+          git(current, "stash", "list") == ""
+          and git(os.path.join(current, "courses", "Galois-Theory"),
+                  "stash", "list") == "")
+    check("Atlas does not see the course at all, which is why it is not asked",
+          git(current, "status", "--porcelain", "--", "courses") == "")
+    check("and it names the workspace the uncommitted work is in -- the "
+          "course's from the course's own repository",
           "courses/Galois-Theory: 1 uncommitted file" in out
           and "research/PSYCH-ASR: 1 uncommitted file" in out)
     check("a workspace with nothing outstanding says so too, so the report is "
           "the whole list rather than only the bad news",
           "courses/Probability: current" in out)
+    check("each nested repository gets its own line from the pull",
+          "courses/Galois-Theory: already current" in out
+          and "courses/Probability: already current" in out)
     check("somebody else's repository is not a workspace and is not reported on",
           "vendor/colibri" not in out)
     check("and neither is a directory that is simply a directory",
           "notes/scratch" not in out)
 
-    # ---- CASE 2: behind. It fast-forwards, and the work in the tree stays. --
-    behind, behind_seed = make_atlas(work, "Behind")
-    write(os.path.join(behind_seed, "courses", "Probability", "landed.md"),
-          "from the other machine\n")
-    git(behind_seed, "add", "-A")
-    git(behind_seed, "commit", "-qm", "landed elsewhere")
-    git(behind_seed, "push", "-q", "origin", "main")
+    # ---- CASE 2: behind. Atlas and a course both fast-forward. -----------
+    behind, behind_seed, behind_courses = make_atlas(work, "Behind")
+    push_from(behind_seed, "research/PSYCH-ASR/landed.md",
+              "from the other machine\n", "landed elsewhere")
+    push_from(behind_courses["Probability"], "landed.md",
+              "from the other machine\n", "landed elsewhere")
+    push_from(behind_courses["Probability"], "landed2.md", "and more\n",
+              "landed again")
     write(os.path.join(behind, "courses", "Galois-Theory", "afternoon.md"),
           "hours of it\n")
     out = run(behind)
 
-    check("a repository that is behind is fast-forwarded",
+    check("Atlas, behind, is fast-forwarded",
+          os.path.isfile(os.path.join(behind, "research", "PSYCH-ASR",
+                                      "landed.md"))
+          and "pulled 1 commit(s)" in out)
+    check("and a course behind ITS origin is fast-forwarded from it",
           os.path.isfile(os.path.join(behind, "courses", "Probability",
-                                      "landed.md")))
-    check("and the uncommitted work is still in the tree, not in a stash",
+                                      "landed2.md"))
+          and "courses/Probability: pulled 2 commit(s)" in out)
+    check("and the uncommitted work in the other course is still in the tree, "
+          "not in a stash",
           os.path.isfile(os.path.join(behind, "courses", "Galois-Theory",
                                       "afternoon.md"))
-          and git(behind, "stash", "list") == "")
-    check("and it says how far it moved", "pulled 1 commit(s)" in out)
+          and git(os.path.join(behind, "courses", "Galois-Theory"),
+                  "stash", "list") == ""
+          and "courses/Galois-Theory: 1 uncommitted file" in out)
 
     # ---- CASE 3: holding commits origin does not have. -------------------
-    # This is the case the tag was invented for. There is nothing to tag now,
-    # because nothing resets: the pull declines and the commits are simply
-    # still there.
-    ahead, _ = make_atlas(work, "Ahead")
-    write(os.path.join(ahead, "courses", "Galois-Theory", "local.md"),
-          "never pushed\n")
-    git(ahead, "add", "-A")
-    git(ahead, "commit", "-qm", "only here")
-    ahead_head = git(ahead, "rev-parse", "HEAD")
+    # Nothing resets, so there is nothing to tag: the pull is a no-op and the
+    # commits are simply still there.
+    ahead, _, _ = make_atlas(work, "Ahead")
+    galois = os.path.join(ahead, "courses", "Galois-Theory")
+    write(os.path.join(galois, "local.md"), "never pushed\n")
+    git(galois, "add", "-A")
+    git(galois, "commit", "-qm", "only here")
+    ahead_head = git(galois, "rev-parse", "HEAD")
     out = run(ahead)
 
-    check("a repository holding commits origin lacks keeps them, with no tag "
+    check("a course holding commits its origin lacks keeps them, with no tag "
           "needed, because nothing was ever going to reset it",
-          git(ahead, "rev-parse", "HEAD") == ahead_head)
-    check("and the file those commits added is still there",
-          os.path.isfile(os.path.join(ahead, "courses", "Galois-Theory",
-                                      "local.md")))
+          git(galois, "rev-parse", "HEAD") == ahead_head
+          and os.path.isfile(os.path.join(galois, "local.md")))
+    check("and, committed, it is not reported as uncommitted",
+          "courses/Galois-Theory: current" in out)
 
-    # ---- MID-OPERATION ---------------------------------------------------
+    # ---- MID-OPERATION, in a course --------------------------------------
     # Stashing under a rebase is not a rescue: it can succeed and leave the
-    # operation half-applied. Nothing is touched and the operation is named.
-    rebasing, rebasing_seed = make_atlas(work, "Rebasing")
-    write(os.path.join(rebasing_seed, "courses", "Probability", "landed.md"), "x\n")
-    git(rebasing_seed, "add", "-A")
-    git(rebasing_seed, "commit", "-qm", "landed elsewhere")
-    git(rebasing_seed, "push", "-q", "origin", "main")
-    git(rebasing, "checkout", "-q", "-b", "side")
-    write(os.path.join(rebasing, "courses", "Galois-Theory", "README.md"), "mine\n")
-    git(rebasing, "add", "-A")
-    git(rebasing, "commit", "-qm", "mine")
-    git(rebasing, "checkout", "-q", "main")
-    write(os.path.join(rebasing, "courses", "Galois-Theory", "README.md"), "theirs\n")
-    git(rebasing, "add", "-A")
-    git(rebasing, "commit", "-qm", "theirs")
-    git(rebasing, "checkout", "-q", "side")
-    git(rebasing, "rebase", "main")          # conflicts, and stops
-    rebasing_head = git(rebasing, "rev-parse", "HEAD")
+    # operation half-applied. Nothing is touched and the operation is named,
+    # and the OTHER course is still pulled.
+    rebasing, _, rebasing_courses = make_atlas(work, "Rebasing")
+    push_from(rebasing_courses["Probability"], "landed.md", "x\n",
+              "landed elsewhere")
+    push_from(rebasing_courses["Galois-Theory"], "landed.md", "x\n",
+              "landed elsewhere")
+    galois = os.path.join(rebasing, "courses", "Galois-Theory")
+    git(galois, "checkout", "-q", "-b", "side")
+    write(os.path.join(galois, "README.md"), "mine\n")
+    git(galois, "add", "-A")
+    git(galois, "commit", "-qm", "mine")
+    git(galois, "checkout", "-q", "main")
+    write(os.path.join(galois, "README.md"), "theirs\n")
+    git(galois, "add", "-A")
+    git(galois, "commit", "-qm", "theirs")
+    git(galois, "checkout", "-q", "side")
+    git(galois, "rebase", "main")          # conflicts, and stops
+    rebasing_head = git(galois, "rev-parse", "HEAD")
     out = run(rebasing)
 
-    check("a repository part-way through a rebase is left exactly as it is",
-          git(rebasing, "rev-parse", "HEAD") == rebasing_head)
-    check("and it says which operation is outstanding",
-          "rebase-merge is outstanding" in out or "rebase-apply is outstanding" in out)
+    check("a course part-way through a rebase is left exactly as it is",
+          git(galois, "rev-parse", "HEAD") == rebasing_head
+          and not os.path.isfile(os.path.join(galois, "landed.md")))
+    check("and it says which operation is outstanding, in which course",
+          "courses/Galois-Theory: rebase-merge is outstanding" in out
+          or "courses/Galois-Theory: rebase-apply is outstanding" in out)
+    check("and the other course is pulled regardless",
+          os.path.isfile(os.path.join(rebasing, "courses", "Probability",
+                                      "landed.md")))
 
-    # ---- DETACHED --------------------------------------------------------
+    # ---- DETACHED, in Atlas ----------------------------------------------
     # `origin/HEAD` exists in most clones, so without a guard `rev-parse
     # --abbrev-ref HEAD` returning "HEAD" was read as a branch name and the
-    # repository was reset onto the remote's default branch under them.
-    detached, _ = make_atlas(work, "Detached")
-    write(os.path.join(detached, "courses", "Probability", "second.md"), "x\n")
+    # repository was reset onto the remote's default branch under them. A
+    # detached Atlas is no reason to leave a course behind.
+    detached, _, detached_courses = make_atlas(work, "Detached")
+    write(os.path.join(detached, "research", "PSYCH-ASR", "second.md"), "x\n")
     git(detached, "add", "-A")
     git(detached, "commit", "-qm", "second")
     git(detached, "push", "-q", "origin", "main")
     detached_head = git(detached, "rev-parse", "HEAD~1")
     git(detached, "checkout", "-q", "HEAD~1")
+    push_from(detached_courses["Probability"], "landed.md", "x\n",
+              "landed elsewhere")
     out = run(detached)
 
     check("a detached HEAD is not walked onto a branch",
           git(detached, "rev-parse", "HEAD") == detached_head)
     check("and it says so", "HEAD is detached" in out)
+    check("and the courses are still pulled, because Atlas's state is Atlas's",
+          "courses/Probability: pulled 1 commit(s)" in out)
 
     # ---- THE BOARD'S OWN SCRATCH -----------------------------------------
-    scratch, _ = make_atlas(work, "Scratch")
+    # In a course, `live/` sits at the root of its repository, so the path git
+    # prints has no slash in front of it.
+    scratch, _, _ = make_atlas(work, "Scratch")
     write(os.path.join(scratch, "courses", "Probability", "live", "board.json"),
+          "{}\n")
+    write(os.path.join(scratch, "research", "PSYCH-ASR", "live", "board.json"),
           "{}\n")
     out = run(scratch)
     check("a board churning in live/ is not somebody's uncommitted work",
-          "courses/Probability: current" in out)
+          "courses/Probability: current" in out
+          and "research/PSYCH-ASR: current" in out)
 
     # ---- THE LOG ---------------------------------------------------------
     check("and every run leaves a record of what invoked it",

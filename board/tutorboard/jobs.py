@@ -1756,6 +1756,9 @@ def file_request(root, req, run=subprocess.run, push=True):
     target = os.path.join(requests_dir(root), req["id"] + ".json")
     if os.path.exists(target):
         return target, False, "%s is already there" % target
+    if os.path.exists(os.path.join(root, ".git")):
+        return target, False, ("this workspace is its own repository, and the "
+                               "relay reads requests only from Atlas's")
     leak = request_leak(root, req)
     if leak:
         return target, False, leak

@@ -7,9 +7,10 @@
 #      repository. It lives outside the tree and something inside the tree
 #      says where.
 #
-#  So this file is left holding two honest categories: files a command
-#  regenerates, and other people's papers. It does not hold "the 308 MB of
-#  therapy audio we would rather not push" -- that is not in here at all, it
+#  So this file is left holding three honest categories: files a command
+#  regenerates, other people's papers, and directories that are their own
+#  repositories -- `ai-config/` and each course. It does not hold "the 308 MB
+#  of therapy audio we would rather not push" -- that is not in here at all, it
 #  is at ~/phi/PSYCH-ASR/, and research/PSYCH-ASR/README.md says so. An ignore
 #  rule is a guard somebody can delete by accident; a directory outside the
 #  repository is a guard nothing in here can undo.
@@ -22,6 +23,9 @@
 #  ignored higher up, so a rule for `live/` written HERE would make every
 #  deeper `!live/cards/` unreachable. That is why this file names no directory
 #  a workspace re-includes.
+#
+#  A course reads none of this file: it is its own repository, so its own
+#  .gitignore carries the build, LaTeX and credential rules below as well.
 # ===========================================================================
 
 # ---- build products, every language in here ----
@@ -86,16 +90,13 @@ Thumbs.db
 # that deleting every one of them costs `bash ai-config/scripts/install.sh` and
 # nothing else.
 #
-# What used to be tracked was three `settings.json` permission allowlists --
-# which commands may run unattended in a workspace. That is a fact about the
-# workspace and worth keeping; the JSON schema around it is one provider's and
-# is not. Both live in `ai-config` now: the lists in `workspaces/*.allow`,
-# naming no vendor, and the schema in a renderer the assistant's own descriptor
-# points at. `install.sh` folds them into that assistant's USER-LEVEL settings,
-# outside this tree entirely, so nothing installs anything here at all. The
-# rule below is therefore absolute rather than a filter: no directory named for
-# an assistant belongs in this repository, and one appearing is this machine's
-# own state rather than anything the repository needs.
+# A workspace's permission allowlist -- which commands may run unattended -- is
+# a fact about the workspace, and it lives in `ai-config` as
+# `workspaces/*.allow`, naming no vendor. `install.sh` renders it into the
+# assistant's USER-LEVEL settings, outside this tree, so nothing installs
+# anything here. The rule below is therefore absolute rather than a filter: a
+# directory named for an assistant is this machine's own state, never anything
+# the repository needs.
 #
 # The same rule covers a workflow, a subagent, a slash command and a skill,
 # which are logic written against one provider's API and go stale at its next
@@ -109,51 +110,16 @@ Thumbs.db
 # which are the only ones that actually exist.
 **/.claude/
 
-# ---- other people's BOOKS, SLIDES AND SHEETS ----
-# A course keeps its set text, its professor's slides and its assignment sheets
-# on disk and reads them; a public repository does not redistribute any of it.
-# The book's per-chapter excerpts regenerate from the book in one command --
-# `scripts/split-textbook.sh` says of its own output "they are derived artifacts
-# and git-ignored". The slides and the sheets do not regenerate: a fresh clone
-# arrives without them and the owner drops them back on disk.
-#
-# What IS tracked is everything the person wrote about the reading and about the
-# lectures: the notes, the homework solutions, the typeset transcripts,
-# chapters.tsv. That is the work.
-#
-# The four `lectures/` and `assignment/` lines below are anchored with a
-# leading slash -- the pattern is read from the repository root -- and use `**`
-# so they reach a course at whatever depth it keeps a unit. They reach every
-# course and only courses, so a second course gets the rule without writing it
-# again and `research/` is left alone. `*` excludes the FILES inside, not the
-# directory, so git still descends and the `.gitkeep` holding each empty
-# directory open comes back. `textbook/` is held open by a `.gitkeep` too,
-# which the `*.pdf` rule above does not touch.
-**/textbook/*.pdf
-**/chapters/*/reading/ch*.pdf
-**/chapters/*/reading/ch*.txt
-/courses/**/lectures/*
-!/courses/**/lectures/.gitkeep
-/courses/**/assignment/*
-!/courses/**/assignment/.gitkeep
-
-# ---- the assistant configuration, which is its own private repository ----
-# `ai-config/` lives INSIDE this tree and is tracked by its own git, not by
-# this one. It holds the operating contract every assistant reads, the PHI
-# guard, and each vendor's settings files -- and it stays private because those
-# settings name real paths on the lab's storage and the guard describes what it
-# is guarding.
-#
-# Inside the tree so that one directory is the whole of the work and a machine
-# is set up by one clone plus one command; ignored here so that a public
-# repository never carries it. `ai-config/README.md` says how it is linked into
-# place, and Atlas's own README names it as a thing that exists and is
-# deliberately elsewhere.
+# ---- directories that are their own private repositories ----
+# `ai-config/` holds the operating contract every assistant reads, the PHI
+# guard, and each vendor's settings files, which name real paths on the lab's
+# storage. Each course (github.com/Pirate-Hunter-Zoro/<name>, cloned into
+# `courses/<name>`) tracks its textbook, slides and sheets, which belong to
+# other people. Both live INSIDE this tree, so one directory is the whole of
+# the work, and both are ignored here, so a public repository never carries a
+# byte of them. `board/bootstrap.sh` clones each one listed under "private" in
+# `atlas.json`.
 /ai-config/
-
-# Each course is its own private repository too (github.com/Pirate-Hunter-Zoro/<name>),
-# cloned into courses/<name>. It tracks its textbook, slides and sheets, so a
-# public repository must never carry a byte of it.
 /courses/*/
 
 # ---- a credential dropped in the tree, which is a thing that happens ----
@@ -162,7 +128,6 @@ Thumbs.db
 # dropped here first, because that is where the terminal already is, and this
 # repository is public. So the shapes a key file is given are refused by name,
 # unanchored, so a drop at any depth is caught rather than only one at the root.
-# No tracked file matched any of these when they were written.
 #
 # THIS IS THE FIRST OF TWO GUARDS AND IT IS THE WEAKER ONE. A pattern is right
 # until somebody adds a file with `git add -f` or edits this list. The other is

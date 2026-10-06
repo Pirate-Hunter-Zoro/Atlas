@@ -18,7 +18,7 @@ This file says what is left to build.
 | | Mac mini (home) | Cluster (institute) |
 |---|---|---|
 | Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, the relay, Colibri tasks |
-| Holds | the whole repository, no PHI, no `results/` | the repository, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
+| Holds | Atlas and every course's private repository, no PHI, no `results/` | Atlas, `results/`, PSYCH-ASR `phi/`, EHR extracts, models |
 | Providers | each through its own harness: `claude`, `codex`, DeepSeek through `opencode -m deepseek/deepseek-flash`; `only_agent` runs one | Colibri on demand only; no hosted model call |
 | Writes to git | everything except `relay/reports/`, `exports/` and a held thread's files | `relay/reports/`, `exports/`, the files of a thread held at the cluster, and the owner's edits in a workspace that syncs (`relay.sync`, on by default in `atlas.json`) |
 | iPad reaches it | over the owner's own tailnet | never |
@@ -34,7 +34,8 @@ PHI rule on the Mac is a rule about what the cluster may export.
 
 ### By workspace
 
-- **Courses and practice:** all on the Mac. Nothing goes to the cluster.
+- **Courses and practice:** all on the Mac. Nothing goes to the cluster. Each course is its own
+  private repository, ignored by Atlas, and its commits go to its own remote.
 - **research/TRD-EHR:** writing, figures from exports, code and tests on `test_data/` on the
   Mac. Sweeps, model fits and anything reading `results/` or the EHR run on the cluster as
   requests.
@@ -128,8 +129,8 @@ and a workspace opts out with `"sync": false` in its own `tutorboard.json`.
 
 ## Rules that bind every item
 
-- **The PHI rules in the root `README.md` bind everything here, and the repository is
-  public.** A request, a report, an export and a commit message are all published. Raw data,
+- **The PHI rules in the root `README.md` bind everything here, and Atlas is public.** A
+  request, a report, an export and a commit message are all published. Raw data,
   patient-level rows, `results/` wholesale, log tails, participant ids and lab storage paths
   never cross. `board/test/tracked.py` stays green on both machines. It needs the private
   `ai-config/`, which a fresh worktree lacks; `tracked` and `colibri` fail there for that

@@ -188,8 +188,15 @@ def _rel(base, path):
 
 
 def spaces(base):
-    """`[(workspace root, its path relative to the repository)]`."""
-    return [(w["root"], _rel(base, w["root"])) for w in atlas.workspaces(base)]
+    """`[(workspace root, its path relative to the repository)]`.
+
+    Only the workspaces Atlas's own repository holds. A course is its own
+    private repository and never goes to the cluster, so the relay neither
+    syncs it nor reads requests from it: a path relative to Atlas names
+    nothing Atlas's index can see, and every status there would come back
+    empty."""
+    return [(w["root"], _rel(base, w["root"])) for w in atlas.workspaces(base)
+            if not os.path.exists(os.path.join(w["root"], ".git"))]
 
 
 def held_paths(where):

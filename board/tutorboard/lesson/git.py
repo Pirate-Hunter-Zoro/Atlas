@@ -19,9 +19,8 @@ from ..course import homework
 
 # Keyed by workspace root. One process serves one board, so in practice this
 # holds one entry -- but a key that is not the workspace is a cache that answers
-# about the wrong workspace the first time anything asks twice, and this now
-# lives in a repository where "the wrong workspace" is nine other people's
-# afternoons.
+# about the wrong workspace the first time anything asks twice, and Atlas is a
+# repository where "the wrong workspace" is several other people's afternoons.
 _DIRTY = {}
 DIRTY_TTL = 8.0
 
@@ -188,7 +187,8 @@ def save_pathspec(root, top, only=None):
     `refused` names every one that is not inside the workspace, because a save
     made here commits here and nowhere else. Either way the tool and any
     workspace nested inside this one are excluded. NFS litter (`.nfs*`) is kept
-    out by the root `.gitignore`, so no door commits it.
+    out by the repository's own `.gitignore` -- Atlas's, or a course's own --
+    so no door commits it.
 
     AN EXCLUDE NAMES, LITERALLY, A DIRECTORY INSIDE ONE OF THE PATHS IT
     NARROWS. With an exclude outside them, or a wildcard one such as
@@ -327,10 +327,11 @@ def run_push(repo, message=None):
     # costs nothing.
     built = build_before_push(repo)
 
-    # The workspace leads the message. `save-and-push.sh` lives with the tool
-    # now, one copy for the one repository, and it is run FROM THE REPOSITORY
-    # ROOT: a push is a push of the repository and pretending otherwise from a
-    # subdirectory is how a commit ends up with half of what somebody meant.
+    # The workspace leads the message. `save-and-push.sh` lives with the tool,
+    # one copy for every repository, and it is run FROM THE REPOSITORY ROOT --
+    # Atlas's, or a course's own: a push is a push of the repository, and
+    # pretending otherwise from a subdirectory is how a commit ends up with
+    # half of what somebody meant.
     said = message or "lesson complete"
     where = atlas.identify(repo.root)
     if where and not said.startswith(where):
@@ -340,12 +341,11 @@ def run_push(repo, message=None):
     specs, _ = save_pathspec(repo.root, top)
 
     # ONE copy of the script, and the working directory is what tells it which
-    # repository to commit. A workspace has no `scripts/` of its own any more --
-    # there is one repository and the tool's copy is the only copy -- and the
-    # script derives its root from `pwd`, not from where it is installed. That
-    # distinction is not pedantry: for about an hour it derived the root from its
-    # own location instead, and a test that taps save on a throwaway repository
-    # committed the real Atlas three times.
+    # repository to commit. A workspace has no `scripts/` of its own -- the
+    # tool's copy is the only copy -- and the script derives its root from
+    # `pwd`, not from where it is installed. That distinction is not pedantry:
+    # a root taken from the script's own location makes a test that taps save
+    # on a throwaway repository commit the real Atlas.
     script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
     if os.path.exists(script):
         cmd = ["bash", script, said, "--"] + specs
@@ -402,9 +402,11 @@ def run_push(repo, message=None):
 #
 # TWO RULES, and the second is the one that matters.
 #
-#   SCOPED TO THE WORKSPACE. There is one repository holding nine of them now,
-#   and `git log` at its root answers about all nine. A turn about Galois Theory
-#   told about PSYCH-ASR's afternoon is a turn that will try to teach it.
+#   SCOPED TO THE WORKSPACE. Atlas's repository holds every research, project
+#   and practice workspace, and `git log` at its root answers about all of
+#   them. A course is its own repository, and the scope costs it nothing. A
+#   turn about TRD-EHR told about PSYCH-ASR's afternoon is a turn that will
+#   try to teach it.
 #
 #   NAMED AS THE PERSON'S WORK, NEVER THE TUTOR'S. A turn that mistakes a commit
 #   somebody made on their laptop for something it did itself will report having
@@ -485,8 +487,8 @@ def beside_the_lesson(repo):
         value = {"since": since, "commits": [], "uncommitted": [], "files": 0}
         try:
             # SCOPED BY PATHSPEC, not filtered afterwards. The pathspec is what
-            # makes this answer about one workspace in a repository that holds
-            # nine.
+            # makes this answer about one workspace in a repository that may
+            # hold several.
             p = subprocess.run(
                 ["git", "--no-optional-locks", "log",
                  "--since=@%d" % int(since), "--no-merges",
@@ -528,11 +530,11 @@ def uncommitted(root, paths=None):
     """
     try:
         # `git status --porcelain` prints paths relative to the GIT ROOT, not
-        # to the directory it was run in -- so in a repository holding nine
+        # to the directory it was run in -- so in a repository holding several
         # workspaces every name comes back with the workspace's own directory
-        # on the front of it. A turn in Galois-Theory told about
-        # `courses/Galois-Theory/notes/ch04.tex` has to strip a prefix to find
-        # a file that is right there beside it.
+        # on the front of it. A turn in PSYCH-ASR told about
+        # `research/PSYCH-ASR/notes/ch04.md` has to strip a prefix to find a
+        # file that is right there beside it.
         top = root
         tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                             cwd=root, stdout=subprocess.PIPE,

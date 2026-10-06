@@ -915,7 +915,7 @@ check("it walks TWO levels, a family then a workspace, not one",
 check("and does not count the board's own scratch as somebody's uncommitted "
       "work, which made every workspace with a board on it look like it needed "
       "rescuing",
-      "grep -v '/live/'" in src_c)
+      "grep -Ev '(^|/)live/'" in src_c)
 check("it restarts the boards and the tutors",
       'restart --tutors' in src_c)
 check("and then says what is actually true: what is running, and how to reach "

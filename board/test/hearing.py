@@ -273,6 +273,50 @@ try:
     check("the Mac's timer fires often enough for that cadence",
           "<integer>%d</integer>" % holds.POLL_SECONDS in plist)
 
+    # --- a workspace that is its own repository ----------------------------------
+    # A course is a private repository nested inside Atlas and ignored by it.
+    # The cluster pushes that course's reports to the course's own remote, so
+    # the Mac hears them only if the pass pulls that repository too.
+    corigin = os.path.join(base, "course.git")
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", corigin],
+                   check=True)
+    with open(os.path.join(mac, ".git", "info", "exclude"), "a",
+              encoding="utf-8") as fh:
+        fh.write("/research/Course/\n")
+    course = os.path.join(mac, "research", "Course")
+    os.makedirs(course)
+    git(course, "init", "-q", "-b", "main")
+    git(course, "config", "user.email", "t@example.com")
+    git(course, "config", "user.name", "t")
+    write(os.path.join(course, "AI_INSTRUCTIONS.md"), "# contract\n")
+    write(os.path.join(course, ".gitignore"), "live/\n/results/\n")
+    write(os.path.join(course, "slurm", "sweep.sbatch"), RECIPE)
+    write(threads.path(course), json.dumps(SPINE))
+    git(course, "add", "-A")
+    git(course, "commit", "-q", "-m", "start")
+    git(course, "remote", "add", "origin", corigin)
+    git(course, "push", "-q", "-u", "origin", "main")
+    ccluster = os.path.join(base, "course-cluster")
+    git(base, "clone", "-q", corigin, ccluster)
+    git(ccluster, "config", "user.email", "c@example.com")
+    git(ccluster, "config", "user.name", "c")
+    check("Atlas does not carry the nested course",
+          git(mac, "status", "--porcelain").strip() == "")
+
+    pulled = []
+    tutorcli.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
+    check("one pull per repository: Atlas first, then the course, and the "
+          "workspace sharing Atlas's .git is not pulled twice",
+          pulled == [mac, course])
+
+    req3 = dict(req, id="2026-10-03-course-sweep", filed=2300.0)
+    # A workspace that is its own repository never goes to the cluster: the
+    # relay reads requests only from Atlas, so filing one there is refused.
+    check("a request filed in a workspace that is its own repository is "
+          "refused, naming why",
+          "its own repository" in jobs.file_request(course, req3,
+                                                    push=False)[2])
+
     # --- a fresh clone -----------------------------------------------------------
     fresh = os.path.join(base, "fresh")
     git(base, "clone", "-q", origin, fresh)

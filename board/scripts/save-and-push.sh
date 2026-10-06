@@ -12,11 +12,12 @@
 # means: save means save, and a save that left the afternoon's code behind
 # because it was not the lesson would be the wrong kind of clever.
 #
-# With a pathspec after `--` it commits only those paths. There is one
-# repository now, holding nine workspaces and the tool, so `ship.sh` uses this
-# to push a change to the TOOL without sweeping up whatever somebody is
-# part-way through in a course. That distinction did not exist while the tool
-# was its own clone, and it is the whole reason this option is here.
+# With a pathspec after `--` it commits only those paths. Atlas holds the
+# tool and most workspaces in one repository, so `ship.sh` uses this to push a
+# change to the TOOL without sweeping up whatever somebody is part-way through
+# in a research tree. Each course is its own private repository nested inside
+# Atlas and ignored by it, so a save run from a course commits and pushes that
+# course alone; the caller's working directory picks the repository.
 #
 # It fetches and merges the remote before pushing, so a second machine
 # committing the same repository -- a compute node compiling the same document
@@ -95,9 +96,25 @@ fi
 
 # A clone has to opt into tracked hooks once. Do it here rather than making
 # anyone remember, so the attribution stripper is on from the first commit.
-if [ -d "$ROOT/.githooks" ] && [ -z "$(git config core.hooksPath || true)" ]; then
-  git config core.hooksPath .githooks
-  echo "enabled .githooks for this clone"
+#
+# A repository that carries its own .githooks/ gets the relative path, which
+# follows the clone wherever it is moved. One that does not -- ai-config, a
+# course made without copying the directory in -- gets the ABSOLUTE path to the
+# tool's repository's .githooks/, because a relative `.githooks` would resolve
+# inside this worktree and find nothing. A relative value already set in a
+# repository with no .githooks/ is that same silent nothing, so it is repaired.
+HOOKS_NOW="$(git config core.hooksPath || true)"
+if [ -d "$ROOT/.githooks" ]; then
+  if [ -z "$HOOKS_NOW" ]; then
+    git config core.hooksPath .githooks
+    echo "enabled .githooks for this clone"
+  fi
+else
+  HOOKS="$(tool_root)/.githooks"
+  if [ -d "$HOOKS" ] && { [ -z "$HOOKS_NOW" ] || [ "$HOOKS_NOW" = ".githooks" ]; }; then
+    git config core.hooksPath "$HOOKS"
+    echo "enabled $HOOKS for this clone"
+  fi
 fi
 
 if [ ${#PATHS[@]} -gt 0 ]; then
@@ -255,12 +272,12 @@ echo "pushed $branch to origin"
 # ones -- a difference that is invisible from the outside and costs an evening to
 # find. So changing the tool restarts the boards it drives.
 #
-# Only a push that CHANGED THE TOOL does this. It used to be decided by the
-# repository's name -- `basename` of the toplevel being "Tutor-Board" -- which
-# was exactly right while the tool was its own clone and is exactly wrong now
-# that every push is a push of Atlas. Left alone it would bounce every board on
-# the machine every time somebody saved a Galois Theory lesson, which is a
-# restart in the middle of a lesson for no reason at all.
+# Only a push that CHANGED THE TOOL does this. The commit goes to the
+# repository the caller stands in -- Atlas, or a course's own private
+# repository -- and only a commit in the TOOL's repository that touched the
+# tool restarts anything. Restarting on any push would bounce every board on
+# the machine every time somebody saved a lesson, which is a restart in the
+# middle of a lesson for no reason at all.
 #
 # So: did this commit touch `board/`? Asked of the commit that was just made,
 # and of THE TOOL's directory rather than of this script's. `scripts` is one

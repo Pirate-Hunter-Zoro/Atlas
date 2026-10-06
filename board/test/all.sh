@@ -68,6 +68,8 @@ fi
 # The tracked-file audit runs EARLY, because what it guards -- no PHI, no
 # 50-megabyte artifact, no other author's book inside a public repository -- is
 # the only failure in this suite that cannot be undone by fixing it afterwards.
+# Each course is its own private repository; the audit checks that Atlas
+# cannot see it and that its own .gitignore carries the generic rules.
 printf '%-12s ' "tracked"
 if out="$(python3 test/tracked.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
