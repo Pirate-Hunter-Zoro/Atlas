@@ -1,9 +1,20 @@
 {
+  "ended": "2026-10-06T02:13:40",
+  "exit": "0:0",
+  "exported": [
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
   "id": "2026-10-06-knn-across-embedders-neighbor-count-sweep-7",
   "jobid": "2120651",
   "kind": "recipe",
-  "state": "submitted",
+  "missing": [],
+  "note": "It completed, exit 0. 1 of 1 outputs present. 1 exported, 0 refused.",
+  "produced": [
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
+  "relay": [],
+  "state": "completed",
   "submitted": 1791270607.6998062,
   "thread": "knn-across-embedders",
-  "updated": 1791270607.7
+  "updated": 1791270907.475
 }
