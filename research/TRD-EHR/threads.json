@@ -500,6 +500,14 @@
         {
           "text": "Rebuild the packet with scripts/rebuild-packet.sh --strict and check that no panel moved",
           "done": false
+        },
+        {
+          "text": "Export Paper 1's 39 aggregate packet figures to this Mac (job 2120318, exit 0, 39 of 39 present)",
+          "done": true
+        },
+        {
+          "text": "Make scripts/rebuild-packet.sh resolve the sections' ../results/*.png from exports/results/, so the packet builds on this Mac with every panel",
+          "done": false
         }
       ],
       "decisions": [
