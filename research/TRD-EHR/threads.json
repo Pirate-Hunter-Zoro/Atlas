@@ -226,6 +226,18 @@
         {
           "text": "Once the owner marks cross_embedder_retrieval.csv aggregate and it crosses, confirm the dimension counts (253, 271, 1,626, 236) and best k exactly against it; Figure 6 already agrees to marker precision",
           "done": false
+        },
+        {
+          "text": "Redraw the bge-small sweep and cross-encoder sweep panels (jobs 2120629, 2120633, exit 0; best k still 579 and 1,243) and probe the plain-cosine right edge, k 25,000 to 34,063 (job 2120640)",
+          "done": true
+        },
+        {
+          "text": "Bring the redrawn bge-small neighbor_count_sweep_manuscript.png across with an export; the Mac copy dates from 2026-10-05 22:35",
+          "done": true
+        },
+        {
+          "text": "Read reports -5 (bge-small-en-v1.5), -6 (bge-en-icl), -7 (Qwen3-Embedding-4B): REDRAW=1 reruns filed only to export each redrawn neighbor_count_sweep_manuscript.png; the Mac copies predate the 02:00 redraws. Then do task 11",
+          "done": true
         }
       ],
       "decisions": [
@@ -321,6 +333,14 @@
         },
         {
           "text": "Check every TRIPOD+AI row against the current sections after the KNN section",
+          "done": false
+        },
+        {
+          "text": "Answer the five round-2 data questions on the cluster (race, BH contrasts, operating points, n = 32 recurrence row, Table S4 bins)",
+          "done": false
+        },
+        {
+          "text": "Ask Martin whether S12.1 quotes the bootstrap intervals for sensitivity, specificity and likelihood ratios (job 2120643), and tell him Table S4's retrieval rows now use Figure S5's equal-count bins",
           "done": false
         }
       ],
@@ -551,6 +571,14 @@
         },
         {
           "text": "Make scripts/rebuild-packet.sh resolve the sections' ../results/*.png from exports/results/, so the packet builds on this Mac with every panel",
+          "done": false
+        },
+        {
+          "text": "Redraw the packet figures on the cluster: manuscript panels, S1 importance, S6 cosine, S7 clusters, cross-encoder robustness, subgroup forest (jobs 2120634-2120639, all exit 0, 29 of 29 crossed)",
+          "done": true
+        },
+        {
+          "text": "S7 mismatch: the redraw split bge-small into 14,437/28,142 with nested silhouette 0.70; supplement Tables S5-S6 say 14,438/28,141 and 0.69. Re-run the clustering with a fixed seed through board job, printing the nested subgroup sizes as REL",
           "done": false
         }
       ],
