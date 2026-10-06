@@ -441,14 +441,15 @@ function loop(slate, x0, y0, x1, y1, id) {
       : fail('the touchmove refusal outlived the stroke');
   }
 
-  // The latch is a CSS rule too, and with the page never pinched it refuses
-  // everything while the nib is at work.
+  // The latch is a CSS rule too: on a card, the zone round the last stroke
+  // refuses the pan while the nib is at work, and the rest of the layer does
+  // not.
   {
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-    const rule = /body\.pen-writing canvas\.ann-layer\s*\{([^}]*)\}/.exec(css);
+    const rule = /\.card > \.ann-zone\s*\{([^}]*)\}/.exec(css);
     rule && /touch-action:\s*none/.test(rule[1])
-      ? ok('and the pen latch refuses the pan while the nib is at work')
-      : fail('body.pen-writing does not refuse the pan');
+      ? ok('and the pen latch refuses the pan round the last stroke')
+      : fail('nothing round the last stroke refuses the pan');
   }
 
   console.log(errors.length ? errors.length + ' failed' : 'one clipboard, three surfaces');

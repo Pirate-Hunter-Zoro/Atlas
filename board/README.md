@@ -1687,7 +1687,7 @@ is wrong even when every suite is green.
   The library locks the list behind the reader (`body.reading`), as the board does with
   `body.papering`. The palm rules in `annotate.js` stand. The latch refuses a pan on
   the whole scroller, so `annotate.js`'s `onLayer` names `#reader-pages` and `#paper-pages`
-  beside the ink layers, or a finger on a bare strip with the latch shut scrolls nothing.
+  beside a card's `.ann-zone`, or a finger on a bare strip with the latch shut scrolls nothing.
 - **Annotations never distort or drift through a zoom.** Ink lives in the page picture's own
   coordinates and scales with it uniformly: same place on the words at every zoom, identical
   after zooming in and back out, drawn or moved with the lasso under the nib while zoomed, and
@@ -5553,15 +5553,27 @@ the lift therefore loses every quick stroke that follows one, and the cancelled 
 latch for the stroke after. That is *"it misses every other stroke"*, and slow writing works
 because a slow nib never crosses the pan threshold in time.
 
+**ON A CARD THE LATCH SHUTS ONLY THE ZONE ROUND THE LAST STROKE.** The next stroke of a word
+lands beside the last, so that is all the gap has to cover. At each lift `zoneAt` sizes the
+card's `.ann-zone` to the stroke's box plus `ZONE_REACH` (120 px) a side, clipped to the layer,
+and grows it while the latch stays shut; it carries `touch-action: none` and is hidden when the
+latch opens. The rest of every layer keeps its native pan, with momentum, so writing, swiping
+and writing again scrolls like any page: *"I couldn't scroll while annotating … I want both."*
+A pen landing on the zone begins a stroke on its card exactly as the layer would. A document's
+pages keep their latch on the whole scroller (`#reader-pages`, `#paper-pages`). A scroll the
+board makes itself (`holdAnchor`, `holdBelow`, a reveal, `handPan`) goes through
+`Annotate.ownScroll` and does not hold the latch for `PEN_MODE`.
+
 **A finger in a refused gesture still scrolls.** iOS fixes `touch-action` for a whole
 multi-touch gesture from its first touch, and the gesture lasts until every contact lifts. So a
 palm that lands in the gap, or during a stroke, makes every finger beside it unscrollable for as
 long as it rests. `onTouchStart` tracks that as `gestureShut`, and a finger landing in a shut
 gesture is followed by `handPan`, which moves the page by hand. It follows its own touch by
-identifier, so the palm is ignored; a newer finger takes over from one that has not moved; and
-it stands down the moment the page moves without it, because that is the browser scrolling
-natively. Passive, no momentum, 10 px of slop (`HAND_SLOP`). `ink-hand` records how far it moved
-and why it stopped. `latchFlow` in `test/link.js`.
+identifier, so the palm is ignored, and a newer finger takes over from one that has not moved.
+It does not stand down when the page moves under it: a gesture it follows was refused in CSS or
+at `touchstart`, so the browser cannot scroll it natively, and what moves the page then is the
+board's own render. Passive, no momentum, 10 px of slop (`HAND_SLOP`). `ink-hand` records how far
+it moved and why it stopped. `latchFlow` in `test/link.js`.
 
 **AND A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE.** The
 non-passive `touchmove` listener is on the *document* and exists only while a
@@ -5596,8 +5608,9 @@ the sentence *I could not scroll* written down at the moment it is true;
 `ink-late` where the browser had already decided and did not ask; `ink-latch`
 when the CSS half goes on or off, **with `why`** — `quiet` for the window
 expiring, `moved` for a finger that dragged it open, `off` for leaving the mode;
-and `ink-pan`, a finger landing against a shut latch, which is the one refusal
-made in CSS and so the one that leaves no event of its own; and `ink-hand`, how far `handPan` moved the page for it. The last two are
+and `ink-pan`, a finger landing while the latch is shut, with `shut=1` when it landed on a zone
+or a document's pages, which is the one refusal made in CSS and so the one that leaves no event
+of its own; and `ink-hand`, how far `handPan` moved the page for it. The last two are
 there because the fourth report was diagnosed by arithmetic across three
 timestamps rather than read off a line. `test/link.js` asserts each one reaches
 the log.

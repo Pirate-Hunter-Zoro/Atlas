@@ -1014,6 +1014,21 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   non-cancelable first move per stroke, because `armMove` installs the
   non-passive `touchmove` inside `begin` and the compositor learns about it a
   move later. Read the pair, not the line.
+- **ON A CARD THE PEN LATCH SHUTS THE ZONE ROUND THE LAST STROKE, NOT THE
+  CARD.** The gap after a lift is for the next stroke of the same word, and
+  that lands beside the last one. A blanket `touch-action: none` on every ink
+  layer left somebody who writes, swipes and writes again with no native scroll:
+  nearly every swipe landed in the gap and got only `handPan`, with no momentum.
+  Reported from the iPad, Galois Theory: *"I couldn't scroll while annotating …
+  I want both."* So `zoneAt` sizes the card's `.ann-zone` (`board.css`) to the
+  stroke's box plus `ZONE_REACH` at each lift, `onLayer` refuses only there and
+  on a document's scroller, and the rest of the card scrolls natively. **And
+  `handPan` never stands down when the page moves under it**: every gesture it
+  follows is refused in CSS or at `touchstart`, so the mover is the board's own
+  `holdAnchor` or a reveal, and standing down left the finger with no scroll of
+  either kind. Board-made scrolls go through `Annotate.ownScroll` and do not hold
+  the latch for `PEN_MODE`. `test/link.js`, `latchFlow`, moves `pageYOffset`
+  under a finger and checks the zone.
 - **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
   `handover` are written BEFORE the signal, by whoever is asking; the daemon's
   own exit merges `state: stopped` over the top and touches neither, because a

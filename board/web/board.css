@@ -487,17 +487,24 @@ canvas.ann-layer {
   z-index: 2;
 }
 body.annotating canvas.ann-layer { pointer-events: auto; }
-/* While the pen is at work, the layer refuses the scroll outright. `touch-action`
-   is read when a gesture STARTS and a `touchstart` can only be cancelled while it
-   is cancelable -- which it is not during a fling -- so without this a stroke
-   following hard on the heels of another could be re-read as a pan, and then
-   nothing the pen did marked anything until the page settled. Reported as: "I
-   wrote down the first letter and it stopped writing. I paused for a couple of
-   seconds, tried again, and writing continued fine." `annotate.js` sets the class
-   when the nib goes down and drops it `PEN_GAP` after the lift (longer if the
-   page is still moving); a finger that drags inside that window is scrolled by
-   hand, so it still moves the page. */
-body.pen-writing canvas.ann-layer { touch-action: none; }
+/* While the pen is at work, the zone round the last stroke refuses the scroll
+   outright. `touch-action` is read when a gesture STARTS and a `touchstart` can
+   only be cancelled while it is cancelable -- which it is not during a fling, or
+   while the main thread is busy between strokes -- so without this the next
+   stroke of a word could be re-read as a pan and mark nothing. Reported as: "I
+   wrote down the first letter and it stopped writing."
+
+   Only the zone, not the card: the next stroke of a word lands beside the last,
+   and a finger anywhere else on the lesson keeps the browser's own scroll, with
+   momentum. `annotate.js` sizes `.ann-zone` to the last stroke plus `ZONE_REACH`
+   at each lift, shows it (`on`) while `pen-writing` is set, and hides it when
+   the latch opens; a finger that drags inside it is scrolled by hand. */
+.card > .ann-zone {
+  position: absolute; display: none; z-index: 3;
+  touch-action: none;
+}
+.card > .ann-zone.on { display: block; }
+.card.superseded:not(.open) > .ann-zone { display: none; }
 
 /* While annotating, the lesson is a surface to write on and not text to select.
    Without this the pen drags a native selection instead: the card turns blue,

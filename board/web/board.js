@@ -3219,7 +3219,14 @@ function revealCard(node, smooth) {
     top = document.body.scrollHeight;
   }
   if (smooth) window.scrollTo({ top: top, behavior: "smooth" });
-  else window.scrollTo(0, top);
+  else ownScroll(function () { window.scrollTo(0, top); });
+}
+
+/* A scroll the board makes on its own, told to the pen latch so it is not read
+   as a page in flight (`Annotate.ownScroll`). */
+function ownScroll(fn) {
+  if (window.Annotate && window.Annotate.ownScroll) window.Annotate.ownScroll(fn);
+  else fn();
 }
 
 /* A CARD IS TYPED OUT, AND NOTHING MOVES WHILE IT IS.
@@ -3680,7 +3687,7 @@ function holdAnchor(a) {
   /* A pixel of rounding is not a jump, and correcting it would cancel a smooth
      scroll that is legitimately in flight. */
   if (Math.abs(moved) < 2) return;
-  window.scrollBy(0, moved);
+  ownScroll(function () { window.scrollBy(0, moved); });
 }
 
 /* And the same again for one late-decoding picture, which arrives long after any
@@ -3688,7 +3695,7 @@ function holdAnchor(a) {
 function holdBelow(node, before) {
   var r = node.getBoundingClientRect();
   var grew = r.height - before;
-  if (grew > 1 && r.top < 0) window.scrollBy(0, grew);
+  if (grew > 1 && r.top < 0) ownScroll(function () { window.scrollBy(0, grew); });
   return r.height;
 }
 

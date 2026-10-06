@@ -873,8 +873,9 @@ if (es && window.Annotate) {
         : fail('a pen at work does not close the scroll off, so the next stroke '
                + 'can still be taken for a pan');
       /* `none`: the page is never pinched, so the latch only has the pan to
-         refuse. */
-      var latch = /body\.pen-writing\s+canvas\.ann-layer\s*\{[^}]*touch-action:\s*none/;
+         refuse. On a card it is the zone round the last stroke that refuses
+         it, not the whole layer. */
+      var latch = /\.card\s*>\s*\.ann-zone\s*\{[^}]*touch-action:\s*none/;
       latch.test(css3)
         ? ok('which is what the latch actually does in the stylesheet')
         : fail('nothing in the CSS answers the pen latch, so it refuses nothing');
@@ -2180,10 +2181,18 @@ async function latchFlow() {
   window.Annotate.clear('0003');
 
   const latched = () => doc.body.classList.contains('pen-writing');
+  // The card `layer` belongs to, put back on the page: the renders above
+  // replaced it, and a touch on a detached node never reaches the document's
+  // listeners.
+  const host = layer.parentNode;
+  const adopted = !!host && !doc.contains(host);
+  if (adopted) doc.body.appendChild(host);
+  const live = () => layer;
+  const pen = (type, x, y) => ink(type, x, y, 0.5);
   const stroke = () => {
-    ink('pointerdown', 120, 60, 0.5);
-    ink('pointermove', 150, 60, 0.5);
-    ink('pointerup', 150, 60, 0.5);
+    pen('pointerdown', 120, 60);
+    pen('pointermove', 150, 60);
+    pen('pointerup', 150, 60);
   };
 
   // Nothing has scrolled in this sitting.
@@ -2212,13 +2221,15 @@ async function latchFlow() {
       const e = new window.Event(type, { bubbles: true, cancelable: true });
       e.changedTouches = moved;
       e.touches = list;
-      (doc.querySelector('[data-card="0003"] canvas.ann-layer') || layer).dispatchEvent(e);
+      // The zone round the last stroke, which is where the next stroke of
+      // the word, and a palm beside it, land.
+      ((host && host.querySelector('.ann-zone.on')) || live()).dispatchEvent(e);
     };
     const t = (id, y) => ({ identifier: id, touchType: 'direct', clientX: 40, clientY: y });
     try {
-      touch('touchstart', [t(7, 300)], [t(7, 300)]);
-      [280, 240, 200].forEach((y) => touch('touchmove', [t(7, y)], [t(7, y)]));
-      touch('touchend', [], [t(7, 200)]);
+      touch('touchstart', [t(7, 170)], [t(7, 170)]);
+      [150, 110, 70].forEach((y) => touch('touchmove', [t(7, y)], [t(7, y)]));
+      touch('touchend', [], [t(7, 70)]);
       !latched() && scrolled > 50
         ? ok('and a finger dragging in that gap opens it and still scrolls the '
              + 'page, by hand, for the gesture the CSS refused')
@@ -2228,20 +2239,108 @@ async function latchFlow() {
 
       stroke();
       scrolled = 0;
-      touch('touchstart', [t(1, 500)], [t(1, 500)]);      // the palm, in the gap
+      touch('touchstart', [t(1, 170)], [t(1, 170)]);      // the palm, in the gap
       await sleep(gap + 80);                               // the latch opens
-      touch('touchstart', [t(1, 500), t(2, 300)], [t(2, 300)]);
-      [290, 250, 210].forEach((y) => {
-        touch('touchmove', [t(1, 502), t(2, y)], [t(1, 502), t(2, y)]);
+      touch('touchstart', [t(1, 170), t(2, 140)], [t(2, 140)]);
+      [130, 90, 50].forEach((y) => {
+        touch('touchmove', [t(1, 172), t(2, y)], [t(1, 172), t(2, y)]);
       });
-      touch('touchend', [t(1, 502)], [t(2, 210)]);
-      touch('touchend', [], [t(1, 502)]);
+      touch('touchend', [t(1, 172)], [t(2, 50)]);
+      touch('touchend', [], [t(1, 172)]);
       scrolled > 50
         ? ok('and a finger landing beside a palm that came down in the gap '
              + 'still scrolls, though the gesture it joined is refused')
         : fail('a resting palm makes every finger beside it unable to scroll '
                + '(scrolled ' + scrolled + ')');
     } finally { window.scrollBy = realBy; }
+  }
+
+  // A FINGER IN THE GAP STILL SCROLLS WHEN THE BOARD MOVES THE PAGE UNDER IT.
+  //
+  // Reported from the iPad, Galois Theory: "When I'm annotating a tutor
+  // response ... I couldn't scroll while annotating." A render's `holdAnchor`
+  // or a reveal scrolls the window between the finger landing and its first
+  // move. `handPan` read that as the browser scrolling natively and stood
+  // down, but a gesture the CSS refused can never scroll natively, so the
+  // finger got neither scroll. Here `scrollBy` really moves `pageYOffset`.
+  {
+    await sleep(win + 150);
+    let y = 1000;
+    let scrolled = 0;
+    const realBy = window.scrollBy;
+    const yDesc = Object.getOwnPropertyDescriptor(window, 'pageYOffset');
+    Object.defineProperty(window, 'pageYOffset', { configurable: true, get: () => y });
+    window.scrollBy = function (x, dy) { scrolled += dy; y += dy; };
+    const seen = [];
+    const realTrace = window.BoardTrace;
+    window.BoardTrace = function (what, of) { seen.push({ what: what, of: of }); };
+    const card3 = host;
+    const at = (x, yy) => ({ identifier: 9, touchType: 'direct', clientX: x, clientY: yy });
+    const touch = (el, type, x, yy) => {
+      const e = new window.Event(type, { bubbles: true, cancelable: true });
+      e.changedTouches = [at(x, yy)];
+      e.touches = type === 'touchend' ? [] : [at(x, yy)];
+      el.dispatchEvent(e);
+    };
+    try {
+      stroke();
+      await sleep(40);
+      // Where the finger lands is the zone round the last stroke if there is
+      // one, and the card's layer if there is not.
+      const under = (card3 && card3.querySelector('.ann-zone.on')) || live();
+      touch(under, 'touchstart', 140, 170);
+      y += 5;                                  // the board's own scroll
+      [150, 110, 70].forEach((yy) => touch(under, 'touchmove', 140, yy));
+      touch(under, 'touchend', 140, 70);
+      const stood = seen.filter((e) => e.what === 'ink-hand')
+        .map((e) => e.of && e.of.why).join(',');
+      scrolled > 50
+        ? ok('a finger in the gap still scrolls when the board moves the page '
+             + 'under it')
+        : fail('a finger in the gap gets no scroll at all once the board has '
+               + 'moved the page (scrolled ' + scrolled + ', ink-hand why='
+               + stood + ')');
+
+      // A FINGER AWAY FROM THE LAST STROKE IS NOT REFUSED IN THE GAP.
+      //
+      // The gap is for the next stroke of the same word, and that lands
+      // beside the last one. Only a zone round the last stroke refuses the
+      // native pan; the rest of the card stream keeps its own scroll, with
+      // momentum, rather than the hand-driven one.
+      stroke();
+      await sleep(40);
+      const nib = card3 && card3.querySelector('.ann-zone.on');
+      const px = (v) => parseFloat(v || '0');
+      const covers = nib
+        && px(nib.style.left) <= 120 && px(nib.style.left) + px(nib.style.width) >= 150
+        && px(nib.style.top) <= 60 && px(nib.style.top) + px(nib.style.height) >= 60;
+      latched() && covers
+        ? ok('in the gap, a zone round the last stroke refuses the pan, and it '
+             + 'covers that stroke')
+        : fail('no zone round the last stroke in the gap (latch '
+               + (latched() ? 'shut' : 'open') + ', zone '
+               + (nib ? [nib.style.left, nib.style.top, nib.style.width,
+                         nib.style.height].join(' ') : 'none') + ')');
+      seen.length = 0;
+      scrolled = 0;
+      touch(live(), 'touchstart', 140, 500);
+      [480, 440, 400].forEach((yy) => touch(live(), 'touchmove', 140, yy));
+      touch(live(), 'touchend', 140, 400);
+      !seen.some((e) => e.what === 'ink-hand') && scrolled === 0
+        ? ok('and a finger on the card outside it is left to the browser\'s own '
+             + 'scroll, not driven by hand')
+        : fail('a finger far from the last stroke is still refused and '
+               + 'hand-scrolled in the gap (' + scrolled + ' px)');
+      /canvas\.ann-layer\s*\{[^}]*touch-action:\s*none/.test(css3)
+        ? fail('the stylesheet still refuses the pan on every ink layer while '
+               + 'the pen is at work')
+        : ok('and no rule refuses the pan on every ink layer at once');
+    } finally {
+      window.scrollBy = realBy;
+      window.BoardTrace = realTrace;
+      if (yDesc) Object.defineProperty(window, 'pageYOffset', yDesc);
+      else delete window.pageYOffset;
+    }
   }
 
   // And the case the latch exists for: a page that is moving. A stroke landing
@@ -2283,6 +2382,7 @@ async function latchFlow() {
   } finally {
     window.BoardTrace = real;
     window.Annotate.clear('0003');
+    if (adopted) host.remove();
   }
 }
 

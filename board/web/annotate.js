@@ -302,6 +302,77 @@ function layerOf(card) {
   return c;
 }
 
+/* THE ZONE ROUND THE LAST STROKE, which is the only part of a card that refuses
+   a native pan while the latch is shut (`.card > .ann-zone` in `board.css`).
+
+   The latch is for the next stroke of the same word, and that lands beside the
+   last one. Shutting every card's whole layer for it left a person who writes,
+   swipes and writes again with no native scroll at all: nearly every swipe
+   landed in the gap and got only `handPan`, with no momentum and paced by the
+   main thread. Reported from the iPad, Galois Theory: "I couldn't scroll while
+   annotating ... I want both." So the zone is the stroke's box plus
+   `ZONE_REACH` on each side, drawn once per lift (`zoneAt`), and a finger
+   anywhere else keeps the browser's own scroll.
+
+   A cards-only thing: a document's pages keep their own latch on the scroller
+   (`#reader-pages`, `#paper-pages`). A pen landing on the zone begins a stroke
+   on its card exactly as the layer would; `begin` captures the pointer to the
+   layer, so the rest of the stroke goes there. */
+var ZONE = "ann-zone";
+var ZONE_REACH = 120;
+
+function zoneOf(card) {
+  var z = card.querySelector(":scope > ." + ZONE);
+  if (!z) {
+    z = document.createElement("div");
+    z.className = ZONE;
+    z.addEventListener("pointerdown", function (e) { begin(e, card); });
+    card.appendChild(z);
+  }
+  return z;
+}
+
+/* Set or grow the card's zone to what the stroke just covered, in canvas
+   pixels, clipped to the layer. Grown rather than replaced while the latch is
+   still shut, so a word written stroke by stroke stays covered. */
+function zoneAt(d, ev) {
+  var card = d.card;
+  if (!card || isPage(card) || !card.classList || !card.classList.contains("card")) return;
+  var cv = d.canvas;
+  var b = null;
+  var add = function (p) {
+    if (p && typeof p[0] === "number") b = grow(b, { x0: p[0], y0: p[1], x1: p[0], y1: p[1] });
+  };
+  add(d.from);
+  add(d.rubbedFrom);
+  var lists = [d.raw || [], d.loop || []];
+  for (var g = 0; g < lists.length; g++) {
+    for (var i = 0; i < lists[g].length; i++) add(lists[g][i]);
+  }
+  if (ev && typeof ev.clientX === "number") add(at(ev, d));
+  if (!b) return;
+  var z = zoneOf(card);
+  if (z._box && z.classList.contains("on")) b = grow(b, z._box);
+  z._box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
+  var all = boxOf(cv);
+  var x0 = Math.max(all.x0, b.x0 - ZONE_REACH), x1 = Math.min(all.x1, b.x1 + ZONE_REACH);
+  var y0 = Math.max(all.y0, b.y0 - ZONE_REACH), y1 = Math.min(all.y1, b.y1 + ZONE_REACH);
+  /* Canvas pixels to the card's: the layer hangs `_pl`/`_pt` off its card. */
+  z.style.left = Math.round(x0 - (cv._pl || 0)) + "px";
+  z.style.top = Math.round(y0 - (cv._pt || 0)) + "px";
+  z.style.width = Math.max(0, Math.round(x1 - x0)) + "px";
+  z.style.height = Math.max(0, Math.round(y1 - y0)) + "px";
+  if (document.body.classList.contains("pen-writing")) z.classList.add("on");
+}
+
+function zonesOff() {
+  var lit = document.querySelectorAll("." + ZONE + ".on");
+  for (var i = 0; i < lit.length; i++) {
+    lit[i].classList.remove("on");
+    lit[i]._box = null;
+  }
+}
+
 /* The canvas is sized in device pixels and scaled down by CSS, or the ink is
    soft on exactly the screens this is meant for. It reaches past the card on
    every side by `padsOf`, and is offset by the same, so a ring drawn around
@@ -1379,12 +1450,12 @@ function stylus(ev) {
    "I wrote down the first letter and it stopped writing. I paused for a couple of
    seconds, tried again, and writing continued fine."
 
-   A latch closes that. While the pen is at work the layer carries
-   `touch-action: none`, so the NEXT stroke cannot be reinterpreted however
-   quickly it follows, and a finger landing in that window is a palm rather than a
-   scroll -- which is what a finger arriving beside a working nib is. It opens
-   again a second and a half after the nib was last heard from, and a finger
-   scrolls as freely as ever. Same shape as the slate's own palm window, and the
+   A latch closes that. While the pen is at work the zone round the last stroke
+   (`.ann-zone`, see `zoneOf`) carries `touch-action: none`, so the NEXT stroke
+   cannot be reinterpreted however quickly it follows, and a finger landing there
+   in that window is a palm rather than a scroll -- which is what a finger
+   arriving beside a working nib is. The rest of the card scrolls natively
+   throughout, and the zone opens again with the latch. Same shape as the slate's own palm window, and the
    same reason.
 
    Note what this does NOT do: it does not decide anything by where the hand
@@ -1420,14 +1491,16 @@ var PEN_STEP = 120;
    crosses the threshold in time to be stolen.
 
    So the latch stays shut for this long after every lift, whether or not the
-   page moved, and only `touch-action: none` decides that gesture. A finger that
-   lands inside the gap and drags is still a scroll: `penProbe` opens the latch
-   and `handPan` moves the page for the gesture the CSS already refused. */
+   page moved, and only `touch-action: none` on the zone decides that gesture. A
+   finger that lands on the zone inside the gap and drags is still a scroll:
+   `penProbe` opens the latch and `handPan` moves the page for the gesture the
+   CSS already refused. */
 var PEN_GAP = 600;
 var penTimer = null;
 var liftAt = 0;
 
-/* The CSS latch: with it on, every ink layer refuses a one-finger pan. That is
+/* The CSS latch: with it on, the zone round the last stroke on a card and a
+   document's scroller refuse a one-finger pan; with it off, the zones go. That is
    half of "I cannot scroll" and the other half is `onTouchStart`, so the two are
    recorded separately and each says which it is.
 
@@ -1440,6 +1513,7 @@ var liftAt = 0;
 function penMode(want, why) {
   var had = document.body.classList.contains("pen-writing");
   document.body.classList.toggle("pen-writing", !!want);
+  if (!want) zonesOff();
   if (!!want !== had) say("ink-latch", { on: want ? 1 : 0, why: why || "" });
 }
 
@@ -1447,10 +1521,34 @@ function penMode(want, why) {
 
    Passive and on the document in capture, so it hears the lesson's own scroller
    as well as the window's and costs the gesture nothing. It assigns a number;
-   there is no other work behind it. */
-var scrollAt = 0;
+   there is no other work behind it.
 
-function penScroll() { scrollAt = Date.now(); }
+   A scroll the board made itself is not a fling and does not count: a render's
+   `holdAnchor`, a late picture's `holdBelow`, a reveal, and `handPan` all go
+   through `ownScroll`, which notes where it left the scroller. The scroll event
+   arrives a frame later, so it is matched by position rather than by a flag
+   around the call; one that does not match is somebody's own scroll. */
+var scrollAt = 0;
+var own = null;
+
+function scrollerAt(el) {
+  if (el) return el.scrollTop;
+  return window.pageYOffset || (document.documentElement || {}).scrollTop || 0;
+}
+
+function ownScroll(fn, el) {
+  try { fn(); } catch (e) { /* not fatal */ }
+  own = { el: el || null, y: scrollerAt(el || null) };
+}
+
+function penScroll(ev) {
+  var t = ev && ev.target;
+  var el = (!t || t === document || t === window || t === document.documentElement
+            || t === document.body) ? null : t;
+  if (own && own.el === el && Math.abs(scrollerAt(el) - own.y) < 1) return;
+  if (own && own.el === el) own = null;
+  scrollAt = Date.now();
+}
 
 var scrollArmed = false;
 
@@ -1590,18 +1688,21 @@ function penProbe(ev) {
    iOS fixes `touch-action` for a whole multi-touch gesture from its FIRST
    touch, and a gesture lasts until every contact has lifted. So a finger is
    refused natively whenever the gesture it joins began on a shut latch or was
-   cancelled at `touchstart` -- a finger landing in `PEN_GAP`, and every finger
-   that lands while a palm put down beside a stroke is still resting. That palm
-   is why "I cannot scroll with my finger whenever I'm annotating" followed the
-   gap: it re-lands between strokes, inside the gap, and stays.
+   cancelled at `touchstart` -- a finger landing on a card's zone in `PEN_GAP`
+   or on a document's pages, and every finger that lands while a palm put down
+   beside a stroke is still resting.
 
    So `onTouchStart` tracks whether the gesture is shut (`gestureShut`), and a
    finger landing in one is followed here and moves the page by hand. It
-   follows ITS OWN touch by identifier and ignores the rest of the hand, and it
-   stands down the moment the page moves without it -- that is the browser
-   scrolling natively after all, and two scrolls at once is worse than one.
+   follows ITS OWN touch by identifier and ignores the rest of the hand.
    Passive, no momentum, and the first 10 px (`HAND_SLOP`) are slop, so a palm
-   settling does not nudge the lesson. */
+   settling does not nudge the lesson.
+
+   It does NOT stand down when the page moves under it. A gesture this follows
+   was refused in CSS or at `touchstart`, so the browser cannot scroll it
+   natively; what moves the page is the board itself (`holdAnchor` on a render,
+   a reveal). Standing down there left the finger with no scroll of either kind,
+   which is "I couldn't scroll while annotating" from the Galois Theory sitting. */
 var HAND_SLOP = 10;
 var hand = null;
 var gestureShut = false;
@@ -1625,11 +1726,6 @@ function scrollerOf(el) {
   return null;
 }
 
-function handAt() {
-  if (hand.el) return hand.el.scrollTop;
-  return window.pageYOffset || (document.documentElement || {}).scrollTop || 0;
-}
-
 function handBegin(t, target) {
   if (!t || typeof t.clientY !== "number") return;
   /* A hand that has not moved yet is most likely the palm, so the newest
@@ -1639,8 +1735,7 @@ function handBegin(t, target) {
     handStop("newer");
   }
   hand = { id: t.identifier, y: t.clientY, from: t.clientY,
-           el: scrollerOf(target), live: false, moved: 0, at: 0 };
-  hand.at = handAt();
+           el: scrollerOf(target), live: false, moved: 0 };
   try {
     document.addEventListener("touchmove", handPan, { passive: true });
   } catch (e) { document.addEventListener("touchmove", handPan, false); }
@@ -1653,7 +1748,6 @@ function handPan(ev) {
   if (drawing) { handStop("drawing"); return; }
   var t = touchIn(ev.changedTouches, hand.id);
   if (!t || typeof t.clientY !== "number") return;
-  if (Math.abs(handAt() - hand.at) > 1) { handStop("native"); return; }
   if (!hand.live) {
     if (Math.abs(t.clientY - hand.from) < HAND_SLOP) return;
     hand.live = true;
@@ -1662,11 +1756,11 @@ function handPan(ev) {
   hand.y = t.clientY;
   if (!dy) return;
   hand.moved += dy;
-  try {
-    if (hand.el) hand.el.scrollTop += dy;
+  var el = hand.el;
+  ownScroll(function () {
+    if (el) el.scrollTop += dy;
     else window.scrollBy(0, dy);
-  } catch (e) { /* not fatal */ }
-  hand.at = handAt();
+  }, el);
 }
 
 function handEnd(ev) {
@@ -1725,13 +1819,14 @@ function freshGesture(ev) {
   return ev.touches.length <= ev.changedTouches.length;
 }
 
-/* Where the latch refuses a pan natively: an ink layer, and a zoomable
-   reader's whole scroller (`#reader-pages` in `library.css`, `#paper-pages`
-   in `board.css`), whose bare strips are then scrolled by `handPan` too. */
+/* Where the latch refuses a pan natively: the zone round the last stroke on a
+   card (`.ann-zone`), and a zoomable reader's whole scroller (`#reader-pages`
+   in `library.css`, `#paper-pages` in `board.css`), whose bare strips are then
+   scrolled by `handPan` too. The rest of a card's layer keeps its native pan. */
 function onLayer(ev) {
   var t = ev && ev.target;
   return !!(t && t.closest
-            && t.closest("canvas." + LAYER + ", #reader-pages, #paper-pages"));
+            && t.closest("." + ZONE + ".on, #reader-pages, #paper-pages"));
 }
 
 function onTouchStart(ev) {
@@ -1762,7 +1857,7 @@ function onTouchStart(ev) {
        scroll" had to be read out of the gap between an `ink-end` and an
        `ink-latch on=0` that came 350 ms before the window said it could. This
        is that finger, written down where it lands. */
-    say("ink-pan", { at: "touchstart", latch: 1 });
+    say("ink-pan", { at: "touchstart", latch: 1, shut: gestureShut ? 1 : 0 });
   }
   if (!why && gestureShut) {
     handBegin(ev.changedTouches && ev.changedTouches[0], ev.target);
@@ -1895,6 +1990,7 @@ function begin(ev, card) {
      second `getBoundingClientRect` here is a second forced layout of the whole
      lesson, at the moment the nib lands. */
   d.rect = { left: canvas._rl, top: canvas._rt };
+  d.from = at(ev, d);
 
   if (tool === "lasso") {
     var xy = at(ev, d);
@@ -2062,6 +2158,7 @@ function end(ev) {
   armMove(false);
   strokeOver();
   penLift();
+  zoneAt(d, ev);
   say("ink-end", { card: d.id, pid: d.pid });
   var id = d.id;
   var cv = d.canvas;
@@ -2312,6 +2409,9 @@ window.Annotate = {
   /* Is a hand on the layer right now. The autosave asks before it spends the
      main thread serialising a card's ink. */
   busy: function () { return !!drawing; },
+  /* A scroll the board makes itself (`holdAnchor`, `holdBelow`, a reveal): run
+     it, and the pen latch does not read it as a page in flight. */
+  ownScroll: function (fn) { ownScroll(fn, null); },
   undo: function () {
     var snap = past.pop();
     if (!snap) return false;
