@@ -169,11 +169,11 @@
         },
         {
           "text": "Rerun neighbor_count_sweep.sbatch: bge-small-en-v1.5 with --fixes 2026-10-02-knn-across-embedders-neighbor-count-sweep, then bge-en-icl and Qwen-Qwen3-Embedding-4B, for Figure 5 and Figures S8-S9",
-          "done": false
+          "done": true
         },
         {
           "text": "After the reruns, check each Figure S8-S9 panel path against that encoder's best_k_panels.json (k is in the filename) and the manuscript's cross-encoder numbers against cross_embedder_retrieval.csv",
-          "done": false
+          "done": true
         },
         {
           "text": "Add a tracked recipe that runs plot_cross_embedder_retrieval after all 4 sweeps and mirrors it into results/cross_embedder_retrieval/ for Figure 6; fix its docstring, which says the plot is not in the manuscript",
@@ -181,6 +181,14 @@
         },
         {
           "text": "Bring the new figures to the Mac (owner marks each PNG aggregate) or build on the cluster, then rebuild parts/ and run scripts/rebuild-packet.sh --strict. Every .docx and .pdf predates the 2026-10-05 text",
+          "done": false
+        },
+        {
+          "text": "Read the reports of sweep requests -2 (Qwen3-Embedding-4B), -3 (bge-en-icl) and -4 (Qwen3-Embedding-8B, REDRAW=1), already filed; when all three are in, file plot_cross_embedder_retrieval.sbatch through board job for Figure 6",
+          "done": true
+        },
+        {
+          "text": "When plot_cross_embedder_retrieval reports (request 2026-10-06-...-plot-cross-embedder-retrieval), check the manuscript's cross-encoder numbers and dimension counts (253, 271, 1,626, 236) against cross_embedder_retrieval.csv. The 18 Figure ",
           "done": false
         }
       ],
