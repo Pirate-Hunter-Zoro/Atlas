@@ -42,14 +42,14 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 ## Title and abstract
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 1 | D;E | Identify the study as developing or evaluating the performance of a multivariable prediction model, the target population, and the outcome to be predicted | Title page. The title names the prediction task, the outcome (a treatment-switching proxy for treatment-resistant depression), and the study design; the target population (patients with depression at their index antidepressant prescription in one community health system) is specified in the Abstract and in Methods, *Participants and Prediction Time* |
 | 2 | D;E | See TRIPOD+AI for Abstracts checklist | Abstract (structured: Background, Objective, Methods, Results, Conclusions) |
 
 ## Introduction
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 3a | D;E | Explain the healthcare context (including whether diagnostic or prognostic) and rationale for developing or evaluating the prediction model, including references to existing models | Introduction, paragraphs 1–3. Prognostic. Existing models cited [4-8,12-15] |
 | 3b | D;E | Describe the target population and the intended purpose of the prediction model in the context of the care pathway, including its intended users | Introduction, paragraphs 1 and 5 (identifying, at the index antidepressant prescription, patients likely to have a difficult treatment course, to inform monitoring and follow-up); Discussion, *Implications and Next Steps* (the results do not support clinical deployment; outcome validation, temporal and external evaluation, and prespecified thresholds come first) |
 | 3c | D;E | Describe any known health inequalities between sociodemographic groups | Methods, *Outcome*: access to depression treatment differs across US racial and ethnic groups, so the label can record unequal access as clinical signal (with Supplement M3). Discussion, *Clinical Interpretation and Limitations*, paragraph 3: the outcome depends on access to treatment, which is documented to differ across racial and ethnic groups in US depression care [28,29]. Supplement M3 states that switching depends on continuity and access, which differ across demographic groups. Addressed empirically in Results, *Retrieval and Subgroup Performance*, Supplement S9 (subgroup discrimination and calibration) and Supplement S11 (subgroup outcome frequency) |
@@ -58,7 +58,7 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 ## Methods
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 5a | D;E | Describe the sources of data separately for the development and evaluation datasets, the rationale for using these data, and representativeness of the data | Methods, *Study Design and Data Source*; Supplement M1. A frozen, de-identified Epic EHR extract from one community health system; development and evaluation samples are a single random partition of that one extract, whose versions and dates are stated. Representativeness: the sample is enriched for depression and does not represent health-system prevalence (Methods, *Study Design and Data Source*; Supplement M1) |
 | 5b | D;E | Specify the dates of the collected participant data, including start and end of participant accrual; and, if applicable, end of follow-up | Methods, *Study Design and Data Source* (index dates 2013–2025; extracted June 29, 2026); Methods, *Participants and Prediction Time* (730-day lookback and at least 365 days of follow-up). Figure 1 shows the lookback window, the index, and the outcome window on one axis |
 | 6a | D;E | Specify key elements of the study setting (e.g., primary care, secondary care, general population) including the number and location of centres | Methods, *Study Design and Data Source*, and Supplement M1. Single centre: Saint Francis Health System, Tulsa, Oklahoma, United States — one community health system, covering inpatient, outpatient, observation, and emergency encounters within one administrative division, entered through routine antidepressant prescribing rather than psychiatric specialty referral |
@@ -89,7 +89,7 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 ## Open science
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 18a | D;E | Give the source of funding and the role of the funders for the present study | Funding. The William K. Warren Foundation, with no other funding agency; the funder had no role in design, analysis, interpretation, writing, or the decision to submit |
 | 18b | D;E | Declare any conflicts of interest and financial disclosures for all authors | Conflicts of Interest. None declared |
 | 18c | D;E | Indicate where the study protocol can be accessed or state that a protocol was not prepared | Protocol and Registration. No study protocol was prepared |
@@ -100,13 +100,13 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 ## Patient and public involvement
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 19 | D;E | Provide details of any patient and public involvement during the design, conduct, reporting, interpretation, or dissemination of the study or state no involvement | Methods, *Ethical Considerations*. No patients or members of the public participated |
 
 ## Results
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 20a | D;E | Describe the flow of participants through the study, including the number of participants with and without the outcome and, if applicable, a summary of the follow-up time | Results, *Cohort Characteristics*; Supplement M2, Table M1 (501,718 → 42,579; 7,455 outcome-positive, 17.5%). At least 365 days of follow-up is imposed by eligibility (Methods, *Participants and Prediction Time*) |
 | 20b | D;E | Report the characteristics overall and, where applicable, for each data source or setting, including the key dates, key predictors, treatments received, sample size, number of outcome events, follow-up time, and amount of missing data. Report any differences across key demographic groups | Results, *Cohort Characteristics*, Table 1 (overall and by outcome status, with standardized mean differences); Supplement S11, Table S14 (expanded characteristics; outcome frequency by sex, age and social-determinant strata); Supplement M6 (amount and pattern of missingness) |
 | 20c | E | For model evaluation, show a comparison with the development data of the distribution of important predictors | Results, *Cohort Characteristics*; Supplement S8, Table S9 (training against test on the Table 1 characteristics). Maximum absolute standardized mean difference 0.036 over 100 predictor rows |
@@ -119,7 +119,7 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 ## Discussion
 
 | Item | D/E | Checklist item | Reported in |
-| :---: | :---: | --- | --- |
+| :----: | :----: | ---------------------------- | ------------------------------------------ |
 | 25 | D;E | Give an overall interpretation of the main results, including issues of fairness in the context of the objectives and previous studies | Discussion, *Principal Findings* and *Comparison With Prior Work* [12-15]. Fairness: Discussion, *Clinical Interpretation and Limitations*, paragraph 3 [28,29] |
 | 26 | D;E | Discuss any limitations of the study and their effects on any biases, statistical uncertainty, and generalizability | Discussion, *Clinical Interpretation and Limitations*. The main limitation is the target: switching can reflect tolerability, preference, clinician behavior and access as well as inadequate response, and the label was not validated against failed adequate trials or symptom trajectories [9-11]. Further: both representations encode the same hand-selected predictors, with the narrative a fixed template over them, so the comparison is between two encodings of curated fields and not evidence about an unselected record; selection and observation bias from the follow-up requirement, the exclusion of deceased patients and missed out-of-system care; the single-system, depression-enriched sample and random internal validation, which limit transportability and absolute risk; fairness not established, with small subgroup event counts and broad racial aggregation [28,29]; and concept permutation as sensitivity rather than causal contribution. Statistical uncertainty: Methods, *Model Development and Evaluation* (post hoc best-model comparison; no equivalence margin). Unequal field content between the pipelines: Methods, *Patient Representations and Missing Data*; Supplement S10 |
 | 27a | D | Describe how poor quality or unavailable input data should be assessed and handled when implementing the prediction model | **Not reported.** Missing-data handling is specified for model development (Methods, *Patient Representations and Missing Data*) but no implementation-time guidance is given, consistent with the study not supporting deployment (Discussion, *Implications and Next Steps*) |
