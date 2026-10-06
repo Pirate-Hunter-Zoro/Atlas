@@ -548,7 +548,44 @@ Hence $\mathbb{Q}(\alpha, \zeta_n) \subseteq L$, and $L = \mathbb{Q}(\alpha, \ze
 \end{problem}
 
 % ===== SOLUTION 10(d) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Let $\sigma \in \operatorname{Aut}(E/\mathbb{Q})$ and let
+$R = \{r_1, r_2, r_3\}$ be the roots of $x^3 - 2$, which are pairwise distinct
+by 10(a).
+
+\emph{$\sigma$ permutes $R$.} $\sigma \colon E \to E$ is a bijection, so its
+restriction $\sigma|_R$ is injective. Automorphisms fixing $\mathbb{Q}$ map
+roots to roots, so $\sigma(R) \subseteq R$. Since $R$ is finite, by the
+pigeonhole principle the injection $\sigma|_R \colon R \to R$ is onto. So it is
+a bijection of $R$, hence a permutation of $R$.
+
+\emph{$\sigma$ is determined by $\sigma|_R$.} By 10(a), $E = \mathbb{Q}(R)$.
+All $x \in \mathbb{Q}(R)$ are of the form
+\[
+  x = \sum_{i=1}^{n} a_i \, r_1^{p_{1i}} r_2^{p_{2i}} r_3^{p_{3i}},
+  \qquad a_i \in \mathbb{Q}.
+\]
+Let $\tau \in \operatorname{Aut}(E/\mathbb{Q})$ with $\sigma|_R = \tau|_R$.
+Each $a_i$ is fixed by both $\sigma$ and $\tau$, since $a_i \in \mathbb{Q}$, and
+$\sigma(r_j) = \tau(r_j)$ for each $j$. As $\sigma$ and $\tau$ are ring
+homomorphisms, $\sigma(x) = \tau(x)$. Hence $\sigma = \tau$.
+
+\emph{$\operatorname{Aut}(E/\mathbb{Q})$ embeds in $S_3$.} Define
+$\Phi \colon \operatorname{Aut}(E/\mathbb{Q}) \to \operatorname{Sym}(R)$ by
+$\Phi(\sigma) = \sigma|_R$, which lands in $\operatorname{Sym}(R)$ by the first
+part. Suppose $\Phi(\sigma_1) = \Phi(\sigma_2)$. Then
+$\sigma_1|_R = \sigma_2|_R$, so $\sigma_1 = \sigma_2$ by the previous part, and
+$\Phi$ is injective. Also, since $\sigma_2(R) \subseteq R$ by the first part,
+\[
+  \Phi(\sigma_1 \circ \sigma_2) = (\sigma_1 \circ \sigma_2)|_R
+  = \sigma_1|_R \circ \sigma_2|_R = \Phi(\sigma_1) \circ \Phi(\sigma_2),
+\]
+so $\Phi$ is an injective homomorphism. Hence $\Phi$ is an isomorphism from
+$\operatorname{Aut}(E/\mathbb{Q})$ onto $\Phi(\operatorname{Aut}(E/\mathbb{Q}))$,
+and the image of a homomorphism is a subgroup, so
+$\operatorname{Aut}(E/\mathbb{Q})$ is isomorphic to a subgroup of
+$\operatorname{Sym}(R) \cong S_3$.
+\end{proof}
 % ===== END SOLUTION 10(d) =====
 
 \end{document}
