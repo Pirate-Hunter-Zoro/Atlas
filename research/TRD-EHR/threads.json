@@ -40,95 +40,95 @@
       "exports": [
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k579.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k1243.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k413.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k1519.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k413.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k493.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k684.png",
-          "aggregate": false
+          "aggregate": true
         },
         {
           "path": "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k493.png",
-          "aggregate": false
+          "aggregate": true
         }
       ],
       "check": "",
