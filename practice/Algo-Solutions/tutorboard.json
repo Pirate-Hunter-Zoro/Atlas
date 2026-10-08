@@ -1,5 +1,6 @@
 {
   "name": "Algo Solutions",
+  "phi": false,
   "check": {
     "all": [
       "go",

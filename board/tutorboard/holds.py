@@ -24,10 +24,12 @@ them (`refusal`, which `board push` and the save button ask), and the relay's
 pass pulls under the owner's uncommitted edits (`sync`) because nothing
 upstream touches those files. So a pull on either side never conflicts.
 
-WHAT A CHECK REPORT CARRIES depends on the workspace (`output_open`). In a
-fenced one it is `RELAY:` lines only, each an aggregate. Elsewhere it is the
-check's merged output too, made public line by line and cut to fit
-(`check_output`), so the coach sees which test failed and why.
+WHAT A CHECK REPORT CARRIES depends on the workspace (`output_open`). By
+default it is `RELAY:` lines only, each an aggregate. Only where
+`tutorboard.json` says `"phi": false`, on disk and at HEAD, with no fence and
+the policy loaded, is it the check's merged output too, made public line by
+line and cut to fit (`check_output`), so the coach sees which test failed and
+why.
 
 `board send` is the owner's one command per step: commit the held files'
 changes as `<id>: step`, run the check here, commit its report, push both, and
@@ -171,29 +173,28 @@ def who(hid, rec):
 def output_open(root, names_phi=None, cfg=None):
     """True only when a check's full output may go back to the coach.
 
-    All four must hold, and any one failing closes it:
+    It fails closed. All four must hold, and anything else closes it:
 
-      1. the workspace holds no fence (`fenced.holds`), which PSYCH-ASR does;
-      2. its `tutorboard.json` does not say `"phi": true`, on disk or at HEAD;
-      3. it is a workspace of a family, and not of `research`, which is closed
-         by default because a research check can read patient rows with no
-         fence on disk. The repository's top, a family's directory and a
-         directory inside a workspace are closed: each can hold a fenced one;
+      1. its `tutorboard.json` says `"phi": false` literally, on disk;
+      2. and at HEAD (`_head_phi`), so an uncommitted edit opens nothing;
+      3. the workspace holds no fence (`fenced.holds`), which PSYCH-ASR does;
       4. the lab's PHI policy loaded (`names_phi`), so a checkout without the
          private `ai-config` is closed.
+
+    A missing file, a missing key, a `"phi": true` or a directory with no
+    `tutorboard.json` of its own (the repository's top, a family directory,
+    a directory inside a subject) is closed.
 
     `names_phi` and `cfg` are for a caller that already has them; left None
     they are read here.
     """
-    from . import atlas, fenced
+    from . import fenced
     from .course import config
     try:
-        if fenced.holds(root):
-            return False
         cfg = cfg if cfg is not None else config.read_config(root)
-        if cfg.get("phi") is True or _head_says_phi(root):
+        if cfg.get("phi") is not False or _head_phi(root) is not False:
             return False
-        if atlas.family_of(root) in ("", "research"):
+        if fenced.holds(root):
             return False
         if names_phi is None:
             names_phi = _policy(root)
@@ -202,17 +203,18 @@ def output_open(root, names_phi=None, cfg=None):
         return False
 
 
-def _head_says_phi(root):
-    """Does the committed `tutorboard.json` say `"phi": true`? An edit on disk
-    that drops it does not open the workspace."""
+def _head_phi(root):
+    """What the committed `tutorboard.json` says for `"phi"`: True or False
+    literally, else None (no file at HEAD, bad JSON, no key, not a bool)."""
     code, out = _git(root, "show", "HEAD:./tutorboard.json", timeout=20)
     if code != 0:
-        return False
+        return None
     try:
         said = json.loads(out)
     except ValueError:
-        return False
-    return isinstance(said, dict) and said.get("phi") is True
+        return None
+    phi = said.get("phi") if isinstance(said, dict) else None
+    return phi if isinstance(phi, bool) else None
 
 
 # ---------------------------------------------------------------------------
@@ -764,7 +766,7 @@ def hold(root, target, now=None, said=""):
         return False, ["a hold is made in the cluster checkout, where the owner "
                        "writes the code; this machine has no Slurm"]
     from . import atlas
-    if not atlas.family_of(root):
+    if "/" not in atlas.identify(root):
         # Only a workspace's own `relay/holds/` is read by the Mac's refusal
         # and its wake, so a hold made above one would hold nothing.
         return False, ["%s is not a workspace of a family, so nothing was held. "

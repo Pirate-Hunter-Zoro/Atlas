@@ -13,9 +13,11 @@ What the checks are about:
   * THE CLUSTER'S PULL LEAVES THE OWNER'S EDITS ALONE. Rebase with autostash
     under uncommitted edits to a held file while the Mac pushes elsewhere; and
     nothing moves at all when the Mac has touched that file.
-  * WHAT A REPORT CARRIES DEPENDS ON THE FENCE. A closed workspace's report
-    carries only `RELAY:` lines. An open one's carries the check's output,
-    paths made relative, cut to fit, a flagged line withheld.
+  * WHAT A REPORT CARRIES FAILS CLOSED. Output is open only where
+    tutorboard.json says `"phi": false` on disk and at HEAD, with no fence and
+    the policy loaded. A closed workspace's report carries only `RELAY:` lines.
+    An open one's carries the check's output, paths made relative, cut to fit,
+    a flagged line withheld.
   * ONE ROUND TRIP. `board send` on the cluster, a `[coach]` wake on the Mac,
     `board coach` back, and `board send` prints the reply.
 """
@@ -283,10 +285,10 @@ try:
     git(seed, "config", "user.name", "Owner")
     write(os.path.join(seed, "atlas.json"), json.dumps({"families": [
         {"id": "courses", "aim": "teach"}, {"id": "research", "aim": "build"},
-        {"id": "practice", "aim": "teach"}]}))
+        {"id": "practice", "aim": "teach"}, {"id": "projects", "aim": "build"}]}))
     write(os.path.join(seed, ".gitignore"), "ai-config/\n")
     # A research workspace with NO fence directory, closed by `"phi": true`
-    # and by its family -- TRD-EHR's shape.
+    # -- TRD-EHR's shape.
     ws = os.path.join(seed, "research", "Proj")
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(ws, "tutorboard.json"),
@@ -304,7 +306,7 @@ try:
     write(os.path.join(algo, ".gitignore"), "live/\n")
     write(os.path.join(algo, "go.mod"), "module algo\n\ngo 1.24\n")
     write(os.path.join(algo, "tutorboard.json"), json.dumps({
-        "name": "Algo", "check": {"all": ["go", "test", "./..."],
+        "name": "Algo", "phi": False, "check": {"all": ["go", "test", "./..."],
                                   "one": ["go", "test", "./{dir}/..."],
                                   "path": [os.path.dirname(GO)]}}))
     write(os.path.join(algo, "leetcode", "coinchange", "coinchange.go"), COIN)
@@ -314,10 +316,17 @@ try:
     course = os.path.join(seed, "courses", "Course")
     write(os.path.join(course, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(course, ".gitignore"), "live/\n")
+    write(os.path.join(course, "tutorboard.json"),
+          json.dumps({"name": "Course", "phi": False}))
     write(os.path.join(course, "chapters.tsv"), "01\t1\t9\tgroups\tGroups\n")
     write(os.path.join(course, "chapters", "ch01-groups", "notes.tex"), "x\n")
     write(os.path.join(course, "homework", "hw01", "hw01.tex"),
           "\\begin{problem}\n\\end{problem}\n")
+    # Two projects that do not say `"phi": false` where it counts: X has no
+    # `phi` key at all; Y says false on disk, but HEAD has no key.
+    for name in ("X", "Y"):
+        write(os.path.join(seed, "projects", name, "tutorboard.json"),
+              json.dumps({"name": name}))
     git(seed, "add", "-A")
     git(seed, "commit", "-q", "-m", "start")
     git(seed, "remote", "add", "origin", origin)
@@ -355,13 +364,32 @@ try:
     fenced.forget()
     cl_algo = os.path.join(cl_top, "practice", "Algo")
     cl_course = os.path.join(cl_top, "courses", "Course")
-    check("a practice workspace with the policy loaded is open",
-          holds.output_open(cl_algo))
+    cl_x = os.path.join(cl_top, "projects", "X")
+    cl_y = os.path.join(cl_top, "projects", "Y")
+    write(os.path.join(cl_y, "tutorboard.json"),
+          json.dumps({"name": "Y", "phi": False}))
+    check("a workspace saying \"phi\": false, on disk and at HEAD, with the "
+          "policy loaded is open", holds.output_open(cl_algo)
+          and holds.output_open(cl_course))
     check("a workspace saying \"phi\": true is closed, with no fence on disk",
           not holds.output_open(cl, names_phi=lambda s: False,
-                                cfg={"phi": True}))
-    check("a research workspace is closed by its family alone",
-          not holds.output_open(cl, names_phi=lambda s: False, cfg={}))
+                                cfg={"phi": True})
+          and not holds.output_open(cl, names_phi=lambda s: False))
+    check("a workspace whose config has no phi is closed",
+          not holds.output_open(cl_algo, names_phi=lambda s: False, cfg={}))
+    check("a project with no phi key is closed, whatever its family",
+          not holds.output_open(cl_x)
+          and not holds.output_open(cl_x, names_phi=lambda s: False)
+          and config.read_config(cl_x)["phi"] is None)
+    check("false on disk but not at HEAD is closed",
+          config.read_config(cl_y)["phi"] is False
+          and holds._head_phi(cl_y) is None
+          and not holds.output_open(cl_y, names_phi=lambda s: False))
+    write(os.path.join(cl_algo, "tutorboard.json"), json.dumps({"phi": "false"}))
+    check("a phi that is not literally false is closed: a string is not false",
+          not holds.output_open(cl_algo, names_phi=lambda s: False)
+          and config.read_config(cl_algo)["phi"] is None)
+    git(cl_top, "checkout", "--", "practice/Algo/tutorboard.json")
     check("a checkout without the lab's policy is closed",
           not holds.output_open(cl_algo, names_phi=False))
     os.makedirs(os.path.join(cl_algo, "phi"))
@@ -370,18 +398,22 @@ try:
           not holds.output_open(cl_algo))
     os.rmdir(os.path.join(cl_algo, "phi"))
     fenced.forget()
-    check("the repository's top and a family's directory are closed: each "
-          "holds a fenced workspace",
+    check("the repository's top, a family's directory and a directory inside "
+          "a workspace are closed: none says \"phi\": false of its own",
           not holds.output_open(cl_top) and not holds.output_open(
               os.path.join(cl_top, "research"))
           and not holds.output_open(os.path.join(cl_algo, "leetcode")))
     write(os.path.join(cl_algo, "tutorboard.json"), json.dumps({"phi": True}))
-    write(os.path.join(cl, "tutorboard.json"), json.dumps({"name": "Proj"}))
-    check("on-disk phi closes, and an edit dropping it does not open what "
+    write(os.path.join(cl, "tutorboard.json"),
+          json.dumps({"name": "Proj", "phi": False}))
+    check("on-disk phi closes, and an edit to false does not open what "
           "HEAD closes", not holds.output_open(cl_algo)
-          and holds._head_says_phi(cl) and not holds._head_says_phi(cl_algo))
+          and not holds.output_open(cl, names_phi=lambda s: False)
+          and holds._head_phi(cl) is True and holds._head_phi(cl_algo) is False)
     git(cl_top, "checkout", "--", "practice/Algo/tutorboard.json",
         "research/Proj/tutorboard.json")
+    shutil.rmtree(cl_y)
+    git(cl_top, "checkout", "--", "projects/Y")
     os.symlink("../../research/Proj/checks/aipw.sh",
                os.path.join(cl_algo, "leak.sh"))
     git(cl_top, "add", "practice/Algo/leak.sh")
@@ -671,6 +703,25 @@ for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
               not holds.output_open(root, names_phi=lambda s: False))
         check("%s says so in a tracked tutorboard.json" % ws,
               config.read_config(root)["phi"] is True
+              and not jobs.ignored(root, "tutorboard.json"))
+# Fail closed: exactly the subjects that say `"phi": false` at HEAD are open,
+# and only with the lab's policy loaded. Without ai-config, none is.
+OPEN = {"projects/Paper-Writer", "practice/Algo-Solutions",
+        "practice/Lean-Theorem-Proving"}
+atlas.forget()
+policy = callable(holds._policy(REPO))
+found = {w["id"]: holds.output_open(w["root"])
+         for w in atlas.workspaces(REPO)}
+check("the open subjects are exactly %s%s" % (
+          ", ".join(sorted(OPEN)), "" if policy else " (none: no policy here)"),
+      {w for w, o in found.items() if o} == (
+          {w for w in OPEN if w in found} if policy else set()))
+for ws in sorted(OPEN):
+    root = os.path.join(REPO, ws)
+    if os.path.isdir(root):
+        check("%s says \"phi\": false in a tracked tutorboard.json" % ws,
+              config.read_config(root)["phi"] is False
+              and holds._head_phi(root) is False
               and not jobs.ignored(root, "tutorboard.json"))
 for ws in ("practice/Algo-Solutions", "practice/Lean-Theorem-Proving"):
     root = os.path.join(REPO, ws)

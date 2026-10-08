@@ -68,11 +68,13 @@ def read_config(root):
     # it says teach" and "teach because nothing said anything" have to be
     # different answers here. See `stance_for`.
     cfg["said_stance"] = str(said.get("stance") or "").strip().lower() in STANCES
-    # WHETHER A CHECK'S OUTPUT MAY LEAVE THIS WORKSPACE WHOLE. `"phi": true`
-    # closes it: a held step's check then reports `RELAY:` lines only. Only a
-    # literal true counts; `holds.output_open` has three more tests, each of
-    # which closes it on its own.
-    cfg["phi"] = said.get("phi") is True
+    # WHETHER A CHECK'S OUTPUT MAY LEAVE THIS WORKSPACE WHOLE. Kept literal:
+    # True or False exactly as the file said it, None for anything else. Only
+    # a literal False can open it (`holds.output_open`, which also wants the
+    # same False at HEAD, no fence and the policy loaded); a missing key, a
+    # string or a number is not an answer and stays closed.
+    phi = said.get("phi")
+    cfg["phi"] = phi if isinstance(phi, bool) else None
     # The workspace's own check for a held step, validated. A bad one is
     # dropped and said, so a hold never runs something nobody declared.
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))

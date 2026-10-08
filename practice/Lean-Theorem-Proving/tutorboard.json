@@ -1,5 +1,6 @@
 {
   "name": "Lean Theorem Proving",
+  "phi": false,
   "check": {
     "all": [
       "bash",
