@@ -21,7 +21,7 @@ function render(name, tex, display) {
       displayMode: !!display,
       throwOnError: true,
       strict: false,
-      trust: true,
+      trust: false,  // the board trusts only safe commands; no macro needs any
     });
     return true;
   } catch (e) {

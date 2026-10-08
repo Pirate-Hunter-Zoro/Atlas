@@ -41,7 +41,7 @@ eval(fs.readFileSync(path.replace('board.js', 'plane-core.js'), 'utf8'));
 
 let src = fs.readFileSync(path, 'utf8');
 // expose the internals for testing
-src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore };\n})();');
+src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore, typeset, katexTrust };\n})();');
 eval(src);
 
 const R = window.__test.renderMarkdown;
@@ -118,6 +118,71 @@ check('starred command not italic', 'use $x^*y^*z$ here', ['$x^*y^*z$'], ['<em>'
                   + 'left to complain about')
     : (fails++, console.log('FAIL the first pass left ' + JSON.stringify(left)));
 }
+
+// KATEX TRUSTS ONLY SAFE COMMANDS. A card is model-written text rendered as
+// HTML, so `\href{javascript:...}` must not become a live anchor, an image must
+// not load from another host, and `\htmlClass` and friends must not reach the
+// DOM. Run with the real KaTeX and auto-render in jsdom, through `typeset`.
+{
+  let JSDOM = null;
+  try { ({ JSDOM } = require('jsdom')); } catch (e) { JSDOM = null; }
+  if (!JSDOM) {
+    fails++;
+    console.log('FAIL jsdom is not installed; run.py installs it');
+  } else {
+    const web = require('path').join(__dirname, '..', 'web', 'katex');
+    const dom = new JSDOM('<!doctype html><html><body></body></html>',
+      { url: 'https://board.test/s/1/board', runScripts: 'outside-only' });
+    dom.window.eval(fs.readFileSync(web + '/katex.min.js', 'utf8'));
+    dom.window.eval(fs.readFileSync(web + '/auto-render.min.js', 'utf8'));
+    global.renderMathInElement = dom.window.renderMathInElement;
+    global.location = dom.window.location;
+    global.URL = dom.window.URL;
+
+    const card = (md) => {
+      const el = dom.window.document.createElement('div');
+      el.innerHTML = R(md);
+      window.__test.typeset(el);
+      return el;
+    };
+    const verdict = (name, ok, el) => {
+      if (ok) { console.log('ok   ' + name); return; }
+      fails++;
+      console.log('FAIL ' + name + '\n   got: ' + el.innerHTML.slice(0, 300));
+    };
+    const anchors = (el) => Array.from(el.querySelectorAll('a')).map(a => a.getAttribute('href'));
+    const images = (el) => Array.from(el.querySelectorAll('img')).map(i => i.getAttribute('src'));
+
+    let el = card('Click $\\href{javascript:alert(1)}{x}$ now.');
+    verdict('a card whose math is \\href{javascript:alert(1)}{x} renders no javascript: anchor',
+      el.querySelector('.katex') && anchors(el).length === 0
+      && !/javascript:/i.test(el.innerHTML.replace(/<annotation[\s\S]*?<\/annotation>/g, '')), el);
+    ['JaVaScRiPt:alert(1)', 'javascript&colon;alert(1)', ' javascript:alert(1)',
+     'data:text/html,<b>x</b>', 'vbscript:x'].forEach(u => {
+      el = card('$\\href{' + u + '}{x}$ and $\\url{' + u + '}$');
+      verdict('no anchor for ' + u, anchors(el).length === 0, el);
+    });
+    el = card('$\\href{https://example.org/a}{x}$, $\\url{http://example.org}$, $\\href{notes/a.pdf}{y}$');
+    verdict('http, https and relative links still render as anchors',
+      JSON.stringify(anchors(el)) === JSON.stringify(
+        ['https://example.org/a', 'http://example.org', 'notes/a.pdf']), el);
+    el = card('$\\includegraphics{/static/a.png}$ $\\includegraphics{https://board.test/b.png}$');
+    verdict('a same-origin image loads',
+      JSON.stringify(images(el)) === JSON.stringify(['/static/a.png', 'https://board.test/b.png']), el);
+    el = card('$\\includegraphics{https://evil.test/x.png}$ $\\includegraphics{//evil.test/y.png}$');
+    verdict('an image from another origin does not', images(el).length === 0, el);
+    el = card('$\\htmlId{pwn}{a}$ $\\htmlClass{pwn}{b}$ $\\htmlStyle{color:red}{c}$ $\\htmlData{pwn=1}{d}$');
+    verdict('\\htmlId, \\htmlClass, \\htmlStyle and \\htmlData are refused',
+      !el.querySelector('#pwn') && !el.querySelector('.pwn')
+      && !el.querySelector('[style*="red"]') && !el.querySelector('[data-pwn]'), el);
+    const t = window.__test.katexTrust;
+    verdict('the trust function refuses a command it does not know',
+      t({ command: '\\htmlClass', class: 'x' }) === false
+      && t({ command: '\\somethingNew', url: 'https://x' }) === false
+      && t({ command: '\\href', url: 'https://x', protocol: 'https' }) === true, el);
+  }
+}
+
 
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nall markdown checks passed');
 process.exit(fails ? 1 : 0);

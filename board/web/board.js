@@ -571,9 +571,36 @@ function typeset(root) {
       throwOnError: false,
       errorColor: "#9a2020",
       strict: false,
-      trust: true
+      trust: katexTrust
     });
   } catch (e) { /* a bad formula must never blank the board */ }
+}
+
+/* WHAT A CARD'S MATH MAY REACH OUTSIDE ITSELF, and it is an allowlist. A card is
+   text a model wrote, so KaTeX's trusted commands are judged one by one:
+   `\href` and `\url` go to http, https or a relative URL and nowhere else (no
+   `javascript:`, no `data:`); `\includegraphics` loads only from this origin;
+   `\htmlId`, `\htmlClass`, `\htmlStyle`, `\htmlData` and any command KaTeX adds
+   later are refused. KaTeX has already worked out `protocol` from the URL, as
+   `_relative` where there is none, and refuses a URL it cannot read. */
+function katexTrust(ctx) {
+  var cmd = ctx && ctx.command;
+  var protocol = ctx && ctx.protocol;
+  if (cmd === "\\href" || cmd === "\\url") {
+    return protocol === "http" || protocol === "https" || protocol === "_relative";
+  }
+  if (cmd === "\\includegraphics") return sameOrigin(ctx.url);
+  return false;
+}
+
+/* Resolved against the page, so `//elsewhere/x.png` -- relative to KaTeX, and
+   another host to a browser -- is caught. No page, no image. */
+function sameOrigin(url) {
+  var here = window.location;
+  if (!here || !here.href || typeof URL !== "function") return false;
+  try {
+    return new URL(String(url || ""), here.href).origin === here.origin;
+  } catch (e) { return false; }
 }
 
 /* A SLUG IS NOT A TITLE, AND ON THE GLASS IT IS THE FILENAME SHOWING THROUGH.
