@@ -1750,7 +1750,7 @@ def nested_git(root):
     return ""
 
 
-def file_request(root, req, run=subprocess.run, push=True):
+def file_request(root, req, push=True):
     """Write `relay/requests/<id>.json` and commit that one file, then push.
 
     `(path, ok, said)`. `commit_alone` makes the commit.
@@ -1774,7 +1774,7 @@ def file_request(root, req, run=subprocess.run, push=True):
     # sees, even when it arrives in the first pull after filing.
     _baseline(root)
     ok, said = commit_alone(root, target, "relay request %s" % req["id"],
-                            run=run, push=push)
+                            push=push)
     return target, ok, said
 
 
@@ -1813,15 +1813,14 @@ _BRIEF_PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*"
                             r"[^\s/:'\",;)]+")
 
 
-def commit_alone(root, target, what, run=subprocess.run, push=True):
+def commit_alone(root, target, what, push=True):
     """Commit the one file `target`, written or removed, then push. `(ok, said)`.
 
-    The commit goes through the tool's own `save-and-push.sh` with that file as
-    its whole pathspec, so nothing else in the tree rides along. The message is
-    `<workspace>: <what>`. `push=False` commits it with plain git, and pushes
-    nothing.
+    `gitops.commit` with that file as the whole pathspec, so nothing else in
+    the tree rides along. The message is `<workspace>: <what>`. `push=False`
+    commits and pushes nothing.
     """
-    from . import atlas, paths
+    from . import atlas, gitops
     try:
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -1836,20 +1835,11 @@ def commit_alone(root, target, what, run=subprocess.run, push=True):
                      os.path.basename(target)), os.path.realpath(top))
     where = atlas.identify(root)
     msg = "%s: %s" % (where, what) if where else what
-    script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
-    if push and os.path.exists(script):
-        cmd = ["bash", script, msg, "--", rel]
+    if push:
+        ok, said = gitops.save(top, [rel], msg)
     else:
-        cmd = ["bash", "-c", 'set -e; git add -A -- "$2"; '
-               'git commit -q -m "$1" --only -- "$2"', "_", msg, rel]
-    try:
-        p = run(cmd, cwd=top, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                universal_newlines=True, timeout=180)
-    except subprocess.TimeoutExpired:
-        return False, "timed out after 3 minutes"
-    except OSError as exc:
-        return False, str(exc)
-    return p.returncode == 0, (p.stdout or "").strip()[-800:]
+        ok, said = gitops.commit(top, [rel], msg)
+    return ok, said[-800:]
 
 
 # ---------------------------------------------------------------------------

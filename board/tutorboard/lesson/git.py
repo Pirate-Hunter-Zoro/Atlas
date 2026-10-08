@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from .. import atlas, leaving, paths, worktree
+from .. import atlas, gitops, leaving, paths, worktree
 from ..course import homework
 from ..course import repo as course_repo
 
@@ -247,7 +247,7 @@ def repo_top(root):
 def run_push(repo, message=None):
     """Commit and push, and record what happened.
 
-    The work is the repository owner's. The script carries no co-author trailer
+    The work is the repository owner's. `gitops` adds no co-author trailer
     and neither does anything here -- history should credit the person who did
     the mathematics and nobody else.
 
@@ -327,11 +327,8 @@ def run_push(repo, message=None):
     # costs nothing.
     built = build_before_push(repo)
 
-    # The workspace leads the message. `save-and-push.sh` lives with the tool,
-    # one copy, and it is run FROM THE REPOSITORY ROOT: a push is a push of
-    # the repository, and
-    # pretending otherwise from a subdirectory is how a commit ends up with
-    # half of what somebody meant.
+    # The workspace leads the message, and the commit is of the repository
+    # the workspace is in, carrying only `save_pathspec`.
     said = message or "lesson complete"
     where = atlas.identify(repo.root)
     if where and not said.startswith(where):
@@ -339,31 +336,8 @@ def run_push(repo, message=None):
 
     top = repo_top(repo.root)
     specs, _ = save_pathspec(repo.root, top)
-
-    # ONE copy of the script, and the working directory is what tells it which
-    # repository to commit. A workspace has no `scripts/` of its own -- the
-    # tool's copy is the only copy -- and the script derives its root from
-    # `pwd`, not from where it is installed. That distinction is not pedantry:
-    # a root taken from the script's own location makes a test that taps save
-    # on a throwaway repository commit the real Atlas.
-    script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
-    if os.path.exists(script):
-        cmd = ["bash", script, said, "--"] + specs
-    else:
-        cmd = ["bash", "-c",
-               'set -e; export GIT_TERMINAL_PROMPT=0; m="$1"; shift; '
-               'git add -A -- "$@"; '
-               'git diff --cached --quiet || git commit -m "$m" --only -- "$@"; '
-               'git push', "_", said] + specs
-    try:
-        p = subprocess.run(cmd, cwd=top, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, timeout=180)
-        out = p.stdout.decode("utf-8", "replace").strip()
-        code = p.returncode
-    except subprocess.TimeoutExpired:
-        out, code = "timed out after 3 minutes -- is a credential prompt waiting?", 1
-    except OSError as exc:
-        out, code = str(exc), 1
+    ok, out = gitops.save(top, specs, said)
+    code = 0 if ok else 1
 
     record = {
         "ok": code == 0,

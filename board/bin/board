@@ -149,8 +149,8 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (assistants, atlas, brief, carry, direction, handoff, holds,
-                        jobs, keys, leaving, limits, machine, meeting,
+from tutorboard import (assistants, atlas, brief, carry, direction, gitops,
+                        handoff, holds, jobs, keys, leaving, limits, machine, meeting,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sittings, tex, worktree)
 from tutorboard.net import egress, tailscale
@@ -1365,12 +1365,9 @@ def cmd_push(live, args):
     else: the same tap has to mean the same thing in a `code` course and in a
     maths one.
 
-    ONE SCRIPT, AND IT IS THE TOOL'S. `board/scripts/save-and-push.sh` is the
-    only copy, and it is the copy the save button runs through `lesson/git.py`
-    -- two doors onto one path to a commit. A workspace carries no copy of its
-    own; the script derives its repository from the working directory, so the
-    caller sets that and the commit belongs to the repository somebody is
-    standing in.
+    ONE PATH TO A COMMIT. `gitops.save` is what the save button runs through
+    `lesson/git.py` too -- two doors onto one commit. The commit belongs to the
+    repository the workspace is in.
 
     It commits THIS WORKSPACE and nothing else, with the pathspec
     `lesson_git.save_pathspec` builds for the save button too: never the tool,
@@ -1407,12 +1404,6 @@ def cmd_push(live, args):
                            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
                            "detail": detail}, fh, indent=2)
             return 1
-
-    script = os.path.join(TOOL, "scripts", "save-and-push.sh")
-    if not os.path.exists(script):
-        print("this install has no %s, so there is nothing to push with"
-              % os.path.relpath(script, TOOL), file=sys.stderr)
-        return 1
 
     # Never into the middle of an operation somebody started in a terminal. This
     # runs unattended -- `board finish` raises the offer and the tutor may push
@@ -1494,8 +1485,7 @@ def cmd_push(live, args):
                       "be behind until it is fixed:")
                 print("  " + "\n  ".join(out.strip().splitlines()[-8:]))
 
-    # The script takes its repository from the working directory, so `top` is
-    # what decides which repository is committed, and the pathspec what in it.
+    # `top` decides which repository is committed, and the pathspec what in it.
     top = lesson_git.repo_top(live.root)
     specs, refused = lesson_git.save_pathspec(live.root, top, only)
     if refused:
@@ -1512,13 +1502,11 @@ def cmd_push(live, args):
     if where and not message.startswith(where):
         message = "%s: %s" % (where, message)
 
-    p = subprocess.run(["bash", script, message, "--"] + specs, cwd=top,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    out = p.stdout.decode("utf-8", "replace").strip()
+    ok, out = gitops.save(top, specs, message)
     print(out)
     # THE SAME RECORD EITHER DOOR WROTE IT. `push.json` is what the board reads
     # to draw the last outcome, shaped exactly as `lesson/git.py` shapes it.
-    record = {"ok": p.returncode == 0, "at": time.time(),
+    record = {"ok": ok, "at": time.time(),
               "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
               "workspace": where, "detail": out[-1200:]}
     with open(live.path("push.json"), "w", encoding="utf-8") as fh:
@@ -1531,7 +1519,7 @@ def cmd_push(live, args):
     # A save is a save everywhere, and it files nothing away: `board archive`
     # and `board open` are what file a lesson, and they are the only things
     # that do.
-    return p.returncode
+    return 0 if ok else 1
 
 
 def cmd_slate(live, args):

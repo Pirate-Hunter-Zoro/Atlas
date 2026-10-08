@@ -1204,7 +1204,7 @@ def await_reply(root, hid, n, wait, every=WAIT_EVERY, sleep=time.sleep):
         sleep(min(every, max(0.0, deadline - time.time())))
 
 
-def write_coach(root, hid, body, step=None, run=subprocess.run, push=True):
+def write_coach(root, hid, body, step=None, push=True):
     """`board coach`, on the Mac: the coach's reply to the step, committed
     alone and pushed. `(ok, said)`."""
     if not (body or "").strip():
@@ -1223,7 +1223,7 @@ def write_coach(root, hid, body, step=None, run=subprocess.run, push=True):
     with open(target, "w", encoding="utf-8") as fh:
         fh.write(coach_text(hid, step, body))
     return jobs.commit_alone(root, target, "%s: coach, step %d" % (hid, step),
-                             run=run, push=push)
+                             push=push)
 
 
 # ---------------------------------------------------------------------------

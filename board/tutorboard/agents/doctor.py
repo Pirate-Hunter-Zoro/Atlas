@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-from tutorboard import keys, seeing
+from tutorboard import gitops, keys, seeing
 from tutorboard.agents import recipes, usage
 from tutorboard.course import config
 from tutorboard.net import egress
@@ -244,11 +244,11 @@ def cmd_doctor(cfg, args):
     check_bytes = (DOCTOR_CHECK % {"want": n * (n + 1) // 2}).encode("utf-8")
     with open(os.path.join(ws, "check.py"), "wb") as fh:
         fh.write(check_bytes)
-    git = ["git", "-C", ws, "-c", "user.name=tutor doctor",
-           "-c", "user.email=doctor@localhost"]
-    for step in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "doctor"]):
-        subprocess.run(git[:3] + step if step[0] == "init" else git + step,
+    for step in (["init", "-q"], ["config", "user.name", "tutor doctor"],
+                 ["config", "user.email", "doctor@localhost"]):
+        subprocess.run(["git", "-C", ws] + step,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    gitops.commit(ws, ["."], "doctor")
 
     # The log is beside the workspace rather than in it, so the resumed turn
     # cannot find the code word by reading the first turn's output.

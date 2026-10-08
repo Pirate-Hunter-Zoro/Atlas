@@ -22,19 +22,16 @@
 # ===========================================================================
 set -uo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=scripts/tool.sh
-. "$HERE/scripts/tool.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$HERE" || { echo "cannot enter $HERE" >&2; exit 1; }
 
 MSG="${1:-board and tutor updates}"
 
-# The TOOL's path inside the repository, worked out rather than typed: this is
-# `board` today and the point of deriving it is that a rename does not silently
-# turn shipping into "commit everything". `scripts/tool.sh` is the one place it
-# is derived, because `save-and-push.sh` needs the same answer and the copy it
-# had was wrong.
-REL="$(tool_prefix)"
+# The tool's path inside its repository (`board`), asked of git rather than
+# typed, so a rename never turns shipping into "commit everything". Empty means
+# the tool is the repository root, and then the pathspec is the whole tree.
+REL="$(git -C "$HERE" rev-parse --show-prefix 2>/dev/null)"
+REL="${REL%/}"
 
 # When the ship began, before anything is committed. Another node's watch can
 # restart its boards while the push below is still running, and that is still
@@ -46,11 +43,7 @@ echo "== the tool (${REL:-the repository}) =="
 # shipping a change to the board would sweep up whatever is uncommitted in nine
 # other workspaces and commit it under "board and tutor updates". A course's
 # half-finished proof is not a board update and must never be filed as one.
-if [ -n "$REL" ]; then
-  bash "$HERE/scripts/save-and-push.sh" "$MSG" -- "$REL"
-else
-  bash "$HERE/scripts/save-and-push.sh" "$MSG"
-fi
+bash "$HERE/scripts/save-and-push.sh" "$MSG" -- "${REL:-.}"
 status=$?
 if [ $status -ne 0 ]; then
   echo
@@ -60,10 +53,6 @@ if [ $status -ne 0 ]; then
   exit $status
 fi
 
-# save-and-push.sh already bounces the boards when it is this repository being
-# pushed. The tutors are the other half, and they are only bounced from here --
-# a course pushing its own homework has no business restarting anybody's tutor.
-#
 # `--stale` bounces only what is not on the tree's code stamp, and `--wait`
 # waits for every other node's watch to put its boards on it: the checkout is
 # shared, so that node already has the files, and its watch's ship beat is what

@@ -24,9 +24,8 @@ spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
 from tutorboard.runner import daemon  # noqa: E402
-from tutorboard import gitsync  # noqa: E402
+from tutorboard import gitops  # noqa: E402
 from tutorboard.agents import recipes  # noqa: E402
-from tutorboard import relay  # noqa: E402
 
 from tutorboard import paths, processes
 
@@ -145,8 +144,7 @@ try:
         return 0, ""
 
     daemon.board = fake_board
-    gitsync.sync = lambda root, quiet=False: calls["sync"].append(os.path.basename(root))
-    relay.pull_vendor = lambda quiet=False: None
+    gitops.pull = lambda root, quiet=False: calls["sync"].append(os.path.basename(root))
     daemon.agent_live = lambda root: None
     daemon.agent_start = lambda cfg, course, name: (
         calls["agent"].append(course["dir"]) or (0, "started"))
@@ -303,60 +301,6 @@ src_t = open(os.path.join(ROOT, "tutorboard", "runner", "watch.py"),
              encoding="utf-8").read()
 check("a restart skips a record with no pid rather than dying on it",
       "if not was:" in src_t and '"%s (no pid in its record)"' in src_t)
-
-# One command to put a machine right.
-#
-# A machine nobody is sitting at never restarts the processes holding the old
-# code, so every fix shipped from elsewhere sits on its disk -- two kinds of
-# process and two kinds of repository, and remembering that list is not
-# somebody's job.
-script = os.path.join(ROOT, "scripts", "catch-up.sh")
-check("there is a script that catches a machine up in one command",
-      os.path.isfile(script))
-src_c = open(script, encoding="utf-8").read()
-check("it pulls the repository first and re-runs itself on what arrived, since "
-      "everything below it reads this repository",
-      'git -C "$COURSES" pull --ff-only' in src_c and "exec bash" in src_c)
-check("and moves vendor/colibri forward with it, because a login is the one "
-      "moment a compute node gets",
-      "submodule update --init --remote --merge vendor/colibri" in src_c)
-check("but never vendor/colibri-build, which is pinned: a build tree that moves "
-      "underneath a build is the failure it exists to avoid",
-      "--remote --merge vendor/colibri-build" not in src_c)
-
-# ELEVEN repositories became ONE, and most of this script went with them. It
-# used to fetch, stash, tag and `reset --hard` each course onto its origin --
-# machinery that existed because eleven working trees could each be in the wrong
-# place independently. There is one working tree now and one `--ff-only` pull,
-# which CANNOT rewrite anything: the worst it does is decline.
-#
-# So the tag and the stash are not guards that were removed. They were the
-# safety rails on a cliff, and the cliff is gone. What is asserted here is the
-# stronger property that replaced them.
-check("it cannot reset or force anything -- a pull that will not fast-forward "
-      "says so and changes nothing, which is what removed the need to tag first",
-      "reset --hard" not in src_c and "--force" not in src_c
-      and "stash push" not in src_c)
-check("it still refuses to touch a repository somebody is part-way through, "
-      "because that is what holds the one index and the one HEAD",
-      "rebase-merge rebase-apply MERGE_HEAD" in src_c
-      and "left exactly as it is" in src_c)
-check("and still refuses a detached HEAD, where origin/HEAD reads as a branch "
-      "name and walked somebody onto the remote's default branch once",
-      '--abbrev-ref HEAD 2>/dev/null)" = "HEAD"' in src_c)
-check("it walks TWO levels, a family then a workspace, not one",
-      '"$COURSES"/*/*/' in src_c)
-check("and does not count the board's own scratch as somebody's uncommitted "
-      "work, which made every workspace with a board on it look like it needed "
-      "rescuing",
-      "grep -Ev '(^|/)live/'" in src_c)
-check("it restarts the boards and the tutors",
-      'restart --tutors' in src_c)
-check("and then says what is actually true: what is running, and how to reach "
-      "each board directly",
-      "how to reach each of them" in src_c)
-check("with a --report mode that changes nothing",
-      "--report) REPORT=1" in src_c)
 
 print("%d FAILURES" % len(fails) if fails
       else "the board comes back on the Mac, and the cluster starts none")

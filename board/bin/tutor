@@ -37,7 +37,7 @@ sys.path.insert(0, TOOL)
 from tutorboard import stamp
 if sys.argv[1:2] == ["headless"]:
     stamp.mark_loaded()
-from tutorboard import gitsync, jobs, keys, machine, processes, relay
+from tutorboard import atlas, gitops, jobs, keys, machine, processes
 from tutorboard.agents import doctor, recipes, usage
 from tutorboard.runner import daemon, loop, watch
 from tutorboard.course import repo as course_repo
@@ -193,9 +193,9 @@ def cmd_resume(cfg, args):
     model, ever. On a Slurm host this says so and exits 0, so an old login hook
     still in somebody's `.bashrc` costs one line rather than a board.
 
-    On the Mac it is deliberately dull: it moves `vendor/colibri` forward,
-    restarts any board here whose process died, catches the chosen course up,
-    starts its board if it is down and attaches its tutor unless `--no-agent`.
+    On the Mac it is deliberately dull: it restarts any board here whose
+    process died, catches the chosen course up, starts its board if it is down
+    and attaches its tutor unless `--no-agent`.
     """
     quiet = "--quiet" in args
     rest = [a for a in args if not a.startswith("-")]
@@ -212,7 +212,6 @@ def cmd_resume(cfg, args):
         return 0
 
     host = recipes.this_host()
-    relay.pull_vendor(quiet=quiet)
     found = daemon.courses(cfg)
 
     # A board that DIED is not a board that was stopped. `board stop` removes
@@ -240,7 +239,7 @@ def cmd_resume(cfg, args):
         daemon.remember_course(course)        # named on the command line: a decision
 
     root = course["root"]
-    gitsync.sync(root, quiet=True)
+    gitops.pull(root, quiet=True)
     info = daemon.board_record(root) or {}
     if not (info.get("node") == host
             and processes.board_is_running(info.get("pid"), root)):
@@ -480,7 +479,7 @@ def main(argv):
         if "--hear" in argv:
             # The relay's half, which the timer runs every time it fires. On a
             # machine with Slurm it does nothing: the relay pulls there.
-            pulled, interval, heard = gitsync.hear_pass(
+            pulled, interval, heard = gitops.hear_pass(
                 force="--force" in argv, quiet=quiet)
             for rec in heard:
                 print("heard %s on %s: %s" % (rec.get("request"),
@@ -492,7 +491,9 @@ def main(argv):
                 else:
                     print("pulls every %ds" % interval)
             return 0
-        return 0 if relay.pull_vendor(quiet=quiet) is not False else 1
+        # A plain fast-forward of Atlas. Only the cluster relay bumps vendor
+        # pointers; the pull brings this machine's vendor checkouts along.
+        return 0 if gitops.pull(atlas.root(), quiet=quiet) is not False else 1
 
     if args and args[0] == "cost":
         return cmd_cost(cfg, args[1:])

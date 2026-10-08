@@ -34,7 +34,7 @@ spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
 from tutorboard.runner import daemon  # noqa: E402
-from tutorboard import gitsync  # noqa: E402
+from tutorboard import gitops  # noqa: E402
 from tutorboard.agents import recipes  # noqa: E402
 from tutorboard.runner import turn as runturn  # noqa: E402
 from tutorboard.runner import watch as runwatch  # noqa: E402
@@ -599,7 +599,7 @@ def git(*args, **kw):
 
 
 check("a directory that is not a repository is left alone",
-      gitsync.sync(tempfile.mkdtemp(prefix="tutor-plain-")) is None)
+      gitops.pull(tempfile.mkdtemp(prefix="tutor-plain-")) is None)
 
 sandbox = tempfile.mkdtemp(prefix="tutor-sync-")
 up = os.path.join(sandbox, "up")
@@ -616,7 +616,7 @@ with open(os.path.join(here, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("add", "-A", cwd=here)
 git("commit", "-qm", "first", cwd=here)
 
-check("a repository with no remote is left alone", gitsync.sync(here, quiet=True) is None)
+check("a repository with no remote is left alone", gitops.pull(here, quiet=True) is None)
 
 git("remote", "add", "origin", up, cwd=here)
 git("push", "-qu", "origin", "main", cwd=here)
@@ -628,7 +628,7 @@ with open(os.path.join(there, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("commit", "-qam", "handoff from elsewhere", cwd=there)
 git("push", "-q", cwd=there)
 
-check("a session pulls what another machine pushed", gitsync.sync(here, quiet=True) is True)
+check("a session pulls what another machine pushed", gitops.pull(here, quiet=True) is True)
 with open(os.path.join(here, "HANDOFF.md"), encoding="utf-8") as fh:
     check("and the handoff it wrote is the one now on disk",
           fh.read().strip() == "what the other machine taught")
@@ -644,7 +644,7 @@ with open(os.path.join(here, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("commit", "-qam", "local work", cwd=here)
 
 check("a diverged branch reports rather than throwing",
-      gitsync.sync(here, quiet=True) is False)
+      gitops.pull(here, quiet=True) is False)
 check("and it does not touch the local work",
       open(os.path.join(here, "HANDOFF.md"), encoding="utf-8").read().strip()
       == "locally, at the same time")
@@ -713,16 +713,6 @@ check("and falls back to the one that was running if nothing resolves",
 check("and says so when the restart changed the tutor",
       '"%s (%s -> %s)" % (c["dir"], was_name, name)' in tool_src)
 
-push_src = open(os.path.join(ROOT, "scripts", "save-and-push.sh"), encoding="utf-8").read()
-check("pushing the tool restarts the boards it drives", "tutor restart" in push_src)
-# Asserted on the TEST the script makes, not on a sentence near it: a commit in
-# a repository the tool does not live in cannot have changed the tool, whatever
-# it touched, and `ROOT` is the repository the caller was standing in.
-check("but a course pushing its own work does not",
-      '[ "$TOOL_ROOT" = "$ROOT" ]' in push_src
-      and 'ROOT="$(git rev-parse --show-toplevel' in push_src)
-check("and a failure to restart does not fail the push",
-      "|| echo" in push_src)
 
 print()
 # A daemon being BOUNCED is not a daemon that died.

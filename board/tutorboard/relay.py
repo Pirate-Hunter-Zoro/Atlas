@@ -624,10 +624,9 @@ def pull_vendor(quiet=False):
 
     A submodule is exactly that: the repository tracks a POINTER to a commit in
     somebody else's repository, and the pointer is a tracked file like anything
-    else. `tutor pull` runs this, the Mac's `tutor-pull` agent runs that daily,
-    `tutor resume` runs it too, and the relay's pass runs it on the cluster --
-    the same guards, the same commit message, one implementation. A timer is
-    safe here only BECAUSE of the third
+    else. The relay's pass runs this on the cluster, the only machine that
+    bumps vendor pointers; the Mac's `gitops.pull` only checks out the
+    pointers it pulled. A timer is safe here only BECAUSE of the third
     rule below: it commits nothing when anything else in the tree is dirty, so
     it cannot sweep up an afternoon it arrived in the middle of.
 
@@ -639,8 +638,7 @@ def pull_vendor(quiet=False):
     naming the old commit and the new one.
 
     **That is the only commit anything in this system makes on its own**, so it
-    is guarded three ways, and every guard is one `scripts/catch-up.sh` already
-    has written out for the course loop:
+    is guarded three ways:
 
     * only when `vendor/colibri` is the ONLY dirty path. Anything else in the
       tree and this does nothing at all -- a commit that sweeps up somebody's

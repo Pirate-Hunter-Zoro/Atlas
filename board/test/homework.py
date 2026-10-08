@@ -344,10 +344,9 @@ try:
     # machine with no TeX skips the checks that need a PDF.
     HAVE_TEX = tex.have_tex()
 
-    # A real throwaway repository with NO origin, because there is one
-    # save-and-push.sh and it is the tool's: a workspace has no copy of its own
-    # for a test to stub out. With no `origin` the script commits and says so,
-    # which is every part of a push this suite is about and none of the network.
+    # A real throwaway repository with NO origin: `gitops.save` commits and
+    # says so, which is every part of a push this suite is about and none of
+    # the network.
     def sh(*args):
         subprocess.run(list(args), cwd=prob, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, check=True)
@@ -366,21 +365,13 @@ try:
     check("and says which set it built", "hw05" in out)
     check("and then actually commits", "committed" in out)
 
-    # THE SCRIPT IS THE TOOL'S, and this is the assertion that says so. `board
-    # push` reaching for a `scripts/save-and-push.sh` beside the sitting is two
-    # doors onto two different files, and the terminal's was the older one.
-    # Asserted on the path the code resolves rather than on any sentence about
-    # it: the repository holds exactly one copy and it is under the tool.
+    # ONE PATH TO A COMMIT: `board push` and the save button both go through
+    # `gitops.save`, so the terminal's door cannot drift from the iPad's.
     src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
     push_body = src[src.index("def cmd_push("):src.index("def cmd_slate(")]
-    resolved = [ln for ln in push_body.splitlines()
-                if "save-and-push.sh" in ln and "os.path.join" in ln]
-    check("bin/board resolves save-and-push.sh under the tool and nowhere else",
-          len(resolved) == 1 and "TOOL" in resolved[0]
-          and "live.root" not in resolved[0])
-    check("and the tool's copy is the one that is actually there",
-          os.path.isfile(os.path.join(ROOT, "scripts", "save-and-push.sh"))
-          and not os.path.exists(os.path.join(prob, "scripts", "save-and-push.sh")))
+    check("bin/board commits through gitops.save and runs no script of its own",
+          "gitops.save(top, specs, message)" in push_body
+          and "save-and-push.sh" not in push_body)
 
     # AND THE SUBJECT LEADS WITH THE WORKSPACE, which is the other half of one
     # door. The commit carries the whole repository, so a history of subjects

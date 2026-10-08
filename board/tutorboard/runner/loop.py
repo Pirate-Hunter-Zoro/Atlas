@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-from tutorboard import gitsync, handoff, jobs, keys, limits, seeing, stamp
+from tutorboard import gitops, handoff, jobs, keys, limits, seeing, stamp
 from tutorboard.agents import recipes, usage
 from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
@@ -655,7 +655,7 @@ def headless(cfg, course, agent_name, session):
     # Moved here from `agent_start`, so the request that asks for a tutor does
     # not wait on a remote. Every session still begins by catching up; it just
     # does it where there is nobody watching the clock.
-    gitsync.sync(root, quiet=True)
+    gitops.pull(root, quiet=True)
     logpath = os.path.join(live, "agent.log")
     log = open(logpath, "a", buffering=1)
     host = recipes.this_host()

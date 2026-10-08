@@ -242,7 +242,7 @@ check("`agent_start` marks the course waking", "mark_waking(" in start)
 check("and it does so before it forks anything",
       start.index("mark_waking(") < start.index("subprocess.Popen"))
 check("and the catch-up no longer happens inside the request that asked",
-      "sync(root, quiet=True)" not in start)
+      "pull(root, quiet=True)" not in start)
 
 src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
            encoding="utf-8").read()
@@ -253,7 +253,7 @@ check("the daemon marks itself waking too, for a start nobody routed",
 check("before the board and the sitting, which are the slow part",
       head.index("mark_waking(") < head.index('board(root, "start")'))
 check("and the catch-up moved here, where nobody is holding a request open",
-      "sync(root, quiet=True)" in head)
+      "pull(root, quiet=True)" in head)
 
 # The other half of never hanging: work handed in with nothing reading the board
 # starts a tutor. It used to go into the inbox and stay there for ever, because

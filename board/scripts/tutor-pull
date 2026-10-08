@@ -11,15 +11,12 @@
 #  The cadence is decided there (`jobs.pull_due`), not by the timer. On a
 #  machine with Slurm it does nothing: the relay pulls there.
 #
-#  ONCE A DAY: `tutor pull`, below.
+#  ONCE A DAY: `tutor pull`, below: a plain fast-forward of Atlas, which
+#  brings the vendor checkouts along when the pull moved their pointers. Only
+#  the cluster relay bumps vendor pointers.
 #
-#  `tutor pull` moves `vendor/colibri`, somebody else's repository tracked here
-#  by pointer.
-#
-#  IT REIMPLEMENTS NOTHING. The submodule fast-forward, the pointer commit and
-#  the three guards that make an unattended commit safe are `pull_vendor` in
-#  `tutorboard/relay.py`; the cadence and the hearing are `hear_pass` in
-#  `tutorboard/gitsync.py`.
+#  IT REIMPLEMENTS NOTHING. The pull and its guards are `pull`, and the cadence
+#  and the hearing are `hear_pass`, both in `tutorboard/gitops.py`.
 #  This file is a stamp, a log and two calls.
 #
 #  Never fatal and never clever: a dirty tree, a detached HEAD

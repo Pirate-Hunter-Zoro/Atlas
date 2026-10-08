@@ -62,7 +62,7 @@ def inbox(ws):
         return []
 
 
-from tutorboard import gitsync  # noqa: E402
+from tutorboard import gitops  # noqa: E402
 from tutorboard.runner import turn as runturn  # noqa: E402
 
 RECIPE = """#!/bin/bash
@@ -128,7 +128,7 @@ try:
         return True
 
     write(stamp, "%f\n" % 1000.0)
-    got, interval, heard = gitsync.hear_pass(stamp=stamp, now=1002,
+    got, interval, heard = gitops.hear_pass(stamp=stamp, now=1002,
                                               pull=fake_pull)
     check("two seconds after the last pull: no pull",
           got is False and pulled == [] and interval == jobs.PULL_EVERY)
@@ -146,7 +146,7 @@ try:
                                       jobs.HEARD))
           and git(mac, "status", "--porcelain").strip() == "")
     threads._cache.clear()
-    got, interval, heard = gitsync.hear_pass(stamp=stamp, now=1120,
+    got, interval, heard = gitops.hear_pass(stamp=stamp, now=1120,
                                               pull=fake_pull)
     check("a request out, two minutes after the last pull: it pulls",
           got is True and len(pulled) == 1 and interval == jobs.PULL_EVERY
@@ -169,7 +169,7 @@ try:
 
     cluster_reports({"id": req["id"], "state": "running", "jobid": "88",
                      "submitted": 1200.0})
-    got, _, heard = gitsync.hear_pass(stamp=stamp, now=1300)
+    got, _, heard = gitops.hear_pass(stamp=stamp, now=1300)
     check("a running report pulled in wakes nothing", got is True
           and heard == [] and inbox(ws) == [])
 
@@ -181,7 +181,7 @@ try:
                      "exported": ["results/knn/sweep.png"],
                      "relay": ["RELAY: k=300 best", "RELAY: then it fell over"],
                      "note": "the sweep ran out of memory at k=500"})
-    got, interval, heard = gitsync.hear_pass(stamp=stamp, now=1420)
+    got, interval, heard = gitops.hear_pass(stamp=stamp, now=1420)
     msgs = inbox(ws)
     check("the ended report is heard on the pull that brought it",
           got is True and [h["request"] for h in heard] == [req["id"]])
@@ -207,7 +207,7 @@ try:
           and "relay.turns" not in text and "tick the task" not in text)
     check("and the pull is still every twenty seconds", interval == jobs.PULL_EVERY)
 
-    gitsync.hear_pass(stamp=stamp, now=1600, force=True)
+    gitops.hear_pass(stamp=stamp, now=1600, force=True)
     check("heard once: the next pass drops nothing", len(inbox(ws)) == 1)
     shutil.rmtree(os.path.join(ws, "live", "jobs.reported"))
     git(mac, "commit", "-q", "--allow-empty", "-m", "elsewhere")
@@ -230,7 +230,7 @@ try:
     git(mac, "push", "-q")
     cluster_reports({"id": req2["id"], "state": "refused",
                      "problems": ["env DATA is not declared"]})
-    gitsync.hear_pass(stamp=stamp, now=1800, force=True)
+    gitops.hear_pass(stamp=stamp, now=1800, force=True)
     msgs = inbox(ws)
     check("a refusal arriving in the first pull after filing is heard",
           len(msgs) == 2 and "refused" in msgs[-1]["text"]
@@ -248,7 +248,7 @@ try:
                      "state": "completed", "check": "src/knn.py", "exit": 0,
                      "relay": ["n=120 mean=0.42"]})
     before = len(inbox(ws))
-    got, interval, heard = gitsync.hear_pass(stamp=stamp, now=2000, force=True)
+    got, interval, heard = gitops.hear_pass(stamp=stamp, now=2000, force=True)
     msgs = inbox(ws)[before:]
     check("a pulled check report drops exactly one [coach] line, no [job] line",
           len(msgs) == 1 and msgs[0]["signal"] == "coach"
@@ -256,7 +256,7 @@ try:
           and not any(m["text"].startswith("[job]") for m in msgs))
     check("and while the hold stands the pull is still every twenty seconds",
           interval == jobs.PULL_EVERY == holds.POLL_SECONDS)
-    gitsync.hear_pass(stamp=stamp, now=2100, force=True)
+    gitops.hear_pass(stamp=stamp, now=2100, force=True)
     check("and the next pull drops nothing more", len(inbox(ws)) == before + 1)
     plist = open(os.path.join(ROOT, "scripts", "launchd",
                               "tutor-pull.plist")).read()
@@ -298,12 +298,12 @@ try:
     os.environ["PATH"] = fakes + os.pathsep + saved_path
     try:
         pulled = []
-        gitsync.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
+        gitops.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
         tried = clones()
         check("with ai-config missing, the pass tries to clone ai-config and "
               "nothing else",
               len(tried) >= 1
-              and all(gitsync.AI_CONFIG_URL in l
+              and all(gitops.AI_CONFIG_URL in l
                       or "Pirate-Hunter-Zoro/ai-config" in l for l in tried)
               and not any("Topology" in " ".join(l) for l in tried))
         check("one pull, of Atlas alone",
@@ -312,7 +312,7 @@ try:
         os.makedirs(os.path.join(mac, "ai-config", ".git"))
         os.remove(calls)
         pulled = []
-        gitsync.hear_pass(stamp=stamp, now=2300, force=True, pull=fake_pull)
+        gitops.hear_pass(stamp=stamp, now=2300, force=True, pull=fake_pull)
         check("with ai-config there, a fake-git pull pass records no clone "
               "attempt", clones() == []
               and [os.path.realpath(p) for p in pulled]

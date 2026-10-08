@@ -77,7 +77,7 @@ def slurm(argv, **kw):
     return Done(0, "")
 
 
-from tutorboard import gitsync  # noqa: E402
+from tutorboard import gitops  # noqa: E402
 
 POLICY = ("import re\n\ndef names_phi(text):\n"
           "    return bool(re.search(r'SESSION-\\d+', str(text)))\n")
@@ -360,14 +360,14 @@ try:
     git(cluster, "push", "-q")
     said = []
     check("a pull brings what the cluster pushed",
-          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is True
+          gitops.pull(mws, quiet=True, timeout=20, say=said.append) is True
           and "from the cluster" in read(os.path.join(mws, "src", "fit.py"))
           and any("pulled 1 commit(s)" in l for l in said))
     url = git(mac, "remote", "get-url", "origin")
     git(mac, "remote", "set-url", "origin", os.path.join(base, "gone.git"))
     said = []
     check("an unreachable remote is one line, not a failure",
-          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitops.pull(mws, quiet=True, timeout=20, say=said.append) is False
           and any("not synced" in l for l in said))
     git(mac, "remote", "set-url", "origin", url)
 
@@ -377,7 +377,7 @@ try:
     write(os.path.join(mws, "src", "shared.py"), "x = 'mac, unsaved'\n")
     said = []
     check("an edit here the pull would change: nothing moves, and it says so",
-          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitops.pull(mws, quiet=True, timeout=20, say=said.append) is False
           and read(os.path.join(mws, "src", "shared.py")) == "x = 'mac, unsaved'\n"
           and any("not synced" in l for l in said))
     git(mac, "checkout", "--", "research/Proj/src/shared.py")
@@ -387,7 +387,7 @@ try:
     before = git(mac, "rev-parse", "HEAD")
     said = []
     check("never mid-merge (worktree.busy_reason)",
-          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitops.pull(mws, quiet=True, timeout=20, say=said.append) is False
           and git(mac, "rev-parse", "HEAD") == before
           and any("merge is in progress" in l for l in said))
     os.remove(merge_head)

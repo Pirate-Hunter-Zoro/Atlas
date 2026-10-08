@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A repository the tutor commits in is somewhere its owner WORKS, too.
 
-The tutoring machinery runs unattended. `sync` fast-forwards Atlas as a
+The tutoring machinery runs unattended. `gitops.pull` fast-forwards Atlas as a
 session opens and on the Mac's twenty-second pull, and the board's save button
 commits the whole tree from a tap on an iPad. All of that happens in a
 repository that the same person opens a terminal in and writes code in, with
@@ -22,13 +22,14 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+SCRIPT = os.path.join(ROOT, "scripts", "save-and-push.sh")
 sys.path.insert(0, ROOT)
 
 from tutorboard import worktree                              # noqa: E402
 from tutorboard.course import repo as course_repo            # noqa: E402
 from tutorboard.lesson import git as lesson_git              # noqa: E402
 
-from tutorboard import gitsync  # noqa: E402
+from tutorboard import gitops  # noqa: E402
 
 fails = []
 
@@ -132,17 +133,14 @@ try:
           bool(worktree.busy_reason(busy)))
     _, before = git(busy, "rev-parse", "HEAD")
 
-    # `sync`, which fast-forwards a course as a session opens, is the same rule.
+    # `gitops.pull`, which fast-forwards as a session opens, is the same rule.
     check("opening a session does not fast-forward over an operation either",
-          gitsync.sync(busy, quiet=True) is False)
+          gitops.pull(busy, quiet=True) is False)
     _, after = git(busy, "rev-parse", "HEAD")
     check("so HEAD is exactly where the person left it", before == after)
 
     # --- the save button, and the script behind it --------------------------
     saving = make_repo(work, "saving")
-    shutil.copytree(os.path.join(ROOT, "scripts"), os.path.join(saving, "scripts"))
-    git(saving, "add", "-A")
-    git(saving, "commit", "-qm", "scripts")
     start_conflicted_rebase(saving)
     _, before = git(saving, "rev-parse", "HEAD")
     open(os.path.join(saving, "src", "app.py"), "w").write("mid-edit\n")
@@ -161,88 +159,19 @@ try:
     _, after = git(saving, "rev-parse", "HEAD")
     check("and no commit was made", before == after)
 
-    p = subprocess.run(["bash", os.path.join(saving, "scripts", "save-and-push.sh"),
-                        "by hand"], capture_output=True, text=True, cwd=saving)
+    # The tool's one copy of the script, run with the throwaway repository as
+    # the working directory: the working directory picks the repository.
+    p = subprocess.run(["bash", SCRIPT, "by hand", "--", "src"],
+                       capture_output=True, text=True, cwd=saving)
     check("the script says the same thing when it is run by hand",
-          p.returncode != 0 and "rebase-merge" in (p.stdout + p.stderr))
+          p.returncode != 0 and "rebase" in (p.stdout + p.stderr))
     _, after = git(saving, "rev-parse", "HEAD")
     check("and it commits nothing either", before == after)
 
-    # --- DID THIS COMMIT TOUCH THE TOOL? ------------------------------------
-    #
-    # A board is a long-lived process that read the tool's Python when it
-    # started, so a push that changes the tool has to bring the boards back or
-    # they go on serving the old endpoints from pages that look new. The tail of
-    # `save-and-push.sh` decides that, and it asked the question of the wrong
-    # directory: the prefix came from the SCRIPT's own location -- `board/scripts`
-    # -- so the test was `^board/scripts/` and a change to `board/tutorboard/` or
-    # `board/web/`, which is most changes, matched nothing. `ship.sh` was never
-    # affected because it restarts the tutors itself; the save button, `board
-    # finish` and `lesson/git.py` all were.
-    #
-    # Laid out the way the real repository is: the tool under `board/`, a
-    # workspace beside it. `tutor` is a recording stub, because what is being
-    # tested is the decision and not anybody's running board.
-    bounced = make_repo(work, "bounced")
-    tool = os.path.join(bounced, "board")
-    os.makedirs(os.path.join(tool, "web"))
-    shutil.copytree(os.path.join(ROOT, "scripts"), os.path.join(tool, "scripts"))
-    open(os.path.join(tool, "web", "board.js"), "w").write("// the pages\n")
-    git(bounced, "add", "-A")
-    git(bounced, "commit", "-qm", "the tool")
-    git(bounced, "push", "-q", "origin", "main")
-
-    fakebin = os.path.join(work, "bin")
-    os.makedirs(fakebin)
-    restarted = os.path.join(work, "restarted")
-    with open(os.path.join(fakebin, "tutor"), "w") as fh:
-        fh.write('#!/bin/sh\nprintf "%s\\n" "$*" >> "' + restarted + '"\n')
-    os.chmod(os.path.join(fakebin, "tutor"), 0o755)
-    env = dict(os.environ)
-    env["PATH"] = fakebin + os.pathsep + env.get("PATH", "")
-
-    def saved(cwd, script, msg):
-        """Run the sandbox's own copy of the script, and say what it printed."""
-        if os.path.exists(restarted):
-            os.remove(restarted)
-        p = subprocess.run(["bash", script, msg], capture_output=True, text=True,
-                           cwd=cwd, env=env)
-        said = p.stdout + p.stderr
-        bounce = open(restarted).read() if os.path.exists(restarted) else ""
-        return p.returncode, said, bounce
-
-    here = os.path.join(tool, "scripts", "save-and-push.sh")
-    open(os.path.join(tool, "web", "board.js"), "w").write("// changed\n")
-    code, said, bounce = saved(bounced, here, "the board's pages")
-    check("a commit that changed the tool's pages says the boards come back",
-          code == 0 and "the tool changed" in said)
-    check("and the boards are actually restarted",
-          "restart" in bounce)
-
-    open(os.path.join(bounced, "src", "app.py"), "w").write("a lesson\n")
-    code, said, bounce = saved(bounced, here, "a workspace's own work")
-    check("a commit that touched only a workspace restarts nothing",
-          code == 0 and "the tool changed" not in said)
-    check("and nothing was asked to come back", bounce == "")
-
-    # AND THE SAME ANSWER FROM A RELATIVE INVOCATION, which is the quieter half
-    # of the same defect. `${BASH_SOURCE[0]}` is the path as typed, the script
-    # cd's to the repository root before it asks, and `git -C` resolves a
-    # relative directory against THAT -- so `cd board && bash
-    # scripts/save-and-push.sh` asked git about `<root>/scripts`, got nothing,
-    # and skipped the restart without a word.
-    open(os.path.join(tool, "web", "board.js"), "w").write("// changed again\n")
-    code, said, bounce = saved(tool, os.path.join("scripts", "save-and-push.sh"),
-                               "from inside the tool")
-    check("the same commit run by a relative path from inside the tool still "
-          "bounces the boards", code == 0 and "the tool changed" in said
-          and "restart" in bounce)
-
-    open(os.path.join(bounced, "src", "app.py"), "w").write("more lesson\n")
-    code, said, bounce = saved(tool, os.path.join("scripts", "save-and-push.sh"),
-                               "a workspace, from inside the tool")
-    check("and a workspace-only commit run the same way still restarts nothing",
-          code == 0 and "the tool changed" not in said and bounce == "")
+    p = subprocess.run(["bash", SCRIPT, "everything"], capture_output=True,
+                       text=True, cwd=saving)
+    check("and a save that names no paths is refused: a commit carries named "
+          "paths only", p.returncode == 2 and "named paths" in p.stdout)
 
     # --- THE LOCK A KILLED GIT LEAVES BEHIND --------------------------------
     #
@@ -291,9 +220,9 @@ try:
     # Where the tool's own repository is before any of this, so the check below
     # can say it did not move.
     tool_head_before = git(ROOT, "rev-parse", "HEAD")[1].strip()
+    tool_index_before = git(ROOT, "diff", "--cached", "--name-only")[1]
 
     tapping = make_repo(work, "tapping")
-    shutil.copytree(os.path.join(ROOT, "scripts"), os.path.join(tapping, "scripts"))
     tap_lock = os.path.join(worktree.git_dir(tapping), "index.lock")
     open(tap_lock, "w").close()
     os.utime(tap_lock, (0, 0))
@@ -335,10 +264,24 @@ try:
     # The check is that the tool's own repository did not move. A save is the
     # most dangerous button on the board precisely because it is the one
     # somebody presses without looking.
+    # And the same through the tool's one copy of `save-and-push.sh`, run by
+    # hand from the throwaway repository: it commits there and pushes to the
+    # throwaway's own bare origin, and Atlas does not move.
+    open(os.path.join(tapping, "src", "app.py"), "w").write("by hand\n")
+    p = subprocess.run(["bash", SCRIPT, "by hand, beside the tool", "--", "src"],
+                       capture_output=True, text=True, cwd=tapping)
+    check("the script run in a throwaway repository commits there",
+          p.returncode == 0 and git(tapping, "log", "-1", "--format=%s")[1]
+          == "by hand, beside the tool")
+    check("and pushes to that repository's own origin",
+          git(tapping, "rev-parse", "HEAD")[1]
+          == git(os.path.join(work, "tapping.git"), "rev-parse", "main")[1])
+
     tool_head_after = git(ROOT, "rev-parse", "HEAD")[1].strip()
     check("and a save from one workspace does not commit the repository the "
           "tool lives in",
-          tool_head_after == tool_head_before)
+          tool_head_after == tool_head_before
+          and git(ROOT, "diff", "--cached", "--name-only")[1] == tool_index_before)
     check("and the record names the workspace it saved, so a history of 2,061 "
           "commits called 'lesson complete' is not what this produces",
           isinstance(rec.get("workspace"), str))
@@ -356,10 +299,6 @@ try:
     # all three were still in the tree. An ignore rule cannot untrack anything,
     # so nothing downstream noticed either.
     untracking = make_repo(work, "untracking")
-    shutil.copytree(os.path.join(ROOT, "scripts"),
-                    os.path.join(untracking, "scripts"))
-    git(untracking, "add", "-A")
-    git(untracking, "commit", "-qm", "scripts")
 
     gen = os.path.join(untracking, "src", "generated.json")
     open(gen, "w").write("{}\n")
@@ -369,8 +308,7 @@ try:
     open(os.path.join(untracking, ".gitignore"), "w").write("src/generated.json\n")
     git(untracking, "rm", "-q", "--cached", "src/generated.json")
 
-    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
-                                             "save-and-push.sh"),
+    p = subprocess.run(["bash", SCRIPT,
                         "stop tracking the generated file",
                         "--", ".gitignore", "src"],
                        capture_output=True, text=True, cwd=untracking)
@@ -389,8 +327,7 @@ try:
     open(os.path.join(untracking, "src", "app.py"), "w").write("y = 2\n")
     open(os.path.join(untracking, "README.md"), "w").write("staged elsewhere\n")
     git(untracking, "add", "README.md")
-    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
-                                             "save-and-push.sh"),
+    p = subprocess.run(["bash", SCRIPT,
                         "only the source", "--", "src"],
                        capture_output=True, text=True, cwd=untracking)
     touched = git(untracking, "show", "--name-only", "--format=", "HEAD")[1]
@@ -414,8 +351,7 @@ try:
     git(untracking, "rm", "-q", "--cached", "src/second.json")
     open(os.path.join(untracking, "README.md"), "w").write("staged again\n")
     git(untracking, "add", "README.md")
-    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
-                                             "save-and-push.sh"),
+    p = subprocess.run(["bash", SCRIPT,
                         "with a removal it cannot carry", "--", "src"],
                        capture_output=True, text=True, cwd=untracking)
     said = p.stdout + p.stderr
