@@ -686,6 +686,40 @@ finally:
     mapping._cache.clear()
     shutil.rmtree(home, ignore_errors=True)
 
+# --- the fence: no code walker looks inside a directory in fenced.NEVER -------
+from tutorboard import fenced                                # noqa: E402
+from tutorboard.course import symbols                        # noqa: E402
+
+fence = tempfile.mkdtemp(prefix="tutor-walk-fence-")
+try:
+    for rel in ("pkg/ok.py", "stage1/run.py", "raw/x.py", "phi/y.py",
+                "PHI/z.py", "pkg/Audio/w.py"):
+        write(fence, rel, "def f():\n" + BODY + "\n    return 1\n")
+    walk._cache.clear()
+    check("in_fence matches any lower-cased component, and nothing else",
+          fenced.in_fence("a/Stage1/x.py") and fenced.in_fence("phi")
+          and fenced.in_fence("a\\raw\\b.py")
+          and not fenced.in_fence("pkg/ok.py") and not fenced.in_fence("raw.py")
+          and not fenced.in_fence(""))
+    check("walk.units lists only the file outside every fence",
+          [u["path"] for u in walk.units(fence)] == ["pkg/ok.py"])
+    typed = ["stage1/run.py::f", "stage1/run.py", "stage1.run.f", "phi/y.py",
+             "raw/x.py::f", "PHI/z.py"]
+    chosen, unknown = walk.resolve(fence, typed)
+    check("walk.resolve refuses a typed path through the fence",
+          chosen == [] and unknown == typed)
+    chosen, unknown = walk.resolve(fence, ["pkg/ok.py::f"])
+    check("and still resolves the path beside it",
+          [u["name"] for u in chosen] == ["pkg/ok.py::f"] and unknown == [])
+    check("symbols.of opens no fenced file, even when handed one",
+          symbols.of(fence, "phi/y.py")["defines"] == []
+          and symbols.of(fence, "stage1/run.py")["defines"] == []
+          and symbols.of(fence, "pkg/ok.py")["defines"] != []
+          and symbols.exact(fence, "raw/x.py") is False)
+finally:
+    walk._cache.clear()
+    shutil.rmtree(fence, ignore_errors=True)
+
 print()
 if fails:
     print("%d check(s) failed" % len(fails))

@@ -599,6 +599,55 @@ try:
 finally:
     shutil.rmtree(home, ignore_errors=True)
 
+# --- the fence: no box is ever drawn over a directory in fenced.NEVER ---------
+from tutorboard import fenced                                 # noqa: E402
+
+fence = tempfile.mkdtemp(prefix="tutor-map-fence-")
+real_units = walk.units
+try:
+    for rel in ("pkg/ok.py", "stage1/run.py", "raw/x.py", "phi/y.py"):
+        write(os.path.join(fence, rel), "def f():\n    return 1\n" + PAD)
+    fresh()
+
+    def every_box(root):
+        """Every node the top picture and each depth below it would draw."""
+        top = mapping.status(root) or {"nodes": []}
+        out, todo = list(top["nodes"]), [n["id"] for n in top["nodes"]]
+        while todo:
+            ins = mapping.inside(root, todo.pop())
+            for n in (ins or {}).get("nodes") or []:
+                if n["kind"] == "module" and not n.get("outside"):
+                    todo.append(n["id"])
+                out.append(n)
+        return out
+
+    def fenced_box(nodes):
+        return [n for n in nodes
+                if fenced.in_fence(n.get("dir") or "")
+                or any(fenced.in_fence(f) for f in n.get("files") or [])]
+
+    boxes = every_box(fence)
+    check("map.inside draws no fenced box, at any depth",
+          boxes and not fenced_box(boxes)
+          and any("pkg/ok.py" in (n.get("files") or []) for n in boxes))
+
+    # The second guard, on its own: a walker that forgot the fence still
+    # cannot put a fenced path on the picture.
+    def leaky(root):
+        return [{"name": p, "label": p, "short": os.path.basename(p),
+                 "dir": os.path.dirname(p), "kind": "file", "path": p,
+                 "symbol": ""}
+                for p in ("pkg/ok.py", "stage1/run.py", "phi/y.py")]
+    walk.units = leaky
+    fresh()
+    boxes = every_box(fence)
+    check("and map.py refuses fenced paths even when walk hands them over",
+          boxes and not fenced_box(boxes))
+finally:
+    walk.units = real_units
+    fresh()
+    shutil.rmtree(fence, ignore_errors=True)
+
 print()
 if fails:
     print("%d check(s) failed" % len(fails))

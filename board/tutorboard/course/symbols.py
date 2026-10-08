@@ -37,6 +37,7 @@ import os
 import re
 
 from . import walk
+from .. import fenced
 
 # What a definition may be. Three words, because a picture with six kinds of
 # box on it is a legend rather than a diagram -- and because a module-level
@@ -266,6 +267,10 @@ def of(root, rel):
     called there), and is empty for a grepped language. It is what turns a use
     into an arrow that leaves the file.
     """
+    if fenced.in_fence(rel):
+        # A SECOND GUARD over `walk`'s pruning: a fenced file is never opened.
+        return {"exact": False, "defines": [], "imports": {}, "capped": False,
+                "why": "this file is inside a fenced directory"}
     language = walk._language(root, rel)
     text = _read(root, rel)
     if not text:
@@ -278,4 +283,6 @@ def of(root, rel):
 
 def exact(root, rel):
     """Would this file be parsed, or only grepped? Asked without reading it."""
+    if fenced.in_fence(rel):
+        return False
     return walk._language(root, rel) == ".py"

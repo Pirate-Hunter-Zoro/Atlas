@@ -31,7 +31,7 @@ import re
 import time
 
 from . import review
-from .. import atlas
+from .. import atlas, fenced
 
 # What a walkthrough can be held over: source, in the languages these
 # repositories are actually written in. A document is not machinery -- a README
@@ -206,13 +206,16 @@ def units(root):
 def _scan(root):
     out = []
     for here, dirs, files in os.walk(root):
+        # THE FENCE PRUNES before anything below it is listed: a directory
+        # named in `fenced.NEVER` is never walked, whatever `IGNORE` says.
         dirs[:] = sorted(d for d in dirs
-                         if not d.startswith(".") and d not in IGNORE)
+                         if not d.startswith(".") and d not in IGNORE
+                         and not fenced.in_fence(d))
         rel_dir = os.path.relpath(here, root)
         rel_dir = "" if rel_dir == "." else rel_dir
         for name in sorted(files):
             rel = os.path.join(rel_dir, name) if rel_dir else name
-            if not _walkable(root, rel):
+            if fenced.in_fence(rel) or not _walkable(root, rel):
                 continue
             out.append({"name": rel, "label": rel, "short": name,
                         "dir": rel_dir or ".", "kind": "file",
@@ -311,7 +314,14 @@ def resolve(root, wanted):
     chosen, unknown, seen = [], [], set()
     for name in wanted or []:
         found = None
-        for path, symbol in _candidates(name):
+        maybe = _candidates(name)
+        if any(fenced.in_fence(path) for path, _ in maybe):
+            # A TYPED PATH THROUGH THE FENCE is refused outright, not merely
+            # missed: it comes back unknown even if some other reading of the
+            # same name would land on a file outside it.
+            unknown.append(name)
+            continue
+        for path, symbol in maybe:
             key = path.lower()
             u = by_path.get(key)
             if u is None:

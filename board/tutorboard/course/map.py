@@ -41,6 +41,7 @@ from . import (homework, library, plan, reading, review, symbols, syllabus,
 # in spirit -- `course/plan.py` defines a public `paths(root)` and had to do
 # exactly this. Same trap, same answer: the module keeps its name and the import
 # moves.
+from .. import fenced
 from .. import paths as toolpaths
 
 # What a node's state of completion may be, and there are six of them. A
@@ -483,6 +484,8 @@ def _from_code(root):
         units = walk.units(root)
     except Exception:                                        # noqa: BLE001
         units = []
+    # A SECOND GUARD over `walk`'s own pruning: no fenced path becomes a box.
+    units = [u for u in units if not fenced.in_fence(u["path"])]
     if not units:
         return None
     by_dir = _rollup(_parts(units), MAX_NODES)
@@ -648,7 +651,8 @@ def _outside(nodes, seen, node):
 
 def _modules(root, node, built):
     """One box opened: the files in it, and what they import."""
-    files = [f.replace("\\", "/") for f in (node.get("files") or [])]
+    files = [f.replace("\\", "/") for f in (node.get("files") or [])
+             if not fenced.in_fence(f)]
     shown = files[:MAX_INSIDE]
     by_file = _file_index(built)
     dirs = {}
@@ -794,13 +798,15 @@ def inside(root, node_id, state=None, archived=None):
         return None
     for node in built["nodes"]:
         if node["id"] == want:
-            if not (node.get("files") or []):
+            if not (node.get("files") or []) or fenced.in_fence(node.get("dir") or ""):
                 return None
             return _modules(root, node, built)
     hit = _children(built).get(want)
     if not hit:
         return None
     node, rel = hit
+    if fenced.in_fence(rel):
+        return None
     return _symbol_map(root, rel, node, built, want)
 
 

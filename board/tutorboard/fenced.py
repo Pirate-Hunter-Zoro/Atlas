@@ -56,14 +56,20 @@ NEVER = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
 RESULT_DIRS = ("results", "figures", "tables", "artifacts", "analysis")
 
 
-def refused(path):
-    """Is any part of this path a directory nothing may be pointed at?
+def in_fence(rel):
+    """Is any lower-cased component of this path a name in `NEVER`?
 
     Backslashes are normalised first, because a path that came out of a file
-    somebody wrote is a path in whatever notation they wrote it in.
+    somebody wrote is a path in whatever notation they wrote it in. The code
+    walkers (`course/walk.py`, `course/map.py`, `course/symbols.py`) ask this of
+    every directory they descend into and every path they are handed.
     """
-    parts = [x.lower() for x in str(path or "").replace("\\", "/").split("/")]
+    parts = [x.lower() for x in str(rel or "").replace("\\", "/").split("/")]
     return any(x in NEVER for x in parts)
+
+
+# The same question under the name its older callers use.
+refused = in_fence
 
 
 # ---------------------------------------------------------------------------

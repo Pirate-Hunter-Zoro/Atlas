@@ -125,7 +125,7 @@ def _fenced(path):
     those exclude that file today by accident, which is not the same as
     refusing it.
     """
-    return fenced.refused(os.path.normpath(path).replace(os.sep, "/"))
+    return fenced.in_fence(os.path.normpath(path).replace(os.sep, "/"))
 
 
 def _ours(path):
