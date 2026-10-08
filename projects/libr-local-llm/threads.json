@@ -207,8 +207,7 @@
         "bin/coli-code",
         "config/opencode-guard.sh",
         "config/opencode.json",
-        "docs/deepseek-egress.md",
-        ".githooks/pre-commit"
+        "docs/deepseek-egress.md"
       ],
       "outputs": [],
       "writes": [],

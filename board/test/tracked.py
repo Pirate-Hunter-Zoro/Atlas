@@ -9,32 +9,27 @@ This repository is PUBLIC, and the rule it is built on is one sentence:
     repository. It lives outside the tree and something inside the tree says
     where.
 
-That rule is worth nothing written down. Written down, it is obeyed for about
-three weeks and then somebody runs `git add -A` in a directory they have not
-looked in, and a 308 MB therapy recording, or a model dump, or another author's
-book goes to GitHub -- where deleting it afterwards is not a fix, because it
-was public for a while and git remembers.
-
-So it is a test, and it runs in `test/all.sh` with everything else. A rule
-nobody can break by accident beats a rule written down.
-
-Every check below is a NUMBER rather than an opinion, and each one is here
-because the thing it checks for was actually found in one of the eleven
-repositories this one was made from.
+A rule written down is obeyed until somebody runs `git add -A` in a directory
+they have not looked in. So the rule is code: `tutorboard/audit.py` holds it,
+`.githooks/pre-commit` asks it of every staged path, and this file asks it of
+the whole index on every run of the suite, then asks git itself whether it can
+see any directory that must stay invisible. The second half of this file tests
+the guards themselves, in temporary repositories.
 """
 
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tutorboard import atlas, audit, fenced, leaving          # noqa: E402
 
 
-# The whole REPOSITORY, not the tool. This test lives in the board's own
-# test directory because that is where `test/all.sh` runs from, but what it
-# guards is every file in Atlas -- the research, the projects, the vendor
-# pointers. A course is not in that list: each one is its own private
-# repository, and what is checked of it here is that Atlas cannot see it.
-# Asked of git rather than derived by counting `..`, so it is still right if
-# the board is ever vendored somewhere deeper.
+# The whole REPOSITORY, not the tool: asked of git rather than derived by
+# counting `..`, so it is still right if the board is ever vendored deeper.
 def repo_root():
     tool = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=tool,
@@ -55,51 +50,20 @@ def fail(msg):
     print("FAIL " + msg)
 
 
-# GitHub refuses any file over 100 MB and warns above 50. This is far under
-# both on purpose: the limit that matters is the one that stops a habit, not
-# the one that stops a push. The largest legitimate tracked file in here is a
-# manuscript at 3.5 MB.
-MAX_BYTES = 25 * 1024 * 1024
+def ok(msg):
+    print("ok   " + msg)
 
-# PHI, by the shape of the filename. The same shapes `block-phi.py` fences, for
-# the same reason: PSYCH-ASR's session recordings are identifiable, and the
-# filenames themselves carry participant IDs.
-PHI_SUFFIXES = (".m4a", ".wav", ".mp3", ".flac", ".mp4", ".mov",
-                ".rttm", ".srt", ".vtt")
 
-# Job output that a command regenerates, and that nobody reads. `results/` is
-# 1.5 GB of it in TRD-EHR alone.
-ARTIFACT_SUFFIXES = (".joblib", ".pkl", ".pickle", ".ckpt", ".pt", ".pth",
-                     ".safetensors", ".gguf", ".h5", ".parquet")
+def put(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
-# Other people's published work. The INDEXES of a citation library are tracked
-# -- README.md, CITATION_MAP.md, the role-grouped manifests -- so a clone
-# arrives with the bibliography described but not carried. The PDFs are not.
-def other_peoples_work(rel):
-    parts = rel.lower().split("/")
-    if "references" in parts and rel.lower().endswith(".pdf"):
-        return "a reference library PDF"
-    if "textbook" in parts and rel.lower().endswith(".pdf"):
-        return "a set textbook"
-    # `scripts/split-textbook.sh` cuts the book into chapters/chNN-slug/reading/
-    # and says of its own output "they are derived artifacts and git-ignored".
-    if "reading" in parts and os.path.basename(rel).lower().startswith("ch"):
-        if rel.lower().endswith((".pdf", ".txt")):
-            return "an excerpt cut out of a set textbook"
-    # A course's own instructor documents, which are the same thing one step
-    # along: the professor's module slides and the assignment sheet as
-    # distributed. The course repositories track these privately; THIS one may
-    # never carry them, and the `courses/` guard below already refuses every
-    # path under `courses/`. This is the second guard behind it, so a deck
-    # forced into Atlas is named for what it is. The `.gitkeep` holding an
-    # empty directory open is the one exemption, and there is no extension
-    # filter, so a .docx sheet is refused the same as a PDF deck.
-    if parts[0] == "courses" and parts[-1] != ".gitkeep":
-        if "lectures" in parts:
-            return "a professor's lecture slide deck"
-        if "assignment" in parts:
-            return "an assignment sheet as it was distributed"
-    return None
+
+def git(cwd, *args):
+    return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+                          + list(args), cwd=cwd, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
 
 
 def tracked():
@@ -115,202 +79,37 @@ if files is None:
     print("skip  not a git repository")
     sys.exit(0)
 
-for rel in files:
-    checked += 1
-    low = rel.lower()
-    base = os.path.basename(low)
-    full = os.path.join(HERE, rel)
-
-    # ---- nothing enormous -------------------------------------------------
-    try:
-        size = os.path.getsize(full)
-    except OSError:
-        size = 0            # deleted in the working tree; the index is the test
-    if size > MAX_BYTES:
-        fail("%s is %d MB. Nothing tracked here may be over %d MB -- a file "
-             "that big is output, and output lives outside the tree with a "
-             "path to it in the workspace README."
-             % (rel, size // (1024 * 1024), MAX_BYTES // (1024 * 1024)))
-
-    # ---- no PHI, by filename shape ---------------------------------------
-    if low.endswith(PHI_SUFFIXES):
-        fail("%s is audio or a transcript artifact. PSYCH-ASR's session data is "
-             "identifiable, its filenames carry participant IDs, and it lives "
-             "in `research/PSYCH-ASR/phi/`, which git is blind to. Nothing of "
-             "that shape may be TRACKED anywhere in here." % rel)
-
-    # A participant identifier in a tracked filename, which is how the audio
-    # was named: a two-or-three letter prefix and a number, then `_session`.
-    if "_session" in base and any(c.isdigit() for c in base):
-        fail("%s looks like a session file named after a participant. If it is "
-             "not, rename it; if it is, it belongs in `research/PSYCH-ASR/phi/`." % rel)
-
-    # ---- no regenerable artifacts ----------------------------------------
-    if low.endswith(ARTIFACT_SUFFIXES):
-        fail("%s is a model dump or a serialized result. It is output of a job "
-             "that can be run again, so it lives in its workspace's own ignored "
-             "`results/`, which the README explains. The figures and tables derived "
-             "from it are small, and THOSE are tracked." % rel)
-
-    # ---- no build directories --------------------------------------------
-    if "/.lake/" in "/" + low or low.startswith(".lake/"):
-        fail("%s is inside Lean's .lake/ -- 14 GB of compiled Mathlib that "
-             "`lake build` recreates. It never leaves the machine." % rel)
-    if "/node_modules/" in "/" + low:
-        fail("%s is inside node_modules/." % rel)
-    if "__pycache__" in low or low.endswith(".pyc"):
-        fail("%s is a compiled Python cache." % rel)
-
-    # ---- no other people's papers or books -------------------------------
-    what = other_peoples_work(rel)
-    if what:
-        fail("%s is %s. Somebody else wrote it and this repository is public. "
-             "It stays on disk and out of git; what the person wrote ABOUT it "
-             "is tracked." % (rel, what))
-
-    # ---- no machine-local configuration ----------------------------------
-    if base in ("settings.local.json", "settings.local.json.bak"):
-        fail("%s is this machine's own permission allowlist. It names real "
-             "paths on lab storage and it is not the same on two machines. "
-             "`.claude/settings.json` is the shared one and is tracked." % rel)
-    # ---- no assistant configuration --------------------------------------
-    # `ai-config/` sits INSIDE this tree and is tracked by its own git. The
-    # only thing keeping it out of this one is a `/ai-config/` line in the root
-    # `.gitignore`, which is exactly the kind of guard this file exists because
-    # somebody deletes by accident. What it holds names real paths on lab
-    # storage and describes what the PHI fence is guarding, so it is private
-    # for the same reason TRD-EHR's `.env` had to go.
-    if low.startswith("ai-config/"):
-        fail("%s is the assistant configuration. It lives inside this tree and "
-             "is tracked by its OWN git -- `ai-config/README.md` says how. Its "
-             "settings name real paths on lab storage and its policy describes "
-             "what the PHI fence guards, so this public repository carries none "
-             "of it. Something has removed `/ai-config/` from the root "
-             ".gitignore; put it back." % rel)
-
-    # ---- no course --------------------------------------------------------
-    # The same arrangement as `ai-config/`, one family over. Each course under
-    # `courses/` is its own PRIVATE repository, and it deliberately tracks what
-    # this one may not: the set textbook, its chapter excerpts, the
-    # professor's decks and sheets, the live transcript. The `/courses/*/`
-    # line in the root `.gitignore` is the only thing keeping all of that out
-    # of a public push, and a `git add -f` walks straight past it.
-    if low.startswith("courses/"):
-        fail("%s is inside a course. Each course is its own private "
-             "repository, tracked by its OWN git, and this public one carries "
-             "none of it; /courses/*/ belongs in the root .gitignore. Put the "
-             "rule back and `git rm --cached` the path." % rel)
-
-    if base == ".env":
-        fail("%s is a .env. TRD-EHR's enumerated the on-disk locations of "
-             "identifiable patient data, which is exactly what a public "
-             "repository must not publish. Track a .env.example with the keys "
-             "and no values instead." % rel)
-
-    # ---- no provider credential, in any of the shapes one gets given -----
-    #
-    # A key dropped in the repository root is a thing that happens, because the
-    # root is where the terminal already is. The root `.gitignore` refuses these
-    # shapes, and a pattern is the weaker of the two guards this tree uses: it
-    # is right until somebody adds a file with `git add -f` or edits the ignore
-    # file. This is the other guard -- the question put to GIT ITSELF, on every
-    # run of the suite, which is what makes the PHI arrangement safe and is what
-    # makes this one safe.
-    #
-    # A key lives in `~/.config/tutor-board/keys.env`, machine-local and outside
-    # the tree, beside the config the launcher already reads. See
-    # `board/tutorboard/keys.py`, which is the only thing that opens it.
-    if base in ("keys.env",) or base.endswith(("-api-key", "_api_key", ".key")):
-        fail("%s is shaped like a provider credential, and this repository is "
-             "PUBLIC -- deleting it afterwards is not a fix, because it was "
-             "public for a while and git remembers. Keys live in "
-             "`~/.config/tutor-board/keys.env`, one NAME=value a line, outside "
-             "the tree. See board/tutorboard/keys.py." % rel)
-
-    # ---- one save-and-push.sh, and it is the tool's ----------------------
-    #
-    # Not a secrecy rule; a one-copy rule, and it is here because this is the
-    # file that reads every tracked path. Both doors onto a commit -- the ⤓
-    # save button through `lesson/git.py` and `board push` through `cmd_push`
-    # -- resolve the script under the tool, so a second copy beside a sitting
-    # is not a fallback, it is a file nothing runs and everybody reads. The
-    # script takes its repository from the working directory -- Atlas for
-    # research, projects and practice, the course's own for a course -- so
-    # no workspace needs a copy of its own.
-    if base == "save-and-push.sh" and low != "board/scripts/save-and-push.sh":
-        fail("%s is a second copy of save-and-push.sh. There is one, "
-             "`board/scripts/save-and-push.sh`, and both `lesson/git.py` and "
-             "`cmd_push` resolve it under the tool -- so this one is never "
-             "run and is read as though it were. The script takes its "
-             "repository from the working directory; a workspace needs no "
-             "copy." % rel)
+# ---- every tracked path, through the one audit the pre-commit hook runs -----
+checked += len(files)
+for msg in audit.check(files, HERE):
+    fail(msg)
 
 
 # ---- the directories that live inside the tree and must stay invisible -----
 #
-# A project's data belongs with the project, and a course's repository belongs
-# where the course is, so these may be on disk here -- and git must not be
-# able to see one byte of any of them.
-#
-# The guard asks GIT ITSELF the question.
-# `git status --porcelain --untracked-files=all` over the directory is the
-# whole test: it lists every file git would offer to add, ignored ones
-# excluded, so an empty answer is git saying it is blind to
-# the tree. That is stronger than reading `.gitignore` and believing it -- the
-# pattern that once swallowed `psych_asr/artifacts/` was in the file and read
-# perfectly well, and only asking git would have caught it.
-#
-# It is also the only check in here that fails BEFORE anything is committed
-# rather than after, which for 308 MB of identifiable therapy audio in a public
-# repository is the difference that matters. A thing that is public for an hour
-# has been published.
-# Every course on disk joins the list. A course must also carry its own
-# `.git`: without one it is an orphan tree whose only protection is the ignore
-# rule, and nothing commits or pushes its work anywhere.
-_HELD = [
-    ("research/PSYCH-ASR/phi", "308 MB of identifiable therapy session audio"),
-    ("research/TRD-EHR/results", "1.5 GB of regenerable job output")]
-_COURSES = os.path.join(HERE, "courses")
-for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
-    if _c.startswith(".") or not os.path.isdir(os.path.join(_COURSES, _c)):
-        continue
-    checked += 1
-    if not os.path.exists(os.path.join(_COURSES, _c, ".git")):
-        fail("courses/%s has no .git of its own. Each course is its own "
-             "private repository; without one this tree is hidden only by "
-             "the /courses/*/ ignore rule and its work is never pushed "
-             "anywhere. Clone the course's repository here." % _c)
-    _HELD.append(("courses/" + _c, "a private course repository -- the "
-                  "textbook, the professor's decks and the transcript"))
-
+# A subject's phi/ and results/ belong with the subject, and a course's
+# repository belongs where the course is, so these may be on disk here -- and
+# git must not be able to see one byte of any of them. Found by discovery, so a
+# new subject's phi/ is guarded the day it is made; none on disk is a fresh
+# clone and is fine. Git is asked, rather than the ignore file believed.
+_HELD = audit.held(HERE)
 for held, what in _HELD:
     checked += 1
-    path = os.path.join(HERE, held)
-    if os.path.islink(path):
-        fail("%s is a SYMLINK. Whatever it points at, a symlink is a tracked "
-             "file standing in for it, and it hands the next reader of this "
-             "public repository a map straight to the real thing. It was a "
-             "real directory; put it back." % held)
-        continue
-    if not os.path.isdir(path):
-        # Not an error. A fresh clone has neither -- one is PHI that never
-        # leaves this machine and the other regenerates from a job -- and the
-        # workspace README of each says where it comes from.
-        continue
-    seen = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all", "--", held],
-        cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    listed = [l for l in seen.stdout.decode("utf-8", "replace").split("\n") if l.strip()]
-    if seen.returncode != 0:
-        fail("could not ask git whether it can see %s." % held)
-    elif listed:
-        fail("GIT CAN SEE %s -- %d path(s), starting %s. It is %s and it sits "
-             "inside a public repository, so the ignore rule is the only thing "
-             "between it and a push. Something has broken that rule. Do not "
-             "commit anything until `git status --porcelain "
-             "--untracked-files=all -- %s` is empty."
-             % (held, len(listed), listed[0].strip()[:80], what, held))
+    said = audit.exposed(HERE, held, what)
+    if said:
+        fail(said)
+_FOUND = [h for h, _ in _HELD if os.path.basename(h) in audit.HELD_NAMES]
+if _FOUND:
+    ok("%d phi/ or results/ directories found on disk by discovery, each one "
+       "asked of git" % len(_FOUND))
+else:
+    ok("no phi/ or results/ directory on disk, so there is none to hide")
 
+# Each course must carry its own `.git`: without one it is an orphan tree whose
+# only protection is the ignore rule, and nothing pushes its work anywhere.
+_COURSES = os.path.join(HERE, "courses")
+for msg in audit.courses_without_git(HERE):
+    fail(msg)
 
 # ---- A MISSION'S PROGRESS TRAIL IS WORDS ABOUT FENCED WORK ----------------
 #
@@ -406,45 +205,71 @@ for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
 # A TEMPORARY TREE, unlike every check above, and for one reason: what is being
 # checked is the guard's own behaviour, and the last thing this file may do is
 # leave a fixture naming session content inside the real repository.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import shutil                                                # noqa: E402
-import tempfile                                              # noqa: E402
-
-from tutorboard import atlas, fenced, leaving                 # noqa: E402
-
-
-def ok(msg):
-    print("ok   " + msg)
-
-
-def put(path, text):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(text)
-
-
-# ---- the instructor rule covers EVERY course, and only the `.gitkeep` escapes -
+# ---- the audit's shape, on paths nobody has committed --------------------
 #
-# The scan above is over the files Atlas tracks TODAY, which under `courses/`
-# is none, so it says nothing about the shape of `other_peoples_work`. These
-# four paths are the properties the rule is for, should a deck ever be forced
-# into Atlas: a course nobody has made yet is covered, and the placeholder
-# holding an empty directory open is not a lecture.
-_INSTRUCTOR = (
+# The scan above is over what Atlas tracks TODAY, which says nothing about a
+# path that would be refused. These are the properties the rules are for.
+_SHAPES = (
     ("courses/Galois-Theory/chapters/ch01-groups/lectures/Deck.pdf", True),
     ("courses/A-Course-Nobody-Has-Made-Yet/homework/hw01/assignment/sheet.docx", True),
-    ("courses/Probability/chapters/ch01-introduction/lectures/.gitkeep", False),
-    ("research/TRD-EHR/notes/lectures.md", False))
-_wrong = [p for p, refused in _INSTRUCTOR
-          if bool(other_peoples_work(p)) is not refused]
+    ("courses/X/chapters/ch01/homework/assignment-sheet/p.png", True),
+    ("courses/X/textbook/a.pdf", True),
+    ("projects/X/reading/ch01.txt", True),
+    ("projects/X/references/paper.pdf", True),
+    ("sessions/20261008-120000/session.json", True),
+    ("projects/X/.ink/doc/a/p1.json", True),
+    ("projects/X/materials/slides.pdf", True),
+    ("x_session1.wav", True),
+    ("projects/X/model.pkl", True),
+    ("projects/X/keys.env", True),
+    ("ai-config/policy/phi.py", True),
+    ("research/TRD-EHR/notes/lectures.md", False),
+    ("projects/X/src/assignment.py", False),
+    ("board/tutorboard/sessions.py", False),
+    ("projects/X/docs/meeting/meeting.tex", False))
+_wrong = [p for p, refused in _SHAPES if bool(audit.problems(p)) is not refused]
+_keep = "courses/Probability/chapters/ch01-introduction/lectures/.gitkeep"
+if audit.other_peoples_work(_keep):
+    _wrong.append(_keep)
 if _wrong:
-    fail("the instructor-document rule is the wrong shape: %s. It refuses a "
-         "professor's slides and sheets under EVERY course, exempts the "
-         "`.gitkeep`, and reaches nothing outside `courses/`."
-         % ", ".join(_wrong))
+    fail("the audit is the wrong shape for: %s" % ", ".join(_wrong))
 else:
-    ok("a professor's slides and sheets are refused in any course, and the "
-       "`.gitkeep` holding the directory open is not")
+    ok("the audit refuses other people's work, sessions, ink, materials, PHI "
+       "and artifact shapes, credentials and ai-config, and passes the owner's "
+       "own files beside them")
+if (audit.check(["big.bin"], size=lambda rel: 30 * 1024 * 1024)
+        and not audit.check(["small.bin"], size=lambda rel: 1024)):
+    ok("a 30 MB file is refused and a small one is not")
+else:
+    fail("the 25 MB cap does not hold")
+
+
+# ---- discovery finds a held directory, and git seeing it is a failure -------
+_box = tempfile.mkdtemp(prefix="tutor-held-")
+try:
+    git(_box, "init", "-q")
+    for _d in ("projects/X/phi", "projects/X/a/b/results",
+               "research/Y/data/phi", "projects/X/a/b/c/phi",
+               "research/Y/exports/results"):
+        os.makedirs(os.path.join(_box, _d))
+        put(os.path.join(_box, _d, "f.txt"), "x\n")
+    _found = [h for h, _ in audit.held(_box)]
+    if _found == ["projects/X/a/b/results", "projects/X/phi"]:
+        ok("discovery finds phi/ and results/ up to three levels under a "
+           "subject, and never walks into a fenced directory or exports/")
+    else:
+        fail("discovery found %r" % _found)
+    if audit.exposed(_box, "projects/X/phi", "test"):
+        ok("a projects/X/phi that git can see is a failure")
+    else:
+        fail("a projects/X/phi that git can see was not caught")
+    put(os.path.join(_box, ".gitignore"), "phi/\nresults/\n")
+    if not any(audit.exposed(_box, h, w) for h, w in audit.held(_box)):
+        ok("and once ignored, git is blind to it and the check passes")
+    else:
+        fail("an ignored phi/ was still reported as visible")
+finally:
+    shutil.rmtree(_box, ignore_errors=True)
 
 
 FENCE = "phi"
@@ -540,14 +365,25 @@ try:
         fail("an added line naming the old data tree was not refused: %s"
              % said[:200])
 
-    # A repository with no policy promises nothing, and this must not invent one.
+    # A fence with no policy is refused loudly: a guard that switches itself
+    # off when its rule goes missing is a guard nobody can trust.
     os.remove(os.path.join(tmp, leaving.POLICY))
     leaving._POLICY["root"] = None
-    if leaving.reason(psych, tmp) is None:
-        ok("a repository with no policy file refuses nothing, rather than "
-           "deciding for itself what session content is")
+    said = leaving.reason(psych, tmp)
+    hit = leaving.refused(psych, ["research/PSYCH-ASR/notes.md"], tmp)
+    if isinstance(said, str) and leaving.POLICY in said and isinstance(hit, str):
+        ok("a fence with no policy file is refused, by name, by both reason "
+           "and refused")
     else:
-        fail("a tree with no policy was refused by a rule from somewhere else")
+        fail("a fence with no policy was not refused: %r, %r" % (said, hit))
+
+    # And a repository with no fence anywhere has nothing to guard.
+    os.rmdir(os.path.join(psych, FENCE))
+    fenced.forget()
+    if leaving.reason(psych, tmp) is None and leaving.refused(psych, [], tmp) == []:
+        ok("with no fence anywhere, a missing policy refuses nothing")
+    else:
+        fail("a tree with no fence was refused for having no policy")
 finally:
     if was is None:
         os.environ.pop("TUTORBOARD_COURSES", None)

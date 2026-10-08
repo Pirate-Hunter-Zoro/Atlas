@@ -30,10 +30,13 @@
 # repository gets the commit-msg hook: its own .githooks/ if it carries one,
 # Atlas's by absolute path if not.
 #
+# Atlas itself gets core.hooksPath set to its .githooks/ by ABSOLUTE path, so
+# every worktree runs the same commit-msg and pre-commit hooks.
+#
 # `--no-clone` skips the submodules and the cloning; hooks are still set on
-# whatever private repositories are already there. `--private-only` runs the
-# private-repository step and nothing else -- setup-node.sh calls it so there is
-# one copy of that logic.
+# Atlas and on whatever private repositories are already there.
+# `--private-only` runs the hook and private-repository steps and nothing else
+# -- setup-node.sh calls it so there is one copy of that logic.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -51,7 +54,7 @@ while [ $# -gt 0 ]; do
     --name)    shift; NAME="$1" ;;
     --no-clone) CLONE=0 ;;
     --private-only) PRIVATE_ONLY=1 ;;
-    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,39p' "$0"; exit 0 ;;
     *) echo "unknown option: $1"; exit 1 ;;
   esac
   shift
@@ -143,7 +146,21 @@ private_repos() {
   say
 }
 
+# Atlas's own hooks: commit-msg strips attribution, pre-commit is the
+# commit-time gate (board/tutorboard/audit.py). Absolute, so a worktree finds
+# them too.
+atlas_hooks() {
+  if [ -d "$ROOT/.githooks" ]; then
+    chmod +x "$ROOT"/.githooks/* 2>/dev/null || true
+    git -C "$ROOT" config core.hooksPath "$ROOT/.githooks"
+    good "Atlas hooks: core.hooksPath = $ROOT/.githooks"
+  else
+    warn "no .githooks at $ROOT; commits here run no hooks"
+  fi
+}
+
 if [ "$PRIVATE_ONLY" -eq 1 ]; then
+  atlas_hooks
   private_repos
   exit 0
 fi
@@ -183,6 +200,10 @@ if [ "$CLONE" -eq 1 ]; then
   fi
   say
 fi
+
+say "The commit hooks"
+atlas_hooks
+say
 
 private_repos
 

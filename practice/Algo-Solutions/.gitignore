@@ -18,10 +18,6 @@ live/*
 !live/turns.jsonl
 !live/jobs.jsonl
 
-# the attribution hook must survive the blanket .* rule above
-!.githooks/
-!.githooks/**
-
 # The assistant's config directory stays ignored, all of it. The permission
 # allowlist that used to be let back in here is `ai-config/workspaces/
 # algo-solutions.allow` now, and `install.sh` renders it back into place —

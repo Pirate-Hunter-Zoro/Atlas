@@ -493,7 +493,9 @@ def sync_commit(base, sync):
                          "--name-only", "HEAD...%s" % up[2])
         if code == 0:
             incoming = set(l for l in out.splitlines() if l)
-    flagged = set(leaving.refused(base, every, base)) if names_phi else set()
+    flagged = leaving.refused(base, every, base) if names_phi else []
+    # A string is a refusal of the whole set: the check itself could not run.
+    flagged = set(every) if isinstance(flagged, str) else set(flagged)
     done, left = [], []
     for ws in sorted(sync):
         take = []

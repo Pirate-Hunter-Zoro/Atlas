@@ -436,9 +436,10 @@ check("any recipe with env gets it applied on the interactive launch",
       and env.get("MINE_MODE") == "on" and env.get("TUTOR_TEST_LEAK") == "x")
 argv, env, told = tutor.interactive_launch(
     tutor.DEFAULT_CONFIG["agents"]["claude"], course, opener)
-check("claude is unchanged: the opener appended, this environment, PWD only",
+check("claude is unchanged: the opener appended, this environment, PWD and "
+      "the turn mark only",
       argv == ["claude", opener] and told is None
-      and env == dict(os.environ, PWD=course))
+      and env == dict(os.environ, PWD=course, TUTORBOARD_TURN="1"))
 argv, env, told = tutor.interactive_launch(
     tutor.DEFAULT_CONFIG["agents"]["opencode"], course, opener)
 check("plain opencode takes the opener as --prompt too",

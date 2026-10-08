@@ -52,6 +52,11 @@ build/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.vrb
+# Built PDFs, where documents are built. A PDF already tracked stays tracked.
+/courses/**/*.pdf
+/projects/*/docs/**/*.pdf
+/projects/*/homework/**/*.pdf
 
 # ---- the relay's own state, on the cluster ----
 # The pass's lock and `state.json` at the root; in each workspace the wrapped
@@ -60,7 +65,7 @@ build/
 # a report under `relay/reports/` is what crosses.
 **/relay/state/
 /relay/state.json
-/relay/.lock
+/relay/.lock*
 
 # ---- the meeting deck's pointer, and the pictures of its marks ----
 # The deck itself lives in its host workspace's `writeups/meeting/`, where its
@@ -140,3 +145,20 @@ Thumbs.db
 *.key
 keys.env
 .env
+
+# ---- what stays on the Mac, and what belongs to somebody else ----
+# Sessions, document ink and materials (third-party or uploaded files) are
+# never tracked. phi/ and results/ never leave the machine they are on. A
+# course's textbook, chapter readings, lecture decks and assignment sheets are
+# other people's work. board/tutorboard/audit.py refuses the same shapes at
+# commit time, which is the guard a `git add -f` cannot walk past.
+/sessions/
+**/.ink/
+**/materials/
+/projects/*/phi/
+/projects/*/results/
+/courses/*/phi/
+/courses/*/textbook/
+/courses/*/chapters/*/reading/
+/courses/*/chapters/*/lectures/
+/courses/*/**/assignment*

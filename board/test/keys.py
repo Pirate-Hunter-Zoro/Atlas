@@ -128,9 +128,11 @@ check("and one whose key is absent reports the key's NAME, so the dimmed "
 
 # ---- env on a recipe -------------------------------------------------------
 plain = {"cmd": ["claude"]}
-check("a recipe with no env leaves the turn's environment exactly as it was",
-      tutor.turn_environment(plain) is None
-      and tutor.turn_environment(plain, {"A": "1"}) == {"A": "1"})
+check("a recipe with no env leaves the turn's environment as it was, and "
+      "marks it a turn so the pre-commit hook guards it",
+      tutor.turn_environment(plain, {"A": "1"}) == {"A": "1", "TUTORBOARD_TURN": "1"}
+      and tutor.turn_environment(plain).get("TUTORBOARD_TURN") == "1"
+      and tutor.turn_environment(plain).get("PATH") == os.environ.get("PATH"))
 
 routed = {"env": {"ANTHROPIC_BASE_URL": "https://example.test",
                   "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}"}}

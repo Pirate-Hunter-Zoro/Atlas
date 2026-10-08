@@ -899,18 +899,19 @@ def turn_environment(spec, base=None):
     `base` is what the caller already built -- a colibri mission's
     `COLI_SESSION_ID`, which is the only other thing that sets a turn's
     environment. Merged here so the two land in one dict rather than in two
-    places that fight. None in and no `env` on the recipe gives None back, so a
-    turn that wants nothing special still inherits the daemon's environment
-    exactly as it did.
+    places that fight. Otherwise a turn inherits the daemon's environment.
+
+    EVERY TURN CARRIES `TUTORBOARD_TURN=1`. `.githooks/pre-commit` reads it: a
+    turn may not commit RULES.md, which is the owner's, or change an existing
+    tutorboard.json's `phi` or `relay.exports`.
     """
     extra = (spec or {}).get("env") or {}
-    if not extra:
-        return base
     env = dict(base if base is not None else os.environ)
     for name, value in extra.items():
         filled = keys.fill(value)
         if filled is not None:
             env[str(name)] = filled
+    env["TUTORBOARD_TURN"] = "1"
     return env
 
 

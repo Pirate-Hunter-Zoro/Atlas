@@ -15,9 +15,10 @@ that is allowed to read that directory, and pushed by a turn that is not.
 `ai-config/policy/phi.py` already answers this question and nothing called it.
 `names_phi` is the policy, it is owned by the lab rather than by this tool, and
 it is loaded from the repository rather than copied in here: a second copy of a
-rule is a rule that goes quietly false on one side. A repository with no policy
-file refuses nothing — this is a check that the lab's own tree switches on by
-having one, not a promise this module makes on its own.
+rule is a rule that goes quietly false on one side. A repository with no fenced
+workspace has nothing to guard and refuses nothing. One that HAS a fence and no
+policy that loads is refused outright, by name: a guard that switches itself off
+when its rule goes missing is a guard nobody can trust.
 
 WHAT IT CATCHES, SAID PLAINLY, because a guard that is believed to do more than
 it does is worse than none. `names_phi` matches the fenced directory by name,
@@ -185,10 +186,8 @@ def reason(root, base=None):
     """Why this push must not go, or None if there is nothing in the way.
 
     Never raises: a check that throws on the way to a push is a push that does
-    not happen for a reason nobody can read. Where the policy file is missing
-    this is None and says so nowhere, which is the honest answer — the rule
-    belongs to the repository and a repository without one is not making a
-    promise this module can keep for it.
+    not happen for a reason nobody can read. Where a workspace holds a fence and
+    the policy file is missing or will not load, this is `no_policy`'s refusal.
     """
     try:
         return _reason(root, base)
@@ -196,19 +195,38 @@ def reason(root, base=None):
         return None
 
 
+def no_policy(guarded):
+    """The refusal for a fence with no policy to check what would leave it."""
+    return ("nothing was committed: %s hold%s a fenced directory, and the PHI "
+            "policy %s is missing or will not load, so nothing can check what "
+            "would leave. Restore ai-config (bash board/bootstrap.sh) and try "
+            "again."
+            % (", ".join(os.path.basename(g) for g in guarded[:NAME_MOST]),
+               "s" if len(guarded) == 1 else "", POLICY))
+
+
 def refused(root, paths, base=None):
     """Which of these repository-relative paths the check refuses.
 
     The one rule `reason` applies, over the paths a caller is about to commit:
-    the relay's sync asks it of the owner's edits it would push. `[]` where
-    the policy or a fence is missing, exactly as `reason` is None there.
+    the relay's sync asks it of the owner's edits it would push. `[]` where no
+    workspace holds a fence. Where one does and the policy is missing or will
+    not load, the refusal STRING from `no_policy` instead of a list. Never
+    raises.
     """
-    names_phi = policy(base)
-    if not names_phi:
-        return []
-    guarded = fenced_roots(base)
-    if not guarded:
-        return []
+    try:
+        guarded = fenced_roots(base)
+        if not guarded:
+            return []
+        names_phi = policy(base)
+        if not names_phi:
+            return no_policy(guarded)
+        return _refused(root, paths, names_phi, guarded)
+    except Exception:                                        # noqa: BLE001
+        return "nothing was committed: the PHI check over these paths failed."
+
+
+def _refused(root, paths, names_phi, guarded):
     top = _top(root)
     hit = []
     for path in paths:
@@ -228,9 +246,14 @@ def refused(root, paths, base=None):
 
 
 def _reason(root, base=None):
-    if not policy(base) or not fenced_roots(base):
+    guarded = fenced_roots(base)
+    if not guarded:
         return None
+    if not policy(base):
+        return no_policy(guarded)
     hit = refused(root, pending(root), base)
+    if isinstance(hit, str):
+        return hit
     if not hit:
         return None
     shown = hit[:NAME_MOST]

@@ -8,8 +8,10 @@
 
 A suite is any `*.py` or `*.js` file in this directory except those in
 HELPERS. Discovery, not a list: a suite added here runs without anyone
-registering it. Two checks that live outside this directory run with the
-full set: Paper-Writer's unittests and `tools/sync-macros.py --check`.
+registering it. Three checks that live outside this directory run with the
+full set: Paper-Writer's unittests, `tools/sync-macros.py --check`, and
+ai-config's own `scripts/test.sh` (the PHI policy's tests), which also runs
+with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
 environment unchanged. Suites in SERIAL never run beside each other.
@@ -29,6 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.dirname(HERE)
 ROOT = os.path.dirname(BOARD)
 FACTORY = os.path.join(ROOT, "projects", "Paper-Writer")
+AI_CONFIG_TESTS = os.path.join(ROOT, "ai-config", "scripts", "test.sh")
 
 # Files in this directory that are not suites. A helper other than this file
 # is a shared case some suite requires; the run names the suites it runs in,
@@ -42,7 +45,7 @@ HELPERS = ["run.py", "inkzoom.js"]
 SERIAL = []
 
 # The guards: what keeps PHI out of git and the relay honest.
-GUARDS = ["tracked.py", "requests.py", "relay.py", "holds.py"]
+GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py"]
 
 # Started first, because they are the longest; the rest follow by name.
 FIRST = ["link.js", "onlyagent.py", "plane.js", "factory", "seam.js", "relay.py"]
@@ -53,7 +56,7 @@ class Suite(object):
         self.name = name
         self.argv = argv
         self.cwd = cwd
-        self.kind = kind  # "py", "js", "factory" or "macros"
+        self.kind = kind  # "py", "js", "factory", "macros" or "aiconfig"
 
 
 def discover():
@@ -88,10 +91,24 @@ def helper_users(suites):
     return users
 
 
+def ai_config():
+    """ai-config's own tests, as a list of zero or one suite."""
+    if not os.path.isfile(AI_CONFIG_TESTS):
+        return []
+    return [Suite("ai-config", ["bash", AI_CONFIG_TESTS],
+                  os.path.dirname(os.path.dirname(AI_CONFIG_TESTS)), "aiconfig")]
+
+
+def skipped_ai_config():
+    print("ai-config SKIPPED: %s is not here, so the PHI policy's own tests "
+          "DID NOT RUN" % os.path.relpath(AI_CONFIG_TESTS, ROOT))
+
+
 def extras():
     out = [Suite("macros/tex",
                  [sys.executable, os.path.join(BOARD, "tools", "sync-macros.py"),
                   "--check"], BOARD, "macros")]
+    out.extend(ai_config())
     if os.path.isdir(os.path.join(FACTORY, "paperwriter")):
         out.append(Suite("factory",
                          [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
@@ -155,6 +172,10 @@ def run_one(suite):
             return "pass", secs, (ran[-1] if ran else last) + ", and they pass", []
         return "fail", secs, "FAILED", [l for l in lines
                                         if l.startswith(("FAIL:", "ERROR:"))] or lines[-15:]
+    if suite.kind == "aiconfig":
+        if proc.returncode == 0:
+            return "pass", secs, last, []
+        return "fail", secs, "FAILED (exit %d)" % proc.returncode, lines[-15:]
     if suite.kind == "macros":
         if proc.returncode == 0:
             return "pass", secs, "TeX and KaTeX know the same commands", []
@@ -233,7 +254,9 @@ def main(argv):
     everything = found + extras()
     unused = []
     if args.guards:
-        chosen = [s for s in found if s.name in GUARDS]
+        chosen = [s for s in found if s.name in GUARDS] + ai_config()
+        if not ai_config():
+            skipped_ai_config()
     elif args.names:
         missing = []
         chosen = []
@@ -252,6 +275,8 @@ def main(argv):
         chosen = everything
         if not os.path.isdir(os.path.join(FACTORY, "paperwriter")):
             print("factory skipped: Paper-Writer is not checked out here")
+        if not ai_config():
+            skipped_ai_config()
         width = max(len(s.name) for s in chosen) + 1
         for helper, users in sorted(helper_users(found).items()):
             if users:

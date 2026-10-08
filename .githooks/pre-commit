@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# pre-commit -- what a commit to this public repository may not carry.
+#
+# Refuses, before anything is written:
+#   - every rule board/tutorboard/audit.py holds over the staged paths: the
+#     25 MB cap, PHI and artifact shapes, credentials, other people's work, and
+#     anything under sessions/, .ink/ or materials/;
+#   - a path leaving.refused flags as reaching for session content, or any
+#     path at all when a fence exists and the PHI policy will not load;
+#   - a participant code (BL and three digits) in a staged filename or added
+#     line of a subject whose tutorboard.json says "phi": true;
+#   - when TUTORBOARD_TURN is set (every tutor turn): any RULES.md, and a change
+#     to an existing tutorboard.json's "phi" or "relay.exports".
+#
+# core.hooksPath points every clone at this directory, by absolute path;
+# board/bootstrap.sh sets it. A repository other than Atlas pointed here (the
+# private ai-config) gets only the tutor-turn refusals.
+#
+# It blocks rather than edits: what the text should say instead is a judgement
+# the hook does not get to make. `git commit --no-verify` is the escape hatch,
+# and reaching for it is asserting the refusal is wrong.
+# ---------------------------------------------------------------------------
+set -u
+
+HOOKS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOME_REPO="$(dirname "$HOOKS")"
+BOARD="$HOME_REPO/board"
+
+# Fail closed: a gate that cannot run has checked nothing.
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "pre-commit: nothing was committed: python3 is not on the PATH, so the commit-time gate cannot run." >&2
+  exit 1
+fi
+if [ ! -f "$BOARD/tutorboard/audit.py" ]; then
+  echo "pre-commit: nothing was committed: $BOARD/tutorboard/audit.py is missing, so the commit-time gate cannot run." >&2
+  exit 1
+fi
+
+PYTHONPATH="$BOARD${PYTHONPATH:+:$PYTHONPATH}" \
+  exec python3 -m tutorboard.audit "$HOME_REPO"
