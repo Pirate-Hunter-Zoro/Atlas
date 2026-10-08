@@ -1448,8 +1448,8 @@ SITTINGS_ABOUT = (
     "deck presents the WORK -- what was built, shown, measured or proved, with "
     "its numbers -- not the conversation that produced it. THE FILE IS "
     "`writeups/%(slug)s/%(slug)s.tex`, that name exactly and no other: the "
-    "front door finds the deck by it. Build it with `latexmk -pdf -cd "
-    "-interaction=nonstopmode writeups/%(slug)s/%(slug)s.tex`."
+    "front door finds the deck by it. Build it with `board build "
+    "writeups/%(slug)s/%(slug)s.tex`."
 )
 
 
@@ -1501,9 +1501,9 @@ MEETING_ABOUT = (
     "MAY ALREADY BE DONE is checked against the commit it names before it is "
     "called next. "
     "THE FILE IS `%(dir)s/meeting.tex`, that name exactly and no other. Build "
-    "it in its own directory, `cd %(dir)s && pdflatex -interaction=nonstopmode "
-    "meeting.tex`, twice, and leave the `.aux` it writes: the page marks are "
-    "read from it. A LaTeX error is yours to fix before the turn ends. "
+    "it with `board build %(dir)s/meeting.tex --keep-aux`, and leave the `.aux` "
+    "it keeps: the page marks are read from it. A LaTeX error is yours to fix "
+    "before the turn ends. "
     "THIS DECK IS NOT IN THE LIBRARY, whatever the line around this one says: "
     "it is read on the board's meeting page, where a mark is a direction for "
     "the project on that page."

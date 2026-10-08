@@ -415,18 +415,15 @@ try:
 
     def build(tex):
         """Play the writer: the `.tex`, built the way the turn is told to --
-        pdflatex twice, in the deck's own directory."""
+        `board build <deck>/meeting.tex --keep-aux`."""
+        from tutorboard import build as board_build
         write(os.path.join(deck_dir, "meeting.tex"), tex)
         for ext in (".pdf", ".aux"):
             try:
                 os.remove(os.path.join(deck_dir, "meeting" + ext))
             except OSError:
                 pass
-        for _ in range(2):
-            subprocess.run(["pdflatex", "-interaction=nonstopmode",
-                            "meeting.tex"], cwd=deck_dir,
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=300)
+        board_build.build(os.path.join(deck_dir, "meeting.tex"), keep_aux=True)
         return os.path.isfile(os.path.join(deck_dir, "meeting.pdf"))
 
     def deck_tex(frames, preamble=""):
@@ -487,6 +484,9 @@ try:
         check("the meeting prompt lives beside the deck from sittings' one",
               "writeups/meeting/meeting.tex" in sense.meeting_about(
                   "writeups/meeting", "x"))
+        check("and tells the writer to build it with board build, keeping the .aux",
+              "board build writeups/meeting/meeting.tex --keep-aux"
+              in sense.meeting_about("writeups/meeting", "x"))
         status, body = get("/meeting/deck.json")
         check("the sheet is told it is being written",
               body.get("state") == "being written" and not body.get("built"))

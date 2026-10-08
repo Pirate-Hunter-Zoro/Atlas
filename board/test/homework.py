@@ -40,6 +40,8 @@ def check(name, cond):
 
 
 SET = r"""\documentclass[11pt]{article}
+\newenvironment{problem}[1]{\par\noindent\textbf{Problem #1.}\ }{\par}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
 \begin{document}
 \begin{problem}{%(a)s}
   A statement that has been transcribed.
@@ -338,13 +340,9 @@ try:
     tex_path = os.path.join(prob, "homework", "hw05", "hw05.tex")
     pdf = os.path.splitext(tex_path)[0] + ".pdf"
 
-    # Stand in for LaTeX: a build script is honoured before the built-in path,
-    # and this test is about WHEN a build happens, not about compiling TeX.
-    scripts = os.path.join(prob, "scripts")
-    os.makedirs(scripts, exist_ok=True)
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\necho "pretending to compile $1"\n'
-                 'printf %%s "%%PDF-1.4" > "${1%%.tex}.pdf"\n')
+    # Real LaTeX, through `board build`: the set compiles as it stands. A
+    # machine with no TeX skips the checks that need a PDF.
+    HAVE_TEX = tex.have_tex()
 
     # A real throwaway repository with NO origin, because there is one
     # save-and-push.sh and it is the tool's: a workspace has no copy of its own
@@ -363,7 +361,8 @@ try:
     check("a set with no PDF at all is out of date", not os.path.exists(pdf))
     code, out = run(prob, "push", "an agreed exercise")
     check("pushing compiles the write-up first",
-          code == 0 and "compiling" in out and os.path.exists(pdf))
+          code == 0 and "compiling" in out
+          and (os.path.exists(pdf) or not HAVE_TEX))
     check("and says which set it built", "hw05" in out)
     check("and then actually commits", "committed" in out)
 
@@ -403,10 +402,11 @@ try:
 
     # A second push with nothing changed must not rebuild: an ordinary save in
     # the middle of a lesson should cost nothing.
-    stamp = os.path.getmtime(pdf)
+    stamp = os.path.getmtime(pdf) if HAVE_TEX else 0
     code, out = run(prob, "push", "again")
     check("a push with the PDF already current does not rebuild",
-          code == 0 and "compiling" not in out and os.path.getmtime(pdf) == stamp)
+          not HAVE_TEX or (code == 0 and "compiling" not in out
+                           and os.path.getmtime(pdf) == stamp))
 
     # Write to the source, and it is out of date again.
     with open(tex_path, "a", encoding="utf-8") as fh:
@@ -417,10 +417,11 @@ try:
           code == 0 and "compiling" in out)
 
     # A LaTeX error must not eat the source. The `.tex` is the record.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\necho "! Undefined control sequence."\nexit 1\n')
-    with open(tex_path, "a", encoding="utf-8") as fh:
-        fh.write("\n%% broken\n")
+    with open(tex_path, "r", encoding="utf-8") as fh:
+        good = fh.read()
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(good.replace("\\end{document}",
+                              "\\undefinedmacrohere\n\\end{document}"))
     code, out = run(prob, "push", "with a broken write-up")
     check("a build that fails still pushes the source, which is the record",
           code == 0 and "committed" in out)
@@ -429,38 +430,33 @@ try:
 
     # ---- the compiler has to be findable, wherever it is installed --------
     #
-    # A course's build.sh knows where TeX lives on the machine it was written on
-    # and nowhere else -- Probability's prepends TinyTeX's Linux directory,
-    # which on the Mac does not exist. So a board started by a login agent, with
-    # a PATH of /usr/bin:/bin and nothing more, ran that script, could not find
-    # pdflatex, and reported the failure as the document's. An evening's
-    # homework was written up and could not be typeset, and the source was
-    # fine the whole time.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\n'
-                 'printf %s "$PATH" > "$(dirname "$0")/../seen-path"\n'
-                 'printf %s "${TEXINPUTS:-}" > "$(dirname "$0")/../seen-inputs"\n'
-                 'printf %%s "%%PDF-1.4" > "${1%%.tex}.pdf"\n')
-    code, out = run(prob, "hw", "build")
-    seen_path = open(os.path.join(prob, "seen-path"), encoding="utf-8").read()
-    seen_inputs = open(os.path.join(prob, "seen-inputs"), encoding="utf-8").read()
-    check("the course's build script runs with TeX on its PATH",
-          all(d in seen_path.split(os.pathsep) for d in tex.tex_bin_dirs()))
+    # `board hw build` goes through `board build`, which finds TeX wherever
+    # this machine installed it and puts the board's macros on TEXINPUTS. A
+    # board started by a login agent has a PATH of /usr/bin:/bin.
+    from tutorboard import build
+    env = build.tex_env_for(tex_path)
+    check("the build runs with TeX on its PATH",
+          all(d in env["PATH"].split(os.pathsep) for d in tex.tex_bin_dirs()))
     check("and with the board's own macros where LaTeX will look for them",
-          os.path.join(ROOT, "tex") in seen_inputs.split(os.pathsep))
+          os.path.join(ROOT, "tex") in env["TEXINPUTS"].split(os.pathsep))
 
     # "FAILED" on its own is what sends somebody to a laptop to discover that
-    # nothing was wrong with their mathematics. Whatever the reason -- no
-    # compiler on this machine, or a script that discards its own output -- the
-    # board has to carry one.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\nexit 1\n')
+    # nothing was wrong with their mathematics. The board has to carry the
+    # reason: the LaTeX error, or that this machine has no LaTeX.
     code, out = run(prob, "hw", "build")
-    check("a build that fails silently is still given a reason",
-          code != 0 and len(out.strip()) > 40)
+    check("a build that fails is given a reason",
+          code != 0 and ("Undefined control sequence" in out
+                         or (not HAVE_TEX and "No LaTeX" in out)))
     rec = json.load(open(os.path.join(prob, "live", "hw.json"), encoding="utf-8"))
     check("and the reason is recorded for the board to show",
           rec["ok"] is False and len(rec["detail"].strip()) > 40)
+
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(good)
+    code, out = run(prob, "hw", "build")
+    check("and once it is fixed, hw build compiles it beside the source",
+          not HAVE_TEX or (code == 0 and os.path.exists(pdf)
+                           and not os.path.exists(os.path.splitext(tex_path)[0] + ".aux")))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

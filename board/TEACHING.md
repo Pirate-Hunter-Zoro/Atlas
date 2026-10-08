@@ -833,10 +833,11 @@ worked, then one transcription pass — is the same defect as leaving it to the
 end, in smaller units: what is on disk is behind what has been agreed, and the
 gap is exactly the part that gets lost when the sitting stops early.
 
-**You are allowed to compile, and it is your job, not the student's.** The
-course's permissions file grants `board`, its `scripts/build.sh`, and the LaTeX
-binaries themselves; `board hw build` finds the compiler wherever it is
-installed on this machine, which is not the same place on every machine. So a finished sheet is compiled *before* you say it is finished.
+**You are allowed to compile, and it is your job, not the student's.**
+`board hw build` compiles the sheet, and `board build <file>` builds any other
+document beside its source: pdflatex for a `.tex`, pandoc for a `.md`. Both find
+the compiler wherever this machine installed it. So a finished sheet is
+compiled *before* you say it is finished.
 Do not report a set as done and leave the PDF to somebody holding an iPad, and
 do not conclude from one refused command that compiling is beyond you — try
 `board hw build`, and if it genuinely fails, put the reason it printed on the

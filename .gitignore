@@ -41,6 +41,8 @@ node_modules/
 # recreates all of it. It never leaves the machine.
 .lake/
 build/
+# Not output: the board's builder keeps its pandoc filter here.
+!/board/tutorboard/build/
 
 # ---- LaTeX, which writes eight files beside every one it is asked for ----
 *.aux

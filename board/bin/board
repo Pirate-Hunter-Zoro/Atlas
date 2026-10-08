@@ -105,6 +105,11 @@ The assistant runs these. The student never does.
     board hw use <name>                say which set this sitting is (hw04, ch07)
     board hw new <name> [title]        start a write-up where there is none
     board hw build                     compile it; the result appears on the board
+    board build <file> [--format docx|pdf] [--strict] [--reference-doc F] [--keep-aux]
+                                       build a document beside its source: a .tex
+                                       with pdflatex (deck or article), a .md with
+                                       pandoc to .docx, and .pdf when the engine
+                                       exists. The only way anything here compiles
     board hw file <label> [--turn tNN]  file a sent page into the set's handwritten/
     board review [status]              what this test review covers
     board review list                  everything this repository can be reviewed over
@@ -1187,40 +1192,13 @@ def hw_build(live, st):
     nothing about it says so.
     """
     tex_path = os.path.join(live.root, st["rel"])
-    script = os.path.join(live.root, "scripts", "build.sh")
-    # The same environment the built-in compile gets. A course's own build.sh
-    # knows where TeX lives on the machine it was written on and nowhere else --
-    # Probability's prepends TinyTeX's own directory, which does not exist
-    # everywhere, so a board started by a supervisor (a PATH of /usr/bin:/bin
-    # and nothing more) ran a script that could not find pdflatex and reported
-    # the failure as the document's. `tex_bin_dirs` already knows every place a
-    # TeX lives on either machine; there is no reason only half of this file
-    # should get to use it.
-    env = tex.tex_env([os.path.join(live.root, "latex"),
-                       os.path.join(TOOL, "tex")])
-    if os.path.exists(script):
-        p = subprocess.run(["bash", script, tex_path], cwd=live.root, env=env,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        out = p.stdout.decode("utf-8", "replace").strip()
-        code = p.returncode
-    else:
-        out = compile_tex(live, tex_path)
-        code = 0 if os.path.exists(os.path.splitext(tex_path)[0] + ".pdf") else 1
-
-    # A failure that names nothing is the one that wastes an evening: the tutor
-    # reported "FAILED" all session and the student reasonably read it as a
-    # broken proof. A build script that hides its own output has nothing to say
-    # when the compiler is simply absent, so say it here -- once, and only when
-    # it is actually true.
-    if code != 0 and not shutil.which("pdflatex", path=env.get("PATH", "")):
-        out = (out + "\n\n" if out else "") + (
-            "No LaTeX on this machine: pdflatex is in none of the places a TeX "
-            "gets installed (`board doctor` lists them). Nothing is wrong with "
-            "the document -- the source is written and safe, and it will "
-            "typeset on a machine that has one.")
-    elif code != 0 and not out:
-        out = ("FAILED: scripts/build.sh exited %d and printed nothing. It "
-               "discards its own output; run it directly to see why." % code)
+    # `board build`, the one builder: pdflatex beside the source, TeX found
+    # wherever this machine installed it, and a failure that names its reason
+    # -- the LaTeX error, or "no LaTeX on this machine" -- rather than "FAILED".
+    from tutorboard import build
+    rec = build.build(tex_path)
+    out = (rec.get("detail") or "").strip()
+    code = 0 if rec["ok"] else 1
     # Where the build actually put it -- `homework.compiled_pdf` knows, and it is
     # the only thing that does. `pdf` is what a download resolves through, so a
     # `null` here is a document on disk with no button on the iPad.
@@ -2151,8 +2129,9 @@ def cmd_deckfig(live, args):
     catalog of the figures the ticked workspaces have made, by workspace and
     result id; this copies one of them into the deck's `figures/` as
     `<workspace>--<id>.<ext>` and prints that path, relative to the deck, which
-    is what goes in `\\includegraphics` when the deck is built with `latexmk
-    -cd`. Open the image before you put it on a slide.
+    is what goes in `\\includegraphics` when the deck is built with `board
+    build`, in the deck's own directory. Open the image before you put it on a
+    slide.
 
     AN ID, OR A WORD FROM ITS NAME. The catalog is cut at its newest few
     hundred, so a figure somebody inks for by name ("add the ROC curve") may not
@@ -3470,29 +3449,6 @@ def cmd_export(live, args):
     return 0 if rec.get("ok") else 1
 
 
-def compile_tex(live, path):
-    """Fallback compile, for a course with no build script of its own."""
-    outdir = os.path.dirname(path)
-    env = tex.tex_env([
-        os.path.join(live.root, "latex"),
-        os.path.join(TOOL, "tex"),
-    ])
-    pdf = os.path.splitext(path)[0] + ".pdf"
-    for _ in range(2):        # twice, so references settle
-        p = subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", "-halt-on-error",
-             "-output-directory=" + outdir, path],
-            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
-    if p.returncode != 0 or not os.path.exists(pdf):
-        log = os.path.splitext(path)[0] + ".log"
-        detail = ""
-        if os.path.exists(log):
-            with open(log, "r", encoding="utf-8", errors="replace") as fh:
-                detail = "".join(ln for ln in fh if ln.startswith("!"))[:400]
-        return "FAILED to compile\n" + detail
-    return "OK: " + pdf
-
-
 # ---------------------------------------------------------------------------
 # Tailscale, in userspace mode so it needs no root and no TUN device.
 #
@@ -4136,6 +4092,67 @@ EYES_WORDS = ["lattice", "kernel", "cyclotomic", "residue", "orbit", "cocycle",
               "spectrum", "filtration", "adjoint", "quotient"]
 
 
+def cmd_build(live, args):
+    """Build documents beside their sources.
+
+        board build path/to/deck.tex
+        board build paper/manuscript.md [--format docx|pdf] [--strict]
+                                         [--reference-doc journal.docx]
+
+    A .tex runs pdflatex in its own directory (beamer or article, detected),
+    twice and a third time when the log asks; TEXINPUTS holds the subject's
+    `latex/` and the board's `tex/`. Scratch files go on success; `--keep-aux`
+    keeps the `.aux`. A .md builds a .docx with the reference document found
+    from the source upward (`formats/*.docx`), plus a .pdf when the PDF engine
+    exists. A figure that did not reach the .docx fails the build; one that will
+    not sit on the page fails it only with `--strict`.
+    """
+    from tutorboard import build
+    formats, ref, files = [], None, []
+    strict = keep_aux = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--format", "--reference-doc"):
+            if i + 1 >= len(args):
+                print("%s needs a value" % a, file=sys.stderr)
+                return 2
+            if a == "--format":
+                if args[i + 1] not in ("docx", "pdf"):
+                    print("--format is docx or pdf", file=sys.stderr)
+                    return 2
+                formats.append(args[i + 1])
+            else:
+                ref = args[i + 1]
+            i += 2
+            continue
+        if a in ("--strict", "-s"):
+            strict = True
+        elif a == "--keep-aux":
+            keep_aux = True
+        elif a.startswith("-"):
+            print("unknown option: %s" % a, file=sys.stderr)
+            return 2
+        else:
+            files.append(a)
+        i += 1
+    if not files:
+        print("usage: board build <file.tex|file.md> [--format docx|pdf] "
+              "[--strict] [--reference-doc F] [--keep-aux]", file=sys.stderr)
+        return 2
+    status = 0
+    for f in files:
+        rec = build.build(f, formats=formats or None, strict=strict,
+                          reference_docx=ref, keep_aux=keep_aux)
+        if rec.get("detail"):
+            print(rec["detail"], file=sys.stdout if rec["ok"] else sys.stderr)
+        for out in rec["built"]:
+            print(out)
+        if not rec["ok"]:
+            status = 1
+    return status
+
+
 def cmd_eyes(live, args):
     """Settle, by experiment, whether the assistant driving this can see.
 
@@ -4171,15 +4188,13 @@ def cmd_eyes(live, args):
     with open(tex_path, "w", encoding="utf-8") as fh:
         fh.write(EYES_DOC % {"token": token, "word": word, "a": a, "b": b})
 
-    env = tex.tex_env()
-    proc = subprocess.run(
-        ["pdflatex", "-interaction=nonstopmode", "-halt-on-error",
-         "-output-directory=" + stamp, tex_path],
-        env=env, cwd=stamp, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
+    from tutorboard import build
+    rec = build.build(tex_path)
     pdf = os.path.join(stamp, "eyes.pdf")
-    if proc.returncode != 0 or not os.path.exists(pdf):
+    if not rec["ok"] or not os.path.exists(pdf):
         print("could not render the test image; is TeX installed? (board doctor)",
               file=sys.stderr)
+        print(rec.get("detail") or "", file=sys.stderr)
         return 1
 
     png = os.path.join(stamp, "eyes.png")
@@ -4542,7 +4557,7 @@ COMMANDS = {
     "open": cmd_open, "next": cmd_next, "write": cmd_write,
     "inbox": cmd_inbox, "archive": cmd_archive, "export": cmd_export,
     "doctor": cmd_doctor, "slate": cmd_slate, "wait": cmd_wait,
-    "net": cmd_net, "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes,
+    "net": cmd_net, "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap, "node": cmd_node,
