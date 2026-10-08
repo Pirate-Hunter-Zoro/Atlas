@@ -2,6 +2,15 @@
 
 Everything here is bytes off disk, and everything a person handed in is
 served with the headers that stop a browser executing it.
+
+WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
+
+    shell     unprefixed, the same for everybody, and under `/s/<id>/` too:
+              GET /manifest.webmanifest  /sw.js  /static/*
+    subject   under `/s/<id>/` for the session's subject, or unprefixed with
+              `?subject=<id>` (the library page): GET /result/<id>
+    session   under `/s/<id>/` only: GET /figure/<digest>.svg  /uploads/<name>
+              /answers/<name>
 """
 
 import hashlib

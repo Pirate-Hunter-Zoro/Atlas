@@ -81,6 +81,8 @@ UNPREFIXED = (
     ("POST", "/sittings/items", "atlas"),
     ("POST", "/sittings/deck", "atlas"),
     ("POST", "/sittings/decks", "atlas"),
+    # pages
+    ("GET", "/result/*", "subject"),
     # machines
     ("GET", "/meeting", "meeting"),
     ("GET", "/meeting/", "meeting"),

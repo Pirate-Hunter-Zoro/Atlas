@@ -136,6 +136,11 @@ for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
             {"title": "notes " + MARK[who], "source": DOC[who] + ".md",
              "sessions": [], "asked_at": "2026-10-01 10:00:00"}))
         write(os.path.join(d, DOC[who] + ".md"), "# Notes\n\n%s\n" % MARK[who])
+        # One figure and one table at the same path in each, so one id names
+        # both and only the session decides which is served.
+        write(os.path.join(atlas, rel, "figures", "plot.png"),
+              "\x89PNG" + MARK[who] * 100)
+        write(os.path.join(atlas, rel, "figures", "t.csv"), "a,b\n1,%s\n" % MARK[who])
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
 subprocess.run(["git", "init", "-q", atlas], check=True)
@@ -143,6 +148,12 @@ write(os.path.join(atlas, ".gitignore"), "/sessions/\n**/.ink/\n/meetings/\n")
 subprocess.run(GIT + ["-C", atlas, "add", "-A"], check=True)
 subprocess.run(GIT + ["-C", atlas, "commit", "-q", "-m", "projects/Beta: the fixture"],
                check=True)
+
+# The figure's and the table's ids, the same in both subjects.
+from tutorboard.course import results                         # noqa: E402
+_found = results.index(os.path.join(atlas, SUBJECT["A"]))
+FIG = [k for k, v in _found.items() if v["rel"] == "figures/plot.png"][0]
+TABLE = [k for k, v in _found.items() if v["rel"] == "figures/t.csv"][0]
 
 SID = {}
 DIR = {}
@@ -314,7 +325,8 @@ DRIVE = {
     ("GET", "/library/stamp", "library"): ("subject", [("/library/stamp", None, OK)]),
     ("GET", "/library/results.json", "library"): ("subject", [
         ("/library/results.json", None, OK)]),
-    ("GET", "/library/table/", "library"): ("subject", [("/library/table/nope", None, (404,))]),
+    ("GET", "/library/table/", "library"): ("subject", [("/library/table/{table}", None, OK),
+                                                        ("/library/table/nope", None, (404,))]),
     ("GET", "/library/view/", "library"): ("subject", [("/library/view/{doc}", None, OK)]),
     ("GET", "/library/note/", "library"): ("subject", [
         ("/library/note/{doc}/nope", None, (404,))]),
@@ -368,10 +380,13 @@ DRIVE = {
     ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
-    # not yet classified in their modules' tables
+    # pages
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
     ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
+    ("GET", "/result/", "pages"): ("subject", [("/result/{fig}", None, OK),
+                                              ("/result/nope", None, (404,))]),
+    # not yet classified in their modules' tables
 
     ("POST", "/slate/save", "writing"): ("session", [
         ("/slate/save", {"page": 2, "w": 10, "h": 10,
@@ -391,11 +406,12 @@ DRIVE = {
 
 
 def fill(value, who):
-    """`value` with `{mark}` and `{doc}` made `who`'s."""
+    """`value` with `{mark}`, `{doc}`, `{fig}` and `{table}` made `who`'s."""
     if callable(value):
         return value(who)
     if isinstance(value, str):
-        return value.replace("{mark}", MARK[who]).replace("{doc}", DOC[who])
+        return (value.replace("{mark}", MARK[who]).replace("{doc}", DOC[who])
+                .replace("{fig}", FIG).replace("{table}", TABLE))
     if isinstance(value, list):
         return [fill(v, who) for v in value]
     if isinstance(value, dict):
@@ -542,6 +558,15 @@ for who in ("A", "B"):
     board = [c for c in CALLS if c["fn"] == "board" and c["session"] == sdir]
     check("a board command a route in %s runs works on session %s" % (who, who),
           board and all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
+
+# One id, two subjects: the session, or ?subject=, decides whose file it is.
+for who in ("A", "B"):
+    _, own = ask("GET", "/s/%s/result/%s" % (SID[who], FIG))
+    _, named = ask("GET", "/result/%s?subject=%s" % (FIG, SUBJECT[who]))
+    _, table = ask("GET", "/library/table/%s?subject=%s" % (TABLE, SUBJECT[who]))
+    check("/result/<id> in %s serves %s's figure, and ?subject= names it too"
+          % (who, who), MARK[who].encode("utf-8") in own
+          and MARK[who].encode("utf-8") in named and MARK[who].encode("utf-8") in table)
 
 # Document ink saved outside a session: the named subject's .ink/, or the
 # Atlas root's with none named (the meeting deck's).
