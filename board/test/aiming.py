@@ -847,7 +847,7 @@ boardcli = importlib.util.module_from_spec(
 loader.exec_module(boardcli)
 
 check("board aim is a command", "aim" in boardcli.COMMANDS)
-live_cli = boardcli.Live(tmp)
+live_cli = boardcli.course_repo.Repo(tmp)
 check("it changes the sitting", boardcli.cmd_aim(live_cli, ["coach"]) == 0
       and live_cli.state().get("aim") == "coach")
 check("it refuses an aim that is held over a scope",

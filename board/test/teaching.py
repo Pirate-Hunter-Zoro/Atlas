@@ -244,7 +244,7 @@ try:
     # It must make no difference to what is delivered.
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "T", "mode": "code"}, fh)
-    live = boardcli.Live(tmp)
+    live = boardcli.course_repo.Repo(tmp)
     dest = boardcli.install_teaching(live)
     check("starting a board puts it in the course's live/", bool(dest) and os.path.isfile(dest))
 
@@ -810,7 +810,7 @@ try:
     def _brief():
         out = _io.StringIO()
         with _ctx.redirect_stdout(out):
-            boardcli.cmd_brief(boardcli.Live(root), [])
+            boardcli.cmd_brief(boardcli.course_repo.Repo(root), [])
         return out.getvalue()
 
     _cold = _brief()
@@ -902,7 +902,7 @@ try:
         old, sys.stdin = sys.stdin, _io.StringIO(body)
         try:
             with _ctx.redirect_stdout(out):
-                code = boardcli.cmd_step(boardcli.Live(root), list(args))
+                code = boardcli.cmd_step(boardcli.course_repo.Repo(root), list(args))
         finally:
             sys.stdin = old
         return code, out.getvalue()
@@ -952,7 +952,7 @@ try:
         sys.stdin = _io.StringIO(body)
         try:
             with _ctx.redirect_stdout(out):
-                code = boardcli.cmd_write(boardcli.Live(root), args)
+                code = boardcli.cmd_write(boardcli.course_repo.Repo(root), args)
         finally:
             sys.stdin = old_stdin
         return code, out.getvalue().strip()

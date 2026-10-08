@@ -155,6 +155,7 @@ from tutorboard import (assistants, atlas, brief, carry, direction, handoff, hol
                         reasoning, seeing, sense, sittings, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
+from tutorboard.course import repo as course_repo
 # `map` is a builtin; the module keeps the name the board calls the thing and
 # the binding does not.
 from tutorboard.course import map as course_map
@@ -174,79 +175,6 @@ LINES = 40
 
 
 # ---------------------------------------------------------------------------
-def find_repo(start=None):
-    """Nearest ancestor holding .git or AI_INSTRUCTIONS.md."""
-    d = os.path.abspath(start or os.getcwd())
-    while True:
-        if os.path.isdir(os.path.join(d, ".git")) or \
-           os.path.isfile(os.path.join(d, "tutorboard.json")) or \
-           os.path.isfile(os.path.join(d, "AI_INSTRUCTIONS.md")):
-            return d
-        parent = os.path.dirname(d)
-        if parent == d:
-            return os.path.abspath(start or os.getcwd())
-        d = parent
-
-
-class Live:
-    def __init__(self, root):
-        self.root = root
-        self.dir = os.path.join(root, "live")
-        self.cards = os.path.join(self.dir, "cards")
-        self.inbox = os.path.join(self.dir, "inbox")
-        self.uploads = os.path.join(self.inbox, "uploads")
-        self.archive = os.path.join(self.dir, "archive")
-        self.tikz = os.path.join(self.dir, "tikzcache")
-        self.slate = os.path.join(self.dir, "slate")
-        self.answers = os.path.join(self.dir, "answers")
-        # The same two directories `course.repo.Repo` calls `notes` and `text`,
-        # under the same names, because they are the same directories: marks on
-        # the tutor's cards, and typed answers in progress. Not in the list
-        # below -- a board creates them when it starts, and a CLI command that
-        # only ever reads them should not leave one behind in a repository
-        # nobody has opened a board in.
-        self.notes = os.path.join(self.dir, "annotations")
-        self.text = os.path.join(self.dir, "text")
-        for d in (self.dir, self.cards, self.inbox, self.uploads, self.archive,
-                  self.tikz, self.slate, self.answers):
-            os.makedirs(d, exist_ok=True)
-
-    def path(self, *parts):
-        return os.path.join(self.dir, *parts)
-
-    def info(self):
-        try:
-            with open(self.path(".board.json"), "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception:
-            return None
-
-    def state(self):
-        try:
-            with open(self.path("state.json"), "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception:
-            return {}
-
-    def set_state(self, **kw):
-        s = self.state()
-        for k, v in kw.items():
-            if v is None:
-                s.pop(k, None)          # explicit None clears
-            else:
-                s[k] = v
-        with open(self.path("state.json"), "w", encoding="utf-8") as fh:
-            json.dump(s, fh, indent=2)
-        return s
-
-    def card_names(self):
-        return sorted(n for n in os.listdir(self.cards) if re.match(r"^\d{4}[-_.]", n))
-
-    def next_index(self):
-        names = self.card_names()
-        return (int(names[-1][:4]) + 1) if names else 1
-
-
 def this_node():
     """What this machine calls itself. One place decides; see boardlib.
 
@@ -1347,7 +1275,7 @@ def cmd_hw(live, args):
             print("no sent handwriting to file", file=sys.stderr)
             return 1
         turn = turns[-1]
-        src = os.path.join(live.dir, turn["png"].lstrip("/"))
+        src = os.path.join(live.session, turn["png"].lstrip("/"))
         if not os.path.exists(src):
             src = os.path.join(live.answers, os.path.basename(turn["png"]))
         if not os.path.exists(src):
@@ -1758,7 +1686,7 @@ def cmd_recap(live, args):
         if t.get("text"):
             print(t["text"].strip())
         if t.get("png"):
-            print("handwriting: %s" % os.path.join(live.dir, str(t["png"]).lstrip("/")))
+            print("handwriting: %s" % os.path.join(live.session, str(t["png"]).lstrip("/")))
         for f in t.get("files", []) or []:
             print("file: %s" % os.path.join(live.uploads, f))
 
@@ -2059,7 +1987,6 @@ def cmd_round(live, args):
     same ink filed twice. With no ink and nothing reopened, nothing is filed.
     """
     from tutorboard.course import ledger, library
-    from tutorboard.course.repo import Repo
 
     want = [a for a in args if not a.startswith("--")]
     if not want:
@@ -2077,7 +2004,7 @@ def cmd_round(live, args):
     if rs and not ledger.landed(root, doc, rs[-1][1]):
         path, filed = rs[-1][1], False
     else:
-        rec = library.write_note(Repo(root), doc["id"], "", hand_over=True)
+        rec = library.write_note(live, doc["id"], "", hand_over=True)
         if not rec.get("ok") or not rec.get("ledger"):
             print("board round: nothing to file on %s: there is no ink on it "
                   "and no request reopened. %s" % (doc["title"], rec.get("error") or ""),
@@ -2328,9 +2255,8 @@ def cmd_notes(live, args):
             host, len(rec["figures"]), "" if len(rec["figures"]) == 1 else "s"))
         return 0
 
-    from tutorboard.course.repo import Repo
     from tutorboard.server.routes import library as library_route
-    got, err = library_route.ask_meeting(Repo(live.root), base, when, human,
+    got, err = library_route.ask_meeting(live, base, when, human,
                                          want=want or None)
     if err:
         print("board notes: %s" % (err[0].get("detail") or err[0].get("error")
@@ -3556,7 +3482,7 @@ def recorded_ports():
         return None
     for ws in every:
         try:
-            with open(os.path.join(ws["root"], "live", ".board.json"),
+            with open(course_repo.session_path(ws["root"], ".board.json"),
                       "r", encoding="utf-8") as fh:
                 rec = json.load(fh)
         except (OSError, ValueError):
@@ -3993,7 +3919,7 @@ def cmd_eyes(live, args):
     with a value nobody could guess and ask.
     """
     import random
-    stamp = os.path.join(live.dir, "eyes")
+    stamp = os.path.join(live.session, "eyes")
     os.makedirs(stamp, exist_ok=True)
     answer_path = os.path.join(stamp, "answer.txt")
 
@@ -4056,7 +3982,7 @@ def cmd_eyes(live, args):
 def state_agent(live):
     """Who is teaching in this workspace right now, off `live/agent.json`."""
     try:
-        with open(os.path.join(live.dir, "agent.json"), "r",
+        with open(os.path.join(live.session, "agent.json"), "r",
                   encoding="utf-8") as fh:
             return json.load(fh) or {}
     except (OSError, ValueError):
@@ -4344,9 +4270,9 @@ COMMANDS = {
     "round": cmd_round, "textbook": cmd_textbook,
 }
 
-# Commands about a directory they are given, not the repository they run in:
+# Commands about a directory or file they are given, not the workspace they run in:
 # no `live/` is made for them.
-NO_LIVE = ("textbook",)
+NO_LIVE = ("textbook", "build")
 
 
 def help_for(cmd, fn):
@@ -4393,7 +4319,8 @@ def main(argv):
         return help_for(cmd, fn)
     if cmd in NO_LIVE:
         return fn(None, rest)
-    live = Live(find_repo(root))
+    live = course_repo.resolve(root, create=False)
+    live.ensure_dirs(cli=True)
     return fn(live, rest)
 
 
