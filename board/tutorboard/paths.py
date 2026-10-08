@@ -27,6 +27,16 @@ CHOSEN = os.path.join(CONFIG_DIR, "chosen.json")
 # `tutorboard/keys.py`, which is the only thing that opens it.
 KEYS = os.path.join(CONFIG_DIR, "keys.env")
 
+# What the hub watches in a session directory, relative to it (`live/` today).
+# Stat'd once a second; a change here reaches the board at once. Everything
+# else in the payload arrives on a route's dirty mark or the 30 s rebuild. A
+# directory counts its entries too, because a file rewritten in place does not
+# change its directory's mtime.
+SESSION_WATCHED = ("cards", "turns.jsonl", "inbox/messages.jsonl", "state.json",
+                   "agent.json", "annotations", "slate", "push.json",
+                   "export.json", "hw.json")
+
+
 def same_dir(a, b):
     """Are these two paths the same directory, whatever they are spelled like?
 

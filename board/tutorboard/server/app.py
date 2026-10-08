@@ -20,6 +20,7 @@ from .. import machine, paths, stamp
 from ..course import repo as course_repo
 from ..net import tailscale
 from .handler import Handler
+from . import spawn
 from .hub import Hub
 from .tikz import TikzWorker
 
@@ -89,6 +90,7 @@ def main(argv):
 
     t = threading.Thread(target=hub.poll_loop, daemon=True)
     t.start()
+    threading.Thread(target=spawn.sweep_missions, daemon=True).start()
 
     # And a second door, on the tailnet address and nowhere else.
     #

@@ -278,7 +278,7 @@ def shipper():
 def ship_missions(now=None):
     """Hand every finished mission that asked for a ship to a tutor that can.
 
-    Called from the hub's poll loop, throttled: this is a directory walk over
+    Called from `sweep_missions`, throttled: this is a directory walk over
     every workspace on the machine and a mission ends on the scale of an hour.
     Returns the missions actually handed over, which is what a test reads.
     """
@@ -365,7 +365,7 @@ def carry_missions(now=None):
     `agent.json` alone, which in the case that matters is all there is: both
     allocations ended within the same minute and nothing is running anywhere.
 
-    Called from the hub's poll loop, throttled, beside `ship_missions`. Returns
+    Called from `sweep_missions`, throttled, beside `ship_missions`. Returns
     the missions actually picked up, which is what a test reads.
     """
     from .. import missions
@@ -482,7 +482,7 @@ def carry_missions(now=None):
 def release_missions(now=None):
     """Give back the assistant every ended mission brought with it.
 
-    Called from the hub's poll loop beside `ship_missions`, throttled, and
+    Called from `sweep_missions` beside `ship_missions`, throttled, and
     AFTER it: a release must not land between a ship being owed and the turn
     that pushes it being woken. Returns the workspaces actually released,
     which is what a test reads.
@@ -515,7 +515,7 @@ def release_missions(now=None):
                 and not rec.get("shipped")):
             # The push has not been handed to anybody yet. Stopping the daemon
             # now empties the workspace under a ship that is about to look for
-            # one; `ship_missions` runs first in the same loop and this is one
+            # one; `ship_missions` runs first in the same sweep and this is one
             # pass behind it.
             #
             # `done` ONLY, which is the same line `missions.due` draws. A
@@ -558,3 +558,19 @@ def release_missions(now=None):
         gave.append({"ws": w["id"], "mission": rec["id"], "agent": mine,
                      "back": back})
     return gave
+
+
+def sweep_missions():
+    """Ship, then carry, then release, every SHIP_EVERY seconds, forever.
+
+    A thread of its own, so the hub's rebuild loop never waits on a walk over
+    every workspace. Release runs last: it must not empty a workspace between
+    a ship being owed and the turn that pushes it being woken.
+    """
+    while True:
+        for walk in (ship_missions, carry_missions, release_missions):
+            try:
+                walk()
+            except Exception:
+                pass
+        time.sleep(SHIP_EVERY + 1.0)

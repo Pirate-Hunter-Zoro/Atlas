@@ -991,8 +991,8 @@ def cmd_write(live, args):
     # A CARD IS NEVER HALF ON THE BOARD.
     #
     # `open(path, "w")` TRUNCATES before it writes, so between those two moments
-    # the file exists and is empty -- and `load_cards` polls this directory four
-    # times a second. A poll that lands in that window puts a card on the glass
+    # the file exists and is empty -- and the hub rebuilds the moment it sees
+    # this directory change. A build that lands in that window puts a card on the glass
     # with no body: nothing to type, so `typeOut` skips it, so no hold is taken,
     # so the writing surface comes straight down and the NEXT BOARD APPEARS
     # BEFORE THE RESPONSE. On this filer it is worse than a race, because the

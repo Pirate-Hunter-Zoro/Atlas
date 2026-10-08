@@ -4,30 +4,63 @@
 import hashlib
 import json
 import os
+import stat
 import threading
 import time
 
-from .. import coursemacros
+from .. import coursemacros, paths
 from .. import (assistants, colibri, direction, fenced, missions, news,
                 writeups)
 from .. import jobs as slurm_jobs
-from . import spawn
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
-# How often the worker looks for a change nothing told it about. The board is
-# pushed to, not polled, so this is the safety net rather than the mechanism.
-POLL_SECONDS = 0.25
+# The payload is rebuilt only when something says it changed: a route's dirty
+# mark (`worker.dirty`), a change the sentinel sees in the session files it
+# stats every SENTINEL_SECONDS, or SLOW_SECONDS passing, for sources nothing
+# marks (git status, built papers, missions, Colibri).
+SENTINEL_SECONDS = 1.0
+SLOW_SECONDS = 30.0
 
 # Keys of the payload that are carried but never pushed on their own. See `tick`.
 QUIET = ("notes", "notes_sent")
 
 
+def sentinel(live):
+    """The mtime and size of every watched path under `live`, and of each entry
+    of a watched directory. Equal answers mean nothing watched changed."""
+    out = []
+    for rel in paths.SESSION_WATCHED:
+        where = os.path.join(live, rel)
+        try:
+            st = os.stat(where)
+        except OSError:
+            out.append((rel, None, None))
+            continue
+        out.append((rel, st.st_mtime_ns, st.st_size))
+        if not stat.S_ISDIR(st.st_mode):
+            continue
+        try:
+            entries = list(os.scandir(where))
+        except OSError:
+            continue
+        for e in entries:
+            try:
+                es = e.stat()
+            except OSError:
+                continue
+            out.append((rel + "/" + e.name, es.st_mtime_ns, es.st_size))
+    out.sort(key=lambda t: t[0])
+    return out
+
+
 class Hub:
+    """No lock: each subscriber is a (queue, condition) pair, and appending to,
+    removing from or copying the list of them is one atomic step."""
+
     def __init__(self, repo, worker):
         self.repo = repo
         self.worker = worker
-        self.lock = threading.Lock()
         self.clients = []
         self.payload = "{}"
         self.digest = ""
@@ -35,17 +68,15 @@ class Hub:
         self.seq = 0
 
     def subscribe(self):
-        q = []
-        cv = threading.Condition()
-        client = (q, cv)
-        with self.lock:
-            self.clients.append(client)
+        client = ([], threading.Condition())
+        self.clients.append(client)
         return client
 
     def unsubscribe(self, client):
-        with self.lock:
-            if client in self.clients:
-                self.clients.remove(client)
+        try:
+            self.clients.remove(client)
+        except ValueError:
+            pass
 
     def build(self):
         jobs = []
@@ -208,55 +239,27 @@ class Hub:
         return data
 
     def poll_loop(self):
+        """Rebuild on a dirty mark, a sentinel change, or every SLOW_SECONDS.
+
+        The mark is cleared before the sentinel is read and the sentinel before
+        the build, so a change landing mid-build triggers one more pass.
+        """
+        seen = None
+        built = 0.0
+        dirty = self.worker.dirty
         while True:
-            # A MISSION THAT WAS TOLD TO SHIP ITSELF, AND HAS FINISHED.
-            #
-            # Here because this loop is the only thing in the tool that runs
-            # without anybody asking it to and outlives the request that started
-            # it: a mission ends in a workspace with no board and no browser on
-            # it, so nothing there is going to notice. Throttled inside
-            # `ship_missions` to one walk every twenty seconds, and the ship is
-            # claimed with an exclusive create, so every board on the machine
-            # running this loop still hands each mission over exactly once.
-            try:
-                spawn.ship_missions()
-            except Exception:
-                pass
-
-            # AND A MISSION WHOSE NODE WENT AWAY UNDER IT.
-            #
-            # Here for the same reason as the line above: this loop is the only
-            # thing in the tool that runs without anybody asking it to and
-            # outlives the request that started it. A colibri client is a step of
-            # the serve job's allocation and dies with it, and where the board
-            # went at the same moment there is nothing left anywhere to notice.
-            # Throttled inside `carry_missions`, and each pick-up is claimed with
-            # an exclusive create, so every board running this loop still picks
-            # each mission up exactly once.
-            try:
-                spawn.carry_missions()
-            except Exception:
-                pass
-
-            # AND A MISSION THAT BROUGHT ITS OWN ASSISTANT AND HAS ENDED.
-            #
-            # Here for the reason the two lines above are, and AFTER them: a
-            # release must not empty a workspace between a ship being owed and
-            # the turn that pushes it being woken. Throttled inside
-            # `release_missions`, and each release is claimed with an exclusive
-            # create, so every board running this loop gives each assistant
-            # back exactly once.
-            try:
-                spawn.release_missions()
-            except Exception:
-                pass
-
-            try:
-                self.tick()
-            except Exception:
-                pass
-            if self.worker.dirty.wait(POLL_SECONDS):
-                self.worker.dirty.clear()
+            marked = dirty.is_set()
+            if marked:
+                dirty.clear()
+            now = sentinel(self.repo.live)
+            if marked or now != seen or time.monotonic() - built >= SLOW_SECONDS:
+                seen = now
+                built = time.monotonic()
+                try:
+                    self.tick()
+                except Exception:
+                    pass
+            dirty.wait(SENTINEL_SECONDS)
 
     def tick(self):
         """Build the payload, and push it if the lesson changed."""
@@ -289,8 +292,7 @@ class Hub:
             self.payload = json.dumps(data)
 
     def push(self, payload):
-        with self.lock:
-            targets = list(self.clients)
+        targets = list(self.clients)
         for q, cv in targets:
             with cv:
                 q.append(payload)
