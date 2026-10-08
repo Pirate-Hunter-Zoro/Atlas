@@ -9,13 +9,10 @@ The assistant runs these. The student never does.
     board stop                         bring it down
     board open "Galois Theory" "Ch 7 -- splitting fields" [--lecture|--homework]
                                        archive the last lesson, label the new one
-    board open "Galois" --review --over ch01 --over ch07
-                                       a test review over the chapters named
-    board open "PSYCH-ASR" --walk --over psych_asr.evaluate.grade
-                                       a walkthrough of machinery already written
-    board open ... --stance do|teach   this sitting only; tutorboard.json is the default
-    board open ... --thread <id> [--kind learn|coach|build]
-                                       a sitting on one thread, named after it
+    board open ... --thread <id>       a sitting on one thread, named after it
+    board mode [teach|do]              who writes the code in this session; no
+                                       word prints it. Only this, POST /mode,
+                                       and the tutor obeying "do it" change it
     board finish                       offer the push, on the iPad, at session end
     board push ["message"]             commit and push this repository now
     board next [kind] [slug]           print the path of the next card to write
@@ -77,10 +74,6 @@ The assistant runs these. The student never does.
     board deckfig writeups/<deck> <ws> <id>
                                        copy one more figure into a deck made
                                        from sittings; prints the path to use
-    board aim [name]                   what THIS SITTING is for -- teach, build,
-                                       coach, paper, slides -- changed in place.
-                                       Nothing is archived and no tutor is
-                                       replaced. No name prints what is in force
     board direction --show             what this workspace is FOR, in their own
                                        words, when they have changed it. It
                                        outranks the plan, the map and the
@@ -126,12 +119,6 @@ The assistant runs these. The student never does.
                                        chapter notes (and homework) .tex files,
                                        or numbered homework sets, from the
                                        course's latex/templates; never overwrites
-    board review [status]              what this test review covers
-    board review list                  everything this repository can be reviewed over
-    board review over ch01 ch07        say what the review covers, without reopening
-    board walk [status]                what this walkthrough covers
-    board walk list [dir]              every file in this repository it could cover
-    board walk over <name> [<name>]    say what it covers, without reopening
     board vpn up [--hostname N]        the Tailscale link (name defaults to 'board')
     board vpn status|serve|down, for devices off this network
     board init [name]                  write tutorboard.json for this repository
@@ -143,8 +130,7 @@ The assistant runs these. The student never does.
                                        for an assistant whose model has no eyes
 
 Card kinds: lesson, question, correct, wrong, review, note, recap. (A `review`
-card is you reviewing an answer; a `--review` sitting is the student revising for
-a test. Different namespaces, same word.)
+card is you reviewing an answer.)
 """
 
 import json
@@ -162,8 +148,9 @@ from tutorboard import (assistants, atlas, brief, carry, direction, gitops,
                         handoff, holds, jobs, keys, leaving, limits, machine, meeting,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sessions, sittings, tex, worktree)
+from tutorboard import mode as session_mode
 from tutorboard.net import egress, tailscale
-from tutorboard.course import config, document, homework, paper, review, walk
+from tutorboard.course import config, document, homework, paper
 from tutorboard.course import repo as course_repo
 # `map` is a builtin; the module keeps the name the board calls the thing and
 # the binding does not.
@@ -396,26 +383,11 @@ def cmd_status(live, args):
                                  "" if info["node"] == this_node() else "  (not this one)"))
     print("repo:    %s" % live.root)
     cfg = read_config(live.root)
-    # The stance this sitting is actually running under, which is the
-    # repository's unless the sitting said otherwise -- and where the two
-    # disagree, both, because only one of them survives the sitting.
-    stance = config.stance_for(live.root, st)
-    print("course:  %s%s" % (st.get("course") or cfg["name"],
-                              ("  (stance: %s%s)"
-                               % (stance, ", this sitting only"
-                                  if stance != cfg["stance"] else ""))
-                              if stance == "do" or stance != cfg["stance"] else ""))
+    print("course:  %s" % (st.get("course") or cfg["name"]))
+    print("mode:    %s" % config.mode_of(st))
     print("chapter: %s" % st.get("chapter", "-"))
     print("session: %s%s" % (st.get("session", "lecture"),
                              "  (finish offered)" if st.get("finished") else ""))
-    if (st.get("session") or "") == "review":
-        scope = review.scope(live.root, st)
-        print("review:  %s"
-              % (", ".join(u["short"] for u in scope) if scope else "nothing chosen"))
-    if (st.get("session") or "") == "walk":
-        scope = walk.scope(live.root, st)
-        print("walk:    %s"
-              % (", ".join(u["label"] for u in scope) if scope else "nothing named"))
     print("cards:   %d" % len(live.card_names()))
     msgs = read_messages(live)
     print("unread:  %d" % sum(1 for m in msgs if not m.get("read")))
@@ -423,23 +395,19 @@ def cmd_status(live, args):
 
 
 def cmd_open(live, args):
-    """Start a session, and say what kind it is.
+    """Start a sitting, and say what kind it is: a lecture or a homework set.
 
     A lecture and a homework sitting are different jobs. In a lecture the user is
     being taught and writes back to show they followed. In homework they are
     producing work that has to end up typeset and compiled, and the write-up is
-    the assistant's to do once the mathematics is agreed.
+    the assistant's to do once the mathematics is agreed. Who writes the code is
+    the session's mode, which opening a sitting never changes (`board mode`).
     """
     session = None
     which = None
-    over = []
-    stance = None
-    aim = None
     agent = None
     node = None
     thread = None
-    kind = None
-    makes = None
     rest = []
     skip_next = False
     for i, a in enumerate(args):
@@ -450,40 +418,12 @@ def cmd_open(live, args):
             session = "lecture"
         elif a == "--homework":
             session = "homework"
-        elif a in ("--review", "--test-review"):
-            session = "review"
-        elif a in ("--walk", "--walkthrough"):
-            session = "walk"
-        elif a == "--make":
-            # A sitting whose product is a DOCUMENT rather than an answer. The
-            # board had no such thing: every sitting it had ends in the student
-            # producing something, and "write this up" and "build me a deck
-            # about it" are neither a lecture nor an exercise.
-            session = "make"
-            makes = (args[i + 1] if i + 1 < len(args) else "").strip().lower()
-            if makes not in ("paper", "slides"):
-                print("  --make takes 'paper' or 'slides'", file=sys.stderr)
-                return 2
-            skip_next = True
-        elif a == "--aim":
-            # What this sitting is FOR, which is not the same question as who
-            # writes the code. See `course/config.py`.
-            aim = config.clean_aim(args[i + 1] if i + 1 < len(args) else "")
-            if aim is None:
-                print("  --aim is not one of: %s; ignored"
-                      % ", ".join(config.AIMS), file=sys.stderr)
-            skip_next = True
         elif a == "--agent":
-            # WHICH ASSISTANT THIS SITTING WANTS, written with the sitting and
-            # not afterwards. It has to land here rather than be patched on once
-            # `open` has returned, because a chapter change replaces the tutor on
-            # its own thread the moment it is opened -- so a choice written after
-            # that is a choice the incoming daemon never saw.
-            #
-            # Only the shape of the name is checked; the registry is in
-            # `bin/tutor` because an agent entry is a command recipe, and
-            # `resolve_agent` drops one this machine has not got rather than
-            # leaving the course with no tutor at all.
+            # WHICH ASSISTANT THIS SITTING WANTS, written with the sitting: a
+            # chapter change replaces the tutor the moment it is opened, so a
+            # choice written after that is one the incoming daemon never saw.
+            # Only the shape of the name is checked; `resolve_agent` drops one
+            # this machine has not got.
             agent = config.clean_agent(args[i + 1] if i + 1 < len(args) else "")
             if agent is None:
                 print("  --agent takes an assistant's name; ignored",
@@ -499,54 +439,20 @@ def cmd_open(live, args):
             # against the file, never carried through as typed.
             thread = (args[i + 1] if i + 1 < len(args) else "").strip()
             skip_next = True
-        elif a == "--kind":
-            # learn, coach or build. A kind names an aim (`config.KIND_AIM`),
-            # so it is written as both and never as a third axis.
-            kind = config.clean_kind(args[i + 1] if i + 1 < len(args) else "")
-            if kind is None:
-                print("  --kind is not one of: %s; ignored"
-                      % ", ".join(config.KINDS), file=sys.stderr)
-            skip_next = True
-        elif a == "--stance":
-            # This sitting's, not the repository's. `tutorboard.json` is not
-            # touched: a stance chosen for an evening's work is not a decision
-            # about what the repository is for, and writing it there would make
-            # it one silently.
-            stance = config.clean_stance(args[i + 1] if i + 1 < len(args) else "")
-            if stance is None:
-                print("  --stance takes 'do' or 'teach'; ignored", file=sys.stderr)
-            skip_next = True
         elif a == "--set":
             which = args[i + 1] if i + 1 < len(args) else None
             skip_next = True
-        elif a == "--over":
-            # Repeated rather than comma-separated: a chapter title is allowed a
-            # comma in it and a scope that splits on one would quietly review
-            # half a chapter.
-            if i + 1 < len(args):
-                over.append(args[i + 1])
-            skip_next = True
+        elif a.startswith("--"):
+            # --review, --walk, --make, --aim, --kind and --stance among them:
+            # the method is the tutor's to pick in teach mode, and who writes
+            # the code is `board mode`.
+            print("board open: no option %s (who writes the code is `board "
+                  "mode teach|do`)" % a, file=sys.stderr)
+            return 2
         else:
             rest.append(a)
     course = rest[0] if len(rest) > 0 else None
     chapter = rest[1] if len(rest) > 1 else None
-
-    chosen = []
-    if session == "review":
-        chosen, unknown = review.resolve(live.root, over)
-        for name in unknown:
-            print("  not in this repository, ignored: %s" % name, file=sys.stderr)
-        if not chapter:
-            # Even with nothing chosen: a sitting with no label at all shows a
-            # bare dash on the board where the chapter line goes.
-            chapter = review.sitting_label(chosen, review.kind(live.root) or "chapters")
-    if session == "walk":
-        chosen, unknown = walk.resolve_any(live.root, over)
-        for name in unknown:
-            print("  no file or definition called %r in this repository, ignored: %s"
-                  % (name, name), file=sys.stderr)
-        if not chapter:
-            chapter = walk.sitting_label(chosen)
 
     # A chapter is its own thing, and its handoff goes with it.
     #
@@ -589,63 +495,21 @@ def cmd_open(live, args):
             node = None
         elif not chapter:
             chapter = found["name"]
-    # EVERY SITTING CARRIES ITS KIND, on a thread or not: learn, coach or
-    # build, chosen or read off its aim and stance (`config.kind_for`).
-    if kind:
-        aim = config.kind_aim(kind, aim)
-    else:
-        kind = config.kind_for(live.root, {"aim": aim, "stance": stance,
-                                           "thread": thread},
-                               on["files"] if on else None) or None
-
     live.set_state(course=course, chapter=chapter, session=session or "lecture",
                    finished=None, hw=None,
-                   # What this sitting is about and what it is for. Both are
-                   # cleared by opening the next one, the way a sitting stance
-                   # is: they belong to the sitting, not to the repository.
-                   node=node, thread=thread, kind=kind, aim=aim, makes=makes,
+                   # What this sitting is about, cleared by opening the next one.
+                   node=node, thread=thread,
                    # A rethink's sentence belongs to the sitting it opened.
                    rethink=None,
-                   # And which assistant, under the same rule: a choice made for
-                   # an evening's work is not a statement about the repository,
-                   # so it is cleared by opening a sitting that does not name one.
+                   # And which assistant, under the same rule.
                    agent=agent,
-                   review=[u["name"] for u in chosen] if session == "review" else None,
-                   walk=[u["name"] for u in chosen] if session == "walk" else None,
-                   # A sitting stance is cleared by opening the next sitting,
-                   # which is what makes it a sitting's. Saying nothing here is
-                   # how a repository gets its own answer back.
-                   stance=stance,
+                   # Legacy sitting keys, cleared: the mode is the session's.
+                   kind=None, aim=None, stance=None, makes=None,
+                   review=None, walk=None,
                    opened=time.strftime("%Y-%m-%d %H:%M"))
     print("%s open: %s / %s" % (session or "lecture", course or "-", chapter or "-"))
-    if stance:
-        declared = read_config(live.root)["stance"]
-        print("  stance: %s%s" % (stance, "  (this sitting only; tutorboard.json "
-                                          "says %s)" % declared
-                                  if stance != declared else ""))
-    if session == "review":
-        if chosen:
-            print("  over %s: %s"
-                  % (review.noun(review.kind(live.root), len(chosen)),
-                     ", ".join(u["label"] for u in chosen)))
-            print("  the questions are yours; the scope is theirs")
-        else:
-            print("  nothing chosen to review. Say what it covers:")
-            print("  board review over <name> [<name> ...]   (board review list)")
-    if session == "walk":
-        if chosen:
-            print("  walking through: %s" % ", ".join(u["label"] for u in chosen))
-            print("  nothing is being written; they trace it and you ask")
-        else:
-            print("  nothing named to walk through. Say what it covers:")
-            print("  board walk over <file or function>    (board walk list)")
-    if session == "make":
-        print("  the product of this sitting is a %s, not an answer"
-              % ("deck" if makes == "slides" else "paper"))
     if thread:
-        print("  thread: %s  (%s)" % (thread, kind or "-"))
-    if aim:
-        print("  aim: %s" % aim)
+        print("  thread: %s" % thread)
     if agent:
         print("  assistant: %s  (this sitting only)" % agent)
     if session == "homework":
@@ -979,143 +843,6 @@ def read_turns(live):
         pass
     return out
 
-
-# ---------------------------------------------------------------------------
-# test review: revision over a scope the student chose
-# ---------------------------------------------------------------------------
-def cmd_review(live, args):
-    """What this test review covers, and how to say what it covers.
-
-    A review is the homework loop pointed at a scope the student picked rather
-    than at a sheet somebody set, so there is nothing here about documents: no
-    write-up, no compile, nothing to file. The tool owns one thing -- which
-    chapters (or, in a project, which parts) are in scope -- because that is the
-    part the assistant would otherwise have to guess at.
-    """
-    sub = args[0] if args else "status"
-    rest = args[1:]
-    st = review.status(live.root, live.state())
-
-    if st is None:
-        print("nothing in this repository to review: no chapters and no parts")
-        return 1
-
-    if sub in ("--list", "list"):
-        for u in st["units"]:
-            print("  %-10s %s" % (u["short"], u["label"]))
-        print(review.noun(st["of"], st["total"]))
-        return 0
-
-    if sub == "over":
-        if not rest:
-            print("usage: board review over <name> [<name> ...]   "
-                  "(board review list to see them)", file=sys.stderr)
-            return 1
-        chosen, unknown = review.resolve(live.root, rest)
-        for name in unknown:
-            print("no %s called %r in this repository"
-                  % (st["of"][:-1] if st["of"] else "chapter", name), file=sys.stderr)
-        if not chosen:
-            return 1
-        live.set_state(review=[u["name"] for u in chosen])
-        print("this review covers %s: %s"
-              % (review.noun(st["of"], len(chosen)),
-                 ", ".join(u["label"] for u in chosen)))
-        if (live.state().get("session") or "lecture") != "review":
-            print("  this sitting is not a review yet: board open <course> --review")
-        return 0
-
-    # status
-    if not st["scope"]:
-        print("no test review open here. Start one:")
-        print("  board open %r --review --over %s"
-              % (live.state().get("course") or "<course>",
-                 st["units"][0]["short"] if st["units"] else "<name>"))
-        print("%s to choose from; board review list shows them all"
-              % review.noun(st["of"], st["total"]))
-        return 1
-    print("test review over %s" % review.noun(st["of"], len(st["scope"])))
-    for u in st["chosen"]:
-        print("  %-10s %s" % (u["short"], u["label"]))
-    return 0
-
-
-def cmd_walk(live, args):
-    """What this walkthrough covers, and how to say what it covers.
-
-    The same shape as `board review`, and deliberately: both are sittings held
-    over a scope the student chose rather than one the repository set, and the
-    tool owns the same one thing in each -- which names are real. What differs is
-    the list. A review is over chapters, or over the parts of a project; a
-    walkthrough is over source files, and optionally over one definition inside
-    one of them.
-    """
-    sub = args[0] if args else "status"
-    rest = args[1:]
-    st = walk.status(live.root, live.state())
-
-    if st is None:
-        print("no source in this repository to walk through")
-        return 1
-
-    if sub in ("--list", "list"):
-        # A directory at a time, because a flat list of 188 files is not a thing
-        # anybody reads. `board walk list psych_asr/evaluate` narrows it.
-        where = (rest[0].strip("/") if rest else "").lower()
-        shown = 0
-        last = None
-        for u in st["units"]:
-            if where and not u["path"].lower().startswith(where):
-                continue
-            if u["dir"] != last:
-                last = u["dir"]
-                print("  %s" % (last + "/" if last != "." else "(top level)"))
-            print("      %s" % u["short"])
-            shown += 1
-        if not shown:
-            print("nothing under %r" % where)
-            return 1
-        print("%d file%s" % (shown, "" if shown == 1 else "s"))
-        if not where and shown > 40:
-            print("narrow it: board walk list <directory>")
-        return 0
-
-    if sub == "over":
-        if not rest:
-            print("usage: board walk over <file or function> [<name> ...]",
-                  file=sys.stderr)
-            print("  a path (psych_asr/evaluate/grade.py), a module "
-                  "(psych_asr.evaluate.grade), or a definition inside one "
-                  "(psych_asr.evaluate.grade.grade)", file=sys.stderr)
-            print("  a vendor tree is named with the tree in front of it: "
-                  "@vendor/colibri/bin/coli-up", file=sys.stderr)
-            return 1
-        chosen, unknown = walk.resolve_any(live.root, rest)
-        for name in unknown:
-            print("no file or definition called %r in this repository" % name,
-                  file=sys.stderr)
-        if not chosen:
-            return 1
-        live.set_state(walk=[u["name"] for u in chosen])
-        print("this walkthrough covers: %s"
-              % ", ".join(u["label"] for u in chosen))
-        if (live.state().get("session") or "lecture") != "walk":
-            print("  this sitting is not a walkthrough yet: "
-                  "board open <course> --walk")
-        return 0
-
-    # status
-    if not st["scope"]:
-        print("no walkthrough open here. Start one:")
-        print("  board open %r --walk --over <file or function>"
-              % (live.state().get("course") or "<course>"))
-        print("%d file%s to choose from; board walk list shows them"
-              % (st["total"], "" if st["total"] == 1 else "s"))
-        return 1
-    print("walkthrough over %d: " % len(st["scope"]))
-    for u in st["chosen"]:
-        print("  %s" % u["label"])
-    return 0
 
 # ---------------------------------------------------------------------------
 # homework: a problem set is a file in the course, and the board tracks it
@@ -1782,19 +1509,6 @@ def cmd_recap(live, args):
     hw = st.get("hw")
     if hw:
         print("homework set: %s" % hw)
-    # A resumed review has to be told what it is a review of, or the next turn
-    # widens the scope back to the whole course without meaning to.
-    if (st.get("session") or "") == "review":
-        scope = review.scope(live.root, st)
-        print("test review over: %s"
-              % (", ".join(u["label"] for u in scope) if scope else "nothing chosen yet"))
-    # And a resumed walkthrough has to be told what it is walking through, for
-    # the same reason: the scope is the whole of what keeps it off the rest of
-    # the repository.
-    if (st.get("session") or "") == "walk":
-        scope = walk.scope(live.root, st)
-        print("walking through: %s"
-              % (", ".join(u["label"] for u in scope) if scope else "nothing named yet"))
 
     # Newest revision per turn id: the file is append-only and a correction
     # supersedes in place, so an older revision is not part of the lesson.
@@ -1896,11 +1610,11 @@ def cmd_brief(live, args):
 
     AND A MISSION IS BRIEFED AS A DOING TURN. `/elsewhere` writes the task into
     the target's inbox as a sentence of the student's and nothing else, so this
-    briefing is the whole of what a mission reads -- and a workspace whose
-    standing stance is to teach would brief a change somebody asked for as a
-    lesson. `missions.running` is that question, asked here because this is the
-    only place that knows it is answering a cold turn. Only ever `True`: a
-    workspace that says `do` in `tutorboard.json` keeps saying it.
+    briefing is the whole of what a mission reads -- and a session in teach
+    mode would brief a change somebody asked for as a lesson. `missions.running`
+    is that question, asked here because this is the only place that knows it
+    is answering a cold turn. Only ever `True`: a session in do mode keeps
+    saying it.
 
     AND THE RECORD IS CARRIED, NOT JUST THE ANSWER. A mission replaces the
     sitting in the briefing rather than decorating it -- see
@@ -2293,57 +2007,25 @@ def cmd_deckfig(live, args):
     return 0
 
 
-def cmd_aim(live, args):
-    """What THIS SITTING is for, changed without losing the lesson.
+def cmd_mode(live, args):
+    """Who writes the code in this session: teach or do.
 
-        board aim                   what is in force, and whether it was chosen
-        board aim build             change it; the next card is written that way
+        board mode              print it
+        board mode teach|do     set it; one transcript turn and one inbox line
 
-    `board open --aim` chooses one for a sitting being OPENED, which archives the
-    lesson that was on the board. This changes the one that is open: nothing is
-    archived, no tutor is replaced, and every card already written stands.
-
-    `trace` and `drill` are not here. Each is held over a scope -- a list of
-    files, a part of the repository -- so choosing one is choosing what it is
-    over, and that is `board open --walk` or `board open --review`.
-
-    The BOARD's own control does one more thing than this does: a tap there wakes
-    a turn, because a tap is the instruction. Here the person is already at a
-    keyboard talking to the assistant, so the aim is written down and the next
-    fresh turn reads it -- said out loud below rather than left to be discovered.
+    The only ways the mode changes are this, `POST /mode`, and the tutor
+    obeying "do it" -- by running this. Nothing infers `do`.
     """
-    st = live.state()
-    offered = ", ".join(a for a in config.AIMS if a not in config.AIMS_OVER)
     if not args:
-        own = config.clean_aim(st.get("aim"))
-        now = config.aim_for(live.root, st)
-        if own:
-            print("aim: %s  (chosen for this sitting)" % own)
-        elif now:
-            print("aim: %s  (inherited: this workspace or its family says so)" % now)
-        else:
-            print("no aim in force; the sitting runs on its stance alone")
-        print("  change it: board aim <%s>" % offered)
+        print("mode: %s" % config.mode_of(live.state()))
         return 0
-    # A KIND IS AN AIM BY ANOTHER NAME, so `board aim coach` and `board aim
-    # learn` both change it, and every sitting keeps its kind in step.
-    aim = config.clean_aim(args[0])
-    if not aim and config.clean_kind(args[0]):
-        aim = config.KIND_AIM[config.clean_kind(args[0])]
-    if not aim:
-        print("board aim: not one of: %s" % ", ".join(config.AIMS + config.KINDS),
-              file=sys.stderr)
+    by = "tutor" if os.environ.get("TUTORBOARD_TURN") else "student"
+    try:
+        mode, changed = session_mode.set_mode(live, args[0], by=by)
+    except ValueError as exc:
+        print("board mode: %s" % exc, file=sys.stderr)
         return 2
-    if aim in config.AIMS_OVER:
-        print("board aim: %s is held over a scope -- open it with "
-              "board open --%s --over <name>"
-              % (aim, "walk" if aim == "trace" else "review"), file=sys.stderr)
-        return 2
-    live.set_state(aim=aim, kind=config.AIM_KIND[aim])
-    print("aim: %s  (the lesson is untouched)" % aim)
-    print("  %s" % config.AIM_MEANS.get(aim, ""))
-    print("  a turn already mid-conversation reads this on its next fresh turn;")
-    print("  the board's own control wakes one instead.")
+    print("mode: %s%s" % (mode, "" if changed else "  (already)"))
     return 0
 
 
@@ -3912,15 +3594,11 @@ def cmd_vpn(live, args):
 
 
 def read_config(root):
-    """What this repository calls itself, and what the tutor is here for.
-
-    There is no subject here any more. A `mode` of `math` or `code` used to be
-    read -- and GUESSED, by walking the tree looking for a `.tex` -- and it
-    decided the method, the first card and half the board's controls. One
-    interface now, so the only thing left to read is the name and the stance.
-    A `mode` still sitting in a course's own file is ignored.
+    """What this repository calls itself: its `tutorboard.json`, with `name`
+    defaulted to the directory. A `mode` or `stance` left in the file is
+    ignored: who writes the code is the session's mode (`board mode`).
     """
-    cfg = {"name": None, "stance": "teach"}
+    cfg = {"name": None}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
             cfg.update(json.load(fh) or {})
@@ -3929,7 +3607,7 @@ def read_config(root):
     if not cfg.get("name"):
         cfg["name"] = os.path.basename(root).replace("-", " ")
     cfg.pop("mode", None)
-    cfg["stance"] = "do" if str(cfg.get("stance") or "").lower() == "do" else "teach"
+    cfg.pop("stance", None)
     return cfg
 
 
@@ -3939,8 +3617,7 @@ def cmd_init(live, args):
     There is nothing else to declare. `--math` and `--code` used to live here and
     chose between two methods and two interfaces; both are gone, and a `mode`
     left in an existing file is dropped on the way past rather than kept as a
-    key that means nothing. `stance` is the one thing a repository may still say
-    and it is only ever written by hand.
+    key that means nothing.
     """
     name = " ".join(a for a in args if not a.startswith("--")) \
         or os.path.basename(live.root).replace("-", " ")
@@ -3962,8 +3639,6 @@ def cmd_init(live, args):
     if dropped:
         print("  dropped 'mode: %s' -- there is one board and one method now"
               % dropped)
-    if cfg.get("stance") == "do":
-        print("  stance: do -- the tutor writes the code here rather than setting it")
     print("  -> answers come back on the board: written on the slate, or typed")
     return 0
 
@@ -4326,8 +4001,7 @@ def cmd_doctor(live, args):
         print("tests:    node not installed (the board does not need it)")
     cfg = read_config(live.root)
     print("repo:     %s" % live.root)
-    print("course:   %s%s" % (cfg["name"],
-                               "  (stance: do)" if cfg["stance"] == "do" else ""))
+    print("course:   %s" % cfg["name"])
     print("node:     %s" % this_node())
     print("port:     %d (default for this repo)" % default_port(live.root))
     lim = limits.limit_record()
@@ -4423,8 +4097,7 @@ COMMANDS = {
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
-    "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap,
-    "walk": cmd_walk,
+    "hw": cmd_hw, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,
@@ -4434,7 +4107,7 @@ COMMANDS = {
     "coach": cmd_coach,
     "colibri": cmd_colibri,
     "notes": cmd_notes,
-    "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
+    "direction": cmd_direction, "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
 }

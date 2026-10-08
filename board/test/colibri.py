@@ -135,7 +135,7 @@ CFG = {"headless_timeout": 900, "doing_timeout": 3600,
 teach = tempfile.mkdtemp(prefix="tutor-coli-teach-")
 doing = tempfile.mkdtemp(prefix="tutor-coli-doing-")
 for where, st in ((teach, {"session": "lecture", "aim": "teach"}),
-                  (doing, {"session": "lecture", "aim": "build"})):
+                  (doing, {"session": "lecture", "mode": "do"})):
     os.makedirs(os.path.join(where, "live"), exist_ok=True)
     with open(os.path.join(where, "live", "state.json"), "w", encoding="utf-8") as fh:
         json.dump(st, fh)

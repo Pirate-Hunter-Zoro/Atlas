@@ -409,13 +409,13 @@ try:
     # tool exists to remove, and it was found the worst way, as a question:
     # "do I ask the tutor to begin?"
     before = len(turns.load_turns(repo))
-    status, body = post("/session", {"session": "lecture", "aim": "teach"})
+    status, body = post("/session", {"session": "lecture"})
     check("a sitting opened without asking to start does not start one",
           status == 200 and body.get("begun") is False
           and len(turns.load_turns(repo)) == before)
 
-    status, body = post("/session", {"session": "lecture", "aim": "build",
-                                     "stance": "do", "begin": True})
+    status, body = post("/mode", {"mode": "do"})
+    status, body = post("/session", {"session": "lecture", "begin": True})
     check("and one opened WITH the ask starts the turn itself",
           status == 200 and body.get("begun") is True)
     sent = turns.load_turns(repo)

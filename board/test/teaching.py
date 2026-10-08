@@ -221,11 +221,10 @@ for phrase, why in [
     ("goes with a commit", "and finishing work includes writing it down"),
     ("go and look", "a turn saying it is implemented sends the tutor to the code"),
     ("no button for this", "and there is no tap that stands in for saying so"),
-    # Not every project wants a tutor. One line of configuration, and the tutor
-    # does the work instead of setting it -- without any of the rest of a turn
-    # changing, which is why it is a line of configuration and not a mode.
-    ('"stance": "do"', "a repository can ask for the work to be done, not taught"),
-    ("declared, never inferred", "and that is never guessed at"),
+    # Not every session wants a tutor. The owner's word puts it in do mode,
+    # and the tutor does the work instead of setting it.
+    ("board mode do", "a session can be told to do the work, not teach it"),
+    ("never inferred", "and that is never guessed at"),
     ("still one card, still short", "a doing turn is still one short card first"),
     ("say what you did not verify", "and says what it has not actually run"),
 ]:
@@ -272,7 +271,7 @@ try:
         ("A test review", "the review rules"),
         ("An agreed answer gets written up", "the write-up"),
         ("A repository that is not a book", "where exercises come from without one"),
-        ("When the repository says DO rather than TEACH", "the doing stance"),
+        ("Do mode: the work is yours", "do mode"),
         ("Write the card before you do anything else", "and the card-first rule"),
     ]:
         check("every course is given " + why, section in delivered)
@@ -362,17 +361,15 @@ if serveapp:
         check("the headless prompt " + why, phrase in serveapp.WRITEUP_SENSE)
     check("every sitting that hands something in is told to write it up",
           "how += WRITEUP_SENSE" in serve_src)
-    # The two that hand nothing in say so themselves, and must not be told to
-    # transcribe: a review is rehearsal and a walkthrough reads code that is
-    # already written.
+    # A review and a walkthrough hand nothing in, and say so in the method.
     check("and the two that hand nothing in are not",
-          "no write-up" in serveapp.WALK_SENSE
-          and "WRITEUP_SENSE" not in serveapp.WALK_SENSE)
-    check("and every kind of sitting is given the same shape",
-          serve_src.count("METHOD_SENSE") >= 4)
+          "there is no write-up" in text and "Nothing is handed in" in text)
+    check("and every sitting is given the same shape",
+          serve_src.count("METHOD_SENSE") >= 3)
     # A review inverts one thing and only one: it asks before it teaches.
     check("except a review, which asks cold and ladders from the break",
-          "asks COLD" in serve_src and "Ladder only from a break" in serve_src)
+          "ask the question cold" in text
+          and "the ladder comes after the break" in text)
     # A skipped check is a rung, so the skip has somewhere to go next.
     check("a skipped check moves to the next rung, or to the exercise",
           "hand-check" in serveapp.SIGNAL_SENSE["skip"]
@@ -415,10 +412,6 @@ for phrase, why in [
     ("writeups/", "and kept where a document goes"),
 ]:
     check("the make method says " + why, phrase in sense_mod.MAKE_SENSE)
-for _aim in ("paper", "slides"):
-    _said = course_config.AIM_MEANS[_aim]
-    check("the word a person taps for %s says it too" % _aim,
-          "explainer" in _said.lower() or "explains" in _said.lower())
 
 # TWO SENTENCES WERE WELDED INTO ONE REFUSAL, AND ONLY ONE OF THEM WAS RIGHT.
 #
@@ -434,8 +427,6 @@ for _aim in ("paper", "slides"):
 # that is exactly how a rule gets fixed in one and left in the other.
 WHERE_THE_RULE_LIVES = (
     ("the make method", sense_mod.MAKE_SENSE),
-    ("the word a person taps for a paper", course_config.AIM_MEANS["paper"]),
-    ("the word a person taps for a deck", course_config.AIM_MEANS["slides"]),
     ("TEACHING.md", text),
 )
 for _where, _said in WHERE_THE_RULE_LIVES:
@@ -462,11 +453,10 @@ for phrase, why in [
     check("TEACHING.md: " + why, phrase in text)
 
 # ---------------------------------------------------------------------------
-# A DOCUMENT IS A PRODUCT, NOT AN AIM
+# A DOCUMENT IS A PRODUCT, NOT A MODE
 # ---------------------------------------------------------------------------
-# Asked for from any sitting at all, including the two the aim row is withheld
-# from. The route is guarded in `test/aiming.py`; what is guarded here is the
-# line the turn is woken with, because in headless that string IS the prompt.
+# Asked for from any session. What is guarded here is the line the turn is
+# woken with, because in headless that string IS the prompt.
 for _makes, _word in (("paper", "a PAPER"), ("slides", "a DECK of slides")):
     _line = sense_mod.writeup_sense(_makes)
     check("a %s asked for mid-sitting says which product it is" % _makes,
@@ -475,8 +465,8 @@ for _makes, _word in (("paper", "a PAPER"), ("slides", "a DECK of slides")):
           sense_mod.MAKE_SENSE in _line)
     check("and says the turn writes no card (%s)" % _makes,
           "Write no card" in _line and "THIS TURN IS NOT PART OF THE LESSON" in _line)
-    check("and that the sitting's own aim has not changed (%s)" % _makes,
-          "aim of it has not changed" in _line)
+    check("and that the session's mode has not changed (%s)" % _makes,
+          "its mode has not changed" in _line)
     # The scope with nobody naming one is the evening, which is the whole reason
     # this route exists: the map already opens a make sitting over a box.
     check("with the evening as its scope where nobody named one (%s)" % _makes,
@@ -684,18 +674,21 @@ try:
                   encoding="utf-8") as fh:
             _j.dump(kw, fh)
 
-    _sitting(session="lecture", aim="teach")
+    _sitting(session="lecture")
     teach_for = runturn.turn_timeout(_cfg, _clock)
-    _sitting(session="lecture", aim="build", stance="do")
+    _sitting(session="lecture", mode="do")
     build_for = runturn.turn_timeout(_cfg, _clock)
-    _sitting(session="make", makes="paper")
-    make_for = runturn.turn_timeout(_cfg, _clock)
+    _sitting(session="lecture")
+    make_for = runturn.turn_timeout(_cfg, _clock, signal="writeup")
     check("a turn that writes the code gets longer than one that writes a card",
           build_for > teach_for)
     check("and long enough for work that actually runs (%d minutes)"
           % (build_for // 60), build_for >= 2400)
-    check("a sitting that makes a document gets the same",
+    check("a turn that writes a document gets the same",
           make_for == build_for)
+    _sitting(session="make", makes="paper", aim="build", stance="do")
+    check("and a legacy sitting that says make, build or do is taught",
+          runturn.turn_timeout(_cfg, _clock) == teach_for)
     check("while a teaching turn's clock is unchanged", teach_for == 900)
 finally:
     shutil.rmtree(_clock, ignore_errors=True)
@@ -715,19 +708,14 @@ try:
             import json as _json
             _json.dump(st, fh)
 
-    # Every way of saying "this turn does the work" has to reach the same clause,
-    # because they are written down in three different places and a person taps
-    # one of them without knowing which.
-    for kw, why in ((dict(aim="build"), "the aim they tapped on the map"),
-                    (dict(stance="do"), "a stance chosen for the sitting"),
-                    (dict(session="make", makes="paper"), "a sitting that makes a document"),
-                    (dict(aim="slides"), "an aim of building a deck")):
-        state(**kw)
-        check("a doing turn is told so by %s" % why,
-              "DOING TURN" in sense_mod.session_sense(repo))
-    for kw, why in ((dict(aim="teach"), "teaching"),
-                    (dict(aim="coach"), "coaching them through it"),
-                    (dict(), "a plain lecture in a teach repository")):
+    # Do mode is the one way a sitting says "this turn does the work".
+    state(mode="do")
+    check("a doing turn is told so by the session's mode",
+          "DOING TURN" in sense_mod.session_sense(repo))
+    for kw, why in ((dict(aim="build"), "a legacy aim of build"),
+                    (dict(stance="do"), "a legacy stance of do"),
+                    (dict(session="make", makes="paper"), "a legacy make sitting"),
+                    (dict(), "a plain lecture in teach mode")):
         state(**kw)
         said = sense_mod.session_sense(repo)
         check("and a turn that is %s is not" % why, "DOING TURN" not in said)
@@ -770,14 +758,14 @@ try:
     check("and refuses an invented number in its place",
           "invented number is worse than a hole" in _MEASURE)
 
-    state(stance="do")
+    state(mode="do")
     _do = sense_mod.session_sense(repo)
     check("a doing turn is told to fix the rule rather than its output",
           _RULE in _do)
     check("and is told once, not twice", _do.count(_RULE) == 1)
     check("and it is asked for the measure too", _MEASURE in _do)
 
-    state(aim="teach")
+    state(mode="teach")
     _teach = sense_mod.session_sense(repo)
     check("a teaching turn is asked for the measure",
           _MEASURE in _teach and _teach.count(_MEASURE) == 1)

@@ -210,28 +210,32 @@ try:
     check("tapping the provider a sitting is already on moves nothing",
           status == 200 and got.get("moved") == [])
 
-    # ---- A PROVIDER PER KIND, ON THE THREAD SHEET ---------------------------
-    # `tutorboard.json` may name a provider per kind of sitting, and the sheet
-    # says on each kind's button who will take it: the workspace's choice for
-    # that kind, else this machine's own default, and why not where it cannot.
+    # ---- THE PROVIDER, ON THE THREAD SHEET -----------------------------------
+    # The sheet says on each kind's button who will take it: the workspace's
+    # one provider, else this machine's own default, and why not where it
+    # cannot. A per-kind object names nothing.
     from tutorboard.server.routes import lesson               # noqa: E402
     kinded = workspace("Kinded", {})
     with open(os.path.join(kinded, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "Kinded",
                    "agent": {"learn": "deepseek", "build": "nokey"}}, fh)
+    plain = workspace("Plain", {})
+    with open(os.path.join(plain, "tutorboard.json"), "w", encoding="utf-8") as fh:
+        json.dump({"name": "Plain", "agent": "nokey"}, fh)
     was_listing = assistants.listing
     assistants.listing = lambda: dict(TABLE, machine="claude", agents=[
         dict(a, unavailable=("A_KEY is not in %s" % KEYS
                              if a["name"] == "nokey" else None))
         for a in TABLE["agents"]])
     sheet = lesson.kind_agents(kinded)
-    check("the sheet names the workspace's provider for a learn sitting",
-          sheet.get("learn") == {"agent": "deepseek", "why": ""})
-    check("and the machine's own for a kind the workspace does not name",
-          sheet.get("coach") == {"agent": "claude", "why": ""})
-    check("and says why one that cannot take a turn here will not",
-          sheet.get("build", {}).get("agent") == "nokey"
-          and "A_KEY" in sheet["build"]["why"])
+    check("a per-kind object names nothing: every kind gets the machine's own",
+          all(sheet.get(k) == {"agent": "claude", "why": ""}
+              for k in ("learn", "coach", "build")))
+    sheet = lesson.kind_agents(plain)
+    check("the workspace's one provider is on every kind's button, and says "
+          "why it cannot take a turn here",
+          all(sheet.get(k, {}).get("agent") == "nokey"
+              and "A_KEY" in sheet[k]["why"] for k in ("learn", "coach", "build")))
     assistants.listing = lambda: None
     check("with no answer from the launcher it draws no names",
           lesson.kind_agents(kinded) == {})

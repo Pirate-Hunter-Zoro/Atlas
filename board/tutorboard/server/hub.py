@@ -93,22 +93,11 @@ class Hub:
         board_state = self.repo.state()
         cfg = config.read_config(self.repo.root)
         board_state.setdefault("course", cfg["name"])
-        # WHAT THE REPOSITORY ITSELF SAYS about who writes the code, which is
-        # not always what this sitting says. The board needs both: the chooser
-        # shows which is in force, and the busy strip has to know whether the
-        # turn running now is one that DOES the work -- because in one of those
-        # a card landing means the work is starting rather than finished. It was
-        # a constant `"teach"` in the client until now, which is a guess that is
-        # wrong in exactly the repositories this matters most in.
-        board_state["declared_stance"] = cfg.get("stance") or "teach"
-        # AND WHAT THIS SITTING IS ACTUALLY RUNNING UNDER, resolved once, here.
-        # A sitting nobody opened from the map names no aim, and the answer then
-        # comes from the workspace or from its family's default in `atlas.FAMILIES` --
-        # which the client cannot read and must not re-derive. The chooser shows
-        # `aim_now`, and the busy strip asks `stance_now` whether the turn running
-        # is one that DOES the work. See `course/config.aim_for`.
-        board_state["aim_now"] = config.aim_for(self.repo.root, board_state)
-        board_state["stance_now"] = config.stance_for(self.repo.root, board_state)
+        # WHO WRITES THE CODE: the session's mode, teach unless session.json
+        # says do. `stance_now` carries the same word for the client's busy
+        # strip until T51 deletes the old sitting UI.
+        board_state["mode"] = config.mode_of(board_state)
+        board_state["stance_now"] = board_state["mode"]
         data = {
             "state": board_state,
             "cards": on_board,

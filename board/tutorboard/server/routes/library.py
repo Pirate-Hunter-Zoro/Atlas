@@ -415,21 +415,17 @@ def _writeup(h, repo):
     that tutoring session? Can I do that in ANY tutoring session?"* The answer
     was no, twice over.
 
-    A DOCUMENT IS NOT AN AIM, and that is the whole design. An aim says what the
-    sitting is FOR; a paper or a deck is a PRODUCT. Asking for one used to mean
-    `POST /aim` -- the sitting becomes a make sitting, and every card after it is
-    written that way -- and the aim row is withheld from a review and from a
-    walkthrough, so in the two sittings where a write-up is worth the most there
-    was no way to ask at all. This changes no aim, archives nothing, replaces no
+    A DOCUMENT IS AN ACTION, NOT A MODE. A paper or a deck is a PRODUCT any
+    session can ask for: this changes no mode, archives nothing, replaces no
     tutor, and is therefore available everywhere, like everything else on this
     page.
 
-    IT IS IN THIS FILE RATHER THAN BESIDE `/aim`, because every rule that makes
+    IT IS IN THIS FILE RATHER THAN BESIDE `/mode`, because every rule that makes
     it safe is this file's: no card, no sitting, no `state.json`. The document
     lands in the library and the library's own loop corrects it.
 
     AND NOTHING GOES IN THE TRANSCRIPT, which is the one place this differs from
-    `/aim` and `/handover`. Both of those put the tap in as a turn of the
+    `/mode` and `/handover`. Both of those put the tap in as a turn of the
     student's, because a card is coming back and a transcript that opens with the
     answer reads as the tutor deciding something on its own. Here no card is
     coming: a student turn with no reply is what sets `awaitingReply`, and the

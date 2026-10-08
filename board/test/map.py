@@ -462,14 +462,6 @@ try:
     check("and the cache is short enough that an edit this evening lands",
           mapping.CACHE_SECONDS <= 60)
 
-    # --- what a sitting opened from a box is FOR -----------------------------
-    check("an aim from a request is one of the ways to work, or nothing",
-          config.clean_aim("BUILD ") == "build"
-          and config.clean_aim("whatever") is None)
-    check("and every aim says in writing what it asks the tutor to do",
-          all(config.AIM_MEANS.get(a) for a in config.AIMS))
-
-
     # --- the thread file: the owner's own words, checked against the tree ----
     #
     # STRUCTURE IS DERIVED FROM DISK. MEANING IS WRITTEN. The derived map knows

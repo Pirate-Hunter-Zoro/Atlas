@@ -79,10 +79,9 @@ check("an unknown name resolves to nothing rather than to a wrong agent",
 check("a course with no opinion at all still resolves",
       recipes.resolve_agent(CFG, None) == "opencode")
 
-# --- a provider per KIND of sitting -----------------------------------------
-# `agent` in `tutorboard.json` may be an object keyed by kind: a course's learn
-# sittings on DeepSeek, a project's build sittings on Claude. The open sitting's
-# own kind picks the entry; a kind it does not name falls through to the default.
+# --- one provider per workspace, never per kind ------------------------------
+# `agent` in `tutorboard.json` is one name for every sitting. The old object
+# keyed by kind names nothing, so it falls through to the default.
 kinded = tempfile.mkdtemp(prefix="agents-kind-")
 os.makedirs(os.path.join(kinded, "live"))
 
@@ -93,25 +92,18 @@ def sit(kind):
 
 
 by_kind = {"root": kinded, "agent": {"learn": "codex", "build": "claude"}}
-sit("learn")
-check("a learn sitting takes the workspace's learn provider",
-      recipes.resolve_agent(CFG, by_kind) == "codex")
-sit("build")
-check("a build sitting takes its build provider",
-      recipes.resolve_agent(CFG, by_kind) == "claude")
-sit("coach")
-check("a kind the workspace does not name falls through to the default",
-      recipes.resolve_agent(CFG, by_kind) == "opencode")
-sit(None)
-check("and so does a sitting of no kind",
-      recipes.resolve_agent(CFG, by_kind) == "opencode")
-sit("learn")
-check("the sitting's own choice still beats the workspace's kind",
-      recipes.resolve_agent(CFG, by_kind, "opencode") == "opencode")
-check("a misspelt provider for a kind is refused, not quietly replaced",
-      recipes.resolve_agent(CFG, dict(by_kind, agent={"learn": "nonesuch"})) is None)
-check("a plain name still holds for every kind",
+for kind in ("learn", "build", None):
+    sit(kind)
+    check("a per-kind object names nothing, so a %s sitting takes the default"
+          % (kind or "kindless"),
+          recipes.resolve_agent(CFG, by_kind) == "opencode")
+check("a plain name holds for every sitting",
       recipes.resolve_agent(CFG, {"root": kinded, "agent": "codex"}) == "codex")
+check("the command line still beats the workspace",
+      recipes.resolve_agent(CFG, {"root": kinded, "agent": "codex"},
+                            "opencode") == "opencode")
+check("a misspelt workspace provider is refused, not quietly replaced",
+      recipes.resolve_agent(CFG, {"root": kinded, "agent": "nonesuch"}) is None)
 shutil.rmtree(kinded, ignore_errors=True)
 
 # --- the default, and where its permissions are NOT written ------------------

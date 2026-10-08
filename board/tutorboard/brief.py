@@ -165,11 +165,6 @@ def map_sense(root):
 
 
 
-# What each kind of sitting asks of the turn, in one line: `config.KIND_SENSE`,
-# shared with the waking line so the two cannot drift.
-KIND_SENSE = config.KIND_SENSE
-
-
 def thread_sense(repo, st):
     """The thread this sitting is on, read off `threads.json`, or "".
 
@@ -191,7 +186,6 @@ def thread_sense(repo, st):
         return ("\n--- the thread ---\nThis sitting names the thread `%s`, and "
                 "threads.json has no such thread now. `board thread --show` "
                 "lists what it has; say so in your first card." % tid)
-    kind = config.kind_for(root, st, one["files"]) or "learn"
     stage = {}
     try:
         stage = course_threads.stages(root).get(tid) or {}
@@ -202,7 +196,6 @@ def thread_sense(repo, st):
         if d["id"] == one["deliverable"]:
             deliv = d["title"]
     out = ["\n--- the thread this sitting is on: %s (`%s`) ---" % (one["title"], tid)]
-    out.append("This is %s" % KIND_SENSE.get(kind, kind))
     if deliv:
         out.append("For: %s." % deliv)
     if one["question"]:
@@ -261,20 +254,14 @@ def thread_sense(repo, st):
 
 
 def sitting_sense(repo, st):
-    """What kind of sitting this is, for one on no thread, and any hold
-    standing in the workspace. "" for a thread's sitting, which
-    `thread_sense` covers, and for one with nothing to say."""
+    """Any hold standing in the workspace, for a sitting on no thread. "" for
+    a thread's sitting, which `thread_sense` covers, and for one with nothing
+    to say."""
     st = st or {}
     if str(st.get("thread") or "").strip():
         return ""
     root = repo.root
     out = []
-    try:
-        kind = config.kind_for(root, st)
-    except Exception:                                        # noqa: BLE001
-        kind = ""
-    if kind:
-        out.append("This is %s" % KIND_SENSE.get(kind, kind))
     try:
         from . import holds
         out.extend(holds.standing_sense(root))
@@ -357,7 +344,7 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     `doing` goes straight to `sense.session_sense` and is for the one thing this
     module cannot see: a mission is a change asked for from another board, so
     the turn working it is a doing turn even where the workspace's standing
-    answer is to teach. `None` leaves the sitting to answer.
+    mode is teach. `None` leaves the session's mode to answer.
 
     `mission` is the mission record this turn is working, or None. It says
     WHICH kind of doing turn, and it replaces the sitting rather than adding to
@@ -367,7 +354,7 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
 
     `repair` is the section a `[repair]` turn reads (`jobs.repair_brief`):
     the failed request, its recipe, the file and line it failed at and the
-    report to read whole. It sits under the stance it overrides, and comes
+    report to read whole. It sits under the mode it overrides, and comes
     with `doing=True`.
     """
     root = repo.root
@@ -408,21 +395,9 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
             out.append("homework set: %s -- no problem environments in the file "
                        "yet; lay the skeleton down before the first answer lands"
                        % hw_set["name"])
-    # The stance of THIS SITTING, which is the repository's unless the sitting
-    # said otherwise. Both are printed when they disagree: a turn reading
-    # "stance: do" in a repository whose file says teach has to be able to see
-    # that it is a choice somebody made this evening rather than the standing
-    # answer, because the two are written down in different places and only one
-    # of them survives the sitting.
+    # Who writes the code: the session's mode, and only that.
     cfg = config.read_config(root)
-    declared = cfg.get("stance") or "teach"
-    stance = config.stance_for(root, st)
-    if stance == declared:
-        out.append("stance: %s" % stance)
-    else:
-        out.append("stance: %s  (this sitting only -- tutorboard.json says %s, "
-                   "and that is what the next sitting goes back to)"
-                   % (stance, declared))
+    out.append("mode: %s" % config.mode_of(st))
     # The workspace's check, which the contract says a turn that changed code
     # runs before it pushes. Named here so the turn runs THIS command rather
     # than whichever it guesses; the environment it runs in is the workspace's

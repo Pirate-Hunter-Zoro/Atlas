@@ -152,31 +152,21 @@ check("and somewhere to say how big an allowance window is, without guessing",
       "quota_tokens" in recipes.DEFAULT_CONFIG
       and recipes.DEFAULT_CONFIG["quota_tokens"] is None)
 
-# --- the stance a repository declares --------------------------------------
-# `stance: do` is what a repository sets when it wants the work done rather than
+# --- the session's mode ------------------------------------------------------
+# `mode: do` is what the owner sets when they want the work done rather than
 # taught. It is never guessed: writing the code for somebody who wanted to learn
-# it is the one mistake here the next card cannot undo.
-#
-# It is the ONLY thing a repository still says about how it is taught. A `mode`
-# of `math` or `code` used to sit beside it and carry a whole second method --
-# `code_sense` -- and a whole second interface. A stance is a paragraph appended
-# to the one method, which is why it is a line of configuration and not a mode.
+# it is the one mistake here the next card cannot undo. One paragraph each.
 
 from tutorboard import sense as serve_mod                    # noqa: E402
 
-check("teaching is the default, and it adds nothing to the method",
-      serve_mod.stance_sense("teach") == ""
-      and serve_mod.stance_sense(None) == ""
-      and serve_mod.stance_sense("code") == "")
-do = serve_mod.stance_sense("do")
-check("a doing repository is told to write the code",
+check("teaching is the default, and anything that is not do teaches",
+      serve_mod.mode_sense("teach") == serve_mod.TEACH_SENSE
+      and serve_mod.mode_sense(None) == serve_mod.TEACH_SENSE
+      and serve_mod.mode_sense("code") == serve_mod.TEACH_SENSE)
+do = serve_mod.mode_sense("do")
+check("do mode is told to write the code",
       "you write the code" in do.lower())
 check("and to run what needs running", "run what needs running" in do)
-# Still one card. NOT still "written before the rest of the work": that
-# ordering is a teaching turn's, and in a turn that writes the code it produces
-# a card describing an intention and no code -- which is what came back the
-# first time somebody asked for an implementation. The order for a doing turn is
-# its own clause now; `test/teaching.py` holds it.
 check("but still one card", "one card" in do.lower())
 check("and the card-first ordering is no longer claimed for a doing turn",
       "before the rest" not in do)

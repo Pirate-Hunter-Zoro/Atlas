@@ -1155,7 +1155,7 @@ def repair_brief(root, rids):
         rids = [rids] if rids else []
     rids = [r for i, r in enumerate(rids) if r and r not in rids[:i]]
     out = ["--- THIS TURN REPAIRS A FAILED CLUSTER JOB ---",
-           "A doing turn, whatever the stance above says: its product is the "
+           "A doing turn, whatever the mode above says: its product is the "
            "fix, checked and filed, not a lesson about it. The [repair] line "
            "in the inbox has the steps and the exact rerun command."]
     if len(rids) > 1:

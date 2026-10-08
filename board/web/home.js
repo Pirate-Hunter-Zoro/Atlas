@@ -924,7 +924,7 @@ function openSheet(c, fam) {
   }
   els.sheetMeta.textContent = aMeta(c)
     + (c.running ? "  ·  live" + (c.node ? " on " + c.node : "") : "")
-    + (c.stance === "do" ? "  ·  writes the code" : "");
+    + (c.mode === "do" ? "  ·  writes the code" : "");
   els.sheetOpenSub.textContent = c.current
     ? "you are already here"
     : "moves the board; the address does not change";

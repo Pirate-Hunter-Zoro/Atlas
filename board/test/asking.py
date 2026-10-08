@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-"""The style of a sitting, changed without losing the lesson -- and defaulted at all.
+"""What a session takes without changing its mode, and what a sitting is told
+about the part of the map it is on.
 
-Two halves of one complaint.
+  * A STEP HANDED OVER (`POST /handover`) is a doing turn inside a teach
+    session: the session is unchanged, the turn is told it is doing, and it
+    gets the doing clock. Refused in do mode.
+  * A PAPER OR A DECK (`POST /writeup`) is an action, not a mode: no card, no
+    transcript turn, the mode untouched; commissioned from the door against
+    another workspace it lands there.
+  * A SITTING IN A WORKSPACE MADE OF COMPONENTS says it has no box when it has
+    none, a sitting on a box is told the boundary, and a MISSION replaces the
+    sitting rather than wearing it.
+  * Tapping the box whose sitting is open goes back into it.
 
-**The aim could not be changed.** It reached `live/state.json` from exactly one
-place -- a tap on the map, through `POST /session` -- and every path through
-`/session` calls `board open`, which archives the lesson. So "wait, now teach me
-how this works", said three hours into building something, cost the evening it
-was said in.
-
-**And a sitting nobody opened from the map had no style at all.** `tutor galois`,
-`board open`, a chapter tapped in the contents drawer and a board resumed after a
-reboot all left `aim` unset, so the sitting ran on stance alone -- which is
-`teach` nearly everywhere and is the wrong answer for a project.
-
-The route is driven over real HTTP, because what is guarded is the whole round
-trip and the two things that must NOT happen in it: the lesson must not be filed
-away, and the tutor must not be replaced.
+The routes are driven over real HTTP: what is guarded is the whole round trip
+and the two things that must NOT happen in it -- the lesson filed away, or the
+tutor replaced.
 """
 
 import json
@@ -35,10 +34,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from tutorboard import atlas, sense, writeups
-from tutorboard.course import config
 from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
+from tutorboard.runner import turn as runturn
 from tutorboard.server import handler, hub, spawn, tikz
 
 fails = []
@@ -52,23 +51,7 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-# ---------------------------------------------------------------------------
-# the vocabulary, and what is derived from it
-# ---------------------------------------------------------------------------
-check("every aim has a sentence the tutor is given",
-      all(config.AIM_MEANS.get(a) for a in config.AIMS))
-check("and every aim says who writes the code",
-      all(config.AIM_STANCE.get(a) in ("teach", "do") for a in config.AIMS))
-check("the three that produce a change are the three that write",
-      [a for a in config.AIMS if config.AIM_STANCE[a] == "do"]
-      == ["build", "paper", "slides"])
-check("the two that are held over a scope are named, not guessed at",
-      set(config.AIMS_OVER) == {"trace", "drill"})
-
-# ---------------------------------------------------------------------------
-# a family default, overridable at every level below it
-# ---------------------------------------------------------------------------
-fake = tempfile.mkdtemp(prefix="tutor-aiming-tree-")
+fake = tempfile.mkdtemp(prefix="tutor-asking-tree-")
 
 
 def workspace(family, name, cfg=None):
@@ -83,107 +66,19 @@ os.environ["TUTORBOARD_COURSES"] = fake
 atlas.forget()
 
 course = workspace("courses", "Probability")
-project = workspace("projects", "Harness")
-# A workspace that answers for itself, over its family's default.
-own = workspace("projects", "Lectures", {"aim": "teach"})
-# And one outside every family.
-loose = workspace("nowhere", "Odd")
-
-check("a course with nothing declared is taught", config.aim_for(course, {}) == "teach")
-# tutorboard.json holds no aim or stance (T09): a file that says one is
-# read as if it said nothing.
-check("a workspace's own aim in tutorboard.json is ignored",
-      config.aim_for(own, {}) == "")
-check("a sitting that names one beats its workspace",
-      config.aim_for(own, {"aim": "build"}) == "build")
-check("a family that declares nothing leaves the sitting with no aim",
-      config.aim_for(loose, {}) == "")
-check("and a word that is not an aim is dropped rather than obeyed",
-      config.aim_for(course, {"aim": "whatever"}) == "teach")
-
-# A FAMILY DEFAULT IS A STYLE, NEVER AN INSTRUCTION TO WRITE CODE.
-#
-# `projects` defaults to `build` in `atlas.FAMILIES` and `libr-local-llm` declares
-# only a name, so a plain lecture opened in it was a DOING turn: the tutor wrote
-# code and reported. Being taught cost a tap on `teach` in the `for:` row first,
-# which is one tap and is the wrong way round for a workspace somebody arrives
-# at wanting to understand it.
-#
-# The rule it gives way to is one `read_config` already states about a stance:
-# writing the code for somebody who wanted to learn it is the one failure here
-# that cannot be undone by the next card, so it is only ever done because a
-# repository asked for it IN WRITING. A sentence about a directory is not a
-# repository asking. A teaching default still applies -- it takes nothing away,
-# and it is what gives a bare `tutor galois` its style.
-check("a family default that TEACHES still reaches a sitting nobody chose",
-      config.aim_for(course, {}) == "teach")
-check("but one that WRITES does not, so the sitting runs on stance",
-      config.aim_for(project, {}) == "" and config.stance_for(project, {}) == "teach")
-check("and a workspace's aim of build in tutorboard.json does not write",
-      config.aim_for(workspace("projects", "Written", {"aim": "build"}), {}) == "")
-check("and so does a sitting that tapped it",
-      config.aim_for(project, {"aim": "build"}) == "build"
-      and config.stance_for(project, {"aim": "build"}) == "do")
-check("and `stance: do` in tutorboard.json is ignored",
-      config.stance_for(workspace("projects", "Doer", {"stance": "do"}), {}) == "teach")
-
-# STANCE IS DERIVED FROM THE AIM, not chosen beside it.
-check("a course's default style means the tutor does not write the code",
-      config.stance_for(course, {}) == "teach")
-check("a repository's `stance` in tutorboard.json changes nothing",
-      config.stance_for(workspace("projects", "Taught", {"stance": "teach"}), {})
-      == "teach")
-check("and a sitting that chose one wins over everything",
-      config.stance_for(project, {"stance": "teach"}) == "teach"
-      and config.stance_for(course, {"stance": "do"}) == "do")
-for aim in config.AIMS:
-    want = "do" if aim in ("build", "paper", "slides") else "teach"
-    check("an aim of %s resolves to a stance of %s" % (aim, want),
-          config.stance_for(course, {"aim": aim}) == want)
-
-# AND THE CLOCK AGREES WITH THE PROMPT. `bin/tutor` used to hold a third copy of
-# the list of aims that write, and read `tutorboard.json` by hand as well -- so a
-# family's default reached the prompt and not the timeout, and a doing turn ran
-# on a teaching turn's clock.
-import importlib.machinery                                   # noqa: E402
-import importlib.util                                        # noqa: E402
-
-from tutorboard.runner import turn as runturn  # noqa: E402
-
-check("nothing in the launcher keeps its own list of the aims that write",
-      not hasattr(runturn, "DOING_AIMS"))
-os.makedirs(os.path.join(project, "live"), exist_ok=True)
 
 
 def sitting(where, **kw):
+    os.makedirs(os.path.join(where, "live"), exist_ok=True)
     with open(os.path.join(where, "live", "state.json"), "w", encoding="utf-8") as fh:
         json.dump(kw, fh)
 
 
-for aim in config.AIMS:
-    sitting(project, session="lecture", aim=aim)
-    check("the launcher and the board agree about %s" % aim,
-          runturn.doing_now(project)
-          == (config.stance_for(project, {"aim": aim}) == "do"))
-sitting(project, session="lecture")
-check("a project's plain lecture is a teaching turn, because nobody chose "
-      "otherwise and a family default cannot choose it for them",
-      not runturn.doing_now(project))
-sitting(project, session="lecture", aim="build")
-check("and it is a doing turn the moment somebody taps `build`",
-      runturn.doing_now(project))
-os.makedirs(os.path.join(course, "live"), exist_ok=True)
+# A STEP HANDED OVER IS A DOING TURN INSIDE A TEACH SESSION, and the session is
+# left in teach on purpose. Only the signal the turn was woken with can say so,
+# and it has to reach the clock as well as the prompt.
 sitting(course, session="lecture")
-check("and a course's plain lecture is not", not runturn.doing_now(course))
-
-# A STEP HANDED OVER IS A DOING TURN INSIDE A COACHING SITTING, and the sitting
-# is left saying `coach` on purpose. So the state is right about the evening and
-# says the wrong thing about this one turn: only the signal it was woken with
-# can say, and it has to reach the clock as well as the prompt. A doing turn on
-# a teaching turn's fifteen minutes is a turn killed with files staged and
-# nothing committed.
-sitting(course, session="lecture", aim="coach")
-check("a coaching sitting is a teaching turn, as it was",
+check("a teach session's turn is a teaching turn",
       not runturn.doing_now(course))
 check("but the step it hands over is a doing turn",
       runturn.doing_now(course, "handover"))
@@ -193,41 +88,6 @@ check("so the handed-over step gets a doing turn's clock",
       and runturn.turn_timeout(CLOCK, course, None, "handover") == 3600)
 check("and every other signal leaves the clock where it was",
       runturn.turn_timeout(CLOCK, course, None, "help") == 900)
-sitting(course, session="lecture")            # as the checks below expect it
-
-# ---------------------------------------------------------------------------
-# what the tutor is told about a sitting nobody chose a style for
-# ---------------------------------------------------------------------------
-sitting(project, session="lecture")
-said = sense.session_sense(course_repo.Repo(project))
-check("a project's sitting nobody chose a style for is not told to write code",
-      "DOING TURN" not in said and config.AIM_MEANS["build"] not in said)
-sitting(project, session="lecture", aim="build")
-said = sense.session_sense(course_repo.Repo(project))
-check("and is, the moment somebody taps it",
-      "DOING TURN" in said and config.AIM_MEANS["build"] in said)
-sitting(project, session="lecture")
-said = sense.session_sense(course_repo.Repo(course))
-check("a course's is told to teach it",
-      "DOING TURN" not in said and config.AIM_MEANS["teach"] in said)
-
-# A review inherits nothing. Its family's default is `build`, and a review that
-# was told to write code would be the one sitting whose whole point is that it
-# asks.
-sitting(project, session="review", review=[])
-said = sense.session_sense(course_repo.Repo(project))
-check("a review does not inherit a family's aim to write",
-      config.AIM_MEANS["build"] not in said and "DOING TURN" not in said)
-
-# And an aim of `paper` gets the METHOD for making a document, not just the one
-# sentence. This is the whole of "change 3 lands and nothing reads it": the
-# method was reached only through `session == "make"`.
-sitting(project, session="lecture", aim="paper")
-said = sense.session_sense(course_repo.Repo(project))
-check("an aim of paper gets the make method, not only its one sentence",
-      "MAKE SITTING" in said and "Work in sections" in said)
-check("and is told the document is about the subject rather than the sitting",
-      "NEVER A NARRATION OF THIS SITTING" in said)
 
 # ---------------------------------------------------------------------------
 # A SITTING BELONGS TO ONE COMPONENT, AND A SITTING WITH NO COMPONENT SAYS SO
@@ -323,20 +183,14 @@ sitting(course, session="lecture")
 check("a book course is not asked which component it is about",
       sense.node_sense(course_repo.Repo(course), {"session": "lecture"}) == "")
 
-# The three sittings a box is not the scope of. Each is held over a scope the
-# person already chose -- a review's chapters, a walkthrough's units, a make
-# sitting's evening -- so asking which box is a question they have answered.
-for _kind, _aim, _why in (
-        ("review", "", "a review is held over the chapters it was opened on"),
-        ("walk", "", "a walkthrough is held over the units it was opened on"),
-        ("make", "", "a make sitting's scope may be the whole evening"),
-        ("lecture", "paper", "and so may a document asked for mid-sitting"),
-        ("lecture", "trace", "an aim held over a scope has one already")):
-    _st = {"session": _kind}
-    if _aim:
-        _st["aim"] = _aim
-    check("no box is demanded of it: " + _why,
-          sense.node_sense(course_repo.Repo(made), _st) == "")
+# The legacy sittings a box is not the scope of. An imported state may still
+# say one, and each arrived with a scope the person already chose.
+for _kind, _why in (
+        ("review", "a review is held over the chapters it was opened on"),
+        ("walk", "a walkthrough is held over the units it was opened on"),
+        ("make", "a make sitting's scope may be the whole evening")):
+    check("no box is demanded of a legacy sitting: " + _why,
+          sense.node_sense(course_repo.Repo(made), {"session": _kind}) == "")
 
 # --- and the sitting that HAS a box is told where the boundary is ------------
 typist = BOXES["typist"]
@@ -407,7 +261,7 @@ mapping._cache.clear()
 # ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
-tmp = tempfile.mkdtemp(prefix="tutor-aiming-")
+tmp = tempfile.mkdtemp(prefix="tutor-asking-")
 with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Test Course"}, fh)
 repo = course_repo.Repo(tmp)
@@ -450,69 +304,18 @@ def post(path, body):
 
 
 try:
-    # Three hours into building something, with cards on the board.
+    # Three hours into a teach session, with cards on the board.
     for n, title in ((1, "lesson"), (2, "lesson"), (3, "lesson")):
         with open(os.path.join(repo.cards, "000%d-%s.md" % (n, title)), "w",
                   encoding="utf-8") as fh:
             fh.write("---\nkind: lesson\n---\nCard %d.\n" % n)
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
-                   "chapter": "The serve harness", "aim": "build"}, fh)
-    before = open(repo.state_path, encoding="utf-8").read()
-
-    status, body = post("/aim", {"aim": "teach"})
-    check("the board accepts a change of aim",
-          status == 200 and body.get("ok") is True and body.get("changed") is True)
-    check("it is written into the sitting", repo.state().get("aim") == "teach")
-    check("THE LESSON IS NOT FILED AWAY", not archive.list_archive(repo))
-    check("and the cards are all still on the board",
-          len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
-    check("the tutor is not replaced", not replaced)
-    check("nothing else about the sitting moved",
-          repo.state().get("chapter") == "The serve harness"
-          and repo.state().get("session") == "lecture")
-
-    sent = turns.load_turns(repo)
-    check("their tap is in the transcript as a turn of theirs",
-          len(sent) == 1 and sent[0].get("from") == "student")
-    check("and it is marked as what it is", sent[0].get("signal") == "aim")
-
-    with open(repo.messages_path, "r", encoding="utf-8") as fh:
-        lines = [json.loads(l) for l in fh if l.strip()]
-    line = lines[-1].get("text", "") if lines else ""
-    check("the inbox carries it, which is what `board wait` watches", bool(lines))
-    check("the line says what happened", line.startswith("[aim]"))
-    check("it says what the new aim asks for", config.AIM_MEANS["teach"] in line)
-    check("it says everything already on the board stands",
-          "board stands" in line and "not a new tutor" in line.replace("you are ", ""))
-    check("and it still says what this sitting is",
-          "THE LESSON IS EXERCISES" in line)
-    check("it arrives unread, or nothing wakes on it",
-          lines[-1].get("read") is False)
-    # THE TAP IS THE INSTRUCTION, the same way choosing a way to work on the map
-    # is. A preference written down and applied later is not what "now teach me
-    # how this works" means.
-    check("a turn is woken on it", bool(woken))
-
-    # Nothing to do, and a model call is what a second tap would cost.
-    status, body = post("/aim", {"aim": "teach"})
-    check("tapping the aim it already has wakes nothing",
-          status == 200 and body.get("changed") is False and len(woken) == 1)
-
-    status, body = post("/aim", {"aim": "trace"})
-    check("an aim held over a scope is refused by name",
-          status == 400 and "scope" in (body.get("error") or ""))
-    status, body = post("/aim", {"aim": "whatever"})
-    check("and so is a word that is not an aim at all", status == 400)
-    check("neither of those changed the sitting", repo.state().get("aim") == "teach")
+                   "chapter": "The serve harness", "mode": "teach"}, fh)
 
     # ----------------------------------------------------------------- one step
-    # THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT. Everything the
-    # `/aim` block above guards has to hold here too, and one thing more: the
-    # sitting must still be a coaching sitting afterwards, or this is the escape
-    # it was built to replace wearing a smaller button.
-    status, body = post("/aim", {"aim": "coach"})
-    check("the sitting is a coaching one", repo.state().get("aim") == "coach")
+    # THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT: the session
+    # must still be in teach afterwards.
     turns_before = len(turns.load_turns(repo))
     woke_before = len(woken)
 
@@ -527,8 +330,8 @@ try:
     status, body = post("/handover", {"card": "0003"})
     check("the board takes the step",
           status == 200 and body.get("ok") is True and body.get("card") == "0003")
-    check("THE SITTING IS STILL A COACHING SITTING",
-          repo.state().get("aim") == "coach")
+    check("THE SESSION IS STILL IN TEACH MODE",
+          repo.state().get("mode") == "teach")
     check("the lesson is not filed away", not archive.list_archive(repo))
     check("the cards are all still on the board",
           len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
@@ -556,23 +359,23 @@ try:
     check("it refuses the card that explains how the step was done",
           "NOT A COACH CARD ABOUT THE STEP YOU JUST DID" in line)
     check("and asks for the next step under the report", "THE NEXT STEP" in line)
-    # The sitting says `coach`, so nothing about the STATE would produce this.
+    # The session says teach, so nothing about the STATE would produce this.
     check("THE TURN IS TOLD IT IS A DOING TURN, which the sitting does not say",
           "THIS IS A DOING TURN" in line
           and "DOING TURN" not in sense.session_sense(repo))
-    check("it still says what this sitting is",
-          config.AIM_MEANS["coach"] in line)
+    check("it still says what this session is",
+          sense.TEACH_SENSE in line)
     check("it arrives unread, or nothing wakes on it",
           lines[-1].get("read") is False)
     check("a turn is woken on it", len(woken) == woke_before + 1)
 
     # Where the tutor is already writing the code there is nothing to hand over,
     # and waking a turn to be told so is a model call somebody pays for.
-    post("/aim", {"aim": "build"})
+    post("/mode", {"mode": "do"})
     status, body = post("/handover", {"card": "0003"})
-    check("a sitting that already writes the code has nothing to hand over",
+    check("a session that already writes the code has nothing to hand over",
           status == 400 and "already writing" in (body.get("error") or ""))
-    post("/aim", {"aim": "teach"})
+    post("/mode", {"mode": "teach"})
 
     # ------------------------------------------------------- and a document
     # A PAPER OR A DECK, ASKED FOR FROM ANY SITTING, WITHOUT CHANGING IT.
@@ -581,15 +384,8 @@ try:
     # presentation or paper written up going through the things we talked about
     # in that tutoring session? Can I do that in ANY tutoring session?"*
     #
-    # It was refused twice over. Asking meant `POST /aim`, which makes the whole
-    # sitting a make sitting and every card after it a make card -- and the aim
-    # row is withheld from a review and a walkthrough, so in the two sittings
-    # where a write-up is worth the most there was no route at all.
-    #
-    # So a document is a PRODUCT rather than an aim. Everything the `/aim` block
-    # guards has to hold here as well, and two things more: the aim itself must
-    # not move, and it has to work in the two sittings that have no aim row.
-    post("/aim", {"aim": "coach"})
+    # A document is a PRODUCT rather than a mode: the mode must not move, and
+    # the lesson must not be filed away.
     before_state = dict(repo.state())
     turns_before = len(turns.load_turns(repo))
 
@@ -608,12 +404,12 @@ try:
     check("the board takes the ask",
           status == 200 and body.get("ok") is True
           and body.get("makes") == "slides" and body.get("id"))
-    check("THE AIM OF THE SITTING HAS NOT MOVED", repo.state() == before_state)
+    check("THE SESSION'S STATE HAS NOT MOVED", repo.state() == before_state)
     check("the lesson is not filed away", not archive.list_archive(repo))
     check("the cards are all still on the board",
           len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
     check("the tutor is not replaced", not replaced)
-    # `/aim` and `/handover` both put the tap in the transcript, because a card
+    # `/mode` and `/handover` both put the tap in the transcript, because a card
     # is coming back. Here no card is coming: the turn is told to write none, and
     # a student turn with nothing answering it is what leaves the board waiting
     # for a card that never arrives.
@@ -626,7 +422,7 @@ try:
     check("the line says what happened", line.startswith("[writeup]"))
     check("it says which product", "a DECK of slides" in line)
     check("it says the turn writes no card and leaves the sitting alone",
-          "Write no card" in line and "aim of it has not changed" in line)
+          "Write no card" in line and "its mode has not changed" in line)
     check("it carries the method for a document rather than restating it",
           sense.MAKE_SENSE in line)
     check("and the scope with nobody naming one is the evening",
@@ -791,30 +587,16 @@ try:
         spawn.tutor_cli = real_tutor_cli
     writeups.forget()
 
-    # THE TWO SITTINGS THE AIM ROW IS WITHHELD FROM, which is the whole point.
-    for kind, extra in (("review", {"review": ["Ch 1"]}),
-                        ("walk", {"walk": ["a.py"]})):
-        with open(repo.state_path, "w", encoding="utf-8") as fh:
-            json.dump(dict({"course": "Test Course", "session": kind}, **extra), fh)
-        was = dict(repo.state())
-        status, body = post("/writeup", {"makes": "paper"})
-        check("a paper can be asked for in a %s, where no aim can be changed"
-              % kind, status == 200 and body.get("ok") is True)
-        check("and the %s is exactly as it was" % kind, repo.state() == was)
-        status, body = post("/aim", {"aim": "trace"})
-        check("while changing the aim there is still refused (%s)" % kind,
-              status == 400)
-    writeups.forget()
-
-    # The board has to be able to SHOW which aim is in force, including when it
-    # was never chosen -- resolved by the server, never re-derived in the client.
+    # In do mode as well: a document is not a mode.
     with open(repo.state_path, "w", encoding="utf-8") as fh:
-        json.dump({"course": "Test Course", "session": "lecture"}, fh)
-    live = board.build()
-    check("the payload says what the sitting is running under",
-          live["state"].get("aim_now") == config.aim_for(tmp, live["state"]))
-    check("and what its stance resolves to",
-          live["state"].get("stance_now") == config.stance_for(tmp, live["state"]))
+        json.dump({"course": "Test Course", "session": "lecture",
+                   "mode": "do"}, fh)
+    was = dict(repo.state())
+    status, body = post("/writeup", {"makes": "paper"})
+    check("a paper can be asked for in do mode too",
+          status == 200 and body.get("ok") is True)
+    check("and the session is exactly as it was", repo.state() == was)
+    writeups.forget()
 
     # TAPPING THE BOX WHOSE SITTING IS OPEN GOES BACK INTO IT. A reload lands on
     # the map, and the box you were in is the obvious way back -- which filed the
@@ -825,8 +607,7 @@ try:
         with open(os.path.join(mrepo.cards, "000%d-lesson.md" % n), "w",
                   encoding="utf-8") as fh:
             fh.write("---\nkind: lesson\n---\nCard %d.\n" % n)
-    sitting(made, session="lecture", node=typist["id"], chapter="New direction",
-            aim="teach")
+    sitting(made, session="lecture", node=typist["id"], chapter="New direction")
     mapping._cache.clear()
     httpd.repo = mrepo
     status, body = post("/session", {"session": "lecture", "node": typist["id"],
@@ -848,26 +629,9 @@ try:
 finally:
     httpd.shutdown()
 
-# ---------------------------------------------------------------------------
-# and the terminal can do it too
-# ---------------------------------------------------------------------------
-loader = importlib.machinery.SourceFileLoader("boardcli",
-                                              os.path.join(ROOT, "bin", "board"))
-boardcli = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("boardcli", loader))
-loader.exec_module(boardcli)
-
-check("board aim is a command", "aim" in boardcli.COMMANDS)
-live_cli = boardcli.course_repo.Repo(tmp)
-check("it changes the sitting", boardcli.cmd_aim(live_cli, ["coach"]) == 0
-      and live_cli.state().get("aim") == "coach")
-check("it refuses an aim that is held over a scope",
-      boardcli.cmd_aim(live_cli, ["drill"]) == 2
-      and live_cli.state().get("aim") == "coach")
-check("and it leaves the lesson alone", not archive.list_archive(repo))
 
 print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("the style of a sitting is theirs to change, and every sitting has one")
+print("a handed-over step, a document and a box each leave the session's mode alone")

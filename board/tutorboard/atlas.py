@@ -16,19 +16,18 @@ import os
 from . import paths, subjects
 
 
-# The families, in the order the front door draws them. `aim` is a family's
-# default style (`course/config.aim_for` owns the precedence); `vendor` marks
+# The families, in the order the front door draws them. `vendor` marks
 # somebody else's trees, read and never taught in; `tool` marks the board's own
 # source.
 FAMILIES = (
-    {"id": "courses", "aim": "teach", "name": "Courses",
+    {"id": "courses", "name": "Courses",
      "blurb": "Graduate coursework, taught chapter by chapter."},
-    {"id": "research", "aim": "build", "name": "Research",
+    {"id": "research", "name": "Research",
      "blurb": "The projects that become papers."},
-    {"id": "projects", "aim": "build", "name": "Projects",
+    {"id": "projects", "name": "Projects",
      "blurb": "Infrastructure the research runs on, and the tools that write "
               "it up."},
-    {"id": "practice", "aim": "teach", "name": "Practice",
+    {"id": "practice", "name": "Practice",
      "blurb": "Kept sharp: algorithms, and proofs a machine checks."},
     {"id": "board", "name": "The board", "tool": True,
      "blurb": "The tool that maps, teaches and writes up everything above."},
@@ -59,10 +58,10 @@ def families(base=None):
     base = _base(base)
     if not any(os.path.isdir(os.path.join(base, f["id"]))
                for f in FAMILIES if not f.get("tool")):
-        return [{"id": "", "name": "", "blurb": "", "aim": "", "vendor": False,
+        return [{"id": "", "name": "", "blurb": "", "vendor": False,
                  "tool": False, "dir": base}]
     return [{"id": f["id"], "name": f["name"], "blurb": f["blurb"],
-             "aim": f.get("aim", ""), "vendor": bool(f.get("vendor")),
+             "vendor": bool(f.get("vendor")),
              "tool": bool(f.get("tool")), "dir": os.path.join(base, f["id"])}
             for f in FAMILIES]
 

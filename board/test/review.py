@@ -163,116 +163,40 @@ try:
     check("and that nothing is being reviewed yet",
           payload["review"]["scope"] == [])
 
-    # A scope is a list, because a test is not one chapter.
-    status, body = post("/session", {
+    # A review is a method the tutor picks in teach mode, not a sitting kind.
+    status, _ = post("/session", {
         "session": "review",
-        "over": ["Ch 01 — Groups, fields and vector spaces",
-                 "Ch 07 — Splitting fields"]})
-    check("a review can be opened from the board over several chapters",
-          status == 200 and body.get("ok"))
-    st = repo.state()
-    check("the badge will read review", st.get("session") == "review")
-    check("and the scope is recorded, in the course's own order",
-          st.get("review") == ["Ch 01 — Groups, fields and vector spaces",
-                               "Ch 07 — Splitting fields"])
-    check("the sitting is labelled with what it covers",
-          "Test review" in (st.get("chapter") or ""))
-    # Opening one is starting a different lesson, so what is being left is filed
-    # whole rather than written over -- the same rule as switching chapter.
-    check("and the lesson it interrupted was filed, not overwritten",
-          len(archive.list_archive(repo)) == 1)
-
-    # Nothing invented reaches the filesystem or the prompt.
-    status, body = post("/session", {"session": "review", "over": ["ch99"]})
-    check("a chapter this course does not have is refused",
-          status == 400 and body.get("unknown") == ["ch99"])
-    status, _ = post("/session", {"session": "review", "over": []})
-    check("and a review over nothing is refused rather than opened", status == 400)
-    check("a refused review leaves the sitting it was in alone",
-          repo.state().get("review") == ["Ch 01 — Groups, fields and vector spaces",
-                                         "Ch 07 — Splitting fields"])
-
-    # --- what the tutor is actually told --------------------------------------
+        "over": ["Ch 01 — Groups, fields and vector spaces"]})
+    check("the board no longer opens a review sitting", status == 400)
+    check("and the lesson it would have interrupted is untouched",
+          not archive.list_archive(repo) and len(os.listdir(repo.cards)) == 1)
     line = sense.session_sense(repo)
-    check("the tutor is told this is a test review", "TEST REVIEW" in line)
-    check("and the chapters are named in the prompt, not left to be looked up",
-          "Splitting fields" in line and "Groups, fields and vector spaces" in line)
-    check("and told the scope is not its to widen", "not yours to widen" in line)
-    check("and to spread the questions across all of it",
-          "spread the questions" in line)
-    check("and that a review produces no document",
-          "do not compile" in line and "no write-up" in line)
-    check("and it still points at the method rather than restating it",
-          "live/TEACHING.md" in line)
-    # A lecture picks a manageable few from one section; a review is not that.
-    check("and not told to pick a manageable few, which is a lecture behaviour",
-          "manageable few" not in line)
-
-    status, _ = post("/session", {"session": "lecture"})
-    check("switching back to a lecture ends the review",
-          repo.state().get("session") == "lecture")
-    check("and clears its scope, so no strip describes a sitting that has gone",
-          not repo.state().get("review"))
-    check("and the lecture prompt is a lecture's again",
-          "manageable few" in sense.session_sense(repo))
-
-    # --- a review with nothing chosen -----------------------------------------
-    # Not reachable from the board's picker, which refuses to start one. It is
-    # reachable from `board open --review` with no --over, and the answer is to
-    # ask rather than to choose -- exactly as a homework sitting with no sheet.
-    st = repo.state()
-    st["session"] = "review"
-    st.pop("review", None)
-    json.dump(st, open(repo.state_path, "w"))
-    line = sense.session_sense(repo)
-    check("a review with no scope asks which chapters rather than choosing them",
-          "Ask in your first card" in line and "do not choose them yourself" in line)
+    check("teach mode names a review among the methods the tutor picks",
+          "a review over a scope they name" in line)
+    check("and a lecture prompt is a lecture's", "manageable few" in line)
 finally:
     httpd.shutdown()
     shutil.rmtree(tmp, ignore_errors=True)
 
-# --- a project is revised too, and it is not set work -------------------------
-# A repository that follows no book is revised over its own parts, and the prompt
-# has to say so WITHOUT being told which kind of repository it is: there is no
-# mode any more, so what it reads is what `review.units` found -- chapters where
-# there is a syllabus, top-level parts where there is not.
+# --- a project is taught with the one method ----------------------------------
 tmp2 = tempfile.mkdtemp(prefix="tutor-rev-code-")
 try:
-    # The stance is the sitting's: tutorboard.json holds none (T09).
     json.dump({"name": "TRD-EHR"},
               open(os.path.join(tmp2, "tutorboard.json"), "w"))
     for d in ("loader", "pipeline"):
         os.makedirs(os.path.join(tmp2, d))
     repo2 = course_repo.Repo(tmp2)
     st = repo2.state()
-    st.update({"session": "review", "review": ["loader", "pipeline"],
-               "stance": "do"})
-    json.dump(st, open(repo2.state_path, "w"))
-
-    line = sense.session_sense(repo2)
-    check("a project review is a review, not the next piece of work",
-          "TEST REVIEW" in line and "next" not in line.split("TEST REVIEW")[0])
-    check("and names the parts it is over", "loader" in line and "pipeline" in line)
-    check("and calls them parts of the project, not chapters",
-          "parts of this project" in line)
-    check("and is told to ask about the code rather than to set a change",
-          "do not assign a change" in line)
-    # `stance: do` says write the code. It cannot mean write it into a review.
-    check("and a doing stance does not turn a review into work",
-          "because a review asks" in line)
-
-    st["session"] = "lecture"
+    st.update({"session": "lecture", "mode": "do"})
     json.dump(st, open(repo2.state_path, "w"))
     line = sense.session_sense(repo2)
-    check("while an ordinary sitting in the same repository is the one method",
+    check("an ordinary sitting in a project is the one method",
           "THE LESSON IS EXERCISES" in line)
     check("and is told where to look, since there is no book here",
           "does not follow a book" in line and "README.md" in line)
     check("and not to invent chapters out of what it finds",
           "manufacture a curriculum" in line)
-    # A review is the only sitting a doing stance does not apply to.
-    check("and a doing stance still says to write the code",
-          "STANCE IS DO" in line)
+    check("and do mode says to write the code", "IN DO MODE" in line)
 finally:
     shutil.rmtree(tmp2, ignore_errors=True)
     shutil.rmtree(book, ignore_errors=True)

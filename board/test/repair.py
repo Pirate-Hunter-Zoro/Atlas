@@ -337,7 +337,7 @@ try:
     code, plain = brief_now()
     check("`board brief` outside a repair turn says nothing of it",
           code == 0 and "REPAIRS A FAILED" not in plain
-          and "stance: teach" in plain)
+          and "mode: teach" in plain)
     write(os.path.join(ws, "live", "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "repair"}))
@@ -345,7 +345,7 @@ try:
     check("inside a [repair] turn `board brief` answers doing, in a "
           "workspace that teaches", code == 0
           and "THIS TURN REPAIRS A FAILED CLUSTER JOB" in out
-          and "stance: teach" in out and out != plain)
+          and "mode: teach" in out and out != plain)
     check("naming the request, its recipe, the file and line, and the report",
           "request  %s" % ORIGIN in out and "recipe   slurm/sweep.sbatch" in out
           and "at scripts/predictions/best_k_panels.py:88 "

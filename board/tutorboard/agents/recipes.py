@@ -214,22 +214,20 @@ def load_config():
     return cfg
 
 def read_course(root):
-    """What a course calls itself, and what its tutor is for.
+    """What a course calls itself: its `tutorboard.json`, name defaulted.
 
-    `mode` -- `math` or `code` -- used to be read here and carried into the
-    session brief. There is one method and one board now, so it is dropped on
-    the way past: a key left in a course's own file must never be the reason two
-    courses behave differently. `stance` is the one thing still read, and it is
-    only ever what the file says.
+    A `mode` or `stance` left in the file is dropped on the way past: a key
+    left in a course's own file must never be the reason two courses behave
+    differently. Who writes the code is the session's mode.
     """
-    cfg = {"name": os.path.basename(root).replace("-", " "), "stance": "teach"}
+    cfg = {"name": os.path.basename(root).replace("-", " ")}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
             cfg.update(json.load(fh) or {})
     except (OSError, ValueError):
         pass
     cfg.pop("mode", None)
-    cfg["stance"] = "do" if str(cfg.get("stance") or "").lower() == "do" else "teach"
+    cfg.pop("stance", None)
     return cfg
 
 def this_host():
@@ -259,17 +257,14 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None,
     Most specific wins, and every layer is configuration rather than code:
 
       1. --agent on the command line          -- this once
-      2. "agent" in the sitting's state.json  -- this evening's work
-      3. "agent" in the course's tutorboard.json -- this course, everywhere,
-                                     or per kind of sitting
+      2. "agent" in the sitting's state       -- this sitting's work
+      3. "agent" in the course's tutorboard.json -- this course, everywhere
       4. default_agent                        -- everything else
 
     THE SITTING IS THE LAYER THAT WAS MISSING, and the one the iPad can reach.
     Without it, choosing the local model for one evening's work meant editing a
-    file that is a statement about the workspace for ever -- and none of the four
-    layers around it can be touched from a tablet. It sits above the workspace
-    for the same reason a sitting stance and a sitting aim do: a choice made for
-    an evening is not a decision about what the repository is.
+    file that is a statement about the workspace for ever. A `tutorboard.json`
+    `agent` is one name for every sitting: there is no per-kind form.
 
     AN ASSISTANT IS RE-RESOLVED EVERY TURN. This function answers the question
     and `for_this_turn` asks it again at the top of each turn, so a tap on the
@@ -302,12 +297,7 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None,
             "falling back" % mine)
         mine = None
     picked = None
-    # The workspace's layer is per KIND where `tutorboard.json` says so -- a
-    # course's learn sittings on DeepSeek, a project's build sittings on Claude
-    # -- read off the open sitting's own kind; see `config.workspace_agent`.
-    ws = config.workspace_agent(
-        course, config.sitting_kind((course or {}).get("root"))
-        if isinstance((course or {}).get("agent"), dict) else None)
+    ws = config.workspace_agent(course)
     layer = None
     for layer, pick in (("--agent", override), ("this sitting", mine),
                         ("this workspace's tutorboard.json", ws),

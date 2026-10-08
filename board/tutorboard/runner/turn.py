@@ -53,55 +53,20 @@ def chapter_now(root):
     return course_repo.session_state(root).get("chapter") or ""
 
 def doing_now(root, signal=""):
-    """Is the sitting that is open one whose product is a change, not a card?
+    """Is this turn one whose product is a change, not a card?
 
-    ASKED OF `course/config.py`, WHICH IS THE ONE ANSWER. This function used to
-    hold its own copy of the aims that write -- a third list of the same three
-    words, beside `sense`'s and the browser's -- and it read `tutorboard.json` by
-    hand as well, so a family's default style reached the prompt
-    and not the clock. A doing turn on a teaching turn's timeout is a turn killed
-    at fifteen minutes with eight files changed and nothing committed.
-
-    AND THREE TURNS ANSWER IT WITHOUT THE SITTING. A step handed over -- `POST
-    /handover` -- is a doing turn inside a coaching sitting, and the sitting is
-    left saying `coach` on purpose, because the next card is a coach card again.
-    A ship is not part of the sitting at all. And a document asked for mid-
-    sitting -- `POST /writeup` -- is deliberately not an aim change: a paper is a
-    product rather than a style, so the sitting still says `drill` or `trace`
-    while this turn writes one and compiles it. So the state says `teach` and is
-    right about the evening; only the signal this turn was woken with says what
-    THIS turn does. A REPAIR answers it the same way: a failed cluster job,
-    fixed, checked, shipped and rerun, whatever its workspace teaches under
-    (`jobs.relay_sense`).
+    True when the session is in do mode (`config.mode_of`), and for the turns
+    whose signal says so whatever the mode: a step handed over (`handover`), a
+    rework, a ship, a writeup, an unfinished doing turn, a repair. Each of those
+    writes code or a document, and a doing turn on a teaching turn's clock is a
+    turn killed with the work half done. A plain revision is not here: it is
+    over in a minute.
     """
     if signal in ("handover", "rework", "ship", "writeup", "unfinished",
                   "repair"):
-        # An UNFINISHED turn finishes a doing turn's report, on its clock.
-        # A step handed over writes code. A ship reads a diff, judges it and
-        # runs a push against a remote over a tailnet -- neither is a card, and
-        # a doing turn on a teaching turn's clock is a turn killed with the work
-        # half done. A REWORK is the same arithmetic on a document: thirty-three
-        # pages rewritten and a LaTeX build at the end of it, which a teaching
-        # turn's fifteen minutes kills with the deck half replaced. A WRITEUP is
-        # that arithmetic from nothing: a paper drafted whole and built, which is
-        # the longest of the four. A plain revision is not here on purpose -- it
-        # changes what a note names and is over in a minute.
-        return True
-    st = course_repo.session_state(root)
-    if not st:
-        return False
-    if st.get("session") == "make":
         return True
     try:
-        # The sitting's own aim first, whatever kind of sitting it is: somebody
-        # who asked for a deck about the machinery they were walking through has
-        # asked for work to be done, and the kind of sitting does not say so.
-        mine = config.clean_aim(st.get("aim"))
-        if mine:
-            return config.AIM_STANCE.get(mine) == "do"
-        if (st.get("session") or "lecture") not in ("lecture", "homework"):
-            return False
-        return config.stance_for(root, st) == "do"
+        return config.mode_of(course_repo.session_state(root)) == "do"
     except Exception:
         return False
 

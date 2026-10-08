@@ -4922,16 +4922,20 @@ function handOver(card, button) {
   }).catch(function () { /* the payload will say what actually happened */ });
 }
 
+/* The aim row sets the session's MODE (`POST /mode`): an aim that writes the
+   code is `do`, any other is `teach`. T51 replaces the row. */
+var AIM_MODE = { build: "do", paper: "do", slides: "do" };
+
 function setAim(aim) {
   els.kind.hidden = true;
   /* Painted before the answer comes back, because the payload that carries it
      is a poll away and a control that does nothing for a second is a control
      somebody taps again. The next payload is the truth either way. */
   currentAim = aim;
-  fetch("/aim", {
+  fetch("/mode", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ aim: aim })
+    body: JSON.stringify({ mode: AIM_MODE[aim] || "teach" })
   }).catch(function () { /* the payload will say what actually happened */ });
 }
 
@@ -4990,10 +4994,8 @@ function paintReview(state, info, walk) {
      rather than showing the repository's answer over the top of an override. */
   currentStance = state.stance || null;
   declaredStance = state.declared_stance || "teach";
-  /* What the sitting says, and what it is actually running under -- which are
-     different whenever nobody chose, and the second is the workspace's or its
-     family's answer. Resolved by the server (`config.aim_for`), never here: two
-     places deciding a precedence is one of them being wrong. */
+  /* What the sitting says. The server sends no inherited aim: who writes the
+     code is the session's `mode`. */
   currentAim = state.aim || null;
   aimNow = state.aim_now || "";
   /* And who this sitting asked for, which is the fifth layer of a resolution

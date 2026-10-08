@@ -239,7 +239,7 @@ def cmd_doctor(cfg, args):
                         1000 + int.from_bytes(os.urandom(2), "big") % 9000)
     n = 20 + os.urandom(1)[0] % 80
     with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
-        json.dump({"name": "tutor doctor", "stance": "do",
+        json.dump({"name": "tutor doctor",
                    "check": "python3 check.py"}, fh)
     check_bytes = (DOCTOR_CHECK % {"want": n * (n + 1) // 2}).encode("utf-8")
     with open(os.path.join(ws, "check.py"), "wb") as fh:

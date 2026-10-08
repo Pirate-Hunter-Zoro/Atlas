@@ -322,9 +322,7 @@ def main(argv):
                 if fam != seen:
                     seen = fam
                     print("\n%s" % (fam or "workspaces"))
-                print("  %-26s %-6s %s"
-                      % (c.get("name") or c["dir"],
-                         "do" if c.get("stance") == "do" else "", c["dir"]))
+                print("  %-26s %s" % (c.get("name") or c["dir"], c["dir"]))
             print()
             return 0
         elif a == "--agents":
@@ -440,10 +438,6 @@ def main(argv):
             flags["session"] = "homework"
         elif a == "--lecture":
             flags["session"] = "lecture"
-        elif a in ("--review", "--test-review"):
-            flags["session"] = "review"
-        elif a in ("--walk", "--walkthrough"):
-            flags["session"] = "walk"
         elif a == "--respawn":
             flags["respawn"] = True
         elif a == "--stop":

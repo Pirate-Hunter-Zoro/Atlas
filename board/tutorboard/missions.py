@@ -669,8 +669,7 @@ def running(root, now=None):
     """Is a mission live in this workspace right now?
 
     `board brief` asks, because a mission is a change somebody asked for and the
-    turn working it is a doing turn -- whatever standing stance the workspace
-    teaches under. The task arrives in the inbox as a plain sentence of theirs,
+    turn working it is a doing turn -- whatever mode the session is in. The task arrives in the inbox as a plain sentence of theirs,
     so without this a mission into a workspace that teaches is briefed as a
     lesson and writes a card instead of the change.
 

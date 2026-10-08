@@ -9,17 +9,10 @@ WHY THIS EXISTS, in the words it was asked in:
      talked about in that tutoring session? Can I do that in ANY tutoring
      session?"
 
-A `make` sitting already answers the first half: it drafts a document a section
-at a time and the document IS the evening. What it cannot do is arrive in the
-middle of somebody else's evening. Asking for one was an AIM change -- the whole
-sitting becomes a make sitting -- and the aim row is withheld from a review and a
-walkthrough, so in the two sittings where a write-up is worth the most there was
-no way to ask at all.
-
-A DOCUMENT IS NOT AN AIM. An aim says what the sitting is FOR; a paper or a deck
-is a PRODUCT any sitting can be asked for. So it is its own act -- `POST
-/writeup` -- which changes no aim, archives nothing and replaces no tutor, and
-the turn it wakes writes no card. The document lands in the library, where
+A DOCUMENT IS AN ACTION, NOT A MODE. A paper or a deck is a PRODUCT any
+session can be asked for. So it is its own act -- `POST /writeup` -- which
+changes no mode, archives nothing and replaces no tutor, and the turn it wakes
+writes no card. The document lands in the library, where
 correcting it is already a loop that exists.
 
 WHICH LEAVES ONE THING WITH NOWHERE TO BE SAID: that it is being written, and
@@ -51,7 +44,7 @@ from .course import repo as course_repo
 
 WRITEUPS = "writeups"
 
-# The two products, and they are the two words `config.AIMS` already keeps apart.
+# The two products.
 MAKES = ("paper", "slides")
 
 # What a subject is truncated to in the record. It is read on a tablet in a strip

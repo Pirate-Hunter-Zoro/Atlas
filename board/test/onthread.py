@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""A sitting belongs to a thread, and it is one of three kinds.
+"""A sitting belongs to a thread.
 
 What the checks are about:
 
-  * `live/state.json` CARRIES `thread` AND `kind`. A box of a thread file is a
-    thread, so a map tap or `board open --thread` writes `thread`, not `node`,
-    and the sitting is named after the thread.
-  * A KIND IS AN AIM. learn, coach and build name `teach`, `coach` and `build`,
-    and the stance follows from the aim; with nothing said, a teach sitting on
-    a thread whose files are code is a coach sitting.
+  * `live/state.json` CARRIES `thread`. A box of a thread file is a thread, so
+    a map tap or `board open --thread` writes `thread`, not `node`, and the
+    sitting is named after the thread. It carries no kind: who writes the code
+    is the session's mode (test/mode.py).
   * THE BRIEFING OPENS WITH THE THREAD: its question, open tasks and
     decisions, outputs, and what the last sitting on it reported.
   * A RETHINK IS ABOUT THE CURRENT THREAD. It does not write DIRECTION.md, the
@@ -107,30 +105,6 @@ write(os.path.join(tmp, "paper", "manuscript.md"), "# Paper\n")
 write(os.path.join(tmp, "threads.json"), json.dumps(FILE))
 fresh()
 
-# ---------------------------------------------------------------------------
-# a kind is an aim
-# ---------------------------------------------------------------------------
-check("the three kinds are learn, coach and build",
-      config.KINDS == ("learn", "coach", "build"))
-check("each names an aim, and the aim names the stance",
-      [config.AIM_STANCE[config.KIND_AIM[k]] for k in config.KINDS]
-      == ["teach", "teach", "do"])
-check("a build sitting asked for as a paper stays a paper",
-      config.kind_aim("build", "paper") == "paper")
-check("a kind that contradicts the aim wins",
-      config.kind_aim("learn", "build") == "teach")
-check("an explicit kind is the kind",
-      config.kind_for(tmp, {"kind": "coach", "thread": "estimand"}) == "coach")
-check("an aim answers a sitting with no kind",
-      config.kind_for(tmp, {"aim": "build", "thread": "knn"}) == "build")
-check("a do stance with no aim is a build",
-      config.kind_for(tmp, {"stance": "do", "thread": "knn"}) == "build")
-check("a teach sitting on a thread whose files are code is a coach sitting",
-      config.kind_for(tmp, {"thread": "knn"}, ["scripts/knn.py"]) == "coach")
-check("and one whose files are prose is a learn sitting",
-      config.kind_for(tmp, {"thread": "estimand"}, ["notes/estimand.md"]) == "learn")
-check("a directory of code counts as code",
-      config.kind_for(tmp, {"thread": "knn"}, ["scripts"]) == "coach")
 check("the box of a sitting is its thread before its node",
       config.sitting_box({"thread": "knn", "node": "x"}) == "knn"
       and config.sitting_box({"node": "x"}) == "x")
@@ -138,12 +112,11 @@ check("the box of a sitting is its thread before its node",
 # ---------------------------------------------------------------------------
 # board open
 # ---------------------------------------------------------------------------
-code, out = run(tmp, "open", "Proj", "--thread", "knn", "--kind", "coach")
+code, out = run(tmp, "open", "Proj", "--thread", "knn")
 st = state(tmp)
 check("board open --thread opens a sitting on the thread",
       code == 0 and st.get("thread") == "knn")
-check("it carries the kind, and the aim the kind names",
-      st.get("kind") == "coach" and st.get("aim") == "coach")
+check("it carries no kind and no aim", "kind" not in st and "aim" not in st)
 check("and no node", "node" not in st)
 check("the sitting is named after the thread", st.get("chapter") == "Weighted neighbours")
 check("and says so", "thread: knn" in out)
@@ -152,23 +125,12 @@ code, out = run(tmp, "open", "Proj", "--node", "estimand")
 st = state(tmp)
 check("a box of a thread file named as a node is a thread",
       st.get("thread") == "estimand" and "node" not in st)
-check("with its kind derived when none was chosen: prose is learn",
-      st.get("kind") == "learn")
 
 code, out = run(tmp, "open", "Proj", "--thread", "nope")
 st = state(tmp)
 check("an unknown thread is ignored aloud, never carried through",
       "no thread called" in out and "thread" not in st)
-check("and opening a sitting on no thread clears the kind", "kind" not in st)
-
-run(tmp, "open", "Proj", "--thread", "knn", "--kind", "learn")
-code, out = run(tmp, "aim", "build")
-st = state(tmp)
-check("changing the aim mid-sitting changes the kind",
-      st.get("aim") == "build" and st.get("kind") == "build")
-code, out = run(tmp, "aim", "coach")
-check("and a kind word is accepted as the aim",
-      state(tmp).get("kind") == "coach" and state(tmp).get("aim") == "coach")
+run(tmp, "open", "Proj", "--thread", "knn")
 
 # ---------------------------------------------------------------------------
 # the briefing opens with the thread
@@ -201,7 +163,6 @@ lines = text.splitlines()
 check("the briefing opens with the thread, right under the title",
       len(lines) > 2 and "the thread this sitting is on: Weighted neighbours"
       in lines[2] and not lines[1].strip())
-check("it names the kind", "a COACH sitting" in text)
 check("it carries the question",
       "Does weighting beat cosine on every embedder?" in text)
 check("the open tasks, numbered as `board thread done` counts them",
@@ -264,8 +225,8 @@ try:
     st = repo.state()
     check("a map tap on a thread's box opens a sitting on the thread",
           status == 200 and st.get("thread") == "knn" and "node" not in st)
-    check("with the kind chosen on the sheet, written as its aim",
-          st.get("kind") == "build" and st.get("aim") == "build")
+    check("and a kind sent with it is not written",
+          "kind" not in st and "aim" not in st)
     check("and named after the thread", st.get("chapter") == "Weighted neighbours")
 
     status, body = post("/session", {"session": "lecture", "thread": "knn",
@@ -273,10 +234,6 @@ try:
     check("tapping the thread already open goes back into it",
           status == 200 and body.get("resumed") is True)
 
-    status, body = post("/aim", {"kind": "learn"})
-    check("the kind changes mid-sitting through the aim",
-          status == 200 and repo.state().get("kind") == "learn"
-          and repo.state().get("aim") == "teach")
 
     status, body = post("/session", {"session": "lecture", "thread": "nope"})
     check("an unknown thread is refused", status == 400)
@@ -290,7 +247,6 @@ try:
           direction.read(tmp)[0] == "")
     check("the sitting stays on the thread and keeps its name",
           st.get("thread") == "knn" and st.get("chapter") == "Weighted neighbours")
-    check("and keeps its kind", st.get("kind") == "learn")
     check("their sentence is attached to the sitting on the thread",
           st.get("rethink") == SAID)
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
@@ -357,7 +313,7 @@ finally:
 with open(os.path.join(ROOT, "TEACHING.md"), "r", encoding="utf-8") as fh:
     METHOD = fh.read()
 for phrase, why in (
-        ("## A coach sitting", "coach mode has a section of its own"),
+        ("## Coaching", "coaching has a section of its own"),
         ("One step per card", "one step per card"),
         ("Imports first, in prose", "imports come first, in prose"),
         ("You write the plumbing yourself", "the tutor writes the plumbing"),
@@ -371,4 +327,4 @@ print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a sitting belongs to a thread, and it is one of three kinds")
+print("a sitting belongs to a thread, and its briefing opens with it")

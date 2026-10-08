@@ -7,12 +7,9 @@ and a tutor with nowhere to put that does the only thing it can -- there is a
 card in PSYCH-ASR that proves it, invented arithmetic on fictional numbers in a
 repository whose owner wanted an algorithm on disk explained to him.
 
-So: the scope is a file in this repository, it is checked before it reaches
-anything, and the tutor is told to trace rather than to write. What is guarded
-here is the same as everywhere else -- that nothing invented reaches the
-filesystem or the prompt -- plus the one thing that is new, which is that the
-stance may now belong to the sitting rather than to the repository, and a stance
-that overrode the written one must never outlive the sitting that chose it.
+So: the scope is a file in this repository, checked before it reaches
+anything. What is guarded here is that nothing invented reaches the filesystem
+or the prompt, and that who writes the code is the session's mode alone.
 """
 
 import json
@@ -189,6 +186,8 @@ finally:
     shutil.rmtree(prose, ignore_errors=True)
 
 # --- what the tutor is actually told ------------------------------------------
+# A walkthrough is a method the tutor picks in teach mode, not a sitting kind: a
+# state still saying `session: walk` reads as a lecture.
 try:
     json.dump({"name": "PSYCH-ASR"},
               open(os.path.join(proj, "tutorboard.json"), "w"))
@@ -197,50 +196,14 @@ try:
     st.update({"session": "walk",
                "walk": ["psych_asr/evaluate/grade.py::grade"]})
     json.dump(st, open(r.state_path, "w"))
-
     line = sense.session_sense(r)
-    check("the tutor is told this is a walkthrough", "WALKTHROUGH SITTING" in line)
-    check("and what it is over, named in the prompt rather than left to be found",
-          "psych_asr/evaluate/grade.py::grade" in line)
-    check("and that nothing is being built", "NOTHING IS BEING BUILT HERE" in line)
-    check("and not to assign a change or write code into a card",
-          "Do not assign a change" in line and "do not write code into a card" in line)
-    check("and that the scope is not its to widen", "not yours to widen" in line)
-    # The failure this sitting exists to replace: a tour of the file, top to
-    # bottom, read on a tablet and understood by nobody.
-    check("the exercise is a hand trace, not an explanation",
-          "hand trace" in line and "they carry it one step" in line)
-    check("on one invented instance carried the whole way through",
-          "ONE INSTANCE FOR THE WHOLE SITTING" in line and "INVENTED" in line)
-    check("with a plain name before the identifier",
-          "PLAIN NAMES BEFORE IDENTIFIERS" in line)
-    check("and an excerpt rather than the file",
-          "smallest excerpt" in line and "never the file" in line)
-    check("the recap comes last, which is the word dump it replaces",
-          "ONLY WHEN THE TRACE IS DONE" in line and "Last, never first" in line)
-    check("and it still points at the method rather than restating it",
-          "live/TEACHING.md" in line)
-    check("and produces no document, like a review",
-          "do not compile" in line and "no write-up" in line)
-    # A lecture chooses a manageable few pieces of work. A walkthrough does not
-    # choose anything: the student named it.
-    check("and is not told to pick a manageable few, which is a lecture behaviour",
-          "manageable few" not in line)
-
-    st["walk"] = []
-    json.dump(st, open(r.state_path, "w"))
-    line = sense.session_sense(r)
-    check("a walkthrough with nothing named asks rather than choosing",
-          "Ask in your first card" in line and "do not choose it yourself" in line)
-    check("and does not go looking for a candidate",
-          "Do not survey the repository" in line)
+    check("a legacy walk sitting reads as a lecture in teach mode",
+          "WALKTHROUGH SITTING" not in line and "IN TEACH MODE" in line
+          and "a walkthrough of code that already exists" in line)
 finally:
     pass
 
-# --- a stance belongs to a sitting, not only to a repository ------------------
-# One word in tutorboard.json could only ever answer for the whole repository,
-# and a project has both kinds of work in it: plumbing its owner wants written,
-# and the one algorithm they need to understand. Both answers, one repository.
+# --- the mode is the session's, and tutorboard.json says nothing about it ------
 teach_repo = tempfile.mkdtemp(prefix="tutor-walk-teach-")
 do_repo = tempfile.mkdtemp(prefix="tutor-walk-do-")
 try:
@@ -251,61 +214,27 @@ try:
     write(teach_repo, "psych_asr/grid.py", "def sweep():\n" + BODY + "\n")
     write(do_repo, "pipeline/confound.py", "def overlap():\n" + BODY + "\n")
 
-    # tutorboard.json holds no stance (T09): `"stance": "do"` there is ignored.
-    check("a sitting that says nothing teaches, whatever tutorboard.json says",
-          config.stance_for(teach_repo, {}) == "teach"
-          and config.stance_for(do_repo, {}) == "teach")
-    check("and a sitting that names one runs under that instead",
-          config.stance_for(teach_repo, {"stance": "do"}) == "do"
-          and config.stance_for(do_repo, {"stance": "teach"}) == "teach")
-    check("a word that is not a stance is not one",
-          config.stance_for(teach_repo, {"stance": "maybe"}) == "teach"
-          and config.clean_stance("maybe") is None)
+    rd = course_repo.Repo(do_repo)
+    st = rd.state()
+    st.update({"session": "lecture", "chapter": "the propensity model"})
+    json.dump(st, open(rd.state_path, "w"))
+    line = sense.session_sense(rd)
+    check("a tutorboard.json stance of do is ignored: the session teaches",
+          "IN TEACH MODE" in line and "IN DO MODE" not in line)
 
     rt = course_repo.Repo(teach_repo)
     st = rt.state()
-    st.update({"session": "lecture", "chapter": "the grid sweep", "stance": "do"})
+    st.update({"session": "lecture", "chapter": "the grid sweep", "mode": "do"})
     json.dump(st, open(rt.state_path, "w"))
     line = sense.session_sense(rt)
-    check("a doing sitting in a teaching repository is told to write the code",
-          "STANCE IS DO" in line and "you write the code yourself" in line)
-    # The one mistake here the next card cannot undo is writing the code for
-    # somebody who wanted to learn it. An override that leaks into the handoff
-    # becomes the repository's answer without anybody deciding it.
-    check("and told that it is this sitting's and ends with it",
-          "CHOSEN FOR THIS SITTING" in line
-          and "Do not write it into HANDOFF.md" in line)
-
-    rd = course_repo.Repo(do_repo)
-    st = rd.state()
-    st.update({"session": "lecture", "chapter": "the propensity model",
-               "stance": "teach"})
-    json.dump(st, open(rd.state_path, "w"))
-    line = sense.session_sense(rd)
-    check("a teaching sitting where tutorboard.json says do is plainly teach",
-          "THIS SITTING'S IS TEACH" not in line and "STANCE IS DO" not in line)
-
-    # A walkthrough and a review read rather than write, so a repository that
-    # wants its code written does not get it written into one of these.
-    st.update({"session": "walk", "walk": ["pipeline/confound.py"],
-               "stance": None})
-    st.pop("stance")
-    json.dump(st, open(rd.state_path, "w"))
-    line = sense.session_sense(rd)
-    check("a doing repository's walkthrough is still a walkthrough",
-          "WALKTHROUGH SITTING" in line and "STANCE IS DO" not in line)
-
-    # The briefing is where a cold turn finds out, and a turn that cannot see
-    # that the stance was chosen for the evening will write it down as standing.
-    st = rt.state()
+    check("a session in do mode is told to write the code",
+          "IN DO MODE" in line and "you write the code yourself" in line)
     line = brief.briefing(rt, sense)
-    check("the briefing names the sitting's stance and the repository's when they differ",
-          "stance: do" in line and "tutorboard.json says teach" in line)
-    st.pop("stance")
+    check("the briefing names the mode", "mode: do" in line)
+    st.pop("mode")
     json.dump(st, open(rt.state_path, "w"))
     line = brief.briefing(rt, sense)
-    check("and names it once when they agree",
-          "stance: teach" in line and "tutorboard.json says" not in line)
+    check("and teach when the session says nothing", "mode: teach" in line)
     check("a workspace that names no check gets no check line",
           "\ncheck: " not in line)
     json.dump({"name": "PSYCH-ASR", "check": "uv run --extra test python -m pytest tests -q"},
@@ -365,47 +294,15 @@ try:
         check("and that nothing is being walked through yet",
               payload["walk"]["scope"] == [])
 
-        status, body = post("/session", {
+        status, _ = post("/session", {
             "session": "walk", "over": ["psych_asr.evaluate.grade.grade"]})
-        check("a walkthrough can be opened from the board",
-              status == 200 and body.get("ok"))
-        st = repo.state()
-        check("the badge will read walk", st.get("session") == "walk")
-        check("and the scope is recorded as the file and the definition in it",
-              st.get("walk") == ["psych_asr/evaluate/grade.py::grade"])
-        check("the sitting is labelled with what it covers",
-              "Walkthrough" in (st.get("chapter") or ""))
-        # Opening one is starting a different lesson, so what is being left is
-        # filed whole rather than written over -- the same rule as a review.
-        check("and the lesson it interrupted was filed, not overwritten",
-              len(archive.list_archive(repo)) == 1)
-
-        status, body = post("/session", {"session": "walk", "over": ["nope.py"]})
-        check("a file this repository does not have is refused by name",
-              status == 400 and body.get("unknown") == ["nope.py"])
-        status, _ = post("/session", {"session": "walk", "over": []})
-        check("and a walkthrough over nothing is refused rather than opened",
-              status == 400)
-        check("a refused walkthrough leaves the sitting it was in alone",
-              repo.state().get("walk") == ["psych_asr/evaluate/grade.py::grade"])
-
-        # A stance chosen on the board belongs to the sitting being opened, and
-        # the way back to the repository's own answer is to open one without
-        # choosing -- which is what tapping `lecture` does.
+        check("the board no longer opens a walkthrough sitting", status == 400)
+        check("and the lesson it would have interrupted is untouched",
+              not archive.list_archive(repo))
         status, _ = post("/session", {"session": "lecture", "stance": "do"})
-        check("a stance chosen on the board reaches the sitting",
-              repo.state().get("stance") == "do")
-        check("and opening that sitting cleared the walkthrough's scope",
-              not repo.state().get("walk"))
-        check("and the tutor is told to write the code",
-              "STANCE IS DO" in sense.session_sense(repo))
-        status, _ = post("/session", {"session": "lecture"})
-        check("opening the next sitting without one gives the repository back",
-              not repo.state().get("stance")
-              and "STANCE IS DO" not in sense.session_sense(repo))
-        status, _ = post("/session", {"session": "lecture", "stance": "sideways"})
-        check("a stance that is not one is dropped rather than failing the request",
-              status == 200 and not repo.state().get("stance"))
+        check("a stance sent with a sitting is ignored",
+              status == 200 and not repo.state().get("stance")
+              and "IN DO MODE" not in sense.session_sense(repo))
     finally:
         httpd.shutdown()
 finally:
@@ -551,25 +448,7 @@ try:
           "would not",
           walk.sitting_label(walk.scope(ws, st)) == "Walkthrough — colibri/warm")
 
-    # WHAT THE TUTOR IS TOLD, and the one thing it could get badly wrong.
     walk_repo = course_repo.Repo(ws)
-    live_st = walk_repo.state()
-    live_st.update({"session": "walk",
-                    "walk": ["@vendor/colibri/bin/coli-up::warm"]})
-    json.dump(live_st, open(walk_repo.state_path, "w"))
-    line = sense.session_sense(walk_repo)
-    check("the tutor is told this is somebody else's code",
-          "NOT THIS REPOSITORY'S CODE" in line and "vendor/colibri" in line)
-    check("and that a defect found in it is not work to be done",
-          "change nothing in it" in line and "not to be" not in line
-          and "do not write a patch" in line)
-    check("and which workspace the sitting belongs to, because that is where "
-          "the cards are filed",
-          "The sitting is PSYCH-ASR's" in line)
-    live_st["walk"] = ["psych_asr/grade.py"]
-    json.dump(live_st, open(walk_repo.state_path, "w"))
-    check("and a sitting over this repository's own source is told none of it",
-          "NOT THIS REPOSITORY'S CODE" not in sense.session_sense(walk_repo))
 
     # THE TREE IS NEVER WRITTEN TO. Not by opening the sitting, not by drawing
     # it, not by anything: it is somebody else's repository at a commit.
@@ -621,20 +500,10 @@ try:
     try:
         status, body = post("/session", {
             "session": "walk", "over": ["@vendor/colibri/bin/coli-up::warm"]})
-        check("a trace over a vendor tree opens, which is the whole of this item",
-              status == 200 and body.get("ok"))
-        opened = walk_repo.state()
-        check("and it is a sitting in the workspace that is reading the tree, "
-              "not a board in somebody else's repository",
-              opened.get("session") == "walk"
-              and opened.get("walk") == ["@vendor/colibri/bin/coli-up::warm"]
-              and not os.path.isdir(os.path.join(tree_root, "live")))
-        check("the sitting's own files are this workspace's",
-              os.path.isdir(os.path.join(ws, "live", "cards")))
-        status, body = post("/session", {
-            "session": "walk", "over": ["@vendor/nothing/x.py"]})
-        check("a tree this repository does not pull is refused by name",
-              status == 400 and body.get("unknown") == ["@vendor/nothing/x.py"])
+        check("a walkthrough is no longer a sitting the board opens, over a "
+              "tree or not", status == 400)
+        check("and nothing was written into the tree",
+              not os.path.isdir(os.path.join(tree_root, "live")))
 
         # THE DIAGRAM OF A TREE NEEDS A SURFACE, and it is the board's own map
         # rather than a second renderer: `map.inside` already answers with a
