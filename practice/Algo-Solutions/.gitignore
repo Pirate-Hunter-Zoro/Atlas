@@ -16,7 +16,6 @@ live/*
 !live/text/
 !live/state.json
 !live/turns.jsonl
-!live/jobs.jsonl
 
 # The assistant's config directory stays ignored, all of it. The permission
 # allowlist that used to be let back in here is `ai-config/workspaces/

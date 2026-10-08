@@ -24,7 +24,7 @@ ENV_SH = os.path.join(ATLAS, "projects", "libr-local-llm", "scripts",
                       "colibri-env.sh")
 sys.path.insert(0, ROOT)
 
-from tutorboard import colibri, jobs, missions, relay         # noqa: E402
+from tutorboard import colibri, jobs, relay                   # noqa: E402
 
 fails = []
 
@@ -109,7 +109,8 @@ def slurm():
 def reset():
     with open(SLURM, "w") as fh:
         json.dump({"next": 100, "jobs": [], "argv": []}, fh)
-    for d in (STATE, os.path.join(QUEUE, "live")):
+    for d in (STATE, os.path.join(QUEUE, "live"),
+              os.path.join(QUEUE, "relay")):
         shutil.rmtree(d, ignore_errors=True)
     os.makedirs(STATE)
     colibri.forget()
@@ -213,7 +214,7 @@ for list_it, how in ((True, "listed at once"),
     check("two tasks filed at once start ONE generation (%s)" % how,
           len(calls) == 1)
     check("and both are queued (%s)" % how,
-          all(got) and len(missions.tasks(QUEUE)) == 2)
+          all(got) and len(colibri.tasks(QUEUE)) == 2)
 
 reset()
 calls = []
@@ -258,7 +259,7 @@ def finishes(task, job):
 
 rc = colibri.work("401", run=finishes, ready=lambda: True,
                   sleep=lambda s: None, idle=0, say=lambda s: None)
-after = missions.tasks(QUEUE)[0]
+after = colibri.tasks(QUEUE)[0]
 check("the clone resumes the task and finishes it", after["queue"] == "done")
 check("as its second attempt, with one death counted",
       seen[-1]["attempts"] == 2 and after["deaths"] == 1)
@@ -293,10 +294,10 @@ check("and so is a resumed one",
       "`phi/`" in colibri.TASK_RESUME_PROMPT
       and "tracked file" in colibri.TASK_RESUME_PROMPT)
 check("with no fence for its output, the client's output goes nowhere",
-      not missions.tasks(QUEUE)[0].get("out"))
+      not colibri.tasks(QUEUE)[0].get("out"))
 os.environ["COLI_SESSION_ROOT"] = os.path.join(TMP, "sessions", "phi")
 colibri.run_task(dict(after, attempts=1), "401")
-out = missions.tasks(QUEUE)[0].get("out")
+out = colibri.tasks(QUEUE)[0].get("out")
 check("behind the fence, it is kept, and its path is on the task",
       out == os.path.join(TMP, "sessions", "phi", "tasks",
                           after["id"] + ".out")
@@ -328,10 +329,10 @@ check("a task filed afterwards starts a new generation", len(calls) == 1)
 reset()
 put("600")
 r6, _ = colibri.file("knn-across-embedders", "x", WS, start=submitter([]))
-missions.claim_task(QUEUE, r6, "599")
+colibri.claim_task(QUEUE, r6, "599")
 colibri.mark_exit("599", 0)
 colibri.recover("600")
-r6 = missions.tasks(QUEUE)[0]
+r6 = colibri.tasks(QUEUE)[0]
 check("a task whose generation ended on purpose is requeued without a death",
       r6["queue"] == "queued" and r6["deaths"] == 0)
 
@@ -342,18 +343,18 @@ reset()
 put("700")
 r7, _ = colibri.file("knn-across-embedders", "doomed", WS, start=submitter([]))
 for gen in ("697", "698", "699"):
-    cur = missions.tasks(QUEUE)[0]
+    cur = colibri.tasks(QUEUE)[0]
     if cur["queue"] != "queued":
         break
-    missions.claim_task(QUEUE, cur, gen)
+    colibri.claim_task(QUEUE, cur, gen)
     colibri.recover("700")                 # gen left squeue with no exit file
-r7 = missions.tasks(QUEUE)[0]
+r7 = colibri.tasks(QUEUE)[0]
 check("three deaths on one task fail it", r7["queue"] == "failed")
 check("with all three counted and the reason said",
       r7["deaths"] == 3 and "3 times" in r7["reason"])
-check("and it is not retried", missions.next_task(QUEUE) is None)
+check("and it is not retried", colibri.next_task(QUEUE) is None)
 check("two deaths were not enough",
-      missions.task_verdict({"queue": "running", "gen": "1", "deaths": 1},
+      colibri.task_verdict({"queue": "running", "gen": "1", "deaths": 1},
                             [], lambda g: False) == "death")
 
 reset()
@@ -382,11 +383,11 @@ check("the relay files a request as a task, and starts a generation",
       first["state"] == "submitted" and len(calls) == 1)
 check("its report never carries the brief",
       "rerun it" not in json.dumps(first))
-task = missions.tasks(QUEUE)[0]
+task = colibri.tasks(QUEUE)[0]
 check("the task carries the request's label, and no thread",
       task.get("label") == "knn-across-embedders" and not task.get("thread"))
-missions.claim_task(QUEUE, task, "101")
-missions.finish_task(QUEUE, missions.tasks(QUEUE)[0], True)
+colibri.claim_task(QUEUE, task, "101")
+colibri.finish_task(QUEUE, colibri.tasks(QUEUE)[0], True)
 checked = []
 
 
@@ -409,19 +410,19 @@ check("and a pass starts no generation for a task already started",
 
 reset()
 colibri.relay_file(WS, base, start=submitter([]))
-missions.claim_task(QUEUE, missions.tasks(QUEUE)[0], "102")
-missions.finish_task(QUEUE, missions.tasks(QUEUE)[0], True)
+colibri.claim_task(QUEUE, colibri.tasks(QUEUE)[0], "102")
+colibri.finish_task(QUEUE, colibri.tasks(QUEUE)[0], True)
 out = colibri.relay_pass(check=lambda where, rec: None,
                          start=submitter([]))
 check("a check that cannot read leaves the task done and unchecked",
       out[0][1]["state"] == "running" and "check" in out[0][1]["note"]
-      and not missions.tasks(QUEUE)[0].get("checked"))
+      and not colibri.tasks(QUEUE)[0].get("checked"))
 out = colibri.relay_pass(start=submitter([]))
 check("and so does a pass with no check at all",
       out[0][1]["state"] == "running")
 out = colibri.relay_pass(check=lambda where, rec: {"changed": 2, "relay": []},
                          start=submitter([]))
-t = missions.tasks(QUEUE)[0]
+t = colibri.tasks(QUEUE)[0]
 check("a task that changed tracked files is failed, with the reason",
       t["queue"] == "failed" and t["reason"] == relay.CHANGED
       and out[0][1]["state"] == "failed" and relay.CHANGED in out[0][1]["note"])

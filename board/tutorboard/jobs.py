@@ -15,9 +15,14 @@ record carrying `state` (and, at the end, `exit` and `ended`) for the same job
 id, and a reader folds the records in file order -- `exports.merged`. Two
 writers never rewrite each other's lines.
 
-WHERE IT LIVES is `live/jobs.jsonl` where git can see it there, and
-`jobs.jsonl` at the workspace root where `live/` is ignored wholesale. It is
-tracked either way, because a job outlives the machine that submitted it.
+WHERE IT LIVES is `<subject>/relay/state/`, which git ignores (`**/relay/state/`
+in the root .gitignore): the registry `jobs.jsonl`, every claim in
+`reported/`, and the Colibri queue in `colibri/` (`tutorboard/colibri.py`).
+It is runtime state of the machine that runs the jobs; what crosses to the Mac
+is a request's report. One registry holds both kinds of job: a record carrying
+`request` is the relay's, and only the relay's poll reports it. Records from
+before (`live/jobs.jsonl`, `live/jobs.reported/`, `live/missions/`) are moved
+in by `migrate_state`, which every reader calls first.
 
 THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every five minutes).
 `sacct` is refused on this cluster, so a job's end is read from `squeue` and
@@ -46,7 +51,6 @@ import subprocess
 import time
 
 from . import cluster, exports, fenced
-from .course import repo as course_repo
 
 NAME = "jobs.jsonl"
 
@@ -54,28 +58,205 @@ NAME = "jobs.jsonl"
 # is given one more pass before it is called DIED.
 GRACE = 60
 
-# Where a wrapped job's exit code, its wrapper and the relay's own registry
-# live in a workspace. Ignored by the root .gitignore.
+# A subject's runtime state: wrapped jobs' exit codes and wrappers, the job
+# registry, the claims and the Colibri queue. Ignored by the root .gitignore.
 STATE = os.path.join("relay", "state")
+REPORTED = os.path.join(STATE, "reported")
+COLIBRI = os.path.join(STATE, "colibri")
+
+# Where the same records lived before, relative to a subject root.
+OLD_LIVE = "live"
+OLD_RELAY_CLAIMS = os.path.join(STATE, "jobs.reported")
 
 CMD_CHARS = 600
 
 
-def registry(root, create=False):
-    """The registry's path in this workspace. Never creates the file.
+def registry(root):
+    """The registry's path in this subject: `relay/state/jobs.jsonl`. Never
+    creates the file; `migrate_state` runs first, so records from the old
+    places are here."""
+    migrate_state(root)
+    return os.path.join(root, STATE, NAME)
 
-    Whichever already exists wins. With neither, a reader is handed a path that
-    holds nothing; a writer (`create`) gets `live/jobs.jsonl` unless git
-    ignores it there, and then `jobs.jsonl` at the root. Git is asked only
-    then, because the board reads the registry on every payload.
-    """
+
+def claims_dir(root):
+    """Where every claim lives: job endings, heard reports, coach wakes."""
+    return os.path.join(root, REPORTED)
+
+
+# ---------------------------------------------------------------------------
+# moving runtime state out of live/
+# ---------------------------------------------------------------------------
+def _old_claim_dirs(root):
+    return [os.path.join(root, OLD_LIVE, "jobs.reported"),
+            os.path.join(root, OLD_RELAY_CLAIMS)]
+
+
+def _tracked(root, rel):
+    """Does git track `rel` in this subject? False where git cannot say."""
+    try:
+        p = subprocess.run(["git", "ls-files", "--error-unmatch", "--", rel],
+                           cwd=root, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return p.returncode == 0
+
+
+def _old_registries(root):
+    """The old registries present here: `live/jobs.jsonl`, and `jobs.jsonl`
+    at the root where git does not track it (a tracked one is the owner's
+    to remove, and moving it would be a change the relay must not commit)."""
+    out = []
+    inner = os.path.join(root, OLD_LIVE, NAME)
+    if os.path.isfile(inner):
+        out.append(inner)
     top = os.path.join(root, NAME)
-    inner = course_repo.session_path(root, NAME)
-    if os.path.isfile(top):
-        return top
-    if os.path.isfile(inner) or not create:
-        return inner
-    return top if ignored(root, "live/" + NAME) else inner
+    if os.path.isfile(top) and not _tracked(root, NAME):
+        out.append(top)
+    return out
+
+
+def _old_tasks(root):
+    """`[(path, id)]` of Colibri task records under `live/missions/`."""
+    where = os.path.join(root, OLD_LIVE, "missions")
+    try:
+        names = sorted(os.listdir(where))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        path = os.path.join(where, name)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if isinstance(rec, dict) and rec.get("kind") == "task":
+            out.append((path, name[:-len(".json")]))
+    return out
+
+
+def _pending(root):
+    """Is anything left in an old place? Cheap: a few stats and one listing."""
+    if _old_registries(root) or _old_tasks(root):
+        return True
+    for d in _old_claim_dirs(root) + [os.path.join(root, OLD_LIVE,
+                                                   "coach.woken")]:
+        if os.path.isdir(d):
+            return True
+    return False
+
+
+def _move(src, dst):
+    """Rename `src` to `dst`, or drop `src` where `dst` is already there: a
+    claim held in both places is one claim. True if anything changed."""
+    try:
+        if os.path.lexists(dst):
+            os.remove(src)
+        else:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.rename(src, dst)
+        return True
+    except OSError:
+        return False
+
+
+def _rmdir(path):
+    try:
+        os.rmdir(path)
+    except OSError:
+        pass
+
+
+def migrate_state(root):
+    """Move this subject's runtime state out of `live/` into `relay/state/`.
+
+    `live/jobs.jsonl` (and an untracked `jobs.jsonl` at the root) join
+    `relay/state/jobs.jsonl`; every claim in `live/jobs.reported/`,
+    `relay/state/jobs.reported/` and `live/coach.woken/` lands in
+    `relay/state/reported/`; every Colibri task record in `live/missions/`,
+    with its claim flags, lands in `relay/state/colibri/`. Mission records
+    that are not tasks stay where they are.
+
+    Idempotent: a second run finds nothing old and changes nothing. A run
+    that finds nothing costs a few stats, so every reader calls it first.
+    Under a `flock` on `relay/state/.migrate.lock`, so two readers never
+    append the same old registry twice. The number of paths moved.
+    """
+    if not root or not _pending(root):
+        return 0
+    state = os.path.join(root, STATE)
+    try:
+        os.makedirs(state, exist_ok=True)
+        lock = open(os.path.join(state, ".migrate.lock"), "a")
+    except OSError:
+        return 0
+    moved = 0
+    try:
+        try:
+            import fcntl
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        except (ImportError, OSError):
+            pass
+        # The registry: renamed where there is none yet, else appended in
+        # file order. Records fold by job id, so the order across files does
+        # not matter, and nothing is lost.
+        target = os.path.join(state, NAME)
+        for old in _old_registries(root):
+            try:
+                if not os.path.exists(target):
+                    os.rename(old, target)
+                else:
+                    with open(old, "r", encoding="utf-8") as fh:
+                        text = fh.read()
+                    if text and not text.endswith("\n"):
+                        text += "\n"
+                    with open(target, "a", encoding="utf-8") as fh:
+                        fh.write(text)
+                    os.remove(old)
+                moved += 1
+            except OSError:
+                continue
+        # The claims, under their own names.
+        claims = claims_dir(root)
+        for d in _old_claim_dirs(root):
+            try:
+                names = os.listdir(d)
+            except OSError:
+                continue
+            for name in names:
+                moved += _move(os.path.join(d, name),
+                               os.path.join(claims, name))
+            _rmdir(d)
+        woken = os.path.join(root, OLD_LIVE, "coach.woken")
+        try:
+            names = os.listdir(woken)
+        except OSError:
+            names = []
+        for name in names:
+            moved += _move(os.path.join(woken, name),
+                           os.path.join(claims, "coach-" + name))
+        if names:
+            _rmdir(woken)
+        # The Colibri queue: each task record and its claim flags.
+        queue = os.path.join(root, COLIBRI)
+        for path, tid in _old_tasks(root):
+            where = os.path.dirname(path)
+            try:
+                flags = [n for n in os.listdir(where)
+                         if n.startswith(tid + ".task.")]
+            except OSError:
+                flags = []
+            for name in flags:
+                moved += _move(os.path.join(where, name),
+                               os.path.join(queue, name))
+            moved += _move(path, os.path.join(queue, tid + ".json"))
+    finally:
+        lock.close()
+    return moved
 
 
 def ignored(root, rel):
@@ -89,9 +270,9 @@ def ignored(root, rel):
     return p.returncode == 0
 
 
-def append(root, rec, path=None):
-    """Append one record to the registry, or to `path` (the relay's own)."""
-    path = path or registry(root, create=True)
+def append(root, rec):
+    """Append one record to the registry."""
+    path = registry(root)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
@@ -115,33 +296,32 @@ def _lines(path):
     return out
 
 
-def records(root, path=None):
-    """`{jobid: record}`, folded. `path` reads the relay's registry instead."""
-    raw = _lines(path) if path else exports.jobs_of(root)
-    return exports.merged(raw)
+def records(root, relay=None):
+    """`{jobid: record}`, folded. `relay` True keeps only the jobs the relay
+    submitted for requests (a record carrying `request`), False only the
+    others, None all of them."""
+    out = exports.merged(_lines(registry(root)))
+    if relay is None:
+        return out
+    return dict((k, v) for k, v in out.items()
+                if bool(v.get("request")) == bool(relay))
 
 
 def state_dir(root):
     return os.path.join(root, STATE)
 
 
-def relay_registry(root):
-    """The jobs the relay submitted for requests. Ignored: their tracked
-    record is the request's report, and the cluster commits nothing else."""
-    return os.path.join(state_dir(root), "jobs.jsonl")
-
-
 # ---------------------------------------------------------------------------
 # submitting
 # ---------------------------------------------------------------------------
 def submit(root, label, argv, produces=(), cwd=None, run=subprocess.run,
-           now=None, export=(), env=None, path=None, extra=None):
+           now=None, export=(), env=None, extra=None):
     """Run `sbatch`, and register the job under `label`. `(record, error)`.
 
     `argv` must start with `sbatch`. `--parsable` is added where it is missing,
     so the id is read rather than scraped out of a sentence. `env` is the
-    environment sbatch runs in; `path` the registry it is recorded in; `extra`
-    fields the record carries besides (a `cmd` there overrides the argv's).
+    environment sbatch runs in; `extra` the fields the record carries besides
+    (a `cmd` there overrides the argv's).
     """
     argv = list(argv or [])
     if not argv or os.path.basename(argv[0]) != "sbatch":
@@ -178,11 +358,10 @@ def submit(root, label, argv, produces=(), cwd=None, run=subprocess.run,
     if export:
         rec["export"] = list(export)
     rec.update(extra or {})
-    if path:
-        # The relay's registry is ignored, so it may hold where the log really
-        # is, outside the workspace too: the `RELAY:` lines are read out of it.
-        rec["log_path"], rec["err_path"] = out, err
-    append(root, rec, path=path)
+    # The registry is ignored, so it may hold where the log really is,
+    # outside the workspace too: the `RELAY:` lines are read out of it.
+    rec["log_path"], rec["err_path"] = out, err
+    append(root, rec)
     return rec, ""
 
 
@@ -259,7 +438,7 @@ def local_key(now=None):
 
 def submit_script(root, label, header, command, key, shown_as, produces=(),
                   export=(), env=None, run=subprocess.run, now=None,
-                  sbatch_env=None, path=None, extra=None):
+                  sbatch_env=None, extra=None):
     """Write the wrapper for `command` at `relay/state/<key>.sbatch` and submit
     it from the workspace root. `(record, error)`.
 
@@ -293,13 +472,12 @@ def submit_script(root, label, header, command, key, shown_as, produces=(),
         fields["array_tasks"] = tasks
     fields.update(extra or {})
     return submit(root, label, sent, produces=produces, cwd=root, run=run,
-                  now=now, export=export, env=sbatch_env, path=path,
-                  extra=fields)
+                  now=now, export=export, env=sbatch_env, extra=fields)
 
 
 def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
                   key=None, run=subprocess.run, now=None, sbatch_env=None,
-                  path=None, extra=None):
+                  extra=None):
     """Submit a tracked recipe, wrapped so its ending can be read.
 
     The recipe runs where it is, under `bash`, from the workspace root: its
@@ -315,7 +493,7 @@ def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
     return submit_script(root, label, header, ["bash", full],
                          key or local_key(now), recipe, produces=produces,
                          export=export, env=env, run=run, now=now,
-                         sbatch_env=sbatch_env, path=path, extra=extra)
+                         sbatch_env=sbatch_env, extra=extra)
 
 
 def _redacted(argv):
@@ -499,14 +677,30 @@ GONE_GRACE = 60
 CLAIM_STALE = 10 * 60
 
 
-def _marker(root, jobid, claims=None):
-    return os.path.join(claims or course_repo.session_path(root, "jobs.reported"),
-                        str(jobid).replace("/", "_"))
+def _marker(root, key):
+    return os.path.join(claims_dir(root), str(key).replace("/", "_"))
 
 
-def _claim(root, jobid, now=None, claims=None):
+def _adopt(root, key):
+    """The claim on `key` at its new place, taking it over from an old place
+    (`live/jobs.reported/`, `relay/state/jobs.reported/`) where it is still
+    there: a job submitted, or a report heard, before the move is claimed
+    once, wherever its claim was written. The new path."""
+    target = _marker(root, key)
+    if os.path.lexists(target):
+        return target
+    name = os.path.basename(target)
+    for d in _old_claim_dirs(root):
+        old = os.path.join(d, name)
+        if os.path.lexists(old):
+            _move(old, target)
+            break
+    return target
+
+
+def _claim(root, jobid, now=None):
     """Exactly one reader reports each ending. True for the one that may."""
-    target = _marker(root, jobid, claims)
+    target = _adopt(root, jobid)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         try:
@@ -523,33 +717,31 @@ def _claim(root, jobid, now=None, claims=None):
     return True
 
 
-def _unclaim(root, jobid, claims=None):
+def _unclaim(root, jobid):
     try:
-        os.remove(_marker(root, jobid, claims))
+        os.remove(_marker(root, jobid))
     except OSError:
         pass
 
 
-def relay_claims(root):
-    return os.path.join(state_dir(root), "jobs.reported")
-
-
-def poll(root, run=subprocess.run, now=None, path=None, claims=None):
+def poll(root, run=subprocess.run, now=None, relay=False):
     """Ask squeue about every unfinished job. Returns the ones that ended now.
 
-    `path` and `claims` are the relay's registry and claim directory; the
-    default is the workspace's own. A state change short of the end (PENDING
-    to RUNNING) is appended too, so the board can say which. Nothing is
-    appended for a job whose state is unchanged.
+    `relay` True polls the jobs the relay submitted for requests, which the
+    relay reports; False the others, whose endings `report` drops in the
+    inbox. One registry and one claim directory hold both, and each job is
+    polled by exactly one of the two. A state change short of the end
+    (PENDING to RUNNING) is appended too, so the board can say which.
+    Nothing is appended for a job whose state is unchanged.
     """
     now = float(now or time.time())
     out = []
-    every = records(root, path).values()
+    every = records(root, relay=relay).values()
     # An ending recorded but never reported -- its reader died, or its inbox
     # line could not be written -- is offered again, without asking squeue.
     for j in every:
         if (exports.finished(j) and not j.get("reported")
-                and _claim(root, j["jobid"], now, claims)):
+                and _claim(root, j["jobid"], now)):
             out.append(dict(j))
     open_jobs = [j for j in every if not exports.finished(j)
                  and str(j.get("state") or "").upper()
@@ -565,8 +757,7 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
         if state is not None and state.rstrip("+") not in exports.TERMINAL:
             if state != j.get("state") or j.get("gone_at"):
                 append(root, {"jobid": j["jobid"], "label": j.get("label"),
-                              "state": state, "seen": now, "gone_at": 0},
-                       path=path)
+                              "state": state, "seen": now, "gone_at": 0})
             continue
         # Gone from squeue, or there in a terminal state it is about to leave
         # by: either way the wrapper's file, written before the job left, says
@@ -578,7 +769,7 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
         if state == "DIED":
             gone = j.get("gone_at")
             if not gone:
-                append(root, {"jobid": j["jobid"], "gone_at": now}, path=path)
+                append(root, {"jobid": j["jobid"], "gone_at": now})
                 continue
             if now - float(gone) < GONE_GRACE:
                 continue
@@ -586,8 +777,8 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
         # between the two leaves a finished job, not a running one.
         end_rec = {"jobid": j["jobid"], "label": j.get("label"),
                    "state": state, "exit": code, "ended": end}
-        append(root, end_rec, path=path)
-        if not _claim(root, j["jobid"], now, claims):
+        append(root, end_rec)
+        if not _claim(root, j["jobid"], now):
             continue
         done = dict(j)
         done.update(end_rec)
@@ -1924,7 +2115,9 @@ def _git_text(root, argv):
 
 
 def _heard_path(root):
-    return course_repo.session_path(root, "jobs.reported", HEARD)
+    """The commit last heard: `relay/state/reported/relay.heard`, taken over
+    from an old place where it is still there."""
+    return _adopt(root, HEARD)
 
 
 def _set_heard(root, commit):
@@ -1939,6 +2132,10 @@ def _set_heard(root, commit):
         pass
 
 
+def _rel_path(root, path):
+    return os.path.relpath(path, root).replace(os.sep, "/")
+
+
 def _baseline(root):
     """Record HEAD as heard where nothing has been, and git ignores the ledger:
     an untracked file here is a dirty tree to every guard that refuses to
@@ -1946,13 +2143,14 @@ def _baseline(root):
     if os.path.exists(_heard_path(root)):
         return
     head = _git_text(root, ["rev-parse", "HEAD"])
-    if head and ignored(root, "live/jobs.reported/" + HEARD):
+    if head and ignored(root, _rel_path(root, _heard_path(root))):
         _set_heard(root, head)
 
 
 def _claim_once(root, key):
-    """True for the one hearer that may drop this ending. Never taken over."""
-    target = _marker(root, key)
+    """True for the one hearer that may drop this ending. Never taken over.
+    A claim written in an old place before the move still holds."""
+    target = _adopt(root, key)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         os.close(os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
@@ -1965,6 +2163,7 @@ def hear(root, now=None):
     """Drop a `[job]` line for each report that reached an end since the
     commit last heard. The records heard. Never raises; quiet outside git."""
     try:
+        migrate_state(root)
         head = _git_text(root, ["rev-parse", "HEAD"])
         if not head:
             return []

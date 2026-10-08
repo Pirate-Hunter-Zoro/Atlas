@@ -535,8 +535,8 @@ try:
                        COLI_STATE_DIR=os.path.join(queue, "state"),
                        COLI_UP=os.path.join(fakes, "coli-up"),
                        PATH=fakes + os.pathsep + os.environ["PATH"])
-    from tutorboard import missions
-    tasks = missions.tasks(queue)
+    from tutorboard import colibri
+    tasks = colibri.tasks(queue)
     check("on the cluster `board colibri` files a task with the label, and "
           "starts a generation", code == 0 and len(tasks) == 1
           and tasks[0]["label"] == "rows" and "555" in out)

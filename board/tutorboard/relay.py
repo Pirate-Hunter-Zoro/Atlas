@@ -224,13 +224,13 @@ def colibri_busy(base):
     running there, one finished and not yet checked (`check_task`), and one
     the queue failed, whose changes stay for the owner. Edits there are not
     the pass's to commit, and they do not skip it."""
-    from . import colibri, missions
+    from . import colibri
     out = []
     try:
         root = colibri.queue_root()
         if not root:
             return []
-        for rec in missions.tasks(root):
+        for rec in colibri.tasks(root):
             q = rec.get("queue")
             if q in ("queued", "running", "failed") or (
                     q == "done" and not rec.get("checked")):
@@ -258,16 +258,6 @@ def owned(base, rel, where=None, held=None):
             if rel.startswith(ws + "/" + mine):
                 return True
     return _under(rel, held)
-
-
-def tolerated(base, rel, where=None):
-    """A tracked file the pass may find changed and leave so: a workspace's job
-    registry, which only a machine with Slurm appends to (the poll, and
-    `board job` here). It is not the relay's to commit."""
-    for root, ws in where if where is not None else spaces(base):
-        if rel == ws + "/" + _rel(root, jobs.registry(root)):
-            return True
-    return False
 
 
 def _dirty(base):
@@ -329,7 +319,7 @@ def sync_spaces(where):
              if jobs.relay_opts(root).get("sync") is True]
     if not asked:
         return []
-    from . import colibri, holds, missions
+    from . import colibri, holds
     try:
         for root, _ in asked:
             holds.owned(root)
@@ -337,7 +327,7 @@ def sync_spaces(where):
         queue = colibri.queue_root()
         if queue:
             given_up = [str(rec.get("workspace") or "").strip()
-                        for rec in missions.tasks(queue)
+                        for rec in colibri.tasks(queue)
                         if rec.get("queue") == "failed"]
     except Exception:                                        # noqa: BLE001
         return []
@@ -545,8 +535,7 @@ def sync(base, where, pull_vendor=None, said=None):
     busy_ws = colibri_busy(base)
 
     def cluster_s(p):
-        return (owned(base, p, where, held) or tolerated(base, p, where)
-                or _under(p, busy_ws))
+        return owned(base, p, where, held) or _under(p, busy_ws)
     stray = [p for p in dirty if not cluster_s(p)]
     # The owner's edits inside one opted-in workspace are the pass's to
     # commit; anything else stray still skips it, as before.
@@ -576,7 +565,7 @@ def sync(base, where, pull_vendor=None, said=None):
             return ("the branch has commits origin lacks, outside the "
                     "cluster's paths: %s" % ", ".join(theirs_not[:5])), error
     if not error and _count(base, "HEAD..%s" % ref):
-        if ahead or mine or [p for p in dirty if not tolerated(base, p, where)]:
+        if ahead or mine or dirty:
             # Commits of its own to replay, or the owner's edits (a held
             # thread, a Colibri task's, a synced workspace's) to keep:
             # `holds.sync` checks origin leaves every edited path alone,
@@ -1022,8 +1011,9 @@ def _stamp(full):
 def workspace_changes(ws):
     """`{repository-relative path: _stamp}` for every change git can see under
     workspace `ws` -- tracked edits and untracked files it does not ignore --
-    less what the cluster writes there: reports, holds, the job registry, and
-    what this pass wrote. None where git cannot say.
+    less what the cluster writes there: reports, holds, and what this pass
+    wrote. The job registry and the Colibri queue sit in the ignored
+    `relay/state/`, which git does not see. None where git cannot say.
 
     `colibri.file` keeps this as a task's baseline, so the owner's edits from
     before the task are not the task's."""
@@ -1038,7 +1028,7 @@ def workspace_changes(ws):
     from . import holds
     prefix = "" if rel == "." else rel + "/"
     mine = [prefix + jobs.RELAY + "/reports", prefix + jobs.RELAY + "/"
-            + holds.HOLDS, prefix + _rel(ws, jobs.registry(ws))]
+            + holds.HOLDS]
     written = set(_rel(base, p) for p in _WRITTEN)
     return dict((p, _stamp(os.path.join(base, p))) for p in got
                 if not _under(p, mine) and p not in written)
@@ -1425,7 +1415,6 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         ws, ok.get("label"), ok["recipe"], env=ok["env"],
         produces=ok["produces"], export=ok["export"], key=rid,
         run=run, now=now, sbatch_env=env,
-        path=jobs.relay_registry(ws),
         extra={"request": rid, "kind": "recipe"})
     if not rec:
         refuse(ws, req, [why], now, names_phi)
@@ -1492,10 +1481,9 @@ def _colibri_step(now, summary, names_phi, colibri):
 
 def _poll(ws, by_id, run, now, summary, names_phi):
     jobs.report(ws, run=run, now=now)
-    path, claims = jobs.relay_registry(ws), jobs.relay_claims(ws)
-    ended = jobs.poll(ws, run=run, now=now, path=path, claims=claims)
+    ended = jobs.poll(ws, run=run, now=now, relay=True)
     reps = jobs.reports(ws)
-    for rec in jobs.records(ws, path).values():
+    for rec in jobs.records(ws, relay=True).values():
         rid = rec.get("request")
         if rid not in by_id:
             continue
@@ -1515,10 +1503,10 @@ def _poll(ws, by_id, run, now, summary, names_phi):
             finish(ws, rec, req, allowed, now, names_phi)
         except Exception:                                    # noqa: BLE001
             # No report, so no claim: the next pass offers it again.
-            jobs._unclaim(ws, rec["jobid"], claims)
+            jobs._unclaim(ws, rec["jobid"])
             continue
         jobs.append(ws, {"jobid": rec["jobid"], "request": rid,
-                         "reported": float(now)}, path=path)
+                         "reported": float(now)})
         summary["ended"].append(rid)
 
 
@@ -1569,7 +1557,7 @@ def status(base=None, now=None):
         for r in reqs:
             s = (reps.get(str(r.get("id"))) or {}).get("state") or "requested"
             counts[s] = counts.get(s, 0) + 1
-        out = [j for j in jobs.records(ws, jobs.relay_registry(ws)).values()
+        out = [j for j in jobs.records(ws, relay=True).values()
                if not exports.finished(j)]
         lines.append("  %-28s %s%s" % (rel, ", ".join(
             "%d %s" % (counts[k], k) for k in sorted(counts)),

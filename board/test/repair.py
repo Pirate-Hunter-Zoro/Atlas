@@ -291,7 +291,7 @@ try:
     git(top, "config", "user.email", "t@example.com")
     git(top, "config", "user.name", "t")
     ws = os.path.join(top, "research", "Proj")
-    write(os.path.join(ws, ".gitignore"), "live/\n")
+    write(os.path.join(ws, ".gitignore"), "live/\nrelay/state/\n")
     write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "tutorboard.json"),
           json.dumps({"name": "Proj", "check": CHECK}))

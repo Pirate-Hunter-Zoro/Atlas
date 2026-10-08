@@ -597,6 +597,39 @@ shutil.rmtree(tree, ignore_errors=True)
 os.environ.pop("TUTORBOARD_COURSES", None)
 atlas.forget()
 
+# ---------------------------------------------------------------------------
+# 6. THE QUEUE IS colibri.py's, in the queue root's ignored relay/state/colibri/
+# ---------------------------------------------------------------------------
+qroot = tempfile.mkdtemp(prefix="tutor-coliq-")
+try:
+    rec = colibri.file_task(qroot, "rows", "count the rows", "projects/X",
+                            now=1000.0)
+    check("a task is filed as one record under relay/state/colibri/",
+          rec is not None and os.listdir(os.path.join(
+              qroot, "relay", "state", "colibri")) == [rec["id"] + ".json"])
+    got = colibri.claim_task(qroot, rec, "101", now=1001.0)
+    check("and claimed once, its flag beside it",
+          got and got["queue"] == "running"
+          and colibri.claim_task(qroot, rec, "102") is None
+          and os.path.isfile(os.path.join(qroot, "relay", "state", "colibri",
+                                          rec["id"] + ".task.1")))
+    os.makedirs(os.path.join(qroot, "live", "missions"))
+    with open(os.path.join(qroot, "live", "missions", "coli-old.json"),
+              "w") as fh:
+        json.dump({"id": "coli-old", "kind": "task", "queue": "queued",
+                   "brief": "filed before the move", "at": 500.0}, fh)
+    check("a task filed before the move is read from the queue, moved in",
+          [t["id"] for t in colibri.tasks(qroot)] == ["coli-old", rec["id"]]
+          and colibri.next_task(qroot)["id"] == "coli-old"
+          and not os.path.exists(os.path.join(qroot, "live", "missions",
+                                              "coli-old.json")))
+finally:
+    shutil.rmtree(qroot, ignore_errors=True)
+for name in ("colibri.py", "relay.py"):
+    with open(os.path.join(ROOT, "tutorboard", name), encoding="utf-8") as fh:
+        src = fh.read()
+    check("no `missions.` call remains in %s" % name, "missions." not in src)
+
 print("%d FAILURES" % len(fails) if fails
       else "the local model is one tap away, and it refuses the two taps it should")
 sys.exit(1 if fails else 0)

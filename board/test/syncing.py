@@ -181,8 +181,8 @@ try:
     check("relay_opts reads the opt-in",
           jobs.relay_opts(cws).get("sync") is True
           and relay.sync_spaces(relay.spaces(cluster)) == ["research/Proj"])
-    from tutorboard import colibri as _colibri, holds as _holds, missions as _missions
-    _owned, _qroot, _tasks = _holds.owned, _colibri.queue_root, _missions.tasks
+    from tutorboard import colibri as _colibri, holds as _holds
+    _owned, _qroot, _tasks = _holds.owned, _colibri.queue_root, _colibri.tasks
     try:
         def _broken(root):
             raise OSError("holds unreadable")
@@ -191,17 +191,17 @@ try:
               relay.sync_spaces(relay.spaces(cluster)) == [])
         _holds.owned = _owned
         _colibri.queue_root = lambda: cluster
-        _missions.tasks = lambda root: [{"queue": "failed",
+        _colibri.tasks = lambda root: [{"queue": "failed",
                                           "workspace": cws}]
         check("a workspace whose Colibri task the queue gave up on is not synced",
               relay.sync_spaces(relay.spaces(cluster)) == [])
         def _gone(root):
             raise OSError("queue unreadable")
-        _missions.tasks = _gone
+        _colibri.tasks = _gone
         check("nor is any workspace when the queue cannot be read",
               relay.sync_spaces(relay.spaces(cluster)) == [])
     finally:
-        _holds.owned, _colibri.queue_root, _missions.tasks = _owned, _qroot, _tasks
+        _holds.owned, _colibri.queue_root, _colibri.tasks = _owned, _qroot, _tasks
     write(os.path.join(cws, "src", "fit.py"), "print('fit, edited')\n")
     write(os.path.join(cws, "notes", "idea.md"), "a new file\n")
     write(os.path.join(cws, "notes", "SESSION-3.md"), "named for a session\n")

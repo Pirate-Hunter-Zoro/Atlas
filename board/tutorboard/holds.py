@@ -51,7 +51,6 @@ import time
 
 from . import cluster, jobs
 from .course import threads as course_threads
-from .course import repo as course_repo
 
 HOLDS = "holds"
 COACH = "coach"
@@ -1230,10 +1229,14 @@ def write_coach(root, hid, body, step=None, push=True):
 # the wake, on the Mac
 # ---------------------------------------------------------------------------
 def _woken(root, rid):
-    return course_repo.session_path(root, "coach.woken", rid)
+    """The claim on a check report's wake: `relay/state/reported/coach-<id>`,
+    beside the job claims. One written under `live/coach.woken/` before the
+    move is moved there by `jobs.migrate_state`, which `_claim` runs first."""
+    return os.path.join(jobs.claims_dir(root), "coach-%s" % rid)
 
 
 def _claim(root, rid):
+    jobs.migrate_state(root)
     target = _woken(root, rid)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)

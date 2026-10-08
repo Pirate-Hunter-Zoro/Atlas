@@ -17,7 +17,7 @@
 #
 #  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
 #  ones. In particular the `live/*` allowlist -- cards, slate, answers,
-#  archive, inbox, text, state.json, turns.jsonl and jobs.jsonl tracked, the
+#  archive, inbox, text, state.json and turns.jsonl tracked, the
 #  rest ignored -- is what makes a lecture the same lesson on whichever machine picks it up.
 #  Nothing here may shadow one of those: git will not descend into a directory
 #  ignored higher up, so a rule for `live/` written HERE would make every
@@ -56,10 +56,10 @@ build/
 /projects/*/homework/**/*.pdf
 
 # ---- the relay's own state, on the cluster ----
-# The pass's lock and `state.json` at the root; in each workspace the wrapped
-# job scripts, their exit codes, and the registry of
-# what the relay submitted. A log can print anything, so none of it is tracked;
-# a report under `relay/reports/` is what crosses.
+# The pass's lock and `state.json` at the root; in each subject the wrapped
+# job scripts, their exit codes, the job registry, the claims and the Colibri
+# queue (`jobs.py`). A log can print anything, so none of it is tracked; a
+# report under `relay/reports/` is what crosses.
 **/relay/state/
 /relay/state.json
 /relay/.lock*

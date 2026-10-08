@@ -201,7 +201,6 @@ try:
     write(os.path.join(proj, "slurm", "sweep.sbatch"), RECIPE)
     write(os.path.join(proj, "slurm", "crash.sbatch"), CRASH)
     write(os.path.join(proj, "slurm", "diagnose.sbatch"), DIAGNOSE)
-    write(os.path.join(proj, "jobs.jsonl"), "")
     git(seed, "add", "-A")
     git(seed, "commit", "-q", "-m", "seed")
     git(seed, "remote", "add", "origin", origin)
@@ -274,10 +273,11 @@ try:
     check("from an environment without the pass's own Slurm variables",
           slurm.envs[-1] is not None and "SLURM_JOB_ID" not in slurm.envs[-1])
     check("and the report reached origin", '"submitted"' in origin_report("r1"))
-    check("the job is registered in the relay's ignored registry, not the "
-          "tracked one", "r1" in json.dumps(jobs.records(
-              cws, jobs.relay_registry(cws)))
-          and open(os.path.join(cws, "jobs.jsonl")).read() == ""
+    check("the job is registered in relay/state/jobs.jsonl, which git "
+          "ignores, as the relay's", "r1" in json.dumps(jobs.records(
+              cws, relay=True))
+          and not jobs.records(cws, relay=False)
+          and os.path.isfile(os.path.join(cws, "relay", "state", "jobs.jsonl"))
           and git(cluster, "check-ignore", "-q",
                   "research/Proj/relay/state/jobs.jsonl") == "")
 
@@ -432,8 +432,8 @@ try:
     check("the owner's edit is left where it was",
           "an owner's edit" in open(os.path.join(cws, "AI_INSTRUCTIONS.md")).read())
     git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
-    write(os.path.join(cws, "jobs.jsonl"), '{"jobid": "1", "thread": "knn"}\n',
-          "a")
+    jobs.append(cws, {"jobid": "1", "label": "knn", "state": "COMPLETED",
+                      "reported": 1.0})
     got = run_pass()
     check("but the job registry, which only a Slurm machine appends to, does "
           "not skip it", not got["skipped"] and "r5" in got["submitted"])
@@ -442,9 +442,9 @@ try:
                                        "main:relay/status.json"))["skipped"]
           == "" and git(cluster, "status", "--porcelain", "--",
                         "relay/status.json") == "")
-    check("and is not the relay's to commit",
-          "M research/Proj/jobs.jsonl" in git(cluster, "status", "--porcelain"))
-    git(cluster, "checkout", "--", "research/Proj/jobs.jsonl")
+    check("and git does not see it",
+          "jobs.jsonl" not in git(cluster, "status", "--porcelain",
+                                  "--untracked-files=all"))
     write(os.path.join(cluster, "notes.md"), "x\n")
     git(cluster, "add", "notes.md")
     git(cluster, "commit", "-q", "-m", "an unpushed commit of the owner's")
@@ -639,7 +639,7 @@ try:
           and not relay.owned(cluster, "relay/other.json", where=[]))
 
     # --- a colibri request: a task, read-only, checked once it is done -------
-    from tutorboard import atlas as _atlas, colibri as coli, missions
+    from tutorboard import atlas as _atlas, colibri as coli
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "tutorboard.json"),
           json.dumps({"name": "Proj", "relay": {"colibri": True, "exports": [
@@ -657,7 +657,7 @@ try:
     coli._all_jobs = lambda: []
 
     def task_of(rid):
-        return [t for t in missions.tasks(queue) if t["request"] == rid][0]
+        return [t for t in coli.tasks(queue) if t["request"] == rid][0]
 
     def colibri_runs(rid, out_text, tracked=(), ignored=()):
         """What a generation does with the task: claims it, writes, prints
@@ -666,11 +666,11 @@ try:
         out = os.path.join(base, "sessions", "phi", "tasks",
                            task["id"] + ".out")
         write(out, out_text)
-        missions.update_task(queue, task, out=out)
-        missions.claim_task(queue, task_of(rid), "101")
+        coli.update_task(queue, task, out=out)
+        coli.claim_task(queue, task_of(rid), "101")
         for rel, text in list(tracked) + list(ignored):
             write(os.path.join(cws, rel), text)
-        missions.finish_task(queue, task_of(rid), True)
+        coli.finish_task(queue, task_of(rid), True)
 
     def pushed_since(sha):
         return set(git(origin, "log", "--name-only", "--format=",

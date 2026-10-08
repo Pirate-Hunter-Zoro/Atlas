@@ -40,10 +40,11 @@ rate, which is worth knowing before somebody sends an hour of work into it.
 
 import json
 import os
+import re
 import subprocess
 import time
 
-from . import atlas, subjects
+from . import atlas, jobs, machine, subjects
 
 
 # The job, the workspace it belongs to, and the two sentinels. All four match
@@ -142,7 +143,7 @@ def _jobs():
     THE TIME LEFT IS WHY THIS ASKS FOR MORE THAN IT PAINTS. A colibrì turn runs
     inside this allocation -- `coli-code` steps into it with `srun --overlap` --
     so a job set going on the local model cannot outlive the walltime here, and
-    nothing anywhere used to say what that was. `missions.py` stamps it on a
+    nothing anywhere used to say what that was. The mission record stamps it on a
     mission at dispatch, and under a chain it is the ceiling of THIS generation
     rather than of the chain: the server comes back on another node, the client
     does not.
@@ -324,8 +325,8 @@ def submitted():
 # COLIBRI IS NOT KEPT WARM. Filing a task starts a generation if none is queued
 # or running; the generation loads, works the queue one task at a time, and
 # exits cleanly once the queue has been empty for `COLI_IDLE_MIN` minutes. The
-# queue is mission records (`missions.TASK`) in libr-local-llm's ignored
-# `live/missions/`. Each generation submits its own clone at start
+# queue is task records (below) in libr-local-llm's ignored
+# `relay/state/colibri/`. Each generation submits its own clone at start
 # (`coli_submit_clone` in `scripts/colibri-env.sh`), so a death costs one cold
 # load and the clone resumes the task by name; three deaths fail it.
 #
@@ -340,6 +341,268 @@ LOAD_FAILED = 3     # the worker: this generation's engine never warmed
 POLL = 30.0
 
 
+# ---------------------------------------------------------------------------
+# the task queue: one record per task, in `<queue root>/relay/state/colibri/`
+# ---------------------------------------------------------------------------
+# The directory is ignored (`**/relay/state/`), because a task may name session
+# content. A task has a label, a brief, a state (`queue`), an attempt count, and
+# the conversation name (`session`) that `coli-code` resumes by. The generation
+# drives it, not a board: it claims the oldest queued task, runs it, and marks
+# it. A generation that dies leaves its task `running` with its job id in `gen`;
+# the clone that the death released finds it, and either resumes it or, on the
+# third death, fails it. `jobs.migrate_state` moves records filed before this
+# directory existed (`live/missions/`, `kind: "task"`) in.
+
+TASK = "task"
+TASK_STATES = ("queued", "running", "done", "failed")
+
+# Deaths on one task before it is failed and not retried.
+DEATH_CAP = 3
+
+# What `task` (the short form a list shows) is cut to; `brief` is whole.
+TASK_CHARS = 400
+
+# A resumed task whose client exits faster than this did nothing: any real
+# turn on this engine spends minutes in prefill before it can even fail. The
+# resume is then retried as a fresh conversation (`run_task`).
+RESUME_FLOOR = 120.0
+
+# A task id is the only name that reaches the filesystem. Matched, not
+# sanitised.
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
+
+# What a task record stores. `brief` is the whole task, `workspace` the subject
+# it runs in, `queue` its state, `attempts` how many generations began it,
+# `deaths` how many of those died under it, `gen` the job running it, `turn_at`
+# when that began, and `request` the relay request that filed it. `baseline` is
+# what git already saw changed in that workspace when it was filed, `out` where
+# its client's output went (behind the fence), and `checked`, `changed` and
+# `relay` the relay's check once it was done: when, how many paths git could see
+# changed, and its public `RELAY:` lines. `thread` is read from records filed
+# before labels, and never written.
+FIELDS = ("id", "kind", "agent", "task", "brief", "label", "thread",
+          "workspace", "request", "queue", "attempts", "deaths", "gen",
+          "session", "at", "from", "host", "ended", "ended_at", "reason",
+          "looked", "turn_at", "baseline", "out", "checked", "changed",
+          "relay")
+
+
+def queue_dir(root):
+    """The queue's directory under the queue root: `relay/state/colibri/`."""
+    return os.path.join(root, jobs.COLIBRI)
+
+
+def _task_path(root, tid):
+    return os.path.join(queue_dir(root), "%s.json" % tid)
+
+
+def write_task(root, rec):
+    """Store one task record, atomically and never raising. True if stored."""
+    tid = str(rec.get("id") or "")
+    if not ID_RE.match(tid):
+        return False
+    target = _task_path(root, tid)
+    tmp = "%s.tmp-%d" % (target, os.getpid())
+    try:
+        os.makedirs(queue_dir(root), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(dict((k, rec[k]) for k in FIELDS if k in rec), fh)
+        os.replace(tmp, target)
+        return True
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
+
+
+def _stamp(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def task_id(now=None):
+    """`coli-<date>-<time>-<4 hex>`, which `ID_RE` accepts."""
+    now = float(now or time.time())
+    return "coli-%s-%s" % (time.strftime("%Y%m%d-%H%M%S", time.localtime(now)),
+                           os.urandom(2).hex())
+
+
+def file_task(root, label, brief, workspace, request="", now=None,
+              baseline=None):
+    """Write one queued task under `root`. The record, or None.
+    `baseline` is `relay.workspace_changes` of its workspace, or None."""
+    import uuid
+    now = float(now or time.time())
+    rec = {
+        "id": task_id(now), "kind": TASK, "agent": "colibri",
+        "task": (brief or "").strip()[:TASK_CHARS],
+        "brief": (brief or "").strip(), "label": label or "",
+        "workspace": workspace or "", "request": request or "",
+        "queue": "queued", "attempts": 0, "deaths": 0, "gen": "",
+        "session": str(uuid.uuid4()), "at": now, "from": "colibri queue",
+        "host": machine.node_name(), "ended": "", "ended_at": 0.0,
+        "reason": "", "looked": 0.0, "baseline": baseline, "out": "",
+        "checked": 0.0, "changed": 0, "relay": [],
+    }
+    return rec if write_task(root, rec) else None
+
+
+def tasks(root):
+    """Every task in the queue, OLDEST first: the order they are worked in.
+    Records still in the old place are moved in first."""
+    jobs.migrate_state(root)
+    out = []
+    try:
+        names = os.listdir(queue_dir(root))
+    except OSError:
+        return out
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(queue_dir(root), name), "r",
+                      encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if (isinstance(rec, dict) and rec.get("kind") == TASK
+                and ID_RE.match(str(rec.get("id") or ""))):
+            out.append(rec)
+    out.sort(key=lambda r: _stamp(r.get("at")))
+    return out
+
+
+def next_task(root):
+    """The oldest queued task, or None."""
+    for rec in tasks(root):
+        if rec.get("queue") == "queued":
+            return rec
+    return None
+
+
+def _current(root, rec):
+    """That task as it is on disk right now, or the one handed over: a task
+    runs for hours and other writers touch the same file while it does."""
+    try:
+        with open(_task_path(root, str(rec.get("id") or "")), "r",
+                  encoding="utf-8") as fh:
+            got = json.load(fh)
+        if isinstance(got, dict) and got.get("id") == rec.get("id"):
+            return got
+    except (OSError, ValueError):
+        pass
+    return dict(rec)
+
+
+def claim_task(root, rec, gen, now=None):
+    """Take a queued task for generation `gen`, once. The record, or None.
+
+    An exclusive create named for the attempt, so two generations overlapping
+    under the warm chain never both start it, and the state read back off disk
+    so a stale copy cannot claim a task that moved.
+    """
+    now = float(now or time.time())
+    tid = str(rec.get("id") or "")
+    if not ID_RE.match(tid):
+        return None
+    out = _current(root, rec)
+    if out.get("queue") != "queued":
+        return None
+    attempt = int(out.get("attempts") or 0) + 1
+    flag = os.path.join(queue_dir(root), "%s.task.%d" % (tid, attempt))
+    try:
+        os.makedirs(queue_dir(root), exist_ok=True)
+        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except OSError:
+        return None
+    try:
+        os.write(fd, ("%s %f\n" % (gen, now)).encode("utf-8"))
+    finally:
+        os.close(fd)
+    out.update(queue="running", gen=str(gen), attempts=attempt, turn_at=now)
+    return out if write_task(root, out) else None
+
+
+def finish_task(root, rec, ok, reason="", now=None):
+    """A task ended on its own terms: `done`, or `failed` and not retried."""
+    now = float(now or time.time())
+    out = _current(root, rec)
+    out.update(queue="done" if ok else "failed", reason="" if ok else reason,
+               ended_at=now, turn_at=0.0)
+    write_task(root, out)
+    return out
+
+
+def requeue_task(root, rec, death=False, reason="", now=None):
+    """Put a task back in the queue, counting a death where there was one."""
+    out = _current(root, rec)
+    out.update(queue="queued", gen="", turn_at=0.0)
+    if death:
+        out["deaths"] = int(out.get("deaths") or 0) + 1
+    if reason:
+        out["reason"] = reason
+    write_task(root, out)
+    return out
+
+
+def task_verdict(rec, alive, ended_clean):
+    """What a running task's generation leaving means. PURE.
+
+        alive        job ids Slurm still lists
+        ended_clean  job id -> did that generation end on purpose (its exit
+                     file says 0: an idle exit, or the warm chain's handover)
+
+    `"leave"` -- not running, or its generation is still there. `"requeue"` --
+    the generation ended on purpose with the task still running, which costs
+    the task nothing. `"death"` -- it died; resume it on the next generation.
+    `("failed", reason)` -- that was its third death, and it is not retried.
+    """
+    if rec.get("queue") != "running":
+        return "leave"
+    gen = str(rec.get("gen") or "")
+    if gen and gen in set(str(a) for a in alive):
+        return "leave"
+    if gen and ended_clean(gen):
+        return "requeue"
+    if int(rec.get("deaths") or 0) + 1 >= DEATH_CAP:
+        return ("failed", "Colibri died under this task %d times, so it is "
+                "not retried" % DEATH_CAP)
+    return "death"
+
+
+def recover_tasks(root, alive, ended_clean, now=None):
+    """Apply `task_verdict` to every task. `[(id, verdict)]` for those it moved."""
+    moved = []
+    for rec in tasks(root):
+        v = task_verdict(rec, alive, ended_clean)
+        if v == "leave":
+            continue
+        if v == "requeue":
+            requeue_task(root, rec, now=now)
+        elif v == "death":
+            requeue_task(root, rec, death=True,
+                         reason="its generation died; resumed by the next",
+                         now=now)
+        else:
+            out = finish_task(root, rec, False, v[1], now)
+            out["deaths"] = int(rec.get("deaths") or 0) + 1
+            write_task(root, out)
+        moved.append((rec.get("id"), v))
+    return moved
+
+
+def update_task(root, rec, **fields):
+    """Set `fields` on a task as it is on disk now. The record."""
+    out = _current(root, rec)
+    out.update(fields)
+    write_task(root, out)
+    return out
+
+
 def idle_limit():
     """Seconds of empty queue before an on-demand generation exits."""
     try:
@@ -349,7 +612,7 @@ def idle_limit():
 
 
 def queue_root():
-    """The libr-local-llm workspace, whose `live/missions/` is the queue.
+    """The libr-local-llm workspace, whose `relay/state/colibri/` is the queue.
 
     `COLI_QUEUE_ROOT` first, which is how a test says "this tree"; then
     `LLM_REPO`, which `colibri-env.sh` exports inside a generation; then the
@@ -492,7 +755,6 @@ def file(label, brief, workspace_root, request="", start=None, now=None):
     an optional slug naming the work, checked by the caller (`board colibri`,
     `jobs.validate`); nothing here reads a thread file.
     """
-    from . import missions
     brief = (brief or "").strip()
     if not brief:
         return None, "a task needs a brief"
@@ -500,7 +762,7 @@ def file(label, brief, workspace_root, request="", start=None, now=None):
     if not root:
         return None, "this machine has no %s workspace to queue in" % WORKSPACE
     with _Lock():
-        rec = missions.file_task(root, label, brief,
+        rec = file_task(root, label, brief,
                                  atlas.identify(workspace_root), request, now,
                                  baseline=_baseline(workspace_root))
         if rec is None:
@@ -559,13 +821,12 @@ def kick(start=None):
     asks for one. A generation that cannot load is otherwise a 68-minute job
     submitted every five minutes for ever.
     """
-    from . import missions
     root = queue_root()
     if not root:
         return ""
     with _Lock():
         since = _started_at()
-        owed = [r for r in missions.tasks(root)
+        owed = [r for r in tasks(root)
                 if r.get("queue") == "queued" and float(r.get("at") or 0) > since]
         if not owed:
             return ""
@@ -638,7 +899,6 @@ def run_task(rec, job):
     by name, and falls back to a fresh one where the resume fails in seconds
     -- the conversation was never written.
     """
-    from . import missions
     cmd = _tool("coli-code", "COLI_CODE")
     where = atlas.find(rec.get("workspace") or "")
     if not cmd or not where:
@@ -654,7 +914,7 @@ def run_task(rec, job):
             out = None
     root = queue_root()
     if root:
-        missions.update_task(root, rec, out=out or "")
+        update_task(root, rec, out=out or "")
 
     def go(cont):
         argv = [cmd, "-d", where["root"], "--yes"] + (["-c"] if cont else [])
@@ -677,7 +937,7 @@ def run_task(rec, job):
         return rc, time.time() - t0
 
     rc, ran = go(resume)
-    if resume and rc not in (0, HOP, NOTHING_YET) and ran < missions.CARRY_FLOOR:
+    if resume and rc not in (0, HOP, NOTHING_YET) and ran < RESUME_FLOOR:
         rc, ran = go(False)
     return rc
 
@@ -694,14 +954,13 @@ def recover(job):
     """Resume or fail what dead generations left running. Skipped, never
     guessed, where `squeue` cannot be asked or does not list this job: an
     unreachable controller would otherwise read as every generation dead."""
-    from . import missions
     rows = _all_jobs()
     if rows is None:
         return []
     alive = [r["id"] for r in rows]
     if job and str(job) not in alive:
         return []
-    return missions.recover_tasks(queue_root(), alive, ended_clean)
+    return recover_tasks(queue_root(), alive, ended_clean)
 
 
 def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
@@ -711,7 +970,6 @@ def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
     0 is a clean idle exit; anything else is a death the clone repairs. With
     `demand` False (the warm chain, `--stay`) it never exits on idle.
     """
-    from . import missions
 
     def tell(line):
         # Ids and states only. This goes to the job log, which is counts-only.
@@ -738,9 +996,9 @@ def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
         for tid, verdict in recover(job):
             tell("recovered id=%s verdict=%s" % (
                 tid, verdict if isinstance(verdict, str) else verdict[0]))
-        rec = missions.next_task(root)
+        rec = next_task(root)
         if rec is not None:
-            got = missions.claim_task(root, rec, job, clock())
+            got = claim_task(root, rec, job, clock())
             if got is None:
                 sleep(poll)
                 continue
@@ -748,24 +1006,24 @@ def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
                 got["id"], got["attempts"], int(got.get("deaths") or 0)))
             rc = run(got, job)
             if rc == 0:
-                missions.finish_task(root, got, True, now=clock())
+                finish_task(root, got, True, now=clock())
                 tell("done id=%s" % got["id"])
             elif rc == HOP:
                 tell("hop id=%s: the generation ended under it" % got["id"])
                 return 1
             elif rc == NOTHING_YET:
-                missions.requeue_task(root, got, now=clock())
+                requeue_task(root, got, now=clock())
                 tell("wait id=%s: no server to step into yet" % got["id"])
                 sleep(poll)
             else:
-                missions.finish_task(root, got, False,
+                finish_task(root, got, False,
                                      "coli-code exited %d" % rc, clock())
                 tell("failed id=%s exit=%d" % (got["id"], rc))
             last = clock()
             continue
         if demand and clock() - last >= idle:
             with _Lock():
-                if missions.next_task(root) is None:
+                if next_task(root) is None:
                     open(_closing_path(job), "w").close()
                     tell("idle: the queue has been empty for %d min" % (idle // 60))
                     return 0
@@ -834,13 +1092,13 @@ def settle(root, rec, got, now=None):
 
     `got` is `relay.check_task`'s: no change keeps it done, any fails it with
     `relay.CHANGED`. Either way it is checked, and not checked again."""
-    from . import missions, relay
+    from . import relay
     changed = int(got.get("changed") or 0)
-    rec = missions.update_task(root, rec, checked=float(now or time.time()),
+    rec = update_task(root, rec, checked=float(now or time.time()),
                                changed=changed,
                                relay=list(got.get("relay") or []))
     if changed:
-        rec = missions.finish_task(root, rec, False, relay.CHANGED, now)
+        rec = finish_task(root, rec, False, relay.CHANGED, now)
     return rec
 
 
@@ -853,13 +1111,12 @@ def relay_pass(check=None, now=None, start=None):
     checked the same way and has no report. A task filed when no generation
     could start gets one here (`kick`).
     """
-    from . import missions
     root = queue_root()
     if not root:
         return []
     kick(start)
     out = []
-    for rec in missions.tasks(root):
+    for rec in tasks(root):
         where = atlas.find(rec.get("workspace") or "")
         if not where:
             continue

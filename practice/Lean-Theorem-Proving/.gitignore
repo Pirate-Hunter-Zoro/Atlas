@@ -29,4 +29,3 @@ live/*
 !live/text/
 !live/state.json
 !live/turns.jsonl
-!live/jobs.jsonl

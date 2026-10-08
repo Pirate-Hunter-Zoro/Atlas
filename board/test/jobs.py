@@ -4,7 +4,11 @@
 What the checks are about:
 
   * `board job` SUBMITS AND REGISTERS. The sbatch runs, the id is read, and one
-    record lands in the registry, in the place git can see.
+    record lands in the registry, the subject's ignored `relay/state/jobs.jsonl`.
+  * RUNTIME STATE LEAVES live/. `migrate_state` moves the registry, the claims
+    and the Colibri queue into `relay/state/` once, and a second run changes
+    nothing. A claim from before the move still holds, so hearing TRD-EHR's
+    whole report history over its old claims wakes nothing.
   * THE POLL REPORTS EACH ENDING ONCE. squeue and the wrapper's exit file say;
     an ending is appended and becomes one `[job]` line in the inbox, which
     wakes a turn the way `[direction]` does.
@@ -49,6 +53,12 @@ def write(path, text):
 def git(cwd, *args):
     subprocess.run(["git"] + list(args), cwd=cwd, stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL, check=False)
+
+
+def git_ok(cwd, *args):
+    return subprocess.run(["git"] + list(args), cwd=cwd,
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode == 0
 
 
 class Done:
@@ -114,13 +124,13 @@ SPINE = {
 base = tempfile.mkdtemp(prefix="tutor-jobs-")
 
 # --- where the registry lives -----------------------------------------------
-wholesale = workspace(base, "wholesale", "live/\n")
-allowed = workspace(base, "allowed", "live/*\n!live/jobs.jsonl\n")
-check("where live/ is ignored wholesale the registry is jobs.jsonl at the root",
-      jobs.registry(wholesale, create=True) == os.path.join(wholesale, "jobs.jsonl"))
-check("where live/ allowlists it, the registry is live/jobs.jsonl",
-      jobs.registry(allowed, create=True)
-      == os.path.join(allowed, "live", "jobs.jsonl"))
+wholesale = workspace(base, "wholesale", "live/\nrelay/state/\n")
+allowed = workspace(base, "allowed", "live/*\n!live/jobs.jsonl\nrelay/state/\n")
+check("the registry is relay/state/jobs.jsonl, whatever live/ says",
+      jobs.registry(wholesale) == os.path.join(wholesale, "relay", "state",
+                                               "jobs.jsonl")
+      and jobs.registry(allowed) == os.path.join(allowed, "relay", "state",
+                                                 "jobs.jsonl"))
 check("a reader with no registry is handed a path that holds nothing, and git "
       "is not asked", threads.jobs_of(wholesale) == [])
 
@@ -138,9 +148,9 @@ check("and registers {label, jobid, cmd, produces, submitted}",
       and rec["produces"] == ["results/knn.csv"] and rec["submitted"] > 0)
 check("with the log scontrol names, %j filled in, workspace-relative",
       rec["log"] == os.path.join("logs", "sweep-1001.out"))
-check("in the root registry, which git can see",
-      os.path.isfile(os.path.join(wholesale, "jobs.jsonl"))
-      and not jobs.ignored(wholesale, "jobs.jsonl"))
+check("in relay/state/jobs.jsonl, which git ignores",
+      os.path.isfile(os.path.join(wholesale, "relay", "state", "jobs.jsonl"))
+      and jobs.ignored(wholesale, "relay/state/jobs.jsonl"))
 rec2, why2 = jobs.submit(wholesale, "knn", ["srun", "x"], run=slurm)
 check("anything but sbatch is refused, and nothing is registered",
       rec2 is None and "sbatch" in why2 and len(jobs.records(wholesale)) == 1)
@@ -282,7 +292,7 @@ check("relay/state/ is the relay's, and the root .gitignore keeps it out",
       "relay/state/" in open(os.path.join(REPO, ".gitignore")).read())
 
 # --- an ending is never lost, and a record publishes nothing private -----------
-spare = workspace(base, "spare", "live/\n")
+spare = workspace(base, "spare", "live/\nrelay/state/\n")
 s2 = Slurm()
 xrec, _ = jobs.submit(spare, "knn", ["sbatch", "--export=ALL,DATA=/secret/x",
                                     "--export", "OUT=/secret/y", "e.sbatch"],
@@ -292,8 +302,9 @@ check("an --export value is kept out of the registry, its name kept",
       and "OUT=..." in xrec["cmd"])
 check("a log outside the workspace is stored by its name alone",
       jobs._relative(spare, "/elsewhere/logs/a.out") == "a.out")
-check("and its real path only in a registry the relay keeps ignored",
-      "log_path" not in xrec)
+check("and its real path only in the registry, which git ignores",
+      xrec.get("log_path") is not None
+      and jobs.ignored(spare, "relay/state/jobs.jsonl"))
 
 
 class Split(Slurm):
@@ -364,9 +375,9 @@ code, out = board(allowed, "job", "--label", "knn", "--produces",
                   "results/knn.csv", "--", "sbatch", "--wrap", "true")
 check("`board job` submits and registers", code == 0 and "4242" in out
       and jobs.records(allowed)["4242"]["produces"] == ["results/knn.csv"])
-check("in live/jobs.jsonl, which that workspace's git can see",
-      os.path.isfile(os.path.join(allowed, "live", "jobs.jsonl"))
-      and not jobs.ignored(allowed, "live/jobs.jsonl"))
+check("in relay/state/jobs.jsonl, which git ignores",
+      os.path.isfile(os.path.join(allowed, "relay", "state", "jobs.jsonl"))
+      and jobs.ignored(allowed, "relay/state/jobs.jsonl"))
 check("with the sbatch's own arguments passed through, --parsable first",
       open(os.path.join(base, "sbatch.args")).read().split()
       == ["--parsable", "--wrap", "true"])
@@ -408,10 +419,10 @@ for ws in ("courses/Galois-Theory", "courses/Probability", "practice/Algo-Soluti
     root = os.path.join(REPO, ws)
     if not os.path.isdir(root):
         continue
-    where = jobs.registry(root, create=True)
-    check("%s: the registry it would write (%s) is visible to git"
-          % (ws, os.path.relpath(where, root)),
-          not jobs.ignored(root, os.path.relpath(where, root)))
+    # Asked of git by path: `registry` would migrate a real live/.
+    where = os.path.join(jobs.STATE, jobs.NAME)
+    check("%s: the registry it would write (%s) is ignored by git"
+          % (ws, where), jobs.ignored(root, where))
     with open(os.path.join(root, "AI_INSTRUCTIONS.md"), encoding="utf-8") as fh:
         contract = fh.read()
     check("%s: its contract says long work goes through `board job`" % ws,
@@ -460,6 +471,214 @@ try:
           jobs.exit_of(arr, one)[0] == 0)
 finally:
     shutil.rmtree(arr, ignore_errors=True)
+
+# --- runtime state out of live/ ------------------------------------------------
+def snapshot(root):
+    """Every file under `root` (less .git) with its bytes."""
+    out = {}
+    for here, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for f in files:
+            full = os.path.join(here, f)
+            with open(full, "rb") as fh:
+                out[os.path.relpath(full, root)] = fh.read()
+    return out
+
+
+old = tempfile.mkdtemp(prefix="tutor-oldstate-")
+try:
+    git(old, "init", "-q", "-b", "main")
+    write(os.path.join(old, ".gitignore"), "live/\nrelay/state/\n")
+    git(old, "add", "-A")
+    git(old, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit",
+        "-q", "-m", "seed")
+    write(os.path.join(old, "live", "jobs.jsonl"),
+          json.dumps({"jobid": "1001", "label": "knn", "submitted": 1.0})
+          + "\n" + json.dumps({"jobid": "1001", "state": "COMPLETED",
+                               "exit": "0:0", "reported": 2.0}) + "\n")
+    write(os.path.join(old, "relay", "state", "jobs.jsonl"),
+          json.dumps({"jobid": "2002", "request": "r1", "label": "sweep",
+                      "submitted": 3.0}) + "\n")
+    write(os.path.join(old, "live", "jobs.reported", "1001"), "")
+    write(os.path.join(old, "live", "jobs.reported", "relay-r0.completed"), "")
+    write(os.path.join(old, "live", "jobs.reported", jobs.HEARD), "abc123\n")
+    write(os.path.join(old, "relay", "state", "jobs.reported", "1999"), "")
+    write(os.path.join(old, "live", "coach.woken", "r9"), "")
+    write(os.path.join(old, "live", "missions", "coli-a.json"),
+          json.dumps({"id": "coli-a", "kind": "task", "queue": "queued",
+                      "brief": "count", "at": 5.0}))
+    write(os.path.join(old, "live", "missions", "coli-a.task.1"), "101 5.0\n")
+    write(os.path.join(old, "live", "missions", "t0007.json"),
+          json.dumps({"id": "t0007", "task": "a mission", "at": 6.0}))
+    moved = jobs.migrate_state(old)
+    st = os.path.join(old, "relay", "state")
+    check("a fixture with old-location records migrates", moved == 8)
+    check("the old registry joins the relay's, and each kind is polled by its "
+          "own reader", sorted(jobs.records(old)) == ["1001", "2002"]
+          and list(jobs.records(old, relay=False)) == ["1001"]
+          and list(jobs.records(old, relay=True)) == ["2002"]
+          and not os.path.exists(os.path.join(old, "live", "jobs.jsonl")))
+    check("every claim lands in relay/state/reported/, the heard commit kept",
+          sorted(os.listdir(os.path.join(st, "reported")))
+          == sorted(["1001", "1999", "coach-r9", jobs.HEARD,
+                     "relay-r0.completed"])
+          and open(os.path.join(st, "reported", jobs.HEARD)).read()
+          == "abc123\n"
+          and not os.path.exists(os.path.join(old, "live", "jobs.reported"))
+          and not os.path.exists(os.path.join(st, "jobs.reported"))
+          and not os.path.exists(os.path.join(old, "live", "coach.woken")))
+    check("a Colibri task and its claim flag land in relay/state/colibri/, and "
+          "a mission that is not a task stays in live/missions/",
+          sorted(os.listdir(os.path.join(st, "colibri")))
+          == ["coli-a.json", "coli-a.task.1"]
+          and os.listdir(os.path.join(old, "live", "missions"))
+          == ["t0007.json"])
+    before = snapshot(old)
+    check("and a second run changes nothing",
+          jobs.migrate_state(old) == 0 and snapshot(old) == before)
+    check("the new paths are ignored by git",
+          all(git_ok(old, "check-ignore", "-q", rel) for rel in (
+              "relay/state/jobs.jsonl", "relay/state/reported/1001",
+              "relay/state/colibri/coli-a.json"))
+          and subprocess.run(["git", "status", "--porcelain",
+                              "--untracked-files=all"], cwd=old,
+                             stdout=subprocess.PIPE).stdout.strip() == b"")
+
+    # A claim an old writer left behind after the move is still a claim.
+    write(os.path.join(old, "live", "jobs.reported", "relay-r2.failed"), "")
+    check("hearing reads a claim from the old place too",
+          jobs._claim_once(old, "relay-r2.failed") is False
+          and os.path.isfile(os.path.join(st, "reported", "relay-r2.failed")))
+    write(os.path.join(st, "jobs.reported", "3003"), "")
+    check("and so does the poll's claim on a job's ending",
+          jobs._claim(old, "3003", now=time.time()) is False
+          and jobs._claim(old, "3004", now=time.time()) is True)
+
+    # A job submitted before the move ends after it: reported exactly once.
+    write(os.path.join(old, "live", "jobs.jsonl"), json.dumps(
+        {"jobid": "4004", "label": "knn", "submitted": 10.0,
+         "exitfile": "relay/state/k.exit"}) + "\n")
+    write(os.path.join(st, "k.exit"), "0\n")
+    s4 = Slurm()
+    got = jobs.report(old, run=s4, now=1000.0)
+    again = jobs.report(old, run=s4, now=1100.0)
+    with open(os.path.join(old, "live", "inbox", "messages.jsonl"),
+              encoding="utf-8") as fh:
+        woke = [json.loads(x) for x in fh if x.strip()]
+    check("a job registered before the move is reported exactly once",
+          [r["jobid"] for r in got] == ["4004"] and again == []
+          and len(woke) == 1 and "4004" in woke[0]["text"])
+finally:
+    shutil.rmtree(old, ignore_errors=True)
+
+# Every reader calls it first: a bare read finds the old records.
+first = tempfile.mkdtemp(prefix="tutor-firstread-")
+try:
+    write(os.path.join(first, "live", "jobs.jsonl"),
+          json.dumps({"jobid": "5005", "label": "x", "submitted": 1.0}) + "\n")
+    check("a reader migrates first: `records` sees the old registry, moved",
+          list(jobs.records(first)) == ["5005"]
+          and os.path.isfile(os.path.join(first, "relay", "state",
+                                          "jobs.jsonl"))
+          and not os.path.exists(os.path.join(first, "live", "jobs.jsonl")))
+finally:
+    shutil.rmtree(first, ignore_errors=True)
+
+
+# --- TRD-EHR's whole report history over its old claims wakes nothing ------------
+ARCHIVE = os.path.expanduser(
+    "~/Archive/atlas-migration/2026-10-07/live-dirs.tgz")
+TRD = [rel for rel in ("projects/TRD-EHR", "research/TRD-EHR")
+       if os.path.isdir(os.path.join(REPO, rel, "relay", "reports"))]
+if not os.path.isfile(ARCHIVE) or not TRD:
+    print("ok   (skipped: no %s here, so TRD-EHR's old claims cannot be "
+          "read)" % ("live-dirs.tgz" if TRD else "TRD-EHR"))
+else:
+    import tarfile
+    trd_rel = TRD[0]
+    hist = tempfile.mkdtemp(prefix="tutor-trdhear-")
+    try:
+        def subject_copy(name):
+            """A repository holding TRD-EHR's requests and reports, committed
+            over an empty base, and the base's sha."""
+            top = os.path.join(hist, name)
+            ws = os.path.join(top, trd_rel)
+            os.makedirs(ws)
+            git(top, "init", "-q", "-b", "main")
+            git(top, "config", "user.email", "t@example.com")
+            git(top, "config", "user.name", "t")
+            write(os.path.join(top, ".gitignore"), "**/relay/state/\nlive/\n")
+            git(top, "add", "-A")
+            git(top, "commit", "-q", "-m", "base")
+            base_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=top,
+                                      stdout=subprocess.PIPE,
+                                      universal_newlines=True).stdout.strip()
+            for part in ("requests", "reports"):
+                shutil.copytree(os.path.join(REPO, trd_rel, "relay", part),
+                                os.path.join(ws, "relay", part))
+            for f in ("tutorboard.json", "threads.json"):
+                if os.path.isfile(os.path.join(REPO, trd_rel, f)):
+                    shutil.copy(os.path.join(REPO, trd_rel, f),
+                                os.path.join(ws, f))
+            git(top, "add", "-A")
+            git(top, "commit", "-q", "-m", "TRD-EHR's report history")
+            return ws, base_sha
+
+        def woken(ws):
+            try:
+                with open(os.path.join(ws, "live", "inbox", "messages.jsonl"),
+                          encoding="utf-8") as fh:
+                    return [x for x in fh if x.strip()]
+            except OSError:
+                return []
+
+        ended = [n for n in os.listdir(os.path.join(REPO, trd_rel, "relay",
+                                                    "reports"))
+                 if n.endswith(".json") and json.load(open(os.path.join(
+                     REPO, trd_rel, "relay", "reports", n))).get("state")
+                 in jobs.ENDED_REPORTS]
+
+        # The control: with no claims, every ended report in the range wakes.
+        bare, base_sha = subject_copy("bare")
+        write(os.path.join(bare, "relay", "state", "reported", jobs.HEARD),
+              base_sha + "\n")
+        jobs.hear(bare, now=1.0)
+        check("with no claims, hearing the whole history wakes every ended "
+              "report (%d)" % len(ended), len(woken(bare)) == len(ended) > 0)
+
+        # The real thing: the archive's old claims, in live/jobs.reported/.
+        ws, base_sha = subject_copy("claimed")
+        with tarfile.open(ARCHIVE, "r:gz") as tar:
+            want = [m for m in tar.getmembers() if m.isfile()
+                    and m.name.endswith("/TRD-EHR/live/jobs.reported/"
+                                        + os.path.basename(m.name))]
+            for m in want:
+                data = tar.extractfile(m).read()
+                write(os.path.join(ws, "live", "jobs.reported",
+                                   os.path.basename(m.name)),
+                      data.decode("utf-8"))
+        # Heard from before the first report, so every report is in range.
+        write(os.path.join(ws, "live", "jobs.reported", jobs.HEARD),
+              base_sha + "\n")
+        check("the archive holds a claim for every ended TRD-EHR report",
+              sorted(os.path.basename(m.name) for m in want
+                     if not m.name.endswith(jobs.HEARD))
+              == sorted("relay-%s.%s" % (n[:-len(".json")], json.load(open(
+                  os.path.join(REPO, trd_rel, "relay", "reports", n)))
+                  ["state"]) for n in ended))
+        heard = jobs.hear(ws, now=1.0)
+        check("jobs.hear over TRD-EHR's full report history and its old "
+              "live/jobs.reported wakes nothing",
+              heard == [] and woken(ws) == []
+              and not os.path.exists(os.path.join(ws, "live",
+                                                  "jobs.reported")))
+        check("and the claims now sit in relay/state/reported/",
+              len(os.listdir(os.path.join(ws, "relay", "state", "reported")))
+              == len(want))
+        check("and a second hearing wakes nothing either",
+              jobs.hear(ws, now=2.0) == [] and woken(ws) == [])
+    finally:
+        shutil.rmtree(hist, ignore_errors=True)
 
 print()
 if fails:

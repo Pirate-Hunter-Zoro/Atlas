@@ -59,7 +59,7 @@ answering right now has, printed rather than left to a silence.
 A COLIBRI MISSION THAT OUTLIVED ITS NODE READS AS MID-HOP, NOT FAILED, for as
 long as its budget lasts: `carry_verdict` derives that from this record and
 `agent.json` alone. Nothing picks such a mission up any more -- Colibri runs only
-as relay tasks (see "the task queue" below) -- so this is the read side of
+as relay tasks (the queue in `colibri.py`) -- so this is the read side of
 records already on disk. `MISSION_LIFE`, `CARRY_HOPS`, `CARRY_BACKOFF` and
 `STALL_CAP` bound it.
 
@@ -104,10 +104,6 @@ CARRY_HOPS = 6
 # in a daemon's locals: a backoff a hop resets is not one, and a refused
 # `agent start` -- colibri's `exclusive` is the routine one -- retries under it.
 CARRY_BACKOFF = 300.0
-
-# A carried turn that ends faster than this did nothing. On this engine any real
-# turn spends minutes in prefill before it can even fail.
-CARRY_FLOOR = 120.0
 
 # How many pick-ups may produce nothing before the mission is spent. Without it
 # a resume that dies instantly is a tight fail-retry loop for the whole budget.
@@ -155,23 +151,12 @@ FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
           "turn_at", "session",
           # The thread of that workspace the mission works on, the same id a
           # job registered with `board job` carries. "" where none was named.
-          "thread",
-          # A Colibri task's label: an optional slug naming the work, the
-          # same one its relay request carries. "" where none was named.
-          "label",
-          # A COLIBRI TASK is a mission record with `kind: "task"`, kept in the
-          # libr-local-llm workspace's ignored `live/missions/` -- see "the
-          # task queue" below. `brief` is the whole task, `workspace` the
-          # `family/name` it runs in, `queue` its state, `attempts` how many
-          # generations began it, `deaths` how many of those died under it,
-          # `gen` the job running it, and `request` the relay request that
-          # filed it. `baseline` is what git already saw changed in that
-          # workspace when it was filed, `out` where its client's output went
-          # (behind the fence), and `checked`, `changed` and `relay` the
-          # relay's check once it was done: when, how many paths git could
-          # see changed, and its public `RELAY:` lines.
-          "kind", "brief", "workspace", "queue", "attempts", "deaths", "gen",
-          "request", "baseline", "out", "checked", "changed", "relay")
+          "thread", "kind")
+
+# A Colibri task record (`colibri.py` keeps the queue, in
+# `relay/state/colibri/`). One still in `live/missions/` is not a mission of
+# this workspace's board, and `jobs.migrate_state` moves it out.
+TASK = "task"
 
 
 def _dir(root):
@@ -276,7 +261,11 @@ def newest_card_at(root):
 
 
 def stored(root):
-    """Every mission record on disk in one workspace, newest dispatch first."""
+    """Every mission record on disk in one workspace, newest dispatch first.
+
+    A Colibri task record not yet moved out (`TASK`) is not one: it is never
+    judged, frozen or pruned here, so nothing rewrites it without its queue
+    fields before `jobs.migrate_state` moves it."""
     out = []
     try:
         names = os.listdir(_dir(root))
@@ -292,6 +281,8 @@ def stored(root):
         except (OSError, ValueError):
             continue
         if not isinstance(rec, dict) or not ID_RE.match(str(rec.get("id") or "")):
+            continue
+        if rec.get("kind") == TASK:
             continue
         out.append(rec)
     out.sort(key=lambda r: -float(r.get("at") or 0))
@@ -463,7 +454,7 @@ def carry_verdict(rec, said, now=None):
     now = float(now or time.time())
     # The one assistant whose client is a step of somebody else's allocation.
     # A queued task is not carried by a board: its generation's clone resumes
-    # it -- see "the task queue" below.
+    # it -- see the queue in `colibri.py`.
     if rec.get("agent") != "colibri" or rec.get("kind") == TASK:
         return "no"
     why = _spent(rec, now)
@@ -855,171 +846,3 @@ def forget():
     """Drop the cache, because something just changed it: a dispatch, or a look."""
     _CACHE["at"] = 0.0
     _CACHE["value"] = None
-
-
-# ---------------------------------------------------------------------------
-# the task queue: Colibri on demand
-# ---------------------------------------------------------------------------
-# A COLIBRI TASK IS A MISSION RECORD WITH `kind: "task"`, and the queue is those
-# records. They live in the libr-local-llm workspace's `live/missions/`, which
-# git ignores, because a task may name session content. A task has a label, a
-# brief, a state (`queue`), an attempt count, and the conversation name
-# (`session`) that `coli-code` resumes by.
-#
-# The generation drives it, not a board: it claims the oldest queued task, runs
-# it, and marks it. A generation that dies leaves its task `running` with its
-# job id in `gen`; the clone that the death released finds it, and either
-# resumes it or, on the third death, fails it. `colibri.py` is the driver; what
-# is here is the record and the pure rule.
-
-TASK = "task"
-TASK_STATES = ("queued", "running", "done", "failed")
-
-# Deaths on one task before it is failed and not retried.
-DEATH_CAP = 3
-
-
-def task_id(now=None):
-    """`coli-<date>-<time>-<4 hex>`, which `ID_RE` accepts."""
-    now = float(now or time.time())
-    return "coli-%s-%s" % (time.strftime("%Y%m%d-%H%M%S", time.localtime(now)),
-                           os.urandom(2).hex())
-
-
-def file_task(root, label, brief, workspace, request="", now=None,
-              baseline=None):
-    """Write one queued task into `root/live/missions/`. The record, or None.
-    `baseline` is `relay.workspace_changes` of its workspace, or None."""
-    import uuid
-    now = float(now or time.time())
-    rec = {
-        "id": task_id(now), "kind": TASK, "agent": "colibri",
-        "task": (brief or "").strip()[:TASK_CHARS],
-        "brief": (brief or "").strip(), "label": label or "",
-        "workspace": workspace or "", "request": request or "",
-        "queue": "queued", "attempts": 0, "deaths": 0, "gen": "",
-        "session": str(uuid.uuid4()), "at": now, "from": "colibri queue",
-        "host": machine.node_name(), "ended": "", "ended_at": 0.0,
-        "reason": "", "looked": 0.0, "baseline": baseline, "out": "",
-        "checked": 0.0, "changed": 0, "relay": [],
-    }
-    return rec if write(root, rec) else None
-
-
-def tasks(root):
-    """Every task in the queue, OLDEST first: the order they are worked in."""
-    out = [r for r in stored(root) if r.get("kind") == TASK]
-    out.sort(key=lambda r: _stamp(r.get("at")))
-    return out
-
-
-def next_task(root):
-    """The oldest queued task, or None."""
-    for rec in tasks(root):
-        if rec.get("queue") == "queued":
-            return rec
-    return None
-
-
-def claim_task(root, rec, gen, now=None):
-    """Take a queued task for generation `gen`, once. The record, or None.
-
-    `claim_carry`'s shape: an exclusive create named for the attempt, so two
-    generations overlapping under the warm chain never both start it, and the
-    state read back off disk so a stale copy cannot claim a task that moved.
-    """
-    now = float(now or time.time())
-    mid = str(rec.get("id") or "")
-    if not ID_RE.match(mid):
-        return None
-    out = _current(root, rec)
-    if out.get("queue") != "queued":
-        return None
-    attempt = int(out.get("attempts") or 0) + 1
-    flag = os.path.join(_dir(root), "%s.task.%d" % (mid, attempt))
-    try:
-        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    except OSError:
-        return None
-    try:
-        os.write(fd, ("%s %f\n" % (gen, now)).encode("utf-8"))
-    finally:
-        os.close(fd)
-    out.update(queue="running", gen=str(gen), attempts=attempt, turn_at=now)
-    return out if write(root, out) else None
-
-
-def finish_task(root, rec, ok, reason="", now=None):
-    """A task ended on its own terms: `done`, or `failed` and not retried."""
-    now = float(now or time.time())
-    out = _current(root, rec)
-    out.update(queue="done" if ok else "failed", reason="" if ok else reason,
-               ended_at=now, turn_at=0.0)
-    write(root, out)
-    return out
-
-
-def requeue_task(root, rec, death=False, reason="", now=None):
-    """Put a task back in the queue, counting a death where there was one."""
-    out = _current(root, rec)
-    out.update(queue="queued", gen="", turn_at=0.0)
-    if death:
-        out["deaths"] = int(out.get("deaths") or 0) + 1
-    if reason:
-        out["reason"] = reason
-    write(root, out)
-    return out
-
-
-def task_verdict(rec, alive, ended_clean):
-    """What a running task's generation leaving means. PURE.
-
-        alive        job ids Slurm still lists
-        ended_clean  job id -> did that generation end on purpose (its exit
-                     file says 0: an idle exit, or the warm chain's handover)
-
-    `"leave"` -- not running, or its generation is still there. `"requeue"` --
-    the generation ended on purpose with the task still running, which costs
-    the task nothing. `"death"` -- it died; resume it on the next generation.
-    `("failed", reason)` -- that was its third death, and it is not retried.
-    """
-    if rec.get("queue") != "running":
-        return "leave"
-    gen = str(rec.get("gen") or "")
-    if gen and gen in set(str(a) for a in alive):
-        return "leave"
-    if gen and ended_clean(gen):
-        return "requeue"
-    if int(rec.get("deaths") or 0) + 1 >= DEATH_CAP:
-        return ("failed", "Colibri died under this task %d times, so it is "
-                "not retried" % DEATH_CAP)
-    return "death"
-
-
-def recover_tasks(root, alive, ended_clean, now=None):
-    """Apply `task_verdict` to every task. `[(id, verdict)]` for those it moved."""
-    moved = []
-    for rec in tasks(root):
-        v = task_verdict(rec, alive, ended_clean)
-        if v == "leave":
-            continue
-        if v == "requeue":
-            requeue_task(root, rec, now=now)
-        elif v == "death":
-            requeue_task(root, rec, death=True,
-                         reason="its generation died; resumed by the next",
-                         now=now)
-        else:
-            out = finish_task(root, rec, False, v[1], now)
-            out["deaths"] = int(rec.get("deaths") or 0) + 1
-            write(root, out)
-        moved.append((rec.get("id"), v))
-    return moved
-
-
-def update_task(root, rec, **fields):
-    """Set `fields` on a task as it is on disk now. The record."""
-    out = _current(root, rec)
-    out.update(fields)
-    write(root, out)
-    return out

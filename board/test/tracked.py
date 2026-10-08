@@ -144,6 +144,38 @@ for _ws in sorted(os.listdir(HERE)) if HERE else []:
                  "in without narrowing it." % _rel)
 
 
+# ---- A SUBJECT'S RUNTIME STATE IS IGNORED, THE COLIBRI QUEUE ABOVE ALL -------
+#
+# `relay/state/` holds the Colibri queue -- each task's whole brief, which may
+# name session content, and where its client's output went -- beside the job
+# registry and the claims (`jobs.py`). `**/relay/state/` at the root keeps it
+# out; a subject's own .gitignore must not let any of it back in. Asked of git,
+# on paths that do not exist, in every subject.
+_STATE = (os.path.join("relay", "state", "colibri", "coli-x.json"),
+          os.path.join("relay", "state", "colibri", "coli-x.task.1"),
+          os.path.join("relay", "state", "jobs.jsonl"),
+          os.path.join("relay", "state", "reported", "relay.heard"))
+_SEEN_STATE = 0
+for _fam in ("courses", "projects", "research", "practice"):
+    _top = os.path.join(HERE, _fam) if HERE else ""
+    for _name in sorted(os.listdir(_top)) if _top and os.path.isdir(_top) else []:
+        if _name.startswith(".") or not os.path.isdir(os.path.join(_top, _name)):
+            continue
+        for _p in _STATE:
+            checked += 1
+            _SEEN_STATE += 1
+            _rel = os.path.join(_fam, _name, _p)
+            if subprocess.run(["git", "check-ignore", "-q", "--no-index", _rel],
+                              cwd=HERE, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode != 0:
+                fail("GIT CAN SEE %s. relay/state/ is a subject's runtime "
+                     "state: the Colibri queue's briefs, the job registry and "
+                     "the claims. `**/relay/state/` in the root .gitignore "
+                     "keeps it out; something has let it back in." % _rel)
+ok("%d relay/state/ paths across every subject -- the Colibri queue, the job "
+   "registry, the claims -- asked of git, and ignored" % _SEEN_STATE)
+
+
 # ---- A COURSE IS TRACKED CONTENT UNDER THE ROOT'S RULES ---------------------
 #
 # A course is a directory in Atlas like any project, so the root .gitignore is

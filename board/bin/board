@@ -2969,12 +2969,6 @@ def _job_submitted(root, label, got):
           % (rec["jobid"], " as `%s`" % label if label else "",
              os.path.relpath(where, root),
              "; its log is " + rec["log"] if rec.get("log") else ""))
-    if jobs.ignored(root, os.path.relpath(where, root)):
-        print("BUT GIT CANNOT SEE %s. Add `!%s` to %s, after the rule that "
-              "hides it." % (os.path.relpath(where, root),
-                             os.path.relpath(where, root),
-                             os.path.join(root, ".gitignore")),
-              file=sys.stderr)
     return 0
 
 
@@ -3207,7 +3201,7 @@ def cmd_colibri(live, args):
         board colibri --show            the queue, oldest first (on the cluster)
 
     ON THE CLUSTER it writes the task into the queue -- libr-local-llm's
-    ignored `live/missions/` -- and starts an on-demand generation if none is
+    ignored `relay/state/colibri/` -- and starts an on-demand generation if none is
     queued or running. The generation loads (about 68 minutes cold), works the
     queue one task at a time in the workspace each task names, and exits once
     the queue has been empty for 20 minutes. A generation that dies is replaced
@@ -3223,12 +3217,12 @@ def cmd_colibri(live, args):
     and stays on the cluster, uncommitted. A relay report carries only state,
     counts and the task's public `RELAY:` lines.
     """
-    from tutorboard import colibri, missions
+    from tutorboard import colibri
     root = live.root
     words = list(args)
     if words[:1] == ["--show"]:
         q = colibri.queue_root()
-        recs = missions.tasks(q) if q else []
+        recs = colibri.tasks(q) if q else []
         if not recs:
             print("the Colibri queue is empty.")
             return 0

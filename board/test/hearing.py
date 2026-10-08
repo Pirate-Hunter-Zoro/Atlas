@@ -96,7 +96,7 @@ try:
     ws = os.path.join(mac, "research", "Proj")
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     # Anchored: an unanchored `results/` would hide `exports/results/` too.
-    write(os.path.join(ws, ".gitignore"), "live/\n/results/\n")
+    write(os.path.join(ws, ".gitignore"), "live/\n/results/\nrelay/state/\n")
     write(os.path.join(ws, "slurm", "sweep.sbatch"), RECIPE)
     write(threads.path(ws), json.dumps(SPINE))
     git(mac, "add", "-A")
@@ -142,7 +142,7 @@ try:
     git(mac, "push", "-q")
     check("the request is committed", ok)
     check("filing records the heard baseline, in an ignored ledger",
-          os.path.isfile(os.path.join(ws, "live", "jobs.reported",
+          os.path.isfile(os.path.join(ws, "relay", "state", "reported",
                                       jobs.HEARD))
           and git(mac, "status", "--porcelain").strip() == "")
     threads._cache.clear()
@@ -209,7 +209,7 @@ try:
 
     gitops.hear_pass(stamp=stamp, now=1600, force=True)
     check("heard once: the next pass drops nothing", len(inbox(ws)) == 1)
-    shutil.rmtree(os.path.join(ws, "live", "jobs.reported"))
+    shutil.rmtree(os.path.join(ws, "relay", "state", "reported"))
     git(mac, "commit", "-q", "--allow-empty", "-m", "elsewhere")
     jobs.hear(ws)
     check("a lost ledger is a new baseline, not a second wake",
@@ -225,7 +225,7 @@ try:
 
     # --- a refusal in the first pull after filing --------------------------------
     req2 = dict(req, id="2026-10-03-knn-again", filed=1700.0)
-    shutil.rmtree(os.path.join(ws, "live", "jobs.reported"))
+    shutil.rmtree(os.path.join(ws, "relay", "state", "reported"))
     jobs.file_request(ws, req2, push=False)
     git(mac, "push", "-q")
     cluster_reports({"id": req2["id"], "state": "refused",
