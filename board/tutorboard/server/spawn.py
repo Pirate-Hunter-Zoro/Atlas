@@ -37,18 +37,25 @@ from .. import paths
 _NO_STDIN = subprocess.DEVNULL
 
 
-def board_cli(repo, args, timeout=90, given=None):
+def board_cli(repo, args, timeout=90, given=None, session=None):
     """Drive the board command line from inside the server, for /switch.
+
+    `repo` is the directory it runs in. `session` is the session directory
+    it works on (`TUTORBOARD_SESSION`); a route serving a stored session
+    passes its own, so the command never reaches another.
 
     `given` is text for its stdin (`board thread add` reads the thread there);
     without it stdin is closed, for the reason `_NO_STDIN` gives.
     """
     cli = os.path.join(paths.TOOL, "bin", "board")
+    env = None
+    if session:
+        env = dict(os.environ, TUTORBOARD_SESSION=session)
     try:
         p = subprocess.run([sys.executable, cli] + list(args),
                            stdin=_NO_STDIN if given is None else None,
                            input=None if given is None else given.encode("utf-8"),
-                           cwd=repo, stdout=subprocess.PIPE,
+                           cwd=repo, stdout=subprocess.PIPE, env=env,
                            stderr=subprocess.STDOUT, timeout=timeout)
         return p.returncode, p.stdout.decode("utf-8", "replace")
     except (OSError, subprocess.TimeoutExpired) as exc:

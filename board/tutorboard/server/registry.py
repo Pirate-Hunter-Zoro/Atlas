@@ -2,9 +2,17 @@
 first use and dropped after IDLE_SECONDS without an SSE client.
 
     Registry(atlas).get(sid)      the Entry for `sid`, or None
-    Registry(atlas).subject(id)   a Repo for a subject, for the unprefixed
-                                  library routes (`?subject=`)
+    Registry(atlas).subject(id)   a sessionless Repo over a subject, for the
+                                  unprefixed subject routes (`?subject=`)
+    Registry(atlas).atlas_repo()  a sessionless Repo over the Atlas root, for
+                                  the cross-subject routes
     Registry(atlas).sweep()       drop idle entries; `sweep_loop` runs it
+    runner_route(subject, line)   hand a line to the tutor of another subject
+
+A SESSIONLESS Repo has no session directory on disk: its `session` is
+`sessions/.none`, which `sessions.ID_RE` never matches. Document ink goes to
+its root's `.ink/`; a route that would write a card, a turn or an inbox line
+refuses it or goes through `runner_route`.
 
 An entry's Repo roots at the session's bound subject, or at the Atlas root
 while it is unbound. A bind changes session.json and nothing else, so `get`
@@ -19,6 +27,7 @@ import time
 
 from .. import sessions, subjects
 from ..course import repo as course_repo
+from ..lesson import turns
 from .hub import Hub
 from .tikz import TikzWorker
 
@@ -113,31 +122,41 @@ class Registry(object):
             except Exception:                                # noqa: BLE001
                 pass
 
-    # -- the unprefixed library ---------------------------------------------
-    def subject(self, ident, create=False, title=None):
-        """A Repo for the subject `ident` names, or None when it names none.
+    # -- the unprefixed routes ---------------------------------------------
+    def sessionless(self, root):
+        """A Repo over `root` with no session: reads, and document ink in
+        `<root>/.ink/`. Nothing it is handed may write a session."""
+        return sessionless(root, self.atlas)
 
-        The newest open session bound to it serves, so ink and asks land
-        where that session sees them. With none: `create` makes one, bound to
-        it (an ask from the library is the owner asking); otherwise a Repo
-        over the subject with no session directory on disk, for reads only.
-        """
+    def subject(self, ident):
+        """A sessionless Repo over the subject `ident` names, or None when it
+        names none. An ask from it reaches a session through `runner_route`."""
         found = subjects.find(ident, self.atlas) if ident else None
-        if not found:
-            return None
-        sid = newest_open(self.atlas, found["id"])
-        if not sid and create:
-            sid = open_bound(self.atlas, found["id"],
-                             title or "%s: library" % found["name"])
-        if sid:
-            entry = self.get(sid)
-            if entry:
-                return entry.repo
-        none = os.path.join(sessions.store(self.atlas), ".none")
-        repo = course_repo.Repo(found["root"], session=none, create=False)
-        repo.doc_ink = os.path.join(repo.root, ".ink")
-        repo.tikz = os.path.join(sessions.store(self.atlas), ".tikz")
-        return repo
+        return self.sessionless(found["root"]) if found else None
+
+    def atlas_repo(self):
+        """A sessionless Repo over the Atlas root, for the cross-subject routes."""
+        return self.sessionless(self.atlas)
+
+
+# The session directory of a sessionless Repo. Never created by a write: a
+# route handed one refuses card ink, turns and inbox lines.
+NONE = ".none"
+
+
+def sessionless(root, atlas):
+    repo = course_repo.Repo(root, session=os.path.join(sessions.store(atlas), NONE),
+                            create=False)
+    repo.doc_ink = os.path.join(repo.root, sessions.INK)
+    # The one TikZ cache every session shares (`server/tikz.py`).
+    repo.tikz = os.path.join(sessions.store(atlas), ".tikz")
+    repo.sessionless = True
+    return repo
+
+
+def is_sessionless(repo):
+    """Was `repo` made by `sessionless`, i.e. is there no session to write?"""
+    return bool(getattr(repo, "sessionless", False))
 
 
 def newest_open(atlas, subject):
@@ -154,3 +173,56 @@ def open_bound(atlas, subject, title):
     where = sessions.path(rec["id"], atlas)
     course_repo.Repo(atlas, session=where, create=False).set_state(subject=subject)
     return rec["id"]
+
+
+# ---------------------------------------------------------------------------
+# the one way into another subject's tutor
+# ---------------------------------------------------------------------------
+def runner_route(subject, line, base=None, ask="", turn=False, before=None):
+    """Hand `line` to the tutor of `subject`. A STUB: T21 replaces it with
+    the runner's queue.
+
+    Every route that asks a subject other than its own session's for work --
+    a library [revise] or [rework], a meeting deck, a deck from sittings, a
+    write-up commissioned from the front door, a mission -- calls this and
+    nothing else. The line goes to the newest open session bound to
+    `subject`; with none, to a new session bound to it, titled
+    `<subject name>: <ask>`.
+
+    `line` is the inbox text, or a record whose `text`, `signal` and other
+    keys are kept. Its `id` is the session's next turn id unless it has one.
+    `before(repo, id)` runs once the session is chosen and before anything
+    is written into it; whatever it raises propagates. `turn` also writes the
+    record into the session's transcript, as the student's.
+
+    Returns {"session": id, "repo": Repo, "id": turn id, "record": record}.
+    Raises LookupError when `subject` names no subject.
+    """
+    from . import spawn                                  # local: spawn is heavy
+    base = os.path.abspath(base or subjects.root())
+    found = subjects.find(subject, base) if subject else None
+    if not found:
+        raise LookupError("no subject %r" % (subject,))
+    sid = newest_open(base, found["id"])
+    if not sid:
+        title = "%s: %s" % (found["name"], (ask or "an ask").strip()[:80])
+        sid = open_bound(base, found["id"], title)
+    repo = sessions.repo(sid, base)
+    rec = dict(line) if isinstance(line, dict) else {"text": str(line or "")}
+    tid = rec.get("id") or turns.next_turn_id(repo)
+    now = time.time()
+    record = {"id": tid, "rev": 0, "kind": "text", "answers": None, "t": now,
+              "iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
+              "from": "student", "text": "", "signal": None, "read": False}
+    record.update(rec)
+    record["id"] = tid
+    if before:
+        before(repo, tid)
+    if turn:
+        record["rev"] = turns.turn_revision(repo, tid)
+        turns.write_turn(repo, record)
+    os.makedirs(repo.inbox, exist_ok=True)
+    with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+    spawn.wake_tutor(repo)
+    return {"session": sid, "repo": repo, "id": tid, "record": record}

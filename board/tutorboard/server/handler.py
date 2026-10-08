@@ -35,8 +35,18 @@ ICON = re.compile(r"\A/(apple-touch-icon|icon-\d+)\.png\Z")
 
 # EVERY ROUTE SERVED WITHOUT A `/s/<id>` PREFIX, and how. Anything else
 # unprefixed is 404 on a session server. A pattern ending in `*` is a prefix.
-# `library` routes name their subject with `?subject=`; T17 adds the rest of
-# the cross-subject routes here.
+# Each route module's own table says which class each of its routes is in.
+#
+#   subject   a subject's own routes. Unprefixed, `?subject=<id>` names the
+#             subject and a sessionless Repo over it serves; under
+#             `/s/<id>/` the session's own subject does.
+#   subject?  the same, and with no `?subject=` the Atlas root serves (the
+#             meeting deck's ink and pages).
+#   atlas     cross-subject: unprefixed only, served by a sessionless Repo over
+#             the Atlas root, and 404 under `/s/<id>/`.
+#
+# The rest are the handler's own. An ask any of these makes of a subject's
+# tutor goes through `registry.runner_route`.
 UNPREFIXED = (
     ("GET", "/", "home"),
     ("GET", "/index.html", "home"),
@@ -53,16 +63,20 @@ UNPREFIXED = (
     ("GET", "/notices.json", "notices"),
     ("GET", "/library", "page"),
     ("GET", "/library/", "page"),
-    ("GET", "/library.json", "library"),
-    ("GET", "/library/stamp", "library"),
-    ("GET", "/library/results.json", "library"),
-    ("GET", "/library/view/*", "library"),
-    ("GET", "/library/ledger/*", "library"),
-    ("POST", "/library/ledger/*", "library"),
-    ("POST", "/library/feedback", "library"),
+    ("GET", "/library.json", "subject"),
+    ("GET", "/library/stamp", "subject"),
+    ("GET", "/library/results.json", "subject"),
+    ("GET", "/library/view/*", "subject"),
+    ("GET", "/library/ledger/*", "subject"),
+    ("POST", "/library/ledger/*", "subject"),
+    ("POST", "/library/feedback", "subject"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
 )
+
+# The route classes UNPREFIXED names.
+SUBJECT_CLASSES = ("subject", "subject?")
+CROSS = "atlas"
 
 
 def unprefixed_route(method, path):
@@ -81,8 +95,8 @@ def unprefixed_route(method, path):
 
 
 class _Idle(object):
-    """The hub of a library read with no session open on its subject: a
-    dirty mark with nobody to tell."""
+    """The hub of an unprefixed request, which has no session: a dirty mark
+    with nobody to tell."""
 
     class worker(object):
         dirty = threading.Event()
@@ -300,8 +314,11 @@ class Handler(BaseHTTPRequestHandler):
         path, query = scoped
         if self.repo is None:
             return self.unprefixed("GET", path, query)
-        if path in ("/", "/board", "/board/") and getattr(self.server, "registry", None):
-            return self.send_file(os.path.join(WEB, "board.html"))
+        if getattr(self.server, "registry", None):
+            if path in ("/", "/board", "/board/"):
+                return self.send_file(os.path.join(WEB, "board.html"))
+            if unprefixed_route("GET", path) == CROSS:
+                return self.not_in_session(path)
         return self.session_get(self.repo, path)
 
     def session_get(self, repo, path):
@@ -354,14 +371,25 @@ class Handler(BaseHTTPRequestHandler):
         path, query = scoped
         if self.repo is None:
             return self.unprefixed("POST", path, query)
+        if (getattr(self.server, "registry", None)
+                and unprefixed_route("POST", path) == CROSS):
+            return self.not_in_session(path)
         return self.session_post(self.repo, path)
+
+    def not_in_session(self, path):
+        """A cross-subject route asked for under `/s/<id>/`: it is served
+        unprefixed only."""
+        return self.send_json({"ok": False, "error": "%s is served outside a "
+                               "session, without /s/<id>" % path}, status=404)
 
     def session_post(self, repo, path):
         # Before anything writes. The directories were made when this process
         # started and a pull can have removed one since -- see `Repo.ensure_dirs`.
         # Ten stat calls against a route that is about to write a PNG.
         repo.ensure_dirs()
+        return self.post_routes(repo, path)
 
+    def post_routes(self, repo, path):
         for mod in (routes.saving, routes.library, routes.lesson, routes.writing,
                     routes.machines):
             answered = mod.post(self, repo, path)
@@ -407,22 +435,30 @@ class Handler(BaseHTTPRequestHandler):
                 for one in subjects.all(registry.atlas)]})
         if how == "notices":
             return self.send_json({"ok": True, "notices": []})
-        # how == "library": the subject is named by `?subject=`.
-        ident = (query.get("subject") or [""])[0]
-        if not ident:
-            return self.send_json({"ok": False, "error": "name the subject: ?subject=<id>"},
-                                  status=400)
-        repo = registry.subject(ident, create=(method == "POST"))
-        if repo is None:
-            return self.send_json({"ok": False, "error": "no such subject"}, status=404)
-        entry = registry.get(os.path.basename(repo.session)) if repo.stored else None
-        self.repo, self.hub = repo, (entry.hub if entry else _Idle())
+        if how == "meeting":
+            return self.send_file(os.path.join(WEB, "meeting.html"))
+        if how in SUBJECT_CLASSES:
+            ident = (query.get("subject") or [""])[0]
+            if ident:
+                repo = registry.subject(ident)
+                if repo is None:
+                    return self.send_json({"ok": False, "error": "no such subject"},
+                                          status=404)
+            elif how == "subject?":
+                repo = registry.atlas_repo()
+            else:
+                return self.send_json({"ok": False,
+                                       "error": "name the subject: ?subject=<id>"},
+                                      status=400)
+        else:
+            # how == CROSS
+            repo = registry.atlas_repo()
+        # A sessionless Repo: nothing here may be made under it, so the
+        # directories `session_post` re-asserts are not.
+        self.repo, self.hub = repo, _Idle()
         if method == "POST":
-            return self.session_post(repo, path)
-        answered = routes.library.get(self, repo, path)
-        if answered is routes.NOT_MINE:
-            return self.send_json({"ok": False, "error": "not found"}, status=404)
-        return answered
+            return self.post_routes(repo, path)
+        return self.session_get(repo, path)
 
     def new_session(self, registry):
         """POST /sessions/new: an unbound session in teach, titled by the body's
