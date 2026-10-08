@@ -40,8 +40,11 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, manuscript, sense
+from tutorboard import sense
 from tutorboard.course import library
+from tutorboard.course.repo import Repo
+from tutorboard.server import spawn
+from tutorboard.server.routes import library as library_route
 
 _tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
 tutorcli = importlib.util.module_from_spec(
@@ -238,155 +241,85 @@ check("and says the lesson on the board is somebody else's",
       "NOT PART OF THE LESSON" in line and "live/cards/" in line)
 
 # ---------------------------------------------------------------------------
-# the other kind, which the board does not revise itself
+# A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT, and rebuilt by `board build`
 # ---------------------------------------------------------------------------
-tmp = tempfile.mkdtemp(prefix="tutor-revising-")
-os.makedirs(os.path.join(tmp, "projects", "Paper-Writer"), exist_ok=True)
-with open(os.path.join(tmp, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "projects", "name": "Projects"},
-                            {"id": "research", "name": "Research"}]}, fh)
-with open(os.path.join(tmp, "projects", "Paper-Writer", "tutorboard.json"), "w",
-          encoding="utf-8") as fh:
-    json.dump({"name": "Paper-Writer"}, fh)
-work = os.path.join(tmp, "research", "Trial")
-os.makedirs(os.path.join(work, "manuscripts", "feedback"))
+# TRD-EHR's shape: `paper1-trd-prediction/manuscript.md` is the source, and the
+# .pdf and .docx beside it are built from it. A note from the library wakes a
+# `[revise]` turn, and that turn is told the one builder there is. The provider
+# is a fake script that records the prompt it was handed.
+tmp = os.path.realpath(tempfile.mkdtemp(prefix="tutor-revising-"))
+work = os.path.join(tmp, "research", "TRD-EHR")
+paper = os.path.join(work, "paper1-trd-prediction")
+os.makedirs(paper)
 with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:
-    json.dump({"name": "Trial"}, fh)
-with open(os.path.join(work, "manuscripts", "manuscript.md"), "w",
-          encoding="utf-8") as fh:
-    fh.write("# A delivered manuscript\n")
-note = os.path.join("manuscripts", "feedback", "manuscript-2026-09-16-v1.md")
-with open(os.path.join(work, note), "w", encoding="utf-8") as fh:
-    fh.write("# Feedback\n\nSection 3 reports the wrong split.\n")
-
-os.environ["TUTORBOARD_COURSES"] = tmp
-atlas.forget()
+    json.dump({"name": "TRD-EHR"}, fh)
+with open(os.path.join(paper, "manuscript.md"), "w", encoding="utf-8") as fh:
+    fh.write("# TRD prediction from EHR text\n\nSection 3 reports a split.\n")
+for ext in (".pdf", ".docx"):
+    with open(os.path.join(paper, "manuscript" + ext), "wb") as fh:
+        fh.write(b"x" * 30000)
 library.forget()
+doc = [d for d in library.documents(work) if d["stem"] == "manuscript"][0]
+check("TRD-EHR's manuscript is a library document with its Markdown as source",
+      doc["source"] == "paper1-trd-prediction/manuscript.md")
 
-out = manuscript.revise(work, {"title": "A delivered manuscript",
-                               "rel": "manuscripts/manuscript.md"},
-                        note, base=tmp, dry_run=True)
-body = out.get("markdown") or ""
-check("a revision job is assembled rather than refused", out.get("ok") is True)
-check("it carries a Revision section, which a new paper's job does not",
-      manuscript.REVISION in body
-      and manuscript.REVISION not in manuscript.job(work))
-check("the section names the delivered document",
-      "document: manuscripts/manuscript.md" in body)
-check("and the feedback file", "feedback: %s" % note in body)
-check("it says the existing document stands except where the feedback says not",
-      "Revise it" in body and "different paper" in body)
-check("their words are in the job as well, where every parser reads",
-      "wrong split" in body)
-check("and the feedback file is not listed as prose to preserve",
-      note not in body.split(manuscript.REVISION)[-1].split("Manuscript prose")[-1])
-check("a revision with no document named is refused rather than guessed at",
-      manuscript.revise(work, {"title": "x", "rel": ""}, note,
-                        base=tmp, dry_run=True).get("ok") is False)
+repo = Repo(work)
+note = library.write_note(repo, doc["id"], "Section 3 reports the wrong split.",
+                          hand_over=False)
+check("the note is filed beside the manuscript", note.get("ok") is True
+      and note["rel"].startswith("paper1-trd-prediction/feedback/"))
 
-# WHICH ROOT THOSE PATHS ARE RELATIVE TO. The factory is another workspace with its
-# own state directory, and it cannot resolve `manuscripts/manuscript.md` against a
-# root nobody named.
-check("the job names the workspace the two paths are relative to",
-      "workspace: %s" % os.path.realpath(work) in body)
 
-# AND IT NAMES THE SOURCE, NOT THE RENDERING. `library.py` sets `rel` to the PDF
-# wherever there is one, because `rel` is what goes on the glass -- and a revision
-# pointed at a PDF is a revision asked to edit a picture of the document.
-built = manuscript.revise(work, {"title": "A delivered manuscript",
-                                 "source": "manuscripts/manuscript.md",
-                                 "rel": "manuscripts/manuscript.pdf"},
-                          note, base=tmp, dry_run=True).get("markdown") or ""
-check("a document with a PDF beside it is revised by its source",
-      "document: manuscripts/manuscript.md" in built
-      and "document: manuscripts/manuscript.pdf" not in built)
+class _Hub(object):
+    def __init__(self):
+        import threading
+        self.worker = type("W", (), {"dirty": threading.Event()})()
 
-# AND AN EXPLAINER IS NOT ROUTED THROUGH THE FACTORY. It is a manuscript factory
-# with gates for venue, claims, citations and a reporting checklist; "how the
-# serve harness works" has no venue and makes no claims, and every one of those
-# gates would either refuse it or invent something to satisfy itself.
-os.makedirs(os.path.join(work, "writeups", "serve-harness"))
-with open(os.path.join(work, "writeups", "serve-harness", "serve-harness.tex"),
-          "w", encoding="utf-8") as fh:
-    fh.write("\\documentclass{article}\n\\title{How the serve harness works}\n")
-with open(os.path.join(work, "writeups", "serve-harness", "serve-harness.pdf"),
-          "w", encoding="utf-8") as fh:
-    fh.write("x" * 30000)
-library.forget()
-made = {d["title"]: d["made"] for d in library.documents(work)}
-check("a board-made explainer is the board's to revise",
-      made.get("How the serve harness works") == "board")
-src = {d["title"]: (d.get("source"), d["rel"]) for d in library.documents(work)}
-check("and a document carries its source beside the file the glass draws",
-      src.get("How the serve harness works")
-      == ("writeups/serve-harness/serve-harness.tex",
-          "writeups/serve-harness/serve-harness.pdf"))
-check("and a delivered manuscript is the factory's",
-      made.get("A delivered manuscript") == "paper-writer")
 
-# The other half of the seam, which lives in Paper-Writer's own repository. It is
-# checked when it is there, and said plainly when it is not, rather than making
-# this suite depend on another workspace being checked out.
-template = os.path.join(os.path.dirname(ROOT), "projects", "Paper-Writer",
-                        "PROMPT_TEMPLATE.md")
-if os.path.isfile(template):
-    text = open(template, encoding="utf-8").read()
-    check("the template names a revision section for the board to fill in",
-          manuscript.REVISION in text)
-    check("and says to leave it out for a new paper",
-          "LEAVE THIS OUT FOR A NEW PAPER" in text)
-    check("and asks for the workspace those paths are relative to",
-          "workspace:" in text)
-    check("and says the document named is the source rather than a built format",
-          "never a .docx" in text)
-    check("the template names a delivery section for the landing to go in",
-          manuscript.DELIVERY in text)
-    check("and asks for it absolutely, because the factory is another repository",
-          "ABSOLUTE" in text and "landing:" in text)
-else:
-    print("ok   (Paper-Writer is not checked out here; its template is not read)")
+class _H(object):
+    def __init__(self):
+        self.server = type("S", (), {"hub": _Hub()})()
 
-# BOTH SIDES OF THE SEAM, AGAINST EACH OTHER. The board writes a job and the
-# factory parses one, and until this ran the only thing checked was that each of
-# them was self-consistent -- which is how a field gets written in one spelling
-# and read in another for a month without anybody noticing. Skipped where the
-# factory is not checked out, rather than making this suite depend on it.
-writer = os.path.join(os.path.dirname(ROOT), "projects", "Paper-Writer")
-if os.path.isdir(os.path.join(writer, "paperwriter")):
-    sys.path.insert(0, writer)
-    from paperwriter import jobspec as pw_jobspec              # noqa: E402
+    def note(self, _msg):
+        pass
 
-    spec = pw_jobspec.revision(body)
-    check("the factory reads the document out of the job the board wrote",
-          spec.get("document") == "manuscripts/manuscript.md")
-    check("and the feedback file", spec.get("feedback") == note)
-    check("and the workspace those two are relative to",
-          spec.get("workspace") == os.path.realpath(work))
-    check("so the two of them resolve to the file on disk",
-          os.path.isfile(os.path.join(spec["workspace"], spec["document"])))
-    check("and a job for a NEW paper is read as one, which is what makes the "
-          "section the signal",
-          pw_jobspec.revision(manuscript.job(work)) == {})
 
-    # AND THE LANDING, the same way. A sentence of prose said this for months and
-    # nothing read it, so every delivered paper stopped in the factory's own
-    # out-directory and no workspace ever saw one.
-    check("the factory reads the landing out of the job the board wrote",
-          pw_jobspec.landing(body)
-          == os.path.join(os.path.realpath(work), manuscript.LANDING))
-    check("and it is absolute, so the factory can resolve it from its own root",
-          os.path.isabs(pw_jobspec.landing(body)))
-    check("a revision lands in the corrected document's own directory, so the "
-          "correction replaces it rather than sitting beside it",
-          pw_jobspec.landing(body)
-          == os.path.dirname(os.path.join(os.path.realpath(work),
-                                          "manuscripts", "manuscript.md")))
-    check("a new paper's job names a landing too -- it is not the revision signal",
-          pw_jobspec.landing(manuscript.job(work)).startswith(
-              os.path.join(os.path.realpath(work), manuscript.LANDING)))
-    sys.path.remove(writer)
-else:
-    print("ok   (Paper-Writer is not checked out here; its parser is not run)")
+spawn.wake_tutor = lambda r: True
+asked = library_route._revise(_H(), repo, doc, note["rel"],
+                              ledger_rel=note.get("ledger") or "",
+                              ids=note.get("ids") or [])
+check("the board takes the revision itself", asked.get("revise") == "board"
+      and asked.get("asked") is True)
+
+import subprocess                                             # noqa: E402
+waited = subprocess.run(
+    [sys.executable, os.path.join(ROOT, "bin", "board"), "wait", "--timeout",
+     "10", "--force"], cwd=work, stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT, timeout=60)
+out = waited.stdout.decode("utf-8", "replace")
+signal, _ = tutorcli.woken_for(work, out)
+check("the inbox hands the turn a [revise] line", waited.returncode == 0
+      and signal == "revise")
+
+seen = os.path.join(tmp, "prompt.txt")
+fake = os.path.join(tmp, "fake-provider")
+with open(fake, "w", encoding="utf-8") as fh:
+    fh.write("#!/bin/sh\nprintf '%s' \"$2\" > " + seen + "\n")
+os.chmod(fake, 0o755)
+spec = {"headless": [fake, "-p", "{prompt}", "--continue"],
+        "headless_first": [fake, "-p", "{prompt}"]}
+use, template, fresh = tutorcli.turn_plan(spec, 3, 12, signal)
+prompt = template % {"inbox": out.strip(), "handoff": ""}
+with open(os.path.join(tmp, "turn.log"), "a") as log:
+    rc, timed_out = tutorcli.run_turn(
+        [a.replace("{prompt}", prompt) for a in use], work, log, 30)
+got = open(seen, encoding="utf-8").read() if os.path.isfile(seen) else ""
+check("the fake provider ran one fresh turn", rc == 0 and not timed_out
+      and fresh and use == spec["headless_first"])
+check("and that turn is the revision, not the lesson",
+      "[revise]" in got and "NOT PART OF THE LESSON" in got)
+check("and it is told to rebuild the manuscript with board build",
+      "`board build paper1-trd-prediction/manuscript.md`" in got)
 
 print()
 if fails:

@@ -6,12 +6,9 @@ therapy audio in a directory in this repository, fenced from the assistant by
 `ai-config/policy/phi.py`, which matches the directory NAME.
 
 The name has to be refused in every place that walks a workspace and hands what
-it found to something else. `manuscript.py` refused it and `course/reading.py`
-did not, so the manuscript factory could not be pointed at that tree while the
-document drawer offered `phi/stage1/Audio Transcription.pdf` under the id
-`audio-transcription`, rendered it to PNGs, and wrote its address into a tutor's
-prompt beside an instruction to open and read a page. Both modules were right
-about the rule. Only one of them knew it.
+it found to something else. A document the drawer offers is rendered and its
+address goes into a tutor's prompt, so a module with its own list, or none, is
+a module that hands session content to a turn.
 
 So the rule lives here and every module that needs it reads it from here.
 
@@ -21,8 +18,7 @@ all true by accident today and none of them is the rule. `phi/stage1/x.pdf` and
 `a/b/c/phi/x.pdf` are the same refusal.
 
 The failure mode this guards is silent and one-way. A document that reaches a
-tutor has been read; a directory that reaches a manuscript factory has been
-mined. Neither can be taken back afterwards, which is why the check is cheap,
+tutor has been read, and that cannot be taken back afterwards, which is why the check is cheap,
 central, and belt-and-braces over whatever allowlist sits in front of it.
 
 Standard library only, like everything else. `refused` does not touch the
@@ -43,15 +39,14 @@ import time
 # directories, which hold both. `inbox` is where something arrives before
 # anybody has decided what it is.
 #
-# `test/writing_up.py` fails the suite if this stops holding for a manuscript
-# job, and `test/plan.py` if it stops holding for a document.
+# `test/showing.py` fails the suite if a name here stops being refused, and
+# `test/plan.py` if it stops holding for a document.
 NEVER = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
 
 # Where a workspace keeps output worth showing or citing.
 #
-# AN ALLOWLIST, AND IT MUST STAY ONE. This is what a manuscript job is permitted
-# to mine and what the figure drawer is permitted to walk, chosen on somebody's
-# behalf. A blocklist here -- "everything except the obvious ones" -- would hand
+# AN ALLOWLIST, AND IT MUST STAY ONE. This is what the figure drawer is
+# permitted to walk, chosen on somebody's behalf. A blocklist here -- "everything except the obvious ones" -- would hand
 # over whatever a workspace happens to grow next.
 RESULT_DIRS = ("results", "figures", "tables", "artifacts", "analysis")
 
@@ -131,7 +126,7 @@ def forget():
 # Is this PATH inside its workspace's fence
 # ---------------------------------------------------------------------------
 # `refused` matches the name at ANY depth, which is right for the question it
-# answers -- a path about to be handed to a manuscript factory, where the safe
+# answers -- a path about to be offered to a turn, where the safe
 # reading of an ambiguity is the refusing one. Asked of a file a command has
 # been pointed at, that rule refuses too much, and the case is not hypothetical:
 # every slate page and every upload the student sends lands in the board's own

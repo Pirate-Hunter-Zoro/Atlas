@@ -7,7 +7,7 @@ of a deck, and the wrong ones for a workspace with fifty documents in it.
 
 This answers "everything this workspace has written", and the difference is
 GROUPING. **A document is a STEM in a DIRECTORY, in however many formats it
-has.** `manuscript.md` + `manuscript.pdf` + `manuscript.docx` is one document.
+has.** `paper.md` + `paper.pdf` + `paper.docx` is one document.
 `stage1_pipeline_walkthrough.tex` + `.pdf` is one document. The directory is the
 group, and the group is what the library draws a heading from.
 
@@ -39,7 +39,7 @@ import subprocess
 import time
 
 from . import homework, paper, reading
-from .. import atlas, fenced, manuscript
+from .. import atlas, fenced
 
 # What a document can be written in, and what it can be built into. A stem with
 # neither a source nor a PDF is not a document, whatever else is beside it.
@@ -342,14 +342,6 @@ def _record(root, rel, stem, formats, taken):
         # on the glass is not what the file says any more.
         "stale": bool(src and pdf and _mtime(src) > built),
         "pdf": bool(pdf),
-        # Which machinery revises it, and it is the one thing about a document
-        # the library has to know. See `change 6` in HANDOFF.md: an explainer the
-        # board compiled is revised by the board, and a manuscript delivered into
-        # `manuscripts/` is revised by Paper-Writer.
-        "made": ("paper-writer"
-                 if where == manuscript.LANDING
-                 or where.startswith(manuscript.LANDING + "/")
-                 else "board"),
     }
     rec["piece"] = _piece_of(where) is not None
     rec["notes"] = notes(root, rec)
@@ -653,9 +645,8 @@ def ink(repo, doc):
 # ---------------------------------------------------------------------------
 # feedback, written where the document is
 # ---------------------------------------------------------------------------
-# DATED AND VERSIONED, NEVER STAMPED WITH THE TIME -- `manuscript._next_version`
-# is the rule and this is the same rule for a different directory. Tracked, so a
-# note written on an iPad is there on the compute node.
+# DATED AND VERSIONED, NEVER STAMPED WITH THE TIME. Tracked, so a note written
+# on an iPad is there on the compute node.
 NOTE_RE = re.compile(r"^(?P<stem>.*?)(?P<day>\d{4}-\d{2}-\d{2})-v(?P<n>\d+)\.md$")
 
 
@@ -777,7 +768,7 @@ def next_note(root, doc, day=None):
 #
 # TWO IDENTS FOR ONE DOCUMENT, and both are asked. The drawer names a document
 # by `reading.ident` -- the slug of its filename -- and this module names it by
-# where it sits, because a library has to tell two `manuscript.pdf`s apart.
+# where it sits, because a library has to tell two `paper.pdf`s apart.
 # Marking works on the board today, which means under the drawer's name; the
 # library's own name is what a mark made on the library page would carry. A
 # document is one document and its ink is its ink, so a note carries whatever is
@@ -878,9 +869,8 @@ def from_sittings(root, doc):
 def last_round_landed(root, doc):
     """Did the newest round of feedback on this document come back?
 
-    Yes where there is no round yet; where its ledger has answers in it, or
-    the manuscript factory's record of what it applied is beside it; where the
-    turn or the board wrote `## What was changed` under the note; or where the
+    Yes where there is no round yet; where its ledger has answers in it; where
+    the turn or the board wrote `## What was changed` under the note; or where the
     PDF was rebuilt after the note was written (`ledger.landed`). A round whose
     turn died, or whose build failed, is none of those.
     """
@@ -1229,8 +1219,7 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
                        .replace(os.sep, "/")))
     # THE TYPED WORDS ARE WRITTEN ONCE. With a ledger they are the requests
     # below, a paragraph under each id; a second copy up here would double the
-    # note, and the manuscript factory reads only its first few thousand
-    # characters.
+    # note.
     typed_below = bool(led) and any(i.get("kind") == "text" for i in items)
     head += ["", ("What they typed is below, under *The requests, by id*: one "
                   "request to a paragraph.") if typed_below else said or
@@ -1281,7 +1270,7 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
     forget()
     return {"ok": True, "document": doc["id"], "path": target,
             "rel": os.path.relpath(target, root).replace(os.sep, "/"),
-            "made": doc["made"], "title": doc["title"],
+            "title": doc["title"],
             "ask": ask, "purpose": aim,
             "marks": len(found), "keys": [m["key"] for m in found],
             "items": len(items) if led else 0,

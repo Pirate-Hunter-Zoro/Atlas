@@ -16,9 +16,7 @@
         Somebody mid-proof on an iPad is not interrupted by somebody correcting
         a deck, which is the whole reason this is a page rather than a panel.
      3. FEEDBACK IS NOT JUST FILED. One tap writes the note where the document
-        is and asks for the revision, and the reply says which machinery took
-        it -- the board for a document it compiled, the manuscript factory for
-        one it delivered.
+        is and asks for the revision.
      4. A DOCUMENT THAT HAS BEEN MARKED UP HAS ALREADY SAID SOMETHING. Ink on
         its pages goes into the note as the pages it is on and a picture of
         each, so the send button is live with an empty textarea and says so.
@@ -1323,20 +1321,13 @@ function say(doc, page, kind) {
   els.noteSaid.hidden = true;
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
-  /* A document the board did not write is corrected by the factory that did,
-     and an overhaul does not come back through here -- so the ask is not
-     offered rather than offered and refused. `rework_refused` is the rule; this
-     is the same sentence one surface up. */
-  els.askRework.disabled = doc.made === "paper-writer";
-  els.askRework.title = els.askRework.disabled
-    ? "the manuscript factory wrote this one, and an overhaul is asked for there"
-    : "restructure, cut and rewrite it to a new purpose";
+  els.askRework.title = "restructure, cut and rewrite it to a new purpose";
   var dir = noteKind === "directions";
   els.askRevise.hidden = dir;
   els.askRework.hidden = dir;
   if (els.askDirection) els.askDirection.hidden = !dir;
   setAsk(dir ? "direction"
-    : draft && draft.ask === "rework" && !els.askRework.disabled ? "rework" : "revise");
+    : draft && draft.ask === "rework" ? "rework" : "revise");
   noteMerge = [];
   noteSplit = [];
   askSplit();

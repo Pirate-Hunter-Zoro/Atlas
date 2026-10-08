@@ -162,10 +162,16 @@ check("A FENCED DIRECTORY IS REFUSED INSIDE AN ALLOWED TREE",
       not [r for r in rels if "/phi/" in r])
 check("and at any depth under one, not only at the top",
       not [r for r in rels if "/raw/" in r])
-check("which is the same list the manuscript factory refuses",
+check("which is the one list every walker refuses",
       fenced.refused("results/phi/turn_table.png")
       and fenced.refused("results/cohort/raw/waveform.png")
       and not fenced.refused("results/counterfactual_pipeline/x.png"))
+for bad in ("p" + "hi", "data", "inbox", "stage1", "stage2", "raw", "audio",
+            "/a/b/p%s/stage1" % "hi", "x/data/raw"):
+    check("refused by name: %r" % bad, fenced.refused(bad))
+for good in fenced.RESULT_DIRS + ("results/roc",):
+    check("a result directory is not refused: %r" % good,
+          not fenced.refused(good))
 
 check("a file too small to be a plot is not offered",
       not [r for r in rels if "spacer" in r])

@@ -3,8 +3,8 @@
 
 A fixture tree, never the real one: `all`, `find` (with the fallback from a
 moved qualified id to its slug), `kind_of`, `root`, `read_config`, the
-`atlas` shims and the two lookups by slug (`colibri.WORKSPACE`,
-`manuscript.WRITER`).
+`atlas` shims and lookups by slug (`colibri.WORKSPACE`, a project by its
+bare name).
 """
 
 import json
@@ -18,7 +18,7 @@ sys.path.insert(0, ROOT)
 
 os.environ.pop("TUTORBOARD_COURSES", None)
 
-from tutorboard import atlas, colibri, manuscript, subjects  # noqa: E402
+from tutorboard import atlas, colibri, subjects  # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
 fails = []
@@ -158,8 +158,9 @@ try:
     check("colibri.WORKSPACE resolves by slug",
           colibri.queue_root() == llm
           and colibri.log_dir() == os.path.join(llm, "slurm_jobs", "logs"))
-    check("manuscript.WRITER resolves by slug",
-          manuscript.writer_root() == os.path.join(tmp, "projects", "Paper-Writer"))
+    check("a project resolves by its bare slug",
+          (subjects.find("Paper-Writer") or {}).get("root")
+          == os.path.join(tmp, "projects", "Paper-Writer"))
 
     # --- read_config --------------------------------------------------------
     one = mk(tmp, "projects/Conf", {

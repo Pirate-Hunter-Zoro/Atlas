@@ -29,8 +29,6 @@ WHAT IS ON DISK, beside the note `feedback/<day>-v<n>.md`:
         checked.json         the validation of the answers, keyed on the
                              ledger's own stat so it runs once per change
         placed-<digest>.json where each answer sits on one build of the PDF
-    <day>-v<n>.factory.json  what Paper-Writer's editor actually APPLIED, when
-                             the manuscript factory answered the round
 
 WHY THE DERIVED HALF IS NOT IN THE LEDGER. The turn rewrites that file, and a
 state set from the glass while it does is a state lost. And a placement written
@@ -93,7 +91,6 @@ END_MARKER = "<!-- ledger: end -->"
 
 _EVIDENCE = re.compile(r"^[A-Za-z0-9._-]+\.(png|svg)$")
 _COLOUR = re.compile(r"^#[0-9a-fA-F]{3,8}$")
-_ID = re.compile(r"\bR\d+\.\d+\b")
 
 
 # ---------------------------------------------------------------------------
@@ -109,10 +106,6 @@ def ledger_path(note_path):
 
 def round_dir(note_path):
     return _stem(note_path)
-
-
-def factory_path(note_path):
-    return _stem(note_path) + ".factory.json"
 
 
 def _rel(root, path):
@@ -876,74 +869,18 @@ def disposition(word):
 
 def landed(root, doc, note_path, later=False):
     """Did this round come back? A newer round filed after it, an answer in
-    its ledger, the factory's record beside it, the board's own summary under
-    the note, or a PDF built after the note was written."""
+    its ledger, the board's own summary under the note, or a PDF built after
+    the note was written."""
     from . import library                             # local: avoids a cycle
 
     if later:
         return True
     if _answers(_read(ledger_path(note_path), {})):
         return True
-    if os.path.isfile(factory_path(note_path)):
-        return True
     if "## What was changed" in _text(note_path, library.NOTE_BYTES):
         return True
     pdf = library.path_of(root, doc, ".pdf")
     return bool(pdf) and _mtime(pdf) >= _mtime(note_path)
-
-
-def from_factory(items, record):
-    """Paper-Writer's applied edits as answers. `(answers, extra)`.
-
-    THE FACTORY'S RECORD IS OF WHAT LANDED, not of what was proposed: its
-    editor's `{issue, find, replace}` edits with whether each applied. An edit
-    names the request it answers by the id in its `issue`. A request with every
-    edit applied is done, one with some is partly, one whose edits all failed
-    is not done -- and one no edit names is not answered. Edits naming no
-    request are the factory's own, and are listed rather than dropped.
-    """
-    ids = set(i["id"] for i in items)
-    by_id, extra = {}, []
-    for e in (record or {}).get("edits") or []:
-        if not isinstance(e, dict):
-            continue
-        named = [m for m in _ID.findall(str(e.get("issue") or "")) if m in ids]
-        if not named:
-            extra.append({"issue": str(e.get("issue") or "")[:400],
-                          "old": str(e.get("find") or "")[:800],
-                          "new": str(e.get("replace") or "")[:800],
-                          "applied": bool(e.get("applied"))})
-            continue
-        for i in named:
-            by_id.setdefault(i, []).append(e)
-    out = {}
-    for i, edits in by_id.items():
-        applied = [e for e in edits if e.get("applied")]
-        # An issue the editor retried on a later sweep and landed is landed: a
-        # refusal it then got past is not a part left undone.
-        issues = {}
-        for e in edits:
-            k = re.sub(r"\s+", " ", str(e.get("issue") or "")).strip().lower()
-            issues[k] = issues.get(k, False) or bool(e.get("applied"))
-        disp = ("done" if all(issues.values())
-                else "partly" if applied else "not done")
-        first = (applied or edits)[0]
-        did = re.sub(r"^\s*\[?R\d+\.\d+\]?[:\s-]*", "", str(first.get("issue") or ""))
-        if not applied:
-            did = "the factory's edit did not apply: %s" % (
-                first.get("why") or "its anchor was not found")
-        new = "\n".join(str(e.get("replace") or "") for e in applied
-                        if str(e.get("replace") or "").strip())[:1600]
-        rec = {"disposition": disp, "did": did[:400],
-               "old": "\n".join(str(e.get("find") or "") for e in applied)[:1600],
-               "new": new, "by": "paper-writer"}
-        # A STRUCTURAL EDIT -- a section moved or cut -- has no new wording and
-        # did apply. It is placed by what it moved rather than flagged for
-        # wording it never had.
-        if applied and not new:
-            rec["anchor"] = "\n".join(str(e.get("find") or "") for e in applied)[:400]
-        out[i] = rec
-    return out, extra
 
 
 # The shape of `checked.json`. A change to what an answer carries bumps it, so
@@ -955,16 +892,15 @@ def check(root, doc, note_path, later=False):
     """The round's answers, validated against its requests. Cached in the
     round's directory on the ledger's own stat, so it runs once per change.
 
-    `{key, landed, items: {id: {status, answer, problems}}, unknown, extra}`,
+    `{key, landed, items: {id: {status, answer, problems}}, unknown}`,
     where `status` is `answered`, `not answered`, or `waiting` for a round
     whose turn has not come back yet. A turn that answers nothing leaves every
     request NOT ANSWERED once the round lands; it is never a silent round.
     """
     where = round_dir(note_path)
     is_in = landed(root, doc, note_path, later)
-    fac = factory_path(note_path)
-    key = "%s%s|%s|%d" % (CHECK_V, _stat(ledger_path(note_path)), _stat(fac),
-                          int(is_in))
+    # The `-` keeps the key's shape, so a cache already on disk still matches.
+    key = "%s%s|-|%d" % (CHECK_V, _stat(ledger_path(note_path)), int(is_in))
     cache = os.path.join(where, "checked.json")
     got = _read(cache, {}) or {}
     if got.get("key") == key:
@@ -972,23 +908,6 @@ def check(root, doc, note_path, later=False):
     led = _read(ledger_path(note_path), None)
     items = items_of(note_path)
     answers = _answers(led)
-    extra = []
-    if os.path.isfile(fac) and all(a.get("by") == "paper-writer"
-                                   for a in answers.values()):
-        fresh, extra = from_factory(items, _read(fac, {}))
-        # THE LEDGER IS THE CONTRACT, whoever answered it: the factory's
-        # answers are written into it, and again only if a re-delivery changed
-        # them -- so the stat moves once per delivery.
-        if fresh != answers:
-            answers = fresh
-            if isinstance(led, dict):
-                led["answers"] = answers
-                try:
-                    _write(ledger_path(note_path), led)
-                except OSError:
-                    pass
-                key = "%s%s|%s|%d" % (CHECK_V, _stat(ledger_path(note_path)),
-                                      _stat(fac), int(is_in))
     before, after = _snapshots(root, doc, led or {}, note_path,
                                is_in and bool(answers))
     out, ids = {}, set()
@@ -1024,7 +943,7 @@ def check(root, doc, note_path, later=False):
                         "by": a.get("by") or "turn"} if disp else None),
             "problems": problems}
     got = {"key": key, "landed": is_in, "items": out,
-           "unknown": sorted(k for k in answers if k not in ids), "extra": extra,
+           "unknown": sorted(k for k in answers if k not in ids),
            # A ledger the turn left as something other than JSON: every request
            # is then unanswered, and the reader says why.
            "broken": led is None and os.path.isfile(ledger_path(note_path))}
@@ -1188,8 +1107,6 @@ def _summarise(root, note_path, led, items, got):
                                               a["did"] or "(no sentence given)"))
         for p in r.get("problems") or []:
             lines.append("  - but %s" % p)
-    for x in got.get("extra") or []:
-        lines.append("- the factory's own: %s" % x["issue"])
     lines += ["", END_MARKER, ""]
     with open(note_path, "w", encoding="utf-8") as fh:
         fh.write(text.rstrip() + "\n" + "\n".join(lines) + tail.lstrip("\n"))
@@ -1290,8 +1207,8 @@ def _math_words(m):
 def plain(source_text, tex=True, math=False):
     """Source wording as it reads on the page: LaTeX and Markdown taken off.
 
-    `%` starts a comment in LaTeX only. In Markdown -- what Paper-Writer
-    delivers -- it is a percent sign, and `5% were excluded` is five words.
+    `%` starts a comment in LaTeX only. In Markdown it is a percent
+    sign, and `5% were excluded` is five words.
     Math is dropped for matching against the PDF's words; with `math`, as a
     diff shows it to the owner, it is kept as it reads (`k=300`, `α=1`), so
     "near $k=300$" never reads as "near".
@@ -1698,7 +1615,7 @@ def view(repo, doc):
                     # EVERY PAIR SAID FINE (or carried into a later round): the
                     # round collapses to one line on the glass.
                     "done": landed_ and bool(rows) and not open_,
-                    "items": rows, "extra": got.get("extra") or [],
+                    "items": rows,
                     "unknown": got.get("unknown") or [],
                     "broken": bool(got.get("broken"))})
     out.reverse()

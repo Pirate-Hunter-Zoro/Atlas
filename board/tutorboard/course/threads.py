@@ -526,8 +526,8 @@ def _doc_found(root, ident):
 
 
 def _stem(rel):
-    """A path without its extension: `paper1/manuscript.md` and its built
-    `paper1/manuscript.pdf` are one document."""
+    """A path without its extension: `paper1/paper.md` and its built
+    `paper1/paper.pdf` are one document."""
     head, tail = os.path.split(rel or "")
     return "/".join(p for p in (head, os.path.splitext(tail)[0]) if p)
 

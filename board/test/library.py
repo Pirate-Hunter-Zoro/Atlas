@@ -40,7 +40,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import manuscript, sense
+from tutorboard import sense
 from tutorboard.course import library, reading
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
@@ -450,21 +450,6 @@ check("a correction is still a correction in the same file",
       "- ask: revise" in open(rec["path"], encoding="utf-8").read())
 
 # ---------------------------------------------------------------------------
-# which machinery revises which
-# ---------------------------------------------------------------------------
-put("manuscripts/manuscript.md", "# A delivered manuscript\n")
-put("manuscripts/manuscript.pdf", size=30000)
-library.forget()
-delivered = None
-for d in library.documents(tmp):
-    if d["dir"] == manuscript.LANDING:
-        delivered = d
-check("a manuscript delivered into manuscripts/ is the factory's to revise",
-      delivered and delivered["made"] == "paper-writer")
-check("and a document the board compiled is the board's",
-      library.find(tmp, mine["id"])["made"] == "board")
-
-# ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
 woken = []
@@ -635,14 +620,21 @@ try:
     check("an overhaul with no real purpose in it is refused over the wire too",
           status == 400 and body.get("ok") is False)
 
-    # AN OVERHAUL OF A DELIVERED MANUSCRIPT IS NOT ASKED FOR HERE. The factory
-    # holds its evidence, its terminology lock and its venue, and "restructure,
-    # cut and rewrite" is what every one of those gates exists to refuse.
+    # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT. TRD-EHR's shape: the
+    # Markdown is the source, and the turn is told to rebuild it with the one
+    # builder there is.
+    paper = [d for d in library.documents(tmp)
+             if d["dir"] == "paper1-trd" and d["stem"] == "manuscript"][0]
     status, body = post("/library/feedback",
-                        {"document": delivered["id"], "ask": "rework",
-                         "purpose": PURPOSE})
-    check("and an overhaul of a delivered manuscript is refused by name",
-          status == 409 and "manuscript factory" in (body.get("error") or ""))
+                        {"document": paper["id"],
+                         "text": "Section 3 reports the wrong split."})
+    with open(repo.messages_path, encoding="utf-8") as fh:
+        line = [json.loads(l) for l in fh if l.strip()][-1]
+    check("a note on a Markdown manuscript asks the board for a revision",
+          status == 200 and body.get("revise") == "board"
+          and body.get("asked") is True and line.get("signal") == "revise")
+    check("and the turn is told to rebuild its source with board build",
+          "`board build paper1-trd/manuscript.md`" in line["text"])
 
     # A SECTION IS CORRECTED THROUGH ITS WHOLE. The note stays on the section it
     # was written on; the revision names the manuscript the section is re-cut
@@ -986,39 +978,6 @@ check("so it is counted once, in the round it rides",
 check("and the first round is landed by the second having been filed",
       ledger.check(led_tmp, ldoc, note1, later=True)["landed"])
 
-# THE MANUSCRIPT FACTORY'S ANSWER: what its editor APPLIED, one per issue.
-fac_items = [{"id": "R2.1"}, {"id": "R2.2"}, {"id": "R2.3"}]
-fac, extra = ledger.from_factory(fac_items, {"edits": [
-    {"issue": "[R2.1] the abstract overclaims", "find": "proves", "replace": "suggests",
-     "applied": True},
-    {"issue": "[R2.2] wrong split", "find": "80/20", "replace": "70/30",
-     "applied": False, "why": "MISSING"},
-    {"issue": "TERMINOLOGY: a gate's own fix", "find": "a", "replace": "b",
-     "applied": True}]})
-check("a factory edit that applied answers its request as done, with old and new",
-      fac["R2.1"]["disposition"] == "done" and fac["R2.1"]["old"] == "proves"
-      and fac["R2.1"]["new"] == "suggests")
-check("one that did not apply is not done, saying why",
-      fac["R2.2"]["disposition"] == "not done" and "MISSING" in fac["R2.2"]["did"])
-check("a request no edit names is not answered, and the factory's own edits "
-      "are listed rather than dropped",
-      "R2.3" not in fac and len(extra) == 1)
-
-# AND WHEN THE FACTORY'S RECORD LANDS BESIDE A ROUND, the board turns it into
-# that round's answers -- in the ledger, which is the contract whoever answered.
-with open(ledger.factory_path(r2["path"]), "w", encoding="utf-8") as fh:
-    json.dump({"version": 1, "edits": [
-        {"issue": "[R1.5] 'significant' said without the test", "applied": True,
-         "find": "was significant", "replace": "was considered significant"}]}, fh)
-fac_check = ledger.check(led_tmp, ldoc, r2["path"])
-check("a round the manuscript factory answered has landed, its answers taken "
-      "from what the editor applied",
-      fac_check["landed"] and fac_check["items"]["R1.5"]["status"] == "answered"
-      and fac_check["items"]["R1.5"]["answer"]["by"] == "paper-writer")
-check("and they are written into the ledger itself",
-      json.load(open(ledger.ledger_path(r2["path"]), encoding="utf-8"))["answers"]
-      ["R1.5"]["disposition"] == "done")
-
 # OVER THE WIRE.
 lworker = tikz.TikzWorker(lrepo)
 lworker.start()
@@ -1133,8 +1092,7 @@ check("a round's number is past every round there has been, a deleted note's "
       "included",
       ledger.next_round(led_tmp, ldoc) == high + 1)
 
-# TYPED WORDS ARE WRITTEN ONCE, so a long round still fits what the factory
-# reads of a note.
+# TYPED WORDS ARE WRITTEN ONCE, so a long round does not double the note.
 paras = ["Paragraph %d says %s." % (n, "something long " * 60) for n in range(5)]
 long_note = library.write_note(lrepo, ldoc["id"], "\n\n".join(paras), hand_over=False)
 ledger.mark_unsent(long_note["path"])
@@ -1143,17 +1101,13 @@ check("a typed paragraph appears in the note once, under its id",
       all(body_long.count(p) == 1 for p in paras)
       and len(body_long) < len("".join(paras)) + 2500)
 
-# A STRUCTURAL EDIT -- a section moved -- applied, with no new wording.
-struct_ans, _ = ledger.from_factory([{"id": "R1.2"}], {"edits": [
-    {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
-     "replace": "", "applied": True}]})
-check("a factory edit that restructured is done, and anchored on what it moved",
-      struct_ans["R1.2"]["disposition"] == "done" and not struct_ans["R1.2"]["new"]
-      and struct_ans["R1.2"]["anchor"] == "The first page says hello.")
-with open(ledger.factory_path(retry["path"]), "w", encoding="utf-8") as fh:
-    json.dump({"version": 1, "edits": [
-        {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
-         "replace": "", "applied": True}]}, fh)
+# A STRUCTURAL EDIT -- a section moved -- done, with no new wording, anchored on
+# what it moved.
+sled = json.load(open(ledger.ledger_path(retry["path"]), encoding="utf-8"))
+sled["answers"] = {"R1.2": {"disposition": "done", "did": "Moved the methods.",
+                            "anchor": "The first page says hello."}}
+with open(ledger.ledger_path(retry["path"]), "w", encoding="utf-8") as fh:
+    json.dump(sled, fh)
 sc = ledger.check(led_tmp, ldoc, retry["path"])
 check("and it is not flagged for new wording it never had",
       sc["items"]["R1.2"]["status"] == "answered"

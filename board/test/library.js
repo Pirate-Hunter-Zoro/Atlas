@@ -1647,7 +1647,7 @@ async function inkIsKept() {
     id: ID, dir: 'writeups/notes', stem: 'notes', title: 'Notes on the cohort',
     kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/notes/notes.pdf',
     pages: 2, pdf: true, stale: false, iso: '2026-09-28', notes: [],
-    made: 'board', marks: { pages: 0, strokes: 0, waiting: 0 },
+    marks: { pages: 0, strokes: 0, waiting: 0 },
   }] };
   const BUILD = { digest: 'abc123def4567890', at: 1790000000, pages: 2 };
   const S = { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
@@ -2048,7 +2048,7 @@ async function lazyPagesArePictured() {
   const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/lazy', stem: 'lazy', title: 'A long deck',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/lazy/lazy.pdf',
-    pages: 4, pdf: true, stale: false, iso: '2026-10-01', notes: [], made: 'board',
+    pages: 4, pdf: true, stale: false, iso: '2026-10-01', notes: [],
     marks: { pages: 1, strokes: 1, waiting: 1, dir: { pages: 3, strokes: 3 } },
   }] };
   const net = { view: { [key(1)]: [FIX], [key(3)]: [DIR], [key(4)]: [DIR], [key(5)]: [DIR] },
@@ -2388,7 +2388,7 @@ async function inkHasAKind() {
   const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/kinds', stem: 'kinds', title: 'A deck after the meeting',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/kinds/kinds.pdf',
-    pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [], made: 'board',
+    pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [],
     marks: { pages: 1, strokes: 1, waiting: 1, dir: { pages: 2, strokes: 3 } },
   }] };
   const net = { save: 'ok', ink: {} };
@@ -2760,7 +2760,7 @@ async function changesArePins() {
   const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/led', stem: 'led', title: 'A paper with requests',
     kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/led/led.pdf',
-    pages: 2, pdf: true, stale: false, iso: '2026-09-29', made: 'board',
+    pages: 2, pdf: true, stale: false, iso: '2026-09-29',
     notes: [{ name: '2026-09-29-v1.md', day: '2026-09-29', v: 1 },
             { name: '2026-09-30-v1.md', day: '2026-09-30', v: 1 }],
     marks: { pages: 1, strokes: 3, waiting: 1 },

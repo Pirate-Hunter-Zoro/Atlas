@@ -1461,17 +1461,10 @@ where the corrections come from. Leave `live/state.json`, `live/cards/` and
 `HANDOFF.md` exactly as you found them: the sitting is somebody's evening and its
 aim has not changed.
 
-**A full manuscript is handed off rather than written in cards.** `board make
---paper ["title"]` assembles a job from this workspace — the plan's open steps as
-work to be done, the directories it keeps results in, the prose that already
-exists so it is not written twice, and the thread file's own names for the parts
-— and drops it where the manuscript factory picks jobs up. `board make --status`
-says what that factory reports, verbatim, and `board make --delivered` lists what
-has landed. The board does not run it and cannot hurry it: if nothing is
-listening the job waits in the inbox, and the card says so rather than implying a
-paper is being written. Nothing in a job is invented, and the venue and the
-checklist are deliberately left blank — a wrong venue plans the manuscript to the
-wrong length.
+**A manuscript is a Markdown document like any other.** Write the `.md` and build
+it with `board build <file>.md`, which writes the `.docx` beside it, and the PDF
+where a LaTeX engine exists. A correction from the library is a `[revise]` turn
+on that source.
 
 ---
 

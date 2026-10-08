@@ -510,9 +510,6 @@ function make(opts) {
       var list = el("ol", "lg-rows");
       rows(r).forEach(function (item) { list.appendChild(row(r, item)); });
       body.appendChild(list);
-      (r.extra || []).forEach(function (x) {
-        body.appendChild(el("p", "lg-note", "The factory's own change: " + x.issue));
-      });
     }
     var others = (data.rounds || []).map(function (x, i) { return [x, i]; })
       .filter(function (p) { return p[1] !== pick; });

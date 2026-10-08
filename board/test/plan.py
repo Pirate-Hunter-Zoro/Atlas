@@ -300,13 +300,9 @@ A multi-project narrative hub. The live task lists are
     # --- THE FENCE, WHICH IS NOT A DEPTH AND NOT A SIZE FLOOR ---------------
     #
     # `research/PSYCH-ASR/phi/` is session content: the recordings, the turn
-    # tables, the joined transcripts. `manuscript.py` refused that directory by
-    # name and this module did not, so `phi/stage1/Audio Transcription.pdf` was
-    # offered in the drawer under the id `audio-transcription`, `paper.pages_of`
-    # rendered it to PNGs, and `sense.reading_sense` wrote its address into a
-    # tutor's prompt beside an instruction to open and read a page before showing
-    # one. One rule, two lists, one of them wrong. `tutorboard/fenced.py` is the
-    # one list now.
+    # tables, the joined transcripts. A PDF under it offered in the drawer is
+    # rendered to PNGs and its address written into a tutor's prompt, so the
+    # drawer refuses it by name. `tutorboard/fenced.py` is the one list.
     #
     # Fat enough to clear the size floor and shallow enough to be walked to, so
     # that what refuses it is the refusal rather than either bound.

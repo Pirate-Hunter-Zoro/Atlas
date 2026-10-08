@@ -67,9 +67,8 @@ per workspace and the board's ⋯ menu opens it.
 
 AND FEEDBACK IS NEVER JUST FILED. A note nothing acts on is a note the person
 believes is in force, which is the same defect `/direction` was built to avoid.
-So writing one dispatches the revision in the same request, and the reply says
-which machinery took it: the board revises a document it compiled, and
-Paper-Writer revises a manuscript it delivered.
+So writing one dispatches the revision in the same request: a `[revise]` turn
+edits the document's source and rebuilds it with `board build`.
 
 TWO ASKS, NOT ONE. `revise` is a correction and keeps the document's structure,
 its names for things and its claims. `rework` is an overhaul -- "that
@@ -87,8 +86,8 @@ from urllib.parse import unquote
 from . import NOT_MINE
 from . import writing
 from .. import spawn
-from ... import (atlas, leaving, machines, manuscript, paths, scopes, sense,
-                 sittings, writeups)
+from ... import (atlas, leaving, machines, paths, scopes, sense, sittings,
+                 writeups)
 from ...course import burn
 from ...course import config
 from ...course import ledger
@@ -785,7 +784,7 @@ def meeting_deck(h, repo, base, since_ts, human, want=None):
 def rework_refused(repo, doc):
     """Why this document may not be overhauled from here, or "".
 
-    THREE REFUSALS, AND EACH NAMES WHAT IS IN THE WAY. `worktree.busy_reason`
+    TWO REFUSALS, AND EACH NAMES WHAT IS IN THE WAY. `worktree.busy_reason`
     is the shape: this runs where nobody is reading a terminal, so it says what
     is in the way, changes nothing, and leaves a sentence the board can paint.
 
@@ -795,20 +794,7 @@ def rework_refused(repo, doc):
     committing on somebody's behalf -- a commit of a half-finished edit is a
     worse undo than none, because the state they would revert to is one they
     never chose.
-
-    A DELIVERED MANUSCRIPT IS NOT OVERHAULED FROM HERE either, and that is the
-    same seam `_revise` holds one function down. The factory owns the evidence,
-    the terminology lock, the reporting checklist and the venue's word limit,
-    and "restructure, cut and rewrite" is the one instruction every one of those
-    gates exists to refuse. A paper whose purpose has changed is a new paper and
-    is asked for as one.
     """
-    if doc.get("made") == "paper-writer":
-        return ("%s was delivered by the manuscript factory, and an overhaul is "
-                "not something that comes back through here: the factory holds "
-                "its evidence, its terminology lock and its venue. Say what is "
-                "wrong with it instead, or ask for a new paper."
-                % doc["title"])
     src = doc.get("source") or ""
     if not src:
         return ("%s has no source in this repository -- there is only a built "
@@ -829,43 +815,20 @@ def rework_refused(repo, doc):
 
 def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
             ids=()):
-    """Ask for the revision, by whichever machinery wrote the document.
+    """Ask for the revision: a `[revise]` line in the inbox and a turn woken on it.
 
-    THE TWO KINDS ARE CHANGED BY DIFFERENT MACHINERY, and this is the seam.
-
-    A board-made explainer -- a `.tex` under `writeups/`, or any document this
-    repository holds the source of -- is revised by the board: a `[revise]` line
-    in the inbox and a turn woken on it. That turn runs FRESH and writes no
-    card; see `HEADLESS_REVISE_PROMPT` in `bin/tutor` for why a resumed one
-    would drag the lesson into the document.
-
-    A manuscript delivered into `manuscripts/` is revised by the factory that
-    wrote it, because the factory is what holds the evidence, the terminology
-    lock, the reporting checklist and the venue's word limit. An explainer is
-    NOT routed through it: "how the serve harness works, and the arithmetic
-    behind the batch size" has no venue and makes no claims, and every one of
-    those gates would either refuse it or invent something to satisfy itself.
+    Every document is revised the same way, whoever wrote it. That turn runs
+    FRESH and writes no card; see `HEADLESS_REVISE_PROMPT` in `bin/tutor` for
+    why a resumed one would drag the lesson into the document. The line names
+    the source, and the turn rebuilds it with `board build`.
 
     `ask` is which of the two the person tapped, and it changes the signal, the
     prompt that turn is woken with and how long it gets -- see `turn_plan` and
-    `doing_now` in `bin/tutor`. It never reaches the factory: `rework_refused`
-    has already turned an overhaul of a delivered manuscript away by name.
+    `doing_now` in `bin/tutor`.
 
     `ledger_rel` and `ids` are the round's requests (`course/ledger.py`). The
-    board's turn is told to answer every id in that file; the factory is
-    reached through the note, which lists the same ids, and its editor cites
-    them in the issues it raises.
+    turn is told to answer every id in that file.
     """
-    if doc.get("made") == "paper-writer":
-        try:
-            out = manuscript.revise(repo.root, doc, note_rel)
-        except Exception as exc:                             # noqa: BLE001
-            return {"revise": "paper-writer", "asked": False,
-                    "detail": "the manuscript job could not be assembled: %s" % exc}
-        return {"revise": "paper-writer", "asked": bool(out.get("ok")),
-                "job": out.get("name") or "",
-                "detail": out.get("detail") or ""}
-
     # AN OVERHAUL IS A DIFFERENT SIGNAL AND A DIFFERENT PROMPT, and it names the
     # SOURCE rather than the rendering: that is the file whose committed state
     # was just checked, and it is the file the turn edits.
@@ -880,11 +843,13 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     if ask == "rework":
         line = "[rework] " + sense.rework_sense(doc.get("source") or doc["rel"],
                                                 note_rel, purpose, brief=brief,
-                                                ledger=ledger_rel, ids=ids)
+                                                ledger=ledger_rel, ids=ids,
+                                                source=doc.get("source") or "")
     else:
         line = "[revise] " + sense.revise_sense(doc["rel"], note_rel,
                                                 brief=brief, ledger=ledger_rel,
-                                                ids=ids)
+                                                ids=ids,
+                                                source=doc.get("source") or "")
     record = {
         # An id from the same series the lesson's turns use, so nothing in the
         # inbox has to be told apart by shape. It is NOT written into

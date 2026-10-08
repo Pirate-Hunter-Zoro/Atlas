@@ -1101,16 +1101,34 @@ REVISE_SENSE = (
 )
 
 
-def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=()):
+def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=(),
+                 source=""):
     """The inbox line for one round of feedback on one document.
 
     `brief` is the deck's `_brief.md` where the document is a deck made from
-    sittings, and "" for everything else -- whose line is then exactly what it
-    was. See `DECK_BRIEF_SENSE`. `ledger` and `ids` are the round's requests;
-    see `LEDGER_SENSE`.
+    sittings, and "" for everything else. See `DECK_BRIEF_SENSE`. `ledger` and
+    `ids` are the round's requests; see `LEDGER_SENSE`. `source` is the `.tex`
+    or `.md` the document is built from; see `BUILD_SENSE`.
     """
-    return (REVISE_SENSE % (document_rel, feedback_rel) + _deck_brief(brief)
-            + _ledger(ledger, ids) + MEASURE_SENSE + RULE_SENSE)
+    return (REVISE_SENSE % (document_rel, feedback_rel) + _build(source)
+            + _deck_brief(brief) + _ledger(ledger, ids) + MEASURE_SENSE
+            + RULE_SENSE)
+
+
+# HOW THE DOCUMENT IS REBUILT, named with its source. The PDF, and the `.docx`
+# of a `.md`, are built from the source, so an edit made anywhere else is lost
+# on the next build. One builder for every document: `board build`.
+BUILD_SENSE = (
+    " The source is `%s`: edit that file, then rebuild it with "
+    "`board build %s`, which writes the built files beside it. "
+)
+
+
+def _build(source):
+    source = (source or "").strip()
+    if not source.lower().endswith((".tex", ".md")):
+        return ""
+    return BUILD_SENSE % (source, source)
 
 
 # A ROUND IS A LIST OF REQUESTS, AND EVERY ONE OF THEM IS ANSWERED.
@@ -1208,12 +1226,12 @@ REWORK_SENSE = (
 
 
 def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
-                 ids=()):
-    """The inbox line for an overhaul of one document. `brief`, `ledger` and
-    `ids` as for `revise_sense`."""
+                 ids=(), source=""):
+    """The inbox line for an overhaul of one document. `brief`, `ledger`, `ids`
+    and `source` as for `revise_sense`."""
     return (REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
-            + _deck_brief(brief) + _ledger(ledger, ids) + MEASURE_SENSE
-            + RULE_SENSE)
+            + _build(source) + _deck_brief(brief) + _ledger(ledger, ids)
+            + MEASURE_SENSE + RULE_SENSE)
 
 
 # WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.

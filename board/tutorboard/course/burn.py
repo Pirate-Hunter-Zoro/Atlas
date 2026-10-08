@@ -651,7 +651,7 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
     """A marked copy of one library document. NEVER over the original.
 
     The library's documents are rebuilt by whatever made them -- a revision
-    round, Paper-Writer, a `parts/` re-cut -- and the owner's ask was a copy
+    round, a `board build`, a `parts/` re-cut -- and the owner's ask was a copy
     *without overwriting*. So `new` is the only mode, and the copy goes to
     `marked_dir`, never beside the document. Keeping a copy is not sending:
     nothing is marked delivered, and the ink goes with the next note.
