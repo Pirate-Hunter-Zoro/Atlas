@@ -49,7 +49,7 @@ import re
 import subprocess
 import time
 
-from . import jobs
+from . import cluster, jobs
 from .course import threads as course_threads
 from .course import repo as course_repo
 
@@ -1355,7 +1355,9 @@ def wake(root, now=None):
         if not _claim(root, rep["id"]):
             continue
         try:
-            jobs.drop(root, rep, now=now, text=sense(root, rep), signal="coach")
+            cluster.wake(root, rep.get("session"), sense(root, rep),
+                         wake=True, signal="coach", request=rep.get("request"),
+                         now=now)
         except Exception:                                    # noqa: BLE001
             try:
                 os.remove(_woken(root, rep["id"]))

@@ -88,7 +88,7 @@ SPINE = {
 }
 CHECK = "uv run --extra test python -m pytest tests -q"
 ORIGIN = "2026-10-02-knn-sweep"
-FIRST = {"id": ORIGIN, "kind": "recipe", "thread": "knn",
+FIRST = {"id": ORIGIN, "kind": "recipe", "label": "knn",
          "recipe": "slurm/sweep.sbatch", "env": {"EMBEDDER": "bge-small"},
          "produces": ["results/knn/best.json"], "export": [], "filed": 100.0}
 # The lines the recipe's failure helper prints (slurm_jobs/lib/), as the
@@ -125,7 +125,7 @@ def scene(reqs, reps, stance="teach"):
 
 
 def diag(n, filed):
-    return {"id": "d%d" % n, "kind": "recipe", "thread": "knn",
+    return {"id": "d%d" % n, "kind": "recipe", "label": "knn",
             "recipe": "slurm/diagnose.sbatch", "env": {}, "produces": [],
             "export": [], "fixes": ORIGIN, "filed": filed}
 
@@ -135,7 +135,7 @@ def rerun(n, filed, **env):
                 env=env or FIRST["env"])
 
 
-RERUN = ("board job knn --fixes %s --produces results/knn/best.json "
+RERUN = ("board job --label knn --fixes %s --produces results/knn/best.json "
          "-- slurm/sweep.sbatch EMBEDDER=bge-small" % ORIGIN)
 
 try:
@@ -151,26 +151,27 @@ try:
           "relay/reports/%s.json" % ORIGIN in text
           and "scripts/predictions/best_k_panels.py:88" in text
           and "after its line 79" in text and "slurm/sweep.sbatch" in text)
-    check("A: fix here, run the workspace's check, ship with `board push`, "
-          "then the exact rerun, last",
-          "src/knn.py" in text and CHECK in text
-          and 'board push "knn: <what changed>"' in text and RERUN in text
+    check("A: fix here, run the subject's check from its tutorboard.json "
+          "(no thread is read), ship with `board push`, then the exact "
+          "rerun, last",
+          "the subject's check, %s" % CHECK in text
+          and 'board push "<what changed>"' in text and RERUN in text
           and text.index("board push") < text.index(RERUN))
     check("B: or ask with a diagnostic recipe this workspace has, through "
           "`board diagnose --fixes`",
-          "board diagnose knn --fixes %s -- slurm/diagnose.sbatch [LOOK=...]"
+          "board diagnose --fixes %s -- slurm/diagnose.sbatch [LOOK=...]"
           % ORIGIN in text and "produces nothing" in text)
     check("attempt 1 of the cap, which counts diagnostics and reruns alike",
           "attempt 1 of %d" % jobs.MAX_FIXES in text and jobs.MAX_FIXES == 3)
-    check("and it neither moves the thread on nor names a cluster turn",
-          "tick the task" not in text and "ask-cluster" not in text
+    check("and it neither moves a thread on nor names a cluster turn",
+          "tick the task" not in text and "thread" not in text and "ask-cluster" not in text
           and "relay.turns" not in text)
 
     ws, recs = scene([FIRST], {ORIGIN: DONE})
     text = jobs.relay_sense(ws, recs[ORIGIN])
     check("a recipe that completed is a plain [job] line, no repair",
           not jobs.repairs(ws, recs[ORIGIN]) and text.startswith("[job] ")
-          and "tick the task" in text)
+          and "on knn has come back" in text and "board thread" not in text)
     ws, recs = scene([dict(FIRST, kind="colibri", brief="x")],
                      {ORIGIN: FAILED})
     check("and a failed request that is no recipe is no repair either",
@@ -194,7 +195,7 @@ try:
           and "best_k_panels.py:88" in text)
     check("it is attempt 2 of 3", "attempt 2 of 3" in text)
     check("and the repair stays open: a plain rerun is refused",
-          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          jobs.open_fix(ws, "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-small"}) == ORIGIN)
 
     # --- the last attempt, then the cap -------------------------------------------
@@ -213,23 +214,21 @@ try:
           "decides",
           "last of 3 automatic attempts" in text and "d1: diagnostic" in text
           and "r2: rerun, failed" in text and "owner decides" in text
-          and "--fresh" in text and "board job knn --fixes" not in text
+          and "--fresh" in text and "board job --label knn --fixes" not in text
           and "board diagnose" not in text)
     check("and a plain rerun is still refused at the cap",
-          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          jobs.open_fix(ws, "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-small"}) == ORIGIN)
 
     ws, recs = scene([FIRST, rerun(2, 300.0)], {ORIGIN: FAILED, "r2": DONE})
     text = jobs.relay_sense(ws, recs["r2"])
-    check("a rerun that completed closes the repair: a [job] line, the "
-          "thread moves on",
+    check("a rerun that completed closes the repair: a [job] line",
           text.startswith("[job] ") and "repair of %s is done" % ORIGIN in text
-          and "tick the task" in text
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          and jobs.open_fix(ws, "slurm/sweep.sbatch",
                             {"EMBEDDER": "bge-small"}) == "")
     ws, recs = scene([FIRST, rerun(2, 300.0)], {ORIGIN: FAILED})
     check("a rerun still out leaves the plain rerun allowed",
-          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          jobs.open_fix(ws, "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-small"}) == "")
     ws, recs = scene([FIRST, rerun(2, 300.0)],
                      {ORIGIN: FAILED, "r2": {"state": "refused",
@@ -240,29 +239,27 @@ try:
           and "owner decides" in text and "through `board job`" not in text)
 
     ws, recs = scene([FIRST], {ORIGIN: FAILED})
-    check("open_fix keys on thread and recipe alone: another value of a VAR "
-          "is the same repair; another recipe or thread is not",
-          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+    check("open_fix keys on the recipe alone: another value of a VAR is the "
+          "same repair; another recipe is not",
+          jobs.open_fix(ws, "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-small"}) == ORIGIN
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          and jobs.open_fix(ws, "slurm/sweep.sbatch",
                             {"EMBEDDER": "bge-large"}) == ORIGIN
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ORIGIN
-          and jobs.open_fix(ws, "knn", "slurm/other.sbatch") == ""
-          and jobs.open_fix(ws, "tripod", "slurm/sweep.sbatch",
-                            {"EMBEDDER": "bge-small"}) == "")
+          and jobs.open_fix(ws, "slurm/sweep.sbatch") == ORIGIN
+          and jobs.open_fix(ws, "slurm/other.sbatch") == "")
     ws, recs = scene([FIRST, diag(1, 200.0), rerun(2, 300.0),
                       rerun(3, 400.0, EMBEDDER="bge-base")],
                      {ORIGIN: FAILED, "d1": DONE, "r2": FAILED, "r3": FAILED})
     check("a capped chain cannot restart by changing a VAR: the open repair "
           "is still the first request's, and its cap still stands",
-          jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          jobs.open_fix(ws, "slurm/sweep.sbatch",
                         {"EMBEDDER": "bge-large"}) == ORIGIN
           and jobs.fix_problems(rerun(4, 500.0, EMBEDDER="bge-large"),
                                 jobs.requests(ws), {ORIGIN}) != [])
     ws, recs = scene([dict(FIRST, filed="soon")], {})
     check("a malformed `filed` reads as 0, and every reader still reads it",
           recs[ORIGIN]["submitted"] == 0.0
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch",
+          and jobs.open_fix(ws, "slurm/sweep.sbatch",
                             {"EMBEDDER": "bge-small"}) == ""
           and jobs.context(ws)["failed"] == set())
 
@@ -436,34 +433,34 @@ try:
           "files nothing",
           code == 2 and "retired" in out and "board diagnose" in out
           and len(jobs.requests(ws)) == 1)
-    code, out = board("diagnose", "knn", "--fixes", ORIGIN, "--",
+    code, out = board("diagnose", "--fixes", ORIGIN, "--",
                       "slurm/missing.sbatch")
     check("`board diagnose` is `board job`: the same check, the same words",
           code == 1 and "board job:" in out and "slurm/missing.sbatch" in out)
-    code, out = board("job", "knn", "--", "slurm/sweep.sbatch",
+    code, out = board("job", "--label", "knn", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-small")
     check("a plain rerun of the failed request is refused, naming --fixes "
           "and --fresh", code == 1 and "--fixes %s" % ORIGIN in out
           and "--fresh" in out)
-    code, out = board("job", "knn", "--", "slurm/sweep.sbatch",
+    code, out = board("job", "--label", "knn", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-large")
-    check("and so is one that changes a VAR: the repair is keyed on thread "
-          "and recipe", code == 1 and "--fixes %s" % ORIGIN in out
+    check("and so is one that changes a VAR: the repair is keyed on the "
+          "recipe", code == 1 and "--fixes %s" % ORIGIN in out
           and len(jobs.requests(ws)) == 1)
-    code, out = board("job", "knn", "--fresh", "--fixes", ORIGIN, "--",
+    code, out = board("job", "--label", "knn", "--fresh", "--fixes", ORIGIN, "--",
                       "slurm/sweep.sbatch", "EMBEDDER=bge-small")
     check("--fresh and --fixes together are refused",
           code == 1 and "name one" in out)
     write(os.path.join(ws, "live", "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "repair"}))
-    code, out = board("job", "knn", "--fresh", "--", "slurm/sweep.sbatch",
+    code, out = board("job", "--label", "knn", "--fresh", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-small")
     check("and --fresh is refused inside a turn: it is the owner's way past "
           "the cap", code == 1 and "owner's" in out
           and len(jobs.requests(ws)) == 1)
     os.remove(os.path.join(ws, "live", "agent.json"))
-    code, out = board("job", "knn", "--fresh", "--", "slurm/sweep.sbatch",
+    code, out = board("job", "--label", "knn", "--fresh", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-large")
     fresh = [r for r in jobs.requests(ws) if r.get("id") != ORIGIN]
     check("outside a turn --fresh files it as a new request, no `fixes`: "
@@ -496,15 +493,15 @@ if real:
     check("were it heard now it would wake a repair, attempt 1 of 3, with "
           "the exact rerun and TRD-EHR's own diagnostic",
           text.startswith("[repair] ") and "attempt 1 of 3" in text
-          and ("board job knn-across-embedders --fixes %s --produces "
+          and ("board job --fixes %s --produces "
                "results/bge-small-en-v1.5/google_medgemma-27b-text-it/"
                "neighbor_count_sweep -- slurm_jobs/quick_runs/"
                "neighbor_count_sweep.sbatch EMBEDDER=bge-small-en-v1.5"
                % rid) in text
-          and "board diagnose knn-across-embedders --fixes %s -- "
+          and "board diagnose --fixes %s -- "
               "slurm_jobs/quick_runs/diagnose.sbatch" % rid in text)
     check("and a plain rerun of it is refused until it carries --fixes",
-          jobs.open_fix(trd, "knn-across-embedders",
+          jobs.open_fix(trd,
                         "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
                         {"EMBEDDER": "bge-small-en-v1.5"}) == rid)
     lines = jobs.repair_brief(trd, rid)
@@ -514,6 +511,11 @@ if real:
           and any("neighbor_count_sweep.sbatch" in l for l in lines)
           and any("relay/reports/%s.json" % rid in l for l in lines)
           and any("a diagnostic recipe is how to ask" in l for l in lines))
+    check("with no thread read, the brief and the [repair] line name "
+          "TRD-EHR's own check from its tutorboard.json",
+          any(l.strip().startswith("check") and "pytest tests" in l
+              for l in lines)
+          and "the subject's check, uv run" in text)
     ok, problems = jobs.check(trd, {
         "id": "x-diagnose", "kind": "recipe", "thread": "knn-across-embedders",
         "recipe": "slurm_jobs/quick_runs/diagnose.sbatch",

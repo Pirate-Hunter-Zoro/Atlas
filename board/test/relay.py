@@ -189,8 +189,11 @@ try:
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
     proj = os.path.join(seed, "research", "Proj")
+    # The owner's export approvals, committed: a png by glob, and a csv
+    # matched without `aggregate`, which approves nothing.
     write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Proj"}))
+          json.dumps({"name": "Proj", "relay": {"exports": [
+              {"glob": "results/*.png"}, {"glob": "results/rows.csv"}]}}))
     write(os.path.join(proj, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(proj, ".gitignore"),
           "live/\nresults/\nlogs/\n!exports/**\n")
@@ -240,8 +243,8 @@ try:
         return relay.run_pass(cluster, run=slurm, now=now)
 
     # --- a request runs --------------------------------------------------------
-    good = {"id": "r1", "kind": "recipe", "thread": "knn",
-            "recipe": "slurm/sweep.sbatch",
+    good = {"id": "r1", "kind": "recipe", "label": "knn",
+            "session": "20261008-120000", "recipe": "slurm/sweep.sbatch",
             "env": {"EMBEDDER": "bge-small", "SIZE": "100"},
             "produces": ["results/out.json", "results/none.json"],
             "export": ["results/sweep.png", "results/big.png"]}
@@ -261,6 +264,9 @@ try:
     jid = rep and rep.get("jobid")
     check("its report says submitted, with the Slurm id",
           rep and rep["state"] == "submitted" and jid in slurm.scripts)
+    check("and echoes the request's label and session",
+          rep and rep.get("label") == "knn"
+          and rep.get("session") == "20261008-120000" and "thread" not in rep)
     sent = [c for c in slurm.calls if os.path.basename(c[0]) == "sbatch"][-1]
     check("sbatch got the wrapper and only the declared variables",
           sent[-1].endswith(os.path.join("relay", "state", "r1.sbatch"))
@@ -326,8 +332,9 @@ try:
           and view["relay:r1"]["exported"] == ["results/sweep.png"]
           and os.path.isfile(os.path.join(mws, "exports", "results",
                                           "sweep.png")))
-    check("and its thread is no longer requested or running",
-          threads.stages(mws)["knn"]["status"] not in ("requested", "running"))
+    check("and its report keeps the label and session the Mac wakes by",
+          view["relay:r1"]["label"] == "knn"
+          and view["relay:r1"]["session"] == "20261008-120000")
 
     # --- a refusal ---------------------------------------------------------------
     bad = dict(good, id="r2", env={"EMBEDDER": "bge-small", "DATA": "x"})
@@ -540,9 +547,9 @@ try:
           "failed recipe with `board job --fixes`",
           said.startswith("[repair]") and "it came back" in said
           and "board push" in said
-          and "board job knn --fixes k1 -- slurm/crash.sbatch" in said)
+          and "board job --fixes k1 -- slurm/crash.sbatch" in said)
     check("and a plain rerun of the recipe is refused on the Mac meanwhile",
-          jobs.open_fix(mws, "knn", "slurm/crash.sbatch") == "k1")
+          jobs.open_fix(mws, "slurm/crash.sbatch") == "k1")
 
     for rid in ("rk2", "rk3"):
         ok, problems = file_from_mac({"id": rid, "kind": "recipe",
@@ -635,7 +642,8 @@ try:
     from tutorboard import atlas as _atlas, colibri as coli, missions
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "tutorboard.json"),
-          json.dumps({"name": "Proj", "relay": {"colibri": True}}))
+          json.dumps({"name": "Proj", "relay": {"colibri": True, "exports": [
+              {"glob": "results/*.png"}, {"glob": "results/rows.csv"}]}}))
     write(os.path.join(mws, ".gitignore"), "phi/\n", "a")
     git(mac, "add", "-A")
     git(mac, "commit", "-q", "-m", "Proj takes Colibri tasks")

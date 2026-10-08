@@ -1,15 +1,18 @@
-"""jobs.py -- long work registered to a thread, and reporting itself.
+"""jobs.py -- long work, labelled, and reporting itself.
 
 A Slurm job a turn submits with a bare `sbatch` is work the board cannot see:
-the thread it belongs to reads `open` while it runs, and nobody hears when it
-ends. So a turn submits through `board job`, which runs the `sbatch` and
-appends one record to the workspace's job registry:
+nobody hears when it ends. So a turn submits through `board job`, which runs
+the `sbatch` and appends one record to the workspace's job registry:
 
-    {thread, jobid, cmd, cwd, produces, log, submitted}
+    {label, jobid, cmd, cwd, produces, log, submitted}
+
+`label` is an optional slug naming the work; nothing here reads the thread
+file. A request may also carry `session`, the Mac session it was filed from,
+which its report echoes so the ending wakes that session.
 
 THE REGISTRY IS APPEND-ONLY. The poll that sees a job change state appends a
 record carrying `state` (and, at the end, `exit` and `ended`) for the same job
-id, and a reader folds the records in file order -- `threads.merged`. Two
+id, and a reader folds the records in file order -- `exports.merged`. Two
 writers never rewrite each other's lines.
 
 WHERE IT LIVES is `live/jobs.jsonl` where git can see it there, and
@@ -42,8 +45,7 @@ import shutil
 import subprocess
 import time
 
-from . import fenced
-from .course import threads as course_threads
+from . import cluster, exports, fenced
 from .course import repo as course_repo
 
 NAME = "jobs.jsonl"
@@ -93,7 +95,6 @@ def append(root, rec, path=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
-    course_threads._cache.pop(os.path.realpath(root), None)
     return path
 
 
@@ -116,8 +117,8 @@ def _lines(path):
 
 def records(root, path=None):
     """`{jobid: record}`, folded. `path` reads the relay's registry instead."""
-    raw = _lines(path) if path else course_threads.jobs_of(root)
-    return course_threads.merged(raw)
+    raw = _lines(path) if path else exports.jobs_of(root)
+    return exports.merged(raw)
 
 
 def state_dir(root):
@@ -133,9 +134,9 @@ def relay_registry(root):
 # ---------------------------------------------------------------------------
 # submitting
 # ---------------------------------------------------------------------------
-def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
+def submit(root, label, argv, produces=(), cwd=None, run=subprocess.run,
            now=None, export=(), env=None, path=None, extra=None):
-    """Run `sbatch`, and register the job to `thread`. `(record, error)`.
+    """Run `sbatch`, and register the job under `label`. `(record, error)`.
 
     `argv` must start with `sbatch`. `--parsable` is added where it is missing,
     so the id is read rather than scraped out of a sentence. `env` is the
@@ -164,7 +165,7 @@ def submit(root, thread, argv, produces=(), cwd=None, run=subprocess.run,
                       "registered" % (p.stdout or "").strip()[-200:])
     out, err = logs_of(jobid, cwd, run=run)
     rec = {
-        "thread": thread,
+        "label": label or "",
         "jobid": jobid,
         "cmd": " ".join(shlex.quote(a) for a in _redacted(argv))[:CMD_CHARS],
         "cwd": _relative(root, cwd),
@@ -256,7 +257,7 @@ def local_key(now=None):
     return "local-%d-%d" % (int(float(now or time.time()) * 1000), os.getpid())
 
 
-def submit_script(root, thread, header, command, key, label, produces=(),
+def submit_script(root, label, header, command, key, shown_as, produces=(),
                   export=(), env=None, run=subprocess.run, now=None,
                   sbatch_env=None, path=None, extra=None):
     """Write the wrapper for `command` at `relay/state/<key>.sbatch` and submit
@@ -276,7 +277,7 @@ def submit_script(root, thread, header, command, key, label, produces=(),
             pass
     script = os.path.join(sdir, key + ".sbatch")
     name = re.sub(r"[^A-Za-z0-9._-]+", "-",
-                  os.path.splitext(os.path.basename(label.split()[0]))[0])[:40]
+                  os.path.splitext(os.path.basename(shown_as.split()[0]))[0])[:40]
     with open(script, "w", encoding="utf-8") as fh:
         fh.write(wrapper(header, command, exitfile, name=name))
     sent = ["sbatch"]
@@ -284,19 +285,19 @@ def submit_script(root, thread, header, command, key, label, produces=(),
         sent.append("--export=ALL," + ",".join(
             "%s=%s" % (k, env[k]) for k in sorted(env)))
     sent.append(script)
-    shown = " ".join([label] + ["%s=%s" % (k, env[k]) for k in sorted(env)])
+    shown = " ".join([shown_as] + ["%s=%s" % (k, env[k]) for k in sorted(env)])
     fields = {"cmd": shown[:CMD_CHARS], "key": key,
               "exitfile": _relative(root, exitfile)}
     tasks = array_tasks(header)
     if tasks is not None:
         fields["array_tasks"] = tasks
     fields.update(extra or {})
-    return submit(root, thread, sent, produces=produces, cwd=root, run=run,
+    return submit(root, label, sent, produces=produces, cwd=root, run=run,
                   now=now, export=export, env=sbatch_env, path=path,
                   extra=fields)
 
 
-def submit_recipe(root, thread, recipe, env=None, produces=(), export=(),
+def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
                   key=None, run=subprocess.run, now=None, sbatch_env=None,
                   path=None, extra=None):
     """Submit a tracked recipe, wrapped so its ending can be read.
@@ -311,7 +312,7 @@ def submit_recipe(root, thread, recipe, env=None, produces=(), export=(),
             header = header_of(fh.read())
     except OSError as exc:
         return None, "the recipe %s cannot be read: %s" % (recipe, exc)
-    return submit_script(root, thread, header, ["bash", full],
+    return submit_script(root, label, header, ["bash", full],
                          key or local_key(now), recipe, produces=produces,
                          export=export, env=env, run=run, now=now,
                          sbatch_env=sbatch_env, path=path, extra=extra)
@@ -547,12 +548,12 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
     # An ending recorded but never reported -- its reader died, or its inbox
     # line could not be written -- is offered again, without asking squeue.
     for j in every:
-        if (course_threads.finished(j) and not j.get("reported")
+        if (exports.finished(j) and not j.get("reported")
                 and _claim(root, j["jobid"], now, claims)):
             out.append(dict(j))
-    open_jobs = [j for j in every if not course_threads.finished(j)
+    open_jobs = [j for j in every if not exports.finished(j)
                  and str(j.get("state") or "").upper()
-                 != course_threads.REQUESTED]
+                 != exports.REQUESTED]
     if not open_jobs:
         return out
     said = squeue(run=run)
@@ -561,9 +562,9 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
     for j in open_jobs:
         base = str(j["jobid"]).split("_")[0]
         state = said.get(base)
-        if state is not None and state.rstrip("+") not in course_threads.TERMINAL:
+        if state is not None and state.rstrip("+") not in exports.TERMINAL:
             if state != j.get("state") or j.get("gone_at"):
-                append(root, {"jobid": j["jobid"], "thread": j.get("thread"),
+                append(root, {"jobid": j["jobid"], "label": j.get("label"),
                               "state": state, "seen": now, "gone_at": 0},
                        path=path)
             continue
@@ -583,7 +584,7 @@ def poll(root, run=subprocess.run, now=None, path=None, claims=None):
                 continue
         # The ending is recorded before it is claimed, so a reader that dies
         # between the two leaves a finished job, not a running one.
-        end_rec = {"jobid": j["jobid"], "thread": j.get("thread"),
+        end_rec = {"jobid": j["jobid"], "label": j.get("label"),
                    "state": state, "exit": code, "ended": end}
         append(root, end_rec, path=path)
         if not _claim(root, j["jobid"], now, claims):
@@ -601,16 +602,12 @@ def failed(rec):
     return (state != ["COMPLETED"]) or code.split(":")[0] not in ("", "0")
 
 
-def _thread_title(root, tid):
-    title = tid or "no thread"
-    try:
-        clean, _ = course_threads.read(root)
-        one = course_threads.thread(clean, tid) if clean else None
-        if one:
-            title = "%s (%s)" % (one["id"], one["title"])
-    except Exception:                                        # noqa: BLE001
-        pass
-    return title
+def title_of(rec):
+    """How a line names the work a record is: its label, else the thread an
+    older request named, else the request or job id."""
+    rec = rec or {}
+    return str(rec.get("label") or rec.get("thread") or rec.get("request")
+               or rec.get("jobid") or "unlabelled work")
 
 
 def _relay_said(value):
@@ -628,12 +625,11 @@ def relay_sense(root, rec):
     exports landed here, the `RELAY:` lines and the note. A failure the Mac
     repairs opens `[repair]` rather than `[job]` (`repairs`).
     """
-    tid = rec.get("thread")
     state = str(rec.get("state") or "")
     repair = repairs(root, rec)
     lines = [
-        "[%s] A cluster report on thread %s has come back: %s."
-        % (REPAIR if repair else "job", _thread_title(root, tid),
+        "[%s] A cluster report on %s has come back: %s."
+        % (REPAIR if repair else "job", title_of(rec),
            state.lower() or "unknown"),
         "",
         "  request  %s (%s)" % (rec.get("request"), rec.get("kind") or "recipe"),
@@ -692,9 +688,7 @@ def relay_sense(root, rec):
         lines.append("It ended cleanly, so the repair of %s is done: the card "
                      "says what the fix was." % rec["fixes"])
     if move_on:
-        lines.append("Then move the thread on with `board thread`: tick the "
-                     "task this request was, and add the next one. A "
-                     "follow-up goes through `board job`, never a bare "
+        lines.append("A follow-up goes through `board job`, never a bare "
                      "sbatch.")
     return "\n".join(lines)
 
@@ -752,17 +746,17 @@ def is_diagnostic(root, rec):
     first = _request(root, origin) or {}
     mine = _request(root, rec.get("request") or rec.get("id")) or {}
     return (mine.get("kind") == "recipe"
-            and course_threads._rel(mine.get("recipe"))
-            != course_threads._rel(first.get("recipe")))
+            and exports.rel(mine.get("recipe"))
+            != exports.rel(first.get("recipe")))
 
 
 def _last_run(root, origin):
     """The newest request that ran `origin`'s own recipe: its last rerun, or
     `origin` itself."""
     first = _request(root, origin) or {}
-    recipe = course_threads._rel(first.get("recipe"))
+    recipe = exports.rel(first.get("recipe"))
     runs = [r for r in attempts(root, origin) if r.get("kind") == "recipe"
-            and course_threads._rel(r.get("recipe")) == recipe]
+            and exports.rel(r.get("recipe")) == recipe]
     return runs[-1] if runs else first
 
 
@@ -784,7 +778,7 @@ def diagnostics(root):
     for depth in range(1, 5):
         pattern = os.path.join(root, *(["*"] * depth + ["diagnose*.sbatch"]))
         for path in sorted(glob.glob(pattern)):
-            rel = course_threads._rel(os.path.relpath(path, root))
+            rel = exports.rel(os.path.relpath(path, root))
             if not rel or rel.startswith(("live/", "relay/", "results/")):
                 continue
             try:
@@ -823,10 +817,14 @@ def report_path(rid):
     return "%s/reports/%s.json" % (RELAY, rid)
 
 
-def _rerun_argv(tid, origin, req):
-    """`board job` for the request `req`, as the rerun of `origin`."""
+def _rerun_argv(origin, req):
+    """`board job` for the request `req`, as the rerun of `origin`. Its label
+    rides along where it has one."""
     req = req or {}
-    argv = ["board", "job", tid or "", "--fixes", origin]
+    argv = ["board", "job"]
+    if isinstance(req.get("label"), str) and req["label"]:
+        argv += ["--label", req["label"]]
+    argv += ["--fixes", origin]
     for p in _strings(req.get("produces")):
         argv += ["--produces", p]
     for p in _strings(req.get("export")):
@@ -837,30 +835,20 @@ def _rerun_argv(tid, origin, req):
     return argv
 
 
-def _thread_files_and_check(root, tid):
-    """`(the thread's files, its own check script, the workspace's check)`,
-    each workspace-relative or `""`."""
+def subject_check(root):
+    """The subject's own check, `check` in its tutorboard.json, as the line a
+    turn runs, or `""` where it declares none."""
     from .course import config as course_config
-    files, own = [], ""
     try:
-        clean, _ = course_threads.read(root)
-        one = course_threads.thread(clean, tid) if clean else None
-        files = [f for f in (course_threads._rel(p)
-                             for p in (one or {}).get("files") or []) if f]
-        own = str((one or {}).get("check") or "")
+        return str(course_config.read_config(root).get("check_line") or "")
     except Exception:                                        # noqa: BLE001
-        pass
-    try:
-        line = course_config.read_config(root).get("check_line") or ""
-    except Exception:                                        # noqa: BLE001
-        line = ""
-    return files, own, str(line)
+        return ""
 
 
 def _repair_said(root, rec):
     """What a repair turn does with this report: fix and rerun, ask with a
     diagnostic, or stop at the cap."""
-    tid, rid = rec.get("thread"), rec["request"]
+    rid = rec["request"]
     origin = rec.get("fixes") or rid
     used = attempts(root, origin)
     diag = is_diagnostic(root, rec)
@@ -879,8 +867,7 @@ def _repair_said(root, rec):
                  "diagnostics and reruns alike. File no diagnostic and no "
                  "rerun. The card says what failed, what each attempt found, "
                  "and that the owner decides next: `board job --fresh` is "
-                 "theirs. Leave the thread's tasks as they are."
-                 % (MAX_FIXES, origin), "", "The attempts:"]
+                 "theirs." % (MAX_FIXES, origin), "", "The attempts:"]
         states = dict((r["request"], r) for r in relayed(root))
         for r in used:
             got = states.get(r.get("id")) or {}
@@ -893,16 +880,9 @@ def _repair_said(root, rec):
     k = len(used) + 1
     last = k == MAX_FIXES
     first = _request(root, origin) or {}
-    rerun = _rerun_argv(tid, origin, _last_run(root, origin))
+    rerun = _rerun_argv(origin, _last_run(root, origin))
     recipe = rerun[rerun.index("--") + 1]
-    files, own, check = _thread_files_and_check(root, tid)
-    if recipe not in files and recipe != "<recipe>":
-        files = files + [recipe]
-    tests = []
-    if check:
-        tests.append("the workspace's check, %s" % check)
-    if own:
-        tests.append("the thread's own check, %s" % own)
+    check = subject_check(root)
     failing = rid if not (diag and not failed(rec)) else (
         _last_run(root, origin).get("id") or origin)
     sites, step = failure_sites(
@@ -924,15 +904,16 @@ def _repair_said(root, rec):
                               first.get("recipe") or recipe),
         "",
         "A. The report says enough to fix it. Before the card:",
-        "  1. Fix it here, in the thread's files and its recipe: %s. Change "
-        "nothing else." % (", ".join(files) or "(none listed)"),
+        "  1. Fix it here, in the code the failure points at and the recipe, "
+        "%s. Change nothing else." % recipe,
         "  2. Run %s. If a check fails, stop: no rerun, and the card says "
         "what you tried and that the owner decides."
-        % (" and ".join(tests) or "the tests the thread names (this "
-                                   "workspace declares no check)"),
-        "  3. Ship it: board push \"%s: <what changed>\" -- <the paths you "
+        % ("the subject's check, %s" % check if check else
+           "the tests beside the code you changed (this subject declares no "
+           "`check` in its tutorboard.json)"),
+        "  3. Ship it: board push \"<what changed>\" -- <the paths you "
         "changed>. If the push is refused, stop the same way: a rerun of "
-        "code the cluster has not pulled runs the old code." % tid,
+        "code the cluster has not pulled runs the old code.",
         "  4. Rerun with this exact command. Where the fix is a VAR value, "
         "change that value and nothing else:",
         "",
@@ -949,12 +930,11 @@ def _repair_said(root, rec):
         lines.append("B. It does not say enough. Ask the cluster with a "
                      "diagnostic: a tracked recipe that prints RELAY: lines "
                      "and produces nothing.")
-        lines += ["     board diagnose %s --fixes %s -- %s%s"
-                  % (shlex.quote(tid or ""), origin, d,
-                     "".join(" [%s=...]" % n for n in names))
+        lines += ["     board diagnose --fixes %s -- %s%s"
+                  % (origin, d, "".join(" [%s=...]" % n for n in names))
                   for d, names in found] or [
-            "     board diagnose %s --fixes %s -- <diagnose.sbatch> "
-            "[VAR=value ...]" % (shlex.quote(tid or ""), origin)]
+            "     board diagnose --fixes %s -- <diagnose.sbatch> "
+            "[VAR=value ...]" % origin]
         lines.append("   A question no diagnostic here answers is a new one: "
                      "write it as a recipe beside the others that prints "
                      "names and counts behind RELAY: -- never a value, a row "
@@ -962,8 +942,7 @@ def _repair_said(root, rec):
     lines += ["",
               "This is automatic attempt %d of %d for %s; a diagnostic and a "
               "rerun each count. The card says what failed and where, which "
-              "of A or B you did, and what you changed. Leave the thread's "
-              "tasks as they are until the rerun reports."
+              "of A or B you did, and what you changed."
               % (k, MAX_FIXES, origin)]
     return lines, False
 
@@ -973,8 +952,8 @@ def _refused_fix_said(rec):
     decides."""
     return ["The cluster would not run this attempt to repair %s. Do not file "
             "it again, and file no other diagnostic or rerun for %s: the card "
-            "lists what it refused and that the owner decides next. Leave the "
-            "thread's tasks as they are." % (rec["fixes"], rec["fixes"])]
+            "lists what it refused and that the owner decides next."
+            % (rec["fixes"], rec["fixes"])]
 
 
 def repair_brief(root, rids):
@@ -1009,6 +988,9 @@ def _repair_lines(root, rid, rec, recs):
     out = ["  request  %s%s" % (rid, ", an attempt to repair %s" % origin
                                 if rec.get("fixes") else "")]
     out.append("  recipe   %s" % (req.get("recipe") or "unknown"))
+    check = subject_check(root)
+    out.append("  check    %s" % (check or "none: the subject's tutorboard.json "
+                                  "declares no `check`"))
     if is_diagnostic(root, rec) and not failed(rec):
         last = _last_run(root, origin)
         failing = recs.get(last.get("id")) or rec
@@ -1083,20 +1065,19 @@ def last_repair(root):
     return rid
 
 
-def open_fix(root, thread, recipe, env=None):
-    """`""`, or the request a plain `board job <thread> -- <recipe> [VAR=v]`
-    would rerun outside its repair: the newest request on the thread with
-    this recipe, whatever its values, where the newest run of the repair it
-    belongs to ended failed. Keyed on thread and recipe alone, so a repair
-    capped at `MAX_FIXES` cannot restart by changing a VAR. Such a rerun
+def open_fix(root, recipe, env=None):
+    """`""`, or the request a plain `board job -- <recipe> [VAR=v]` would
+    rerun outside its repair: the newest request with this recipe, whatever
+    its label and values, where the newest run of the repair it belongs to
+    ended failed. Keyed on the recipe alone, so a repair capped at
+    `MAX_FIXES` cannot restart by changing a VAR or a label. Such a rerun
     carries `--fixes`, so the cap counts it; `--fresh` is the owner's way
     past. `env` is accepted and not read."""
-    recipe = course_threads._rel(recipe) or ""
+    recipe = exports.rel(recipe) or ""
     reqs = requests(root)
     by_id = dict((r.get("id"), r) for r in reqs)
     runs = [r for r in reqs if r.get("kind") == "recipe"
-            and r.get("thread") == thread
-            and course_threads._rel(r.get("recipe")) == recipe]
+            and exports.rel(r.get("recipe")) == recipe]
     if not runs:
         return ""
     newest = max(runs, key=_filed_key)
@@ -1119,16 +1100,8 @@ def sense(root, rec):
     for p in rec.get("produces") or []:
         produced.append("  %s %s" % ("present" if os.path.exists(
             os.path.join(root, p)) else "MISSING", p))
-    title = rec.get("thread") or "no thread"
-    try:
-        clean, _ = course_threads.read(root)
-        one = course_threads.thread(clean, rec.get("thread")) if clean else None
-        if one:
-            title = "%s (%s)" % (one["id"], one["title"])
-    except Exception:                                        # noqa: BLE001
-        pass
     lines = [
-        "[job] A job registered to thread %s has ended." % title,
+        "[job] A job, %s, has ended." % title_of(rec),
         "",
         "  job      %s" % rec.get("jobid"),
         "  state    %s" % rec.get("state"),
@@ -1157,39 +1130,24 @@ def sense(root, rec):
                      "%s and put the error on the card, in your own words, "
                      "with the line it failed at."
                      % ("errors file" if rec.get("err") else "log"))
-    lines.append("Then move the thread on with `board thread`: tick the task "
-                 "this job was, and add the next one. A follow-up job goes "
-                 "through `board job`, never a bare sbatch.")
+    lines.append("A follow-up job goes through `board job`, never a bare "
+                 "sbatch.")
     return "\n".join(lines)
 
 
 def drop(root, rec, now=None, text=None, signal="job"):
-    """Put the `[job]` line in the inbox, where `board wait` picks it up.
+    """Put the `[job]` line in the inbox, where `board wait` picks it up,
+    through `cluster.wake`.
 
-    `text` and `signal` put another machinery line the same way: a step's
-    check is `[coach]` (`holds.wake`), a failure to repair `[repair]`. A
-    relay record's request id rides along, so `board brief` can name it.
+    `text` and `signal` put another machinery line the same way: a failure to
+    repair is `[repair]`. A relay record's request id and session ride along,
+    so `board brief` can name the request.
     """
-    from .course.repo import Repo
-    from .lesson import turns
-    now = float(now or time.time())
-    target = Repo(root)
-    os.makedirs(target.inbox, exist_ok=True)
-    line = {
-        # From the lesson's own id series, and NOT in `turns.jsonl`: the
-        # machinery is reporting, nobody said anything. The same shape as a
-        # `[ship]` line.
-        "id": turns.next_turn_id(target), "rev": 0, "kind": "text",
-        "answers": None, "t": now, "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "from": "student", "text": text if text is not None else sense(root, rec),
-        "signal": signal,
-        "read": False,
-    }
-    if rec and rec.get("request"):
-        line["request"] = str(rec["request"])
-    with open(target.messages_path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(line) + "\n")
-    return line
+    rec = rec or {}
+    return cluster.wake(root, rec.get("session"),
+                        text if text is not None else sense(root, rec),
+                        wake=True, signal=signal, request=rec.get("request"),
+                        now=now)
 
 
 def report(root, run=subprocess.run, now=None):
@@ -1207,7 +1165,7 @@ def report(root, run=subprocess.run, now=None):
             # No line, so no claim: the next pass offers it again.
             _unclaim(root, rec["jobid"])
             continue
-        append(root, {"jobid": rec["jobid"], "thread": rec.get("thread"),
+        append(root, {"jobid": rec["jobid"],
                       "reported": float(now or time.time())})
         out.append(rec)
     return out
@@ -1218,18 +1176,13 @@ def report(root, run=subprocess.run, now=None):
 # ---------------------------------------------------------------------------
 def running(root):
     """The unfinished jobs, newest first, for the busy strip."""
-    titles = {}
-    try:
-        clean, _ = course_threads.read(root)
-        for t in (clean or {}).get("threads") or []:
-            titles[t["id"]] = t["title"]
-    except Exception:                                        # noqa: BLE001
-        pass
     out = []
-    for j in course_threads.unfinished(list(view(root).values())):
+    for j in view(root).values():
+        if exports.finished(j):
+            continue
         out.append({"jobid": j.get("slurm") or j.get("jobid"),
-                    "thread": j.get("thread"),
-                    "title": titles.get(j.get("thread"), j.get("thread") or ""),
+                    "thread": j.get("thread"), "label": j.get("label"),
+                    "title": j.get("label") or j.get("thread") or "",
                     "state": j.get("state") or "PENDING",
                     "submitted": j.get("submitted") or 0})
     out.sort(key=lambda j: -float(j["submitted"] or 0))
@@ -1267,11 +1220,16 @@ VAR_LINE_RE = re.compile(r"^#RELAY-VAR\s+(\S+)\s+(\S.*?)\s*$")
 FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
                   "PYTHONPATH", "PYTHONSTARTUP", "BASH_ENV", "ENV", "HOME",
                   "SHELL", "IFS", "PROMPT_COMMAND")
+# `thread` is accepted and ignored: requests filed before labels carry it.
 REQUEST_KEYS = {
-    "recipe": ("id", "kind", "thread", "recipe", "env", "produces", "export",
-               "filed", "fixes"),
-    "colibri": ("id", "kind", "thread", "brief", "filed"),
+    "recipe": ("id", "kind", "label", "session", "thread", "recipe", "env",
+               "produces", "export", "filed", "fixes"),
+    "colibri": ("id", "kind", "label", "session", "thread", "brief", "filed"),
 }
+# A label is a slug naming the work; a session is the Mac session id it was
+# filed from (`sessions/<id>/`).
+LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MAX_BRIEF = 2000
 MAX_VALUE = 200
 NO_TURN = ("a `turn` request asks for a hosted model on the cluster, and no "
@@ -1339,19 +1297,20 @@ def _plain_list(value, field, problems):
     return value
 
 
-def validate(req, clean, tracked, declared, taken=(), colibri=False):
+def validate(req, allowed, tracked, declared, taken=(), colibri=False):
     """`(request, problems)`: may this request run? PURE, and both machines
     call it -- the Mac before it commits, the cluster before it submits.
 
         req       the request, as parsed JSON
-        clean     the workspace's thread file, as `threads.validate` returns it
+        allowed   the subject's approved exports, `exports.approvals`
         tracked   workspace-relative paths tracked and unchanged at HEAD
         declared  `{recipe: (declared, problems)}`, `declarations` per recipe
         taken     request ids already filed
         colibri   has this workspace opted in to `colibri` requests, which
                   queue a Colibri task (`colibri.relay_file`)
 
-    Refused whole, with every problem at once, like the thread file.
+    Refused whole, with every problem at once. Nothing here reads the
+    thread file: a `thread` key is accepted and dropped.
     """
     problems = []
     if not isinstance(req, dict):
@@ -1386,12 +1345,20 @@ def validate(req, clean, tracked, declared, taken=(), colibri=False):
                            or not REQUEST_ID_RE.match(fixes) or fixes == rid):
         problems.append("`fixes` names a request id")
 
-    tid = req.get("thread")
-    one = course_threads.thread(clean, tid) if clean else None
-    if not one:
-        problems.append("thread %r is not one this workspace's thread file "
-                        "declares" % (tid,))
-    out = {"id": rid, "kind": kind, "thread": tid}
+    out = {"id": rid, "kind": kind}
+    label = req.get("label")
+    if label is not None:
+        if not isinstance(label, str) or not LABEL_RE.match(label):
+            problems.append("label %r must be 1-40 characters of a-z, 0-9 and "
+                            "hyphen" % (label,))
+        else:
+            out["label"] = label
+    session = req.get("session")
+    if session is not None:
+        if not isinstance(session, str) or not SESSION_RE.match(session):
+            problems.append("session %r is not a session id" % (session,))
+        else:
+            out["session"] = session
     if filed is not None:
         out["filed"] = filed
 
@@ -1409,7 +1376,7 @@ def validate(req, clean, tracked, declared, taken=(), colibri=False):
         out["brief"] = brief.strip() if isinstance(brief, str) else ""
         return (None, problems) if problems else (out, [])
 
-    recipe = course_threads._rel(req.get("recipe"))
+    recipe = exports.rel(req.get("recipe"))
     if not recipe or not recipe.endswith(".sbatch"):
         problems.append("recipe %r must be a .sbatch file inside this "
                         "workspace" % (req.get("recipe"),))
@@ -1440,7 +1407,7 @@ def validate(req, clean, tracked, declared, taken=(), colibri=False):
 
     produces = []
     for p in _plain_list(req.get("produces"), "produces", problems):
-        rel = course_threads._rel(p)
+        rel = exports.rel(p)
         if rel is None:
             problems.append("produces %r is not a path inside this workspace"
                             % p)
@@ -1448,18 +1415,15 @@ def validate(req, clean, tracked, declared, taken=(), colibri=False):
             produces.append(rel)
     export = []
     for p in _plain_list(req.get("export"), "export", problems):
-        rel = course_threads._rel(p)
+        rel = exports.rel(p)
         if rel is None or not rel.startswith("results/"):
             problems.append("export %r must be a path under results/" % p)
-        elif os.path.splitext(rel)[1].lower() not in course_threads.EXPORT_EXTS:
-            problems.append("export %s is not one of %s" % (
-                rel, ", ".join(course_threads.EXPORT_EXTS)))
-        elif one and not course_threads.exportable(one, rel):
-            problems.append("export %s is not marked aggregate on thread %s. "
-                            "`board thread export %s %s` asks the owner"
-                            % (rel, tid, tid, rel))
-        else:
+            continue
+        ok_, why = exports.approved(allowed, rel)
+        if ok_:
             export.append(rel)
+        else:
+            problems.append(why)
     out.update({"recipe": recipe, "env": dict(env), "produces": produces,
                 "export": export})
     if fixes is not None:
@@ -1477,8 +1441,7 @@ def fix_problems(req, filed, failed_ids, mine=False):
         mine        the cluster checking a request already filed: only the
                     attempts filed before it count against the cap
 
-    `fixes` names a recipe request on the same thread that is itself no fix
-    and has failed: the one that failed first. An attempt past `MAX_FIXES`,
+    `fixes` names a recipe request that is itself no fix and has failed: the one that failed first. An attempt past `MAX_FIXES`,
     diagnostic or rerun, is refused on both machines, which is what stops a
     job that keeps failing.
     """
@@ -1495,9 +1458,6 @@ def fix_problems(req, filed, failed_ids, mine=False):
     if target.get("kind") != "recipe":
         problems.append("`fixes` names %s, which is a %s request, not a "
                         "recipe" % (origin, target.get("kind") or "kindless"))
-    if target.get("thread") != req.get("thread"):
-        problems.append("`fixes` names %s, which is on thread %s, not %s"
-                        % (origin, target.get("thread"), req.get("thread")))
     if target.get("fixes"):
         problems.append("`fixes` names %s, which fixes %s itself; name the "
                         "request that failed first" % (origin,
@@ -1540,7 +1500,7 @@ def context(root, recipes=()):
     tracked -= changed
     declared = {}
     for r in recipes:
-        rel = course_threads._rel(r)
+        rel = exports.rel(r)
         if not rel:
             continue
         try:
@@ -1549,12 +1509,11 @@ def context(root, recipes=()):
                 declared[rel] = declarations(fh.read())
         except OSError:
             declared[rel] = ({}, [])
-    clean, _ = course_threads.read(root)
     relay = relay_opts(root)
     filed = requests(root)
     taken = set(r["id"] for r in filed)
     failed_ids = set(r["request"] for r in relayed(root) if ended_failed(r))
-    return {"clean": clean, "tracked": tracked, "declared": declared,
+    return {"allowed": exports.approvals(root), "tracked": tracked, "declared": declared,
             "taken": taken, "colibri": relay.get("colibri") is True,
             "filed": filed,
             "failed": failed_ids}
@@ -1590,7 +1549,7 @@ def check(root, req, mine=False):
     taken = ctx["taken"]
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
-    ok, problems = validate(req, ctx["clean"], ctx["tracked"],
+    ok, problems = validate(req, ctx["allowed"], ctx["tracked"],
                             ctx["declared"], taken, ctx["colibri"])
     extra = fix_problems(req, ctx["filed"], ctx["failed"], mine)
     if extra:
@@ -1603,10 +1562,11 @@ def _slug(text):
                                      str(text or "").lower())).strip("-")
 
 
-def new_id(thread, label, taken=(), now=None):
-    """`<date>-<thread>-<label>`, cut to fit and made unique with `-2`, `-3`."""
+def new_id(label, what, taken=(), now=None):
+    """`<date>-<label>-<what>`, cut to fit and made unique with `-2`, `-3`.
+    `label` may be empty."""
     day = time.strftime("%Y-%m-%d", time.localtime(float(now or time.time())))
-    stem = "-".join(x for x in (day, _slug(thread), _slug(label)) if x)[:72]
+    stem = "-".join(x for x in (day, _slug(label), _slug(what)) if x)[:72]
     stem = stem.rstrip("-")
     taken, rid, n = set(taken or ()), stem, 1
     while rid in taken:
@@ -1673,7 +1633,7 @@ def relayed(root):
         rid = str(req.get("id") or "")
         rep = got.get(rid) or {}
         state = _AS_SLURM.get(str(rep.get("state") or "").lower(),
-                              course_threads.REQUESTED)
+                              exports.REQUESTED)
         if req.get("kind") in ("turn", "colibri"):
             cmd = "%s: %s" % (req["kind"], str(req.get("brief") or "")[:120])
         else:
@@ -1685,6 +1645,8 @@ def relayed(root):
         rec = {
             "jobid": "relay:" + rid, "request": rid,
             "kind": req.get("kind") or "", "thread": req.get("thread"),
+            "label": req.get("label") or rep.get("label"),
+            "session": req.get("session") or rep.get("session"),
             "cmd": cmd[:CMD_CHARS], "state": state,
             "produces": _strings(req.get("produces")),
             "export": _strings(req.get("export")),
@@ -1769,7 +1731,6 @@ def file_request(root, req, push=True):
     with open(target, "w", encoding="utf-8") as fh:
         json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
         fh.write("\n")
-    course_threads.forget(root)
     # Before the commit, so the report to this request is a change `hear`
     # sees, even when it arrives in the first pull after filing.
     _baseline(root)
@@ -1867,11 +1828,18 @@ HEARD = "relay.heard"
 PULL_EVERY = 20
 
 
+def _named(rec, name):
+    """Is this record's work named `name`, by its label or the thread an
+    older request carried?"""
+    return name in (rec.get("label"), rec.get("thread"))
+
+
 def outstanding(root, tid=None):
-    """The requests here the cluster has not ended, oldest first."""
+    """The requests here the cluster has not ended, oldest first: all of
+    them, or those `tid` names (`_named`)."""
     out = [r for r in relayed(root)
-           if (tid is None or r.get("thread") == tid)
-           and not course_threads.finished(r)]
+           if (tid is None or _named(r, tid))
+           and not exports.finished(r)]
     out.sort(key=lambda r: float(r.get("submitted") or 0))
     return out
 
@@ -1902,12 +1870,13 @@ def _when(value):
 
 
 def last_report(root, tid):
-    """The newest ended report on this thread, as a registry record, or None."""
+    """The newest ended report on work named `tid` (`_named`), as a registry
+    record, or None."""
     got = reports(root)
     best, at = None, -1.0
     for rec in relayed(root):
         rep = got.get(rec["request"])
-        if rec.get("thread") != tid or not rep:
+        if not _named(rec, tid) or not rep:
             continue
         if str(rep.get("state") or "").lower() not in ENDED_REPORTS:
             continue
@@ -2037,7 +2006,8 @@ def hear(root, now=None):
                 continue
             rec = by_id.get(rid) or {
                 "jobid": "relay:" + rid, "request": rid, "kind": "",
-                "thread": rep.get("thread"), "cmd": "",
+                "thread": rep.get("thread"), "label": rep.get("label"),
+                "session": rep.get("session"), "cmd": "",
                 "state": _AS_SLURM.get(state, state.upper())}
             try:
                 drop(root, rec, now=now,

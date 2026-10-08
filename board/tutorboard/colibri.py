@@ -485,12 +485,12 @@ def start_generation():
     return m.group(1), "generation %s submitted" % m.group(1)
 
 
-def file(thread, brief, workspace_root, request="", start=None, now=None):
+def file(label, brief, workspace_root, request="", start=None, now=None):
     """Queue a task, and start a generation if none is queued or running.
 
-    `(record, said)`; the record is None where nothing was queued. The thread
-    is the caller's to check against that workspace's thread file -- `board
-    colibri` and the relay both have it in hand already.
+    `(record, said)`; the record is None where nothing was queued. `label` is
+    an optional slug naming the work, checked by the caller (`board colibri`,
+    `jobs.validate`); nothing here reads a thread file.
     """
     from . import missions
     brief = (brief or "").strip()
@@ -500,7 +500,7 @@ def file(thread, brief, workspace_root, request="", start=None, now=None):
     if not root:
         return None, "this machine has no %s workspace to queue in" % WORKSPACE
     with _Lock():
-        rec = missions.file_task(root, thread, brief,
+        rec = missions.file_task(root, label, brief,
                                  atlas.identify(workspace_root), request, now,
                                  baseline=_baseline(workspace_root))
         if rec is None:
@@ -821,7 +821,7 @@ def relay_report(rec):
 
 def relay_file(ws_root, req, start=None, now=None):
     """File a checked `colibri` request as a task. Its first report."""
-    rec, said = file(req.get("thread"), req.get("brief"), ws_root,
+    rec, said = file(req.get("label"), req.get("brief"), ws_root,
                      request=req.get("id") or "", start=start, now=now)
     if rec is None:
         return {"id": req.get("id"), "kind": "colibri", "state": "refused",

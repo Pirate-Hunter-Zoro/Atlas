@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Long work is registered to a thread, and reports itself when it ends.
+"""Long work is labelled, and reports itself when it ends.
 
 What the checks are about:
 
@@ -131,8 +131,9 @@ rec, why = jobs.submit(wholesale, "knn", ["sbatch", "sweep.sbatch"],
                        now=time.time())
 check("submit runs sbatch with --parsable added",
       slurm.calls[0] == ["sbatch", "--parsable", "sweep.sbatch"])
-check("and registers {thread, jobid, cmd, produces, submitted}",
-      rec and rec["jobid"] == "1001" and rec["thread"] == "knn"
+check("and registers {label, jobid, cmd, produces, submitted}",
+      rec and rec["jobid"] == "1001" and rec["label"] == "knn"
+      and "thread" not in rec
       and rec["cmd"] == "sbatch sweep.sbatch"
       and rec["produces"] == ["results/knn.csv"] and rec["submitted"] > 0)
 check("with the log scontrol names, %j filled in, workspace-relative",
@@ -145,10 +146,10 @@ check("anything but sbatch is refused, and nothing is registered",
       rec2 is None and "sbatch" in why2 and len(jobs.records(wholesale)) == 1)
 
 threads._cache.clear()
-check("a registered job makes its thread running",
+check("a job labelled with a thread's id makes that thread running",
       threads.stages(wholesale)["knn"]["status"] == "running")
-check("and the payload carries it for the busy strip, titled",
-      jobs.running(wholesale)[0]["title"] == "Weighted neighbours"
+check("and the payload carries it for the busy strip, titled by its label",
+      jobs.running(wholesale)[0]["title"] == "knn"
       and jobs.running(wholesale)[0]["state"] == "PENDING")
 
 # --- polling: squeue, and the wrapper's exit file ------------------------------
@@ -192,9 +193,10 @@ check("exactly one [job] line is in the inbox, unread, signalled `job`",
       len(lines) == 1 and lines[0]["signal"] == "job"
       and not lines[0]["read"] and lines[0]["text"].startswith("[job] "))
 said = lines[0]["text"]
-check("it names the thread, the job, the exit and what it was to produce",
-      "knn (Weighted neighbours)" in said and "1001" in said
-      and "MISSING results/knn.csv" in said and "board thread" in said)
+check("it names the label, the job, the exit and what it was to produce, "
+      "and reads no thread file",
+      "A job, knn, has ended" in said and "1001" in said
+      and "MISSING results/knn.csv" in said and "board thread" not in said)
 check("and says how a raw job ended is unknown, without calling it a failure",
       "unknown" in said and "did NOT end cleanly" not in said)
 
@@ -358,8 +360,8 @@ def board(cwd, *args):
     return p.returncode, p.stdout.decode("utf-8", "replace")
 
 
-code, out = board(allowed, "job", "knn", "--produces", "results/knn.csv", "--",
-                  "sbatch", "--wrap", "true")
+code, out = board(allowed, "job", "--label", "knn", "--produces",
+                  "results/knn.csv", "--", "sbatch", "--wrap", "true")
 check("`board job` submits and registers", code == 0 and "4242" in out
       and jobs.records(allowed)["4242"]["produces"] == ["results/knn.csv"])
 check("in live/jobs.jsonl, which that workspace's git can see",
@@ -368,18 +370,19 @@ check("in live/jobs.jsonl, which that workspace's git can see",
 check("with the sbatch's own arguments passed through, --parsable first",
       open(os.path.join(base, "sbatch.args")).read().split()
       == ["--parsable", "--wrap", "true"])
-code, out = board(allowed, "job", "ghost", "--", "sbatch", "x")
-check("a thread the file does not declare is refused",
-      code == 1 and "knn" in out and "4243" not in out)
-code, out = board(allowed, "job", "knn", "--produces", "../x", "--", "sbatch", "x")
+code, out = board(allowed, "job", "--label", "Not A Slug", "--", "sbatch", "x")
+check("a label that is not a slug is refused, nothing submitted",
+      code == 1 and "--label" in out and len(jobs.records(allowed)) == 1)
+code, out = board(allowed, "job", "--label", "knn", "--produces", "../x", "--",
+                  "sbatch", "x")
 check("a --produces path outside the workspace is refused, nothing submitted",
       code == 1 and len(jobs.records(allowed)) == 1)
-code, out = board(allowed, "job", "knn", "sbatch", "x")
+code, out = board(allowed, "job", "--label", "knn", "sbatch", "x")
 check("and so is a command with no `--` before it", code == 1 and "--" in out)
 code, out = board(allowed, "job", "--show")
 check("`--show` lists what is registered", code == 0 and "4242" in out)
 code, out = board(allowed, "thread", "--show", "knn")
-check("and `board thread --show` says the thread is running",
+check("and `board thread --show` says the thread its label names is running",
       code == 0 and json.loads(out)["stage"]["status"] == "running")
 
 # --- missions carry a thread too ---------------------------------------------------
@@ -462,4 +465,4 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("a job is registered to its thread, and reports itself once when it ends")
+print("a job is labelled, and reports itself once when it ends")

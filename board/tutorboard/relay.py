@@ -65,8 +65,7 @@ import sys
 import tempfile
 import time
 
-from . import atlas, jobs, leaving, paths, worktree
-from .course import threads as course_threads
+from . import atlas, exports, jobs, leaving, paths, worktree
 
 LOCK = os.path.join("relay", ".lock")
 STATE = os.path.join("relay", "state.json")
@@ -857,7 +856,6 @@ def write_report(ws, rid, rep):
         fh.write("\n")
     os.replace(tmp, target)
     _WRITTEN.add(os.path.realpath(target))
-    course_threads.forget(ws)
     return target
 
 
@@ -866,9 +864,16 @@ def _field(value, names_phi):
 
 
 def _base_report(req, state, now, names_phi=None):
-    return {"id": request_id(req), "kind": _field(req.get("kind"), names_phi),
-            "thread": _field(req.get("thread"), names_phi), "state": state,
-            "updated": round(float(now), 3)}
+    """A report's common fields. It echoes the request's `label` and
+    `session`, so the Mac wakes the session that filed it; a `thread` an
+    older request carries is not echoed."""
+    rep = {"id": request_id(req), "kind": _field(req.get("kind"), names_phi),
+           "state": state, "updated": round(float(now), 3)}
+    for key in ("label", "session"):
+        said = _field(req.get(key), names_phi)
+        if said:
+            rep[key] = said
+    return rep
 
 
 def refuse(ws, req, problems, now, names_phi=None):
@@ -878,18 +883,18 @@ def refuse(ws, req, problems, now, names_phi=None):
     return write_report(ws, request_id(req), rep)
 
 
-def export(ws, rec, clean, names_phi=None):
+def export(ws, rec, allowed, names_phi=None):
     """Copy a finished job's exports into `exports/`. `(landed, refused)`.
 
     Each path is checked again here, in code, whatever the request said: under
-    `results/`, an allowed extension, marked aggregate on the thread now, a
+    `results/`, an allowed extension, approved now by the subject's committed
+    tutorboard.json `relay.exports` (`allowed`, `exports.approvals`), a
     regular file of at most 5 MB, a target git would track, and nothing the
     PHI policy matches in its path or, for text, its content.
     """
     landed, refused = [], []
-    one = course_threads.thread(clean, rec.get("thread")) if clean else None
     for rel in rec.get("export") or []:
-        rel = course_threads._rel(rel)
+        rel = exports.rel(rel)
 
         def no(why):
             refused.append({"path": rel, "why": why})
@@ -900,11 +905,12 @@ def export(ws, rec, clean, names_phi=None):
             no("not a path under results/")
             continue
         ext = os.path.splitext(rel)[1].lower()
-        if ext not in course_threads.EXPORT_EXTS:
-            no("not one of %s" % ", ".join(course_threads.EXPORT_EXTS))
+        if ext not in exports.EXPORT_EXTS:
+            no("not one of %s" % ", ".join(exports.EXPORT_EXTS))
             continue
-        if not one or not course_threads.exportable(one, rel):
-            no("not marked aggregate on the thread")
+        ok, why = exports.approved(allowed, rel)
+        if not ok:
+            no(why)
             continue
         if names_phi is not None and names_phi(rel):
             no("the PHI policy matches its path")
@@ -937,7 +943,7 @@ def export(ws, rec, clean, names_phi=None):
     return landed, refused
 
 
-def finish(ws, rec, req, clean, now, names_phi=None):
+def finish(ws, rec, req, allowed, now, names_phi=None):
     """The report for a job that has ended."""
     state = "completed" if rec.get("state") == "COMPLETED" else "failed"
     rep = _base_report(req, state, now, names_phi)
@@ -946,7 +952,7 @@ def finish(ws, rec, req, clean, now, names_phi=None):
                 "ended": rec.get("ended") or "",
                 "exit": rec.get("exit") or ""})
     produces = list(req.get("produces") or [])
-    rep["produced"] = [p for p in produces if course_threads.here(ws, p)]
+    rep["produced"] = [p for p in produces if paths.present(ws, p)]
     rep["missing"] = [p for p in produces if p not in rep["produced"]]
     out, err = _logs(rec)
     # Without the policy nothing the job printed is published.
@@ -957,7 +963,7 @@ def finish(ws, rec, req, clean, now, names_phi=None):
         rep["error"] = crashed
     if state == "completed":
         landed, refused = export(ws, dict(rec, export=req.get("export")),
-                                 clean, names_phi)
+                                 allowed, names_phi)
     else:
         landed = []
         refused = [{"path": p, "why": "the job did not complete"}
@@ -1406,7 +1412,7 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         return
     if ok["kind"] == "colibri":
         got = colibri.relay_file(ws, ok)
-        write_report(ws, rid, _colibri_public(got, rid, names_phi, now))
+        write_report(ws, rid, _colibri_public(got, rid, names_phi, now, req))
         summary["refused" if got.get("state") == "refused"
                 else "submitted"].append(rid)
         return
@@ -1416,7 +1422,7 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         summary["refused"].append(rid)
         return
     rec, why = jobs.submit_recipe(
-        ws, ok["thread"], ok["recipe"], env=ok["env"],
+        ws, ok.get("label"), ok["recipe"], env=ok["env"],
         produces=ok["produces"], export=ok["export"], key=rid,
         run=run, now=now, sbatch_env=env,
         path=jobs.relay_registry(ws),
@@ -1431,9 +1437,16 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
     summary["submitted"].append(rid)
 
 
-def _colibri_public(rep, rid, names_phi, now):
-    """A Colibri task's report, every string in it made public."""
-    out = dict(rep, id=rid, kind="colibri", updated=round(float(now), 3))
+def _colibri_public(rep, rid, names_phi, now, req=None):
+    """A Colibri task's report, every string in it made public. Its `label`
+    and `session` are the request's (`_base_report`), never the task's."""
+    out = dict((k, v) for k, v in rep.items()
+               if k not in ("label", "session", "thread"))
+    out.update(id=rid, kind="colibri", updated=round(float(now), 3))
+    for key in ("label", "session"):
+        said = _field((req or {}).get(key), names_phi)
+        if said:
+            out[key] = said
     if "note" in out:
         said = public(out.get("note"), names_phi, MAX_NOTE)
         out["note"] = (said if said is not None else
@@ -1441,7 +1454,7 @@ def _colibri_public(rep, rid, names_phi, now):
     if out.get("problems"):
         out["problems"] = [public(p, names_phi, 400) or "(withheld by the PHI "
                            "policy)" for p in out["problems"]]
-    for key in ("task", "jobid", "thread"):
+    for key in ("task", "jobid"):
         if key in out:
             out[key] = _field(str(out[key]), names_phi)
     if "relay" in out:
@@ -1463,9 +1476,11 @@ def _colibri_step(now, summary, names_phi, colibri):
         rid = rep.get("id")
         if not isinstance(rid, str) or not jobs.REQUEST_ID_RE.match(rid):
             continue
-        if not any(request_id(r) == rid for r in jobs.requests(ws)):
+        req = next((r for r in jobs.requests(ws) if request_id(r) == rid),
+                   None)
+        if req is None:
             continue
-        out = _colibri_public(rep, rid, names_phi, now)
+        out = _colibri_public(rep, rid, names_phi, now, req)
         old = jobs.reports(ws).get(rid) or {}
         same = dict((k, v) for k, v in old.items() if k != "updated")
         if same == dict((k, v) for k, v in out.items() if k != "updated"):
@@ -1485,19 +1500,19 @@ def _poll(ws, by_id, run, now, summary, names_phi):
         if rid not in by_id:
             continue
         rep = reps.get(rid) or {}
-        if (not course_threads.finished(rec) and rec.get("state") == "RUNNING"
+        if (not exports.finished(rec) and rec.get("state") == "RUNNING"
                 and rep.get("state") == "submitted"):
             rep = dict(rep, state="running", updated=round(now, 3),
                        started=rec.get("seen") or now)
             write_report(ws, rid, rep)
-    clean, _ = course_threads.read(ws)
+    allowed = exports.approvals(ws)
     for rec in ended:
         rid = rec.get("request")
         req = by_id.get(rid)
         try:
             if not req:
                 raise KeyError("request %s is gone" % rid)
-            finish(ws, rec, req, clean, now, names_phi)
+            finish(ws, rec, req, allowed, now, names_phi)
         except Exception:                                    # noqa: BLE001
             # No report, so no claim: the next pass offers it again.
             jobs._unclaim(ws, rec["jobid"], claims)
@@ -1555,7 +1570,7 @@ def status(base=None, now=None):
             s = (reps.get(str(r.get("id"))) or {}).get("state") or "requested"
             counts[s] = counts.get(s, 0) + 1
         out = [j for j in jobs.records(ws, jobs.relay_registry(ws)).values()
-               if not course_threads.finished(j)]
+               if not exports.finished(j)]
         lines.append("  %-28s %s%s" % (rel, ", ".join(
             "%d %s" % (counts[k], k) for k in sorted(counts)),
             "; jobs out: %s" % ", ".join(

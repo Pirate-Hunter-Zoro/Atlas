@@ -33,6 +33,11 @@ import subprocess
 import time
 
 from .. import paths as toolpaths
+# The job states, the registry fold and the export rule live in exports.py,
+# so the relay reads them without this file.
+from ..exports import rel as _exports_rel
+from ..exports import (EXPORT_EXTS, REQUESTED, TERMINAL, exportable,  # noqa: F401
+                       finished, jobs_of, merged)
 
 VERSION = 1
 NAME = "threads.json"
@@ -54,27 +59,8 @@ MAX_BLOCKED = 8
 MAX_THREADS = 44
 MAX_TASKS = 40
 
-# What sacct calls a job that has stopped. Anything else -- PENDING, RUNNING,
-# no state at all -- is a job still out. LOST is the board's own word, for a job
-# Slurm has no record of at all: left out, it would hold its thread at
-# `running` for ever.
-# REFUSED is the relay's, for a request the cluster would not run. DIED and
-# ENDED are `jobs.ending`'s, for a job that left squeue without its exit file,
-# wrapped and not.
-TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
-            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST",
-            "REFUSED", "DIED", "ENDED")
-
-# A relay request the cluster has not reported on yet. Not terminal: the
-# thread waits on it, and says `requested` rather than `running`.
-REQUESTED = "REQUESTED"
-
 # The six stages, and the first true one wins.
 STAGES = ("done", "running", "requested", "written", "result", "open")
-
-# What may be copied from `results/` into tracked `exports/`: aggregate
-# artifacts a reader can open, never a database or a pickle.
-EXPORT_EXTS = (".png", ".pdf", ".svg", ".csv", ".json")
 
 CACHE_SECONDS = 30
 _cache = {}
@@ -95,13 +81,7 @@ def _text(value, limit):
 
 def _rel(value):
     """A path inside the workspace, or None."""
-    rel = str(value or "").strip().replace("\\", "/").lstrip("/")
-    while rel.startswith("./"):
-        rel = rel[2:]
-    rel = rel.rstrip("/")
-    if not rel or rel == "." or ".." in rel.split("/") or rel.startswith("~"):
-        return None
-    return rel
+    return _exports_rel(value)
 
 
 def _paths(value, where, field, problems):
@@ -168,12 +148,6 @@ def _exports(value, where, problems):
         problems.append("%s: %d exports, and the cap is %d"
                         % (where, len(out), MAX_PATHS))
     return out[:MAX_PATHS]
-
-
-def exportable(t, rel):
-    """May `rel` be published off this thread? Only once the owner said so."""
-    return any(e["path"] == rel and e["aggregate"]
-               for e in (t or {}).get("exports") or [])
 
 
 def validate(raw):
@@ -617,37 +591,13 @@ def check(root, documents=True):
 # ---------------------------------------------------------------------------
 # status: derived, never typed
 # ---------------------------------------------------------------------------
-def merged(jobs):
-    """`{jobid: record}`, each job's records folded in file order.
-
-    A later record for the same job id overrides an earlier one, so the poll
-    that sees a job end appends one line carrying `state` rather than rewriting
-    the file.
-    """
-    last = {}
-    for j in jobs or []:
-        if not isinstance(j, dict):
-            continue
-        key = str(j.get("jobid") or "")
-        if not key:
-            continue
-        rec = dict(last.get(key) or {})
-        rec.update(j)
-        last[key] = rec
-    return last
-
-
-def finished(j):
-    """Has sacct (or the board) called this job finished?"""
-    state = str(j.get("state") or "").split()
-    return bool(state) and state[0].upper().rstrip("+") in TERMINAL
-
-
 def unfinished(jobs, tid=None):
     """The registered jobs of one thread -- or of every thread, with no `tid` --
-    that have not finished."""
+    that have not finished. A job labelled with a thread's id is that
+    thread's, as one an older request registered to it is."""
     return [j for j in merged(jobs).values()
-            if (tid is None or j.get("thread") == tid) and not finished(j)]
+            if (tid is None or tid in (j.get("thread"), j.get("label")))
+            and not finished(j)]
 
 
 def _under(p, base):
@@ -692,26 +642,6 @@ def stage(t, present, texts, dirty, jobs):
         "decisions": sum(1 for d in t["decisions"] if d["rule"] is None),
         "tasks": sum(1 for x in t["tasks"] if not x["done"]),
     }
-
-
-def jobs_of(root):
-    """The job registry as records, from wherever `jobs.registry` keeps it.
-    Empty if none."""
-    from .. import jobs as job_registry
-    out = []
-    try:
-        with open(job_registry.registry(root), "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    out.append(json.loads(line))
-                except ValueError:
-                    continue
-    except OSError:
-        return []
-    return out
 
 
 def registered_of(root):
@@ -769,11 +699,27 @@ def dirty_of(root):
     return out
 
 
+def _job_signature(root):
+    """The mtimes of what a job's filing or ending changes: the registry and
+    the relay's requests and reports. A cached reading is stale once any
+    moved; the job code never has to say so."""
+    from .. import jobs as job_registry
+    out = []
+    for p in (job_registry.registry(root), job_registry.requests_dir(root),
+              job_registry.reports_dir(root)):
+        try:
+            out.append(os.stat(p).st_mtime_ns)
+        except OSError:
+            out.append(0)
+    return tuple(out)
+
+
 def stages(root):
     """`{thread id: stage}` for this workspace, read off disk. Cached briefly."""
     key = os.path.realpath(root)
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < CACHE_SECONDS:
+    sig = _job_signature(root)
+    if hit and time.time() - hit[0] < CACHE_SECONDS and hit[2] == sig:
         return hit[1]
     clean, problems = read(root)
     found = {}
@@ -798,5 +744,5 @@ def stages(root):
         # file from `files`, and that deletion is an unsaved change.
         for t in clean["threads"]:
             found[t["id"]] = stage(t, present, texts, dirty, jobs)
-    _cache[key] = (time.time(), found)
+    _cache[key] = (time.time(), found, sig)
     return found

@@ -50,17 +50,14 @@ The assistant runs these. The student never does.
     board thread --show|--check        read it, or say what has gone stale in it
     board thread task|done|decide|close [<thread>] ...
                                        edit one thread; `board thread --help`
-    board thread export <thread> <results/path> [--aggregate]
-                                       ask the owner whether an artifact may
-                                       be published to exports/; record yes
-    board job <thread> [--produces <p>] [--export <p>] [--fixes <id>]
-              [--fresh] -- <recipe> [VAR=v ...]
-                                       long work registered to a thread: with
+    board job [--label <slug>] [--session <id>] [--produces <p>]
+              [--export <p>] [--fixes <id>] [--fresh] -- <recipe> [VAR=v ...]
+                                       long work, reporting itself: with
                                        Slurm it submits, without it files a
                                        relay request for the cluster. Its
                                        ending wakes a turn; a failure wakes a
                                        [repair] turn. --show lists them
-    board diagnose <thread> --fixes <id> -- <recipe> [VAR=v ...]
+    board diagnose [--label <slug>] --fixes <id> -- <recipe> [VAR=v ...]
                                        `board job` for a diagnostic: a recipe
                                        that prints RELAY: lines, no output
     board hold|release <thread>        on the cluster: the thread's files are
@@ -69,7 +66,8 @@ The assistant runs these. The student never does.
                                        it, run the thread's check, push, and
                                        print the coach's reply
     board coach <thread> < reply.md    on the Mac: the coach's reply to a step
-    board colibri <thread> "<task>"    queue a Colibri task: on the cluster it
+    board colibri [--label <slug>] "<task>"
+                                       queue a Colibri task: on the cluster it
                                        starts a generation if none is up; on
                                        the Mac it files a `colibri` request.
                                        --show lists the queue
@@ -2352,15 +2350,9 @@ def cmd_thread(live, args):
                                              rule is an open decision
         board thread close [<thread>]        the owner closed it
         board thread reopen [<thread>]       undo a close
-        board thread export [<thread>] <results/path>
-                                             ask the owner whether the artifact
-                                             is aggregate: lists it, unanswered,
-                                             and prints the card's question
-        board thread export [<thread>] <results/path> --aggregate
-                                             the owner said yes: it may be
-                                             published to exports/
-        board thread export [<thread>] <results/path> --drop
-                                             the owner said no: unlisted
+        board thread export ...              retired: the owner approves an
+                                             export in tutorboard.json
+                                             `relay.exports`
         board thread check [<thread>] <script>|--drop
                                              the tracked script `board send`
                                              runs on the cluster after each
@@ -2537,47 +2529,19 @@ def cmd_thread(live, args):
             said = "`%s`: a %s decision, %s" % (
                 tid, "decided" if rule else "new open", rest[0])
     elif verb == "export":
-        flags = [w for w in rest if w in ("--aggregate", "--drop")]
-        words = [w for w in rest if w not in flags]
-        if len(words) != 1 or len(flags) > 1:
-            print("board thread export: name one results/ path, with at most "
-                  "one of --aggregate or --drop", file=sys.stderr)
-            return 1
-        want = course_threads._rel(words[0]) or words[0]
-        listed = [e for e in one["exports"] if e["path"] == want]
-        if flags == ["--drop"]:
-            if not listed:
-                print("board thread export: `%s` does not list %s"
-                      % (tid, want), file=sys.stderr)
-                return 1
-            one["exports"] = [e for e in one["exports"] if e["path"] != want]
-            said = "`%s`: %s is not for publishing" % (tid, want)
-        elif flags == ["--aggregate"]:
-            if listed:
-                listed[0]["aggregate"] = True
-            else:
-                one["exports"].append({"path": want, "aggregate": True})
-            said = ("`%s`: %s is aggregate, the owner's word, and may be "
-                    "copied to exports/" % (tid, want))
-        else:
-            if listed and listed[0]["aggregate"]:
-                print("`%s`: %s is already marked aggregate; nothing to ask."
-                      % (tid, want))
-                return 0
-            if not listed:
-                one["exports"].append({"path": want, "aggregate": False})
-            said = "`%s`: %s is listed, waiting on the owner" % (tid, want)
-            code = _thread_store(root, clean, said)
-            if code == 0:
-                print("\nPut this question on your card, and run the command "
-                      "only once the owner answers yes:\n\n"
-                      "  May %s be published? The repository is public. Say "
-                      "yes only if every number in it is an aggregate, with no "
-                      "row for a patient, participant or recording.\n\n"
-                      "  yes: board thread export %s %s --aggregate\n"
-                      "  no:  board thread export %s %s --drop"
-                      % (want, tid, want, tid, want))
-            return code
+        # Export approval is the subject's tutorboard.json `relay.exports`,
+        # the owner's edit, which a turn cannot commit (tutorboard/exports.py).
+        print("board thread export is retired: a thread no longer approves an "
+              "export. The owner approves one in this subject's "
+              "tutorboard.json, `relay.exports`, as {\"glob\": \"results/...\"}"
+              " (a csv or json also needs \"aggregate\": true), and commits "
+              "it. Put the question on your card:\n\n  May %s be published? "
+              "The repository is public. Say yes only if every number in it "
+              "is an aggregate, with no row for a patient, participant or "
+              "recording.\n\nNothing was written."
+              % (" ".join(w for w in rest if not w.startswith("--"))
+                 or "<results/path>"), file=sys.stderr)
+        return 1
     elif verb == "check":
         if rest == ["--drop"]:
             one["check"] = ""
@@ -2652,17 +2616,20 @@ def _is_ignored(root, rel):
 
 
 def cmd_job(live, args):
-    """Long work, registered to a thread, so it reports itself.
+    """Long work, labelled, so it reports itself.
 
-        board job <thread> [--produces <path>]... [--export <path>]...
-            [--fixes <id>] -- <recipe> [VAR=value ...]
+        board job [--label <slug>] [--session <id>] [--produces <path>]...
+            [--export <path>]... [--fixes <id>] -- <recipe> [VAR=value ...]
 
     `<recipe>` is a tracked `.sbatch` file in this workspace. `VAR=value` sets
     a variable its header declares, one `#RELAY-VAR NAME PATTERN` line per
     variable; anything undeclared is refused. `--produces` and `--export` are
-    workspace-relative; an `--export` path must be marked aggregate on the
-    thread (`board thread export`). `<thread>` may be left out where the
-    sitting open now is on a thread. `--fixes <id>` files it as an attempt to
+    workspace-relative; an `--export` path must be approved by the subject's
+    committed tutorboard.json `relay.exports` (`tutorboard/exports.py`).
+    `--label` is an optional slug naming the work, in the request id and every
+    line about it. `--session` is the Mac session filing it; it defaults to
+    the session `$TUTORBOARD_SESSION` names, and the report wakes that session.
+    No thread is named or read. `--fixes <id>` files it as an attempt to
     repair a recipe request that failed -- its rerun, or a diagnostic --
     naming the one that failed first; it is a relay request's word, so with
     Slurm it is refused. Without Slurm, a rerun of a recipe whose repair is
@@ -2676,13 +2643,12 @@ def cmd_job(live, args):
 
     ON A MACHINE WITH SLURM it submits the recipe wrapped so its exit code is
     written to `relay/state/` (`jobs.submit_recipe`, `--export=ALL,...`), and
-    appends the job to this workspace's registry. While it is out its thread
-    says `running`; when it ends, a `[job]` line wakes a turn that reports it.
+    appends the job to this workspace's registry. When it ends, a `[job]`
+    line wakes a turn that reports it.
 
     ON A MACHINE WITHOUT SLURM -- the Mac -- it writes
     `relay/requests/<id>.json`, commits that one file and pushes it. The
-    cluster's relay runs it and commits a report. Until the report lands the
-    thread says `requested`, and its box says "waiting for the cluster".
+    cluster's relay runs it and commits a report, which wakes the session.
 
     Either way the request is checked first, every problem printed at once, and
     nothing is filed or submitted if there is any.
@@ -2690,7 +2656,7 @@ def cmd_job(live, args):
     **A turn that starts long work starts it through here.** A bare `sbatch`
     is work the board cannot see, and on the Mac it is an error.
 
-        board job <thread> -- sbatch <args>
+        board job [--label <slug>] -- sbatch <args>
                                 the raw form, on a machine with Slurm only
         board job --show        every job and request, folded to its last state
     """
@@ -2703,13 +2669,14 @@ def cmd_job(live, args):
             return 0
         for j in sorted(recs.values(), key=lambda r: r.get("submitted") or 0):
             print("%-10s %-24s %-11s %s" % (
-                j.get("slurm") or j.get("jobid"), j.get("thread"),
+                j.get("slurm") or j.get("jobid"),
+                j.get("label") or j.get("thread") or "-",
                 j.get("state") or "PENDING", j.get("cmd", "")))
         return 0
     if "--" not in args:
-        print("board job: put the recipe after `--`: board job <thread> "
-              "[--produces <path>] [--export <path>] -- <recipe> [VAR=value]",
-              file=sys.stderr)
+        print("board job: put the recipe after `--`: board job [--label "
+              "<slug>] [--produces <path>] [--export <path>] -- <recipe> "
+              "[VAR=value]", file=sys.stderr)
         return 1
     cut = args.index("--")
     head, argv = args[:cut], args[cut + 1:]
@@ -2727,8 +2694,8 @@ def cmd_job(live, args):
             continue
         words.append(head[i])
         i += 1
-    tid, clean = _job_thread(live, words, "board job")
-    if not tid:
+    label, session = _job_label(words, "board job")
+    if label is None:
         return 1
     rels, bad = [], []
     for p in produces + export:
@@ -2767,15 +2734,15 @@ def cmd_job(live, args):
         if not slurm:
             print("board job: this machine has no Slurm, so a bare sbatch is "
                   "an error here. Name the recipe and its variables instead: "
-                  "board job %s -- <recipe.sbatch> [VAR=value ...], and the "
-                  "cluster runs it." % tid, file=sys.stderr)
+                  "board job -- <recipe.sbatch> [VAR=value ...], and the "
+                  "cluster runs it.", file=sys.stderr)
             return 1
         if export:
             print("board job: --export rides a recipe, not a raw sbatch",
                   file=sys.stderr)
             return 1
-        return _job_submitted(root, tid, jobs.submit(root, tid, argv,
-                                                     produces=produces))
+        return _job_submitted(root, label, jobs.submit(root, label, argv,
+                                                       produces=produces))
 
     recipe, env, wrong = _recipe_args(root, argv)
     if wrong:
@@ -2783,17 +2750,22 @@ def cmd_job(live, args):
             wrong, "submitted" if slurm else "filed"), file=sys.stderr)
         return 1
     taken = set(r["id"] for r in jobs.requests(root))
-    req = {"id": jobs.new_id(tid, os.path.splitext(os.path.basename(recipe))[0],
+    req = {"id": jobs.new_id(label,
+                             os.path.splitext(os.path.basename(recipe))[0],
                              taken),
-           "kind": "recipe", "thread": tid, "recipe": recipe, "env": env,
+           "kind": "recipe", "recipe": recipe, "env": env,
            "produces": produces, "export": export}
+    if label:
+        req["label"] = label
+    if session:
+        req["session"] = session
     if not slurm:
         req["filed"] = round(time.time(), 3)
     if fixes is not None:
         req["fixes"] = fixes
     ok, problems = jobs.check(root, req)
     origin = "" if slurm or fresh or fixes is not None else jobs.open_fix(
-        root, tid, recipe, env)
+        root, recipe, env)
     if origin:
         problems = list(problems) + [
             "%s failed and its repair is open, so its rerun names it: add "
@@ -2808,29 +2780,39 @@ def cmd_job(live, args):
     if slurm:
         # Wrapped, so its exit code is written where the relay's poll reads
         # it: sacct is refused on this cluster.
-        return _job_submitted(root, tid, jobs.submit_recipe(
-            root, tid, recipe, env=env, produces=produces, export=export))
+        return _job_submitted(root, label, jobs.submit_recipe(
+            root, label, recipe, env=env, produces=produces, export=export))
     return _request_filed(root, ok)
 
 
-def _job_thread(live, words, who):
-    """`(thread id, thread file)` for a job or a request, or `(None, None)`
-    having said why."""
-    root = live.root
-    clean, problems = course_threads.read(root)
-    if problems or not clean:
-        print("%s: a job is registered to a thread, and %s" % (
-            who, "the thread file is not valid:\n  " + "\n  ".join(problems)
-            if problems else "this workspace has no thread file. Write one "
-            "with `board thread` first."), file=sys.stderr)
+def _job_label(words, who):
+    """`(label, session)` out of `--label <slug>` and `--session <id>`, the
+    session defaulting to the one `$TUTORBOARD_SESSION` names. `label` is ""
+    where none was given, and None having said why the words are wrong."""
+    label, session, i = "", "", 0
+    while i < len(words):
+        w = words[i]
+        if w in ("--label", "--session") and i + 1 < len(words):
+            if w == "--label":
+                label = words[i + 1].strip()
+            else:
+                session = words[i + 1].strip()
+            i += 2
+            continue
+        print("%s: %r is not an option here. Work is named with --label "
+              "<slug>; no thread is named." % (who, w), file=sys.stderr)
         return None, None
-    ids = sorted(t["id"] for t in clean["threads"])
-    tid = words[0] if words else str(live.state().get("thread") or "")
-    if len(words) > 1 or tid not in ids:
-        print("%s: name one thread first -- %s" % (who, ", ".join(ids)),
-              file=sys.stderr)
+    if label and not jobs.LABEL_RE.match(label):
+        print("%s: --label %r must be 1-40 characters of a-z, 0-9 and hyphen"
+              % (who, label), file=sys.stderr)
         return None, None
-    return tid, clean
+    if not session:
+        session = os.path.basename(
+            os.environ.get("TUTORBOARD_SESSION", "").rstrip("/"))
+    if session and not jobs.SESSION_RE.match(session):
+        print("%s: %r is not a session id" % (who, session), file=sys.stderr)
+        return None, None
+    return label, session
 
 
 def _recipe_args(root, argv):
@@ -2858,14 +2840,15 @@ def _recipe_args(root, argv):
     return recipe, env, ""
 
 
-def _job_submitted(root, tid, got):
+def _job_submitted(root, label, got):
     rec, why = got
     if not rec:
         print("board job: %s" % why, file=sys.stderr)
         return 1
     where = jobs.registry(root)
-    print("job %s submitted for `%s`, registered in %s%s"
-          % (rec["jobid"], tid, os.path.relpath(where, root),
+    print("job %s submitted%s, registered in %s%s"
+          % (rec["jobid"], " as `%s`" % label if label else "",
+             os.path.relpath(where, root),
              "; its log is " + rec["log"] if rec.get("log") else ""))
     if jobs.ignored(root, os.path.relpath(where, root)):
         print("BUT GIT CANNOT SEE %s. Add `!%s` to %s, after the rule that "
@@ -2888,9 +2871,10 @@ def _request_filed(root, req):
         print("board: the request is written at %s but did not reach the "
               "cluster:\n%s" % (rel, said), file=sys.stderr)
         return 1
-    print("request %s filed for `%s` at %s and pushed. The cluster's relay "
-          "picks it up on its next pass, and the thread says `requested` "
-          "until it reports." % (req["id"], req["thread"], rel))
+    print("request %s filed at %s and pushed. The cluster's relay picks it "
+          "up on its next pass, and its report wakes %s."
+          % (req["id"], rel, "session " + req["session"]
+             if req.get("session") else "this workspace's inbox"))
     return 0
 
 
@@ -2902,7 +2886,7 @@ def cmd_ask_cluster(live, args):
           "failed job's report carries its RELAY: lines and wakes a [repair] "
           "turn here; to ask the cluster more, file a diagnostic recipe, one "
           "that prints RELAY: lines and produces nothing:\n"
-          "  board diagnose <thread> --fixes <failed request> -- "
+          "  board diagnose --fixes <failed request> -- "
           "<diagnose.sbatch> [VAR=value ...]\nNothing was filed.",
           file=sys.stderr)
     return 2
@@ -3100,7 +3084,7 @@ def cmd_coach(live, args):
 def cmd_colibri(live, args):
     """Queue a task for Colibri, the local model that may read PHI.
 
-        board colibri [<thread>] "<task>"
+        board colibri [--label <slug>] [--session <id>] "<task>"
         board colibri --show            the queue, oldest first (on the cluster)
 
     ON THE CLUSTER it writes the task into the queue -- libr-local-llm's
@@ -3132,32 +3116,37 @@ def cmd_colibri(live, args):
         for r in recs:
             print("%-26s %-9s %-24s %-22s attempts %d, deaths %d" % (
                 r.get("id"), r.get("queue"), r.get("workspace"),
-                r.get("thread"), int(r.get("attempts") or 0),
+                r.get("label") or r.get("thread") or "-",
+                int(r.get("attempts") or 0),
                 int(r.get("deaths") or 0)))
         return 0
     if not words or not words[-1].strip():
         print("board colibri: say what the task is", file=sys.stderr)
         return 1
     brief = words[-1].strip()
-    tid, clean = _job_thread(live, words[:-1], "board colibri")
-    if not tid:
+    label, session = _job_label(words[:-1], "board colibri")
+    if label is None:
         return 1
     if len(brief) > jobs.MAX_BRIEF:
         print("board colibri: the task is %d characters and the cap is %d"
               % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
         return 1
     if jobs.has_slurm():
-        rec, said = colibri.file(tid, brief, root)
+        rec, said = colibri.file(label, brief, root)
         if rec is None:
             print("board colibri: %s. Nothing was queued." % said,
                   file=sys.stderr)
             return 1
-        print("task %s for `%s`: %s. `board colibri --show` lists the queue."
-              % (rec["id"], tid, said))
+        print("task %s%s: %s. `board colibri --show` lists the queue."
+              % (rec["id"], " (`%s`)" % label if label else "", said))
         return 0
     taken = set(r["id"] for r in jobs.requests(root))
-    req = {"id": jobs.new_id(tid, "colibri", taken), "kind": "colibri",
-           "thread": tid, "brief": brief, "filed": round(time.time(), 3)}
+    req = {"id": jobs.new_id(label, "colibri", taken), "kind": "colibri",
+           "brief": brief, "filed": round(time.time(), 3)}
+    if label:
+        req["label"] = label
+    if session:
+        req["session"] = session
     ok, problems = jobs.check(root, req)
     if problems:
         print("board colibri: %d problem(s), and nothing was filed:"

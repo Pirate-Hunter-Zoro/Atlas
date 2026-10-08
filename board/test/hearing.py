@@ -134,7 +134,7 @@ try:
           got is False and pulled == [] and interval == jobs.PULL_EVERY)
 
     # --- a request filed on the Mac --------------------------------------------
-    req = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "thread": "knn",
+    req = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "label": "knn",
            "recipe": "slurm/sweep.sbatch", "env": {"EMBEDDER": "bge-small"},
            "produces": ["results/knn/best.json"],
            "export": ["results/knn/sweep.png"], "filed": 1100.0}
@@ -201,8 +201,8 @@ try:
           and "relay/reports/%s.json" % req["id"] in text)
     check("it tells the turn to repair it here, rerunning through "
           "`board job --fixes` or asking through `board diagnose`",
-          "board job knn --fixes %s" % req["id"] in text
-          and "board diagnose knn --fixes %s" % req["id"] in text
+          "board job --label knn --fixes %s" % req["id"] in text
+          and "board diagnose --fixes %s" % req["id"] in text
           and "board push" in text and "ask-cluster" not in text
           and "relay.turns" not in text and "tick the task" not in text)
     check("and the pull is still every twenty seconds", interval == jobs.PULL_EVERY)
@@ -395,7 +395,7 @@ try:
     ws, recs = scene([dict(FIRST, filed="soon")])
     check("a malformed `filed` reads as 0 in the registry, and every reader "
           "still reads it", recs[ORIGIN]["submitted"] == 0.0
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == ""
+          and jobs.open_fix(ws, "slurm/sweep.sbatch") == ""
           and jobs.context(ws)["failed"] == set())
 
     ws, recs = scene([dict(FIRST, env=["EMBEDDER", "x"], produces="out.csv",
@@ -404,7 +404,7 @@ try:
           recs[ORIGIN]["produces"] == [] and recs[ORIGIN]["export"] == []
           and recs[ORIGIN]["cmd"].startswith("slurm/sweep.sbatch")
           and jobs.context(ws)["failed"] == set()
-          and jobs.open_fix(ws, "knn", "slurm/sweep.sbatch") == "")
+          and jobs.open_fix(ws, "slurm/sweep.sbatch") == "")
 finally:
     shutil.rmtree(scenes, ignore_errors=True)
 

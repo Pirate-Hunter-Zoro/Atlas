@@ -365,8 +365,8 @@ check("recovery is skipped where this generation is not listed: an "
 # 6. the relay's `colibri` request and its hook
 # ---------------------------------------------------------------------------
 base = {"id": "2026-10-03-coli-x", "kind": "colibri",
-        "thread": "knn-across-embedders", "brief": "rerun it", "filed": 1.0}
-clean = {"threads": [{"id": "knn-across-embedders"}]}
+        "label": "knn-across-embedders", "brief": "rerun it", "filed": 1.0}
+clean = []          # the subject's approved exports: none, and none needed
 ok, probs = jobs.validate(base, clean, set(), {}, colibri=True)
 check("a colibri request validates where the workspace opted in", ok and not probs)
 ok, probs = jobs.validate(base, clean, set(), {}, colibri=False)
@@ -383,6 +383,8 @@ check("the relay files a request as a task, and starts a generation",
 check("its report never carries the brief",
       "rerun it" not in json.dumps(first))
 task = missions.tasks(QUEUE)[0]
+check("the task carries the request's label, and no thread",
+      task.get("label") == "knn-across-embedders" and not task.get("thread"))
 missions.claim_task(QUEUE, task, "101")
 missions.finish_task(QUEUE, missions.tasks(QUEUE)[0], True)
 checked = []

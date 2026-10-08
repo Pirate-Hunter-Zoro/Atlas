@@ -47,7 +47,7 @@ SERIAL = []
 # The guards: what keeps PHI out of git and the relay honest, and the relay
 # path runnable on the cluster's python 3.7.
 GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py",
-          "py37.py"]
+          "py37.py", "exporting.py"]
 
 # Started first, because they are the longest; the rest follow by name.
 FIRST = ["link.js", "onlyagent.py", "plane.js", "factory", "seam.js", "relay.py"]

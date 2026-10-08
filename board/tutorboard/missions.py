@@ -156,6 +156,9 @@ FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
           # The thread of that workspace the mission works on, the same id a
           # job registered with `board job` carries. "" where none was named.
           "thread",
+          # A Colibri task's label: an optional slug naming the work, the
+          # same one its relay request carries. "" where none was named.
+          "label",
           # A COLIBRI TASK is a mission record with `kind: "task"`, kept in the
           # libr-local-llm workspace's ignored `live/missions/` -- see "the
           # task queue" below. `brief` is the whole task, `workspace` the
@@ -859,7 +862,7 @@ def forget():
 # ---------------------------------------------------------------------------
 # A COLIBRI TASK IS A MISSION RECORD WITH `kind: "task"`, and the queue is those
 # records. They live in the libr-local-llm workspace's `live/missions/`, which
-# git ignores, because a task may name session content. A task has a thread, a
+# git ignores, because a task may name session content. A task has a label, a
 # brief, a state (`queue`), an attempt count, and the conversation name
 # (`session`) that `coli-code` resumes by.
 #
@@ -883,7 +886,7 @@ def task_id(now=None):
                            os.urandom(2).hex())
 
 
-def file_task(root, thread, brief, workspace, request="", now=None,
+def file_task(root, label, brief, workspace, request="", now=None,
               baseline=None):
     """Write one queued task into `root/live/missions/`. The record, or None.
     `baseline` is `relay.workspace_changes` of its workspace, or None."""
@@ -892,7 +895,7 @@ def file_task(root, thread, brief, workspace, request="", now=None,
     rec = {
         "id": task_id(now), "kind": TASK, "agent": "colibri",
         "task": (brief or "").strip()[:TASK_CHARS],
-        "brief": (brief or "").strip(), "thread": thread or "",
+        "brief": (brief or "").strip(), "label": label or "",
         "workspace": workspace or "", "request": request or "",
         "queue": "queued", "attempts": 0, "deaths": 0, "gen": "",
         "session": str(uuid.uuid4()), "at": now, "from": "colibri queue",
