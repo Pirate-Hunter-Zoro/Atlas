@@ -57,7 +57,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from . import atlas, fenced, handoff, meeting, paths, writeups
+from . import atlas, fenced, handoff, meeting, paths, sessions, subjects, writeups
 from .course import config, document, library, plan, results
 from .course import repo as course_repo
 
@@ -107,7 +107,6 @@ NOISE = ("lesson complete", "lesson transcript", "stopping point")
 
 SITTING_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ITEM_RE = re.compile(r"^[0-9a-f]{10}$")
-FILED_RE = re.compile(r"^(\d{8}-\d{6})(?:-(.*))?$")
 EMBED_RE = re.compile(r"/result/([A-Za-z0-9][A-Za-z0-9_-]*)")
 STAMP_RE = re.compile(r"^<!--\s*chapter:\s*(.*?)\s*-->")
 
@@ -115,24 +114,16 @@ STAMP_RE = re.compile(r"^<!--\s*chapter:\s*(.*?)\s*-->")
 # ---------------------------------------------------------------------------
 # when a sitting was
 # ---------------------------------------------------------------------------
-def _opened(st):
-    """`state.opened` as an epoch, or None. It is local `YYYY-MM-DD HH:MM`."""
-    raw = str((st or {}).get("opened") or "").strip()
-    try:
-        return time.mktime(time.strptime(raw[:16], "%Y-%m-%d %H:%M"))
-    except ValueError:
-        return None
-
-
-def _filed_at(name):
-    """When an archive folder was filed, off its stamp, or None."""
-    m = FILED_RE.match(name or "")
-    if not m:
-        return None
-    try:
-        return time.mktime(time.strptime(m.group(1), "%Y%m%d-%H%M%S"))
-    except ValueError:
-        return None
+def _when(raw):
+    """A session.json time as an epoch, or None. It is local
+    `YYYY-MM-DD HH:MM:SS`; one written to the minute reads too."""
+    raw = str(raw or "").strip()
+    for fmt, n in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%d %H:%M", 16)):
+        try:
+            return time.mktime(time.strptime(raw[:n], fmt))
+        except ValueError:
+            continue
+    return None
 
 
 def _count_cards(folder):
@@ -160,37 +151,53 @@ def _first_card_at(folder):
         return None
 
 
-def _one(sitting, now):
-    """One sitting as this module reads it, or None for a shell."""
-    folder = sitting.get("filed") or ""
-    st = sitting.get("state") or {}
-    cards = _count_cards(sitting["cards"])
-    turns = _count_turns(sitting["turns"])
-    # A SHELL: a sitting opened and filed before anything happened in it --
-    # a change of chapter, or a board restarted onto the same label. Nothing in
-    # it could be on a slide.
+def _one(where, st, now):
+    """One session as this module reads it, or None for a shell.
+
+    `where` is the session directory and `st` its session.json. An ended
+    session ends at `ended`; an open one is the open sitting, ending now.
+    """
+    cards_dir = os.path.join(where, "cards")
+    turns_path = os.path.join(where, "turns.jsonl")
+    cards = _count_cards(cards_dir)
+    turns = _count_turns(turns_path)
+    # A SHELL: a session opened and left before anything happened in it.
+    # Nothing in it could be on a slide.
     if cards == 0 and turns <= 1:
         return None
-    end = _filed_at(folder) if folder else now
+    live = not st.get("ended")
+    end = now if live else _when(st.get("ended"))
     if end is None:
         return None
-    start = _opened(st) or _first_card_at(sitting["cards"]) or end
-    m = FILED_RE.match(folder)
-    # MISSING state.json AND state {} ARE BOTH ORDINARY: an archive written
-    # before the state was filed with it, and a sitting nobody labelled. The
-    # folder's own label is what the archive called it.
-    chapter = (st.get("chapter") or st.get("course") or
-               ((m.group(2) or "") if m else "") or "").strip()
-    return {"folder": folder, "live": not folder, "state": st,
-            "cards_dir": sitting["cards"], "turns": sitting["turns"],
+    start = _when(st.get("opened")) or _first_card_at(cards_dir) or end
+    # An untitled session is ordinary: the row is then named by its subject.
+    chapter = str(st.get("title") or st.get("chapter") or "").strip()
+    return {"folder": st.get("id") or os.path.basename(where), "live": live,
+            "state": st, "cards_dir": cards_dir, "turns": turns_path,
             "cards": cards, "start": min(start, end), "end": end,
             "chapter": chapter}
+
+
+def _sessions(base):
+    """`{subject root: [session]}`: every session bound to a subject, oldest
+    first, read off `<base>/sessions/*/session.json`."""
+    out = {}
+    for st in sessions.all(base):
+        if not st.get("subject"):
+            continue
+        found = subjects.find(st["subject"], base)
+        where = sessions.path(st.get("id"), base)
+        if found and where:
+            out.setdefault(os.path.realpath(found["root"]), []).append((where, st))
+    for found in out.values():
+        found.reverse()
+    return out
 
 
 def _base(member):
     """A row's name without its date: `document.heading_for`'s own bits."""
     st = member["state"] or {}
-    bits = [st.get("chapter") or st.get("course") or member["chapter"] or "Lesson"]
+    bits = [member["chapter"] or st.get("course") or "Lesson"]
     kind = st.get("session") or ""
     if kind and kind != "lecture":
         bits.append(kind.replace("_", " "))
@@ -203,9 +210,10 @@ def _label(members):
     if last["live"]:
         return _base(last) + " (open now)"
     if len(members) == 1:
-        return document.heading_for({"state": first["state"] or
-                                     {"chapter": first["chapter"]},
-                                     "filed": first["folder"]})
+        return document.heading_for({"state": {
+            "chapter": first["chapter"] or (first["state"] or {}).get("course"),
+            "session": (first["state"] or {}).get("session")},
+            "filed": first["folder"]})
     a = time.strftime("%Y-%m-%d", time.localtime(first["start"]))
     b = time.strftime("%Y-%m-%d", time.localtime(last["end"]))
     return "%s (%d sittings, %s)" % (_base(first), len(members),
@@ -218,16 +226,20 @@ def _name_of(ws):
 
 def _rows(base):
     """Every row, every workspace, with what `items` needs. Newest first within
-    a workspace; workspaces ordered by their newest row."""
+    a workspace; workspaces ordered by their newest row.
+
+    A row is one or more sessions bound to the workspace, from
+    `<base>/sessions/`: ended ones, and the open ones as open sittings."""
     now = time.time()
     ids = set()
     groups = []
+    held_by = _sessions(base)
     for ws in atlas.workspaces(base):
         ids.add(ws["id"])
         root = ws["root"]
         found = []
-        for s in document._filed(root):
-            one = _one(s, now)
+        for where, st in held_by.get(os.path.realpath(root), []):
+            one = _one(where, st, now)
             if one:
                 found.append(one)
         # CONSECUTIVE SITTINGS ON ONE CHAPTER ARE ONE ROW. A chapter taught over
@@ -240,9 +252,6 @@ def _rows(base):
                 merged[-1].append(one)
             else:
                 merged.append([one])
-        live = _one(document._live_sitting(root), now)
-        if live:
-            merged.append([live])
         if not merged:
             continue
         # Atlas holds every workspace's history; `rel` is the workspace's path
@@ -253,7 +262,7 @@ def _rows(base):
         rows = []
         for members in merged:
             rows.append({
-                "id": "%s@%s" % (ws["id"], members[0]["folder"] or "live"),
+                "id": "%s@%s" % (ws["id"], members[0]["folder"]),
                 "ws": ws["id"], "ws_name": name, "ws_dir": ws["dir"],
                 "root": root, "top": top, "rel": rel,
                 "label": _label(members),

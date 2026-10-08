@@ -62,7 +62,7 @@ def check(name, cond):
 fake = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 os.environ["TUTORBOARD_COURSES"] = fake
 
-from tutorboard import atlas, fenced, sense, sittings, writeups   # noqa: E402
+from tutorboard import atlas, fenced, sense, sessions, sittings, writeups  # noqa: E402
 from tutorboard.course import library, results                    # noqa: E402
 from tutorboard.course import repo as course_repo                 # noqa: E402
 from tutorboard.lesson import notes as lesson_notes               # noqa: E402
@@ -103,24 +103,29 @@ def stamp(t):
     return time.strftime("%Y%m%d-%H%M%S", time.localtime(t))
 
 
-def opened(t):
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
-
-
-def filed(root, t, label, state=None, cards=0, turns=0, bodies=None,
-          card_at=None):
-    folder = os.path.join(root, "live", "archive", "%s-%s" % (stamp(t), label))
-    os.makedirs(folder, exist_ok=True)
-    if state is not None:
-        write(os.path.join(folder, "state.json"), json.dumps(state))
+def filed(subject, t, title, opened_at=None, cards=0, turns=0, bodies=None,
+          card_at=None, ended=True, base_dir=None):
+    """A session in the store, bound to `subject`, ended at `t` (or left
+    open). With no `opened_at` its session.json says no opening time, and
+    its id is two hours before `t`. Returns the session id."""
+    top = base_dir or fake
+    rec = sessions.new(title, base=top, now=opened_at or t - 7200)
+    folder = sessions.path(rec["id"], top)
+    st = json.load(open(os.path.join(folder, "session.json")))
+    st["subject"] = subject
+    if not opened_at:
+        st["opened"] = None
+    write(os.path.join(folder, "session.json"), json.dumps(st))
     for n in range(cards):
-        body = (bodies or {}).get(n, "A card about %s." % label)
-        write(os.path.join(folder, "%04d-lesson.md" % (n + 1)),
+        body = (bodies or {}).get(n, "A card about %s." % title)
+        write(os.path.join(folder, "cards", "%04d-lesson.md" % (n + 1)),
               "---\nkind: lesson\n---\n%s\n" % body, card_at)
     if turns:
         write(os.path.join(folder, "turns.jsonl"),
               "".join('{"id": "t%04d", "t": 1}\n' % i for i in range(turns)))
-    return os.path.basename(folder)
+    if ended:
+        sessions.end(rec["id"], base=top, now=t)
+    return rec["id"]
 
 
 def workspace(family, name):
@@ -133,21 +138,20 @@ def workspace(family, name):
 fields = workspace("courses", "Fields")
 proj = workspace("research", "Proj")
 
-# ---- Fields: a shell, two unlabelled sittings, two on one chapter, one open --
-shell = filed(fields, at(1, 10), "shell", {"chapter": "Ch 01"}, cards=0, turns=1)
-nostate = filed(fields, at(2, 10), "nostate", None, cards=1, card_at=at(2, 9))
-empty = filed(fields, at(3, 10), "emptystate", {}, cards=1, card_at=at(3, 9))
-rings_a = filed(fields, at(4, 12), "ch-02-rings",
-                {"chapter": "Ch 02 — Rings", "opened": opened(at(4, 10))},
-                cards=2, turns=2)
-rings_b = filed(fields, at(5, 12), "ch-02-rings",
-                {"chapter": "Ch 02 — Rings", "opened": opened(at(5, 10))},
-                cards=1, turns=1)
-write(os.path.join(fields, "live", "state.json"),
-      json.dumps({"course": "Fields", "chapter": "Ch 03 — Fields",
-                  "opened": opened(at(6, 10))}))
-write(os.path.join(fields, "live", "cards", "0001-lesson.md"),
-      "---\nkind: lesson\n---\nSplitting fields.\n")
+# ---- Fields: a shell, two untitled sessions, two on one chapter, one open ---
+shell = filed("courses/Fields", at(1, 10), "Ch 01", cards=0, turns=1)
+nostate = filed("courses/Fields", at(2, 10), None, opened_at=at(2, 8),
+                cards=1, card_at=at(2, 9))
+empty = filed("courses/Fields", at(3, 10), None, cards=1, card_at=at(3, 9))
+rings_a = filed("courses/Fields", at(4, 12), "Ch 02 — Rings",
+                opened_at=at(4, 10), cards=2, turns=2)
+rings_b = filed("courses/Fields", at(5, 12), "Ch 02 — Rings",
+                opened_at=at(5, 10), cards=1, turns=1)
+live_id = filed("courses/Fields", at(6, 12), "Ch 03 — Fields",
+                opened_at=at(6, 10), cards=1, ended=False,
+                bodies={0: "Splitting fields."})
+# A session bound to nothing is nobody's row, and nothing breaks over it.
+filed(None, at(5, 20), "Unbound", opened_at=at(5, 18), cards=2, turns=2)
 write(os.path.join(fields, "HANDOFF.md"),
       "<!-- chapter: Ch 03 — Fields -->\n## Where this got to\n\n"
       "- Splitting fields are unique up to isomorphism, shown by induction\n")
@@ -156,12 +160,12 @@ write(os.path.join(fields, "live", "handoffs", "ch-02-rings.md"),
       "- The parked bullet: every maximal ideal is prime\n")
 
 # ---- Proj: three sittings, the first and last on one chapter ---------------
-p1 = filed(proj, at(4, 18), "knn",
-           {"chapter": "knn", "opened": opened(at(4, 16))}, cards=2, turns=2)
-p2 = filed(proj, at(6, 18), "sweep",
-           {"chapter": "sweep", "opened": opened(at(6, 16))}, cards=1, turns=1)
-p3 = filed(proj, at(8, 18), "knn",
-           {"chapter": "knn", "opened": opened(at(8, 16))}, cards=1, turns=1)
+p1 = filed("research/Proj", at(4, 18), "knn", opened_at=at(4, 16), cards=2,
+           turns=2)
+p2 = filed("research/Proj", at(6, 18), "sweep", opened_at=at(6, 16), cards=1,
+           turns=1)
+p3 = filed("research/Proj", at(8, 18), "knn", opened_at=at(8, 16), cards=1,
+           turns=1)
 
 # The figures. Only `results/` is walked, and `phi/` and `data/` never are.
 roc = "results/figs/roc.png"
@@ -177,7 +181,7 @@ for n in range(28):
 results.forget()
 embedded_id = results.ident("results/figs/embedded.png")
 roc_id = results.ident(roc)
-with open(os.path.join(proj, "live", "archive", p1, "0002-lesson.md"), "w",
+with open(os.path.join(fake, "sessions", p1, "cards", "0002-lesson.md"), "w",
           encoding="utf-8") as fh:
     fh.write("---\nkind: lesson\n---\nThe overlap.\n\n![it](/result/%s)\n"
              % embedded_id)
@@ -262,19 +266,24 @@ check("the listing answers, and says where the sheet folds",
       got["ok"] is True and got["fold"] == sittings.MOST_ROWS)
 check("a shell -- no cards, one turn -- is not offered",
       not [i for i in ids if shell in i])
-check("a sitting with no state.json is listed, under its folder's label",
+check("an untitled session is listed, as a lesson on the day it opened",
       "courses/Fields@" + nostate in ids
-      and "nostate" in by["courses/Fields@" + nostate]["label"])
-check("and so is one whose state is {}",
+      and by["courses/Fields@" + nostate]["label"].startswith("Lesson (")
+      and time.strftime("%Y-%m-%d", time.localtime(at(2, 8)))
+      in by["courses/Fields@" + nostate]["label"])
+check("and so is one whose session.json gives no opening time",
       "courses/Fields@" + empty in ids)
+check("a session bound to no subject is nobody's row",
+      not [r for r in rows if "Unbound" in r["label"]])
 merged = "courses/Fields@" + rings_a
 check("two consecutive sittings on one chapter are ONE row, named by the first",
       merged in ids and "courses/Fields@" + rings_b not in ids)
 check("which says it is two, and carries both sittings' cards",
       "2 sittings" in by[merged]["label"] and by[merged]["cards"] == 3)
-check("the open sitting is its own row and says it is open",
-      "courses/Fields@live" in ids
-      and "open now" in by["courses/Fields@live"]["label"])
+live_row = "courses/Fields@" + live_id
+check("an open session is its own row and says it is open",
+      live_row in ids and "open now" in by[live_row]["label"]
+      and by[live_row]["live"] is True)
 check("a chapter left and come back to is two rows, not one",
       "research/Proj@" + p1 in ids and "research/Proj@" + p3 in ids)
 check("newest first within a workspace",
@@ -295,7 +304,8 @@ check("EVERY SITTING IS SENT, however many a workspace has: the fold is the "
       == [oldest])
 sittings.MOST_ROWS = real_fold
 check("nothing on a row is a path",
-      not any("/" in str(v) and os.sep + "live" in str(v)
+      not any("/" in str(v) and (os.sep + "live" in str(v)
+                                 or os.sep + "sessions" in str(v))
               for r in rows for v in r.values()))
 
 # NO TWO ROWS SHARE A MOMENT. `opened` is to the minute and a filing to the
@@ -304,10 +314,10 @@ check("nothing on a row is a path",
 base2 = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-adj-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 adj = os.path.join(base2, "courses", "Adj")
 write(os.path.join(adj, "tutorboard.json"), json.dumps({"name": "Adj"}))
-filed(adj, at(2, 10) + 30, "first", {"chapter": "A", "opened": opened(at(2, 9))},
-      cards=1, turns=2)
-filed(adj, at(3, 10), "second", {"chapter": "B", "opened": opened(at(2, 10))},
-      cards=1, turns=2)
+filed("courses/Adj", at(2, 10) + 30, "A", opened_at=at(2, 9), cards=1, turns=2,
+      base_dir=base2)
+filed("courses/Adj", at(3, 10), "B", opened_at=at(2, 10), cards=1, turns=2,
+      base_dir=base2)
 atlas.forget()
 adj_rows = [r for _, _, rs in sittings._rows(base2)[0] for r in rs]
 atlas.forget()
@@ -370,7 +380,7 @@ check("or the parked one, where another chapter is open now",
       any("parked bullet" in i["text"] for i in groups[merged]["items"]))
 check("and the open sitting reads the live handoff stamped with its chapter",
       any("unique up to isomorphism" in i["text"]
-          for i in groups["courses/Fields@live"]["items"]))
+          for i in groups[live_row]["items"]))
 check("an item says where it came from",
       [i["detail"] for i in groups[merged]["items"] if i["kind"] == "handoff"]
       == ["Where this got to"])
@@ -454,7 +464,7 @@ check("the brief lists what was ticked, with its source",
       "Weight the metric by importance" in brief
       and "AUC moves from 0.594 to 0.625." in brief)
 check("and where to read more, by absolute path",
-      os.path.join(proj, "live", "archive", p1) in brief)
+      os.path.join(fake, "sessions", p1, "cards") in brief)
 check("it says which workspaces hold a fence, and to stay out",
       "research/Proj holds `phi/`: never open anything under it." in brief)
 check("at most %d figures are copied, and the brief says how many were left out"
