@@ -1,5 +1,27 @@
 """The lesson: what is on the board, the session's mode, and the typed half
 of the conversation.
+
+Every route here is a SESSION route, served under `/s/<id>/` by that
+session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
+
+    GET  /events              session   the payload stream
+    GET  /board.json          session   the payload, once
+    GET  /archive             session   the session's filed lessons
+    GET  /archive/<name>[/answers/<file>]
+                              session   one of them, read only
+    GET  /map/inside/<id>     session   one box of the subject's map
+    GET  /map/thread/<id>     session   one thread's sheet
+    POST /direction           session   a new direction, and a new sitting
+    POST /thread/accept       session   a thread a card proposed
+    POST /mode                session   teach or do, from now on
+    POST /handover            session   one step written for them
+    POST /dismiss-finish      session   the end-of-session offer waved off
+    POST /session             session   open a sitting on the subject
+    POST /text/save           session   a typed answer's draft
+    POST /say                 session   a typed turn, into the session's inbox
+
+`board` commands a route runs work on the session through
+`TUTORBOARD_SESSION` (`_cli`), never on the subject's `live/`.
 """
 
 import re
@@ -24,6 +46,13 @@ from ...course import threads
 from ...lesson import archive
 from ...lesson import cards
 from ...lesson import turns
+
+
+def _cli(repo, args, **kw):
+    """`board <args>` in the subject's root, on this session."""
+    if repo.stored:
+        kw["session"] = repo.live
+    return spawn.board_cli(repo.root, args, **kw)
 
 
 def get(h, repo, path):
@@ -236,7 +265,7 @@ def _direction(h, repo):
                       ("--agent", "agent")):
         if was.get(key):
             opening += [flag, str(was[key])]
-    spawn.board_cli(repo.root, opening)
+    _cli(repo, opening)
     carry.clear_note(repo.root)
     if on:
         st = repo.state()
@@ -387,8 +416,8 @@ def _accept_thread(h, repo):
         return h.send_json({"ok": True, "thread": tid, "detail": "already there"})
     if problems:
         return h.send_json({"ok": False, "error": problems[0]}, status=400)
-    code, out = spawn.board_cli(repo.root, ["thread", "add", "--repo", repo.root],
-                                timeout=60, given=json.dumps(one))
+    code, out = _cli(repo, ["thread", "add", "--repo", repo.root],
+                     timeout=60, given=json.dumps(one))
     threads.forget(repo.root)
     h.hub.worker.dirty.set()
     if code != 0:
@@ -515,7 +544,7 @@ def post(h, repo, path):
             # never read.
             if agent:
                 args += ["--agent", agent]
-            spawn.board_cli(repo.root, args)
+            _cli(repo, args)
             # A chapter gets its own tutor.
             #
             # An assistant is long-lived on purpose -- one that survives being
@@ -553,7 +582,7 @@ def post(h, repo, path):
                             "--homework", "--set", chosen["name"]]
                     if agent:
                         args += ["--agent", agent]
-                    spawn.board_cli(repo.root, args)
+                    _cli(repo, args)
                     st = repo.state()
                     st["session"] = kind
                     _mark(st, node, agent, repo.root)

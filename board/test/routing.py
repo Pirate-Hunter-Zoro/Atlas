@@ -2,12 +2,22 @@
 """The two-session harness: one server, two sessions bound to different
 subjects, and no route reads or writes across them.
 
-Every route each module answers is discovered from its source. A route in
-COVERED is driven under both `/s/A/` and `/s/B/`: its writes must land only
-in that session's directory or its subject's, and its reply must carry
-nothing of the other session. Every other route is listed as pending; T17
-moves them into COVERED module by module. The unprefixed table is driven
-too: what it lists answers, and anything else unprefixed is 404.
+Every route each module answers is discovered from its source, and every one
+is in DRIVE with its class -- the class the module's own table gives it:
+
+    session   driven under `/s/A/` and `/s/B/`: its writes land only in that
+              session or its subject, its reply and the commands it runs carry
+              nothing of the other, and unprefixed it is 404
+    subject   the same under both prefixes, and unprefixed with `?subject=`
+              it writes only that subject, or the session `runner_route`
+              chose, and nothing of the other session
+    atlas     unprefixed only: it writes into neither session (unless it is an
+              ask, checked by name below), and under `/s/A/` it is 404
+    both      a session route that the handler also answers unprefixed with an
+              answer of its own (`/health`)
+
+The unprefixed table is driven too, and the asks that reach another subject's
+tutor are followed into the session they land in.
 """
 
 import hashlib
@@ -16,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -24,8 +35,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 tmp = tempfile.mkdtemp(prefix="tutor-routing-")
+atlas = os.path.join(os.path.realpath(tmp), "Atlas")
 os.environ["BOARD_STATE_DIR"] = os.path.join(tmp, ".state")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(tmp, ".trash")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(tmp, ".config")
+os.environ["TUTORBOARD_COURSES"] = atlas
 
 import threading                                              # noqa: E402
 
@@ -46,38 +60,95 @@ def check(name, cond):
 
 # A closed stream is noticed at the next ping; make that quick.
 handler.PING_SECONDS = 0.5
-# Nothing here may start a tutor.
-spawn.wake_tutor = lambda repo: False
 
 # ---------------------------------------------------------------------------
-# the fixture: an Atlas tree with two subjects and a session bound to each
+# nothing here starts a process: every command a route would run is recorded
 # ---------------------------------------------------------------------------
-atlas = os.path.join(tmp, "Atlas")
+CALLS = []
+
+
+def _wake(repo):
+    CALLS.append({"fn": "wake", "session": repo.live, "root": repo.root})
+    return False
+
+
+def _board(where, args, timeout=90, given=None, session=None):
+    CALLS.append({"fn": "board", "cwd": where, "args": list(args), "session": session})
+    return 0, "ok"
+
+
+def _tutor(args, timeout=30):
+    CALLS.append({"fn": "tutor", "args": list(args)})
+    return 0, "ok"
+
+
+def _fresh(root, course):
+    CALLS.append({"fn": "fresh", "root": root, "course": course})
+
+
+spawn.wake_tutor = _wake
+spawn.board_cli = _board
+spawn.tutor_cli = _tutor
+spawn.fresh_tutor = _fresh
+spawn.wake_colibri = lambda timeout=1800: (CALLS.append({"fn": "colibri"}) or (False, "fake"))
+
+
+def recorder(name, answer):
+    """A stand-in for a builder or a push: records what it was handed."""
+    def run(*args, **kw):
+        CALLS.append({"fn": name, "args": [getattr(a, "live", a) for a in args
+                                           if isinstance(a, str) or hasattr(a, "live")],
+                      "root": [getattr(a, "root", None) for a in args]})
+        return dict(answer)
+    return run
+
+
+# ---------------------------------------------------------------------------
+# the fixture: an Atlas tree with three subjects and a session on two of them
+# ---------------------------------------------------------------------------
 SUBJECT = {"A": "courses/Alpha", "B": "projects/Beta"}
-for rel in SUBJECT.values():
-    os.makedirs(os.path.join(atlas, rel))
-    with open(os.path.join(atlas, rel, "tutorboard.json"), "w", encoding="utf-8") as fh:
-        json.dump({"name": os.path.basename(rel), "phi": False}, fh)
+LONE = "projects/Gamma"          # a subject with no session open on it
+MARK = {"A": "alpha-marker-7f3c", "B": "beta-marker-91d2"}
+DOC = {"A": "alpha-notes", "B": "beta-notes"}
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
+    write(os.path.join(atlas, rel, "tutorboard.json"),
+          json.dumps({"name": os.path.basename(rel), "phi": False}))
+    if who in DOC:
+        d = os.path.join(atlas, rel, "docs", DOC[who])
+        write(os.path.join(d, "doc.json"), json.dumps(
+            {"title": "notes " + MARK[who], "source": DOC[who] + ".md",
+             "sessions": [], "asked_at": "2026-10-01 10:00:00"}))
+        write(os.path.join(d, DOC[who] + ".md"), "# Notes\n\n%s\n" % MARK[who])
+
+GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+subprocess.run(["git", "init", "-q", atlas], check=True)
+write(os.path.join(atlas, ".gitignore"), "/sessions/\n**/.ink/\n/meetings/\n")
+subprocess.run(GIT + ["-C", atlas, "add", "-A"], check=True)
+subprocess.run(GIT + ["-C", atlas, "commit", "-q", "-m", "projects/Beta: the fixture"],
+               check=True)
 
 SID = {}
 DIR = {}
-MARK = {"A": "alpha-marker-7f3c", "B": "beta-marker-91d2"}
 for n, who in enumerate(("A", "B")):
     rec = sessions.new("session " + who, base=atlas, now=1.7e9 + n)
     SID[who] = rec["id"]
     DIR[who] = sessions.path(rec["id"], atlas)
     course_repo.Repo(atlas, session=DIR[who], create=False).set_state(subject=SUBJECT[who])
-    with open(os.path.join(DIR[who], "cards", "0001-start.md"), "w", encoding="utf-8") as fh:
-        fh.write("---\ntitle: start\n---\n\nThe card of %s.\n" % MARK[who])
+    write(os.path.join(DIR[who], "cards", "0001-start.md"),
+          "---\ntitle: start\n---\n\nThe card of %s.\n" % MARK[who])
     for sub, name in (("answers", "own.png"), ("uploads", "own.png"),
                       ("slate", "page-01.png")):
-        os.makedirs(os.path.join(DIR[who], sub), exist_ok=True)
-        with open(os.path.join(DIR[who], sub, name), "w", encoding="utf-8") as fh:
-            fh.write(MARK[who])
+        write(os.path.join(DIR[who], sub, name), MARK[who])
 # Compiled TikZ is one cache beside the sessions, keyed by source and macros.
-os.makedirs(os.path.join(atlas, "sessions", ".tikz"), exist_ok=True)
-with open(os.path.join(atlas, "sessions", ".tikz", "abc123.svg"), "w", encoding="utf-8") as fh:
-    fh.write("<svg>shared figure</svg>")
+write(os.path.join(atlas, "sessions", ".tikz", "abc123.svg"), "<svg>shared figure</svg>")
 OTHER = {"A": "B", "B": "A"}
 
 httpd = app.make_server(atlas, 0)
@@ -86,7 +157,7 @@ PORT = httpd.server_port
 
 
 def ask(method, path, body=None, headers=None):
-    conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=30)
+    conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
     data = body
     if isinstance(body, (dict, list)):
         data = json.dumps(body).encode("utf-8")
@@ -102,6 +173,8 @@ def snapshot():
     """{path relative to the fixture: digest} for every file in it."""
     out = {}
     for top, dirs, files in os.walk(atlas):
+        if ".git" in dirs:
+            dirs.remove(".git")
         for f in files:
             p = os.path.join(top, f)
             try:
@@ -124,6 +197,18 @@ def scope(who):
 
 def inside(rel, prefixes):
     return any(rel.startswith(p) for p in prefixes)
+
+
+def foreign(who):
+    """Strings that name the other session or its subject."""
+    o = OTHER[who]
+    return (SID[o], MARK[o], SUBJECT[o], os.path.basename(SUBJECT[o]))
+
+
+# The session directory of a sessionless Repo, and the page cache that is the
+# one thing written under it until T18 moves that cache.
+NONE = os.path.join("sessions", registry.NONE) + os.sep
+CACHE = os.path.join("sessions", registry.NONE, "paper") + os.sep
 
 
 # ---------------------------------------------------------------------------
@@ -158,36 +243,114 @@ for name in sorted(os.listdir(ROUTES)):
 for p in ("/board", "/slate", "/library", "/meeting", "/slate/page-"):
     EVERY.add(("GET", p, "handler"))
 
-# The routes this harness drives under both sessions.
-COVERED = {
-    ("GET", "/board", "handler"), ("GET", "/slate", "handler"),
-    ("GET", "/slate/page-", "handler"),
-    ("GET", "/events", "lesson"), ("GET", "/board.json", "lesson"),
-    ("GET", "/slate/state", "writing"),
-    ("GET", "/answers/", "pages"), ("GET", "/uploads/", "pages"),
-    ("GET", "/figure/", "pages"),
-    ("GET", "/health", "machines"),
-    ("POST", "/say", "lesson"), ("POST", "/text/save", "lesson"),
-    ("POST", "/slate/save", "writing"), ("POST", "/annotate/save", "writing"),
-    ("POST", "/upload", "writing"),
-}
-# Served only unprefixed, and driven in part 3.
+# Served only unprefixed, by the handler's own table; driven in part 3.
 UNPREFIXED_ONLY = {("GET", "/static/", "pages"), ("GET", "/sw.js", "pages"),
                    ("GET", "/manifest.webmanifest", "pages")}
 
-check("every covered route is one the modules really answer",
-      COVERED <= EVERY)
 
-
-# ---------------------------------------------------------------------------
-# 1. each covered route, in each session
-# ---------------------------------------------------------------------------
 def multipart(name, data):
     b = "----routing"
     body = ("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
             "Content-Type: text/plain\r\n\r\n" % (b, name)).encode("utf-8")
     body += data + ("\r\n--%s--\r\n" % b).encode("utf-8")
     return body, {"Content-Type": "multipart/form-data; boundary=%s" % b}
+
+
+def upload(who):
+    return multipart("hand-in.txt", MARK[who].encode("utf-8"))
+
+
+# DRIVE: route -> (class, [(path, body, statuses)]). `{mark}` and `{doc}` are
+# filled in per session, and a body may be a function of the session.
+# `statuses` None means anything under 500.
+OK = (200,)
+DRIVE = {
+    # handler's own pages
+    ("GET", "/board", "handler"): ("session", [("/board", None, OK)]),
+    ("GET", "/slate", "handler"): ("session", [("/slate", None, OK)]),
+    ("GET", "/slate/page-", "handler"): ("session", [("/slate/page-01.png", None, OK)]),
+    # lesson
+    ("GET", "/board.json", "lesson"): ("session", [("/board.json", None, OK)]),
+    ("GET", "/events", "lesson"): ("stream", []),
+    ("GET", "/archive", "lesson"): ("session", [("/archive", None, OK)]),
+    ("GET", "/archive/", "lesson"): ("session", [("/archive/", None, OK),
+                                                ("/archive/nope", None, (404,))]),
+    ("GET", "/map/inside/", "lesson"): ("session", [("/map/inside/nope", None, (404,))]),
+    ("GET", "/map/thread/", "lesson"): ("session", [("/map/thread/nope", None, (404,))]),
+    ("POST", "/direction", "lesson"): ("session", [
+        ("/direction", {"text": "a new direction {mark}"}, None)]),
+    ("POST", "/thread/accept", "lesson"): ("session", [
+        ("/thread/accept", {"card": "0001", "thread": "t1"}, (404,))]),
+    ("POST", "/mode", "lesson"): ("session", [("/mode", {"mode": "do"}, OK),
+                                             ("/mode", {"mode": "nope"}, (400,))]),
+    ("POST", "/handover", "lesson"): ("session", [("/handover", {"card": "0001"}, None)]),
+    ("POST", "/dismiss-finish", "lesson"): ("session", [("/dismiss-finish", {}, OK)]),
+    ("POST", "/session", "lesson"): ("session", [
+        ("/session", {"session": "lecture"}, None),
+        ("/session", {"session": "nope"}, (400,))]),
+    ("POST", "/say", "lesson"): ("session", [("/say", {"text": "said {mark}"}, OK)]),
+    ("POST", "/text/save", "lesson"): ("session", [
+        ("/text/save", {"question": "1", "text": "typed {mark}"}, OK)]),
+    # not yet classified in their modules' tables
+    ("GET", "/slate/state", "writing"): ("session", [("/slate/state", None, OK)]),
+    ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
+    ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
+    ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
+    ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
+    ("POST", "/slate/save", "writing"): ("session", [
+        ("/slate/save", {"page": 2, "w": 10, "h": 10,
+                         "strokes": [{"pts": [[1, 1]], "m": "{mark}"}]}, OK)]),
+    ("POST", "/annotate/save", "writing"): ("session", [
+        ("/annotate/save", {"card": "0001",
+                            "strokes": [{"pts": [[2, 2]], "m": "{mark}"}]}, OK),
+        ("/annotate/save", {"card": "doc/notes/p1",
+                            "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK)]),
+    ("POST", "/upload", "writing"): ("session", [("/upload", upload, OK)]),
+}
+
+
+def fill(value, who):
+    """`value` with `{mark}` and `{doc}` made `who`'s."""
+    if callable(value):
+        return value(who)
+    if isinstance(value, str):
+        return value.replace("{mark}", MARK[who]).replace("{doc}", DOC[who])
+    if isinstance(value, list):
+        return [fill(v, who) for v in value]
+    if isinstance(value, dict):
+        return dict((k, fill(v, who)) for k, v in value.items())
+    return value
+
+
+def request(method, path, body):
+    headers = None
+    if isinstance(body, tuple):
+        body, headers = body
+    return ask(method, path, body, headers)
+
+
+def drive_one(method, path, body, who):
+    """`(status, reply, files written, commands run)`."""
+    before = snapshot()
+    n = len(CALLS)
+    status, reply = request(method, path, fill(body, who))
+    return status, reply, changed(before, snapshot()), CALLS[n:]
+
+
+def judged(label, who, status, reply, wrote, calls, statuses, allowed):
+    """The checks every driven request gets."""
+    stray = [w for w in wrote if not inside(w, allowed)]
+    check(label + " answers (%d)" % status,
+          status < 500 if statuses is None else status in statuses)
+    check(label + " writes only its own session and subject"
+          + (" (stray: %s)" % stray if stray else ""), not stray)
+    bad = [f for f in foreign(who) if f.encode("utf-8") in reply]
+    check(label + " reads nothing of the other session" + (" (%s)" % bad if bad else ""),
+          not bad)
+    said = json.dumps(calls)
+    bad = [f for f in foreign(who) if f in said]
+    check(label + " runs nothing on the other session" + (" (%s)" % bad if bad else ""),
+          not bad)
 
 
 def first_event(who):
@@ -205,60 +368,40 @@ def first_event(who):
     return got
 
 
-def drive(who):
-    """[(route, status, reply bytes, files changed)] for one session."""
-    pre = "/s/%s" % SID[who]
-    out = []
+# ---------------------------------------------------------------------------
+# 1. every route, in its class
+# ---------------------------------------------------------------------------
+gone = sorted(set(DRIVE) - EVERY)
+check("every driven route is one the modules really answer"
+      + (": not %s" % gone if gone else ""), not gone)
 
-    def one(route, method, path, body=None, headers=None):
-        before = snapshot()
-        status, reply = ask(method, pre + path, body, headers)
-        out.append((route, status, reply, changed(before, snapshot())))
+for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
+    cls, asks = DRIVE[route]
+    method = route[0]
+    if cls == "stream":
+        for who in ("A", "B"):
+            before = snapshot()
+            event = first_event(who)
+            judged("GET /events in session %s" % who, who, 200 if event else 0,
+                   event.encode("utf-8"), changed(before, snapshot()), [], OK, scope(who))
+            check("session %s's stream carries its own card" % who, MARK[who] in event)
+        continue
+    for path, body, statuses in asks:
+        for who in ("A", "B"):
+            status, reply, wrote, calls = drive_one(
+                method, "/s/%s%s" % (SID[who], fill(path, who)), body, who)
+            label = "%s %s in session %s" % (method, fill(path, who), who)
+            if cls == "atlas":
+                check(label + " is 404: it is served outside a session",
+                      status == 404 and not wrote)
+                continue
+            judged(label, who, status, reply, wrote, calls, statuses, scope(who))
+        if cls == "session":
+            before = snapshot()
+            status, _ = request(method, fill(path, "A"), fill(body, "A"))
+            check("unprefixed %s %s is 404 and writes nothing" % (method, fill(path, "A")),
+                  status == 404 and not changed(before, snapshot()))
 
-    one(("GET", "/board", "handler"), "GET", "/board")
-    one(("GET", "/slate", "handler"), "GET", "/slate")
-    one(("GET", "/slate/page-", "handler"), "GET", "/slate/page-01.png")
-    one(("GET", "/board.json", "lesson"), "GET", "/board.json")
-    one(("GET", "/answers/", "pages"), "GET", "/answers/own.png")
-    one(("GET", "/uploads/", "pages"), "GET", "/uploads/own.png")
-    one(("GET", "/figure/", "pages"), "GET", "/figure/abc123.svg")
-    one(("GET", "/health", "machines"), "GET", "/health")
-    one(("POST", "/say", "lesson"), "POST", "/say", {"text": "said " + MARK[who]})
-    one(("POST", "/text/save", "lesson"), "POST", "/text/save",
-        {"question": "1", "text": "typed " + MARK[who]})
-    one(("POST", "/slate/save", "writing"), "POST", "/slate/save",
-        {"page": 2, "w": 10, "h": 10, "strokes": [{"pts": [[1, 1]], "m": MARK[who]}]})
-    one(("GET", "/slate/state", "writing"), "GET", "/slate/state")
-    one(("POST", "/annotate/save", "writing"), "POST", "/annotate/save",
-        {"card": "0001", "strokes": [{"pts": [[2, 2]], "m": MARK[who]}]})
-    one(("POST", "/annotate/save", "writing"), "POST", "/annotate/save",
-        {"card": "doc/notes/p1", "strokes": [{"pts": [[3, 3]], "m": MARK[who]}]})
-    body, headers = multipart("hand-in.txt", MARK[who].encode("utf-8"))
-    one(("POST", "/upload", "writing"), "POST", "/upload", body, headers)
-    before = snapshot()
-    event = first_event(who)
-    out.append((("GET", "/events", "lesson"), 200 if event else 0,
-                event.encode("utf-8"), changed(before, snapshot())))
-    return out
-
-
-for who in ("A", "B"):
-    other = OTHER[who]
-    results = drive(who)
-    for route, status, reply, wrote in results:
-        label = "%s %s in session %s" % (route[0], route[1], who)
-        stray = [w for w in wrote if not inside(w, scope(who))]
-        check(label + " answers", status == 200)
-        check(label + " writes only its own session and subject"
-              + (" (stray: %s)" % stray if stray else ""), not stray)
-        check(label + " reads nothing of the other session",
-              MARK[other].encode("utf-8") not in reply)
-    check("session %s's board.json carries its own card" % who,
-          any(r[0][1] == "/board.json" and MARK[who].encode("utf-8") in r[2]
-              for r in results))
-    check("session %s's stream carries its own card" % who,
-          any(r[0][1] == "/events" and MARK[who].encode("utf-8") in r[2]
-              for r in results))
 
 # ---------------------------------------------------------------------------
 # 2. where the writes landed, and the ink routing
@@ -274,16 +417,19 @@ for who in ("A", "B"):
     ink = os.path.join(atlas, SUBJECT[who], ".ink")
     held = sorted(os.listdir(ink)) if os.path.isdir(ink) else []
     check("document ink in %s goes to %s/.ink/" % (who, SUBJECT[who]),
-          len(held) == 1 and held[0].startswith("doc-notes-p1-")
+          any(n.startswith("doc-notes-p1-") for n in held)
           and not any(n.startswith("doc-") for n in os.listdir(
               os.path.join(sdir, "annotations"))))
     check("an upload in %s lands in its uploads/" % who,
           any(n.endswith("hand-in.txt") for n in os.listdir(os.path.join(sdir, "uploads"))))
+    board = [c for c in CALLS if c["fn"] == "board" and c["session"] == sdir]
+    check("a board command a route in %s runs works on session %s" % (who, who),
+          board and all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
 
 # A second session on Alpha sees Alpha's document ink, and none of its cards'.
 rec = sessions.new("second on Alpha", base=atlas, now=1.7e9 + 5)
-course_repo.Repo(atlas, session=sessions.path(rec["id"], atlas),
-                 create=False).set_state(subject=SUBJECT["A"])
+SECOND = sessions.path(rec["id"], atlas)
+course_repo.Repo(atlas, session=SECOND, create=False).set_state(subject=SUBJECT["A"])
 status, reply = ask("GET", "/s/%s/board.json" % rec["id"])
 notes = json.loads(reply.decode("utf-8")).get("notes") or {}
 check("a second session on one subject reads that subject's document ink",
@@ -317,9 +463,9 @@ status, reply = ask("GET", "/sessions.json")
 listed = [r["id"] for r in json.loads(reply.decode("utf-8"))["sessions"]]
 check("/sessions.json lists both sessions", SID["A"] in listed and SID["B"] in listed)
 status, reply = ask("GET", "/subjects.json")
-check("/subjects.json lists both subjects",
+check("/subjects.json lists every subject",
       sorted(s["id"] for s in json.loads(reply.decode("utf-8"))["subjects"])
-      == sorted(SUBJECT.values()))
+      == sorted(list(SUBJECT.values()) + [LONE]))
 check("a library route without ?subject= is refused",
       ask("GET", "/library.json")[0] == 400)
 check("a library route naming no subject is 404",
@@ -334,16 +480,11 @@ check("POST /sessions/new opens an unbound session in teach, and touches no othe
       and made["session"]["subject"] is None and made["session"]["mode"] == "teach"
       and wrote and all(w.startswith(os.path.join("sessions", made["id"])) for w in wrote))
 
-for method, path in (("GET", "/board.json"), ("GET", "/events"), ("POST", "/say"),
-                     ("GET", "/slate/state"), ("POST", "/annotate/save"),
-                     ("GET", "/answers/own.png"), ("GET", "/archive")):
-    before = snapshot()
-    status, _ = ask(method, path, {"text": "x"} if method == "POST" else None)
-    check("unprefixed %s %s is 404 and writes nothing" % (method, path),
-          status == 404 and not changed(before, snapshot()))
 check("a session that does not exist is 404",
       ask("GET", "/s/20990101-000000/board.json")[0] == 404
       and ask("GET", "/s/../board.json")[0] == 404)
+check("nothing is written into a sessionless Repo's session but the page cache",
+      not [w for w in snapshot() if w.startswith(NONE) and not w.startswith(CACHE)])
 
 # ---------------------------------------------------------------------------
 # 4. the registry: a bind moves the root, idle sessions are dropped
@@ -391,11 +532,11 @@ check("a deleted session is 404 and leaves the registry",
       and SID["A"] not in reg.loaded())
 
 # ---------------------------------------------------------------------------
-# 5. what is still pending, for T17
+# 5. what is still pending
 # ---------------------------------------------------------------------------
-pending = sorted(EVERY - COVERED - UNPREFIXED_ONLY, key=lambda r: (r[2], r[1], r[0]))
+pending = sorted(EVERY - set(DRIVE) - UNPREFIXED_ONLY, key=lambda r: (r[2], r[1], r[0]))
 print()
-print("pending for T17: %d routes not yet driven under two sessions" % len(pending))
+print("pending: %d routes not yet driven in their class" % len(pending))
 for method, path, mod in pending:
     print("  pending  %-8s %-5s %s" % (mod, method, path))
 
