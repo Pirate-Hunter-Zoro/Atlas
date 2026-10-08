@@ -86,6 +86,10 @@ def _fresh(root, course):
     CALLS.append({"fn": "fresh", "root": root, "course": course})
 
 
+from tutorboard.course import document as course_document   # noqa: E402
+from tutorboard.course import screenshot as course_shot       # noqa: E402
+from tutorboard.lesson import git as lesson_git               # noqa: E402
+
 spawn.wake_tutor = _wake
 spawn.board_cli = _board
 spawn.tutor_cli = _tutor
@@ -102,6 +106,11 @@ def recorder(name, answer):
         return dict(answer)
     return run
 
+
+lesson_git.run_push = recorder("push", {"ok": True, "detail": "pushed"})
+lesson_git.run_hw_build = recorder("hw", {"ok": True, "detail": "built"})
+course_document.build = recorder("export", {"ok": True, "detail": "exported"})
+course_shot.build = recorder("shot", {"ok": True, "detail": "shot"})
 
 # ---------------------------------------------------------------------------
 # the fixture: an Atlas tree with three subjects and a session on two of them
@@ -295,6 +304,11 @@ DRIVE = {
         ("/text/save", {"question": "1", "text": "typed {mark}"}, OK)]),
     # writing
     ("GET", "/slate/state", "writing"): ("session", [("/slate/state", None, OK)]),
+    # saving
+    ("POST", "/push", "saving"): ("session", [("/push", {"message": "{mark}"}, OK)]),
+    ("POST", "/hw/build", "saving"): ("session", [("/hw/build", {}, OK)]),
+    ("POST", "/export/shot", "saving"): ("session", [("/export/shot", {}, OK)]),
+    ("POST", "/export", "saving"): ("session", [("/export", {"scope": "lesson"}, OK)]),
     # not yet classified in their modules' tables
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
@@ -471,6 +485,12 @@ wrote = changed(before, snapshot())
 check("unprefixed document ink lands in the named subject's .ink/, or the Atlas root's",
       len(wrote) == 2 and wrote[0].startswith(os.path.join(".ink", "doc-meeting-p1-"))
       and wrote[1].startswith(os.path.join(SUBJECT["B"], ".ink", "doc-beta-notes-p3-")))
+
+for who in ("A", "B"):
+    done = [c for c in CALLS if c["fn"] in ("push", "hw", "export")
+            and (DIR[who] in c["args"] or os.path.join(atlas, SUBJECT[who]) in c["args"])]
+    check("a push, a build and an export in %s each ran on %s's session or subject"
+          % (who, who), sorted(set(c["fn"] for c in done)) == ["export", "hw", "push"])
 
 # A second session on Alpha sees Alpha's document ink, and none of its cards'.
 rec = sessions.new("second on Alpha", base=atlas, now=1.7e9 + 5)

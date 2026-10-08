@@ -1,4 +1,12 @@
 """Committing the lesson, and exporting it as something to hand to somebody.
+
+Every route here is a SESSION route, served under `/s/<id>/` by that
+session's Repo (`handler.UNPREFIXED` lists none of them):
+
+    POST /push          session   commit and push the session's subject
+    POST /hw/build      session   build the session's write-up
+    POST /export/shot   session   the lesson as the iPad drew it
+    POST /export        session   the lesson as one typeset document
 """
 
 import time
