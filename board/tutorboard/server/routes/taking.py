@@ -31,6 +31,15 @@ builds, `reading.find` for a document the course points at, `shelf.find` for
 anything else in the workspace. A query parameter carrying a repo-relative path
 would be a directory traversal waiting to be written, and there is nothing it
 would buy -- the board knows where every one of these is.
+
+WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
+
+    session   under `/s/<id>/` only: GET /download/lesson  /download/homework
+              /download/shelf/<sid>  /view/lesson  /view/homework  /view/doc/<id>
+              /view/shelf/<sid>  /doc/<id>/<n>.png
+    both      GET /paper/<digest>-<n>.png: one page cache for every session
+              and subject (`paths.PAGES`), so it is answered here under
+              `/s/<id>/` and by the handler's `paper` class unprefixed
 """
 
 import os

@@ -14,7 +14,9 @@ is in DRIVE with its class -- the class the module's own table gives it:
     atlas     unprefixed only: it writes into neither session (unless it is an
               ask, checked by name below), and under `/s/A/` it is 404
     both      a session route that the handler also answers unprefixed with an
-              answer of its own (`/health`)
+              answer of its own (`/health`, the library page, `/paper/`)
+
+A route the modules answer that DRIVE does not list fails the harness.
 
 The unprefixed table is driven too, and the asks that reach another subject's
 tutor are followed into the session they land in.
@@ -40,6 +42,7 @@ os.environ["BOARD_STATE_DIR"] = os.path.join(tmp, ".state")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(tmp, ".trash")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(tmp, ".config")
 os.environ["TUTORBOARD_COURSES"] = atlas
+os.environ["TUTORBOARD_PAGES"] = os.path.join(tmp, ".pages")
 
 import threading                                              # noqa: E402
 
@@ -169,6 +172,9 @@ for n, who in enumerate(("A", "B")):
         write(os.path.join(DIR[who], sub, name), MARK[who])
 # Compiled TikZ is one cache beside the sessions, keyed by source and macros.
 write(os.path.join(atlas, "sessions", ".tikz", "abc123.svg"), "<svg>shared figure</svg>")
+# Rendered PDF pages are one cache outside the tree (`paths.PAGES`).
+write(os.path.join(os.environ["TUTORBOARD_PAGES"], "abcdef12", "abcdef12-1.png"),
+      "a shared page")
 OTHER = {"A": "B", "B": "A"}
 
 httpd = app.make_server(atlas, 0)
@@ -225,10 +231,8 @@ def foreign(who):
     return (SID[o], MARK[o], SUBJECT[o], os.path.basename(SUBJECT[o]))
 
 
-# The session directory of a sessionless Repo, and the page cache that is the
-# one thing written under it until T18 moves that cache.
+# The session directory of a sessionless Repo: nothing is ever written under it.
 NONE = os.path.join("sessions", registry.NONE) + os.sep
-CACHE = os.path.join("sessions", registry.NONE, "paper") + os.sep
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +295,7 @@ DRIVE = {
     ("GET", "/board", "handler"): ("session", [("/board", None, OK)]),
     ("GET", "/slate", "handler"): ("session", [("/slate", None, OK)]),
     ("GET", "/slate/page-", "handler"): ("session", [("/slate/page-01.png", None, OK)]),
+    ("GET", "/library", "handler"): ("both", [("/library", None, OK)]),
     # lesson
     ("GET", "/board.json", "lesson"): ("session", [("/board.json", None, OK)]),
     ("GET", "/events", "lesson"): ("stream", []),
@@ -386,7 +391,19 @@ DRIVE = {
     ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
     ("GET", "/result/", "pages"): ("subject", [("/result/{fig}", None, OK),
                                               ("/result/nope", None, (404,))]),
-    # not yet classified in their modules' tables
+    # taking
+    ("GET", "/download/lesson", "taking"): ("session", [("/download/lesson", None, None)]),
+    ("GET", "/download/homework", "taking"): ("session", [
+        ("/download/homework", None, None)]),
+    ("GET", "/download/shelf/", "taking"): ("session", [
+        ("/download/shelf/{doc}", None, None)]),
+    ("GET", "/view/lesson", "taking"): ("session", [("/view/lesson", None, OK)]),
+    ("GET", "/view/homework", "taking"): ("session", [("/view/homework", None, OK)]),
+    ("GET", "/view/doc/", "taking"): ("session", [("/view/doc/{doc}", None, None)]),
+    ("GET", "/view/shelf/", "taking"): ("session", [("/view/shelf/{doc}", None, OK)]),
+    ("GET", "/doc/", "taking"): ("session", [("/doc/{doc}/1.png", None, (404,))]),
+    ("GET", "/paper/", "taking"): ("both", [("/paper/abcdef12-1.png", None, OK),
+                                           ("/paper/nope.png", None, (404,))]),
 
     ("POST", "/slate/save", "writing"): ("session", [
         ("/slate/save", {"page": 2, "w": 10, "h": 10,
@@ -474,6 +491,9 @@ def first_event(who):
 # ---------------------------------------------------------------------------
 # 1. every route, in its class
 # ---------------------------------------------------------------------------
+missing = sorted(EVERY - set(DRIVE) - UNPREFIXED_ONLY, key=lambda r: (r[2], r[1], r[0]))
+check("every route the modules answer is driven in its class"
+      + (": not %s" % ["%s %s (%s)" % m for m in missing] if missing else ""), not missing)
 gone = sorted(set(DRIVE) - EVERY)
 check("every driven route is one the modules really answer"
       + (": not %s" % gone if gone else ""), not gone)
@@ -515,13 +535,12 @@ for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
                 there += ("&" if "?" in there else "?") + "subject=" + SUBJECT[who]
                 status, reply, wrote, calls = drive_one(method, there, body, who)
                 judged("unprefixed %s %s" % (method, there), who, status, reply, wrote,
-                       calls, bare, (SUBJECT[who] + os.sep, CACHE) + ROUTED[who])
+                       calls, bare, (SUBJECT[who] + os.sep,) + ROUTED[who])
         if cls == "subject?":
             # And no subject named: the Atlas root's, which is no session's
             # and no subject's.
             status, reply, wrote, calls = drive_one(method, fill(path, "A"), body, "A")
             stray = [w for w in wrote if w.startswith("sessions" + os.sep)
-                     and not w.startswith(CACHE)
                      or any(w.startswith(r + os.sep) for r in SUBJECT.values())]
             check("unprefixed %s %s, no subject, answers (%d) and writes no session or "
                   "subject%s" % (method, fill(path, "A"), status,
@@ -681,12 +700,12 @@ check("an unbound session's document ink stays in the session",
 for path in ("/", "/sw.js", "/manifest.webmanifest", "/static/board.js", "/health",
              "/sessions.json", "/subjects.json", "/notices.json", "/library",
              "/library.json?subject=courses/Alpha",
-             "/library/stamp?subject=projects/Beta"):
-    named = path.split("subject=", 1)[1] + os.sep if "subject=" in path else CACHE
+             "/library/stamp?subject=projects/Beta", "/paper/abcdef12-1.png"):
+    named = path.split("subject=", 1)[1] + os.sep if "subject=" in path else None
     before = snapshot()
     status, reply = ask("GET", path)
     stray = [w for w in changed(before, snapshot())
-             if not w.startswith(CACHE) and not w.startswith(named)]
+             if not (named and w.startswith(named))]
     check("unprefixed GET %s answers and writes no other subject and no session%s"
           % (path, " (stray: %s)" % stray if stray else ""), status == 200 and not stray)
 
@@ -714,8 +733,8 @@ check("POST /sessions/new opens an unbound session in teach, and touches no othe
 check("a session that does not exist is 404",
       ask("GET", "/s/20990101-000000/board.json")[0] == 404
       and ask("GET", "/s/../board.json")[0] == 404)
-check("nothing is written into a sessionless Repo's session but the page cache",
-      not [w for w in snapshot() if w.startswith(NONE) and not w.startswith(CACHE)])
+check("nothing is written into a sessionless Repo's session",
+      not [w for w in snapshot() if w.startswith(NONE)])
 
 # ---------------------------------------------------------------------------
 # 4. the registry: a bind moves the root, idle sessions are dropped
@@ -762,19 +781,10 @@ check("a deleted session is 404 and leaves the registry",
       ask("GET", "/s/%s/board.json" % SID["A"])[0] == 404
       and SID["A"] not in reg.loaded())
 
-# ---------------------------------------------------------------------------
-# 5. what is still pending
-# ---------------------------------------------------------------------------
-pending = sorted(EVERY - set(DRIVE) - UNPREFIXED_ONLY, key=lambda r: (r[2], r[1], r[0]))
-print()
-print("pending: %d routes not yet driven in their class" % len(pending))
-for method, path, mod in pending:
-    print("  pending  %-8s %-5s %s" % (mod, method, path))
-
 httpd.shutdown()
 shutil.rmtree(tmp, ignore_errors=True)
 print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("two sessions, one server, and neither reads or writes the other")
+print("every route, in its class, under two sessions: neither reads or writes the other")
