@@ -139,20 +139,12 @@ def new(title=None, base=None, now=None):
 
 
 def _artifacts(base, subject, sid):
-    """Directories under `<subject>/docs/` whose doc.json lists this session,
-    relative to the Atlas root."""
-    docs = os.path.join(base, subject, "docs")
-    try:
-        names = sorted(os.listdir(docs))
-    except OSError:
-        return []
-    out = []
-    for name in names:
-        doc = course_repo._read_json(os.path.join(docs, name, "doc.json"))
-        listed = doc.get("sessions")
-        if isinstance(listed, list) and sid in listed:
-            out.append("%s/docs/%s" % (subject, name))
-    return out
+    """The directories of the subject's artifacts whose doc.json lists this
+    session -- new ones under `docs/` and ones placed in place -- relative to
+    the Atlas root."""
+    from . import artifacts                              # local: artifacts imports this
+    return ["%s/%s" % (subject, a["rel"])
+            for a in artifacts.for_session(os.path.join(base, subject), sid)]
 
 
 def end(sid, base=None, now=None):

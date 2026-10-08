@@ -19,10 +19,11 @@ where they are:
     kind    `\\documentclass[...]{beamer}` is a deck; anything else is a paper
     stale   arithmetic -- the source's modification time against the PDF's
 
-New documents land in `writeups/<slug>/`, one directory per document, because a
-deck's figures and its rounds of feedback need somewhere to be. `writeups` and
-not `papers`: `reading.NOT_OURS` already means a `papers/` directory is somebody
-else's library.
+THREE GROUPS, in this order. ARTIFACTS: a directory with a doc.json
+(`tutorboard/artifacts.py`) -- new ones at `docs/<slug>/`, whose id is the
+slug, and ones placed in an existing tree, which keep the id the walk gives
+them. LEGACY documents, found by the walk as before, ids unchanged. MATERIALS:
+any PDF under `materials/`, put there to be read.
 
 THE FENCE IS THE SAME ONE. `fenced.refused` on the whole path, and
 `reading.NOT_OURS` on the directory names -- without the second, TRD-EHR's
@@ -39,7 +40,7 @@ import subprocess
 import time
 
 from . import homework, paper, reading
-from .. import atlas, fenced
+from .. import artifacts, atlas, fenced, subjects
 
 # What a document can be written in, and what it can be built into. A stem with
 # neither a source nor a PDF is not a document, whatever else is beside it.
@@ -227,10 +228,12 @@ def _meeting_deck(path):
         return False
 
 
-def _walk(root):
+def _walk(root, skip=()):
     """Every stem in this workspace that has a document's formats beside it.
 
     In file order, nearest the top first, which is the order the library draws.
+    `skip` holds directories, relative to `root`, the walk never enters: the
+    artifacts at `docs/<slug>/`, which are listed from their doc.json.
     """
     found, order = {}, []
     for here, dirs, files in os.walk(root):
@@ -241,7 +244,9 @@ def _walk(root):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".")
                          and d not in reading.IGNORE
                          and d.lower() not in reading.NOT_OURS
-                         and not fenced.refused(d))
+                         and not fenced.refused(d)
+                         and (d if rel == "." else os.path.join(rel, d))
+                         .replace(os.sep, "/") not in skip)
         # THE MEETING DECK IS NOT A LIBRARY DOCUMENT. Its reader is
         # `/meeting`, where ink is a direction for the project a page is
         # about; here it would be a revision, filed under one of the projects.
@@ -295,16 +300,20 @@ def _ident(rel, stem, taken):
     return out
 
 
-def _offered(formats):
+def _offered(formats, material=False):
     """The source and the PDF of one stem, or None if it is not a document.
 
-    WHAT MAKES A STEM A DOCUMENT, IN ONE PLACE. `_record` builds a record from
-    this and `stamp` hands out ids from it, and the two have to agree exactly:
-    an id the stamp invented for a stem the list does not offer is an id the
-    page would ask about and never be answered.
+    WHAT MAKES A STEM A DOCUMENT, IN ONE PLACE. `_listing` hands out ids from
+    this, and both `_documents` and `stamp` read `_listing`, so an id the stamp
+    knows is always one the list offers.
+
+    A MATERIAL is any PDF under `materials/`, whatever its size: it was put
+    there to be read.
     """
     src = formats.get(".tex") or formats.get(".md") or ""
     pdf = formats.get(".pdf") or ""
+    if material:
+        return ("", pdf) if pdf else None
     if not src and not pdf:
         return None
     # A PDF nobody here wrote the source of, and small enough to be a figure.
@@ -313,16 +322,22 @@ def _offered(formats):
     return src, pdf
 
 
-def _record(root, rel, stem, formats, taken):
-    pair = _offered(formats)
-    if not pair:
-        return None
-    src, pdf = pair
-    title, kind = _from_source(src, stem)
+def _record(root, rel, stem, formats, ident, group="legacy", art=None):
+    """One document as the library draws it. `art` is its artifact, when it
+    has a doc.json; then the title, type and status come from there."""
+    if art:
+        src = art["path"]
+        pdf = formats.get(".pdf") or ""
+        title = art["title"]
+        kind = "deck" if art["type"] == "deck" else "paper"
+    else:
+        src, pdf = _offered(formats, group == "material")
+        title, kind = _from_source(src, stem)
     where = "" if rel in (".", "") else rel.replace(os.sep, "/")
     built = _mtime(pdf)
     rec = {
-        "id": _ident(rel, stem, taken),
+        "id": ident,
+        "group": group,
         "dir": where,
         "stem": stem,
         "title": title,
@@ -334,7 +349,7 @@ def _record(root, rel, stem, formats, taken):
         # is a revision asked to edit a rendering. Whatever revises this document
         # edits the file it was built from.
         "source": (os.path.relpath(src, root).replace(os.sep, "/") if src else ""),
-        "at": built or max(_mtime(p) for p in formats.values()),
+        "at": built or max([_mtime(p) for p in formats.values()] or [0]),
         "built": built,
         "size": _size(pdf or src),
         "pages": _pages(pdf),
@@ -342,8 +357,15 @@ def _record(root, rel, stem, formats, taken):
         # on the glass is not what the file says any more.
         "stale": bool(src and pdf and _mtime(src) > built),
         "pdf": bool(pdf),
+        # A new artifact's own directory, `docs/<slug>/`: its feedback needs no
+        # stem in the name, the way `writeups/<slug>/` does not.
+        "own": bool(art and art["own"]),
     }
-    rec["piece"] = _piece_of(where) is not None
+    if art:
+        rec.update({"artifact": art["rel"], "type": art["type"],
+                    "status": artifacts.status(art["dir"]),
+                    "asked_at": art["asked_at"], "sessions": art["sessions"]})
+    rec["piece"] = group == "legacy" and _piece_of(where) is not None
     rec["notes"] = notes(root, rec)
     return rec
 
@@ -379,25 +401,72 @@ def documents(root):
     return got
 
 
-def _documents(root):
-    out, taken = [], set()
-    for (rel, stem), formats in _walk(root):
-        rec = _record(root, rel, stem, formats, taken)
-        if not rec:
+def _listing(root):
+    """Every document of this subject, in the order the library draws it, as
+    `(group, id, rel, stem, formats, art)`. Stats, directory listings and
+    doc.json reads only: no titles, no `pdfinfo`.
+
+    ARTIFACTS FIRST, LEGACY DOCUMENTS SECOND, MATERIALS LAST. Ids are handed
+    out in walk order before anything is reordered, and the walk is the one
+    the library always made, so a legacy document keeps its id: ink is keyed
+    on it. An artifact placed in place is found by that walk and keeps its id
+    too. A new artifact at `docs/<slug>/` is not walked; its id is its slug.
+    """
+    arts = artifacts.list(root)
+    own = [a for a in arts if a["own"]]
+    placed = {}
+    for a in arts:
+        if not a["own"] and a["path"]:
+            src_rel = os.path.relpath(os.path.dirname(a["path"]), root)
+            placed[(src_rel, os.path.splitext(os.path.basename(a["path"]))[0])] = a
+    taken, walked = set(), []
+    for (rel, stem), formats in _walk(root, skip=set(a["rel"] for a in own)):
+        material = rel.replace(os.sep, "/").split("/")[0] == "materials"
+        if not _offered(formats, material):
             continue
-        taken.add(rec["id"])
-        out.append(rec)
-        if len(out) >= MAX_DOCS:
+        ident = _ident(rel, stem, taken)
+        taken.add(ident)
+        art = placed.get((rel, stem))
+        group = "material" if material else ("artifact" if art else "legacy")
+        walked.append((group, ident, rel, stem, formats, art))
+        if len(walked) >= MAX_DOCS:
             break
-    # Wholes first, pieces after, each in file order. Ids are handed out in walk
-    # order above, so this moves nothing ink is anchored on.
+    out = []
+    for a in own:
+        ident, n = a["id"], 1
+        while ident in taken:
+            n += 1
+            tail = "-%d" % n
+            ident = a["id"][:IDENT_MAX - len(tail)] + tail
+        taken.add(ident)
+        stem = os.path.splitext(os.path.basename(a["path"]))[0]
+        formats = {}
+        for ext in FORMATS:
+            p = os.path.join(a["dir"], stem + ext)
+            if os.path.isfile(p):
+                formats[ext] = p
+        out.append(("artifact", ident, a["rel"], stem, formats, a))
+    for group in ("artifact", "legacy", "material"):
+        out += [w for w in walked if w[0] == group]
+    return out
+
+
+def _documents(root):
+    out = []
+    for group, ident, rel, stem, formats, art in _listing(root):
+        out.append(_record(root, rel, stem, formats, ident, group, art))
+    # Wholes before pieces inside the legacy group, each in file order.
     wholes = [d for d in out if not d["piece"]]
     for d in out:
         if d["piece"]:
             base, stem = _piece_of(d["dir"])
             d["whole"] = next((w["id"] for w in wholes
                                if w["dir"] == base and w["stem"] == stem), "")
-    return wholes + [d for d in out if d["piece"]]
+    first = [d for d in out if d["group"] == "artifact"]
+    legacy = [d for d in out if d["group"] == "legacy"]
+    return (first + [d for d in legacy if not d["piece"]]
+            + [d for d in legacy if d["piece"]]
+            + [d for d in out if d["group"] == "material"])
 
 
 def forget():
@@ -435,22 +504,19 @@ def forget():
 # document was rebuilt is its own defect.
 def stamp(root):
     """Where every document is and when it last changed. Stats only."""
-    taken, docs, lines = set(), {}, []
-    for (rel, stem), formats in _walk(root):
-        pair = _offered(formats)
-        if not pair:
-            continue
-        src, pdf = pair
-        ident = _ident(rel, stem, taken)
-        taken.add(ident)
+    docs, lines = {}, []
+    for group, ident, rel, stem, formats, art in _listing(root):
+        src, pdf = (art["path"], formats.get(".pdf") or "") if art else \
+            _offered(formats, group == "material")
+        held = [p for p in (src, pdf) if p and os.path.exists(p)]
+        if art:
+            held.append(os.path.join(art["dir"], artifacts.DOC_JSON))
         one = "|".join(
             "%s@%d:%d" % (os.path.relpath(p, root).replace(os.sep, "/"),
                           int(_mtime(p) * 1000), _size(p))
-            for p in (src, pdf) if p)
+            for p in held)
         docs[ident] = hashlib.sha1(one.encode("utf-8")).hexdigest()[:12]
         lines.append(ident + " " + one)
-        if len(docs) >= MAX_DOCS:
-            break
     whole = hashlib.sha1("\n".join(lines).encode("utf-8")).hexdigest()[:16]
     return {"ok": True, "stamp": whole, "documents": docs}
 
@@ -657,6 +723,8 @@ def _is_writeup(doc):
     to repeat the stem in its name. The two layouts that already exist are flat
     -- four stems in one directory -- and there it does.
     """
+    if (doc or {}).get("own"):
+        return True
     where = (doc or {}).get("dir") or ""
     return where == WRITEUPS or where.startswith(WRITEUPS + "/")
 
@@ -1414,5 +1482,7 @@ def status(repo):
             doc["wiped"] = wiped(repo, doc, buried)
         except Exception:                                    # noqa: BLE001
             doc["wiped"] = {}
+    found_subject = subjects.find(root) if root else None
     return {"workspace": atlas.identify(root), "documents": found,
+            "subject": (found_subject or {}).get("id") or "",
             "writeups": WRITEUPS}

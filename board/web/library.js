@@ -268,11 +268,27 @@ function paint(got) {
 
   openWanted();
 
-  /* GROUPED BY DIRECTORY, because the directory is the group: four stems in
+  /* THREE GROUPS, IN THE SERVER'S ORDER: what the board made (each with its
+     doc.json), what was already here, and the materials put here to be read.
+     A heading only once there is more than one of them. Inside each group,
+     GROUPED BY DIRECTORY, because the directory is the group: four stems in
      `paper1-trd-prediction/` are one piece of work, and a flat list of fifty
      rows says nothing about which those four are. */
-  var here = null;
+  subject = got.subject || "";
+  var groups = {};
+  docs.forEach(function (d) { groups[d.group || "legacy"] = true; });
+  var many = Object.keys(groups).length > 1;
+  var here = null, part = null;
   docs.forEach(function (doc) {
+    var g = doc.group || "legacy";
+    if (many && g !== part) {
+      part = g;
+      here = null;
+      var gh = document.createElement("div");
+      gh.className = "lib-group";
+      gh.textContent = GROUP_WORDS[g] || g;
+      els.list.appendChild(gh);
+    }
     if (doc.dir !== here) {
       here = doc.dir;
       var head = document.createElement("div");
@@ -415,9 +431,17 @@ function paintReaderSaid() {
   els.readerSaid.hidden = !said.length;
 }
 
+var GROUP_WORDS = { artifact: "Made here", legacy: "Already here",
+                    material: "Materials" };
+var subject = "";            /* the subject this library is of, from the server */
+
+/* WHERE AN ASKED-FOR DOCUMENT GOT TO, from its doc.json and mtimes. */
+var STATUS_WORDS = { writing: "being written", failed: "did not land" };
+
 function row(doc) {
   var box = document.createElement("div");
   box.className = "lib-row";
+  box.dataset.group = doc.group || "legacy";
 
   var name = document.createElement("button");
   name.type = "button";
@@ -432,13 +456,22 @@ function row(doc) {
   var meta = document.createElement("span");
   meta.className = "lib-meta";
   meta.textContent = [
-    doc.kind === "deck" ? "deck" : "paper",
+    doc.group === "material" ? "material"
+      : (doc.type || (doc.kind === "deck" ? "deck" : "paper")),
     doc.stem,
     (doc.formats || []).join(" · "),
     doc.pages ? doc.pages + (doc.pages === 1 ? " page" : " pages") : "",
     doc.pdf ? (doc.iso ? "built " + doc.iso : "") : "no PDF yet"
   ].filter(Boolean).join("  ·  ");
   box.appendChild(meta);
+
+  if (STATUS_WORDS[doc.status]) {
+    var st = document.createElement("span");
+    st.className = "lib-status";
+    st.dataset.status = doc.status;
+    st.textContent = STATUS_WORDS[doc.status];
+    box.appendChild(st);
+  }
 
   /* STALE IS ARITHMETIC, not a record: the source is newer than the PDF, so
      what is on the glass is not what the file says any more. */
@@ -512,11 +545,57 @@ function row(doc) {
   if (doc.pdf) {
     acts.appendChild(act("read it", "quiet", function () { read(doc); }));
   }
-  acts.appendChild(act("say what is wrong", "quiet", function () {
-    say(doc, 0, "fixes");
-  }));
+  if (doc.group !== "material") {
+    acts.appendChild(act("say what is wrong", "quiet", function () {
+      say(doc, 0, "fixes");
+    }));
+  }
+  /* DELETE TAKES A SECOND TAP, and only a document with a doc.json offers it:
+     what was already here is somebody's own tree. */
+  if (doc.artifact) acts.appendChild(deleteButton(doc));
   box.appendChild(acts);
   return box;
+}
+
+function deleteButton(doc) {
+  var armed = null;
+  var b = act("delete", "quiet lib-delete", function () {
+    if (!armed) {
+      b.textContent = "tap again to delete";
+      b.classList.add("armed");
+      armed = setTimeout(function () {
+        armed = null;
+        b.textContent = "delete";
+        b.classList.remove("armed");
+      }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    b.disabled = true;
+    b.textContent = "deleting";
+    fetch("/doc/delete", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: subject, id: doc.id })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; });
+    }).then(function (got) {
+      if (got && got.ok) {
+        if (openDoc && openDoc.id === doc.id) closeReader();
+        load();
+        return;
+      }
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = (got && got.error) || "could not delete";
+    }).catch(function () {
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "the board is not answering";
+    });
+  });
+  return b;
 }
 
 function act(label, cls, fn) {

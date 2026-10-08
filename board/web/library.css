@@ -48,6 +48,15 @@ body { font-family: var(--ui); color: var(--ink); }
   margin: 1.4rem .2rem .4rem;
 }
 .lib-dir:first-child { margin-top: .2rem; }
+/* What the board made, what was already here, and the materials. */
+.lib-group {
+  font-size: .8rem; font-weight: 700; color: var(--ink-2);
+  margin: 1.8rem .2rem .2rem; border-bottom: 1px solid var(--rule);
+}
+.lib-group:first-child { margin-top: .2rem; }
+.lib-status { font-size: .74rem; color: var(--ask); }
+.lib-status[data-status="failed"] { color: var(--ink-2); }
+.lib-acts button.lib-delete.armed { color: var(--ask); border-color: var(--ask); }
 
 .lib-row {
   display: flex; flex-direction: column; gap: .2rem;

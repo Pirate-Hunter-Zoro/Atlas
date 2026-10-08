@@ -46,6 +46,9 @@ that is not the lesson's.
     POST /library/feedback          one round of feedback, written where the
                                     document is, and then acted on -- in words,
                                     in ink, or in both
+    POST /doc/delete                one artifact `{subject, id}`, after a
+                                    second tap: to the trash with its ink, and
+                                    its tracked files out in one commit
 
 AN ID, NEVER A PATH. What arrives from the browser is compared against what
 discovery found -- `library.find` -- and a miss is a miss. `reading.find` is the
@@ -80,14 +83,15 @@ git is the only undo an overhaul has.
 
 import json
 import os
+import re
 import time
 from urllib.parse import unquote
 
 from . import NOT_MINE
 from . import writing
 from .. import spawn
-from ... import (atlas, leaving, machines, paths, scopes, sense, sittings,
-                 writeups)
+from ... import (artifacts, atlas, fenced, leaving, machines, paths, scopes,
+                 sense, sittings, subjects, writeups)
 from ...course import burn
 from ...course import config
 from ...course import ledger
@@ -350,6 +354,19 @@ def post(h, repo, path):
     if path == "/writeup":
         return _writeup(h, repo)
 
+    if path == "/doc/delete":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            payload = {}
+        got, code = delete_doc(repo, str(payload.get("subject") or "").strip(),
+                               str(payload.get("id") or "").strip().lower())
+        if got.get("ok"):
+            h.server.hub.worker.dirty.set()
+        return h.send_json(got, status=code)
+
     # SLIDES FROM SITTINGS: which sittings, what they did, the deck, and where
     # each deck got to. See `tutorboard/sittings.py`, and `_sittings_deck` for
     # why the deck goes through `/writeup`'s own dispatch.
@@ -578,6 +595,26 @@ def dispatch(repo, match, makes, about, line=None, prepare=None):
     # has to be told apart by shape. NOT written into `live/turns.jsonl`; see
     # above.
     wid = turns.next_turn_id(target)
+    doc_dir = None
+    if line is None and prepare is None:
+        # A PLAIN ASK MAKES ITS ARTIFACT FIRST, so the strip is judged by its
+        # doc.json and the turn is told the exact file.
+        try:
+            art = artifacts.create(
+                target.root, about[:80] or ("Slides" if makes == "slides" else "Paper"),
+                session=target.live if target.stored else None,
+                ext=".tex" if makes == "slides" else ".md")
+        except (ValueError, OSError) as exc:
+            return None, ({"ok": False, "error": "no document could be made "
+                           "here: %s" % exc}, 409)
+        doc_dir = art["rel"]
+        src = "%s/%s" % (art["rel"], art["source"])
+        line = ("[writeup] " + sense.writeup_sense(makes, about)
+                + " THE FILE FOR THIS ONE IS `%s`, that name exactly, and it "
+                  "outranks `writeups/<slug>/` above: the board finds the "
+                  "document by it. %s Build it with `board build %s`."
+                % (src, "It is a beamer `.tex`." if makes == "slides" else
+                   "It is Markdown.", src))
     if prepare:
         try:
             prepare(target.root, wid)
@@ -585,7 +622,8 @@ def dispatch(repo, match, makes, about, line=None, prepare=None):
             return None, ({"ok": False,
                            "error": "nothing could be prepared: %s" % exc}, 500)
     rec = writeups.ask(target.root, wid, makes, about,
-                       agent=config.sitting_agent(target.root) or "")
+                       agent=config.sitting_agent(target.root) or "",
+                       doc_dir=doc_dir)
     line = line or ("[writeup] " + sense.writeup_sense(makes, about))
     record = {
         "id": wid, "rev": 0, "kind": "text", "answers": None,
@@ -606,6 +644,54 @@ def dispatch(repo, match, makes, about, line=None, prepare=None):
         # wake one. The other workspace already had its start asked for above.
         woke = bool(spawn.wake_tutor(repo))
     return {"id": wid, "rec": rec, "root": target.root, "woke": woke}, None
+
+
+SUBJECT_ID = re.compile(r"\A(?:courses|projects|research|practice)/[A-Za-z0-9._-]+\Z")
+
+
+def delete_doc(repo, subject, ident):
+    """`POST /doc/delete`: `(payload, status)`.
+
+    AN ID AND A SUBJECT ID, NEVER A PATH. The subject is this board's own, or
+    a qualified id matched against `subjects.find`; the document is matched
+    against what the library found there. A fenced name anywhere in either is
+    403 before anything is looked up, and `artifacts.delete` refuses a fenced
+    path again on its own.
+    """
+    served = (subjects.find(repo.root) or {}).get("id") or ""
+    if fenced.refused(subject) or fenced.refused("%s/%s" % (artifacts.DOCS, ident)):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    if not subject or subject == served:
+        root = repo.root
+    elif SUBJECT_ID.match(subject):
+        found = subjects.find(subject)
+        if not found or found["id"] != subject:
+            return {"ok": False, "error": "no such subject"}, 404
+        root = found["root"]
+    else:
+        return {"ok": False, "error": "no such subject"}, 404
+    if not ident or not writing.ANN_DOC.match("doc/%s/p1" % ident):
+        return {"ok": False, "error": "no such document"}, 404
+    library.forget()
+    doc = library.find(root, ident)
+    if not doc or not doc.get("artifact"):
+        return {"ok": False, "error": (
+            "no such document" if not doc else
+            "%s has no doc.json, so it is not the board's to delete"
+            % doc["title"])}, 404
+    if fenced.refused(doc["artifact"]):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    from ... import sessions                        # local: a cycle through artifacts
+    ink = [os.path.join(root, sessions.INK)]
+    if paths.same_dir(root, repo.root):
+        ink.append(repo.notes)
+    got = artifacts.delete(root, os.path.join(root, *doc["artifact"].split("/")),
+                           idents=library.mark_idents(root, doc), ink_dirs=ink)
+    library.forget()
+    if got.get("fenced"):
+        return {"ok": False, "error": got["said"]}, 403
+    got.pop("trash", None)
+    return dict(got, id=doc["id"], title=doc["title"]), (200 if got["ok"] else 500)
 
 
 def _pages(got):

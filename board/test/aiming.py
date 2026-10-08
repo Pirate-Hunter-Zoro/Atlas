@@ -21,6 +21,7 @@ away, and the tutor must not be replaced.
 
 import json
 import os
+import re
 import socket
 import sys
 import tempfile
@@ -643,19 +644,29 @@ try:
           len(said) == 1 and said[0]["state"] == "writing"
           and said[0]["makes"] == "slides")
 
-    # AND WHEN IT IS THERE, which is derived from the library rather than
-    # reported: nothing is alive to report it.
-    where = os.path.join(tmp, "writeups", "how-the-harness-works")
-    os.makedirs(where, exist_ok=True)
-    with open(os.path.join(where, "how-the-harness-works.tex"), "w",
-              encoding="utf-8") as fh:
-        fh.write("\\title{How the harness works}\n" + "x" * 3000)
+    # AND WHEN IT IS THERE, which is derived from the artifact's doc.json and
+    # mtimes rather than reported: nothing is alive to report it. The ask made
+    # the artifact first, and the line names its exact source.
+    found = re.search(r"THE FILE FOR THIS ONE IS `(docs/([a-z0-9-]+)/[a-z0-9-]+\.tex)`",
+                      line)
+    check("the ask made its artifact first, and the line names the source and "
+          "board build", found and os.path.isfile(os.path.join(
+              tmp, found.group(1).rsplit("/", 1)[0], "doc.json"))
+          and ("board build %s" % found.group(1)) in line)
+    src = os.path.join(tmp, *found.group(1).split("/"))
+    later = time.time() + 5
+    with open(src, "w", encoding="utf-8") as fh:
+        fh.write("\\documentclass{beamer}\\title{How the harness works}\n")
+    with open(src[:-4] + ".pdf", "wb") as fh:
+        fh.write(b"%PDF-1.4\n" + b"%" * 3000)
+    os.utime(src, (later, later))
+    os.utime(src[:-4] + ".pdf", (later, later))
     library.forget()
     writeups.forget()
     said = board.build().get("writeups") or []
     check("and says when it is in the library, naming which document",
           len(said) == 1 and said[0]["state"] == "done"
-          and "how-the-harness-works" in said[0]["doc"])
+          and said[0]["doc"] == found.group(2))
 
     status, body = post("/writeup/seen", {"id": said[0]["id"]})
     library.forget()

@@ -27,16 +27,11 @@ that it is there. A turn that writes no card is invisible on the board by
 construction, and "I asked for a deck and nothing happened" is the same defect
 `missions.py` was built against one workspace over. This module is the record.
 
-THE STATE IS DERIVED FROM THE LIBRARY, AND THEN FROZEN. Both halves matter, and
-both are `missions.py`'s reasoning applied to a document rather than to a job:
-
-* **Derived**, because nothing is alive to write it. The turn is headless and
-  ends by exiting; it is told to build the document and not to report anywhere.
-  `library.stamp` is where every document is and when it last changed, in stats
-  and nothing else, so what landed since the ask is arithmetic over two stamps.
-* **Frozen**, because the evidence expires. Every later document this workspace
-  writes also differs from the stamp taken at the ask, so an unfrozen reading
-  would credit this ask with somebody else's deck a week later.
+THE STATE IS THE ARTIFACT'S. An ask that made an artifact carries its
+directory (`dir`, relative to the root), and its state is `artifacts.status`
+of that doc.json: mtimes of the source and its build against `asked_at`. An
+ask with no artifact -- the deck from sittings and the meeting deck, which keep
+their own records -- is `writing` until somebody freezes it or `CEILING` passes.
 
 THREE STATES, BECAUSE THEY ARE THE THREE A PERSON ACTS ON. `writing` -- leave it.
 `done` -- go and read it. `failed` -- ask again. Anything finer is a state nobody
@@ -50,6 +45,7 @@ import os
 import re
 import time
 
+from . import artifacts
 from .course import repo as course_repo
 
 
@@ -89,7 +85,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 
 # Everything that is stored. A judged record carries `state` as well, and writing
 # that back would turn a reading into a fact.
-FIELDS = ("id", "makes", "about", "at", "agent", "had", "ended", "ended_at",
+FIELDS = ("id", "makes", "about", "at", "agent", "dir", "ended", "ended_at",
           "doc", "seen")
 
 
@@ -167,20 +163,17 @@ def _every(root):
     return out
 
 
-def ask(root, wid, makes, about="", agent=""):
+def ask(root, wid, makes, about="", agent="", doc_dir=None):
     """Record that a document has been asked for. Returns the record.
 
-    `had` is the library AS IT IS NOW, which is the whole of the derivation
-    below: what this ask produced is whatever the library has that this list
-    does not, or whatever in it has changed since. `None` where the library could
-    not be read at all -- see `_library_now` -- and then nothing is derived and
-    the ask runs to its ceiling.
+    `doc_dir` is the artifact the ask made, relative to `root`, when it made
+    one; its doc.json is what the record is judged by.
     """
     rec = {
         "id": str(wid), "makes": clean_makes(makes) or "paper",
         "about": (about or "").strip()[:ABOUT_CHARS],
         "at": time.time(), "agent": agent or "",
-        "had": _library_now(root),
+        "dir": (doc_dir or "").replace(os.sep, "/"),
         "ended": "", "ended_at": 0, "doc": "", "seen": False,
     }
     write(root, rec)
@@ -188,76 +181,32 @@ def ask(root, wid, makes, about="", agent=""):
     return rec
 
 
-def _library_now(root):
-    """Every document this workspace has, as `id@hash`, or None. Stats only.
+def _doc_of(rel):
+    """The library id of the artifact at `rel`: its slug under `docs/`."""
+    parts = (rel or "").split("/")
+    return parts[1] if len(parts) == 2 and parts[0] == artifacts.DOCS else ""
 
-    `library.stamp` is the cheap question the library page already asks every few
-    seconds, and it is exactly the right shape here: where each document is and
-    when it last changed, with no titles read and no `pdfinfo` run. Imported
-    where it is used rather than at the top, because this module is read by the
-    hub on every payload and the library's own imports are not.
 
-    NONE IS NOT AN EMPTY LIBRARY. A workspace that has written nothing has an
-    empty list, and that is a fact the derivation below can work from. A stamp
-    that could not be taken is not: crediting an ask with every document a
-    workspace already had, because the list at the ask came back empty by
-    accident, is exactly the wrong answer. So the two are different values and
-    everything downstream refuses to derive from None.
+def _judge(root, rec):
+    """`writing`, `done` or `failed`.
+
+    With an artifact, its doc.json decides, every time: a failed one that
+    later builds is done. The first terminal answer stamps `ended_at`, which
+    is what `KEEP` prunes by. Without one, the first terminal answer is
+    frozen, and only `CEILING` or somebody else freezing it ends it.
     """
-    try:
-        from .course import library
-        docs = (library.stamp(root) or {}).get("documents") or {}
-    except Exception:                                        # noqa: BLE001
-        return None
-    return sorted("%s@%s" % (k, v) for k, v in docs.items())
-
-
-def _landed(rec, now):
-    """Which document this ask produced, or "". Arithmetic over two stamps.
-
-    A NEW id is the ordinary case -- a document asked for goes in
-    `writeups/<slug>/`, which nothing else claims -- and a CHANGED hash is the
-    other honest one: a second paper about the same machinery is written into the
-    slug that already exists, and a document that moved since the ask is a
-    document this ask moved.
-
-    `now` is the library as it is, passed in rather than read: reading it is a
-    walk of the workspace, and three open asks must not be three walks. Either
-    side being unknown -- `None` from `_library_now`, at the ask or now -- means
-    nothing can be derived, and the ask stays as it is until the ceiling. That is
-    the safe direction: a document nobody can see is better reported as still
-    being written than as some other document that was already there.
-    """
-    if now is None or rec.get("had") is None:
-        return ""
-    had = set(rec.get("had") or [])
-    ids = set(x.split("@", 1)[0] for x in had)
-    moved = ""
-    for one in now:
-        if one in had:
-            continue
-        ident = one.split("@", 1)[0]
-        if ident not in ids:
-            return ident
-        moved = moved or ident
-    return moved
-
-
-def _judge(root, rec, now):
-    """`writing`, `done` or `failed`, freezing the first terminal answer.
-
-    Frozen for the reason a mission's ending is: the evidence expires. Every
-    document written in this workspace after the ask also differs from the stamp
-    taken at it, so a reading taken tomorrow would credit this ask with
-    tomorrow's deck.
-    """
+    rel = rec.get("dir") or ""
+    if rel:
+        got = artifacts.status(os.path.join(root, *rel.split("/")),
+                               session_dir=course_repo.session_dir(root))
+        got = got or "failed"          # the artifact is gone
+        if got != "writing" and (rec.get("ended") != got or not rec.get("ended_at")):
+            rec["ended"], rec["doc"] = got, _doc_of(rel) if got == "done" else ""
+            rec["ended_at"] = rec.get("ended_at") or time.time()
+            write(root, rec)
+        return got
     if rec.get("ended"):
         return rec["ended"]
-    doc = _landed(rec, now)
-    if doc:
-        rec["ended"], rec["ended_at"], rec["doc"] = "done", time.time(), doc
-        write(root, rec)
-        return "done"
     if time.time() - (rec.get("at") or 0) > CEILING:
         rec["ended"], rec["ended_at"] = "failed", time.time()
         write(root, rec)
@@ -276,8 +225,7 @@ def state(root, wid):
     rec = read(root, wid)
     if not rec:
         return ""
-    now = None if rec.get("ended") else _library_now(root)
-    return _judge(root, rec, now)
+    return _judge(root, rec)
 
 
 def seen(root, wid):
@@ -307,29 +255,20 @@ def waiting(repo):
     has landed and not been looked at.
 
     Cheap when there is nothing to say, which is nearly always: an empty
-    `live/writeups/` is one `listdir` that fails. Cached for `TTL` otherwise,
-    because deriving a state walks the workspace for its documents and this is
-    read on every payload.
+    `writeups/` in the session is one `listdir` that fails. Cached for `TTL`
+    otherwise; judging reads doc.json files and stats, never the library.
     """
     root = getattr(repo, "root", repo)
     key = os.path.realpath(root)
     hit = _CACHE.get(key)
     if hit and time.time() - hit[0] < TTL:
         return hit[1]
-    every = _every(root)
-    # The library, ONCE, and only where something is still open. A walk of the
-    # workspace for a list of records that have all ended is a walk for nothing.
-    now = _library_now(root) if any(not r.get("ended") for r in every) else []
-    # `[]` above is "nothing to derive for", which is not the same as "the
-    # library could not be read" -- see `_library_now`. Only the second is None,
-    # and `_landed` refuses to derive from it.
     out = []
-    for rec in every:
+    for rec in _every(root):
         # JUDGED WHETHER OR NOT IT IS REPORTED. `MOST` caps what the strip is
         # given, and capping the judging instead would leave a fourth ask never
-        # frozen -- so never carrying `ended_at`, so never pruned, so on disk for
-        # ever. The cap belongs on the painting, not on the reading.
-        state = _judge(root, rec, now)
+        # ending -- so never carrying `ended_at`, so never pruned.
+        state = _judge(root, rec)
         if len(out) >= MOST or (state != "writing" and rec.get("seen")):
             continue
         out.append({
