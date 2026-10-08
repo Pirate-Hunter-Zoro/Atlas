@@ -132,10 +132,6 @@ try:
           [d["piece"] for d in library.documents(research)]
           == sorted(d["piece"] for d in library.documents(research)))
 
-    # A VENDOR TREE'S PICTURE IS NOT THE WORKSPACE'S, and carries no region.
-    tree = mapping.of_tree(project, "factory", "factory")
-    check("a vendor tree's picture carries no documents region",
-          tree is not None and "documents" not in tree)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

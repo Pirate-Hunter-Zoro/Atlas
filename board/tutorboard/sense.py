@@ -20,8 +20,8 @@ drill or a review.
 
 import os
 
-from . import plain, spell
-from .course import config, homework, plan, reading, results, syllabus
+from . import fenced, plain, spell
+from .course import config, homework, plan, reading, results, syllabus, walk
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from .course import map as mapping
 
@@ -215,6 +215,21 @@ DO_SENSE = (
     "still short, and it still stops and waits. Say what you did NOT verify -- "
     "a card claiming a job ran when it was only submitted is worse than no "
     "card. When they ask to be taught instead, run `board mode teach`. "
+)
+
+
+# WHERE THE TUTOR MAY READ, in every session and both modes. `walk.resolve`
+# falls back to the Atlas root, and `walk.READ_ONLY` is what it marks read-only.
+TRACE_SENSE = (
+    "YOU MAY TRACE ANY PATH IN ATLAS, not only this subject's: the board's own "
+    "code, a vendor tree, another course or project. Read it where it is and "
+    "quote it with its path. %s ARE READ-ONLY, in do mode too: never edit, "
+    "create or commit a file under them in this checkout -- the board is "
+    "changed only in a separate git worktree, and a vendor tree is pulled at "
+    "a commit. Never look inside a "
+    "directory named %s. "
+    % (" and ".join(d + "/" for d in walk.READ_ONLY),
+       ", ".join(fenced.NEVER))
 )
 
 
@@ -1327,6 +1342,7 @@ def _session_sense(repo, mission=False):
     # An agreed answer is written up, in every sitting that hands one in.
     how += WRITEUP_SENSE
     how += doing
+    how += TRACE_SENSE
     how += reading_sense(repo)
     how += results_sense(repo)
 

@@ -1090,8 +1090,10 @@ exercises around it. That has happened here: a first card of invented
 diarization arithmetic on fictional numbers, skipped twice, in a repository
 whose owner had said in writing which algorithm he wanted explained.
 
-So there is a method for it, in teach mode: they name a piece of the
-repository's own source, and that is the scope. **Nothing is built in one.** Do
+So there is a method for it, in teach mode: they name a piece of source, and
+that is the scope. It may be any path in Atlas: the subject's own source first,
+then anything under the Atlas root. `board/` and `vendor/` are read-only, in do
+mode too. **Nothing is built in one.** Do
 not assign a change, do not propose a refactor, do not offer to fix what you
 find, and do not write code into a card, because a walkthrough reads. A real bug you notice is one sentence at the end of a card
 and a separate sitting; it is not this one.

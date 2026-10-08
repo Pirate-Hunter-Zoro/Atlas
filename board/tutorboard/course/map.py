@@ -790,8 +790,8 @@ def inside(root, node_id, state=None, archived=None):
     if not built:
         return None
     # CODE IS NEVER A BOX ON A THREAD PICTURE. A thread's files are listed on
-    # its sheet and open in the code walk; the derived depths are for vendor
-    # trees and workspaces without a thread file.
+    # its sheet and open in the code walk; the derived depths are for
+    # workspaces without a thread file.
     if built.get("written"):
         return None
     want = str(node_id or "").strip()
@@ -809,40 +809,6 @@ def inside(root, node_id, state=None, archived=None):
     if fenced.in_fence(rel):
         return None
     return _symbol_map(root, rel, node, built, want)
-
-
-def of_tree(root, name, ident):
-    """A vendor tree's picture, shaped like the inside of a box.
-
-    THE BOARD HAS ONE MAP RENDERER AND THIS DOES NOT ADD A SECOND. `inside`
-    already answers with a picture that is not the workspace's own -- a name, a
-    depth, nodes, edges and a way back up -- and somebody else's repository is
-    exactly that shape. So a tree is drawn by the surface that is already there,
-    one level SIDEWAYS rather than one level down.
-
-    No state and no plan. Nothing in a pulled repository is working, next, later
-    or done, because none of it is work this side has taken on; every box comes
-    back `unknown`, which is the honest answer rather than a missing one.
-
-    `ident` is how `atlas.trees` spells the tree, and it is carried on the
-    picture because a scope taken off a box here has to be spelt with the tree
-    in it -- `walk.tree_label`. A foreign box whose scope was spelt the way a
-    local one is would open a walkthrough over a path this workspace has not
-    got.
-    """
-    built = status(root)
-    if not built:
-        return None
-    return {
-        "of": "", "name": name, "depth": "tree", "kind": "tree", "up": "",
-        "tree": ident,
-        "nodes": built["nodes"], "edges": built["edges"],
-        "exact": True, "total": built["total"], "capped": False,
-        # THE RULE ON THE PICTURE, where somebody is looking at it, rather than
-        # only in the prompt of a sitting they have not opened yet.
-        "why": ("%s is pulled and not written here: read it and trace it, and "
-                "change nothing in it. %s" % (name, built["why"])),
-    }
 
 
 def _from_chapters(root):

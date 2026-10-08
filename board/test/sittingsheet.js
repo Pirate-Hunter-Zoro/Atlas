@@ -95,7 +95,6 @@ const payload = {
       course: 'TRD-EHR', chapter: 'predictions', cards: 5, running: false,
       current: false, kind: 'project', open: 4, next: '', next_label: '', touched: 1 },
   ],
-  trees: [],
 };
 
 const SITTINGS = {

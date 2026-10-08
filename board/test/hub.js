@@ -140,8 +140,8 @@ try { window.eval(js); }
 catch (e) { fail('home.js threw on load: ' + e.message); }
 
 // The payload the real `/atlas.json` serves. Four families -- one of them the
-// board's own, which has nothing under it, and one of them vendor, which has
-// TREES rather than workspaces -- and deliberately awkward content: a SHOUTED
+// board's own, which has nothing under it, and one of them vendor, which holds
+// no subject -- and deliberately awkward content: a SHOUTED
 // plan step, a workspace with no plan at all, one live on another node, and the
 // one the board is in.
 const LOUD = 'THE TYPIST BAKE-OFF — VARY THE ASR MODEL AND GRADE EACH CANDIDATE';
@@ -178,13 +178,6 @@ const payload = {
     { id: 'research/TRD-EHR', family: 'research', repo: 'TRD-EHR',
       course: 'TRD-EHR', chapter: '', cards: 0, running: false,
       current: false, kind: 'project', open: 0, next: '', touched: 0 },
-  ],
-  trees: [
-    { id: 'vendor/colibri', family: 'vendor', repo: 'colibri', name: 'colibri',
-      files: 250, capped: true, at: 'a8f2ca6', touched: 1789475941 },
-    { id: 'vendor/colibri-build', family: 'vendor', repo: 'colibri-build',
-      name: 'colibri-build', files: 118, capped: false, at: 'fd93c41',
-      touched: 1788716809 },
   ],
 };
 
@@ -306,7 +299,7 @@ setTimeout(() => {
   const doors = [...doc.querySelectorAll('#doors .door')];
   const names = doors.map((b) => b.querySelector('.door-name').textContent);
   check('the door is the families, drawn in the order the payload gives them',
-        names.join('|') === 'Courses|Research|Vendor');
+        names.join('|') === 'Courses|Research');
   check('and a family with nothing in it is not a door -- the board is what '
         + 'does the offering, not one of the things offered',
         !names.includes('The board'));
@@ -449,76 +442,17 @@ setTimeout(() => {
         && /switchTo\(c\.repo, "", page\)/.test(js));
   doc.getElementById('busy').onclick();
 
-  // ---- a vendor tree is drawn, and is not a workspace -------------------
-  // The vendor family is skipped because nothing in it is the person's to be
-  // GRADED on. The ask was about TRACING. The two are split, and this is the half that reaches the glass.
+  // ---- vendor holds no subject, so it is no door -------------------------
+  // A vendor tree is traced by path (`walk.resolve`), not opened from here.
   doc.getElementById('atlas-up').onclick();
   check('tapping it puts the doors back, with nothing opened to get there',
         doc.getElementById('doors').hidden === false
         && doc.getElementById('cards').hidden === true
         && doc.getElementById('atlas-up').hidden === true
         && doc.getElementById('atlas-what').textContent === 'Everything');
-  const vendor = [...doc.querySelectorAll('#doors .door')]
-    .filter((b) => b.querySelector('.door-name').textContent === 'Vendor')[0];
-  check('vendor is a door like any other, which it was not before',
-        !!vendor && /2 trees/.test(vendor.querySelector('.door-line').textContent));
-  vendor.dispatchEvent(new window.Event('click'));
-  cards = [...doc.querySelectorAll('#cards .ws-card')];
-  check('and its trees are drawn',
-        cards.map((c) => c.querySelector('.ws-name').textContent).join('|')
-        === 'colibri|colibri-build');
-  const tree = cards[0].querySelector('.ws-meta').textContent;
-  check('a tree says the commit it is at and how much source is in it, which '
-        + 'is all that is true about something pulled rather than written',
-        /at a8f2ca6/.test(tree) && /250\+ source files/.test(tree));
-  check('and a cap is said rather than quoted as a count',
-        /250\+/.test(tree)
-        && /118 source files/.test(cards[1].querySelector('.ws-meta').textContent));
-  cards[0].dispatchEvent(new window.Event('click'));
-  check('its sheet offers no board to move and no library, because nothing is '
-        + 'handed in to somebody else\'s repository',
-        doc.getElementById('sheet-open').hidden === true
-        && doc.getElementById('sheet-library').hidden === true
-        && doc.getElementById('sheet-kinds').hidden === true);
-  check('and says so in words rather than leaving it to be discovered',
-        /pulled, not written/.test(doc.getElementById('sheet-meta').textContent)
-        && /never handed work/.test(doc.getElementById('sheet-meta').textContent));
-  // WITHOUT THE GRAMMAR THERE IS NO BUTTON. A trace over a tree is reached by
-  // address and nothing else, so an older cached shell gets no offer rather
-  // than a hand-built hash -- two spellings of a place is the one thing
-  // `address.js` exists to prevent.
-  check('and until the grammar is loaded it offers no trace either, rather '
-        + 'than building an address of its own',
-        doc.getElementById('sheet-trace').hidden === true);
-  doc.getElementById('sheet-close').onclick();
-
-  // ---- and the one thing that CAN be done with somebody else's code ------
-  // A trace over a tree is a sitting in the workspace that is READING it: there
-  // is no board in a pulled repository and the cards belong where the work is.
-  // So the offer is an address into the workspace the board is already serving.
-  //
-  // The grammar is loaded HERE rather than at the top of this file on purpose:
-  // with it in the window, opening a workspace routes through the hash and
-  // lands a turn of the event loop later, which would make every count above a
-  // race. Nothing below opens a workspace.
-  try { window.eval(fs.readFileSync(path.join(WEB, 'address.js'), 'utf8')); }
-  catch (e) { fail('address.js: ' + e.message); }
-  cards[0].dispatchEvent(new window.Event('click'));
-  const trace = doc.getElementById('sheet-trace');
-  check('a tree can be traced, which is the only thing that can be done with '
-        + 'somebody else\'s repository',
-        trace.hidden === false);
-  check('and the sheet says where the sitting will be held, because it is not '
-        + 'held in the tree',
-        /Galois Theory/.test(doc.getElementById('sheet-trace-sub').textContent)
-        && /nothing is written to it/
-             .test(doc.getElementById('sheet-trace-sub').textContent));
-  trace.onclick();
-  check('and tapping it goes through the address, the way every other link on '
-        + 'this page does',
-        window.location.hash
-        === '#/w/courses/Galois-Theory/tree/vendor/colibri');
-  window.location.hash = '';
+  check('the vendor family, with no subject in it, draws no door',
+        ![...doc.querySelectorAll('#doors .door')]
+          .some((b) => b.querySelector('.door-name').textContent === 'Vendor'));
 
   // ---- it is still a door ----------------------------------------------
   check('the way back into the lesson is a plain link, not something that '
@@ -545,26 +479,26 @@ setTimeout(() => {
   // ---- ACROSS ALL OF IT -------------------------------------------------
   // The two levels are a hierarchy, and a hierarchy answers one question: what
   // is in this family. It cannot answer the other one -- where is the thing
-  // called colibri -- because at the door no workspace is drawn at all and
+  // called PSYCH-ASR -- because at the door no workspace is drawn at all and
   // inside a family every other family's is hidden. This is the flat read.
   const q = doc.getElementById('atlas-q');
   const setQ = (v) => { q.value = v; q.dispatchEvent(new window.Event('input')); };
 
-  setQ('colibri');
+  setQ('psych');
   let found = [...doc.querySelectorAll('#found .ws-card')];
   check('typing a name finds it whatever door it is behind',
         found.map((c) => c.querySelector('.ws-name').textContent).join('|')
-        === 'colibri|colibri-build');
+        === 'PSYCH-ASR');
   check('and each match says which family it came out of, because a flat list '
         + 'without that is a name with nowhere to go back to',
-        found[0].querySelector('.ws-family').textContent === 'Vendor');
+        found[0].querySelector('.ws-family').textContent === 'Research');
   check('the levels get out of the way while it is filtered',
         doc.getElementById('doors').hidden === true
         && doc.getElementById('cards').hidden === true
         && doc.getElementById('found').hidden === false);
   check('and the head counts rather than naming a family, because the answer '
         + 'came from all of them',
-        doc.getElementById('atlas-what').textContent === '2 matches');
+        doc.getElementById('atlas-what').textContent === '1 match');
 
   check('and the field is a thumb, at the face size iOS refuses to zoom -- '
         + 'magnification is the one way left to be lost on this page',
@@ -576,7 +510,7 @@ setTimeout(() => {
   // from where you are standing.
   doc.getElementById('atlas-q-clear').onclick();
   [...doc.querySelectorAll('#doors .door')]
-    .filter((b) => b.querySelector('.door-name').textContent === 'Vendor')[0]
+    .filter((b) => b.querySelector('.door-name').textContent === 'Research')[0]
     .dispatchEvent(new window.Event('click'));
   setQ('galois');
   found = [...doc.querySelectorAll('#found .ws-card')];
@@ -602,7 +536,7 @@ setTimeout(() => {
         + 'dropping you at the door',
         doc.getElementById('found').hidden === true
         && doc.getElementById('cards').hidden === false
-        && doc.getElementById('atlas-what').textContent === 'Vendor');
+        && doc.getElementById('atlas-what').textContent === 'Research');
 
   // ---- the meeting deck: two questions, in this order ------------------
   doc.getElementById('atlas-up').onclick();

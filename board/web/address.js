@@ -13,7 +13,6 @@
        #/w/…/archive/<sitting>/<nnnn>          one card in a finished sitting
        #/w/…/doc/<ident>[/p<n>]                a document, optionally one page
        #/w/…/code/<path>[::<symbol>]           a walk unit
-       #/w/…/tree/<family>/<name>              a vendor tree, drawn, read here
        #/w/…/hw/<set>/<problem>                one problem of a problem set
        #/w/…/slate/<nnnn>                      one page of handwriting
 
@@ -61,7 +60,7 @@ var SYMBOL  = /^[A-Za-z_][A-Za-z0-9_.]{0,80}$/;
 var SEG     = /^[A-Za-z0-9._-]{1,100}$/; /* one segment of a source path */
 
 var SURFACES = ["workspace", "node", "card", "archive", "doc", "code", "hw",
-                "slate", "tree"];
+                "slate"];
 
 /* A malformed escape throws, and an address that throws is a page that goes
    blank. Every decode in here is this one. */
@@ -113,7 +112,7 @@ function parse(text) {
     workspace: parts[1],
     surface: "workspace",
     node: "", card: "", sitting: "", doc: "", page: 0,
-    path: "", symbol: "", set: "", problem: "", tree: ""
+    path: "", symbol: "", set: "", problem: ""
   };
 
   var rest = parts.slice(2);
@@ -165,19 +164,6 @@ function parse(text) {
       }
       a.surface = "code";
       a.path = arg.join("/");
-    } else if (what === "tree") {
-      /* A VENDOR TREE IS READ IN A WORKSPACE, SO IT IS A SURFACE OF ONE.
-         Somebody tracing colibrì is doing it for PSYCH-ASR, and the sitting,
-         the cards and the marks are PSYCH-ASR's -- so the address names the
-         workspace first and the tree second, which is also what makes the
-         front door able to route it: it moves the board to the workspace, and
-         the board then draws the tree. Two components, because that is how
-         `atlas.trees` spells one: a vendor family holding a directory. */
-      if (arg.length !== 2 || !PLACE.test(arg[0]) || !PLACE.test(arg[1])) {
-        return null;
-      }
-      a.surface = "tree";
-      a.tree = arg[0] + "/" + arg[1];
     } else if (what === "hw") {
       if (arg.length !== 2 || !SET.test(arg[0]) || !PROBLEM.test(arg[1])) {
         return null;
@@ -249,10 +235,6 @@ function spell(spec) {
     if (spec.symbol) segs[segs.length - 1] += "::" + spec.symbol;
     bits.push("code");
     bits = bits.concat(segs);
-  } else if (surface === "tree") {
-    var t = String(spec.tree || "").split("/");
-    if (t.length !== 2) return "";
-    bits.push("tree", encodeURIComponent(t[0]), encodeURIComponent(t[1]));
   } else if (surface === "hw") {
     bits.push("hw", encodeURIComponent(spec.set || ""),
               encodeURIComponent(spec.problem || ""));

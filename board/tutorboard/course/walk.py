@@ -31,7 +31,7 @@ import re
 import time
 
 from . import review
-from .. import atlas, fenced
+from .. import fenced, subjects
 
 # What a walkthrough can be held over: source, in the languages these
 # repositories are actually written in. A document is not machinery -- a README
@@ -288,8 +288,83 @@ def _candidates(name):
     return out
 
 
-def resolve(root, wanted):
-    """Match names from a request against the source this repository has.
+# THE ATLAS ROOT IS THE FALLBACK. A name this subject's own source does not
+# have is looked for under the Atlas root, so the tutor can trace any path in
+# Atlas -- the board's own code, a vendor tree, another project -- from any
+# session. Two top-level directories there are somebody else's to change:
+# `board/` serves the iPad from the main checkout and is edited only in a
+# worktree, and `vendor/` is pulled at a commit. A unit under either comes back
+# `readonly`, and the sense says so.
+READ_ONLY = ("board", "vendor")
+
+# Top-level directories of the Atlas root a name is never resolved into: the
+# owner's private configuration repository and the Mac-only sessions.
+PRIVATE = ("ai-config", "sessions")
+
+
+def readonly(rel):
+    """Is this Atlas-relative path under `board/` or `vendor/`?"""
+    head = str(rel or "").replace("\\", "/").strip("/").split("/", 1)[0]
+    # Lower-cased: on a case-insensitive disk `Board/x.py` is `board/x.py`.
+    return head.lower() in READ_ONLY
+
+
+def _atlas_rel(base, root, rel):
+    """`rel` under `root`, spelt relative to the Atlas root `base`, or ""."""
+    full = os.path.realpath(os.path.join(root, rel))
+    try:
+        out = os.path.relpath(full, base)
+    except ValueError:
+        return ""
+    if out == os.pardir or out.startswith(os.pardir + os.sep):
+        return ""
+    return out.replace(os.sep, "/")
+
+
+def _in_atlas(base, path):
+    """The Atlas-relative file a typed path names, or "" -- checked, never trusted.
+
+    Looked up directly rather than listed, because the Atlas root is far past
+    `MAX_UNITS`; so every rule the listing applies is applied here instead. No
+    absolute path, no `..`, no hidden or ignored component, nothing fenced,
+    nothing private, the real file still inside the root, and the file itself
+    machinery `_walkable` would offer. `vendor` is ignored by the listing
+    because a subject's vendored copy is not its own; at the top of Atlas it is
+    the vendor trees, so it is allowed there and only there.
+    """
+    raw = str(path or "").replace("\\", "/").strip()
+    if not raw or raw.startswith("/") or ":" in raw:
+        return ""
+    parts = raw.split("/")
+    if any(not x or x in (".", "..") or x.startswith(".") for x in parts):
+        return ""
+    low = [x.lower() for x in parts]
+    if fenced.in_fence(raw) or low[0] in PRIVATE:
+        return ""
+    rest = low[1:] if low[0] == "vendor" else low
+    if any(x in IGNORE for x in rest[:-1]):
+        return ""
+    rel = "/".join(parts)
+    if _atlas_rel(base, base, rel) != rel:
+        # A symlink out of the root, or into somewhere else inside it under
+        # another name: a typed path means what it says or nothing.
+        return ""
+    full = os.path.join(base, rel)
+    if not os.path.isfile(full) or not _walkable(base, rel):
+        return ""
+    return rel
+
+
+def _unit(root, rel, base):
+    """One resolved unit at `rel` under `root`, before its symbol is set."""
+    return {"name": rel, "label": rel, "short": os.path.basename(rel),
+            "dir": os.path.dirname(rel) or ".", "kind": "file",
+            "path": rel, "symbol": "", "root": root,
+            "readonly": readonly(_atlas_rel(base, root, rel))}
+
+
+def resolve(root, wanted, base=None):
+    """Match names from a request against this subject's source, then Atlas's.
 
     Returns (chosen, unknown), the same contract as `review.resolve`: a name
     that matches nothing comes back rather than being dropped, because walking
@@ -301,7 +376,16 @@ def resolve(root, wanted):
     the end -- `psych_asr.evaluate.grade` finds the module, and
     `psych_asr.transcript.corrections.apply_corrections` finds the module and
     carries the function. A symbol is kept only when the file really defines it.
+
+    A name `root` does not have is tried as a path under the Atlas root `base`
+    (`subjects.root()` by default), where a unit's `path` and label are
+    Atlas-relative. The bare-filename shortcut stays subject-local: `relay.py`
+    means this subject's own or nothing. Every unit carries `root`, the
+    directory its `path` is relative to, and `readonly`, true under `board/` or
+    `vendor/`. A name with a fenced component is refused everywhere.
     """
+    root = os.path.realpath(root)
+    base = os.path.realpath(base or subjects.root())
     every = units(root)
     by_path = {u["path"].lower(): u for u in every}
     by_base = {}
@@ -334,21 +418,34 @@ def resolve(root, wanted):
                 # `a.b.c` may yet be the module `a/b/c.py`, which is the reading
                 # produced after this one.
                 continue
-            found = dict(u, symbol=symbol)
+            found = dict(_unit(root, u["path"], base), symbol=symbol)
             break
+        if not found:
+            # NOT THIS SUBJECT'S: the same readings, as paths under Atlas.
+            for path, symbol in maybe:
+                rel = _in_atlas(base, path)
+                if not rel:
+                    continue
+                if symbol and not _has_definition(base, rel, symbol):
+                    continue
+                found = dict(_unit(base, rel, base), symbol=symbol)
+                break
         if not found:
             unknown.append(name)
             continue
-        if (found["path"], found["symbol"]) in seen:
+        if (found["root"], found["path"], found["symbol"]) in seen:
             continue
-        seen.add((found["path"], found["symbol"]))
+        seen.add((found["root"], found["path"], found["symbol"]))
         found["name"] = label(found)
         found["label"] = found["name"]
         found["short"] = found["symbol"] or found["short"]
         chosen.append(found)
 
+    # The subject's own first, in listing order; then Atlas's, by path.
     order = {u["path"]: i for i, u in enumerate(every)}
-    chosen.sort(key=lambda u: (order.get(u["path"], 0), u["symbol"]))
+    chosen.sort(key=lambda u: (u["root"] != root,
+                               order.get(u["path"], 0) if u["root"] == root
+                               else 0, u["path"], u["symbol"]))
     return chosen, unknown
 
 
@@ -364,119 +461,6 @@ def label(u):
     return u["path"] + ("::" + u["symbol"] if u.get("symbol") else "")
 
 
-# ---------------------------------------------------------------------------
-# machinery that is somebody else's, traced in the workspace that reads it
-# ---------------------------------------------------------------------------
-# A `trace` sitting over `vendor/colibri` is exactly the right shape and it was
-# impossible: `resolve` matches a name against the source of the workspace the
-# board is SERVING, and a vendor tree is under none of them.
-#
-# There were two answers and only one of them is small. A sitting could be held
-# over a root that is not the serving workspace's -- at which point `Repo.root`
-# stops being the single answer to "where are we", and `scope`, `sense`, the
-# card writer and the archive all have to start saying WHICH root. Or a trace
-# over a tree is a sitting in the workspace that is READING it, with the tree
-# named in the scope. The second is right for a reason about the work rather
-# than about the code: somebody tracing colibrì is doing it FOR PSYCH-ASR, and
-# the cards, the marks and the transcript belong in PSYCH-ASR.
-#
-# So: one root per sitting, and one resolver per root. This is the second
-# resolver, and it is explicitly the vendor one.
-#
-# `@vendor/colibri/bin/coli-up::warm` is how a piece of foreign scope is spelt
-# -- the marker, the tree as `atlas.trees` names it, then exactly what a name in
-# that repository would be. The `@` is what stops a foreign path being read as
-# one of this workspace's own, in `state.json`, on the strip and in the prompt.
-ELSEWHERE = "@"
-
-
-def _elsewhere(name):
-    """Split a marked name into the tree and the rest of it.
-
-    `("vendor/colibri", "bin/coli-up::warm")`, or `("", name)` for a name that
-    is not marked -- which is every name in this workspace. Nothing is looked up
-    here and nothing is built into a path; the tree is two components because
-    that is what `atlas.trees` spells (a vendor family holding a directory), and
-    there has to be something inside it or there is no scope to hold.
-    """
-    raw = str(name or "").strip()
-    if not raw.startswith(ELSEWHERE):
-        return "", raw
-    parts = raw[len(ELSEWHERE):].strip("/").split("/")
-    if len(parts) < 3:
-        return "", raw
-    return "/".join(parts[:2]), "/".join(parts[2:])
-
-
-def tree_label(tree, u):
-    """What one piece of foreign scope is called, everywhere it is named."""
-    return ELSEWHERE + tree + "/" + label(u)
-
-
-def resolve_elsewhere(wanted, base=None):
-    """Match `@tree/...` names against the vendor trees this repository pulls.
-
-    A SECOND RESOLVER rather than a branch inside `resolve`: that one answers
-    for one root and must go on doing exactly that, or the next reader will take
-    it to mean that a name from a request can reach outside the workspace. The
-    contract is the same one -- `(chosen, unknown)`, and a name that matches
-    nothing comes back rather than being dropped -- and so is the rule that a
-    name from a request is looked up in what discovery found. `atlas.find_tree`
-    refuses anything that is not a tree, and everything after the tree's name is
-    matched by `resolve` against that tree's own root.
-
-    Each unit carries `tree` and `root` on top of what `resolve` returns, so a
-    caller that has to open the file knows which repository it is in. Nothing
-    else about the sitting changes: it is still held in the workspace the board
-    is serving, and nothing is ever written to the tree.
-    """
-    chosen, unknown, seen = [], [], set()
-    for name in wanted or []:
-        tree, rest = _elsewhere(name)
-        found = atlas.find_tree(tree, base) if tree else None
-        if not found:
-            unknown.append(name)
-            continue
-        here, missed = resolve(found["root"], [rest])
-        if missed or not here:
-            unknown.append(name)
-            continue
-        u = here[0]
-        if (found["id"], u["path"], u["symbol"]) in seen:
-            continue
-        seen.add((found["id"], u["path"], u["symbol"]))
-        u["tree"] = found["id"]
-        u["root"] = found["root"]
-        u["name"] = tree_label(found["id"], u)
-        u["label"] = u["name"]
-        # WHOSE FILE IT IS, in the short name too. A sitting labelled
-        # "Walkthrough — coli-up" says nothing about which repository that came
-        # out of, and whose it is is the one thing about this scope that must
-        # not be lost between opening the sitting and reading the badge.
-        u["short"] = "%s/%s" % (found["dir"],
-                                u["symbol"] or os.path.basename(u["path"]))
-        chosen.append(u)
-    return chosen, unknown
-
-
-def resolve_any(root, wanted, base=None):
-    """Every name in a walkthrough's scope, wherever the machinery lives.
-
-    ONE ENTRY POINT, because a scope is one list: the board, the command line
-    and the re-resolution on the way out all have to read that list the same
-    way, or a sitting covers one thing and reports another. A marked name goes
-    to the vendor resolver and everything else to this workspace's own; the
-    workspace's own come first so that the same scope spells the same label
-    twice.
-    """
-    mine, theirs = [], []
-    for name in wanted or []:
-        (theirs if _elsewhere(name)[0] else mine).append(name)
-    chosen, unknown = resolve(root, mine)
-    more, missed = resolve_elsewhere(theirs, base)
-    return chosen + more, unknown + missed
-
-
 def scope(root, state):
     """What the sitting in front of us is a walkthrough of, checked on the way out.
 
@@ -485,11 +469,10 @@ def scope(root, state):
     the board asking what it covers, and a scope naming machinery that is no
     longer there would send the tutor to read a file that does not exist.
 
-    Through `resolve_any`, because a scope may name a vendor tree: the sitting
-    is this workspace's either way, and what is checked is that everything it
-    covers is still on disk wherever it lives.
+    Through `resolve`, so a scope may name any path in Atlas: what is checked
+    is that everything it covers is still on disk wherever it lives.
     """
-    chosen, _ = resolve_any(root, (state or {}).get("walk") or [])
+    chosen, _ = resolve(root, (state or {}).get("walk") or [])
     return chosen
 
 
@@ -513,9 +496,9 @@ def status(root, state):
 
     None when there is nothing to offer and nothing chosen, which is a real
     answer about a narrative repository and not an empty list. A repository with
-    no source of its own but a trace open over a vendor tree still answers: the
-    list to pick from is empty and the scope is not, and the strip has something
-    to say.
+    no source of its own but a scope elsewhere in Atlas still answers: the list
+    to pick from is empty and the scope is not, and the strip has something to
+    say.
     """
     every = units(root)
     chosen = scope(root, state)

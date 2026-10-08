@@ -310,243 +310,136 @@ finally:
     shutil.rmtree(proj, ignore_errors=True)
 
 # ---------------------------------------------------------------------------
-# A VENDOR TREE IS WALKABLE, AND IS STILL NOT A WORKSPACE
+# ANY PATH IN ATLAS, WITH board/ AND vendor/ READ-ONLY
 # ---------------------------------------------------------------------------
-# The vendor family is skipped because nothing in it is the person's to be
-# GRADED on. The ask
-# was about TRACING -- *"who knows when we'll want to explore external tools in
-# the same way... That's the best way to dive into how Colibri works"* -- and
-# under the merged rule that was impossible for a reason about homework.
-#
-# So there are two lists, and what is guarded here is that they stay two. The
-# failure to catch is either direction: a tree that cannot be read, or a tree
-# that something eventually offers a sitting in.
+# A name this subject does not have is looked for under the Atlas root. The
+# subject's own source comes first, the bare-filename shortcut stays the
+# subject's, and nothing private, hidden, ignored or fenced is reachable.
 from tutorboard import atlas                                # noqa: E402
-from tutorboard.course import map as mapping                 # noqa: E402
 
 home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
+outside = tempfile.mkdtemp(prefix="tutor-walk-outside-")
 was = os.environ.get("TUTORBOARD_COURSES")
 try:
-    write(home, "research/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
-    write(home, "research/PSYCH-ASR/psych_asr/grade.py",
+    write(home, "courses/Topology/tutorboard.json", '{"name": "Topology"}')
+    write(home, "courses/Topology/topo/space.py",
+          "def open_sets(x):\n" + BODY + "\n")
+    write(home, "projects/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
+    write(home, "projects/PSYCH-ASR/psych_asr/grade.py",
           "def grade(a, b):\n" + BODY + "\n")
-    # Somebody else's repository, at a commit. No `tutorboard.json`, no `live/`,
-    # nothing that has ever said it wants to be taught in.
-    write(home, "vendor/colibri/src/engine.c",
-          "int warm(void) {\n" + BODY + "\n}\n")
+    write(home, "projects/PSYCH-ASR/phi/a.py", "def a():\n" + BODY + "\n")
+    write(home, "projects/PSYCH-ASR/results/r.py", "def r():\n" + BODY + "\n")
+    write(home, "board/tutorboard/relay.py",
+          "def run_once(base):\n" + BODY + "\n")
+    write(home, "board/data/x.py", "def x():\n" + BODY + "\n")
+    write(home, "board/node_modules/katex/index.js",
+          "function render() {\n" + BODY + "\n}\n")
     write(home, "vendor/colibri/bin/coli-up",
           "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
+    write(home, "vendor/colibri/raw/x.py", "def x():\n" + BODY + "\n")
     write(home, "vendor/colibri/README.md", "# colibri\n" + BODY)
-    # AND THE TRAP IN THE OTHER DIRECTION. A vendor tree carrying the marker
-    # that makes a directory a workspace is still not one: the family decides,
-    # and a file inside somebody else's repository is not this side's promise.
-    write(home, "vendor/pretender/tutorboard.json", '{"name": "Pretender"}')
-    write(home, "vendor/pretender/thing.py", "def thing():\n" + BODY + "\n")
-    os.makedirs(os.path.join(home, "vendor", "unpulled"), exist_ok=True)
-
+    write(home, "ai-config/policy/phi.py", "def fence():\n" + BODY + "\n")
+    write(home, "sessions/20261008-000000/x.py", "def x():\n" + BODY + "\n")
+    write(home, ".hidden/x.py", "def x():\n" + BODY + "\n")
+    write(outside, "secret.py", "def secret():\n" + BODY + "\n")
+    os.symlink(os.path.join(outside, "secret.py"),
+               os.path.join(home, "projects", "PSYCH-ASR", "escape.py"))
     os.environ["TUTORBOARD_COURSES"] = home
-    atlas.forget()
     walk._cache.clear()
-    mapping._cache.clear()
+    ws = os.path.join(home, "courses", "Topology")
 
-    ids = [w["id"] for w in atlas.workspaces()]
-    trees = {t["id"]: t for t in atlas.trees()}
-    check("a vendor tree is not a workspace, and the family is still skipped",
-          ids == ["research/PSYCH-ASR"])
-    check("and a marker file inside somebody else's repository does not make "
-          "one -- the family decides, not a file in the tree",
-          "vendor/pretender" not in ids)
-    check("but the trees are listed, which is the half that was missing",
-          sorted(trees) == ["vendor/colibri", "vendor/pretender"])
-    check("a submodule nobody has pulled is an empty directory, not a tree",
-          "vendor/unpulled" not in trees)
-    check("and a tree comes back shaped like a workspace, so a caller that "
-          "wants a name and a root does not care which list it came from",
-          set(["id", "family", "family_name", "dir", "root"])
-          <= set(trees["vendor/colibri"]))
+    check("a vendor tree is not a subject: the family is skipped",
+          [w["id"] for w in atlas.workspaces()]
+          == ["courses/Topology", "projects/PSYCH-ASR"])
+    check("and the vendor-tree machinery is gone",
+          not hasattr(atlas, "trees") and not hasattr(atlas, "find_tree")
+          and not hasattr(walk, "resolve_any")
+          and not hasattr(walk, "ELSEWHERE"))
 
-    # WALKABLE. The same walk, over a root nobody is graded on.
-    names = [u["name"] for u in walk.units(trees["vendor/colibri"]["root"])]
-    check("a vendor tree's source is walkable: tracing is not grading",
-          "src/engine.c" in names and "bin/coli-up" in names)
-    check("and its prose is refused there for the same reason it is anywhere",
-          "README.md" not in names)
-    chosen, unknown = walk.resolve(trees["vendor/colibri"]["root"],
-                                   ["bin/coli-up::warm"])
-    check("and a symbol inside it is carried once the file really defines it",
-          [u["name"] for u in chosen] == ["bin/coli-up::warm"] and not unknown)
-
-    # DIAGRAMMABLE. `map.shape` takes a root and does not ask whose it is.
-    drawn = mapping.shape(trees["vendor/colibri"]["root"])
-    check("and a vendor tree has a diagram, which is what it is there for",
-          drawn and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
-
-    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED. Same rule as
-    # `atlas.find`, `walk.resolve` and `reading.find`: a miss is a miss.
-    check("a tree is found by the name discovery gave it",
-          (atlas.find_tree("vendor/colibri") or {})["id"] == "vendor/colibri")
-    check("and by its bare directory name, which is how everything else is spelt",
-          (atlas.find_tree("colibri") or {})["id"] == "vendor/colibri")
-    for made_up in ("../../etc/passwd", "vendor", "vendor/nothing", "", None,
-                    "research/PSYCH-ASR"):
-        check("a tree name that matches nothing resolves to nothing: %r"
-              % (made_up,), atlas.find_tree(made_up) is None)
-    check("and a workspace is not reachable through the tree door either",
-          atlas.find("vendor/colibri") is None)
-
-    # -----------------------------------------------------------------------
-    # AND THE SITTING ITSELF, WHICH IS THE HALF THAT WAS MISSING
-    # -----------------------------------------------------------------------
-    # *"A `trace` sitting over `vendor/colibri` is exactly the right shape and
-    # it is currently impossible."* It was impossible because a walkthrough's
-    # scope is resolved against the root of the workspace the board is SERVING,
-    # and no vendor tree is under one of those.
-    #
-    # The expensive answer was to let a sitting be held over a foreign root, at
-    # which point `Repo.root` stops being the single answer to "where are we".
-    # This is the other one: the sitting is held in the workspace that is
-    # READING the tree, and the tree is named IN THE SCOPE. So what has to be
-    # true is one thing said three ways -- the scope reaches out, the sitting
-    # does not, and the tree is never written to.
-    ws = os.path.join(home, "research", "PSYCH-ASR")
-
-    chosen, unknown = walk.resolve_any(
-        ws, ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
-    check("a scope can name this workspace's own source and a vendor tree's "
-          "in one list, which is what a trace held here over somebody else's "
-          "code actually is",
+    chosen, unknown = walk.resolve(ws, ["board/tutorboard/relay.py"])
+    check("board/tutorboard/relay.py resolves from a course, read-only",
+          not unknown and len(chosen) == 1
+          and chosen[0]["path"] == "board/tutorboard/relay.py"
+          and chosen[0]["readonly"] is True
+          and os.path.realpath(chosen[0]["root"]) == os.path.realpath(home))
+    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up"])
+    check("vendor/colibri/bin/coli-up resolves by its shebang, read-only",
           not unknown and [u["name"] for u in chosen]
-          == ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
-    check("and the foreign one says which repository it is in, so whatever "
-          "opens the file knows where to look",
-          chosen[1]["tree"] == "vendor/colibri"
-          and chosen[1]["root"] == trees["vendor/colibri"]["root"]
-          and chosen[1]["path"] == "bin/coli-up"
-          and not chosen[0].get("tree"))
-    check("while the workspace's own resolver is untouched and still refuses "
-          "a marked name, because one root is all it answers for",
-          walk.resolve(ws, ["@vendor/colibri/bin/coli-up"])[1]
-          == ["@vendor/colibri/bin/coli-up"])
+          == ["vendor/colibri/bin/coli-up"] and chosen[0]["readonly"] is True)
+    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up::warm",
+                                        "board.tutorboard.relay.run_once"])
+    check("a symbol in Atlas is carried once the file really defines it",
+          not unknown and sorted(u["name"] for u in chosen)
+          == ["board/tutorboard/relay.py::run_once",
+              "vendor/colibri/bin/coli-up::warm"])
+    check("and one it does not define is unknown",
+          walk.resolve(ws, ["board/tutorboard/relay.py::missing"])[1]
+          == ["board/tutorboard/relay.py::missing"])
 
-    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED -- on both halves of
-    # it. The marker is not a licence to reach anywhere: the tree is found in
-    # what `atlas.trees()` listed, and the rest is found in what that tree's own
-    # walk listed.
-    for made_up in ("@vendor/nothing/x.py", "@vendor/colibri/nope.py",
-                    "@vendor/colibri/bin/coli-up::missing",
-                    "@vendor/colibri/README.md", "@vendor/colibri",
-                    "@research/PSYCH-ASR/psych_asr/grade.py",
-                    "@vendor/../../etc/passwd", "@"):
-        check("a scope that matches nothing is refused by name: %r" % (made_up,),
-              walk.resolve_any(ws, [made_up])[1] == [made_up])
+    chosen, unknown = walk.resolve(ws, ["topo/space.py", "board/tutorboard/relay.py"])
+    check("the subject's own source comes first, and is not read-only",
+          not unknown and [u["path"] for u in chosen]
+          == ["topo/space.py", "board/tutorboard/relay.py"]
+          and chosen[0]["readonly"] is False
+          and os.path.realpath(chosen[0]["root"]) == os.path.realpath(ws))
+    chosen, unknown = walk.resolve(
+        ws, ["projects/PSYCH-ASR/psych_asr/grade.py::grade"])
+    check("another project's source resolves, and is not read-only",
+          not unknown and chosen[0]["readonly"] is False
+          and chosen[0]["name"] == "projects/PSYCH-ASR/psych_asr/grade.py::grade")
+    check("the bare-filename shortcut stays subject-local",
+          walk.resolve(ws, ["relay.py", "coli-up", "grade.py"])[1]
+          == ["relay.py", "coli-up", "grade.py"]
+          and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
+          == ["topo/space.py"])
 
-    st = {"walk": ["@vendor/colibri/bin/coli-up::warm"]}
-    check("the scope is re-resolved on the way out, the way a local one is",
+    fenced_names = ["projects/PSYCH-ASR/phi/a.py", "vendor/colibri/raw/x.py",
+                    "board/data/x.py::x", "projects.PSYCH-ASR.phi.a"]
+    chosen, unknown = walk.resolve(ws, fenced_names)
+    check("a fenced name is refused anywhere in Atlas",
+          chosen == [] and unknown == fenced_names)
+    refused = ["ai-config/policy/phi.py", "sessions/20261008-000000/x.py",
+               ".hidden/x.py", "projects/PSYCH-ASR/results/r.py",
+               "board/node_modules/katex/index.js", "vendor/colibri/README.md",
+               "projects/PSYCH-ASR/escape.py", "../" + os.path.basename(outside)
+               + "/secret.py", os.path.join(outside, "secret.py"),
+               "courses/Topology/../../etc/passwd", "board/tutorboard/nope.py"]
+    for name in refused:
+        check("refused: %s" % name, walk.resolve(ws, [name])[1] == [name])
+    chosen, _ = walk.resolve(ws, ["Board/tutorboard/relay.py"])
+    check("a differently-cased board/ path is still read-only",
+          all(u["readonly"] for u in chosen))
+
+    st = {"walk": ["vendor/colibri/bin/coli-up::warm"]}
+    check("a scope in Atlas is re-resolved on the way out",
           [u["name"] for u in walk.scope(ws, st)]
-          == ["@vendor/colibri/bin/coli-up::warm"])
-    check("and the badge says whose code it is -- a label reading warm alone "
-          "would not",
-          walk.sitting_label(walk.scope(ws, st)) == "Walkthrough — colibri/warm")
+          == ["vendor/colibri/bin/coli-up::warm"])
 
-    walk_repo = course_repo.Repo(ws)
-
-    # THE TREE IS NEVER WRITTEN TO. Not by opening the sitting, not by drawing
-    # it, not by anything: it is somebody else's repository at a commit.
-    def _shape_of(root):
-        out = []
-        for here, dirs, files in os.walk(root):
-            for name in sorted(files):
-                path = os.path.join(here, name)
-                out.append((os.path.relpath(path, root),
-                            os.path.getsize(path), os.stat(path).st_mtime))
-        return sorted(out)
-
-    tree_root = trees["vendor/colibri"]["root"]
-    before = _shape_of(tree_root)
-
-    # --- through the real handler -------------------------------------------
-    worker = tikz.TikzWorker(walk_repo)
-    worker.start()
-    board = hub.Hub(walk_repo, worker)
-    board.payload = json.dumps(board.build())
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler.Handler)
-    httpd.daemon_threads = True
-    httpd.repo = walk_repo
-    httpd.hub = board
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    BASE = "http://127.0.0.1:%d" % port
-
-    def post(path, body):
-        req = urllib.request.Request(BASE + path, method="POST",
-                                     data=json.dumps(body).encode("utf-8"),
-                                     headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return r.status, json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
-
-    def get(path):
-        try:
-            with urllib.request.urlopen(BASE + path, timeout=30) as r:
-                return r.status, json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
-
-    try:
-        status, body = post("/session", {
-            "session": "walk", "over": ["@vendor/colibri/bin/coli-up::warm"]})
-        check("a walkthrough is no longer a sitting the board opens, over a "
-              "tree or not", status == 400)
-        check("and nothing was written into the tree",
-              not os.path.isdir(os.path.join(tree_root, "live")))
-
-        # THE DIAGRAM OF A TREE NEEDS A SURFACE, and it is the board's own map
-        # rather than a second renderer: `map.inside` already answers with a
-        # picture that is not the workspace's, and a foreign repository is
-        # exactly that shape.
-        status, drawn = get("/map/tree/vendor/colibri")
-        check("a tree has a picture, on the surface that already draws one",
-              status == 200 and drawn.get("ok")
-              and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
-        check("and the picture says whose it is, so a scope taken off it is "
-              "spelt with the tree in it",
-              drawn.get("tree") == "vendor/colibri"
-              and drawn.get("depth") == "tree")
-        check("and says the rule where somebody is looking at it",
-              "pulled and not written here" in (drawn.get("why") or ""))
-        check("nothing on it is working, next or done: none of it is work this "
-              "side has taken on",
-              all(n["status"] == "unknown" for n in drawn["nodes"])
-              and not [n for n in drawn["nodes"] if n["steps"]])
-        status, deeper = get("/map/tree/vendor/colibri/inside/bin")
-        check("a box of it opens the way a box of this repository does",
-              status == 200 and deeper.get("tree") == "vendor/colibri"
-              and [n["name"] for n in deeper["nodes"]] == ["coli-up"])
-        for missed in ("/map/tree/vendor/nothing",
-                       "/map/tree/research/PSYCH-ASR",
-                       "/map/tree/vendor/colibri/inside/nowhere"):
-            check("a name that matches nothing is a 404 rather than a picture: "
-                  "%s" % missed, get(missed)[0] == 404)
-    finally:
-        httpd.shutdown()
-
-    check("and after all of it the tree is byte for byte what it was: it is "
-          "read, drawn and traced, and never written to",
-          _shape_of(tree_root) == before)
+    line = sense.session_sense(course_repo.Repo(ws))
+    check("the sense says any path in Atlas may be traced, board/ and vendor/ "
+          "read-only",
+          "TRACE ANY PATH IN ATLAS" in line
+          and "board/ and vendor/ ARE READ-ONLY" in line)
 finally:
     if was is None:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = was
-    atlas.forget()
     walk._cache.clear()
-    mapping._cache.clear()
     shutil.rmtree(home, ignore_errors=True)
+    shutil.rmtree(outside, ignore_errors=True)
+
+# The real Atlas root: the board's own relay module, from a temp subject.
+atlas_root = os.path.dirname(ROOT)
+somewhere = tempfile.mkdtemp(prefix="tutor-walk-real-")
+try:
+    chosen, unknown = walk.resolve(somewhere, ["board/tutorboard/relay.py"],
+                                   base=atlas_root)
+    check("the real board/tutorboard/relay.py resolves read-only",
+          not unknown and chosen[0]["readonly"] is True)
+finally:
+    walk._cache.clear()
+    shutil.rmtree(somewhere, ignore_errors=True)
 
 # --- the fence: no code walker looks inside a directory in fenced.NEVER -------
 from tutorboard import fenced                                # noqa: E402

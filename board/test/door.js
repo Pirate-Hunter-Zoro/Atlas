@@ -119,7 +119,7 @@ try { window.eval(js); }
 catch (e) { fail('home.js threw on load: ' + e.message); }
 
 // The payload the real `/atlas.json` serves: two families of workspaces, the
-// board's own with nothing under it, and a vendor family, which has TREES.
+// board's own with nothing under it, and a vendor family, which holds no subject.
 const payload = {
   families: [
     { id: 'courses', name: 'Courses',
@@ -137,17 +137,12 @@ const payload = {
       course: 'PSYCH-ASR', chapter: '', cards: 12, running: false,
       current: false, kind: 'project', open: 7, next: 'the bake-off',
       next_label: '1. the bake-off', touched: 1789398000, stance: 'do' },
-    // A VENDOR FAMILY'S WORKSPACE, in the list paintDocWhere actually reads.
-    // Putting colibri only in `trees` made the check below pass whatever the
-    // filter did: nothing on this page draws from that list.
+    // A VENDOR FAMILY'S WORKSPACE, in the list paintDocWhere actually reads,
+    // so the check below proves the filter rather than the payload's shape.
     { id: 'vendor/colibri', family: 'vendor', repo: 'colibri',
       course: 'colibri', chapter: '', cards: 0, running: false,
       current: false, kind: 'project', open: 0, next: '', next_label: '',
       touched: 1789475941 },
-  ],
-  trees: [
-    { id: 'vendor/colibri', family: 'vendor', repo: 'colibri', name: 'colibri',
-      files: 250, capped: true, at: 'a8f2ca6', touched: 1789475941 },
   ],
 };
 

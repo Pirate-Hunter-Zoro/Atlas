@@ -5227,20 +5227,6 @@ var mapInfo = null;          /* the payload's map block, as it arrived */
    parses them whole, which is affordable exactly because nobody is looking
    inside a box until they ask. */
 var mapDeep = null;          /* the inside picture on the glass, or null */
-/* AND ONE LEVEL SIDEWAYS: WHICH VENDOR TREE IS BEING READ, or "".
-
-   A tree is somebody else's repository, pulled and never written, and a trace
-   over it is a sitting in THIS workspace with the tree named in the scope --
-   there is no board in a vendor tree and nothing is ever handed in to one. So
-   it is not another workspace to be switched to; it is another picture on this
-   board's own map surface, reached from the front door and left by the crumb.
-
-   It is held here rather than read off `mapDeep` because every tap made while
-   it is set means something different: a box opens through the tree's route,
-   and the scope a tap produces is spelt with the tree in front of it. */
-var mapTree = "";
-var mapTreeName = "";        /* what it is called, for the crumb */
-var mapTreeTop = null;       /* the tree's own top-level boxes, for the crumb */
 var mapTrail = [];           /* how the crumb reads: the boxes above this one */
 var mapDeepIn = "";          /* the course it was fetched in; see paintMapNow */
 var mapAsking = "";          /* the id in flight, so a second tap wins */
@@ -5321,9 +5307,9 @@ function mapBoxWide(nodes, wide) {
 function mapDocsLabel(n) { return "▤ " + (n.docs || 0); }
 
 /* IS THIS BOX A THREAD? A thread file's boxes carry their derived status in
-   `thread`; a derived box, a box one level down and a vendor tree's never do. */
+   `thread`; a derived box and a box one level down never do. */
 function mapThread(n) {
-  return !!n && !!n.thread && !n.outside && !mapTree && !mapDeep;
+  return !!n && !!n.thread && !n.outside && !mapDeep;
 }
 
 /* What a thread box says under its name: its status, and whether git shows
@@ -5520,8 +5506,7 @@ function mapOrder(byRank, pairs, keep) {
    PDFs spliced into the graph is the grid the map replaced. A column per group,
    a row per document, and a group longer than `MAP_REGION_ROWS` says how many
    more it has and opens in place -- nothing is dropped. Only on the workspace's
-   own top-level picture: a box's inside is about that box, and a vendor tree's
-   documents are somebody else's. */
+   own top-level picture: a box's inside is about that box. */
 var MAP_REGION_ROWS = 8;
 var MAP_REGION_ROW = 21;
 var MAP_REGION_HEAD = 46;
@@ -5530,7 +5515,7 @@ var MAP_REGION_GAP = 22;
 var mapRegionOpen = {};      /* group key -> shown whole */
 
 function mapRegionOf(info) {
-  var d = info && info === mapInfo && !mapTree ? info.documents : null;
+  var d = info && info === mapInfo ? info.documents : null;
   return d && d.total ? d : null;
 }
 
@@ -5626,7 +5611,7 @@ var MAP_FRAME_HEAD = 44;
 var MAP_FRAME_GAP = 34;
 
 function mapFramesOf(info) {
-  if (!info || info !== mapInfo || mapTree) return null;
+  if (!info || info !== mapInfo) return null;
   var dels = info.deliverables || [];
   if (!dels.length) return null;
   var known = {};
@@ -6433,13 +6418,13 @@ function mapOpens(n) {
    control at its bottom right is drawn at all, and it is `workWays` that gives
    it, so the control and the sheet behind it cannot disagree.
 
-   A wall, a derived box, a box of a vendor tree and a document are all boxes
+   A wall, a derived box and a document are all boxes
    whose tap is their one honest way to work, so none of them gets one. What is
    left is an ordinary part, which has a control when it can be traced, drilled
    or read -- or when the map says what it is waiting on, which is worth a tap
    of its own. */
 function mapMore(n) {
-  if (!n || n.outside || mapTree || mapDerived(n) || mapDoc(n)) return false;
+  if (!n || n.outside || mapDerived(n) || mapDoc(n)) return false;
   /* A thread's tap IS its sheet, so it needs no second control for one. */
   if (mapThread(n)) return false;
   return !!workWays(n).length || !!((n.blockedBy || []).length);
@@ -6477,31 +6462,17 @@ function mapMark(id) {
    is read off the answer rather than off what somebody did to get it. */
 function mapWhereAbove(up) {
   var found = null;
-  /* The picture one level up. In a tree that is the tree's own boxes, which
-     `mapInfo` -- this workspace's map -- knows nothing about. */
-  ((mapTreeTop || (mapInfo && mapInfo.nodes)) || []).forEach(function (n) {
+  ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
     if (n.id === up) found = n;
   });
   return found;
-}
-
-/* WHERE ONE LEVEL DOWN IS ASKED FOR, and there are two places it can be.
-
-   The serving workspace's own map answers at `/map/inside/`. A vendor tree
-   answers under its own name, because the id of a box in somebody else's
-   repository means nothing to this workspace's discovery -- and asking the
-   wrong one would either 404 or, worse, find a box of the same name here. */
-function mapInsideUrl(id) {
-  return mapTree
-    ? "/map/tree/" + mapTree + "/inside/" + encodeURIComponent(id)
-    : "/map/inside/" + encodeURIComponent(id);
 }
 
 function mapDig(id) {
   if (!id || mapAsking === id) return;
   mapAsking = id;
   mapCrumbSay("opening…");
-  fetch(mapInsideUrl(id))
+  fetch("/map/inside/" + encodeURIComponent(id))
     .then(function (r) { return r.json().catch(function () { return {}; }); })
     .then(function (got) {
       if (mapAsking !== id) return;              /* a later tap won */
@@ -6511,10 +6482,6 @@ function mapDig(id) {
         return;
       }
       var trail = [];
-      /* IN A TREE, THE TOP OF THE TRAIL IS THE TREE, not the workspace. The
-         crumb still starts at the workspace, because that is where the sitting
-         would be held and where the way out goes. */
-      if (mapTree) trail.push({ tree: mapTree, name: mapTreeName });
       if (got.depth === "symbol") {
         var above = mapWhereAbove(got.up);
         if (above) trail.push({ id: above.id, name: above.name });
@@ -6535,58 +6502,9 @@ function mapDig(id) {
     });
 }
 
-/* ONE LEVEL SIDEWAYS: A VENDOR TREE, DRAWN ON THIS BOARD'S MAP.
-
-   `atlas.trees()` is read and drawn and is never handed work, so there is no
-   board to switch to and no workspace to open -- and the picture still has to
-   go somewhere a person can tap it. It goes here, on the one map surface this
-   page has: `paintMap` draws whatever `mapShown()` returns, and a tree answers
-   in the shape `map.inside` already answers in.
-
-   `then` is for the address resolver, which has to know whether it landed. */
-function mapTreeOpen(ident, then) {
-  if (!ident || mapAsking === ident) return;
-  mapAsking = ident;
-  mapCrumbSay("opening…");
-  fetch("/map/tree/" + ident)
-    .then(function (r) { return r.json().catch(function () { return {}; }); })
-    .then(function (got) {
-      if (mapAsking !== ident) return;           /* a later tap won */
-      mapAsking = "";
-      if (!got || got.ok === false || !(got.nodes || []).length) {
-        mapCrumbSay((got && got.error) || "that tree could not be opened");
-        if (then) then(null);
-        return;
-      }
-      mapTree = ident;
-      mapTreeName = got.name || ident;
-      mapTreeTop = got.nodes;
-      mapTrail = [{ tree: ident, name: mapTreeName }];
-      mapDeep = got;
-      mapDeepIn = mapCourse();
-      els.work.hidden = true;
-      mapHere = "";
-      mapDrawn = "";
-      paintMap(mapInfo, (lastLive && lastLive.state) || {});
-      mapFit();
-      if (then) then(got);
-    })
-    .catch(function () {
-      mapAsking = "";
-      mapCrumbSay("that tree could not be opened");
-      if (then) then(null);
-    });
-}
-
-/* Back to the repository's own picture, which is the one the payload carries.
-   From a vendor tree that is a step sideways rather than up, and it is the same
-   one control: whatever foreign picture is on the glass, the way out of it is
-   the workspace this board serves. */
+/* Back to the repository's own picture, which is the one the payload carries. */
 function mapOut() {
   mapDeep = null;
-  mapTree = "";
-  mapTreeName = "";
-  mapTreeTop = null;
   mapTrail = [];
   mapAsking = "";
   els.work.hidden = true;
@@ -6640,14 +6558,7 @@ function paintCrumb() {
     var last = i === mapTrail.length - 1;
     b.className = "crumb" + (last ? " here" : "");
     b.textContent = bit.name;
-    /* A step back to the TREE is a step back to a whole picture rather than
-       into a box of one, so it goes through the same opener the front door
-       used. Its id is a tree's, and `mapDig` would ask for a box by it. */
-    if (!last) {
-      b.onclick = bit.tree
-        ? function () { mapTreeOpen(bit.tree); }
-        : function () { mapDig(bit.id); };
-    }
+    if (!last) b.onclick = function () { mapDig(bit.id); };
     host.appendChild(b);
   });
 }
@@ -6693,12 +6604,6 @@ function paintMapNow(info, state) {
   if (mapDeep && mapDeepIn !== here) {
     mapDeep = null;
     mapTrail = [];
-    /* AND A TREE IS FETCHED IN A WORKSPACE TOO. It is drawn on this board, and
-       a trace taken off it would be a sitting in whichever workspace the board
-       is now serving -- which is not the one somebody opened it from. */
-    mapTree = "";
-    mapTreeName = "";
-    mapTreeTop = null;
   }
 
   var show = mapShown();
@@ -6746,14 +6651,6 @@ function mapUnit(show, n) {
   var one = show && show.depth === "module" ? "file"
           : show && show.depth === "symbol" ? "definition" : "part";
   return n === 1 ? one : one + "s";
-}
-
-/* What a walkthrough taken off THIS picture has to be called. In the workspace
-   it is the path; in a vendor tree it is the tree and then the path, which is
-   the spelling `walk.tree_label` reads back. One place builds it, because a
-   scope spelt two ways is a sitting over the wrong file. */
-function mapWhose(rel) {
-  return mapTree ? "@" + mapTree + "/" + rel : rel;
 }
 
 /* WHY THIS PICTURE SAYS WHAT IT SAYS, and whether it may be trusted as far as
@@ -7122,7 +7019,7 @@ function mapDerived(node) {
 function mapScope(node) {
   var rel = ((node && node.files) || [])[0] || "";
   if (!rel) return "";
-  return mapWhose(rel + (node.symbol ? "::" + node.symbol : ""));
+  return rel + (node.symbol ? "::" + node.symbol : "");
 }
 
 /* WHAT IS LEFT TO ASK ABOUT THIS BOX, and it is only ever the ways held over a
@@ -7146,11 +7043,6 @@ function workWays(node) {
        walked through; it is not a directory to be examined on, and the tutor
        cannot be told to write about a box the server has no record of. */
     if (mapDerived(node) && way.aim !== "trace") return false;
-    /* AND A BOX IN SOMEBODY ELSE'S REPOSITORY IS READ, NEVER WORKED ON. There
-       is no plan to take a step from and nothing is handed in to a vendor tree.
-       Tracing is the one honest thing to do with it, which is the whole reason
-       the tree is drawn at all. */
-    if (mapTree && way.aim !== "trace") return false;
     return true;
   });
 }
@@ -7529,19 +7421,17 @@ function takeWork(node, chip) {
   }
   var derived = mapDerived(node);
   var body;
-  if (derived || (mapTree && node)) {
+  if (derived) {
     /* A SCOPE RATHER THAN A PART, and a walkthrough is what a scope supports.
        A SYMBOL BOX CARRIES THE ONE THING ITS WALKTHROUGH SHOULD COVER, which is
        the whole payoff of a diagram whose nodes are the things: tapping `run`
        opens a walkthrough of `run` and not of the file it lives in. Spelt the
        way `walk.label` spells it, and re-resolved on the server.
 
-       NO BOX ID EITHER WAY. `map.find` resolves this repository's own parts and
-       would refuse a module, a symbol or a box of somebody else's tree -- which
-       is correct: the scope is what says what this is about. */
-    body = { session: "walk", node: null,
-             over: derived ? [mapScope(node)]
-                           : ((node && node.files) || []).map(mapWhose),
+       NO BOX ID. `map.find` resolves this repository's own parts and would
+       refuse a module or a symbol -- which is correct: the scope is what says
+       what this is about. */
+    body = { session: "walk", node: null, over: [mapScope(node)],
              begin: true };
   } else if (node && node.hw) {
     /* A PROBLEM SET IS A HOMEWORK SITTING, which is the one thing that box has
@@ -7570,10 +7460,10 @@ function takeWay(way, node, chip) {
   var body = {
     session: way.session,
     aim: way.aim,
-    /* NOT THE ID OF A DERIVED BOX, NOR OF A FOREIGN ONE, for the reason
-       `takeWork` gives: `map.find` knows this repository's own parts and
-       nothing else, and the scope is what says which machinery this is about. */
-    node: (node && !derived && !mapTree && node.id) || null,
+    /* NOT THE ID OF A DERIVED BOX, for the reason `takeWork` gives:
+       `map.find` knows this repository's own parts and nothing else, and the
+       scope is what says which machinery this is about. */
+    node: (node && !derived && node.id) || null,
     step: (chip && chip.label) || null,
     /* NO STANCE. The aim answers it -- `build` with a stance of `teach` is a
        contradiction -- and `config.AIM_STANCE` is where that answer lives. The
@@ -7588,7 +7478,7 @@ function takeWay(way, node, chip) {
   if (way.session === "walk") {
     body.over = derived
       ? [mapScope(node)]
-      : ((node && node.files) || []).map(mapWhose);
+      : ((node && node.files) || []).slice();
   }
   if (way.session === "review") body.over = [node.dir + "/"];
   workSend(body, node, chip);
@@ -8010,7 +7900,7 @@ function addrGo(a) {
   var surface = a.surface;
 
   /* THE WORKSPACE'S OWN PICTURE, which is what both of these name. Whatever
-     was on the glass -- the inside of a box, or a vendor tree -- is a different
+     was on the glass -- the inside of a box -- is a different
      picture, and an address naming this workspace that left one of them up
      would put the boxes of somewhere else under the box it was pointing at. */
   if (surface === "workspace") {
@@ -8036,30 +7926,6 @@ function addrGo(a) {
     if (!openMap()) return addrDead(a, "this workspace has no map to open");
     takeWork(box, null);
     return addrArrived(a);
-  }
-
-  if (surface === "tree") {
-    /* A VENDOR TREE, READ IN THIS WORKSPACE. The front door is what routes one
-       here, because a tree has no board of its own and the sitting a trace
-       becomes belongs to whichever workspace was reading it -- so the address
-       names the workspace, this board is the one already serving it, and all
-       that is left is to draw the picture.
-
-       Not pre-checked in `addrMisses`: which trees the repository pulls is not
-       in this board's payload, so the server's own answer is the only honest
-       one and a miss is reported when it comes back. */
-    mapTreeOpen(a.tree, function (got) {
-      if (!got) {
-        addrDead(a, "there is no " + a.tree + " in this repository");
-        return;
-      }
-      /* After the picture, not before: a tree is drawn whether or not this
-         workspace has a map of its own, and the surface opens on what is
-         actually there. */
-      openMap();
-      addrArrived(a);
-    });
-    return "ok";
   }
 
   if (surface === "card") {

@@ -472,7 +472,6 @@ main { max-width: 46rem; }
 /* Somebody else's repositories. Dashed, the same way a document is dashed on
    the map, because the difference has to be visible before the label is read:
    nothing in here is handed work. */
-.door.vendor { border-style: dashed; }
 
 /* ---------- LEVEL TWO: one family's workspaces ---------- */
 .cards {

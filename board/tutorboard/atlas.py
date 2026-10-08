@@ -17,8 +17,8 @@ from . import paths, subjects
 
 
 # The families, in the order the front door draws them. `vendor` marks
-# somebody else's trees, read and never taught in; `tool` marks the board's own
-# source.
+# somebody else's trees, which hold no subject (`walk.resolve` traces into them
+# read-only); `tool` marks the board's own source.
 FAMILIES = (
     {"id": "courses", "name": "Courses",
      "blurb": "Graduate coursework, taught chapter by chapter."},
@@ -119,75 +119,6 @@ def workspaces(base=None):
     found.sort(key=lambda one: order.get(one[0], len(order)))
     return [_record(parent, slug, where, names)
             for parent, _kind, slug, where in found]
-
-
-# ---------------------------------------------------------------------------
-# the other list: source that is read and never handed in to
-# ---------------------------------------------------------------------------
-def trees(base=None):
-    """Every vendor tree -- somebody else's repository, read but never taught in.
-
-    A SECOND LIST rather than a flag on `workspaces`, and that is the whole
-    decision: grading and tracing are different claims. A vendor tree is NOT a workspace -- nothing is handed in
-    to it, no board serves it, no card, write-up, homework or push belongs to
-    it, and `workspaces` still skips the family outright, which is what several
-    callers depend on. It IS source, and source can be walked through and
-    drawn: `course/walk.units` and `course/map.shape` take a root and neither
-    of them asks whether anybody is graded on it.
-
-    The shape of a record is the shape `workspaces` returns, so a caller that
-    only wants a name and a root does not care which list it came from.
-    """
-    out = []
-    for fam in families(base):
-        if not fam["vendor"]:
-            continue
-        try:
-            names = sorted(os.listdir(fam["dir"]))
-        except OSError:
-            continue
-        for name in names:
-            if name.startswith("."):
-                continue
-            here = os.path.join(fam["dir"], name)
-            if not os.path.isdir(here):
-                continue
-            try:
-                # A submodule nobody has pulled is an empty directory, and an
-                # empty directory drawn as a tree is a card with nothing behind
-                # it.
-                if not os.listdir(here):
-                    continue
-            except OSError:
-                continue
-            out.append({
-                "id": ("%s/%s" % (fam["id"], name)) if fam["id"] else name,
-                "family": fam["id"],
-                "family_name": fam["name"],
-                "dir": name,
-                "root": here,
-            })
-    return out
-
-
-def find_tree(ident, base=None):
-    """One vendor tree, by `vendor/name` or by bare directory name -- or None.
-
-    The same rule as `find` and for the same reason: a name arriving from a
-    request is looked up in what discovery found and is never constructed into
-    a path. A miss is a miss.
-    """
-    if not ident:
-        return None
-    ident = str(ident).strip().strip("/")
-    here = trees(base)
-    for t in here:
-        if t["id"] == ident:
-            return t
-    for t in here:
-        if t["dir"] == ident or paths.same_dir(t["root"], ident):
-            return t
-    return None
 
 
 def find(ident, base=None):

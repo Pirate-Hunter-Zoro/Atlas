@@ -83,9 +83,7 @@ var els = {
   sheetClose: document.getElementById("sheet-close"),
   sheetLibrary: document.getElementById("sheet-library"),
   sheetLibrarySub: document.getElementById("sheet-library-sub"),
-  sheetTrace: document.getElementById("sheet-trace"),
   sheetKinds: document.getElementById("sheet-kinds"),
-  sheetTraceSub: document.getElementById("sheet-trace-sub"),
   where: document.getElementById("where"),
   who: document.getElementById("who"),
   whoWays: document.getElementById("who-ways"),
@@ -279,29 +277,9 @@ function aMeta(c) {
   return bits.join("  ·  ");
 }
 
-/* And the same line for a vendor tree, which has none of those things. Nothing
-   is outstanding in somebody else's repository, and no cards are written
-   against it -- what it has is a commit and some source. */
-function aTreeMeta(t) {
-  var bits = [];
-  if (t.at) bits.push("at " + t.at);
-  if (t.files) {
-    bits.push(t.files + (t.capped ? "+" : "")
-              + (t.files === 1 ? " source file" : " source files"));
-  }
-  bits.push(aAgo(t.touched));
-  return bits.join("  ·  ");
-}
-
-/* What is in one family, whichever list it comes from. A vendor family holds
-   TREES and every other family holds WORKSPACES, and the two are separate
-   lists on purpose: `atlas.trees()` is read and drawn and is never something
-   work is handed in to. This is the one place that has to know both. */
+/* What is in one family: its workspaces. */
 function aIn(fam) {
   if (!atlas) return [];
-  if (fam.vendor) {
-    return (atlas.trees || []).filter(function (t) { return t.family === fam.id; });
-  }
   return (atlas.workspaces || []).filter(function (c) { return c.family === fam.id; });
 }
 
@@ -327,7 +305,7 @@ function aEl(tag, cls, text) {
    existed and the old front door used them as nothing but a heading. */
 function aDoorLine(fam, mine) {
   var bits = [];
-  var word = fam.vendor ? "tree" : fam.id === "courses" ? "course"
+  var word = fam.id === "courses" ? "course"
            : fam.id === "practice" ? "set" : "project";
   bits.push(mine.length + " " + word + (mine.length === 1 ? "" : "s"));
   var live = mine.filter(function (c) { return c.running; }).length;
@@ -353,7 +331,7 @@ function paintDoors() {
        purpose. */
     if (!mine.length) return;
     drawn += 1;
-    var b = aEl("button", "door" + (fam.vendor ? " vendor" : ""));
+    var b = aEl("button", "door");
     b.type = "button";
     b.appendChild(aEl("span", "door-name", fam.name || fam.id));
     if (fam.blurb) b.appendChild(aEl("span", "door-blurb", fam.blurb));
@@ -405,9 +383,7 @@ function aCard(c, fam, withFamily) {
     b.appendChild(aEl("span", "ws-next", c.next));
   }
 
-  if (fam.vendor) {
-    b.appendChild(aEl("span", "ws-meta", aTreeMeta(c)));
-  } else if (c.running) {
+  if (c.running) {
     var live = aEl("span", "ws-meta live");
     live.appendChild(aEl("span", "ws-dot live", ""));
     live.appendChild(aEl("span", "", (c.node ? "live on " + c.node + "  ·  "
@@ -812,7 +788,7 @@ function paintAtlas(payload) {
   /* NOTHING IN HERE MAY THROW. A front door that throws is a blank screen
      where the app used to be, and this one is the way back into a lesson. */
   try {
-    atlas = payload || { families: [], workspaces: [], trees: [] };
+    atlas = payload || { families: [], workspaces: [] };
     paintLevels();
   } catch (e) {
     try {
@@ -860,54 +836,12 @@ if (els.panic && window.Recentre) {
 
 /* ---------------------------------------------------------- the sheet */
 var sheetFor = null;
-var sheetTree = false;
-var sheetTraceAt = "";      /* the address Trace it goes to, or "" */
 
 function openSheet(c, fam) {
   sheetFor = c;
   fam = fam || aFamily(c.family) || {};
-  /* A VENDOR TREE IS NOT A WORKSPACE, and the sheet is where that stops being
-     an abstraction. There is no board to move, nothing to write up and nothing
-     to hand in -- so the two buttons that do those things are not offered, and
-     the sheet says plainly what this one is instead of leaving somebody to
-     discover it by tapping. */
-  var tree = !!fam.vendor;
-  sheetTree = tree;
-  sheetTraceAt = "";
-  if (els.sheetTrace) els.sheetTrace.hidden = true;
   els.sheetFamily.textContent = fam.name || fam.id || "";
   els.sheetName.textContent = c.course || c.repo || c.name;
-  els.sheetOpen.hidden = tree;
-  els.sheetLibrary.hidden = tree;
-  if (els.sheetKinds) els.sheetKinds.hidden = tree;
-  if (tree) {
-    els.sheetWhere.textContent = c.id;
-    els.sheetNextText.textContent = "";
-    els.sheetNext.hidden = true;
-    els.sheetMeta.textContent = aTreeMeta(c)
-      + "  ·  pulled, not written: read and drawn, never handed work";
-    /* AND THE ONE THING THAT CAN BE DONE WITH IT. A trace over a tree is a
-       sitting in the workspace that is READING it -- there is no board in
-       somebody else's repository, and the cards belong where the work is. So
-       this is an address into the workspace the board is already serving, and
-       where it is serving none of them there is nowhere to hold the sitting and
-       the sheet says that instead of offering a button that cannot work. */
-    var reading = aReading();
-    sheetTraceAt = aTreeAddr(reading, c);
-    if (els.sheetTrace) {
-      els.sheetTrace.hidden = !sheetTraceAt;
-      els.sheetTraceSub.textContent = sheetTraceAt
-        ? "drawn in " + (reading.course || reading.repo)
-          + ", where the board is — nothing is written to it"
-        : "";
-    }
-    if (!sheetTraceAt) {
-      els.sheetMeta.textContent += "  ·  open a workspace first: a trace over "
-                                 + "it is a sitting in the one reading it";
-    }
-    els.sheet.hidden = false;
-    return;
-  }
   els.sheetWhere.textContent = c.id + (c.chapter ? "  ·  " + c.chapter : "");
   /* WHAT THE PERSON CALLS THIS WHOLE WORKSPACE, where they have drawn it. The
      one field the written map lends the front door, and it belongs on the sheet
@@ -934,33 +868,9 @@ function openSheet(c, fam) {
   els.sheet.hidden = false;
 }
 
-/* WHICH WORKSPACE IS READING, and it is the one the board is serving. A tree
-   is not a workspace and has no board of its own, so the sitting a trace opens
-   has to be held somewhere -- and "where the board already is" is the only
-   answer that needs no second question asked of somebody holding a tablet. */
-function aReading() {
-  var found = null;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    if (c.current) found = c;
-  });
-  return found;
-}
-
-/* The address of a tree, read in a workspace. Through the grammar like every
-   other link on this page: an older cached shell with no `address.js` gets no
-   button rather than a hand-built hash, because two spellings of a place is
-   the one thing that file exists to prevent. */
-function aTreeAddr(reading, tree) {
-  if (!reading || !tree || !window.Address) return "";
-  return window.Address.format({ ws: reading.id, surface: "tree",
-                                 tree: tree.id });
-}
-
 function closeSheet() {
   els.sheet.hidden = true;
   sheetFor = null;
-  sheetTree = false;
-  sheetTraceAt = "";
 }
 
 els.sheetClose.onclick = closeSheet;
@@ -1041,20 +951,6 @@ els.sheetLibrary.onclick = function () {
   closeSheet();
   openLibrary(c);
 };
-
-/* THROUGH THE ADDRESS, the same way a workspace is opened. The board is already
-   serving the workspace this names -- that is how the address was built -- so
-   `addrRoute` sends it straight to the board, which draws the tree. */
-if (els.sheetTrace) {
-  els.sheetTrace.onclick = function () {
-    var at = sheetTraceAt;
-    closeSheet();
-    if (!at) return;
-    addrDone = "";
-    if (window.location.hash === at) addrRoute();
-    else window.location.hash = at;
-  };
-}
 
 /* ------------------------------------------------------- the meeting deck */
 /* "I have generally two — sometimes three — meetings per week to talk about my
@@ -1399,9 +1295,8 @@ function openDoc() {
    memory by the time anything here is tappable, so there is no request behind
    this list -- and a second source for it is a second list to go stale.
 
-   A VENDOR TREE IS NOT OFFERED. Trees are a separate list for exactly this
-   reason, and the family is asked as well, because a list that is right only
-   because of how the payload happens to be shaped is right by accident. */
+   A VENDOR FAMILY HOLDS NO SUBJECT, and is skipped here even if a payload ever
+   listed one: nothing is handed in to somebody else's repository. */
 function paintDocWhere() {
   var host = els.docWhere;
   host.innerHTML = "";
