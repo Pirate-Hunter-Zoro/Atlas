@@ -260,10 +260,12 @@ def upload(who):
     return multipart("hand-in.txt", MARK[who].encode("utf-8"))
 
 
-# DRIVE: route -> (class, [(path, body, statuses)]). `{mark}` and `{doc}` are
-# filled in per session, and a body may be a function of the session.
-# `statuses` None means anything under 500.
+# DRIVE: route -> (class, [(path, body, statuses[, unprefixed statuses])]).
+# `{mark}` and `{doc}` are filled in per session, and a body may be a function
+# of the session. `statuses` None means anything under 500; the unprefixed
+# ones, for a subject route, default to the same.
 OK = (200,)
+REFUSED = (400,)
 DRIVE = {
     # handler's own pages
     ("GET", "/board", "handler"): ("session", [("/board", None, OK)]),
@@ -291,8 +293,9 @@ DRIVE = {
     ("POST", "/say", "lesson"): ("session", [("/say", {"text": "said {mark}"}, OK)]),
     ("POST", "/text/save", "lesson"): ("session", [
         ("/text/save", {"question": "1", "text": "typed {mark}"}, OK)]),
-    # not yet classified in their modules' tables
+    # writing
     ("GET", "/slate/state", "writing"): ("session", [("/slate/state", None, OK)]),
+    # not yet classified in their modules' tables
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
     ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
@@ -300,11 +303,16 @@ DRIVE = {
     ("POST", "/slate/save", "writing"): ("session", [
         ("/slate/save", {"page": 2, "w": 10, "h": 10,
                          "strokes": [{"pts": [[1, 1]], "m": "{mark}"}]}, OK)]),
-    ("POST", "/annotate/save", "writing"): ("session", [
+    ("POST", "/annotate/save", "writing"): ("subject?", [
         ("/annotate/save", {"card": "0001",
-                            "strokes": [{"pts": [[2, 2]], "m": "{mark}"}]}, OK),
+                            "strokes": [{"pts": [[2, 2]], "m": "{mark}"}]}, OK, REFUSED),
         ("/annotate/save", {"card": "doc/notes/p1",
-                            "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK)]),
+                            "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK),
+        ("/annotate/save", {"card": "doc/notes/p2", "send": True,
+                            "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK, REFUSED)]),
+    ("POST", "/annotate/burn", "writing"): ("session", [
+        ("/annotate/burn", {"kind": "homework", "mode": "none"}, None),
+        ("/annotate/burn", {"kind": "lesson", "mode": "copy"}, None)]),
     ("POST", "/upload", "writing"): ("session", [("/upload", upload, OK)]),
 }
 
@@ -353,6 +361,11 @@ def judged(label, who, status, reply, wrote, calls, statuses, allowed):
           not bad)
 
 
+# Where an unprefixed ask of a subject's tutor may land: the newest open
+# session on it, which `runner_route` chooses.
+ROUTED = dict((who, (os.path.relpath(DIR[who], atlas) + os.sep,)) for who in ("A", "B"))
+
+
 def first_event(who):
     conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=30)
     conn.request("GET", "/s/%s/events" % SID[who])
@@ -386,7 +399,9 @@ for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
                    event.encode("utf-8"), changed(before, snapshot()), [], OK, scope(who))
             check("session %s's stream carries its own card" % who, MARK[who] in event)
         continue
-    for path, body, statuses in asks:
+    for one in asks:
+        path, body, statuses = one[:3]
+        bare = one[3] if len(one) > 3 else statuses
         for who in ("A", "B"):
             status, reply, wrote, calls = drive_one(
                 method, "/s/%s%s" % (SID[who], fill(path, who)), body, who)
@@ -401,6 +416,26 @@ for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
             status, _ = request(method, fill(path, "A"), fill(body, "A"))
             check("unprefixed %s %s is 404 and writes nothing" % (method, fill(path, "A")),
                   status == 404 and not changed(before, snapshot()))
+        if cls in ("subject", "subject?"):
+            # The subject named, from outside any session: it writes that
+            # subject, or the session an ask of its tutor was routed to.
+            for who in ("A", "B"):
+                there = fill(path, who)
+                there += ("&" if "?" in there else "?") + "subject=" + SUBJECT[who]
+                status, reply, wrote, calls = drive_one(method, there, body, who)
+                judged("unprefixed %s %s" % (method, there), who, status, reply, wrote,
+                       calls, bare, (SUBJECT[who] + os.sep, CACHE) + ROUTED[who])
+        if cls == "subject?":
+            # And no subject named: the Atlas root's, which is no session's
+            # and no subject's.
+            status, reply, wrote, calls = drive_one(method, fill(path, "A"), body, "A")
+            stray = [w for w in wrote if w.startswith("sessions" + os.sep)
+                     and not w.startswith(CACHE)
+                     or any(w.startswith(r + os.sep) for r in SUBJECT.values())]
+            check("unprefixed %s %s, no subject, answers (%d) and writes no session or "
+                  "subject%s" % (method, fill(path, "A"), status,
+                                 " (stray: %s)" % stray if stray else ""),
+                  (status < 500 if bare is None else status in bare) and not stray)
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +460,17 @@ for who in ("A", "B"):
     board = [c for c in CALLS if c["fn"] == "board" and c["session"] == sdir]
     check("a board command a route in %s runs works on session %s" % (who, who),
           board and all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
+
+# Document ink saved outside a session: the named subject's .ink/, or the
+# Atlas root's with none named (the meeting deck's).
+before = snapshot()
+ask("POST", "/annotate/save?subject=" + SUBJECT["B"],
+    {"card": "doc/beta-notes/p3", "strokes": [{"pts": [[5, 5]]}]})
+ask("POST", "/annotate/save", {"card": "doc/meeting/p1", "strokes": [{"pts": [[6, 6]]}]})
+wrote = changed(before, snapshot())
+check("unprefixed document ink lands in the named subject's .ink/, or the Atlas root's",
+      len(wrote) == 2 and wrote[0].startswith(os.path.join(".ink", "doc-meeting-p1-"))
+      and wrote[1].startswith(os.path.join(SUBJECT["B"], ".ink", "doc-beta-notes-p3-")))
 
 # A second session on Alpha sees Alpha's document ink, and none of its cards'.
 rec = sessions.new("second on Alpha", base=atlas, now=1.7e9 + 5)

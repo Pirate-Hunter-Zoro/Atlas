@@ -72,6 +72,8 @@ UNPREFIXED = (
     ("POST", "/library/feedback", "subject"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
+    # writing
+    ("POST", "/annotate/save", "subject?"),
 )
 
 # The route classes UNPREFIXED names.

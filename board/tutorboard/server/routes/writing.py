@@ -2,6 +2,19 @@
 
 The slate saves constantly and sends deliberately, and the difference
 between those two is most of what these routes are about.
+
+    GET  /slate/state       session    the slate's pages
+    POST /slate/save        session    a slate page, saved or sent
+    POST /annotate/save     subject?   ink on a card or a document page, saved
+                                       or sent. Unprefixed (the library with
+                                       `?subject=`, the meeting deck without)
+                                       it saves document ink only, into the
+                                       subject's or the Atlas root's `.ink/`:
+                                       a card and a send need a session.
+    POST /annotate/burn     session    the ink made into a marked copy
+    POST /upload            session    a file into the session's uploads/
+
+The classes are `handler.UNPREFIXED`'s.
 """
 
 import re
@@ -14,6 +27,7 @@ import os
 from . import NOT_MINE
 from .. import multipart
 from .. import spawn
+from ..registry import is_sessionless
 from ...course import burn
 from ...course import repo as course_repo
 from ...lesson import notes
@@ -237,6 +251,11 @@ def post(h, repo, path):
         card = str(payload.get("card") or "")
         if not ann_ok(card):
             return h.send_json({"ok": False, "error": "bad anchor"}, status=400)
+        if is_sessionless(repo) and (not ANN_DOC.match(card) or payload.get("send")):
+            # Outside a session there is no card and no inbox: only a
+            # document page's ink is kept, and only saved.
+            return h.send_json({"ok": False, "error": "card ink and a send are a "
+                                "session's: /s/<id>/annotate/save"}, status=400)
         # INK ON ANOTHER DECK IS NOT THIS ONE'S. A /meeting page left open
         # while a new deck was asked for still owes the old deck's marks, and
         # keys are page numbers, so they would land on the new deck's slides.
