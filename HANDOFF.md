@@ -2770,6 +2770,27 @@ Tasks with no dependency between them may run in parallel, each in its own workt
 > commit and push from the cluster checkout. The Mac pulls it within a minute.
 > ````
 
+- **Owner's override (2026-10-08), which wins over anything above in T59:**
+  - The cluster runbook is a **bash script**, not prose:
+    `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/cluster-runbook.sh`, mode 755.
+    The owner runs it from the Atlas root on the cluster as `bash ~/path/to/cluster-runbook.sh`.
+    - It refuses to start unless the cwd holds `board/` and `.git`.
+    - It uses `set -euo pipefail` and runs on bash 3.2 or newer.
+    - Every step echoes what it does, verifies its result, and prints `OK <step>`. The first failure
+      stops the script with one line naming the step and the check that failed.
+    - It is idempotent: a rerun skips the steps already done.
+    - It never lists, prints or copies anything under `phi/` or `results/`.
+    - Everything mechanical goes in: pull, bundling and moving aside course clones, move-residue for
+      each research/ and practice/ subject, uninstalling the old autostart and timers, bootstrap and
+      `core.hooksPath`, re-installing the relay scrontab, the credential check (it fails if any line
+      says yes), and the verification passes.
+  - What needs human judgement stays OUT of the script. That covers the TRD-EHR lockfile switch with
+    its result comparison, the week-later clone cleanup, and removing a PHI subject. HANDOFF-cluster.md
+    becomes a short file: the one command to run the script, then those manual items.
+  - The script is the cluster's whole tonight-to-morning job. Test it on the Mac against a scratch
+    clone with fake `squeue`, `scrontab` and `systemctl` on PATH before writing it to iCloud.
+  - T59 does NOT write DONE.md. T60 does.
+
 #### T60. Final sweep, and this file rewritten to what is left
 
 - **Machine:** Mac.
@@ -2800,6 +2821,18 @@ Tasks with no dependency between them may run in parallel, each in its own workt
 > numbers, delete the one-off migration scripts, and rewrite HANDOFF.md to hold only undone tasks, the
 > post-cutover items, the owner's items and the on-glass checks. Run the suite, fast-forward the main
 > checkout, and push. Report by 4.11.
+
+- **Owner's override (2026-10-08):** T60's very last action, after main is pushed, is the done
+  signal. Create an EMPTY file at
+  `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/DONE.md` ONLY IF every one of
+  these holds:
+  - every task T01 to T58 landed in full (no failed, skipped or partial task);
+  - T59's cutover completed without a rollback;
+  - `cluster-runbook.sh` exists and passed its scratch-clone test;
+  - the suite is green on main;
+  - the one real `/say` was answered.
+  If any of these fails, do not create DONE.md, and delete one left over from an earlier run. Say in
+  the report which condition failed.
 
 ---
 
