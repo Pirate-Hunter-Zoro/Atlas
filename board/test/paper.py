@@ -130,6 +130,8 @@ def pdf_bytes(pages=3):
 # a real board, on a real socket, over a real course directory
 # ---------------------------------------------------------------------------
 TMP = tempfile.mkdtemp(prefix="paper-")
+# The page cache, moved into the fixture: the real one is shared and pruned.
+paths.PAGES = os.path.join(TMP, "pages")
 COURSE = os.path.join(TMP, "Galois-Theory")
 os.makedirs(COURSE)
 with open(os.path.join(COURSE, "tutorboard.json"), "w", encoding="utf-8") as fh:
@@ -271,15 +273,20 @@ if have_renderer:
     # And the cache does not grow without limit, nor evict the other document.
     lesson_view = json.loads(get(PORT, "/view/lesson")[2].decode("utf-8"))
     check("both documents can be held at once",
-          lesson_view.get("ok") and lesson_view.get("n") == 2
-          and os.path.isdir(os.path.join(repo.live, "paper")))
-    digests = set()
-    for f in os.listdir(os.path.join(repo.live, "paper")):
-        m = re.match(r"^([0-9a-f]+)-\d+\.png$", f)
-        if m:
-            digests.add(m.group(1))
+          lesson_view.get("ok") and lesson_view.get("n") == 2)
+    check("the pages live in the shared cache, one directory per build, and "
+          "nothing in the session",
+          os.path.isfile(os.path.join(paths.PAGES, lesson_view["digest"],
+                                      os.path.basename(lesson_view["pages"][0])))
+          and not os.path.exists(os.path.join(repo.live, "paper")))
+    # More builds than the cache keeps: the oldest go, the one in hand stays.
+    for n in range(paper.CACHE_SETS + 3):
+        os.makedirs(os.path.join(paths.PAGES, "%016x" % n))
+    paper._prune(lesson_view["digest"])
+    digests = [d for d in os.listdir(paths.PAGES)
+               if re.match(r"^[0-9a-f]{6,}$", d)]
     check("and the cache keeps a bounded number of page sets (%d)" % len(digests),
-          len(digests) <= paper.CACHE_SETS)
+          len(digests) <= paper.CACHE_SETS and lesson_view["digest"] in digests)
 else:
     check("a machine with no page renderer says so rather than showing an "
           "empty panel",

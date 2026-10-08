@@ -9,12 +9,13 @@ idle (`registry.py`).
 """
 
 import os
+import shutil
 import socketserver
 import sys
 import threading
 from http.server import ThreadingHTTPServer
 
-from .. import paths, subjects
+from .. import jobs, paths, subjects
 from .handler import Handler
 from . import spawn
 from .registry import Registry
@@ -78,7 +79,18 @@ def make_server(atlas, port, host="127.0.0.1", start=True):
     return httpd
 
 
+def slurm_here():
+    """Is this a Slurm host? `jobs.has_slurm()` (so `TUTOR_SLURM=1` says yes),
+    or `sbatch` on PATH whatever `TUTOR_SLURM` says: no board server runs on
+    the cluster, and an override meant for tests does not make one."""
+    return jobs.has_slurm() or shutil.which("sbatch") is not None
+
+
 def main(argv):
+    if slurm_here():
+        sys.stderr.write("serve.py: this is a Slurm host, and the board never runs "
+                         "on the cluster; the cluster's entry is board/bin/relay\n")
+        return 2
     atlas, port, host = parse(argv)
     httpd = make_server(atlas, port, host)
     threading.Thread(target=httpd.registry.sweep_loop, daemon=True).start()

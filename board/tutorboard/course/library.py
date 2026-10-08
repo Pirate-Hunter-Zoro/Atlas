@@ -668,7 +668,7 @@ def drawn_on(repo, doc, current, ink_now=None):
         refuse = ("Some of these marks were drawn on the %s build and some on "
                   "this one, so no one rendering is under all of them and a "
                   "marked copy cannot be made." % when_built(first["at"]))
-    elif not paper.cached(repo, digest):
+    elif not paper.cached(digest):
         refuse = ("The %s build these marks were drawn on is no longer in the "
                   "page cache, so a marked copy of it cannot be made."
                   % when_built(first["at"]))

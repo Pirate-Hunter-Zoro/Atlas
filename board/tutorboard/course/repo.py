@@ -248,7 +248,10 @@ class Repo:
         self.inbox = os.path.join(self.live, "inbox")
         self.uploads = (os.path.join(self.live, "uploads") if self.stored
                         else os.path.join(self.inbox, "uploads"))
-        self.tikz = os.path.join(self.live, "tikzcache")
+        # Compiled TikZ: one cache beside every stored session, keyed by the
+        # source and the subject's macros (`server/tikz.py`).
+        self.tikz = (os.path.join(os.path.dirname(self.session), ".tikz")
+                     if self.stored else os.path.join(self.live, "tikzcache"))
         self.archive = os.path.join(self.live, "archive")
         self.slate = os.path.join(self.live, "slate")
         # What the student actually handed in, frozen at the moment they sent

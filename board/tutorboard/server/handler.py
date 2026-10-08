@@ -19,6 +19,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
 from .. import paths, sessions, subjects
+from ..course import paper
 from .. import stamp as code_stamp
 from . import routes
 from .routes import (library, lesson, machines, pages, saving, taking,   # noqa: F401
@@ -59,6 +60,8 @@ UNPREFIXED = (
     ("GET", "/library/ledger/*", "library"),
     ("POST", "/library/ledger/*", "library"),
     ("POST", "/library/feedback", "library"),
+    # Rendered PDF pages: one cache for every session (`course/paper.py`).
+    ("GET", "/paper/*", "paper"),
 )
 
 
@@ -382,6 +385,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
         if how == "pages":
             return routes.pages.get(self, None, path)
+        if how == "paper":
+            target = paper.page_file(os.path.basename(path))
+            if not target:
+                return self.send_json({"ok": False, "error": "not found"}, status=404)
+            return self.send_file(target, cache=True)
         if how == "health":
             out = {"ok": True, "atlas": registry.atlas, "serving": registry.loaded()}
             if "code" in query:

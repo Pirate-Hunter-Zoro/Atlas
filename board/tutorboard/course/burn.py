@@ -579,9 +579,8 @@ def _ignored(root, path):
 def marked_dir(repo, ident):
     """`(directory, None)` for one document's marked copies, or `(None, why)`.
 
-    `live/marked/<id>/`, and the directory carries its own ignore rule the way
-    the page cache does (`paper.cache_dir`): a workspace whose `.gitignore`
-    does not cover `live/` still does not commit a marked copy on the way out
+    `live/marked/<id>/`, and the directory carries its own ignore rule: a
+    workspace whose `.gitignore` does not cover `live/` still does not commit a marked copy on the way out
     of a lesson. It is then ASKED of git rather than assumed, because a copy
     of fenced content that a commit could carry is the one outcome here that
     cannot be taken back.
@@ -697,8 +696,7 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
     work = None
     try:
         if drawn["digest"] != current:
-            files = [os.path.join(paper.cache_dir(repo), f)
-                     for f in paper.cached(repo, drawn["digest"])]
+            files = [paper.page_file(f) for f in paper.cached(drawn["digest"])]
             built, stop = _pages_from_cache(files, marks)
         else:
             env = paper.raster_env()

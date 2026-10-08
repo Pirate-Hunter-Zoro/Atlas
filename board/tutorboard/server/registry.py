@@ -136,6 +136,7 @@ class Registry(object):
         none = os.path.join(sessions.store(self.atlas), ".none")
         repo = course_repo.Repo(found["root"], session=none, create=False)
         repo.doc_ink = os.path.join(repo.root, ".ink")
+        repo.tikz = os.path.join(sessions.store(self.atlas), ".tikz")
         return repo
 
 

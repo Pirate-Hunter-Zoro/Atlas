@@ -139,16 +139,20 @@ def get(h, repo, path):
         name = os.path.basename(urls[page - 1])
         # Not cached hard: the name is stable and what is behind it is not, so
         # a rebuilt deck has to be able to change what this returns.
-        return h.send_file(os.path.join(paper.cache_dir(repo), name))
+        target = paper.page_file(name)
+        if not target:
+            return h.send_bytes(b"not found", "text/plain", status=404)
+        return h.send_file(target)
 
     if path.startswith("/paper/"):
         name = os.path.basename(path[len("/paper/"):])
         # Content-addressed by construction -- the digest in the name carries
         # the PDF's modification time -- so it can be cached hard, and a
         # rebuilt document is a different name rather than a stale picture.
-        if not re.match(r"^[0-9a-f]{6,}-\d+\.png$", name):
+        target = paper.page_file(name)
+        if not target:
             return h.send_bytes(b"not found", "text/plain", status=404)
-        return h.send_file(os.path.join(paper.cache_dir(repo), name), cache=True)
+        return h.send_file(target, cache=True)
 
     return NOT_MINE
 

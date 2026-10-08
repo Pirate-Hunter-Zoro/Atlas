@@ -8,7 +8,6 @@ It used to be "the instant its file exists", and the difference cost an evening.
 See `has_body`.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -16,6 +15,7 @@ import time
 
 from .. import reasoning
 from ..course import results
+from ..server import tikz
 
 
 POLL_SECONDS = 0.25
@@ -62,7 +62,7 @@ def extract_tikz(body, jobs, repo):
     def sub(match):
         kind = match.group(1)
         src = match.group(2)
-        digest = hashlib.sha1((kind + "\x00" + src).encode("utf-8")).hexdigest()[:16]
+        digest = tikz.digest(kind, src, repo.root)
         svg = os.path.join(repo.tikz, digest + ".svg")
         if os.path.exists(svg):
             status = "ready"

@@ -57,6 +57,14 @@ def port():
 TRASH = (os.environ.get("TUTORBOARD_TRASH")
          or os.path.join(HOME, ".local", "share", "tutor-board", "trash"))
 
+# PDF pages drawn to PNG, one `<digest>/` per document build, shared by every
+# session and subject (`course/paper.py`). A cache, outside the tree, so a
+# rendered page of a PHI document can never be committed. `TUTORBOARD_PAGES`
+# moves it; `test/run.py` gives each suite its own.
+PAGES = (os.environ.get("TUTORBOARD_PAGES")
+         or os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"),
+                         "tutor-board", "pages"))
+
 # What the hub watches in a session directory, relative to it (`live/` today).
 # Stat'd once a second; a change here reaches the board at once. Everything
 # else in the payload arrives on a route's dirty mark or the 30 s rebuild. A

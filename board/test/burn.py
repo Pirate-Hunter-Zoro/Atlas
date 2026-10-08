@@ -341,8 +341,8 @@ def library_section(tmp):
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
-        for f in paper.cached(lrepo, old_digest):
-            os.remove(os.path.join(paper.cache_dir(lrepo), f))
+        for f in paper.cached(old_digest):
+            os.remove(paper.page_file(f))
         status, view3 = js("/library/view/" + ident)
         flag = view3.get("rebuilt") or {}
         check("once that build is out of the cache the flag says a copy "

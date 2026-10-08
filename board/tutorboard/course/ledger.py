@@ -437,9 +437,9 @@ def _crop(repo, pdf, current, builds, item, where):
                     except OSError:
                         pass
     if image is None and drawn:
-        files = paper.cached(repo, drawn)
+        files = paper.cached(drawn)
         if 0 < page <= len(files):
-            src = os.path.join(paper.cache_dir(repo), files[page - 1])
+            src = paper.page_file(files[page - 1])
             pw, ph = _png_size(src)
             if pw and ph:
                 aspect = ph / float(pw)

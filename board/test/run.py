@@ -14,7 +14,7 @@ ai-config's own `scripts/test.sh` (the PHI policy's tests), which also runs
 with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
-environment unchanged. Suites in SERIAL never run beside each other.
+environment, plus a page cache of its own (TUTORBOARD_PAGES). Suites in SERIAL never run beside each other.
 
 Stdlib only.
 """
@@ -23,6 +23,7 @@ import argparse
 import os
 import shutil
 import subprocess
+import tempfile
 import sys
 import threading
 import time
@@ -157,9 +158,16 @@ def failure_lines(out):
 def run_one(suite):
     """Run one suite. Returns (status, seconds, summary, detail lines)."""
     start = time.time()
-    proc = subprocess.run(suite.argv, cwd=suite.cwd, stdin=subprocess.DEVNULL,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          universal_newlines=True, errors="replace")
+    # A page cache of its own: the real one is shared and pruned, and a suite
+    # pruning another's page set mid-read is a failure neither caused.
+    pages = tempfile.mkdtemp(prefix="suite-pages-")
+    try:
+        proc = subprocess.run(suite.argv, cwd=suite.cwd, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              universal_newlines=True, errors="replace",
+                              env=dict(os.environ, TUTORBOARD_PAGES=pages))
+    finally:
+        shutil.rmtree(pages, ignore_errors=True)
     secs = time.time() - start
     out = proc.stdout or ""
     lines = [l for l in out.split("\n") if l.strip()]

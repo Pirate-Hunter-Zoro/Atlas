@@ -45,7 +45,7 @@ import subprocess
 import threading
 import time
 
-from .. import tex
+from .. import paths, tex
 
 
 # The two documents. A KIND is what the client names; a path is never one.
@@ -67,10 +67,11 @@ PAGE_WIDTH = 1240
 # ends at page 40 is a document somebody hands to a professor.
 MAX_PAGES = 160
 
-# How many rendered page sets are kept. Both documents share the cache, and a
-# rebuilt write-up is a new set rather than an overwritten one, so this is
-# "the two documents and a couple of versions of each" and not a guess.
-CACHE_SETS = 4
+# How many rendered page sets are kept. Every session and subject shares the
+# cache, a rebuilt write-up is a new set rather than an overwritten one, and a
+# marked copy needs the build its ink was drawn on, so this is "every document
+# in recent use and a couple of versions of each", least recently opened first out.
+CACHE_SETS = 24
 
 
 def record(repo, kind):
@@ -236,31 +237,30 @@ def _digest(pdf_path, width):
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
 
-def cache_dir(repo):
-    """Where rendered pages live, and it ignores itself.
-
-    A course repository's own `.gitignore` is `live/*` with the transcript
-    allowlisted back in, so this is ignored there. But the README's minimum for
-    a course is "nothing at all" -- make a directory, run `board start` -- and in
-    one of those, `git add -A` on the way out of a lesson would commit a few
-    megabytes of rendered page images and push them. So the directory carries
-    the rule itself, which holds whatever the repository around it says.
-    """
-    d = os.path.join(repo.live, "paper")
+def cache_dir():
+    """The page cache every session and subject shares: `paths.PAGES`, one
+    `<digest>/` directory per document build. Outside the tree, so nothing
+    rendered here can be committed, whatever the subject's `.gitignore` says."""
+    d = paths.PAGES
     os.makedirs(d, exist_ok=True)
-    guard = os.path.join(d, ".gitignore")
-    if not os.path.exists(guard):
-        try:
-            with open(guard, "w", encoding="utf-8") as fh:
-                fh.write("# rendered pages: a cache of the PDFs beside them\n*\n")
-        except OSError:
-            pass
     return d
 
 
-def cached(repo, digest):
+PAGE_NAME = re.compile(r"^([0-9a-f]{6,})-\d+\.png$")
+
+
+def page_file(name):
+    """The file behind a page name `<digest>-<n>.png` (what `/paper/` is
+    asked for and `cached` returns), or None for any other name."""
+    m = PAGE_NAME.match(name or "")
+    if not m:
+        return None
+    return os.path.join(cache_dir(), m.group(1), name)
+
+
+def cached(digest):
     """The pages already rendered for this digest, in page order."""
-    found = sorted(glob.glob(os.path.join(cache_dir(repo), digest + "-*.png")),
+    found = sorted(glob.glob(os.path.join(cache_dir(), digest, digest + "-*.png")),
                    key=_page_number)
     return [os.path.basename(p) for p in found]
 
@@ -297,8 +297,9 @@ def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
     width = max(400, min(2200, int(width or PAGE_WIDTH)))
     kind = tag
     digest = _digest(target, width)
-    have = cached(repo, digest)
+    have = cached(digest)
     if have:
+        _touch(digest)
         return _manifest(kind, filename, digest, have, target)
 
     # One render per document at a time. A double-tap on `read it` is two
@@ -306,10 +307,10 @@ def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
     # same page files is a document read while it is being written under the
     # reader. The second caller comes out of the cache the first one filled.
     with _lock_for(digest):
-        have = cached(repo, digest)
+        have = cached(digest)
         if have:
             return _manifest(kind, filename, digest, have, target)
-        return _draw(repo, kind, target, filename, digest, width)
+        return _draw(kind, target, filename, digest, width)
 
 
 _LOCKS = {}
@@ -325,7 +326,7 @@ def _lock_for(digest):
         return _LOCKS.setdefault(digest, threading.Lock())
 
 
-def _draw(repo, kind, target, filename, digest, width):
+def _draw(kind, target, filename, digest, width):
     env = raster_env()
     tool = renderer(env)
     if not tool:
@@ -335,7 +336,9 @@ def _draw(repo, kind, target, filename, digest, width):
                            "cannot be drawn here. The document itself is fine: "
                            "save a copy and read it in Files.")}
 
-    prefix = os.path.join(cache_dir(repo), digest)
+    where = os.path.join(cache_dir(), digest)
+    os.makedirs(where, exist_ok=True)
+    prefix = os.path.join(where, digest)
     try:
         code, out = _render(tool, target, prefix, width, env)
     except subprocess.TimeoutExpired:
@@ -343,23 +346,23 @@ def _draw(repo, kind, target, filename, digest, width):
         # handler as a 500: the board would then paint "the board did not
         # answer", which points the reader at the network for a fault that is a
         # document too large to draw.
-        _sweep(repo, digest)
+        _sweep(digest)
         return {"ok": False, "why": "failed", "name": filename,
                 "detail": ("%s took longer than five minutes on this document "
                            "and was stopped. Save a copy and read it in Files."
                            % tool[0])}
     except OSError as exc:
         code, out = 1, str(exc)
-    made = cached(repo, digest)
+    made = cached(digest)
     if not made:
         # Leave nothing half-written behind: a partial set would be served as
         # the whole document on the next open, and a document silently missing
         # its last four pages is the worst of the failures available here.
-        _sweep(repo, digest)
+        _sweep(digest)
         return {"ok": False, "why": "failed", "name": filename,
                 "detail": ("%s could not draw the pages (exit %d). %s"
                            % (tool[0], code, out[-400:] or "it printed nothing.")).strip()}
-    _prune(repo, digest)
+    _prune(digest)
     return _manifest(kind, filename, digest, made, target)
 
 
@@ -396,36 +399,36 @@ def _render(tool, pdf_path, prefix, width, env):
     return p.returncode, p.stdout.decode("utf-8", "replace").strip()
 
 
-def _sweep(repo, digest):
-    for f in glob.glob(os.path.join(cache_dir(repo), digest + "-*.png")):
-        try:
-            os.remove(f)
-        except OSError:
-            pass
+def _touch(digest):
+    """An opened set is a recently used one, so `_prune` keeps it."""
+    try:
+        os.utime(os.path.join(cache_dir(), digest))
+    except OSError:
+        pass
 
 
-def _prune(repo, keep):
+def _sweep(digest):
+    shutil.rmtree(os.path.join(cache_dir(), digest), ignore_errors=True)
+
+
+def _prune(keep):
     """Old page sets go. A cache that only grows is a disk that fills up.
 
-    By digest rather than by age, and several are kept: the two documents share
-    this directory, so "delete everything that is not the set I just made"
-    throws away the other one every time somebody looks at both.
+    By digest rather than by age, and several are kept: every session and
+    subject shares this directory, so "delete everything that is not the set
+    I just made" throws away the document beside it every time.
     """
-    groups = {}
-    for f in glob.glob(os.path.join(cache_dir(repo), "*.png")):
-        m = re.match(r"^([0-9a-f]{6,})-\d+\.png$", os.path.basename(f))
-        if not m:
+    base = cache_dir()
+    sets = []
+    for name in os.listdir(base):
+        where = os.path.join(base, name)
+        if name == keep or not re.match(r"^[0-9a-f]{6,}$", name) \
+                or not os.path.isdir(where):
             continue
         try:
-            groups.setdefault(m.group(1), []).append((os.path.getmtime(f), f))
+            sets.append((os.path.getmtime(where), where))
         except OSError:
             pass
-    newest = sorted(groups, key=lambda d: max(t for t, _ in groups[d]), reverse=True)
-    for digest in newest[CACHE_SETS:]:
-        if digest == keep:
-            continue
-        for _at, f in groups[digest]:
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+    sets.sort(reverse=True)
+    for _at, where in sets[CACHE_SETS - 1:]:
+        shutil.rmtree(where, ignore_errors=True)

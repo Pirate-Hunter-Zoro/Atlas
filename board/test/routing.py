@@ -70,10 +70,14 @@ for n, who in enumerate(("A", "B")):
     with open(os.path.join(DIR[who], "cards", "0001-start.md"), "w", encoding="utf-8") as fh:
         fh.write("---\ntitle: start\n---\n\nThe card of %s.\n" % MARK[who])
     for sub, name in (("answers", "own.png"), ("uploads", "own.png"),
-                      ("slate", "page-01.png"), ("tikzcache", "abc123.svg")):
+                      ("slate", "page-01.png")):
         os.makedirs(os.path.join(DIR[who], sub), exist_ok=True)
         with open(os.path.join(DIR[who], sub, name), "w", encoding="utf-8") as fh:
             fh.write(MARK[who])
+# Compiled TikZ is one cache beside the sessions, keyed by source and macros.
+os.makedirs(os.path.join(atlas, "sessions", ".tikz"), exist_ok=True)
+with open(os.path.join(atlas, "sessions", ".tikz", "abc123.svg"), "w", encoding="utf-8") as fh:
+    fh.write("<svg>shared figure</svg>")
 OTHER = {"A": "B", "B": "A"}
 
 httpd = app.make_server(atlas, 0)
