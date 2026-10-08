@@ -470,7 +470,7 @@ def uncommitted(root, paths=None):
         # to the directory it was run in -- so in a repository holding several
         # workspaces every name comes back with the workspace's own directory
         # on the front of it. A turn in PSYCH-ASR told about
-        # `research/PSYCH-ASR/notes/ch04.md` has to strip a prefix to find a
+        # `projects/PSYCH-ASR/notes/ch04.md` has to strip a prefix to find a
         # file that is right there beside it.
         top = root
         tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],

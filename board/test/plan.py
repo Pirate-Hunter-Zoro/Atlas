@@ -102,8 +102,8 @@ THE FALSIFICATION HALF
 home = os.path.realpath(tempfile.mkdtemp(prefix="tutor-plan-home-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 real_home = os.environ.get("HOME")
 real_courses = os.environ.get("TUTORBOARD_COURSES")
-proj = os.path.join(home, "research", "PSYCH-ASR")
-hub = os.path.join(home, "research", "Research-Journey")
+proj = os.path.join(home, "projects", "PSYCH-ASR")
+hub = os.path.join(home, "projects", "Research-Journey")
 book = os.path.join(home, "courses", "Galois-Theory")
 try:
     write(os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt"), TODO)
@@ -119,15 +119,15 @@ try:
     write(os.path.join(proj, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
 
-This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+This project's live task list is `~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
 
 A conceptual walkthrough of Stage 1 lives at
-`~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`.
+`~/projects/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`.
 Everything after that deck has its own: `stage2_reference_walkthrough.pdf`, in
 the same directory, is the sequel.
 
 The E-value is discussed in
-`~/research/Research-Journey/paper2-counterfactual/references/11_VanderWeeleDing2017_Evalue.pdf`.
+`~/projects/Research-Journey/paper2-counterfactual/references/11_VanderWeeleDing2017_Evalue.pdf`.
 
 Do not read %s.
 """ % os.path.join(outside, "SECRET_TODO.md"))
@@ -145,7 +145,7 @@ Do not read %s.
 
     # --- where the plan is ---------------------------------------------------
     check("a plan in a hub beside the repository is found from the README",
-          plan.where(proj) == "~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt")
+          plan.where(proj) == "~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt")
 
     steps = plan.steps(proj)
     check("and its steps are read, in the plan's own order",
@@ -171,7 +171,7 @@ Do not read %s.
     # another, spelled the way somebody writes it in a file that lives two
     # levels down.
     check("but a plan in another workspace, named relatively, is reached",
-          plan._resolve(proj, "../../research/Research-Journey/planning/PSYCH-ASR_TODO.txt")
+          plan._resolve(proj, "../../projects/Research-Journey/planning/PSYCH-ASR_TODO.txt")
           == os.path.realpath(os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt")))
 
     # --- a README names its dependencies' plans too, and a hub owns none -----
@@ -182,7 +182,7 @@ Do not read %s.
     write(os.path.join(hub, "planning", "LOCAL-LLM_TODO.txt"),
           "STEP 1. WEB ACCESS FOR THE CODING AGENT.\n  Not this project's step.\n")
     write(os.path.join(proj, "README.md"), open(os.path.join(proj, "README.md")).read()
-          + "\nIt depends on `~/research/Research-Journey/planning/LOCAL-LLM_TODO.txt`.\n")
+          + "\nIt depends on `~/projects/Research-Journey/planning/LOCAL-LLM_TODO.txt`.\n")
     plan._cache.clear()
     check("a plan named after this repository is its own, and the rest are mentions",
           plan.paths(proj) == [os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt")])
@@ -216,7 +216,7 @@ A multi-project narrative hub. The live task lists are
     write(os.path.join(hub, "planning", "TRD-EHR_TODO.txt"), BOTH)
     write(os.path.join(proj, "tutorboard.json"),
           json.dumps({"name": "TRD-EHR",
-                      "plan": "~/research/Research-Journey/planning/TRD-EHR_TODO.txt"}))
+                      "plan": "~/projects/Research-Journey/planning/TRD-EHR_TODO.txt"}))
     plan._cache.clear()
     both = plan.steps(proj)
     check("a plan's numbered steps and its checklist items are all read",
@@ -295,7 +295,7 @@ A multi-project narrative hub. The live task lists are
 
     # --- THE FENCE, WHICH IS NOT A DEPTH AND NOT A SIZE FLOOR ---------------
     #
-    # `research/PSYCH-ASR/phi/` is session content: the recordings, the turn
+    # `projects/PSYCH-ASR/phi/` is session content: the recordings, the turn
     # tables, the joined transcripts. A PDF under it offered in the drawer is
     # rendered to PNGs and its address written into a tutor's prompt, so the
     # drawer refuses it by name. `tutorboard/fenced.py` is the one list.
@@ -306,8 +306,8 @@ A multi-project narrative hub. The live task lists are
     pdf(os.path.join(fence, "Audio Transcription.pdf"))
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
 
-This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
-A walkthrough is at `~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
+This project's live task list is `~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+A walkthrough is at `~/projects/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
 and `stage2_reference_walkthrough.pdf` is in the same directory.
 
 The session content is under `phi/stage1/Audio Transcription.pdf`.
@@ -385,8 +385,8 @@ The session content is under `phi/stage1/Audio Transcription.pdf`.
     # --- what the tutor is told ---------------------------------------------
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
 
-This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
-A walkthrough is at `~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
+This project's live task list is `~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+A walkthrough is at `~/projects/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
 and `stage2_reference_walkthrough.pdf` is in the same directory.
 """)
     plan._cache.clear()
@@ -394,7 +394,7 @@ and `stage2_reference_walkthrough.pdf` is in the same directory.
 
     line = sense.where_sense(None, proj)
     check("a project's tutor is told where the plan is, by name",
-          "~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt" in line)
+          "~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt" in line)
     # The round trips this removes: a 1,500-line README, a pointer out of it,
     # and a 1,300-line task list, paid for on every cold turn.
     check("and handed the steps rather than sent to find them",

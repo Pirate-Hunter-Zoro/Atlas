@@ -6,7 +6,7 @@ thing between a commit and a public remote is a machine check, and there was
 none.
 
 WHAT IS ACTUALLY AT RISK, and it is one step past what git already guards.
-`research/PSYCH-ASR/.gitignore` keeps the fenced directory out of the index and
+`projects/PSYCH-ASR/.gitignore` keeps the fenced directory out of the index and
 `test/tracked.py` audits every tracked file, so **a diff cannot contain a phi
 FILE**. A diff can contain phi CONTENT: a test fixture cut out of a transcript,
 a hard-coded example, a docstring quoting a span — written by the one assistant
@@ -203,6 +203,25 @@ def no_policy(guarded):
             "again."
             % (", ".join(os.path.basename(g) for g in guarded[:NAME_MOST]),
                "s" if len(guarded) == 1 else "", POLICY))
+
+
+def probe(rel, base=None):
+    """`(policy, fence)` for one repository-relative path; `phi-probe.sh`'s question.
+
+    `policy`: does the policy `refused` loads name the path -- True or False,
+    None when it will not load. `fence`: the fenced directory name that refuses
+    it inside its subject (`fenced.refused_in`, the subject being the path's
+    first two components; an absolute path is asked of the root), or None.
+    The path need not exist and nothing on disk is listed or read.
+    """
+    base = base or atlas.root() or ""
+    rel = str(rel or "").replace("\\", "/")
+    names_phi = policy(base)
+    said = bool(names_phi(rel)) if names_phi else None
+    if os.path.isabs(rel) or not rel:
+        return said, fenced.refused_in(base, rel or base)
+    subject = os.path.join(base, *rel.split("/")[:2])
+    return said, fenced.refused_in(subject, os.path.join(base, rel))
 
 
 def refused(root, paths, base=None):

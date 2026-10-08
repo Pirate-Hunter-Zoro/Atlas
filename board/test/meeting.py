@@ -124,9 +124,9 @@ TODO = """TRD -- REMAINING WORK
 """
 
 try:
-    trd = os.path.join(base, "research", "TRD")
-    psy = os.path.join(base, "research", "PSY")
-    psy2 = os.path.join(base, "research", "PSY2")
+    trd = os.path.join(base, "projects", "TRD")
+    psy = os.path.join(base, "projects", "PSY")
+    psy2 = os.path.join(base, "projects", "PSY2")
     prob = os.path.join(base, "courses", "Prob")
     for r, name in ((trd, "TRD-EHR"), (psy, "PSYCH-ASR"), (psy2, "OTHER-ASR"),
                     (prob, "Probability")):
@@ -196,7 +196,7 @@ try:
 
     ids = set(w["id"] for w in atlas.workspaces(base))
     check("the fixture has four workspaces",
-          ids == {"research/TRD", "research/PSY", "research/PSY2", "courses/Prob"})
+          ids == {"projects/TRD", "projects/PSY", "projects/PSY2", "courses/Prob"})
 
     # --- when --------------------------------------------------------------
     since, said = meeting.resolve_since("7d", base)
@@ -216,10 +216,10 @@ try:
 
     # --- whose a commit is --------------------------------------------------
     blocks, every, why = meeting.blocks_for(
-        base, ["research/TRD", "research/PSY"], since)
+        base, ["projects/TRD", "projects/PSY"], since)
     by = dict((b["id"], b) for b in blocks)
-    check("both projects moved", set(by) == {"research/TRD", "research/PSY"})
-    t = by["research/TRD"]
+    check("both projects moved", set(by) == {"projects/TRD", "projects/PSY"})
+    t = by["projects/TRD"]
     subjects = [c["subject"] for c in t["commits"]]
     check("TRD's own four commits are its commits",
           len(t["commits"]) == 4
@@ -240,7 +240,7 @@ try:
           any("OTHER-DIFF-MARKER" in s["diff"] for s in t["saves"]))
     check("the handoff's diff over the whole period is carried",
           "OTHER-DIFF-MARKER" in t["story"].get("HANDOFF.md", ""))
-    p = by["research/PSY"]
+    p = by["projects/PSY"]
     check("the direction change five minutes before the cliff is in the week",
           [c["subject"] for c in p["commits"]] == ["psy direction change"]
           and "master reference transcript" in p["story"].get("DIRECTION.md", ""))
@@ -252,11 +252,11 @@ try:
     check("and a step nothing did is not", fresh and not fresh[0]["maybe"])
 
     host, clash = meeting.host_for(blocks)
-    check("the fenced project hosts the deck", host == "research/PSY" and not clash)
-    two, _, _ = meeting.blocks_for(base, ["research/PSY", "research/PSY2"], since)
+    check("the fenced project hosts the deck", host == "projects/PSY" and not clash)
+    two, _, _ = meeting.blocks_for(base, ["projects/PSY", "projects/PSY2"], since)
     check("two fenced projects in one deck are refused, by name",
-          "research/PSY" in (meeting.host_for(two)[1] or "")
-          and "research/PSY2" in meeting.host_for(two)[1])
+          "projects/PSY" in (meeting.host_for(two)[1] or "")
+          and "projects/PSY2" in meeting.host_for(two)[1])
 
     # --- the brief, dry -----------------------------------------------------
     dry = meeting.write_brief(base, os.path.join(psy, "writeups", "meeting"),
@@ -432,26 +432,26 @@ try:
         status, body = post("/notes/what", {"since": "7d"})
         rows = dict((w["id"], w) for w in body.get("workspaces") or [])
         check("the sheet is told what each project has",
-              status == 200 and rows["research/TRD"]["commits"] == 4
-              and rows["research/TRD"]["moved"] and rows["research/PSY"]["fenced"])
+              status == 200 and rows["projects/TRD"]["commits"] == 4
+              and rows["projects/TRD"]["moved"] and rows["projects/PSY"]["fenced"])
 
         status, body = post("/notes", {"since": "7d",
-                                       "want": ["research/PSY", "research/PSY2"]})
+                                       "want": ["projects/PSY", "projects/PSY2"]})
         check("two fenced projects are refused by the route, and nothing is "
               "written", status == 400 and "PSY2" in (body.get("detail") or "")
               and not os.path.exists(deck_dir))
 
         # --- asked for --------------------------------------------------
         status, body = post("/notes", {"since": "7d",
-                                       "want": ["research/TRD", "research/PSY"]})
+                                       "want": ["projects/TRD", "projects/PSY"]})
         check("the deck is asked for, and is being written",
               status == 200 and body.get("ok") and body.get("state") == "being written")
         # Through `runner_route`: a session bound to the host, opened since
         # none was, and no tutor started over there.
         held = sessions.get(body.get("session") or "", base) or {}
         check("in the fenced project, whose assistant may read it",
-              body.get("host") == "research/PSY"
-              and held.get("subject") == "research/PSY"
+              body.get("host") == "projects/PSY"
+              and held.get("subject") == "projects/PSY"
               and not [a for a in started if a[:2] == ["agent", "start"]])
         wid = body.get("id")
         brief = open(os.path.join(deck_dir, "_brief.md"), encoding="utf-8").read()
@@ -493,12 +493,12 @@ try:
         good = deck_tex([
             frame("", "*", "\\titlepage"),
             frame("Summary", "*", "TRD-EHR: retrieval reaches 0.602 at k = 50."),
-            frame("The gap is neighbourhood size", "research/TRD",
+            frame("The gap is neighbourhood size", "projects/TRD",
                   "AUC 0.602 (0.587--0.619) against 0.594.\\par"
                   "\\includegraphics[width=0.5\\linewidth]{%s}" % fig),
-            frame("Two arms", "research/TRD",
+            frame("Two arms", "projects/TRD",
                   "The weighted arm reaches 0.713 in a subgroup."),
-            frame("A new direction", "research/PSY",
+            frame("A new direction", "projects/PSY",
                   "The reference transcript is built and awaits approval."),
             frame("Asks", "*", "Approve the reference."),
         ])
@@ -517,8 +517,8 @@ try:
                   body.get("state") == "ready" and body.get("built"))
             check("the page map comes off the compiled PDF: a two-frame project "
                   "has both of its pages",
-                  body.get("pages") == {"3": "research/TRD", "4": "research/TRD",
-                                        "5": "research/PSY"})
+                  body.get("pages") == {"3": "projects/TRD", "4": "projects/TRD",
+                                        "5": "projects/PSY"})
             check("the title, summary and closing pages belong to nobody",
                   not any(k in body["pages"] for k in ("1", "2", "6")))
             check("and the host's writeup record says it landed",
@@ -547,7 +547,7 @@ try:
             if body.get("ok"):
                 check("the reader draws every page, with whose each is",
                       len(body.get("pages") or []) == 6
-                      and body.get("pages_of", {}).get("4") == "research/TRD")
+                      and body.get("pages_of", {}).get("4") == "projects/TRD")
                 check("and is handed the sidecar to show",
                       any(n["value"] == "0.713"
                           for n in body["unsupported"]["numbers"]))
@@ -612,12 +612,12 @@ try:
             sent = body.get("sent") or []
             check("ink on both of a project's pages is routed to that project",
                   status == 200 and [s["workspace"] for s in sent]
-                  == ["research/TRD"] and sent[0]["pages"] == [3, 4])
-            said = open(sessions.repo(registry.newest_open(base, "research/TRD"),
+                  == ["projects/TRD"] and sent[0]["pages"] == [3, 4])
+            said = open(sessions.repo(registry.newest_open(base, "projects/TRD"),
                                       base).messages_path, encoding="utf-8").read()
             check("as a proposal, pointing at the deck where it is",
                   "[direction]" in said and "YOU ARE PROPOSING" in said
-                  and "research/PSY/writeups/meeting/meeting.pdf" in said)
+                  and "projects/PSY/writeups/meeting/meeting.pdf" in said)
             feedback = [n for h, _, ns in os.walk(base)
                         if os.path.basename(h) == "feedback" for n in ns]
             check("no feedback file is written anywhere", not feedback)
@@ -631,13 +631,13 @@ try:
             # --- a frame with no \meetingws refuses the deck ----------------
             ink(4)
             status, body = post("/notes", {"since": "7d",
-                                           "want": ["research/TRD", "research/PSY"]})
+                                           "want": ["projects/TRD", "projects/PSY"]})
             check("asking again replaces the deck and clears its ink",
                   status == 200 and not meeting.ink_keys(serving)
                   and not os.path.isfile(os.path.join(deck_dir, "meeting.pdf")))
             bad = deck_tex([
                 frame("", "*", "\\titlepage"),
-                frame("Findings", "research/TRD", "0.602"),
+                frame("Findings", "projects/TRD", "0.602"),
                 frame("Unmarked", "", "0.602"),
                 frame("Asks", "*", "Approve."),
             ])
@@ -650,10 +650,10 @@ try:
             check("and it is not offered to the reader", not body.get("ok"))
 
             # --- a tailnet URL refuses it; a copied heading is listed --------
-            post("/notes", {"since": "7d", "want": ["research/TRD", "research/PSY"]})
+            post("/notes", {"since": "7d", "want": ["projects/TRD", "projects/PSY"]})
             leak = deck_tex([
                 frame("", "*", "\\titlepage"),
-                frame("Findings", "research/TRD",
+                frame("Findings", "projects/TRD",
                       "INTEGRATE HIS SECTIONS\\par "
                       "\\url{http://compute-node.tail0c6c62.ts.net:8937}"),
             ], preamble="\\usepackage{url}\n")
@@ -668,12 +668,12 @@ try:
                       for x in prov["internal"]))
 
             # --- a link whose TARGET is the tailnet, under innocent words ----
-            post("/notes", {"since": "7d", "want": ["research/TRD", "research/PSY"]})
+            post("/notes", {"since": "7d", "want": ["projects/TRD", "projects/PSY"]})
             link = deck_tex([
                 frame("", "*", "\\titlepage"),
-                frame("Findings", "research/TRD",
+                frame("Findings", "projects/TRD",
                       "\\href{http://compute-node.tail0c6c62.ts.net:8937/"
-                      "\\#/w/research/TRD}{The findings}"),
+                      "\\#/w/projects/TRD}{The findings}"),
             ], preamble="\\usepackage{hyperref}\n")
             build(link)
             text = meeting.pdf_text(os.path.join(deck_dir, "meeting.pdf"))
@@ -686,7 +686,7 @@ try:
                   "provenance are not checked")
 
         # --- a turn that ended with nothing ---------------------------------
-        post("/notes", {"since": "7d", "want": ["research/TRD", "research/PSY"]})
+        post("/notes", {"since": "7d", "want": ["projects/TRD", "projects/PSY"]})
         turn["over"] = True
         was_quiet = meeting.QUIET
         meeting.QUIET = 0
@@ -704,7 +704,7 @@ try:
         shutil.rmtree(deck_dir)
         write(os.path.join(deck_dir, "meeting.tex"), "MINE\n")
         status, body = post("/notes", {"since": "7d",
-                                       "want": ["research/TRD", "research/PSY"]})
+                                       "want": ["projects/TRD", "projects/PSY"]})
         check("a writeups/meeting/ the board did not write refuses the ask, and "
               "is left as it was",
               status == 409 and "not a meeting deck" in (body.get("detail") or "")
@@ -717,7 +717,7 @@ try:
     # --- the command line, which is the second entry point ------------------
     got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
                           "notes", "--meeting", "--since", "7d", "--workspace",
-                          "research/TRD", "--print"], cwd=trd,
+                          "projects/TRD", "--print"], cwd=trd,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          env=dict(os.environ), timeout=120)
     out = got.stdout.decode("utf-8", "replace")
@@ -728,7 +728,7 @@ try:
     try:
         got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
                               "notes", "--meeting", "--since", "7d",
-                              "--workspace", "research/PSY", "--brief-to",
+                              "--workspace", "projects/PSY", "--brief-to",
                               os.path.join(outside, "b")], cwd=trd,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              env=dict(os.environ), timeout=120)
@@ -736,7 +736,7 @@ try:
               got.returncode != 0 and not os.listdir(outside))
         got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
                               "notes", "--meeting", "--since", "7d",
-                              "--workspace", "research/TRD", "--brief-to",
+                              "--workspace", "projects/TRD", "--brief-to",
                               os.path.join(outside, "b")], cwd=trd,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              env=dict(os.environ), timeout=120)

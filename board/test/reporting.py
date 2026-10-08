@@ -63,8 +63,8 @@ try:
     # A repository holding two workspaces, so the listing is shown to be about
     # this one.
     git(base, "init", "-q")
-    ws = os.path.join(base, "research", "W")
-    other = os.path.join(base, "research", "V")
+    ws = os.path.join(base, "projects", "W")
+    other = os.path.join(base, "projects", "V")
     for d in (ws, other):
         os.makedirs(os.path.join(d, "live", "cards"))
         with open(os.path.join(d, "tutorboard.json"), "w") as fh:

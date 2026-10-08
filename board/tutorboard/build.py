@@ -35,7 +35,7 @@ from . import paths, tex
 # ---------------------------------------------------------------------------
 
 # A subject is a directory directly under one of these.
-SUBJECT_PARENTS = ("courses", "projects", "research", "practice")
+SUBJECT_PARENTS = ("courses", "projects")
 
 
 def repo_top(path):

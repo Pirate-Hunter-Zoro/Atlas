@@ -43,7 +43,9 @@ ARTIFACT_SUFFIXES = (".joblib", ".pkl", ".pickle", ".ckpt", ".pt", ".pth",
                      ".safetensors", ".gguf", ".h5", ".parquet")
 
 # The subject directories. A subject is a directory directly under one of
-# these; `research` and `practice` remain until they merge into `projects`.
+# these. `research` and `practice` are the legacy parents merged into
+# `projects`: a machine that has not moved its residue still holds phi/ and
+# results/ there, so held-directory discovery keeps walking them.
 SUBJECT_KINDS = ("courses", "projects", "research", "practice")
 
 # Directories that may sit inside a subject on disk and that git must never

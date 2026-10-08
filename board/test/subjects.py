@@ -46,7 +46,7 @@ check("root() is the parent of board/",
 check("there is no atlas.json, and the families come from code",
       not os.path.exists(os.path.join(subjects.root(), "atlas.json"))
       and [f["id"] for f in atlas.FAMILIES]
-      == ["courses", "research", "projects", "practice", "board", "vendor"])
+      == ["courses", "projects", "board", "vendor"])
 from tutorboard import relay                                  # noqa: E402
 _spaces = [ws for _, ws in relay.spaces(subjects.root())]
 check("relay.spaces holds every subject, both courses included",
@@ -57,11 +57,14 @@ tmp = os.path.realpath(tempfile.mkdtemp(prefix="subjects-"))
 try:
     topo = mk(tmp, "courses/Topology", {"name": "Algebraic Topology"})
     mk(tmp, "courses/.trash")
-    psych = mk(tmp, "research/PSYCH-ASR", {"name": "PSYCH-ASR", "phi": True})
+    psych = mk(tmp, "projects/PSYCH-ASR", {"name": "PSYCH-ASR", "phi": True})
     mk(tmp, "projects/X")
     mk(tmp, "projects/libr-local-llm", {"name": "libr-local-llm"})
     mk(tmp, "projects/Paper-Writer", {"name": "Paper-Writer"})
-    mk(tmp, "practice/Algo-Solutions")
+    mk(tmp, "projects/Algo-Solutions")
+    # Residue left at the legacy parents on a machine that has not moved it.
+    mk(tmp, "research/Leftover", {"name": "Leftover"})
+    mk(tmp, "practice/Stale")
     mk(tmp, "vendor/colibri")
     with open(os.path.join(tmp, "projects", "notes.txt"), "w") as fh:
         fh.write("not a subject\n")
@@ -74,22 +77,25 @@ try:
     got = subjects.all()
     ids = [s["id"] for s in got]
     check("all() lists every non-dot directory under the subject parents",
-          ids == ["courses/Topology", "research/PSYCH-ASR",
-                  "projects/Paper-Writer", "projects/X",
-                  "projects/libr-local-llm", "practice/Algo-Solutions"])
+          ids == ["courses/Topology", "projects/Algo-Solutions",
+                  "projects/PSYCH-ASR", "projects/Paper-Writer", "projects/X",
+                  "projects/libr-local-llm"])
+    check("research/ and practice/ hold no subject: they merged into projects/",
+          not any(i.startswith(("research/", "practice/")) for i in ids)
+          and subjects.kind_of(os.path.join(tmp, "research", "Leftover")) == "")
     check("an empty projects/X is a subject, with no marker", "projects/X" in ids)
     check("each record is {id, kind, slug, name, root}",
           all(sorted(s) == ["id", "kind", "name", "root", "slug"] for s in got))
     kinds = dict((s["id"], s["kind"]) for s in got)
-    check("courses/ holds courses; projects/, research/ and practice/ projects",
+    check("courses/ holds courses; projects/ projects",
           kinds["courses/Topology"] == "course"
           and kinds["projects/X"] == "project"
-          and kinds["research/PSYCH-ASR"] == "project"
-          and kinds["practice/Algo-Solutions"] == "project")
+          and kinds["projects/PSYCH-ASR"] == "project"
+          and kinds["projects/Algo-Solutions"] == "project")
     names = dict((s["id"], s["name"]) for s in got)
     check("name comes from tutorboard.json, else the slug",
           names["courses/Topology"] == "Algebraic Topology"
-          and names["practice/Algo-Solutions"] == "Algo Solutions")
+          and names["projects/Algo-Solutions"] == "Algo Solutions")
     check("vendor/ and dot directories are not subjects",
           not any("colibri" in i or ".trash" in i for i in ids))
 
@@ -109,15 +115,18 @@ try:
           and subjects.kind_of(os.path.join(tmp, "courses")) == ""
           and subjects.kind_of("/") == "")
 
-    # The fallback: research/PSYCH-ASR moves to projects/PSYCH-ASR.
-    moved = os.path.join(tmp, "projects", "PSYCH-ASR")
-    shutil.move(psych, moved)
+    # The fallback: an id under a legacy parent finds the merged subject.
     hit = subjects.find("research/PSYCH-ASR")
-    check("a moved qualified id resolves the new subject by its slug",
+    check("a legacy qualified id resolves the merged subject by its slug",
           hit is not None and hit["id"] == "projects/PSYCH-ASR"
-          and hit["root"] == moved)
+          and hit["root"] == psych
+          and (subjects.find("practice/Algo-Solutions") or {}).get("id")
+          == "projects/Algo-Solutions")
     check("and through the atlas shim too",
           (atlas.find("research/PSYCH-ASR") or {}).get("id") == "projects/PSYCH-ASR")
+    check("but residue under a legacy parent is never a subject",
+          subjects.find("research/Leftover") is None
+          and subjects.find("Leftover") is None)
     check("the fallback is only for a qualified id, not a stray path",
           subjects.find(os.path.join(tmp, "elsewhere", "PSYCH-ASR")) is None
           and subjects.find("vendor/PSYCH-ASR") is None)
@@ -199,7 +208,7 @@ try:
                               universal_newlines=True)
     git("init", "-q")
     git("commit", "-q", "--allow-empty", "-m", "fixture")
-    mk(gen, "research/Old")
+    mk(gen, "projects/Old")
     os.environ.update({k: env[k] for k in env if k.startswith("GIT_")})
     check("slugify keeps case and makes one dash of every other run",
           subjects.slugify("Algebraic  Topology: I") == "Algebraic-Topology-I"
@@ -218,7 +227,7 @@ try:
           "patient data" in refused("projects/P"))
     check("a course is never phi true", bool(refused("courses/C", phi=True)))
     check("and none of the refusals made a directory or a commit",
-          sorted(os.listdir(gen)) == [".git", "research"]
+          sorted(os.listdir(gen)) == [".git", "projects"]
           and git("rev-list", "--count", "HEAD").stdout.strip() == "1")
     rec, ok, said = subjects.create("courses/Point Set Topology", base=gen)
     check("create makes the slug's directory and returns its record",

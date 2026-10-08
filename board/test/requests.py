@@ -339,7 +339,7 @@ try:
     git(top, "init", "-q", "-b", "main")
     git(top, "config", "user.email", "t@example.com")
     git(top, "config", "user.name", "t")
-    proj = os.path.join(top, "research", "Proj")
+    proj = os.path.join(top, "projects", "Proj")
     write(os.path.join(proj, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(proj, ".gitignore"), "live/\nresults/\n")
     write(os.path.join(proj, "slurm", "sweep.sbatch"),
@@ -396,14 +396,14 @@ try:
           and not os.path.isdir(os.path.join(proj, "relay"))
           and git(top, "rev-parse", "HEAD").strip() == head)
     write(os.path.join(proj, "scratch.py"), "x = 1\n")
-    git(top, "add", "research/Proj/scratch.py")
-    git(top, "checkout", "--", "research/Proj/notes.md")
+    git(top, "add", "projects/Proj/scratch.py")
+    git(top, "checkout", "--", "projects/Proj/notes.md")
     code, out = board("job", "--label", "knn", "--", "slurm/sweep.sbatch",
                       "EMBEDDER=bge-small")
     check("and so does a file staged there and not committed",
           code == 1 and "board push first" in out and "scratch.py" in out
           and not os.path.isdir(os.path.join(proj, "relay")))
-    git(top, "rm", "-q", "--cached", "research/Proj/scratch.py")
+    git(top, "rm", "-q", "--cached", "projects/Proj/scratch.py")
     os.remove(os.path.join(proj, "scratch.py"))
     code, out = board("job", "--label", "knn",
                       "--produces", "results/knn/best.json",
@@ -413,7 +413,7 @@ try:
     files = git(top, "show", "--name-only", "--format=", "HEAD").split()
     check("in one commit that touches relay/requests/ and nothing else",
           git(top, "rev-parse", "HEAD~1").strip() == head and len(files) == 1
-          and files[0].startswith("research/Proj/relay/requests/"))
+          and files[0].startswith("projects/Proj/relay/requests/"))
     check("and it reached origin",
           git(top, "rev-parse", "HEAD").strip()
           == git(origin, "rev-parse", "main").strip())
@@ -569,21 +569,21 @@ finally:
     shutil.rmtree(bare_base, ignore_errors=True)
 
 # --- the real repository -------------------------------------------------------------
-recipe = os.path.join(REPO, "research", "TRD-EHR", "slurm_jobs", "quick_runs",
+recipe = os.path.join(REPO, "projects", "TRD-EHR", "slurm_jobs", "quick_runs",
                       "neighbor_count_sweep.sbatch")
 with open(recipe, encoding="utf-8") as fh:
     names, said = jobs.declarations(fh.read())
 check("TRD-EHR's neighbour sweep declares EMBEDDER and REDRAW for the relay",
       said == [] and sorted(names) == ["EMBEDDER", "REDRAW"])
-with open(os.path.join(REPO, "research", "TRD-EHR", "slurm_jobs", "quick_runs",
+with open(os.path.join(REPO, "projects", "TRD-EHR", "slurm_jobs", "quick_runs",
                        "diagnose.sbatch"), encoding="utf-8") as fh:
     names, said = jobs.declarations(fh.read())
 check("TRD-EHR has a diagnostic recipe, declaring EMBEDDER, LOOK and MODULE",
       said == [] and sorted(names) == ["EMBEDDER", "LOOK", "MODULE"]
-      and jobs.diagnostics(os.path.join(REPO, "research", "TRD-EHR"))
+      and jobs.diagnostics(os.path.join(REPO, "projects", "TRD-EHR"))
       == [("slurm_jobs/quick_runs/diagnose.sbatch",
            ["EMBEDDER", "LOOK", "MODULE"])])
-for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
+for ws in ("projects/TRD-EHR", "projects/PSYCH-ASR", "projects/libr-local-llm"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):
         check("%s: git would see a request" % ws, jobs.request_visible(root) == "")

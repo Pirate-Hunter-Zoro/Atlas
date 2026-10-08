@@ -149,7 +149,7 @@ check("a check may be one shell command, which the brief prints as written",
 check("a check reaching outside the workspace is refused, in either form",
       all(config.clean_check(c)[0] is None for c in (
           "cd ../TRD-EHR && pytest", "cat $HOME/x",
-          {"all": ["go", "test", "../../research/x/..."]},
+          {"all": ["go", "test", "../../projects/x/..."]},
           {"all": ["uv", "run", "--directory=../x", "pytest"]},
           {"all": ["bash", "-c", "cd ../x && make"]},
           {"all": ["make", "-C", "/elsewhere"]})))
@@ -204,7 +204,7 @@ check("an id is a slug of the path's name",
       == "h-check-me")
 
 # --- the bounded output -----------------------------------------------------------
-base = "/srv/x/practice/Algo"
+base = "/srv/x/projects/Algo"
 text = ("\x1b[31m--- FAIL: TestCoinChange\x1b[0m\n"
         "    coinchange_test.go:9: ran in %s/leetcode/coinchange\n"
         "    coinchange_test.go:10: PATIENT-0042\n"
@@ -286,7 +286,7 @@ try:
     write(os.path.join(seed, ".gitignore"), "ai-config/\n")
     # A research workspace with NO fence directory, closed by `"phi": true`
     # -- TRD-EHR's shape.
-    ws = os.path.join(seed, "research", "Proj")
+    ws = os.path.join(seed, "projects", "Proj")
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(ws, "tutorboard.json"),
           json.dumps({"name": "Proj", "phi": True}))
@@ -298,7 +298,7 @@ try:
           "echo 'to stderr' >&2\nexit 0\n")
     write(threads.path(ws), json.dumps(SPINE))
     # A practice workspace with no thread file: LeetCode in Go.
-    algo = os.path.join(seed, "practice", "Algo")
+    algo = os.path.join(seed, "projects", "Algo")
     write(os.path.join(algo, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(algo, ".gitignore"), "live/\n")
     write(os.path.join(algo, "go.mod"), "module algo\n\ngo 1.24\n")
@@ -339,7 +339,7 @@ try:
         return top
 
     cl_top, mac_top = clone("cluster"), clone("mac")
-    cl, mac = (os.path.join(t, "research", "Proj") for t in (cl_top, mac_top))
+    cl, mac = (os.path.join(t, "projects", "Proj") for t in (cl_top, mac_top))
     on_cluster = dict(os.environ, TUTOR_SLURM="1", TUTORBOARD_COURSES=cl_top,
                       GOFLAGS="-count=1", GOTOOLCHAIN="local", GOPROXY="off")
     on_mac = dict(os.environ, TUTOR_SLURM="0", TUTORBOARD_COURSES=mac_top)
@@ -359,7 +359,7 @@ try:
     os.environ["TUTORBOARD_COURSES"] = cl_top
     atlas.forget()
     fenced.forget()
-    cl_algo = os.path.join(cl_top, "practice", "Algo")
+    cl_algo = os.path.join(cl_top, "projects", "Algo")
     cl_course = os.path.join(cl_top, "courses", "Course")
     cl_x = os.path.join(cl_top, "projects", "X")
     cl_y = os.path.join(cl_top, "projects", "Y")
@@ -386,7 +386,7 @@ try:
     check("a phi that is not literally false is closed: a string is not false",
           not holds.output_open(cl_algo, names_phi=lambda s: False)
           and config.read_config(cl_algo)["phi"] is None)
-    git(cl_top, "checkout", "--", "practice/Algo/tutorboard.json")
+    git(cl_top, "checkout", "--", "projects/Algo/tutorboard.json")
     check("a checkout without the lab's policy is closed",
           not holds.output_open(cl_algo, names_phi=False))
     os.makedirs(os.path.join(cl_algo, "phi"))
@@ -398,7 +398,7 @@ try:
     check("the repository's top, a family's directory and a directory inside "
           "a workspace are closed: none says \"phi\": false of its own",
           not holds.output_open(cl_top) and not holds.output_open(
-              os.path.join(cl_top, "research"))
+              os.path.join(cl_top, "projects"))
           and not holds.output_open(os.path.join(cl_algo, "leetcode")))
     write(os.path.join(cl_algo, "tutorboard.json"), json.dumps({"phi": True}))
     write(os.path.join(cl, "tutorboard.json"),
@@ -407,20 +407,20 @@ try:
           "HEAD closes", not holds.output_open(cl_algo)
           and not holds.output_open(cl, names_phi=lambda s: False)
           and holds._head_phi(cl) is True and holds._head_phi(cl_algo) is False)
-    git(cl_top, "checkout", "--", "practice/Algo/tutorboard.json",
-        "research/Proj/tutorboard.json")
+    git(cl_top, "checkout", "--", "projects/Algo/tutorboard.json",
+        "projects/Proj/tutorboard.json")
     shutil.rmtree(cl_y)
     git(cl_top, "checkout", "--", "projects/Y")
-    os.symlink("../../research/Proj/checks/aipw.sh",
+    os.symlink("../../projects/Proj/checks/aipw.sh",
                os.path.join(cl_algo, "leak.sh"))
-    git(cl_top, "add", "practice/Algo/leak.sh")
+    git(cl_top, "add", "projects/Algo/leak.sh")
     git(cl_top, "commit", "-q", "-m", "a symlink")
     check("a tracked symlink out of the workspace is not a script it may run",
           "leak.sh" not in holds._tracked(cl_algo)
           and "go.mod" in holds._tracked(cl_algo))
     git(cl_top, "reset", "-q", "--hard", "HEAD~1")
     code, out = board(cl_top, on_cluster, "hold", "--check",
-                      "research/Proj/checks/aipw.sh", "--", "research/Proj/src")
+                      "projects/Proj/checks/aipw.sh", "--", "projects/Proj/src")
     check("a hold from the repository's top, over another workspace, is "
           "refused", code == 1 and "not a workspace" in out)
 
@@ -446,17 +446,17 @@ try:
     check("and so is one outside the workspace",
           holds.resolve_target(cl_algo, ["--", "../Course"], {})[2])
 
-    # --- the fenced round trip: research/Proj, a thread, RELAY: only --------------
+    # --- the fenced round trip: projects/Proj, a thread, RELAY: only --------------
     code, out = board(mac, on_mac, "hold", "aipw")
     check("a hold is refused on the Mac", code == 1 and "no Slurm" in out)
     code, out = board(cl, on_cluster, "hold", "aipw")
     check("`board hold` on the cluster holds and pushes",
           code == 0 and "held at the cluster" in out
           and "RELAY: lines only" in out
-          and git(origin, "show", "main:research/Proj/relay/holds/aipw.json"))
+          and git(origin, "show", "main:projects/Proj/relay/holds/aipw.json"))
     files = git(cl_top, "show", "--name-only", "--format=", "HEAD").split()
     check("in one commit carrying the hold and nothing else",
-          files == ["research/Proj/relay/holds/aipw.json"])
+          files == ["projects/Proj/relay/holds/aipw.json"])
     code, out = board(cl, on_cluster, "hold", "aipw")
     check("a second hold on the same thread is refused",
           code == 1 and "already held" in out)
@@ -473,7 +473,7 @@ try:
           holds.refusal(mac, [os.path.join(mac, "notes.md")]) == ""
           and holds.refusal(mac).startswith("nothing was committed"))
     os.environ.pop("TUTOR_SLURM", None)
-    git(mac_top, "checkout", "--", "research/Proj/src/aipw/est.py")
+    git(mac_top, "checkout", "--", "projects/Proj/src/aipw/est.py")
 
     write(os.path.join(cl, "src", "aipw", "est.py"),
           "def est(y, a, x):\n    # the owner, mid-step\n    pass\n")
@@ -494,7 +494,7 @@ try:
     git(mac_top, "push", "-q")
     ok, said = holds.sync(cl_top)
     check("origin touching an edited held file stops the pull, naming it",
-          not ok and "research/Proj/src/aipw/est.py" in said)
+          not ok and "projects/Proj/src/aipw/est.py" in said)
     check("with nothing moved and the owner's edit intact",
           git(cl_top, "rev-parse", "HEAD") == head
           and "the owner, mid-step" in read(os.path.join(cl, "src", "aipw",
@@ -513,7 +513,7 @@ try:
     sender = subprocess.Popen(
         [sys.executable, BOARD, "send", "aipw", "--wait", "90"], cwd=cl,
         env=on_cluster, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    rel = "research/Proj/relay/reports/check-aipw-1.json"
+    rel = "projects/Proj/relay/reports/check-aipw-1.json"
     deadline = time.time() + 60
     while time.time() < deadline and not git(origin, "show", "main:" + rel):
         time.sleep(0.5)
@@ -554,7 +554,7 @@ try:
     check("`board coach` on the Mac commits the reply alone and pushes it",
           code == 0 and git(origin, "show", "--name-only", "--format=",
                             "main").split()
-          == ["research/Proj/relay/coach/aipw.md"])
+          == ["projects/Proj/relay/coach/aipw.md"])
     try:
         out = sender.communicate(timeout=120)[0].decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
@@ -568,15 +568,15 @@ try:
     code, out = board(cl, on_cluster, "release", "aipw")
     check("with the step sent, `board release` ends the hold and pushes it",
           code == 0 and not git(origin, "show",
-                                "main:research/Proj/relay/holds/aipw.json"))
+                                "main:projects/Proj/relay/holds/aipw.json"))
 
     # --- the open round trip: LeetCode in Go, no thread file -----------------------
-    mac_algo = os.path.join(mac_top, "practice", "Algo")
+    mac_algo = os.path.join(mac_top, "projects", "Algo")
     if not os.access(GO, os.X_OK):
         print("skip the Go round trip: no %s on this machine" % GO)
     else:
         code, out = board(cl_algo, on_cluster, "hold", "--", "leetcode/coinchange")
-        hrel = "practice/Algo/relay/holds/coinchange.json"
+        hrel = "projects/Algo/relay/holds/coinchange.json"
         held = json.loads(git(origin, "show", "main:" + hrel) or "{}")
         check("a directory is held in a workspace with no thread file",
               code == 0 and held.get("id") == "coinchange"
@@ -599,13 +599,13 @@ try:
               code == 1 and "leetcode/coinchange/coinchange.go belongs to the "
               "hold coinchange" in out)
         git(mac_top, "checkout", "--",
-            "practice/Algo/leetcode/coinchange/coinchange.go")
+            "projects/Algo/leetcode/coinchange/coinchange.go")
 
         # The owner's step: wrong, so the test fails and says how.
         write(os.path.join(cl_algo, "leetcode", "coinchange", "coinchange.go"),
               COIN.replace("return -1", "return amount"))
         code, out = board(cl_algo, on_cluster, "send", "--no-wait")
-        rel = "practice/Algo/relay/reports/check-coinchange-1.json"
+        rel = "projects/Algo/relay/reports/check-coinchange-1.json"
         rep = json.loads(git(origin, "show", "main:" + rel) or "{}")
         body = "\n".join(rep.get("output") or [])
         check("`board send` runs `go test` on the package and reports it failed",
@@ -687,13 +687,13 @@ finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
 # --- the real repository ------------------------------------------------------------
-for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm",
-           "practice/Algo-Solutions", "practice/Lean-Theorem-Proving",
+for ws in ("projects/TRD-EHR", "projects/PSYCH-ASR", "projects/libr-local-llm",
+           "projects/Algo-Solutions", "projects/Lean-Theorem-Proving",
            "courses/Galois-Theory", "courses/Probability", "projects/Paper-Writer"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):
         check("%s: git would see a hold" % ws, holds.visible(root) == "")
-for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
+for ws in ("projects/TRD-EHR", "projects/PSYCH-ASR", "projects/libr-local-llm"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):
         check("%s is closed: RELAY: lines only" % ws,
@@ -703,8 +703,8 @@ for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
               and not jobs.ignored(root, "tutorboard.json"))
 # Fail closed: exactly the subjects that say `"phi": false` at HEAD are open,
 # and only with the lab's policy loaded. Without ai-config, none is.
-OPEN = {"projects/Paper-Writer", "practice/Algo-Solutions",
-        "practice/Lean-Theorem-Proving", "courses/Galois-Theory",
+OPEN = {"projects/Paper-Writer", "projects/Algo-Solutions",
+        "projects/Lean-Theorem-Proving", "courses/Galois-Theory",
         "courses/Probability"}
 atlas.forget()
 policy = callable(holds._policy(REPO))
@@ -721,7 +721,7 @@ for ws in sorted(OPEN):
               config.read_config(root)["phi"] is False
               and holds._head_phi(root) is False
               and not jobs.ignored(root, "tutorboard.json"))
-for ws in ("practice/Algo-Solutions", "practice/Lean-Theorem-Proving"):
+for ws in ("projects/Algo-Solutions", "projects/Lean-Theorem-Proving"):
     root = os.path.join(REPO, ws)
     if os.path.isdir(root):
         cfg = config.read_config(root)

@@ -5,8 +5,8 @@ marker file: `mkdir projects/X` is a project, empty or not, because a file that
 must be edited when a directory is made is the registry this system refuses.
 Dot directories are skipped.
 
-`research/` and `practice/` still read as projects until they merge into
-`projects/` (T29), which also drops them from `DIRS`.
+`research/` and `practice/` are the legacy parents, merged into `projects/`.
+No subject is listed there; `find` still resolves a legacy id to its slug.
 
 `create(ident, phi)` makes a subject: the directory, tutorboard.json and a
 TUTOR.md skeleton (plus the PHI ignore stanza for a patient-data project), in
@@ -27,14 +27,16 @@ from . import paths
 # Parent directory -> kind, in the order subjects are listed.
 DIRS = (
     ("courses", "course"),
-    ("research", "project"),
     ("projects", "project"),
-    ("practice", "project"),
 )
 KINDS = ("course", "project")
 
-# Where `create` makes a subject: only these two, never research/ or practice/.
-CREATE = (("courses", "course"), ("projects", "project"))
+# Where `create` makes a subject.
+CREATE = DIRS
+
+# The parents merged into `projects/`. A qualified id under one of them
+# (`research/PSYCH-ASR`) still finds its subject by slug (shim; T55 removes it).
+LEGACY = ("research", "practice")
 
 # TUTOR.md's sections, in order. `board memo <section>` writes one of them.
 TUTOR_SECTIONS = ("Where things are", "Now", "Open decisions", "Done recently")
@@ -114,9 +116,8 @@ def find(ident, base=None):
 
     Matched only against `walk()`, the listing under `all()`; nothing is
     built from `ident`. A qualified id (`<parent>/<slug>`, parent one of
-    `DIRS`) that no longer exists falls back to its slug, so
-    `research/PSYCH-ASR` finds `projects/PSYCH-ASR` once it moved (shim; T55
-    removes it).
+    `DIRS` or `LEGACY`) that does not exist falls back to its slug, so
+    `research/PSYCH-ASR` finds `projects/PSYCH-ASR` (shim; T55 removes it).
     """
     if not ident:
         return None
@@ -129,7 +130,8 @@ def find(ident, base=None):
         if one[2] == ident or paths.same_dir(one[3], ident):
             return _record(*one)
     parts = ident.split("/")
-    if len(parts) == 2 and parts[0] in dict(DIRS) and parts[1]:
+    if len(parts) == 2 and parts[1] and (parts[0] in dict(DIRS)
+                                         or parts[0] in LEGACY):
         for one in every:
             if one[2] == parts[1]:
                 return _record(*one)

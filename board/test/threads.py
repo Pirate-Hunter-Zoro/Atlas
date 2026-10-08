@@ -168,7 +168,7 @@ try:
 
     # --- the same facts, read off a real workspace --------------------------
     repo = os.path.join(home, "repo")
-    ws = os.path.join(repo, "research", "Paper")
+    ws = os.path.join(repo, "projects", "Paper")
     os.makedirs(ws)
     git(repo, "init", "-q")
     git(repo, "config", "user.email", "t@example.org")
@@ -251,8 +251,8 @@ try:
     spine = threads.read(ws)[0]
     check("a push naming a real thread passes, workspace id or not",
           threads.commit_prefix(spine, "knn: draw the figure") == ("knn", None)
-          and threads.commit_prefix(spine, "research/Paper: knn: x",
-                                    "research/Paper") == ("knn", None))
+          and threads.commit_prefix(spine, "projects/Paper: knn: x",
+                                    "projects/Paper") == ("knn", None))
     check("and one with no prefix is a save with no thread named",
           threads.commit_prefix(spine, "lesson complete") == ("", None))
     tid, wrong = threads.commit_prefix(spine, "kNN: draw it")
@@ -369,9 +369,9 @@ try:
     fresh()
 
     # --- the three workspaces carry drafted thread files ---------------------
-    psych = os.path.join(REPO, "research", "PSYCH-ASR")
+    psych = os.path.join(REPO, "projects", "PSYCH-ASR")
     llm = os.path.join(REPO, "projects", "libr-local-llm")
-    trd = os.path.join(REPO, "research", "TRD-EHR")
+    trd = os.path.join(REPO, "projects", "TRD-EHR")
     for where, dels, ids in (
             (trd, ["paper1", "paper2"],
              ["knn-across-embedders", "reviewer-findings", "consistency-pass"]),

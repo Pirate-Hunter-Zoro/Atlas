@@ -141,7 +141,7 @@ fi
 # it judges the directory this was started in. The agent can cd elsewhere and
 # read through opencode's own built-in file reader, which no wrapper touches.
 # adapters/generic.py's docstring states that limit outright. Which is why the
-# README says not to reach for this command inside research/PSYCH-ASR at all,
+# README says not to reach for this command inside projects/PSYCH-ASR at all,
 # rather than trusting the check to hold the line once you are in there.
 #
 # Fail closed. A missing adapter is not an answer of "not fenced": it is no

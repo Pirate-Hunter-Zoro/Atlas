@@ -86,7 +86,7 @@ We confirm that this manuscript describes original work, is not under
 consideration for publication elsewhere, and that all listed authors
 have read and approved the submission. The EHR data are not publicly
 shareable; the full analysis code is available at
-https://github.com/Pirate-Hunter-Zoro/TRD-EHR. Ethics/IRB, funding,
+https://github.com/Pirate-Hunter-Zoro/Atlas/tree/main/projects/TRD-EHR. Ethics/IRB, funding,
 and conflict of interest statements are provided in the manuscript's
 Ethical Considerations, Funding, and Conflicts of Interest sections: no
 conflicts of interest are declared; the work was funded by the William K. Warren Foundation, with no other funding source; and

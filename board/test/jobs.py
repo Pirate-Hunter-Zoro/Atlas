@@ -415,9 +415,9 @@ check("and not once it has ended",
 missions.live_mission = _live
 
 # --- the real repository -----------------------------------------------------------
-for ws in ("courses/Galois-Theory", "courses/Probability", "practice/Algo-Solutions",
-           "practice/Lean-Theorem-Proving", "research/PSYCH-ASR",
-           "projects/libr-local-llm", "research/TRD-EHR", "projects/Paper-Writer"):
+for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Solutions",
+           "projects/Lean-Theorem-Proving", "projects/PSYCH-ASR",
+           "projects/libr-local-llm", "projects/TRD-EHR", "projects/Paper-Writer"):
     root = os.path.join(REPO, ws)
     if not os.path.isdir(root):
         continue
@@ -590,7 +590,7 @@ finally:
 # --- TRD-EHR's whole report history over its old claims wakes nothing ------------
 ARCHIVE = os.path.expanduser(
     "~/Archive/atlas-migration/2026-10-07/live-dirs.tgz")
-TRD = [rel for rel in ("projects/TRD-EHR", "research/TRD-EHR")
+TRD = [rel for rel in ("projects/TRD-EHR",)
        if os.path.isdir(os.path.join(REPO, rel, "relay", "reports"))]
 if not os.path.isfile(ARCHIVE) or not TRD:
     print("ok   (skipped: no %s here, so TRD-EHR's old claims cannot be "

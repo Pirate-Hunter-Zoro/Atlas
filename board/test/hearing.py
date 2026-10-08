@@ -93,7 +93,7 @@ try:
     for clone in (mac,):
         git(clone, "config", "user.email", "t@example.com")
         git(clone, "config", "user.name", "t")
-    ws = os.path.join(mac, "research", "Proj")
+    ws = os.path.join(mac, "projects", "Proj")
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     # Anchored: an unanchored `results/` would hide `exports/results/` too.
     write(os.path.join(ws, ".gitignore"), "live/\n/results/\nrelay/state/\n")
@@ -107,7 +107,7 @@ try:
     git(base, "clone", "-q", origin, cluster)
     git(cluster, "config", "user.email", "c@example.com")
     git(cluster, "config", "user.name", "c")
-    cws = os.path.join(cluster, "research", "Proj")
+    cws = os.path.join(cluster, "projects", "Proj")
     os.environ["TUTORBOARD_COURSES"] = mac
     stamp = os.path.join(base, "heard.stamp")
 
@@ -339,7 +339,7 @@ try:
     # --- a fresh clone -----------------------------------------------------------
     fresh = os.path.join(base, "fresh")
     git(base, "clone", "-q", origin, fresh)
-    fws = os.path.join(fresh, "research", "Proj")
+    fws = os.path.join(fresh, "projects", "Proj")
     check("a fresh clone hears nothing of the reports it arrived with",
           jobs.hear(fws) == [] and jobs.hear(fws) == [] and inbox(fws) == [])
 

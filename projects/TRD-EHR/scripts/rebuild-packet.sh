@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # rebuild-packet.sh -- the four packet documents, as .docx AND as .pdf.
 #
-#   bash research/TRD-EHR/scripts/rebuild-packet.sh [--strict] [--all]
+#   bash projects/TRD-EHR/scripts/rebuild-packet.sh [--strict] [--all]
 #
 # `board build` makes both: the .docx is what a journal takes and what the
 # senior author marks up, and the .pdf is the reading copy the board shows.

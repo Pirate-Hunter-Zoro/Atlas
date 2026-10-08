@@ -2062,7 +2062,7 @@ def cmd_notes(live, args):
     """The meeting deck: a presentation to the mentors, written over a brief.
 
         board notes --meeting --since 7d
-        board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
+        board notes --meeting --since 2026-09-01 --workspace projects/PSYCH-ASR
         board notes --meeting --since last            (since the last deck)
         board notes --meeting --since monday --print  (the brief; writes nothing)
         board notes --meeting --since 7d --brief-to DIR

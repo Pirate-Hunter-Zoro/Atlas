@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.dirname(HERE)
 ROOT = os.path.dirname(BOARD)
 SCRIPT = os.path.join(BOARD, "scripts", "move-residue.sh")
-LIB = os.path.join(ROOT, "research", "PSYCH-ASR", "slurm_jobs", "lib")
+LIB = os.path.join(ROOT, "projects", "PSYCH-ASR", "slurm_jobs", "lib")
 BASH = "/bin/bash" if os.path.exists("/bin/bash") else shutil.which("bash")
 
 # Names that sit below a fenced directory: no output may ever carry them.

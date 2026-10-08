@@ -1,8 +1,8 @@
 """The Atlas tree: its families, and shims over `subjects`.
 
 `subjects` is the one answer to "which courses and projects exist": every
-non-dot directory directly under `courses/` or `projects/` (and, until T29,
-`research/` and `practice/`), with no marker and no registry. `workspaces`,
+non-dot directory directly under `courses/` or `projects/`, with no marker
+and no registry. `workspaces`,
 `find`, `family_of` and `identify` here are shims over it that keep the record
 shape their importers read, `{id, family, family_name, dir, root}`. T50
 deletes this module.
@@ -22,13 +22,9 @@ from . import paths, subjects
 FAMILIES = (
     {"id": "courses", "name": "Courses",
      "blurb": "Graduate coursework, taught chapter by chapter."},
-    {"id": "research", "name": "Research",
-     "blurb": "The projects that become papers."},
     {"id": "projects", "name": "Projects",
-     "blurb": "Infrastructure the research runs on, and the tools that write "
-              "it up."},
-    {"id": "practice", "name": "Practice",
-     "blurb": "Kept sharp: algorithms, and proofs a machine checks."},
+     "blurb": "Research, the infrastructure it runs on, and practice kept "
+              "sharp."},
     {"id": "board", "name": "The board", "tool": True,
      "blurb": "The tool that maps, teaches and writes up everything above."},
     {"id": "vendor", "name": "Vendor", "vendor": True,

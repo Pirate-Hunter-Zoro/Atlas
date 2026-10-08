@@ -300,13 +300,12 @@ function aEl(tag, cls, text) {
 
 /* ------------------------------------------------------------ level one */
 /* WHAT A DOOR SAYS. Its name and the sentence the `/atlas.json` payload carries for
-   it -- "Graduate coursework, taught chapter by chapter.", "The projects that
-   become papers." -- and then what is true inside it right now. The sentences
-   existed and the old front door used them as nothing but a heading. */
+   it -- "Graduate coursework, taught chapter by chapter." -- and then what is
+   true inside it right now. The sentences existed and the old front door used
+   them as nothing but a heading. */
 function aDoorLine(fam, mine) {
   var bits = [];
-  var word = fam.id === "courses" ? "course"
-           : fam.id === "practice" ? "set" : "project";
+  var word = fam.id === "courses" ? "course" : "project";
   bits.push(mine.length + " " + word + (mine.length === 1 ? "" : "s"));
   var live = mine.filter(function (c) { return c.running; }).length;
   if (live) bits.push(live + " live");

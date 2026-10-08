@@ -290,7 +290,7 @@ try:
     git(top, "init", "-q", "-b", "main")
     git(top, "config", "user.email", "t@example.com")
     git(top, "config", "user.name", "t")
-    ws = os.path.join(top, "research", "Proj")
+    ws = os.path.join(top, "projects", "Proj")
     write(os.path.join(ws, ".gitignore"), "live/\nrelay/state/\n")
     write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "tutorboard.json"),
@@ -476,7 +476,7 @@ finally:
 # request and its report under relay/, so the requests filed since (its repair
 # among them) do not move what this checks.
 rid = "2026-10-02-knn-across-embedders-neighbor-count-sweep"
-live_trd = os.path.join(REPO, "research", "TRD-EHR")
+live_trd = os.path.join(REPO, "projects", "TRD-EHR")
 frozen = tempfile.mkdtemp(prefix="repair-2110916-")
 trd = os.path.join(frozen, "TRD-EHR")
 for _rel in ("threads.json", "tutorboard.json", "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",

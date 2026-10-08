@@ -418,7 +418,7 @@ def proposal(root, one):
 
 
 # A commit subject's lead word: `<word>: the rest`. No slash, so a workspace id
-# (`research/TRD-EHR: ...`) is never read as a thread.
+# (`projects/TRD-EHR: ...`) is never read as a thread.
 PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]{0,59}):\s")
 
 

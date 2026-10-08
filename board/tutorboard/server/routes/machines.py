@@ -368,7 +368,7 @@ def get(h, repo, path):
                "dir": os.path.basename(repo.root),
                # The qualified name too, so a caller can tell
                # `courses/Probability` from a future
-               # `practice/Probability` without guessing.
+               # `projects/Probability` without guessing.
                "id": atlas.identify(repo.root),
                "host": tailscale.tailnet_self() or "",
                "chosen": machines.chosen_target(),

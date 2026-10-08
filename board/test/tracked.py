@@ -255,7 +255,7 @@ _SHAPES = (
     ("projects/X/model.pkl", True),
     ("projects/X/keys.env", True),
     ("ai-config/policy/phi.py", True),
-    ("research/TRD-EHR/notes/lectures.md", False),
+    ("projects/TRD-EHR/notes/lectures.md", False),
     ("projects/X/src/assignment.py", False),
     ("board/tutorboard/sessions.py", False),
     ("projects/X/docs/meeting/meeting.tex", False))
@@ -280,21 +280,25 @@ else:
 _box = tempfile.mkdtemp(prefix="tutor-held-")
 try:
     git(_box, "init", "-q")
-    for _d in ("projects/X/phi", "projects/X/a/b/results",
-               "research/Y/data/phi", "projects/X/a/b/c/phi",
-               "research/Y/exports/results"):
+    for _d in ("projects/PSYCH-ASR/phi", "projects/TRD-EHR/results",
+               "projects/X/a/b/results", "projects/Y/data/phi",
+               "projects/X/a/b/c/phi", "projects/Y/exports/results",
+               "research/PSYCH-ASR/phi"):
         os.makedirs(os.path.join(_box, _d))
         put(os.path.join(_box, _d, "f.txt"), "x\n")
     _found = [h for h, _ in audit.held(_box)]
-    if _found == ["projects/X/a/b/results", "projects/X/phi"]:
-        ok("discovery finds phi/ and results/ up to three levels under a "
-           "subject, and never walks into a fenced directory or exports/")
+    if _found == ["projects/PSYCH-ASR/phi", "projects/TRD-EHR/results",
+                  "projects/X/a/b/results", "research/PSYCH-ASR/phi"]:
+        ok("discovery finds projects/PSYCH-ASR/phi, projects/TRD-EHR/results "
+           "and phi/ or results/ up to three levels under a subject, plus "
+           "residue left under the legacy research/, and never walks into a "
+           "fenced directory or exports/")
     else:
         fail("discovery found %r" % _found)
-    if audit.exposed(_box, "projects/X/phi", "test"):
-        ok("a projects/X/phi that git can see is a failure")
+    if audit.exposed(_box, "projects/PSYCH-ASR/phi", "test"):
+        ok("a projects/PSYCH-ASR/phi that git can see is a failure")
     else:
-        fail("a projects/X/phi that git can see was not caught")
+        fail("a projects/PSYCH-ASR/phi that git can see was not caught")
     put(os.path.join(_box, ".gitignore"), "phi/\nresults/\n")
     if not any(audit.exposed(_box, h, w) for h, w in audit.held(_box)):
         ok("and once ignored, git is blind to it and the check passes")
@@ -350,7 +354,7 @@ OLD_TREE = "data/stage1"
 tmp = tempfile.mkdtemp(prefix="tutor-leaving-")
 was = os.environ.get("TUTORBOARD_COURSES")
 try:
-    psych = os.path.join(tmp, "research", "PSYCH-ASR")
+    psych = os.path.join(tmp, "projects", "PSYCH-ASR")
     galois = os.path.join(tmp, "courses", "Galois-Theory")
     for r in (psych, galois):
         put(os.path.join(r, "tutorboard.json"), "{}\n")
@@ -397,7 +401,7 @@ try:
     if not said:
         fail("A FIXTURE REACHING FOR SESSION CONTENT WAS NOT REFUSED. That "
              "diff would have gone to a public remote with nobody watching.")
-    elif "research/PSYCH-ASR/tests/fixtures/turns.py" not in said:
+    elif "projects/PSYCH-ASR/tests/fixtures/turns.py" not in said:
         fail("the refusal does not name the file: %s" % said[:200])
     else:
         ok("a fixture reaching for session content is refused, by name")
@@ -427,7 +431,7 @@ try:
     put(os.path.join(psych, "notes.md"),
         "nothing here yet\nthe joined turns are under %s\n" % OLD_TREE)
     said = leaving.reason(psych, tmp) or ""
-    if "research/PSYCH-ASR/notes.md" in said:
+    if "projects/PSYCH-ASR/notes.md" in said:
         ok("and a line added to a tracked file in there is refused the same way")
     else:
         fail("an added line naming the old data tree was not refused: %s"
@@ -438,7 +442,7 @@ try:
     os.remove(os.path.join(tmp, leaving.POLICY))
     leaving._POLICY["root"] = None
     said = leaving.reason(psych, tmp)
-    hit = leaving.refused(psych, ["research/PSYCH-ASR/notes.md"], tmp)
+    hit = leaving.refused(psych, ["projects/PSYCH-ASR/notes.md"], tmp)
     if isinstance(said, str) and leaving.POLICY in said and isinstance(hit, str):
         ok("a fence with no policy file is refused, by name, by both reason "
            "and refused")

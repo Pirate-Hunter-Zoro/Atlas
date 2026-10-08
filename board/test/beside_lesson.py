@@ -60,7 +60,7 @@ def git(base, *args):
 base = tempfile.mkdtemp(prefix="tutor-beside-")
 try:
     mine = os.path.join(base, "courses", "Galois-Theory")
-    other = os.path.join(base, "research", "PSYCH-ASR")
+    other = os.path.join(base, "projects", "PSYCH-ASR")
     for r in (mine, other):
         write(os.path.join(r, "tutorboard.json"), json.dumps({"name": "X"}))
         os.makedirs(os.path.join(r, "live", "cards"), exist_ok=True)

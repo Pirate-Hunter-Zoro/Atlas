@@ -243,7 +243,7 @@ check("and says the lesson on the board is somebody else's",
 # `[revise]` turn, and that turn is told the one builder there is. The provider
 # is a fake script that records the prompt it was handed.
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="tutor-revising-"))
-work = os.path.join(tmp, "research", "TRD-EHR")
+work = os.path.join(tmp, "projects", "TRD-EHR")
 paper = os.path.join(work, "paper1-trd-prediction")
 os.makedirs(paper)
 with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:

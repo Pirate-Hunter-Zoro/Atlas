@@ -72,7 +72,7 @@ try:
 
     # A RESEARCH WORKSPACE, derived from its code, with no `live/map.json` --
     # and more documents than `reading.MAX_DOCS`, pieces included.
-    research = os.path.join(tmp, "research", "TRD")
+    research = os.path.join(tmp, "projects", "TRD")
     write(os.path.join(research, "trd", "__init__.py"), '"""The model."""' + PAD)
     write(os.path.join(research, "trd", "fit.py"), "import trd" + PAD)
     write(os.path.join(research, "paper1", "manuscript.md"), "# Title page\n")
@@ -90,7 +90,7 @@ try:
     project = os.path.join(tmp, "projects", "Factory")
     write(os.path.join(project, "factory", "__init__.py"), '"""Papers."""' + PAD)
     pdf(os.path.join(project, "docs", "how_it_works.pdf"))
-    practice = os.path.join(tmp, "practice", "Algo")
+    practice = os.path.join(tmp, "projects", "Algo")
     write(os.path.join(practice, "solutions", "__init__.py"), '"""Sols."""' + PAD)
     pdf(os.path.join(practice, "notes", "dp_notes.pdf"))
 

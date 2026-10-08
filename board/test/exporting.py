@@ -116,8 +116,8 @@ finally:
     shutil.rmtree(box, ignore_errors=True)
 
 # --- the migration: TRD-EHR ----------------------------------------------------------
-TRD = next((os.path.join(REPO, p, "TRD-EHR") for p in ("projects", "research")
-            if os.path.isdir(os.path.join(REPO, p, "TRD-EHR"))), None)
+TRD = os.path.join(REPO, "projects", "TRD-EHR")
+TRD = TRD if os.path.isdir(TRD) else None
 check("TRD-EHR is in this checkout", TRD is not None)
 # The thread file as it stood when the marks moved, so the proof outlives it.
 PINNED = "d3284678"

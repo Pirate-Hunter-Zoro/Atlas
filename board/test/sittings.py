@@ -136,7 +136,7 @@ def workspace(family, name):
 
 
 fields = workspace("courses", "Fields")
-proj = workspace("research", "Proj")
+proj = workspace("projects", "Proj")
 
 # ---- Fields: a shell, two untitled sessions, two on one chapter, one open ---
 shell = filed("courses/Fields", at(1, 10), "Ch 01", cards=0, turns=1)
@@ -160,11 +160,11 @@ write(os.path.join(fields, "live", "handoffs", "ch-02-rings.md"),
       "- The parked bullet: every maximal ideal is prime\n")
 
 # ---- Proj: three sittings, the first and last on one chapter ---------------
-p1 = filed("research/Proj", at(4, 18), "knn", opened_at=at(4, 16), cards=2,
+p1 = filed("projects/Proj", at(4, 18), "knn", opened_at=at(4, 16), cards=2,
            turns=2)
-p2 = filed("research/Proj", at(6, 18), "sweep", opened_at=at(6, 16), cards=1,
+p2 = filed("projects/Proj", at(6, 18), "sweep", opened_at=at(6, 16), cards=1,
            turns=1)
-p3 = filed("research/Proj", at(8, 18), "knn", opened_at=at(8, 16), cards=1,
+p3 = filed("projects/Proj", at(8, 18), "knn", opened_at=at(8, 16), cards=1,
            turns=1)
 
 # The figures. Only `results/` is walked, and `phi/` and `data/` never are.
@@ -221,27 +221,27 @@ commit("courses/Fields/notes.md", "tx\n", "lesson transcript", at(4, 11, 40))
 # it is a save, and this is the homework.
 commit("courses/Fields/notes.md", "hw\n",
        "courses/Fields: homework 3 through problem 31", at(4, 11, 45))
-commit("courses/Fields/notes.md", "other\n", "research/Proj: stopping point",
+commit("courses/Fields/notes.md", "other\n", "projects/Proj: stopping point",
        at(4, 11, 50))
-commit("research/Proj/TODO.md",
+commit("projects/Proj/TODO.md",
        "# Plan\n\nSTEP 1. Weight the metric by importance. (Added 2026-09-01.)\n"
        "STEP 2. Sweep the neighbour count. (Added 2026-09-01.)\n"
        "STEP 3. Write the supplement table\n\n"
        "- [ ] Draw the forest plot\n- [ ] Bootstrap the intervals\n",
        "plan", at(4, 15))
-commit("research/Proj/code.py", "w = 1\n", "Weight the metric by importance",
+commit("projects/Proj/code.py", "w = 1\n", "Weight the metric by importance",
        at(4, 17), body="AUC moves from 0.594 to 0.625.")
 # Inside p1's window: STEP 1 is done and deleted, the forest plot is ticked,
 # STEP 2 is only re-dated and STEP 3 only renumbered. Two finished, not four.
-commit("research/Proj/TODO.md",
+commit("projects/Proj/TODO.md",
        "# Plan\n\nSTEP 1. Sweep the neighbour count. (Added 2026-09-05.)\n"
        "STEP 2. Write the supplement table\n\n"
        "- [x] Draw the forest plot\n- [ ] Bootstrap the intervals\n",
        "plan moved on", at(4, 17, 50))
-commit("research/Proj/HANDOFF.md",
+commit("projects/Proj/HANDOFF.md",
        "<!-- chapter: knn -->\n## Where this got to\n\n- The knn bullet from "
        "the first sitting, which mentions named.png\n", "handoff", at(4, 17, 20))
-commit("research/Proj/HANDOFF.md",
+commit("projects/Proj/HANDOFF.md",
        "<!-- chapter: sweep -->\n## Where this got to\n\n- A sweep bullet that "
        "belongs to another chapter\n", "handoff again", at(4, 17, 40))
 write(os.path.join(proj, "HANDOFF.md"),
@@ -285,14 +285,14 @@ check("an open session is its own row and says it is open",
       live_row in ids and "open now" in by[live_row]["label"]
       and by[live_row]["live"] is True)
 check("a chapter left and come back to is two rows, not one",
-      "research/Proj@" + p1 in ids and "research/Proj@" + p3 in ids)
+      "projects/Proj@" + p1 in ids and "projects/Proj@" + p3 in ids)
 check("newest first within a workspace",
-      ids.index("research/Proj@" + p3) < ids.index("research/Proj@" + p1))
+      ids.index("projects/Proj@" + p3) < ids.index("projects/Proj@" + p1))
 check("the row counts commits in its window, not the saves -- and a "
       "workspace-prefixed commit that is real work is not a save",
       by[merged]["commits"] == 2)
 check("and a workspace holding a fence says so on its rows",
-      by["research/Proj@" + p1]["fenced"] == ["data", "phi"])
+      by["projects/Proj@" + p1]["fenced"] == ["data", "phi"])
 real_fold = sittings.MOST_ROWS
 sittings.MOST_ROWS = 1
 folded = sittings.listing(base)
@@ -356,26 +356,26 @@ check("every sitting can be taken whole, because a course's commits say nothing"
 check("which says how many cards it is",
       groups[merged]["items"][-1]["text"]
       == "Everything this sitting covered (3 cards)")
-p1_text = [i["text"] for i in groups["research/Proj@" + p1]["items"]]
+p1_text = [i["text"] for i in groups["projects/Proj@" + p1]["items"]]
 check("an older sitting's handoff is the revision committed in its window",
       any("knn bullet from the first sitting" in t for t in p1_text))
 check("and only one stamped with its own chapter",
       not any("sweep bullet" in t for t in p1_text))
-p1_steps = [i["text"] for i in groups["research/Proj@" + p1]["items"]
+p1_steps = [i["text"] for i in groups["projects/Proj@" + p1]["items"]
             if i["kind"] == "step"]
 check("a plan step is finished only when it is gone at the window's end: the "
       "deleted one and the ticked one",
       sorted(p1_steps) == ["Draw the forest plot", "Weight the metric by importance"])
 check("not one that was only re-dated or renumbered",
       not [t for t in p1_steps if "Sweep" in t or "supplement" in t])
-p3_text = [i["text"] for i in groups["research/Proj@" + p3]["items"]]
+p3_text = [i["text"] for i in groups["projects/Proj@" + p3]["items"]]
 check("a handoff's notes about the student and the next move are not offered "
       "as things done",
       not [t for t in p3_text if "HOW THEY WORK" in t or "questions on their page"
            in t or "Grade the BH" in t or "second seed" in t])
 check("the newest sitting on a chapter reads the live file",
       any("third sitting's own paragraph" in i["text"]
-          for i in groups["research/Proj@" + p3]["items"]))
+          for i in groups["projects/Proj@" + p3]["items"]))
 check("or the parked one, where another chapter is open now",
       any("parked bullet" in i["text"] for i in groups[merged]["items"]))
 check("and the open sitting reads the live handoff stamped with its chapter",
@@ -409,15 +409,15 @@ check("an item id that is not one of them ticks nothing",
 # ---------------------------------------------------------------------------
 # the host, the brief, the figures and the fence
 # ---------------------------------------------------------------------------
-proj_groups, _ = sittings.gather(base, ["research/Proj@" + p1, merged])
+proj_groups, _ = sittings.gather(base, ["projects/Proj@" + p1, merged])
 want = [i["id"] for g in proj_groups for i in g["items"]]
 picked = sittings.ticked(proj_groups, want)
 check("the host is the workspace holding the most ticked items",
-      sittings.host_for(picked) == "research/Proj")
+      sittings.host_for(picked) == "projects/Proj")
 tie = sittings.ticked(proj_groups, [proj_groups[1]["items"][0]["id"],
                                     proj_groups[0]["items"][0]["id"]])
 check("and a tie goes to the one listed first",
-      sittings.host_for(tie) == "research/Proj")
+      sittings.host_for(tie) == "projects/Proj")
 # A FENCED WORKSPACE HOSTS ANY DECK THAT TOUCHES IT, however little of it was
 # ticked: the .tex is tracked, and the push's PHI scan reads only what is under
 # a fenced root.
@@ -427,12 +427,12 @@ check("a deck ticking one thing from a fenced workspace and many from an open "
       "one is written in the fenced one",
       len(lean[1]["items"]) > len(lean[0]["items"])
       and lean[1]["ws"] == "courses/Fields"
-      and sittings.host_for(lean) == "research/Proj"
+      and sittings.host_for(lean) == "projects/Proj"
       and sittings.mixed_fences(lean) == "")
-two = [{"ws": "research/A", "row": {"fenced": ["phi"]}, "items": [1]},
-       {"ws": "research/B", "row": {"fenced": ["data"]}, "items": [1, 2]}]
+two = [{"ws": "projects/A", "row": {"fenced": ["phi"]}, "items": [1]},
+       {"ws": "projects/B", "row": {"fenced": ["data"]}, "items": [1, 2]}]
 check("and ticks from two fenced workspaces are refused, in a sentence",
-      "research/A and research/B" in sittings.mixed_fences(two))
+      "projects/A and projects/B" in sittings.mixed_fences(two))
 open_only = [{"ws": "courses/X", "row": {"fenced": []}, "items": [1]},
              {"ws": "courses/Y", "row": {"fenced": []}, "items": [1, 2]}]
 check("with no fence in play, the most ticked items still decide",
@@ -454,7 +454,7 @@ slug = sittings.deck_slug(proj)
 check("the deck is named for the minute it was asked",
       re.match(r"^deck-\d{6}-\d{4}$", slug) is not None)
 rec = sittings.write_brief(base, proj, slug, picked, wid="t0042",
-                           host="research/Proj")
+                           host="projects/Proj")
 deck = os.path.join(proj, "writeups", slug)
 brief = open(os.path.join(deck, sittings.BRIEF_MD), encoding="utf-8").read()
 snaps = sorted(os.listdir(os.path.join(deck, "figures")))
@@ -466,15 +466,15 @@ check("the brief lists what was ticked, with its source",
 check("and where to read more, by absolute path",
       os.path.join(fake, "sessions", p1, "cards") in brief)
 check("it says which workspaces hold a fence, and to stay out",
-      "research/Proj holds `phi/`: never open anything under it." in brief)
+      "projects/Proj holds `phi/`: never open anything under it." in brief)
 check("at most %d figures are copied, and the brief says how many were left out"
       % sittings.MOST_FIGURES,
       len(snaps) == sittings.MOST_FIGURES
       and re.search(r"\b\d+ more figures? belonged to these sittings", brief))
 check("a figure written inside the window is copied, named for its workspace",
-      "research-proj--%s.png" % roc_id in snaps)
+      "projects-proj--%s.png" % roc_id in snaps)
 check("so is one embedded in the sitting's cards, whenever it was written",
-      "research-proj--%s.png" % embedded_id in snaps)
+      "projects-proj--%s.png" % embedded_id in snaps)
 check("and one a ticked item names", any("named" in n for n in snaps))
 check("the brief gives a figure's size, read off the PNG itself",
       "1800 x 1200" in brief)
@@ -482,7 +482,7 @@ check("one nobody claimed is only in the catalog",
       not any("-old-" in n for n in snaps)
       and results.ident("results/figs/old.png") in brief)
 check("the brief says which workspaces the deck was made from",
-      sorted(rec["workspaces"]) == ["courses/Fields", "research/Proj"])
+      sorted(rec["workspaces"]) == ["courses/Fields", "projects/Proj"])
 check("with the command that fetches it",
       "board deckfig writeups/%s <workspace> <result id>" % slug in brief)
 check("NOTHING UNDER phi/ OR data/ IS COPIED, CATALOGUED OR NAMED",
@@ -501,7 +501,7 @@ check("the brief tells the tutor it plans the slides, one page per frame",
 check("and _brief.json is what the server reads back",
       rec["slug"] == slug and rec["wid"] == "t0042"
       and json.load(open(os.path.join(deck, sittings.BRIEF_JSON)))["host"]
-      == "research/Proj")
+      == "projects/Proj")
 mention = [dict(g) for g in picked]
 mention[0] = dict(mention[0], items=mention[0]["items"] + [
     {"id": "f" * 10, "kind": "handoff", "text": "the old curve, again"}])
@@ -527,33 +527,33 @@ def deckfig(*args):
 
 
 old_id = results.ident("results/figs/old.png")
-code, out, _ = deckfig("writeups/" + slug, "research/Proj", old_id)
+code, out, _ = deckfig("writeups/" + slug, "projects/Proj", old_id)
 check("board deckfig copies a catalogued figure and prints the path to use",
-      code == 0 and out == "figures/research-proj--%s.png" % old_id
+      code == 0 and out == "figures/projects-proj--%s.png" % old_id
       and os.path.isfile(os.path.join(deck, out)))
-code, _, err = deckfig("writeups/" + slug, "research/Proj", "no-such-figure")
+code, _, err = deckfig("writeups/" + slug, "projects/Proj", "no-such-figure")
 check("and refuses an id that workspace does not offer, in a sentence",
       code == 1 and "offers no figure" in err)
 os.makedirs(os.path.join(proj, "writeups", "plain"), exist_ok=True)
-code, _, err = deckfig("writeups/plain", "research/Proj", old_id)
+code, _, err = deckfig("writeups/plain", "projects/Proj", old_id)
 check("and a folder that is not a deck made from sittings",
       code == 1 and "_brief.json" in err)
-code, _, err = deckfig("live", "research/Proj", old_id)
+code, _, err = deckfig("live", "projects/Proj", old_id)
 check("and a folder outside writeups/",
       code == 1 and "writeups/" in err)
-code, _, err = deckfig("writeups/" + slug, "research/Nowhere", old_id)
+code, _, err = deckfig("writeups/" + slug, "projects/Nowhere", old_id)
 check("and a workspace this repository has not got",
       code == 1 and "not a workspace" in err)
 os.remove(os.path.join(deck, out))
-code, out2, _ = deckfig("writeups/" + slug, "research/Proj", "old")
+code, out2, _ = deckfig("writeups/" + slug, "projects/Proj", "old")
 check("a word from a file's name finds a figure the catalog did not list",
-      code == 0 and out2 == "figures/research-proj--%s.png" % old_id)
-code, _, err = deckfig("writeups/" + slug, "research/Proj", "fig")
+      code == 0 and out2 == "figures/projects-proj--%s.png" % old_id)
+code, _, err = deckfig("writeups/" + slug, "projects/Proj", "fig")
 check("and a word that matches several lists their ids instead of guessing",
       code == 1 and "matches" in err and err.count("fig") >= 3)
 fonly_groups, _ = sittings.gather(base, [merged])
 sittings.write_brief(base, proj, "deck-fonly", fonly_groups, wid="t0043")
-code, _, err = deckfig("writeups/deck-fonly", "research/Proj", old_id)
+code, _, err = deckfig("writeups/deck-fonly", "projects/Proj", old_id)
 check("and a workspace the deck was not made from is refused, even one with "
       "the figure", code == 1 and "made from courses/Fields" in err
       and not os.path.exists(os.path.join(proj, "writeups", "deck-fonly",
@@ -618,14 +618,14 @@ ran = []
 real_cli = spawn.tutor_cli
 spawn.tutor_cli = lambda args, timeout=30: (ran.append(list(args)) or
                                             (0, "claude starting in Proj"))
-status, body = post("/sittings/deck", {"picks": ["research/Proj@" + p1, merged],
+status, body = post("/sittings/deck", {"picks": ["projects/Proj@" + p1, merged],
                                        "items": want})
 spawn.tutor_cli = real_cli
 held = sessions.get(body.get("session") or "", fake) or {}
 check("an allowed one is asked for in the workspace holding the most of it, in "
       "a session bound to it, and no start is asked for",
-      status == 200 and body.get("host") == "research/Proj"
-      and held.get("subject") == "research/Proj" and not ran)
+      status == 200 and body.get("host") == "projects/Proj"
+      and held.get("subject") == "projects/Proj" and not ran)
 slug2 = body.get("slug") or ""
 over = sessions.repo(held["id"], fake)
 with open(over.messages_path, encoding="utf-8") as fh:

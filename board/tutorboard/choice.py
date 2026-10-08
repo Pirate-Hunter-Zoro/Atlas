@@ -54,7 +54,7 @@ def remember_chosen(name, root, host=None, at=None, family=None):
 
     `family` is the second level of the tree, and it is here because `dir`
     alone stopped being unique the moment eleven repositories became one:
-    `courses/Probability` and a future `practice/Probability` are two different
+    `courses/Probability` and a future `projects/Probability` are two different
     workspaces with one directory name, and a record naming only "Probability"
     cannot tell a reader which was tapped. It is written and it is OPTIONAL to
     read -- see `chosen_course` -- because a file already on disk from before

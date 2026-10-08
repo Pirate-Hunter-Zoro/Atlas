@@ -1,6 +1,6 @@
 """fenced.py -- the directories nothing in this tool may look inside, by name.
 
-ONE LIST, BECAUSE TWO LISTS DRIFT. `research/PSYCH-ASR/phi/` is session content:
+ONE LIST, BECAUSE TWO LISTS DRIFT. `projects/PSYCH-ASR/phi/` is session content:
 the recordings, the turn tables, the joined transcripts. 308 MB of identifiable
 therapy audio in a directory in this repository, fenced from the assistant by
 `ai-config/policy/phi.py`, which matches the directory NAME.

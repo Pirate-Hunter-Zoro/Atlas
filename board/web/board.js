@@ -10094,7 +10094,7 @@ function tickBusy() {
    next card in that workspace brings the row back. */
 
 /* Answers the reader has waved away, by workspace and by the answer's own time:
-   muting `research/PSYCH-ASR` at 10:04 does not mute the card it writes at 10:30.
+   muting `projects/PSYCH-ASR` at 10:04 does not mute the card it writes at 10:30.
    In the page rather than on disk, deliberately -- it is a gesture about this
    sitting, not a fact about the workspace. */
 var newsMuted = Object.create(null);

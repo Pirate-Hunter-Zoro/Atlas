@@ -76,8 +76,8 @@ def card(root, num, slug, body, when=None, title=""):
 base = tempfile.mkdtemp(prefix="tutor-elsewhere-")
 was_courses = os.environ.get("TUTORBOARD_COURSES")
 try:
-    psych = os.path.join(base, "research", "PSYCH-ASR")
-    trd = os.path.join(base, "research", "TRD-EHR")
+    psych = os.path.join(base, "projects", "PSYCH-ASR")
+    trd = os.path.join(base, "projects", "TRD-EHR")
     galois = os.path.join(base, "courses", "Galois-Theory")
     for r in (psych, trd, galois):
         write(os.path.join(r, "tutorboard.json"), json.dumps({"name": os.path.basename(r)}))
@@ -115,7 +115,7 @@ try:
          "two.", now - 240, title="the four typists agree")
     got = news.elsewhere(galois)
     check("a card written while nobody was looking is news",
-          [n["id"] for n in got] == ["research/PSYCH-ASR"])
+          [n["id"] for n in got] == ["projects/PSYCH-ASR"])
     check("and it says which card, so the notification can point at the answer",
           got and got[0]["card"] == "0014")
     check("and what the card calls itself, when it calls itself anything",
@@ -128,14 +128,14 @@ try:
     card(trd, "0008", "results", "The grid finished.", now - 30)
     got = news.elsewhere(galois)
     check("two of them are two rows, newest first",
-          [n["id"] for n in got] == ["research/TRD-EHR", "research/PSYCH-ASR"])
+          [n["id"] for n in got] == ["projects/TRD-EHR", "projects/PSYCH-ASR"])
 
     # ------------------------------------------------------------------
     # and reading it is what clears it
     # ------------------------------------------------------------------
     news.mark_seen(psych)
     check("looking at a workspace clears its notification and nothing else's",
-          [n["id"] for n in news.elsewhere(galois)] == ["research/TRD-EHR"])
+          [n["id"] for n in news.elsewhere(galois)] == ["projects/TRD-EHR"])
     card(psych, "0015", "tie", "And here is the tie-break.", time.time())
     check("and the next card in it is news again",
           len(news.elsewhere(galois)) == 2)
@@ -175,8 +175,8 @@ try:
     check("and the one the board is serving is never marked unread",
           by_id["courses/Galois-Theory"]["news"] is False)
     check("and one that is says when, so the card can say how long ago",
-          by_id["research/TRD-EHR"]["news"] is True
-          and by_id["research/TRD-EHR"]["news_at"] > 0)
+          by_id["projects/TRD-EHR"]["news"] is True
+          and by_id["projects/TRD-EHR"]["news_at"] > 0)
 
     # THE CACHE MUST NOT OUTLIVE THE FACT. The atlas is cached for half a minute
     # and this is the one field in it that a person acts on immediately: a badge
@@ -186,7 +186,7 @@ try:
     payload = machines.atlas_payload(here)          # a cache HIT, deliberately
     by_id = {c["id"]: c for c in payload["workspaces"]}
     check("and reading it takes the badge off even on a cached front door",
-          by_id["research/TRD-EHR"]["news"] is False)
+          by_id["projects/TRD-EHR"]["news"] is False)
 
     # ------------------------------------------------------------------
     # and the same two facts over HTTP, which is how the pages get them
@@ -206,7 +206,7 @@ try:
     news.forget()
     payload = board.build()
     check("the payload a board pushes carries what landed elsewhere",
-          [n["id"] for n in payload["news"]] == ["research/PSYCH-ASR"])
+          [n["id"] for n in payload["news"]] == ["projects/PSYCH-ASR"])
 
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -243,7 +243,7 @@ try:
                 return exc.code, {}
 
     check("and a surface that polls rather than subscribes can ask for it",
-          [n["id"] for n in ask("/news")["news"]] == ["research/PSYCH-ASR"])
+          [n["id"] for n in ask("/news")["news"]] == ["projects/PSYCH-ASR"])
 
     # And the page saying it is being read is what takes a notification down --
     # for THIS workspace, which is the only root this server may write into.
@@ -252,7 +252,7 @@ try:
     check("a board can say that somebody is looking at it", ask("/seen", "POST")["ok"])
     check("and the marker moves", news.seen_at(galois) > (before or 0))
     check("and it marked its OWN workspace and nothing else",
-          [n["id"] for n in ask("/news")["news"]] == ["research/PSYCH-ASR"])
+          [n["id"] for n in ask("/news")["news"]] == ["projects/PSYCH-ASR"])
 
     # The payload is rebuilt at once rather than up to `news.TTL` later: a
     # notification that survives being read is one nobody trusts again.
@@ -791,7 +791,7 @@ try:
         got = ask("/missions")["missions"]
         mine = [m for m in got if m["id"] == one]
         check("and a board serving a DIFFERENT workspace reads it off disk",
-              len(mine) == 1 and mine[0]["ws"] == "research/PSYCH-ASR")
+              len(mine) == 1 and mine[0]["ws"] == "projects/PSYCH-ASR")
         check("and says it is running, which is the state to leave alone",
               mine and mine[0]["state"] == "running")
         check("and that it is not in the workspace being read, so the row can "
@@ -856,17 +856,17 @@ try:
         _cards = {c["id"]: c for c in machines.atlas_payload(here)["workspaces"]}
         check("and the card on the front door says the same, because that is "
               "what is open when somebody comes back to the app",
-              (_cards["research/PSYCH-ASR"]["mission"] or {}).get("step")
+              (_cards["projects/PSYCH-ASR"]["mission"] or {}).get("step")
               == "read the error log: 74 rows, 6 disagree")
 
         # AND IT IS ONE TAP, WHICH IS WHAT THE ASK SAYS. `/missions` is the list
         # and is pushed four times a second; this is the panel, and it is asked
         # for once, by a thumb.
-        _st, panel = ask_json("/mission?ws=research%%2FPSYCH-ASR&id=%s" % one)
+        _st, panel = ask_json("/mission?ws=projects%%2FPSYCH-ASR&id=%s" % one)
         check("a running mission can be asked what it has done, over HTTP, from "
               "a board serving a different workspace",
               panel.get("ok") is True and panel["id"] == one
-              and panel["ws"] == "research/PSYCH-ASR")
+              and panel["ws"] == "projects/PSYCH-ASR")
         check("and the answer carries the trail and the derived facts together, "
               "because either half alone is half a panel",
               len(panel.get("steps") or []) == 2
@@ -880,13 +880,13 @@ try:
               "than built into a path",
               ask_json("/mission?ws=../../etc&id=%s" % one)[0] == 404)
         check("and so is a mission id that is not a turn id",
-              ask_json("/mission?ws=research%2FPSYCH-ASR&id=../../passwd")[0]
+              ask_json("/mission?ws=projects%2FPSYCH-ASR&id=../../passwd")[0]
               == 404)
         check("and a turn-shaped id no mission has is refused rather than "
               "answered with an empty panel",
-              ask_json("/mission?ws=research%2FPSYCH-ASR&id=t9999")[0] == 404)
+              ask_json("/mission?ws=projects%2FPSYCH-ASR&id=t9999")[0] == 404)
 
-        # AND A NAME UNDER A FENCE IS COUNTED, NEVER LISTED. `research/PSYCH-ASR`
+        # AND A NAME UNDER A FENCE IS COUNTED, NEVER LISTED. `projects/PSYCH-ASR`
         # keeps 308 MB of identifiable therapy audio under `phi/`, and its own
         # `.gitignore` says why this matters here: *filenames themselves contain
         # participant IDs*. So a list of what a mission touched is content even
@@ -1252,7 +1252,7 @@ try:
             for _n in (os.listdir(_d) if os.path.isdir(_d) else []):
                 os.remove(os.path.join(_d, _n))
 
-        held = os.path.join(base, "research", "HELD")
+        held = os.path.join(base, "projects", "HELD")
         write(os.path.join(held, "tutorboard.json"),
               json.dumps({"name": "HELD"}))
         os.makedirs(os.path.join(held, "live", "cards"), exist_ok=True)

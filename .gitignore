@@ -11,7 +11,7 @@
 #  regenerates, other people's work, and `ai-config/`, which is its own
 #  private repository. It does not hold "the 308 MB
 #  of therapy audio we would rather not push" -- that is not in here at all, it
-#  is at ~/phi/PSYCH-ASR/, and research/PSYCH-ASR/README.md says so. An ignore
+#  is at ~/phi/PSYCH-ASR/, and projects/PSYCH-ASR/README.md says so. An ignore
 #  rule is a guard somebody can delete by accident; a directory outside the
 #  repository is a guard nothing in here can undo.
 #
@@ -151,3 +151,10 @@ keys.env
 /courses/*/chapters/*/reading/
 /courses/*/chapters/*/lectures/
 /courses/*/**/assignment*
+
+# ---- the legacy subject roots ----
+# research/ and practice/ merged into projects/. A machine that has not yet run
+# move-residue.sh still holds ignored residue (.venv, phi/, results/, .env) at
+# the old paths after a pull; these keep all of it invisible to git.
+/research/
+/practice/

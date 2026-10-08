@@ -19,7 +19,7 @@ Four things, and each of them is a way the feature turns into a defect:
     is a query parameter carrying a repo-relative path, which is a traversal
     waiting to be written.
 
-  * THE FENCE HOLDS HERE TOO. `research/PSYCH-ASR/phi/` is session content, and
+  * THE FENCE HOLDS HERE TOO. `projects/PSYCH-ASR/phi/` is session content, and
     a route that serves images out of a workspace is the second place that has
     to be refused by name. `tutorboard/fenced.py` is the one list.
 

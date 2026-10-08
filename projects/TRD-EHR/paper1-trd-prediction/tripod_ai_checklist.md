@@ -95,7 +95,7 @@ refers to sections of the main manuscript unless prefixed *Supplement*.
 | 18c | D;E | Indicate where the study protocol can be accessed or state that a protocol was not prepared | Protocol and Registration. No study protocol was prepared |
 | 18d | D;E | Provide registration information for the study, including register name and registration number, or state that the study was not registered | Protocol and Registration. The study was not registered |
 | 18e | D;E | Provide details of the availability of the study data | Data Availability. The EHR data cannot be shared publicly |
-| 18f | D;E | Provide details of the availability of the analytical code | Data Availability. Analysis code is public at https://github.com/Pirate-Hunter-Zoro/TRD-EHR; software is named in Methods, *Supporting Analyses* [22,26,27] |
+| 18f | D;E | Provide details of the availability of the analytical code | Data Availability. Analysis code is public at https://github.com/Pirate-Hunter-Zoro/Atlas/tree/main/projects/TRD-EHR; software is named in Methods, *Supporting Analyses* [22,26,27] |
 
 ## Patient and public involvement
 

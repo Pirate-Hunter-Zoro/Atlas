@@ -150,7 +150,7 @@ check("and that fallback budget is eighteen hours, because it pays for every "
 base = tempfile.mkdtemp(prefix="tutor-carry-")
 was_courses = os.environ.get("TUTORBOARD_COURSES")
 try:
-    psych = os.path.join(base, "research", "PSYCH-ASR")
+    psych = os.path.join(base, "projects", "PSYCH-ASR")
     write(os.path.join(psych, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
     os.makedirs(os.path.join(psych, "live", "cards"), exist_ok=True)
     atlas.forget()

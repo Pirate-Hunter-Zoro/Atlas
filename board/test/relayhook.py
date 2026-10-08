@@ -39,8 +39,8 @@ REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
 from tutorboard import jobs, relay                                     # noqa: E402
 
-TRD = os.path.join(REPO, "research", "TRD-EHR")
-PSY = os.path.join(REPO, "research", "PSYCH-ASR")
+TRD = os.path.join(REPO, "projects", "TRD-EHR")
+PSY = os.path.join(REPO, "projects", "PSYCH-ASR")
 fails = []
 
 

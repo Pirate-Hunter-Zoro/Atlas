@@ -112,7 +112,7 @@ try:
         git(seed, "config", k, v)
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
-    proj = os.path.join(seed, "research", "Proj")
+    proj = os.path.join(seed, "projects", "Proj")
     write(os.path.join(proj, "tutorboard.json"), json.dumps({"name": "Proj"}))
     write(os.path.join(proj, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(proj, ".gitignore"), "live/\nresults/\nphi/\n*.tmp\n")
@@ -135,8 +135,8 @@ try:
         return where
 
     mac, cluster = clone("mac"), clone("cluster")
-    mws = os.path.join(mac, "research", "Proj")
-    cws = os.path.join(cluster, "research", "Proj")
+    mws = os.path.join(mac, "projects", "Proj")
+    cws = os.path.join(cluster, "projects", "Proj")
     write(os.path.join(cluster, "ai-config", "policy", "phi.py"), POLICY)
     state_path = os.path.join(cluster, "relay", "state.json")
 
@@ -167,20 +167,20 @@ try:
     got = run_pass()
     st = load(state_path)
     check("without the opt-in an owner's edit skips the pass, naming it",
-          "research/Proj/src/fit.py" in got["skipped"]
-          and "research/Proj/src/fit.py" in st["skipped"]
+          "projects/Proj/src/fit.py" in got["skipped"]
+          and "projects/Proj/src/fit.py" in st["skipped"]
           and st["synced"] == [] and st["sync_left"] == [])
     check("and nothing is committed",
-          "fit, edited" not in origin_file("research/Proj/src/fit.py")
+          "fit, edited" not in origin_file("projects/Proj/src/fit.py")
           and git(cluster, "status", "--porcelain")
-          == "M research/Proj/src/fit.py")
-    git(cluster, "checkout", "--", "research/Proj/src/fit.py")
+          == "M projects/Proj/src/fit.py")
+    git(cluster, "checkout", "--", "projects/Proj/src/fit.py")
 
     # --- with it, a dirty workspace is synced -----------------------------------
     opt_in(True)
     check("relay_opts reads the opt-in",
           jobs.relay_opts(cws).get("sync") is True
-          and relay.sync_spaces(relay.spaces(cluster)) == ["research/Proj"])
+          and relay.sync_spaces(relay.spaces(cluster)) == ["projects/Proj"])
     from tutorboard import colibri as _colibri, holds as _holds
     _owned, _qroot, _tasks = _holds.owned, _colibri.queue_root, _colibri.tasks
     try:
@@ -215,7 +215,7 @@ try:
     hold = {"id": "h1", "label": "held", "files": ["src/held.py"],
             "check": None, "held": 1}
     write(os.path.join(cws, "relay", "holds", "h1.json"), json.dumps(hold))
-    git(cluster, "add", "research/Proj/relay/holds/h1.json")
+    git(cluster, "add", "projects/Proj/relay/holds/h1.json")
     git(cluster, "commit", "-q", "-m", "h1: hold")
     write(os.path.join(cws, "src", "held.py"), "h = 2  # the owner, mid-step\n")
     got = run_pass()
@@ -223,42 +223,42 @@ try:
     left = dict((r["path"], r["why"]) for r in st["sync_left"])
     check("the pass is not skipped and the edits are synced",
           not got["skipped"] and not got["error"]
-          and sorted(got["synced"]) == ["research/Proj/notes/idea.md",
-                                        "research/Proj/src/fit.py"])
+          and sorted(got["synced"]) == ["projects/Proj/notes/idea.md",
+                                        "projects/Proj/src/fit.py"])
     check("committed as `<workspace>: cluster sync`, with no trailer",
-          "research/Proj: cluster sync" in git(cluster, "log", "--format=%s")
+          "projects/Proj: cluster sync" in git(cluster, "log", "--format=%s")
           and "Co-Authored" not in git(cluster, "log", "--format=%B"))
     check("and pushed: origin has the edit and the untracked file",
-          "fit, edited" in origin_file("research/Proj/src/fit.py")
-          and origin_file("research/Proj/notes/idea.md") == "a new file")
+          "fit, edited" in origin_file("projects/Proj/src/fit.py")
+          and origin_file("projects/Proj/notes/idea.md") == "a new file")
     check("relay/state.json lists what it synced",
           sorted(st["synced"]) == sorted(got["synced"]))
     check("a path the PHI policy names is left uncommitted and named",
-          "research/Proj/notes/SESSION-3.md" in left
-          and "PHI" in left["research/Proj/notes/SESSION-3.md"]
-          and origin_file("research/Proj/notes/SESSION-3.md").startswith(
+          "projects/Proj/notes/SESSION-3.md" in left
+          and "PHI" in left["projects/Proj/notes/SESSION-3.md"]
+          and origin_file("projects/Proj/notes/SESSION-3.md").startswith(
               "fatal"))
     check("so is a file the `board push` check refuses by its content",
-          "board push" in left.get("research/Proj/src/quote.py", "")
-          and origin_file("research/Proj/src/quote.py").startswith("fatal")
+          "board push" in left.get("projects/Proj/src/quote.py", "")
+          and origin_file("projects/Proj/src/quote.py").startswith("fatal")
           and os.path.isfile(os.path.join(cws, "src", "quote.py")))
     check("a new table or text file stays on the cluster, named: it may hold data",
-          all("by hand" in left.get("research/Proj/notes/%s" % f, "")
-              and origin_file("research/Proj/notes/%s" % f).startswith("fatal")
+          all("by hand" in left.get("projects/Proj/notes/%s" % f, "")
+              and origin_file("projects/Proj/notes/%s" % f).startswith("fatal")
               for f in ("rows.csv", "dump.txt")))
     check("an ignored file is not added, and not named",
-          "research/Proj/scratch.tmp" not in left
-          and origin_file("research/Proj/scratch.tmp").startswith("fatal"))
+          "projects/Proj/scratch.tmp" not in left
+          and origin_file("projects/Proj/scratch.tmp").startswith("fatal"))
     check("a held file stays the owner's: uncommitted, not named",
-          "research/Proj/src/held.py" not in left
-          and "mid-step" not in origin_file("research/Proj/src/held.py")
+          "projects/Proj/src/held.py" not in left
+          and "mid-step" not in origin_file("projects/Proj/src/held.py")
           and "mid-step" in read(os.path.join(cws, "src", "held.py")))
     os.remove(os.path.join(cws, "notes", "SESSION-3.md"))
     os.remove(os.path.join(cws, "notes", "rows.csv"))
     os.remove(os.path.join(cws, "notes", "dump.txt"))
     os.remove(os.path.join(cws, "src", "quote.py"))
-    git(cluster, "checkout", "--", "research/Proj/src/held.py")
-    git(cluster, "rm", "-q", "research/Proj/relay/holds/h1.json")
+    git(cluster, "checkout", "--", "projects/Proj/src/held.py")
+    git(cluster, "rm", "-q", "projects/Proj/relay/holds/h1.json")
     git(cluster, "commit", "-q", "-m", "h1: release")
     git(cluster, "push", "-q")
 
@@ -268,9 +268,9 @@ try:
     got = run_pass()
     check("a path outside every workspace still skips the whole pass",
           "NOTICE.md" in got["skipped"] and got["synced"] == []
-          and "again" not in origin_file("research/Proj/src/fit.py"))
+          and "again" not in origin_file("projects/Proj/src/fit.py"))
     git(cluster, "checkout", "--", "NOTICE.md")
-    git(cluster, "checkout", "--", "research/Proj/src/fit.py")
+    git(cluster, "checkout", "--", "projects/Proj/src/fit.py")
 
     # --- a conflict is reported, never forced -----------------------------------
     git(mac, "pull", "-q", "--rebase")
@@ -282,19 +282,19 @@ try:
     st = load(state_path)
     left = dict((r["path"], r["why"]) for r in st["sync_left"])
     check("a file both sides changed is named in the pass's error",
-          "research/Proj/src/shared.py" in got["error"]
-          and "research/Proj/src/shared.py" in st["last_error"])
+          "projects/Proj/src/shared.py" in got["error"]
+          and "projects/Proj/src/shared.py" in st["last_error"])
     check("and in sync_left, as origin's to merge, nothing forced",
-          "origin changes it too" in left.get("research/Proj/src/shared.py",
+          "origin changes it too" in left.get("projects/Proj/src/shared.py",
                                                ""))
     check("the owner's edit stays dirty, and origin keeps the Mac's version",
           read(os.path.join(cws, "src", "shared.py")) == "x = 'cluster'\n"
-          and origin_file("research/Proj/src/shared.py") == "x = 'mac'"
+          and origin_file("projects/Proj/src/shared.py") == "x = 'mac'"
           and "the Mac changes shared.py" in git(origin, "log", "--format=%s"))
     check("no rebase is left half done",
           not os.path.exists(os.path.join(cluster, ".git", "rebase-merge"))
           and not os.path.exists(os.path.join(cluster, ".git", "rebase-apply")))
-    git(cluster, "checkout", "--", "research/Proj/src/shared.py")
+    git(cluster, "checkout", "--", "projects/Proj/src/shared.py")
     got = run_pass()
     check("once the owner settles it, the next pass pulls and is clean",
           not got["error"] and not got["skipped"]
@@ -313,36 +313,36 @@ try:
     st = load(state_path)
     left = dict((r["path"], r["why"]) for r in st["sync_left"])
     check("a refused push leaves the edit uncommitted again, and says so",
-          "refused" in left.get("research/Proj/src/fit.py", "")
+          "refused" in left.get("projects/Proj/src/fit.py", "")
           and got["synced"] == []
           and git(cluster, "rev-parse", "HEAD") == head
           and git(cluster, "status", "--porcelain",
-                  "research/Proj/src/fit.py") == "M research/Proj/src/fit.py")
+                  "projects/Proj/src/fit.py") == "M projects/Proj/src/fit.py")
     os.remove(flag)
     got = run_pass()
     check("and the next pass pushes it",
-          got["synced"] == ["research/Proj/src/fit.py"]
-          and "refused" in origin_file("research/Proj/src/fit.py"))
+          got["synced"] == ["projects/Proj/src/fit.py"]
+          and "refused" in origin_file("projects/Proj/src/fit.py"))
 
     # --- a sync a killed pass left unpushed --------------------------------------
     write(os.path.join(cws, "src", "fit.py"), "print('fit, killed')\n")
-    git(cluster, "commit", "-q", "-am", "research/Proj: cluster sync")
+    git(cluster, "commit", "-q", "-am", "projects/Proj: cluster sync")
     got = run_pass()
     check("an unpushed sync commit does not skip the next pass, which pushes "
           "it", not got["skipped"] and not got["error"]
-          and "killed" in origin_file("research/Proj/src/fit.py"))
+          and "killed" in origin_file("projects/Proj/src/fit.py"))
     write(os.path.join(cws, "src", "fit.py"), "print('fit, unwound')\n")
-    git(cluster, "commit", "-q", "-am", "research/Proj: cluster sync")
-    back = relay._unwind(cluster, "origin/main", ["research/Proj"])
+    git(cluster, "commit", "-q", "-am", "projects/Proj: cluster sync")
+    back = relay._unwind(cluster, "origin/main", ["projects/Proj"])
     check("_unwind turns a sync commit back into an unstaged edit",
-          back == ["research/Proj/src/fit.py"]
+          back == ["projects/Proj/src/fit.py"]
           and git(cluster, "rev-parse", "HEAD") == git(cluster, "rev-parse",
                                                        "origin/main")
           and git(cluster, "status", "--porcelain")
-          == "M research/Proj/src/fit.py")
+          == "M projects/Proj/src/fit.py")
     check("and never touches a commit that is not one",
-          relay._unwind(cluster, "origin/main", ["research/Other"]) == [])
-    git(cluster, "checkout", "--", "research/Proj/src/fit.py")
+          relay._unwind(cluster, "origin/main", ["projects/Other"]) == [])
+    git(cluster, "checkout", "--", "projects/Proj/src/fit.py")
     opt_in(False)
 
     # --- the Mac pulls every twenty seconds --------------------------------------
@@ -380,7 +380,7 @@ try:
           gitops.pull(mws, quiet=True, timeout=20, say=said.append) is False
           and read(os.path.join(mws, "src", "shared.py")) == "x = 'mac, unsaved'\n"
           and any("not synced" in l for l in said))
-    git(mac, "checkout", "--", "research/Proj/src/shared.py")
+    git(mac, "checkout", "--", "projects/Proj/src/shared.py")
 
     merge_head = os.path.join(mac, ".git", "MERGE_HEAD")
     write(merge_head, git(mac, "rev-parse", "HEAD") + "\n")

@@ -56,7 +56,7 @@ MIN_BYTES = 20000
 MAX_DOCS = 24
 
 # How deep to look. A deck lives in a project directory one or two levels down
-# -- `research/PSYCH-ASR/docs/stage1_pipeline_walkthrough.pdf` -- and nothing
+# -- `projects/PSYCH-ASR/docs/stage1_pipeline_walkthrough.pdf` -- and nothing
 # worth showing is buried five deep.
 MAX_DEPTH = 3
 
@@ -116,7 +116,7 @@ def _fenced(path):
     `fenced.NEVER`, on the path as a whole. The pruning above is the cheap half
     and it is not the rule: it only sees the directories this walk descends
     through, and this module reaches documents it did not walk to -- the ones a
-    README names, which may be anywhere. `research/PSYCH-ASR/phi/stage1/Audio
+    README names, which may be anywhere. `projects/PSYCH-ASR/phi/stage1/Audio
     Transcription.pdf` was offered under the id `audio-transcription`, rendered
     to PNGs, and its address written into a tutor's prompt next to an
     instruction to open and read a page of it.
@@ -155,7 +155,7 @@ def _pointed_at(root):
     of a file is a path somebody could have written anything into.
 
     That bound widened when eleven repositories became one, and it widened by
-    exactly one level: a deck named as `../../research/PSYCH-ASR/docs/…` is now
+    exactly one level: a deck named as `../../projects/PSYCH-ASR/docs/…` is now
     a normal thing for a README to say rather than a reach across the home
     directory. It did not stop being a bound.
 

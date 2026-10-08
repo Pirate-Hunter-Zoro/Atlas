@@ -191,7 +191,7 @@ try:
         git(seed, "config", k, v)
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
-    proj = os.path.join(seed, "research", "Proj")
+    proj = os.path.join(seed, "projects", "Proj")
     # The owner's export approvals, committed: a png by glob, and a csv
     # matched without `aggregate`, which approves nothing.
     write(os.path.join(proj, "tutorboard.json"),
@@ -218,8 +218,8 @@ try:
         return where
 
     mac, cluster = clone("mac"), clone("cluster")
-    mws = os.path.join(mac, "research", "Proj")
-    cws = os.path.join(cluster, "research", "Proj")
+    mws = os.path.join(mac, "projects", "Proj")
+    cws = os.path.join(cluster, "projects", "Proj")
     write(os.path.join(cluster, "ai-config", "policy", "phi.py"), POLICY)
 
     def file_from_mac(req):
@@ -232,7 +232,7 @@ try:
         return ok, problems
 
     def origin_report(rid):
-        return git(origin, "show", "main:research/Proj/relay/reports/%s.json"
+        return git(origin, "show", "main:projects/Proj/relay/reports/%s.json"
                    % rid)
 
     slurm = Slurm()
@@ -289,7 +289,7 @@ try:
           and not jobs.records(cws, relay=False)
           and os.path.isfile(os.path.join(cws, "relay", "state", "jobs.jsonl"))
           and git(cluster, "check-ignore", "-q",
-                  "research/Proj/relay/state/jobs.jsonl") == "")
+                  "projects/Proj/relay/state/jobs.jsonl") == "")
 
     slurm.queue[jid] = "RUNNING"
     run_pass()
@@ -311,7 +311,7 @@ try:
     check("an export inside the cap is copied to exports/ and committed",
           rep["exported"] == ["results/sweep.png"]
           and os.path.isfile(os.path.join(cws, "exports", "results", "sweep.png"))
-          and "research/Proj/exports/results/sweep.png" in git(
+          and "projects/Proj/exports/results/sweep.png" in git(
               cluster, "ls-files"))
     check("an export over the 5 MB cap is refused in the report, never copied",
           [r["path"] for r in rep.get("export_refused") or []]
@@ -332,8 +332,8 @@ try:
           filed_at.startswith(rep.get("ran_at") or "-")
           and not git(cluster, "rev-parse", "HEAD").startswith(rep["ran_at"]))
     check("the commit touches only relay/reports/ and exports/",
-          all(p.startswith(("research/Proj/relay/reports/",
-                            "research/Proj/exports/"))
+          all(p.startswith(("projects/Proj/relay/reports/",
+                            "projects/Proj/exports/"))
               for p in git(cluster, "show", "--name-only", "--format=",
                            "HEAD").split()))
     check("and carries no trailer", "Co-Authored" not in git(
@@ -416,7 +416,7 @@ try:
           "card to say which code the result belongs to",
           "It ran at %s, not at %s" % (
               later_at, view["relay:r1"]["commit"][:12]) in said
-          and "research/Proj/src/fit.py" in said and "which code" in said)
+          and "projects/Proj/src/fit.py" in said and "which code" in said)
     check("and where this checkout lacks ran_at, it says so",
           "does not have" in jobs.ran_elsewhere(
               mws, {"commit": filed_at, "ran_at": "abcdef1"}))
@@ -505,7 +505,7 @@ try:
           got["skipped"] and git(origin, "rev-parse", "main") == tip)
     check("the owner's edit is left where it was",
           "an owner's edit" in open(os.path.join(cws, "AI_INSTRUCTIONS.md")).read())
-    git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
+    git(cluster, "checkout", "--", "projects/Proj/AI_INSTRUCTIONS.md")
     jobs.append(cws, {"jobid": "1", "label": "knn", "state": "COMPLETED",
                       "reported": 1.0})
     got = run_pass()
@@ -612,8 +612,8 @@ try:
     check("it completes with only its RELAY: lines, and publishes its reports "
           "and nothing else", dg1["state"] == "completed"
           and dg1["relay"] == ["has RESULTS_DIR/trained_models entries 0"]
-          and touched == {"research/Proj/relay/reports/dg1.json",
-                          "research/Proj/relay/requests/dg1.json"})
+          and touched == {"projects/Proj/relay/reports/dg1.json",
+                          "projects/Proj/relay/requests/dg1.json"})
     git(mac, "pull", "-q", "--rebase")
     rec = dict((r["request"], r) for r in jobs.relayed(mws))["dg1"]
     said = jobs.relay_sense(mws, rec)
@@ -792,14 +792,14 @@ try:
               and "SESSION" not in json.dumps(c1))
         check("and no diff: nothing it wrote is committed",
               "diff" not in c1 and pushed_since(before)
-              == set(["research/Proj/relay/reports/c1.json"]))
+              == set(["projects/Proj/relay/reports/c1.json"]))
 
         write(os.path.join(cws, "notes", "owner.md"), "the owner's, before\n")
         file_from_mac({"id": "c2", "kind": "colibri", "thread": "knn",
                        "brief": "reconstruct the transcript"})
         run_pass()
         check("the owner's edit from before the task is its baseline",
-              list(task_of("c2")["baseline"]) == ["research/Proj/notes/owner.md"])
+              list(task_of("c2")["baseline"]) == ["projects/Proj/notes/owner.md"])
         colibri_runs("c2", "RELAY: reconstructed 1 transcript\n",
                      tracked=[("AI_INSTRUCTIONS.md", "# edited by a task\n"),
                               ("notes/transcript.txt", "a line of dialogue\n")])
@@ -816,7 +816,7 @@ try:
               and "owner.md" not in json.dumps(c2))
         check("nothing it changed is committed; the changes stay on the "
               "cluster", pushed_since(before)
-              == set(["research/Proj/relay/reports/c2.json"])
+              == set(["projects/Proj/relay/reports/c2.json"])
               and "edited by a task" in open(
                   os.path.join(cws, "AI_INSTRUCTIONS.md")).read()
               and os.path.isfile(os.path.join(cws, "notes", "transcript.txt")))
@@ -833,7 +833,7 @@ try:
               and "2 tracked path(s)" in said and "for the owner" in said)
     finally:
         coli.start_generation, coli._all_jobs = real_start, real_jobs
-        git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
+        git(cluster, "checkout", "--", "projects/Proj/AI_INSTRUCTIONS.md")
         shutil.rmtree(os.path.join(cws, "notes"), ignore_errors=True)
         shutil.rmtree(os.path.join(queue, "live"), ignore_errors=True)
         os.environ.pop("TUTORBOARD_COURSES", None)
@@ -865,7 +865,7 @@ try:
           and "src/knn.py" in git(cluster, "status", "--porcelain")
           and "the Mac pushes elsewhere" in open(
               os.path.join(cws, "notes.md")).read())
-    git(cluster, "checkout", "--", "research/Proj/src/knn.py")
+    git(cluster, "checkout", "--", "projects/Proj/src/knn.py")
 
     # --- the command, status and where ------------------------------------------
     bin_dir = os.path.join(base, "bin")
@@ -892,7 +892,7 @@ try:
           == "7777")
     code, out = tutor("relay", "--status")
     check("`tutor relay --status` shows the last pass and the requests",
-          code == 0 and "last pass" in out and "research/Proj" in out
+          code == 0 and "last pass" in out and "projects/Proj" in out
           and "submitted" in out and "7777 (PENDING)" in out)
     code, out = tutor("relay", "--once", TUTOR_SLURM="0")
     check("and refuses on a machine without Slurm",
@@ -922,7 +922,7 @@ try:
         return p.returncode, p.stdout.decode("utf-8", "replace")
     code, out = entry(RELAY, "--status")
     check("`relay --status` is the same report `tutor relay --status` gives",
-          code == 0 and "last pass" in out and "research/Proj" in out)
+          code == 0 and "last pass" in out and "projects/Proj" in out)
     code, out = entry(RELAY, "--once", TUTOR_SLURM="0")
     check("and `relay` refuses a pass without Slurm",
           code == 1 and "no Slurm" in out)
@@ -1132,7 +1132,7 @@ finally:
 # --- the real repository ------------------------------------------------------------
 check("the root .gitignore keeps the relay's state out of git",
       subprocess.run(["git", "check-ignore", "-q",
-                      "research/TRD-EHR/relay/state/x.exit"],
+                      "projects/TRD-EHR/relay/state/x.exit"],
                      cwd=REPO).returncode == 0
       and subprocess.run(["git", "check-ignore", "-q", "relay/state.json"],
                          cwd=REPO).returncode == 0)
@@ -1143,7 +1143,7 @@ check("and the launcher's lock, while relay/status.json is tracked",
                          cwd=REPO).returncode == 1)
 check("TRD-EHR tracks what the relay exports",
       subprocess.run(["git", "check-ignore", "-q",
-                      "research/TRD-EHR/exports/results/a/figures/x.png"],
+                      "projects/TRD-EHR/exports/results/a/figures/x.png"],
                      cwd=REPO).returncode == 1)
 
 print()

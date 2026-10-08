@@ -34,7 +34,7 @@ content, so it goes under `live/missions/`, which every workspace's
 it ever stops being true.
 
 AND NO PATH UNDER A FENCE REACHES THE PANEL. `fenced.py` is the one list, and
-here it is applied to FILENAMES: in `research/PSYCH-ASR` the names themselves
+here it is applied to FILENAMES: in `projects/PSYCH-ASR` the names themselves
 carry participant ids, so a list of what a mission touched is content even
 though no file was opened to build it. Nothing in this module reads inside a
 fenced directory, and the panel says a name was withheld rather than dropping
