@@ -265,7 +265,7 @@ PLAIN_PREAMBLE = r"""\usepackage{amsmath}
 def scaffold(root, name, title=None, author=None):
     """Start a write-up for something that has none, and return its record.
 
-    A course has its sets laid down by its own `make scaffold`. Everything else
+    A course has its sets laid down by `board textbook scaffold`. Everything else
     -- a line of research, a paper being read, an evening spent on one idea --
     has nowhere for the write-up to go, so the rule that an agreed answer gets
     typeset could not be followed there at all. This is the missing floor:

@@ -108,6 +108,15 @@ The assistant runs these. The student never does.
                                        pandoc to .docx, and .pdf when the engine
                                        exists. The only way anything here compiles
     board hw file <label> [--turn tNN]  file a sent page into the set's handwritten/
+    board textbook split <course> [NN ...]
+                                       cut the course's textbook/ PDF into
+                                       chapters/chNN-*/reading/chNN.pdf by the
+                                       page ranges in its chapters.tsv
+    board textbook scaffold <course> [--chapter-homework] [NN ...]
+    board textbook scaffold <course> --hw NN [NN ...]
+                                       chapter notes (and homework) .tex files,
+                                       or numbered homework sets, from the
+                                       course's latex/templates; never overwrites
     board review [status]              what this test review covers
     board review list                  everything this repository can be reviewed over
     board review over ch01 ch07        say what the review covers, without reopening
@@ -4057,6 +4066,39 @@ def cmd_build(live, args):
     return status
 
 
+def cmd_textbook(live, args):
+    """A course's textbook tooling: one shared copy, in board/scripts.
+
+        board textbook split <course> [NN ...]
+        board textbook scaffold <course> [--chapter-homework] [NN ...]
+        board textbook scaffold <course> --hw NN [NN ...]
+
+    <course> is a subject id (`courses/Galois-Theory`), its slug, or a path to
+    the course directory. `split` cuts the one PDF in textbook/ into
+    chapters/chNN-slug/reading/chNN.pdf by chapters.tsv; `scaffold` writes the
+    chapter and homework .tex files from latex/templates and never overwrites.
+    Both outputs that belong to somebody else stay ignored.
+    """
+    from tutorboard import subjects
+    scripts = {"split": "split-textbook.sh", "scaffold": "scaffold.sh"}
+    if len(args) < 2 or args[0] not in scripts:
+        print("usage: board textbook split|scaffold <course> [...]  "
+              "(board textbook --help)", file=sys.stderr)
+        return 2
+    sub, want, rest = args[0], args[1], args[2:]
+    if os.path.isdir(want):
+        where = os.path.realpath(want)
+    else:
+        found = subjects.find(want)
+        where = found["root"] if found else None
+    if not where:
+        print("no course called %r: give its id (courses/<Name>), its name "
+              "or its directory" % want, file=sys.stderr)
+        return 1
+    return subprocess.call(["bash", os.path.join(TOOL, "scripts",
+                                                 scripts[sub]), where] + rest)
+
+
 def cmd_eyes(live, args):
     """Settle, by experiment, whether the assistant driving this can see.
 
@@ -4476,8 +4518,12 @@ COMMANDS = {
     "colibri": cmd_colibri,
     "notes": cmd_notes,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
-    "round": cmd_round,
+    "round": cmd_round, "textbook": cmd_textbook,
 }
+
+# Commands about a directory they are given, not the repository they run in:
+# no `live/` is made for them.
+NO_LIVE = ("textbook",)
 
 
 def help_for(cmd, fn):
@@ -4522,6 +4568,8 @@ def main(argv):
     # question with an answer outside a course.
     if rest and rest[0] in ("-h", "--help", "help"):
         return help_for(cmd, fn)
+    if cmd in NO_LIVE:
+        return fn(None, rest)
     live = Live(find_repo(root))
     return fn(live, rest)
 
