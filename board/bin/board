@@ -99,17 +99,18 @@ The assistant runs these. The student never does.
     board file <upload> [materials|<relpath>] [--session <id>]
                                        move an upload into the bound subject,
                                        materials/ by default; its ink follows
-    board hw [status]                  this sitting's problem set: what is still empty
-    board hw list                      every problem set in this repository
-    board hw use <name>                say which set this sitting is (hw04, ch07)
-    board hw new <name> [title]        start a write-up where there is none
-    board hw build                     compile it; the result appears on the board
+    board writeup add <label> < text   an agreed answer into the session's
+                                       write-up: statement, a line ---, then
+                                       their argument; files the sent page and
+                                       rebuilds the PDF
+    board writeup new|build|status     start it, rebuild it, what is still empty
+    board writeup use <name> | list    write into a course's set (hw04, ch07)
+                                       (`board hw` is the same command)
     board build <file> [--format docx|pdf] [--strict] [--reference-doc F] [--keep-aux]
                                        build a document beside its source: a .tex
                                        with pdflatex (deck or article), a .md with
                                        pandoc to .docx, and .pdf when the engine
                                        exists. The only way anything here compiles
-    board hw file <label> [--turn tNN]  file a sent page into the set's handwritten/
     board textbook split <course> [NN ...]
                                        cut the course's textbook/ PDF into
                                        chapters/chNN-*/reading/chNN.pdf by the
@@ -117,8 +118,8 @@ The assistant runs these. The student never does.
     board textbook scaffold <course> [--chapter-homework] [NN ...]
     board textbook scaffold <course> --hw NN [NN ...]
                                        chapter notes (and homework) .tex files,
-                                       or numbered homework sets, from the
-                                       course's latex/templates; never overwrites
+                                       or numbered homework sets, from
+                                       board/tex/writeup.tex.in; never overwrites
     board vpn up [--hostname N]        the Tailscale link (name defaults to 'board')
     board vpn status|serve|down, for devices off this network
     board init [name]                  write tutorboard.json for this repository
@@ -516,14 +517,14 @@ def cmd_open(live, args):
         print("  you write the mathematics; the write-up and the compile are mine")
         # Bind the sitting to a problem set now, so nothing later has to guess.
         if which:
-            cmd_hw(live, ["use", which])
+            cmd_writeup(live, ["use", which])
         else:
             st = homework.status(live.root, live.state())
             if st and st["name"]:
                 live.set_state(hw=st["rel"])
                 print("  set: %s  (%s)" % (st["name"], st["rel"]))
             elif st and st["ambiguous"]:
-                print("  which set? board hw use <name>, or reopen with --set")
+                print("  which set? board writeup use <name>, or reopen with --set")
     return 0
 
 
@@ -848,35 +849,12 @@ def read_turns(live):
 # homework: a problem set is a file in the course, and the board tracks it
 # ---------------------------------------------------------------------------
 def hw_build(live, st):
-    """Compile the sitting's problem set and record what happened.
-
-    Split out of `board hw build` so that pushing can do it too. A pushed `.pdf`
-    that is older than the `.tex` beside it is worse than no `.pdf`: it is a
-    finished-looking document missing the exercise the evening was spent on, and
-    nothing about it says so.
+    """Compile the session's write-up and record what happened in `hw.json`,
+    which the board's banner paints. `homework.build` does both; pushing
+    calls this too. A pushed `.pdf` older than the `.tex` beside it is a
+    finished-looking document missing the exercise the evening was spent on.
     """
-    tex_path = os.path.join(live.root, st["rel"])
-    # `board build`, the one builder: pdflatex beside the source, TeX found
-    # wherever this machine installed it, and a failure that names its reason
-    # -- the LaTeX error, or "no LaTeX on this machine" -- rather than "FAILED".
-    from tutorboard import build
-    rec = build.build(tex_path)
-    out = (rec.get("detail") or "").strip()
-    code = 0 if rec["ok"] else 1
-    # Where the build actually put it -- `homework.compiled_pdf` knows, and it is
-    # the only thing that does. `pdf` is what a download resolves through, so a
-    # `null` here is a document on disk with no button on the iPad.
-    pdf = homework.compiled_pdf(live.root, tex_path)
-    record = {"ok": code == 0, "at": time.time(),
-              "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-              "set": st["name"],
-              "pdf": os.path.relpath(pdf, live.root) if pdf else None,
-              # The whole tail, because a LaTeX error is only useful in
-              # context and the person reading it is not at this terminal.
-              "detail": out[-1600:]}
-    with open(live.path("hw.json"), "w", encoding="utf-8") as fh:
-        json.dump(record, fh, indent=2)
-    return code, pdf, out
+    return homework.build(live.root, live.live, st)
 
 
 def hw_stale(live):
@@ -1076,105 +1054,174 @@ def cmd_file(live, args):
     return 0
 
 
-def cmd_hw(live, args):
-    """Which problem set this sitting is, how much of it is written up, compile it.
+def _sid(live):
+    """The stored session's id, or None for a workspace's live/."""
+    return os.path.basename(live.live.rstrip(os.sep)) if live.stored else None
 
-    The board does not write LaTeX and must not: the assistant edits the .tex
-    with its own tools, as it does with every other file in the course. What the
-    tool owns is the part a person on an iPad cannot see otherwise -- which set,
-    which problems are still empty, whether the last compile passed, and where a
-    page of handwriting should be filed.
+
+def _sent_page(live, want=None):
+    """`(path, turn id)` of the newest sent page, or of turn `want`; `(None,
+    why)` when there is none on disk."""
+    turns = [t for t in read_turns(live) if t.get("png")]
+    if want:
+        turns = [t for t in turns if t.get("id") == want]
+    if not turns:
+        return None, ("no turn %s with a sent page" % want) if want else "no sent page"
+    turn = turns[-1]
+    src = os.path.join(live.session, turn["png"].lstrip("/"))
+    if not os.path.exists(src):
+        src = os.path.join(live.answers, os.path.basename(turn["png"]))
+    if not os.path.exists(src):
+        return None, "the page for %s is not on disk: %s" % (turn["id"], turn["png"])
+    return src, turn.get("id")
+
+
+def _writeup_status(live, st):
+    print("%s  %s" % (st["name"], st["rel"]))
+    if not st["problems"]:
+        print("  no problems written yet")
+    for p in st["problems"]:
+        if not p["stated"]:
+            mark = "statement not transcribed"
+        elif p["written"]:
+            mark = "written up"
+        elif p["region"]:
+            mark = "EMPTY"
+        else:
+            mark = "no solution region"
+        print("  %-6s %s" % (p["label"], mark))
+    print("  %d of %d written up" % (st["written"], st["total"]))
+    # A sheet can be worked in any order; the document is written in the
+    # sheet's. So say what is left, in order, and where the next answer goes.
+    left = st.get("outstanding") or []
+    if left:
+        print("  still to write up, in order: %s" % ", ".join(left))
+        print("  next: %s" % st["next"])
+    elif st["total"]:
+        print("  the whole set is written up")
+    rec = read_hw_build(live)
+    if rec:
+        print("  last build: %s at %s" % ("ok" if rec["ok"] else "FAILED", rec["iso"]))
+
+
+def cmd_writeup(live, args):
+    """The session's write-up: every agreed answer, typeset and built.
+
+    board writeup add <label> [--turn tNN] [--no-page] [--no-build] < text
+        stdin is the STATEMENT, a line `---`, then THEIR agreed argument. Writes
+        both into the write-up (the label's region, replaced if it was filled;
+        a new problem appended where the file has no such label), copies the
+        newest sent page (or turn tNN's) into handwritten/<set>-<label>.png, and
+        rebuilds the PDF. Fenced ``` code blocks are set verbatim.
+    board writeup new [title]    start it now rather than at the first add
+    board writeup build          rebuild the PDF; a failure reaches the banner
+    board writeup status         which file, what is written, what is next
+    board writeup use <name>     write into this course set (hw04, ch07)
+    board writeup list           every problem set in the subject
+    board writeup file <label> [--turn tNN]   file a sent page only
+
+    The first add or new makes the write-up: the bound homework set, in place,
+    when the session is on one (`use`, or a title naming it), else
+    docs/<session-slug>/writeup.tex from board/tex/writeup.tex.in. A session
+    bound to no subject refuses: `board bind` first. `board hw` is the same
+    command under its old name.
     """
     sub = args[0] if args else "status"
     rest = args[1:]
     state = live.state()
     if live.stored and not state.get("subject"):
-        print("this session is bound to no subject, so it has no problem sets: "
-              "bind it first", file=sys.stderr)
+        print("this session is bound to no subject, so it has nowhere to write "
+              "up: `board bind courses/<name>` or `board bind projects/<name>` "
+              "first", file=sys.stderr)
         return 1
 
     if sub == "use":
         if not rest:
-            print("usage: board hw use <name or path>   (board hw --list to see them)",
-                  file=sys.stderr)
+            print("usage: board writeup use <name or path>   (board writeup list "
+                  "shows them)", file=sys.stderr)
             return 1
         want = rest[0]
         for s in homework.sets(live.root):
             if want in (s["name"], s["rel"]) or os.path.abspath(want) == s["tex"]:
                 live.set_state(hw=s["rel"])
-                print("this sitting is %s  (%s)" % (s["name"], s["rel"]))
+                print("this session writes into %s  (%s)" % (s["name"], s["rel"]))
                 return 0
-        print("no problem set called %r in this repository" % want, file=sys.stderr)
+        print("no problem set called %r here" % want, file=sys.stderr)
         return 1
-
-    if sub == "new":
-        # A WRITE-UP FOR SOMETHING THAT HAS NONE. Courses get their sets from
-        # their own scaffold; a line of research, a paper, an evening on one
-        # idea gets nothing -- so the rule that agreed work is typeset had no
-        # file to be typeset into, and the evening stayed in the cards.
-        if not rest:
-            print("usage: board hw new <name> [title]", file=sys.stderr)
-            return 1
-        made, why = homework.scaffold(live.root, rest[0],
-                                      title=" ".join(rest[1:]) or None,
-                                      author=(state or {}).get("student"))
-        if not made:
-            print(why, file=sys.stderr)
-            return 1
-        live.set_state(hw=made["rel"])
-        print("started %s  (%s)" % (made["name"], made["rel"]))
-        print("this sitting writes into it; board hw build compiles it")
-        return 0
 
     if sub in ("--list", "list"):
         every = homework.sets(live.root)
         if not every:
-            print("this repository has no problem sets")
+            print("this subject has no problem sets; `board writeup add` starts "
+                  "the session's own write-up")
             return 1
         for s in every:
             print("  %-8s %s" % (s["name"], s["rel"]))
         return 0
 
+    if sub in ("new", "add"):
+        title = None
+        if sub == "new":
+            title = " ".join(a for a in rest if not a.startswith("--")) or None
+        try:
+            found, made = homework.start(live.root, state, session=_sid(live),
+                                         title=title,
+                                         author=(state or {}).get("student") or "")
+        except ValueError as exc:
+            print("board writeup: %s" % exc, file=sys.stderr)
+            return 1
+        if found["rel"] != state.get("hw"):
+            live.set_state(hw=found["rel"])
+        if made:
+            print("started %s" % found["rel"])
+        if sub == "new":
+            if not made:
+                print("this session writes into %s  (%s)" % (found["name"], found["rel"]))
+            return 0
+        if not rest or rest[0].startswith("--"):
+            print("usage: board writeup add <label> [--turn tNN] [--no-page] "
+                  "[--no-build] < statement, a line ---, then the argument",
+                  file=sys.stderr)
+            return 2
+        label = rest[0]
+        statement, argument = homework.split_input(sys.stdin.read())
+        said, why = homework.add(found["tex"], label, statement, argument)
+        if not said:
+            print("board writeup add: %s" % why, file=sys.stderr)
+            return 1
+        print("%s %s in %s (statement %s)" % (
+            {"filled": "wrote", "replaced": "rewrote", "added": "added"}[said["region"]],
+            said["label"], found["rel"], said["statement"]))
+        if "--no-page" not in rest:
+            src, which = _sent_page(live, _flag_value(rest, "--turn"))
+            if src:
+                dest = homework.file_page(src, found, said["label"])
+                print("filed %s's page as %s" % (which, os.path.relpath(dest, live.root)))
+            else:
+                print("no page filed: %s" % which)
+        if "--no-build" in rest:
+            return 0
+        code, pdf, out = hw_build(live, found)
+        if code == 0:
+            print("built %s" % os.path.relpath(pdf, live.root) if pdf else out)
+        else:
+            print("BUILD FAILED -- the error is on the board's banner; fix it "
+                  "and run board writeup build:\n" + out)
+        return code
+
     st = homework.status(live.root, state)
-    if st is None:
-        print("this repository has no problem sets")
-        return 1
+    if st is None or (not st["name"] and not st["ambiguous"]):
+        print("no write-up yet; the first `board writeup add <label>` starts one")
+        return 1 if sub == "build" else 0
     if not st["name"]:
-        print("cannot tell which set this sitting is. Pin one:")
-        print("  board hw use %s" % (st["ambiguous"][0] if st["ambiguous"] else "<name>"))
-        print("%d to choose from; board hw list shows them all" % len(st["ambiguous"]))
+        print("cannot tell which set this session is. Pin one, or let the first "
+              "add start the session's own:")
+        print("  board writeup use %s" % (st["ambiguous"][0] if st["ambiguous"] else "<name>"))
+        print("%d to choose from; board writeup list shows them all" % len(st["ambiguous"]))
         return 1
 
     if sub == "status":
-        print("%s  %s" % (st["name"], st["rel"]))
-        if not st["problems"]:
-            print("  no problems transcribed yet")
-        for p in st["problems"]:
-            if not p["stated"]:
-                mark = "statement not transcribed"
-            elif p["written"]:
-                mark = "written up"
-            elif p["region"]:
-                mark = "EMPTY"
-            else:
-                mark = "no solution region"
-            print("  %-6s %s" % (p["label"], mark))
-        print("  %d of %d written up" % (st["written"], st["total"]))
-        # A sheet can be worked in any order the student likes, and one that has
-        # been skipped looks exactly like one that has not been reached yet: an
-        # empty region. So say which they are, in the sheet's own order, and
-        # which one the next agreed answer belongs in. Without this "come back to
-        # the skipped ones" is a thing the assistant has to remember across a
-        # two-hour sitting and several restarts, and it did not.
-        left = st.get("outstanding") or []
-        if left:
-            print("  still to write up, in order: %s" % ", ".join(left))
-            print("  next: %s" % st["next"])
-        elif st["total"]:
-            print("  the whole set is written up")
-        rec = read_hw_build(live)
-        if rec:
-            print("  last build: %s at %s" % ("ok" if rec["ok"] else "FAILED", rec["iso"]))
+        _writeup_status(live, st)
         return 0
 
     if sub == "build":
@@ -1186,33 +1233,19 @@ def cmd_hw(live, args):
 
     if sub == "file":
         if not rest:
-            print("usage: board hw file <problem label> [--turn tNNNN]", file=sys.stderr)
-            return 1
-        label = rest[0]
-        turns = [t for t in read_turns(live) if t.get("png")]
-        want = _flag_value(rest, "--turn")
-        if want:
-            turns = [t for t in turns if t.get("id") == want]
-        if not turns:
-            print("no sent handwriting to file", file=sys.stderr)
-            return 1
-        turn = turns[-1]
-        src = os.path.join(live.session, turn["png"].lstrip("/"))
-        if not os.path.exists(src):
-            src = os.path.join(live.answers, os.path.basename(turn["png"]))
-        if not os.path.exists(src):
-            print("the page for %s is not on disk: %s" % (turn["id"], turn["png"]),
+            print("usage: board writeup file <problem label> [--turn tNNNN]",
                   file=sys.stderr)
             return 1
-        dest_dir = os.path.join(st["dir"], "handwritten")
-        os.makedirs(dest_dir, exist_ok=True)
-        safe = re.sub(r"[^A-Za-z0-9._-]", "-", label)
-        dest = os.path.join(dest_dir, "%s-%s.png" % (st["name"], safe))
-        shutil.copyfile(src, dest)
+        src, why = _sent_page(live, _flag_value(rest, "--turn"))
+        if not src:
+            print(why, file=sys.stderr)
+            return 1
+        dest = homework.file_page(src, st, rest[0])
         print(os.path.relpath(dest, live.root))
         return 0
 
-    print("unknown: board hw %s  (status, list, new, use, build, file)" % sub, file=sys.stderr)
+    print("unknown: board writeup %s  (add, new, build, status, use, list, file)"
+          % sub, file=sys.stderr)
     return 1
 
 
@@ -1224,11 +1257,7 @@ def _flag_value(args, name):
 
 
 def read_hw_build(live):
-    try:
-        with open(live.path("hw.json"), "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except (OSError, ValueError):
-        return None
+    return homework.last_build(live.live)
 
 
 def read_messages(live):
@@ -3740,7 +3769,7 @@ def cmd_textbook(live, args):
     <course> is a subject id (`courses/Galois-Theory`), its slug, or a path to
     the course directory. `split` cuts the one PDF in textbook/ into
     chapters/chNN-slug/reading/chNN.pdf by chapters.tsv; `scaffold` writes the
-    chapter and homework .tex files from latex/templates and never overwrites.
+    chapter and homework .tex files from board/tex/writeup.tex.in and never overwrites.
     Both outputs that belong to somebody else stay ignored.
     """
     from tutorboard import subjects
@@ -4107,7 +4136,7 @@ COMMANDS = {
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
-    "hw": cmd_hw, "recap": cmd_recap, "mode": cmd_mode,
+    "writeup": cmd_writeup, "hw": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,

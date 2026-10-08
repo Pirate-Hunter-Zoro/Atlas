@@ -370,12 +370,11 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     on_thread = thread_sense(repo, st) or sitting_sense(repo, st)
     if on_thread:
         out.append(on_thread)
-    # THE WRITE-UP, on the brief, every turn a set is bound. Counts and not just
-    # a name: "homework set: ch04" is a fact about configuration and reads as
-    # already handled, where "0 of 11 written up, next 04.1" is a debt, and a
-    # debt on the brief is the only thing that reliably gets paid. An agreed
-    # answer is transcribed in the turn it is agreed (TEACHING.md), and a sitting
-    # that goes an evening without this line in front of it writes up nothing.
+    # THE WRITE-UP, on the brief, every turn. Counts and not just a name:
+    # "ch04" is a fact about configuration and reads as already handled, where
+    # "0 of 11 written up, next 04.1" is a debt, and a debt on the brief is the
+    # only thing that reliably gets paid. An agreed answer is written up in the
+    # turn it is agreed (TEACHING.md) with `board writeup add`.
     hw_set = homework.bound(root, st)
     if hw_set:
         try:
@@ -383,18 +382,24 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
         except Exception:
             hw_st = None
         if hw_st and hw_st.get("total"):
-            line = "homework set: %s -- %d of %d written up" % (
-                hw_st["name"], hw_st["written"], hw_st["total"])
+            line = "writeup: %s (%s) -- %d of %d written up" % (
+                hw_st["name"], hw_st["rel"], hw_st["written"], hw_st["total"])
             if hw_st.get("stated", 0) < hw_st["total"]:
                 line += ", %d statement(s) not yet transcribed" % (
                     hw_st["total"] - hw_st["stated"])
             if hw_st.get("next"):
                 line += ", next %s" % hw_st["next"]
-            out.append(line)
+            out.append(line + "; `board writeup add <label>` for each agreed answer")
         else:
-            out.append("homework set: %s -- no problem environments in the file "
-                       "yet; lay the skeleton down before the first answer lands"
-                       % hw_set["name"])
+            out.append("writeup: %s (%s) -- nothing written yet; `board writeup "
+                       "add <label>` for each agreed answer"
+                       % (hw_set["name"], hw_set["rel"]))
+    elif config.mode_of(st) != "do":
+        out.append("writeup: none yet -- the first `board writeup add <label>` "
+                   "starts it%s" % (
+                       "" if not (getattr(repo, "stored", False)
+                                  and not st.get("subject"))
+                       else ", once the session is bound to a subject"))
     # Who writes the code: the session's mode, and only that.
     cfg = config.read_config(root)
     out.append("mode: %s" % config.mode_of(st))

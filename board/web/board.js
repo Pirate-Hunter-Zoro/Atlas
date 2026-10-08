@@ -3051,7 +3051,7 @@ function closePaper() {
    should not mean reading a timestamp. */
 /* The written-up work, compiled and kept -- and then handed over.
 
-   `board hw build` is the compile, unchanged: the same one the tutor runs and
+   `board writeup build` is the compile, unchanged: the same one the tutor runs and
    the same one a push runs before it commits a stale PDF, so there is one
    compiler and one record of what LaTeX said. This only presses the button, and
    then offers the result the same way the lesson export does.

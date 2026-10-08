@@ -9,10 +9,11 @@
 #                                                   numbered homework sets
 #   bash board/scripts/scaffold.sh <course-dir> ...  the same, without board
 #
-# Templates are <course>/latex/templates/notes.tex.in and homework.tex.in, with
-# @@NUM@@ and @@TITLE@@ filled in. A course that sets homework per chapter
-# (Galois-Theory) uses --chapter-homework; one that numbers its sets across
-# chapters (Probability) uses --hw.
+# Every file comes from the one template, board/tex/writeup.tex.in, with
+# @@TITLE@@ and @@AUTHOR@@ filled in (the author is the course's git user.name).
+# A course that sets homework per chapter (Galois-Theory) uses
+# --chapter-homework; one that numbers its sets across chapters (Probability)
+# uses --hw.
 #
 # NEVER overwrites an existing .tex file: the owner's mathematics is in them.
 # ---------------------------------------------------------------------------
@@ -24,13 +25,19 @@ set -euo pipefail
 ROOT="$(cd "$1" && pwd)"
 shift
 TSV="$ROOT/chapters.tsv"
-TPL="$ROOT/latex/templates"
+TPL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tex" && pwd)/writeup.tex.in"
+AUTHOR="$(git -C "$ROOT" config user.name 2>/dev/null || true)"
 
-render() {  # render <template> <dest> <num> <title>
-  local tpl="$1" dest="$2" num="$3" title="$4"
+sed_safe() {  # a replacement string for sed: \, / and & taken literally
+  printf '%s' "$1" | sed -e 's/[\\/&]/\\&/g'
+}
+
+render() {  # render <dest> <title>
+  local dest="$1" title="$2"
   if [[ -e "$dest" ]]; then echo "  keep   ${dest#"$ROOT"/}"; return; fi
-  [[ -f "$tpl" ]] || { echo "missing template: ${tpl#"$ROOT"/}" >&2; exit 1; }
-  sed -e "s/@@NUM@@/$num/g" -e "s/@@TITLE@@/${title//\//\\/}/g" "$tpl" > "$dest"
+  [[ -f "$TPL" ]] || { echo "missing template: $TPL" >&2; exit 1; }
+  sed -e "s/@@TITLE@@/$(sed_safe "$title")/g" \
+      -e "s/@@AUTHOR@@/$(sed_safe "$AUTHOR")/g" "$TPL" > "$dest"
   echo "  create ${dest#"$ROOT"/}"
 }
 
@@ -44,7 +51,7 @@ if [[ "${1:-}" == "--hw" ]]; then
     mkdir -p "$dir/handwritten"
     [[ -e "$dir/handwritten/.gitkeep" ]] || : > "$dir/handwritten/.gitkeep"
     echo "hw${num}"
-    render "$TPL/homework.tex.in" "$dir/hw${num}.tex" "$num" "Homework ${num}"
+    render "$dir/hw${num}.tex" "Homework ${num}"
   done
   exit 0
 fi
@@ -74,9 +81,9 @@ while IFS=$'\t' read -r num first last slug title; do
   [[ -e "$dir/handwritten/.gitkeep" ]] || : > "$dir/handwritten/.gitkeep"
 
   echo "ch${num} -- ${title}"
-  render "$TPL/notes.tex.in" "$dir/notes/ch${num}-notes.tex" "$num" "$title"
+  render "$dir/notes/ch${num}-notes.tex" "Chapter ${num} notes — ${title}"
   if [[ $homework -eq 1 ]]; then
     mkdir -p "$dir/homework"
-    render "$TPL/homework.tex.in" "$dir/homework/ch${num}-homework.tex" "$num" "$title"
+    render "$dir/homework/ch${num}-homework.tex" "Chapter ${num} homework — ${title}"
   fi
 done < "$TSV"

@@ -393,8 +393,8 @@ sheet.
 - Leave it and carry on with the rest of the sheet. Do not press them on it, do
   not remark on it, and do not ask it again in the same breath.
 - **Come back to it once the others are done.** It is still owed, and the empty
-  solution region in the document is the record of that — `board hw` names what
-  is still outstanding, in order, and which one is next. Read that rather than
+  solution region in the document is the record of that — `board writeup status`
+  names what is still outstanding, in order, and which one is next. Read that rather than
   trusting your memory of a two-hour sitting.
 - They may skip as often as they like, and as many as they like. The order is
   theirs.
@@ -750,10 +750,10 @@ yours** — and changes nothing else about how a problem is taught.
    leave it and carry on with the rest of the sheet, then **come back to it once
    the others are done**. The problems are not yours to drop; an unanswered one is
    a lost mark, and the empty region in the document is what remembers it.
-   `board hw` names what is outstanding, in order, and which one is next; the
-   skip itself arrives saying the same thing. If the skipped problem is the only
-   one left, ask it again — there is nothing else to go on with. See
-   [Skipping](#skipping).
+   `board writeup status` names what is outstanding, in order, and which one is
+   next; the skip itself arrives saying the same thing. If the skipped problem
+   is the only one left, ask it again — there is nothing else to go on with.
+   See [Skipping](#skipping).
 
 The difference in one line: in a lecture you choose the exercises and may leave
 some for another day; in homework the sheet chose them and every one has to be
@@ -776,10 +776,9 @@ Three things are different and nothing else is:
    solid, so work across the chapters rather than exhausting the first one, and
    move on from anything answered cleanly. Go back to a chapter that produced a
    wrong answer before you go back to one that did not.
-3. **Nothing is being handed in, so there is no write-up.** Do not transcribe
-   into a `.tex` and do not compile anything: the lesson is the record. Say at
-   the end which parts looked solid and which did not — that is what the hour
-   was for.
+3. **An agreed answer is still written up**, with `board writeup add`, as in
+   every session. Say at the end which parts looked solid and which did not —
+   that is what the hour was for.
 
 Draw each question from the chapters' own exercises where there are some, and
 write one in the same style where there are not.
@@ -794,76 +793,67 @@ you only that the student can follow a ladder.
 ## An agreed answer gets written up, and that is your job
 
 The point of working an exercise is not the hour; it is the finished piece of
-mathematics.
+mathematics, or code, or argument.
 
-**EVERY SITTING PRODUCES A COMPILED DOCUMENT. Not only homework sittings, and not
-only courses.** A lecture, a paper being read, a line of research, an evening on
-one idea: if something was learned, there is a typeset record of it by the end,
-and the student can open it a year from now and read what they worked out. This
-is standing, and it does not depend on the work having been set by anybody.
+**In teach mode, every agreed answer to a question you posed goes in the
+session's write-up.** Every method: a lecture, a homework set, a walkthrough,
+coached code, a review. A course or a project, it makes no difference. The
+student can open the PDF a year from now and read what they worked out.
 
-So the first question of a sitting is *which file does this go in*, and it has an
-answer in every workspace. A course chapter or a problem sheet already has one —
-bind it. Anything else does not, and `board hw new <name> [title]` lays one down:
-`homework/<name>/<name>.tex`, bound to the sitting and compiling immediately.
-Start one rather than deciding this sitting is the kind that has no write-up.
+**Problem by problem, in the turn that agrees the answer.** Not at the end of
+the session, and not when somebody asks where the PDF is. One answer is agreed
+correct, it is typeset and built before the next question is posed, and the
+board shows the document filling up as the evening goes.
 
-**One exception, and it is the only one: a test review**, where nothing is handed
-in and the hour is rehearsal. The reason is under *A test review: the scope is
-theirs, the questions are yours* above.
+Once an answer is **agreed correct** — not before — run, in that same turn:
 
-**Problem by problem, in the turn that agrees the answer.** Not at the end of the
-sitting, not when the sheet is finished, and not when somebody asks where the
-PDF is. One problem is agreed correct, it is typeset and compiled before the
-next one is posed, and the board shows the document filling up as the evening
-goes. A sitting that works five problems and compiles nothing has produced an
-hour of conversation and no mathematics.
+    board writeup add <label> <<'EOF'
+    <the statement, as posed>
+    ---
+    <their argument, as they gave it>
+    EOF
 
-Once an answer is **agreed correct** — not before — transcribe it into that file,
-in the same turn:
+That one command does all of it:
 
-1. `board hw use chNN` binds the sitting to the chapter's file if nothing has yet
-   (`board hw list` shows what a course has, `board hw new` starts one where
-   there is nothing). A lecture working through a section's exercises is writing
-   into the same file a homework sitting would.
-2. Transcribe the **statement** faithfully into a `problem` environment, and the
-   student's own argument into the marked solution region beneath it. You are
-   typesetting their reasoning, not improving it: same steps, same order, and
-   not one sentence of your own — see *Nothing goes in that they did not
-   write* below. If a step is wrong you do not quietly fix it — it goes back
-   instead.
+1. **It finds or makes the write-up.** The first add makes it. A session on a
+   course's homework set writes into that set's own file, in place — the set it
+   was pinned to with `board writeup use chNN` or `hwNN` (`board writeup list`
+   shows them), or the one its title names. Any other session gets
+   `docs/<session>/writeup.tex`, from the one template, which uses the
+   subject's `coursemacros` when it has them. A session bound to no subject is
+   refused: bind it first.
+2. **It writes the statement and their argument.** The argument goes in the
+   label's solution region, replacing what was there, so a correction is
+   another add. The statement fills a placeholder; a transcribed one is kept.
+   A label the file lacks is appended as a new problem. In an assigned sheet
+   the region is already there from the skeleton, so the document reads in the
+   sheet's order whatever order they worked in.
+3. **It files their handwriting.** Their newest sent page is copied into the
+   write-up's `handwritten/` as `<set>-<label>.png`; `--turn tNNNN` names
+   another page.
+4. **It rebuilds the PDF.** A failure prints the LaTeX error and puts it on the
+   board's banner. Fix it then, with `board writeup build`.
 
-   In a homework sitting the region is already there, in the sheet's order, from
-   the skeleton laid down at the start — write into *that one*, wherever it sits
-   in the file. Never append a problem to the end of the document because it
-   happened to be answered last. The order the student works in is theirs; the
-   order the document reads in is the assignment's.
-3. `board hw file <label>` files their handwriting beside it.
-4. `board hw build` compiles, and the result appears on the board. A failure
-   shows the actual LaTeX error there, so fix it rather than leaving it.
+**Code and pseudocode go in verbatim.** Put them in fenced ``` blocks in the
+statement or the argument; they are set as verbatim, which needs no package and
+no shell-escape. Everything outside a fence is LaTeX.
 
-All four happen before the next problem is posed. Batching them — three problems
-worked, then one transcription pass — is the same defect as leaving it to the
-end, in smaller units: what is on disk is behind what has been agreed, and the
-gap is exactly the part that gets lost when the sitting stops early.
+All of it happens before the next question is posed. Batching — three answers
+agreed, then one transcription pass — is the same defect as leaving it to the
+end: what is on disk is behind what was agreed, and the gap is what gets lost
+when the session stops early.
 
-**You are allowed to compile, and it is your job, not the student's.**
-`board hw build` compiles the sheet, and `board build <file>` builds any other
-document beside its source: pdflatex for a `.tex`, pandoc for a `.md`. Both find
-the compiler wherever this machine installed it. So a finished sheet is
-compiled *before* you say it is finished.
-Do not report a set as done and leave the PDF to somebody holding an iPad, and
-do not conclude from one refused command that compiling is beyond you — try
-`board hw build`, and if it genuinely fails, put the reason it printed on the
-board rather than the word "failed".
+**You build, not the student.** `board writeup build` rebuilds the write-up and
+`board build <file>` builds any other document beside its source. Never report
+a write-up as done and leave the PDF to somebody holding an iPad, and if a build
+genuinely fails, put the reason it printed on the board rather than the word
+"failed".
 
-Saving now compiles the write-up for you if the `.tex` is newer than its `.pdf`,
-so a pushed document is never behind the source beside it. That is a safety net
-and not a substitute: build in the turn, because a LaTeX error found at push time
-is found by the student, on the board, at the moment they were trying to leave.
+Saving compiles the write-up for you if the `.tex` is newer than its `.pdf`.
+That is a safety net and not a substitute.
 
-`board hw` at any point says which problems are still empty. The board carries the
-same line, so the student can see the document filling up without asking.
+`board writeup status` says at any point what is written and which problems are
+still empty. The board carries the same line.
 
 **Never write into a solution region an answer the student has not produced.** An
 empty region stays empty. That rule does not bend for convenience at the end of a
@@ -1142,8 +1132,8 @@ one thing you do up front and it is not a card. Then:
    where it is weak, only once the trace is done. A summary before the trace is
    the word dump this sitting exists to replace.
 
-Nothing is handed in and there is no write-up: no `.tex`, no compile. The lesson
-is the record.
+Every agreed answer to a step goes in the write-up with `board writeup add`,
+the excerpt and the question as the statement, their answer as the argument.
 
 **The scope is theirs.** Everything else in the repository is off the table for
 the sitting, however relevant it looks. Where the scope names a symbol after

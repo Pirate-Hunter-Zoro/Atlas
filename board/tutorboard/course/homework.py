@@ -11,8 +11,13 @@ Two shapes exist in the wild and neither is more correct than the other:
     chapters/ch07-*/homework/ch07-homework.tex   numbered by chapter (Galois)
 
 So this discovers rather than assumes, exactly like course discovery itself. A
-course that wants to settle it explicitly puts the path in `live/state.json`
-under `hw`, which `board hw use` writes.
+session settles it by its pin, session.json `writeup`, which `board writeup
+use` writes and the first `board writeup add` writes when it makes one.
+
+THE WRITE-UP of any session is one of these: the bound set, written in place,
+or else `docs/<session-slug>/writeup.tex`, a new artifact from the one
+template, `board/tex/writeup.tex.in`. `start` makes it, `add` writes one agreed
+answer into it, and `build` compiles it and records the outcome for the board.
 
 The problem labels are opaque strings, not integers: one course numbers problems
 1, 2, 3 and the other numbers them 7.1, 7.2, 7.3.
@@ -20,9 +25,13 @@ The problem labels are opaque strings, not integers: one course numbers problems
 Standard library only, like everything else.
 """
 
+import fnmatch
 import glob
+import json
 import os
 import re
+import shutil
+import time
 
 # The scaffold both courses' templates emit. The assistant fills the region; the
 # markers stay put, and they are how anything can tell written-up from not.
@@ -37,6 +46,20 @@ LAYOUTS = (
     os.path.join("chapters", "*", "homework", "*.tex"),
 )
 
+# A session's own write-up, an artifact at `docs/<slug>/writeup.tex`. It is no
+# problem set -- `sets` never lists it -- and is found only by the session's pin.
+DOCS_LAYOUT = os.path.join("docs", "*", "*.tex")
+PINNABLE = LAYOUTS + (DOCS_LAYOUT,)
+WRITEUP_SOURCE = "writeup.tex"
+
+# The one template every write-up starts from: a session's, and a course's
+# chapter notes and sets laid down by `board textbook scaffold`.
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))), "tex", "writeup.tex.in")
+
+# The build record the board's banner paints, in the session directory.
+RECORD = "hw.json"
+
 
 def _name_for(root, tex):
     """What to call this set: the folder that identifies it, not the file.
@@ -46,7 +69,7 @@ def _name_for(root, tex):
     slug is decoration.
     """
     rel = os.path.relpath(tex, root).split(os.sep)
-    if rel[0] == "homework" and len(rel) >= 2:
+    if rel[0] in ("homework", "docs") and len(rel) >= 3:
         return rel[1]
     if rel[0] == "chapters" and len(rel) >= 2:
         m = re.match(r"(ch\d+)", rel[1])
@@ -222,80 +245,6 @@ def sets(root):
     return sorted(found.values(), key=lambda s: s["name"])
 
 
-SCAFFOLD = r"""%% ===========================================================================
-%%  %(title)s
-%%
-%%  THE WRITE-UP, and it is the assistant's to type.
-%%    The assistant transcribes each question or topic faithfully and emits an
-%%    empty, marked solution region beneath it. The student does the
-%%    mathematics; the assistant typesets what they agreed was right, and
-%%    nothing that was not on the page the student sent.
-%% ===========================================================================
-\documentclass[11pt]{article}
-%(preamble)s
-\title{%(title)s}
-\author{%(author)s}
-\date{\today}
-
-\begin{document}
-\maketitle
-
-%% One problem/solution pair per thing worked, in the order it was assigned or
-%% chosen. A region stays empty until the answer in it is agreed correct.
-
-\end{document}
-"""
-
-PLAIN_PREAMBLE = r"""\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage[margin=1in]{geometry}
-%% The two environments everything here is written in. A workspace with its own
-%% `coursemacros.sty` gets that instead, and these match its definitions so a
-%% document reads the same either way.
-\newenvironment{problem}[1]
-  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
-  {\par\medskip}
-\newenvironment{solution}
-  {\par\noindent\textbf{Solution.}\ }
-  {\par\medskip}
-\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
-"""
-
-
-def scaffold(root, name, title=None, author=None):
-    """Start a write-up for something that has none, and return its record.
-
-    A course has its sets laid down by `board textbook scaffold`. Everything else
-    -- a line of research, a paper being read, an evening spent on one idea --
-    has nowhere for the write-up to go, so the rule that an agreed answer gets
-    typeset could not be followed there at all. This is the missing floor:
-    `homework/<name>/<name>.tex`, which is the portable layout `sets()` already
-    looks for, so the document is bound and reported the moment it exists.
-
-    Refuses to overwrite. A write-up already started is somebody's evening.
-    """
-    slug = re.sub(r"[^a-z0-9-]+", "-", str(name or "").strip().lower()).strip("-")
-    if not slug:
-        return None, "a write-up needs a name: board hw new <name>"
-    where = os.path.join(root, "homework", slug)
-    tex = os.path.join(where, slug + ".tex")
-    if os.path.exists(tex):
-        return None, "%s already exists" % os.path.relpath(tex, root)
-
-    has_macros = os.path.isfile(os.path.join(root, "latex", "coursemacros.sty"))
-    preamble = "\\usepackage{coursemacros}\n" if has_macros else PLAIN_PREAMBLE
-    body = SCAFFOLD % {
-        "title": title or slug.replace("-", " ").title(),
-        "preamble": preamble,
-        "author": author or "",
-    }
-    os.makedirs(where, exist_ok=True)
-    with open(tex, "w", encoding="utf-8") as fh:
-        fh.write(body)
-    return {"name": slug, "tex": os.path.abspath(tex),
-            "rel": os.path.relpath(tex, root), "dir": where}, None
-
-
 def assignment(set_dir):
     """The sheet as it was handed out, if the set keeps one.
 
@@ -332,6 +281,42 @@ def _hints(text):
     return out
 
 
+def _record(root, tex):
+    """One write-up as `sets` lists it."""
+    name = _name_for(root, tex)
+    full = os.path.abspath(tex)
+    return {"name": name, "title": title_for(root, name, full),
+            "chapter": _chapter_for(root, name, full, _read(full)),
+            "tex": full, "rel": os.path.relpath(full, root), "dir": os.path.dirname(full)}
+
+
+def _pinned(root, every, pinned):
+    """The write-up `pinned` names: a set by name or path, or a session's own
+    `docs/<slug>/*.tex`, which is no set and is found only by its pin."""
+    if not pinned:
+        return None
+    want = os.path.abspath(os.path.join(root, pinned))
+    for s in every:
+        if s["tex"] == want or s["name"] == pinned:
+            return s
+    rel = os.path.relpath(want, root)
+    if fnmatch.fnmatch(rel, DOCS_LAYOUT) and os.path.isfile(want):
+        return _record(root, want)
+    return None
+
+
+def _named(every, state):
+    """The set a session's label names: its chapter, course or title."""
+    state = state or {}
+    names = (_hints(state.get("chapter")) + _hints(state.get("course"))
+             + _hints(state.get("title")))
+    for n in names:
+        for s in every:
+            if s["name"] == n:
+                return s
+    return None
+
+
 def find(root, state):
     """The problem set this session is about, or None if it cannot be settled.
 
@@ -340,19 +325,9 @@ def find(root, state):
     there are and stopping.
     """
     every = sets(root)
-    if not every:
-        return None
-    pinned = (state or {}).get("hw")
-    if pinned:
-        want = os.path.abspath(os.path.join(root, pinned))
-        for s in every:
-            if s["tex"] == want or s["name"] == pinned:
-                return s
-    names = _hints((state or {}).get("chapter")) + _hints((state or {}).get("course"))
-    for n in names:
-        for s in every:
-            if s["name"] == n:
-                return s
+    found = _pinned(root, every, (state or {}).get("hw")) or _named(every, state)
+    if found:
+        return found
     if len(every) == 1:
         return every[0]
     return None
@@ -367,26 +342,13 @@ def bound(root, state):
     A course with one set would then carry that line through a sitting about
     something else entirely, and a line that is sometimes noise stops being read.
 
-    A session label naming a chapter IS a binding. `board hw use` writes the pin,
-    but a lecture that opens as "Ch 4 -- field extensions" and works the chapter's
-    exercises is writing them up into ch04's file whether or not anybody ran that
-    command, and the write-up is owed either way.
+    A session label naming a chapter IS a binding. `board writeup use` writes
+    the pin, but a lecture that opens as "Ch 4 -- field extensions" and works
+    the chapter's exercises is writing them up into ch04's file whether or not
+    anybody ran that command, and the write-up is owed either way.
     """
     every = sets(root)
-    if not every:
-        return None
-    pinned = (state or {}).get("hw")
-    if pinned:
-        want = os.path.abspath(os.path.join(root, pinned))
-        for s in every:
-            if s["tex"] == want or s["name"] == pinned:
-                return s
-    names = _hints((state or {}).get("chapter")) + _hints((state or {}).get("course"))
-    for n in names:
-        for s in every:
-            if s["name"] == n:
-                return s
-    return None
+    return _pinned(root, every, (state or {}).get("hw")) or _named(every, state)
 
 
 def _region_written(lines):
@@ -544,3 +506,248 @@ def compiled_pdf(root, tex_path):
         if os.path.isfile(candidate):
             return candidate
     return None
+
+
+
+# ---------------------------------------------------------------------------
+# the write-up: start one, add an agreed answer, build it
+# ---------------------------------------------------------------------------
+# A label goes into `\begin{problem}{...}`, the region markers and a PNG name,
+# so it is matched rather than escaped: `7.1`, `13`, `2(b)`, `q-3`.
+LABEL_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._()-]{0,23}\Z")
+
+# The line on stdin between the statement and the argument.
+SPLIT = "---"
+
+# A fenced code block in a statement or an argument: set verbatim, which needs
+# no package and no shell-escape.
+FENCE = re.compile(r"^\s*(```|~~~)")
+
+_TEX_SPECIAL = re.compile(r"([\\&%$#_{}~^])")
+_TEX_WORDS = {"\\": r"\textbackslash{}", "~": r"\textasciitilde{}",
+              "^": r"\textasciicircum{}"}
+
+
+def tex_escape(text):
+    """Plain text made safe for a LaTeX title or author."""
+    return _TEX_SPECIAL.sub(lambda m: _TEX_WORDS.get(m.group(1), "\\" + m.group(1)),
+                            str(text or ""))
+
+
+def render(title, author=""):
+    """`writeup.tex.in` with its title and author filled in."""
+    with open(TEMPLATE, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    return (text.replace("@@TITLE@@", tex_escape(title).strip())
+            .replace("@@AUTHOR@@", tex_escape(author).strip()))
+
+
+def split_input(text):
+    """`(statement, argument)` from stdin: the statement, a line `---`, then
+    the argument. With no `---` line it is all argument."""
+    lines = str(text or "").splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == SPLIT:
+            return ("\n".join(lines[:i]).strip("\n"), "\n".join(lines[i + 1:]).strip("\n"))
+    return "", "\n".join(lines).strip("\n")
+
+
+def verbatim(text):
+    """`(tex, None)` with each fenced code block set as a verbatim
+    environment and everything else as written, or `(None, why)`."""
+    out, code, fenced_now = [], [], False
+    for line in str(text or "").splitlines():
+        if FENCE.match(line):
+            if fenced_now:
+                out += ["\\begin{verbatim}"] + code + ["\\end{verbatim}"]
+                code, fenced_now = [], False
+            else:
+                fenced_now = True
+            continue
+        if fenced_now:
+            if "\\end{verbatim}" in line:
+                return None, "a code block may not contain \\end{verbatim}"
+            code.append(line.expandtabs(4))
+        else:
+            out.append(line)
+    if fenced_now:
+        out += ["\\begin{verbatim}"] + code + ["\\end{verbatim}"]
+    return "\n".join(out), None
+
+
+def _claim(found, session):
+    """Write the set's doc.json in place, listing this session, so the library
+    lists it as an artifact and End commits it. An unchanged one is left."""
+    from .. import artifacts
+    d = os.path.dirname(found["tex"])
+    have = artifacts.read(d) or {}
+    sid = artifacts._session_id(session)
+    same = have.get("source") == os.path.relpath(found["tex"], d).replace(os.sep, "/")
+    if same and (not sid or sid in (have.get("sessions") or [])):
+        return
+    artifacts.place(d, found["tex"], have.get("title") or found["title"], session)
+
+
+def start(root, state, session=None, title=None, author=""):
+    """The write-up this session writes into, made when it has none.
+
+    `(record, made)`. The bound set (pinned or named) is written in place, its
+    doc.json listing the session. Else a new artifact, `docs/<slug>/writeup.tex`
+    from the template, `<slug>` from `title`, the session's title, its chapter
+    label, or its id. ValueError where `root` cannot hold one.
+    """
+    state = state or {}
+    found = bound(root, state)
+    if found and os.path.isfile(found["tex"]):
+        _claim(found, session)
+        return found, False
+    from .. import artifacts
+    sid = artifacts._session_id(session)
+    said = (title or state.get("title") or state.get("chapter") or "").strip()
+    if not said:
+        said = "Writeup %s" % (sid or time.strftime("%Y-%m-%d"))
+    art = artifacts.create(root, said, session, ".tex", source=WRITEUP_SOURCE)
+    # Under `root` as given: `create` answers in real paths.
+    tex = os.path.join(os.path.abspath(root), *(art["rel"].split("/") + [art["source"]]))
+    with open(tex, "w", encoding="utf-8") as fh:
+        fh.write(render(said, author))
+    return _record(root, tex), True
+
+
+def _find_problem(lines, label):
+    """`(begin, end)` line indices of the problem environment for `label`."""
+    opener = "\\begin{problem}{%s}" % label
+    for i, line in enumerate(lines):
+        if opener in line:
+            for j in range(i, len(lines)):
+                if "\\end{problem}" in lines[j]:
+                    return i, j
+            return i, None
+    return None, None
+
+
+def _find_region(lines, label):
+    """`(open, close)` line indices of the solution region for `label`."""
+    for i, line in enumerate(lines):
+        m = SOLUTION_OPEN.match(line)
+        if m and m.group("label").strip() == label:
+            for j in range(i + 1, len(lines)):
+                c = SOLUTION_CLOSE.match(lines[j])
+                if c and c.group("label").strip() == label:
+                    return i, j
+            return i, None
+    return None, None
+
+
+def _markers(label):
+    return ("% ===== SOLUTION " + label + " =====",
+            "% ===== END SOLUTION " + label + " =====")
+
+
+def add(tex, label, statement, argument):
+    """Write one agreed answer into the write-up at `tex`.
+
+    The argument goes in the solution region for `label`, replacing what was
+    there. The statement goes in the problem environment when it still holds
+    the `\\todo` placeholder or nothing; a transcribed statement is kept. A
+    label the file does not have gets a problem and a region appended before
+    `\\end{document}`, so a course set is written in the sheet's order and a
+    session's write-up in the order answers were agreed.
+
+    `({label, statement, region}, None)`, or `(None, why)` with nothing written.
+    """
+    label = str(label or "").strip()
+    if not LABEL_RE.match(label):
+        return None, ("a label is letters, digits and . _ ( ) -, at most 24: %r"
+                      % label)
+    stmt, why = verbatim(statement)
+    if why:
+        return None, why
+    arg, why = verbatim(argument)
+    if why:
+        return None, why
+    if not arg.strip():
+        return None, "no argument on stdin: the statement, a line ---, then their argument"
+    try:
+        with open(tex, "r", encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError as exc:
+        return None, "cannot read %s: %s" % (tex, exc)
+    said = {"label": label, "statement": "kept", "region": "filled"}
+    begin, end = _find_problem(lines, label)
+    if begin is not None and end is not None and end > begin:
+        body = "\n".join(lines[begin + 1:end])
+        if stmt.strip() and ("\\todo{" in body or not body.strip()):
+            lines[begin + 1:end] = stmt.splitlines()
+            said["statement"] = "written"
+            begin, end = _find_problem(lines, label)
+    opened, closed = _find_region(lines, label)
+    arg_lines = arg.splitlines()
+    if opened is not None and closed is not None:
+        if _region_written(lines[opened + 1:closed]):
+            said["region"] = "replaced"
+        lines[opened + 1:closed] = arg_lines
+    elif begin is not None and end is not None:
+        top, bottom = _markers(label)
+        lines[end + 1:end + 1] = [top] + arg_lines + [bottom]
+    else:
+        last = None
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip().startswith("\\end{document}"):
+                last = i
+                break
+        if last is None:
+            return None, "%s has no \\end{document} to write before" % tex
+        top, bottom = _markers(label)
+        stmt_lines = (stmt.splitlines() if stmt.strip()
+                      else ["\\todo{statement not yet transcribed}"])
+        lines[last:last] = (["\\begin{problem}{%s}" % label] + stmt_lines
+                            + ["\\end{problem}", top] + arg_lines + [bottom, ""])
+        said["statement"] = "written" if stmt.strip() else "placeholder"
+        said["region"] = "added"
+    tmp = tex + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    os.replace(tmp, tex)
+    return said, None
+
+
+def file_page(src, found, label):
+    """Copy a sent page into the write-up's `handwritten/` as
+    `<name>-<label>.png`; the path it went to."""
+    dest_dir = os.path.join(found["dir"], "handwritten")
+    os.makedirs(dest_dir, exist_ok=True)
+    safe = re.sub(r"[^A-Za-z0-9._-]", "-", label)
+    dest = os.path.join(dest_dir, "%s-%s.png" % (found["name"], safe))
+    shutil.copyfile(src, dest)
+    return dest
+
+
+def build(root, session_dir, found):
+    """Compile the write-up with `board build` and record the outcome in the
+    session's `hw.json`, which the board's banner paints: the LaTeX error
+    itself when it fails. `(code, pdf, detail)`."""
+    from .. import build as builder                          # local: TeX helpers
+    tex_path = os.path.join(root, found["rel"])
+    rec = builder.build(tex_path)
+    out = (rec.get("detail") or "").strip()
+    pdf = compiled_pdf(root, tex_path)
+    record = {"ok": bool(rec["ok"]), "at": time.time(),
+              "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "set": found["name"],
+              "pdf": os.path.relpath(pdf, root) if pdf else None,
+              "detail": out[-1600:]}
+    os.makedirs(session_dir, exist_ok=True)
+    with open(os.path.join(session_dir, RECORD), "w", encoding="utf-8") as fh:
+        json.dump(record, fh, indent=2)
+    return (0 if rec["ok"] else 1), pdf, out
+
+
+def last_build(session_dir):
+    """The session's last build record, or None."""
+    try:
+        with open(os.path.join(session_dir, RECORD), "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return got if isinstance(got, dict) else None

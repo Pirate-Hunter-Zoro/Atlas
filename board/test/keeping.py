@@ -205,8 +205,7 @@ except OSError:
     check("a child given DEVNULL for stdin starts even where the parent has none",
           False)
 
-for mod, why in (("server/spawn.py", "the hub's own commands"),
-                 ("lesson/git.py", "building the homework from the board")):
+for mod, why in (("server/spawn.py", "the hub's own commands"),):
     src = open(os.path.join(ROOT, "tutorboard", mod), encoding="utf-8").read()
     spawns = [ln for ln in src.splitlines() if "sys.executable" in ln]
     check("%s spawns python and says so (%s)" % (mod, why), bool(spawns))

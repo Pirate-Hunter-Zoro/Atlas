@@ -77,11 +77,12 @@ def _write_json(path, data):
 
 
 def _is_set_source(rel):
-    """Is `rel`, relative to a subject root, where a homework set lives?"""
+    """Is `rel`, relative to a subject root, where a write-up lives: a
+    homework set, or a session's own `docs/<slug>/*.tex`?"""
     from fnmatch import fnmatch
     from . import homework                                   # local: light
     rel = rel.replace(os.sep, "/")
-    return any(fnmatch(rel, pat.replace(os.sep, "/")) for pat in homework.LAYOUTS)
+    return any(fnmatch(rel, pat.replace(os.sep, "/")) for pat in homework.PINNABLE)
 
 
 # ---------------------------------------------------------------------------
@@ -382,8 +383,8 @@ class Repo:
 
     def state(self):
         """The session's state. A stored session's is its session.json, with
-        the legacy `hw` key added when `writeup` is a homework set under the
-        root, so `board hw` works on the session's writeup."""
+        the legacy `hw` key added when `writeup` is a homework set or a
+        `docs/` write-up under the root, so `board writeup` finds it."""
         if not self.stored:
             try:
                 with open(self.state_path, "r", encoding="utf-8") as fh:

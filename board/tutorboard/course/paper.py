@@ -50,7 +50,7 @@ from .. import paths, tex
 
 # The two documents. A KIND is what the client names; a path is never one.
 # `export.json` is written by both exports -- the typeset transcript and the
-# photograph of the glass -- and `hw.json` by `board hw build`, so there is one
+# photograph of the glass -- and `hw.json` by `board writeup build`, so there is one
 # record per document and this is the whole of the mapping.
 KINDS = ("lesson", "homework")
 _RECORD = {"lesson": "export.json", "homework": "hw.json"}

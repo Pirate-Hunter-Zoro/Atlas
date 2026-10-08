@@ -57,7 +57,7 @@ for phrase, why in [
     ("one question", "one question per turn"),
     ("HANDOFF.md", "the session ends in writing"),
     ("Write the card before", "the card lands before the turn's other work"),
-    ("board hw", "an agreed answer is typeset into the course's own file"),
+    ("board writeup add", "an agreed answer is typeset into the session's write-up"),
     # THE QUESTION IS THE LAST THING ON THE CARD. Reported from the iPad: "I've
     # got a board to write on and have to scroll up to see the question again."
     # The definition list sits between the statement and the answer block, so a
@@ -68,8 +68,8 @@ for phrase, why in [
     # PROBLEM BY PROBLEM. The rule was always "in the same turn"; what was
     # missing is that batching is the same defect in smaller units.
     ("Problem by problem", "the write-up happens problem by problem"),
-    ("next problem is posed",
-     "and is compiled before the next problem is posed"),
+    ("next question is posed",
+     "and is compiled before the next question is posed"),
     ("Batching", "so three worked and one transcription pass is refused too"),
     ("board finish", "the session ends by offering the push"),
     ("assignment sheet", "a homework sitting reads the sheet it was set"),
@@ -95,7 +95,8 @@ for phrase, why in [
     ("test review", "a test review is a sitting of its own"),
     ("Do not widen the scope", "and its scope is not the tutor's to widen"),
     ("Spread the questions", "and the questions are spread across all of it"),
-    ("no write-up", "and nothing is transcribed or compiled for a review"),
+    ("An agreed answer is still written up",
+     "and a review writes up its agreed answers like every session"),
     # THE CARD-FIRST RULE IS A TEACHING TURN'S RULE, and it used to say it was
     # absolute -- "there is no exception to this, and nothing else in this file
     # overrides it". In a turn that DOES the work rather than teaching it, that
@@ -342,7 +343,7 @@ if serveapp:
     for phrase, why in [
         ("TURN THAT AGREES AN ANSWER", "the write-up is part of that turn"),
         ("before you pose the next one", "and lands before the next problem"),
-        ("board hw build", "it is compiled, by name"),
+        ("board writeup add", "it is written up and compiled, by name"),
         ("COMPILING IS YOURS", "and compiling is the tutor's job, not theirs"),
         ("never leave the write-up for the end",
          "and it is never left to the end of the sitting"),
@@ -361,9 +362,11 @@ if serveapp:
         check("the headless prompt " + why, phrase in serveapp.WRITEUP_SENSE)
     check("every sitting that hands something in is told to write it up",
           "how += WRITEUP_SENSE" in serve_src)
-    # A review and a walkthrough hand nothing in, and say so in the method.
-    check("and the two that hand nothing in are not",
-          "there is no write-up" in text and "Nothing is handed in" in text)
+    # No method is excused: a review and a walkthrough write up their agreed
+    # answers like any other teach session.
+    check("and no method is excused from it",
+          "there is no write-up" not in text
+          and "every agreed answer to a question you posed goes in" in text)
     check("and every sitting is given the same shape",
           serve_src.count("METHOD_SENSE") >= 3)
     # A review inverts one thing and only one: it asks before it teaches.

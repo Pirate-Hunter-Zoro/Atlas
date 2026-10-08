@@ -10,7 +10,6 @@ import glob as _glob
 import json
 import os
 import subprocess
-import sys
 import time
 
 from .. import atlas, gitops, leaving, paths, worktree
@@ -100,14 +99,12 @@ def hw_needs_building(repo):
 def run_hw_build(repo):
     """Compile the write-up because somebody asked, and hand back the record.
 
-    `build_before_push` compiles only when the PDF is stale, which is right for
-    a push -- there is no reason to spend a minute of LaTeX on a document that is
-    already current. This one is a person pressing a button, and it always runs:
-    "build it" that quietly does nothing is a button you press twice.
-
-    The record comes back off `hw.json` rather than being reconstructed here, so
-    the board is told exactly what the CLI recorded -- including `pdf`, which is
-    what a download needs, and the LaTeX tail, which is what a failure needs.
+    A person pressing a button, so it always runs: "build it" that quietly
+    does nothing is a button you press twice. `homework.build` is the same
+    compile `board writeup build` runs, in this process and on this session,
+    and the record it writes to the session's `hw.json` is the one returned --
+    including `pdf`, which a download needs, and the LaTeX tail, which a
+    failure needs.
     """
     try:
         st = homework.status(repo.root, repo.state())
@@ -115,66 +112,34 @@ def run_hw_build(repo):
         st = None
     if not st or not st.get("rel") or not st.get("name"):
         return {"ok": False,
-                "detail": "no problem set is bound to this sitting, so there is "
-                          "nothing to write up. `board hw use <set>` names one."}
-    cli = os.path.join(paths.TOOL, "bin", "board")
-    if not os.path.exists(cli):
-        return {"ok": False, "detail": "the board CLI is not where it should be"}
+                "detail": "this session has no write-up yet, so there is nothing "
+                          "to build. The first `board writeup add` starts one."}
     try:
-        # stdin=DEVNULL: a board detached by `board start`, or started by
-        # launchd, has fd 0 closed, and a python3 that inherits that dies with
-        # "can't initialize sys standard streams" before it runs a line. See
-        # the note in `server/spawn.py`.
-        p = subprocess.run([sys.executable, cli, "hw", "build"], cwd=repo.root,
-                           stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=300)
-        out = p.stdout.decode("utf-8", "replace").strip()
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        homework.build(repo.root, repo.live, st)
+    except OSError as exc:
         return {"ok": False, "set": st.get("name"), "detail": str(exc)}
-    try:
-        with open(os.path.join(repo.live, "hw.json"), "r", encoding="utf-8") as fh:
-            rec = json.load(fh)
-    except (OSError, ValueError):
-        rec = {"ok": False, "set": st.get("name"), "detail": out[-1600:]}
+    rec = homework.last_build(repo.live) or {"ok": False, "detail": "no record"}
     rec.setdefault("set", st.get("name"))
     return rec
 
 
 def build_before_push(repo):
     """Compile the write-up, so what is committed is the document and not just
-    its source.
+    its source -- only when its PDF is missing or older than the `.tex`.
 
-    An exercise is finished when it is typeset, not when it is agreed: the point
-    of the hour is the piece of mathematics. Compiling it was a step the tutor had
-    to remember at the end of a turn that had already delivered its card -- and
-    sessions end by being abandoned far more often than they end tidily. What got
-    pushed was then a `.tex` carrying tonight's proof beside a `.pdf` from last
-    week that does not, which is worse than no PDF at all: it looks finished and
-    is silently missing the exercise the evening was spent on.
-
-    The compile is `board hw build`, the same one the tutor would run, so there is
-    one way of building and one `hw.json` -- which the board is already painting,
-    so a LaTeX error appears on the iPad rather than in a log nobody is reading.
+    A pushed `.tex` carrying tonight's proof beside a `.pdf` from last week is
+    worse than no PDF at all: it looks finished and is silently missing the
+    exercise the evening was spent on. The compile is `homework.build`, the
+    one `board writeup build` runs, and its `hw.json` is the record the board
+    paints, so a LaTeX error appears on the iPad.
     """
     name = hw_needs_building(repo)
     if not name:
         return None
-    cli = os.path.join(paths.TOOL, "bin", "board")
-    if not os.path.exists(cli):
-        return None
     try:
-        # stdin=DEVNULL: a board detached by `board start`, or started by
-        # launchd, has fd 0 closed, and a python3 that inherits that dies with
-        # "can't initialize sys standard streams" before it runs a line. See
-        # the note in `server/spawn.py`.
-        p = subprocess.run([sys.executable, cli, "hw", "build"], cwd=repo.root,
-                           stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=180)
-        out = p.stdout.decode("utf-8", "replace").strip()
-        code = p.returncode
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        st = homework.status(repo.root, repo.state())
+        code, _pdf, out = homework.build(repo.root, repo.live, st)
+    except Exception as exc:                                 # noqa: BLE001
         out, code = str(exc), 1
     return {"set": name, "ok": code == 0, "detail": out[-800:]}
 

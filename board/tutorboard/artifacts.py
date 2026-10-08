@@ -1,6 +1,7 @@
 """Artifacts: a directory holding `doc.json` = {title, source, sessions, asked_at}.
 
     create(subject, title, session, ext)   a new one at `<subject>/docs/<slug>/`
+                                           (`source=` names its file)
     place(dir, source, title)              doc.json written in place, in an existing tree
     list(root), get(root, id)              every artifact of a subject; one by id
     status(dir)                            writing | done | failed, from mtimes
@@ -135,13 +136,20 @@ def read(d):
     return _read_json(os.path.join(d, DOC_JSON))
 
 
-def create(subject, title, session=None, ext=".md", base=None, now=None):
+def create(subject, title, session=None, ext=".md", base=None, now=None,
+           source=None):
     """Make `<subject>/docs/<slug>/doc.json` and return the artifact.
 
-    The source is `<slug><ext>` and does not exist yet: the turn asked to
-    write it writes it. A slug already taken takes `-2`, `-3`, ...; `os.mkdir`
-    claims it, so two callers never share one.
+    The source is `<slug><ext>`, or `source` (a file name, such as a session
+    write-up's `writeup.tex`), and does not exist yet: whoever asked for it
+    writes it. A slug already taken takes `-2`, `-3`, ...; `os.mkdir` claims
+    it, so two callers never share one.
     """
+    if source is not None:
+        source = str(source)
+        if os.path.basename(source) != source or source.startswith("."):
+            raise ValueError("an artifact's source is a file name, not %r" % source)
+        ext = os.path.splitext(source)[1]
     ext = "." + str(ext or "").lstrip(".").lower()
     if ext not in EXTS:
         raise ValueError("an artifact's source is .tex or .md, not %s" % ext)
@@ -160,7 +168,7 @@ def create(subject, title, session=None, ext=".md", base=None, now=None):
             slug = stem[:SLUG_MAX - len(tail)].rstrip("-") + tail
     now = time.time() if now is None else now
     sid = _session_id(session)
-    rec = {"title": str(title or "").strip() or slug, "source": slug + ext,
+    rec = {"title": str(title or "").strip() or slug, "source": source or slug + ext,
            "sessions": [sid] if sid else [],
            "asked_at": time.strftime(WHEN, time.localtime(now))}
     where = os.path.join(top, slug)

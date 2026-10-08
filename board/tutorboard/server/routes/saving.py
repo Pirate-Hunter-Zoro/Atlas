@@ -36,7 +36,7 @@ def post(h, repo, path):
         # was asked for in those terms: "I want an option to export the written
         # up homework as well as the lesson."
         #
-        # `board hw build` is the compile, unchanged: the same one the tutor
+        # `board writeup build` is the compile, unchanged: the same one the tutor
         # runs, the same one a push runs before it commits a stale PDF, so
         # there is one compiler and one record of what it said. This only
         # presses the button.

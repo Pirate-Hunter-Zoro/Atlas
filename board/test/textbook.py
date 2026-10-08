@@ -4,8 +4,9 @@
     python3 test/textbook.py
 
 A temp tree holds courses/Fixture with a 6-page textbook PDF (made by gs from
-PostScript, so no TeX is needed), a 3-chapter chapters.tsv and the two
-templates. The scripts also run under /bin/bash where it is the Mac's 3.2.
+PostScript, so no TeX is needed) and a 3-chapter chapters.tsv. Scaffolding
+renders board/tex/writeup.tex.in; a course keeps no templates. The scripts
+also run under /bin/bash where it is the Mac's 3.2.
 """
 
 import os
@@ -61,16 +62,21 @@ TSV = ("# num first last slug title\n"
        "01\t1\t2\tbeginnings\tBeginnings\n"
        "02\t3\t3\tmiddles\tMiddles\n"
        "03\t4\t6\tends\tEnds, and what follows\n")
-NOTES = "\\section*{Chapter @@NUM@@: @@TITLE@@ notes}\n"
-HOMEWORK = "\\section*{@@TITLE@@ (@@NUM@@)}\n"
+
+
+def titled(path, title):
+    """Is `path` the template rendered with `title`?"""
+    try:
+        body = open(path, encoding="utf-8").read()
+    except OSError:
+        return False
+    return ("\\title{%s}" % title) in body and "@@" not in body \
+        and "\\documentclass" in body
 
 
 def fixture(base):
     course = os.path.join(base, "courses", "Fixture")
     put(os.path.join(course, "chapters.tsv"), TSV)
-    put(os.path.join(course, "latex", "templates", "notes.tex.in"), NOTES)
-    put(os.path.join(course, "latex", "templates", "homework.tex.in"),
-        HOMEWORK)
     ps = os.path.join(base, "book.ps")
     put(ps, "%!PS\n" + "".join(
         "/Helvetica findfont 24 scalefont setfont 72 720 moveto "
@@ -157,18 +163,15 @@ try:
                            stderr=subprocess.STDOUT, universal_newlines=True)
         notes = os.path.join(course, "chapters", "ch03-ends", "notes",
                              "ch03-notes.tex")
-        try:
-            body = open(notes, encoding="utf-8").read()
-        except OSError:
-            body = ""
-        if p.returncode == 0 and body == \
-                "\\section*{Chapter 03: Ends, and what follows notes}\n" and \
+        body = notes
+        if p.returncode == 0 and \
+                titled(notes, "Chapter 03 notes — Ends, and what follows") and \
                 os.path.isfile(os.path.join(course, "chapters", "ch01-beginnings",
                                             "handwritten", ".gitkeep")) and \
                 not os.path.exists(os.path.join(course, "chapters", "ch01-beginnings",
                                                 "homework")):
-            ok("%s: scaffold writes each chapter's notes from the template"
-               % bash)
+            ok("%s: scaffold writes each chapter's notes from "
+               "board/tex/writeup.tex.in" % bash)
         else:
             fail("%s: scaffold did not write the notes: %r %s"
                  % (bash, body, p.stdout))
@@ -179,7 +182,8 @@ try:
         hw = os.path.join(course, "chapters", "ch03-ends", "homework",
                           "ch03-homework.tex")
         if p.returncode == 0 and open(notes).read() == \
-                "the owner's mathematics\n" and os.path.isfile(hw) and \
+                "the owner's mathematics\n" and \
+                titled(hw, "Chapter 03 homework — Ends, and what follows") and \
                 not os.path.exists(os.path.join(course, "chapters",
                                                 "ch01-beginnings", "homework")):
             ok("%s: --chapter-homework adds chNN-homework.tex and never "
@@ -190,8 +194,7 @@ try:
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            universal_newlines=True)
         hw4 = os.path.join(course, "homework", "hw04", "hw04.tex")
-        if p.returncode == 0 and os.path.isfile(hw4) and \
-                open(hw4).read() == "\\section*{Homework 04 (04)}\n":
+        if p.returncode == 0 and titled(hw4, "Homework 04"):
             ok("%s: --hw 4 makes homework/hw04/hw04.tex" % bash)
         else:
             fail("%s: --hw 4 went wrong: %s" % (bash, p.stdout))

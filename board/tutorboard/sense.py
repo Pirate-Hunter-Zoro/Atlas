@@ -158,23 +158,28 @@ METHOD_SENSE = (
 # solutions as we've been working through problems -- that should be automatic
 # problem by problem as we finish each one correctly."
 #
-# Not on the two sittings that hand nothing in. A review and a walkthrough each
-# say, in their own words, that the lesson is the record.
+# In every teach-mode session, whatever the method: a lesson, a homework set, a
+# walkthrough, coached code, a review. Every agreed answer to a question the
+# tutor posed goes in. `board writeup` makes the file the first time.
 WRITEUP_SENSE = (
     "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER, not part of the end "
-    "of the sitting. The moment one problem is agreed correct -- not before, and "
-    "before you pose the next one -- do all four of these in that same turn: "
-    "`board hw use <chNN>` if this sitting is not bound to a file yet "
-    "(`board hw list` shows what there is, `board hw new <name>` lays one down "
-    "where there is none); transcribe the STATEMENT into its problem environment "
-    "and THEIR argument into the solution region beneath it, in the sheet's own "
-    "order rather than the order they answered in; `board hw file <label>` to "
-    "put their handwriting beside it; and `board hw build` to compile it. "
-    "COMPILING IS YOURS, not theirs -- if it fails, put the LaTeX error it "
-    "printed on the board rather than the word 'failed'. Never write a solution "
-    "they have not produced, and never leave the write-up for the end: a sitting "
-    "is abandoned far more often than it is finished tidily, so an exercise "
-    "agreed at half past is typeset by twenty-five to. "
+    "of the session. The moment their answer to a question you posed is agreed "
+    "correct -- not before, and before you pose the next one -- run "
+    "`board writeup add <label>` with the STATEMENT, then a line `---`, then "
+    "THEIR agreed argument on stdin (a quoted heredoc). That one command writes "
+    "both into the session's write-up, files their newest sent page into its "
+    "handwritten/ directory (`--turn tNNNN` for another page), and rebuilds the "
+    "PDF. The first add makes the write-up: the bound homework set, written in "
+    "place in the sheet's own order (`board writeup use <chNN>` binds one, "
+    "`board writeup list` shows them), else `docs/<session>/writeup.tex`. A "
+    "session bound to no subject is refused, so bind it first. Code and "
+    "pseudocode go in fenced ``` blocks and are set verbatim. `board writeup "
+    "status` says what is written and what is next. "
+    "COMPILING IS YOURS, not theirs -- if the build fails, fix it, and put the "
+    "LaTeX error it printed on the board rather than the word 'failed'. Never "
+    "write a solution they have not produced, and never leave the write-up for "
+    "the end: a session is abandoned far more often than it is finished "
+    "tidily, so an answer agreed at half past is typeset by twenty-five to. "
     # AND NEVER TELL THEM TO WRITE IT UP. A card in Galois Theory said "two
     # words to add when you write it up", which is two failures in one clause:
     # it hands over an errand that does not exist -- the document is the tutor's
@@ -1339,8 +1344,9 @@ def _session_sense(repo, mission=False):
     # pointer to the method as well as the pointer to the place.
     how = (METHOD_SENSE if kind == "homework"
            else METHOD_SENSE + where_sense(book, repo.root, st))
-    # An agreed answer is written up, in every sitting that hands one in.
-    how += WRITEUP_SENSE
+    # An agreed answer is written up, in every teach-mode session.
+    if config.mode_of(st) != "do":
+        how += WRITEUP_SENSE
     how += doing
     how += TRACE_SENSE
     how += reading_sense(repo)

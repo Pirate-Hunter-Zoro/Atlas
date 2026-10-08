@@ -161,7 +161,7 @@ class Hub:
         # them up into the same file, and the state of that file is exactly as
         # invisible from an iPad either way.
         # Bound means pinned OR named by the session label. Requiring the pin
-        # made the panel depend on somebody having run `board hw use`, so a
+        # made the panel depend on somebody having run `board writeup use`, so a
         # sitting opened as "Ch 4" filled no file and said nothing about it.
         bound = None
         try:

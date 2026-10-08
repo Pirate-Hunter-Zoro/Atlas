@@ -252,56 +252,50 @@ try:
 
     # ---- a write-up for something that has none -----------------------------
     #
-    # Every sitting produces a compiled document, and most workspaces are not
-    # courses: there is no chapter to bind and no sheet to bind to, so the rule
-    # had no file to be obeyed with and the evening stayed in the cards. The
-    # portable layout is the answer, because `sets()` already looks for it.
+    # Every session produces a compiled document, and most workspaces are not
+    # courses: there is no chapter to bind and no sheet to bind to. The session's
+    # own write-up is an artifact at docs/<slug>/writeup.tex, from the one
+    # template, found by the session's pin and never listed as a set.
     bare = os.path.join(tmp, "bare")
     write(os.path.join(bare, "tutorboard.json"), '{"name": "B", "mode": "math"}')
     check("a workspace can start with no sets at all", homework.sets(bare) == [])
 
-    made, why = homework.scaffold(bare, "Yoneda Lemma", title="Notes on Yoneda")
-    check("one can be started by name", made and why is None)
-    check("in the layout every workspace can hold",
-          made and made["rel"] == os.path.join("homework", "yoneda-lemma",
-                                               "yoneda-lemma.tex"))
-    check("and it is found the moment it exists",
-          [s["name"] for s in homework.sets(bare)] == ["yoneda-lemma"])
-    check("and binds the sitting without a pin",
-          (homework.bound(bare, {"chapter": "Yoneda Lemma"}) or {}) .get("name")
-          == "yoneda-lemma" or
-          (homework.find(bare, {}) or {}).get("name") == "yoneda-lemma")
+    made, new = homework.start(bare, {}, title="Notes on Yoneda")
+    check("one can be started by title", new and made["name"] == "notes-on-yoneda")
+    check("as the session's own artifact under docs/",
+          made["rel"] == os.path.join("docs", "notes-on-yoneda", "writeup.tex")
+          and os.path.isfile(os.path.join(bare, "docs", "notes-on-yoneda", "doc.json")))
+    check("which is no problem set", homework.sets(bare) == [])
+    check("and is found by its pin",
+          (homework.bound(bare, {"hw": made["rel"]}) or {}).get("name")
+          == "notes-on-yoneda"
+          and (homework.status(bare, {"hw": made["rel"]}) or {}).get("total") == 0)
 
     body = open(made["tex"], encoding="utf-8").read()
-    check("it carries a title somebody chose", "Notes on Yoneda" in body)
-    check("and stands alone where there is no coursemacros.sty",
-          "newenvironment{problem}" in body and "usepackage{coursemacros}" not in body)
+    check("it carries a title somebody chose", "\\title{Notes on Yoneda}" in body)
+    check("and stands alone where there is no coursemacros.sty, using them where "
+          "there is", "newenvironment{problem}" in body
+          and "IfFileExists{coursemacros.sty}{\\usepackage{coursemacros}}" in body)
 
-    # A write-up already started is somebody's evening, and a second `new` on the
-    # same name must not be the thing that ends it.
-    again, why2 = homework.scaffold(bare, "yoneda-lemma")
-    check("starting the same one twice refuses rather than overwrites",
-          again is None and "already exists" in (why2 or ""))
-    check("and the first one is untouched",
-          open(made["tex"], encoding="utf-8").read() == body)
+    again, new2 = homework.start(bare, {"hw": made["rel"]})
+    check("starting it again is the same write-up, untouched",
+          not new2 and again["tex"] == made["tex"]
+          and open(made["tex"], encoding="utf-8").read() == body)
 
-    check("a name that flattens to nothing is refused",
-          homework.scaffold(bare, "///")[0] is None)
+    said, why = homework.add(made["tex"], "1", "Show it.", "It is shown.")
+    said2, _ = homework.add(made["tex"], "2", "", "And this.")
+    st = homework.status(bare, {"hw": made["rel"]})
+    check("added answers are problems in the order they were agreed",
+          said["region"] == "added" and said2["statement"] == "placeholder"
+          and [p["label"] for p in st["problems"]] == ["1", "2"]
+          and st["written"] == 2 and st["stated"] == 1)
 
-    # Where the workspace HAS the shared preamble, the document uses it, so a
-    # write-up started this way reads like every other one in that course.
-    withmac = os.path.join(tmp, "withmac")
-    write(os.path.join(withmac, "tutorboard.json"), '{"name": "W", "mode": "math"}')
-    write(os.path.join(withmac, "latex", "coursemacros.sty"), "% macros")
-    m2, _ = homework.scaffold(withmac, "reading-group")
-    check("a course's own macros are used when the course has them",
-          "usepackage{coursemacros}" in open(m2["tex"], encoding="utf-8").read())
-
-    code, out = run(bare, "hw", "new", "second-topic", "A", "Second", "Topic")
-    check("the command line starts one too", code == 0 and "second-topic" in out)
+    code, out = run(bare, "writeup", "new", "Second", "Topic")
+    check("the command line starts one too",
+          code == 0 and "docs/second-topic/writeup.tex" in out)
     with open(os.path.join(bare, "live", "state.json"), encoding="utf-8") as fh:
         check("and pins the sitting to it",
-              json.load(fh).get("hw", "").endswith("second-topic.tex"))
+              json.load(fh).get("hw", "").endswith("second-topic/writeup.tex"))
 
     # ---- the brief carries the debt, in a LECTURE, with nothing pinned -------
     #
