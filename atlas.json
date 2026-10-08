@@ -106,7 +106,7 @@
     }
   ],
   "relay": {
-    "sync": true
+    "sync": false
   },
   "private": {
     "ai-config": "https://github.com/Pirate-Hunter-Zoro/ai-config.git",

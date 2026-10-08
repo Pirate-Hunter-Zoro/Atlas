@@ -1,15 +1,23 @@
 <!-- chapter:  -->
-Thread knn-across-embedders (Paper 1). The owner's direction is applied to the text; the figures it needs are not made yet.
+This was a build sitting on the KNN section of Paper 1 (thread knn-across-embedders). No exercises were posed or answered, so nothing needs re-teaching.
 
-In the text now:
-- Retrieval is nearest and random neighbours, each scored at every k from 1 to 34,063; no single k is the headline. ROC curves and confusion matrices are shown only at each arm's best k.
-- Farthest-neighbour retrieval is gone from every document in paper1-trd-prediction/ except review/ and feedback/, which are records. It remains in research/TRD-EHR/README.md and in code (core.py, fusion_analysis.py, retriever.py, neighbor_scheme.py).
-- Figure 4 is the primary encoder's panel; Figure 5 is one composite of the other three encoders' panels (A-C, results/cross_embedder_retrieval/neighbor_count_sweep_panels.png); Figure 6 is dimensions holding 90% of |coefficient| mass against best k, in the main text (owner's answer).
-- Best-k ROC and confusion panels for all four encoders (owner's answer) are Figures S8-S9.
-- parts/ is re-split. No PDF or .docx is rebuilt: the figures are not on this Mac.
+Where the work stands:
+- The neighbour-count sweep has run on all four encoders: bge-small-en-v1.5, bge-en-icl, Qwen3-Embedding-4B and Qwen3-Embedding-8B.
+- Every redrawn sweep figure (neighbor_count_sweep_manuscript.png, REDRAW=1) is in exports/, stamped 2026-10-06 02:05-02:15.
+- Best k: bge-en-icl is 1,519 weighted and 413 plain cosine. Qwen3-4B is 684 and 493. Qwen3-8B is 295, 757 and 32,720 random. bge-small is 579 weighted. All match manuscript lines 293-295 and the Figure S8-S9 panel paths, so the text does not move.
+- No report carried RELAY: lines.
+- Uncommitted: threads.json, supplement.md and parts/supplement/17-s3-calibration.md.
 
-Not made yet, all on the cluster: the three per-encoder sweep figures, the twelve best-k panels, and lr_dimensions_vs_best_k.png in results/cross_embedder_retrieval/. plot_neighbor_sweep_figure.py now falls back to classical_ml_results_*.json where an encoder has no per-patient predictions, which is why job 2110916 (bge-small) failed. The rerun is filed as its repair (--fixes 2026-10-02-knn-across-embedders-neighbor-count-sweep), then the other two encoders and Qwen3-8B with REDRAW=1, then plot_cross_embedder_retrieval.sbatch. The figures cross only once the owner marks the 23 thread exports aggregate.
+Next: thread task 11. Rebuild parts/ and run scripts/rebuild-packet.sh --strict. First confirm that the twelve best-k panels and lr_dimensions_vs_best_k.png are on the Mac too, not only the sweep figures. Then do task 14: check the dimension counts (253, 271, 1,626, 236) against cross_embedder_retrieval.csv once the owner marks that file aggregate. Those counts come from session notes, not the evidence ledger.
 
-The dimension counts (253, 271, 1,626, 236) and the L2 penalty of the other encoders' logistic regressions come from an earlier session's notes, not the evidence ledger; check them against the cluster's outputs when they land. If the bge-small rerun moves its best k, the panel file names and the text move with it (best_k_panels.json).
+Still open, owed to the owner:
+- The dimension-count vs best-k scatter stays out of the write-up until it has been discussed with them. It has four points, and Qwen3-4B (1,626) is far from the rest.
+- The S12.1 interval question for Martin.
+- The fixed-seed S7 re-run (card 0007).
+- The CSV question (card 0006).
+- Thread task 6, the one learning task: why the ROC AUC curve against k has its shape. That covers the random arm at 1/2, k = 1, the climb in log k, the right edge, and why every best k is optimistic. Teach it when the student returns to learning. It is the only conceptual piece of this thread they have not worked.
 
-How this student works: they steer by inking the PDF, not by typing. Marks arrive with no text. Open every PNG; the same page marks can repeat across sessions.
+How this student works:
+- They steer by inking the PDF, not by typing. Marks arrive with no text, so open every PNG.
+- Cluster reports arrive in batches of three; one card covers each batch.
+- Check the export timestamps in exports/ yourself. A report alone does not prove the redrawn copy reached the Mac.
