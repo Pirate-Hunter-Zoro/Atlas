@@ -251,9 +251,10 @@ try:
     write(teach_repo, "psych_asr/grid.py", "def sweep():\n" + BODY + "\n")
     write(do_repo, "pipeline/confound.py", "def overlap():\n" + BODY + "\n")
 
-    check("a sitting that says nothing runs under the repository's own answer",
+    # tutorboard.json holds no stance (T09): `"stance": "do"` there is ignored.
+    check("a sitting that says nothing teaches, whatever tutorboard.json says",
           config.stance_for(teach_repo, {}) == "teach"
-          and config.stance_for(do_repo, {}) == "do")
+          and config.stance_for(do_repo, {}) == "teach")
     check("and a sitting that names one runs under that instead",
           config.stance_for(teach_repo, {"stance": "do"}) == "do"
           and config.stance_for(do_repo, {"stance": "teach"}) == "teach")
@@ -281,10 +282,8 @@ try:
                "stance": "teach"})
     json.dump(st, open(rd.state_path, "w"))
     line = sense.session_sense(rd)
-    check("a teaching sitting in a doing repository puts the withholding back",
-          "THIS SITTING'S IS TEACH" in line and "they write the code, you do not" in line)
-    check("and says the repository's own answer is unchanged",
-          "the repository's own answer is unchanged" in line)
+    check("a teaching sitting where tutorboard.json says do is plainly teach",
+          "THIS SITTING'S IS TEACH" not in line and "STANCE IS DO" not in line)
 
     # A walkthrough and a review read rather than write, so a repository that
     # wants its code written does not get it written into one of these.

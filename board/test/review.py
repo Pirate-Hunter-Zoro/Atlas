@@ -238,13 +238,15 @@ finally:
 # there is a syllabus, top-level parts where there is not.
 tmp2 = tempfile.mkdtemp(prefix="tutor-rev-code-")
 try:
-    json.dump({"name": "TRD-EHR", "stance": "do"},
+    # The stance is the sitting's: tutorboard.json holds none (T09).
+    json.dump({"name": "TRD-EHR"},
               open(os.path.join(tmp2, "tutorboard.json"), "w"))
     for d in ("loader", "pipeline"):
         os.makedirs(os.path.join(tmp2, d))
     repo2 = course_repo.Repo(tmp2)
     st = repo2.state()
-    st.update({"session": "review", "review": ["loader", "pipeline"]})
+    st.update({"session": "review", "review": ["loader", "pipeline"],
+               "stance": "do"})
     json.dump(st, open(repo2.state_path, "w"))
 
     line = sense.session_sense(repo2)
@@ -268,8 +270,7 @@ try:
           "does not follow a book" in line and "README.md" in line)
     check("and not to invent chapters out of what it finds",
           "manufacture a curriculum" in line)
-    # The stance survived the mode's removal: it is the one thing a repository
-    # still declares, and a review is the only sitting it does not apply to.
+    # A review is the only sitting a doing stance does not apply to.
     check("and a doing stance still says to write the code",
           "STANCE IS DO" in line)
 finally:

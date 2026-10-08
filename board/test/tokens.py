@@ -205,7 +205,7 @@ check("which has an order of its own that says so outright",
       and "board write --over" in serve_mod.DOING_SENSE)
 check("and to say what it did not actually verify", "did NOT verify" in do)
 check("and no subject is read anywhere in the config",
-      "mode" not in serve_mod.config.DEFAULT_CONFIG)
+      "mode" not in serve_mod.config.read_config(tempfile.gettempdir()))
 
 # --- board recap ----------------------------------------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-tokens-")

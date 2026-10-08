@@ -1,15 +1,5 @@
-"""What a repository says it is.
-
-A course declares its name, and whether the tutor is there to teach the work or
-to do it. It does NOT declare a subject any more: there was a `mode`, `math` or
-`code`, and it decided both how the board looked and how the lesson was shaped.
-It is gone. Every repository is taught the one way -- the way the mathematics
-courses were always taught -- and a repository whose subject happens to be code
-says so by having code in it, not by turning off half the board.
-
-A `mode` left over in a `tutorboard.json` is read and ignored, because those
-files live in the course repositories rather than here and a stale key must
-never be the reason a board behaves differently from its neighbour.
+"""What a subject's `tutorboard.json` says, and the sitting axes still read
+beside it (stance, aim, kind, agent) until T15 collapses them into a mode.
 """
 
 import json
@@ -20,63 +10,41 @@ import shlex
 from .. import atlas
 
 
-# Who writes the code. Declared here rather than beside `clean_stance` below,
-# because `read_config` has to be able to say whether a repository ANSWERED the
-# question or was given the default -- see `said_stance`.
+# Who writes the code. A sitting's own word only: `tutorboard.json` no longer
+# carries one.
 STANCES = ("teach", "do")
-
-# `check` is the workspace's test command (`clean_check`); the brief names it,
-# and the contracts say a turn that changed code runs it before it pushes.
-DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach", "check": None}
 
 
 def read_config(root):
-    """A course declares itself in tutorboard.json at its root.
+    """What a subject's `tutorboard.json` says: `name`, `phi`, `check`, `relay`.
 
-    Everything is optional. What is not declared is defaulted, and the default
-    is only ever about how the board behaves, never about whether it works.
+    Everything is optional. `stance`, `aim`, `subtitle` and `mode` left in a
+    file are ignored; `agent` passes through until T15. `name` defaults
+    to the directory name with dashes as spaces. `phi` stays literal -- True or
+    False exactly as written, None for anything else -- because only a literal
+    False opens check output (`holds.output_open`, which also wants False at
+    HEAD, no fence and the policy loaded). `relay` is the file's object, else
+    {}. `check` is validated by `clean_check`; `check_problems` and
+    `check_line` are derived from it.
     """
-    cfg = dict(DEFAULT_CONFIG)
-    # What the FILE said, kept apart from what it is defaulted to. The two are
-    # different answers and `said_stance` below turns on the difference.
-    said = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
             said = json.load(fh) or {}
     except (OSError, ValueError):
         said = {}
-    if isinstance(said, dict):
-        cfg.update(said)
-    else:
+    if not isinstance(said, dict):
         said = {}
-
-    if not cfg.get("name"):
-        cfg["name"] = os.path.basename(os.path.abspath(root)).replace("-", " ")
-
-    # A subject is not a setting. Whatever a course file still says here is
-    # dropped on the way through, so nothing downstream can branch on it again.
-    cfg.pop("mode", None)
-
-    stance = (cfg.get("stance") or "").lower()
-    # Never guessed. Writing the code for somebody who wanted to learn it is the
-    # one failure here that cannot be undone by the next card, so it is only ever
-    # done because a repository asked for it in writing.
-    cfg["stance"] = "do" if stance == "do" else "teach"
-    # AND WHETHER IT WAS SAID AT ALL, which the default above cannot express. A
-    # family declares a default style in `atlas.json`, and that default can only
-    # apply to a repository that has not answered for itself -- so "teach because
-    # it says teach" and "teach because nothing said anything" have to be
-    # different answers here. See `stance_for`.
-    cfg["said_stance"] = str(said.get("stance") or "").strip().lower() in STANCES
-    # WHETHER A CHECK'S OUTPUT MAY LEAVE THIS WORKSPACE WHOLE. Kept literal:
-    # True or False exactly as the file said it, None for anything else. Only
-    # a literal False can open it (`holds.output_open`, which also wants the
-    # same False at HEAD, no fence and the policy loaded); a missing key, a
-    # string or a number is not an answer and stays closed.
     phi = said.get("phi")
-    cfg["phi"] = phi if isinstance(phi, bool) else None
-    # The workspace's own check for a held step, validated. A bad one is
-    # dropped and said, so a hold never runs something nobody declared.
+    relay = said.get("relay")
+    cfg = {
+        "name": said.get("name")
+        or os.path.basename(os.path.abspath(root)).replace("-", " "),
+        "phi": phi if isinstance(phi, bool) else None,
+        "relay": relay if isinstance(relay, dict) else {},
+        # The per-kind provider, as written; `workspace_agent` reads it. T15
+        # deletes per-kind agents and this key with them.
+        "agent": said.get("agent"),
+    }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])
     return cfg
@@ -223,7 +191,7 @@ def clean_check(raw):
 # does not change is that neither is ever guessed: a sitting stance is written by
 # the person opening the sitting, on the board or at a terminal, and a sitting
 # that says nothing inherits rather than infers. The two words themselves are
-# `STANCES`, at the top of this file, because `read_config` needs them too.
+# `STANCES`, at the top of this file.
 
 
 def clean_stance(stance):
@@ -248,7 +216,6 @@ def stance_for(root, state):
 
         this sitting's own stance  -- somebody tapped it, for this evening
         this sitting's aim         -- `AIM_STANCE`; build writes, coach does not
-        the repository's stance    -- `tutorboard.json`, where it says so
         its family's default aim   -- `atlas.json`, through `aim_for`
 
     and nothing below the first two is a guess: each is something written down
@@ -264,9 +231,6 @@ def stance_for(root, state):
     mine = clean_aim((state or {}).get("aim"))
     if mine:
         return AIM_STANCE.get(mine, "teach")
-    cfg = read_config(root)
-    if cfg.get("said_stance"):
-        return cfg.get("stance") or "teach"
     return AIM_STANCE.get(aim_for(root, state), "teach")
 
 
@@ -587,7 +551,6 @@ def aim_for(root, state, base=None):
     """What this sitting is FOR, with the whole precedence in one function.
 
         the sitting's own aim   -- tapped on the map, or `board aim`
-        the workspace's own     -- `tutorboard.json`
         the family's default    -- `atlas.json`, and only where it teaches
 
     A SITTING NOBODY OPENED FROM THE MAP HAD NO STYLE AT ALL. `tutor galois`,
@@ -607,17 +570,12 @@ def aim_for(root, state, base=None):
     this whole tool exists to remove.
 
     So a doing aim inherited from a family is dropped and the sitting runs on
-    stance, which is `teach` unless the workspace says otherwise in writing. A
-    teaching default still applies: it takes nothing away and it is what gives a
-    bare `tutor galois` its style. Nothing changes for a sitting that TAPPED an
-    aim, or for a workspace that declared one -- both of those are somebody
-    saying it, which is all this asks for.
+    stance, which is `teach` unless the sitting says otherwise. A teaching
+    default still applies. `tutorboard.json` holds no aim or stance
+    (`read_config`).
     """
     own = clean_aim((state or {}).get("aim"))
     if own:
         return own
-    said = clean_aim(read_config(root).get("aim"))
-    if said:
-        return said
     fam = family_aim(root, base)
     return "" if AIM_STANCE.get(fam) == "do" else fam

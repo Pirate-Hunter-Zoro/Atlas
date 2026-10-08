@@ -95,8 +95,10 @@ own = workspace("projects", "Lectures", {"aim": "teach"})
 loose = workspace("nowhere", "Odd")
 
 check("a course with nothing declared is taught", config.aim_for(course, {}) == "teach")
-check("a workspace that names an aim beats its family",
-      config.aim_for(own, {}) == "teach")
+# tutorboard.json holds no aim or stance (T09): a file that says one is
+# read as if it said nothing.
+check("a workspace's own aim in tutorboard.json is ignored",
+      config.aim_for(own, {}) == "")
 check("a sitting that names one beats its workspace",
       config.aim_for(own, {"aim": "build"}) == "build")
 check("a family that declares nothing leaves the sitting with no aim",
@@ -122,18 +124,18 @@ check("a family default that TEACHES still reaches a sitting nobody chose",
       config.aim_for(course, {}) == "teach")
 check("but one that WRITES does not, so the sitting runs on stance",
       config.aim_for(project, {}) == "" and config.stance_for(project, {}) == "teach")
-check("a workspace that asked for it in writing still gets it",
-      config.aim_for(workspace("projects", "Written", {"aim": "build"}), {}) == "build")
+check("and a workspace's aim of build in tutorboard.json does not write",
+      config.aim_for(workspace("projects", "Written", {"aim": "build"}), {}) == "")
 check("and so does a sitting that tapped it",
       config.aim_for(project, {"aim": "build"}) == "build"
       and config.stance_for(project, {"aim": "build"}) == "do")
-check("and `stance: do` in writing is untouched by any of it",
-      config.stance_for(workspace("projects", "Doer", {"stance": "do"}), {}) == "do")
+check("and `stance: do` in tutorboard.json is ignored",
+      config.stance_for(workspace("projects", "Doer", {"stance": "do"}), {}) == "teach")
 
 # STANCE IS DERIVED FROM THE AIM, not chosen beside it.
 check("a course's default style means the tutor does not write the code",
       config.stance_for(course, {}) == "teach")
-check("a repository that says `stance` in writing still wins over its family",
+check("a repository's `stance` in tutorboard.json changes nothing",
       config.stance_for(workspace("projects", "Taught", {"stance": "teach"}), {})
       == "teach")
 check("and a sitting that chose one wins over everything",
