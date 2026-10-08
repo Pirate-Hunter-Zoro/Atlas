@@ -87,8 +87,14 @@ def claims_dir(root):
 # ---------------------------------------------------------------------------
 # moving runtime state out of live/
 # ---------------------------------------------------------------------------
-def _old_claim_dirs(root):
-    return [os.path.join(root, OLD_LIVE, "jobs.reported"),
+def _old_live(root, live=None):
+    """The old `live/` to empty: `<root>/live`, or the one a caller names
+    (the cutover's import, whose workspace is not yet at the subject's path)."""
+    return live or os.path.join(root, OLD_LIVE)
+
+
+def _old_claim_dirs(root, live=None):
+    return [os.path.join(_old_live(root, live), "jobs.reported"),
             os.path.join(root, OLD_RELAY_CLAIMS)]
 
 
@@ -103,12 +109,12 @@ def _tracked(root, rel):
     return p.returncode == 0
 
 
-def _old_registries(root):
+def _old_registries(root, live=None):
     """The old registries present here: `live/jobs.jsonl`, and `jobs.jsonl`
     at the root where git does not track it (a tracked one is the owner's
     to remove, and moving it would be a change the relay must not commit)."""
     out = []
-    inner = os.path.join(root, OLD_LIVE, NAME)
+    inner = os.path.join(_old_live(root, live), NAME)
     if os.path.isfile(inner):
         out.append(inner)
     top = os.path.join(root, NAME)
@@ -117,9 +123,9 @@ def _old_registries(root):
     return out
 
 
-def _old_tasks(root):
+def _old_tasks(root, live=None):
     """`[(path, id)]` of Colibri task records under `live/missions/`."""
-    where = os.path.join(root, OLD_LIVE, "missions")
+    where = os.path.join(_old_live(root, live), "missions")
     try:
         names = sorted(os.listdir(where))
     except OSError:
@@ -139,12 +145,12 @@ def _old_tasks(root):
     return out
 
 
-def _pending(root):
+def _pending(root, live=None):
     """Is anything left in an old place? Cheap: a few stats and one listing."""
-    if _old_registries(root) or _old_tasks(root):
+    if _old_registries(root, live) or _old_tasks(root, live):
         return True
-    for d in _old_claim_dirs(root) + [os.path.join(root, OLD_LIVE,
-                                                   "coach.woken")]:
+    for d in _old_claim_dirs(root, live) + [
+            os.path.join(_old_live(root, live), "coach.woken")]:
         if os.path.isdir(d):
             return True
     return False
@@ -171,8 +177,11 @@ def _rmdir(path):
         pass
 
 
-def migrate_state(root):
+def migrate_state(root, live=None):
     """Move this subject's runtime state out of `live/` into `relay/state/`.
+
+    `live` names the old `live/` when it is not `<root>/live`: the cutover
+    imports a workspace from its pre-merge path into its post-merge subject.
 
     `live/jobs.jsonl` (and an untracked `jobs.jsonl` at the root) join
     `relay/state/jobs.jsonl`; every claim in `live/jobs.reported/`,
@@ -186,7 +195,7 @@ def migrate_state(root):
     Under a `flock` on `relay/state/.migrate.lock`, so two readers never
     append the same old registry twice. The number of paths moved.
     """
-    if not root or not _pending(root):
+    if not root or not _pending(root, live):
         return 0
     state = os.path.join(root, STATE)
     try:
@@ -205,7 +214,7 @@ def migrate_state(root):
         # file order. Records fold by job id, so the order across files does
         # not matter, and nothing is lost.
         target = os.path.join(state, NAME)
-        for old in _old_registries(root):
+        for old in _old_registries(root, live):
             try:
                 if not os.path.exists(target):
                     os.rename(old, target)
@@ -222,7 +231,7 @@ def migrate_state(root):
                 continue
         # The claims, under their own names.
         claims = claims_dir(root)
-        for d in _old_claim_dirs(root):
+        for d in _old_claim_dirs(root, live):
             try:
                 names = os.listdir(d)
             except OSError:
@@ -231,7 +240,7 @@ def migrate_state(root):
                 moved += _move(os.path.join(d, name),
                                os.path.join(claims, name))
             _rmdir(d)
-        woken = os.path.join(root, OLD_LIVE, "coach.woken")
+        woken = os.path.join(_old_live(root, live), "coach.woken")
         try:
             names = os.listdir(woken)
         except OSError:
@@ -243,7 +252,7 @@ def migrate_state(root):
             _rmdir(woken)
         # The Colibri queue: each task record and its claim flags.
         queue = os.path.join(root, COLIBRI)
-        for path, tid in _old_tasks(root):
+        for path, tid in _old_tasks(root, live):
             where = os.path.dirname(path)
             try:
                 flags = [n for n in os.listdir(where)
