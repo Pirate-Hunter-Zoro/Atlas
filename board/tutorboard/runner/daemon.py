@@ -16,6 +16,7 @@ import time
 
 from tutorboard import atlas, choice, paths, processes
 from tutorboard.agents import recipes
+from tutorboard.course import repo as course_repo
 
 TOOL = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 BOARD = os.path.join(TOOL, "bin", "board")
@@ -236,7 +237,7 @@ def not_this_agents_failure(live, agent_name):
 def headless_stop(cfg, args):
     stopped = 0
     for c in courses(cfg):
-        path = os.path.join(c["root"], "live", "agent.json")
+        path = course_repo.session_path(c["root"], "agent.json")
         try:
             with open(path, "r", encoding="utf-8") as fh:
                 st = json.load(fh)
@@ -265,7 +266,7 @@ def headless_stop(cfg, args):
 def agent_record(root):
     """What `live/agent.json` says, believed or not."""
     try:
-        with open(os.path.join(root, "live", "agent.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, "agent.json"), "r", encoding="utf-8") as fh:
             return json.load(fh)
     except (OSError, ValueError):
         return None
@@ -315,7 +316,7 @@ def cards_are_tracked(root):
     Exit 0 means ignored, 1 means it would be tracked, and anything else means
     there is no git here to ask -- which is not a reason to refuse anybody.
     """
-    probe = os.path.join(root, "live", "cards", "0001-probe.md")
+    probe = course_repo.session_path(root, "cards", "0001-probe.md")
     try:
         p = subprocess.run(["git", "check-ignore", "-q", probe], cwd=root,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -333,7 +334,7 @@ def agent_start(cfg, course, agent_name, session=None):
     request that started it.
     """
     root = course["root"]
-    live_dir = os.path.join(root, "live")
+    live_dir = course_repo.session_dir(root)
     st = agent_live(root)
     if st:
         # A start already in flight is not a reason to start a second one, and
@@ -422,7 +423,7 @@ def handed_off(cfg, course, agent_name):
     with it. Output to the course's own `agent.log`, because that is where the
     next person looking at this tutor will already be.
     """
-    live_dir = os.path.join(course["root"], "live")
+    live_dir = course_repo.session_dir(course["root"])
     cmd = [sys.executable, TUTOR, "finish-restart",
            course["dir"]]
     if agent_name:
@@ -457,7 +458,7 @@ def agent_stop(course, wait=False):
     # nothing to signal; the daemon it is waiting for will find the record gone.
     if not st.get("pid"):
         try:
-            os.remove(os.path.join(course["root"], "live", "agent.json"))
+            os.remove(course_repo.session_path(course["root"], "agent.json"))
         except OSError:
             pass
         return 0, "the start in %s was called off" % course["dir"]
@@ -495,7 +496,7 @@ def last_used(root):
     best = 0
     for rel in LIVE_SIGNS:
         try:
-            best = max(best, os.path.getmtime(os.path.join(root, "live", rel)))
+            best = max(best, os.path.getmtime(course_repo.session_path(root, rel)))
         except OSError:
             continue
     return best
@@ -571,7 +572,7 @@ def address_course(cfg, here):
 
 def board_record(root):
     try:
-        with open(os.path.join(root, "live", ".board.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, ".board.json"), "r", encoding="utf-8") as fh:
             return json.load(fh)
     except (OSError, ValueError):
         return None

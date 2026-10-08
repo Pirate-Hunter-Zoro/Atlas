@@ -18,6 +18,7 @@ from tutorboard import machine, missions, paths, processes, stamp, supervise
 from tutorboard.agents import recipes
 from tutorboard.net import tailscale
 from tutorboard.runner import daemon
+from tutorboard.course import repo as course_repo
 
 # HOW LONG A RESTART WAITS FOR A BOUNCED DAEMON TO RECORD ITS OWN PID.
 #
@@ -154,7 +155,7 @@ def cmd_restart(cfg, args, only=None):
         if held_port:
             for c in all_courses:
                 try:
-                    with open(os.path.join(c["root"], "live", ".board.json"),
+                    with open(course_repo.session_path(c["root"], ".board.json"),
                               "r", encoding="utf-8") as fh:
                         if json.load(fh).get("port") == held_port:
                             held_before = (c["dir"], c["root"], held_port)
@@ -164,7 +165,7 @@ def cmd_restart(cfg, args, only=None):
 
         touched, skipped, elsewhere, current = [], [], [], []
         for c in all_courses:
-            live = os.path.join(c["root"], "live")
+            live = course_repo.session_dir(c["root"])
             try:
                 with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
                     info = json.load(fh)
@@ -652,7 +653,7 @@ def ship_beat(cfg, host, memo, say):
 
         import signal as _sig
         for c, st in stale_tutors:
-            name, live = c["dir"], os.path.join(c["root"], "live")
+            name, live = c["dir"], course_repo.session_dir(c["root"])
             # READ AGAIN, NOW. The board restarts above can take seconds each,
             # and a tutor listening when the beat began may be mid-turn by the
             # time its turn in this loop comes. The snapshot says who was stale;
@@ -757,7 +758,7 @@ def watch_once(cfg, host, memo, say):
             # The handover flag has been acted on; leaving it set would make
             # every later stop of this tutor look like a machine going away.
             if st.get("handover"):
-                daemon.agent_state(os.path.join(root, "live"), handover=None)
+                daemon.agent_state(course_repo.session_dir(root), handover=None)
             code, msg = daemon.agent_start(cfg, c, agent_name)
             mem["tutor_tries"] = 0 if code == 0 else mem["tutor_tries"] + 1
             mem["tutor_at"] = now + supervise.next_try(mem["tutor_tries"])
@@ -1048,7 +1049,7 @@ def cmd_down(cfg, args):
             # The record says it is a handover rather than somebody leaving, so
             # whoever takes it over knows to pick it back up. `agent_state` merges,
             # so the daemon's own exit record does not erase this.
-            daemon.agent_state(os.path.join(c["root"], "live"),
+            daemon.agent_state(course_repo.session_dir(c["root"]),
                                handover=time.strftime("%Y-%m-%d %H:%M:%S"))
             code, msg = daemon.agent_stop(c, wait=True)
             print("  %s" % (msg or "").strip())

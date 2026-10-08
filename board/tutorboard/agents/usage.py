@@ -12,6 +12,7 @@ import re
 import time
 
 from tutorboard.agents import recipes
+from tutorboard.course import repo as course_repo
 
 # What a turn said on its way down, in the order a person would find useful.
 # `!!` is this file's own marker for something that went wrong; a tutor writes
@@ -532,12 +533,12 @@ def thousands(n):
 
 def read_costs(root):
     try:
-        with open(os.path.join(root, "live", COST_LOG), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, COST_LOG), "r", encoding="utf-8") as fh:
             return [json.loads(l) for l in fh if l.strip()]
     except (OSError, ValueError):
         out = []
         try:
-            with open(os.path.join(root, "live", COST_LOG), "r",
+            with open(course_repo.session_path(root, COST_LOG), "r",
                       encoding="utf-8") as fh:
                 for l in fh:
                     l = l.strip()

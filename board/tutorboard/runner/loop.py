@@ -20,6 +20,7 @@ from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
 from tutorboard.runner import daemon, prompts, turn
+from tutorboard.course import repo as course_repo
 
 def unfinished_line(out, card):
     """The inbox line that wakes a turn to write the report it left owed.
@@ -40,7 +41,7 @@ def owed_thread(root):
     thread file, has none, and the stopped card lists the whole workspace.
     """
     try:
-        with open(os.path.join(root, "live", "state.json"), "r",
+        with open(course_repo.session_path(root, "state.json"), "r",
                   encoding="utf-8") as fh:
             st = json.load(fh) or {}
     except (OSError, ValueError):
@@ -84,7 +85,7 @@ def report_owed(root, this_signal, out, log=None):
     its box; it always names the jobs registered since the placeholder was
     written, which is when the work began.
     """
-    path, meta = lesson_cards.newest(os.path.join(root, "live", "cards"))
+    path, meta = lesson_cards.newest(course_repo.session_path(root, "cards"))
     if not path or not lesson_cards.is_pending(meta):
         return None
     rel = os.path.relpath(path, root)
@@ -644,7 +645,7 @@ def headless(cfg, course, agent_name, session):
     os.environ["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"] = "1"
 
     root = course["root"]
-    live = os.path.join(root, "live")
+    live = course_repo.session_dir(root)
     os.makedirs(live, exist_ok=True)
     # Before the board, the sitting and the catch-up -- all of which
     # take time the person holding the iPad is already watching. With a real pid

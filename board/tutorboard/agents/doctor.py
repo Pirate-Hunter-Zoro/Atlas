@@ -15,6 +15,7 @@ from tutorboard.agents import recipes, usage
 from tutorboard.course import config
 from tutorboard.net import egress
 from tutorboard.runner import turn as runturn
+from tutorboard.course import repo as course_repo
 
 DOCTOR_TURN_SECONDS = 600
 
@@ -232,7 +233,7 @@ def cmd_doctor(cfg, args):
 
     box = tempfile.mkdtemp(prefix="tutor-doctor-")
     ws = os.path.join(box, "workspace")
-    live = os.path.join(ws, "live")
+    live = course_repo.session_dir(ws)
     os.makedirs(os.path.join(live, "cards"))
     secret = "%s-%d" % (("heron", "quartz", "lantern", "maple")[os.urandom(1)[0] % 4],
                         1000 + int.from_bytes(os.urandom(2), "big") % 9000)

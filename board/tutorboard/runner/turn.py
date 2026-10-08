@@ -15,6 +15,7 @@ import subprocess
 from tutorboard import handoff, jobs, keys
 from tutorboard.course import config
 from tutorboard.runner import prompts
+from tutorboard.course import repo as course_repo
 
 def turn_environment(spec, base=None):
     """What one turn runs with: this process's environment, plus the recipe's.
@@ -51,7 +52,7 @@ def turn_environment(spec, base=None):
 def chapter_now(root):
     """Which chapter is open, according to the board's own state."""
     try:
-        with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, "state.json"), "r", encoding="utf-8") as fh:
             return (json.load(fh) or {}).get("chapter") or ""
     except (OSError, ValueError):
         return ""
@@ -92,7 +93,7 @@ def doing_now(root, signal=""):
         # changes what a note names and is over in a minute.
         return True
     try:
-        with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, "state.json"), "r", encoding="utf-8") as fh:
             st = json.load(fh) or {}
     except (OSError, ValueError):
         return False

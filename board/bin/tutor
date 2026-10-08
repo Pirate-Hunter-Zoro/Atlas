@@ -40,6 +40,7 @@ if sys.argv[1:2] == ["headless"]:
 from tutorboard import gitsync, jobs, keys, machine, processes, relay
 from tutorboard.agents import doctor, recipes, usage
 from tutorboard.runner import daemon, loop, watch
+from tutorboard.course import repo as course_repo
 
 RELAY = os.path.join(TOOL, "bin", "relay")
 
@@ -275,7 +276,7 @@ def cmd_cost(cfg, args):
     rest = [a for a in args if not a.startswith("--")]
     if "--all" in args:
         return usage.cost_all(cfg, found)
-    if rest and os.path.isfile(os.path.join(rest[0], "live", usage.COST_LOG)):
+    if rest and os.path.isfile(course_repo.session_path(rest[0], usage.COST_LOG)):
         # A directory that is not a course, such as `tutor doctor --keep`'s.
         course = {"dir": os.path.basename(os.path.abspath(rest[0])),
                   "root": os.path.abspath(rest[0])}
