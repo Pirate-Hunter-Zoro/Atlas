@@ -9,16 +9,11 @@ somewhere else, and a board that is answering perfectly well becomes impossible
 to bounce onto new code. A shipped fix then appears not to have landed, which is
 the most expensive kind of bug this repository has.
 
-It moved. A Mac with no `HostName` set derives its name from the network, and
-Tailscale's DNS renamed this machine from `mac-mini` to `board` between one board
-starting and the next command asking who was running it.
+It is derived one way, in `tutorboard/machine.py`, and no caller asks the
+system directly: `os.uname()` and `socket.gethostname()` are not required to
+agree on one machine. Nothing pins it; boards run on the Mac alone.
 
-And it was being derived four ways in four files -- `os.uname()` in the launcher,
-`socket.gethostname()` in the board and the server -- which are not required to
-agree on one machine.
-
-So: one function, a pinned answer, and no caller allowed to ask the system
-directly.
+Also the cluster's setup script.
 """
 
 import importlib.machinery
@@ -68,33 +63,17 @@ check("and case is not an identity: Mac-mini and mac-mini are one machine",
 check("and nothing at all is not an empty string in a record",
       machine._normal_node("") == "unknown")
 
-# --- pinning ----------------------------------------------------------------
-check("nothing is pinned to start with", machine.node_name_pinned() is None)
-check("so the name is whatever the system says",
+# --- no pinning: the environment, then the system ------------------------------
+check("the name is whatever the system says",
       machine.node_name() == machine.system_node_name())
-
-machine.pin_node_name("mac-mini")
-check("a pinned name reads back", machine.node_name_pinned() == "mac-mini")
-check("and it is what the machine is called from then on",
-      machine.node_name() == "mac-mini")
-
-# The whole point: the system name moving must not move ours.
-real = machine.system_node_name
-machine.system_node_name = lambda: "something-the-network-decided"
-check("the network renaming the machine does not rename the board's idea of it",
-      machine.node_name() == "mac-mini")
-machine.system_node_name = real
-
-check("pinning normalises, so a careless capital cannot fork a machine in two",
-      machine.pin_node_name("Mac-Mini") == "mac-mini" and
-      machine.node_name() == "mac-mini")
-
 os.environ["BOARD_NODE_NAME"] = "override"
-check("the environment still wins, for a test or a one-off",
+check("the environment wins, for a test or a one-off",
       machine.node_name() == "override")
 os.environ.pop("BOARD_NODE_NAME")
-check("and removing it falls back to the pin, not to the system",
-      machine.node_name() == "mac-mini")
+check("and nothing pins it: no pin file, no pin function",
+      not hasattr(machine, "pin_node_name")
+      and not hasattr(machine, "NODE_NAME_FILE")
+      and not os.path.exists(os.path.join(sandbox, "nodename")))
 
 # --- nobody derives it for themselves ---------------------------------------
 # This is the half that actually broke. Two files asked `socket.gethostname()`
@@ -130,19 +109,11 @@ check("tutorboard/machine.py is the one place that may",
       asks_the_system(os.path.join(ROOT, "tutorboard", "machine.py")) == {"uname"})
 
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
-start_body = board_src[board_src.index("def cmd_start("):]
-start_body = start_body[:start_body.index("\ndef ", 1)]
-check("starting a board pins the name before any record carries it",
-      "pin_node_name()" in start_body and
-      start_body.index("pin_node_name()") < start_body.index("install_teaching(live)"))
-check("and a name already pinned is never quietly repinned",
-      "if not pinned:" in board_src)
-check("doctor says whether the name is pinned, since an unpinned one is the bug",
-      "NOT pinned" in board_src)
-check("and there is a command to correct a wrong one",
-      "def cmd_node(" in board_src and '"node": cmd_node' in board_src)
-check("which warns that a board under the old name needs bouncing by hand",
-      "bounce it once by hand" in board_src)
+check("there is no `board node` and no `board net` any more",
+      "def cmd_node(" not in board_src and '"node": cmd_node' not in board_src
+      and "def cmd_net(" not in board_src and '"net": cmd_net' not in board_src)
+check("nor the userspace daemon's one-node claim",
+      "def ts_check_owner(" not in board_src and "def ts_claim(" not in board_src)
 
 # --- the launcher and the board must agree ----------------------------------
 loader = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
@@ -157,81 +128,37 @@ bloader.exec_module(board)
 
 check("the launcher and the board call this machine the same thing",
       tutor.this_host() == board.this_node() == machine.node_name())
-check("and the server's own record would agree with both",
-      board.socket_hostname() == machine.node_name())
 
-# --- setting a compute node up ----------------------------------------------
-# `scripts/setup-node.sh` is the thing a person is told to run there, so its
-# effect on that machine's config has to be exercised rather than read. The block
-# is extracted from the script itself, not copied: a test holding its own copy of
-# the logic proves only that the copy works.
-
-setup_src = open(os.path.join(ROOT, "scripts", "setup-node.sh"), encoding="utf-8").read()
-def script_code(text):
-    """The script's lines with comments and printed prose dropped.
-
-    A rule about what the script *does* must not be satisfied or broken by the
-    header explaining what it deliberately does not do -- which is exactly how
-    this check first passed and then failed for the wrong reason.
-    """
-    out = []
-    for line in text.splitlines():
-        bare = line.split("#", 1)[0].strip()
-        if not bare or bare.startswith(("say ", "good ", "warn ", "print(")):
-            continue
-        out.append(bare)
-    return "\n".join(out)
-
-
-setup_code = script_code(setup_src)
-check("and never pins a name on a cluster, where the machine really does change",
-      "machine.pin_node_name(" not in setup_code)
-check("and never re-registers the tailnet name, which is the iPad's one address",
-      "vpn" not in setup_code and "board vpn up --hostname" in setup_src)
-check("and restarts what is running, since a board holds the code it started with",
-      "restart --tutors" in setup_src)
-
-blocks = setup_src.split("python3 - <<'PY'")
-check("the setup script has a config block to test", len(blocks) >= 3)
-config_block = blocks[2].split("\nPY\n")[0]
-
-
-def run_setup(start):
-    """Run the script's own config block against a throwaway config."""
-    box = tempfile.mkdtemp(prefix="tutor-setup-")
-    path = os.path.join(box, "config.json")
-    if start is not None:
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(start, fh)
-    env = dict(os.environ, TB_CFG=path, TB_TSNAME="")
-    p = subprocess.run([sys.executable, "-c", config_block], env=env,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
-    out = p.stdout.decode("utf-8", "replace")
-    try:
-        with open(path, encoding="utf-8") as fh:
-            got = json.load(fh)
-    except (OSError, ValueError):
-        got = None
-    shutil.rmtree(box, ignore_errors=True)
-    return got, out
-
-
-import json  # noqa: E402
+# --- setting the cluster up ------------------------------------------------------
+# `scripts/setup-cluster.sh` replaces the compute-node setup: no board and no
+# model run there, so it bootstraps, checks ai-config, installs the relay and
+# checks the remote.
 import subprocess  # noqa: E402
 
-got, out = run_setup(None)
-check("a node with no config at all comes out with one naming a tutor",
-      got and got.get("default_agent") == "claude")
-
-got, out = run_setup({"default_agent": "opencode"})
-check("and a tutor somebody chose is left exactly as it was",
-      got and got.get("default_agent") == "opencode")
-
-got, out = run_setup({"default_agent": "a-command-no-machine-has"})
-check("a tutor this machine has not got is reported rather than corrected -- "
-      "the fix is installing it, and a silent swap teaches the wrong lesson",
-      got and got.get("default_agent") == "a-command-no-machine-has"
-      and "not on the path here" in out)
+SETUP = os.path.join(ROOT, "scripts", "setup-cluster.sh")
+check("there is a cluster setup script, and it is the only setup script",
+      os.path.isfile(SETUP)
+      and [n for n in os.listdir(os.path.join(ROOT, "scripts"))
+           if n.startswith("setup-")] == ["setup-cluster.sh"])
+setup_src = open(SETUP, encoding="utf-8").read() if os.path.isfile(SETUP) else ""
+check("it is at most sixty lines", len(setup_src.splitlines()) <= 60)
+check("it is sound bash", subprocess.run(["bash", "-n", SETUP]).returncode == 0)
+check("it bootstraps and checks ai-config",
+      "bootstrap.sh" in setup_src and "ai-config" in setup_src)
+check("it installs the relay through bin/relay where that exists, else tutor relay",
+      'bin/relay" --install' in setup_src and "relay --install" in setup_src)
+check("and checks the remote answers", "ls-remote origin" in setup_src)
+check("and installs no timer and starts no board or tutor",
+      "systemctl" not in setup_src and "restart" not in setup_src
+      and "board start" not in setup_src)
+check("the systemd units are gone, so nothing can install a timer",
+      not os.path.exists(os.path.join(ROOT, "scripts", "systemd")))
+install_src = open(os.path.join(ROOT, "install.sh"), encoding="utf-8").read()
+check("and install.sh has no systemd branch", "systemctl" not in install_src)
+auto = open(os.path.join(ROOT, "scripts", "install-autostart.sh"),
+            encoding="utf-8").read()
+check("install-autostart keeps only --uninstall",
+      "--uninstall" in auto and "--login-hook" not in auto)
 
 shutil.rmtree(sandbox, ignore_errors=True)
 print()

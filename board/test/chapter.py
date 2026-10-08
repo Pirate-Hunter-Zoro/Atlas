@@ -169,8 +169,6 @@ handoff.stamp_handoff(root4, "Ch 03 — Rings")
 check("and a tutor whose chapter DOES have one is told to read it",
       tutor.handoff_clause(root4) == tutor.HANDOFF_CLAUSE)
 
-check("the session brief a terminal reads has somewhere to put whichever it is",
-      "%(handoff)s" in tutor.BRIEF)
 
 # A headless turn no longer carries the clause in its prompt: it reads `board
 # brief`, and the chapter test is applied there. Same guarantee, one indirection

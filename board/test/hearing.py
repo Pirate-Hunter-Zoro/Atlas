@@ -118,14 +118,14 @@ try:
     stamp = os.path.join(base, "heard.stamp")
 
     # --- the cadence ----------------------------------------------------------
-    check("nothing out: the pull is every five minutes",
-          jobs.pull_interval([ws]) == jobs.PULL_IDLE == 300)
+    check("the pull is every twenty seconds, whatever is out",
+          jobs.PULL_EVERY == 20)
     check("a pull is due on a fresh stamp, or one from the future",
           jobs.pull_due(0, 100, 3600) and jobs.pull_due(500, 100, 3600))
-    check("a five-minute pull is not due after two minutes",
-          not jobs.pull_due(1000, 1120, jobs.PULL_IDLE))
-    check("a two-minute pull is due on a timer that fired a few seconds early",
-          jobs.pull_due(1000, 1112, jobs.PULL_BUSY))
+    check("a twenty-second pull is not due two seconds after the last",
+          not jobs.pull_due(1000, 1002, jobs.PULL_EVERY))
+    check("and is due on a timer that fired a few seconds early",
+          jobs.pull_due(1000, 1012, jobs.PULL_EVERY))
 
     pulled = []
 
@@ -134,10 +134,10 @@ try:
         return True
 
     write(stamp, "%f\n" % 1000.0)
-    got, interval, heard = tutorcli.hear_pass(stamp=stamp, now=1120,
+    got, interval, heard = tutorcli.hear_pass(stamp=stamp, now=1002,
                                               pull=fake_pull)
-    check("idle, two minutes after the last pull: no pull",
-          got is False and pulled == [] and interval == jobs.PULL_IDLE)
+    check("two seconds after the last pull: no pull",
+          got is False and pulled == [] and interval == jobs.PULL_EVERY)
 
     # --- a request filed on the Mac --------------------------------------------
     req = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "thread": "knn",
@@ -152,12 +152,10 @@ try:
                                       jobs.HEARD))
           and git(mac, "status", "--porcelain").strip() == "")
     threads._cache.clear()
-    check("a request out: the pull is every two minutes",
-          jobs.pull_interval([ws]) == jobs.PULL_BUSY)
     got, interval, heard = tutorcli.hear_pass(stamp=stamp, now=1120,
                                               pull=fake_pull)
-    check("so two minutes after the last pull, it pulls",
-          got is True and len(pulled) == 1 and interval == jobs.PULL_BUSY
+    check("a request out, two minutes after the last pull: it pulls",
+          got is True and len(pulled) == 1 and interval == jobs.PULL_EVERY
           and heard == [])
 
     lines = jobs.thread_relay(ws, "knn")
@@ -213,7 +211,7 @@ try:
           and "board diagnose knn --fixes %s" % req["id"] in text
           and "board push" in text and "ask-cluster" not in text
           and "relay.turns" not in text and "tick the task" not in text)
-    check("and the pull is every five minutes again", interval == jobs.PULL_IDLE)
+    check("and the pull is still every twenty seconds", interval == jobs.PULL_EVERY)
 
     tutorcli.hear_pass(stamp=stamp, now=1600, force=True)
     check("heard once: the next pass drops nothing", len(inbox(ws)) == 1)
@@ -262,14 +260,14 @@ try:
           len(msgs) == 1 and msgs[0]["signal"] == "coach"
           and msgs[0]["text"].startswith("[coach] Step 1 of thread knn")
           and not any(m["text"].startswith("[job]") for m in msgs))
-    check("and while the hold stands the pull runs every POLL_SECONDS",
-          interval == holds.POLL_SECONDS)
+    check("and while the hold stands the pull is still every twenty seconds",
+          interval == jobs.PULL_EVERY == holds.POLL_SECONDS)
     tutorcli.hear_pass(stamp=stamp, now=2100, force=True)
     check("and the next pull drops nothing more", len(inbox(ws)) == before + 1)
     plist = open(os.path.join(ROOT, "scripts", "launchd",
                               "tutor-pull.plist")).read()
     check("the Mac's timer fires often enough for that cadence",
-          "<integer>%d</integer>" % holds.POLL_SECONDS in plist)
+          "<integer>%d</integer>" % jobs.PULL_EVERY in plist)
 
     # --- the pull pass clones nothing but ai-config ---------------------------
     # Every course is Atlas's own content. A fake `git` and `gh` on PATH log

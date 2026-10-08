@@ -35,8 +35,7 @@
 # `--no-clone` skips the submodules and the cloning; hooks are still set on
 # Atlas and on ai-config if it is already there.
 # `--private-only` runs the hook and ai-config steps and nothing else --
-# setup-node.sh and the Mac's pull pass call it so there is one copy of that
-# logic.
+# `tutor pull --hear` calls it so there is one copy of that logic.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -73,7 +72,7 @@ AI_CONFIG_URL="https://github.com/Pirate-Hunter-Zoro/ai-config.git"
 # Every step is non-destructive and safe to repeat: a mixed reset moves the
 # index and HEAD and never the working tree, so a local edit shows as a
 # modification, and only files MISSING from disk are checked out. No git
-# command here may prompt: setup-node.sh runs this with nobody at the terminal,
+# command here may prompt: the periodic pull runs this with nobody at the terminal,
 # and a username prompt there is a job that hangs until its allocation ends.
 adopt() {
   local dest="$1" url="$2"
@@ -230,9 +229,6 @@ say "  board vpn up          link this machine to your tailnet (prints a login U
 say "  board vpn serve       HTTPS on its *.ts.net name, so the iPad app works offline"
 say "  tutor --list          confirm it can see the courses"
 say "  tutor --agents        point it at the assistant you use here"
-say "  tutor galois          start a session"
 say
-say "  tutor headless galois --agent opencode     run it as a daemon"
-say "  bash $HERE/scripts/install-autostart.sh --login-hook"
-say "                                            and it comes back by itself on"
-say "                                            every node you are given"
+say "  tutor headless galois --agent deepseek     run it as a daemon"
+say "  bash $HERE/scripts/setup-cluster.sh       on the cluster: the relay, and nothing else"

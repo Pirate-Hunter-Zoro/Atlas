@@ -11,7 +11,7 @@ handed in had gone into another workspace's transcript.
 Three separate things had to be wrong for that, and each of them reads as
 harmless on its own:
 
-  1. `link()` in `bin/tutor` called a bare `board vpn serve` on every launch.
+  1. The launcher called a bare `board vpn serve` on every launch.
      That command is the FORCED claim -- its whole meaning is "point the address
      at THIS course", which is a sentence only a person is entitled to say. So
      starting a tutor anywhere took the address from whatever was being read.
@@ -193,12 +193,12 @@ tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
 check("`vpn serve --if-free` exists, and routes through the guard",
       '"--if-free" in args' in board_src and board_src.count('"--if-free" in args') >= 2)
 
-link_body = tutor_src[tutor_src.index("def link("):]
-link_body = link_body[:link_body.index("\n\n\n")]
-check("the launcher's own claim asks first",
-      '"vpn", "serve", "--if-free"' in link_body)
-check("and never forces it, which is what moved somebody mid-proof",
-      '"vpn", "serve")' not in link_body)
+watch = tutor_src[tutor_src.index("def watch_once("):]
+watch = watch[:watch.index("\ndef ", 1)]
+check("the watchdog's own claim, where nobody chose, asks first",
+      '"vpn", "serve", "--if-free")' in watch)
+check("and the launcher has no claim of its own any more",
+      "def link(" not in tutor_src)
 
 # AND THE LEFTOVER IS NOT MERELY OUTRANKED, IT IS STOPPED. The moment a
 # repository's next board starts is the moment the previous one became a

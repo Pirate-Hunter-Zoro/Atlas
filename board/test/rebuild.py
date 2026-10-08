@@ -191,9 +191,10 @@ loop = inspect.getsource(hub.Hub.poll_loop)
 check("and its loop walks no missions",
       "missions" not in loop and "spawn" not in loop)
 sweep = inspect.getsource(spawn.sweep_missions)
-check("the ship, carry and release walks run on their own thread, release last",
-      sweep.index("ship_missions") < sweep.index("carry_missions")
-      < sweep.index("release_missions"))
+check("the ship walk runs on its own thread, and there is no carry or "
+      "release walk any more",
+      "ship_missions" in sweep and "carry_missions" not in sweep
+      and "release_missions" not in sweep)
 app = open(os.path.join(ROOT, "tutorboard", "server", "app.py"), encoding="utf-8").read()
 check("and serve.py starts that thread", "target=spawn.sweep_missions" in app)
 

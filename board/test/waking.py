@@ -247,7 +247,7 @@ j = src.index("def headless(")
 head = src[j:j + 4000]
 check("the daemon marks itself waking too, for a start nobody routed",
       "mark_waking(" in head)
-check("before the link, the board and the sitting, which are the slow part",
+check("before the board and the sitting, which are the slow part",
       head.index("mark_waking(") < head.index('board(root, "start")'))
 check("and the catch-up moved here, where nobody is holding a request open",
       "sync(root, quiet=True)" in head)
@@ -261,128 +261,7 @@ for mod in ("writing", "lesson"):
     check("handing work in through %s.py wakes a tutor" % mod,
           "spawn.wake_tutor(repo)" in routes)
 
-# --------------------------------- a transcript never commits its own loss
-print()
-print("-- and a beat never commits the disappearance of somebody's working --")
-
-# Two clones run `sync_transcript` on a beat over the same course, and `git add
-# -A live` commits a SNAPSHOT of whichever working tree it is standing in.
-# Neither machine has the other's newest pages, so each snapshot DELETES the
-# other's, and the next fast-forward pull checks it out and removes the files
-# from disk. Measured on Galois Theory: `live/slate/` pages 50 to 53, written
-# between 10:13 and 10:25, present in one line of history and physically absent
-# from the working tree by 11:09.
-import subprocess                                              # noqa: E402
-
 TUTOR = os.path.join(ROOT, "bin", "tutor")
-git_ok = subprocess.run(["git", "--version"], stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL).returncode == 0
-
-if not git_ok:
-    print("skip  git is not available")
-else:
-    work = tempfile.mkdtemp(prefix="transcript-")
-
-    def g(*args):
-        return subprocess.run(["git"] + list(args), cwd=work,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=60)
-
-    g("init", "-q", "-b", "main")
-    g("config", "user.email", "t@t")
-    g("config", "user.name", "t")
-    for d in ("live/slate", "live/answers", "live/cards", "live/archive"):
-        os.makedirs(os.path.join(work, d), exist_ok=True)
-    for n in (1, 2, 3):
-        open(os.path.join(work, "live/slate/page-%02d.json" % n), "w").write("{}")
-    open(os.path.join(work, "live/answers/t0001-r1.json"), "w").write("{}")
-    open(os.path.join(work, "live/cards/0001-first.md"), "w").write("card")
-    g("add", "-A")
-    g("commit", "-q", "-m", "a lesson")
-
-    # What the other machine's snapshot does: two pages and an answer vanish
-    # from the working tree, having never been deleted by anything here.
-    for rel in ("live/slate/page-02.json", "live/slate/page-03.json",
-                "live/answers/t0001-r1.json"):
-        os.remove(os.path.join(work, rel))
-    # And one that IS accounted for: filed away by `board archive`, which
-    # renames it under `live/archive/`.
-    os.makedirs(os.path.join(work, "live/archive/2026-09-03"), exist_ok=True)
-    os.rename(os.path.join(work, "live/cards/0001-first.md"),
-              os.path.join(work, "live/archive/2026-09-03/0001-first.md"))
-
-    # The real function, lifted out of `bin/tutor` -- which has no `.py` on the
-    # end of it and cannot be imported. Just the transcript block: importing the
-    # whole launcher would run its argument parsing.
-    ns = {"os": os, "subprocess": subprocess}
-    tutor_src = open(TUTOR, encoding="utf-8").read()
-    i = tutor_src.index("TRANSCRIPT_DIRS = (")
-    j = tutor_src.index("def sync_transcript(")
-    exec(compile(tutor_src[i:j], "<tutor>", "exec"), ns)
-
-    def gg(*args, **kw):
-        return subprocess.run(["git"] + list(args), cwd=work,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=kw.get("timeout", 60))
-
-    said = []
-    gg("add", "-A", "live")
-    put = ns["keep_transcript_files"](work, gg, said.append)
-
-    check("a slate page that vanished with nothing to account for is put back",
-          os.path.isfile(os.path.join(work, "live/slate/page-02.json"))
-          and os.path.isfile(os.path.join(work, "live/slate/page-03.json")))
-    check("and so is a frozen answer, which is the copy that cannot be redrawn",
-          os.path.isfile(os.path.join(work, "live/answers/t0001-r1.json")))
-    check("on disk as well as in the index, so the board can read it again",
-          gg("diff", "--cached", "--name-only", "--diff-filter=D", "--",
-             "live/slate").stdout.decode().strip() == "")
-    check("a card that `board archive` filed away is a deletion that IS "
-          "accounted for, and stays deleted",
-          not os.path.isfile(os.path.join(work, "live/cards/0001-first.md")))
-    check("and the beat says what it put back rather than doing it silently",
-          any("put back" in s for s in said))
-    check("with nothing missing, it does nothing at all",
-          ns["keep_transcript_files"](work, gg, said.append) == [])
-
-    # AND THE PULL, WHICH IS THE HALF THAT ACTUALLY DELETES. A fast-forward
-    # checks the other machine's snapshot out and removes files from disk, and
-    # by then HEAD no longer holds them -- so the commit-side guard has nothing
-    # to restore from. This is the only moment that knows.
-    gg("commit", "-q", "-m", "put back")
-    ours = gg("rev-parse", "HEAD").stdout.decode().strip()
-
-    # The other machine's snapshot: it never saw page 3, and it filed a card.
-    gg("checkout", "-q", "-b", "theirs")
-    os.remove(os.path.join(work, "live/slate/page-03.json"))
-    os.remove(os.path.join(work, "live/answers/t0001-r1.json"))
-    os.makedirs(os.path.join(work, "live/archive/2026-09-04"), exist_ok=True)
-    open(os.path.join(work, "live/archive/2026-09-04/0002-second.md"), "w").write("x")
-    open(os.path.join(work, "live/slate/page-04.json"), "w").write("{}")
-    gg("add", "-A")
-    gg("commit", "-q", "-m", "their snapshot")
-    theirs = gg("rev-parse", "HEAD").stdout.decode().strip()
-    # What a fast-forward onto it looks like from here.
-    gg("checkout", "-q", theirs)
-
-    # And a deletion paired with an addition of the SAME BYTES must still read
-    # as a deletion. Slate pages are routinely byte-identical -- a page cut as a
-    # copy of another, an attempt handed in twice -- and git reports that pair as
-    # a rename, which is not a deletion, so the files this exists to protect are
-    # exactly the ones that would hide behind rename detection.
-    said2 = []
-    put2 = ns["keep_pulled_files"](work, gg, said2.append, ours)
-
-    check("a pull that removed a slate page puts it back on disk",
-          os.path.isfile(os.path.join(work, "live/slate/page-03.json")))
-    check("and the frozen answer it removed with it",
-          os.path.isfile(os.path.join(work, "live/answers/t0001-r1.json")))
-    check("while what the pull BROUGHT is kept, because that is the point of it",
-          os.path.isfile(os.path.join(work, "live/slate/page-04.json")))
-    check("and the beat says what it saved",
-          any("would have removed" in s for s in said2))
-    check("a pull that took nothing away does nothing",
-          ns["keep_pulled_files"](work, gg, said2.append, theirs) == [])
 
 # ---------------------------------------------------------------------------
 # AN ABANDONED BOUNCE IS NOT A PERSON SAYING NO

@@ -1230,7 +1230,7 @@ def _ago(t, now=None):
 
 
 def where_line(base=None, now=None):
-    """One line for `tutor where`, or "" where the relay never ran."""
+    """The relay's last pass in one line, or "" where it never ran."""
     st = read_state(os.path.realpath(base or atlas.root()))
     if not st.get("last_pass"):
         return ""

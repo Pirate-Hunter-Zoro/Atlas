@@ -1860,7 +1860,7 @@ def commit_alone(root, target, what, run=subprocess.run, push=True):
 # repairs (`repairs`). Nothing else wakes a turn for the relay.
 #
 # "Brought by a pull" is read off git, not off the pull: whichever process
-# moved HEAD -- the timer, the transcript beat, a hand `git pull` -- the next
+# moved HEAD -- the timer, a hand `git pull` -- the next
 # `hear` diffs `relay/reports/` from the commit it last heard to HEAD. A fresh
 # clone hears nothing of the reports it arrived with: the first `hear` records
 # HEAD and says nothing. Each ending is claimed once per (request, state), so
@@ -1869,12 +1869,11 @@ def commit_alone(root, target, what, run=subprocess.run, push=True):
 ENDED_REPORTS = ("refused", "completed", "failed")
 HEARD = "relay.heard"
 
-# The pull's cadence on a machine without Slurm: every two minutes while a
-# request is out, every five minutes otherwise, so a cluster commit is here
-# within one relay pass and one poll. The timer fires every twenty seconds and
-# `pull_due` decides.
-PULL_BUSY = 120
-PULL_IDLE = 300
+# The pull's cadence on a machine without Slurm: every twenty seconds in every
+# state, so a turn never runs on a tree more than twenty seconds stale and a
+# cluster commit is here within one relay pass and one poll. The timer fires
+# every twenty seconds and `pull_due` decides.
+PULL_EVERY = 20
 
 
 def outstanding(root, tid=None):
@@ -1884,17 +1883,6 @@ def outstanding(root, tid=None):
            and not course_threads.finished(r)]
     out.sort(key=lambda r: float(r.get("submitted") or 0))
     return out
-
-
-def pull_interval(roots):
-    """Seconds between pulls: `PULL_BUSY` while any request is out."""
-    for root in roots or ():
-        try:
-            if outstanding(root):
-                return PULL_BUSY
-        except Exception:                                    # noqa: BLE001
-            continue
-    return PULL_IDLE
 
 
 # A timer's fire drifts by a few seconds; without the slack a two-minute

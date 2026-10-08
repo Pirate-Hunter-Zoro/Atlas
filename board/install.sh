@@ -48,49 +48,21 @@ case ":$PATH:" in
   *) warn "$BIN is not on your PATH — add it to your shell profile" ;;
 esac
 
-# --- the daily pull --------------------------------------------------------
-# `tutor resume` moves colibri and the Tailscale client forward on login, which
-# is all a compute node needs. A workstation left up for a week never has one,
-# so the same routine gets a timer. A --user timer because pam refuses crontab
-# on this cluster.
+# --- the Mac's agents ------------------------------------------------------
+# A Mac runs the boards; nothing else does. launchd runs two agents there, and
+# no other machine gets a timer: the cluster's only schedule is the relay's
+# scrontab entry (`scripts/setup-cluster.sh`).
 #
-# The wrapper is LINKED, so editing it here is what runs tomorrow. The units are
-# COPIED: systemd reads the unit directory at daemon-reload, and a link into a
-# repository that later moves is a timer that silently stops firing.
+# The wrapper is LINKED, so editing it here is what runs next. The agents are
+# COPIED: launchd reads them at bootstrap, and a link into a repository that
+# later moves is an agent that silently stops firing.
 chmod +x "$HERE/scripts/tutor-pull" 2>/dev/null || true
 ln -sf "$HERE/scripts/tutor-pull" "$BIN/tutor-pull"
-if command -v systemctl >/dev/null 2>&1; then
-  UNITS="$HOME/.config/systemd/user"
-  mkdir -p "$UNITS" 2>/dev/null
-  changed=0
-  for unit in "$HERE"/scripts/systemd/*.timer "$HERE"/scripts/systemd/*.service; do
-    [ -f "$unit" ] || continue
-    cmp -s "$unit" "$UNITS/$(basename "$unit")" || {
-      cp "$unit" "$UNITS/$(basename "$unit")" && changed=1
-    }
-  done
-  if [ "$changed" -eq 1 ]; then
-    systemctl --user daemon-reload 2>/dev/null
-    systemctl --user enable --now tutor-pull.timer >/dev/null 2>&1
-  fi
-  if systemctl --user is-enabled tutor-pull.timer >/dev/null 2>&1; then
-    good "tutor-pull.timer (colibri and tailscale, daily)"
-    # THE OLD NAME FOR THIS EXACT JOB. It ran `tutor pull` too, so leaving both
-    # enabled is the same work twice a day under two names, and the one nobody
-    # can find is the one that keeps running.
-    if systemctl --user is-enabled colibri-pull.timer >/dev/null 2>&1; then
-      systemctl --user disable --now colibri-pull.timer >/dev/null 2>&1 \
-        && say "        (disabled colibri-pull.timer, which is this under its old name)"
-    fi
-  else
-    warn "tutor-pull.timer is not enabled; a machine left up will not pull"
-    say  "        systemctl --user enable --now tutor-pull.timer"
-  fi
-elif command -v launchctl >/dev/null 2>&1; then
+if command -v launchctl >/dev/null 2>&1; then
   # A MAC, which is a machine that comes back. launchd runs two agents:
   # tutor-pull.plist for the timer (every twenty seconds, `tutor pull --hear`
   # deciding whether a pull is due), and tutor-watch.plist for `tutor watch`,
-  # so a reboot brings every board back. LaunchAgents, COPIED for the reason the units are, and loaded in
+  # so a reboot brings every board back. LaunchAgents, loaded in
   # the login session -- the Mac logs its owner in by itself, and the keychain
   # holding git's credential and the assistants' logins is open only there.
   AGENTS="$HOME/Library/LaunchAgents"
@@ -125,7 +97,7 @@ elif command -v launchctl >/dev/null 2>&1; then
     say  "        System Settings > Users & Groups > Automatically log in as $(id -un)"
   fi
 else
-  say  "  ----  no systemctl; the daily pull needs a login to happen"
+  say  "  ----  no launchd: boards run on the Mac, so nothing is scheduled here"
 fi
 
 # --- TeX -------------------------------------------------------------------
@@ -199,7 +171,6 @@ if [ "$ok" -eq 0 ]; then
 else
   say "Usable, with the gaps above. From anywhere:"
 fi
-say "  tutor              # pick a course and begin"
 say "  tutor --list       # what it can see"
 say "  tutor --agents     # which assistants are configured"
 exit 0

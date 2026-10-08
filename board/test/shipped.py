@@ -181,8 +181,7 @@ try:
     # =======================================================================
     cfg = {"courses_dir": tmp, "default_agent": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
-                                 "headless": ["claude", "-p", "{prompt}"]}},
-           "hosts": {}}
+                                 "headless": ["claude", "-p", "{prompt}"]}}}
     tree = {"now": "T"}
     calls = {"board": [], "kill": [], "handed": [], "imports": 0}
     holding = {"port": "9001"}

@@ -6,18 +6,15 @@
 #      tutor-pull --force    both, regardless
 #
 #  EVERY RUN: `tutor pull --hear`. On a machine without Slurm it pulls Atlas
-#  every twenty seconds while a hold stands, every two minutes
-#  while a relay request is out and every five minutes otherwise, then drops
-#  a `[job]` line for each cluster report that ended and a `[coach]` line for
-#  each held step's check.
+#  every twenty seconds, then drops a `[job]` line for each cluster report
+#  that ended and a `[coach]` line for each held step's check.
 #  The cadence is decided there (`jobs.pull_due`), not by the timer. On a
 #  machine with Slurm it does nothing: the relay pulls there.
 #
 #  ONCE A DAY: `tutor pull`, below.
 #
 #  `tutor pull` moves `vendor/colibri`, somebody else's repository tracked here
-#  by pointer. It also happens on login from `tutor resume`; this is the copy
-#  for a machine that is left up for a week and never has a login.
+#  by pointer.
 #
 #  IT REIMPLEMENTS NOTHING. The submodule fast-forward, the pointer commit and
 #  the three guards that make an unattended commit safe are `pull_vendor` in
@@ -29,8 +26,7 @@
 #  left alone. Merging somebody else's repository is not a decision a timer
 #  gets to make.
 #
-#  A launchd agent on the Mac (`scripts/launchd/`, every 20 seconds); a
-#  systemd --user timer on Linux, because pam refuses cron on this cluster.
+#  A launchd agent on the Mac (`scripts/launchd/`, every 20 seconds).
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -42,7 +38,7 @@ FORCE=0
 mkdir -p "$(dirname "$LOG")" 2>/dev/null
 say() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 
-# A systemd --user unit or a launchd agent gets almost no PATH, so find the
+# A launchd agent gets almost no PATH, so find the
 # tool the way the person's shell would and then the way the installer put it.
 TUTOR="$(command -v tutor 2>/dev/null)"
 [ -x "${TUTOR:-}" ] || TUTOR="$HOME/.local/bin/tutor"

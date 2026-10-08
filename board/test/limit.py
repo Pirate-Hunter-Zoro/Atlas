@@ -221,9 +221,6 @@ check("and the daemon that comes up after it drains what was owed, rather than "
 check("and the board is told the daemon is retrying, so it does not advise "
       "sending the same work again behind a turn already queued",
       "limited=until, retrying=True)" in src)
-check("the transcript is pushed before the turn is given up on, so the message "
-      "it failed to answer is somewhere a later session can read it",
-      "sync_transcript(root, log)" in src)
 check("and then the next turn climbs down to whoever can take it, which is "
       "the whole reason to have three",
       "nxt, _ = choose_agent(load_config(), agent_name)" in src)

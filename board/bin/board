@@ -123,12 +123,10 @@ The assistant runs these. The student never does.
     board walk [status]                what this walkthrough covers
     board walk list [dir]              every file in this repository it could cover
     board walk over <name> [<name>]    say what it covers, without reopening
-    board net                          every URL the board answers on
     board vpn up [--hostname N]        the Tailscale link (name defaults to 'board')
     board vpn status|serve|down, for devices off this network
     board init [name]                  write tutorboard.json for this repository
     board doctor                       check the machine has what this needs
-    board node [name|--unpin]          what this machine calls itself, pinned
     board egress [--repair]            can a turn get out, and through which exit node
     board limit [--clear|--set S]      has the tutor's allowance here run out
     board eyes [--answer]              can the assistant driving this actually see?
@@ -364,20 +362,9 @@ def cmd_start(live, args):
                   % info["node"])
         else:
             print("a board for this repository is already running on %s." % info["node"])
-            print("it serves the same files over the tailnet, so you probably want that one:")
-            print("  board net")
             print("start one here anyway with: board start --force")
             if "--force" not in args:
                 return 1
-
-    # Freeze what this machine calls itself, before anything writes a record
-    # carrying that name. A Mac with no `HostName` set takes its name from the
-    # network, so the name that goes into `.board.json` here is one Tailscale or
-    # a DHCP lease can change by tomorrow -- and then this board belongs to a
-    # machine that no longer exists and nothing will restart it.
-    if not machine.node_name_pinned() and machine.should_pin_node_name():
-        print("this machine is now '%s' as far as the board is concerned "
-              "(pinned, so the network cannot change it)" % machine.pin_node_name())
 
     install_teaching(live)
 
@@ -2011,8 +1998,6 @@ def cmd_handoff(live, args):
     return 0
 
 
-
-
 def cmd_direction(live, args):
     """What this workspace is FOR, in their words. Body on stdin.
 
@@ -3422,45 +3407,6 @@ def ts_talks(timeout=12.0):
         time.sleep(0.5)
 
 
-TS_OWNER = os.path.join(TS_DIR, "owner.json")
-
-
-def ts_owner():
-    try:
-        with open(TS_OWNER, "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except Exception:
-        return None
-
-
-def ts_claim():
-    os.makedirs(TS_DIR, exist_ok=True)
-    with open(TS_OWNER, "w", encoding="utf-8") as fh:
-        json.dump({"node": this_node(), "at": time.strftime("%Y-%m-%d %H:%M:%S")}, fh)
-
-
-def ts_check_owner(force=False):
-    """Only one node may run the daemon at a time.
-
-    The state file lives in the shared home, which is what makes the tailnet
-    identity follow you from compute node to compute node -- and also what would
-    let two daemons on two nodes claw at the same node key. A record from a node
-    where the allocation has ended is stale and gets cleared.
-    """
-    owner = ts_owner()
-    if not owner or owner.get("node") in (None, this_node()) or force:
-        return True
-    held = slurm_nodes()
-    if held is not None and owner["node"] not in held:
-        return True
-    print("tailscale is already linked from %s (since %s)."
-          % (owner["node"], owner.get("at", "?")), file=sys.stderr)
-    print("the tailnet address is the same either way -- try: board net", file=sys.stderr)
-    print("to move the link to this node, stop it there, or: board vpn up --force",
-          file=sys.stderr)
-    return False
-
-
 def ts_start_daemon():
     if ts_daemon_running():
         return True
@@ -3480,7 +3426,6 @@ def ts_start_daemon():
         stdout=log, stderr=log, start_new_session=True)
     # The daemon ANSWERING is the test, not its socket existing: see `ts_talks`.
     if ts_talks():
-        ts_claim()
         return True
     return False
 
@@ -3764,8 +3709,7 @@ def cmd_vpn(live, args):
             return 1
         by = served_by_name(out)
         _, me = ts_info()
-        # This node's own name first, because that is the one `board net` prints
-        # and the one the iPad has. Failing that, any name at all.
+        # This node's own name first, because that is the one the iPad has. Failing that, any name at all.
         held = by.get(me) if me else None
         if not held and by:
             held = sorted(by.values())[0]
@@ -3782,7 +3726,7 @@ def cmd_vpn(live, args):
         if sub in ("up", "status"):
             code, out = ts("status")
             print(out.strip() or "tailscale is managed by this system")
-            return cmd_net(live, []) if sub == "up" else code
+            return code
         if sub == "down":
             print("tailscale is managed by this system; leave it alone")
             return 0
@@ -3812,10 +3756,6 @@ def cmd_vpn(live, args):
     if sub == "down":
         ts("down")
         subprocess.run(["pkill", "-f", "tailscaled --tun=userspace-networking"])
-        try:
-            os.remove(TS_OWNER)
-        except OSError:
-            pass
         print("tailscale stopped")
         return 0
 
@@ -3823,9 +3763,6 @@ def cmd_vpn(live, args):
         print("tailscale is not installed. To reach the board from another\n"
               "network you need it on this machine:\n\n"
               + tailscale.tailscale_download_hint(), file=sys.stderr)
-        return 1
-
-    if not ts_check_owner("--force" in args):
         return 1
 
     if not ts_start_daemon():
@@ -3848,7 +3785,7 @@ def cmd_vpn(live, args):
             print("  " + url)
             return 3
         print(out.strip() or "tailscale up")
-        return cmd_net(live, [])
+        return 0
 
     if sub == "serve":
         info = live.info()
@@ -3878,58 +3815,6 @@ def cmd_vpn(live, args):
     code, out = ts("status")
     print(out.strip())
     return code
-
-
-def socket_hostname():
-    return this_node()
-
-
-def cmd_net(live, args):
-    """Everywhere the board can be reached from, in the order worth trying."""
-    info = live.info()
-    if not info:
-        print("board is down; run: board start")
-        return 1
-    port = info["port"]
-    # Only ever aim the HTTPS name at a board that is answering *here*. The record
-    # crosses nodes on a shared home, so a stale one from an ended allocation used
-    # to be taken at face value -- and `board net`, which reads like a diagnostic,
-    # would hijack the address the iPad has installed and park it on a dead port.
-    if alive(info):
-        ts_repoint(port)
-    else:
-        where = info.get("node")
-        if where and where != this_node():
-            print("the record says the board is on %s, not here; leaving the tailnet"
-                  " name where it is." % where)
-        else:
-            print("the record is stale — nothing is answering on port %d here."
-                  " Not touching the tailnet name; run: board start" % port)
-
-    print("on this machine")
-    print("  http://127.0.0.1:%d/" % port)
-
-    lan = [u for u in info["urls"] if "127.0.0.1" not in u]
-    if lan and info.get("bind") == "0.0.0.0":
-        print("on the local network  (--lan was given; there is no authentication)")
-        for u in lan:
-            print("  " + u)
-
-    v4, name = ts_info()
-    if v4 or name:
-        print("over tailscale — from anywhere, on any of your devices")
-        print("  this address does not change when you move to another compute node")
-        if name:
-            code, out = ts("serve", "status")
-            if code == 0 and "https://" in out:
-                print("  https://%s/       <- open this on the iPad" % name)
-                print("     (HTTPS, so Add to Home Screen gives a real app)")
-            print("  http://%s:%d/" % (name, port))
-        if v4:
-            print("  http://%s:%d/" % (v4, port))
-    else:
-        print("tailscale not linked — run: board vpn up")
-    return 0
 
 
 def read_config(root):
@@ -4314,57 +4199,6 @@ def cmd_egress(live, args):
     return 0 if ok else 1
 
 
-def cmd_node(live, args):
-    """Show, or pin, what this machine calls itself.
-
-    There is a command for this because a wrong pin has to be correctable, and
-    because the failure it prevents is invisible: nothing looks broken when a
-    machine renames itself, right up until a board cannot be restarted and a
-    shipped fix appears not to have landed.
-    """
-    want = next((a for a in args if not a.startswith("-")), None)
-    cluster = not machine.should_pin_node_name()
-    if not want:
-        pinned = machine.node_name_pinned()
-        print("node:    %s%s" % (this_node(), "  (pinned)" if pinned else ""))
-        print("system:  %s" % machine.system_node_name())
-        if pinned and cluster:
-            print("\nthis machine is on a cluster, where the name changes between")
-            print("allocations because it is a different machine each time. A pin here")
-            print("makes a record from a node that has gone look alive for ever.")
-            print("unpin it with:  board node --unpin")
-        elif not pinned and not cluster:
-            print("\nnot pinned: this machine takes its name from the network, and a")
-            print("rename orphans every board record written under the old one.")
-            print("pin it with:  board node %s" % machine.system_node_name())
-        elif not pinned:
-            print("\nnot pinned, which is right on a cluster: the name changes between")
-            print("allocations because the machine does.")
-        return 0
-
-    if want == "--unpin" or "--unpin" in args:
-        try:
-            os.remove(machine.NODE_NAME_FILE)
-        except OSError:
-            pass
-        print("unpinned; this machine is '%s', from the system"
-              % machine.system_node_name())
-        return 0
-
-    was = this_node()
-    if cluster:
-        print("warning: Slurm answers here, so this is a cluster node and its name")
-        print("is supposed to change between allocations. Pinning one is usually wrong.")
-    now = machine.pin_node_name(want)
-    print("this machine is '%s'%s" % (now, "" if now == was else ", was '%s'" % was))
-    if now != was:
-        print("\nrecords written as '%s' are this machine's again only if they say so."
-              % now)
-        print("a board recorded under the old name will not be restarted by "
-              "`tutor restart`; bounce it once by hand.")
-    return 0
-
-
 def cmd_doctor(live, args):
     import platform as _pl
     import shutil as _sh
@@ -4400,14 +4234,7 @@ def cmd_doctor(live, args):
     print("repo:     %s" % live.root)
     print("course:   %s%s" % (cfg["name"],
                                "  (stance: do)" if cfg["stance"] == "do" else ""))
-    pinned = machine.node_name_pinned()
-    sysname = machine.system_node_name()
-    print("node:     %s%s" % (this_node(),
-                              "  (pinned)" if pinned else
-                              "  (NOT pinned — the network can rename this machine)"))
-    if pinned and pinned != sysname:
-        print("          the system currently says '%s'; the pinned name is what "
-              "every record uses" % sysname)
+    print("node:     %s" % this_node())
     print("port:     %d (default for this repo)" % default_port(live.root))
     lim = limits.limit_record()
     if lim:
@@ -4420,13 +4247,9 @@ def cmd_doctor(live, args):
               % xn["name"])
         print("egress:   %s" % ("reachable" if egress.egress_ok()
                                 else "NOT REACHABLE — board egress --repair"))
-    owner = ts_owner()
     v4, tsname = ts_info()
     print("tailnet:  %s  (this machine calls itself '%s')"
           % (tsname or "not linked", tailscale.tailnet_hostname()))
-    if owner:
-        print("vpn host: %s%s" % (owner.get("node"),
-                                  "" if owner.get("node") == this_node() else "  (not this one)"))
 
     # --- and the half of the machine that actually teaches -------------------
     # Everything above this line is about whether the board can be SERVED. None
@@ -4503,10 +4326,10 @@ COMMANDS = {
     "open": cmd_open, "next": cmd_next, "write": cmd_write,
     "inbox": cmd_inbox, "archive": cmd_archive, "export": cmd_export,
     "doctor": cmd_doctor, "slate": cmd_slate, "wait": cmd_wait,
-    "net": cmd_net, "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
+    "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
-    "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap, "node": cmd_node,
+    "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap,
     "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,

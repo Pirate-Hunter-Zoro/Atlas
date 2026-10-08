@@ -773,9 +773,8 @@ try:
     code, out = tutor("relay", "--once", TUTOR_SLURM="0")
     check("and refuses on a machine without Slurm",
           code == 1 and "no Slurm" in out)
-    check("`tutor where` prints the relay's last pass",
-          relay.where_line(cluster).startswith("relay: last pass")
-          and "relay.where_line()" in open(TUTOR, encoding="utf-8").read())
+    check("the relay's last pass is one line, which `--status` opens on",
+          relay.where_line(cluster).startswith("relay: last pass"))
 
     # --- the scrontab entry ---------------------------------------------------------
     block = relay.scrontab_block("/usr/bin/python3", "/x/board/bin/tutor",

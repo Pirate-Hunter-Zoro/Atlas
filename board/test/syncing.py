@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Timely sync, both ways: the cluster commits the owner's edits where a
-workspace opts in, and the Mac pulls before every turn.
+workspace opts in, and the Mac pulls every twenty seconds.
 
 What the checks are about:
 
@@ -15,15 +15,14 @@ What the checks are about:
   * A CONFLICT IS NAMED, NEVER FORCED. Origin and the owner both changed a
     file: it stays dirty, origin keeps its version, the path is named. A
     refused push undoes the sync commit into edits again.
-  * THE MAC PULLS BEFORE A TURN, bounded and logged, and not under a merge,
-    a held thread's edits, or an edit the pull would change.
+  * THE MAC PULLS EVERY TWENTY SECONDS, bounded and said, and not under a
+    merge or over an edit the pull would change.
 
 Git is real (a bare origin and two clones); Slurm is a stub.
 """
 
 import importlib.machinery
 import importlib.util
-import io
 import json
 import os
 import shutil
@@ -353,85 +352,52 @@ try:
     git(cluster, "checkout", "--", "research/Proj/src/fit.py")
     opt_in(False)
 
-    # --- the Mac pulls before every turn ----------------------------------------
+    # --- the Mac pulls every twenty seconds --------------------------------------
     os.environ["TUTOR_SLURM"] = "0"
-    check("the Mac's idle pull is every five minutes",
-          jobs.PULL_IDLE == 300 and jobs.PULL_BUSY == 120)
+    check("the Mac's pull is every twenty seconds in every state",
+          jobs.PULL_EVERY == 20 and not hasattr(jobs, "PULL_IDLE")
+          and not hasattr(jobs, "PULL_BUSY"))
     src = read(TUTOR)
     loop = src.split("\ndef headless(")[1].split("\ndef ")[0]
-    check("the daemon pulls once at the top of every turn, before the client",
-          "turn_pull(root, log)" in loop
-          and loop.index("=== %s turn %d ===") < loop.index("turn_pull(root, log)")
-          < loop.index("run_turn(cmd, root, log, cap"))
+    check("the daemon's turn does not pull: the hear pass keeps the tree within "
+          "twenty seconds", "sync(" not in loop.split("=== %s turn %d ===")[1])
     git(mac, "reset", "-q", "--hard", "origin/main")
     write(os.path.join(cws, "src", "fit.py"), "print('fit, from the cluster')\n")
     git(cluster, "commit", "-q", "-am", "the cluster moves on")
     git(cluster, "push", "-q")
-    log = io.StringIO()
-    check("a turn pulls what the cluster pushed",
-          tutorcli.turn_pull(mws, log) is True
+    said = []
+    check("a pull brings what the cluster pushed",
+          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is True
           and "from the cluster" in read(os.path.join(mws, "src", "fit.py"))
-          and "pulled 1 commit(s)" in log.getvalue())
-
-    seen = {}
-
-    def fake_pull(root, quiet=False, timeout=None, say=None):
-        seen["timeout"] = timeout
-        say("could not reach the remote; working with what is here")
-        return False
-    log = io.StringIO()
-    check("the pull is bounded and a dead remote is one logged line",
-          tutorcli.turn_pull(mws, log, pull=fake_pull) is False
-          and seen["timeout"] == tutorcli.TURN_PULL_SECONDS <= 30
-          and "could not reach the remote" in log.getvalue())
+          and any("pulled 1 commit(s)" in l for l in said))
     url = git(mac, "remote", "get-url", "origin")
     git(mac, "remote", "set-url", "origin", os.path.join(base, "gone.git"))
-    log = io.StringIO()
-    check("an unreachable remote does not stop the turn",
-          tutorcli.turn_pull(mws, log) is False
-          and "not synced" in log.getvalue())
+    said = []
+    check("an unreachable remote is one line, not a failure",
+          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          and any("not synced" in l for l in said))
     git(mac, "remote", "set-url", "origin", url)
 
     write(os.path.join(cws, "src", "shared.py"), "x = 'cluster again'\n")
     git(cluster, "commit", "-q", "-am", "the cluster changes shared.py")
     git(cluster, "push", "-q")
     write(os.path.join(mws, "src", "shared.py"), "x = 'mac, unsaved'\n")
-    log = io.StringIO()
-    check("an edit here the pull would change: nothing moves, logged",
-          tutorcli.turn_pull(mws, log) is False
+    said = []
+    check("an edit here the pull would change: nothing moves, and it says so",
+          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
           and read(os.path.join(mws, "src", "shared.py")) == "x = 'mac, unsaved'\n"
-          and "not synced" in log.getvalue())
+          and any("not synced" in l for l in said))
     git(mac, "checkout", "--", "research/Proj/src/shared.py")
 
     merge_head = os.path.join(mac, ".git", "MERGE_HEAD")
     write(merge_head, git(mac, "rev-parse", "HEAD") + "\n")
     before = git(mac, "rev-parse", "HEAD")
-    log = io.StringIO()
+    said = []
     check("never mid-merge (worktree.busy_reason)",
-          tutorcli.turn_pull(mws, log) is False
+          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
           and git(mac, "rev-parse", "HEAD") == before
-          and "merge is in progress" in log.getvalue())
+          and any("merge is in progress" in l for l in said))
     os.remove(merge_head)
-
-    write(os.path.join(cws, "relay", "holds", "h2.json"), json.dumps(
-        dict(hold, id="h2")))
-    git(cluster, "add", "-A")
-    git(cluster, "commit", "-q", "-m", "h2: hold")
-    git(cluster, "push", "-q")
-    tutorcli.turn_pull(mws, io.StringIO())
-    write(os.path.join(mws, "src", "held.py"), "h = 3  # typed on the Mac\n")
-    before = git(mac, "rev-parse", "HEAD")
-    write(os.path.join(cws, "AI_INSTRUCTIONS.md"), "# contract, v2\n")
-    git(cluster, "commit", "-q", "-am", "the cluster moves again")
-    git(cluster, "push", "-q")
-    log = io.StringIO()
-    check("never inside a held thread's edits (holds.refusal)",
-          tutorcli.turn_pull(mws, log) is False
-          and git(mac, "rev-parse", "HEAD") == before
-          and "held thread" in log.getvalue())
-    os.environ["TUTOR_SLURM"] = "1"
-    check("where Slurm is, the relay pulls and a turn does not",
-          tutorcli.turn_pull(mws, io.StringIO()) is None)
 finally:
     os.environ.clear()
     os.environ.update(saved_env)
@@ -439,5 +405,5 @@ finally:
 
 print("%d FAILURES" % len(fails) if fails
       else "a synced workspace is committed and pushed, a conflict is named, "
-           "and every turn starts from origin")
+           "and the Mac is never more than twenty seconds behind")
 sys.exit(1 if fails else 0)

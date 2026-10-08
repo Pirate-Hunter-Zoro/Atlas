@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 """A repository the tutor commits in is somewhere its owner WORKS, too.
 
-The tutoring machinery runs unattended. The transcript beat commits and pushes
-every ninety seconds, `sync` fast-forwards Atlas as a session opens, and the
-board's save button commits the whole tree from a tap on an iPad. All of that
-happens in a repository that the same person opens a terminal in and writes code
-in, with nobody watching what it does to git.
-
-Two defects come out of that, and both are guarded here.
-
-    THE INDEX IS NOT THE BEAT'S TO COMMIT. `git commit` commits the whole index.
-    So the beat -- `git add -A live`, then commit -- also committed whatever had
-    been staged in a terminal a moment earlier, under the message "lesson
-    transcript". Nothing in the beat wanted those files and nothing in it knew
-    they were there.
+The tutoring machinery runs unattended. `sync` fast-forwards Atlas as a
+session opens and on the Mac's twenty-second pull, and the board's save button
+commits the whole tree from a tap on an iPad. All of that happens in a
+repository that the same person opens a terminal in and writes code in, with
+nobody watching what it does to git.
 
     NOTHING AUTOMATIC WRITES INTO AN OPERATION SOMEBODY STARTED. A rebase, a
     merge, a cherry-pick, a revert, a bisect or a detached HEAD all mean a person
@@ -140,62 +132,12 @@ try:
     check("somewhere that is not a repository is nobody's business",
           worktree.busy_reason(work) is None)
 
-    # --- the beat commits the transcript, and ONLY the transcript ------------
-    beat = make_repo(work, "beat")
-    # The person, in a terminal: half a refactor, staged, and something untracked
-    # they have not decided about yet.
-    open(os.path.join(beat, "src", "app.py"), "w").write("BROKEN MID-EDIT\n")
-    git(beat, "add", "src/app.py")
-    open(os.path.join(beat, "src", "scratch.py"), "w").write("notes\n")
-    # The tutor, meanwhile: a page handed in.
-    open(os.path.join(beat, "live", "slate", "page-02.json"), "w").write("{}\n")
-
-    tutorcli.sync_transcript(beat)
-
-    _, files = git(beat, "show", "--name-only", "--format=", "HEAD")
-    committed = [f for f in files.splitlines() if f.strip()]
-    check("the beat commits the page that was handed in",
-          committed == ["live/slate/page-02.json"])
-    check("and NOTHING else -- a staged refactor is not the beat's to commit",
-          "src/app.py" not in committed)
-    _, staged = git(beat, "diff", "--cached", "--name-only")
-    check("the terminal's staged file is still staged, exactly as it was",
-          staged.strip() == "src/app.py")
-    check("and its contents are untouched",
-          open(os.path.join(beat, "src", "app.py")).read() == "BROKEN MID-EDIT\n")
-    _, status = git(beat, "status", "--porcelain")
-    check("the untracked file is still untracked and unmentioned",
-          "?? src/scratch.py" in status)
-    _, subject = git(beat, "log", "-1", "--format=%s")
-    check("the commit says what it is", subject == "lesson transcript")
-
-    # And it is not merely cautious: with nothing of the person's in the way it
-    # still does its whole job.
-    open(os.path.join(beat, "live", "slate", "page-03.json"), "w").write("{}\n")
-    tutorcli.sync_transcript(beat)
-    _, files = git(beat, "show", "--name-only", "--format=", "HEAD")
-    check("a later beat commits the next page",
-          "live/slate/page-03.json" in files)
-
-    # --- and it does nothing at all mid-operation ---------------------------
+    # --- nothing automatic touches a repository mid-operation ---------------
     busy = make_repo(work, "busy")
     start_conflicted_rebase(busy)
     check("a real interrupted rebase is on disk",
           bool(worktree.busy_reason(busy)))
     _, before = git(busy, "rev-parse", "HEAD")
-    open(os.path.join(busy, "live", "slate", "page-02.json"), "w").write("{}\n")
-
-    log_path = os.path.join(work, "beat.log")
-    with open(log_path, "w") as fh:
-        tutorcli.sync_transcript(busy, log=fh)
-    _, after = git(busy, "rev-parse", "HEAD")
-    check("the beat writes no commit into a rebase", before == after)
-    _, status = git(busy, "status", "--porcelain")
-    check("and does not even stage the page; it is left on disk for the next beat",
-          "?? live/slate/page-02.json" in status
-          and os.path.isfile(os.path.join(busy, "live", "slate", "page-02.json")))
-    check("and it says why in the log, rather than going quiet",
-          "rebase" in open(log_path).read())
 
     # `sync`, which fast-forwards a course as a session opens, is the same rule.
     check("opening a session does not fast-forward over an operation either",
@@ -350,24 +292,6 @@ try:
               and worktree.index_lock(locked) == lock)
     finally:
         held.close()
-
-    # The beat is what comes back every ninety seconds, so the beat is what
-    # heals it -- and its own failure is no longer silent.
-    beating = make_repo(work, "beating")
-    beat_lock = os.path.join(worktree.git_dir(beating), "index.lock")
-    open(beat_lock, "w").close()
-    os.utime(beat_lock, (0, 0))
-    open(os.path.join(beating, "live", "slate", "page-02.json"), "w").write("{}\n")
-    log_path = os.path.join(work, "locked-beat.log")
-    with open(log_path, "w") as fh:
-        tutorcli.sync_transcript(beating, log=fh)
-    said = open(log_path).read()
-    check("the beat clears a stale lock instead of dying against it",
-          not os.path.exists(beat_lock))
-    check("and commits the page it came to commit",
-          "live/slate/page-02.json" in git(beating, "show", "--name-only",
-                                           "--format=", "HEAD")[1])
-    check("and says in the log that it cleared one", "lock" in said)
 
     # And a save from the iPad rescues itself, rather than handing back git's
     # advice to delete a file the person cannot reach.

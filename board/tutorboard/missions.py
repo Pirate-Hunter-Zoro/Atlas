@@ -56,27 +56,12 @@ with `srun --overlap` -- so a colibrì TURN cannot outlive that job's walltime.
 The time left on the job is stamped at dispatch, and it is how long the client
 answering right now has, printed rather than left to a silence.
 
-A MISSION THAT OUTLIVES ITS NODE IS CARRIED, NOT FAILED. The ceiling bounds the
-turn; it does not bound the work. `coli-code` exits 75 when the generation its
-step ran in ended under it, the daemon re-queues the same task with a resume
-recipe, and where the daemon went with its node too `carry_verdict` derives the
-same repair from this record and `agent.json` alone -- because in the case that
-matters, both allocations end within the same minute and nothing is running
-anywhere to remember anything. `spawn.carry_missions` is the second driver and
-runs in whichever board comes up next.
-
-Four numbers bound it, and every one of them is in the record rather than in
-some daemon's locals, because a backoff a hop resets is not a backoff.
-`MISSION_LIFE` is the total budget, `CARRY_HOPS` the number of pick-ups,
-`CARRY_BACKOFF` the space between them and `STALL_CAP` the number of pick-ups
-allowed to produce nothing. A carry is claimed with `O_EXCL`, the way a ship is,
-so every board on the machine picks each mission up exactly once.
-
-AND THE EVIDENCE IS IN THE RECORD TOO. `turn_at` is the daemon's own word for
-"a client is running against this mission", written by nothing else, because
-`agent.json` cannot carry that fact across a board hop: the board coming up
-adopts the left-behind daemon and writes over it within seconds, long before
-the heartbeat has been quiet long enough to mean anything.
+A COLIBRI MISSION THAT OUTLIVED ITS NODE READS AS MID-HOP, NOT FAILED, for as
+long as its budget lasts: `carry_verdict` derives that from this record and
+`agent.json` alone. Nothing picks such a mission up any more -- Colibri runs only
+as relay tasks (see "the task queue" below) -- so this is the read side of
+records already on disk. `MISSION_LIFE`, `CARRY_HOPS`, `CARRY_BACKOFF` and
+`STALL_CAP` bound it.
 
 `thaw` is the one narrow entitlement to clear an ending, and it refuses a
 mission somebody has already read: a record a person has acted on is theirs, and
@@ -438,13 +423,9 @@ def carry_verdict(rec, said, now=None):
     be derivable from disk by whatever comes up next.
 
     A TURN IN FLIGHT IS THE RECORD'S OWN WORD FOR IT. `agent.json` is not,
-    because the board that comes up next adopts that daemon and overwrites it
-    before the heartbeat has gone quiet long enough to mean anything: the
-    daemon beats every 30 s, `AWAY_SILENCE` is 900 s, and `supervise.left_behind`
-    adopts anything seen inside `ADOPT_WINDOW` -- so `agent_start` writes
-    `waking` over the evidence within seconds of the new board coming up. Only
-    the daemon writes `turn_at`, and it leaves it set on every path where a
-    pick-up is still owed.
+    because a later start writes `waking` over it before the heartbeat has gone
+    quiet long enough to mean anything: the daemon beats every 30 s and
+    `AWAY_SILENCE` is 900 s. `turn_at` on a record is the daemon's own word.
 
     `carry` on the record is the daemon's own word for a hop it has already
     decided on, written before it re-queues, so a daemon that dies in that
@@ -458,9 +439,9 @@ def carry_verdict(rec, said, now=None):
     record a board revives into a `board wait` on a consumed inbox, and a host
     test would refuse to repair that.
 
-    A STOP IS NOT A HOP, and the difference is one field. Same distinction
-    `supervise.left_behind` draws: somebody stopping the assistant is a person
-    deciding, and a handover is the board moving node with the lesson going on.
+    A STOP IS NOT A HOP, and the difference is one field: somebody stopping the
+    assistant is a person deciding, and a handover is the board moving node
+    with the lesson going on.
 
     A PICK-UP OWED AND NOT YET DUE IS `"soon"` RATHER THAN `"no"`, and the
     difference is the whole reason there are two words for it. `CARRY_BACKOFF`
@@ -798,205 +779,11 @@ def claim_ship(root, rec, now=None):
     return True
 
 
-# ---------------------------------------------------------------------------
-# A mission that brought its own assistant
-# ---------------------------------------------------------------------------
-# AN ASSISTANT STARTED FOR A MISSION BELONGS TO THE MISSION. AN ASSISTANT A
-# PERSON CHOSE STAYS. Both are the same name in the same `agent.json`, so the
-# difference cannot be derived after the fact -- the dispatch writes which it
-# was, into `brought`, and every rule here reads it rather than guessing.
-#
-# `brought` is the assistant a dispatch or a pick-up STARTED for the mission,
-# and "" where it took whoever was already listening. Whether that name is also
-# the one the workspace runs by default is asked at the release, off
-# `resolve_agent`, because that is the moment the answer has to be true.
-#
-# What it costs to leave one attached, measured. A colibri mission ran ten
-# hours, shipped and was marked done, and colibri stayed as the workspace's
-# tutor. The board's allocation hopped, the watchdog brought the tutor back,
-# and with no mission open the workspace fell into an ordinary sitting: two
-# hours of a shared node spent on a lecture nobody asked for, and the warm KV
-# prefix that makes the NEXT mission affordable evicted to pay for it.
-#
-# The shape is the ship's, one field at a time, and for the ship's reason: every
-# board on the machine reads every workspace's missions, so the release is
-# claimed with an exclusive create and happens exactly once.
-
-
-def releasable(now=None):
-    """Every ended mission that brought an assistant and has not given it back.
-
-    Ended EITHER WAY. A mission that failed left an assistant attached just as
-    surely as one that finished, and the lecture this repairs is what a
-    workspace does with a spare one -- which is the same whichever way the work
-    went. `due` is the ship's twin of this and is `done` only, because pushing
-    the changes of a mission somebody has to look at first is a different
-    question entirely.
-    """
-    now = float(now or time.time())
-    out = []
-    for w in atlas.workspaces():
-        try:
-            got = of(w["root"], now)
-        except Exception:                                    # noqa: BLE001
-            continue
-        for rec in got:
-            if rec["state"] == "running" or not rec.get("brought"):
-                continue
-            if rec.get("released"):
-                continue
-            out.append((w, rec))
-    return out
-
-
-def brought_by(root, rec, who, now=None):
-    """Record that this mission's assistant was started FOR it, by a pick-up.
-
-    The dispatch's `brought` is about the dispatch, and a pick-up hours later
-    is a second time an assistant is put into that workspace for this mission:
-    the node the first one was on has gone, and whatever was listening went
-    with it. `carry_missions` is the caller, and it stamps only after its claim
-    -- so the field says what actually happened rather than what was intended.
-    """
-    out = _current(root, rec)
-    out["brought"] = str(who or "")
-    return write(root, out)
-
-
-def claim_release(root, rec, now=None):
-    """Take this mission's release, once, across every board on this machine.
-
-    `claim_ship`'s twin, exclusive for its reason, and CLAIMED BEFORE THE STOP
-    rather than after it -- which is the one place the two differ. A ship that
-    two boards both decide on writes an inbox line twice; a release that two
-    boards both decide on signals a daemon that the first one has already put
-    a replacement in front of.
-    """
-    now = float(now or time.time())
-    mid = str(rec.get("id") or "")
-    if not ID_RE.match(mid):
-        return False
-    flag = os.path.join(_dir(root), mid + ".releasing")
-    try:
-        os.makedirs(_dir(root), exist_ok=True)
-        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    except OSError:
-        return False
-    try:
-        os.write(fd, ("%f\n" % now).encode("utf-8"))
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
-    out = _current(root, rec)
-    out["released"] = now
-    write(root, out)
-    return True
-
-
-# ---------------------------------------------------------------------------
-# A mission whose node went away under it
-# ---------------------------------------------------------------------------
-# The ship's shape, one field at a time: which missions are owed a pick-up, and
-# taking one exactly once across every board on the machine. What differs is
-# that a ship happens after an ending and a carry happens INSTEAD of one, so
-# nothing here may go through `of` -- `of` freezes, and a freeze is the thing
-# being held off.
-
-
-def owe_carry(root, rec, now=None):
-    """Record that this mission is owed a pick-up. `due`'s counterpart.
-
-    Written by the daemon on exit 75 BEFORE it re-queues, so the repair is
-    derivable from the record if this node goes too in that window.
-
-    THROUGH `_current`, LIKE EVERY WRITE HERE. `write` replaces the file, the
-    caller's copy is minutes old by the time a sweep reaches it -- the hub
-    holds one across an `agent start` -- and writing that copy back puts
-    `carries` and `carried_at` where they were before a hop that has already
-    been claimed. The flag for that hop exists, so nothing can ever claim the
-    number again and both drivers go quiet on the mission for good.
-    """
-    now = float(now or time.time())
-    out = _current(root, rec)
-    out["carry"] = now
-    return write(root, out)
-
-
-def defer_carry(root, rec, now=None):
-    """Hold the fallback pick-up off for one backoff: this daemon has it.
-
-    THE DAEMON WAITING IS NOT A MISSION NOBODY IS DRIVING, and from the record
-    alone the two look identical: `turn_at` is set, the node is fine, and
-    `agent.json` says `listening` because the daemon is between attempts rather
-    than in a turn. A chain gap is minutes to an hour of exactly that, and a
-    pick-up per `CARRY_BACKOFF` through one spends `CARRY_HOPS` in half an hour
-    and fails a mission whose client has not run once.
-
-    `carried_at` is the field for it -- it is what "how long before another is
-    owed" is measured from -- and it expires on its own, so a node dying inside
-    the backoff costs the pick-up one `CARRY_BACKOFF` rather than losing it.
-    """
-    now = float(now or time.time())
-    out = _current(root, rec)
-    out["carried_at"] = now
-    return write(root, out)
-
-
-def claim_carry(root, rec, now=None):
-    """Take this mission's pick-up, once, across every board on this machine.
-
-    `claim_ship`'s twin, and exclusive for the same reason: every board reads
-    every workspace's missions, so two of them would wake two turns onto the
-    same conversation. The flag is named for the hop number, so hop two is
-    claimable after hop one.
-
-    THE COUNT IS READ BACK OFF DISK BEFORE IT IS WRITTEN, and the exclusive
-    create is not enough on its own: the flag says nobody else took THIS hop,
-    and the record says whether the caller's idea of which hop that is is
-    still true. A caller holding a copy from before somebody else's hop would
-    otherwise write the count backwards, and the flag for the number it wrote
-    already exists.
-    """
-    now = float(now or time.time())
-    mid = str(rec.get("id") or "")
-    if not ID_RE.match(mid):
-        return False
-    hop = int(rec.get("carries") or 0) + 1
-    flag = os.path.join(_dir(root), "%s.carry.%d" % (mid, hop))
-    try:
-        os.makedirs(_dir(root), exist_ok=True)
-        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    except OSError:
-        return False
-    try:
-        os.write(fd, ("%f\n" % now).encode("utf-8"))
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
-    out = _current(root, rec)
-    if int(out.get("carries") or 0) >= hop:
-        return False
-    out["carries"] = hop
-    out["carried_at"] = now
-    out["carry"] = 0.0
-    write(root, out)
-    # A HOP IS ON THE TRAIL, because it is the one thing that explains a gap.
-    # Half an hour with nothing new on the panel reads as a wedged mission; the
-    # same half hour with "picked up after the node went away" on it reads as
-    # the machinery working, which is what it is.
-    progress.add(root, mid, "picked up where it stopped -- the node it was on "
-                 "went away (pick-up %d of %d)" % (hop, CARRY_HOPS),
-                 who="board", now=now)
-    return True
-
-
 def _current(root, rec):
     """That record as it is on disk right now, or the one handed over.
 
-    A mission turn lasts hours and the hub writes `carry` into the same file
-    while it runs, so writing back a dict read at the start would drop it.
+    A mission runs for hours and other writers touch the same file while it
+    does, so writing back a dict read at the start would drop what they wrote.
     """
     try:
         for got in stored(root):
@@ -1005,95 +792,6 @@ def _current(root, rec):
     except Exception:                                        # noqa: BLE001
         pass
     return dict(rec)
-
-
-def turn_open(root, rec, ceiling=None, session="", now=None):
-    """A client is running against this mission right now, and in which session.
-
-    THE ONE PIECE OF EVIDENCE A BOARD HOP CANNOT ERASE, and the reason the
-    field exists: `agent.json` says `working` too, and the board that comes up
-    next adopts that daemon and writes `waking` over it seconds later. This
-    file is the daemon's alone.
-
-    `ceiling` re-stamps when the generation the client just stepped into ends,
-    because the one stamped at dispatch is about a generation that may be two
-    hops back. `session` is the conversation id the turn is told to open.
-    """
-    now = float(now or time.time())
-    out = _current(root, rec)
-    out["turn_at"] = now
-    if ceiling:
-        out["ceiling"] = float(ceiling)
-    if session:
-        out["session"] = str(session)
-    write(root, out)
-    # ON THE TRAIL TOO, because "a client is running" is the fact a person
-    # waiting on a slow model most wants and could not get. It is written here
-    # rather than in the daemon so that every path that opens a turn says so
-    # exactly once, and so `board/bin/tutor` owns none of this.
-    progress.add(root, str(out.get("id") or ""),
-                 "a turn started on %s" % (machine.node_name() or "this node"),
-                 who="board", now=now)
-    return out
-
-
-def turn_over(root, rec, ran, now=None):
-    """That client is gone and nothing is owed: the turn ended on its own terms.
-
-    Called on exactly two paths -- the turn succeeded, or it failed for a
-    reason no pick-up repairs -- and deliberately NOT in a `finally`. The
-    carry, the wait and the cap all leave `turn_at` set, because a pick-up is
-    still owed there and clearing it first opens a window where a node dying
-    leaves nothing derivable.
-
-    `ran` is how long the turn lasted, and a turn that got past `CARRY_FLOOR`
-    clears the stall count: pick-ups that produced nothing are consecutive ones.
-    """
-    out = _current(root, rec)
-    out["turn_at"] = 0.0
-    out["carry"] = 0.0
-    if float(ran or 0) >= CARRY_FLOOR:
-        out["stalls"] = 0
-    write(root, out)
-    return out
-
-
-def stalled(root, rec, ran, now=None):
-    """Count a pick-up that produced nothing, or clear the count.
-
-    `ran` is how long the carried turn lasted. Under `CARRY_FLOOR` it cannot
-    have done anything on this engine, where a real turn spends minutes in
-    prefill before it can even fail -- and a resume that dies instantly is the
-    one branch that can make no progress for ever.
-    """
-    out = _current(root, rec)
-    out["stalls"] = (int(out.get("stalls") or 0) + 1
-                     if float(ran or 0) < CARRY_FLOOR else 0)
-    return write(root, out)
-
-
-def owed(now=None):
-    """Every mission on this machine whose node went away under it.
-
-    `due`'s twin, and deliberately NOT built on `of`: `of` freezes a terminal
-    state into the record, and the whole of this is about a mission that must
-    not be frozen.
-    """
-    now = float(now or time.time())
-    out = []
-    for w in atlas.workspaces():
-        root = w["root"]
-        try:
-            said = _agent(root)
-            recs = stored(root)
-        except Exception:                                    # noqa: BLE001
-            continue
-        for rec in recs:
-            if rec.get("ended") and not thaw(rec, now):
-                continue
-            if carry_verdict(rec, said, now) == "owed":
-                out.append((w, rec))
-    return out
 
 
 def listing(here, now=None):

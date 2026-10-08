@@ -42,19 +42,10 @@ HEALTH_MISSES = 2
 # must come back at once.
 BACKOFF = (0, 15, 30, 60, 120, 300)
 
-# HOW OLD A RECORD MAY BE AND STILL DESCRIBE SOMETHING THAT WAS JUST SERVING.
-#
-# `live/.board.json` is swept on every resume, so a surviving one is recent by
-# construction. `live/agent.json` is never swept -- it is kept on purpose, so the
-# board can say "tutor stopped" rather than "no tutor here" -- and a record from a
-# node whose allocation ended two days ago reads exactly like one from a node
-# whose allocation ended a minute ago. Measured on this machine while this was
-# written: a TRD-EHR record saying `listening` on compute300, forty-two hours
-# after that node stopped being anybody's.
-#
-# A listening daemon rewrites its record at least every `board wait` timeout, so
-# an hour is many missed beats and longer than any handover takes.
-ADOPT_WINDOW = 3600
+# HOW LONG A HANDOVER IS BELIEVED. `tutor down` writes `handover` before the
+# daemon writes its handoff and exits; a record that old is a stop, not a
+# handover still waiting to be picked back up.
+HANDOVER_WINDOW = 3600
 
 
 # ---------------------------------------------------------------------------
@@ -124,27 +115,11 @@ def tutor_verdict(record, host, pid_alive, now=None):
         # `handover` first, the daemon's own exit merges `state: stopped` over
         # the top of it, and whoever brings the tutor back clears it.
         return ("revive" if record.get("handover")
-                and _within(record.get("last_seen"), ADOPT_WINDOW, now)
+                and _within(record.get("last_seen"), HANDOVER_WINDOW, now)
                 else "stopped")
     if state == "waking":
         return "waking" if processes.waking_now(record) else "revive"
     return "ok" if pid_alive else "revive"
-
-
-def left_behind(record, now=None):
-    """Was this tutor serving when its machine went, rather than told to stop?
-
-    Asked of a record from a node that is no longer an allocation of yours,
-    which is the one case where the pid proves nothing at all -- so the clock is
-    the evidence, and `ADOPT_WINDOW` is what it is asked.
-    """
-    if not record or not record.get("state"):
-        return False
-    if not _within(record.get("last_seen"), ADOPT_WINDOW, now):
-        return False
-    if record["state"] == "stopped":
-        return bool(record.get("handover"))
-    return True
 
 
 def _reattach_grace():

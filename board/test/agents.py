@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Which assistant tutors which course, on which machine.
 
-Four layers resolve it and the order is the whole feature: a course that names
-its own assistant must beat the machine default, and the machine default must
-beat the global one, or the same configuration cannot serve a laptop and a
-cluster node at once.
+Four layers resolve it and the order is the whole feature: the command line,
+the sitting, the course's own choice, then the global default.
 
 Also guards the shared-filesystem rule. `live/agent.json` is visible from every
 node, so a record left by a node whose allocation has ended will otherwise look
@@ -48,39 +46,37 @@ def check(name, cond):
 
 
 CFG = {
-    "default_agent": "claude",
-    "hosts": {"mac-mini": "opencode", "compute303": "claude"},
+    "default_agent": "opencode",
     "agents": {"claude": {"cmd": ["claude"]},
                "opencode": {"cmd": ["opencode"]},
                "codex": {"cmd": ["codex"]}},
 }
 
 host = tutor.this_host()
-CFG["hosts"][host] = "opencode"          # pretend this machine prefers opencode
 
 check("the command line wins over everything",
       tutor.resolve_agent(CFG, {"agent": "claude"}, "codex") == "codex")
 
-check("a course that names its assistant beats the machine default",
+check("a course that names its assistant beats the global default",
       tutor.resolve_agent(CFG, {"agent": "claude"}) == "claude")
 
-check("the machine default beats the global one",
+check("a course with no opinion falls through to default_agent",
       tutor.resolve_agent(CFG, {}) == "opencode")
 
-no_host = dict(CFG, hosts={})
-check("without a machine entry it falls through to default_agent",
-      tutor.resolve_agent(no_host, {}) == "claude")
+check("there is no per-machine layer: a `hosts` map is ignored",
+      tutor.resolve_agent(dict(CFG, hosts={host: "codex"}), {}) == "opencode"
+      and "hosts" not in tutor.DEFAULT_CONFIG)
 
 check("an unknown name resolves to nothing rather than to a wrong agent",
       tutor.resolve_agent(CFG, {"agent": "nonesuch"}) is None)
 
-check("a course with no opinion and no machine entry still resolves",
-      tutor.resolve_agent(no_host, None) == "claude")
+check("a course with no opinion at all still resolves",
+      tutor.resolve_agent(CFG, None) == "opencode")
 
 # --- a provider per KIND of sitting -----------------------------------------
 # `agent` in `tutorboard.json` may be an object keyed by kind: a course's learn
 # sittings on DeepSeek, a project's build sittings on Claude. The open sitting's
-# own kind picks the entry; a kind it does not name falls through to the machine.
+# own kind picks the entry; a kind it does not name falls through to the default.
 kinded = tempfile.mkdtemp(prefix="agents-kind-")
 os.makedirs(os.path.join(kinded, "live"))
 
@@ -98,7 +94,7 @@ sit("build")
 check("a build sitting takes its build provider",
       tutor.resolve_agent(CFG, by_kind) == "claude")
 sit("coach")
-check("a kind the workspace does not name falls through to the machine",
+check("a kind the workspace does not name falls through to the default",
       tutor.resolve_agent(CFG, by_kind) == "opencode")
 sit(None)
 check("and so does a sitting of no kind",
@@ -326,9 +322,9 @@ check("and when the allowance comes back we climb home, because the question "
 
 # --- THE ONLY-AGENT SWITCH ---------------------------------------------------
 # One key, `only_agent`, and every other hosted recipe is unavailable here in
-# one sentence, whatever a sitting, a workspace, `hosts` or `default_agent`
+# one sentence, whatever a sitting, a workspace or `default_agent`
 # asks for. The fenced reader is not a hosted provider and is not barred.
-ONLY = {"default_agent": "claude", "only_agent": "deepseek", "hosts": {},
+ONLY = {"default_agent": "claude", "only_agent": "deepseek",
         "agents": {"claude": dict(SH, label="Claude"),
                    "deepseek": dict(SH, label="DeepSeek"),
                    "codex": {"cmd": ["a-command-no-machine-has"],
@@ -460,9 +456,10 @@ check("and the switch's own recipe is asked, so a vision_agent and default "
 src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
 check("the recipe is re-bound inside the loop rather than above it",
       "cfg, next_agent, next_spec, moved = for_this_turn(" in src)
-check("a carry is immune: it resumes a conversation by id, which is the one "
-      "thing a swap would throw away",
-      'signal == "carry"' in src and "resumes a conversation by id" in src)
+check("an unfinished report is immune: it belongs to the session that did "
+      "the work",
+      'signal == "unfinished"' in src
+      and "belongs to the session that did the work" in src)
 check("and so is a session that is genuinely carrying turns",
       "this agent's own session is carrying" in src)
 check("the paragraph saying an assistant cannot be changed mid-way is gone, "
@@ -761,15 +758,8 @@ check("and the board has a word for it that is not 'nothing is reading'",
       open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read())
 
 print()
-# A BOARD AND ITS TUTOR ARE TWO PROCESSES AND THEY DIE SEPARATELY.
-#
-# The daemon's node lost its allocation; the board came back on the next node
-# logged in to, and no tutor came with it. Nothing was ever going to notice from
-# the machine the person actually works on: `tutor resume` saw a board on a node
-# that is still theirs, said it was leaving it there, and returned BEFORE
-# `ensure_agent` -- and `tutor restart --tutors` only bounces tutors that are
-# already attached, so it reported "no tutors were attached" and moved on. The
-# lesson sat on the iPad with nothing listening to it.
+# `tutor agent ensure` is `start` that says nothing when there was nothing to
+# do, and `tutor agent which` names the assistant a workspace runs.
 
 import contextlib                                            # noqa: E402
 import io as _io                                             # noqa: E402
@@ -779,29 +769,15 @@ away_root = os.path.join(away, "Fake-Course")
 away_live = os.path.join(away_root, "live")
 os.makedirs(away_live)
 open(os.path.join(away_root, "AI_INSTRUCTIONS.md"), "w").close()
-with open(os.path.join(away_live, ".board.json"), "w", encoding="utf-8") as fh:
-    json.dump({"pid": 1, "port": 9098, "node": "othernode", "root": away_root,
-               "started": time.time()}, fh)
 
 AWAY_CFG = {"courses_dir": away, "default_agent": "claude",
             "agents": {"claude": {"cmd": ["claude"],
                                   "headless": [sys.executable, "-c", "pass"]}}}
 
 was_env = os.environ.pop("TUTORBOARD_COURSES", None)
-started, sshed = [], []
-real = {k: getattr(tutor, k) for k in
-        ("board", "link", "sync", "pull_vendor", "prune_dead_records",
-         "ssh_tool", "agent_start")}
-real_nodes = tutor.machine.slurm_nodes
-tutor.board = lambda root, *a: (0, "")
-tutor.link = lambda root: None
-tutor.sync = lambda root, quiet=False: None
-tutor.pull_vendor = lambda quiet=False: None
-tutor.prune_dead_records = lambda cfg, host: []
+started = []
+real = {k: getattr(tutor, k) for k in ("agent_start",)}
 tutor.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
-tutor.ssh_tool = lambda target, tail, timeout=300: (
-    sshed.append((target, list(tail))) or (0, "claude starting in Fake-Course\n"))
-tutor.machine.slurm_nodes = lambda: {host, "othernode"}
 
 
 def away_agent(**kw):
@@ -815,39 +791,6 @@ def away_agent(**kw):
 
 
 try:
-    check("the fixture's board is the one a resume would bring back",
-          (tutor.last_board(AWAY_CFG) or {}).get("dir") == "Fake-Course")
-
-    away_agent()
-    del sshed[:]
-    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
-    check("a board left on another of your nodes is still asked whether a "
-          "tutor is listening to it",
-          sshed == [("othernode", ["agent", "ensure", "Fake-Course"])])
-    check("and the board itself is not moved to do it", not started)
-
-    away_agent(host="othernode", agent="claude", state="listening",
-               pid=4021421, last_seen=time.time())
-    del sshed[:]
-    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
-    check("a tutor that is beating over there costs the login nothing",
-          sshed == [])
-
-    away_agent(host="othernode", agent="claude", state="listening",
-               pid=4021421, last_seen=time.time() - 3600)
-    del sshed[:]
-    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
-    check("but one that has been silent for an hour is asked about",
-          sshed == [("othernode", ["agent", "ensure", "Fake-Course"])])
-
-    del sshed[:]
-    tutor.cmd_resume(AWAY_CFG, ["--quiet", "--no-agent"])
-    check("--no-agent still means no tutor, here or anywhere else", sshed == [])
-
-    # `ensure` is `start` that says nothing when there was nothing to do: it is
-    # asked on every login from another machine, and a line per shell for a
-    # tutor that is fine is noise in the one log a real failure has to be
-    # findable in.
     away_agent(host=host, agent="claude", state="listening", pid=os.getpid())
     del started[:]
     check("ensure starts nothing when a tutor is already attached",
@@ -859,11 +802,6 @@ try:
           tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0
           and started == ["Fake-Course"])
 
-    # WHICH ASSISTANT THIS WORKSPACE RUNS WHEN NOBODY NAMES ONE, asked rather
-    # than worked out a second time. A mission that STARTS an assistant gives
-    # it back when it ends and an assistant a person chose stays, so the board
-    # has to know which name the configuration would have produced -- and
-    # `resolve_agent` is the one place those five layers live.
     out = _io.StringIO()
     with contextlib.redirect_stdout(out):
         code = tutor.cmd_agent(AWAY_CFG, ["which", "Fake-Course"])
@@ -881,44 +819,9 @@ try:
 finally:
     for k, v in real.items():
         setattr(tutor, k, v)
-    tutor.machine.slurm_nodes = real_nodes
     if was_env is not None:
         os.environ["TUTORBOARD_COURSES"] = was_env
     shutil.rmtree(away, ignore_errors=True)
-
-# And `tutor where` is where a person asks. It read the pid against THIS
-# machine's process table, so a daemon listening perfectly well on the node the
-# board is on came back as `stale` -- on the machine they type the question on.
-
-seen = tempfile.mkdtemp(prefix="tutor-where-")
-seen_live = os.path.join(seen, "Away-Course", "live")
-os.makedirs(seen_live)
-open(os.path.join(seen, "Away-Course", "AI_INSTRUCTIONS.md"), "w").close()
-with open(os.path.join(seen_live, "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": "othernode", "agent": "claude", "state": "listening",
-               "pid": 4021421, "last_seen": time.time()}, fh)
-was_env = os.environ.pop("TUTORBOARD_COURSES", None)
-try:
-    out = _io.StringIO()
-    with contextlib.redirect_stdout(out):
-        tutor.cmd_where({"courses_dir": seen, "agents": {}}, [])
-    said = out.getvalue()
-    check("a tutor listening on another node is not reported as a stale record",
-          "claude listening on othernode" in said and "stale" not in said)
-
-    with open(os.path.join(seen_live, "agent.json"), "w", encoding="utf-8") as fh:
-        json.dump({"host": "othernode", "agent": "claude", "state": "listening",
-                   "pid": 4021421,
-                   "last_seen": time.time() - processes.AWAY_SILENCE - 1}, fh)
-    out = _io.StringIO()
-    with contextlib.redirect_stdout(out):
-        tutor.cmd_where({"courses_dir": seen, "agents": {}}, [])
-    check("and one that stopped beating there is still called stale",
-          "stale" in out.getvalue())
-finally:
-    if was_env is not None:
-        os.environ["TUTORBOARD_COURSES"] = was_env
-    shutil.rmtree(seen, ignore_errors=True)
 
 # The record is the only evidence there is from another machine: the pid in it
 # belongs to a process table this one cannot read, and reading the local one

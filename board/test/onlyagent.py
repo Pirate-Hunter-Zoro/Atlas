@@ -153,7 +153,7 @@ check("with the policy line, naming the layer and the config line",
       len(why) == 1 and POLICY in why[0]
       and "this workspace's tutorboard.json asks for 'claude'" in why[0]
       and '"only_agent": "deepseek"' in why[0])
-claude_cfg = dict(cfg, default_agent="claude", vision_agent="claude", hosts={})
+claude_cfg = dict(cfg, default_agent="claude", vision_agent="claude")
 check("so does a machine whose default_agent still says claude",
       tutor.resolve_agent(claude_cfg, {}, say=lambda m: None) == "deepseek")
 check("claude and codex are barred by the switch, not merely missing",

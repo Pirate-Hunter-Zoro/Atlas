@@ -406,8 +406,7 @@ try:
           and rids == [ORIGIN, SECOND["id"]])
     check("a signal with machinery of its own is kept, the repairs still named",
           tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
-                             "finished\n" + batch) == ("ship", rids)
-          and tutorcli.woken_for(ws, tutorcli.carry_line(batch))[1] == rids)
+                             "finished\n" + batch) == ("ship", rids))
     check("a revision ahead of a repair stays a revision, its own prompt and "
           "session", tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [revise] the "
                                         "deck\n" + batch) == ("revise", rids))

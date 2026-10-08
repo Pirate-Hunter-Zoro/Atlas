@@ -407,49 +407,6 @@ check("a turn's session id is read from OpenCode, Claude and Codex output",
       and tutor.turn_session('{"type":"thread.started","thread_id":"t"}') == "t"
       and tutor.turn_session('{"type":"text","sessionID":""}') == "")
 
-# ---- the interactive sitting -------------------------------------------------
-# A bare positional to the OpenCode TUI is a project path, so the opener is
-# `--prompt`, and the sitting runs with the recipe's env exactly as a turn does.
-with open(paths.KEYS, "w", encoding="utf-8") as fh:
-    fh.write("DEEPSEEK_API_KEY=sk-fake\n")
-os.chmod(paths.KEYS, 0o600)
-keys.forget()
-opener = "Read live/BRIEF.md, then begin."
-course = os.path.join(box, "course")
-argv, env, told = tutor.interactive_launch(ds, course, opener)
-check("an interactive deepseek sitting is the TUI pinned to deepseek-flash, "
-      "--pure, the opener as --prompt",
-      argv == ["opencode", "--pure", "-m", "deepseek/deepseek-flash",
-               "--prompt", opener] and told is None)
-check("and it runs with the recipe's env: keys.env's key, the overlay, PWD",
-      env.get("DEEPSEEK_API_KEY") == "sk-fake"
-      and "{env:DEEPSEEK_API_KEY}" in env.get("OPENCODE_CONFIG_CONTENT", "")
-      and json.loads(env["OPENCODE_CONFIG_CONTENT"])["permission"]
-      == {"skill": "deny"} and env.get("PWD") == course)
-os.environ["TUTOR_TEST_LEAK"] = "x"
-argv, env, told = tutor.interactive_launch(
-    {"cmd": ["mine"], "prompt": "argv", "env": {"MINE_KEY": "{DEEPSEEK_API_KEY}",
-                                                "MINE_MODE": "on"}},
-    course, opener)
-check("any recipe with env gets it applied on the interactive launch",
-      argv == ["mine", opener] and env.get("MINE_KEY") == "sk-fake"
-      and env.get("MINE_MODE") == "on" and env.get("TUTOR_TEST_LEAK") == "x")
-argv, env, told = tutor.interactive_launch(
-    tutor.DEFAULT_CONFIG["agents"]["claude"], course, opener)
-check("claude is unchanged: the opener appended, this environment, PWD and "
-      "the turn mark only",
-      argv == ["claude", opener] and told is None
-      and env == dict(os.environ, PWD=course, TUTORBOARD_TURN="1"))
-argv, env, told = tutor.interactive_launch(
-    tutor.DEFAULT_CONFIG["agents"]["opencode"], course, opener)
-check("plain opencode takes the opener as --prompt too",
-      argv == ["opencode", "--prompt", opener])
-argv, env, told = tutor.interactive_launch(
-    tutor.DEFAULT_CONFIG["agents"]["aider"], course, opener)
-check("a prompt: none recipe launches bare and the opener is told",
-      argv == ["aider"] and told == opener)
-del os.environ["TUTOR_TEST_LEAK"]
-
 # `tutor cost` on unpriced turns says so instead of $0.00.
 plain = os.path.join(box, "plain")
 os.makedirs(os.path.join(plain, "live"))

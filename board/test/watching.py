@@ -132,24 +132,15 @@ try:
                                    "state": "attached"}, HOST, True)
           == "somebody's")
 
-    # THE ONE THAT COST A REAL RECORD. `live/agent.json` is never swept -- it is
-    # kept so the board can say "tutor stopped" rather than "no tutor here" -- so
-    # a record saying `listening` on a node whose allocation ended two days ago
-    # reads exactly like one from a node that died a minute ago. Measured while
-    # this was written: TRD-EHR, `listening` on compute300, 42 hours stale.
-    check("a record from a node that went two days ago is a fossil, not a lesson",
-          not supervise.left_behind({"state": "listening",
-                                     "last_seen": now - 42 * 3600}))
-    check("one from a node that went a minute ago is a lesson to pick back up",
-          supervise.left_behind({"state": "listening", "last_seen": now - 60}))
-    check("a handover is not a stop: `tutor down`'s own stop is picked back up",
-          supervise.left_behind({"state": "stopped", "handover": "now",
-                                 "last_seen": now - 60}))
-    check("a person's stop leaves no handover flag, so it is never picked up",
-          not supervise.left_behind({"state": "stopped", "last_seen": now - 60}))
+    # There is no adopting a tutor from another machine: a record naming
+    # another host is that host's, whatever it says.
+    check("a tutor recorded on another machine is left to it",
+          supervise.tutor_verdict({"host": GONE, "state": "listening",
+                                   "last_seen": now - 60}, HOST, False)
+          == "elsewhere" and not hasattr(supervise, "left_behind"))
     # A machine that hands over to ITSELF -- a reboot, a `tutor down` and a
-    # start -- has to honour the flag without a change of node.
-    check("a handover is honoured on the same node too",
+    # start -- honours the flag.
+    check("a handover is honoured on the same node",
           supervise.tutor_verdict({"host": HOST, "state": "stopped",
                                    "handover": "now", "last_seen": now},
                                   HOST, False) == "revive")
@@ -176,14 +167,13 @@ try:
     make_workspace("Stopped", board={"node": HOST, "pid": 401, "port": 9004},
                    agent={"host": HOST, "state": "stopped", "agent": "claude",
                           "last_seen": now})
-    make_workspace("HandedOver", agent={"host": GONE, "state": "stopped",
+    make_workspace("HandedOver", agent={"host": HOST, "state": "stopped",
                                         "handover": "now", "agent": "claude",
                                         "last_seen": now})
 
     cfg = {"courses_dir": tmp, "default_agent": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
-                                 "headless": ["claude", "-p", "{prompt}"]}},
-           "hosts": {}}
+                                 "headless": ["claude", "-p", "{prompt}"]}}}
 
     calls = {"board": [], "agent": [], "link": []}
 
@@ -198,6 +188,9 @@ try:
 
     def fake_board(root, *args):
         calls["board"].append((os.path.basename(root), " ".join(args[:2])))
+        if args[:3] == ("vpn", "serve", "--if-free"):
+            calls["link"].append(os.path.basename(root))
+            return 0, ""
         if args[0] == "vpn":
             if args[1:2] == ("serve",) and refuses["serve"]:
                 return 1, "tailscale: not logged in\n"
@@ -214,7 +207,6 @@ try:
 
     tutor.board = fake_board
     tutor.agent_start = fake_agent_start
-    tutor.link = lambda root: calls["link"].append(os.path.basename(root))
     processes.board_is_running = lambda pid, root: pid in alive
     processes.pid_alive = lambda pid, needle=None: pid in alive
     supervise.answering = lambda port, timeout=3.0: True
@@ -237,11 +229,9 @@ try:
           "exactly where it is",
           ("Elsewhere", "start") not in calls["board"]
           and ("Elsewhere", "stop") not in calls["board"])
-    check("a board that comes back gets the tailnet link back too -- one on "
-          "loopback with no link is one the iPad cannot reach, and on a node "
-          "that has just taken a board over there is no link yet",
-          calls["link"] == [w for w, act in calls["board"] if act == "start"]
-          and "DeadBoard" in calls["link"])
+    check("a board that comes back is started and nothing more: `board start` "
+          "offers it the address itself",
+          "DeadBoard" not in calls["link"])
 
     # A BOARD WHOSE `/health` NEVER ANSWERS IS BACKED OFF, not bounced forever.
     # A clean start that clears the repair count lets a route that raises on
@@ -266,7 +256,7 @@ try:
     # board was coming up was never retried: on compute306 every process
     # was healthy, both boards answered on loopback, and the glass stayed white.
     def addr_lines(said):
-        return [l for l in said if "link was brought up" in l]
+        return [l for l in said if "the address was offered to" in l]
 
     memo = {}
     said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
@@ -276,8 +266,8 @@ try:
     tutor.tailscale.daemon_running = lambda: False
     memo = {}
     said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
-    check("with no link on this node it is brought up, even though no board "
-          "needed starting",
+    check("with no link on this node the address is offered to a board, even "
+          "though no board needed starting",
           len(addr_lines(said)) == 1)
     # And it backs off like every other repair, so a node that cannot link does
     # not spend seven days trying every twenty seconds.
@@ -432,7 +422,7 @@ try:
           ("Up", "claude") not in calls["agent"])
     check("a tutor a person stopped is not restarted",
           ("Stopped", "claude") not in calls["agent"])
-    check("a tutor left behind by a machine that went is picked back up here",
+    check("a tutor whose own stop was a handover is picked back up",
           ("HandedOver", "claude") in calls["agent"])
     check("and the handover flag is cleared on the way, so the next stop of it "
           "reads as a person's",
