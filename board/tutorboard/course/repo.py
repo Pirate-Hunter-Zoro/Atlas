@@ -85,6 +85,45 @@ def _is_set_source(rel):
 
 
 # ---------------------------------------------------------------------------
+# where a mark's record lives
+# ---------------------------------------------------------------------------
+DOC_KEY = "doc/"
+
+
+def ink_dir(repo, key):
+    """The directory holding the ink of annotation `key`: a card's in the
+    session (`repo.notes`), a document page's (`doc/...`) in `repo.doc_ink`
+    when the repo has one."""
+    if str(key or "").startswith(DOC_KEY):
+        return getattr(repo, "doc_ink", None) or repo.notes
+    return repo.notes
+
+
+def ink_dirs(repo):
+    """Every directory `ink_dir` can answer for `repo`, session first."""
+    out = [repo.notes]
+    doc = getattr(repo, "doc_ink", None)
+    if doc and doc != repo.notes:
+        out.append(doc)
+    return out
+
+
+def ink_records(repo, suffix=".json"):
+    """`(dir, name)` of every ink file ending in `suffix`, where each one
+    belongs: a card's from the session, a document page's from `doc_ink`.
+    A record in the wrong directory for its kind is skipped by the reader,
+    which checks `ink_dir` of the key it holds."""
+    out = []
+    for where in ink_dirs(repo):
+        try:
+            names = sorted(os.listdir(where))
+        except OSError:
+            continue
+        out += [(where, n) for n in names if n.endswith(suffix)]
+    return out
+
+
+# ---------------------------------------------------------------------------
 # which workspace a command runs in
 # ---------------------------------------------------------------------------
 class NoWorkspace(SystemExit):
@@ -223,6 +262,12 @@ class Repo:
         # Typed answers, drafted per question the way the slate drafts per page,
         # so switching from typing to writing and back does not lose the sentence.
         self.text = os.path.join(self.live, "text")
+        # Ink on a document page (`doc/<id>/p<n>`) of a stored session bound
+        # to a subject lives in the subject's ignored `.ink/`, so every session
+        # on that subject sees it. None elsewhere: it stays in `notes`.
+        self.doc_ink = None
+        if self.stored and os.path.realpath(self.root) != os.path.realpath(self.atlas):
+            self.doc_ink = os.path.join(self.root, ".ink")
         if create:
             self.ensure_dirs()
 

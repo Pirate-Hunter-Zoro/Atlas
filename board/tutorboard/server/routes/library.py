@@ -348,7 +348,7 @@ def post(h, repo, path):
         if rec.get("ok"):
             rec["ink"] = library.ink(repo, doc)
             rec["wiped"] = library.wiped(repo, doc)
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json(rec, status=200 if rec.get("ok") else 400)
 
     if path == "/writeup":
@@ -364,7 +364,7 @@ def post(h, repo, path):
         got, code = delete_doc(repo, str(payload.get("subject") or "").strip(),
                                str(payload.get("id") or "").strip().lower())
         if got.get("ok"):
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
         return h.send_json(got, status=code)
 
     # SLIDES FROM SITTINGS: which sittings, what they did, the deck, and where
@@ -401,7 +401,7 @@ def post(h, repo, path):
         # A `writing` one cannot be waved away: it is still being written, and
         # that is the fact the strip is reporting. `writeups.seen` refuses it.
         got = writeups.seen(repo.root, str(payload.get("id") or ""))
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": bool(got)})
 
     return NOT_MINE
@@ -559,7 +559,7 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
         return h.send_json(err[0], status=err[1])
     if got.get("woke"):
         h.note("nothing was reading the board; starting a tutor to write it")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return got
 
 
@@ -854,7 +854,7 @@ def meeting_deck(h, repo, base, since_ts, human, want=None):
     if got.get("woke"):
         h.note("nothing was reading the board; starting a tutor to write the "
                "meeting deck")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     rec = got["record"]
     return h.send_json({
         "ok": True, "id": got["id"], "name": "meeting", "state": "being written",
@@ -958,7 +958,7 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     if spawn.wake_tutor(repo):
         h.note("nothing was reading the board; starting a tutor for %s"
                % ("an overhaul" if ask == "rework" else "a revision"))
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return {"revise": "board", "asked": True,
             "detail": ("The tutor has been asked to rework it, and an overhaul "
                        "takes longer than a correction. That turn is not part "

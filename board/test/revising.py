@@ -273,7 +273,7 @@ class _Hub(object):
 
 class _H(object):
     def __init__(self):
-        self.server = type("S", (), {"hub": _Hub()})()
+        self.hub = _Hub()
 
     def note(self, _msg):
         pass

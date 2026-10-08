@@ -167,7 +167,7 @@ def strokes_by_page(repo, kind, pages_n, idents=None):
             key = "doc/%s/p%d" % (ident, n)
             if not writing.ann_ok(key):
                 continue
-            rec_path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
+            rec_path = writing.ann_path(repo, key)
             try:
                 with open(rec_path, "r", encoding="utf-8") as fh:
                     rec = json.load(fh)

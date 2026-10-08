@@ -394,7 +394,7 @@ def post(h, repo, path):
         # that survives being read is one nobody trusts again.
         news.forget()
         missions.forget()
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
     if path == "/notes/what":
@@ -467,7 +467,7 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "sent": [], "skipped": [],
                                 "detail": str(exc)[-300:]}, status=500)
         if got.get("ok"):
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/default-agent":
@@ -564,7 +564,7 @@ def post(h, repo, path):
         # Or the 900-second cache means the tap appears to do nothing for a
         # quarter of an hour.
         assistants.forget()
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "default": want, "moved": moved,
                             "assistants": assistants.listing()})
 
@@ -578,7 +578,7 @@ def post(h, repo, path):
         # good day and can pend indefinitely -- so this returns the state and
         # lets the payload carry the rest. See `spawn.wake_colibri`.
         started, said = spawn.wake_colibri()
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "started": started, "detail": said,
                             "colibri": colibri.status(fresh=True)})
 
@@ -870,7 +870,7 @@ def post(h, repo, path):
         with open(target.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
         missions.forget()
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         # WHAT IT DID, IN ONE SENTENCE, ON THE GLASS. A swap that happens
         # silently in a workspace nobody is looking at is worse than one that is
         # announced: the assistant that was there is gone and the only person

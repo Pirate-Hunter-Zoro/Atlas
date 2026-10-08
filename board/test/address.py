@@ -188,28 +188,20 @@ else:
     fail("a leftover board keeps the address for as long as its process lives, "
          "which is the whole of being left hanging with nothing looking wrong")
 
-# A board has to be REACHABLE from the other machine, or none of the above can
-# happen at all.
-#
-# Boards bound 127.0.0.1 and nothing else, deliberately -- there is no
-# authentication here. The consequence went unseen for a week: asking another
-# machine where a course is served means probing its ports, and every one of
-# those probes was refused by a loopback socket. So a course could only ever be
-# found on the machine doing the asking.
+# ONE LISTENER, ON LOOPBACK. There is no authentication here, so the board
+# binds 127.0.0.1 only, and `tailscale serve` publishes it to the tailnet once;
+# nothing in the server binds a tailnet address or re-points the name.
 src_serve = open(os.path.join(ROOT, "tutorboard", "server", "app.py"),
                  encoding="utf-8").read()
-(ok if "for addr in tailscale.tailnet_addresses():" in src_serve else fail)(
-    "a board listens on this machine's tailnet address as well as loopback")
-(ok if "for a in tailnet]" in src_serve else fail)(
-    "and says so in its record, so the far side knows where to knock")
-(ok if "tailscale.publish_board(port)" in src_serve else fail)(
-    "and where binding is impossible -- userspace tailscaled, which is every "
-    "machine without administrator rights -- tailscaled forwards for it instead")
+(ok if src_serve.count("BoardServer((") == 1
+ and "tailnet_addresses" not in src_serve and "publish_board" not in src_serve
+ else fail)("the board opens one listener and binds no tailnet address of its own")
 src_board = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
 (ok if "tailscale.unpublish_board(" in src_board else fail)(
     "and a stopped board takes its forwarding rule with it, rather than leaving "
     "one that points at a port nothing answers on")
-(ok if 'if host == "0.0.0.0"' in src_serve else fail)(
+(ok if 'host = "127.0.0.1"' in src_serve and 'elif a == "--lan":' in src_serve
+ else fail)(
     "but not on the LAN unless somebody asked for that")
 _vpn = src_board[src_board.index("def cmd_vpn("):]
 (ok if _vpn.index('if kind == "system":') < _vpn.index('ts("down")') else fail)(

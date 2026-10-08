@@ -95,6 +95,26 @@ def stroke_sig(s):
     return freeze(s) if isinstance(s, dict) else None
 
 
+def ink_records(repo):
+    """Every annotation record of `repo`, each read from where its key's ink
+    lives (`course.repo.ink_dir`): cards from the session, document pages
+    from the subject's `.ink/` when the session is bound."""
+    from ..course import repo as course_repo        # local: light
+    out = []
+    for where, name in course_repo.ink_records(repo):
+        try:
+            with open(os.path.join(where, name), "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(rec, dict) or not rec.get("card"):
+            continue
+        if course_repo.ink_dir(repo, rec["card"]) != where:
+            continue
+        out.append(rec)
+    return out
+
+
 def load_notes_sent(repo):
     """Which cards' marks have already been handed to the tutor.
 
@@ -103,18 +123,7 @@ def load_notes_sent(repo):
     every mark on the board arriving in a new shape for the sake of one boolean.
     """
     out = {}
-    try:
-        names = sorted(os.listdir(repo.notes))
-    except OSError:
-        return out
-    for name in names:
-        if not name.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except (OSError, ValueError):
-            continue
+    for rec in ink_records(repo):
         if rec.get("card"):
             out[rec["card"]] = bool(rec.get("sent"))
     return out
@@ -128,18 +137,7 @@ def load_notes_builds(repo):
     `load_notes_sent` is.
     """
     out = {}
-    try:
-        names = sorted(os.listdir(repo.notes))
-    except OSError:
-        return out
-    for name in names:
-        if not name.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except (OSError, ValueError):
-            continue
+    for rec in ink_records(repo):
         if rec.get("card") and isinstance(rec.get("build"), dict):
             out[rec["card"]] = rec["build"]
     return out
@@ -148,18 +146,7 @@ def load_notes_builds(repo):
 def load_notes(repo):
     """Every card's annotations, so a reload does not lose what was marked up."""
     out = {}
-    try:
-        names = sorted(os.listdir(repo.notes))
-    except OSError:
-        return out
-    for name in names:
-        if not name.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except (OSError, ValueError):
-            continue
+    for rec in ink_records(repo):
         if rec.get("card"):
             out[rec["card"]] = rec.get("strokes") or []
     return out

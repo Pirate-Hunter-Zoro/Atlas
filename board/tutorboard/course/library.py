@@ -1042,7 +1042,7 @@ def strip_kind(repo, key, kind):
 
     import json as _json
     other = "fix" if kind == "dir" else "dir"
-    path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
+    path = writing.ann_path(repo, key)
     changed = False
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -1111,21 +1111,17 @@ def buried_all(repo):
     """`{key: strokes}` for every page with buried strokes, one pass."""
     from ..server.routes import writing               # local: avoids a cycle
 
+    from . import repo as course_repo                  # local: light
+
     out = {}
-    try:
-        names = sorted(os.listdir(repo.notes))
-    except OSError:
-        return out
-    for name in names:
-        if not name.endswith(".gone"):
-            continue
+    for where, name in course_repo.ink_records(repo, ".gone"):
         try:
-            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
+            with open(os.path.join(where, name), "r", encoding="utf-8") as fh:
                 rec = json.load(fh)
         except (OSError, ValueError):
             continue
         key = rec.get("card") if isinstance(rec, dict) else None
-        if key and writing.ann_ok(str(key)):
+        if key and writing.ann_ok(str(key)) and course_repo.ink_dir(repo, key) == where:
             out[key] = writing.gone_of(repo, key)
     return out
 
@@ -1162,7 +1158,7 @@ def _handed_over(repo, found):
 
     import json as _json
     for mark in found:
-        path = os.path.join(repo.notes, writing.ann_file(mark["key"]) + ".json")
+        path = writing.ann_path(repo, mark["key"])
         try:
             with open(path, "r", encoding="utf-8") as fh:
                 rec = _json.load(fh)

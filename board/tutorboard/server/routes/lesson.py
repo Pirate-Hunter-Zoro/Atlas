@@ -30,10 +30,10 @@ from ...lesson import turns
 
 def get(h, repo, path):
     if path == "/events":
-        return h.sse(h.server.hub)
+        return h.sse(h.hub)
 
     if path == "/board.json":
-        return h.send_bytes(h.server.hub.payload.encode("utf-8"), "application/json")
+        return h.send_bytes(h.hub.payload.encode("utf-8"), "application/json")
 
     if path.startswith("/archive/"):
         # A past lesson, read only. The transcript is the point of keeping
@@ -333,7 +333,7 @@ def _direction(h, repo):
     spawn.fresh_tutor(repo.root, course)
     h.note("the %s changed; the lesson is archived and the tutor replaced"
            % ("thread `%s`" % on["id"] if on else "direction"))
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "chapter": label, "set": when,
                         "thread": on["id"] if on else None})
 
@@ -415,7 +415,7 @@ def _aim(h, repo):
 
     if spawn.wake_tutor(repo):
         h.note("nothing was reading the board; starting a tutor")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "aim": aim, "changed": True})
 
 
@@ -508,7 +508,7 @@ def _handover(h, repo):
 
     if spawn.wake_tutor(repo):
         h.note("nothing was reading the board; starting a tutor")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "card": card})
 
 
@@ -537,7 +537,7 @@ def _accept_thread(h, repo):
     code, out = spawn.board_cli(repo.root, ["thread", "add", "--repo", repo.root],
                                 timeout=60, given=json.dumps(one))
     threads.forget(repo.root)
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     if code != 0:
         return h.send_json({"ok": False, "error": (out or "").strip()[-300:]
                             or "board thread add refused it"}, status=400)
@@ -564,7 +564,7 @@ def post(h, repo, path):
         st.pop("finished", None)
         with open(repo.state_path, "w", encoding="utf-8") as fh:
             json.dump(st, fh, indent=2)
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
     if path == "/session":
@@ -649,7 +649,7 @@ def post(h, repo, path):
             begun = start and not cards.load_cards(repo, [])
             if begun:
                 _begin(h, repo)
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "resumed": True,
                                 "begun": begun})
 
@@ -687,7 +687,7 @@ def post(h, repo, path):
                 json.dump(st, fh, indent=2)
             if start:
                 _begin(h, repo)
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "review": names,
                                 "begun": start})
 
@@ -728,7 +728,7 @@ def post(h, repo, path):
                 json.dump(st, fh, indent=2)
             if start:
                 _begin(h, repo)
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "walk": names,
                                 "begun": start})
 
@@ -767,7 +767,7 @@ def post(h, repo, path):
                 json.dump(st, fh, indent=2)
             if start:
                 _begin(h, repo)
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "makes": makes,
                                 "begun": start})
 
@@ -874,7 +874,7 @@ def post(h, repo, path):
             json.dump(st, fh, indent=2)
         if start:
             _begin(h, repo)
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "session": kind, "hw": st.get("hw"),
                             "begun": start})
 
@@ -898,7 +898,7 @@ def post(h, repo, path):
                 os.remove(stem)
             except OSError:
                 pass
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "question": qid})
 
     if path == "/say":
@@ -970,6 +970,6 @@ def post(h, repo, path):
         # attached" with the request sitting on disk beside it.
         if spawn.wake_tutor(repo):
             h.note("nothing was reading the board; starting a tutor")
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "turn": tid, "rev": rev})
     return NOT_MINE

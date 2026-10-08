@@ -13,17 +13,76 @@ import json
 import mimetypes
 import os
 import re
+import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
-from .. import paths
-from ..lesson import cards
+from .. import paths, sessions, subjects
+from .. import stamp as code_stamp
 from . import routes
 from .routes import (library, lesson, machines, pages, saving, taking,   # noqa: F401
                      writing)
 
 WEB = paths.WEB
+
+# A stream with nothing to say pings this often; a client gone is noticed then.
+PING_SECONDS = 15.0
+
+SESSION_PREFIX = re.compile(r"\A/s/([^/]+)(/.*)?\Z")
+ICON = re.compile(r"\A/(apple-touch-icon|icon-\d+)\.png\Z")
+
+# EVERY ROUTE SERVED WITHOUT A `/s/<id>` PREFIX, and how. Anything else
+# unprefixed is 404 on a session server. A pattern ending in `*` is a prefix.
+# `library` routes name their subject with `?subject=`; T17 adds the rest of
+# the cross-subject routes here.
+UNPREFIXED = (
+    ("GET", "/", "home"),
+    ("GET", "/index.html", "home"),
+    ("GET", "/home", "home"),
+    ("GET", "/static/*", "pages"),
+    ("GET", "/sw.js", "pages"),
+    ("GET", "/manifest.webmanifest", "pages"),
+    ("GET", "/apple-touch-icon.png", "icon"),
+    ("GET", "/icon-*", "icon"),
+    ("GET", "/health", "health"),
+    ("GET", "/sessions.json", "sessions"),
+    ("POST", "/sessions/new", "new"),
+    ("GET", "/subjects.json", "subjects"),
+    ("GET", "/notices.json", "notices"),
+    ("GET", "/library", "page"),
+    ("GET", "/library/", "page"),
+    ("GET", "/library.json", "library"),
+    ("GET", "/library/stamp", "library"),
+    ("GET", "/library/results.json", "library"),
+    ("GET", "/library/view/*", "library"),
+    ("GET", "/library/ledger/*", "library"),
+    ("POST", "/library/ledger/*", "library"),
+    ("POST", "/library/feedback", "library"),
+)
+
+
+def unprefixed_route(method, path):
+    """How UNPREFIXED answers `method path`, or None."""
+    for want, pattern, how in UNPREFIXED:
+        if want != method:
+            continue
+        if pattern.endswith("*"):
+            if path.startswith(pattern[:-1]) and len(path) > len(pattern) - 1:
+                if how == "icon" and not ICON.match(path):
+                    continue
+                return how
+        elif path == pattern:
+            return how
+    return None
+
+
+class _Idle(object):
+    """The hub of a library read with no session open on its subject: a
+    dirty mark with nobody to tell."""
+
+    class worker(object):
+        dirty = threading.Event()
 
 mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("font/woff", ".woff")
@@ -61,7 +120,9 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             status = 0
         path = (self.path or "").split("?", 1)[0]
-        if self.command == "GET" and status < 400 and self.QUIET_GET.match(path):
+        inner = SESSION_PREFIX.match(path)
+        inner = (inner.group(2) or "/") if inner else path
+        if self.command == "GET" and status < 400 and self.QUIET_GET.match(inner):
             return
         length = ""
         try:
@@ -202,12 +263,45 @@ class Handler(BaseHTTPRequestHandler):
         return buf
 
     # -- routing ---------------------------------------------------------
-    def do_GET(self):
+    # A session server (`app.main`) has a `registry`: `/s/<id>/...` is served
+    # by that session's Repo and Hub with the prefix stripped, and an
+    # unprefixed request is answered only when UNPREFIXED lists it. A server
+    # a test builds with `repo` and `hub` and no registry serves one session,
+    # unprefixed, as before.
+    def _scope(self):
+        """`(path, query)` of this request, with `self.repo` and `self.hub`
+        set to the session it is for. None after a 404 was sent."""
         parsed = urllib.parse.urlparse(self.path)
         path = urllib.parse.unquote(parsed.path)
-        repo = self.server.repo
-        hub = self.server.hub
+        query = urllib.parse.parse_qs(parsed.query)
+        registry = getattr(self.server, "registry", None)
+        if registry is None:
+            self.repo = self.server.repo
+            self.hub = self.server.hub
+            return path, query
+        m = SESSION_PREFIX.match(path)
+        if not m:
+            self.repo = self.hub = None
+            return path, query
+        entry = registry.get(m.group(1))
+        if entry is None:
+            self.send_json({"ok": False, "error": "no such session"}, status=404)
+            return None
+        self.repo, self.hub = entry.repo, entry.hub
+        return m.group(2) or "/", query
 
+    def do_GET(self):
+        scoped = self._scope()
+        if scoped is None:
+            return None
+        path, query = scoped
+        if self.repo is None:
+            return self.unprefixed("GET", path, query)
+        if path in ("/", "/board", "/board/") and getattr(self.server, "registry", None):
+            return self.send_file(os.path.join(WEB, "board.html"))
+        return self.session_get(self.repo, path)
+
+    def session_get(self, repo, path):
         if path in ("/", "/index.html", "/home"):
             return self.send_file(os.path.join(WEB, "home.html"))
         if path in ("/board", "/board/"):
@@ -215,7 +309,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # Installable-app files must sit at the root: the service worker's scope
         # is its own directory, and iOS looks for /apple-touch-icon.png.
-        if re.match(r"^/(apple-touch-icon|icon-\d+)\.png$", path):
+        if ICON.match(path):
             return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
         if path in ("/slate", "/slate/"):
             return self.send_file(os.path.join(WEB, "slate.html"))
@@ -251,9 +345,15 @@ class Handler(BaseHTTPRequestHandler):
             self.head_only = False
 
     def do_POST(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = urllib.parse.unquote(parsed.path)
-        repo = self.server.repo
+        scoped = self._scope()
+        if scoped is None:
+            return None
+        path, query = scoped
+        if self.repo is None:
+            return self.unprefixed("POST", path, query)
+        return self.session_post(self.repo, path)
+
+    def session_post(self, repo, path):
         # Before anything writes. The directories were made when this process
         # started and a pull can have removed one since -- see `Repo.ensure_dirs`.
         # Ten stat calls against a route that is about to write a PNG.
@@ -265,6 +365,71 @@ class Handler(BaseHTTPRequestHandler):
             if answered is not routes.NOT_MINE:
                 return answered
         return self.send_bytes(b"not found", "text/plain", status=404)
+
+    # -- unprefixed ------------------------------------------------------
+    def unprefixed(self, method, path, query):
+        """Answer a request outside `/s/<id>/` that UNPREFIXED lists; 404
+        for anything else."""
+        how = unprefixed_route(method, path)
+        if how is None:
+            return self.send_json({"ok": False, "error": "not found"}, status=404)
+        registry = self.server.registry
+        if how == "home":
+            return self.send_file(os.path.join(WEB, "home.html"))
+        if how == "page":
+            return self.send_file(os.path.join(WEB, "library.html"))
+        if how == "icon":
+            return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
+        if how == "pages":
+            return routes.pages.get(self, None, path)
+        if how == "health":
+            out = {"ok": True, "atlas": registry.atlas, "serving": registry.loaded()}
+            if "code" in query:
+                out["code"] = {"running": code_stamp.LOADED, "tree": code_stamp.tree()}
+            return self.send_json(out)
+        if how == "sessions":
+            return self.send_json({"ok": True, "sessions": [
+                dict(rec, url="/s/%s/board" % rec.get("id"))
+                for rec in sessions.all(registry.atlas)]})
+        if how == "new":
+            return self.new_session(registry)
+        if how == "subjects":
+            return self.send_json({"ok": True, "subjects": [
+                {k: one[k] for k in ("id", "kind", "slug", "name")}
+                for one in subjects.all(registry.atlas)]})
+        if how == "notices":
+            return self.send_json({"ok": True, "notices": []})
+        # how == "library": the subject is named by `?subject=`.
+        ident = (query.get("subject") or [""])[0]
+        if not ident:
+            return self.send_json({"ok": False, "error": "name the subject: ?subject=<id>"},
+                                  status=400)
+        repo = registry.subject(ident, create=(method == "POST"))
+        if repo is None:
+            return self.send_json({"ok": False, "error": "no such subject"}, status=404)
+        entry = registry.get(os.path.basename(repo.session)) if repo.stored else None
+        self.repo, self.hub = repo, (entry.hub if entry else _Idle())
+        if method == "POST":
+            return self.session_post(repo, path)
+        answered = routes.library.get(self, repo, path)
+        if answered is routes.NOT_MINE:
+            return self.send_json({"ok": False, "error": "not found"}, status=404)
+        return answered
+
+    def new_session(self, registry):
+        """POST /sessions/new: an unbound session in teach, titled by the body's
+        optional `title`; its record and the URL of its board."""
+        try:
+            body = self.read_body()
+            payload = json.loads(body.decode("utf-8")) if body.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            return self.send_json({"ok": False, "error": "bad json"}, status=400)
+        title = payload.get("title") if isinstance(payload, dict) else None
+        title = str(title).strip()[:200] if title else None
+        rec = sessions.new(title, base=registry.atlas)
+        self.note("session %s opened" % rec["id"])
+        return self.send_json({"ok": True, "id": rec["id"], "session": rec,
+                               "url": "/s/%s/board" % rec["id"]})
 
     # -- server sent events ---------------------------------------------
     def sse(self, hub):
@@ -279,10 +444,10 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 1000\n\n")
             self.wfile.write(("data: " + hub.payload + "\n\n").encode("utf-8"))
             self.wfile.flush()
-            while True:
+            while not hub.stopped.is_set():
                 with cv:
                     if not q:
-                        cv.wait(15.0)
+                        cv.wait(PING_SECONDS)
                     pending = q[:]
                     del q[:]
                 if pending:
@@ -295,3 +460,6 @@ class Handler(BaseHTTPRequestHandler):
             pass
         finally:
             hub.unsubscribe((q, cv))
+            # A stream ends only when it broke or its hub was dropped; either
+            # way the socket carries nothing more.
+            self.close_connection = True

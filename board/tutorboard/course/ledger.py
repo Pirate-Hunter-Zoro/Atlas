@@ -825,7 +825,7 @@ def keep_evidence(repo, doc):
                 continue
             from ..server.routes import writing       # local: avoids a cycle
 
-            live = os.path.join(repo.notes, writing.ann_file(it["ann"]) + ".png")
+            live = writing.ann_path(repo, it["ann"], ".png")
             name = "marked-p%d.png" % it["page"]
             if not os.path.isfile(os.path.join(where, name)) and os.path.isfile(live):
                 try:

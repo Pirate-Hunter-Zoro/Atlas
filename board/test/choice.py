@@ -283,10 +283,9 @@ check("the machine that starts the board takes the tailnet name for it, in the "
 check("and the tutor follows the course, so one lesson never gets two",
       serve_src.count('tutor_cli(["agent", "start", match["repo"]])') == 1)
 
-check("a board listens on the tailnet as well as loopback, or the app can only "
-      "reach it from the machine it is running on",
-      "tailscale.tailnet_addresses()" in serve_src
-      and "second.serve_forever" in serve_src)
+check("the board opens one listener on loopback; `tailscale serve` publishes it",
+      "import tailscale" not in source("tutorboard", "server", "app.py")
+      and source("tutorboard", "server", "app.py").count("BoardServer((") == 1)
 
 check("a board publishes whether it has a tutor at all",
       '"tutor": agent.get("state") or None' in serve_src)

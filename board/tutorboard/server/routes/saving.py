@@ -24,7 +24,7 @@ def post(h, repo, path):
         if st.pop("finished", None) is not None:
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json(record)
 
     if path == "/hw/build":
@@ -45,7 +45,7 @@ def post(h, repo, path):
         except Exception as e:                       # noqa: BLE001
             rec = {"ok": False, "detail": "build failed: %s" % e}
         git._DIRTY["value"] = None      # a new PDF is uncommitted; say so
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json(rec)
 
     if path == "/export/shot":
@@ -86,7 +86,7 @@ def post(h, repo, path):
         with open(os.path.join(repo.live, "export.json"), "w", encoding="utf-8") as fh:
             json.dump(rec, fh, indent=2)
         git._DIRTY["value"] = None      # the new file is uncommitted; say so
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json(rec)
 
     if path == "/export":
@@ -115,6 +115,6 @@ def post(h, repo, path):
         with open(os.path.join(repo.live, "export.json"), "w", encoding="utf-8") as fh:
             json.dump(rec, fh, indent=2)
         git._DIRTY["value"] = None      # the new file is uncommitted; say so
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json(rec)
     return NOT_MINE

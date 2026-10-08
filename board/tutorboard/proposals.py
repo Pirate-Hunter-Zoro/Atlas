@@ -115,7 +115,7 @@ def _picture(repo, base, page, key):
     """
     from .server.routes import writing                 # local: avoids a cycle
 
-    src = os.path.join(repo.notes, writing.ann_file(key) + ".png")
+    src = writing.ann_path(repo, key, ".png")
     if not os.path.isfile(src):
         return ""
     where = marks_dir(base)
@@ -139,7 +139,7 @@ def _sent(repo, keys):
     from .server.routes import writing                 # local: avoids a cycle
 
     for key in keys:
-        path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
+        path = writing.ann_path(repo, key)
         try:
             with open(path, "r", encoding="utf-8") as fh:
                 got = json.load(fh)

@@ -39,6 +39,13 @@ class TikzWorker(threading.Thread):
         self.seen = set()
         self.cv = threading.Condition()
         self.dirty = threading.Event()
+        self.stopping = False
+
+    def stop(self):
+        """End the thread once the job in hand, if any, is done."""
+        with self.cv:
+            self.stopping = True
+            self.cv.notify()
 
     def submit(self, jobs):
         with self.cv:
@@ -53,8 +60,10 @@ class TikzWorker(threading.Thread):
     def run(self):
         while True:
             with self.cv:
-                while not self.queue:
+                while not self.queue and not self.stopping:
                     self.cv.wait()
+                if self.stopping:
+                    return
                 digest, kind, src = self.queue.pop(0)
             try:
                 self.compile(digest, kind, src)

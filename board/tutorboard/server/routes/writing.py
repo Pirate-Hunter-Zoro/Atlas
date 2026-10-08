@@ -15,6 +15,7 @@ from . import NOT_MINE
 from .. import multipart
 from .. import spawn
 from ...course import burn
+from ...course import repo as course_repo
 from ...lesson import notes
 from ...lesson import slate
 from ...lesson import turns
@@ -80,6 +81,13 @@ def ann_file(key):
     return "%s-%s" % (flat or "mark", digest)
 
 
+def ann_path(repo, key, ext=".json"):
+    """Where one key's record (`.json`), picture or burial is kept: a card's
+    in the session, a document page's in the subject's `.ink/` once the
+    session is bound (`course.repo.ink_dir`)."""
+    return os.path.join(course_repo.ink_dir(repo, key), ann_file(key) + ext)
+
+
 def png_path(repo, key, kind="fix"):
     """Where one key's picture of one kind of ink is kept.
 
@@ -88,8 +96,7 @@ def png_path(repo, key, kind="fix"):
     could be filed holding the other kind's marks. `ann_file` never puts a `.`
     in a stem, so `<stem>.dir.png` cannot be another key's `<stem>.png`.
     """
-    return os.path.join(repo.notes, ann_file(key)
-                        + (".dir.png" if kind == "dir" else ".png"))
+    return ann_path(repo, key, ".dir.png" if kind == "dir" else ".png")
 
 
 # THE STROKES THE BOARD TOOK OFF A PAGE, kept until every reader has let them
@@ -100,7 +107,7 @@ def png_path(repo, key, kind="fix"):
 # exact strokes on that page. A save carrying none of them means the reader has
 # caught up, and the record goes.
 def gone_path(repo, key):
-    return os.path.join(repo.notes, ann_file(key) + ".gone")
+    return ann_path(repo, key, ".gone")
 
 
 def gone_of(repo, key):
@@ -214,7 +221,7 @@ def post(h, repo, path):
             # The PDF under the viewer just changed, so the payload has to go
             # out again -- the page cache is keyed on modification time and the
             # controls are drawn off `papers`.
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/annotate/save":
@@ -242,7 +249,8 @@ def post(h, repo, path):
                     {"ok": False, "gone": True,
                      "error": "these marks were drawn on another deck"},
                     status=409)
-        stem = ann_file(card)
+        record_path = ann_path(repo, card)
+        os.makedirs(os.path.dirname(record_path), exist_ok=True)
         strokes = payload.get("strokes") or []
         # Whether these marks have been handed to the tutor, recorded next
         # to them. Without it a reload cannot tell ink that was delivered
@@ -258,8 +266,7 @@ def post(h, repo, path):
         # direction is taken off the page, `library.strip_kind`), so direction
         # ink drawn beside delivered fixes does not put the fixes back.
         try:
-            with open(os.path.join(repo.notes, stem + ".json"), "r",
-                      encoding="utf-8") as fh:
+            with open(record_path, "r", encoding="utf-8") as fh:
                 was = json.load(fh)
         except (OSError, ValueError):
             was = {}
@@ -287,7 +294,7 @@ def post(h, repo, path):
             build = clean_build(was.get("build"))
         if build:
             rec["build"] = build
-        with open(os.path.join(repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
+        with open(record_path, "w", encoding="utf-8") as fh:
             json.dump(rec, fh)
         h.note("annotate %s: %d strokes, %s"
                   % (card, len(strokes), "SENT" if sent else "saved only"))
@@ -316,7 +323,7 @@ def post(h, repo, path):
                     pass
 
         if not payload.get("send"):
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "card": card})
 
         tid = payload.get("turn") or turns.next_turn_id(repo)
@@ -370,7 +377,7 @@ def post(h, repo, path):
         # `spawn.wake_tutor`: a no-op unless the board really is unattended.
         if spawn.wake_tutor(repo):
             h.note("nothing was reading the board; starting a tutor")
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "card": card, "turn": tid, "rev": rev})
 
     if path == "/slate/save":
@@ -441,11 +448,11 @@ def post(h, repo, path):
                 fh.write(json.dumps(msg) + "\n")
             if spawn.wake_tutor(repo):
                 h.note("nothing was reading the board; starting a tutor")
-            h.server.hub.worker.dirty.set()
+            h.hub.worker.dirty.set()
             h.note("slate page %d: %d strokes, SENT as %s rev %d answering %s"
                       % (n, len(strokes), tid, rev, record["answers"] or "-"))
             return h.send_json({"ok": True, "page": n, "turn": tid, "rev": rev})
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         h.note("slate page %d: %d strokes, saved only (not sent)"
                   % (n, len(payload.get("strokes") or [])))
         return h.send_json({"ok": True, "page": n})
@@ -485,6 +492,6 @@ def post(h, repo, path):
                 fh.write(json.dumps(record) + "\n")
             if spawn.wake_tutor(repo):
                 h.note("nothing was reading the board; starting a tutor")
-        h.server.hub.worker.dirty.set()
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "saved": saved})
     return NOT_MINE

@@ -66,6 +66,13 @@ class Hub:
         self.digest = ""
         self.ink = ""
         self.seq = 0
+        # Set by `stop`: the session registry dropped this hub, so its loop
+        # ends and any stream still on it closes, to reconnect to a new one.
+        self.stopped = threading.Event()
+
+    def stop(self):
+        self.stopped.set()
+        self.worker.dirty.set()
 
     def subscribe(self):
         client = ([], threading.Condition())
@@ -247,7 +254,7 @@ class Hub:
         seen = None
         built = 0.0
         dirty = self.worker.dirty
-        while True:
+        while not self.stopped.is_set():
             marked = dirty.is_set()
             if marked:
                 dirty.clear()

@@ -27,6 +27,30 @@ CHOSEN = os.path.join(CONFIG_DIR, "chosen.json")
 # `tutorboard/keys.py`, which is the only thing that opens it.
 KEYS = os.path.join(CONFIG_DIR, "keys.env")
 
+# The one port the board listens on, unless config.json says `port`.
+PORT = 8778
+
+
+def config():
+    """config.json as a dict; {} when it is missing or unreadable."""
+    try:
+        import json
+        with open(CONFIG, "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def port():
+    """config.json's `port`, else PORT."""
+    try:
+        said = int(config().get("port") or PORT)
+    except (TypeError, ValueError):
+        return PORT
+    return said if 0 < said < 65536 else PORT
+
+
 # Where a deleted session, subject, material or document goes: one
 # `<stamp>/` directory per delete, kept 30 days. `TUTORBOARD_TRASH` moves it,
 # which is how a test keeps its deletes out of the real one.

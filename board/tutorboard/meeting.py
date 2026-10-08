@@ -1665,10 +1665,9 @@ def clear_ink(repo):
 
     gone = 0
     for key in ink_keys(repo):
-        stem = os.path.join(repo.notes, writing.ann_file(key))
         for ext in (".json", ".png"):
             try:
-                os.remove(stem + ext)
+                os.remove(writing.ann_path(repo, key, ext))
             except OSError:
                 continue
             if ext == ".json":
