@@ -35,16 +35,6 @@ def held_nodes():
     return _SLURM["nodes"]
 
 
-def board_port(repo):
-    """The port THIS board is listening on, off its own record."""
-    rec = read_board_record(repo.root) or {}
-    port = rec.get("port")
-    try:
-        return int(port) if port else ports.default_port(os.path.basename(repo.root))
-    except (TypeError, ValueError):
-        return ports.default_port(os.path.basename(repo.root))
-
-
 def workspaces(repo):
     """Every workspace in the repository, and what is true of each right now.
 

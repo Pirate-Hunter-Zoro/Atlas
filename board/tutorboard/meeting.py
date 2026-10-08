@@ -1685,8 +1685,3 @@ def clear_ink(repo):
             if ext == ".json":
                 gone += 1
     return gone
-
-
-def _author(base):
-    name = _git(base, ["config", "user.name"]).strip()
-    return name or "the board"

@@ -420,20 +420,6 @@ try:
           not any(t["closed"] for w in (trd, psych, llm)
                   for t in threads.read(w)[0]["threads"]))
 
-    drawn = {"title": "T", "nodes": [
-        {"id": "a", "name": "the a", "also": "mod.a", "status": "done",
-         "does": "Does a.", "files": ["x.py"], "dir": "pkg", "doc": "deck",
-         "blockedBy": ["b"], "note": "A note."},
-        {"id": "b", "name": "the b", "files": []}],
-        "edges": [{"from": "b", "to": "a", "label": "words"}]}
-    moved = threads.from_map(drawn, "stage1")
-    clean, problems = threads.validate(moved)
-    check("a migrated map is a valid thread file", clean and not problems)
-    a = threads.thread(clean, "a")
-    check("and its box keeps its name, identifier, sentence, files and doc",
-          a["title"] == "the a (mod.a)" and a["question"] == "Does a. A note."
-          and a["files"] == ["x.py", "pkg"] and a["doc"] == "deck"
-          and a["blockedBy"] == ["b"])
 finally:
     shutil.rmtree(home, ignore_errors=True)
 

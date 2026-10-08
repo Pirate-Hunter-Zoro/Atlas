@@ -124,8 +124,8 @@ check("no document names a directory that moved into this repository",
 #
 # Both halves are checked: the key is not in a config, and no document writes
 # it as a setting. A sentence that NAMES the key while saying it is dropped is
-# fine and is what `board/AI_INSTRUCTIONS.md` carries -- the pattern here is the
-# JSON spelling, which is a document asserting the file contains it.
+# fine -- the pattern here is the JSON spelling, which is a document asserting
+# the file contains it.
 DEAD_KEYS = ("mode",)
 
 carried = []

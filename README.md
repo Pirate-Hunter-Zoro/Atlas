@@ -24,7 +24,7 @@ Atlas/
   Brewfile           the Mac's system tools
   scripts/setup.sh   builds every workspace's environment — see "Setting up a machine"
   board/             Tutor-Board — the tool. `bash board/install.sh` installs it.
-                     README.md is its architecture, SETTLED.md the rules already built
+                     README.md is its invariants
 
   courses/           a workspace per course. Each is its OWN private repository,
                      ignored by this one

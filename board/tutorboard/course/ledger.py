@@ -1086,16 +1086,6 @@ def _next_before(root, doc, note_path, src):
     return ""
 
 
-def _old_for(before, after, new):
-    """The exact old wording of the passage `new` now occupies, or "".
-
-    Out of the snapshots rather than out of the turn's memory: find the new
-    wording in the after-copy, diff the two copies line by line, and take the
-    before side of every change that touches those lines.
-    """
-    return _pair_for(before, after, new)[0]
-
-
 def _pair_for(before, after, new):
     """`(old, now)`: both sides of every line change touching `new`.
 

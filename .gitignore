@@ -101,8 +101,7 @@ Thumbs.db
 # The same rule covers a workflow, a subagent, a slash command and a skill,
 # which are logic written against one provider's API and go stale at its next
 # release. A job worth keeping is kept as a specification any assistant can
-# execute -- `board/tools/docs-audit.md` is the pattern -- and the harness is
-# regenerated from it.
+# execute, and the harness is regenerated from it.
 #
 # `**/` on purpose: a pattern with a slash in it is anchored to the directory
 # its .gitignore sits in, so `.claude/` written HERE would match only the one
