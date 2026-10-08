@@ -307,7 +307,8 @@ try:
     tutorcli.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
     check("one pull per repository: Atlas first, then the course, and the "
           "workspace sharing Atlas's .git is not pulled twice",
-          pulled == [mac, course])
+          [os.path.realpath(p) for p in pulled]
+          == [os.path.realpath(mac), os.path.realpath(course)])
 
     req3 = dict(req, id="2026-10-03-course-sweep", filed=2300.0)
     # A workspace that is its own repository never goes to the cluster: the
