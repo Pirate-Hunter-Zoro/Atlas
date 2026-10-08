@@ -19,6 +19,11 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
   * `/sessions/` is ignored, and the pre-commit hook refuses
     `git add -f sessions/x/cards/0001.md`.
   * The meeting gather reads an ended session from the store.
+  * `bind` sets `subject` with a non-waking `[bind]` line and files nothing;
+    `bind --create` makes a subject in one commit, with the PHI ignore stanza
+    for a patient-data project, and refuses `../x`, `/abs` and `research/x`.
+  * `file` moves an upload into the bound subject and its ink to
+    `<subject>/.ink/`, re-keyed: the old keys are gone and the new ones load.
 """
 
 import json
@@ -306,6 +311,180 @@ try:
     check("as a filed row of its two cards, titled by the session",
           row and row[0]["live"] is False and row[0]["cards"] == 2
           and "Splitting fields" in row[0]["label"])
+
+    # ---- bind, and bind --create ----------------------------------------------
+    from tutorboard.lesson import notes as lesson_notes             # noqa: E402
+    from tutorboard.server.routes import writing                    # noqa: E402
+    e = sessions.new("Generic", base=base, now=now + 100)
+    e_dir = sessions.path(e["id"], base)
+    write(os.path.join(e_dir, "uploads", "slides.pdf"), b"%PDF-1.4 fake\n")
+    up_before = sorted(os.listdir(os.path.join(e_dir, "uploads")))
+
+    def inbox(where):
+        try:
+            with open(os.path.join(where, "inbox", "messages.jsonl")) as fh:
+                return [json.loads(l) for l in fh if l.strip()]
+        except OSError:
+            return []
+
+    code, out = board(["bind", "courses/Nowhere"], session=e_dir)
+    check("bind to a subject that is not there is refused, naming --create",
+          code == 1 and "--create" in out
+          and sessions.get(e["id"], base)["subject"] is None, out)
+    code, out = board(["bind", "courses/Galois"], session=e_dir)
+    lines = inbox(e_dir)
+    check("bind sets subject, validated against subjects.all()",
+          code == 0 and sessions.get(e["id"], base)["subject"] == "courses/Galois",
+          out)
+    check("and appends one [bind] line that wakes nothing (written read)",
+          len(lines) == 1 and lines[0]["text"] == "[bind] courses/Galois"
+          and lines[0]["read"] is True and lines[0]["signal"] == "bind", lines)
+    code, out = board(["inbox"], session=e_dir)
+    check("so board inbox, what a turn waits on, has nothing new",
+          code == 0 and "inbox empty" in out, out)
+    check("and bind files nothing: the upload stays in uploads/",
+          sorted(os.listdir(os.path.join(e_dir, "uploads"))) == up_before)
+    check("a bound session's Repo works in the subject",
+          sessions.repo(e["id"], base).root == galois)
+    code, out = board(["bind", "Galois"], session=e_dir)
+    check("binding again to the same subject writes no second line",
+          code == 0 and len(inbox(e_dir)) == 1, out)
+
+    head = git("rev-parse", "HEAD").stdout.strip()
+    f = sessions.new("Fresh", base=base, now=now + 110)
+    f_dir = sessions.path(f["id"], base)
+    code, out = board(["bind", "courses/Test", "--create"], session=f_dir)
+    files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
+    check("bind courses/Test --create makes one commit",
+          code == 0 and git("rev-list", "--count", "%s..HEAD" % head)
+          .stdout.strip() == "1", out)
+    check("holding the directory's tutorboard.json and TUTOR.md, nothing else",
+          sorted(files) == ["courses/Test/TUTOR.md",
+                            "courses/Test/tutorboard.json"], files)
+    cfg = json.load(open(os.path.join(base, "courses", "Test", "tutorboard.json")))
+    check("a course is phi false", cfg == {"name": "Test", "phi": False}, cfg)
+    tutor = open(os.path.join(base, "courses", "Test", "TUTOR.md")).read()
+    check("TUTOR.md is the skeleton of the four sections, in order",
+          [l[3:] for l in tutor.splitlines() if l.startswith("## ")]
+          == ["Where things are", "Now", "Open decisions", "Done recently"], tutor)
+    check("and the session is bound to the new course",
+          sessions.get(f["id"], base)["subject"] == "courses/Test")
+
+    g = sessions.new("Patients", base=base, now=now + 120)
+    g_dir = sessions.path(g["id"], base)
+    code, out = board(["bind", "projects/New", "--create"], session=g_dir)
+    check("a project without --phi is refused, asking about patient data",
+          code == 1 and "--phi" in out
+          and not os.path.exists(os.path.join(base, "projects", "New")), out)
+    head = git("rev-parse", "HEAD").stdout.strip()
+    code, out = board(["bind", "projects/New", "--create", "--phi", "yes"],
+                      session=g_dir)
+    check("git check-ignore -q projects/New/phi/x succeeds right after "
+          "bind projects/New --create --phi yes",
+          code == 0 and git("check-ignore", "-q", "projects/New/phi/x")
+          .returncode == 0, out)
+    check("and so do results/ and .env",
+          git("check-ignore", "-q", "projects/New/results/r.csv").returncode == 0
+          and git("check-ignore", "-q", "projects/New/.env").returncode == 0)
+    files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
+    check("in one commit with the .gitignore, tutorboard.json and TUTOR.md",
+          git("rev-list", "--count", "%s..HEAD" % head).stdout.strip() == "1"
+          and sorted(files) == ["projects/New/.gitignore", "projects/New/TUTOR.md",
+                                "projects/New/tutorboard.json"], files)
+    check("tutorboard.json says phi true",
+          json.load(open(os.path.join(base, "projects", "New", "tutorboard.json")))
+          ["phi"] is True)
+    head = git("rev-parse", "HEAD").stdout.strip()
+    for bad in ("../x", "/abs", "research/x", "courses/Test", "courses/a/b"):
+        code, out = board(["bind", bad, "--create", "--phi", "no"], session=g_dir)
+        check("--create refuses %s" % bad,
+              code == 1 and out.startswith("board bind: ")
+              and "Traceback" not in out, out)
+    check("and none of them committed or made anything",
+          git("rev-parse", "HEAD").stdout.strip() == head
+          and not os.path.exists(os.path.join(base, "research"))
+          and not os.path.exists(os.path.join(os.path.dirname(base), "x"))
+          and not os.path.exists("/abs"))
+    code, out = board(["bind", "projects/Plain Data", "--create", "--phi", "no"])
+    check("with no session, --create only makes the subject, slugified",
+          code == 0 and os.path.isfile(os.path.join(
+              base, "projects", "Plain-Data", "tutorboard.json"))
+          and not os.path.exists(os.path.join(
+              base, "projects", "Plain-Data", ".gitignore")), out)
+
+    # ---- file, and the ink that follows ---------------------------------------
+    code, out = board(["file", "slides.pdf"],
+                      session=sessions.path(sessions.new(base=base)["id"], base))
+    check("file in an unbound session is refused",
+          code == 1 and "bind it first" in out, out)
+    old_id = sessions.ink_ident("uploads/slides.pdf")
+    keys = ["doc/%s/p%d" % (old_id, n) for n in (1, 2)]
+    notes_dir = os.path.join(e_dir, "annotations")
+    stroke = {"pts": [[1, 2], [3, 4]], "w": 2}
+    for k in keys:
+        stem = writing.ann_file(k)
+        write(os.path.join(notes_dir, stem + ".json"),
+              json.dumps({"card": k, "strokes": [stroke], "sent": False}))
+        write(os.path.join(notes_dir, stem + ".png"), b"\x89PNG ink")
+    write(os.path.join(notes_dir, writing.ann_file(keys[0]) + ".gone"),
+          json.dumps({"card": keys[0], "at": 1, "strokes": [stroke]}))
+    write(os.path.join(notes_dir, "0001.json"),
+          json.dumps({"card": "0001", "strokes": [stroke]}))
+    other_key = "doc/%s/p1" % sessions.ink_ident("uploads/other.pdf")
+    write(os.path.join(notes_dir, writing.ann_file(other_key) + ".json"),
+          json.dumps({"card": other_key, "strokes": [stroke]}))
+    for bad in ("../outside", "/tmp/x", ".ink/x.pdf", "phi/x.pdf",
+                "results/x.pdf"):
+        code, out = board(["file", "slides.pdf", bad], session=e_dir)
+        check("file refuses %s" % bad,
+              code == 1 and out.startswith("board file: ")
+              and "Traceback" not in out, out)
+    code, out = board(["file", "nope.pdf"], session=e_dir)
+    check("file refuses a name that is not an upload", code == 1, out)
+    check("and a refusal moves nothing",
+          os.path.isfile(os.path.join(e_dir, "uploads", "slides.pdf"))
+          and not os.path.exists(os.path.join(galois, "materials")))
+
+    head = git("rev-parse", "HEAD").stdout.strip()
+    code, out = board(["file", "slides.pdf"], session=e_dir)
+    new_id = sessions.ink_ident("materials/slides.pdf")
+    new_keys = ["doc/%s/p%d" % (new_id, n) for n in (1, 2)]
+    check("file moves the upload into materials/ by default",
+          code == 0 and os.path.isfile(os.path.join(galois, "materials", "slides.pdf"))
+          and not os.path.exists(os.path.join(e_dir, "uploads", "slides.pdf")), out)
+    left = os.listdir(notes_dir)
+    check("the old ink keys are gone from the session",
+          not any(writing.ann_file(k) in n for k in keys for n in left), left)
+    check("while card ink and another upload's ink stay",
+          "0001.json" in left
+          and writing.ann_file(other_key) + ".json" in left, left)
+
+    class InkDrawer(object):
+        notes = os.path.join(galois, ".ink")
+    loaded = lesson_notes.load_notes(InkDrawer)
+    check("the new keys load from <subject>/.ink/",
+          sorted(loaded) == new_keys and loaded[new_keys[0]] == [stroke], loaded)
+    check("with their pictures and the buried strokes, re-keyed",
+          all(os.path.isfile(writing.png_path(InkDrawer, k)) for k in new_keys)
+          and writing.gone_of(InkDrawer, new_keys[0]) == [stroke])
+    check("filing commits nothing",
+          git("rev-parse", "HEAD").stdout.strip() == head)
+    filed = [l for l in inbox(e_dir) if l.get("signal") == "filed"]
+    check("and leaves a [filed] line that wakes nothing",
+          len(filed) == 1 and filed[0]["read"] is True
+          and "courses/Galois/materials/slides.pdf" in filed[0]["text"], filed)
+
+    write(os.path.join(e_dir, "uploads", "scan.png"), b"\x89PNG scan")
+    code, out = board(["file", "uploads/scan.png", "notes/ch7-scan.png",
+                       "--session", e["id"]])
+    check("file takes a relative path inside the subject and --session",
+          code == 0 and os.path.isfile(os.path.join(galois, "notes", "ch7-scan.png")),
+          out)
+    write(os.path.join(e_dir, "uploads", "slides.pdf"), b"%PDF again\n")
+    code, out = board(["file", "slides.pdf"], session=e_dir)
+    check("and refuses a destination already taken",
+          code == 1 and "exists" in out
+          and os.path.isfile(os.path.join(e_dir, "uploads", "slides.pdf")), out)
 
     # ---- the ignore rule and the commit-time gate -----------------------------
     shutil.copytree(os.path.join(ATLAS, ".githooks"), os.path.join(scratch, ".githooks"))

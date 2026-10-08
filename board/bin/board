@@ -99,6 +99,13 @@ The assistant runs these. The student never does.
                                        the session store, sessions/<id>/: a new
                                        session, its session.json, End (the only
                                        thing that ends one), or delete to the trash
+    board bind <subject> [--create] [--phi yes|no] [--session <id>]
+                                       bind this session to courses/<name> or
+                                       projects/<name>; --create makes it first
+                                       (a project needs --phi). Files nothing
+    board file <upload> [materials|<relpath>] [--session <id>]
+                                       move an upload into the bound subject,
+                                       materials/ by default; its ink follows
     board hw [status]                  this sitting's problem set: what is still empty
     board hw list                      every problem set in this repository
     board hw use <name>                say which set this sitting is (hw04, ch07)
@@ -1228,6 +1235,118 @@ def cmd_session(live, args):
     print("board session: new | show [id] | list | end <id> | reopen <id> | "
           "delete <id>", file=sys.stderr)
     return 2
+
+
+def _session_flag(args, who):
+    """`(session id, Atlas root, the other words)`: `--session <id>`, else the
+    session TUTORBOARD_SESSION names, whose Atlas root holds its store."""
+    rest, sid, base = list(args), "", None
+    if "--session" in rest:
+        n = rest.index("--session")
+        if n + 1 >= len(rest):
+            raise sessions.Refused("%s: --session needs an id" % who)
+        sid = rest[n + 1]
+        del rest[n:n + 2]
+    elif sessions.current():
+        sid = sessions.current()
+        here = os.path.abspath(os.environ["TUTORBOARD_SESSION"])
+        base = os.path.dirname(os.path.dirname(here))
+    return sid, base, rest
+
+
+def cmd_bind(live, args):
+    """Bind the session to a subject, making the subject first if asked.
+
+    board bind <subject> [--session <id>]
+        set the session's subject (courses/<name> or projects/<name>) and drop
+        a [bind] line that wakes nothing. Nothing is filed and nothing moves.
+    board bind <subject> --create [--phi yes|no]
+        make the subject, then bind: the slug of the name as its directory,
+        tutorboard.json, a TUTOR.md skeleton, and for --phi yes a .gitignore
+        keeping phi/, results/ and .env out. One commit. A course holds no
+        patient data; a project must say --phi yes or --phi no. With no
+        session, it only makes the subject.
+
+    The session is TUTORBOARD_SESSION's, or --session <id>.
+    """
+    try:
+        sid, base, rest = _session_flag(args, "board bind")
+        create = "--create" in rest
+        rest = [a for a in rest if a != "--create"]
+        phi = None
+        if "--phi" in rest:
+            n = rest.index("--phi")
+            said = rest[n + 1].lower() if n + 1 < len(rest) else ""
+            if said not in ("yes", "no"):
+                print("board bind: --phi yes or --phi no", file=sys.stderr)
+                return 2
+            if not create:
+                print("board bind: --phi goes with --create; an existing "
+                      "subject keeps its own answer", file=sys.stderr)
+                return 2
+            phi = said == "yes"
+            del rest[n:n + 2]
+        if len(rest) != 1:
+            print("usage: board bind <courses/name|projects/name> [--create] "
+                  "[--phi yes|no] [--session <id>]", file=sys.stderr)
+            return 2
+        subject = rest[0]
+        if create:
+            from tutorboard import subjects
+            made, ok, said = subjects.create(subject, phi=phi, base=base)
+            if not ok:
+                print("board bind: %s was not made: %s" % (subject, said),
+                      file=sys.stderr)
+                return 1
+            print("made %s (phi: %s)" % (made["id"], "yes" if phi else "no"))
+            subject = made["id"]
+        if not sid:
+            if create:
+                print("no session to bind; the subject stands on its own")
+                return 0
+            print("board bind: name a session (--session <id>) or run inside "
+                  "one (TUTORBOARD_SESSION)", file=sys.stderr)
+            return 2
+        rec, changed = sessions.bind(sid, subject, base=base)
+        print("%s %s to %s" % ("bound" if changed else "already bound",
+                               rec["id"], rec["subject"]))
+        return 0
+    except (sessions.NoSession, sessions.Refused, ValueError) as exc:
+        print("board bind: %s" % exc, file=sys.stderr)
+        return 1
+
+
+def cmd_file(live, args):
+    """File an upload into the session's subject.
+
+    board file <upload> [materials|<relpath>] [--session <id>]
+
+    Moves <upload> (a name in the session's uploads/) into the bound subject:
+    materials/ by default, or a path inside the subject -- a directory, or the
+    file's new name. Its ink moves from the session to <subject>/.ink/,
+    re-keyed by the new path. Refused for an unbound session, a path that
+    leaves the subject, a hidden or fenced directory, or a name already taken.
+    Nothing is committed.
+    """
+    try:
+        sid, base, rest = _session_flag(args, "board file")
+        if len(rest) not in (1, 2):
+            print("usage: board file <upload> [materials|<relpath>] "
+                  "[--session <id>]", file=sys.stderr)
+            return 2
+        if not sid:
+            print("board file: name a session (--session <id>) or run inside "
+                  "one (TUTORBOARD_SESSION)", file=sys.stderr)
+            return 2
+        got = sessions.file(sid, rest[0], rest[1] if len(rest) == 2 else None,
+                            base=base)
+    except (sessions.NoSession, sessions.Refused) as exc:
+        print("board file: %s" % exc, file=sys.stderr)
+        return 1
+    print("filed %s -> %s/%s" % (got["from"], got["subject"], got["to"]))
+    for old, new in sorted(got["keys"].items()):
+        print("    ink %s -> %s" % (old, new))
+    return 0
 
 
 def cmd_hw(live, args):
@@ -4323,12 +4442,12 @@ COMMANDS = {
     "notes": cmd_notes,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
-    "session": cmd_session,
+    "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
 }
 
 # Commands about a directory or file they are given, not the workspace they run in:
 # no `live/` is made for them.
-NO_LIVE = ("textbook", "build", "session")
+NO_LIVE = ("textbook", "build", "session", "bind", "file")
 
 
 def help_for(cmd, fn):
