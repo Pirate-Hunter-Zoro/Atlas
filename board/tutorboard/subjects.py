@@ -8,11 +8,18 @@ Dot directories are skipped.
 `research/` and `practice/` still read as projects until they merge into
 `projects/` (T29), which also drops them from `DIRS`.
 
+`create(ident, phi)` makes a subject: the directory, tutorboard.json and a
+TUTOR.md skeleton (plus the PHI ignore stanza for a patient-data project), in
+one gitops commit.
+
 Runs on the cluster's python3 (3.7): no walrus, no `match`, no builtin
 generics at runtime.
 """
 
+import json
 import os
+import re
+import shutil
 
 from . import paths
 
@@ -25,6 +32,19 @@ DIRS = (
     ("practice", "project"),
 )
 KINDS = ("course", "project")
+
+# Where `create` makes a subject: only these two, never research/ or practice/.
+CREATE = (("courses", "course"), ("projects", "project"))
+
+# TUTOR.md's sections, in order. `board memo <section>` writes one of them.
+TUTOR_SECTIONS = ("Where things are", "Now", "Open decisions", "Done recently")
+
+# A patient-data project's own .gitignore: what never leaves the machine.
+PHI_IGNORE = ("/phi/", "/results/", ".env")
+
+
+class Refused(ValueError):
+    """A subject that cannot be made as asked; the message says why."""
 
 
 def root():
@@ -128,3 +148,98 @@ def kind_of(path, base=None):
             or parts[1].startswith("."):
         return ""
     return dict(DIRS).get(parts[0], "")
+
+
+def slugify(name):
+    """A directory name from a subject's name: letters and digits, with one
+    dash for every run of anything else. Case is kept (`Galois-Theory`)."""
+    return re.sub(r"[^A-Za-z0-9]+", "-", str(name or "")).strip("-")
+
+
+def _tutor_md(name):
+    out = ["# %s" % name, ""]
+    for section in TUTOR_SECTIONS:
+        out += ["## %s" % section, ""]
+    return "\n".join(out)
+
+
+def create(ident, phi=None, base=None):
+    """Make the subject `ident` (`courses/<name>` or `projects/<name>`) and
+    commit it. `(record, ok, said)`: `record` is the `all()` record.
+
+    The name is slugified into the directory. Refused (`Refused`): an
+    absolute path, a `..` or `.` component, anything but exactly
+    `<courses|projects>/<name>`, a slug some subject already has, a course
+    asked to hold patient data, and a project with no answer for `phi`.
+
+    tutorboard.json holds {name, phi}: `false` for a course; the owner's
+    answer for a project, whose `true` also writes a .gitignore with
+    `PHI_IGNORE`. TUTOR.md is the skeleton of `TUTOR_SECTIONS`. One gitops
+    commit holds all of it; a commit that fails takes the directory away
+    again, so asking twice is safe.
+    """
+    from . import gitops                                     # local: light here
+    base = _base(base)
+    raw = str(ident or "").strip()
+    if not raw:
+        raise Refused("name the subject: courses/<name> or projects/<name>")
+    if os.path.isabs(raw) or raw.startswith("~"):
+        raise Refused("%s: a subject is courses/<name> or projects/<name>, "
+                      "never an absolute path" % raw)
+    parts = raw.replace("\\", "/").rstrip("/").split("/")
+    if any(p in ("..", ".") for p in parts):
+        raise Refused("%s: no `..` or `.` in a subject's name" % raw)
+    if len(parts) != 2 or not parts[1].strip():
+        raise Refused("%s: a subject is courses/<name> or projects/<name>" % raw)
+    kinds = dict(CREATE)
+    if parts[0] not in kinds:
+        raise Refused("%s: subjects are made only under courses/ or projects/"
+                      % raw)
+    kind = kinds[parts[0]]
+    name = parts[1].strip()
+    slug = slugify(name)
+    if not slug:
+        raise Refused("%s: the name has no letter or digit to name a "
+                      "directory by" % raw)
+    for one in walk(base):
+        if one[2].lower() == slug.lower():
+            raise Refused("%s/%s already exists: a slug names one subject"
+                          % (one[0], one[2]))
+    if kind == "course":
+        if phi:
+            raise Refused("a course holds no patient data; make it a project")
+        phi = False
+    elif phi is None:
+        raise Refused("does %s hold patient data? say --phi yes or --phi no"
+                      % name)
+    phi = bool(phi)
+
+    rel = "%s/%s" % (parts[0], slug)
+    where = os.path.join(base, parts[0], slug)
+    if os.path.lexists(where):
+        raise Refused("%s already exists" % rel)
+    os.makedirs(os.path.join(base, parts[0]), exist_ok=True)
+    os.mkdir(where)
+    made = []
+
+    def put(fname, text):
+        with open(os.path.join(where, fname), "w", encoding="utf-8") as fh:
+            fh.write(text)
+        made.append("%s/%s" % (rel, fname))
+
+    try:
+        put("tutorboard.json",
+            json.dumps({"name": name, "phi": phi}, indent=2) + "\n")
+        if phi:
+            put(".gitignore", "\n".join(PHI_IGNORE) + "\n")
+        put("TUTOR.md", _tutor_md(name))
+    except OSError:
+        shutil.rmtree(where, ignore_errors=True)
+        raise
+    ok, said = gitops.commit(base, made, "%s: a new %s%s" % (
+        rel, kind, " that holds patient data" if phi else ""))
+    if not ok:
+        gitops._git(base, "reset", "-q", "--", *made)
+        shutil.rmtree(where, ignore_errors=True)
+        return None, False, said
+    return _record(parts[0], kind, slug, where), True, said

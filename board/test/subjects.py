@@ -184,6 +184,61 @@ try:
     check("phi stays literal: a string is not an answer",
           config.read_config(mk(tmp, "projects/Str", {"phi": "false"}))["phi"]
           is None)
+
+    # --- create -------------------------------------------------------------
+    import subprocess
+    gen = os.path.join(tmp, "gen")
+    os.makedirs(gen)
+    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    env.pop("TUTORBOARD_TURN", None)
+
+    def git(*args):
+        return subprocess.run(["git"] + list(args), cwd=gen, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              universal_newlines=True)
+    git("init", "-q")
+    git("commit", "-q", "--allow-empty", "-m", "fixture")
+    mk(gen, "research/Old")
+    os.environ.update({k: env[k] for k in env if k.startswith("GIT_")})
+    check("slugify keeps case and makes one dash of every other run",
+          subjects.slugify("Algebraic  Topology: I") == "Algebraic-Topology-I"
+          and subjects.slugify("../x") == "x")
+
+    def refused(ident, phi=None):
+        try:
+            subjects.create(ident, phi=phi, base=gen)
+        except subjects.Refused as exc:
+            return str(exc)
+        return ""
+    for bad in ("../x", "/abs", "research/x", "practice/x", "courses/a/b",
+                "courses/..", "courses/", "~/x", "courses/!!!", "projects/Old"):
+        check("create refuses %r" % bad, bool(refused(bad, phi=False)))
+    check("a project with no phi answer is refused, asking it",
+          "patient data" in refused("projects/P"))
+    check("a course is never phi true", bool(refused("courses/C", phi=True)))
+    check("and none of the refusals made a directory or a commit",
+          sorted(os.listdir(gen)) == [".git", "research"]
+          and git("rev-list", "--count", "HEAD").stdout.strip() == "1")
+    rec, ok, said = subjects.create("courses/Point Set Topology", base=gen)
+    check("create makes the slug's directory and returns its record",
+          ok and rec["id"] == "courses/Point-Set-Topology"
+          and rec["name"] == "Point Set Topology" and rec["kind"] == "course")
+    check("in one commit", git("rev-list", "--count", "HEAD").stdout.strip() == "2"
+          and git("status", "--porcelain").stdout == "")
+    check("and the new subject is listed",
+          "courses/Point-Set-Topology" in [s["id"] for s in subjects.all(gen)])
+    rec, ok, said = subjects.create("projects/Clinic", phi=True, base=gen)
+    ign = open(os.path.join(gen, "projects", "Clinic", ".gitignore")).read()
+    check("a patient-data project carries the PHI ignore stanza",
+          ok and ign.split() == ["/phi/", "/results/", ".env"]
+          and git("check-ignore", "-q", "projects/Clinic/phi/x").returncode == 0)
+    rec, ok, said = subjects.create("projects/Open", phi=False, base=gen)
+    check("a project with phi false has no stanza and says false",
+          ok and not os.path.exists(os.path.join(gen, "projects", "Open", ".gitignore"))
+          and config.read_config(rec["root"])["phi"] is False)
+    check("a slug is one subject, whatever its case or parent",
+          bool(refused("courses/open", phi=False)))
 finally:
     os.environ.pop("TUTORBOARD_COURSES", None)
     atlas.forget()
