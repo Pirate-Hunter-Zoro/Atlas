@@ -2,15 +2,20 @@
    sw.js -- service worker.
 
    Its only job is to make the app shell open instantly and survive a dropped
-   connection: HTML, CSS, JS, icons, and the KaTeX fonts are cached, so the
-   board opens on the iPad even before the Tailscale link has come back up.
+   connection: the pages, CSS, JS and icons in SHELL, and the fonts and KaTeX,
+   are cached, so the board opens on the iPad before the Tailscale link is back.
 
-   It deliberately does NOT touch anything live. The SSE stream, the board
-   payload, uploads, slate saves, and compiled figures all go straight to the
-   network -- a cached lesson is a stale lesson, which is worse than none.
+   AN ALLOWLIST, NOT A DENYLIST. Only an exact SHELL path, a font or a KaTeX
+   file is ever answered here; every other request goes to the network
+   untouched. A cached lesson, document or figure is a stale one, worse than
+   none, and a new live route must not need a line here to be left alone.
+
+   VERSION IS WRITTEN BY THE SERVER. `routes/pages.py` serves this file with
+   the literal below replaced by a hash of every SHELL file, so any edit to the
+   shell installs a new worker and a new cache by itself.
    ========================================================================== */
 
-var VERSION = "board-shell-v208";
+var VERSION = "board-shell-dev";
 
 var SHELL = [
   "/",
@@ -47,7 +52,6 @@ var SHELL = [
   "/static/ledger.css",
   "/static/calc-core.js",
   "/static/calc.js",
-  "/static/mathjs/math.js",
   "/static/slate.js",
   "/static/katex/katex.min.css",
   "/static/katex/katex.min.js",
@@ -58,51 +62,14 @@ var SHELL = [
   "/icon-512.png",
 ];
 
-/* KaTeX pulls its fonts lazily; they are cached on first use rather than
-   listed here, because which faces a lesson needs depends on the mathematics. */
-var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
+/* Cache-first, and cached on first use rather than listed: they never change
+   under one name, and which font faces a lesson needs depends on its maths. */
+var RUNTIME = /^\/static\/(katex|fonts)\//;
 
-/* Never intercepted. Live data, or a stream that must not be buffered. */
-/* `health` and `hosts.json` are here for the same reason as the rest: the hub
-   polls /health to find out whether a switch has actually landed, and an
-   answer out of a cache would say the address is still where it was. */
-/* AND THE DOCUMENTS, which had been falling through to the shell rule -- the
-   one that caches any 200 it sees. Two things wrong with that and both of them
-   bite the person holding the iPad. A lesson transcript is megabytes, and the
-   shell cache is inside the origin's storage allowance alongside the app itself,
-   so a few exports could push the app out of its own cache. And a document is
-   rebuilt at the SAME URL every time: `/download/homework` is whatever the last
-   compile produced, so a cached one served while the link is briefly down is
-   last week's write-up wearing this week's name. That is the same mistake as a
-   cached lesson, made one layer down, and this file's own rule against it is
-   the reason it is here. `/view/` renders and `/paper/` is content-addressed by
-   the PDF's modification time -- neither wants the shell's cache-then-serve. */
-/* AND `/doc/`, WHICH IS THE SAME MISTAKE IN THE THIRD PLACE, and the one every
-   change above makes bite. `/doc/<id>/<page>.png` is deliberately the STABLE
-   address of a page -- `routes/taking.py` refuses to cache it server-side for
-   exactly that reason, because a card written last month has to survive the deck
-   being rebuilt -- so it fell through to the shell rule, which caches any 200 it
-   sees. A document revised on feedback is rebuilt at the same name, and the
-   person who asked for the change was then served the page they asked to have
-   changed. `/library/` goes with it: the list, and the pages of a document read
-   from it, are live for the same reason. */
-/* AND `/result/`, which is the same mistake waiting in a third place. A figure
-   out of a workspace is REBUILT AT THE SAME NAME by the next job -- the id is
-   derived from the path, so `propensity_by_arm.png` is a new picture under an
-   old address every time the pipeline runs. A cached one is last week's result
-   wearing this week's label, which is the one failure a figure on a board must
-   not have: it is being looked at to decide something. */
-/* AND THE DECK'S OWN DATA, which is the same mistake again. There is one
-   deck at one path and it is REPLACED rather than versioned, so
-   `/meeting/view`, `/meeting/deck.json` and `/meeting/pdf` are all stable
-   addresses whose contents change under them -- a cached one is last week's
-   meeting wearing this week's name, in front of this week's mentors. The
-   page `/meeting` itself is shell and is cached; its contents are not. */
-/* AND A MISSION'S PROGRESS, for the same reason. `/mission` and `/missions` are
-   stable addresses whose contents change under them every few minutes -- what a
-   job has done since you last looked is the whole point of asking -- and a
-   cached one says the mission has been idle for an hour when it has not. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|mission|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|shelf\.json|meeting\/)/;
+/* SHELL as a set of exact pathnames. A query string is not part of the match,
+   because a home-screen icon can carry one. */
+var IN_SHELL = {};
+SHELL.forEach(function (u) { IN_SHELL[u] = true; });
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
@@ -131,20 +98,24 @@ self.addEventListener("fetch", function (e) {
   var url;
   try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== self.location.origin) return;
-  if (LIVE.test(url.pathname)) return;
 
   if (RUNTIME.test(url.pathname)) {
     e.respondWith(
       caches.match(req).then(function (hit) {
         return hit || fetch(req).then(function (res) {
-          var copy = res.clone();
-          caches.open(VERSION).then(function (c) { c.put(req, copy); });
+          if (res && res.status === 200) {
+            var copy = res.clone();
+            caches.open(VERSION).then(function (c) { c.put(req, copy); });
+          }
           return res;
         });
       })
     );
     return;
   }
+
+  /* Anything not in the shell is the network's, untouched. */
+  if (!IN_SHELL[url.pathname]) return;
 
   /* Shell: network first so a redeployed board is picked up on the next open,
      cache as the fallback when the node is unreachable. */

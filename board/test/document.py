@@ -348,7 +348,7 @@ def main():
             self.sent = None
 
         def send_bytes(self, body, ctype, cache=False, nosniff=False,
-                       extra=None, status=200):
+                       extra=None, status=200, gzip_key=None):
             self.sent = {"len": len(body), "ctype": ctype, "extra": extra,
                          "status": status}
 

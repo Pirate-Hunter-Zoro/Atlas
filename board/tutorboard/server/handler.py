@@ -8,6 +8,7 @@ plumbing they all use and the order they are asked in.
 """
 
 import sys
+import gzip
 import json
 import mimetypes
 import os
@@ -80,10 +81,53 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     # -- helpers ---------------------------------------------------------
-    def send_bytes(self, data, ctype, cache=False, status=200, nosniff=False, extra=None):
+    # Text assets go out gzipped when the client says it takes gzip: board.js
+    # alone is over half a megabyte, and the iPad fetches it over Tailscale.
+    # Each is compressed once per content, held by slot and stamp (a file's
+    # path and mtime), and replaced when the stamp moves.
+    GZIP_TYPES = ("text/html", "text/css", "text/javascript", "application/javascript",
+                  "application/x-javascript")
+    _gzipped = {}
+
+    def accepts_gzip(self):
+        for part in ((self.headers or {}).get("Accept-Encoding") or "").split(","):
+            bits = [b.strip() for b in part.split(";")]
+            if bits[0].lower() != "gzip":
+                continue
+            for b in bits[1:]:
+                if b.replace(" ", "").startswith("q="):
+                    try:
+                        return float(b.split("=", 1)[1]) > 0
+                    except ValueError:
+                        return False
+            return True
+        return False
+
+    def gzipped(self, data, gzip_key):
+        slot, stamp = gzip_key
+        held = self._gzipped.get(slot)
+        if held and held[0] == stamp:
+            return held[1]
+        packed = gzip.compress(data, compresslevel=9, mtime=0)
+        self._gzipped[slot] = (stamp, packed)
+        return packed
+
+    def send_bytes(self, data, ctype, cache=False, status=200, nosniff=False, extra=None,
+                   gzip_key=None):
+        """`gzip_key` is (slot, stamp): set, a text asset may go out gzipped."""
+        compressible = (gzip_key is not None
+                        and ctype.split(";")[0].strip().lower() in self.GZIP_TYPES)
+        packed = compressible and self.accepts_gzip()
+        if packed:
+            data = self.gzipped(data, gzip_key)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        if compressible:
+            # Either body can go out at this URL, so a cache keys on what was asked.
+            self.send_header("Vary", "Accept-Encoding")
+        if packed:
+            self.send_header("Content-Encoding", "gzip")
         if nosniff:
             self.send_header("X-Content-Type-Options", "nosniff")
         if extra:
@@ -135,8 +179,13 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "application/octet-stream"
             extra = ("Content-Disposition",
                      'attachment; filename="%s"' % os.path.basename(path))
+        gzip_key = None
+        if not untrusted and not download:
+            st = os.stat(path)
+            gzip_key = (path, (st.st_mtime_ns, st.st_size))
         with open(path, "rb") as fh:
-            self.send_bytes(fh.read(), ctype, cache=cache, nosniff=untrusted, extra=extra)
+            self.send_bytes(fh.read(), ctype, cache=cache, nosniff=untrusted, extra=extra,
+                            gzip_key=gzip_key)
 
     MAX_BODY = 64 * 1024 * 1024   # a slate page is ~200 KB; this is generous
 

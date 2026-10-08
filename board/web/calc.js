@@ -7,8 +7,8 @@
    behind it.
 
    The mathematics is calc-core.js on top of math.js. math.js is 650 KB, so it
-   is fetched the first time the panel opens rather than with the page; sw.js
-   precaches it, so that fetch works offline.
+   is fetched the first time the panel opens rather than with the page, and
+   sw.js does not precache it: the calculator needs the board reachable.
 
    History, variables, Ans, DEG/RAD, where the panel was and whether it was
    open are kept in localStorage under one key. Storage that refuses (a

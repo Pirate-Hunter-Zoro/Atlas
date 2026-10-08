@@ -159,6 +159,44 @@ function ask(handlers, url, init) {
     ? ok('and is listed in the shell, so it is there after one visit')
     : fail('/library is not in SHELL');
 
+  // 8. AN ALLOWLIST: only an exact SHELL path, a font or KaTeX is ever matched
+  //    against the cache. Anything else is the network's, even with a copy of
+  //    it sitting in the cache and the network gone.
+  const stale = new Response('stale');
+  const tried = [];
+  for (const p of ['/archive/x', '/atlas.json', '/map/inside/x', '/notes/what',
+                   '/board/extra', '/static/mathjs/math.js', '/static/unlisted.js']) {
+    const store = {};
+    store[p] = stale;
+    let s;
+    ({ handlers, ctx: s } = scope(store));
+    const match = s.caches.match;
+    s.caches.match = (...a) => { tried.push(p); return match(...a); };
+    res = ask(handlers, base + p, { navigate: true });
+    res === undefined
+      ? ok(p + ' is never answered by the worker')
+      : fail('the worker answered ' + p);
+  }
+  tried.length === 0
+    ? ok('and none of them was ever matched against the cache')
+    : fail('cache-matched: ' + tried.join(', '));
+
+  // While the fonts and KaTeX are answered from the cache first.
+  ({ handlers } = scope({ '/static/katex/fonts/KaTeX_Main-Regular.woff2':
+                          new Response('font') }));
+  res = await ask(handlers, base + '/static/katex/fonts/KaTeX_Main-Regular.woff2');
+  /font/.test(res ? await res.text() : '')
+    ? ok('a KaTeX font is answered from the cache')
+    : fail('a cached KaTeX font was not used');
+
+  // VERSION is the server's to write; the source holds the placeholder it replaces.
+  /var VERSION = "board-shell-dev";/.test(SRC)
+    ? ok('VERSION is a placeholder the server fills with a hash of the shell')
+    : fail('sw.js lost its VERSION placeholder');
+  !/mathjs/.test(SRC)
+    ? ok('and math.js is not precached; the calculator loads it when opened')
+    : fail('math.js is still precached');
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nan unreachable board still paints something');
   process.exit(errors.length ? 1 : 0);

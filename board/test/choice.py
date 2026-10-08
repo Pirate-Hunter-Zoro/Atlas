@@ -26,6 +26,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import sys
 import time
 
@@ -319,7 +320,8 @@ check("the hub offers no machine to pick, because there is one",
                        encoding="utf-8").read().splitlines()))
 sw_src = open(os.path.join(ROOT, "web", "sw.js"), encoding="utf-8").read()
 check("the health check is never answered out of the cache",
-      "health" in sw_src.split("var LIVE")[1].split("\n")[0])
+      '"/health"' not in sw_src.split("var SHELL")[1].split("];")[0]
+      and "health" not in re.search(r"var RUNTIME = (.*);", sw_src).group(1))
 
 print("\n%d FAILURES" % len(errors) if errors
       else "\nthe address opens the course somebody chose")

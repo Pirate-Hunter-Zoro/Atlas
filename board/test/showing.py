@@ -54,6 +54,7 @@ from tutorboard import fenced, sense                              # noqa: E402
 from tutorboard.course import results, repo as course_repo        # noqa: E402
 from tutorboard.server.handler import Handler                     # noqa: E402
 from tutorboard.server.hub import Hub                             # noqa: E402
+from tutorboard.server.routes import pages                        # noqa: E402
 from tutorboard.server.tikz import TikzWorker                     # noqa: E402
 
 fails = []
@@ -330,13 +331,15 @@ check("a workspace with no results sends nothing rather than an empty group",
       and sense.results_sense(type("R", (), {"root": empty})()) == "")
 
 sw = open(os.path.join(ROOT, "web", "sw.js"), encoding="utf-8").read()
-live = re.search(r"var LIVE = /(.+)/;", sw)
-check("the service worker sends the figure route to the network, always",
-      bool(live) and re.match(live.group(1), "/result/anything"))
-check("which is the rule it already has for a document rebuilt at one name",
-      bool(live) and re.match(live.group(1), "/download/homework"))
-check("and the shell version was bumped, or the app serves its cached copy",
-      'VERSION = "board-shell-v' in sw)
+shell = pages.shell_urls(sw)
+runtime = re.search(r"var RUNTIME = /(.+)/;", sw)
+check("the service worker answers only its shell and its fonts",
+      bool(shell) and runtime is not None)
+for path in ("/result/anything", "/download/homework"):
+    check("so %s is the network's, always" % path,
+          path not in shell and not re.match(runtime.group(1), path))
+check("and /sw.js goes out with a VERSION hashed from that shell",
+      re.search(rb'"board-shell-[0-9a-f]{16}"', get(PORT, "/sw.js")[2]) is not None)
 
 
 # ---------------------------------------------------------------------------
@@ -609,8 +612,8 @@ check("nor readable by the id it would have had, either kind",
 
 check("the service worker sends the table route to the network too, because a "
       "job rewrites a result under the name it already had",
-      bool(live) and re.match(live.group(1), "/library/table/anything")
-      and re.match(live.group(1), "/library/results.json"))
+      all(p not in shell and not re.match(runtime.group(1), p)
+          for p in ("/library/table/anything", "/library/results.json")))
 
 shutil.rmtree(TMP, ignore_errors=True)
 
