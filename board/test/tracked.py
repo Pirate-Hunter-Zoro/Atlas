@@ -87,9 +87,8 @@ for msg in audit.check(files, HERE):
 
 # ---- the directories that live inside the tree and must stay invisible -----
 #
-# A subject's phi/ and results/ belong with the subject, and a course's
-# repository belongs where the course is, so these may be on disk here -- and
-# git must not be able to see one byte of any of them. Found by discovery, so a
+# A subject's phi/ and results/ belong with the subject, so they may be on disk
+# here -- and git must not be able to see one byte of any of them. Found by discovery, so a
 # new subject's phi/ is guarded the day it is made; none on disk is a fresh
 # clone and is fine. Git is asked, rather than the ignore file believed.
 _HELD = audit.held(HERE)
@@ -105,12 +104,6 @@ if _FOUND:
 else:
     ok("no phi/ or results/ directory on disk, so there is none to hide")
 
-# Each course must carry its own `.git`: without one it is an orphan tree whose
-# only protection is the ignore rule, and nothing pushes its work anywhere.
-_COURSES = os.path.join(HERE, "courses")
-for msg in audit.courses_without_git(HERE):
-    fail(msg)
-
 # ---- A MISSION'S PROGRESS TRAIL IS WORDS ABOUT FENCED WORK ----------------
 #
 # `progress.py` writes one file per mission under `live/missions/`, and what
@@ -120,10 +113,10 @@ for msg in audit.courses_without_git(HERE):
 # a tracked file, and it is not kept out by being small or by nobody thinking
 # about it: `live/*` in every workspace excludes it.
 #
-# THAT IS NOT OBVIOUS AND IS WHY IT IS ASSERTED. A course lets some of `live/`
-# back in -- `!live/cards/`, `!live/state.json`, `!live/turns.jsonl` -- so the
-# question "is a path under `live/` ignored" has a different answer in each
-# workspace and none of them is "yes, by construction".
+# THAT IS NOT OBVIOUS AND IS WHY IT IS ASSERTED. A workspace may let some of
+# `live/` back in -- `!live/cards/`, `!live/state.json`, `!live/turns.jsonl` --
+# so the question "is a path under `live/` ignored" has a different answer in
+# each workspace and none of them is "yes, by construction".
 #
 # GIT IS ASKED, and asked about a path that does not exist: `check-ignore`
 # answers off the rules rather than off the filesystem, so this writes nothing
@@ -140,16 +133,7 @@ for _ws in sorted(os.listdir(HERE)) if HERE else []:
             continue
         _rel = os.path.join(_ws, _name, _TRAIL)
         checked += 1
-        # A workspace with its own `.git` is asked in its own repository.
-        # Asked from Atlas, `/courses/*/` ignores the whole course and the
-        # answer is yes for every path, which tests nothing; the course's own
-        # `live/*` rule is the one that decides whether its repository tracks
-        # the trail.
-        if os.path.exists(os.path.join(_root, ".git")):
-            _ask, _where = _TRAIL, _root
-        else:
-            _ask, _where = _rel, HERE
-        if subprocess.run(["git", "check-ignore", "-q", _ask], cwd=_where,
+        if subprocess.run(["git", "check-ignore", "-q", _rel], cwd=HERE,
                           stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL).returncode != 0:
             fail("GIT CAN SEE %s. That file is a mission's progress trail -- "
@@ -160,31 +144,47 @@ for _ws in sorted(os.listdir(HERE)) if HERE else []:
                  "in without narrowing it." % _rel)
 
 
-# ---- A COURSE REPOSITORY CARRIES ITS OWN IGNORE RULES -----------------------
+# ---- A COURSE IS TRACKED CONTENT UNDER THE ROOT'S RULES ---------------------
 #
-# A nested repository never reads Atlas's root `.gitignore`. So every generic
-# rule Atlas relies on -- relay state, NFS litter, the assistant's own
-# `.claude/`, credentials, LaTeX droppings -- has to be in each course's own
-# `.gitignore`, or the first save in that course commits it. Asked of git, on
-# paths that do not exist, for the same reason as the trail above.
+# A course is a directory in Atlas like any project, so the root .gitignore is
+# its whole ignore set: relay state, NFS litter, the assistant's `.claude/`,
+# credentials and LaTeX droppings must be ignored inside one, and the owner's
+# own write-ups must not be. Asked of git, on paths that do not exist, for the
+# same reason as the trail above.
+_COURSES = os.path.join(HERE, "courses")
 _COURSE_IGNORED = (
     os.path.join("relay", "state", "x.exit"),
     ".nfs0001",
     os.path.join(".claude", "settings.json"),
     "keys.env", ".env", "a.key",
-    "x.aux", "x.synctex.gz")
+    "x.aux", "x.synctex.gz", "x.pdf",
+    os.path.join("textbook", "book.tex"),
+    os.path.join("chapters", "ch01-x", "reading", "ch01.tex"),
+    os.path.join("chapters", "ch01-x", "lectures", "deck.tex"),
+    os.path.join("homework", "hw01", "assignment", "sheet.tex"))
+_COURSE_KEPT = (
+    os.path.join("chapters", "ch01-x", "homework", "ch01-homework.tex"),
+    os.path.join("chapters", "ch01-x", "handwritten", "p1.png"),
+    os.path.join("homework", "hw01", "hw01.tex"),
+    "tutorboard.json")
 for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
-    _croot = os.path.join(_COURSES, _c)
-    if not os.path.exists(os.path.join(_croot, ".git")):
-        continue                       # refused above, as an orphan tree
-    for _p in _COURSE_IGNORED:
+    if _c.startswith(".") or not os.path.isdir(os.path.join(_COURSES, _c)):
+        continue
+    if os.path.exists(os.path.join(_COURSES, _c, ".git")):
+        fail("courses/%s has a .git of its own. A course is plain content in "
+             "Atlas; a nested repository hides it from every commit." % _c)
+    for _p, _want in ([(p, True) for p in _COURSE_IGNORED]
+                      + [(p, False) for p in _COURSE_KEPT]):
         checked += 1
-        if subprocess.run(["git", "-C", _croot, "check-ignore", "-q", _p],
-                          stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL).returncode != 0:
-            fail("courses/%s's own git can see %s. A course repository reads "
-                 "only its own .gitignore, never Atlas's, so that rule has to "
-                 "be in courses/%s/.gitignore." % (_c, _p, _c))
+        _rel = os.path.join("courses", _c, _p)
+        _said = subprocess.run(["git", "check-ignore", "-q", "--no-index",
+                                _rel], cwd=HERE, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL).returncode == 0
+        if _said != _want:
+            fail("git %s %s. A course reads Atlas's root .gitignore and its "
+                 "own, and that path should be %s."
+                 % ("ignores" if _said else "can see", _rel,
+                    "ignored" if _want else "trackable"))
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +268,45 @@ try:
         ok("and once ignored, git is blind to it and the check passes")
     else:
         fail("an ignored phi/ was still reported as visible")
+finally:
+    shutil.rmtree(_box, ignore_errors=True)
+
+
+# ---- a course's third-party shapes, forced past the ignore rules ------------
+#
+# `git add -f` walks past every ignore rule, so the audit is what stops a
+# textbook or an assignment sheet. Both the commit-time gate and the scan of
+# the index must refuse them, and pass the owner's write-up beside them.
+_box = tempfile.mkdtemp(prefix="tutor-forced-")
+try:
+    git(_box, "init", "-q")
+    shutil.copyfile(os.path.join(HERE, ".gitignore"),
+                    os.path.join(_box, ".gitignore"))
+    _forced = ("courses/X/textbook/a.pdf",
+               "courses/X/chapters/ch01/homework/assignment-sheet/p.png")
+    _own = "courses/X/chapters/ch01/homework/ch01-homework.tex"
+    for _p in _forced + (_own,):
+        put(os.path.join(_box, _p), "x\n")
+    git(_box, "add", _own)
+    if git(_box, "add", *_forced).returncode == 0:
+        fail("the root .gitignore let a course textbook or assignment sheet "
+             "be added without -f")
+    git(_box, "add", "-f", *_forced)
+    _gate = audit.gate(_box, _box, False)
+    _miss = [p for p in _forced if not any(p in r for r in _gate)]
+    if _miss or any(_own in r for r in _gate):
+        fail("the commit-time gate did not refuse exactly the forced course "
+             "shapes: %r" % _gate)
+    else:
+        ok("the commit-time gate refuses a forced textbook PDF and assignment "
+           "sheet in a course, and passes the write-up beside them")
+    git(_box, "commit", "-q", "--no-verify", "-m", "forced")
+    _said = audit.check(git(_box, "ls-files").stdout.decode().split(), _box)
+    if all(any(p in r for r in _said) for p in _forced) and \
+            not any(_own in r for r in _said):
+        ok("and once committed anyway, the index scan refuses both")
+    else:
+        fail("the index scan missed a forced course shape: %r" % _said)
 finally:
     shutil.rmtree(_box, ignore_errors=True)
 

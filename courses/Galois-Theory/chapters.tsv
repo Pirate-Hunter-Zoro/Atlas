@@ -1,0 +1,29 @@
+# Single source of truth for the chapter layout of this course.
+# Used by scripts/split-textbook.sh, scripts/scaffold.sh and the Makefile.
+#
+# Columns (TAB separated):
+#   num  first_pdf_page  last_pdf_page  slug  title
+#
+# Page numbers are PDF page indices into textbook/A Course in Galois Theory.pdf
+# (NOT the book's printed page numbers; the offset is 11 for Part 1 and 12 for
+# Part 2). Verified against the chapter opening pages of the scan.
+01	12	22	groups-fields-and-vector-spaces	Groups, fields and vector spaces
+02	23	26	axiom-of-choice-and-zorns-lemma	The axiom of choice, and Zorn's lemma
+03	27	45	rings	Rings
+04	48	57	field-extensions	Field extensions
+05	58	62	tests-for-irreducibility	Tests for irreducibility
+06	63	67	ruler-and-compass-constructions	Ruler-and-compass constructions
+07	68	79	splitting-fields	Splitting fields
+08	80	86	algebraic-closure-of-a-field	The algebraic closure of a field
+09	87	90	normal-extensions	Normal extensions
+10	91	99	separability	Separability
+11	100	109	automorphisms-and-fixed-fields	Automorphisms and fixed fields
+12	110	115	finite-fields	Finite fields
+13	116	118	theorem-of-the-primitive-element	The theorem of the primitive element
+14	119	126	cubics-and-quartics	Cubics and quartics
+15	127	131	roots-of-unity	Roots of unity
+16	132	139	cyclic-extensions	Cyclic extensions
+17	140	147	solution-by-radicals	Solution by radicals
+18	148	155	transcendental-elements-and-algebraic-independence	Transcendental elements and algebraic independence
+19	156	163	some-further-topics	Some further topics
+20	164	171	calculation-of-galois-groups	The calculation of Galois groups

@@ -707,7 +707,8 @@ for ws in ("research/TRD-EHR", "research/PSYCH-ASR", "projects/libr-local-llm"):
 # Fail closed: exactly the subjects that say `"phi": false` at HEAD are open,
 # and only with the lab's policy loaded. Without ai-config, none is.
 OPEN = {"projects/Paper-Writer", "practice/Algo-Solutions",
-        "practice/Lean-Theorem-Proving"}
+        "practice/Lean-Theorem-Proving", "courses/Galois-Theory",
+        "courses/Probability"}
 atlas.forget()
 policy = callable(holds._policy(REPO))
 found = {w["id"]: holds.output_open(w["root"])

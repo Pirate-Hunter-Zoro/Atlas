@@ -1,0 +1,282 @@
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{lmodern}
+
+\definecolor{band}{RGB}{38,70,110}
+\definecolor{rule}{RGB}{205,212,222}
+
+\setlength{\parindent}{0pt}
+\pagestyle{empty}
+
+% A section: a dark band with the title in white.
+\newcommand{\band}[1]{%
+  \par\vspace{14pt}%
+  \noindent\colorbox{band}{\parbox{\dimexpr\textwidth-2\fboxsep}{%
+    \vspace{3pt}\large\bfseries\color{white}#1\vspace{3pt}}}%
+  \par\vspace{6pt}}
+
+% A topic list: each row is its own one-line table -- name on the left, the
+% fact on the right, a light rule under it -- so a section breaks across pages
+% between rows instead of jumping whole to the next page.
+\newenvironment{facts}{\par}{\par}
+\newcommand{\row}[2]{%
+  {\renewcommand{\arraystretch}{1.9}\arrayrulecolor{rule}%
+   \noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries\raggedright}p{1.55in}X@{}}
+   #1 & #2 \\ \hline
+   \end{tabularx}\par}}
+
+\begin{document}
+\newgeometry{margin=0.7in}
+
+\begin{center}
+  {\LARGE\bfseries Exam 1 --- Formula Sheet}\\[4pt]
+  {\large Chapters 1--3}
+\end{center}
+
+% ===========================================================================
+\band{Which tool? Find the problem, then the section}
+
+\begin{facts}
+\row{``Given that\ldots''}{Conditional probability, or Bayes if the question is
+  reversed (\S1).}
+\row{Several boxes, coins, typists}{Condition on which one: total probability,
+  then Bayes (\S1).}
+\row{``Expected number of\ldots''}{Write it as a sum of indicators, then use
+  linearity (\S2).}
+\row{Variance of a count}{Indicators again, with
+  $\Var\sum = \sum\Var + 2\sum\Cov$ (\S2).}
+\row{An MGF is given}{Factor it into known MGFs; uniqueness names the
+  distribution (\S4, table on the last page).}
+\row{``Bound'' the probability}{Markov if $X \ge 0$; Chebyshev if you know the
+  variance (\S3).}
+\row{``Approximate'', a sum of many}{CLT: answer in terms of $\Phi$ (\S3).}
+\row{New variables from old}{Jacobian change of variables (\S2).}
+\row{``Until'', repeat, restart}{First-step analysis: condition on the first
+  trial (\S5).}
+\row{Random number of terms}{Random-sum formulas (\S5).}
+\row{Poisson count, each kept w.p.\ $p$}{Thinning: kept is $\Poisson{\lambda p}$
+  (\S5).}
+\end{facts}
+
+% ===========================================================================
+\band{\S1 \quad Events and probability}
+
+\begin{facts}
+\row{Axioms}{$0 \le P(E) \le 1$, \quad $P(S) = 1$, \quad
+  $P\big(\bigcup E_i\big) = \sum P(E_i)$ for disjoint $E_i$.}
+\row{Complement}{$P(E^c) = 1 - P(E)$}
+\row{Monotone}{$E \subseteq F \implies P(E) \le P(F)$. \quad Proof: $F = E \cup
+  FE^c$, disjoint.}
+\row{Union of two}{$P(E \cup F) = P(E) + P(F) - P(EF)$}
+\row{Union of three}{$P(E\cup F\cup G) = P(E)+P(F)+P(G) - P(EF)-P(EG)-P(FG) +
+  P(EFG)$}
+\row{Boole}{$P\big(\bigcup E_i\big) \le \sum P(E_i)$}
+\row{Bonferroni}{$P(EF) \ge P(E) + P(F) - 1$}
+\row{Conditional}{$P(E \mid F) = \dfrac{P(EF)}{P(F)}$}
+\row{Multiplication}{$P(EF) = P(F)\,P(E \mid F)$}
+\row{Total probability}{$P(E) = \sum_i P(E \mid F_i)\,P(F_i)$ \quad for a
+  partition $F_1, F_2, \ldots$}
+\row{Bayes}{$P(F_j \mid E) = \dfrac{P(E \mid F_j)\,P(F_j)}
+  {\sum_i P(E \mid F_i)\,P(F_i)}$}
+\row{Independent}{$P(EF) = P(E)\,P(F)$}
+\row{$E$ before $F$}{Repeated independent trials, $E$ and $F$ disjoint: \quad
+  $\dfrac{P(E)}{P(E) + P(F)}$}
+\end{facts}
+
+% ===========================================================================
+\band{\S2 \quad Random variables}
+
+\begin{facts}
+\row{CDF}{$F(b) = P(X \le b)$. \quad $P(a < X \le b) = F(b) - F(a)$.}
+\row{Expectation}{$E[X] = \sum x\,p(x)$ \quad or \quad $\int x f(x)\,dx$}
+\row{Function of $X$}{$E[g(X)] = \sum g(x)\,p(x)$ \quad or \quad
+  $\int g(x) f(x)\,dx$}
+\row{Linearity}{$E[aX + bY + c] = a\,E[X] + b\,E[Y] + c$ \quad (always; no
+  independence needed)}
+\row{Variance}{$\Var(X) = E[X^2] - (E[X])^2$, \qquad $\Var(aX + b) = a^2\Var(X)$}
+\row{Covariance}{$\Cov(X,Y) = E[XY] - E[X]\,E[Y]$. \quad Independent $\implies 0$.}
+\row{Covariance rules}{$\Cov(cX, Y) = c\Cov(X,Y)$, \qquad
+  $\Cov(X + Y, Z) = \Cov(X,Z) + \Cov(Y,Z)$}
+\row{Variance of a sum}{$\Var\big(\sum X_i\big) = \sum \Var(X_i) + 2\sum_{i<j}
+  \Cov(X_i, X_j)$}
+\row{Indicator $I_A$}{$E[I_A] = P(A)$, \quad $\Var(I_A) = P(A)\big(1 - P(A)\big)$,
+  \quad $\Cov(I_A, I_B) = P(AB) - P(A)P(B)$}
+\row{Tail formula}{$X \in \{0,1,2,\ldots\}$: \quad
+  $E[X] = \sum_{n \ge 1} P(X \ge n)$}
+\row{Marginal}{$f_X(x) = \int f(x,y)\,dy$}
+\row{Independent}{$f(x,y) = f_X(x)\,f_Y(y)$ everywhere. A non-rectangular region
+  means \emph{not} independent.}
+\row{Sum of independent}{$f_{X+Y}(a) = \int f_X(a - y)\,f_Y(y)\,dy$}
+\row{Max of $n$ iid}{$P(\max \le x) = F(x)^n$ \qquad Min: \
+  $P(\min > x) = \big(1 - F(x)\big)^n$}
+\row{Records}{$P(\text{record at time } n) = 1/n$, and the record indicators are
+  independent.}
+\end{facts}
+
+\vspace{6pt}
+\textbf{Change of variables.} \ $Y_1 = g_1(X_1, X_2)$, $Y_2 = g_2(X_1, X_2)$.
+Solve for $x_1, x_2$ in terms of $y_1, y_2$. Then
+\[
+  f_{Y_1,Y_2}(y_1, y_2) = \frac{f_{X_1,X_2}(x_1, x_2)}{|J|},
+  \qquad
+  J = \frac{\partial g_1}{\partial x_1}\frac{\partial g_2}{\partial x_2}
+    - \frac{\partial g_1}{\partial x_2}\frac{\partial g_2}{\partial x_1}.
+\]
+Write down the new region for $(y_1, y_2)$ too.
+
+% ===========================================================================
+\band{\S3 \quad Inequalities and limit theorems}
+
+\begin{facts}
+\row{Markov}{$X \ge 0$: \qquad $P(X \ge a) \le \dfrac{E[X]}{a}$}
+\row{Chebyshev}{$P\big(|X - \mu| \ge k\big) \le \dfrac{\sigma^2}{k^2}$}
+\row{Sample mean}{$E[\bar X_n] = \mu$, \qquad $\Var(\bar X_n) = \sigma^2/n$}
+\row{Weak law}{$P\big(|\bar X_n - \mu| > \varepsilon\big) \le
+  \dfrac{\sigma^2}{n\varepsilon^2} \to 0$ \quad (Chebyshev on $\bar X_n$)}
+\row{CLT}{$S_n = X_1 + \cdots + X_n$ iid: \qquad
+  $P\!\left(\dfrac{S_n - n\mu}{\sigma\sqrt n} \le a\right) \approx \Phi(a)$}
+\row{Using the CLT}{$S_n \approx \Normal{n\mu}{n\sigma^2}$. \quad
+  Standardise, then $\Phi$. \quad $\Phi(-a) = 1 - \Phi(a)$.}
+\row{``$k$ done by time $t$''}{is the same event as $S_k \le t$.}
+\end{facts}
+
+% ===========================================================================
+\band{\S4 \quad Moment generating functions}
+
+\begin{facts}
+\row{Definition}{$\phi(t) = E[e^{tX}] = \sum_x e^{tx}p(x)$ \quad or \quad
+  $\int e^{tx}f(x)\,dx$. \ Always $\phi(0) = 1$.}
+\row{Moments}{$E[X^n] = \phi^{(n)}(0)$: \qquad $E[X] = \phi'(0)$, \qquad
+  $E[X^2] = \phi''(0)$}
+\row{Variance}{$\Var(X) = \phi''(0) - \big(\phi'(0)\big)^2$}
+\row{Log trick}{$\psi(t) = \ln\phi(t)$: \qquad $\psi'(0) = E[X]$, \qquad
+  $\psi''(0) = \Var(X)$. \ Fastest for Poisson, normal, binomial.}
+\row{Series}{$\phi(t) = \sum_{n \ge 0} E[X^n]\,\dfrac{t^n}{n!}$: the
+  coefficient of $t^n$ is $E[X^n]/n!$.}
+\row{Linear change}{$\phi_{aX+b}(t) = e^{bt}\,\phi_X(at)$}
+\row{Independent sum}{$\phi_{X+Y}(t) = \phi_X(t)\,\phi_Y(t)$. \quad $n$ iid:
+  $\phi_{S_n}(t) = \phi(t)^n$.}
+\row{Uniqueness}{Same MGF on an interval around $0$ $\implies$ same
+  distribution. This is how you NAME a sum or a given MGF.}
+\row{Reading a discrete MGF}{$\phi(t) = \sum_k c_k e^{a_k t}$ \ means \
+  $P(X = a_k) = c_k$. \quad E.g.\ $\tfrac14 + \tfrac12e^{t} + \tfrac14e^{3t}$:
+  $P(0) = \tfrac14$, $P(1) = \tfrac12$, $P(3) = \tfrac14$.}
+\row{Product of MGFs}{A product of known MGFs is an independent sum. \quad
+  $(\tfrac13 + \tfrac23e^t)^5e^{2(e^t-1)}$ is $\Bin{5}{\tfrac23} + \Poisson{2}$.}
+\row{Mixture}{$X = Y$ w.p.\ $p$, else $W$: \quad $\phi_X = p\,\phi_Y + (1-p)\,\phi_W$}
+\row{Random sum}{$S = X_1 + \cdots + X_N$: \quad $\phi_S(t) = E\big[\phi_X(t)^N\big]$.
+  \ $N$ Poisson$(\lambda)$: $\phi_S(t) = e^{\lambda(\phi_X(t) - 1)}$.}
+\row{Joint MGF}{$\phi(s,t) = E[e^{sX + tY}]$. \quad Independent $\iff
+  \phi(s,t) = \phi_X(s)\,\phi_Y(t)$.}
+\row{Where it exists}{Exponential$(\lambda)$: only $t < \lambda$. \ Cauchy: only
+  $t = 0$, so no MGF (and no mean).}
+\end{facts}
+
+\vspace{6pt}
+\textbf{Closed under independent sums} (match the parameters exactly):
+
+\begin{facts}
+\row{Bernoulli}{$n$ iid $\Bern{p}$ \ $=$ \ $\Bin{n}{p}$}
+\row{Binomial}{$\Bin{n}{p} + \Bin{m}{p} = \Bin{n+m}{p}$ \quad (same $p$)}
+\row{Poisson}{$\Poisson{\lambda} + \Poisson{\mu} = \Poisson{\lambda + \mu}$}
+\row{Geometric}{$r$ iid $\Geom{p}$ \ $=$ \ $\NegBin{r}{p}$}
+\row{Exponential}{$n$ iid $\Expo{\lambda}$ \ $=$ \ $\Gam{n}{\lambda}$}
+\row{Gamma}{$\Gam{\alpha}{\lambda} + \Gam{\beta}{\lambda} = \Gam{\alpha+\beta}{\lambda}$
+  \quad (same $\lambda$)}
+\row{Normal}{$\Normal{\mu_1}{\sigma_1^2} + \Normal{\mu_2}{\sigma_2^2} =
+  \Normal{\mu_1 + \mu_2}{\sigma_1^2 + \sigma_2^2}$}
+\end{facts}
+
+\vspace{6pt}
+\textbf{The four derivations to know:}
+
+\begin{facts}
+\row{Binomial}{Sum of $n$ Bernoullis, each $1 - p + pe^t$: \quad
+  $(1 - p + pe^t)^n$}
+\row{Poisson}{$\sum_k e^{tk}e^{-\lambda}\dfrac{\lambda^k}{k!} =
+  e^{-\lambda}\sum_k \dfrac{(\lambda e^t)^k}{k!} = e^{\lambda(e^t - 1)}$}
+\row{Exponential}{$\int_0^\infty e^{tx}\lambda e^{-\lambda x}dx =
+  \lambda\int_0^\infty e^{-(\lambda - t)x}dx = \dfrac{\lambda}{\lambda - t}$, \
+  $t < \lambda$}
+\row{Normal}{Standard: complete the square, $tx - \tfrac{x^2}{2} =
+  \tfrac{t^2}{2} - \tfrac{(x-t)^2}{2}$, so $\phi_Z(t) = e^{t^2/2}$. Then
+  $X = \mu + \sigma Z$ gives $e^{\mu t + \sigma^2t^2/2}$.}
+\row{Example}{Poisson: $\phi' = \lambda e^t\phi$, so $E[X] = \lambda$;
+  \ $\phi'' = (\lambda e^t + \lambda^2e^{2t})\phi$, so $E[X^2] = \lambda + \lambda^2$,
+  \ $\Var = \lambda$.}
+\row{Normal moments}{$E[Z^3] = 0$, \quad $E[Z^4] = 3$; \quad
+  $E[Z^{2n}] = \dfrac{(2n)!}{2^n\,n!}$}
+\end{facts}
+
+% ===========================================================================
+\band{\S5 \quad Conditioning}
+
+\begin{facts}
+\row{Conditional pmf/pdf}{$p_{X \mid Y}(x \mid y) = \dfrac{p(x,y)}{p_Y(y)}$
+  \qquad $f_{X \mid Y}(x \mid y) = \dfrac{f(x,y)}{f_Y(y)}$}
+\row{Conditional mean}{$E[X \mid Y = y] = \sum x\,p_{X\mid Y}(x \mid y)$ \quad or
+  \quad $\int x\,f_{X \mid Y}(x \mid y)\,dx$}
+\row{Tower}{$E[X] = E\big[E[X \mid Y]\big]$}
+\row{By conditioning}{$P(E) = \sum_y P(E \mid Y = y)\,P(Y = y)$}
+\row{Pull out}{$E[g(Y)\,X \mid Y] = g(Y)\,E[X \mid Y]$}
+\row{Conditional variance}{$\Var(X) = E\big[\Var(X \mid Y)\big] +
+  \Var\big(E[X \mid Y]\big)$}
+\row{Random sum}{$S = X_1 + \cdots + X_N$, $N$ independent of the iid $X_i$:\newline
+  $E[S] = E[N]\,E[X]$, \qquad $\Var(S) = E[N]\Var(X) + (E[X])^2\Var(N)$}
+\row{First step}{Condition on the first trial, write the equation, solve for the
+  unknown. \ Geometric: $E[N] = 1 + (1-p)E[N]$, so $E[N] = 1/p$.}
+\row{Poisson sum}{$\Poisson{\lambda} + \Poisson{\mu} = \Poisson{\lambda + \mu}$
+  \quad (independent)}
+\row{Poisson thinning}{Each of $\Poisson{\lambda}$ kept w.p.\ $p$: kept is
+  $\Poisson{\lambda p}$, independent of the rest.}
+\row{Poisson split}{$X \mid X + Y = n$ \ is \ $\Bin{n}{\lambda/(\lambda + \mu)}$}
+\row{Multinomial}{$P(n_1, \ldots, n_r) = \dfrac{n!}{n_1!\cdots n_r!}\,
+  p_1^{n_1}\cdots p_r^{n_r}$. \quad Each $N_i$ is $\Bin{n}{p_i}$.}
+\end{facts}
+
+\newpage
+% ===========================================================================
+\band{Distributions}
+
+{\renewcommand{\arraystretch}{2.2}%
+\arrayrulecolor{rule}%
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}l X l l l@{}}
+  \hline
+  & pmf / pdf & mean & variance & MGF \\ \hline
+  Bernoulli$(p)$ & $P(1) = p$, \ $P(0) = 1-p$ & $p$ & $p(1-p)$ & $1 - p + pe^t$ \\ \hline
+  Binomial$(n,p)$ & $\binom{n}{k}p^k(1-p)^{n-k}$ & $np$ & $np(1-p)$ & $(1 - p + pe^t)^n$ \\ \hline
+  Geometric$(p)$ & $(1-p)^{k-1}p$, \ $k \ge 1$ & $\dfrac1p$ & $\dfrac{1-p}{p^2}$ & $\dfrac{pe^t}{1 - (1-p)e^t}$ \\ \hline
+  Poisson$(\lambda)$ & $e^{-\lambda}\dfrac{\lambda^k}{k!}$ & $\lambda$ & $\lambda$ & $e^{\lambda(e^t - 1)}$ \\ \hline
+  Hypergeometric & $\dfrac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}}$ & $\dfrac{nK}{N}$ & $n\dfrac{K}{N}\dfrac{N-K}{N}\dfrac{N-n}{N-1}$ & \\ \hline
+  Uniform$(a,b)$ & $\dfrac{1}{b-a}$ & $\dfrac{a+b}{2}$ & $\dfrac{(b-a)^2}{12}$ & $\dfrac{e^{tb} - e^{ta}}{t(b-a)}$ \\ \hline
+  Exponential$(\lambda)$ & $\lambda e^{-\lambda x}$ & $\dfrac1\lambda$ & $\dfrac1{\lambda^2}$ & $\dfrac{\lambda}{\lambda - t}$ \\ \hline
+  Gamma$(\alpha,\lambda)$ & $\dfrac{\lambda e^{-\lambda x}(\lambda x)^{\alpha-1}}{\Gamma(\alpha)}$ & $\dfrac\alpha\lambda$ & $\dfrac{\alpha}{\lambda^2}$ & $\left(\dfrac{\lambda}{\lambda - t}\right)^{\!\alpha}$ \\ \hline
+  Normal$(\mu,\sigma^2)$ & $\dfrac{1}{\sigma\sqrt{2\pi}}e^{-(x-\mu)^2/2\sigma^2}$ & $\mu$ & $\sigma^2$ & $e^{\mu t + \sigma^2 t^2/2}$ \\ \hline
+  Cauchy & $\dfrac{1}{\pi(1 + x^2)}$ & none & none & \\ \hline
+\end{tabularx}}
+
+\vspace{10pt}
+\begin{facts}
+\row{Exponential}{Memoryless: $P(X > s + t \mid X > s) = P(X > t)$. \ A sum of
+  $n$ iid is Gamma$(n, \lambda)$.}
+\row{Normal}{$Z = (X - \mu)/\sigma$ is standard normal. Independent normals add.}
+\row{Hypergeometric}{By indicators: $P(X_i = 1) = \dfrac{K}{N}$, \quad
+  $P(X_i = X_j = 1) = \dfrac{K(K-1)}{N(N-1)}$}
+\end{facts}
+
+% ===========================================================================
+\band{Sums and integrals}
+
+\begin{facts}
+\row{Geometric series}{$\sum_{k \ge 0} x^k = \dfrac{1}{1 - x}$, \qquad
+  $\sum_{k \ge 1} k x^{k-1} = \dfrac{1}{(1 - x)^2}$}
+\row{Exponential series}{$\sum_{k \ge 0} \dfrac{\lambda^k}{k!} = e^\lambda$}
+\row{Gamma integral}{$\int_0^\infty x^n e^{-\lambda x}\,dx = \dfrac{n!}{\lambda^{n+1}}$}
+\row{Gaussian integral}{$\int_{-\infty}^\infty e^{-x^2/2}\,dx = \sqrt{2\pi}$}
+\end{facts}
+
+\end{document}

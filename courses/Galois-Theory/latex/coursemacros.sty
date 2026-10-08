@@ -1,0 +1,155 @@
+% ===========================================================================
+%  coursemacros.sty — shared preamble for the Galois theory coursework repo
+%
+%  Loaded by every notes and homework file:   \usepackage{coursemacros}
+%  (the Makefile puts ../../../latex on TEXINPUTS, so the path just works)
+%
+%  Conventions follow Garling, "A Course in Galois Theory".
+% ===========================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{coursemacros}[2026/08/24 Galois theory coursework macros]
+
+% --- core mathematics ------------------------------------------------------
+\RequirePackage{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{amsthm}
+\RequirePackage{mathtools}
+% stmaryrd is not in the TeX Live "basic" scheme, which is what the Mac has.
+% Nothing in this course currently uses its symbols, so load it when it is
+% there and carry on without it when it is not, rather than failing the build.
+\IfFileExists{stmaryrd.sty}{\RequirePackage{stmaryrd}}{}
+
+% --- layout ----------------------------------------------------------------
+\RequirePackage[margin=1in]{geometry}
+\RequirePackage{enumitem}
+\RequirePackage{fancyhdr}
+\RequirePackage{microtype}
+\RequirePackage[dvipsnames]{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{tikz}
+% tikz-cd is likewise absent from the "basic" scheme. Guard it so that chapters
+% with no commutative diagrams still build on such a machine; a chapter that
+% actually uses a tikzcd environment will fail loudly there, which is correct.
+\IfFileExists{tikz-cd.sty}{\RequirePackage{tikz-cd}}{}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\RequirePackage[colorlinks=true,linkcolor=BrickRed,citecolor=BrickRed,urlcolor=NavyBlue]{hyperref}
+
+% --- theorem environments --------------------------------------------------
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+\newtheorem{construction}[theorem]{Construction}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+\newtheorem*{note}{Note}
+\newtheorem*{warning}{Warning}
+
+% Theorem numbers copied verbatim from the textbook, so cross-referencing the
+% book is unambiguous:  \begin{booktheorem}{4.4} ... \end{booktheorem}
+\newtheoremstyle{booknum}{\topsep}{\topsep}{\itshape}{}{\bfseries}{.}{ }{}
+\theoremstyle{booknum}
+\newtheorem*{booktheoremstar}{Theorem}
+\newenvironment{booktheorem}[1]
+  {\begin{booktheoremstar}[Garling #1]}{\end{booktheoremstar}}
+\newenvironment{booklemma}[1]
+  {\begin{booktheoremstar}[Garling Lemma #1]}{\end{booktheoremstar}}
+
+% --- problem environment for homework --------------------------------------
+% \begin{problem}{3.7} <statement transcribed from the book> \end{problem}
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+
+% Solution region. The scaffold generator emits the marker comments; this
+% environment is what the user's typed mathematics goes inside.
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+
+% --- number systems --------------------------------------------------------
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\ZZ}{\mathbb{Z}}
+\newcommand{\QQ}{\mathbb{Q}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\CC}{\mathbb{C}}
+\newcommand{\FF}{\mathbb{F}}
+\newcommand{\Fq}[1]{\mathbb{F}_{#1}}
+\newcommand{\Zmod}[1]{\ZZ/#1\ZZ}
+
+% --- fields and extensions -------------------------------------------------
+% \ext{L}{K} prints the extension L:K in Garling's colon notation.
+\newcommand{\ext}[2]{#1\!:\!#2}
+% \degree{L}{K} prints the degree [L:K].
+\newcommand{\degree}[2]{[#1\!:\!#2]}
+\newcommand{\adjoin}[2]{#1(#2)}          % K(alpha)
+\newcommand{\polyring}[2]{#1[#2]}        % K[x]
+\newcommand{\minpoly}[2]{m_{#1,#2}}      % minimal polynomial of a over K
+\newcommand{\algclos}[1]{\overline{#1}}
+\newcommand{\charac}{\operatorname{char}}
+\newcommand{\Frob}{\operatorname{Frob}}
+
+% --- groups ----------------------------------------------------------------
+\newcommand{\Gal}{\Gamma}                % Garling writes the Galois group as Gamma
+\newcommand{\GalG}[2]{\Gal(\ext{#1}{#2})}
+\DeclareMathOperator{\Aut}{Aut}
+\DeclareMathOperator{\Mon}{Mon}
+\DeclareMathOperator{\Fix}{Fix}
+\newcommand{\Sym}{\Sigma}                % Garling writes the symmetric group as Sigma
+\newcommand{\Symn}[1]{\Sym_{#1}}
+\newcommand{\Alt}{A}
+\newcommand{\Altn}[1]{\Alt_{#1}}
+\DeclareMathOperator{\ord}{ord}
+\DeclareMathOperator{\im}{im}
+\DeclareMathOperator{\Ker}{ker}
+\newcommand{\normal}{\trianglelefteq}
+\newcommand{\gen}[1]{\langle #1 \rangle}
+\newcommand{\idx}[2]{[#1:#2]}
+
+% --- rings -----------------------------------------------------------------
+\DeclareMathOperator{\Frac}{Frac}
+\DeclareMathOperator{\cont}{cont}        % content of a polynomial
+\DeclareMathOperator{\lcm}{lcm}
+\DeclareMathOperator{\hcf}{hcf}          % Garling says hcf, not gcd
+\newcommand{\ideal}[1]{\left(#1\right)}
+\newcommand{\units}[1]{#1^{\times}}
+
+% --- polynomials and Galois-theoretic quantities ---------------------------
+\newcommand{\disc}{\Delta}
+\newcommand{\Norm}{\mathrm{N}}
+\DeclareMathOperator{\Tr}{tr}
+\DeclareMathOperator{\trdeg}{tr.deg}
+\newcommand{\cyclotomic}[1]{\Phi_{#1}}
+\newcommand{\derivative}[1]{D#1}         % Garling's differentiation operator
+
+% --- odds and ends ---------------------------------------------------------
+\newcommand{\restrict}[2]{\left.#1\right|_{#2}}
+\newcommand{\set}[1]{\left\{#1\right\}}
+\newcommand{\setst}[2]{\left\{#1 \;\middle|\; #2\right\}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\iso}{\cong}
+\newcommand{\isoto}{\xrightarrow{\ \sim\ }}
+\newcommand{\into}{\hookrightarrow}
+\newcommand{\onto}{\twoheadrightarrow}
+\newcommand{\divides}{\mid}
+\newcommand{\ndivides}{\nmid}
+
+% Marker for anything the user still owes the page. Prints loudly so it cannot
+% be missed in a compiled draft; harmless if none remain.
+\newcommand{\todo}[1]{\textcolor{BrickRed}{\textbf{[TODO: #1]}}}
+
+% --- header/footer ---------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\endinput

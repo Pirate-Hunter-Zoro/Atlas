@@ -1,0 +1,135 @@
+% ===========================================================================
+%  Homework 02 --- work done against the TENTH edition, and not assigned
+%
+%  The assignment sheet says "from the text, Edition 11" and warns: "If you
+%  have a copy of Edition 10, please let me know so that we can verify that
+%  you are working the right problems." The course was running on the tenth
+%  edition, so exercises 61 and 76 were transcribed from it and worked in
+%  full. They are different exercises in the eleventh, which is the edition
+%  the set is marked against.
+%
+%  THE MATHEMATICS HERE IS NOT WRONG. It answers two questions nobody asked.
+%  It is kept because it is the student's own work and because the same two
+%  exercises may be set later; it is not part of the submitted set and is not
+%  built into hw02.pdf.
+%
+%  The eleventh-edition 61 and 76 are in hw02.tex with empty solution regions.
+% ===========================================================================
+
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\begin{document}
+
+\section*{Homework 02 --- superseded, tenth-edition numbering}
+
+\begin{problem}{61}
+  (Edition 11, Chapter 2.) Let $X$ and $W$ be the working and subsequent
+  repair times of a certain machine. Let $Y = X + W$ and suppose that the
+  joint probability density of $X$ and $Y$ is
+  \[
+    f_{X,Y}(x,y) = \lambda^2 e^{-\lambda y}, \qquad 0 < x < y < \infty.
+  \]
+  \begin{enumerate}
+    \item Find the density of $X$.
+    \item Find the density of $Y$.
+    \item Find the joint density of $X$ and $W$.
+    \item Find the density of $W$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 61 =====
+\paragraph{(a) The density of $X$.}
+Integrate the joint density over $y$. The region is $0 < x < y < \infty$, so for a fixed
+$x$ the variable $y$ runs from $x$ up to $\infty$:
+\begin{align*}
+  f_{X}(x) &= \int_{y} f_{X,Y}(x,y)\,dy
+            = \int_{x}^{\infty} \lambda^{2} e^{-\lambda y}\,dy .
+\end{align*}
+Substituting $u = -\lambda y$, so that $du = -\lambda\,dy$, $dy = -du/\lambda$, and
+$y = x$ becomes $u = -\lambda x$:
+\begin{align*}
+  f_{X}(x) &= \int_{-\lambda x}^{-\infty} \lambda^{2} e^{u}\left(-\frac{du}{\lambda}\right)
+            = \lambda \int_{-\infty}^{-\lambda x} e^{u}\,du
+            = \lambda\left[e^{u}\right]_{-\infty}^{-\lambda x}\\
+           &= \lambda\left[e^{-\lambda x} - 0\right]
+            = \boxed{\lambda e^{-\lambda x}}, \qquad x > 0 .
+\end{align*}
+
+\paragraph{(b) The density of $Y$.}
+% \todo{label slip on the handwritten page: the left side is written
+% $f_Y(x,y)$ where it should be $f_Y(y)$. Mathematics unaffected.}
+Integrate the joint density over $x$ instead. For a fixed $y$, the region
+$0 < x < y$ makes $x$ run from $0$ to $y$, and $\lambda^{2}e^{-\lambda y}$ is constant
+in $x$:
+\begin{align*}
+  f_{Y}(y) &= \int_{x} f_{X,Y}(x,y)\,dx
+            = \int_{0}^{y} \lambda^{2} e^{-\lambda y}\,dx
+            = \left[x\,\lambda^{2} e^{-\lambda y}\right]_{0}^{y}\\
+           &= \boxed{\lambda^{2} y\, e^{-\lambda y}}, \qquad y \in (0,\infty).
+\end{align*}
+
+\paragraph{(c) The joint density of $X$ and $W$.}
+Here $Y = X + W$, so substituting $y = x + w$ into $f_{X,Y}$ turns the exponent into a
+sum, and the constraint $x < y$ becomes $w > 0$:
+\[
+  f_{X,W}(x,w) = \boxed{\lambda^{2} e^{-(x+w)\lambda}}, \qquad x > 0,\ w > 0 .
+\]
+
+\paragraph{(d) The density of $W$.}
+Integrate the joint density of part~(c) over $x$, which now runs from $0$ to $\infty$.
+Substituting $u = -(x+w)\lambda$, so $du = -\lambda\,dx$ and $dx = -du/\lambda$:
+\begin{align*}
+  f_{W}(w) &= \int_{0}^{\infty} \lambda^{2} e^{-(x+w)\lambda}\,dx
+            = \int_{-\lambda w}^{-\infty} -\lambda e^{u}\,du
+            = \lambda \int_{-\infty}^{-\lambda w} e^{u}\,du\\
+           &= \boxed{\lambda e^{-\lambda w}}, \qquad w > 0 .
+\end{align*}
+\paragraph{(e) $X$ and $W$ are independent.}
+Multiplying the two marginals from (a) and (d) reproduces the joint density from (c):
+\[
+  f_{X}(x)\,f_{W}(w) = \lambda^{2} e^{-\lambda x}\,e^{-\lambda w}
+                     = \lambda^{2} e^{-(x+w)\lambda}
+                     = f_{X,W}(x,w),
+\]
+therefore $X$ and $W$ are independent.
+% ===== END SOLUTION 61 =====
+
+\begin{problem}{76}
+  (Edition 11, Chapter 2.) Let $X$ and $Y$ be independent random variables
+  with means $\mu_x$ and $\mu_y$ and variances $\sigma_x^2$ and
+  $\sigma_y^2$. Show that
+  \[
+    \Var(XY) = \sigma_x^2 \sigma_y^2 + \mu_y^2 \sigma_x^2
+             + \mu_x^2 \sigma_y^2 .
+  \]
+\end{problem}
+% ===== SOLUTION 76 =====
+Start from the computational form of the variance, applied to the single random variable
+$XY$, and use independence twice --- once on $\E[X^{2}Y^{2}]$ and once on $\E[XY]$:
+\begin{align*}
+  \Var[XY] &= \EE{(XY)^{2}} - \left(\EE{XY}\right)^{2}\\
+           &= \EE{X^{2}Y^{2}} - \left(\EE{X}\EE{Y}\right)^{2}
+              &&\text{($X$, $Y$ independent)}\\
+           &= \EE{X^{2}}\EE{Y^{2}} - \E^{2}[X]\cdot\E^{2}[Y].
+\end{align*}
+Now substitute the second moments, using
+$\EE{X^{2}} = \Var(X) + \left(\E(X)\right)^{2} = \sigma_{x}^{2} + \mu_{x}^{2}$ and
+likewise for $Y$:
+\begin{align*}
+  \Var[XY]
+    &= \left(\sigma_{x}^{2} + \mu_{x}^{2}\right)
+       \left(\sigma_{y}^{2} + \mu_{y}^{2}\right)
+       - \mu_{x}^{2}\cdot\mu_{y}^{2}\\
+    &= \sigma_{x}^{2}\sigma_{y}^{2} + \mu_{y}^{2}\sigma_{x}^{2}
+       + \mu_{x}^{2}\sigma_{y}^{2} + \mu_{x}^{2}\mu_{y}^{2}
+       - \mu_{x}^{2}\mu_{y}^{2}\\
+    &= \sigma_{x}^{2}\sigma_{y}^{2} + \mu_{y}^{2}\sigma_{x}^{2}
+       + \mu_{x}^{2}\sigma_{y}^{2}. \qquad\therefore
+\end{align*}
+The $+\mu_{x}^{2}\mu_{y}^{2}$ produced by expanding the product cancels the
+$-\mu_{x}^{2}\mu_{y}^{2}$ carried down from $\left(\E[XY]\right)^{2}$, leaving the
+required three terms.
+% ===== END SOLUTION 76 =====
+
+
+\end{document}

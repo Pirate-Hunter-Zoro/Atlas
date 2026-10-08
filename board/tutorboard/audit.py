@@ -10,6 +10,10 @@ So the rule is checked twice, by one function:
 - `board/test/tracked.py` asks `check` of the whole index on every run of the
   suite, and asks `held` which directories git must be blind to.
 
+A course is tracked content like any subject. What inside one belongs to
+somebody else -- the textbook, chapter readings, lecture decks, assignment
+sheets -- is refused by `other_peoples_work`.
+
 Each rule is here because what it refuses was found in one of the repositories
 Atlas was made from. The messages say what the path is, because the person
 reading one is deciding whether the refusal is right.
@@ -134,10 +138,6 @@ def problems(rel, size=0):
         out.append("%s is the private assistant configuration, tracked by its "
                    "own git. /ai-config/ belongs in the root .gitignore."
                    % rel)
-    if parts[0] == "courses" and len(parts) > 1:
-        out.append("%s is inside a course. Each course is its own private "
-                   "repository; /courses/*/ belongs in the root .gitignore. "
-                   "Put the rule back and `git rm --cached` the path." % rel)
     if base == ".env":
         out.append("%s is a .env, which names where identifiable data lives. "
                    "Track a .env.example with the keys and no values." % rel)
@@ -193,11 +193,10 @@ def _dirs(path):
 def held(root):
     """Every directory git must be blind to, as sorted `(rel, what)` pairs.
 
-    Each `phi` or `results` directory up to HELD_DEPTH levels under a subject,
-    and each course, which is its own private repository. The walk never
-    enters a held directory or one fenced by name, so nothing inside them is
-    listed. Nor `exports/`: that is the tracked cluster channel, and a
-    `results/` inside it holds figures the relay exported on purpose.
+    Each `phi` or `results` directory up to HELD_DEPTH levels under a subject.
+    The walk never enters a held directory or one fenced by name, so nothing
+    inside them is listed. Nor `exports/`: that is the tracked cluster channel,
+    and a `results/` inside it holds figures the relay exported on purpose.
     """
     from . import fenced
     stop = set(HELD_NAMES) | set(fenced.NEVER) | {".git", "exports"}
@@ -218,11 +217,6 @@ def held(root):
                     if (not link and depth + 1 < HELD_DEPTH
                             and name.lower() not in stop):
                         todo.append((here, depth + 1))
-    for course, link in _dirs(os.path.join(root, "courses")):
-        if course.startswith("."):
-            continue
-        out.append(("courses/" + course, "a private course repository: the "
-                    "textbook, the professor's decks and the transcript"))
     return sorted(set(out))
 
 
@@ -256,20 +250,6 @@ def exposed(root, rel, what):
             "so an ignore rule is all that stands between it and a push. Commit "
             "nothing until `git status --porcelain --untracked-files=all -- %s` "
             "is empty." % (rel, len(listed), what, rel))
-
-
-def courses_without_git(root):
-    """A failure for each course on disk with no `.git` of its own."""
-    out = []
-    for course, link in _dirs(os.path.join(root, "courses")):
-        if course.startswith(".") or link:
-            continue
-        if not os.path.exists(os.path.join(root, "courses", course, ".git")):
-            out.append("courses/%s has no .git of its own. Without one it is "
-                       "hidden only by the /courses/*/ ignore rule and its work "
-                       "is pushed nowhere. Clone the course's repository here."
-                       % course)
-    return out
 
 
 # ---------------------------------------------------------------------------

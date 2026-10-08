@@ -8,8 +8,8 @@
 #      says where.
 #
 #  So this file is left holding three honest categories: files a command
-#  regenerates, other people's papers, and directories that are their own
-#  repositories -- `ai-config/` and each course. It does not hold "the 308 MB
+#  regenerates, other people's work, and `ai-config/`, which is its own
+#  private repository. It does not hold "the 308 MB
 #  of therapy audio we would rather not push" -- that is not in here at all, it
 #  is at ~/phi/PSYCH-ASR/, and research/PSYCH-ASR/README.md says so. An ignore
 #  rule is a guard somebody can delete by accident; a directory outside the
@@ -23,9 +23,6 @@
 #  ignored higher up, so a rule for `live/` written HERE would make every
 #  deeper `!live/cards/` unreachable. That is why this file names no directory
 #  a workspace re-includes.
-#
-#  A course reads none of this file: it is its own repository, so its own
-#  .gitignore carries the build, LaTeX and credential rules below as well.
 # ===========================================================================
 
 # ---- build products, every language in here ----
@@ -116,17 +113,12 @@ Thumbs.db
 # which are the only ones that actually exist.
 **/.claude/
 
-# ---- directories that are their own private repositories ----
+# ---- the one directory that is its own private repository ----
 # `ai-config/` holds the operating contract every assistant reads, the PHI
 # guard, and each vendor's settings files, which name real paths on the lab's
-# storage. Each course (github.com/Pirate-Hunter-Zoro/<name>, cloned into
-# `courses/<name>`) tracks its textbook, slides and sheets, which belong to
-# other people. Both live INSIDE this tree, so one directory is the whole of
-# the work, and both are ignored here, so a public repository never carries a
-# byte of them. `board/bootstrap.sh` clones each one listed under "private" in
-# `atlas.json`.
+# storage. It lives INSIDE this tree, so one directory is the whole of the
+# work, and is ignored here, so a public repository never carries a byte of it.
 /ai-config/
-/courses/*/
 
 # ---- a credential dropped in the tree, which is a thing that happens ----
 # A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside

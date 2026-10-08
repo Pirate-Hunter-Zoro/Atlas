@@ -1,0 +1,38 @@
+# What a course directory holds that Atlas does not track, as rsync patterns
+# relative to the course root (`rsync --exclude-from=`). The fold copied each
+# course with this list, and cutover.sh's drift check compares with it.
+#
+# Each course's own git, its old board state and its LaTeX transcripts.
+/.git/
+/live/
+/transcripts/
+# Other people's work: the textbook, excerpts cut from it, the professor's
+# decks, the assignment sheets as distributed.
+/textbook/
+/chapters/*/reading/
+/chapters/*/lectures/
+assignment*
+# Regenerated: built PDFs and what LaTeX writes beside them.
+build/
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.vrb
+# Per-course tooling: one shared copy lives in board/scripts behind
+# `board textbook`, and `board build` replaces the Makefile and build.sh.
+/scripts/
+/Makefile
+/.githooks/
+# Probability's two board pages rescued from another machine: session state,
+# archived with the course's git bundle.
+/rescued-from-mac/
+# Machine cruft.
+.DS_Store
+__pycache__/

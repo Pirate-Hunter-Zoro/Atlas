@@ -1,0 +1,166 @@
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Probability --- Exam 1 Practice\\[2pt]\large Chapters 1--3}
+\author{Mikey Ferguson}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Part I is a full exam: 75 minutes, open notes, no calculator.}
+Leave arithmetic unsimplified wherever it is right: $\tfrac{1}{3}\cdot\tfrac{3}{10}$,
+$(5/6)^{10}$, $e^{-2}$ and $\Phi(1)$ are all finished answers. Part II is extra
+practice on what Part I does not reach; it is not timed.
+
+\section*{Part I --- timed, 75 minutes}
+
+\begin{problem}{1}
+  (Conditioning and Bayes.) Box 1 holds 3 red and 2 blue balls. Box 2 holds 2 red
+  and 3 blue balls. Roll a fair die: on a 1 or 2 use Box 1, otherwise Box 2. Draw
+  two balls from that box without replacement.
+  \begin{enumerate}
+    \item[(a)] Find the probability that both balls are red.
+    \item[(b)] Given that both balls are red, find the probability that Box 1 was used.
+    \item[(c)] Using only the axioms of probability, prove that if $E \subseteq F$ then
+      $P(E) \le P(F)$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{2}
+  (Indicators.) A fair die is rolled 10 times.
+  \begin{enumerate}
+    \item[(a)] Let $X$ be the number of different faces that appear at least once.
+      Find $\EE{X}$.
+    \item[(b)] Let $Y$ be the number of faces that appear exactly once. Find $\EE{Y}$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{3}
+  (A joint density.) $X$ and $Y$ have joint density
+  \[
+    f(x,y) = 2, \qquad 0 < y < x < 1,
+  \]
+  and $0$ elsewhere.
+  \begin{enumerate}
+    \item[(a)] Find the marginal densities $f_X$ and $f_Y$.
+    \item[(b)] Find $\Cov(X,Y)$.
+    \item[(c)] Find $P(X + Y < 1)$.
+    \item[(d)] Find the conditional density of $Y$ given $X = x$, and $\EEc{Y}{X}$.
+    \item[(e)] Use the conditional variance formula
+      $\Var(Y) = \EE{\Var(Y \mid X)} + \Var\!\left(\EEc{Y}{X}\right)$ to find
+      $\Var(Y)$. Check it against $f_Y$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{4}
+  (Moment generating functions.)
+  \begin{enumerate}
+    \item[(a)] Show that a $\Poisson{\lambda}$ random variable has moment generating
+      function $\mgf{}(t) = e^{\lambda(e^t - 1)}$.
+    \item[(b)] A random variable $X$ has moment generating function
+      \[
+        \mgf{X}(t) = \left(\tfrac{1}{3} + \tfrac{2}{3}e^{t}\right)^{5} e^{2(e^{t} - 1)}.
+      \]
+      Write $X$ as a sum of two independent random variables with named
+      distributions, and justify the step that lets you do so.
+    \item[(c)] Find $\EE{X}$ and $\Var(X)$.
+    \item[(d)] Find $P(X = 0)$ and $P(X = 1)$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{5}
+  (Limit theorems.) A lamp burns one bulb at a time and a dead bulb is replaced
+  at once. Bulb lifetimes are independent with mean 10 hours and standard
+  deviation 10 hours. Let $S$ be the total burning time of 36 bulbs.
+  \begin{enumerate}
+    \item[(a)] Use Markov's inequality to bound $P(S \ge 720)$.
+    \item[(b)] Use Chebyshev's inequality to bound $P(|S - 360| \ge 120)$.
+    \item[(c)] Use the central limit theorem to approximate $P(S > 420)$, in terms
+      of $\Phi$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{6}
+  (Random sums.) The number of customers entering a shop in an hour is
+  $N \dist \Poisson{4}$.
+  \begin{enumerate}
+    \item[(a)] Each customer buys something with probability $\tfrac14$,
+      independently of everything else. Let $B$ be the number who buy. Show, by
+      conditioning on $N$, that $B \dist \Poisson{1}$.
+    \item[(b)] Customer $i$ spends $Y_i$ dollars, where $Y_1, Y_2, \ldots$ are iid,
+      independent of $N$, with mean 3 and variance 2. Let
+      $T = \sum_{i=1}^{N} Y_i$. Find $\EE{T}$ and $\Var(T)$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\section*{Part II --- extra practice}
+
+\begin{problem}{7}
+  (Which comes first.) Two fair dice are rolled repeatedly. Find the probability
+  that a sum of 5 appears before a sum of 7.
+\end{problem}
+\vspace{4cm}
+
+\begin{problem}{8}
+  (A joint table.) $X$ and $Y$ have joint mass function
+  \[
+    \begin{array}{c|ccc}
+          & Y = 0 & Y = 1 & Y = 2 \\ \hline
+    X = 0 & 1/8   & 1/4   & 1/8   \\
+    X = 1 & 1/4   & 1/8   & 1/8
+    \end{array}
+  \]
+  \begin{enumerate}
+    \item[(a)] Are $X$ and $Y$ independent?
+    \item[(b)] Find $\EEc{X}{Y = y}$ for each $y$, and check that
+      $\EE{\EEc{X}{Y}} = \EE{X}$.
+    \item[(c)] Find $\Cov(X,Y)$.
+  \end{enumerate}
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{9}
+  (Change of variables.) $X$ and $Y$ are independent $\Expo{1}$. Let
+  $U = X + Y$ and $V = X/(X+Y)$. Find the joint density of $U$ and $V$. Are $U$
+  and $V$ independent? Name their distributions.
+\end{problem}
+\vspace{5cm}
+
+\begin{problem}{10}
+  (Hypergeometric by indicators.) An urn holds 6 white and 4 black balls. Draw 5
+  without replacement and let $S$ be the number of white balls drawn. Write $S$
+  as a sum of indicators and find $\EE{S}$ and $\Var(S)$ from them.
+\end{problem}
+\vfill\newpage
+
+\begin{problem}{11}
+  (First-step analysis.) A fair die is rolled until the first 6. Let $S$ be the
+  sum of all the rolls, the 6 included. Find $\EE{S}$ by conditioning on the first
+  roll.
+\end{problem}
+\vspace{4cm}
+
+\begin{problem}{12}
+  (Splitting a Poisson sum.) $X \dist \Poisson{\lambda}$ and $Y \dist \Poisson{\mu}$
+  are independent.
+  \begin{enumerate}
+    \item[(a)] Use moment generating functions to show $X + Y \dist \Poisson{\lambda + \mu}$.
+    \item[(b)] Find the conditional distribution of $X$ given $X + Y = n$.
+  \end{enumerate}
+\end{problem}
+\vspace{4cm}
+
+\begin{problem}{13}
+  (No mean.) $X$ has the Cauchy density $f(x) = \dfrac{1}{\pi(1+x^2)}$. Show that
+  $\EE{|X|} = \infty$, so $\EE{X}$ does not exist.
+\end{problem}
+\vfill
+
+\end{document}

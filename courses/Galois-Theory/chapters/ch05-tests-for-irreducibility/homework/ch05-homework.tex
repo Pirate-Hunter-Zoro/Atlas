@@ -1,0 +1,160 @@
+% ===========================================================================
+%  Chapter 05 homework — Tests for irreducibility
+%  Garling, A Course in Galois Theory
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant transcribes each assigned problem statement faithfully and
+%    emits an empty, marked solution region beneath it.
+%    The user types the mathematics inside those regions. No assistant writes
+%    inside a SOLUTION region in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Chapter 05 Homework --- Tests for irreducibility}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+% Assistant: replace this block with one problem/solution pair per assigned
+% exercise, in the order assigned, following the pattern below exactly.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{05.4}
+  Suppose that $K$ is a field and that $f$ and $g$ are relatively prime in
+  $K[x]$. Show that $f-yg$ is irreducible in $K(y)[x]$.
+\end{problem}
+% ===== SOLUTION 05.4 =====
+\begin{proof}
+Suppose $f - yg = ab$ with $a, b \in K(y)[x]$. We prove that $a$ or $b$ is a
+unit.
+
+Since $f - yg \in K[y][x]$, Gauss's lemma (over the unique factorisation domain
+$K[y]$) gives a nonzero $c \in K(y)$ with $ca,\ c^{-1}b \in K[x][y]$. Scaling by
+$c$ does not change whether a factor is a unit of $K(y)[x]$, so without loss of
+generality $a, b \in K[x][y]$.
+
+In $K[x][y]$, $f - yg = f + (-g)y$ has degree $1$ in $y$, and degrees in $y$
+add, so without loss of generality $a$ has degree $0$ and $b = b_0 + b_1 y$,
+with $a, b_0, b_1 \in K[x]$. Then $ab = ab_0 + ab_1 y$, which means $f = ab_0$
+and $g = -ab_1$, so $f$ and $g$ have the common factor $a$. Since $f$ and $g$
+are relatively prime, $a$ must be a unit in $K[x]$. So it is a unit in
+$K(y)[x]$, since $K[x] \subseteq K(y)[x]$.
+\end{proof}
+% ===== END SOLUTION 05.4 =====
+
+\begin{problem}{05.6}
+  Suppose that $R$ is an integral domain and that
+  \[
+    f = f_0 + f_1 x + \cdots + f_n x^n \in R[x]
+  \]
+  has the property that $f_0, \ldots, f_n$ are relatively prime. Suppose that
+  $p$ is a prime in $R$, and that $p \mid f_i$ for $1 \leq i \leq n$, while $p$
+  does not divide $f_0$ and $p^2$ does not divide $f_n$. Show that $f$ is
+  irreducible in $R[x]$.
+\end{problem}
+% ===== SOLUTION 05.6 =====
+\begin{proof}
+Reduce the coefficients of $f$ modulo $p$. Since $p \mid f_i$ for
+$1 \le i \le n$, we get $\bar f = \bar f_0$, which is of degree zero, as
+$p \nmid f_0$.
+
+Suppose $f = gh$ with $g, h \in R[x]$. Then $\bar f = \bar g\,\bar h$, and since
+$(p)$ is prime, $R/(p)$ is an integral domain, so degrees add and both $\bar g$
+and $\bar h$ must be of degree zero.
+
+\emph{Case 1: $g$ and $h$ both of positive degree.} Write $k = \deg g$ and
+$m = \deg h$, so $f_n = g_k h_m$. Since $\bar g$ and $\bar h$ are constants, the
+leading coefficients vanish mod $p$: $p \mid g_k$ and $p \mid h_m$. Hence
+$p^2 \mid f_n$, a contradiction.
+
+\emph{Case 2: $g$ or $h$ of degree zero.} Without loss of generality
+$\deg h = \deg f$ and $g(x) = c \in R$. Then $f_i = c\,h_i$ for all $i$, so
+$c \mid f_i$ for every $i$. Since the $f_i$ are relatively prime, $c$ must be a
+unit, and so $f$ is irreducible in this case too.
+\end{proof}
+% ===== END SOLUTION 05.6 =====
+
+\begin{problem}{05.7}
+  Show that if $p$ is a prime number then $x^n - p$ is irreducible in
+  $\mathbb{Q}[x]$.
+\end{problem}
+% ===== SOLUTION 05.7 =====
+\begin{proof}
+Write $x^n - p = a_0 + a_1 x + \cdots + a_n x^n$, so $a_0 = -p$ and $a_n = 1$.
+Clearly $p \mid a_0$, $p^2 \nmid a_0$ and $p \nmid a_n$. For $1 \le i < n$ we
+have $a_i = 0 = p \cdot 0$, so $p \mid a_i$. This is a direct example of
+Eisenstein's criterion, so $x^n - p$ is irreducible over $\mathbb{Q}$.
+\end{proof}
+% ===== END SOLUTION 05.7 =====
+
+\begin{problem}{05.8}
+  Let $A$ denote the field of real numbers which are algebraic over
+  $\mathbb{Q}$. Show that $[A : \mathbb{Q}] = \infty$.
+\end{problem}
+% ===== SOLUTION 05.8 =====
+\begin{proof}
+Let $n \in \mathbb{N}$ be arbitrary. We will show $[A : \mathbb{Q}] > n$.
+
+Consider $x^n - 2 \in \mathbb{Q}[x]$. Since it is irreducible in
+$\mathbb{Q}[x]$ by Eisenstein (05.7 with $p = 2$),
+$[\mathbb{Q}(\sqrt[n]{2}) : \mathbb{Q}] = n$.
+
+As $\mathbb{Q}(\sqrt[n]{2}) \subsetneq A$, since for example
+$\sqrt[n+1]{2} \in A$ but $\sqrt[n+1]{2} \notin \mathbb{Q}(\sqrt[n]{2})$,
+clearly $[A : \mathbb{Q}] > [\mathbb{Q}(\sqrt[n]{2}) : \mathbb{Q}] = n$.
+Since $n$ was arbitrary, $[A : \mathbb{Q}] = \infty$.
+\end{proof}
+% ===== END SOLUTION 05.8 =====
+
+\begin{problem}{05.10}
+  Show that $x^5 - 4x + 2$ and $x^4 - 4x + 2$ are irreducible over
+  $\mathbb{Q}(i)$.
+\end{problem}
+% ===== SOLUTION 05.10 =====
+\begin{proof}
+\textbf{The quintic.} Let $\alpha$ be a root of $x^5 - 4x + 2$. By
+Eisenstein at $p = 2$ this polynomial is irreducible in $\mathbb{Q}[x]$,
+so $[\mathbb{Q}(\alpha) : \mathbb{Q}] = 5$. Also
+$[\mathbb{Q}(i) : \mathbb{Q}] = 2$.
+
+$[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] \le 5$, because $\alpha$ is a root
+of $x^5 - 4x + 2 \in \mathbb{Q}(i)[x]$. That polynomial may be reducible
+over $\mathbb{Q}(i)$. If it is, $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] < 5$;
+if it is not, $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] = 5$.
+
+By the tower law applied to
+$\mathbb{Q} \subset \mathbb{Q}(i) \subset \mathbb{Q}(i,\alpha)$, the degree
+$[\mathbb{Q}(i,\alpha) : \mathbb{Q}]$ is at most $5 \cdot 2 = 10$. Applied to
+$\mathbb{Q} \subset \mathbb{Q}(\alpha) \subset \mathbb{Q}(i,\alpha)$ as well,
+both $2$ and $5$ must divide it, so it is $10$. The only way to satisfy
+this is if $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] = 5$, so
+$x^5 - 4x + 2$ is irreducible in $\mathbb{Q}(i)[x]$, since it must be
+$\alpha$'s minimal polynomial over $\mathbb{Q}(i)$.
+
+\textbf{The quartic.} Clearly Eisenstein at $p = 2$ shows $x^4 - 4x + 2$ is
+irreducible in $\mathbb{Q}[x]$. Since $g(0) = 2 > 0$ and $g(1) = -1 < 0$,
+the intermediate value theorem gives a real root $\beta$ of
+$g(x) = x^4 - 4x + 2$, and $[\mathbb{Q}(\beta) : \mathbb{Q}] = 4$. Note also
+$[\mathbb{Q}(i) : \mathbb{Q}] = 2$.
+
+So $[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 4$ or $8$: it is divisible by $4$
+through $\mathbb{Q}(\beta)$, and (for the same argument as the quintic)
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(i)]$ is certainly not more than $4$, so it
+is at most $8$ through $\mathbb{Q}(i)$.
+
+Suppose $[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 4$. Then
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(\beta)] = 1$, meaning
+$i \in \mathbb{Q}(\beta)$. But this can't be, since $\beta \in \mathbb{R}$
+gives $\mathbb{Q}(\beta) \subset \mathbb{R}$. So
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 8$, hence
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(i)] = 4$, which means $x^4 - 4x + 2$ is
+irreducible over $\mathbb{Q}(i)$, since it must be $\beta$'s minimal
+polynomial over $\mathbb{Q}(i)$.
+\end{proof}
+% ===== END SOLUTION 05.10 =====
+
+\end{document}
