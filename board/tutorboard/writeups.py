@@ -79,7 +79,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 # Everything that is stored. A judged record carries `state` as well, and writing
 # that back would turn a reading into a fact.
 FIELDS = ("id", "makes", "about", "at", "agent", "dir", "ended", "ended_at",
-          "doc", "seen")
+          "doc", "seen", "session")
 
 
 def clean_makes(makes):
@@ -156,11 +156,12 @@ def _every(root):
     return out
 
 
-def ask(root, wid, makes, about="", agent="", doc_dir=None):
+def ask(root, wid, makes, about="", agent="", doc_dir=None, session=None):
     """Record that a document has been asked for. Returns the record.
 
     `doc_dir` is the artifact the ask made, relative to `root`, when it made
-    one; its doc.json is what the record is judged by.
+    one; its doc.json is what the record is judged by. `session` is the id of
+    the stored session whose inbox holds the ask, where one does.
     """
     rec = {
         "id": str(wid), "makes": clean_makes(makes) or "paper",
@@ -169,6 +170,8 @@ def ask(root, wid, makes, about="", agent="", doc_dir=None):
         "dir": (doc_dir or "").replace(os.sep, "/"),
         "ended": "", "ended_at": 0, "doc": "", "seen": False,
     }
+    if session:
+        rec["session"] = str(session)
     write(root, rec)
     _CACHE.pop(os.path.realpath(root), None)
     return rec

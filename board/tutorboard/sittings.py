@@ -1187,9 +1187,14 @@ def _turn_over(root, wid):
     """
     if not wid:
         return False
+    # THE SESSION THE ASK WENT TO, where `runner_route` chose one: the
+    # writeups record names it, and its inbox and agent.json are the ones.
+    held = (writeups.read(root, wid) or {}).get("session") or ""
+    where = sessions.path(held) if held else None
     taken = False
     try:
-        with open(course_repo.session_path(root, "inbox", "messages.jsonl"), "r",
+        with open(os.path.join(where, "inbox", "messages.jsonl") if where else
+                  course_repo.session_path(root, "inbox", "messages.jsonl"), "r",
                   encoding="utf-8") as fh:
             for line in fh:
                 try:
@@ -1204,6 +1209,8 @@ def _turn_over(root, wid):
         return False
     from . import missions                            # local: a heavy import
     agent = missions._agent(root)
+    if where:
+        agent = course_repo._read_json(os.path.join(where, "agent.json"))
     if agent.get("state") != "working":
         return True
     try:

@@ -269,10 +269,10 @@ def upload(who):
     return multipart("hand-in.txt", MARK[who].encode("utf-8"))
 
 
-# DRIVE: route -> (class, [(path, body, statuses[, unprefixed statuses])]).
+# DRIVE: route -> (class, [(path, body, statuses[, unprefixed[, no subject]])]).
 # `{mark}` and `{doc}` are filled in per session, and a body may be a function
-# of the session. `statuses` None means anything under 500; the unprefixed
-# ones, for a subject route, default to the same.
+# of the session. `statuses` None means anything under 500; a subject route's
+# unprefixed ones, with `?subject=` and without, default to the same.
 OK = (200,)
 REFUSED = (400,)
 DRIVE = {
@@ -309,6 +309,42 @@ DRIVE = {
     ("POST", "/hw/build", "saving"): ("session", [("/hw/build", {}, OK)]),
     ("POST", "/export/shot", "saving"): ("session", [("/export/shot", {}, OK)]),
     ("POST", "/export", "saving"): ("session", [("/export", {"scope": "lesson"}, OK)]),
+    # library
+    ("GET", "/library.json", "library"): ("subject", [("/library.json", None, OK)]),
+    ("GET", "/library/stamp", "library"): ("subject", [("/library/stamp", None, OK)]),
+    ("GET", "/library/results.json", "library"): ("subject", [
+        ("/library/results.json", None, OK)]),
+    ("GET", "/library/table/", "library"): ("subject", [("/library/table/nope", None, (404,))]),
+    ("GET", "/library/view/", "library"): ("subject", [("/library/view/{doc}", None, OK)]),
+    ("GET", "/library/note/", "library"): ("subject", [
+        ("/library/note/{doc}/nope", None, (404,))]),
+    ("GET", "/library/ledger/", "library"): ("subject", [("/library/ledger/{doc}", None, OK)]),
+    ("GET", "/library/evidence/", "library"): ("subject", [
+        ("/library/evidence/{doc}/a/b", None, (404,))]),
+    ("POST", "/library/ledger/preview", "library"): ("subject", [
+        ("/library/ledger/preview", {"document": "{doc}", "text": "fix {mark}"}, OK)]),
+    ("POST", "/library/ledger/state", "library"): ("subject", [
+        ("/library/ledger/state", {"document": "{doc}", "note": "n", "id": "1",
+                                   "state": "done"}, None)]),
+    ("POST", "/library/feedback", "library"): ("subject", [
+        ("/library/feedback", {"document": "{doc}", "text": "fix {mark}"}, OK)]),
+    ("POST", "/library/direction", "library"): ("subject", [
+        ("/library/direction", {"document": "{doc}", "page": 1,
+                                "text": "turn {mark}"}, OK)]),
+    ("POST", "/doc/delete", "library"): ("subject", [
+        ("/doc/delete", {"id": "nope"}, (404,))]),
+    ("POST", "/writeup", "library"): ("subject?", [
+        ("/writeup", {"makes": "paper", "about": "{mark}"}, OK, OK, (404,))]),
+    ("GET", "/shelf.json", "library"): ("session", [("/shelf.json", None, OK)]),
+    ("GET", "/library/marked/", "library"): ("session", [
+        ("/library/marked/nope/x.pdf", None, (404,))]),
+    ("POST", "/writeup/seen", "library"): ("session", [
+        ("/writeup/seen", {"id": "t0001"}, OK)]),
+    ("POST", "/sittings", "library"): ("atlas", [("/sittings", {}, OK)]),
+    ("POST", "/sittings/items", "library"): ("atlas", [("/sittings/items", {"picks": []}, OK)]),
+    ("POST", "/sittings/decks", "library"): ("atlas", [("/sittings/decks", {}, OK)]),
+    ("POST", "/sittings/deck", "library"): ("atlas", [
+        ("/sittings/deck", {"picks": [], "items": []}, (400,))]),
     # not yet classified in their modules' tables
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
@@ -378,6 +414,7 @@ def judged(label, who, status, reply, wrote, calls, statuses, allowed):
 # Where an unprefixed ask of a subject's tutor may land: the newest open
 # session on it, which `runner_route` chooses.
 ROUTED = dict((who, (os.path.relpath(DIR[who], atlas) + os.sep,)) for who in ("A", "B"))
+SESSIONS = tuple(os.path.relpath(DIR[who], atlas) + os.sep for who in ("A", "B"))
 
 
 def first_event(who):
@@ -416,6 +453,7 @@ for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
     for one in asks:
         path, body, statuses = one[:3]
         bare = one[3] if len(one) > 3 else statuses
+        nobody = one[4] if len(one) > 4 else bare
         for who in ("A", "B"):
             status, reply, wrote, calls = drive_one(
                 method, "/s/%s%s" % (SID[who], fill(path, who)), body, who)
@@ -449,7 +487,14 @@ for route in sorted(DRIVE, key=lambda r: (r[2], r[1], r[0])):
             check("unprefixed %s %s, no subject, answers (%d) and writes no session or "
                   "subject%s" % (method, fill(path, "A"), status,
                                  " (stray: %s)" % stray if stray else ""),
-                  (status < 500 if bare is None else status in bare) and not stray)
+                  (status < 500 if nobody is None else status in nobody) and not stray)
+        if cls == "atlas":
+            # Over every subject, from no session: it writes into none.
+            status, reply, wrote, calls = drive_one(method, fill(path, "A"), body, "A")
+            stray = [w for w in wrote if any(w.startswith(r) for r in SESSIONS)]
+            check("unprefixed %s %s answers (%d) and writes no session%s"
+                  % (method, fill(path, "A"), status, " (stray: %s)" % stray if stray else ""),
+                  (status < 500 if statuses is None else status in statuses) and not stray)
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +546,69 @@ notes = json.loads(reply.decode("utf-8")).get("notes") or {}
 check("a second session on one subject reads that subject's document ink",
       status == 200 and "doc/notes/p1" in notes and "0001" not in notes)
 
+# ---------------------------------------------------------------------------
+# 2b. an ask of a subject's tutor lands in that subject's newest open session
+# ---------------------------------------------------------------------------
+def inbox(where):
+    try:
+        with open(os.path.join(where, "inbox", "messages.jsonl"), encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def landed(method, path, body):
+    """`(status, reply, {session dir: inbox lines it gained})`."""
+    every = [sessions.path(r["id"], atlas) for r in sessions.all(atlas)]
+    before = dict((d, inbox(d)) for d in every)
+    status, reply = ask(method, path, body)
+    grew = {}
+    for r in sessions.all(atlas):
+        d = sessions.path(r["id"], atlas)
+        new = inbox(d)[len(before.get(d, "")):]
+        if new:
+            grew[d] = new
+    return status, reply, grew
+
+
+def only(grew, where, word):
+    return list(grew) == [where] and word in grew[where]
+
+
+status, _, grew = landed("POST", "/library/feedback?subject=" + SUBJECT["A"],
+                         {"document": DOC["A"], "text": "a library note"})
+check("library feedback from the library page lands in the newest open session on "
+      "its subject, and nowhere else", status == 200 and only(grew, SECOND, "[revise]"))
+status, _, grew = landed("POST", "/s/%s/library/feedback" % SID["B"],
+                         {"document": DOC["B"], "text": "a note from B's board"})
+check("library feedback from a session's own board lands in that session",
+      status == 200 and only(grew, DIR["B"], "[revise]"))
+status, _, grew = landed("POST", "/writeup", {"makes": "slides", "repo": SUBJECT["B"],
+                                              "about": "a deck from home"})
+check("a deck asked for from the front door lands in its subject's session",
+      status == 200 and only(grew, DIR["B"], "[writeup]"))
+status, _, grew = landed("POST", "/s/%s/writeup" % SID["A"],
+                         {"makes": "slides", "repo": SUBJECT["B"], "about": "for Beta"})
+check("a deck asked for in session A for Beta lands in Beta's session, not A's",
+      status == 200 and only(grew, DIR["B"], "[writeup]"))
+rows = json.loads(ask("POST", "/sittings", {})[1].decode("utf-8")).get("sittings") or []
+pick = [r["id"] for r in rows if r.get("ws") == SUBJECT["A"]][:1]
+groups = json.loads(ask("POST", "/sittings/items", {"picks": pick})[1].decode(
+    "utf-8")).get("groups") or []
+items = [i["id"] for g in groups for i in g.get("items") or []]
+status, reply, grew = landed("POST", "/sittings/deck", {"picks": pick, "items": items})
+check("a deck from sittings lands in the newest open session on its host "
+      "(%d %s)" % (status, reply[:200]),
+      status == 200 and only(grew, SECOND, "[writeup]"))
+had = set(r["id"] for r in sessions.all(atlas))
+status, _, grew = landed("POST", "/writeup?subject=" + LONE,
+                         {"makes": "paper", "about": "nobody is here"})
+made = [r for r in sessions.all(atlas) if r["id"] not in had]
+check("an ask of a subject with no open session opens one bound to it, titled for it",
+      status == 200 and len(made) == 1 and made[0]["subject"] == LONE
+      and (made[0]["title"] or "").startswith("Gamma: ")
+      and list(grew) == [sessions.path(made[0]["id"], atlas)])
+
 # An unbound session keeps document ink in its own annotations.
 loose = sessions.new("unbound", base=atlas, now=1.7e9 + 6)
 before = snapshot()
@@ -518,12 +626,13 @@ for path in ("/", "/sw.js", "/manifest.webmanifest", "/static/board.js", "/healt
              "/sessions.json", "/subjects.json", "/notices.json", "/library",
              "/library.json?subject=courses/Alpha",
              "/library/stamp?subject=projects/Beta"):
+    named = path.split("subject=", 1)[1] + os.sep if "subject=" in path else CACHE
     before = snapshot()
     status, reply = ask("GET", path)
     stray = [w for w in changed(before, snapshot())
-             if not w.startswith("sessions" + os.sep)]
-    check("unprefixed GET %s answers and writes no subject" % path,
-          status == 200 and not stray)
+             if not w.startswith(CACHE) and not w.startswith(named)]
+    check("unprefixed GET %s answers and writes no other subject and no session%s"
+          % (path, " (stray: %s)" % stray if stray else ""), status == 200 and not stray)
 
 status, reply = ask("GET", "/sessions.json")
 listed = [r["id"] for r in json.loads(reply.decode("utf-8"))["sessions"]]

@@ -37,7 +37,6 @@ import shutil
 import time
 
 from . import atlas, meeting, sense
-from .course.repo import Repo
 from .lesson import turns
 
 # Where the picture of each marked slide is kept, under `meetings/`.
@@ -172,7 +171,7 @@ def send(repo, base=None):
                            "there has nowhere to go -- draw on the frame for "
                            "the project you mean.")}
 
-    from .server import spawn                          # local: avoids a cycle
+    from .server import registry                       # local: avoids a cycle
 
     names = rec.get("names") or {}
     known = dict((w["id"], w["root"]) for w in atlas.workspaces(base))
@@ -199,15 +198,10 @@ def send(repo, base=None):
             if shot:
                 images.append((page, shot))
 
-        target = Repo(root)
         line = "[direction] " + sense.direction_mark_sense(
             deck_rel, pages, images, since=rec.get("since") or "")
-        tid = turns.next_turn_id(target)
         record = {
-            "id": tid, "rev": turns.turn_revision(target, tid), "kind": "text",
-            "answers": None,
-            "t": time.time(),
-            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": "text", "answers": None,
             # THEIRS, because it is: they drew it. A transcript over there that
             # opens with the answer reads as an assistant that decided to
             # rethink the project on its own.
@@ -217,25 +211,23 @@ def send(repo, base=None):
             # that is happening here -- this turn writes one card and stops.
             "signal": None, "read": False,
         }
-        turns.write_turn(target, record)
+        # INTO THAT WORKSPACE'S SESSION, which `runner_route` picks; it wakes
+        # its tutor too.
         try:
-            with open(target.messages_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record) + "\n")
-        except OSError as exc:
+            got = registry.runner_route(ws_id, record, base=base, turn=True,
+                                        ask="a direction from the meeting")
+        except (LookupError, OSError) as exc:
             skipped.append({"workspace": ws_id,
                             "why": "nothing could be asked in %s: %s"
                                    % (ws_id, exc)})
             continue
+        tid = got["id"]
 
         _sent(repo, keys)
         sent.append({"workspace": ws_id,
                      "name": names.get(ws_id) or ws_id,
                      "pages": pages, "turn": tid,
                      "images": [img for _, img in images]})
-
-        # A request that sits in an inbox beside a board with no tutor on it is
-        # a tap that did nothing for ever -- the same reason `/say` wakes one.
-        spawn.wake_tutor(target)
 
     if not sent:
         return {"ok": False, "sent": [], "skipped": skipped,
@@ -305,8 +297,13 @@ def from_document(repo, doc, page=0, words="", pictured=None):
                           "direction on a page, or say what it is")}
     pages = sorted(set(m["page"] for m in chosen)) or [page]
 
+    from .server import registry                       # local: avoids a cycle
+    # A sessionless Repo (the library page) has no session to keep the
+    # pictures in: they go beside the subject's document ink.
+    away = registry.is_sessionless(repo)
     stamp = time.strftime("%y%m%d-%H%M%S")
-    where = os.path.join(os.path.dirname(repo.notes), DIRECTIONS)
+    where = (os.path.join(repo.doc_ink, DIRECTIONS) if away
+             else os.path.join(os.path.dirname(repo.notes), DIRECTIONS))
     images = []
     going = []
     for m in chosen:
@@ -334,27 +331,38 @@ def from_document(repo, doc, page=0, words="", pictured=None):
 
     line = "[direction] " + sense.doc_direction_sense(
         doc["rel"], pages, images, words, missing=kept)
-    tid = turns.next_turn_id(repo)
     record = {
-        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
-        "answers": None, "t": time.time(),
+        "kind": "text", "answers": None, "t": time.time(),
         "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
         # Theirs, and not the `direction` signal -- for the reasons `send`
         # gives: nothing is archived and nobody is replaced by this turn.
         "from": "student", "text": line, "signal": None, "read": False,
     }
-    turns.write_turn(repo, record)
-    try:
-        with open(repo.messages_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record) + "\n")
-    except OSError as exc:
-        return {"ok": False, "error": "nothing could be asked: %s" % exc}
+    if away:
+        # From outside any session: the subject's tutor, through the one
+        # route there is to it, which picks the session and wakes it.
+        try:
+            tid = registry.runner_route(
+                registry.subject_of(repo), record, base=registry.base_of(repo),
+                turn=True, ask="a direction for %s" % doc.get("title"))["id"]
+        except (LookupError, OSError) as exc:
+            return {"ok": False, "error": "nothing could be asked: %s" % exc}
+    else:
+        tid = turns.next_turn_id(repo)
+        record.update(id=tid, rev=turns.turn_revision(repo, tid))
+        turns.write_turn(repo, record)
+        try:
+            with open(repo.messages_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+        except OSError as exc:
+            return {"ok": False, "error": "nothing could be asked: %s" % exc}
 
     stripped = []
     for m in going:
         library.strip_kind(repo, m["key"], "dir")
         stripped.append(m["key"])
-    spawn.wake_tutor(repo)
+    if not away:
+        spawn.wake_tutor(repo)
     sent = sorted(set(m["page"] for m in going)) if chosen else pages
     said = ("page %d" % sent[0]) if len(sent) == 1 \
         else "pages " + ", ".join(str(p) for p in sent)

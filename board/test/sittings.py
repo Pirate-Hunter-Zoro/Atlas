@@ -611,32 +611,23 @@ status, body = post("/sittings/deck", {"picks": [merged], "items": []})
 check("a deck of nothing is refused by name",
       status == 400 and body.get("error") == "tick at least one thing")
 
-# A START REFUSED OVER THERE WRITES NOTHING ANYWHERE.
-real_cli = spawn.tutor_cli
-spawn.tutor_cli = lambda args, timeout=30: (1, "claude is already on a mission "
-                                                "in Proj")
-shutil_rm = __import__("shutil").rmtree
-shutil_rm(os.path.join(proj, "writeups"))
-before = tree(os.path.join(proj, "live"))
-status, body = post("/sittings/deck", {"picks": ["research/Proj@" + p1, merged],
-                                       "items": want})
-check("a refused start answers 409 with the words it came in",
-      status == 409 and "already on a mission in Proj" in (body.get("error") or ""))
-check("and nothing was written: no writeups/, no new live/ files",
-      not os.path.exists(os.path.join(proj, "writeups"))
-      and tree(os.path.join(proj, "live")) == before)
-
+# THE ASK GOES THROUGH `runner_route`: no tutor is started over there, and
+# the line lands in the newest open session on Proj -- here a new one, since
+# none was open.
 ran = []
+real_cli = spawn.tutor_cli
 spawn.tutor_cli = lambda args, timeout=30: (ran.append(list(args)) or
                                             (0, "claude starting in Proj"))
 status, body = post("/sittings/deck", {"picks": ["research/Proj@" + p1, merged],
                                        "items": want})
 spawn.tutor_cli = real_cli
-check("an allowed one is asked for in the workspace holding the most of it",
+held = sessions.get(body.get("session") or "", fake) or {}
+check("an allowed one is asked for in the workspace holding the most of it, in "
+      "a session bound to it, and no start is asked for",
       status == 200 and body.get("host") == "research/Proj"
-      and ran and ran[-1] == ["agent", "start", "Proj", "--respawn"])
+      and held.get("subject") == "research/Proj" and not ran)
 slug2 = body.get("slug") or ""
-over = course_repo.Repo(proj)
+over = sessions.repo(held["id"], fake)
 with open(over.messages_path, encoding="utf-8") as fh:
     lines = [json.loads(l) for l in fh if l.strip()]
 check("the host's inbox opens with a [writeup] line naming the brief",
@@ -697,7 +688,7 @@ for m in taken:
     m["read"] = True
 with open(over.messages_path, "w", encoding="utf-8") as fh:
     fh.write("".join(json.dumps(m) + "\n" for m in taken))
-agent_path = os.path.join(proj, "live", "agent.json")
+agent_path = os.path.join(over.live, "agent.json")
 from tutorboard import machine                                   # noqa: E402
 write(agent_path, json.dumps({"state": "working", "pid": os.getpid(),
                               "host": machine.node_name(), "agent": "claude",

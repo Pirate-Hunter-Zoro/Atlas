@@ -33,7 +33,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, sense, writeups
+from tutorboard import atlas, sense, sessions, writeups
 from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
@@ -548,11 +548,13 @@ try:
               "asked from",
               body.get("repo") == "Fields" and body.get("where") == "Fields"
               and "Fields" in (body.get("detail") or ""))
-        over = course_repo.Repo(fields)
-        check("the start over there is asked for the way `/elsewhere` asks, "
-              "and says a machine asked so the one address stays on the board "
-              "the person is looking at",
-              ran and ran[-1] == ["agent", "start", "Fields", "--respawn"])
+        # NOT a start over there: the ask goes through `runner_route`, which
+        # opens a session bound to Fields (none was open) and writes it there.
+        rec = sessions.get(body.get("session") or "", fake) or {}
+        check("the ask lands in a session bound to that workspace, through "
+              "runner_route, and no tutor start is asked for",
+              rec.get("subject") == "courses/Fields" and not ran)
+        over = sessions.repo(rec.get("id"), fake)
 
         with open(over.messages_path, encoding="utf-8") as fh:
             lines = [json.loads(l) for l in fh if l.strip()]

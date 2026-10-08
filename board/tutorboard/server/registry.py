@@ -150,6 +150,7 @@ def sessionless(root, atlas):
     repo.doc_ink = os.path.join(repo.root, sessions.INK)
     # The one TikZ cache every session shares (`server/tikz.py`).
     repo.tikz = os.path.join(sessions.store(atlas), ".tikz")
+    repo.atlas = os.path.abspath(atlas)
     repo.sessionless = True
     return repo
 
@@ -157,6 +158,18 @@ def sessionless(root, atlas):
 def is_sessionless(repo):
     """Was `repo` made by `sessionless`, i.e. is there no session to write?"""
     return bool(getattr(repo, "sessionless", False))
+
+
+def base_of(repo):
+    """The Atlas root `repo` belongs to: a stored or sessionless Repo knows
+    it; any other answers `subjects.root()`."""
+    return getattr(repo, "atlas", None) or subjects.root()
+
+
+def subject_of(repo):
+    """The id of the subject `repo` is rooted at, or "" (the Atlas root)."""
+    found = subjects.find(repo.root, base_of(repo))
+    return found["id"] if found else ""
 
 
 def newest_open(atlas, subject):
@@ -192,8 +205,9 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None):
     `line` is the inbox text, or a record whose `text`, `signal` and other
     keys are kept. Its `id` is the session's next turn id unless it has one.
     `before(repo, id)` runs once the session is chosen and before anything
-    is written into it; whatever it raises propagates. `turn` also writes the
-    record into the session's transcript, as the student's.
+    is written into it; whatever it raises propagates, and a dict it returns
+    is merged into the record. `turn` also writes the record into the
+    session's transcript, as the student's.
 
     Returns {"session": id, "repo": Repo, "id": turn id, "record": record}.
     Raises LookupError when `subject` names no subject.
@@ -217,7 +231,10 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None):
     record.update(rec)
     record["id"] = tid
     if before:
-        before(repo, tid)
+        more = before(repo, tid)
+        if isinstance(more, dict):
+            record.update(more)
+            record["id"] = tid
     if turn:
         record["rev"] = turns.turn_revision(repo, tid)
         turns.write_turn(repo, record)

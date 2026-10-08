@@ -59,7 +59,8 @@ from tutorboard import (atlas, direction, fenced, meeting, proposals,  # noqa: E
                         sense, sittings, writeups)
 from tutorboard.course import library, results                        # noqa: E402
 from tutorboard.course import repo as course_repo                     # noqa: E402
-from tutorboard.server import handler, hub, spawn, tikz               # noqa: E402
+from tutorboard import sessions                                       # noqa: E402
+from tutorboard.server import handler, hub, registry, spawn, tikz     # noqa: E402
 from tutorboard.server.routes import writing as writing_route         # noqa: E402
 
 
@@ -445,9 +446,13 @@ try:
                                        "want": ["research/TRD", "research/PSY"]})
         check("the deck is asked for, and is being written",
               status == 200 and body.get("ok") and body.get("state") == "being written")
+        # Through `runner_route`: a session bound to the host, opened since
+        # none was, and no tutor started over there.
+        held = sessions.get(body.get("session") or "", base) or {}
         check("in the fenced project, whose assistant may read it",
               body.get("host") == "research/PSY"
-              and started and started[-1][:3] == ["agent", "start", "PSY"])
+              and held.get("subject") == "research/PSY"
+              and not [a for a in started if a[:2] == ["agent", "start"]])
         wid = body.get("id")
         brief = open(os.path.join(deck_dir, "_brief.md"), encoding="utf-8").read()
         check("the brief is beside where the deck goes, with TRD's bodies",
@@ -466,7 +471,8 @@ try:
               "is only catalogued",
               any("k-sweep" in f or "k_sweep" in f for f in figs)
               and not any("old" in f for f in figs))
-        inbox = open(course_repo.Repo(psy).messages_path, encoding="utf-8").read()
+        inbox = open(sessions.repo(held["id"], base).messages_path,
+                     encoding="utf-8").read()
         check("a [writeup] turn is asked for in the host, over the brief",
               "[writeup]" in inbox and "writeups/meeting/_brief.md" in inbox
               and "meetingws" in inbox and "MENTORS" in inbox)
@@ -607,7 +613,8 @@ try:
             check("ink on both of a project's pages is routed to that project",
                   status == 200 and [s["workspace"] for s in sent]
                   == ["research/TRD"] and sent[0]["pages"] == [3, 4])
-            said = open(course_repo.Repo(trd).messages_path, encoding="utf-8").read()
+            said = open(sessions.repo(registry.newest_open(base, "research/TRD"),
+                                      base).messages_path, encoding="utf-8").read()
             check("as a proposal, pointing at the deck where it is",
                   "[direction]" in said and "YOU ARE PROPOSING" in said
                   and "research/PSY/writeups/meeting/meeting.pdf" in said)
