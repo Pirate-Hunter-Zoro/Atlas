@@ -1,5 +1,9 @@
 """relay.py -- the cluster's half of the relay: one pass, every five minutes.
 
+scrontab runs `board/scripts/relay-pass.sh`, which pulls in bash (so a pushed
+fix lands even when this file cannot import), re-execs itself once when the
+pull changed board/, then runs `board/bin/relay --once`, which is `run_pass`.
+
 The Mac commits `relay/requests/<id>.json`; this pulls it, checks it again with
 `jobs.check`, submits it through `jobs.submit_recipe`, polls it with
 `jobs.poll`, and commits `relay/reports/<id>.json` and `exports/`. GitHub is
@@ -25,8 +29,8 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
    the pass: a failed job's recipe prints `RELAY:` lines
    (`slurm_jobs/lib/relay_trap.sh`), and the Mac repairs it.
 5. Only what this pass wrote under `relay/reports/` and `exports/` is
-   committed (`staged_paths`); anything else there is named in
-   `relay/state.json`. Then a synced workspace's edits, one commit each
+   committed (`staged_paths`), with `relay/status.json` when it changed;
+   anything else there is named in `relay/state.json`. Then a synced workspace's edits, one commit each
    (`sync_commit`), past the PHI check `board push` uses; what it refuses is
    left uncommitted and named. The pass rebases onto origin with `holds.sync`
    and pushes. A rejected push is retried by the next pass; a sync commit
@@ -53,10 +57,12 @@ import getpass
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 from . import atlas, jobs, leaving, paths, worktree
@@ -64,6 +70,9 @@ from .course import threads as course_threads
 
 LOCK = os.path.join("relay", ".lock")
 STATE = os.path.join("relay", "state.json")
+# The relay's public health, tracked at the Atlas root: what the Mac reads.
+# `relay/state.json` beside it is the ignored, cluster-only detail.
+STATUS = "relay/status.json"
 
 # An export is at most this big.
 CAP = 5 * 1024 * 1024
@@ -171,13 +180,14 @@ def _logs(rec):
 # ---------------------------------------------------------------------------
 # git, in the cluster checkout
 # ---------------------------------------------------------------------------
-def _git(base, *args, timeout=120, raw=False):
+def _git(base, *args, timeout=120, raw=False, env=None, input=None):
     try:
         p = subprocess.run(["git"] + list(args), cwd=base,
-                           env=dict(os.environ, **GIT_ENV),
+                           env=dict(os.environ, **dict(GIT_ENV, **(env or {}))),
                            stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL if raw else subprocess.STDOUT,
-                           universal_newlines=True, timeout=timeout)
+                           universal_newlines=True, timeout=timeout,
+                           input=input)
     except (OSError, subprocess.SubprocessError) as exc:
         return 1, str(exc)
     return p.returncode, (p.stdout or "") if raw else (p.stdout or "").strip()
@@ -239,9 +249,10 @@ def _under(rel, prefixes):
 
 def owned(base, rel, where=None, held=None):
     """Is this repository-relative path one the cluster writes? A workspace's
-    `relay/reports/` and `exports/`, the `vendor/colibri` pointer the pass
-    moves, and (`held`, from `held_paths`) what a standing hold covers."""
-    if rel == "vendor/colibri":
+    `relay/reports/` and `exports/`, `relay/status.json`, the
+    `vendor/colibri` pointer the pass moves, and (`held`, from `held_paths`)
+    what a standing hold covers."""
+    if rel in ("vendor/colibri", STATUS):
         return True
     for _, ws in where if where is not None else spaces(base):
         for mine in ("relay/reports/", "exports/"):
@@ -527,6 +538,7 @@ def sync(base, where, pull_vendor=None, said=None):
     if not up:
         return "HEAD is detached or its branch has no upstream", ""
     remote, theirs, ref = up
+    restore_status(base)
     dirty = _dirty(base)
     if dirty is None:
         return "git status failed", ""
@@ -764,6 +776,10 @@ def publish(base, where, message, push=True, sync=None, said=None):
     said.setdefault("synced", [])
     said.setdefault("sync_left", [])
     mine, _ = staged_paths(base, where)
+    if status_dirty(base):
+        mine.append(STATUS)
+        if mine == [STATUS]:
+            message = "relay: status"
     if mine:
         code, out = _git(base, "add", "--", *mine)
         if code != 0:
@@ -1047,6 +1063,158 @@ def check_task(ws, rec, names_phi=None):
 
 
 # ---------------------------------------------------------------------------
+# relay/status.json: the relay's public health
+# ---------------------------------------------------------------------------
+# `{"skipped", "last_error", "push_pending", "at"}`, every string through
+# `public`. Computed at the end of every pass; written and committed only
+# when a field other than `at` changed, so an idle relay makes no commits and
+# the file is never left edited in the tree. A pass that runs commits it with
+# its reports (`publish`). A skipped pass cannot touch the branch, so it
+# commits the file on top of origin's tip through a temporary index and
+# pushes that (`status_aside`): HEAD, the index and the tree stay as they
+# were, and the next pull brings it in.
+#
+# The cluster is its only writer. A status commit is made only on a base that
+# already holds every status commit origin has, so two never diverge and a
+# rebase never meets one: a running pass writes it only when HEAD is not
+# behind origin, and a skipped pass only when no unpushed commit carries it.
+WITHHELD = "(withheld by the PHI policy)"
+
+
+def status_doc(skipped, error, push_pending, at, names_phi=None):
+    def say(text):
+        if not text:
+            return ""
+        said = public(text, names_phi, 400)
+        return said if said is not None else WITHHELD
+    return {"skipped": say(skipped), "last_error": say(error),
+            "push_pending": bool(push_pending), "at": int(at)}
+
+
+def _same_status(a, b):
+    def bare(d):
+        return dict((k, v) for k, v in (d or {}).items() if k != "at")
+    return bare(a) == bare(b)
+
+
+def status_at(base, ref="HEAD"):
+    """`relay/status.json` as `ref` has it, or {}."""
+    code, out = _git(base, "show", "%s:%s" % (ref, STATUS), raw=True)
+    if code != 0:
+        return {}
+    try:
+        got = json.loads(out)
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def _status_text(doc):
+    return json.dumps(doc, indent=2, sort_keys=True) + "\n"
+
+
+def read_status(base):
+    """The tree's `relay/status.json`, or {}."""
+    try:
+        with open(os.path.join(base, STATUS), "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_status(base, doc):
+    """Write `doc` into the tree when it differs from HEAD's beyond `at`.
+    True when written, for `publish` to commit."""
+    if _same_status(status_at(base), doc):
+        return False
+    path = os.path.join(base, STATUS)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as fh:
+        fh.write(_status_text(doc))
+    os.replace(path + ".tmp", path)
+    return True
+
+
+def status_dirty(base):
+    """Does the tree's `relay/status.json` differ from HEAD's?"""
+    code, out = _git(base, "status", "--porcelain", "--untracked-files=all",
+                     "--", STATUS)
+    return code == 0 and bool(out.strip())
+
+
+def restore_status(base):
+    """Put `relay/status.json` back as HEAD has it, or remove it where HEAD
+    has none: a pass that wrote it and did not commit it leaves no edit."""
+    if not status_dirty(base):
+        return
+    if _git(base, "cat-file", "-e", "HEAD:%s" % STATUS)[0] == 0:
+        _git(base, "checkout", "-q", "HEAD", "--", STATUS)
+    else:
+        _git(base, "rm", "-q", "--cached", "--ignore-unmatch", "--", STATUS)
+        try:
+            os.remove(os.path.join(base, STATUS))
+        except OSError:
+            pass
+
+
+def status_aside(base, doc):
+    """A skipped pass's status, committed on origin's tip and pushed, with
+    HEAD, the index and the tree untouched. "" or why not."""
+    up = upstream(base)
+    if not up:
+        if _git(base, "rev-parse", "--verify", "--quiet",
+                "refs/remotes/origin/main")[0] != 0:
+            return "no upstream to push the status to"
+        up = ("origin", "main", "origin/main")
+    remote, theirs, ref = up
+    code, out = _git(base, "fetch", "--quiet", remote, theirs, timeout=60)
+    if code != 0:
+        return "fetch from %s failed: %s" % (
+            remote, out.splitlines()[-1] if out else "no output")
+    code, tip = _git(base, "rev-parse", "--verify", "--quiet",
+                     "%s^{commit}" % ref)
+    if code != 0 or not tip:
+        return "no %s to put the status on" % ref
+    if _same_status(status_at(base, tip), doc):
+        return ""
+    code, carried = _git(base, "rev-list", "--max-count=1", "%s..HEAD" % tip,
+                         "--", STATUS, raw=True)
+    if code == 0 and carried.strip():
+        return ("an unpushed commit here carries the status; the next pass "
+                "that pushes publishes it")
+    scratch = tempfile.mkdtemp(prefix="relay-status-")
+    env = {"GIT_INDEX_FILE": os.path.join(scratch, "index")}
+    try:
+        code, blob = _git(base, "hash-object", "-w", "--stdin",
+                          input=_status_text(doc))
+        if code != 0:
+            return "status commit failed: %s" % blob
+        for args in (("read-tree", tip),
+                     ("update-index", "--add", "--cacheinfo", "100644", blob,
+                      STATUS)):
+            code, out = _git(base, *args, env=env)
+            if code != 0:
+                return "status commit failed: %s" % (out.splitlines()
+                                                     or [""])[-1]
+        code, tree = _git(base, "write-tree", env=env)
+        if code != 0:
+            return "status commit failed: %s" % tree
+        code, sha = _git(base, "commit-tree", tree, "-p", tip, "-m",
+                         "relay: status")
+        if code != 0:
+            return "status commit failed: %s" % (sha.splitlines() or [""])[-1]
+        code, out = _git(base, "push", "--quiet", remote,
+                         "%s:refs/heads/%s" % (sha, theirs), timeout=180)
+        if code != 0:
+            return "status push rejected, retried next pass: %s" % (
+                out.splitlines() or [""])[-1]
+        return ""
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
 # the pass
 # ---------------------------------------------------------------------------
 def state_path(base):
@@ -1080,7 +1248,8 @@ def sbatch_env():
 
 def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
              push=True):
-    """One pass. Returns a summary dict; `relay/state.json` records it.
+    """One pass. Returns a summary dict; `relay/state.json` records it, and
+    `relay/status.json` says the public part of it when that changed.
 
     `run` is how Slurm is asked (sbatch, scontrol, squeue), so a test can
     answer from a table; git is always the real one.
@@ -1106,6 +1275,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
                "error": "", "synced": []}
     errors = []
     said = {}
+    wrote = False
     _WRITTEN.clear()
     try:
         where = spaces(base)
@@ -1114,11 +1284,25 @@ def _locked_pass(base, run, now, pull_vendor, push):
             errors.append(err)
         if skip:
             summary["skipped"] = skip
+            up = upstream(base)
+            doc = status_doc(skip, "; ".join(errors), up and _count(
+                base, "%s..HEAD" % up[2]), t0, leaving.policy(base))
+            if push:
+                err = status_aside(base, doc)
+                if err:
+                    errors.append(err)
         else:
             atlas.forget()
             where = spaces(base)
             _work(base, where, run, t0, summary)
             errors.extend(summary.pop("errors", []))
+            # Waiting to be pushed: what an earlier pass committed and could
+            # not push. Written only where HEAD has all origin has.
+            up = upstream(base)
+            if up and not _count(base, "HEAD..%s" % up[2]):
+                wrote = write_status(base, status_doc(
+                    "", "; ".join(errors), _count(base, "%s..HEAD" % up[2]),
+                    t0, leaving.policy(base)))
             ids = summary["submitted"] + summary["refused"] + summary["ended"]
             msg = ("relay: %d report(s) -- %s" % (len(ids), ", ".join(ids[:6]))
                    if ids else "relay: reports")
@@ -1135,6 +1319,8 @@ def _locked_pass(base, run, now, pull_vendor, push):
                 st["pushed_at"] = time.time()
     except Exception as exc:                                 # noqa: BLE001
         errors.append("%s: %s" % (type(exc).__name__, exc))
+    if wrote:
+        restore_status(base)        # its commit failed: leave no edit behind
     summary["error"] = "; ".join(errors)
     st.update({"last_pass": t0, "host": socket.gethostname(),
                "skipped": summary["skipped"],
@@ -1384,9 +1570,13 @@ def status(base=None, now=None):
 # the scrontab entry
 # ---------------------------------------------------------------------------
 def scrontab_block(python=None, entry=None, log=None):
-    """The entry, between markers so `install` can replace it."""
+    """The entry, between markers so `install` can replace it.
+
+    It runs `bash <entry>`, `board/scripts/relay-pass.sh` by default, with
+    RELAY_PYTHON set to the interpreter that installed it: a scrontab job's
+    PATH may find an older python3 first."""
     python = python or sys.executable
-    entry = entry or os.path.join(paths.TOOL, "bin", "relay")
+    entry = entry or os.path.join(paths.TOOL, "scripts", "relay-pass.sh")
     log = log or os.path.join(paths.STATE_DIR, "relay-scron.log")
     return "\n".join([
         SCRON_BEGIN + " (written by `relay --install`)",
@@ -1397,7 +1587,8 @@ def scrontab_block(python=None, entry=None, log=None):
         "#SCRON --job-name=tutor-relay",
         "#SCRON --output=%s" % log,
         "#SCRON --open-mode=append",
-        "*/5 * * * * %s %s --once --quiet" % (python, entry),
+        "*/5 * * * * RELAY_PYTHON=%s bash %s" % (shlex.quote(python),
+                                                 shlex.quote(entry)),
         SCRON_END,
     ]) + "\n"
 

@@ -7,6 +7,9 @@ relay -- the cluster's relay, and what its scrontab entry runs.
     relay --entry              print the scrontab entry
     relay --install            write it into this user's scrontab
 
+The scrontab entry runs `board/scripts/relay-pass.sh`, which pulls in bash
+and then runs `relay --once --quiet`.
+
 It runs on the cluster's python3, which may be 3.7, and imports the relay path
 only: no board server, no tutor runner, no model. `tutor relay` runs this.
 See `tutorboard/relay.py`.

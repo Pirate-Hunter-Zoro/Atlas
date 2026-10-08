@@ -44,8 +44,10 @@ HELPERS = ["run.py", "inkzoom.js"]
 # dir, and a -j 4 run fails nothing a -j 1 run passes.
 SERIAL = []
 
-# The guards: what keeps PHI out of git and the relay honest.
-GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py"]
+# The guards: what keeps PHI out of git and the relay honest, and the relay
+# path runnable on the cluster's python 3.7.
+GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py",
+          "py37.py"]
 
 # Started first, because they are the longest; the rest follow by name.
 FIRST = ["link.js", "onlyagent.py", "plane.js", "factory", "seam.js", "relay.py"]

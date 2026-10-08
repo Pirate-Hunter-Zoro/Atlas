@@ -11,6 +11,11 @@ What the checks are about:
   * TWO PASSES AT ONCE: one runs, the other skips.
   * AN EXPORT OVER THE CAP is refused in the report and never copied.
   * A DIRTY TREE SKIPS THE PASS, and `relay/state.json` says why.
+  * `relay/status.json` IS THE PUBLIC HEALTH: committed with the reports, or
+    beside the branch for a skipped pass, and only when a field other than
+    `at` changed. It is never left edited in the tree.
+  * relay-pass.sh PULLS IN BASH: a pushed board/ change re-execs it once and
+    runs the new Python, and a pushed fix lands after a pushed syntax error.
   * A REJECTED PUSH is retried by the next pass, rebased, never forced.
   * A REPORT IS PUBLIC: `RELAY:` lines only, paths redacted, a crash by its
     exception type.
@@ -245,6 +250,13 @@ try:
     got = run_pass()
     check("the pass pulls it and submits it", got["submitted"] == ["r1"]
           and not got["skipped"] and not got["error"])
+    st = json.loads(git(origin, "show", "main:relay/status.json") or "null")
+    check("the first pass commits relay/status.json with its reports",
+          st and st["skipped"] == "" and st["last_error"] == ""
+          and st["push_pending"] is False and isinstance(st["at"], int)
+          and sorted(st) == ["at", "last_error", "push_pending", "skipped"]
+          and "relay/status.json" in git(origin, "show", "--name-only",
+                                         "--format=", "main").split())
     rep = load(os.path.join(cws, "relay", "reports", "r1.json"))
     jid = rep and rep.get("jobid")
     check("its report says submitted, with the Slurm id",
@@ -387,6 +399,7 @@ try:
     # --- a dirty tree skips the pass -------------------------------------------
     file_from_mac(dict(good, id="r5"))
     write(os.path.join(cws, "AI_INSTRUCTIONS.md"), "# an owner's edit\n", "a")
+    head = git(cluster, "rev-parse", "HEAD")
     got = run_pass()
     st = load(os.path.join(cluster, "relay", "state.json"))
     check("an edit outside the cluster's paths skips the pass",
@@ -394,6 +407,21 @@ try:
           and not os.path.exists(os.path.join(cws, "relay", "requests",
                                               "r5.json")))
     check("and relay/state.json says so", "AI_INSTRUCTIONS.md" in st["skipped"])
+    public = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("a skipping pass writes its reason to relay/status.json on origin",
+          "AI_INSTRUCTIONS.md" in public["skipped"]
+          and not got["error"]
+          and git(origin, "log", "-1", "--format=%s", "main") == "relay: status"
+          and git(origin, "show", "--name-only", "--format=", "main")
+          == "relay/status.json")
+    check("on top of origin's tip, leaving HEAD and the tree as they were",
+          git(cluster, "rev-parse", "HEAD") == head
+          and git(cluster, "status", "--porcelain", "--", "relay")
+          == "")
+    tip = git(origin, "rev-parse", "main")
+    got = run_pass()
+    check("an identical second skipping pass makes no commit",
+          got["skipped"] and git(origin, "rev-parse", "main") == tip)
     check("the owner's edit is left where it was",
           "an owner's edit" in open(os.path.join(cws, "AI_INSTRUCTIONS.md")).read())
     git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
@@ -402,6 +430,11 @@ try:
     got = run_pass()
     check("but the job registry, which only a Slurm machine appends to, does "
           "not skip it", not got["skipped"] and "r5" in got["submitted"])
+    check("and the pass after a skip pulls the skip's status, then commits "
+          "it cleared", json.loads(git(origin, "show",
+                                       "main:relay/status.json"))["skipped"]
+          == "" and git(cluster, "status", "--porcelain", "--",
+                        "relay/status.json") == "")
     check("and is not the relay's to commit",
           "M research/Proj/jobs.jsonl" in git(cluster, "status", "--porcelain"))
     git(cluster, "checkout", "--", "research/Proj/jobs.jsonl")
@@ -589,6 +622,14 @@ try:
     got = run_pass()
     check("and the next pass neither refuses them again nor commits",
           got["refused"] == [] and git(origin, "rev-parse", "main") == before)
+    got = run_pass(now=time.time() + 3600)
+    check("an hour on, an identical pass still makes no commit: only `at` "
+          "would change", git(origin, "rev-parse", "main") == before
+          and git(cluster, "rev-parse", "HEAD") == before
+          and git(cluster, "status", "--porcelain", "--", "relay") == "")
+    check("relay/status.json is the cluster's path",
+          relay.owned(cluster, "relay/status.json", where=[])
+          and not relay.owned(cluster, "relay/other.json", where=[]))
 
     # --- a colibri request: a task, read-only, checked once it is done -------
     from tutorboard import atlas as _atlas, colibri as coli, missions
@@ -778,14 +819,18 @@ try:
           relay.where_line(cluster).startswith("relay: last pass"))
 
     # --- the scrontab entry ---------------------------------------------------------
-    block = relay.scrontab_block("/usr/bin/python3", "/x/board/bin/relay",
+    block = relay.scrontab_block("/usr/bin/python3",
+                                 "/x/board/scripts/relay-pass.sh",
                                  "/x/relay.log")
-    check("the entry runs one pass every five minutes on c3_short",
-          "*/5 * * * * /usr/bin/python3 /x/board/bin/relay --once --quiet"
-          in block and "#SCRON --partition=c3_short" in block
+    check("the entry runs relay-pass.sh every five minutes on c3_short, on "
+          "the installing python",
+          "*/5 * * * * RELAY_PYTHON=/usr/bin/python3 bash "
+          "/x/board/scripts/relay-pass.sh" in block
+          and "#SCRON --partition=c3_short" in block
           and "#SCRON --output=/x/relay.log" in block)
-    check("and by default it names board/bin/relay, the relay's own entry",
-          " %s --once --quiet" % RELAY in relay.scrontab_block())
+    check("and by default it names board/scripts/relay-pass.sh",
+          relay.scrontab_block().rstrip().splitlines()[-2].endswith(
+              " bash " + os.path.join(ROOT, "scripts", "relay-pass.sh")))
 
     # --- board/bin/relay: the entry, and the relay path only ----------------------
     def entry(*args, **kw):
@@ -806,11 +851,17 @@ try:
           code == 0 and "tutorboard.relay" in loaded
           and not [m for m in loaded if m.startswith((
               "tutorboard.server", "tutorboard.runner", "tutorboard.agents"))])
-    old = "# mine\n0 * * * * true\n" + relay.scrontab_block("a", "b", "c")
+    old = ("# mine\n0 * * * * true\n" + relay.scrontab_block("a", "b", "c")
+           + "#SCRON --partition=mine\n30 1 * * * echo after\n")
     new = relay.merged_crontab(old, block)
-    check("installing replaces the old block and keeps the owner's lines",
-          new.count(relay.SCRON_BEGIN) == 1 and "0 * * * * true" in new
-          and "/x/relay.log" in new)
+    check("installing replaces only its own block and keeps the owner's "
+          "lines, before and after it",
+          new.count(relay.SCRON_BEGIN) == 1 and new.count(relay.SCRON_END) == 1
+          and " bash b" not in new and "/x/relay.log" in new
+          and new.startswith("# mine\n0 * * * * true\n#SCRON --partition=mine"
+                             "\n30 1 * * * echo after\n")
+          and new.endswith(block)
+          and relay.merged_crontab(new, block) == new)
 
     class Scron:
         def __init__(self):
@@ -825,12 +876,176 @@ try:
     scron = Scron()
     ok, _ = relay.install(run=scron)
     check("`tutor relay --install` writes it through scrontab",
-          ok and scron.written and "relay --once" in scron.written
+          ok and scron.written and "relay-pass.sh" in scron.written
           and scron.written.startswith("# mine"))
 finally:
     os.environ.clear()
     os.environ.update(saved_env)
     shutil.rmtree(base, ignore_errors=True)
+
+# --- relay-pass.sh: bash pulls, so a pushed fix lands --------------------------------
+# A bare origin and two clones of a tree holding this board's tutorboard/, bin/
+# and scripts/. The Mac pushes; the cluster runs only relay-pass.sh, under
+# /bin/bash (3.2 on this Mac), with no flock and no timeout unless faked.
+LAUNCHER = os.path.join(ROOT, "scripts", "relay-pass.sh")
+BASH = "/bin/bash" if os.path.exists("/bin/bash") else "bash"
+MARK_CODE = ('\n_MARK = os.environ.get("RELAY_TEST_MARK")\nif _MARK:\n'
+             '    with open(_MARK, "a") as _fh:\n'
+             '        _fh.write("v2 %s\\n" % os.environ.get("RELAY_PASS_REEXEC", ""))\n')
+lbase = tempfile.mkdtemp(prefix="tutor-relaypass-")
+try:
+    lorigin = os.path.join(lbase, "origin.git")
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", lorigin],
+                   check=True)
+    lseed = os.path.join(lbase, "seed")
+    os.makedirs(lseed)
+    git(lseed, "init", "-q", "-b", "main")
+    skip = shutil.ignore_patterns("__pycache__", "*.pyc", "node_modules")
+    for sub in ("tutorboard", "bin", "scripts"):
+        shutil.copytree(os.path.join(ROOT, sub),
+                        os.path.join(lseed, "board", sub), ignore=skip)
+    write(os.path.join(lseed, ".gitignore"),
+          "/relay/state.json\n/relay/.lock*\n__pycache__/\n")
+    git(lseed, "add", "-A")
+    git(lseed, "-c", "user.email=t@example.com", "-c", "user.name=t",
+        "commit", "-q", "-m", "seed")
+    git(lseed, "remote", "add", "origin", lorigin)
+    git(lseed, "push", "-q", "-u", "origin", "main")
+
+    def lclone(name):
+        where = os.path.join(lbase, name)
+        git(lbase, "clone", "-q", lorigin, where)
+        for k, v in (("user.email", "%s@example.com" % name),
+                     ("user.name", name)):
+            git(where, "config", k, v)
+        return where
+    lmac, lcl = lclone("mac"), lclone("cluster")
+    mark = os.path.join(lbase, "mark")
+    fake = os.path.join(lbase, "fakebin")
+    write(os.path.join(fake, "flock"), "#!/bin/sh\nexit 0\n")
+    write(os.path.join(fake, "timeout"), '#!/bin/sh\nshift\nexec "$@"\n')
+    for name in ("flock", "timeout"):
+        os.chmod(os.path.join(fake, name), 0o755)
+    lenv = dict((k, v) for k, v in saved_env.items()
+                if not k.startswith(("TUTORBOARD_", "RELAY_", "SLURM_")))
+    lenv.update(TUTOR_SLURM="1", RELAY_TEST_MARK=mark,
+                RELAY_PYTHON=sys.executable,
+                BOARD_STATE_DIR=os.path.join(lbase, "state"),
+                COLI_QUEUE_ROOT=os.path.join(lbase, "queue"))
+    os.makedirs(lenv["COLI_QUEUE_ROOT"])
+
+    def launch(faked=False):
+        env = dict(lenv)
+        if faked:
+            env["PATH"] = fake + os.pathsep + env.get("PATH", "")
+        p = subprocess.run([BASH, os.path.join(lcl, "board", "scripts",
+                                               "relay-pass.sh")],
+                           cwd=lbase, env=env, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, timeout=300)
+        return (p.returncode, p.stdout.decode("utf-8", "replace"),
+                p.stderr.decode("utf-8", "replace"))
+
+    def marks():
+        try:
+            with open(mark, encoding="utf-8") as fh:
+                return fh.read().splitlines()
+        except OSError:
+            return []
+
+    def mac_push(msg, edit):
+        git(lmac, "pull", "-q", "--rebase")
+        edit()
+        git(lmac, "add", "-A")
+        git(lmac, "commit", "-q", "-m", msg)
+        git(lmac, "push", "-q")
+        return git(lmac, "rev-parse", "HEAD")
+
+    def contains(sha):
+        return subprocess.run(["git", "merge-base", "--is-ancestor", sha,
+                               "HEAD"], cwd=lcl).returncode == 0
+
+    code, out, err = launch()
+    check("relay-pass.sh runs a pass on a quiet tree and exits 0",
+          code == 0 and "re-exec" not in err and marks() == []
+          and git(lcl, "status", "--porcelain") == "")
+    check("and the pass committed relay/status.json and pushed it",
+          '"skipped": ""' in git(lorigin, "show", "main:relay/status.json"))
+
+    lrelay = os.path.join(lmac, "board", "tutorboard", "relay.py")
+    llaunch = os.path.join(lmac, "board", "scripts", "relay-pass.sh")
+
+    def board_change():
+        write(lrelay, MARK_CODE, "a")
+        with open(llaunch, encoding="utf-8") as fh:
+            text = fh.read()
+        write(llaunch, text.replace("main() {\n",
+                                    'main() {\n    echo "launcher v2" >&2\n', 1))
+    sha = mac_push("board: a change", board_change)
+    code, out, err = launch()
+    check("a pushed board/ change is pulled by bash, which re-execs once",
+          code == 0 and contains(sha) and err.count("re-exec") == 1)
+    check("into the new launcher, once", err.count("launcher v2") == 1)
+    check("which runs the new Python", marks() == ["v2 1"])
+
+    sha = mac_push("board: a syntax error",
+                   lambda: write(lrelay, "\ndef broken(:\n", "a"))
+    code, out, err = launch()
+    check("a pushed syntax error in relay.py is pulled, and the pass fails",
+          code != 0 and contains(sha) and "SyntaxError" in err
+          and marks() == ["v2 1"])
+
+    def fix():
+        with open(lrelay, encoding="utf-8") as fh:
+            text = fh.read()
+        write(lrelay, text.replace("\ndef broken(:\n", ""))
+    sha = mac_push("board: the fix", fix)
+    code, out, err = launch(faked=True)
+    check("the next pushed fix is pulled by bash and used, with no manual "
+          "step (flock and timeout present)",
+          code == 0 and contains(sha) and err.count("re-exec") == 1
+          and marks() == ["v2 1", "v2 1"])
+
+    code, out, err = launch()
+    check("a pass with nothing new pulls nothing and re-execs nothing",
+          code == 0 and "re-exec" not in err and marks()[-1] == "v2 ")
+
+    lockdir = os.path.join(lcl, "relay", ".lock.launcher.d")
+    os.makedirs(lockdir)
+    write(os.path.join(lockdir, "pid"), "%d\n" % os.getpid())
+    n = len(marks())
+    code, out, err = launch()
+    check("a launcher whose lock a live process holds exits 0 and does nothing",
+          code == 0 and len(marks()) == n and os.path.isdir(lockdir))
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    write(os.path.join(lockdir, "pid"), "%d\n" % dead.pid)
+    code, out, err = launch()
+    check("a lock its dead holder left is taken, and removed on exit",
+          code == 0 and len(marks()) == n + 1 and not os.path.exists(lockdir))
+
+    sha = mac_push("notes", lambda: write(os.path.join(lmac, "notes.md"), "x\n"))
+    head = git(lcl, "rev-parse", "HEAD")
+    merging = os.path.join(lcl, ".git", "MERGE_HEAD")
+    write(merging, head + "\n")
+    code, out, err = launch()
+    os.remove(merging)
+    st = json.loads(git(lorigin, "show", "main:relay/status.json"))
+    check("a merge in progress: bash does not pull, and the pass still runs "
+          "and reports why", "not pulling: MERGE_HEAD" in err
+          and git(lcl, "rev-parse", "HEAD") == head
+          and "merge is in progress" in st["skipped"])
+    git(lcl, "checkout", "-q", "--detach")
+    code, out, err = launch()
+    check("so does a detached HEAD", "not pulling: detached HEAD" in err
+          and git(lcl, "rev-parse", "HEAD") == head)
+    git(lcl, "checkout", "-q", "main")
+    code, out, err = launch()
+    check("and once the tree is ordinary again the pull goes through",
+          code == 0 and contains(sha)
+          and json.loads(git(lorigin, "show", "main:relay/status.json"))[
+              "skipped"] == "")
+finally:
+    shutil.rmtree(lbase, ignore_errors=True)
 
 # --- the real repository ------------------------------------------------------------
 check("the root .gitignore keeps the relay's state out of git",
@@ -839,6 +1054,11 @@ check("the root .gitignore keeps the relay's state out of git",
                      cwd=REPO).returncode == 0
       and subprocess.run(["git", "check-ignore", "-q", "relay/state.json"],
                          cwd=REPO).returncode == 0)
+check("and the launcher's lock, while relay/status.json is tracked",
+      all(subprocess.run(["git", "check-ignore", "-q", p], cwd=REPO).returncode
+          == 0 for p in ("relay/.lock.launcher", "relay/.lock.launcher.d/pid"))
+      and subprocess.run(["git", "check-ignore", "-q", "relay/status.json"],
+                         cwd=REPO).returncode == 1)
 check("TRD-EHR tracks what the relay exports",
       subprocess.run(["git", "check-ignore", "-q",
                       "research/TRD-EHR/exports/results/a/figures/x.png"],
