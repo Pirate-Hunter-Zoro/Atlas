@@ -62,6 +62,15 @@ INPUT_DIR="$DATA_ROOT/inbox"
 # counts -- and never a name from `phi/`. Here, so every recipe gets it.
 source "$_JOB_ENV_LIB/relay_trap.sh"
 
+# A MISSING DATA ROOT STOPS THE JOB. Every step below writes beside the session
+# content, and a step that finds no root makes one, empty, where nobody is
+# looking. The line names the variable, never its value: the value is a lab
+# storage path.
+if [ ! -d "$PSYCH_ASR_DATA" ]; then
+    echo "RELAY: data root PSYCH_ASR_DATA does not exist; stopping rather than create it empty" >&2
+    exit 3
+fi
+
 VENV_ROOT="${PSYCH_ASR_VENV_ROOT:-/media/studies/ehr_study/analysis/mferguson/venvs}"
 MODELS_ROOT="${PSYCH_ASR_MODELS_ROOT:-/media/studies/ehr_study/analysis/mferguson/models}"
 ANACONDA_MODULE="${PSYCH_ASR_ANACONDA_MODULE:-Anaconda3/2025.06-0}"
