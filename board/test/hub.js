@@ -20,7 +20,7 @@
 //     the family is its workspaces, and the project map -- which is the one
 //     thing here whose shape needs a plane -- is on the board. No pan, no
 //     pinch, no fit, and no measuring on either of the two here.
-//   * THE SENTENCES IN `atlas.json` REACH THE GLASS. They existed all along and
+//   * THE SENTENCES IN THE `/atlas.json` PAYLOAD REACH THE GLASS. They existed all along and
 //     the drawn version used them as nothing but a heading.
 //   * A SHOUTED PLAN STEP STILL FITS. It used to be measured through `gauge.js`
 //     and clipped; the browser wraps it now, which is why this level stopped
@@ -305,16 +305,16 @@ setTimeout(() => {
   // ---- LEVEL ONE: the door ----------------------------------------------
   const doors = [...doc.querySelectorAll('#doors .door')];
   const names = doors.map((b) => b.querySelector('.door-name').textContent);
-  check('the door is the families, drawn in the order atlas.json gives them',
+  check('the door is the families, drawn in the order the payload gives them',
         names.join('|') === 'Courses|Research|Vendor');
   check('and a family with nothing in it is not a door -- the board is what '
         + 'does the offering, not one of the things offered',
         !names.includes('The board'));
 
-  // THE SENTENCES THAT WERE ALREADY IN `atlas.json`. They existed and the drawn
+  // THE SENTENCES THE `/atlas.json` PAYLOAD CARRIES. They existed and the drawn
   // version used them as nothing but a heading.
   const blurbs = doors.map((b) => (b.querySelector('.door-blurb') || {}).textContent);
-  check('each door says what the family is, in the sentence atlas.json carries',
+  check('each door says what the family is, in the sentence the payload carries',
         blurbs[0] === 'Graduate coursework, taught chapter by chapter.'
         && blurbs[1] === 'The projects that become papers.');
   check('and what is true inside it right now, in names and numbers',
@@ -450,9 +450,8 @@ setTimeout(() => {
   doc.getElementById('busy').onclick();
 
   // ---- a vendor tree is drawn, and is not a workspace -------------------
-  // `atlas.json` made one claim out of two: the family was skipped because
-  // nothing in it is the person's to be GRADED on. The ask was about TRACING.
-  // The two are split, and this is the half that reaches the glass.
+  // The vendor family is skipped because nothing in it is the person's to be
+  // GRADED on. The ask was about TRACING. The two are split, and this is the half that reaches the glass.
   doc.getElementById('atlas-up').onclick();
   check('tapping it puts the doors back, with nothing opened to get there',
         doc.getElementById('doors').hidden === false

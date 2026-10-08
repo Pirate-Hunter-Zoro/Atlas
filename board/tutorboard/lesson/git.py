@@ -187,8 +187,7 @@ def save_pathspec(root, top, only=None):
     `refused` names every one that is not inside the workspace, because a save
     made here commits here and nowhere else. Either way the tool and any
     workspace nested inside this one are excluded. NFS litter (`.nfs*`) is kept
-    out by the repository's own `.gitignore` -- Atlas's, or a course's own --
-    so no door commits it.
+    out by Atlas's root `.gitignore`, so no door commits it.
 
     AN EXCLUDE NAMES, LITERALLY, A DIRECTORY INSIDE ONE OF THE PATHS IT
     NARROWS. With an exclude outside them, or a wildcard one such as
@@ -328,8 +327,8 @@ def run_push(repo, message=None):
     built = build_before_push(repo)
 
     # The workspace leads the message. `save-and-push.sh` lives with the tool,
-    # one copy for every repository, and it is run FROM THE REPOSITORY ROOT --
-    # Atlas's, or a course's own: a push is a push of the repository, and
+    # one copy, and it is run FROM THE REPOSITORY ROOT: a push is a push of
+    # the repository, and
     # pretending otherwise from a subdirectory is how a commit ends up with
     # half of what somebody meant.
     said = message or "lesson complete"
@@ -402,10 +401,8 @@ def run_push(repo, message=None):
 #
 # TWO RULES, and the second is the one that matters.
 #
-#   SCOPED TO THE WORKSPACE. Atlas's repository holds every research, project
-#   and practice workspace, and `git log` at its root answers about all of
-#   them. A course is its own repository, and the scope costs it nothing. A
-#   turn about TRD-EHR told about PSYCH-ASR's afternoon is a turn that will
+#   SCOPED TO THE WORKSPACE. Atlas's repository holds every workspace, and
+#   `git log` at its root answers about all of them. A turn about TRD-EHR told about PSYCH-ASR's afternoon is a turn that will
 #   try to teach it.
 #
 #   NAMED AS THE PERSON'S WORK, NEVER THE TUTOR'S. A turn that mistakes a commit

@@ -59,9 +59,6 @@ def git(base, *args):
 
 base = tempfile.mkdtemp(prefix="tutor-beside-")
 try:
-    write(os.path.join(base, "atlas.json"), json.dumps(
-        {"families": [{"id": "courses", "name": "Courses"},
-                      {"id": "research", "name": "Research"}]}))
     mine = os.path.join(base, "courses", "Galois-Theory")
     other = os.path.join(base, "research", "PSYCH-ASR")
     for r in (mine, other):

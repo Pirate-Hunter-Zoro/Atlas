@@ -71,9 +71,6 @@ from tutorboard.server.routes import writing as writing_route     # noqa: E402
 
 atlas.forget()
 
-with open(os.path.join(fake, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "courses", "name": "Courses"},
-                            {"id": "research", "name": "Research"}]}, fh)
 
 
 def write(path, text, mtime=None):
@@ -208,8 +205,7 @@ def commit(path, text, subject, when, body=""):
 git("init", "-q")
 git("config", "user.name", "t")
 git("config", "user.email", "t@t")
-commit("atlas.json", open(os.path.join(fake, "atlas.json")).read(), "the atlas",
-       at(0, 1))
+commit("README.md", "the atlas\n", "the atlas", at(0, 1))
 commit("courses/Fields/notes.md", "out\n", "Out of window work", at(3, 11))
 commit("courses/Fields/notes.md", "lattice\n",
        "Rings: the ideal lattice is drawn", at(4, 11),
@@ -306,8 +302,6 @@ check("nothing on a row is a path",
 # second, so a sitting opened the minute the last was filed would start before
 # that one ended. A separate atlas, so the rows above are not disturbed.
 base2 = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-adj-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
-with open(os.path.join(base2, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "courses", "name": "Courses"}]}, fh)
 adj = os.path.join(base2, "courses", "Adj")
 write(os.path.join(adj, "tutorboard.json"), json.dumps({"name": "Adj"}))
 filed(adj, at(2, 10) + 30, "first", {"chapter": "A", "opened": opened(at(2, 9))},
@@ -321,83 +315,6 @@ check("a sitting opened the minute the last was filed starts where that one "
       "ended, not a few seconds before",
       len(adj_rows) == 2 and adj_rows[0]["start"] == adj_rows[1]["end"]
       == at(2, 10) + 30)
-
-# A COURSE THAT IS ITS OWN REPOSITORY. Atlas ignores it and holds only what was
-# committed under it before it left; the commits, the plan and the handoff's
-# revisions are the course's own, and are read there. A separate atlas again.
-base3 = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-own-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
-with open(os.path.join(base3, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "courses", "name": "Courses"}]}, fh)
-own = os.path.join(base3, "courses", "Own")
-write(os.path.join(own, "tutorboard.json"), json.dumps({"name": "Own"}))
-own_a = filed(own, at(4, 12), "sylow", {"chapter": "Sylow",
-                                        "opened": opened(at(4, 10))},
-              cards=1, turns=2)
-filed(own, at(5, 12), "solvable", {"chapter": "Solvable",
-                                   "opened": opened(at(5, 10))},
-      cards=1, turns=2)
-
-
-def git_in(where, *args, when=None):
-    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
-               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
-    if when is not None:
-        env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = "%d +0000" % int(when)
-    return subprocess.run(["git"] + list(args), cwd=where, env=env,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          check=True).stdout.decode()
-
-
-def commit_in(where, path, text, subject, when):
-    write(os.path.join(where, path), text)
-    git_in(where, "add", path)
-    git_in(where, "commit", "-q", "-m", subject, when=when)
-
-
-git_in(base3, "init", "-q")
-# Atlas's frozen copy: a commit under the course inside the window, from before
-# the course left. It is not the course's history and is not offered.
-commit_in(base3, "courses/Own/notes.md", "old\n", "courses/Own: from before it left",
-          at(4, 11))
-write(os.path.join(base3, ".gitignore"), "/courses/*/\n")
-git_in(base3, "rm", "-r", "-q", "--cached", "courses/Own")
-git_in(base3, "add", ".gitignore")
-git_in(base3, "commit", "-q", "-m", "courses leave", when=at(4, 11, 5))
-git_in(own, "init", "-q")
-commit_in(own, "TODO.md", "# Plan\n\nSTEP 1. Count the Sylow subgroups of S4\n"
-          "STEP 2. Classify groups of order 12\n", "plan", at(4, 9))
-commit_in(own, "notes.md", "sylow\n", "Sylow: n3 is 1 or 4, and it is 4",
-          at(4, 11, 10))
-commit_in(own, "TODO.md", "# Plan\n\nSTEP 1. Classify groups of order 12\n",
-          "plan moved on", at(4, 11, 20))
-commit_in(own, "HANDOFF.md", "<!-- chapter: Sylow -->\n## Where this got to\n\n"
-          "- The Sylow bullet, committed in the course's own repository\n",
-          "handoff", at(4, 11, 30))
-# The handoff on disk is the later chapter's, so the Sylow sitting reads its
-# own out of the course's history.
-write(os.path.join(own, "HANDOFF.md"), "<!-- chapter: Solvable -->\n## Where\n\n"
-      "- Not this one\n")
-atlas.forget()
-sittings.forget()
-own_rows = dict((r["id"], r) for r in sittings._shown(base3)[0])
-own_id = "courses/Own@" + own_a
-own_items = sittings.items(base3, [own_id])["groups"]
-atlas.forget()
-sittings.forget()
-own_text = [i["text"] for g in own_items for i in g["items"]]
-own_steps = [i["text"] for g in own_items for i in g["items"]
-             if i["kind"] == "step"]
-check("a course that is its own repository is read in it: its row counts the "
-      "course's three commits in the window, not Atlas's frozen one",
-      own_id in own_rows and own_rows[own_id]["top"] == os.path.realpath(own)
-      and own_rows[own_id]["rel"] == "." and own_rows[own_id]["commits"] == 3)
-check("and offers that commit, the plan step it finished, and the handoff "
-      "committed there",
-      "Sylow: n3 is 1 or 4, and it is 4" in own_text
-      and "courses/Own: from before it left" not in own_text
-      and own_steps == ["Count the Sylow subgroups of S4"]
-      and any("committed in the course's own repository" in t
-              for t in own_text))
 
 # ---------------------------------------------------------------------------
 # what they did

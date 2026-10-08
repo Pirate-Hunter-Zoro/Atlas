@@ -549,8 +549,6 @@ os.environ["PATH"] = stub_bin + os.pathsep + os.environ.get("PATH", "")
 other = os.path.join(tree, "projects", "Elsewhere")
 os.makedirs(os.path.join(other, "live"))
 open(os.path.join(other, "AI_INSTRUCTIONS.md"), "w").close()
-with open(os.path.join(tree, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "projects", "name": "Projects"}]}, fh)
 RT = dict(R, courses_dir=tree)
 
 with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:

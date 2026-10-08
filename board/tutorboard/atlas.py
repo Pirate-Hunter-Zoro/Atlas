@@ -7,107 +7,64 @@ non-dot directory directly under `courses/` or `projects/` (and, until T29,
 shape their importers read, `{id, family, family_name, dir, root}`. T50
 deletes this module.
 
-`families`, `trees` and `find_tree` still read `atlas.json`, which names and
-orders the families and marks the vendor and tool ones.
+`FAMILIES` names and orders the parent directories and marks the vendor and
+tool ones. It is code, not a file: there is no per-machine list to edit.
 """
 
-import json
 import os
 
 from . import paths, subjects
 
 
-# `atlas.json` is read on nearly every payload and the payload is polled four
-# times a second. It is a few hundred bytes and it changes about once a year.
-_CACHE = {"key": None, "root": None, "families": {}}
+# The families, in the order the front door draws them. `aim` is a family's
+# default style (`course/config.aim_for` owns the precedence); `vendor` marks
+# somebody else's trees, read and never taught in; `tool` marks the board's own
+# source.
+FAMILIES = (
+    {"id": "courses", "aim": "teach", "name": "Courses",
+     "blurb": "Graduate coursework, taught chapter by chapter."},
+    {"id": "research", "aim": "build", "name": "Research",
+     "blurb": "The projects that become papers."},
+    {"id": "projects", "aim": "build", "name": "Projects",
+     "blurb": "Infrastructure the research runs on, and the tools that write "
+              "it up."},
+    {"id": "practice", "aim": "teach", "name": "Practice",
+     "blurb": "Kept sharp: algorithms, and proofs a machine checks."},
+    {"id": "board", "name": "The board", "tool": True,
+     "blurb": "The tool that maps, teaches and writes up everything above."},
+    {"id": "vendor", "name": "Vendor", "vendor": True,
+     "blurb": "Pulled, not written. Tracked by pointer at a commit."},
+)
+
 
 def root():
-    """The repository root -- the directory holding `atlas.json`.
+    """The Atlas root: `subjects.root()`, the parent of `board/`.
 
-    Three answers, in order, and the last two are the same answer for two
-    different layouts:
-
-    1. `TUTORBOARD_COURSES`, which is how a test says "this tree, not this
-       machine's". One variable, one meaning, everywhere -- it used to mean
-       "the directory the courses are siblings in" and it now means "the
-       repository root", which is the same sentence about a different shape.
-    2. Whichever ancestor of the tool holds `atlas.json`. The tool lives at
-       `Atlas/board`, so this is one step up, but it is walked rather than
-       assumed: nothing should break if the board is ever vendored deeper.
-    3. The tool's parent directory. That is the OLD flat layout, where courses
-       were siblings of Tutor-Board, and it is the fallback rather than an
-       error because a machine that has not pulled the move yet should keep
-       teaching rather than stop.
+    `TUTORBOARD_COURSES` overrides it; that is how a test says "this tree".
     """
-    said = os.environ.get("TUTORBOARD_COURSES")
-    key = said or ""
-    if _CACHE["key"] == key and _CACHE["root"]:
-        return _CACHE["root"]
-    if said:
-        found = os.path.realpath(os.path.expanduser(said))
-    else:
-        found = None
-        here = paths.TOOL
-        for _ in range(6):
-            if os.path.isfile(os.path.join(here, "atlas.json")):
-                found = here
-                break
-            up = os.path.dirname(here)
-            if up == here:
-                break
-            here = up
-        if not found:
-            found = os.path.dirname(paths.TOOL)
-    _CACHE["key"] = key
-    _CACHE["root"] = found
-    return found
+    return subjects.root()
 
 
 def families(base=None):
     """The families, in the order the front door draws them.
 
     `base` is for the one caller that has an explicit root rather than this
-    machine's: `tutor`'s `courses_dir` configuration key, which a person may
-    legitimately point somewhere else. Everything else asks `root()`.
+    machine's: `tutor`'s `courses_dir` configuration key. Everything else asks
+    `root()`.
 
-    A tree with no `atlas.json` -- the old flat layout, or a test's fake --
-    has ONE nameless family whose directory is the root itself. That is not a
-    special case bolted on; it is what makes every loop below work unchanged
-    against both shapes, so there is one discovery path to get right rather
-    than two to keep in step.
+    A tree holding none of the family directories -- the old flat layout, or a
+    test's fake -- has ONE nameless family whose directory is the root itself,
+    so every loop below works unchanged against both shapes.
     """
-    base = os.path.realpath(os.path.expanduser(base)) if base else root()
-    hit = _CACHE["families"].get(base)
-    if hit is not None:
-        return hit
-    out = []
-    try:
-        with open(os.path.join(base, "atlas.json"), "r", encoding="utf-8") as fh:
-            said = (json.load(fh) or {}).get("families") or []
-    except (OSError, ValueError):
-        said = []
-    for fam in said:
-        if not isinstance(fam, dict) or not fam.get("id"):
-            continue
-        ident = str(fam["id"])
-        out.append({
-            "id": ident,
-            "name": fam.get("name") or ident.replace("-", " ").title(),
-            "blurb": fam.get("blurb") or "",
-            # WHAT A SITTING IN THIS FAMILY IS FOR when nothing below it says
-            # otherwise. Carried through as written and checked where it is used
-            # -- `course/config.aim_for` owns the precedence and is the only
-            # thing that decides what an unrecognised word means.
-            "aim": str(fam.get("aim") or ""),
-            "vendor": bool(fam.get("vendor")),
-            "tool": bool(fam.get("tool")),
-            "dir": os.path.join(base, ident),
-        })
-    if not out:
-        out = [{"id": "", "name": "", "blurb": "", "aim": "", "vendor": False,
-                "tool": False, "dir": base}]
-    _CACHE["families"][base] = out
-    return out
+    base = _base(base)
+    if not any(os.path.isdir(os.path.join(base, f["id"]))
+               for f in FAMILIES if not f.get("tool")):
+        return [{"id": "", "name": "", "blurb": "", "aim": "", "vendor": False,
+                 "tool": False, "dir": base}]
+    return [{"id": f["id"], "name": f["name"], "blurb": f["blurb"],
+             "aim": f.get("aim", ""), "vendor": bool(f.get("vendor")),
+             "tool": bool(f.get("tool")), "dir": os.path.join(base, f["id"])}
+            for f in FAMILIES]
 
 
 def _base(base):
@@ -122,8 +79,8 @@ def _record(parent, slug, where, names):
             "dir": slug, "root": where}
 
 
-# The flat layout: a tree with no `atlas.json`, its workspaces directly under
-# it and marked by one of these. Only bin/tutor's `courses_dir` and the test
+# The flat layout: a tree with no family directory, its workspaces directly
+# under it and marked by one of these. Only bin/tutor's `courses_dir` and the test
 # fixtures built for it are shaped so; this goes with atlas.py (T50).
 FLAT_MARKERS = ("tutorboard.json", "AI_INSTRUCTIONS.md", "live")
 
@@ -147,7 +104,7 @@ def _flat(base):
 
 
 def workspaces(base=None):
-    """Every subject, in `atlas.json` family order, then by name.
+    """Every subject, in `FAMILIES` order, then by name.
 
     Shim over `subjects.walk`, in the record shape importers read: `id`
     (`family/name`), `family` (the parent directory), `family_name`, `dir`
@@ -172,12 +129,7 @@ def trees(base=None):
     """Every vendor tree -- somebody else's repository, read but never taught in.
 
     A SECOND LIST rather than a flag on `workspaces`, and that is the whole
-    decision. `atlas.json`'s prose used to make one claim out of two: the
-    family was skipped *because* nothing in it is the person's to be graded on.
-    Grading and tracing are different claims, and conflating them made reading
-    how colibrì works impossible for a reason that was about homework.
-
-    So they are split. A vendor tree is NOT a workspace -- nothing is handed in
+    decision: grading and tracing are different claims. A vendor tree is NOT a workspace -- nothing is handed in
     to it, no board serves it, no card, write-up, homework or push belongs to
     it, and `workspaces` still skips the family outright, which is what several
     callers depend on. It IS source, and source can be walked through and
@@ -285,7 +237,4 @@ def identify(path):
 
 
 def forget():
-    """Drop the cache. For a test that moves the tree under the process."""
-    _CACHE["key"] = None
-    _CACHE["root"] = None
-    _CACHE["families"] = {}
+    """Nothing is cached any more; kept for the tests that call it."""

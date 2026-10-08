@@ -123,9 +123,6 @@ TODO = """TRD -- REMAINING WORK
 """
 
 try:
-    write(os.path.join(base, "atlas.json"), json.dumps(
-        {"families": [{"id": "research", "name": "Research"},
-                      {"id": "courses", "name": "Courses"}]}))
     trd = os.path.join(base, "research", "TRD")
     psy = os.path.join(base, "research", "PSY")
     psy2 = os.path.join(base, "research", "PSY2")
@@ -275,9 +272,8 @@ try:
           "MAY ALREADY BE DONE" in md)
     check("and never names anything under the fence", "phi/session" not in md)
 
-    # --- a course that is its own repository --------------------------------
-    # Atlas ignores it and holds a frozen copy from before it left. The period's
-    # commits and its HANDOFF.md diff are the course's own, read in the course.
+    # --- a course is Atlas's content ------------------------------------------
+    # Its commits and its HANDOFF.md diff are read in Atlas, under its path.
     own_base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-meeting-own-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
     own = os.path.join(own_base, "courses", "Own")
 
@@ -295,31 +291,24 @@ try:
         git_in(where, "commit", "-q", "-m", message, when=when)
 
     try:
-        write(os.path.join(own_base, "atlas.json"), json.dumps(
-            {"families": [{"id": "courses", "name": "Courses"}]}))
         write(os.path.join(own, "tutorboard.json"), json.dumps({"name": "Own"}))
         write(os.path.join(own, "HANDOFF.md"), "Sylow, begun.\n")
         git_in(own_base, "init", "-q", "-b", "main")
         commit_in(own_base, "everything, to start from", NOW - 20 * DAY)
-        write(os.path.join(own_base, ".gitignore"), "/courses/*/\n")
-        git_in(own_base, "rm", "-r", "-q", "--cached", "courses/Own")
-        commit_in(own_base, "courses leave", NOW - 10 * DAY)
-        git_in(own, "init", "-q", "-b", "main")
-        commit_in(own, "the course, to start from", NOW - 10 * DAY)
         write(os.path.join(own, "notes.md"), "n3 = 4\n")
         write(os.path.join(own, "HANDOFF.md"), "Sylow, done. OWN-DIFF-MARKER.\n")
-        commit_in(own, "Sylow: n3 is 1 or 4, and it is 4", NOW - 3 * DAY)
+        commit_in(own_base, "Sylow: n3 is 1 or 4, and it is 4", NOW - 3 * DAY)
         atlas.forget()
         own_ws = [w for w in atlas.workspaces(own_base) if w["id"] == "courses/Own"]
         got = meeting.gather(own_base, own_ws[0], since) if own_ws else None
         atlas.forget()
         hand = (got or {}).get("story", {}).get("HANDOFF.md", "")
-        check("a course that is its own repository: its commits are read in it",
-              got and got["rel"] == "."
+        check("a course is read in Atlas, under its own path",
+              meeting.repo_of(own, own_base) == (own_base, "courses/Own")
+              and got and got["rel"] == "courses/Own"
               and [c["subject"] for c in got["commits"]]
               == ["Sylow: n3 is 1 or 4, and it is 4"])
-        check("and its HANDOFF.md diff is the course's change, not the whole "
-              "file as new nor deleted",
+        check("and its HANDOFF.md diff is the period's change",
               "+Sylow, done. OWN-DIFF-MARKER." in hand
               and "-Sylow, begun." in hand and "not yet committed" not in hand)
     finally:

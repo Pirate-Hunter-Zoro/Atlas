@@ -179,8 +179,6 @@ try:
     git(seed, "init", "-q", "-b", "main")
     for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
         git(seed, "config", k, v)
-    write(os.path.join(seed, "atlas.json"),
-          json.dumps({"families": [{"id": "research"}]}))
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
     proj = os.path.join(seed, "research", "Proj")

@@ -76,9 +76,6 @@ def card(root, num, slug, body, when=None, title=""):
 base = tempfile.mkdtemp(prefix="tutor-elsewhere-")
 was_courses = os.environ.get("TUTORBOARD_COURSES")
 try:
-    write(os.path.join(base, "atlas.json"), json.dumps(
-        {"families": [{"id": "research", "name": "Research"},
-                      {"id": "courses", "name": "Courses"}]}))
     psych = os.path.join(base, "research", "PSYCH-ASR")
     trd = os.path.join(base, "research", "TRD-EHR")
     galois = os.path.join(base, "courses", "Galois-Theory")

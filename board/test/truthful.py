@@ -40,26 +40,13 @@ def check(name, cond, detail=""):
                 print("       " + line)
 
 
-# Every tracked path matching `pattern`, relative to ROOT. Atlas's index is
-# not the whole of it: each course under `courses/` is its own repository,
-# which Atlas ignores, so its README, contracts and config are asked of the
-# course's own git and given their `courses/<X>/` prefix back. Without that a
-# course document drops out of every audit here and the suite stays green.
+# Every tracked path matching `pattern`, relative to ROOT. Every course is
+# Atlas's own content, so Atlas's index is the whole of it.
 def ls_files(pattern):
-    repos = [("", ROOT)]
-    courses = os.path.join(ROOT, "courses")
-    if os.path.isdir(courses):
-        for name in sorted(os.listdir(courses)):
-            top = os.path.join(courses, name)
-            if os.path.exists(os.path.join(top, ".git")):
-                repos.append(("courses/%s/" % name, top))
-    rels = []
-    for prefix, top in repos:
-        out = subprocess.run(
-            ["git", "-C", top, "ls-files", pattern],
-            capture_output=True, text=True, check=True).stdout
-        rels.extend(prefix + rel for rel in out.split("\n") if rel)
-    return rels
+    out = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", pattern],
+        capture_output=True, text=True, check=True).stdout
+    return [rel for rel in out.split("\n") if rel]
 
 
 def tracked_markdown():

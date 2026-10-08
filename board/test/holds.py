@@ -283,9 +283,6 @@ try:
     git(seed, "init", "-q", "-b", "main")
     git(seed, "config", "user.email", "owner@example.com")
     git(seed, "config", "user.name", "Owner")
-    write(os.path.join(seed, "atlas.json"), json.dumps({"families": [
-        {"id": "courses", "aim": "teach"}, {"id": "research", "aim": "build"},
-        {"id": "practice", "aim": "teach"}, {"id": "projects", "aim": "build"}]}))
     write(os.path.join(seed, ".gitignore"), "ai-config/\n")
     # A research workspace with NO fence directory, closed by `"phi": true`
     # -- TRD-EHR's shape.

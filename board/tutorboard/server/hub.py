@@ -96,7 +96,7 @@ class Hub:
         board_state["declared_stance"] = cfg.get("stance") or "teach"
         # AND WHAT THIS SITTING IS ACTUALLY RUNNING UNDER, resolved once, here.
         # A sitting nobody opened from the map names no aim, and the answer then
-        # comes from the workspace or from its family's default in `atlas.json` --
+        # comes from the workspace or from its family's default in `atlas.FAMILIES` --
         # which the client cannot read and must not re-derive. The chooser shows
         # `aim_now`, and the busy strip asks `stance_now` whether the turn running
         # is one that DOES the work. See `course/config.aim_for`.

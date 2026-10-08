@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """A save commits only its own workspace.
 
-Atlas holds the tool and every workspace but the courses, which are their own
-private repositories and ignored by it. A save tapped in one of Atlas's
--- the save button, `board push`, `board finish`'s offer -- commits that
+Atlas holds the tool and every workspace. A save tapped in one -- the save
+button, `board push`, `board finish`'s offer -- commits that
 workspace's directory and nothing else: never `board/`, never another
 workspace, never an `.nfs*` file the NFS client left behind. `board push "msg"
 -- <paths>` narrows it further, which is how a turn commits the work it did
 under a message naming the thread.
 
 Run against a real repository laid out the way Atlas is, with a bare origin and
-Atlas's real root .gitignore. The fixture workspace is practice/Alpha rather
-than a course, because that .gitignore ignores courses/*/ and a course here
-would be invisible to every save.
+Atlas's real root .gitignore. The fixture workspace is practice/Alpha.
 """
 
 import json

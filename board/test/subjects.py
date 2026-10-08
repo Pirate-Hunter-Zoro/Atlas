@@ -43,17 +43,18 @@ def mk(base, rel, cfg=None):
 # --- root -------------------------------------------------------------------
 check("root() is the parent of board/",
       subjects.root() == os.path.dirname(os.path.realpath(ROOT)))
+check("there is no atlas.json, and the families come from code",
+      not os.path.exists(os.path.join(subjects.root(), "atlas.json"))
+      and [f["id"] for f in atlas.FAMILIES]
+      == ["courses", "research", "projects", "practice", "board", "vendor"])
+from tutorboard import relay                                  # noqa: E402
+_spaces = [ws for _, ws in relay.spaces(subjects.root())]
+check("relay.spaces holds every subject, both courses included",
+      "courses/Galois-Theory" in _spaces and "courses/Probability" in _spaces
+      and len(_spaces) == len(subjects.walk(subjects.root())))
 
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="subjects-"))
 try:
-    with open(os.path.join(tmp, "atlas.json"), "w", encoding="utf-8") as fh:
-        json.dump({"families": [
-            {"id": "courses", "name": "Courses"},
-            {"id": "research", "name": "Research"},
-            {"id": "projects", "name": "Projects"},
-            {"id": "practice", "name": "Practice"},
-            {"id": "vendor", "name": "Vendor", "vendor": True},
-        ]}, fh)
     topo = mk(tmp, "courses/Topology", {"name": "Algebraic Topology"})
     mk(tmp, "courses/.trash")
     psych = mk(tmp, "research/PSYCH-ASR", {"name": "PSYCH-ASR", "phi": True})
@@ -126,9 +127,9 @@ try:
     check("atlas.workspaces keeps its record shape",
           all(sorted(w) == ["dir", "family", "family_name", "id", "root"]
               for w in ws))
-    check("and lists the same subjects in atlas.json family order",
+    check("and lists the same subjects in atlas.FAMILIES order",
           [w["id"] for w in ws] == [s["id"] for s in subjects.all()])
-    check("family and family_name come from the parent and atlas.json",
+    check("family and family_name come from the parent and atlas.FAMILIES",
           ws[0]["family"] == "courses" and ws[0]["family_name"] == "Courses"
           and ws[0]["dir"] == "Topology")
     check("atlas.find by bare directory name",
@@ -140,7 +141,7 @@ try:
     check("identify still names a subject that is gone",
           atlas.identify(os.path.join(tmp, "courses", "Gone")) == "courses/Gone")
 
-    # A flat tree (no atlas.json) still reads as bin/tutor's courses_dir did.
+    # A flat tree (no family directory) still reads as bin/tutor's courses_dir did.
     flat = os.path.realpath(tempfile.mkdtemp(prefix="subjects-flat-"))
     try:
         mk(flat, "Galois-Theory", {"name": "Galois Theory"})

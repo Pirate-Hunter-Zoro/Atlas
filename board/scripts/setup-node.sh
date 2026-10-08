@@ -72,21 +72,17 @@ else
   say  "        starting from what is on disk; a handoff pushed elsewhere may be missing"
 fi
 
-# --- 1b. the private repositories --------------------------------------------
-# Each course, and ai-config, is its own private repository inside Atlas and
-# ignored by it, so the pull above moved none of them -- and the relay commits
-# and pushes owner edits in them, which a stale clone turns into a rejected
-# non-fast-forward. Bootstrap's own step clones or adopts any that is missing
-# and sets its hook (one copy of that logic, not two); then each is pulled
+# --- 1b. ai-config ----------------------------------------------------------
+# The one private repository nested inside Atlas and ignored by it, so the pull
+# above did not move it. Bootstrap's own step clones or adopts it when missing
+# and sets its hook (one copy of that logic, not two); then it is pulled
 # `--ff-only`, unless a terminal is part-way through something in it.
 ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")"
 boot="$(bash "$HERE/bootstrap.sh" --private-only | grep '^  ')"
 [ -n "$boot" ] && printf '%s\n' "$boot"
 problems=$((problems + $(printf '%s\n' "$boot" | grep -c '^  ----' || true)))
-for dir in "$ROOT"/courses/*/ "$ROOT"/ai-config/; do
-  repo="${dir%/}"
-  [ -e "$repo/.git" ] || continue
-  rel="${repo#$ROOT/}"
+repo="$ROOT/ai-config"
+if [ -e "$repo/.git" ]; then
   gitdir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)"
   busy=""
   for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
@@ -96,21 +92,21 @@ for dir in "$ROOT"/courses/*/ "$ROOT"/ai-config/; do
   [ -z "$busy" ] && [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "HEAD" ] \
     && busy="HEAD is detached"
   if [ -n "$busy" ]; then
-    warn "$rel: $busy — not pulled, left exactly as it is"
-    continue
-  fi
-  before="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
-  if out="$(git -C "$repo" pull --ff-only 2>&1)"; then
-    after="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
-    if [ "$before" = "$after" ]; then
-      good "$rel: already current (${after:0:8})"
-    else
-      good "$rel: pulled ${before:0:8} -> ${after:0:8}"
-    fi
+    warn "ai-config: $busy — not pulled, left exactly as it is"
   else
-    warn "$rel: pull did not run: $(printf '%s\n' "$out" | grep -v '^hint:' | tail -1)"
+    before="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
+    if out="$(git -C "$repo" pull --ff-only 2>&1)"; then
+      after="$(git -C "$repo" rev-parse HEAD 2>/dev/null)"
+      if [ "$before" = "$after" ]; then
+        good "ai-config: already current (${after:0:8})"
+      else
+        good "ai-config: pulled ${before:0:8} -> ${after:0:8}"
+      fi
+    else
+      warn "ai-config: pull did not run: $(printf '%s\n' "$out" | grep -v '^hint:' | tail -1)"
+    fi
   fi
-done
+fi
 
 # --- 2. the machine's name -------------------------------------------------
 # Reported, never pinned. See the header.

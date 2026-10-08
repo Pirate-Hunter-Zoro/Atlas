@@ -251,22 +251,13 @@ def _git(base, args, timeout=30):
 
 
 def repo_of(root, base):
-    """`(top, rel)`: the repository a workspace's history is in, and where the
-    workspace sits inside it -- `.` when the workspace IS the repository.
-
-    ASKED OF THE WORKSPACE, NOT OF ATLAS. A course is its own repository, and
-    Atlas ignores it: `git log -- courses/X` at Atlas's root answers with the
-    commits from before the course left, then nothing. So every read of a
-    workspace's history runs in the top git names from inside the workspace,
-    with a pathspec relative to that top. A workspace with no repository of
-    its own around it falls back to `base`, which is what it shares.
+    """`(top, rel)`: Atlas, which holds every workspace's history, and where
+    the workspace sits inside it.
 
     Both ends by their real names: the board can be reached through a symlink,
     and git answers with the resolved path."""
-    real = os.path.realpath(root)
-    top = _git(real, ["rev-parse", "--show-toplevel"], timeout=10).strip()
-    top = os.path.realpath(top) if top else os.path.realpath(base)
-    return top, os.path.relpath(real, top)
+    top = os.path.realpath(base)
+    return top, os.path.relpath(os.path.realpath(root), top)
 
 
 def prefix_of(rel):
@@ -306,7 +297,7 @@ def landed(base, rel, since_ts, until_ts=None):
 
 def closed(base, rel, root, since_ts, until_ts=None):
     """Plan steps deleted in the period, read out of the plan's own diff.
-    `base` is the repository the workspace at `root` is in (`repo_of`)."""
+    `base` is Atlas (`repo_of`)."""
     try:
         targets = plan.paths(root)
     except Exception:                                        # noqa: BLE001
@@ -428,9 +419,8 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 def story_diff(base, rel, since_ts, until_ts=None):
     """`{name: diff}`: how HANDOFF.md and DIRECTION.md changed over the period.
     Against the working tree when the period is open, because the meeting is
-    now; a file nothing tracks yet is carried whole. `base` is the
-    workspace's own repository (`repo_of`), so the period's ends are commits of
-    that repository's history."""
+    now; a file nothing tracks yet is carried whole. `base` is Atlas
+    (`repo_of`)."""
     start = _git(base, ["rev-list", "-1", "--before=@%d" % int(since_ts),
                         "HEAD"]).strip() or EMPTY_TREE
     end = []
@@ -566,9 +556,8 @@ def gather(base, ws, since_ts, until_ts=None, ids=None, rows=None):
     moved. `rows` is `sittings._shown`'s, passed in so a deck of five
     workspaces walks the archives once.
 
-    `base` is Atlas, and is what the brief names paths against; the history is
-    read in the workspace's own repository (`repo_of`), which for a course is
-    the course."""
+    `base` is Atlas, which holds the history and is what the brief names paths
+    against (`repo_of`)."""
     root = ws["root"]
     top, rel = repo_of(root, base)
     if ids is None:

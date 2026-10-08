@@ -15,9 +15,7 @@
 # With a pathspec after `--` it commits only those paths. Atlas holds the
 # tool and most workspaces in one repository, so `ship.sh` uses this to push a
 # change to the TOOL without sweeping up whatever somebody is part-way through
-# in a research tree. Each course is its own private repository nested inside
-# Atlas and ignored by it, so a save run from a course commits and pushes that
-# course alone; the caller's working directory picks the repository.
+# in a research tree. The caller's working directory picks the repository.
 #
 # It fetches and merges the remote before pushing, so a second machine
 # committing the same repository -- a compute node compiling the same document
@@ -98,8 +96,8 @@ fi
 # anyone remember, so the attribution stripper is on from the first commit.
 #
 # A repository that carries its own .githooks/ gets the relative path, which
-# follows the clone wherever it is moved. One that does not -- ai-config, a
-# course made without copying the directory in -- gets the ABSOLUTE path to the
+# follows the clone wherever it is moved. One that does not -- ai-config --
+# gets the ABSOLUTE path to the
 # tool's repository's .githooks/, because a relative `.githooks` would resolve
 # inside this worktree and find nothing. A relative value already set in a
 # repository with no .githooks/ is that same silent nothing, so it is repaired.

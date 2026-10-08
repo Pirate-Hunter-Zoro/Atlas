@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import time
 
+from . import fenced
 from .course import threads as course_threads
 
 NAME = "jobs.jsonl"
@@ -1568,28 +1569,11 @@ def _relay_of(path):
     return relay if isinstance(relay, dict) else {}
 
 
-def _repo_default(root):
-    """`sync` from the repository's `atlas.json`, the one place a machine-wide
-    habit is said once. Only `sync`: a Colibri opt-in is a permission over one
-    workspace's data, so no workspace inherits it."""
-    here = os.path.realpath(root)
-    while True:
-        up = os.path.dirname(here)
-        if up == here:
-            return {}
-        here = up
-        if os.path.isfile(os.path.join(here, "atlas.json")):
-            sync = _relay_of(os.path.join(here, "atlas.json")).get("sync")
-            return {"sync": sync} if isinstance(sync, bool) else {}
-
-
 def relay_opts(root):
-    """This workspace's relay opt-ins: `colibri` and `sync`. `sync` defaults to
-    the repository's `atlas.json` and the workspace's own `tutorboard.json`
-    overrides it; `colibri` is the workspace's alone."""
-    out = _repo_default(root)
-    out.update(_relay_of(os.path.join(root, "tutorboard.json")))
-    return out
+    """This workspace's relay opt-ins, `colibri` and `sync`, from its own
+    `tutorboard.json` alone. There is no machine-wide default: nothing opts a
+    workspace into sync but its own file (the sync code goes in T38c)."""
+    return dict(_relay_of(os.path.join(root, "tutorboard.json")))
 
 
 def check(root, req, mine=False):
@@ -1748,6 +1732,23 @@ def request_visible(root):
     return ""
 
 
+def nested_git(root):
+    """The first directory at or under `root` holding a `.git`, else "".
+
+    A subject is Atlas's own content; a nested repository inside one is
+    something Atlas cannot see, so no request is filed from it. The walk never
+    enters a dot directory, `live/`, `results/`, `node_modules/` or a fenced
+    name (`fenced.NEVER`): only whether `.git` exists is asked of each level.
+    """
+    for here, dirs, files in os.walk(root):
+        if ".git" in dirs or ".git" in files:
+            return here
+        dirs[:] = [d for d in dirs if not d.startswith(".")
+                   and d not in ("live", "results", "node_modules")
+                   and not fenced.in_fence(d)]
+    return ""
+
+
 def file_request(root, req, run=subprocess.run, push=True):
     """Write `relay/requests/<id>.json` and commit that one file, then push.
 
@@ -1756,9 +1757,10 @@ def file_request(root, req, run=subprocess.run, push=True):
     target = os.path.join(requests_dir(root), req["id"] + ".json")
     if os.path.exists(target):
         return target, False, "%s is already there" % target
-    if os.path.exists(os.path.join(root, ".git")):
-        return target, False, ("this workspace is its own repository, and the "
-                               "relay reads requests only from Atlas's")
+    nested = nested_git(root)
+    if nested:
+        return target, False, ("%s holds its own .git, and the relay reads "
+                               "requests only from Atlas's tree" % nested)
     leak = request_leak(root, req)
     if leak:
         return target, False, leak

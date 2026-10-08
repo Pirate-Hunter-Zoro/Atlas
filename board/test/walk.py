@@ -415,8 +415,8 @@ finally:
 # ---------------------------------------------------------------------------
 # A VENDOR TREE IS WALKABLE, AND IS STILL NOT A WORKSPACE
 # ---------------------------------------------------------------------------
-# `atlas.json` made one claim out of two: the vendor family was skipped, and the
-# reason given was that nothing in it is the person's to be GRADED on. The ask
+# The vendor family is skipped because nothing in it is the person's to be
+# GRADED on. The ask
 # was about TRACING -- *"who knows when we'll want to explore external tools in
 # the same way... That's the best way to dive into how Colibri works"* -- and
 # under the merged rule that was impossible for a reason about homework.
@@ -430,12 +430,6 @@ from tutorboard.course import map as mapping                 # noqa: E402
 home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
 was = os.environ.get("TUTORBOARD_COURSES")
 try:
-    with open(os.path.join(home, "atlas.json"), "w", encoding="utf-8") as fh:
-        json.dump({"families": [
-            {"id": "research", "name": "Research", "blurb": "Papers."},
-            {"id": "vendor", "name": "Vendor", "blurb": "Pulled, not written.",
-             "vendor": True},
-        ]}, fh)
     write(home, "research/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
     write(home, "research/PSYCH-ASR/psych_asr/grade.py",
           "def grade(a, b):\n" + BODY + "\n")

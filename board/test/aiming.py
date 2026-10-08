@@ -68,12 +68,6 @@ check("the two that are held over a scope are named, not guessed at",
 # a family default, overridable at every level below it
 # ---------------------------------------------------------------------------
 fake = tempfile.mkdtemp(prefix="tutor-aiming-tree-")
-with open(os.path.join(fake, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [
-        {"id": "courses", "name": "Courses", "aim": "teach"},
-        {"id": "projects", "name": "Projects", "aim": "build"},
-        {"id": "nowhere", "name": "Nowhere"},
-    ]}, fh)
 
 
 def workspace(family, name, cfg=None):
@@ -91,7 +85,7 @@ course = workspace("courses", "Probability")
 project = workspace("projects", "Harness")
 # A workspace that answers for itself, over its family's default.
 own = workspace("projects", "Lectures", {"aim": "teach"})
-# And one whose family says nothing at all.
+# And one outside every family.
 loose = workspace("nowhere", "Odd")
 
 check("a course with nothing declared is taught", config.aim_for(course, {}) == "teach")
@@ -108,7 +102,7 @@ check("and a word that is not an aim is dropped rather than obeyed",
 
 # A FAMILY DEFAULT IS A STYLE, NEVER AN INSTRUCTION TO WRITE CODE.
 #
-# `projects` defaults to `build` in `atlas.json` and `libr-local-llm` declares
+# `projects` defaults to `build` in `atlas.FAMILIES` and `libr-local-llm` declares
 # only a name, so a plain lecture opened in it was a DOING turn: the tutor wrote
 # code and reported. Being taught cost a tap on `teach` in the `for:` row first,
 # which is one tap and is the wrong way round for a workspace somebody arrives

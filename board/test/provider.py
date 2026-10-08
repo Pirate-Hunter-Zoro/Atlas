@@ -161,8 +161,6 @@ try:
     # the iPad: "when I tried to switch to codex on the homescreen, it wouldn't
     # switch and I was stuck on claude, which I had used up my limit on."
     tree = os.environ["TUTORBOARD_COURSES"]
-    with open(os.path.join(tree, "atlas.json"), "w", encoding="utf-8") as fh:
-        json.dump({"families": [{"id": "courses", "name": "Courses"}]}, fh)
 
     def workspace(name, state):
         root = os.path.join(tree, "courses", name)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""A course repository is somewhere its owner WORKS, not only where they learn.
+"""A repository the tutor commits in is somewhere its owner WORKS, too.
 
 The tutoring machinery runs unattended. The transcript beat commits and pushes
-every ninety seconds, `sync` fast-forwards a course as a session opens, and the
+every ninety seconds, `sync` fast-forwards Atlas as a session opens, and the
 board's save button commits the whole tree from a tap on an iPad. All of that
 happens in a repository that the same person opens a terminal in and writes code
 in, with nobody watching what it does to git.
@@ -63,7 +63,7 @@ def git(root, *args):
 
 
 def make_repo(where, name="course"):
-    """A course with a bare origin of its own, so cases cannot cross-talk."""
+    """A repository with a bare origin of its own, so cases cannot cross-talk."""
     origin = os.path.join(where, name + ".git")
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin], check=True)
     root = os.path.join(where, name)

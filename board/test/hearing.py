@@ -99,8 +99,6 @@ try:
     for clone in (mac,):
         git(clone, "config", "user.email", "t@example.com")
         git(clone, "config", "user.name", "t")
-    write(os.path.join(mac, "atlas.json"),
-          json.dumps({"families": [{"id": "research"}]}))
     ws = os.path.join(mac, "research", "Proj")
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     # Anchored: an unanchored `results/` would hide `exports/results/` too.
@@ -273,50 +271,78 @@ try:
     check("the Mac's timer fires often enough for that cadence",
           "<integer>%d</integer>" % holds.POLL_SECONDS in plist)
 
-    # --- a workspace that is its own repository ----------------------------------
-    # A course is a private repository nested inside Atlas and ignored by it.
-    # The cluster pushes that course's reports to the course's own remote, so
-    # the Mac hears them only if the pass pulls that repository too.
-    corigin = os.path.join(base, "course.git")
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", corigin],
-                   check=True)
-    with open(os.path.join(mac, ".git", "info", "exclude"), "a",
-              encoding="utf-8") as fh:
-        fh.write("/research/Course/\n")
-    course = os.path.join(mac, "research", "Course")
-    os.makedirs(course)
-    git(course, "init", "-q", "-b", "main")
-    git(course, "config", "user.email", "t@example.com")
-    git(course, "config", "user.name", "t")
-    write(os.path.join(course, "AI_INSTRUCTIONS.md"), "# contract\n")
-    write(os.path.join(course, ".gitignore"), "live/\n/results/\n")
-    write(os.path.join(course, "slurm", "sweep.sbatch"), RECIPE)
-    write(threads.path(course), json.dumps(SPINE))
-    git(course, "add", "-A")
-    git(course, "commit", "-q", "-m", "start")
-    git(course, "remote", "add", "origin", corigin)
-    git(course, "push", "-q", "-u", "origin", "main")
-    ccluster = os.path.join(base, "course-cluster")
-    git(base, "clone", "-q", corigin, ccluster)
-    git(ccluster, "config", "user.email", "c@example.com")
-    git(ccluster, "config", "user.name", "c")
-    check("Atlas does not carry the nested course",
-          git(mac, "status", "--porcelain").strip() == "")
+    # --- the pull pass clones nothing but ai-config ---------------------------
+    # Every course is Atlas's own content. A fake `git` and `gh` on PATH log
+    # every call (git delegates the rest to the real one), and the pass runs
+    # the real bootstrap.sh when ai-config is missing.
+    write(os.path.join(mac, "courses", "Topology", "tutorboard.json"),
+          json.dumps({"name": "Topology", "phi": False}))
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "a course is Atlas's content")
+    os.makedirs(os.path.join(mac, "board"))
+    shutil.copy(os.path.join(ROOT, "bootstrap.sh"),
+                os.path.join(mac, "board", "bootstrap.sh"))
+    fakes = os.path.join(base, "fakebin")
+    calls = os.path.join(base, "calls.log")
+    write(os.path.join(fakes, "git"),
+          '#!/bin/bash\necho "git $*" >> "%s"\n'
+          'case "$1" in clone) exit 1 ;; esac\nexec "%s" "$@"\n'
+          % (calls, shutil.which("git")))
+    write(os.path.join(fakes, "gh"),
+          '#!/bin/bash\necho "gh $*" >> "%s"\nexit 1\n' % calls)
+    os.chmod(os.path.join(fakes, "git"), 0o755)
+    os.chmod(os.path.join(fakes, "gh"), 0o755)
 
-    pulled = []
-    tutorcli.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
-    check("one pull per repository: Atlas first, then the course, and the "
-          "workspace sharing Atlas's .git is not pulled twice",
-          [os.path.realpath(p) for p in pulled]
-          == [os.path.realpath(mac), os.path.realpath(course)])
+    def clones():
+        try:
+            with open(calls, encoding="utf-8") as fh:
+                return [l.split() for l in fh
+                        if l.split()[1:2] == ["clone"]
+                        or l.split()[1:3] == ["repo", "clone"]]
+        except OSError:
+            return []
 
-    req3 = dict(req, id="2026-10-03-course-sweep", filed=2300.0)
-    # A workspace that is its own repository never goes to the cluster: the
-    # relay reads requests only from Atlas, so filing one there is refused.
-    check("a request filed in a workspace that is its own repository is "
-          "refused, naming why",
-          "its own repository" in jobs.file_request(course, req3,
-                                                    push=False)[2])
+    saved_path = os.environ["PATH"]
+    os.environ["PATH"] = fakes + os.pathsep + saved_path
+    try:
+        pulled = []
+        tutorcli.hear_pass(stamp=stamp, now=2200, force=True, pull=fake_pull)
+        tried = clones()
+        check("with ai-config missing, the pass tries to clone ai-config and "
+              "nothing else",
+              len(tried) >= 1
+              and all(tutorcli.AI_CONFIG_URL in l
+                      or "Pirate-Hunter-Zoro/ai-config" in l for l in tried)
+              and not any("Topology" in " ".join(l) for l in tried))
+        check("one pull, of Atlas alone",
+              [os.path.realpath(p) for p in pulled] == [os.path.realpath(mac)])
+
+        os.makedirs(os.path.join(mac, "ai-config", ".git"))
+        os.remove(calls)
+        pulled = []
+        tutorcli.hear_pass(stamp=stamp, now=2300, force=True, pull=fake_pull)
+        check("with ai-config there, a fake-git pull pass records no clone "
+              "attempt", clones() == []
+              and [os.path.realpath(p) for p in pulled]
+              == [os.path.realpath(mac)])
+    finally:
+        os.environ["PATH"] = saved_path
+    shutil.rmtree(os.path.join(mac, "ai-config"))
+    shutil.rmtree(os.path.join(mac, "board"))
+
+    # --- a nested repository is refused, generically ---------------------------
+    nested = os.path.join(ws, "vendored", "thing")
+    os.makedirs(os.path.join(nested, ".git"))
+    req3 = dict(req, id="2026-10-03-nested-sweep", filed=2300.0)
+    said3 = jobs.file_request(ws, req3, push=False)
+    check("a request filed in a subject holding a nested .git is refused, "
+          "naming where", said3[1] is False and "own .git" in said3[2]
+          and "vendored" in said3[2])
+    check("and nothing is written",
+          not os.path.exists(said3[0]))
+    shutil.rmtree(os.path.join(ws, "vendored"))
+    check("jobs.nested_git finds nothing in a plain subject",
+          jobs.nested_git(ws) == "")
 
     # --- a fresh clone -----------------------------------------------------------
     fresh = os.path.join(base, "fresh")

@@ -1662,7 +1662,7 @@ def _session_sense(repo, mission=False):
     how += results_sense(repo)
 
     # WHAT THIS SITTING IS FOR, RESOLVED: its own aim, the workspace's, or its
-    # family's default in `atlas.json`. Everything from here down is a lecture or
+    # family's default in `atlas.FAMILIES`. Everything from here down is a lecture or
     # a homework sitting -- the two a person reaches without going through the
     # map -- and before this they carried no style at all, so they ran on stance
     # alone, which is `teach` nearly everywhere and is the wrong answer for a

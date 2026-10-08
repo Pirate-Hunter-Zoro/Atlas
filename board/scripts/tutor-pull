@@ -6,8 +6,7 @@
 #      tutor-pull --force    both, regardless
 #
 #  EVERY RUN: `tutor pull --hear`. On a machine without Slurm it pulls Atlas
-#  and each course's own private repository (every repository a workspace
-#  lives in) every twenty seconds while a hold stands, every two minutes
+#  every twenty seconds while a hold stands, every two minutes
 #  while a relay request is out and every five minutes otherwise, then drops
 #  a `[job]` line for each cluster report that ended and a `[coach]` line for
 #  each held step's check.

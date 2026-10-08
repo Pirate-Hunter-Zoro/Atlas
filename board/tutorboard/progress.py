@@ -212,10 +212,8 @@ def changes_since(root, since):
 
     `{"commits": [...], "files": [...], "dirty": n, "withheld": n}`.
 
-    SCOPED BY PATHSPEC, not filtered afterwards, because a workspace may share
-    its repository with others (research, projects and practice share Atlas's)
-    or be its own (a course), and a pathspec makes the answer about this one
-    either way. `lesson/git.py` draws the same distinction for the same reason.
+    SCOPED BY PATHSPEC, not filtered afterwards, because every workspace
+    shares Atlas's repository, and a pathspec makes the answer about this one. `lesson/git.py` draws the same distinction for the same reason.
 
     `live/` is dropped: it is the board's own scratch, and reporting the cards
     the turn just wrote as *files it changed* counts the same work twice.

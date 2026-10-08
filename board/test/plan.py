@@ -106,10 +106,6 @@ proj = os.path.join(home, "research", "PSYCH-ASR")
 hub = os.path.join(home, "research", "Research-Journey")
 book = os.path.join(home, "courses", "Galois-Theory")
 try:
-    write(os.path.join(home, "atlas.json"), json.dumps({"families": [
-        {"id": "courses", "name": "Courses"},
-        {"id": "research", "name": "Research"},
-    ]}))
     write(os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt"), TODO)
     pdf(os.path.join(hub, "psych-asr-feasibility", "stage1_pipeline_walkthrough.pdf"))
     pdf(os.path.join(hub, "psych-asr-feasibility", "stage2_reference_walkthrough.pdf"))

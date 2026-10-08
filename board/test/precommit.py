@@ -80,7 +80,6 @@ try:
     shutil.copytree(os.path.join(BOARD, "tutorboard"),
                     os.path.join(box, "board", "tutorboard"),
                     ignore=shutil.ignore_patterns("__pycache__"))
-    put("atlas.json", json.dumps({"families": [{"id": "projects"}]}))
     put("projects/S/tutorboard.json", json.dumps({"name": "S", "phi": True}))
     put("projects/O/tutorboard.json",
         json.dumps({"name": "O", "phi": False, "relay": {"exports": ["a"]}}))

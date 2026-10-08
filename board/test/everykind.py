@@ -46,9 +46,6 @@ def write(path, text):
 fake = tempfile.mkdtemp(prefix="everykind-")
 saved = os.environ.get("TUTORBOARD_COURSES")
 try:
-    write(os.path.join(fake, "atlas.json"), json.dumps({"families": [
-        {"id": "courses", "aim": "teach"}, {"id": "practice", "aim": "teach"},
-        {"id": "research", "aim": "build"}, {"id": "projects", "aim": "build"}]}))
     course = os.path.join(fake, "courses", "Course")
     write(os.path.join(course, "tutorboard.json"), json.dumps({"name": "Course"}))
     write(os.path.join(course, "chapters.tsv"), "01\t1\t9\tgroups\tGroups\n"

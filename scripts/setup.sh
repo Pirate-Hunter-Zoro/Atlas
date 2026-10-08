@@ -9,9 +9,9 @@
 #    uv is installed into ~/.local/bin if it is not on the PATH; nothing needs
 #    root. Lean's elan is the Lean workspace's own setup's to install.
 # 2. Every workspace, found the way the board finds them (`atlas.workspaces`),
-#    never from a list -- except that a private repository atlas.json names
-#    and this machine has not cloned is reported, not skipped. A workspace is
-#    built by what it holds:
+#    never from a list. ai-config, the one private repository nested in Atlas,
+#    is reported when this machine has not cloned it. A workspace is built by
+#    what it holds:
 #      pyproject.toml   uv sync, with the `test` extra, and the `cluster` extra
 #                       only where Slurm exists
 #      lean-toolchain   its own scripts/setup.sh: elan, the toolchain, the
@@ -56,26 +56,11 @@ elif ! command -v uv >/dev/null 2>&1; then
 fi
 
 # ---- 2. the workspaces -----------------------------------------------------
-# Found on disk, so a private repository that was never cloned -- a course, or
-# ai-config, each its own repository inside Atlas -- would simply be absent
-# from the list below. atlas.json's "private" is the one list of them; each one
-# missing is named here, with the command that brings it in.
-while IFS=$'\t' read -r path _; do
-  [ -n "$path" ] || continue
-  if [ ! -e "$ROOT/$path/.git" ]; then
-    line "$path" "not cloned -- bash board/bootstrap.sh"; failed=1
-  fi
-done < <(python3 - "$ROOT/atlas.json" <<'PY' 2>/dev/null
-import json, sys
-try:
-    with open(sys.argv[1], encoding="utf-8") as fh:
-        private = json.load(fh).get("private") or {}
-except (OSError, ValueError):
-    private = {}
-for path, url in private.items():
-    print("%s\t%s" % (path, url))
-PY
-)
+# ai-config is the one private repository nested inside Atlas; a machine that
+# never cloned it is told the command that brings it in.
+if [ ! -e "$ROOT/ai-config/.git" ]; then
+  line "ai-config" "not cloned -- bash board/bootstrap.sh"; failed=1
+fi
 
 workspaces="$(cd "$ROOT/board" && TUTORBOARD_COURSES="$ROOT" python3 -c '
 from tutorboard import atlas

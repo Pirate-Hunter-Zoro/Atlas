@@ -216,7 +216,7 @@ def stance_for(root, state):
 
         this sitting's own stance  -- somebody tapped it, for this evening
         this sitting's aim         -- `AIM_STANCE`; build writes, coach does not
-        its family's default aim   -- `atlas.json`, through `aim_for`
+        its family's default aim   -- `atlas.FAMILIES`, through `aim_for`
 
     and nothing below the first two is a guess: each is something written down
     somewhere, by somebody, about this workspace or the family it is in.
@@ -532,10 +532,8 @@ def sitting_box(state):
 def family_aim(root, base=None):
     """The default style of the family this workspace sits in, or "".
 
-    `atlas.json` "names and orders the five families and says which hold somebody
-    else's work" -- and a default style is a property of a family in exactly that
-    sense. It is still not a registry of workspaces: nothing there names one, and
-    making a course is still `mkdir courses/Topology`.
+    Read from `atlas.FAMILIES`. It is not a registry of workspaces: nothing
+    there names one, and making a course is still `mkdir courses/Topology`.
     """
     try:
         fam = atlas.family_of(root, base)
@@ -551,7 +549,7 @@ def aim_for(root, state, base=None):
     """What this sitting is FOR, with the whole precedence in one function.
 
         the sitting's own aim   -- tapped on the map, or `board aim`
-        the family's default    -- `atlas.json`, and only where it teaches
+        the family's default    -- `atlas.FAMILIES`, and only where it teaches
 
     A SITTING NOBODY OPENED FROM THE MAP HAD NO STYLE AT ALL. `tutor galois`,
     `board open`, a chapter tapped in the contents drawer and a board resumed

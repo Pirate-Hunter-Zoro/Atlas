@@ -230,8 +230,8 @@ function paintBoard(d) {
 
    So:
 
-     1. THE DOOR -- the families, as large tappable things. `atlas.json`
-        already carries them in the order they should be drawn with a sentence
+     1. THE DOOR -- the families, as large tappable things. The `/atlas.json`
+        payload carries them in the order they should be drawn with a sentence
         each, and those sentences are what a door says.
      2. THE FAMILY -- its workspaces, each with what it is and what is
         happening in it. Every field was already in the payload and was being
@@ -321,7 +321,7 @@ function aEl(tag, cls, text) {
 }
 
 /* ------------------------------------------------------------ level one */
-/* WHAT A DOOR SAYS. Its name and the sentence `atlas.json` already carries for
+/* WHAT A DOOR SAYS. Its name and the sentence the `/atlas.json` payload carries for
    it -- "Graduate coursework, taught chapter by chapter.", "The projects that
    become papers." -- and then what is true inside it right now. The sentences
    existed and the old front door used them as nothing but a heading. */

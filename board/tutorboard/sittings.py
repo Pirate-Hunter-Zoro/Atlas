@@ -244,9 +244,8 @@ def _rows(base):
             merged.append([live])
         if not merged:
             continue
-        # THE WORKSPACE'S OWN REPOSITORY. A course is one, and Atlas ignores
-        # it; its history, its plan and its handoff's revisions are read there,
-        # with `rel` relative to that top -- `.` for a course.
+        # Atlas holds every workspace's history; `rel` is the workspace's path
+        # in it.
         top, rel = meeting.repo_of(root, base)
         name = _name_of(ws)
         held = list(fenced.holds(root))
@@ -294,9 +293,8 @@ def noise(subject, ids):
 # `git log` over Atlas costs seconds for a workspace whose every save is a
 # commit, and the sheet asks for every workspace at once. So the whole of it is
 # read once per board, and after that only what landed since the head it was
-# read at. Keyed by the repository and the workspace's path in it -- a course
-# is its own repository, at `.` -- and a head that is not an ancestor of the
-# last one (a rewrite) is read again whole.
+# read at. Keyed by the repository and the workspace's path in it, and a head
+# that is not an ancestor of the last one (a rewrite) is read again whole.
 _LOGS = {}
 _LOCK = threading.Lock()
 
@@ -367,8 +365,7 @@ def _shown(base):
     """Every row the sheet offers, newest workspace first."""
     groups, ids = _rows(base)
     out = []
-    # ONE HEAD PER REPOSITORY: Atlas's for the workspaces it holds, a course's
-    # own for a course.
+    # One HEAD per repository: in practice Atlas's alone.
     tops = sorted(set(rows[0]["top"] for _, _, rows in groups))
     heads = dict((t, _run(t, ["rev-parse", "HEAD"])[1].strip()) for t in tops)
     # IN PARALLEL, because each is a wait on the disk rather than on a CPU, and
@@ -499,8 +496,7 @@ def _handoff_of(row, newest):
     written after the sitting opened: a handoff older than the sitting is the
     one it was handed, not the one it left. AN OLDER SITTING, or a newest one
     with no such file, reads the last revision committed inside its window
-    whose stamp names its chapter, in the workspace's own repository. None,
-    and the sitting offers no bullets.
+    whose stamp names its chapter. None, and the sitting offers no bullets.
     """
     root, chapter = row["root"], row["chapter"]
     if not chapter:
@@ -647,7 +643,7 @@ def _same_step(a, b):
 def _body(top, sha):
     """A commit's message, whole, clipped for the brief. Fetched by the server
     because `git` is not something an unattended tutor may run. `top` is the
-    row's own repository, which is where its commits are."""
+    repository the row's commits are in."""
     return meeting._clip(meeting._git(top, ["show", "-s", "--format=%B", sha]),
                          BODY_CHARS)
 

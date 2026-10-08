@@ -77,11 +77,8 @@ CONFIG_DIR = os.path.join(
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    # The repository root. It was `dirname(TOOL)` because a course was a
-    # directory sitting next to the board; it is now the directory holding
-    # `atlas.json`, one level above the tool, and `atlas.root()` is what walks
-    # to it. The key keeps its name so a config file already on a machine still
-    # reads -- what it MEANS is the same sentence about a different shape.
+    # The repository root, one level above the tool (`atlas.root()`). The key
+    # keeps its name so a config file already on a machine still reads.
     "courses_dir": atlas.root(),
     "default_agent": "claude",
     "agents": {
@@ -432,12 +429,11 @@ DEFAULT_CONFIG = {
             # allowed to read `phi`, which is the entire reason it exists -- and
             # a card is how every turn reports. `research/PSYCH-ASR/.gitignore`
             # excludes `live/*` with `live/map.json` the single exception, so a
-            # card there is never tracked; `courses/Galois-Theory/live/cards/` is
-            # tracked in the course's own repository. Same feature, two
-            # workspaces, and in one of them it pushes the local model's output
-            # to a remote where nothing can audit what it quoted. So the rule is
-            # about the ASSISTANT and is the same everywhere: refuse where the
-            # card would be tracked, and name the one line that changes it.
+            # card there is never tracked. A workspace whose `.gitignore` lacks
+            # that rule would push the local model's output to a remote where
+            # nothing can audit what it quoted. So the rule is about the
+            # ASSISTANT and is the same everywhere: refuse where the card would
+            # be tracked, and name the one line that changes it.
             "private": "it is the only assistant allowed to read `phi`, so its "
                        "cards must not reach a remote",
         },
@@ -660,15 +656,15 @@ def load_config():
     # found the old working directories still sitting there, and listed
     # Tutor-Board itself as a course.
     #
-    # The test is whether it holds an `atlas.json`, which is what a repository
-    # root is. So a person who deliberately points this at ANOTHER checkout
+    # The test is whether it holds the board's own package, which is what an
+    # Atlas root is. So a person who deliberately points this at ANOTHER checkout
     # still gets what they asked for, and a value that can only be wrong is
     # wrong once, here, instead of at every use. `atlas.root()` needs no
     # configuring at all: it derives from where this package actually is.
     said = cfg.get("courses_dir")
     if said:
         said = os.path.expanduser(said)
-        if not os.path.isfile(os.path.join(said, "atlas.json")):
+        if not os.path.isdir(os.path.join(said, "board", "tutorboard")):
             cfg["courses_dir"] = atlas.root()
     return cfg
 
@@ -1638,12 +1634,8 @@ def choose_agent(cfg, wanted, now=None):
 def courses(cfg):
     """Whatever is on disk. No registry, so nothing to keep in step.
 
-    `atlas.workspaces()` is the walk: the families named in `atlas.json`, a
-    workspace per second-level directory, vendor skipped, the board skipped. It
-    used to be one listing of the board's parent directory, and the thing that
-    has NOT changed is that nothing anywhere lists the workspaces -- a directory
-    holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` is one, found by
-    looking.
+    `atlas.workspaces()` is the walk: a workspace per directory under a
+    subject family (`subjects.DIRS`). Nothing anywhere lists the workspaces.
 
     `TUTORBOARD_COURSES` still beats everything, and it is not a nicety. It is
     how a test says "this tree, not this machine's", and until 7 September only
@@ -1895,7 +1887,7 @@ def doing_now(root, signal=""):
     ASKED OF `course/config.py`, WHICH IS THE ONE ANSWER. This function used to
     hold its own copy of the aims that write -- a third list of the same three
     words, beside `sense`'s and the browser's -- and it read `tutorboard.json` by
-    hand as well, so a family's default style in `atlas.json` reached the prompt
+    hand as well, so a family's default style reached the prompt
     and not the clock. A doing turn on a teaching turn's timeout is a turn killed
     at fifteen minutes with eight files changed and nothing committed.
 
@@ -2422,9 +2414,7 @@ HEADLESS_SHIP_PROMPT = (
     "`git diff` over what it names. You are looking at work another assistant "
     "did, so read it rather than trusting it.\n"
     "2. Judge whether it is the mission's work and whether it is safe to make "
-    "public. This repository may be pushed to a remote anybody can read: "
-    "Atlas is public, and a course's own repository is private but is held to "
-    "the same rule. The one "
+    "public. This repository is pushed to a remote anybody can read. The one "
     "thing that must never go is session content -- a transcript line, a "
     "quoted span, an example taken from real audio -- wherever it has been "
     "pasted, including a test fixture or a docstring. If you find any, STOP: "
@@ -2578,36 +2568,21 @@ HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
                           "tutor-pull.heard")
 
 
-def adopt_private(base, quiet=True, run=subprocess.run):
-    """Clone or adopt each of atlas.json's "private" repositories that this
-    checkout lacks, through `bootstrap.sh --private-only`. True if it ran.
+# ai-config is the one private repository nested inside Atlas and ignored by it.
+# Courses and projects are Atlas's own tracked content, so nothing else is ever
+# cloned here; bootstrap.sh carries the same URL.
+AI_CONFIG = "ai-config"
+AI_CONFIG_URL = "https://github.com/Pirate-Hunter-Zoro/ai-config.git"
 
-    The pull that untracks a course from Atlas deletes its tracked files and
-    leaves the directory without a repository; the next pass puts its own
-    repository underneath it, so the Mac heals without anybody at it. A path
-    Atlas still TRACKS is left alone: a repository adopted under it would
-    lose its files to Atlas's next pull.
+
+def adopt_private(base, quiet=True, run=subprocess.run):
+    """Clone or adopt ai-config when this checkout lacks its repository,
+    through `bootstrap.sh --private-only`. True if it ran.
+
+    The only clone a pull pass ever attempts: every course and project is
+    tracked by Atlas itself.
     """
-    try:
-        with open(os.path.join(base, "atlas.json"), "r", encoding="utf-8") as fh:
-            private = json.load(fh).get("private") or {}
-    except (OSError, ValueError):
-        return False
-    missing = []
-    for path in private:
-        dest = os.path.join(base, path)
-        if os.path.exists(os.path.join(dest, ".git")):
-            continue
-        try:
-            tracked = subprocess.run(
-                ["git", "-C", base, "ls-files", "--", path],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                universal_newlines=True, timeout=30).stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if not tracked:
-            missing.append(path)
-    if not missing:
+    if os.path.exists(os.path.join(base, AI_CONFIG, ".git")):
         return False
     script = os.path.join(base, "board", "bootstrap.sh")
     if not os.path.isfile(script):
@@ -2626,11 +2601,11 @@ def adopt_private(base, quiet=True, run=subprocess.run):
 
 def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
               pull=None):
-    """Pull every repository when due, then hear every workspace's reports.
+    """Pull Atlas when due, then hear every workspace's reports.
 
     `(pulled, interval, heard)`: `pulled` is None where nothing was pulled
-    because the relay owns pulls here (Slurm), True where any repository
-    pulled, False where it was not due or every pull failed. Never raises.
+    because the relay owns pulls here (Slurm), True where the pull ran, False
+    where it was not due or failed. Never raises.
     """
     if jobs.has_slurm():
         return None, 0, []
@@ -2656,27 +2631,13 @@ def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
         last = 0
     pulled = False
     if force or jobs.pull_due(last, now, interval):
-        # ONE PULL PER REPOSITORY, NOT PER WORKSPACE. A course is its own
-        # private repository nested inside Atlas, and the cluster pushes that
-        # course's reports to the course's remote, so pulling Atlas alone
-        # leaves them unheard. research/, projects/ and practice/ share
-        # Atlas's `.git`, and the git directory is what dedupes them: Atlas
-        # once, each course once, Atlas first.
-        repos = {}
+        # ONE PULL: every course and project is Atlas's own content. ai-config
+        # is adopted first when it is missing, and nothing else is cloned.
         adopt_private(base, quiet=quiet)
-        for where in [base] + roots:
-            try:
-                key = worktree.git_dir(where)
-            except Exception:                                # noqa: BLE001
-                key = None
-            if key and key not in repos:
-                repos[key] = where
-        for where in repos.values():
-            try:
-                if (pull or sync)(where, quiet=quiet) is True:
-                    pulled = True
-            except Exception:                                # noqa: BLE001
-                pass
+        try:
+            pulled = (pull or sync)(base, quiet=quiet) is True
+        except Exception:                                    # noqa: BLE001
+            pulled = False
         try:
             os.makedirs(os.path.dirname(stamp), exist_ok=True)
             with open(stamp, "w", encoding="utf-8") as fh:

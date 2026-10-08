@@ -92,21 +92,18 @@ POLICY = ("import re\n\ndef names_phi(text):\n"
 
 base = tempfile.mkdtemp(prefix="tutor-syncing-")
 saved_env = dict(os.environ)
-# --- the repository's default, a workspace's word over it ---------------------
+# --- no repository default: a workspace's own file is the only word ----------
 _box = tempfile.mkdtemp(prefix="relayopts-")
 try:
-    write(os.path.join(_box, "atlas.json"), json.dumps(
-        {"families": [], "relay": {"sync": True, "colibri": True}}))
-    for _ws, _cfg in (("a/one", {}), ("a/two", {"relay": {"sync": False}}),
+    for _ws, _cfg in (("a/one", {}), ("a/two", {"relay": {"sync": True}}),
                       ("a/three", {"relay": {"colibri": True}})):
         write(os.path.join(_box, _ws, "tutorboard.json"), json.dumps(_cfg))
     _o = lambda ws: jobs.relay_opts(os.path.join(_box, ws))
-    check("atlas.json's relay.sync is every workspace's default",
-          _o("a/one").get("sync") is True and _o("a/three").get("sync") is True)
-    check("a workspace's own sync: false overrides it",
-          _o("a/two").get("sync") is False)
-    check("colibri is never inherited from atlas.json; only a workspace says it",
-          "colibri" not in _o("a/one") and _o("a/three").get("colibri") is True)
+    check("nothing above a workspace opts it into sync",
+          _o("a/one") == {} and "sync" not in _o("a/three"))
+    check("only a workspace's own tutorboard.json says sync or colibri",
+          _o("a/two").get("sync") is True
+          and _o("a/three").get("colibri") is True)
 finally:
     shutil.rmtree(_box, ignore_errors=True)
 
@@ -121,8 +118,6 @@ try:
     git(seed, "init", "-q", "-b", "main")
     for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
         git(seed, "config", k, v)
-    write(os.path.join(seed, "atlas.json"),
-          json.dumps({"families": [{"id": "research"}]}))
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
     proj = os.path.join(seed, "research", "Proj")

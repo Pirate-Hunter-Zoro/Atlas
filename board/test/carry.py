@@ -178,8 +178,6 @@ base = tempfile.mkdtemp(prefix="tutor-carry-")
 was_courses = os.environ.get("TUTORBOARD_COURSES")
 real_tutor_cli = _spawn.tutor_cli
 try:
-    write(os.path.join(base, "atlas.json"),
-          json.dumps({"families": [{"id": "research", "name": "Research"}]}))
     psych = os.path.join(base, "research", "PSYCH-ASR")
     write(os.path.join(psych, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
     os.makedirs(os.path.join(psych, "live", "cards"), exist_ok=True)

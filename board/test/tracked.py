@@ -318,9 +318,6 @@ OLD_TREE = "data/stage1"
 tmp = tempfile.mkdtemp(prefix="tutor-leaving-")
 was = os.environ.get("TUTORBOARD_COURSES")
 try:
-    put(os.path.join(tmp, "atlas.json"),
-        '{"families": [{"id": "research", "name": "Research"}, '
-        '{"id": "courses", "name": "Courses"}]}')
     psych = os.path.join(tmp, "research", "PSYCH-ASR")
     galois = os.path.join(tmp, "courses", "Galois-Theory")
     for r in (psych, galois):
