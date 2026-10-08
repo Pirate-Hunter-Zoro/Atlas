@@ -34,6 +34,7 @@ from ...course.repo import Repo
 from ...lesson import notes
 from ...lesson import state
 from ...lesson import turns
+from ...course import repo as course_repo
 
 
 # HOW FRESH A `/seen` MARKER HAS TO BE TO MEAN SOMEBODY IS READING THAT BOARD.
@@ -953,7 +954,7 @@ def post(h, repo, path):
         # Given the port and the name, it can go there instead.
         port = None
         try:
-            with open(os.path.join(target, "live", ".board.json"), "r",
+            with open(course_repo.session_path(target, ".board.json"), "r",
                       encoding="utf-8") as fh:
                 port = int(json.load(fh).get("port"))
         except (OSError, ValueError, TypeError):
