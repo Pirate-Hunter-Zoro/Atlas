@@ -2450,6 +2450,10 @@ def cmd_job(live, args):
     ON A MACHINE WITHOUT SLURM -- the Mac -- it writes
     `relay/requests/<id>.json`, commits that one file and pushes it. The
     cluster's relay runs it and commits a report, which wakes the session.
+    The request is pinned to this machine's HEAD (`commit`), so it is
+    refused while a tracked file under the subject is uncommitted: board
+    push first. The cluster refuses it where its HEAD lacks that commit, and
+    the report's `ran_at` is the HEAD it ran at.
 
     Either way the request is checked first, every problem printed at once, and
     nothing is filed or submitted if there is any.
@@ -2659,6 +2663,12 @@ def _request_filed(root, req):
     hidden = jobs.request_visible(root)
     if hidden:
         print("board: %s Nothing was filed." % hidden, file=sys.stderr)
+        return 1
+    # The request is pinned to HEAD (`commit`), so an edit not committed
+    # under the subject is code the cluster would not run.
+    changed = jobs.dirty(root)
+    if changed:
+        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
         return 1
     path, ok, said = jobs.file_request(root, req)
     rel = os.path.relpath(path, root)

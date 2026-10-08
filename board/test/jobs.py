@@ -15,6 +15,8 @@ What the checks are about:
   * RUNNING IS VISIBLE. The thread says `running` while a job is out, and the
     payload carries the job for the busy strip.
   * EVERY CONTRACT SAYS IT. A bare sbatch is work the board cannot see.
+  * A REQUEST IS PINNED. It carries `commit`, HEAD when filed; a dirty
+    subject files nothing, and HEAD lacking the commit refuses it.
 """
 import json
 import os
@@ -679,6 +681,54 @@ else:
               jobs.hear(ws, now=2.0) == [] and woken(ws) == [])
     finally:
         shutil.rmtree(hist, ignore_errors=True)
+
+# --- a request is pinned to the commit it was filed after --------------------
+pin = tempfile.mkdtemp(prefix="tutor-pin-")
+try:
+    git(pin, "init", "-q", "-b", "main")
+    git(pin, "config", "user.email", "t@example.com")
+    git(pin, "config", "user.name", "t")
+    subj = os.path.join(pin, "projects", "P")
+    write(os.path.join(subj, "fit.py"), "x = 1\n")
+    write(os.path.join(pin, "elsewhere.md"), "a\n")
+    git(pin, "add", "-A")
+    git(pin, "commit", "-q", "-m", "start")
+    req = {"id": "2026-10-08-pin", "kind": "colibri", "brief": "count rows"}
+    write(os.path.join(subj, "fit.py"), "x = 2\n")
+    target, done, said = jobs.file_request(subj, req, push=False)
+    check("a tracked file under the subject differing from HEAD files "
+          "nothing, saying board push first",
+          not done and "board push first" in said and "fit.py" in said
+          and not os.path.exists(target) and jobs.dirty(subj) == ["fit.py"])
+    git(pin, "checkout", "--", "projects/P/fit.py")
+    write(os.path.join(pin, "elsewhere.md"), "b\n")
+    at = subprocess.run(["git", "rev-parse", "HEAD"], cwd=pin,
+                        stdout=subprocess.PIPE,
+                        universal_newlines=True).stdout.strip()
+    target, done, said = jobs.file_request(subj, req, push=False)
+    filed = jobs.requests(subj)
+    check("an edit outside the subject does not stop it, and the request is "
+          "stamped with HEAD before its own commit",
+          done and len(filed) == 1 and filed[0]["commit"] == at
+          and jobs.head(subj) != at)
+    check("which HEAD contains, so the pin passes",
+          jobs.pin_problems(subj, filed[0]) == [])
+    check("a commit HEAD lacks is refused, naming it",
+          "does not contain commit 0123456789ab" in " ".join(
+              jobs.pin_problems(subj, dict(filed[0], commit="0123456789ab"
+                                           + "c" * 28))))
+    check("an unpinned request is not refused for it",
+          jobs.pin_problems(subj, req) == [])
+    check("`commit` is a known key, and a sha",
+          "commit" in jobs.REQUEST_KEYS["recipe"]
+          and "commit" in jobs.REQUEST_KEYS["colibri"]
+          and jobs.validate(dict(req, commit="nope"), [], [], {},
+                            colibri=True)[1] == ["`commit` is a commit's hex "
+                                                 "sha"]
+          and jobs.validate(dict(req, commit=at), [], [], {},
+                            colibri=True)[0]["commit"] == at)
+finally:
+    shutil.rmtree(pin, ignore_errors=True)
 
 print()
 if fails:

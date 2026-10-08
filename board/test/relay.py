@@ -8,6 +8,9 @@ What the checks are about:
     report pushed -- which the Mac's merged registry then reads.
   * A REFUSAL IS A REPORT. A bad request is never submitted; its report says
     every problem.
+  * A REPORT SAYS WHERE IT RAN. Every report carries `ran_at`, the cluster's
+    HEAD at submission; a request whose `commit` HEAD lacks is refused; the
+    `[job]` line says when other code lies between the two.
   * TWO PASSES AT ONCE: one runs, the other skips.
   * AN EXPORT OVER THE CAP is refused in the report and never copied.
   * A DIRTY TREE SKIPS THE PASS, and `relay/state.json` says why.
@@ -249,6 +252,10 @@ try:
             "export": ["results/sweep.png", "results/big.png"]}
     ok, problems = file_from_mac(good)
     check("the Mac side files the request clean", problems == [])
+    filed_at = git(mac, "rev-parse", "HEAD")
+    check("the request is stamped with the Mac's HEAD before its own commit",
+          load(os.path.join(mws, "relay", "requests", "r1.json"))["commit"]
+          == git(mac, "rev-parse", "HEAD~1"))
     got = run_pass()
     check("the pass pulls it and submits it", got["submitted"] == ["r1"]
           and not got["skipped"] and not got["error"])
@@ -266,6 +273,9 @@ try:
     check("and echoes the request's label and session",
           rep and rep.get("label") == "knn"
           and rep.get("session") == "20261008-120000" and "thread" not in rep)
+    check("and carries ran_at, the cluster's HEAD short sha it was submitted "
+          "at", rep and 7 <= len(rep.get("ran_at") or "") < 40
+          and filed_at.startswith(rep["ran_at"]))
     sent = [c for c in slurm.calls if os.path.basename(c[0]) == "sbatch"][-1]
     check("sbatch got the wrapper and only the declared variables",
           sent[-1].endswith(os.path.join("relay", "state", "r1.sbatch"))
@@ -317,6 +327,10 @@ try:
           and "/media" not in whole and "SESSION-17" not in whole)
     check("its note is a sentence the code wrote",
           "completed" in rep["note"] and "1 exported, 1 refused" in rep["note"])
+    check("the completed report keeps the ran_at it was submitted at, though "
+          "the cluster's HEAD has moved since",
+          filed_at.startswith(rep.get("ran_at") or "-")
+          and not git(cluster, "rev-parse", "HEAD").startswith(rep["ran_at"]))
     check("the commit touches only relay/reports/ and exports/",
           all(p.startswith(("research/Proj/relay/reports/",
                             "research/Proj/exports/"))
@@ -335,6 +349,12 @@ try:
     check("and its report keeps the label and session the Mac wakes by",
           view["relay:r1"]["label"] == "knn"
           and view["relay:r1"]["session"] == "20261008-120000")
+    said = jobs.sense(mws, view["relay:r1"])
+    check("the [job] line names the commit it was filed at and ran_at, and "
+          "says nothing more where only relay traffic lies between them",
+          "filed at %s" % view["relay:r1"]["commit"][:12] in said
+          and "ran at   %s" % view["relay:r1"]["ran_at"] in said
+          and jobs.ran_elsewhere(mws, view["relay:r1"]) == "")
 
     # --- a refusal ---------------------------------------------------------------
     bad = dict(good, id="r2", env={"EMBEDDER": "bge-small", "DATA": "x"})
@@ -351,6 +371,60 @@ try:
     check("and its report names the undeclared key",
           any("DATA" in p for p in rep["problems"]))
     check("and is pushed", '"refused"' in origin_report("r2"))
+    check("a refusal carries ran_at too",
+          git(cluster, "rev-parse", "HEAD~1").startswith(rep.get("ran_at")
+                                                         or "-"))
+
+    # --- a request pinned to a commit the cluster's HEAD lacks -------------------
+    git(mac, "pull", "-q", "--rebase")
+    git(mac, "checkout", "-q", "-b", "unpushed")
+    write(os.path.join(mws, "src", "fit.py"), "print('never pushed')\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "a commit that never reaches origin")
+    lost = git(mac, "rev-parse", "HEAD")
+    git(mac, "checkout", "-q", "main")
+    write(os.path.join(mws, "relay", "requests", "r2b.json"),
+          json.dumps(dict(good, id="r2b", commit=lost)))
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "a request pinned to it")
+    git(mac, "push", "-q", "origin", "main")
+    n = len(slurm.scripts)
+    got = run_pass()
+    rep = load(os.path.join(cws, "relay", "reports", "r2b.json"))
+    check("a request whose commit HEAD does not contain is refused, unrun",
+          got["refused"] == ["r2b"] and len(slurm.scripts) == n
+          and rep["state"] == "refused" and rep.get("ran_at"))
+    check("and the report says why: HEAD lacks the commit it was filed after",
+          any("does not contain commit %s" % lost[:12] in p
+              for p in rep["problems"]))
+    git(mac, "branch", "-q", "-D", "unpushed")
+
+    # --- the [job] line says when ran_at is other code than commit -----------
+    git(mac, "pull", "-q", "--rebase")
+    now_at = git(mac, "rev-parse", "--short", "HEAD")
+    check("between two commits with only relay traffic between them, the "
+          "[job] line says nothing more",
+          jobs.ran_elsewhere(mws, {"commit": filed_at, "ran_at": now_at})
+          == "")
+    git(mac, "checkout", "-q", "-b", "moved")
+    write(os.path.join(mws, "src", "fit.py"), "print('pushed later')\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "code pushed after the request")
+    later_at = git(mac, "rev-parse", "--short", "HEAD")
+    said = jobs.relay_sense(mws, dict(view["relay:r1"], ran_at=later_at))
+    check("where code changed between them, it names the file and asks the "
+          "card to say which code the result belongs to",
+          "It ran at %s, not at %s" % (
+              later_at, view["relay:r1"]["commit"][:12]) in said
+          and "research/Proj/src/fit.py" in said and "which code" in said)
+    check("and where this checkout lacks ran_at, it says so",
+          "does not have" in jobs.ran_elsewhere(
+              mws, {"commit": filed_at, "ran_at": "abcdef1"}))
+    git(mac, "checkout", "-q", "main")
+    git(mac, "branch", "-q", "-D", "moved")
+    check("a commit that is not a sha is refused before any git runs",
+          any("`commit`" in p for p in jobs.check(
+              cws, dict(good, id="r2c", commit="HEAD~3"))[1]))
 
     # --- two passes at once --------------------------------------------------------
     held = open(os.path.join(cluster, relay.LOCK), "a+")

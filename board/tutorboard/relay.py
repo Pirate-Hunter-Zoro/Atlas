@@ -833,10 +833,15 @@ _SAFE_STEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
 
 
 def write_report(ws, rid, rep):
+    """Write one report. Every report carries `ran_at`, the cluster's HEAD
+    short sha: the one its job was submitted at where the caller kept it,
+    else HEAD now."""
     rid = str(rid)
     if not _SAFE_STEM.match(rid):
         raise ValueError("a report id names a file in relay/reports/")
     rep = dict((k, v) for k, v in rep.items() if k != jobs.FILE_KEY)
+    if not rep.get("ran_at"):
+        rep["ran_at"] = jobs.head(ws, short=True) or "unknown"
     target = os.path.join(jobs.reports_dir(ws), rid + ".json")
     os.makedirs(os.path.dirname(target), exist_ok=True)
     tmp = target + ".tmp"
@@ -936,6 +941,11 @@ def finish(ws, rec, req, allowed, now, names_phi=None):
     """The report for a job that has ended."""
     state = "completed" if rec.get("state") == "COMPLETED" else "failed"
     rep = _base_report(req, state, now, names_phi)
+    # The HEAD it was submitted at, not the one it ended at.
+    ran_at = (rec.get("ran_at")
+              or (jobs.reports(ws).get(request_id(req)) or {}).get("ran_at"))
+    if ran_at:
+        rep["ran_at"] = ran_at
     rep.update({"jobid": str(rec.get("jobid")),
                 "submitted": rec.get("submitted"),
                 "ended": rec.get("ended") or "",
@@ -1411,17 +1421,19 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
                          % ok["kind"]], now, names_phi)
         summary["refused"].append(rid)
         return
+    ran_at = jobs.head(ws, short=True) or "unknown"
     rec, why = jobs.submit_recipe(
         ws, ok.get("label"), ok["recipe"], env=ok["env"],
         produces=ok["produces"], export=ok["export"], key=rid,
         run=run, now=now, sbatch_env=env,
-        extra={"request": rid, "kind": "recipe"})
+        extra={"request": rid, "kind": "recipe", "ran_at": ran_at})
     if not rec:
         refuse(ws, req, [why], now, names_phi)
         summary["refused"].append(rid)
         return
     rep = _base_report(req, "submitted", now, names_phi)
-    rep.update({"jobid": rec["jobid"], "submitted": rec["submitted"]})
+    rep.update({"jobid": rec["jobid"], "submitted": rec["submitted"],
+                "ran_at": ran_at})
     write_report(ws, rid, rep)
     summary["submitted"].append(rid)
 
@@ -1471,6 +1483,9 @@ def _colibri_step(now, summary, names_phi, colibri):
             continue
         out = _colibri_public(rep, rid, names_phi, now, req)
         old = jobs.reports(ws).get(rid) or {}
+        # The HEAD the task was queued at, which `write_report` stamped.
+        if old.get("ran_at"):
+            out["ran_at"] = old["ran_at"]
         same = dict((k, v) for k, v in old.items() if k != "updated")
         if same == dict((k, v) for k, v in out.items() if k != "updated"):
             continue

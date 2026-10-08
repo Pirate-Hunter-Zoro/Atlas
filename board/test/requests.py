@@ -354,10 +354,15 @@ try:
     git(top, "commit", "-q", "-m", "start")
     git(top, "remote", "add", "origin", origin)
     git(top, "push", "-q", "-u", "origin", "main")
-    # Work in flight that the request commit must leave alone.
-    write(os.path.join(proj, "notes.md"), "draft, edited\n")
-    write(os.path.join(proj, "scratch.py"), "x = 1\n")
-    git(top, "add", "research/Proj/scratch.py")
+    write(os.path.join(top, "elsewhere", "notes.md"), "draft\n")
+    git(top, "add", "-A")
+    git(top, "commit", "-q", "-m", "elsewhere")
+    git(top, "push", "-q")
+    # Work in flight outside the subject, which the request commit must leave
+    # alone. Under the subject it would stop the filing (below).
+    write(os.path.join(top, "elsewhere", "notes.md"), "draft, edited\n")
+    write(os.path.join(top, "elsewhere", "scratch.py"), "x = 1\n")
+    git(top, "add", "elsewhere/scratch.py")
 
     env = dict(os.environ, TUTOR_SLURM="0",
                TUTORBOARD_SESSION=os.path.join(base, "sessions",
@@ -382,6 +387,24 @@ try:
           code == 1 and "DATA" in out
           and not os.path.isdir(os.path.join(proj, "relay")))
     head = git(top, "rev-parse", "HEAD").strip()
+    # A tracked file under the subject differing from HEAD: nothing is filed.
+    write(os.path.join(proj, "notes.md"), "draft, edited\n")
+    code, out = board("job", "--label", "knn", "--", "slurm/sweep.sbatch",
+                      "EMBEDDER=bge-small")
+    check("a dirty subject files nothing, saying board push first",
+          code == 1 and "board push first" in out and "notes.md" in out
+          and not os.path.isdir(os.path.join(proj, "relay"))
+          and git(top, "rev-parse", "HEAD").strip() == head)
+    write(os.path.join(proj, "scratch.py"), "x = 1\n")
+    git(top, "add", "research/Proj/scratch.py")
+    git(top, "checkout", "--", "research/Proj/notes.md")
+    code, out = board("job", "--label", "knn", "--", "slurm/sweep.sbatch",
+                      "EMBEDDER=bge-small")
+    check("and so does a file staged there and not committed",
+          code == 1 and "board push first" in out and "scratch.py" in out
+          and not os.path.isdir(os.path.join(proj, "relay")))
+    git(top, "rm", "-q", "--cached", "research/Proj/scratch.py")
+    os.remove(os.path.join(proj, "scratch.py"))
     code, out = board("job", "--label", "knn",
                       "--produces", "results/knn/best.json",
                       "--export", "results/sweep.png", "--",
@@ -396,8 +419,8 @@ try:
           == git(origin, "rev-parse", "main").strip())
     status = git(top, "status", "--porcelain")
     check("the owner's edit and their staged file are still where they were",
-          " M research/Proj/notes.md" in status
-          and "A  research/Proj/scratch.py" in status)
+          " M elsewhere/notes.md" in status
+          and "A  elsewhere/scratch.py" in status)
     filed = jobs.requests(proj)
     check("the request on disk is the contract's shape",
           len(filed) == 1 and filed[0]["kind"] == "recipe"
@@ -406,6 +429,8 @@ try:
           and filed[0]["produces"] == ["results/knn/best.json"]
           and isinstance(filed[0]["filed"], float)
           and jobs.check(proj, filed[0], mine=True)[1] == [])
+    check("stamped with the commit it was filed after, HEAD before its own",
+          filed[0].get("commit") == head)
     check("carrying its label and the session $TUTORBOARD_SESSION names, "
           "and no thread", filed[0].get("label") == "knn"
           and filed[0].get("session") == "20261008-120000"

@@ -831,8 +831,15 @@ def relay_sense(root, rec):
     lines += ["  exit     %s" % (rec.get("exit") or "unknown"),
               "  ended    %s" % (rec.get("ended") or "unknown"),
               "  command  %s" % rec.get("cmd", "")]
+    if rec.get("commit"):
+        lines.append("  filed at %s" % str(rec["commit"])[:12])
+    if rec.get("ran_at"):
+        lines.append("  ran at   %s, the cluster's HEAD" % rec["ran_at"])
     if rec.get("error"):
         lines.append("  error    %s" % rec["error"])
+    moved = ran_elsewhere(root, rec)
+    if moved:
+        lines += ["", moved]
     made = set(rec.get("produced") or [])
     if rec.get("produces"):
         lines += ["", "What it was to produce, as the cluster found it:"]
@@ -882,6 +889,38 @@ def relay_sense(root, rec):
         lines.append("A follow-up goes through `board job`, never a bare "
                      "sbatch.")
     return "\n".join(lines)
+
+
+# The relay's own traffic: a commit between `commit` and `ran_at` touching
+# only these changed nothing the request ran.
+_TRAFFIC_RE = re.compile(r"(^|/)(relay/requests|relay/reports|exports)/"
+                         r"|^relay/status\.json$")
+
+
+def ran_elsewhere(root, rec):
+    """"", or the sentence saying a report ran at other code than its request
+    was filed after: `ran_at`, the cluster's HEAD, is not `commit`, and the
+    two differ beyond relay traffic, or this checkout cannot tell."""
+    commit, ran = str(rec.get("commit") or ""), str(rec.get("ran_at") or "")
+    if not (COMMIT_RE.match(commit) and COMMIT_RE.match(ran)):
+        return ""
+    if commit.startswith(ran) or ran.startswith(commit):
+        return ""
+    top = _git_text(root, ["rev-parse", "--show-toplevel"]) or root
+    if _git_text(top, ["cat-file", "-e", ran + "^{commit}"]) is None:
+        return ("It ran at %s, which this checkout does not have, and was "
+                "filed after %s: say so on the card, since the code it ran "
+                "cannot be checked here." % (ran, commit[:12]))
+    changed = [p for p in _git_lines(top, ["diff", "--name-only", "-z",
+                                           commit, ran])
+               if not _TRAFFIC_RE.search(p)]
+    if not changed:
+        return ""
+    return ("It ran at %s, not at %s, the commit it was filed after: %d "
+            "file(s) changed between them (%s). Say on the card which code "
+            "the result belongs to." % (
+                ran, commit[:12], len(changed), ", ".join(changed[:5])
+                + (", ..." if len(changed) > 5 else "")))
 
 
 # ---------------------------------------------------------------------------
@@ -1412,11 +1451,15 @@ FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
                   "PYTHONPATH", "PYTHONSTARTUP", "BASH_ENV", "ENV", "HOME",
                   "SHELL", "IFS", "PROMPT_COMMAND")
 # `thread` is accepted and ignored: requests filed before labels carry it.
+# `commit` is the Mac's HEAD when it filed the request (`file_request`): the
+# cluster refuses a request whose commit its HEAD does not contain.
 REQUEST_KEYS = {
     "recipe": ("id", "kind", "label", "session", "thread", "recipe", "env",
-               "produces", "export", "filed", "fixes"),
-    "colibri": ("id", "kind", "label", "session", "thread", "brief", "filed"),
+               "produces", "export", "filed", "fixes", "commit"),
+    "colibri": ("id", "kind", "label", "session", "thread", "brief", "filed",
+                "commit"),
 }
+COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
 # A label is a slug naming the work; a session is the Mac session id it was
 # filed from (`sessions/<id>/`).
 LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
@@ -1535,6 +1578,10 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
     if "fixes" in req and (not isinstance(fixes, str)
                            or not REQUEST_ID_RE.match(fixes) or fixes == rid):
         problems.append("`fixes` names a request id")
+    commit = req.get("commit")
+    if "commit" in req and (not isinstance(commit, str)
+                            or not COMMIT_RE.match(commit)):
+        problems.append("`commit` is a commit's hex sha")
 
     out = {"id": rid, "kind": kind}
     label = req.get("label")
@@ -1552,6 +1599,8 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
             out["session"] = session
     if filed is not None:
         out["filed"] = filed
+    if isinstance(commit, str) and COMMIT_RE.match(commit):
+        out["commit"] = commit
 
     if kind == "colibri":
         brief = req.get("brief")
@@ -1743,9 +1792,55 @@ def check(root, req, mine=False):
     ok, problems = validate(req, ctx["allowed"], ctx["tracked"],
                             ctx["declared"], taken, ctx["colibri"])
     extra = fix_problems(req, ctx["filed"], ctx["failed"], mine)
+    extra += pin_problems(root, req)
     if extra:
         return None, problems + extra
     return ok, problems
+
+
+def head(root, short=False):
+    """This checkout's HEAD sha, short where asked; "" outside git."""
+    return _git_text(root, ["rev-parse"] + (["--short"] if short else [])
+                     + ["HEAD"]) or ""
+
+
+def pin_problems(root, req):
+    """`[]`, or why HEAD here lacks the commit the request was filed after.
+
+    `git merge-base --is-ancestor`: the cluster runs a request only where its
+    HEAD contains the Mac's HEAD at filing, so it never runs code older than
+    the push the request followed. A request with no `commit` is not pinned.
+    """
+    commit = req.get("commit") if isinstance(req, dict) else None
+    if not isinstance(commit, str) or not COMMIT_RE.match(commit):
+        return []                                   # `validate` says why
+    try:
+        p = subprocess.run(["git", "merge-base", "--is-ancestor", commit,
+                            "HEAD"], cwd=root, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=30)
+        code = p.returncode
+    except (OSError, subprocess.SubprocessError):
+        code = -1
+    if code == 0:
+        return []
+    return ["HEAD here (%s) does not contain commit %s, the commit this "
+            "request was filed after, so it would not run the code it was "
+            "filed for" % (head(root, short=True) or "unknown", commit[:12])]
+
+
+def dirty(root):
+    """Tracked paths under `root` that differ from HEAD, staged or not,
+    relative to `root`. `[]` outside git."""
+    return sorted(set(_git_lines(root, ["diff", "--name-only", "-z",
+                                        "--relative", "HEAD", "--", "."])))
+
+
+def dirty_said(root, paths):
+    """The refusal `file_request` and `board job` give over a dirty tree."""
+    return ("%d tracked file(s) here differ from HEAD (%s), and the cluster "
+            "runs what is pushed: board push first. Nothing was filed."
+            % (len(paths), ", ".join(paths[:5])
+               + (", ..." if len(paths) > 5 else "")))
 
 
 def _slug(text):
@@ -1846,9 +1941,11 @@ def relayed(root):
         }
         if req.get("fixes"):
             rec["fixes"] = req["fixes"]
+        if isinstance(req.get("commit"), str):
+            rec["commit"] = req["commit"]
         for key in ("exit", "ended", "note", "produced", "missing",
                     "exported", "export_refused", "relay", "error",
-                    "problems", "changed"):
+                    "problems", "changed", "ran_at"):
             if rep.get(key) not in (None, "", []):
                 rec[key] = rep[key]
         if rep.get("jobid"):
@@ -1906,7 +2003,10 @@ def nested_git(root):
 def file_request(root, req, push=True):
     """Write `relay/requests/<id>.json` and commit that one file, then push.
 
-    `(path, ok, said)`. `commit_alone` makes the commit.
+    `(path, ok, said)`. `commit_alone` makes the commit. The request is
+    stamped with `commit`, HEAD as it stands before its own commit, which the
+    push carries with it. Refused, writing nothing, while a tracked file under
+    `root` differs from HEAD: that edit would not reach the cluster.
     """
     target = os.path.join(requests_dir(root), req["id"] + ".json")
     if os.path.exists(target):
@@ -1918,6 +2018,14 @@ def file_request(root, req, push=True):
     leak = request_leak(root, req)
     if leak:
         return target, False, leak
+    changed = dirty(root)
+    if changed:
+        return target, False, dirty_said(root, changed)
+    commit = head(root)
+    if not COMMIT_RE.match(commit):
+        return target, False, ("%s has no commit to pin the request to"
+                               % root)
+    req = dict(req, commit=commit)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(target, "w", encoding="utf-8") as fh:
         json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
