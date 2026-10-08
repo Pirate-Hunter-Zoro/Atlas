@@ -97,6 +97,10 @@ The assistant runs these. The student never does.
     board wait [--timeout N]           block until the student sends something
     board archive                      file the current lesson away
     board export [--all]               the whole conversation as a numbered PDF
+    board session new|show|list|end|reopen|delete [id]
+                                       the session store, sessions/<id>/: a new
+                                       session, its session.json, End (the only
+                                       thing that ends one), or delete to the trash
     board hw [status]                  this sitting's problem set: what is still empty
     board hw list                      every problem set in this repository
     board hw use <name>                say which set this sitting is (hw04, ch07)
@@ -152,7 +156,7 @@ sys.path.insert(0, TOOL)
 from tutorboard import (assistants, atlas, brief, carry, direction, gitops,
                         handoff, holds, jobs, keys, leaving, limits, machine, meeting,
                         missions, paths, plain, ports, processes, progress,
-                        reasoning, seeing, sense, sittings, tex, worktree)
+                        reasoning, seeing, sense, sessions, sittings, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 from tutorboard.course import repo as course_repo
@@ -661,7 +665,14 @@ def cmd_archive(live, args):
     still see their own working in is the entire reason for keeping these; a
     folder of the assistant's cards with the student's half missing is a
     record of half a conversation.
+
+    A stored session (`sessions/<id>/`) is never archived: it persists until
+    the owner ends it, and only `board session end` does that.
     """
+    if live.stored:
+        print("a session is never archived; it keeps every card until the owner "
+              "ends it (board session end <id>)", file=sys.stderr)
+        return 1
     names = live.card_names()
     slate = sorted(n for n in os.listdir(live.slate) if re.match(r"^page-\d+\.(json|png)$", n))
     turns_path = live.path("turns.jsonl")
@@ -1158,6 +1169,69 @@ def hw_stale(live):
     return st
 
 
+def cmd_session(live, args):
+    """The session store, `sessions/<id>/` under the Atlas root.
+
+    board session new ["title"]     a new session, unbound, in teach; prints its id
+    board session show [id]         its session.json; no id: TUTORBOARD_SESSION's
+    board session list              every session, newest first
+    board session end <id>          set `ended`; commit the subject's TUTOR.md and
+                                    the artifacts listing the session
+    board session reopen <id>       clear `ended`
+    board session delete <id>       move it to ~/.local/share/tutor-board/trash/
+    """
+    sub = args[0] if args else "show"
+    rest = args[1:]
+    try:
+        if sub == "new":
+            rec = sessions.new(title=" ".join(rest).strip() or None)
+            print(rec["id"])
+            print(sessions.path(rec["id"]))
+            return 0
+        if sub == "list":
+            for rec in sessions.all():
+                print("%s  %-6s %-5s %-28s %s" % (
+                    rec.get("id"), "ended" if rec.get("ended") else "open",
+                    rec.get("mode") or "", rec.get("subject") or "(unbound)",
+                    rec.get("title") or ""))
+            return 0
+        if sub == "show":
+            sid = rest[0] if rest else sessions.current()
+            if not sid:
+                print("board session show: name a session id, or run inside one "
+                      "(TUTORBOARD_SESSION)", file=sys.stderr)
+                return 2
+            rec = sessions.get(sid)
+            if not rec:
+                raise sessions.NoSession("no session %r" % sid)
+            print(sessions.show(rec))
+            return 0
+        if sub in ("end", "reopen", "delete"):
+            if len(rest) != 1:
+                print("board session %s <id>: name exactly one session" % sub,
+                      file=sys.stderr)
+                return 2
+            sid = rest[0]
+            if sub == "reopen":
+                sessions.reopen(sid)
+                print("reopened %s" % sid)
+                return 0
+            if sub == "delete":
+                print("moved %s to %s" % (sid, sessions.delete(sid)))
+                return 0
+            rec, ok, said = sessions.end(sid)
+            print("ended %s at %s" % (sid, rec.get("ended")))
+            if said:
+                print(said)
+            return 0 if ok else 1
+    except sessions.NoSession as exc:
+        print("board session %s: %s" % (sub, exc), file=sys.stderr)
+        return 1
+    print("board session: new | show [id] | list | end <id> | reopen <id> | "
+          "delete <id>", file=sys.stderr)
+    return 2
+
+
 def cmd_hw(live, args):
     """Which problem set this sitting is, how much of it is written up, compile it.
 
@@ -1170,6 +1244,10 @@ def cmd_hw(live, args):
     sub = args[0] if args else "status"
     rest = args[1:]
     state = live.state()
+    if live.stored and not state.get("subject"):
+        print("this session is bound to no subject, so it has no problem sets: "
+              "bind it first", file=sys.stderr)
+        return 1
 
     if sub == "use":
         if not rest:
@@ -4256,11 +4334,12 @@ COMMANDS = {
     "notes": cmd_notes,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
+    "session": cmd_session,
 }
 
 # Commands about a directory or file they are given, not the workspace they run in:
 # no `live/` is made for them.
-NO_LIVE = ("textbook", "build")
+NO_LIVE = ("textbook", "build", "session")
 
 
 def help_for(cmd, fn):

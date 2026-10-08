@@ -6,7 +6,6 @@
 completion or to the cap, killing its whole process group.
 """
 
-import json
 import os
 import re
 import signal
@@ -51,11 +50,7 @@ def turn_environment(spec, base=None):
 
 def chapter_now(root):
     """Which chapter is open, according to the board's own state."""
-    try:
-        with open(course_repo.session_path(root, "state.json"), "r", encoding="utf-8") as fh:
-            return (json.load(fh) or {}).get("chapter") or ""
-    except (OSError, ValueError):
-        return ""
+    return course_repo.session_state(root).get("chapter") or ""
 
 def doing_now(root, signal=""):
     """Is the sitting that is open one whose product is a change, not a card?
@@ -92,10 +87,8 @@ def doing_now(root, signal=""):
         # the longest of the four. A plain revision is not here on purpose -- it
         # changes what a note names and is over in a minute.
         return True
-    try:
-        with open(course_repo.session_path(root, "state.json"), "r", encoding="utf-8") as fh:
-            st = json.load(fh) or {}
-    except (OSError, ValueError):
+    st = course_repo.session_state(root)
+    if not st:
         return False
     if st.get("session") == "make":
         return True

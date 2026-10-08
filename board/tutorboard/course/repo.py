@@ -5,6 +5,10 @@ so a directory layout that changes changes here and nowhere else. The session
 directory is `<root>/live` unless a caller names another one; `session_dir`
 and `session_path` are the same answer for code that holds only a root.
 
+A session directory holding `session.json` is a stored session
+(`tutorboard/sessions.py`): its state is session.json, its uploads sit at its
+top, and its root is the bound subject's, or the Atlas root while unbound.
+
 Runs on the cluster's python3 (3.7) through jobs.py: no walrus, no `match`.
 """
 
@@ -32,6 +36,52 @@ def session_dir(root):
 def session_path(root, *parts):
     """A path inside the session directory of the workspace at `root`."""
     return os.path.join(session_dir(root), *parts)
+
+
+SESSION_JSON = "session.json"
+
+# The keys every session.json carries; `set_state` writes None into these as
+# null rather than dropping them.
+SESSION_KEYS = ("id", "title", "subject", "mode", "opened", "ended", "writeup",
+                "seen", "code", "view")
+
+
+def is_stored(session):
+    """Is `session` a stored session, `sessions/<id>/` with its session.json?"""
+    return os.path.isfile(os.path.join(session, SESSION_JSON))
+
+
+def session_state(root):
+    """The state of the session bound to `root`: what `Repo.state()` says,
+    and always a dict."""
+    said = Repo(root, create=False).state()
+    return said if isinstance(said, dict) else {}
+
+
+def _read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def _write_json(path, data):
+    """Whole or not at all: a reader never sees half a file."""
+    tmp = "%s.tmp-%d" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+
+
+def _is_set_source(rel):
+    """Is `rel`, relative to a subject root, where a homework set lives?"""
+    from fnmatch import fnmatch
+    from . import homework                                   # local: light
+    rel = rel.replace(os.sep, "/")
+    return any(fnmatch(rel, pat.replace(os.sep, "/")) for pat in homework.LAYOUTS)
 
 
 # ---------------------------------------------------------------------------
@@ -112,12 +162,30 @@ def resolve(root=None, create=True):
     """
     said = os.environ.get("TUTORBOARD_SESSION")
     if said:
-        where = os.path.abspath(root) if root else (nearest() or ATLAS)
         session = os.path.abspath(os.path.expanduser(said))
+        if root:
+            where = os.path.abspath(root)
+        elif is_stored(session):
+            where = stored_root(session)
+        else:
+            where = nearest() or ATLAS
         _BOUND.clear()
         _BOUND[os.path.realpath(where)] = session
         return Repo(where, session=session, create=create)
     return Repo(find_repo(root), create=create)
+
+
+def stored_root(session):
+    """The root a stored session works in: its bound subject's directory,
+    or the Atlas root that holds `sessions/` while it is unbound."""
+    atlas = os.path.dirname(os.path.dirname(os.path.abspath(session)))
+    subject = _read_json(os.path.join(session, SESSION_JSON)).get("subject")
+    if subject:
+        where = os.path.abspath(os.path.join(atlas, str(subject)))
+        inside = os.path.relpath(os.path.realpath(where), os.path.realpath(atlas))
+        if os.path.isdir(where) and not inside.startswith(".."):
+            return where
+    return atlas
 
 
 # ---------------------------------------------------------------------------
@@ -130,11 +198,17 @@ class Repo:
     def __init__(self, root, session=None, create=True):
         self.root = os.path.abspath(root)
         self.session = os.path.abspath(session) if session else session_dir(self.root)
+        # A stored session (`sessions/<id>/`), as against a workspace's live/.
+        self.stored = is_stored(self.session)
+        # The Atlas root holding `sessions/`, for a stored session.
+        self.atlas = (os.path.dirname(os.path.dirname(self.session))
+                      if self.stored else None)
         # The name every caller used before the session could live elsewhere.
         self.live = self.session
         self.cards = os.path.join(self.live, "cards")
         self.inbox = os.path.join(self.live, "inbox")
-        self.uploads = os.path.join(self.inbox, "uploads")
+        self.uploads = (os.path.join(self.live, "uploads") if self.stored
+                        else os.path.join(self.inbox, "uploads"))
         self.tikz = os.path.join(self.live, "tikzcache")
         self.archive = os.path.join(self.live, "archive")
         self.slate = os.path.join(self.live, "slate")
@@ -173,7 +247,10 @@ class Repo:
     # one behind in a workspace nobody has opened a board in.
     def ensure_dirs(self, cli=False):
         dirs = [self.live, self.cards, self.inbox, self.uploads, self.tikz,
-                self.archive, self.slate, self.answers]
+                self.slate, self.answers]
+        # A stored session has no archive: only End ends it.
+        if not self.stored:
+            dirs.append(self.archive)
         if not cli:
             dirs += [self.notes, self.text]
         for d in dirs:
@@ -191,7 +268,14 @@ class Repo:
             return None
 
     def set_state(self, **kw):
-        """Merge `kw` into state.json; a None value clears its key."""
+        """Merge `kw` into the state file; a None value clears its key.
+
+        In a stored session, `hw` is written as `writeup` (the set's source,
+        relative to the Atlas root), and the keys session.json always carries
+        are cleared to null rather than dropped.
+        """
+        if self.stored:
+            return self._set_session(kw)
         s = self.state()
         for k, v in kw.items():
             if v is None:
@@ -202,6 +286,33 @@ class Repo:
             json.dump(s, fh, indent=2)
         return s
 
+    def _set_session(self, kw):
+        s = _read_json(self.state_path)
+        for k, v in kw.items():
+            if k == "hw":
+                k, v = "writeup", self._writeup_for(v)
+            if v is None and k not in SESSION_KEYS:
+                s.pop(k, None)
+            else:
+                s[k] = v
+        _write_json(self.state_path, s)
+        return self.state()
+
+    def _writeup_for(self, hw):
+        """A legacy `hw` value -- a set's path under the root, or its name --
+        as session.json's `writeup`: that source relative to the Atlas root."""
+        if not hw:
+            return None
+        hw = str(hw)
+        if not hw.endswith(".tex"):
+            from . import homework                           # local: light
+            for one in homework.sets(self.root):
+                if one["name"] == hw:
+                    hw = one["rel"]
+                    break
+        full = os.path.abspath(os.path.join(self.root, hw))
+        return os.path.relpath(full, self.atlas).replace(os.sep, "/")
+
     def card_names(self):
         return sorted(n for n in os.listdir(self.cards) if re.match(r"^\d{4}[-_.]", n))
 
@@ -211,7 +322,7 @@ class Repo:
 
     @property
     def state_path(self):
-        return os.path.join(self.live, "state.json")
+        return os.path.join(self.live, SESSION_JSON if self.stored else "state.json")
 
     @property
     def messages_path(self):
@@ -222,8 +333,19 @@ class Repo:
         return os.path.join(self.live, "turns.jsonl")
 
     def state(self):
-        try:
-            with open(self.state_path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception:
-            return {}
+        """The session's state. A stored session's is its session.json, with
+        the legacy `hw` key added when `writeup` is a homework set under the
+        root, so `board hw` works on the session's writeup."""
+        if not self.stored:
+            try:
+                with open(self.state_path, "r", encoding="utf-8") as fh:
+                    return json.load(fh)
+            except Exception:
+                return {}
+        s = _read_json(self.state_path)
+        said = s.get("writeup")
+        if said and not s.get("hw"):
+            rel = os.path.relpath(os.path.join(self.atlas, str(said)), self.root)
+            if not rel.startswith("..") and _is_set_source(rel):
+                s["hw"] = rel
+        return s

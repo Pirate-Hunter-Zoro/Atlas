@@ -6,7 +6,6 @@ still owed. When the daemon is stopped it runs the wrap-up turn that writes
 HANDOFF.md.
 """
 
-import json
 import os
 import signal
 import subprocess
@@ -40,12 +39,7 @@ def owed_thread(root):
     and write-up files. A sitting on no thread, or a workspace with no valid
     thread file, has none, and the stopped card lists the whole workspace.
     """
-    try:
-        with open(course_repo.session_path(root, "state.json"), "r",
-                  encoding="utf-8") as fh:
-            st = json.load(fh) or {}
-    except (OSError, ValueError):
-        st = {}
+    st = course_repo.session_state(root)
     tid = str(st.get("thread") or "").strip()
     clean, problems = course_threads.read(root)
     t = course_threads.thread(clean, tid) if tid and clean and not problems else None

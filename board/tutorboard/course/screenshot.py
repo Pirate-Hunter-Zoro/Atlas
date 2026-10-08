@@ -186,7 +186,7 @@ def build(root, pages, page_w=None, page_h=None):
         if not jpeg_size(data):
             return {"ok": False, "detail": "a page arrived that is not a JPEG"}
 
-    state = document.read_state(course_repo.session_path(root, "state.json"))
+    state = course_repo.session_state(root)
     title = state.get("chapter") or state.get("course") or "Lesson"
     stem = document.slugify(title)
     out_dir = os.path.join(root, document.OUT_DIR)

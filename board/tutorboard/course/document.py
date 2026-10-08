@@ -594,7 +594,7 @@ def _live_sitting(root):
     return {"cards": os.path.join(live, "cards"),
             "turns": os.path.join(live, "turns.jsonl"),
             "answers": os.path.join(live, "answers"),
-            "state": read_state(os.path.join(live, "state.json"))}
+            "state": course_repo.session_state(root)}
 
 
 def _filed(root):

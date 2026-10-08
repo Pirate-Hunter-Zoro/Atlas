@@ -460,16 +460,9 @@ def atlas_payload(repo, holders=False):
                 c["next"] = clipped(steps[0].get("title") or steps[0].get("label"))
                 c["next_label"] = steps[0].get("label") or ''
         c["touched"] = _last_touched(root)
-        try:
-            st = {}
-            with open(course_repo.session_path(root, "state.json"), "r",
-                      encoding="utf-8") as fh:
-                st = json.load(fh) or {}
-            c["aim"] = st.get("aim") or ""
-            c["session"] = st.get("session") or ""
-        except (OSError, ValueError):
-            c["aim"] = ""
-            c["session"] = ""
+        st = course_repo.session_state(root)
+        c["aim"] = st.get("aim") or ""
+        c["session"] = st.get("session") or ""
         c["stance"] = (config.read_config(root) or {}).get("stance") or "teach"
         # THE ONE FIELD THE WRITTEN MAP LENDS THE FRONT DOOR, and it is one on
         # purpose. A workspace somebody has drawn has a sentence for the whole

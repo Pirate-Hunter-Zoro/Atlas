@@ -487,14 +487,7 @@ def sitting_kind(root):
     """The kind of the sitting open in this workspace, off its `state.json`, or ""."""
     if not root:
         return ""
-    try:
-        with open(course_repo.session_path(root, "state.json"), "r",
-                  encoding="utf-8") as fh:
-            state = json.load(fh) or {}
-    except (OSError, ValueError):
-        return ""
-    if not isinstance(state, dict):
-        return ""
+    state = course_repo.session_state(root)
     try:
         return kind_for(root, state) or ""
     except Exception:                                        # noqa: BLE001
@@ -511,12 +504,7 @@ def sitting_agent(root):
     """
     if not root:
         return None
-    try:
-        with open(course_repo.session_path(root, "state.json"), "r",
-                  encoding="utf-8") as fh:
-            return clean_agent((json.load(fh) or {}).get("agent"))
-    except (OSError, ValueError, AttributeError):
-        return None
+    return clean_agent(course_repo.session_state(root).get("agent"))
 
 
 def sitting_box(state):
