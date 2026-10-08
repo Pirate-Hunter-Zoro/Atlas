@@ -43,7 +43,7 @@ import os
 import subprocess
 import time
 
-from . import atlas
+from . import atlas, subjects
 
 
 # The job, the workspace it belongs to, and the two sentinels. All four match
@@ -51,7 +51,7 @@ from . import atlas
 # "where is colibri and what does it serve" -- so every one of them is read from
 # the environment first, exactly as that file does it.
 JOB_NAME = os.environ.get("COLI_JOB_NAME") or "colibri_serve"
-WORKSPACE = "libr-local-llm"
+WORKSPACE = "libr-local-llm"                   # a slug: `subjects.find`
 LISTENING = "API listening on"
 LOADED = "COLIBRI-SERVE LOADED"
 READY = "COLIBRI-SERVE READY"
@@ -80,12 +80,10 @@ def log_dir():
     if said:
         return said
     try:
-        for w in atlas.workspaces():
-            if w["dir"] == WORKSPACE:
-                return os.path.join(w["root"], "slurm_jobs", "logs")
+        found = subjects.find(WORKSPACE)
     except Exception:                                        # noqa: BLE001
         return None
-    return None
+    return os.path.join(found["root"], "slurm_jobs", "logs") if found else None
 
 
 def _run(args, timeout=10):
@@ -362,12 +360,10 @@ def queue_root():
         if said and os.path.isdir(said):
             return said
     try:
-        for w in atlas.workspaces():
-            if w["dir"] == WORKSPACE:
-                return w["root"]
+        found = subjects.find(WORKSPACE)
     except Exception:                                        # noqa: BLE001
         return None
-    return None
+    return found["root"] if found else None
 
 
 def state_dir():

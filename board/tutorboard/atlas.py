@@ -1,43 +1,25 @@
-"""The Atlas tree, its families, and the workspaces inside it.
+"""The Atlas tree: its families, and shims over `subjects`.
 
-The tree is two levels deep -- a FAMILY (`courses`, `research`, `projects`,
-`practice`) holding a WORKSPACE (one course or one project, which the board
-treats identically, which is why there is one word for both). Research,
-projects and practice are tracked by Atlas's own repository. Each course is
-its OWN private repository, cloned in place and ignored by Atlas through
-`/courses/*/`, the same arrangement as `ai-config/`. Discovery is by
-directory either way, so a course is found exactly like any other workspace.
+`subjects` is the one answer to "which courses and projects exist": every
+non-dot directory directly under `courses/` or `projects/` (and, until T29,
+`research/` and `practice/`), with no marker and no registry. `workspaces`,
+`find`, `family_of` and `identify` here are shims over it that keep the record
+shape their importers read, `{id, family, family_name, dir, root}`. T50
+deletes this module.
 
-This module is where that nested loop lives. Every other module asks here
-rather than taking a `dirname`, because there is exactly one right answer to
-"where is the Atlas root" and it is worth having exactly one place that knows
-it.
-
-**Nothing is registered.** `atlas.json` names and orders the families, says
-which of them are somebody else's work -- which decides whether work can be
-handed in to them, not whether they can be read; `trees` is the other half --
-and gives each a default style for a sitting nobody chose one for (`aim`; `course/config.aim_for` resolves it). It does NOT list the workspaces: a
-second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or
-`live/` IS one, found by looking. A file that has to be edited when a directory
-is made is the registry this system refuses to have -- and the thing that makes
-`mkdir courses/Topology` the whole of starting a new course.
+`families`, `trees` and `find_tree` still read `atlas.json`, which names and
+orders the families and marks the vendor and tool ones.
 """
 
 import json
 import os
 
-from . import paths
+from . import paths, subjects
 
 
 # `atlas.json` is read on nearly every payload and the payload is polled four
 # times a second. It is a few hundred bytes and it changes about once a year.
 _CACHE = {"key": None, "root": None, "families": {}}
-
-# A directory is a workspace if it says so in one of three ways. Kept exactly as
-# it was when they were siblings: a repository counts by what is IN it, not by
-# what any list says about it.
-MARKERS = ("tutorboard.json", "AI_INSTRUCTIONS.md")
-
 
 def root():
     """The repository root -- the directory holding `atlas.json`.
@@ -128,60 +110,59 @@ def families(base=None):
     return out
 
 
-def is_workspace(path):
-    """Does this directory hold a course or a project?
+def _base(base):
+    return os.path.realpath(os.path.expanduser(base)) if base else root()
 
-    The same test the board has always used, unchanged: `tutorboard.json`,
-    `AI_INSTRUCTIONS.md`, or a `live/` directory. The tool itself is excluded
-    by realpath rather than by name -- this home is reachable under two
-    spellings and a string comparison of two paths is a bug waiting to happen.
-    """
-    if not os.path.isdir(path):
-        return False
-    if paths.same_dir(path, paths.TOOL):
-        return False
-    if os.path.isdir(os.path.join(path, "live")):
-        return True
-    return any(os.path.isfile(os.path.join(path, m)) for m in MARKERS)
+
+def _record(parent, slug, where, names):
+    """A subject in the record shape `workspaces` has always returned."""
+    return {"id": "%s/%s" % (parent, slug), "family": parent,
+            "family_name": names.get(parent)
+            or parent.replace("-", " ").title(),
+            "dir": slug, "root": where}
+
+
+# The flat layout: a tree with no `atlas.json`, its workspaces directly under
+# it and marked by one of these. Only bin/tutor's `courses_dir` and the test
+# fixtures built for it are shaped so; this goes with atlas.py (T50).
+FLAT_MARKERS = ("tutorboard.json", "AI_INSTRUCTIONS.md", "live")
+
+
+def _flat(base):
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        here = os.path.join(base, name)
+        if (name.startswith(".") or not os.path.isdir(here)
+                or paths.same_dir(here, paths.TOOL)
+                or not any(os.path.exists(os.path.join(here, m))
+                           for m in FLAT_MARKERS)):
+            continue
+        out.append({"id": name, "family": "", "family_name": "", "dir": name,
+                    "root": here})
+    return out
 
 
 def workspaces(base=None):
-    """Every workspace in the repository, in family order then alphabetical.
+    """Every subject, in `atlas.json` family order, then by name.
 
-    Each is a dict with `id` (`family/name`, which is what the address grammar
-    spells and what `chosen.json` records), `family`, `dir` (the bare directory
-    name, which is what a port is derived from) and `root`.
-
-    Vendor families are skipped outright, and that is a claim about HANDING
-    WORK IN rather than about reading: `vendor/colibri` is somebody else's
-    repository, pulled and not written, so nothing in it is the person's to be
-    taught or graded on and no board serves it. It is still source, and `trees`
-    is where it is listed for walking through and drawing. A `tool` family is
-    skipped too -- the board is what does the offering, not one of the things
-    offered.
+    Shim over `subjects.walk`, in the record shape importers read: `id`
+    (`family/name`), `family` (the parent directory), `family_name`, `dir`
+    (the bare directory name) and `root`. A flat tree reads as `_flat`.
     """
-    out = []
-    for fam in families(base):
-        if fam["vendor"] or fam["tool"]:
-            continue
-        try:
-            names = sorted(os.listdir(fam["dir"]))
-        except OSError:
-            continue
-        for name in names:
-            if name.startswith("."):
-                continue
-            here = os.path.join(fam["dir"], name)
-            if not is_workspace(here):
-                continue
-            out.append({
-                "id": ("%s/%s" % (fam["id"], name)) if fam["id"] else name,
-                "family": fam["id"],
-                "family_name": fam["name"],
-                "dir": name,
-                "root": here,
-            })
-    return out
+    base = _base(base)
+    fams = families(base)
+    if not fams[0]["id"]:
+        return _flat(base)
+    order = dict((f["id"], i) for i, f in enumerate(fams))
+    names = dict((f["id"], f["name"]) for f in fams if f["id"])
+    found = subjects.walk(base)
+    found.sort(key=lambda one: order.get(one[0], len(order)))
+    return [_record(parent, slug, where, names)
+            for parent, _kind, slug, where in found]
 
 
 # ---------------------------------------------------------------------------
@@ -259,47 +240,43 @@ def find_tree(ident, base=None):
 
 
 def find(ident, base=None):
-    """One workspace, by `family/name`, by bare directory name, or by root path.
+    """One workspace by `family/name`, bare directory name or root, or None.
 
-    A bare name is accepted because a port, a `.board.json` and four years of
-    typing all spell a workspace by its directory alone, and the directory
-    names are unique across the repository. Ambiguity is resolved in favour of
-    the qualified spelling, so `courses/Probability` always beats a future
-    `practice/Probability` when the qualified form is what was asked for.
+    Shim over `subjects.find`, including its fallback from a moved qualified
+    id to its slug.
     """
-    if not ident:
+    base = _base(base)
+    if not families(base)[0]["id"]:
+        ident = str(ident).strip().strip("/")
+        here = _flat(base)
+        for w in here:
+            if w["dir"] == ident or paths.same_dir(w["root"], ident):
+                return w
         return None
-    ident = str(ident).strip().strip("/")
-    here = workspaces(base)
-    for w in here:
-        if w["id"] == ident:
-            return w
-    for w in here:
-        if w["dir"] == ident or paths.same_dir(w["root"], ident):
-            return w
-    return None
+    hit = subjects.find(ident, base)
+    if not hit:
+        return None
+    parent = hit["id"].split("/", 1)[0]
+    names = dict((f["id"], f["name"]) for f in families(base) if f["id"])
+    return _record(parent, hit["slug"], hit["root"], names)
 
 
 def family_of(path, base=None):
-    """Which family a directory sits in, or "" if it sits in none."""
-    for fam in families(base):
-        if not fam["id"]:
-            continue
-        try:
-            if paths.same_dir(os.path.dirname(os.path.realpath(path)), fam["dir"]):
-                return fam["id"]
-        except OSError:
-            continue
+    """The subject parent directory a path sits directly in, or ""."""
+    base = _base(base)
+    parent = os.path.dirname(os.path.realpath(path).rstrip(os.sep))
+    fam = os.path.basename(parent)
+    if fam in dict(subjects.DIRS) and paths.same_dir(os.path.dirname(parent),
+                                                      base):
+        return fam
     return ""
 
 
 def identify(path):
-    """The `family/name` of a directory, whether or not it is discoverable.
+    """The `family/name` of a directory, whether or not it still exists.
 
-    `find` asks what the repository HAS; this asks what a path IS, and the two
-    differ for exactly one caller that matters: a board already running in a
-    workspace that has since been renamed or removed still has to be able to
-    say where it is.
+    `find` asks what the repository HAS; this asks what a path IS, so a board
+    running in a renamed or removed workspace can still say where it is.
     """
     real = os.path.realpath(path)
     fam = family_of(real)

@@ -35,14 +35,14 @@ import os
 import re
 import time
 
-from . import atlas, fenced
+from . import atlas, fenced, subjects
 from .course import config, plan
 from .course import map as course_map
 
-# The workspace that holds the factory. FOUND, NOT CONFIGURED -- it is a
-# workspace like any other and `atlas.find` is how this system locates one. A
+# The subject that holds the factory, by slug. FOUND, NOT CONFIGURED -- it is a
+# subject like any other and `subjects.find` is how this system locates one. A
 # repository without it simply cannot make papers, and says so.
-WRITER = "projects/Paper-Writer"
+WRITER = "Paper-Writer"
 
 # Where the factory keeps its drop folder, relative to its own root, when
 # nothing says otherwise. `paperwriter/config.py` defaults `PAPER_OUT_DIR` to
@@ -61,7 +61,7 @@ JOB_RE = re.compile(r"^(?P<stem>.+)-v(?P<n>\d+)\.md$")
 
 def writer_root(base=None):
     """Paper-Writer's own directory, or "" if this repository has no factory."""
-    found = atlas.find(WRITER, base)
+    found = subjects.find(WRITER, base)
     return found["root"] if found else ""
 
 
