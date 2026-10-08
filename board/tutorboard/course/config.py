@@ -8,6 +8,7 @@ import re
 import shlex
 
 from .. import atlas
+from . import repo as course_repo
 
 
 # Who writes the code. A sitting's own word only: `tutorboard.json` no longer
@@ -487,7 +488,7 @@ def sitting_kind(root):
     if not root:
         return ""
     try:
-        with open(os.path.join(root, "live", "state.json"), "r",
+        with open(course_repo.session_path(root, "state.json"), "r",
                   encoding="utf-8") as fh:
             state = json.load(fh) or {}
     except (OSError, ValueError):
@@ -511,7 +512,7 @@ def sitting_agent(root):
     if not root:
         return None
     try:
-        with open(os.path.join(root, "live", "state.json"), "r",
+        with open(course_repo.session_path(root, "state.json"), "r",
                   encoding="utf-8") as fh:
             return clean_agent((json.load(fh) or {}).get("agent"))
     except (OSError, ValueError, AttributeError):

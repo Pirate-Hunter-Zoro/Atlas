@@ -33,7 +33,8 @@ from .lesson import git as lesson_git
 
 
 CONTRACT = "AI_INSTRUCTIONS.md"
-METHOD = os.path.join("live", "TEACHING.md")
+# Prompt text, naming the file relative to the workspace the turn runs in.
+METHOD = "live/TEACHING.md"
 
 # The one section of a course's contract that every single turn is bound by.
 # A contract is a long document written for a person reading it once; this is

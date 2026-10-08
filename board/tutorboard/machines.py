@@ -17,6 +17,7 @@ import time
 from . import atlas, choice, fenced, machine, missions, news, paths, ports
 from .course import config
 from .lesson import cards
+from .course import repo as course_repo
 
 
 _SLURM = {"at": 0.0, "nodes": None}
@@ -58,7 +59,7 @@ def workspaces(repo):
     out = []
     for w in atlas.workspaces():
         root = w["root"]
-        live = os.path.join(root, "live")
+        live = course_repo.session_dir(root)
         cfg = config.read_config(root)
         entry = {
             "repo": w["dir"],
@@ -132,7 +133,7 @@ sibling_courses = workspaces
 def read_board_record(root):
     """A course's `.board.json`, or None. Which machine, which pid, which port."""
     try:
-        with open(os.path.join(root, "live", ".board.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, ".board.json"), "r", encoding="utf-8") as fh:
             return json.load(fh)
     except (OSError, ValueError):
         return None
@@ -163,7 +164,7 @@ def chosen_target():
         root = found["root"] if found else ""
     port = None
     try:
-        with open(os.path.join(root, "live", ".board.json"), "r", encoding="utf-8") as fh:
+        with open(course_repo.session_path(root, ".board.json"), "r", encoding="utf-8") as fh:
             port = (json.load(fh) or {}).get("port")
     except (OSError, ValueError):
         port = None
@@ -461,7 +462,7 @@ def atlas_payload(repo, holders=False):
         c["touched"] = _last_touched(root)
         try:
             st = {}
-            with open(os.path.join(root, "live", "state.json"), "r",
+            with open(course_repo.session_path(root, "state.json"), "r",
                       encoding="utf-8") as fh:
                 st = json.load(fh) or {}
             c["aim"] = st.get("aim") or ""

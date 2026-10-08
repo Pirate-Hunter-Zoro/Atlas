@@ -9,6 +9,8 @@ import os
 import re
 import time
 
+from .course import repo as course_repo
+
 
 # ---------------------------------------------------------------------------
 # the handoff belongs to its chapter
@@ -94,7 +96,7 @@ def handoff_length(root):
 def parked_handoff(root, chapter):
     """Where a chapter's own handoff waits while another chapter is open."""
     slug = re.sub(r"[^A-Za-z0-9]+", "-", (chapter or "").strip().lower()).strip("-")
-    return os.path.join(root, "live", "handoffs", (slug or "unlabelled") + ".md")
+    return course_repo.session_path(root, "handoffs", (slug or "unlabelled") + ".md")
 
 
 def read_handoff(root):

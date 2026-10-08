@@ -23,6 +23,7 @@ import subprocess
 import time
 
 from .. import paths, reasoning, tex
+from . import repo as course_repo
 
 # The tool's own directory, which is two levels up from here now. Derived in
 # one place -- `paths.TOOL` -- rather than from this file's position, because a
@@ -589,7 +590,7 @@ SCOPES = ("lesson", "chapter", "sitting", "all")
 
 
 def _live_sitting(root):
-    live = os.path.join(root, "live")
+    live = course_repo.session_dir(root)
     return {"cards": os.path.join(live, "cards"),
             "turns": os.path.join(live, "turns.jsonl"),
             "answers": os.path.join(live, "answers"),
@@ -599,7 +600,7 @@ def _live_sitting(root):
 def _filed(root):
     """Every archived sitting, oldest first, as something a document can hold."""
     out = []
-    archive = os.path.join(root, "live", "archive")
+    archive = course_repo.session_path(root, "archive")
     try:
         names = sorted(os.listdir(archive))
     except OSError:

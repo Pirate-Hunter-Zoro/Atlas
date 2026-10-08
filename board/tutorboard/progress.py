@@ -49,6 +49,7 @@ import time
 
 from . import fenced
 from .lesson import cards as lesson_cards
+from .course import repo as course_repo
 
 
 # What one line of the trail is truncated to. A step is one sentence about one
@@ -73,7 +74,7 @@ _CACHE = {}
 
 def steps_path(root, mid):
     """Where one mission's trail lives. Beside its record, never tracked."""
-    return os.path.join(root, "live", "missions", "%s.steps" % mid)
+    return course_repo.session_path(root, "missions", "%s.steps" % mid)
 
 
 def add(root, mid, said, who="agent", now=None):
@@ -167,7 +168,7 @@ def cards_since(root, since):
     what `news.py` already puts on the strip -- never the body, because a body
     is a lesson and this is a strip two lines high.
     """
-    where = os.path.join(root, "live", "cards")
+    where = course_repo.session_path(root, "cards")
     found = []
     try:
         names = os.listdir(where)

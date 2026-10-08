@@ -45,6 +45,7 @@ import time
 
 from . import atlas, paths
 from .lesson import cards as lesson_cards
+from .course import repo as course_repo
 
 
 SEEN = ".seen.json"
@@ -63,7 +64,7 @@ _CACHE = {"at": 0.0, "value": None}
 
 
 def _live(root):
-    return os.path.join(root, "live")
+    return course_repo.session_dir(root)
 
 
 def newest_card(root):

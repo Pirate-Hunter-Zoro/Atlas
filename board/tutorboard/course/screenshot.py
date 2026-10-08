@@ -36,6 +36,7 @@ import struct
 import time
 
 from . import document
+from . import repo as course_repo
 
 
 # A JPEG's own header says how big it is, and the PDF has to agree with it to
@@ -185,7 +186,7 @@ def build(root, pages, page_w=None, page_h=None):
         if not jpeg_size(data):
             return {"ok": False, "detail": "a page arrived that is not a JPEG"}
 
-    state = document.read_state(os.path.join(root, "live", "state.json"))
+    state = document.read_state(course_repo.session_path(root, "state.json"))
     title = state.get("chapter") or state.get("course") or "Lesson"
     stem = document.slugify(title)
     out_dir = os.path.join(root, document.OUT_DIR)

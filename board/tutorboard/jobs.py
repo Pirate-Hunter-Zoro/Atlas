@@ -44,6 +44,7 @@ import time
 
 from . import fenced
 from .course import threads as course_threads
+from .course import repo as course_repo
 
 NAME = "jobs.jsonl"
 
@@ -67,7 +68,7 @@ def registry(root, create=False):
     then, because the board reads the registry on every payload.
     """
     top = os.path.join(root, NAME)
-    inner = os.path.join(root, "live", NAME)
+    inner = course_repo.session_path(root, NAME)
     if os.path.isfile(top):
         return top
     if os.path.isfile(inner) or not create:
@@ -498,7 +499,7 @@ CLAIM_STALE = 10 * 60
 
 
 def _marker(root, jobid, claims=None):
-    return os.path.join(claims or os.path.join(root, "live", "jobs.reported"),
+    return os.path.join(claims or course_repo.session_path(root, "jobs.reported"),
                         str(jobid).replace("/", "_"))
 
 
@@ -1964,7 +1965,7 @@ def _git_text(root, argv):
 
 
 def _heard_path(root):
-    return os.path.join(root, "live", "jobs.reported", HEARD)
+    return course_repo.session_path(root, "jobs.reported", HEARD)
 
 
 def _set_heard(root, commit):

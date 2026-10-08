@@ -15,6 +15,8 @@ against a documented cap of 350.
 import os
 import re
 
+from .course import repo as course_repo
+
 
 # Two sentences and a bit. Long enough for the misreading and the plan, short
 # enough that reading it on every turn costs nothing worth counting. A tutor
@@ -24,7 +26,7 @@ NOTE_WORDS = 120
 
 
 def note_path(root):
-    return os.path.join(root, "live", "NEXT.md")
+    return course_repo.session_path(root, "NEXT.md")
 
 
 def read_note(root):

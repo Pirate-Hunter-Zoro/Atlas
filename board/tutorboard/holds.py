@@ -51,6 +51,7 @@ import time
 
 from . import jobs
 from .course import threads as course_threads
+from .course import repo as course_repo
 
 HOLDS = "holds"
 COACH = "coach"
@@ -1229,7 +1230,7 @@ def write_coach(root, hid, body, step=None, run=subprocess.run, push=True):
 # the wake, on the Mac
 # ---------------------------------------------------------------------------
 def _woken(root, rid):
-    return os.path.join(root, "live", "coach.woken", rid)
+    return course_repo.session_path(root, "coach.woken", rid)
 
 
 def _claim(root, rid):

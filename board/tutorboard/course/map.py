@@ -43,6 +43,7 @@ from . import (homework, library, plan, reading, review, symbols, syllabus,
 # moves.
 from .. import fenced
 from .. import paths as toolpaths
+from . import repo as course_repo
 
 # What a node's state of completion may be, and there are six of them. A
 # seventh would be a distinction nobody can hold in their head while looking at
@@ -1259,7 +1260,7 @@ def status(root, state=None, archived=None):
     # THE THREAD WHOSE TURN STOPPED WITHOUT A REPORT, badged on its box while
     # that `stopped` card is the newest. See `cards.stopped_thread`.
     from ..lesson import cards as lesson_cards               # local: a cycle
-    halted = lesson_cards.stopped_thread(os.path.join(root, "live", "cards"))
+    halted = lesson_cards.stopped_thread(course_repo.session_path(root, "cards"))
     nodes = []
     for node in found["nodes"]:
         node = dict(node)

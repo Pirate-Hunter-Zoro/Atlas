@@ -59,6 +59,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import atlas, fenced, handoff, meeting, paths, writeups
 from .course import config, document, library, plan, results
+from .course import repo as course_repo
 
 # How many rows of one workspace the sheet shows before it folds the rest behind
 # "show N older sittings". Every row is sent and every row can be picked: the
@@ -1179,7 +1180,7 @@ def _turn_over(root, wid):
         return False
     taken = False
     try:
-        with open(os.path.join(root, "live", "inbox", "messages.jsonl"), "r",
+        with open(course_repo.session_path(root, "inbox", "messages.jsonl"), "r",
                   encoding="utf-8") as fh:
             for line in fh:
                 try:

@@ -50,6 +50,8 @@ import os
 import re
 import time
 
+from .course import repo as course_repo
+
 
 WRITEUPS = "writeups"
 
@@ -98,7 +100,7 @@ def clean_makes(makes):
 
 
 def _dir(root):
-    return os.path.join(root, "live", WRITEUPS)
+    return course_repo.session_path(root, WRITEUPS)
 
 
 def _path(root, wid):

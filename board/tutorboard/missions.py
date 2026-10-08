@@ -74,6 +74,7 @@ import re
 import time
 
 from . import atlas, machine, news, paths, processes, progress
+from .course import repo as course_repo
 
 
 MISSIONS = "missions"
@@ -171,7 +172,7 @@ FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
 
 
 def _dir(root):
-    return os.path.join(root, "live", MISSIONS)
+    return course_repo.session_path(root, MISSIONS)
 
 
 def _path(root, mid):
@@ -303,7 +304,7 @@ def _agent(root):
     the two facts on disk: is something attached, and did the last turn fail.
     """
     try:
-        with open(os.path.join(root, "live", "agent.json"), "r",
+        with open(course_repo.session_path(root, "agent.json"), "r",
                   encoding="utf-8") as fh:
             rec = json.load(fh)
         return rec if isinstance(rec, dict) else {}
