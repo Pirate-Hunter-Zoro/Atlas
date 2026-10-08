@@ -101,9 +101,8 @@ def pdf_text(pdf):
 
 
 def subject_dir(slug):
-    """Where a subject lives in this checkout: projects/ once research/ and
-    practice/ merge into it, until then wherever it is."""
-    for parent in ("courses", "projects", "practice", "research"):
+    """Where a subject lives in this checkout: its parent and directory."""
+    for parent in ("courses", "projects"):
         d = os.path.join(ATLAS, parent, slug)
         if os.path.isdir(d):
             return parent, d
