@@ -12,9 +12,6 @@ What the checks are about:
     payload carries the job for the busy strip.
   * EVERY CONTRACT SAYS IT. A bare sbatch is work the board cannot see.
 """
-
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -332,13 +329,11 @@ check("and the next pass reports it, pointing at the log as a glob",
 check("once", jobs.report(spare, run=s3) == [])
 
 # --- the poll is the relay's now ---------------------------------------------------
-_loader = importlib.machinery.SourceFileLoader("tutorcli_jobs", TUTOR)
-_spec = importlib.util.spec_from_loader("tutorcli_jobs", _loader)
-tutorcli = importlib.util.module_from_spec(_spec)
-_loader.exec_module(tutorcli)
+from tutorboard.runner import turn as runturn  # noqa: E402
 check("the inbox line wakes a turn signalled `job`, the way [direction] does",
-      tutorcli.turn_signal("[2026-10-01 10:00:00] " + said) == "job")
-source = open(TUTOR, encoding="utf-8").read()
+      runturn.turn_signal("[2026-10-01 10:00:00] " + said) == "job")
+source = "".join(open(p, encoding="utf-8").read() for p in (
+    TUTOR, os.path.join(ROOT, "tutorboard", "runner", "loop.py")))
 check("the board daemon no longer polls jobs; the relay's pass does",
       "beat_jobs" not in source and "def job_pass" not in source
       and "jobs.report(ws" in open(os.path.join(ROOT, "tutorboard", "relay.py"),

@@ -1231,14 +1231,8 @@ try:
         # An assistant started for a mission and one a person chose are the
         # same name in the same `agent.json` afterwards, so `brought` is
         # written when one is started.
-        import importlib.machinery                            # noqa: E402
-        import importlib.util                                 # noqa: E402
 
-        _ld = importlib.machinery.SourceFileLoader(
-            "tutor", os.path.join(ROOT, "bin", "tutor"))
-        _tutor = importlib.util.module_from_spec(
-            importlib.util.spec_from_loader("tutor", _ld))
-        _ld.exec_module(_tutor)
+        from tutorboard.runner import daemon
 
         # Off the missions every check above left on disk, so what is guarded
         # here is one workspace at a time.
@@ -1267,7 +1261,7 @@ try:
             it: the daemon's own last act, merged over the record it was
             listening under. Not a record shaped like one by hand -- the whole
             claim being made is about what `bin/tutor` actually leaves."""
-            return _tutor.agent_state(os.path.join(held, "live"),
+            return daemon.agent_state(os.path.join(held, "live"),
                                       state="stopped", stopped_at=time.time())
 
         attached = [""]
@@ -1341,7 +1335,8 @@ finally:
 # write one sentence FIRST so the board is not blank, and then to spend several
 # minutes rewriting the plan. Without a word for what the turn is, the indicator
 # goes away ten seconds into a job that takes minutes.
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+src = open(os.path.join(ROOT, "tutorboard", "runner", "turn.py"),
+           encoding="utf-8").read()
 ns = {"re": re}
 exec(compile(re.search(r"_SIGNAL_TAG = .*?\n    return \"\"\n", src, re.S).group(0),
              "<tutor>", "exec"), ns)

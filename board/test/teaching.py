@@ -290,7 +290,10 @@ finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
 # --- every path that briefs an assistant has to point at it -------------------
-tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# Every prompt the daemon gives a turn.
+_prompts = os.path.join(ROOT, "tutorboard", "runner", "prompts")
+tutor_src = "".join(open(os.path.join(_prompts, f), encoding="utf-8").read()
+                    for f in sorted(os.listdir(_prompts)))
 check("the session brief points at it", "live/TEACHING.md" in tutor_src)
 check("the headless prompt points at it too",
       tutor_src.count("TEACHING.md") >= 3)
@@ -666,11 +669,10 @@ check("and those are the delimiters board.js actually gives KaTeX",
 import importlib.machinery as _im                            # noqa: E402
 import importlib.util as _iu                                 # noqa: E402
 
-_tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
-tutorcli = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("tutorcli", _tl))
-_tl.exec_module(tutorcli)
-_cfg = tutorcli.load_config()
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+_cfg = recipes.load_config()
 
 _clock = tempfile.mkdtemp(prefix="tutor-clock-")
 try:
@@ -683,11 +685,11 @@ try:
             _j.dump(kw, fh)
 
     _sitting(session="lecture", aim="teach")
-    teach_for = tutorcli.turn_timeout(_cfg, _clock)
+    teach_for = runturn.turn_timeout(_cfg, _clock)
     _sitting(session="lecture", aim="build", stance="do")
-    build_for = tutorcli.turn_timeout(_cfg, _clock)
+    build_for = runturn.turn_timeout(_cfg, _clock)
     _sitting(session="make", makes="paper")
-    make_for = tutorcli.turn_timeout(_cfg, _clock)
+    make_for = runturn.turn_timeout(_cfg, _clock)
     check("a turn that writes the code gets longer than one that writes a card",
           build_for > teach_for)
     check("and long enough for work that actually runs (%d minutes)"
@@ -834,7 +836,7 @@ try:
     # paid for twice, and there are four places that could each reasonably say
     # it. `test/elsewhere.py` holds the other half of this -- that the line
     # `/elsewhere` writes is their words and carries no rules of its own.
-    _woken = (tutorcli.HEADLESS_FIRST_PROMPT
+    _woken = (prompts.HEADLESS_FIRST_PROMPT
               % {"inbox": "repair the transcript", "handoff": ""}) + _sent
     check("and once across everything a woken mission holds, the inbox line "
           "and the brief together", _woken.count(_RULE) == 1

@@ -162,7 +162,7 @@ from tutorboard.course import threads as course_threads
 SERVE = os.path.join(TOOL, "serve.py")
 # `pending` is the placeholder a doing turn opens with and writes its report
 # over. A turn that exits leaving the newest card `pending` has not reported,
-# and the daemon says so -- see `report_owed` in `bin/tutor`.
+# and the daemon says so -- see `report_owed` in `tutorboard/runner/loop.py`.
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
          "pending")
 
@@ -1814,7 +1814,7 @@ def _repairing(live):
     teaches under, the way a mission is: a teaching workspace would otherwise
     brief a broken job as a lesson about it. The daemon records every
     `[repair]` request in the batch the turn was woken with (`turn_repairs` in
-    `live/agent.json`, `woken_for` in bin/tutor), so one behind a student's
+    `live/agent.json`, `woken_for` in runner/turn.py), so one behind a student's
     message counts; a record without it falls back to the signal and the
     newest `[repair]` line (`jobs.drop`).
     """
@@ -3235,7 +3235,7 @@ def cmd_wait(live, args):
     the number on the command line means nothing -- measured at 71 minutes
     against a `--timeout 300`. Do not try to repair that in here; a deadline
     enforced by the thing that might hang is not a deadline. `WAIT_CEILING` in
-    `bin/tutor` is where the daemon bounds it, and any other caller wanting one
+    `runner/loop.py` is where the daemon bounds it, and any other caller wanting one
     does the same.
     """
     timeout = 900.0

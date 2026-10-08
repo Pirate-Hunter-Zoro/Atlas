@@ -150,7 +150,8 @@ print()
 
 import subprocess                                            # noqa: E402
 
-src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+src_tutor = open(os.path.join(ROOT, "tutorboard", "runner", "daemon.py"),
+                 encoding="utf-8").read()
 # The whole of `agent_start`, rather than a fixed number of characters from its
 # head: a window measured in bytes fails the moment somebody explains something
 # in the function, which is not a property worth asserting.
@@ -212,7 +213,8 @@ check("and a person naming a course on the command line still records it",
       recorded() == "Probability")
 
 check("the flag is a flag: the parser knows it, so it is never taken for a course",
-      'elif a == "--respawn":' in src_tutor)
+      'elif a == "--respawn":' in open(os.path.join(ROOT, "bin", "tutor"),
+                                       encoding="utf-8").read())
 
 # The other half of the rule: the entry points that ARE a person still record,
 # and the same word says when one is not. A hub tap comes through `tutor agent

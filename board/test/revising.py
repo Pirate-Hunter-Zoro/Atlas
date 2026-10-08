@@ -29,9 +29,6 @@ writes no card and pushes what another assistant wrote. Everything about the
 shape is the revision's; what is different is that the assistant running it is
 never the one that did the work.
 """
-
-import importlib.machinery
-import importlib.util
 import json
 import os
 import sys
@@ -46,10 +43,8 @@ from tutorboard.course.repo import Repo
 from tutorboard.server import spawn
 from tutorboard.server.routes import library as library_route
 
-_tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
-tutorcli = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("tutorcli", _tl))
-_tl.exec_module(tutorcli)
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 fails = []
 
@@ -69,33 +64,33 @@ SPEC = {"headless": ["agent", "-p", "{prompt}", "--continue"],
 # which turn a revision is
 # ---------------------------------------------------------------------------
 check("a revision line is read as the signal it carries",
-      tutorcli.turn_signal("[2026-09-16 18:02:11] [revise] the document is x")
+      runturn.turn_signal("[2026-09-16 18:02:11] [revise] the document is x")
       == "revise")
 
 for carried in (0, 1, 7, 40):
-    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "revise")
+    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "revise")
     check("a revision runs fresh with %d turn(s) there to resume" % carried,
           fresh is True and use == SPEC["headless_first"]
-          and template is tutorcli.HEADLESS_REVISE_PROMPT)
+          and template is prompts.HEADLESS_REVISE_PROMPT)
 
-use, template, fresh = tutorcli.turn_plan(SPEC, 3, 12)
+use, template, fresh = runturn.turn_plan(SPEC, 3, 12)
 check("while an ordinary turn still resumes the lesson",
       fresh is False and use == SPEC["headless"]
-      and template is tutorcli.HEADLESS_RESUME_PROMPT)
+      and template is prompts.HEADLESS_RESUME_PROMPT)
 
 # THE ONE THAT ONLY SHOWS UP A TURN LATER. The revision's session is now the
 # agent's current conversation, and `--continue` would put the next card of the
 # lesson inside it.
 check("the lesson does not resume into the revision's session",
-      tutorcli.carry_after("revise", True, 6) == 0)
+      runturn.carry_after("revise", True, 6) == 0)
 check("and an ordinary turn still carries what it carried",
-      tutorcli.carry_after("", False, 6) == 7
-      and tutorcli.carry_after("", True, 6) == 1)
+      runturn.carry_after("", False, 6) == 7
+      and runturn.carry_after("", True, 6) == 1)
 
 # ---------------------------------------------------------------------------
 # what that turn is told
 # ---------------------------------------------------------------------------
-said = tutorcli.HEADLESS_REVISE_PROMPT
+said = prompts.HEADLESS_REVISE_PROMPT
 check("it is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in said)
 check("and to write no card, in as many words", "Write no card" in said)
@@ -119,15 +114,15 @@ check("it is not sent to read the contract or the cards, none of which is about 
 # do not widen it*, which is exactly right for "figure 3 is mislabelled" -- so
 # until there was a second ask, the only route to an overhaul was a terminal.
 check("an overhaul line is read as the signal it carries",
-      tutorcli.turn_signal("[2026-09-17 20:10:00] [rework] the deck is for x")
+      runturn.turn_signal("[2026-09-17 20:10:00] [rework] the deck is for x")
       == "rework")
 for carried in (0, 1, 7, 40):
-    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "rework")
+    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "rework")
     check("an overhaul runs fresh with %d turn(s) there to resume" % carried,
           fresh is True and use == SPEC["headless_first"]
-          and template is tutorcli.HEADLESS_REWORK_PROMPT)
+          and template is prompts.HEADLESS_REWORK_PROMPT)
 check("and the lesson does not resume into the overhaul's session",
-      tutorcli.carry_after("rework", True, 6) == 0)
+      runturn.carry_after("rework", True, 6) == 0)
 
 # A DOING TURN'S CLOCK, and a plain revision deliberately does not get one: a
 # correction changes what a note names and is over in a minute, while an
@@ -135,11 +130,11 @@ check("and the lesson does not resume into the overhaul's session",
 CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
 _empty = tempfile.mkdtemp()
 check("an overhaul gets a doing turn's time, whatever the sitting says",
-      tutorcli.turn_timeout(CLOCK, _empty, None, "rework") == 3600)
+      runturn.turn_timeout(CLOCK, _empty, None, "rework") == 3600)
 check("while a correction is left on the sitting's own clock",
-      tutorcli.turn_timeout(CLOCK, _empty, None, "revise") == 900)
+      runturn.turn_timeout(CLOCK, _empty, None, "revise") == 900)
 
-worked = tutorcli.HEADLESS_REWORK_PROMPT
+worked = prompts.HEADLESS_REWORK_PROMPT
 check("an overhaul is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in worked)
 check("and to write no card", "Write no card" in worked)
@@ -191,17 +186,17 @@ check("and that the lesson on the board is somebody else's",
 # card resumes a session about a git diff thinks the evening was about git. What
 # it does differently is who runs it: never the assistant that did the work.
 check("a ship line is read as the signal it carries",
-      tutorcli.turn_signal("[2026-09-17 21:40:02] [ship] a mission finished")
+      runturn.turn_signal("[2026-09-17 21:40:02] [ship] a mission finished")
       == "ship")
 for carried in (0, 1, 7, 40):
-    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "ship")
+    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "ship")
     check("a ship runs fresh with %d turn(s) there to resume" % carried,
           fresh is True and use == SPEC["headless_first"]
-          and template is tutorcli.HEADLESS_SHIP_PROMPT)
+          and template is prompts.HEADLESS_SHIP_PROMPT)
 check("and the lesson does not resume into the ship's session either",
-      tutorcli.carry_after("ship", True, 6) == 0)
+      runturn.carry_after("ship", True, 6) == 0)
 
-shipped = tutorcli.HEADLESS_SHIP_PROMPT
+shipped = prompts.HEADLESS_SHIP_PROMPT
 check("a ship is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in shipped)
 check("and to write no card", "Write no card" in shipped)
@@ -222,7 +217,7 @@ check("and it pushes with the one push there is",
 # a teaching turn's fifteen minutes is a turn killed with the work half done.
 CFG = {"headless_timeout": 900, "doing_timeout": 3600}
 check("a ship gets a doing turn's time, whatever the sitting says",
-      tutorcli.turn_timeout(CFG, tempfile.mkdtemp(), None, "ship") == 3600)
+      runturn.turn_timeout(CFG, tempfile.mkdtemp(), None, "ship") == 3600)
 
 said = sense.ship_sense("colibri", "reproduce the corrected transcript")
 check("the line a ship is woken with names what the mission was asked to do",
@@ -297,7 +292,7 @@ waited = subprocess.run(
      "10", "--force"], cwd=work, stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT, timeout=60)
 out = waited.stdout.decode("utf-8", "replace")
-signal, _ = tutorcli.woken_for(work, out)
+signal, _ = runturn.woken_for(work, out)
 check("the inbox hands the turn a [revise] line", waited.returncode == 0
       and signal == "revise")
 
@@ -308,10 +303,10 @@ with open(fake, "w", encoding="utf-8") as fh:
 os.chmod(fake, 0o755)
 spec = {"headless": [fake, "-p", "{prompt}", "--continue"],
         "headless_first": [fake, "-p", "{prompt}"]}
-use, template, fresh = tutorcli.turn_plan(spec, 3, 12, signal)
+use, template, fresh = runturn.turn_plan(spec, 3, 12, signal)
 prompt = template % {"inbox": out.strip(), "handoff": ""}
 with open(os.path.join(tmp, "turn.log"), "a") as log:
-    rc, timed_out = tutorcli.run_turn(
+    rc, timed_out = runturn.run_turn(
         [a.replace("{prompt}", prompt) for a in use], work, log, 30)
 got = open(seen, encoding="utf-8").read() if os.path.isfile(seen) else ""
 check("the fake provider ran one fresh turn", rc == 0 and not timed_out

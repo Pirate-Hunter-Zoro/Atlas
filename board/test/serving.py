@@ -188,7 +188,12 @@ check("and a forced claim takes it whatever is holding it",
 #    anything that runs WITHOUT a person present must ask.
 # ---------------------------------------------------------------------------
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
-tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# The launcher and the daemon machinery it was split into.
+_runner = os.path.join(ROOT, "tutorboard", "runner")
+tutor_src = "".join(open(p, encoding="utf-8").read() for p in (
+    [os.path.join(ROOT, "bin", "tutor")]
+    + [os.path.join(_runner, f) for f in sorted(os.listdir(_runner))
+       if f.endswith(".py")]))
 
 check("`vpn serve --if-free` exists, and routes through the guard",
       '"--if-free" in args' in board_src and board_src.count('"--if-free" in args') >= 2)

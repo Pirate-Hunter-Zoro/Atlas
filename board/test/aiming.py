@@ -147,13 +147,10 @@ for aim in config.AIMS:
 import importlib.machinery                                   # noqa: E402
 import importlib.util                                        # noqa: E402
 
-_tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
-tutorcli = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("tutorcli", _tl))
-_tl.exec_module(tutorcli)
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 check("nothing in the launcher keeps its own list of the aims that write",
-      not hasattr(tutorcli, "DOING_AIMS"))
+      not hasattr(runturn, "DOING_AIMS"))
 os.makedirs(os.path.join(project, "live"), exist_ok=True)
 
 
@@ -165,18 +162,18 @@ def sitting(where, **kw):
 for aim in config.AIMS:
     sitting(project, session="lecture", aim=aim)
     check("the launcher and the board agree about %s" % aim,
-          tutorcli.doing_now(project)
+          runturn.doing_now(project)
           == (config.stance_for(project, {"aim": aim}) == "do"))
 sitting(project, session="lecture")
 check("a project's plain lecture is a teaching turn, because nobody chose "
       "otherwise and a family default cannot choose it for them",
-      not tutorcli.doing_now(project))
+      not runturn.doing_now(project))
 sitting(project, session="lecture", aim="build")
 check("and it is a doing turn the moment somebody taps `build`",
-      tutorcli.doing_now(project))
+      runturn.doing_now(project))
 os.makedirs(os.path.join(course, "live"), exist_ok=True)
 sitting(course, session="lecture")
-check("and a course's plain lecture is not", not tutorcli.doing_now(course))
+check("and a course's plain lecture is not", not runturn.doing_now(course))
 
 # A STEP HANDED OVER IS A DOING TURN INSIDE A COACHING SITTING, and the sitting
 # is left saying `coach` on purpose. So the state is right about the evening and
@@ -186,15 +183,15 @@ check("and a course's plain lecture is not", not tutorcli.doing_now(course))
 # nothing committed.
 sitting(course, session="lecture", aim="coach")
 check("a coaching sitting is a teaching turn, as it was",
-      not tutorcli.doing_now(course))
+      not runturn.doing_now(course))
 check("but the step it hands over is a doing turn",
-      tutorcli.doing_now(course, "handover"))
+      runturn.doing_now(course, "handover"))
 CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
 check("so the handed-over step gets a doing turn's clock",
-      tutorcli.turn_timeout(CLOCK, course) == 900
-      and tutorcli.turn_timeout(CLOCK, course, None, "handover") == 3600)
+      runturn.turn_timeout(CLOCK, course) == 900
+      and runturn.turn_timeout(CLOCK, course, None, "handover") == 3600)
 check("and every other signal leaves the clock where it was",
-      tutorcli.turn_timeout(CLOCK, course, None, "help") == 900)
+      runturn.turn_timeout(CLOCK, course, None, "help") == 900)
 sitting(course, session="lecture")            # as the checks below expect it
 
 # ---------------------------------------------------------------------------

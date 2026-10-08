@@ -150,13 +150,13 @@ check("reopening the same chapter leaves the handoff exactly where it is",
 # --- what the tutor is told ---------------------------------------------------
 print("\n-- and the tutor is told there is none, rather than left to hunt --")
 
-tutor = load("tutor_launcher", os.path.join(ROOT, "bin", "tutor"))
+from tutorboard.runner import prompts, turn as runturn            # noqa: E402
 root4 = course(chapter="Ch 03 — Rings")
 write_handoff(root4, "# HANDOFF\n\nChapter 1 leftovers.\n")
 handoff.stamp_handoff(root4, "Ch 01 — Groups")
-clause = tutor.handoff_clause(root4)
+clause = runturn.handoff_clause(root4)
 check("a tutor opening a chapter with no handoff of its own is told so",
-      clause == tutor.NO_HANDOFF_CLAUSE)
+      clause == prompts.NO_HANDOFF_CLAUSE)
 check("and told not to go looking for the last chapter's",
       "not in `live/archive/`" in clause)
 
@@ -167,7 +167,7 @@ os.replace(handoff.parked_handoff(root4, "Ch 01 — Groups")
            os.path.join(root4, "HANDOFF.md"))
 handoff.stamp_handoff(root4, "Ch 03 — Rings")
 check("and a tutor whose chapter DOES have one is told to read it",
-      tutor.handoff_clause(root4) == tutor.HANDOFF_CLAUSE)
+      runturn.handoff_clause(root4) == prompts.HANDOFF_CLAUSE)
 
 
 # A headless turn no longer carries the clause in its prompt: it reads `board
@@ -178,7 +178,7 @@ code, out = board(root4, "brief")
 check("a headless turn's briefing carries the handoff its chapter owns",
       code == 0 and "Chapter 1 leftovers" in out)
 check("and the prompt sends the turn to that briefing",
-      "board brief" in tutor.HEADLESS_FIRST_PROMPT)
+      "board brief" in prompts.HEADLESS_FIRST_PROMPT)
 
 root5 = course(chapter="Ch 03 — Rings")
 write_handoff(root5, "# HANDOFF\n\nChapter 1 leftovers.\n")

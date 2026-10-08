@@ -59,7 +59,7 @@ import subprocess
 import sys
 import time
 
-from . import atlas, jobs, leaving, paths
+from . import atlas, jobs, leaving, paths, worktree
 from .course import threads as course_threads
 
 LOCK = os.path.join("relay", ".lock")
@@ -601,6 +601,114 @@ def sync(base, where, pull_vendor=None, said=None):
 # `relay/reports/` any other way (a task, a recipe writing there itself) is
 # never published unchecked.
 _WRITTEN = set()
+
+
+def pull_vendor(quiet=False):
+    """Move `vendor/colibri` forward, and COMMIT THE POINTER ITSELF.
+
+        "Regarding some kind of external repo like colibri, I want to have that
+         git pulled every time I salloc, just like tutoring becomes available
+         every time I salloc. I want it tracked in our repo too."
+
+    A submodule is exactly that: the repository tracks a POINTER to a commit in
+    somebody else's repository, and the pointer is a tracked file like anything
+    else. `tutor pull` runs this, the Mac's `tutor-pull` agent runs that daily,
+    `tutor resume` runs it too, and the relay's pass runs it on the cluster --
+    the same guards, the same commit message, one implementation. A timer is
+    safe here only BECAUSE of the third
+    rule below: it commits nothing when anything else in the tree is dirty, so
+    it cannot sweep up an afternoon it arrived in the middle of.
+
+    The third rule is the one that bites. A bumped pointer is a change in the
+    working tree, so pulling colibri leaves the repository dirty every time
+    colibri moves -- and `git.repo_dirty` is on the board, which means the
+    person is shown "unsaved work" for something they did not do, on a file they
+    have never heard of. So the pull commits the bump, with a fixed message
+    naming the old commit and the new one.
+
+    **That is the only commit anything in this system makes on its own**, so it
+    is guarded three ways, and every guard is one `scripts/catch-up.sh` already
+    has written out for the course loop:
+
+    * only when `vendor/colibri` is the ONLY dirty path. Anything else in the
+      tree and this does nothing at all -- a commit that sweeps up somebody's
+      afternoon because a vendored library moved is the exact failure the
+      `--only` pathspec exists to prevent;
+    * never when a merge or a rebase is outstanding, because a terminal in here
+      has its own plan for the next commit;
+    * never on a detached HEAD, where a commit is reachable from nothing.
+
+    `vendor/colibri-build` is NOT pulled. It is the same upstream pinned at an
+    older commit because it is a BUILD TREE, and a build tree that moves
+    underneath a build is the failure it exists to avoid. Moving it forward is
+    the person's to do, by hand.
+    """
+    base = atlas.root()
+    sub = os.path.join(base, "vendor", "colibri")
+    if not os.path.isdir(os.path.join(sub, ".git")) and \
+       not os.path.isfile(os.path.join(sub, ".git")):
+        return None                      # not a checkout here; nothing to do
+
+    def say(msg):
+        if not quiet:
+            print("  " + msg)
+
+    busy = worktree.busy_reason(base)
+    if busy:
+        say("colibri not pulled: %s in the repository" % busy)
+        return False
+
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=kw.pop("cwd", base),
+                              env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, timeout=kw.get("timeout", 90))
+
+    try:
+        before = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+        p = git("submodule", "update", "--remote", "--merge", "vendor/colibri")
+        after = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+    except (OSError, subprocess.TimeoutExpired):
+        say("could not reach colibri's remote; leaving it where it is")
+        return False
+    if p.returncode != 0:
+        out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        say("colibri not pulled: %s" % (out[-1] if out else "update failed"))
+        return False
+    if before == after:
+        return True                      # already current, and silent about it
+
+    # --- the pointer is now dirty. Commit it, or say why not. ---------------
+    try:
+        if git("rev-parse", "--abbrev-ref", "HEAD").stdout.decode().strip() == "HEAD":
+            say("colibri moved, but HEAD is detached here, so the pointer is "
+                "left uncommitted")
+            return False
+        status = git("status", "--porcelain").stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+    dirty = [l[3:].strip() for l in status.splitlines() if l.strip()]
+    stray = [d for d in dirty if d.rstrip("/") != "vendor/colibri"]
+    if stray:
+        say("colibri moved to %s, and the pointer is left uncommitted because "
+            "there is other uncommitted work here: %s"
+            % (after[:8], ", ".join(stray[:3])))
+        return False
+
+    msg = ("vendor/colibri moves from %s to %s\n\n"
+           "The pointer only. Written by `tutor resume` on login, which is the "
+           "one moment a compute node gets, and committed here rather than left "
+           "dirty -- an uncommitted pointer nobody touched shows on the board as "
+           "unsaved work, which is a lie the person cannot act on."
+           % (before[:8], after[:8]))
+    try:
+        git("commit", "--only", "-m", msg, "--", "vendor/colibri")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    say("colibri moved %s -> %s, pointer committed" % (before[:8], after[:8]))
+    return True
 
 
 def _changed(base, rels):
@@ -1275,13 +1383,13 @@ def status(base=None, now=None):
 # ---------------------------------------------------------------------------
 # the scrontab entry
 # ---------------------------------------------------------------------------
-def scrontab_block(python=None, tutor=None, log=None):
+def scrontab_block(python=None, entry=None, log=None):
     """The entry, between markers so `install` can replace it."""
     python = python or sys.executable
-    tutor = tutor or os.path.join(paths.TOOL, "bin", "tutor")
+    entry = entry or os.path.join(paths.TOOL, "bin", "relay")
     log = log or os.path.join(paths.STATE_DIR, "relay-scron.log")
     return "\n".join([
-        SCRON_BEGIN + " (written by `tutor relay --install`)",
+        SCRON_BEGIN + " (written by `relay --install`)",
         "#SCRON --partition=%s" % SCRON_PARTITION,
         "#SCRON --time=%s" % SCRON_TIME,
         "#SCRON --cpus-per-task=1",
@@ -1289,7 +1397,7 @@ def scrontab_block(python=None, tutor=None, log=None):
         "#SCRON --job-name=tutor-relay",
         "#SCRON --output=%s" % log,
         "#SCRON --open-mode=append",
-        "*/5 * * * * %s %s relay --once --quiet" % (python, tutor),
+        "*/5 * * * * %s %s --once --quiet" % (python, entry),
         SCRON_END,
     ]) + "\n"
 

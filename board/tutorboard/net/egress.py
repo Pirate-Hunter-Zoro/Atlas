@@ -45,7 +45,7 @@ def egress_probe_urls(also=()):
 
     `also` is each configured provider's own endpoints -- every recipe on this
     machine that is installed and keyed names its `egress_probe`, and
-    `provider_probe_urls` in `bin/tutor` collects them -- appended after the
+    `provider_probe_urls` in `agents/recipes.py` collects them -- appended after the
     default's, once each. On the Mac every provider is an ordinary choice, so
     "can a turn leave this machine" is asked of every host a turn here may open,
     and a filter on one provider's name is not read as a machine with no way out.
@@ -124,7 +124,7 @@ def egress_ok(timeout=12, urls=None, also=()):
 # own, which is rare, deliberate, and the moment a dead provider costs a student
 # a three-minute turn that writes nothing. Not before every card -- that would
 # put a round trip to the internet in front of every answer to ask a question
-# whose answer is almost always yes. See `probe_before_turn` in `bin/tutor`.
+# whose answer is almost always yes. See `probe_before_turn` in `agents/recipes.py`.
 UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
 
 # How long a block is believed for. One failed turn buys the finding, and one

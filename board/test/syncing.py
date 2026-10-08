@@ -20,9 +20,6 @@ What the checks are about:
 
 Git is real (a bare origin and two clones); Slurm is a stub.
 """
-
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -35,7 +32,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard import atlas, fenced, jobs, leaving, relay             # noqa: E402
 
-TUTOR = os.path.join(ROOT, "bin", "tutor")
 fails = []
 
 
@@ -81,10 +77,7 @@ def slurm(argv, **kw):
     return Done(0, "")
 
 
-_loader = importlib.machinery.SourceFileLoader("tutorcli_syncing", TUTOR)
-_spec = importlib.util.spec_from_loader("tutorcli_syncing", _loader)
-tutorcli = importlib.util.module_from_spec(_spec)
-_loader.exec_module(tutorcli)
+from tutorboard import gitsync  # noqa: E402
 
 POLICY = ("import re\n\ndef names_phi(text):\n"
           "    return bool(re.search(r'SESSION-\\d+', str(text)))\n")
@@ -357,8 +350,8 @@ try:
     check("the Mac's pull is every twenty seconds in every state",
           jobs.PULL_EVERY == 20 and not hasattr(jobs, "PULL_IDLE")
           and not hasattr(jobs, "PULL_BUSY"))
-    src = read(TUTOR)
-    loop = src.split("\ndef headless(")[1].split("\ndef ")[0]
+    src = read(os.path.join(ROOT, "tutorboard", "runner", "loop.py"))
+    loop = src.split("\ndef take_turn(")[1].split("\ndef ")[0]
     check("the daemon's turn does not pull: the hear pass keeps the tree within "
           "twenty seconds", "sync(" not in loop.split("=== %s turn %d ===")[1])
     git(mac, "reset", "-q", "--hard", "origin/main")
@@ -367,14 +360,14 @@ try:
     git(cluster, "push", "-q")
     said = []
     check("a pull brings what the cluster pushed",
-          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is True
+          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is True
           and "from the cluster" in read(os.path.join(mws, "src", "fit.py"))
           and any("pulled 1 commit(s)" in l for l in said))
     url = git(mac, "remote", "get-url", "origin")
     git(mac, "remote", "set-url", "origin", os.path.join(base, "gone.git"))
     said = []
     check("an unreachable remote is one line, not a failure",
-          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
           and any("not synced" in l for l in said))
     git(mac, "remote", "set-url", "origin", url)
 
@@ -384,7 +377,7 @@ try:
     write(os.path.join(mws, "src", "shared.py"), "x = 'mac, unsaved'\n")
     said = []
     check("an edit here the pull would change: nothing moves, and it says so",
-          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
           and read(os.path.join(mws, "src", "shared.py")) == "x = 'mac, unsaved'\n"
           and any("not synced" in l for l in said))
     git(mac, "checkout", "--", "research/Proj/src/shared.py")
@@ -394,7 +387,7 @@ try:
     before = git(mac, "rev-parse", "HEAD")
     said = []
     check("never mid-merge (worktree.busy_reason)",
-          tutorcli.sync(mws, quiet=True, timeout=20, say=said.append) is False
+          gitsync.sync(mws, quiet=True, timeout=20, say=said.append) is False
           and git(mac, "rev-parse", "HEAD") == before
           and any("merge is in progress" in l for l in said))
     os.remove(merge_head)

@@ -818,13 +818,13 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     """Ask for the revision: a `[revise]` line in the inbox and a turn woken on it.
 
     Every document is revised the same way, whoever wrote it. That turn runs
-    FRESH and writes no card; see `HEADLESS_REVISE_PROMPT` in `bin/tutor` for
+    FRESH and writes no card; see `HEADLESS_REVISE_PROMPT` in `runner/prompts.py` for
     why a resumed one would drag the lesson into the document. The line names
     the source, and the turn rebuilds it with `board build`.
 
     `ask` is which of the two the person tapped, and it changes the signal, the
     prompt that turn is woken with and how long it gets -- see `turn_plan` and
-    `doing_now` in `bin/tutor`.
+    `doing_now` in `runner/turn.py`.
 
     `ledger_rel` and `ids` are the round's requests (`course/ledger.py`). The
     turn is told to answer every id in that file.

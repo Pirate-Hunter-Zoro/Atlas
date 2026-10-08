@@ -23,6 +23,10 @@ loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin",
 spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard import gitsync  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard import relay  # noqa: E402
 
 from tutorboard import paths, processes
 
@@ -45,14 +49,13 @@ calls = {"start": [], "agent": [], "sync": []}
 # in nearly every case -- the first version of this test wrote its temporary
 # course names into a real ~/.config/tutor-board/chosen.json.
 conf = tempfile.mkdtemp(prefix="tutor-resume-conf-")
-tutor.CONFIG_DIR = conf
+recipes.CONFIG_DIR = conf
 # The record of what a person chose is one file with one reader, in boardlib --
 # the launcher writes it, the board writes it when the hub is tapped, and the
 # and the hub writes it when a course is tapped. Point that one place at the
 # sandbox.
 paths.CONFIG_DIR = conf
 paths.CHOSEN = os.path.join(conf, "chosen.json")
-tutor.CHOSEN = paths.CHOSEN
 
 
 def make_course(name, node=None, pid=1, when=None):
@@ -79,7 +82,7 @@ try:
                                  "headless": ["claude", "-p", "{prompt}"]}}}
 
     # --- what "the course you were last in" means ---------------------------
-    picked = tutor.last_board(cfg)
+    picked = daemon.last_board(cfg)
     check("the most recently started board is the one to bring back",
           picked and picked["dir"] == "Newer")
 
@@ -95,14 +98,14 @@ try:
     with open(os.path.join(stopped, "live", "state.json"), "w", encoding="utf-8") as fh:
         json.dump({"course": "Stopped", "session": "lecture"}, fh)
     os.utime(os.path.join(stopped, "live", "state.json"), (20000, 20000))
-    picked = tutor.last_board(cfg)
+    picked = daemon.last_board(cfg)
     check("a course whose board was stopped cleanly is still the one you were in",
           picked and picked["dir"] == "Stopped")
     shutil.rmtree(stopped)
 
     # A course nobody has ever opened is not a candidate, whatever else is there.
     check("and a course with nothing in its live/ is never picked",
-          tutor.last_used(os.path.join(tmp, "NeverRan")) == 0)
+          daemon.last_used(os.path.join(tmp, "NeverRan")) == 0)
 
     # Naming a course is a decision, and it has to outrank file times -- because
     # resuming a course TOUCHES its files, so "most recently used" is
@@ -111,26 +114,26 @@ try:
     # That is not hypothetical: it happened, twice in a row, on a live board.
     try:
         check("with nothing named, the newest files decide",
-              tutor.last_board(cfg)["dir"] == "Newer")
-        tutor.remember_course({"dir": "Older", "root": os.path.join(tmp, "Older")})
+              daemon.last_board(cfg)["dir"] == "Newer")
+        daemon.remember_course({"dir": "Older", "root": os.path.join(tmp, "Older")})
         check("a course named just now beats one used an hour ago",
-              tutor.last_board(cfg)["dir"] == "Older")
+              daemon.last_board(cfg)["dir"] == "Older")
         # ...but not for ever: an afternoon in another course is newer than a
         # name given last week.
         import json as _json
-        rec = _json.load(open(tutor.CHOSEN))
+        rec = _json.load(open(paths.CHOSEN))
         rec["at"] = 500
-        _json.dump(rec, open(tutor.CHOSEN, "w"))
+        _json.dump(rec, open(paths.CHOSEN, "w"))
         check("and an old name does not outrank a course worked in since",
-              tutor.last_board(cfg)["dir"] == "Newer")
+              daemon.last_board(cfg)["dir"] == "Newer")
         # A name pointing at something that is no longer there is ignored.
         _json.dump({"dir": "Deleted", "root": "/nowhere", "at": 9e9},
-                   open(tutor.CHOSEN, "w"))
+                   open(paths.CHOSEN, "w"))
         check("a name pointing at a course that no longer exists is ignored",
-              tutor.last_board(cfg)["dir"] == "Newer")
+              daemon.last_board(cfg)["dir"] == "Newer")
     finally:
         try:
-            os.remove(tutor.CHOSEN)      # back to "nothing has been named"
+            os.remove(paths.CHOSEN)      # back to "nothing has been named"
         except OSError:
             pass
 
@@ -141,13 +144,13 @@ try:
             return 0, "board up (pid 1)"
         return 0, ""
 
-    tutor.board = fake_board
-    tutor.sync = lambda root, quiet=False: calls["sync"].append(os.path.basename(root))
-    tutor.pull_vendor = lambda quiet=False: None
-    tutor.agent_live = lambda root: None
-    tutor.agent_start = lambda cfg, course, name: (
+    daemon.board = fake_board
+    gitsync.sync = lambda root, quiet=False: calls["sync"].append(os.path.basename(root))
+    relay.pull_vendor = lambda quiet=False: None
+    daemon.agent_live = lambda root: None
+    daemon.agent_start = lambda cfg, course, name: (
         calls["agent"].append(course["dir"]) or (0, "started"))
-    tutor.this_host = lambda: "mac-mini"
+    recipes.this_host = lambda: "mac-mini"
     was_slurm = os.environ.get("TUTOR_SLURM")
     os.environ["TUTOR_SLURM"] = "0"          # this machine is the Mac
 
@@ -173,7 +176,7 @@ try:
 
     # --- already serving here: the common case, and it must be cheap --------
     try:
-        os.remove(tutor.CHOSEN)
+        os.remove(paths.CHOSEN)
     except OSError:
         pass
     processes.board_is_running = lambda pid, root: True
@@ -296,7 +299,8 @@ print()
 # `agent.json` -- which is what a daemon killed with its state directory pulled
 # out from under it leaves -- took the whole restart down, every course after it
 # included. Found by wiping the boards while one was running.
-src_t = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+src_t = open(os.path.join(ROOT, "tutorboard", "runner", "watch.py"),
+             encoding="utf-8").read()
 check("a restart skips a record with no pid rather than dying on it",
       "if not was:" in src_t and '"%s (no pid in its record)"' in src_t)
 

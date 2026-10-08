@@ -262,7 +262,11 @@ check("asking about one provider is a different question from asking about the "
       "def egress_ok(timeout=12, urls=None, also=()):" in lib)
 
 # --- where it is used -------------------------------------------------------
-tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# The daemon's loop first, then the recipes, what a turn said, and the CLI.
+tutor_src = "".join(
+    open(os.path.join(ROOT, *p), encoding="utf-8").read()
+    for p in (("tutorboard", "runner", "loop.py"), ("tutorboard", "agents", "recipes.py"),
+              ("tutorboard", "agents", "usage.py"), ("bin", "tutor")))
 check("the tutor asks whether the MACHINE can get out only after a turn has "
       "actually failed -- a round trip in front of every card is a round trip "
       "the student waits for",
@@ -281,14 +285,14 @@ check("and that probe is bounded -- cached, skipped for a recipe already stood "
 check("and rotates when it is the network rather than the tutor",
       "egress.rotate_exit_node(" in tutor_src)
 check("and re-answers the message whose turn was lost, rather than waiting",
-      "pending = owe(out)" in tutor_src
-      and "pending = owed_message(live)" in tutor_src)
+      "pending = owe(ctx, out)" in tutor_src
+      and "pending = daemon.owed_message(live)" in tutor_src)
 check("and says so on the record, because a board that reads `retrying` false "
       "tells the student to send again behind a turn the daemon is taking",
       'last_error="cannot reach %s" % host,' in tutor_src
       and"""last_error="cannot reach %s" % host,
-                            failed_at=time.time(), failed_agent=agent_name,
-                            retrying=True)""" in tutor_src)
+                               failed_at=time.time(), failed_agent=ctx.agent_name,
+                               retrying=True)""" in tutor_src)
 check("and says plainly when it could not repair it",
       "turns will keep " in tutor_src)
 
@@ -302,7 +306,7 @@ check("and `agent_unavailable` reads that finding rather than measuring it, "
       "since it runs under a poll several times a second",
       "egress.stood_down(name, now)" in tutor_src)
 check("a turn that goes through clears the mark",
-      "egress.clear_unreachable(agent_name)" in tutor_src)
+      "egress.clear_unreachable(ctx.agent_name)" in tutor_src)
 check("and the agent's own verdict is what the board reports, not `exit 1`",
       "def result_object_error(" in tutor_src and
       "said = result_object_error(text)" in tutor_src)
@@ -319,15 +323,11 @@ check("and doctor says so, since an exit node is invisible until it is not",
 # `bin/tutor` proves the call site is spelt right and nothing whatever about
 # what it does. So the function is loaded and driven, with `egress_ok` stubbed:
 # the network is never touched and every branch that matters is.
-import importlib.machinery                                      # noqa: E402
-import importlib.util                                           # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader(
-    "tutor_probe", os.path.join(ROOT, "bin", "tutor"))
-tspec = importlib.util.spec_from_loader("tutor_probe", loader)
-tutor = importlib.util.module_from_spec(tspec)
-sys.modules["tutor_probe"] = tutor
-loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import loop as runloop  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 # Both run under this interpreter, which `missing_command` always counts as
 # installed: the climb-down below must not depend on which assistants this
@@ -352,26 +352,26 @@ def answering(what):
 # THE MACHINE-WIDE PROBE ASKS AFTER EVERY CONFIGURED PROVIDER, and only those:
 # a recipe whose command is here and whose key is in `keys.env`.
 from tutorboard import keys as _keys                            # noqa: E402
-was_unkeyed, was_missing = _keys.unkeyed, tutor.missing_command
+was_unkeyed, was_missing = _keys.unkeyed, recipes.missing_command
 _keys.unkeyed = lambda spec: None
-tutor.missing_command = lambda cmd: None
+recipes.missing_command = lambda cmd: None
 check("the providers this machine can run add their own endpoints",
-      tutor.provider_probe_urls(CFG)
+      recipes.provider_probe_urls(CFG)
       == ["https://api.deepseek.test/v1/chat/completions"])
 check("Codex names its own host, so a filter on it is asked after",
-      tutor.agent_probe_urls(tutor.DEFAULT_CONFIG["agents"]["codex"])
+      recipes.agent_probe_urls(recipes.DEFAULT_CONFIG["agents"]["codex"])
       == ["https://chatgpt.com/backend-api/codex/responses"])
 _keys.unkeyed = lambda spec: "A_KEY"
 check("and one whose key is not here adds none",
-      tutor.provider_probe_urls(CFG) == [])
+      recipes.provider_probe_urls(CFG) == [])
 _keys.unkeyed = was_unkeyed
-tutor.missing_command = was_missing
+recipes.missing_command = was_missing
 
 was_ok = egress.egress_ok
 egress.egress_ok = answering("api.deepseek.test")
 egress.clear_unreachable("deepseek")
-tutor._PROBED.clear()
-host = tutor.probe_before_turn(CFG, "deepseek")
+recipes._PROBED.clear()
+host = recipes.probe_before_turn(CFG, "deepseek")
 check("a recipe with a provider of its own is asked about BEFORE the turn, and "
       "the answer is the host that went dark",
       host == "api.deepseek.test")
@@ -380,32 +380,32 @@ check("and the finding is written down, so `choose_agent` can climb down "
       (egress.stood_down("deepseek") or {}).get("host") == "api.deepseek.test")
 check("and the climb-down actually happens: the next turn goes to something "
       "that can take it, and the reason comes back with it",
-      tutor.choose_agent(CFG, "deepseek")[0] == "claude"
-      and "api.deepseek.test" in (tutor.choose_agent(CFG, "deepseek")[1] or ""))
+      recipes.choose_agent(CFG, "deepseek")[0] == "claude"
+      and "api.deepseek.test" in (recipes.choose_agent(CFG, "deepseek")[1] or ""))
 before = len(asked)
 check("a provider already stood down is not asked again -- the record is the "
       "answer, and a round trip to re-learn it is a round trip a student waits "
-      "for", tutor.probe_before_turn(CFG, "deepseek") is None
+      "for", recipes.probe_before_turn(CFG, "deepseek") is None
       and len(asked) == before)
 egress.clear_unreachable("deepseek")
-tutor._PROBED.clear()
-tutor.probe_before_turn(CFG, "deepseek")
+recipes._PROBED.clear()
+recipes.probe_before_turn(CFG, "deepseek")
 before = len(asked)
 check("and the answer stands for PROBE_TTL, so a sitting cannot make the "
       "daemon probe once a turn",
-      tutor.probe_before_turn(CFG, "deepseek") is None and len(asked) == before)
-tutor._PROBED.clear()
+      recipes.probe_before_turn(CFG, "deepseek") is None and len(asked) == before)
+recipes._PROBED.clear()
 egress.clear_unreachable("claude")
 check("a recipe that talks to the machine's own provider is not probed at all, "
       "because the machine-wide probe on the failure path already answers for "
-      "it", tutor.probe_before_turn(CFG, "claude") is None
+      "it", recipes.probe_before_turn(CFG, "claude") is None
       and egress.stood_down("claude") is None)
 egress.egress_ok = lambda timeout=12, urls=None, also=(): False
 egress.clear_unreachable("deepseek")
-tutor._PROBED.clear()
+recipes._PROBED.clear()
 check("and a machine with no egress at all is not this provider's fault, so "
       "nothing is stood down for it",
-      tutor.probe_before_turn(CFG, "deepseek") is None
+      recipes.probe_before_turn(CFG, "deepseek") is None
       and egress.stood_down("deepseek") is None)
 egress.egress_ok = was_ok
 egress.clear_unreachable("deepseek")
@@ -429,26 +429,26 @@ check("and the swap is on the record the board reads, rather than only in the "
 # long as the record between the daemon starting and its first turn.
 egress.egress_ok = answering("api.deepseek.test")
 egress.clear_unreachable("deepseek")
-tutor._PROBED.clear()
-tutor.probe_before_turn(CFG, "deepseek")
-was_load, was_resolve = tutor.load_config, tutor.resolve_agent
-tutor.load_config = lambda: CFG
-tutor.resolve_agent = lambda cfg, course, *a, **k: "deepseek"
+recipes._PROBED.clear()
+recipes.probe_before_turn(CFG, "deepseek")
+was_load, was_resolve = recipes.load_config, recipes.resolve_agent
+recipes.load_config = lambda: CFG
+recipes.resolve_agent = lambda cfg, course, *a, **k: "deepseek"
 workspace = os.path.join(sandbox, "Galois-Theory")
 os.makedirs(workspace, exist_ok=True)
-_, took, _, why = tutor.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
+_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
 check("a sitting taught by somebody other than the provider it asks for says "
       "so on EVERY turn, not only on the turn that moved -- the student chose "
       "deepseek, claude is teaching, and a name that changed silently is a "
       "question rather than an answer",
       took == "claude" and why and "deepseek" in why
       and "api.deepseek.test" in why)
-tutor.resolve_agent = lambda cfg, course, *a, **k: "claude"
-_, took, _, why = tutor.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
+recipes.resolve_agent = lambda cfg, course, *a, **k: "claude"
+_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
 check("and it stops saying it when the sitting is getting what it asked for, "
       "because a board explaining a climb-down that climbed home is a board "
       "talking about the past", took == "claude" and why is None)
-tutor.load_config, tutor.resolve_agent = was_load, was_resolve
+recipes.load_config, recipes.resolve_agent = was_load, was_resolve
 egress.egress_ok = was_ok
 egress.clear_unreachable("deepseek")
 
@@ -461,38 +461,38 @@ egress.clear_unreachable("deepseek")
 owed_live = os.path.join(sandbox, "live-owed")
 os.makedirs(owed_live, exist_ok=True)
 check("a record with nothing owed on it owes nothing, and a missing one does "
-      "not raise", tutor.owed_message(owed_live) is None
-      and tutor.owed_message(os.path.join(sandbox, "nowhere")) is None)
-tutor.agent_state(owed_live, owed="[inbox] the student's working, handed in")
+      "not raise", daemon.owed_message(owed_live) is None
+      and daemon.owed_message(os.path.join(sandbox, "nowhere")) is None)
+daemon.agent_state(owed_live, owed="[inbox] the student's working, handed in")
 check("a message owed outlives the process that owed it, because it is on the "
       "filer rather than in a local",
-      tutor.owed_message(owed_live) == "[inbox] the student's working, handed in")
-tutor.agent_state(owed_live, owed=None)
+      daemon.owed_message(owed_live) == "[inbox] the student's working, handed in")
+daemon.agent_state(owed_live, owed=None)
 check("and answering it settles the debt, so the next daemon does not teach "
-      "the same message twice", tutor.owed_message(owed_live) is None)
+      "the same message twice", daemon.owed_message(owed_live) is None)
 check("and the debt is taken on when the message is TAKEN rather than when a "
       "turn fails, since a daemon signalled mid-turn never reaches the failure "
       "path at all",
-      tutor_src.index("        owe(out)\n        turns += 1") > 0)
+      tutor_src.index("    owe(ctx, out)\n    ctx.turns += 1") > 0)
 check("and every path out of a turn settles it once, off what the turn left "
       "owed, rather than every path having to remember to",
-      "        owe(pending)\n" in tutor_src)
+      "    owe(ctx, pending)\n" in tutor_src)
 
 # --- and the last thing a daemon writes does not land on its successor ------
 own_live = os.path.join(sandbox, "live-own")
 os.makedirs(own_live, exist_ok=True)
 check("a record nobody has claimed is this process's to write",
-      tutor.record_is_ours(own_live))
-tutor.agent_state(own_live, pid=os.getpid())
-check("and so is one naming this process", tutor.record_is_ours(own_live))
-tutor.agent_state(own_live, pid=os.getpid() + 1)
+      daemon.record_is_ours(own_live))
+daemon.agent_state(own_live, pid=os.getpid())
+check("and so is one naming this process", daemon.record_is_ours(own_live))
+daemon.agent_state(own_live, pid=os.getpid() + 1)
 check("but a record naming somebody else is not, which is what stops an "
       "exiting daemon stamping `stopped` on the successor that replaced it -- "
       "`supervise.tutor_verdict` reads that as a person saying no and never "
-      "revives it", not tutor.record_is_ours(own_live))
+      "revives it", not daemon.record_is_ours(own_live))
 check("and the exit write is the one guarded by it",
-      "if record_is_ours(live):" in tutor_src
-      and tutor_src.index("if record_is_ours(live):")
+      "if daemon.record_is_ours(live):" in tutor_src
+      and tutor_src.index("if daemon.record_is_ours(live):")
       < tutor_src.index('agent_state(live, state="stopped", stopped_at='))
 
 # --- the wrap-up runs as whoever can write it -------------------------------
@@ -502,20 +502,20 @@ check("and the exit write is the one guarded by it",
 # a session whose last turn stood its provider down never takes another.
 check("the handoff re-asks who writes it instead of inheriting the recipe the "
       "last turn failed on",
-      "stuck = agent_unavailable(cfg, agent_name)" in tutor_src
+      "stuck = recipes.agent_unavailable(ctx.cfg, ctx.agent_name)" in tutor_src
       and tutor_src.index("the handoff goes to")
-      < tutor_src.index("wrap = spec.get(\"handoff\")"))
+      < tutor_src.index("wrap = ctx.spec.get(\"handoff\")"))
 check("and it rebinds the recipe, not just the name -- the environment is what "
       "pointed the binary at the dead host",
       "spec = cfg[\"agents\"].get(took) or {}" in tutor_src)
 check("and it is skipped rather than spent when nothing here can write one",
-      "if turns and not stuck:" in tutor_src
+      "if ctx.turns and not stuck:" in tutor_src
       and "no handoff was attempted" in tutor_src)
 
 # --- what the board is given to say it with ---------------------------------
 check("the chooser is told which providers cannot take a turn right now, so a "
       "dark one is not drawn as a live button",
-      '"unavailable": agent_unavailable(cfg, n),' in tutor_src)
+      '"unavailable": recipes.agent_unavailable(cfg, n),' in tutor_src)
 state_src = open(os.path.join(ROOT, "tutorboard", "lesson", "state.py"),
                  encoding="utf-8").read()
 check("and the lesson payload carries the stand-down itself -- the host and "
@@ -541,7 +541,7 @@ check("the chooser dims it and says why on the tap",
 #     word for, rather than the exit code computed over the top of it ---------
 check("`no egress` survives to the record instead of being recomputed as "
       "`exit 1`, which is the one case `failWord` has a sentence for",
-      "why = \"no egress\" if dark_machine else failure_reason(said, err)" in tutor_src)
+      "why = \"no egress\" if dark_machine else usage.failure_reason(said, err)" in tutor_src)
 
 # --- a failing turn whose result object is long is still a failing turn ------
 long_line = json.dumps({"type": "result", "is_error": True,
@@ -549,11 +549,11 @@ long_line = json.dumps({"type": "result", "is_error": True,
 logfile = os.path.join(sandbox, "agent.log")
 with open(logfile, "w", encoding="utf-8") as fh:
     fh.write("chatter\n" * 200 + long_line + "\n")
-said = tutor.turn_output(logfile, 0)
+said = usage.turn_output(logfile, 0)
 check("a result object longer than the 20 KB tail is read WHOLE, because "
       "`is_error` is written before `result` and a front cut loses the verdict "
       "before it loses the sentence",
-      tutor.result_object_error(said) == json.loads(long_line)["result"])
+      usage.result_object_error(said) == json.loads(long_line)["result"])
 check("and the tail is still a tail -- the whole log is not read back into "
       "memory to find one line", len(said) < len(long_line) + 40000)
 

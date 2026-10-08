@@ -116,10 +116,7 @@ check("nor the userspace daemon's one-node claim",
       "def ts_check_owner(" not in board_src and "def ts_claim(" not in board_src)
 
 # --- the launcher and the board must agree ----------------------------------
-loader = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutorcli", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.agents import recipes  # noqa: E402
 
 bloader = importlib.machinery.SourceFileLoader("boardcli", os.path.join(ROOT, "bin", "board"))
 bspec = importlib.util.spec_from_loader("boardcli", bloader)
@@ -127,7 +124,7 @@ board = importlib.util.module_from_spec(bspec)
 bloader.exec_module(board)
 
 check("the launcher and the board call this machine the same thing",
-      tutor.this_host() == board.this_node() == machine.node_name())
+      recipes.this_host() == board.this_node() == machine.node_name())
 
 # --- setting the cluster up ------------------------------------------------------
 # `scripts/setup-cluster.sh` replaces the compute-node setup: no board and no

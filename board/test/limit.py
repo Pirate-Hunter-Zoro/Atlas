@@ -201,7 +201,9 @@ check("and a turn going through clears it", limits.limited_until() == 0)
 
 # ---- what the tutor does about it ------------------------------------------
 
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# The daemon's loop, and the record it owes a message into.
+src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f), encoding="utf-8").read()
+              for f in ("loop.py", "daemon.py"))
 
 check("a limit is asked about before the network is blamed -- the turn itself "
       "answered that one, and a provider that could say so is a provider we "
@@ -209,26 +211,26 @@ check("a limit is asked about before the network is blamed -- the turn itself "
       src.index("reads_as_usage_limit")
       < src.index("if not egress.egress_ok(also="))
 check("the machine is marked, which is what /health then publishes",
-      "limits.mark_limited(until, agent=agent_name)" in src)
+      "limits.mark_limited(until, agent=ctx.agent_name)" in src)
 check("the message whose turn was lost is carried, not dropped -- and to "
       "DISK, because the daemon holding it is the thing most likely to be "
       "signalled next",
-      "pending = owe(out)" in src and "def owe(msg):" in src
-      and "agent_state(live, owed=msg or None)" in src)
+      "pending = owe(ctx, out)" in src and "def owe(ctx, msg):" in src
+      and "agent_state(ctx.live, owed=msg or None)" in src)
 check("and the daemon that comes up after it drains what was owed, rather than "
       "blocking for ever on an inbox line `board wait` has already marked read",
-      "pending = owed_message(live)" in src and "def owed_message(live):" in src)
+      "pending = daemon.owed_message(live)" in src and "def owed_message(live):" in src)
 check("and the board is told the daemon is retrying, so it does not advise "
       "sending the same work again behind a turn already queued",
       "limited=until, retrying=True)" in src)
 check("and then the next turn climbs down to whoever can take it, which is "
       "the whole reason to have three",
-      "nxt, _ = choose_agent(load_config(), agent_name)" in src)
+      "nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)" in src)
 check("and where there is nobody to climb down to it says so and goes on "
       "failing where that is visible, which is what one tutor always did",
       "nothing else here can take it" in src)
 check("a turn that goes through proves THAT agent's allowance, not the "
-      "machine's", "limits.clear_limited(agent_name)" in src)
+      "machine's", "limits.clear_limited(ctx.agent_name)" in src)
 check("the handoff is still attempted, because it is the only continuity there "
       "is", "is a session the next one has to reconstruct" in src)
 

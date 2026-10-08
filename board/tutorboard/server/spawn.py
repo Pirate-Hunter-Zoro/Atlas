@@ -91,7 +91,7 @@ def tutor_cli(args, timeout=30):
 def configured_agent(where):
     """Which assistant that workspace runs when nobody names one, or "".
 
-    ASKED, NOT WORKED OUT HERE. `resolve_agent` in `bin/tutor` is the one place
+    ASKED, NOT WORKED OUT HERE. `resolve_agent` in `agents/recipes.py` is the one place
     the five layers live -- this once, this sitting, this workspace, this
     machine, the default -- and a copy of them in the server is a copy that
     drifts the first time either moves. `where` is the workspace directory the

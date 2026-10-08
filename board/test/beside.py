@@ -13,9 +13,6 @@ nobody watching what it does to git.
 
 Everything here runs the code that ships, against real git repositories.
 """
-
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -31,11 +28,7 @@ from tutorboard import worktree                              # noqa: E402
 from tutorboard.course import repo as course_repo            # noqa: E402
 from tutorboard.lesson import git as lesson_git              # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader(
-    "tutorcli", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutorcli", loader)
-tutorcli = importlib.util.module_from_spec(spec)
-loader.exec_module(tutorcli)
+from tutorboard import gitsync  # noqa: E402
 
 fails = []
 
@@ -141,7 +134,7 @@ try:
 
     # `sync`, which fast-forwards a course as a session opens, is the same rule.
     check("opening a session does not fast-forward over an operation either",
-          tutorcli.sync(busy, quiet=True) is False)
+          gitsync.sync(busy, quiet=True) is False)
     _, after = git(busy, "rev-parse", "HEAD")
     check("so HEAD is exactly where the person left it", before == after)
 

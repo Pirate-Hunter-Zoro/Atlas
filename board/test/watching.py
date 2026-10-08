@@ -13,8 +13,6 @@ flight, and must not resurrect a two-day-old record it found lying about.
 """
 
 
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -26,10 +24,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import watch as runwatch  # noqa: E402
+from tutorboard import stamp  # noqa: E402
+from tutorboard.net import tailscale  # noqa: E402
 
 from tutorboard import choice, machine, paths, processes, supervise
 
@@ -49,11 +48,10 @@ conf = tempfile.mkdtemp(prefix="tutor-watching-conf-")
 state = tempfile.mkdtemp(prefix="tutor-watching-state-")
 # Nothing here may write the real state directory: `watch.json` and the stop
 # flag drive a live watch loop, and a test that wrote them would stand it down.
-tutor.CONFIG_DIR = conf
+recipes.CONFIG_DIR = conf
 paths.CONFIG_DIR = conf
 paths.CONFIG = os.path.join(conf, "config.json")
 paths.CHOSEN = os.path.join(conf, "chosen.json")
-tutor.CHOSEN = paths.CHOSEN
 paths.STATE_DIR = state
 supervise.WATCH = os.path.join(state, "watch.json")
 supervise.STOP = os.path.join(state, "watch-stopped")
@@ -205,22 +203,22 @@ try:
 
     alive = {101, 102, 202}          # DeadBoard's board pid is not in here
 
-    tutor.board = fake_board
-    tutor.agent_start = fake_agent_start
+    daemon.board = fake_board
+    daemon.agent_start = fake_agent_start
     processes.board_is_running = lambda pid, root: pid in alive
     processes.pid_alive = lambda pid, needle=None: pid in alive
     supervise.answering = lambda port, timeout=3.0: True
     machine.slurm_nodes = lambda: {HOST, HOST + "b"}
     # The tailnet link is up and the address points at a board that answers,
     # unless a case below says otherwise.
-    tutor.tailscale.daemon_running = lambda: True
+    tailscale.daemon_running = lambda: True
     # No code stamp, so the ship beat is inert in every pass that is not about
     # it; the one section that is sets a tree and puts this back. `test/shipped.py`
     # is the beat's own suite.
-    tutor.stamp.tree = lambda tool=None: None
+    stamp.tree = lambda tool=None: None
 
     memo = {}
-    did = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    did = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
 
     check("the dead board is started, and the live one is not touched",
           ("DeadBoard", "start") in calls["board"]
@@ -241,13 +239,13 @@ try:
     calls["board"] = []
     memo = {}
     for _ in range(6):
-        tutor.watch_once(cfg, HOST, memo, lambda line: None)
+        runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("a board that is hung again straight after a clean start waits out "
           "the backoff rather than being restarted every other pass",
           calls["board"].count(("Up", "start")) == 1
           and memo["Up"]["board_tries"] >= 1)
     supervise.answering = lambda port, timeout=3.0: True
-    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("and the count clears once it answers",
           memo["Up"]["board_tries"] == 0)
 
@@ -259,22 +257,22 @@ try:
         return [l for l in said if "the address was offered to" in l]
 
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("with the link up and the address on a board that answers, the loop "
           "leaves the address alone",
           not addr_lines(said))
-    tutor.tailscale.daemon_running = lambda: False
+    tailscale.daemon_running = lambda: False
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("with no link on this node the address is offered to a board, even "
           "though no board needed starting",
           len(addr_lines(said)) == 1)
     # And it backs off like every other repair, so a node that cannot link does
     # not spend seven days trying every twenty seconds.
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("and a link that will not come up is not retried on the next pass",
           not addr_lines(said))
-    tutor.tailscale.daemon_running = lambda: True
+    tailscale.daemon_running = lambda: True
 
     # WHICH COURSE THE ONE ADDRESS IS FOR, which is the other half of keeping it
     # alive and the half that was wrong. Reported in the words it happened in:
@@ -302,7 +300,7 @@ try:
     holding["port"] = "9006"          # the name has ended up on the other board
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("a board that answers is not the test: the address on a course nobody "
           "chose is a fault, even though the glass is not white",
           any("nobody chose" in l for l in said))
@@ -321,14 +319,14 @@ try:
     supervise.answering = lambda port, timeout=3.0: int(port) != 9001
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("the name is not pulled off a board that answers and onto the chosen "
           "course's own board that does not",
           not served("Up"))
     check("and standing still is said out loud, because a watchdog that holds "
           "the wrong course silently is the first fault wearing the other coat",
           any("left where it is" in l for l in said))
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("said on the way in and not once every pass for as long as it lasts",
           not any("left where it is" in l for l in said))
     # AND A PASS WITH NO BOARD UP HERE IS NOT THE STATE ENDING. An empty `here`
@@ -337,9 +335,9 @@ try:
     # the way back in, for the rest of the episode.
     running = processes.board_is_running
     processes.board_is_running = lambda pid, root: False
-    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     processes.board_is_running = running
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("and said again after a pass with nothing up here at all, which is "
           "the state being left rather than the state ending",
           any("left where it is" in l for l in said))
@@ -352,7 +350,7 @@ try:
     refuses["serve"] = True
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("a claim the tailnet refused is reported as refused, not as the "
           "address being back where it belongs",
           served("Up") and any("would not go through" in l for l in said)
@@ -362,7 +360,7 @@ try:
     holding["port"] = "9001"          # back on Up, which is the chosen course
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("with the address on the chosen course's own board, nothing is claimed",
           not served("Up") and "Up" not in calls["link"]
           and not addr_lines(said))
@@ -374,7 +372,7 @@ try:
     holding["port"] = "9006"
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("with no choice standing, the alphabet does not get to move the "
           "address off a board that is answering",
           not served("Alongside") and not served("Up")
@@ -388,7 +386,7 @@ try:
     holding["port"] = "9098"
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("with nobody having chosen, a leftover holding the name is left "
           "holding it rather than traded for whichever course sorts first",
           not served("Alongside") and not served("Up")
@@ -400,7 +398,7 @@ try:
     choice.remember_chosen("Up", os.path.join(tmp, "Up"))
     calls["board"], calls["link"] = [], []
     memo = {}
-    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    said = runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("and a choice standing takes the name off the leftover, onto the "
           "board a record here actually names",
           served("Up") and any("nobody chose" in l for l in said))
@@ -410,7 +408,7 @@ try:
     choice.remember_chosen("Elsewhere", os.path.join(tmp, "Elsewhere"))
     calls["board"], calls["link"] = [], []
     memo = {}
-    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("and a choice whose board is on another node is not this node's to "
           "honour either",
           not served("Alongside") and not served("Up")
@@ -440,11 +438,11 @@ try:
         calls["board"].append((os.path.basename(root), args[0]))
         return 1, "port 9002 was busy"
 
-    tutor.board = failing_board
+    daemon.board = failing_board
     memo = {}
-    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     first = len([c for c in calls["board"] if c[0] == "DeadBoard"])
-    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     second = len([c for c in calls["board"] if c[0] == "DeadBoard"])
     check("a repair that failed is not tried again immediately",
           first >= 1 and second == first)
@@ -452,11 +450,11 @@ try:
     # A wedged board -- alive, holding its port, answering nothing -- has to be
     # stopped before it is started, or the new one cannot have the port.
     calls["board"] = []
-    tutor.board = fake_board
+    daemon.board = fake_board
     supervise.answering = lambda port, timeout=3.0: False
     memo = {}
     for _ in range(supervise.HEALTH_MISSES):
-        tutor.watch_once(cfg, HOST, memo, lambda line: None)
+        runwatch.watch_once(cfg, HOST, memo, lambda line: None)
     check("a wedged board is stopped and then started, in that order",
           calls["board"].index(("Up", "stop")) < calls["board"].index(("Up", "start")))
     supervise.answering = lambda port, timeout=3.0: True
@@ -472,7 +470,7 @@ try:
     make_workspace("ShippedThere", board={"node": HOST + "b", "pid": 702,
                                           "port": 9008, "code": "OLD"})
     alive.update({701, 702})
-    real_board = tutor.board
+    real_board = daemon.board
 
     def shipping_board(root, *args):
         got = real_board(root, *args)
@@ -484,22 +482,22 @@ try:
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump(rec, fh)
         return got
-    tutor.board = shipping_board
-    tutor.stamp.tree = lambda tool=None: "T"
-    tutor.stamp.blocked = lambda tool=None: None
-    tutor.stamp.imports = lambda tool=None, timeout=30: (True, "")
-    tutor.stamp.LOCK = os.path.join(state, "restart.lock")
-    real_lock = tutor.stamp.restart_lock
-    tutor.stamp.restart_lock = (lambda wait=True, path=None:
+    daemon.board = shipping_board
+    stamp.tree = lambda tool=None: "T"
+    stamp.blocked = lambda tool=None: None
+    stamp.imports = lambda tool=None, timeout=30: (True, "")
+    stamp.LOCK = os.path.join(state, "restart.lock")
+    real_lock = stamp.restart_lock
+    stamp.restart_lock = (lambda wait=True, path=None:
                                 real_lock(wait, os.path.join(state, "restart.lock")))
     # Nothing here may signal or spawn: the tutors in these workspaces are
     # fixtures, and their pids are somebody's real processes.
-    real_live, real_host = tutor.agent_live, tutor.this_host
-    tutor.agent_live = lambda root: None
-    tutor.this_host = lambda: HOST
+    real_live, real_host = daemon.agent_live, recipes.this_host
+    daemon.agent_live = lambda root: None
+    recipes.this_host = lambda: HOST
     calls["board"], calls["link"] = [], []
-    said = tutor.watch_once(cfg, HOST, {}, lambda line: None)
-    tutor.agent_live, tutor.this_host = real_live, real_host
+    said = runwatch.watch_once(cfg, HOST, {}, lambda line: None)
+    daemon.agent_live, recipes.this_host = real_live, real_host
     check("a board whose stamp is not the tree's is restarted by one pass of "
           "the watch on its own node",
           ("Shipped", "stop") in calls["board"]
@@ -508,15 +506,16 @@ try:
     check("and a board on another node is not touched by this node's pass",
           not any(w == "ShippedThere" and act in ("stop", "start")
                   for w, act in calls["board"]))
-    tutor.board = real_board
-    tutor.stamp.tree = lambda tool=None: None
-    tutor.stamp.restart_lock = real_lock
+    daemon.board = real_board
+    stamp.tree = lambda tool=None: None
+    stamp.restart_lock = real_lock
     for w in ("Shipped", "ShippedThere"):
         shutil.rmtree(os.path.join(tmp, w), ignore_errors=True)
     alive.difference_update({701, 702})
 
     # --- `tutor down`, which hands a machine's boards over ---
-    src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+    src_tutor = open(os.path.join(ROOT, "tutorboard", "runner", "watch.py"),
+                     encoding="utf-8").read()
     check("`tutor down` exists to be the other half of `tutor resume`, and it "
           "waits for the handoff rather than dropping the lesson",
           "def cmd_down(" in src_tutor and "agent_stop(c, wait=True)" in src_tutor)

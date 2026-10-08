@@ -702,7 +702,7 @@ def relay_sense(root, rec):
 # a failed relay job: repaired on the Mac
 # ---------------------------------------------------------------------------
 # A FAILED RECIPE WAKES A `[repair]` TURN ON THE MAC, a doing turn whatever the
-# workspace teaches under (`board brief`, `doing_now` in bin/tutor). It reads
+# workspace teaches under (`board brief`, `doing_now` in runner/turn.py). It reads
 # the report, the `RELAY:` lines its recipe's failure helper printed
 # (`slurm_jobs/lib/relay_trap.sh`), and the failing code, and then either
 # fixes it here -- check, `board push`, rerun through `board job --fixes` --

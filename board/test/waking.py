@@ -234,7 +234,8 @@ check("and past a hundred pages the order is still the order",
 print()
 print("-- and the launcher says so before it does anything slow --")
 
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+src = open(os.path.join(ROOT, "tutorboard", "runner", "daemon.py"),
+           encoding="utf-8").read()
 i = src.index("def agent_start(")
 start = src[i:src.index("def agent_stop(", i)]
 check("`agent_start` marks the course waking", "mark_waking(" in start)
@@ -243,6 +244,8 @@ check("and it does so before it forks anything",
 check("and the catch-up no longer happens inside the request that asked",
       "sync(root, quiet=True)" not in start)
 
+src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+           encoding="utf-8").read()
 j = src.index("def headless(")
 head = src[j:j + 4000]
 check("the daemon marks itself waking too, for a start nobody routed",
@@ -261,7 +264,6 @@ for mod in ("writing", "lesson"):
     check("handing work in through %s.py wakes a tutor" % mod,
           "spawn.wake_tutor(repo)" in routes)
 
-TUTOR = os.path.join(ROOT, "bin", "tutor")
 
 # ---------------------------------------------------------------------------
 # AN ABANDONED BOUNCE IS NOT A PERSON SAYING NO
@@ -312,9 +314,10 @@ check("while a person's own stop is still obeyed and never revived",
 
 # AND THE DAEMON'S EXIT LEAVES THE FLAG ALONE. The two halves above can only
 # stay true if nothing on the way out overwrites the asker's note, and that line
-# lives in `bin/tutor`, which has no `.py` on the end and cannot be imported.
-# Read as source, because a drift here is silent and costs a whole evening.
-src = open(TUTOR, encoding="utf-8").read()
+# lives in the daemon's loop. Read as source, because a drift here is silent
+# and costs a whole evening.
+src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+           encoding="utf-8").read()
 exit_line = [l for l in src.splitlines()
              if 'agent_state(live, state="stopped"' in l]
 check("the daemon writes exactly one exit record", len(exit_line) == 1)
@@ -329,22 +332,16 @@ check("and it does not claim to know whether a restart was asked for",
 # which starts the workspace's configured assistant over whoever was
 # deliberately put there. A start is what answers a handover, so a start is
 # what clears it, and `mark_waking` is the one line every path up goes through.
-import importlib.machinery                                      # noqa: E402
-import importlib.util                                           # noqa: E402
-
-_loader = importlib.machinery.SourceFileLoader("tutorcli_waking", TUTOR)
-_spec = importlib.util.spec_from_loader("tutorcli_waking", _loader)
-tutorcli = importlib.util.module_from_spec(_spec)
-_loader.exec_module(tutorcli)
+from tutorboard.runner import daemon                             # noqa: E402
 
 _live = tempfile.mkdtemp(prefix="handover-")
 with open(os.path.join(_live, "agent.json"), "w", encoding="utf-8") as fh:
     json.dump({"agent": "claude", "state": "stopped", "pid": 4321,
                "handover": "2026-09-20 10:00:00", "restarting": True}, fh)
-tutorcli.mark_waking(_live, "colibri")
+daemon.mark_waking(_live, "colibri")
 # What the daemon then leaves when the board stops it: `state: stopped` merged
 # over whatever is on disk, which is the exact record the watchdog reads.
-tutorcli.agent_state(_live, state="stopped", stopped_at=time.time())
+daemon.agent_state(_live, state="stopped", stopped_at=time.time())
 with open(os.path.join(_live, "agent.json"), encoding="utf-8") as fh:
     left = json.load(fh)
 check("a start clears the handover flag, so the stop that follows it reads as "
@@ -369,8 +366,10 @@ check("and the watchdog leaves that record alone instead of starting the "
 #
 # Reported: "Suddenly it says 'claude is restarting' - and I don't foresee that
 # finishing... what the hell happened?"
+src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f),
+                   encoding="utf-8").read() for f in ("watch.py", "daemon.py"))
 gave_up = src[src.index("        if not gone:"):]
-gave_up = gave_up[:gave_up.index("\n        code, msg = agent_start(")]
+gave_up = gave_up[:gave_up.index("\n        code, msg = daemon.agent_start(")]
 check("the branch that gives up waiting arranges the finish itself",
       "handed_off(" in gave_up)
 check("and it is a DETACHED process, because the restart is a CLI that exits "
@@ -381,7 +380,7 @@ finish = src[src.index("def finish_restart("):]
 finish = finish[:finish.index("\ndef ", 1)]
 check("the waiter starts the replacement the moment the turn ends, rather than "
       "at a fixed grace",
-      "if not agent_live(" in finish and "agent_start(" in finish)
+      "if not daemon.agent_live(" in finish and "agent_start(" in finish)
 check("and it waits far past anything measured before handing back to the "
       "watchdog, rather than giving up at the number that caused this",
       "FINISH_WAIT" in finish and int(

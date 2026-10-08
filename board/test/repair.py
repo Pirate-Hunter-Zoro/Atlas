@@ -22,9 +22,6 @@ What the checks are about:
 
 Synthetic workspaces only, plus a read of the real TRD-EHR failure 2110916.
 """
-
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shlex
@@ -67,10 +64,7 @@ def git(cwd, *args):
     return p.stdout.decode("utf-8", "replace")
 
 
-_loader = importlib.machinery.SourceFileLoader("tutorcli_repair", TUTOR)
-_spec = importlib.util.spec_from_loader("tutorcli_repair", _loader)
-tutorcli = importlib.util.module_from_spec(_spec)
-_loader.exec_module(tutorcli)
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 SWEEP = """#!/bin/bash
 #RELAY-VAR EMBEDDER [a-z0-9.-]{1,40}
@@ -151,7 +145,7 @@ try:
     check("a failed recipe wakes a repair: its line opens [repair], and "
           "turn_signal reads it so",
           jobs.repairs(ws, recs[ORIGIN]) and text.startswith("[repair] ")
-          and tutorcli.turn_signal("[2026-10-02 22:20:00] " + text)
+          and runturn.turn_signal("[2026-10-02 22:20:00] " + text)
           == "repair")
     check("it names the whole report to read, where it failed, and the recipe",
           "relay/reports/%s.json" % ORIGIN in text
@@ -330,12 +324,12 @@ try:
     check("and `last_repair` finds that request again",
           jobs.last_repair(ws) == ORIGIN)
     check("the workspace teaches, so its sitting is a teaching turn ...",
-          not tutorcli.doing_now(ws))
+          not runturn.doing_now(ws))
     CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
     check("... but the repair is a doing turn, on a doing turn's clock",
-          tutorcli.doing_now(ws, "repair")
-          and tutorcli.turn_timeout(CLOCK, ws, None, "repair") == 3600
-          and tutorcli.turn_timeout(CLOCK, ws, None, "job") == 900)
+          runturn.doing_now(ws, "repair")
+          and runturn.turn_timeout(CLOCK, ws, None, "repair") == 3600
+          and runturn.turn_timeout(CLOCK, ws, None, "job") == 900)
 
     def brief_now():
         p = subprocess.run([sys.executable, BOARD, "brief"], cwd=ws,
@@ -398,20 +392,20 @@ try:
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        timeout=120)
     batch = p.stdout.decode("utf-8", "replace")
-    signal, rids = tutorcli.woken_for(ws, batch)
+    signal, rids = runturn.woken_for(ws, batch)
     check("a batch whose first message is the student's, with two [repair] "
           "lines behind it: turn_signal reads the student's, woken_for reads "
           "repair and names both requests",
-          tutorcli.turn_signal(batch) == "" and signal == "repair"
+          runturn.turn_signal(batch) == "" and signal == "repair"
           and rids == [ORIGIN, SECOND["id"]])
     check("a signal with machinery of its own is kept, the repairs still named",
-          tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
+          runturn.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
                              "finished\n" + batch) == ("ship", rids))
     check("a revision ahead of a repair stays a revision, its own prompt and "
-          "session", tutorcli.woken_for(ws, "[2026-10-02 22:18:00] [revise] the "
+          "session", runturn.woken_for(ws, "[2026-10-02 22:18:00] [revise] the "
                                         "deck\n" + batch) == ("revise", rids))
     check("a batch with no [repair] in it is what turn_signal says",
-          tutorcli.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
+          runturn.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
     write(os.path.join(ws, "live", "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "ship", "turn_repairs": rids}))

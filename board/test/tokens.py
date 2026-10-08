@@ -14,8 +14,6 @@ one resends the whole conversation. Two things follow, and this file guards both
   twelve-card lesson card by card is twelve round trips for what fits in one.
 """
 
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -26,11 +24,12 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 BOARD = os.path.join(ROOT, "bin", "board")
+sys.path.insert(0, ROOT)
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 fails = []
 
@@ -44,8 +43,8 @@ def check(name, cond):
 
 
 # --- the prompts ----------------------------------------------------------
-first = tutor.HEADLESS_FIRST_PROMPT
-resume = tutor.HEADLESS_RESUME_PROMPT
+first = prompts.HEADLESS_FIRST_PROMPT
+resume = prompts.HEADLESS_RESUME_PROMPT
 
 check("a cold turn reads the standing rules in one call, not three documents",
       "board brief" in first and "board recap" in first)
@@ -78,53 +77,53 @@ for name, p in (("cold", first), ("resumed", resume)):
           "do not run `board inbox`" in p.lower())
 
 check("the handoff is capped, because it is read on every future session",
-      "350 words" in tutor.HANDOFF_PROMPT)
+      "350 words" in prompts.HANDOFF_PROMPT)
 check("and it is written through the one command that enforces the cap",
-      "board handoff" in tutor.HANDOFF_PROMPT)
+      "board handoff" in prompts.HANDOFF_PROMPT)
 check("the wrap-up reads the lesson back in one call, holding one turn only",
-      "board recap" in tutor.HANDOFF_PROMPT
-      and "file by file" in tutor.HANDOFF_PROMPT)
+      "board recap" in prompts.HANDOFF_PROMPT
+      and "file by file" in prompts.HANDOFF_PROMPT)
 # It used to be told not to re-read the lesson at all, because it ran on a
 # session that had taught the whole of it. It does not any more -- a teaching
 # turn is its own session, so the wrap-up resumes onto the LAST turn and holds
 # one card. So the guarantee changed shape: it reads the lesson back, in one
 # call, and still reads none of the documents.
 check("the handoff turn reads no document to write itself",
-      "do not read ai_instructions.md" in tutor.HANDOFF_PROMPT.lower()
-      and "live/TEACHING.md" in tutor.HANDOFF_PROMPT
-      and "old HANDOFF.md" in tutor.HANDOFF_PROMPT)
+      "do not read ai_instructions.md" in prompts.HANDOFF_PROMPT.lower()
+      and "live/TEACHING.md" in prompts.HANDOFF_PROMPT
+      and "old HANDOFF.md" in prompts.HANDOFF_PROMPT)
 check("the handoff is not a documentation review either",
-      "Do not review" in tutor.HANDOFF_PROMPT)
+      "Do not review" in prompts.HANDOFF_PROMPT)
 
 # --- which session a turn runs in -----------------------------------------
 spec_claude = {"headless_first": ["claude", "-p", "{prompt}"],
                "headless": ["claude", "-p", "{prompt}", "--continue"]}
 
-use, template, fresh = tutor.turn_plan(spec_claude, 0, 12)
+use, template, fresh = runturn.turn_plan(spec_claude, 0, 12)
 check("with nothing to resume, a turn opens a session",
       fresh and "--continue" not in use and template is first)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 1, 12)
+use, template, fresh = runturn.turn_plan(spec_claude, 1, 12)
 check("with a session in hand it is resumed",
       not fresh and "--continue" in use and template is resume)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 11, 12)
+use, template, fresh = runturn.turn_plan(spec_claude, 11, 12)
 check("and stays resumed up to the limit", not fresh)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 12, 12)
+use, template, fresh = runturn.turn_plan(spec_claude, 12, 12)
 check("at the limit it starts fresh rather than carry twelve turns of history",
       fresh and "--continue" not in use and template is first)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 99, 0)
+use, template, fresh = runturn.turn_plan(spec_claude, 99, 0)
 check("session_turns 0 resumes for ever, which is what a flat rate wants",
       not fresh)
 
 # The default, and the whole point of the arrangement: every turn is its own
 # session, so what a turn holds does not grow with the lesson.
 check("the shipped default is one turn to a session",
-      tutor.DEFAULT_CONFIG["session_turns"] == 1)
+      recipes.DEFAULT_CONFIG["session_turns"] == 1)
 for carried in (1, 5, 40):
-    use, template, fresh = tutor.turn_plan(spec_claude, carried, 1)
+    use, template, fresh = runturn.turn_plan(spec_claude, carried, 1)
     check("with session_turns 1, turn %d is fresh and cold-prompted" % (carried + 1),
           fresh and "--continue" not in use and template is first)
 
@@ -133,25 +132,25 @@ for carried in (1, 5, 40):
 # name is an ordinary turn.
 spec_two = {"headless_first": ["x", "{prompt}"],
             "headless": ["x", "--continue", "{prompt}"]}
-use, template, fresh = tutor.turn_plan(spec_two, 0, 1, "unfinished")
+use, template, fresh = runturn.turn_plan(spec_two, 0, 1, "unfinished")
 check("an unfinished report continues the session that did the work",
       not fresh and "--continue" in use
-      and template is tutor.HEADLESS_UNFINISHED_PROMPT)
-use, template, fresh = tutor.turn_plan(spec_two, 0, 1, "carry")
+      and template is prompts.HEADLESS_UNFINISHED_PROMPT)
+use, template, fresh = runturn.turn_plan(spec_two, 0, 1, "carry")
 check("and a `[carry]` is no longer special: it is a fresh, cold turn",
       fresh and "--continue" not in use and template is first
-      and not hasattr(tutor, "HEADLESS_CARRY_PROMPT"))
+      and not hasattr(prompts, "HEADLESS_CARRY_PROMPT"))
 
 # An agent with no separate opening recipe must still work, and must not be
 # handed a resume prompt on a session it never opened.
-use, template, fresh = tutor.turn_plan({"headless": ["codex", "exec", "{prompt}"]}, 0, 12)
+use, template, fresh = runturn.turn_plan({"headless": ["codex", "exec", "{prompt}"]}, 0, 12)
 check("an agent with one recipe still gets the cold prompt on its first turn",
       fresh and template is first)
 
-check("the config carries a session length", "session_turns" in tutor.DEFAULT_CONFIG)
+check("the config carries a session length", "session_turns" in recipes.DEFAULT_CONFIG)
 check("and somewhere to say how big an allowance window is, without guessing",
-      "quota_tokens" in tutor.DEFAULT_CONFIG
-      and tutor.DEFAULT_CONFIG["quota_tokens"] is None)
+      "quota_tokens" in recipes.DEFAULT_CONFIG
+      and recipes.DEFAULT_CONFIG["quota_tokens"] is None)
 
 # --- the stance a repository declares --------------------------------------
 # `stance: do` is what a repository sets when it wants the work done rather than
@@ -162,8 +161,6 @@ check("and somewhere to say how big an allowance window is, without guessing",
 # of `math` or `code` used to sit beside it and carry a whole second method --
 # `code_sense` -- and a whole second interface. A stance is a paragraph appended
 # to the one method, which is why it is a line of configuration and not a mode.
-import importlib.machinery as _m  # noqa: E402
-import importlib.util as _u       # noqa: E402
 
 from tutorboard import sense as serve_mod                    # noqa: E402
 
@@ -416,22 +413,22 @@ finally:
 # A design whose whole justification is price has to be measured. These two
 # guard the measurement itself: the flag that makes the agent report, and the
 # parse of what it reports.
-claude = tutor.DEFAULT_CONFIG["agents"]["claude"]
+claude = recipes.DEFAULT_CONFIG["agents"]["claude"]
 check("the claude recipe says how to ask what a turn cost",
       claude.get("usage") == "claude-json" and claude.get("usage_args"))
 check("the flag is appended rather than written into the recipe, so a machine "
       "carrying an old copy of it still reports",
       "--output-format" not in claude["headless"]
-      and "--output-format" in tutor.with_usage(claude, claude["headless"]))
+      and "--output-format" in usage.with_usage(claude, claude["headless"]))
 check("and appending it twice does not repeat it",
-      tutor.with_usage(claude, tutor.with_usage(claude, claude["headless"]))
-      == tutor.with_usage(claude, claude["headless"]))
+      usage.with_usage(claude, usage.with_usage(claude, claude["headless"]))
+      == usage.with_usage(claude, claude["headless"]))
 check("an agent that reports nothing is simply not accounted for",
-      tutor.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
+      usage.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
 check("and `board cost` splits the evening by who taught it, because the "
       "reason to have three is to see which one it went on",
-      "by_agent.setdefault" in open(os.path.join(ROOT, "bin", "tutor"),
-                                    encoding="utf-8").read())
+      "by_agent.setdefault" in open(os.path.join(ROOT, "tutorboard", "agents",
+                                                 "usage.py"), encoding="utf-8").read())
 
 fd, logpath = tempfile.mkstemp(prefix="tutor-cost-", suffix=".log")
 try:
@@ -450,7 +447,7 @@ try:
             "modelUsage": {"claude-opus-5[1m]": {"costUSD": 0.371},
                            "claude-haiku-4-5-20251001": {"costUSD": 0.001}},
         }) + "\n")
-    u = tutor.read_turn_usage(logpath, offset, "claude-json")
+    u = usage.read_turn_usage(logpath, offset, "claude-json")
     check("a turn's own report is read back out of the log",
           u.get("usd") == 0.372 and u.get("requests") == 6)
     check("and the numbers that matter are the cumulative ones",
@@ -463,10 +460,10 @@ try:
     check("noise on the same stream does not break the parse",
           u.get("session") == "abc")
     check("an agent that reports nothing yields nothing rather than raising",
-          tutor.read_turn_usage(logpath, offset, None) == {})
+          usage.read_turn_usage(logpath, offset, None) == {})
     check("and a log with no report at all is not an error",
-          tutor.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
-          and tutor.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
+          usage.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
+          and usage.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
 
     # ---- WHAT A TURN COST, PER PROVIDER -----------------------------------
     #
@@ -476,31 +473,31 @@ try:
     # covering two thirds of the table the moment there were three of them.
     check("`usage` is a dispatch, so a provider is a parser added beside the "
           "others rather than a branch in the reader",
-          set(tutor.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
+          set(usage.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
     check("and a kind nobody wrote a parser for costs nothing rather than "
-          "raising", tutor.read_turn_usage(logpath, offset, "no-such-kind") == {})
+          "raising", usage.read_turn_usage(logpath, offset, "no-such-kind") == {})
 
     # A PROVIDER DRIVEN THROUGH SOMEBODY ELSE'S BINARY REPORTS THE TOKENS RIGHT
     # AND THE MONEY WRONG. The counts are the model's own; the prices compiled
     # into that binary are its vendor's. So the counts are kept and the dollars
     # are recomputed from the recipe's table.
-    DS = tutor.DEFAULT_CONFIG["agents"]["deepseek"]
+    DS = recipes.DEFAULT_CONFIG["agents"]["deepseek"]
     import calendar                                            # noqa: E402
     peak = calendar.timegm((2026, 9, 23, 2, 0, 0, 0, 0, 0))    # Wednesday 02:00
     off = calendar.timegm((2026, 9, 23, 12, 0, 0, 0, 0, 0))    # Wednesday 12:00
     weekend = calendar.timegm((2026, 9, 26, 2, 0, 0, 0, 0, 0))  # Saturday 02:00
     check("the provider's own peak window is open when it says it is",
-          tutor.at_peak_rate(DS["prices"], peak)
-          and not tutor.at_peak_rate(DS["prices"], off))
+          usage.at_peak_rate(DS["prices"], peak)
+          and not usage.at_peak_rate(DS["prices"], off))
     check("and its weekday rule is honoured, because it has one",
-          not tutor.at_peak_rate(DS["prices"], weekend))
+          not usage.at_peak_rate(DS["prices"], weekend))
     check("a table with no windows is charged at peak -- guessing the dear rate "
-          "cannot understate a bill", tutor.at_peak_rate({}, off))
+          "cannot understate a bill", usage.at_peak_rate({}, off))
 
     counts = {"tokens": 100000, "in": 50000, "out": 10000,
               "cache_write": 0, "cache_read": 40000}
-    dear = tutor.priced(counts, DS, peak)
-    cheap = tutor.priced(counts, DS, off)
+    dear = usage.priced(counts, DS, peak)
+    cheap = usage.priced(counts, DS, off)
     check("the dollars are computed here rather than believed from the JSON",
           abs(dear["usd"] - 0.02724) < 1e-6)
     check("off-peak is charged off-peak", abs(cheap["usd"] - dear["usd"] / 2) < 1e-6)
@@ -511,7 +508,7 @@ try:
     check("the token counts are untouched, because they are the model's own "
           "report and they are right",
           dear["tokens"] == 100000 and dear["cache_read"] == 40000)
-    bare = tutor.priced(counts, tutor.DEFAULT_CONFIG["agents"]["codex"])
+    bare = usage.priced(counts, recipes.DEFAULT_CONFIG["agents"]["codex"])
     check("and a provider with no price table records the tokens and NO dollar "
           "figure, which is honest rather than wrong",
           "usd" not in bare and "rate" not in bare)
@@ -528,7 +525,7 @@ try:
                                        "cached_input_tokens": n * 400,
                                        "output_tokens": n * 100}},
     }) for n in (1, 2, 3))
-    got = tutor.read_codex_usage(stream)
+    got = usage.read_codex_usage(stream)
     check("the last running total is the answer, not the sum of them",
           got["out"] == 300 and got["cache_read"] == 1200)
     check("and the cached half is not counted twice in the billed total",
@@ -536,7 +533,7 @@ try:
     check("round trips are counted, because the stream is where they are",
           got["requests"] == 3)
     check("a stream that reported nothing is nothing rather than a crash",
-          tutor.read_codex_usage("some plain output\n") == {})
+          usage.read_codex_usage("some plain output\n") == {})
 
     # AND THE SHAPE IT HAS NOW, which is not that one. Codex 0.156.1 emits no
     # `token_count` event at all: the numbers ride on `turn.completed` as a
@@ -557,7 +554,7 @@ try:
                               "output_tokens": 139,
                               "reasoning_output_tokens": 0}}),
     ])
-    got = tutor.read_codex_usage(now)
+    got = usage.read_codex_usage(now)
     check("the turn's own usage event is read, which is where the numbers are "
           "now", got["out"] == 139 and got["cache_read"] == 32512)
     check("and the cached half is still not billed twice",
@@ -566,13 +563,13 @@ try:
           "run made two shell calls and reported once",
           got["requests"] == 1)
     check("and the cache WRITE is carried now, because this shape reports one",
-          tutor.read_codex_usage(json.dumps(
+          usage.read_codex_usage(json.dumps(
               {"type": "turn.completed",
                "usage": {"input_tokens": 10, "cached_input_tokens": 4,
                          "cache_write_input_tokens": 6, "output_tokens": 2}}
           ))["cache_write"] == 6)
     check("two turns in one stream are summed, because each is its own bill",
-          tutor.read_codex_usage("\n".join(
+          usage.read_codex_usage("\n".join(
               json.dumps({"type": "turn.completed",
                           "usage": {"input_tokens": 100, "output_tokens": 10}})
               for _ in range(2)))["tokens"] == 220)

@@ -1080,7 +1080,7 @@ MAKE_SENSE = (
 
 # WHAT A REVISION TURN IS WOKEN WITH, and it names both files.
 #
-# The turn's own instructions are in `bin/tutor` (`HEADLESS_REVISE_PROMPT`) and
+# The turn's own instructions are in `runner/prompts/` (`HEADLESS_REVISE_PROMPT`) and
 # they say to read "the feedback file the text above names" -- this is that text.
 # Two paths, both of them found by `course/library.py` in the workspace rather
 # than built out of anything a browser sent.
@@ -1238,7 +1238,7 @@ def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
 #
 # A mission was set going in this workspace from a board somewhere else, told to
 # ship itself when it was done, and it is done. The turn's own instructions are
-# in `bin/tutor` (`HEADLESS_SHIP_PROMPT`); this is what it is being asked about.
+# in `runner/prompts/` (`HEADLESS_SHIP_PROMPT`); this is what it is being asked about.
 #
 # IT SAYS WHO DID THE WORK, because that is the whole reason this is a different
 # assistant from the one that did it. The local model is the only one allowed to

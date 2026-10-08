@@ -10,8 +10,6 @@ The daemon's own loop is not run here -- `headless` starts a board, binds a port
 and pushes a git branch -- so the wiring is read out of the file as source.
 """
 
-import importlib.machinery
-import importlib.util
 import os
 import shutil
 import sys
@@ -22,10 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-_spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(_spec)
-loader.exec_module(tutor)
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 fails = []
 
@@ -56,7 +51,7 @@ try:
     logpath = os.path.join(base, "turn.log")
     with open(logpath, "w", encoding="utf-8") as log:
         began = time.time()
-        rc, timed_out = tutor.run_turn([stub], base, log, 1)
+        rc, timed_out = runturn.run_turn([stub], base, log, 1)
     check("a turn that runs past its cap is cut, and says so rather than "
           "wearing an exit code",
           timed_out and time.time() - began < 30)
@@ -77,7 +72,7 @@ try:
 
     rc, timed_out = None, None
     with open(logpath, "a", encoding="utf-8") as log:
-        rc, timed_out = tutor.run_turn(
+        rc, timed_out = runturn.run_turn(
             [script(os.path.join(base, "quick"), 'exit 3\n')], base, log, 30)
     check("and a turn that ends on its own is reported by its code, with "
           "nothing cut", rc == 3 and not timed_out)
@@ -89,13 +84,15 @@ finally:
 # ---------------------------------------------------------------------------
 # B. the daemon runs every turn through `run_turn`, read as source
 # ---------------------------------------------------------------------------
-SRC = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-# The daemon's own body: `tutor doctor` runs turns through `run_turn` too.
-DAEMON = SRC.split("\ndef headless(")[1].split("\ndef ")[0]
+SRC = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+           encoding="utf-8").read()
+# The daemon's own body, which hands each message to `take_turn`; `tutor
+# doctor` runs turns through `run_turn` too.
+DAEMON = SRC.split("\ndef take_turn(")[1].split("\ndef ")[0]
 check("the daemon runs every turn through `run_turn`, including the retry, or "
       "one of the two paths leaves an orphan behind",
       SRC.count("tutor.run_turn") == 0
-      and DAEMON.count("= run_turn(") == 2
+      and DAEMON.count("= turn.run_turn(") == 2
       and "subprocess.run(cmd, cwd=root, stdout=log" not in
       SRC.split("def headless")[-1].split("handoff ===")[0])
 check("and there is no hop, no pick-up and no chain-gap wait left in it",

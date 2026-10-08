@@ -17,8 +17,6 @@
    at a time on the machine) and `private` (its cards must not reach a remote).
 """
 
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -34,10 +32,9 @@ sys.path.insert(0, ROOT)
 from tutorboard import atlas, colibri                        # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-tutor = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("tutor", loader))
-loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 fails = []
 
@@ -53,7 +50,7 @@ def check(name, cond):
 # ---------------------------------------------------------------------------
 # 1. Colibri is not a tutor recipe: it runs only as relay tasks
 # ---------------------------------------------------------------------------
-AGENTS = tutor.DEFAULT_CONFIG["agents"]
+AGENTS = recipes.DEFAULT_CONFIG["agents"]
 check("there is no colibri tutor recipe, nor aider, cursor or plain opencode",
       not any(n in AGENTS for n in ("colibri", "aider", "cursor", "opencode")))
 check("and the deepseek recipe stays", "deepseek" in AGENTS)
@@ -144,17 +141,17 @@ for where, st in ((teach, {"session": "lecture", "aim": "teach"}),
         json.dump(st, fh)
 
 check("a teaching turn's clock is unchanged for a hosted agent",
-      tutor.turn_timeout(CFG, teach, CFG["agents"]["claude"]) == 900)
+      runturn.turn_timeout(CFG, teach, CFG["agents"]["claude"]) == 900)
 check("and so is a doing turn's",
-      tutor.turn_timeout(CFG, doing, CFG["agents"]["claude"]) == 3600)
+      runturn.turn_timeout(CFG, doing, CFG["agents"]["claude"]) == 3600)
 check("a turn with no agent named at all is unchanged too",
-      tutor.turn_timeout(CFG, teach) == 900)
+      runturn.turn_timeout(CFG, teach) == 900)
 check("a colibri teaching turn gets the recipe's number, which is hours",
-      tutor.turn_timeout(CFG, teach, spec) == spec["timeout"] > 3600)
+      runturn.turn_timeout(CFG, teach, spec) == spec["timeout"] > 3600)
 check("and the recipe is a FLOOR, so a longer sitting still wins",
-      tutor.turn_timeout(dict(CFG, doing_timeout=99999), doing, spec) == 99999)
+      runturn.turn_timeout(dict(CFG, doing_timeout=99999), doing, spec) == 99999)
 check("a recipe with nonsense in the field does not break the clock",
-      tutor.turn_timeout(CFG, teach, {"timeout": "soon"}) == 900)
+      runturn.turn_timeout(CFG, teach, {"timeout": "soon"}) == 900)
 shutil.rmtree(teach, ignore_errors=True)
 shutil.rmtree(doing, ignore_errors=True)
 
@@ -458,29 +455,29 @@ def sitting(**kw):
 
 sitting(session="lecture")
 check("a sitting that names no assistant resolves exactly as it always did",
-      tutor.resolve_agent(R, course) == "claude")
+      recipes.resolve_agent(R, course) == "claude")
 
 sitting(session="lecture", agent="colibri")
 check("a sitting that names one beats the machine default",
-      tutor.resolve_agent(R, course) == "colibri")
+      recipes.resolve_agent(R, course) == "colibri")
 check("and it beats the workspace's own answer, because a choice made for an "
       "evening is not a statement about the repository",
-      tutor.resolve_agent(R, dict(course, agent="codex")) == "colibri")
+      recipes.resolve_agent(R, dict(course, agent="codex")) == "colibri")
 check("the command line still beats the sitting",
-      tutor.resolve_agent(R, course, "codex") == "codex")
+      recipes.resolve_agent(R, course, "codex") == "codex")
 
 sitting(session="lecture", agent="nonesuch")
 said = []
 check("a sitting asking for an assistant this machine has not got FALLS BACK "
       "rather than leaving the course with no tutor at all",
-      tutor.resolve_agent(R, course, say=said.append) == "claude")
+      recipes.resolve_agent(R, course, say=said.append) == "claude")
 check("and says so, once, where somebody can see it",
       any("nonesuch" in m for m in said))
 # The other layers still refuse, and must: a workspace naming an agent in
 # writing is a decision, and quietly using a different one would be worse.
 sitting(session="lecture")
 check("a WORKSPACE naming an agent that does not exist still refuses",
-      tutor.resolve_agent(R, dict(course, agent="nonesuch"),
+      recipes.resolve_agent(R, dict(course, agent="nonesuch"),
                           say=lambda m: None) is None)
 
 check("the name is validated as a name and nothing else, because the registry "
@@ -530,12 +527,12 @@ open(os.path.join(other, "AI_INSTRUCTIONS.md"), "w").close()
 RT = dict(R, courses_dir=tree)
 
 with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": tutor.this_host(), "agent": "colibri",
+    json.dump({"host": recipes.this_host(), "agent": "colibri",
                "state": "working", "pid": os.getpid(),
                "last_seen": time.time()}, fh)
 check("a colibri sitting already running somewhere else is found",
-      tutor.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
-code, msg = tutor.agent_start(RT, course, "colibri")
+      daemon.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
+code, msg = daemon.agent_start(RT, course, "colibri")
 check("and a second one is refused by name, saying which workspace holds it",
       code == 1 and "Elsewhere" in msg)
 check("and saying why, in the recipe's own words", "KV slot" in msg)
@@ -543,7 +540,7 @@ check("nothing was written on the way to refusing",
       not os.path.exists(os.path.join(live, "agent.json")))
 
 # A hosted agent is not affected by any of it.
-code, msg = tutor.agent_start(RT, course, "claude")
+code, msg = daemon.agent_start(RT, course, "claude")
 check("and the refusal is the recipe's, not the file's: a hosted agent opens "
       "beside it",
       code != 1 or "KV slot" not in msg)
@@ -556,12 +553,12 @@ with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as f
 check("a colibri sitting listening on ANOTHER node is found too, off the "
       "heartbeat, because the pid over there names a process table this "
       "machine cannot read",
-      tutor.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
+      daemon.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
 with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
     json.dump({"host": "compute999", "agent": "colibri", "state": "working",
                "pid": 4021421, "last_seen": time.time() - 100000}, fh)
 check("and one that stopped beating over there is not holding anything",
-      tutor.agent_held_elsewhere(RT, course, "colibri") is None)
+      daemon.agent_held_elsewhere(RT, course, "colibri") is None)
 os.remove(os.path.join(other, "live", "agent.json"))
 
 # And the cards. `git check-ignore` rather than a list of workspaces: the answer
@@ -572,26 +569,26 @@ os.makedirs(os.path.join(tracked, "live", "cards"))
 open(os.path.join(tracked, "AI_INSTRUCTIONS.md"), "w").close()
 subprocess.run(["git", "init", "-q", tracked], stdout=subprocess.DEVNULL)
 check("a workspace whose live/ is committed says so",
-      tutor.cards_are_tracked(tracked))
+      daemon.cards_are_tracked(tracked))
 with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
     fh.write("live/*\n!threads.json\n")
 check("and one that ignores live/ -- which is what the workspace holding `phi` "
       "does -- says so too",
-      not tutor.cards_are_tracked(tracked))
+      not daemon.cards_are_tracked(tracked))
 check("a directory that is not a repository at all refuses nobody",
-      not tutor.cards_are_tracked(git_tree + "-nothing"))
+      not daemon.cards_are_tracked(git_tree + "-nothing"))
 
 with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
     fh.write("# nothing\n")
 GT = dict(R, courses_dir=git_tree)
-code, msg = tutor.agent_start(GT, {"root": tracked, "dir": "Course",
+code, msg = daemon.agent_start(GT, {"root": tracked, "dir": "Course",
                                    "name": "Course"}, "colibri")
 check("so a colibri sitting refuses to open where its card would be pushed",
       code == 1 and "committed" in msg)
 check("and names the one line that changes it, rather than leaving it to be "
       "guessed at",
       ".gitignore" in msg)
-code, msg = tutor.agent_start(GT, {"root": tracked, "dir": "Course",
+code, msg = daemon.agent_start(GT, {"root": tracked, "dir": "Course",
                                    "name": "Course"}, "claude")
 check("while a hosted assistant opens there as it always has",
       "committed" not in msg)

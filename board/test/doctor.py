@@ -51,6 +51,10 @@ loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin",
 spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
+from tutorboard.agents import doctor as agentdoctor  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 fails = []
 
@@ -214,7 +218,7 @@ srv = HTTPServer(("127.0.0.1", 0), Mock)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 url = "http://127.0.0.1:%d" % srv.server_address[1]
 
-ds = tutor.DEFAULT_CONFIG["agents"]["deepseek"]
+ds = recipes.DEFAULT_CONFIG["agents"]["deepseek"]
 ds["egress_probe"] = [url + "/chat/completions"]
 ds["vision"]["endpoint"] = url + "/v1/chat/completions"
 
@@ -226,12 +230,12 @@ keys.forget()
 os.environ["FAKE_KEY"] = "sk-fake"
 
 # A machine copy that shadows the built-in, as this Mac's config does.
-tutor.CONFIG_DIR = os.path.join(box, "config")
-tutor.CONFIG = os.path.join(tutor.CONFIG_DIR, "config.json")
-os.makedirs(tutor.CONFIG_DIR)
-with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+recipes.CONFIG_DIR = os.path.join(box, "config")
+recipes.CONFIG = os.path.join(recipes.CONFIG_DIR, "config.json")
+os.makedirs(recipes.CONFIG_DIR)
+with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"agents": {"deepseek": {"cmd": ["claude"]}}}, fh)
-cfg = tutor.load_config()
+cfg = recipes.load_config()
 
 real_code = seeing._code
 
@@ -248,7 +252,7 @@ def doctor(mode="good", args=()):
     out = io.StringIO()
     try:
         with contextlib.redirect_stdout(out):
-            code = tutor.cmd_doctor(cfg, list(args))
+            code = agentdoctor.cmd_doctor(cfg, list(args))
     finally:
         seeing._code = real_code
     return code, out.getvalue(), state
@@ -366,7 +370,7 @@ check("an unkeyed recipe fails every check in one line and runs no turn",
       code == 1 and "FAIL  every check: DEEPSEEK_API_KEY is not in" in said
       and "PASS" not in said)
 with contextlib.redirect_stderr(io.StringIO()):
-    refused = tutor.cmd_doctor(cfg, ["nobody"])
+    refused = agentdoctor.cmd_doctor(cfg, ["nobody"])
 check("an unknown recipe is refused", refused == 2)
 
 # ---- the pieces underneath ---------------------------------------------------
@@ -380,32 +384,32 @@ stream = "\n".join([
         "tokens": {"input": 50, "output": 1, "reasoning": 0,
                    "cache": {"read": 0, "write": 0}}, "cost": 0.25}}),
 ])
-u = tutor.read_opencode_usage(stream)
+u = usage.read_opencode_usage(stream)
 check("the opencode parser sums every round trip and counts reasoning as output",
       u["in"] == 150 and u["out"] == 16 and u["cache_read"] == 1000
       and u["cache_write"] == 7 and u["tokens"] == 1173 and u["requests"] == 2
       and u["session"] == "s1" and u["usd"] == 0.5)
-check("and a stream with no step_finish reports nothing", tutor.read_opencode_usage("x") == {})
-check("turn_text is the model's words, not the tools' output", tutor.turn_text(stream) == "hi")
+check("and a stream with no step_finish reports nothing", usage.read_opencode_usage("x") == {})
+check("turn_text is the model's words, not the tools' output", usage.turn_text(stream) == "hi")
 check("an error event is read for the failure reason",
-      tutor.failure_reason('{"type":"error","sessionID":"s","error":{"data":'
+      usage.failure_reason('{"type":"error","sessionID":"s","error":{"data":'
                            '{"message":"Insufficient Balance"}}}', "exit 1")
       == "Insufficient Balance (exit 1)")
 check("a turn's PWD is the directory it runs in",
-      tutor.at_root("/tmp/x", {"PWD": "/elsewhere"})["PWD"] == "/tmp/x")
+      runturn.at_root("/tmp/x", {"PWD": "/elsewhere"})["PWD"] == "/tmp/x")
 
 check("a row priced at exactly $0.0 is priced",
-      tutor.doctor_priced({"rate": {"window": "off"}, "usd": 0.0}))
+      agentdoctor.doctor_priced({"rate": {"window": "off"}, "usd": 0.0}))
 check("a row with no usd, or a non-number, is not",
-      not tutor.doctor_priced({"rate": {"window": "off"}})
-      and not tutor.doctor_priced({"rate": {"window": "off"}, "usd": None})
-      and not tutor.doctor_priced({"rate": {"window": "off"}, "usd": True})
-      and not tutor.doctor_priced({"usd": 0.1}))
+      not agentdoctor.doctor_priced({"rate": {"window": "off"}})
+      and not agentdoctor.doctor_priced({"rate": {"window": "off"}, "usd": None})
+      and not agentdoctor.doctor_priced({"rate": {"window": "off"}, "usd": True})
+      and not agentdoctor.doctor_priced({"usd": 0.1}))
 check("a turn's session id is read from OpenCode, Claude and Codex output",
-      tutor.turn_session('{"type":"text","sessionID":"ses_a"}') == "ses_a"
-      and tutor.turn_session('{"type":"result","session_id":"u-1"}') == "u-1"
-      and tutor.turn_session('{"type":"thread.started","thread_id":"t"}') == "t"
-      and tutor.turn_session('{"type":"text","sessionID":""}') == "")
+      agentdoctor.turn_session('{"type":"text","sessionID":"ses_a"}') == "ses_a"
+      and agentdoctor.turn_session('{"type":"result","session_id":"u-1"}') == "u-1"
+      and agentdoctor.turn_session('{"type":"thread.started","thread_id":"t"}') == "t"
+      and agentdoctor.turn_session('{"type":"text","sessionID":""}') == "")
 
 # `tutor cost` on unpriced turns says so instead of $0.00.
 plain = os.path.join(box, "plain")

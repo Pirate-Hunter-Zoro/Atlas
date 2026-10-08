@@ -33,6 +33,12 @@ loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin",
 spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard import gitsync  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.runner import watch as runwatch  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 fails = []
 
@@ -52,26 +58,26 @@ CFG = {
                "codex": {"cmd": ["codex"]}},
 }
 
-host = tutor.this_host()
+host = recipes.this_host()
 
 check("the command line wins over everything",
-      tutor.resolve_agent(CFG, {"agent": "claude"}, "codex") == "codex")
+      recipes.resolve_agent(CFG, {"agent": "claude"}, "codex") == "codex")
 
 check("a course that names its assistant beats the global default",
-      tutor.resolve_agent(CFG, {"agent": "claude"}) == "claude")
+      recipes.resolve_agent(CFG, {"agent": "claude"}) == "claude")
 
 check("a course with no opinion falls through to default_agent",
-      tutor.resolve_agent(CFG, {}) == "opencode")
+      recipes.resolve_agent(CFG, {}) == "opencode")
 
 check("there is no per-machine layer: a `hosts` map is ignored",
-      tutor.resolve_agent(dict(CFG, hosts={host: "codex"}), {}) == "opencode"
-      and "hosts" not in tutor.DEFAULT_CONFIG)
+      recipes.resolve_agent(dict(CFG, hosts={host: "codex"}), {}) == "opencode"
+      and "hosts" not in recipes.DEFAULT_CONFIG)
 
 check("an unknown name resolves to nothing rather than to a wrong agent",
-      tutor.resolve_agent(CFG, {"agent": "nonesuch"}) is None)
+      recipes.resolve_agent(CFG, {"agent": "nonesuch"}) is None)
 
 check("a course with no opinion at all still resolves",
-      tutor.resolve_agent(CFG, None) == "opencode")
+      recipes.resolve_agent(CFG, None) == "opencode")
 
 # --- a provider per KIND of sitting -----------------------------------------
 # `agent` in `tutorboard.json` may be an object keyed by kind: a course's learn
@@ -89,23 +95,23 @@ def sit(kind):
 by_kind = {"root": kinded, "agent": {"learn": "codex", "build": "claude"}}
 sit("learn")
 check("a learn sitting takes the workspace's learn provider",
-      tutor.resolve_agent(CFG, by_kind) == "codex")
+      recipes.resolve_agent(CFG, by_kind) == "codex")
 sit("build")
 check("a build sitting takes its build provider",
-      tutor.resolve_agent(CFG, by_kind) == "claude")
+      recipes.resolve_agent(CFG, by_kind) == "claude")
 sit("coach")
 check("a kind the workspace does not name falls through to the default",
-      tutor.resolve_agent(CFG, by_kind) == "opencode")
+      recipes.resolve_agent(CFG, by_kind) == "opencode")
 sit(None)
 check("and so does a sitting of no kind",
-      tutor.resolve_agent(CFG, by_kind) == "opencode")
+      recipes.resolve_agent(CFG, by_kind) == "opencode")
 sit("learn")
 check("the sitting's own choice still beats the workspace's kind",
-      tutor.resolve_agent(CFG, by_kind, "opencode") == "opencode")
+      recipes.resolve_agent(CFG, by_kind, "opencode") == "opencode")
 check("a misspelt provider for a kind is refused, not quietly replaced",
-      tutor.resolve_agent(CFG, dict(by_kind, agent={"learn": "nonesuch"})) is None)
+      recipes.resolve_agent(CFG, dict(by_kind, agent={"learn": "nonesuch"})) is None)
 check("a plain name still holds for every kind",
-      tutor.resolve_agent(CFG, {"root": kinded, "agent": "codex"}) == "codex")
+      recipes.resolve_agent(CFG, {"root": kinded, "agent": "codex"}) == "codex")
 shutil.rmtree(kinded, ignore_errors=True)
 
 # --- the default, and where its permissions are NOT written ------------------
@@ -116,7 +122,7 @@ shutil.rmtree(kinded, ignore_errors=True)
 # the course its own `.claude/settings.local.json`. The recipe must not repeat
 # it. One policy in two files is one policy that drifts the first time either
 # moves, and the committed file is the half a course's owner can actually see.
-D = tutor.DEFAULT_CONFIG
+D = recipes.DEFAULT_CONFIG
 claude = D["agents"]["claude"]
 
 check("Claude is the tutor unless something more specific says otherwise",
@@ -158,10 +164,10 @@ check("and the note says where the grants went, so the next person adding one "
 # missing one used to start a daemon that showed as listening and then failed
 # every turn into a log nobody opens.
 check("a command that is not on the path is reported",
-      tutor.missing_command(["a-command-no-machine-has"]) == "a-command-no-machine-has")
-check("one that is, is not", tutor.missing_command(["sh"]) is None)
+      recipes.missing_command(["a-command-no-machine-has"]) == "a-command-no-machine-has")
+check("one that is, is not", recipes.missing_command(["sh"]) is None)
 check("and a script agent runs under this interpreter, which is always here",
-      tutor.missing_command([sys.executable, "anything.py"]) is None)
+      recipes.missing_command([sys.executable, "anything.py"]) is None)
 # CODEX WAS HALF A RECIPE: no first-turn entry, so `turn_plan` fell back to the
 # resume one for a first turn and there was no resume path at all; and no
 # `usage`, so every Codex turn was free in `cost.jsonl`.
@@ -180,10 +186,10 @@ check("a codex turn may write, or it is a tutor that produces nothing and "
       "says it succeeded",
       all("--dangerously-bypass-approvals-and-sandbox" in r
           for r in (codex["headless_first"], codex["headless"])))
-first, _t, fresh = tutor.turn_plan(codex, 0, 1, "")
+first, _t, fresh = runturn.turn_plan(codex, 0, 1, "")
 check("so a first turn uses the first-turn recipe",
       fresh and first == codex["headless_first"])
-again, _t, fresh2 = tutor.turn_plan(codex, 1, 0, "")
+again, _t, fresh2 = runturn.turn_plan(codex, 1, 0, "")
 check("and a second resumes", not fresh2 and again == codex["headless"])
 
 # A TURN IS HANDED NOTHING ON STDIN, and the client that made this matter is
@@ -195,7 +201,7 @@ check("and a second resumes", not fresh2 and again == codex["headless"])
 _stdin_log = tempfile.NamedTemporaryFile(prefix="tutor-stdin-", delete=False)
 _stdin_log.close()
 with open(_stdin_log.name, "w") as _fh:
-    _rc, _capped = tutor.run_turn(["cat"], tempfile.gettempdir(), _fh, 10)
+    _rc, _capped = runturn.run_turn(["cat"], tempfile.gettempdir(), _fh, 10)
 check("a turn whose client reads stdin comes straight back rather than "
       "waiting out its whole timeout on a pipe nobody is typing into",
       _rc == 0 and not _capped)
@@ -209,9 +215,9 @@ os.unlink(_stdin_log.name)
 # the recipe in the repository read correctly. The symptom is the tool's own
 # behaviour looking wrong, which is the worst place to start looking.
 _shadow_box = tempfile.mkdtemp(prefix="tutor-shadow-")
-_was_config = tutor.CONFIG
-tutor.CONFIG = os.path.join(_shadow_box, "config.json")
-with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+_was_config = recipes.CONFIG
+recipes.CONFIG = os.path.join(_shadow_box, "config.json")
+with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"default_agent": "claude", "agents": {
         # A field that differs: the stale copy, and the one that bit.
         "codex": {"cmd": ["codex"], "headless": ["codex", "exec", "{prompt}"]},
@@ -221,20 +227,20 @@ with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
         # An agent this machine invented: there is no built-in behind it.
         "mine": {"cmd": ["mine"], "prompt": "argv"},
     }}, fh)
-_held = tutor.config_shadows()
+_held = recipes.config_shadows()
 check("a config field that overrides a built-in recipe is named, with the "
       "field, because that field is frozen at the day somebody wrote it",
       _held == {"codex": ["headless"]})
-with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"agents": {"codex": {"replace": True, "cmd": ["codex"]}}}, fh)
 check("and a recipe replaced outright is named whatever its fields say, "
       "because replacing turns the rest of it off",
-      "replace" in (tutor.config_shadows().get("codex") or [""])[0])
-with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+      "replace" in (recipes.config_shadows().get("codex") or [""])[0])
+with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     fh.write("not json at all")
 check("an unreadable config shadows nothing rather than raising, because this "
-      "is read on the way to reporting health", tutor.config_shadows() == {})
-tutor.CONFIG = _was_config
+      "is read on the way to reporting health", recipes.config_shadows() == {})
+recipes.CONFIG = _was_config
 shutil.rmtree(_shadow_box, ignore_errors=True)
 check("and `board doctor` reports it off the registry rather than working it "
       "out a second time",
@@ -270,17 +276,17 @@ THREE = {"default_agent": "one", "agents": {
     "unkeyed": dict(SH, needs_key="A-KEY-NO-MACHINE-HAS")}}
 
 check("nothing wrong means nothing moves",
-      tutor.choose_agent(THREE, "one") == ("one", None))
+      recipes.choose_agent(THREE, "one") == ("one", None))
 
 limits.mark_limited(time.time() + 900, agent="one")
-name, why = tutor.choose_agent(THREE, "one")
+name, why = recipes.choose_agent(THREE, "one")
 check("a limited agent hands the turn to the next one that can take it",
       name != "one" and name in ("two", "three"))
 check("and the log line says which and why, because the board paints it",
       "one" in (why or "") and name in (why or ""))
 
 limits.mark_limited(time.time() + 900, agent=name)
-second, _ = tutor.choose_agent(THREE, "one")
+second, _ = recipes.choose_agent(THREE, "one")
 check("a second one hitting its own ceiling falls through to the third",
       second not in ("one", name))
 
@@ -288,37 +294,37 @@ for n in ("one", "two", "three"):
     limits.mark_limited(time.time() + 900, agent=n)
 check("all of them limited behaves exactly as one tutor always did: the turn "
       "goes to the one we wanted and fails where that is visible",
-      tutor.choose_agent(THREE, "one") == ("one", None))
+      recipes.choose_agent(THREE, "one") == ("one", None))
 
 limits.clear_limited()
 limits.mark_limited(time.time() + 900, agent="one")
 check("A FENCED RECIPE IS NEVER FALLEN INTO. It is the only assistant allowed "
       "to read phi and its cards must not reach a remote, so it is not a "
       "choice an automatic swap gets to make",
-      tutor.choose_agent(dict(THREE, agents={
+      recipes.choose_agent(dict(THREE, agents={
           "one": THREE["agents"]["one"],
           "fenced": THREE["agents"]["fenced"]}), "one") == ("one", None))
 check("nor is one this machine has not got",
-      tutor.choose_agent(dict(THREE, agents={
+      recipes.choose_agent(dict(THREE, agents={
           "one": THREE["agents"]["one"],
           "ghost": THREE["agents"]["ghost"]}), "one") == ("one", None))
 check("nor one whose key is not here -- that is a daemon that listens and then "
       "fails every turn into a log",
-      tutor.choose_agent(dict(THREE, agents={
+      recipes.choose_agent(dict(THREE, agents={
           "one": THREE["agents"]["one"],
           "unkeyed": THREE["agents"]["unkeyed"]}), "one") == ("one", None))
 
 ordered = dict(THREE, fallback=["two", "three"])
 check("the order is the config's where it has one",
-      tutor.choose_agent(ordered, "one")[0] == "two")
+      recipes.choose_agent(ordered, "one")[0] == "two")
 check("and where it has none it is what `--agents` reports, in that order -- "
       "a list nobody has set should still do something sensible",
-      tutor.choose_agent(THREE, "one")[0] == "three")
+      recipes.choose_agent(THREE, "one")[0] == "three")
 
 limits.clear_limited()
 check("and when the allowance comes back we climb home, because the question "
       "is asked again every turn rather than answered once",
-      tutor.choose_agent(THREE, "one") == ("one", None))
+      recipes.choose_agent(THREE, "one") == ("one", None))
 
 # --- THE ONLY-AGENT SWITCH ---------------------------------------------------
 # One key, `only_agent`, and every other hosted recipe is unavailable here in
@@ -333,7 +339,7 @@ ONLY = {"default_agent": "claude", "only_agent": "deepseek",
 POLICY = "this machine is running DeepSeek only"
 _said, _why = [], []
 check("a workspace naming claude lands on deepseek under the switch",
-      tutor.resolve_agent(ONLY, {"agent": "claude"}, say=_said.append,
+      recipes.resolve_agent(ONLY, {"agent": "claude"}, say=_said.append,
                           why=_why) == "deepseek")
 check("with the policy line, naming the layer it overruled and the config line "
       "that did it",
@@ -341,55 +347,55 @@ check("with the policy line, naming the layer it overruled and the config line "
       and "this workspace's tutorboard.json asks for 'claude'" in _why[0]
       and POLICY in _why[0] and '"only_agent": "deepseek"' in _why[0])
 check("--agent naming another is refused the same way",
-      tutor.resolve_agent(ONLY, {}, "claude", say=lambda m: None) == "deepseek")
+      recipes.resolve_agent(ONLY, {}, "claude", say=lambda m: None) == "deepseek")
 check("so is `default_agent`, which is the layer that named claude here",
-      tutor.resolve_agent(ONLY, {}, say=lambda m: None) == "deepseek")
+      recipes.resolve_agent(ONLY, {}, say=lambda m: None) == "deepseek")
 check("the fenced reader still resolves where a workspace asks for it by name",
-      tutor.resolve_agent(ONLY, {"agent": "colibri"}, say=lambda m: None)
+      recipes.resolve_agent(ONLY, {"agent": "colibri"}, say=lambda m: None)
       == "colibri")
 check("and the switch naming a recipe that is not here resolves to nothing",
-      tutor.resolve_agent(dict(ONLY, only_agent="nonesuch"), {},
+      recipes.resolve_agent(dict(ONLY, only_agent="nonesuch"), {},
                           say=lambda m: None) is None)
 check("with the switch off, claude is claude again",
-      tutor.resolve_agent(dict(ONLY, only_agent=None), {"agent": "claude"})
+      recipes.resolve_agent(dict(ONLY, only_agent=None), {"agent": "claude"})
       == "claude")
 
 check("agent_unavailable says the switch for every other hosted recipe",
-      tutor.agent_unavailable(ONLY, "claude") == POLICY)
+      recipes.agent_unavailable(ONLY, "claude") == POLICY)
 check("before any binary or key check: a recipe that is not installed says the "
       "switch, not the missing binary",
-      tutor.agent_unavailable(ONLY, "codex") == POLICY)
+      recipes.agent_unavailable(ONLY, "codex") == POLICY)
 check("and nothing about the switch's own recipe or the fenced reader",
-      tutor.agent_unavailable(ONLY, "deepseek") is None
-      and tutor.agent_unavailable(ONLY, "colibri") is None)
+      recipes.agent_unavailable(ONLY, "deepseek") is None
+      and recipes.agent_unavailable(ONLY, "colibri") is None)
 
 limits.clear_limited()
-_name, _why = tutor.choose_agent(ONLY, "claude")
+_name, _why = recipes.choose_agent(ONLY, "claude")
 check("choose_agent hands a barred recipe's turn to the switch, and says so",
       _name == "deepseek" and POLICY in (_why or ""))
 limits.mark_limited(time.time() + 900, agent="deepseek")
 check("and never crosses: the switch's recipe out of allowance keeps the turn "
       "and fails where that is visible",
-      tutor.choose_agent(ONLY, "deepseek") == ("deepseek", None))
+      recipes.choose_agent(ONLY, "deepseek") == ("deepseek", None))
 check("even when the turn was wanted by a barred recipe",
-      tutor.choose_agent(ONLY, "claude")[0] == "deepseek")
+      recipes.choose_agent(ONLY, "claude")[0] == "deepseek")
 limits.clear_limited()
 
 # `tutor agent only <name>|--off` writes one key and leaves the rest alone.
 _only_box = tempfile.mkdtemp(prefix="tutor-only-")
-_was_config = tutor.CONFIG
-tutor.CONFIG = os.path.join(_only_box, "config.json")
-with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+_was_config = recipes.CONFIG
+recipes.CONFIG = os.path.join(_only_box, "config.json")
+with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"default_agent": "claude", "vision_agent": "deepseek"}, fh)
 _free = dict(ONLY, only_agent=None)
 _rc = tutor.agent_only(_free, ["deepseek"])
-with open(tutor.CONFIG, encoding="utf-8") as fh:
+with open(recipes.CONFIG, encoding="utf-8") as fh:
     _on = json.load(fh)
 check("`tutor agent only deepseek` sets the key and keeps every other",
       _rc == 0 and _on == {"default_agent": "claude", "vision_agent": "deepseek",
                            "only_agent": "deepseek"})
 _rc = tutor.agent_only(_free, ["--off"])
-with open(tutor.CONFIG, encoding="utf-8") as fh:
+with open(recipes.CONFIG, encoding="utf-8") as fh:
     _off = json.load(fh)
 check("and `--off` removes it", _rc == 0 and "only_agent" not in _off)
 check("the fenced reader, an unknown name and an uninstalled recipe are refused "
@@ -397,11 +403,11 @@ check("the fenced reader, an unknown name and an uninstalled recipe are refused 
       tutor.agent_only(_free, ["colibri"]) == 1
       and tutor.agent_only(_free, ["nonesuch"]) == 1
       and tutor.agent_only(_free, ["codex"]) == 1
-      and "only_agent" not in json.load(open(tutor.CONFIG, encoding="utf-8")))
+      and "only_agent" not in json.load(open(recipes.CONFIG, encoding="utf-8")))
 check("and neither a name with --off nor nothing at all is a command",
       tutor.agent_only(_free, []) == 2
       and tutor.agent_only(_free, ["deepseek", "--off"]) == 2)
-tutor.CONFIG = _was_config
+recipes.CONFIG = _was_config
 shutil.rmtree(_only_box, ignore_errors=True)
 
 # `tutor --agents --json` carries the switch, so the strip can grey the rest.
@@ -453,7 +459,8 @@ check("and the switch's own recipe is asked, so a vision_agent and default "
       (_got or {}).get("agent") == "deepseek")
 
 # --- AND IT IS ASKED EVERY TURN ----------------------------------------------
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+src = "".join(open(os.path.join(ROOT, "tutorboard", d, f), encoding="utf-8").read()
+              for d, f in (("runner", "loop.py"), ("agents", "recipes.py")))
 check("the recipe is re-bound inside the loop rather than above it",
       "cfg, next_agent, next_spec, moved = for_this_turn(" in src)
 check("an unfinished report is immune: it belongs to the session that did "
@@ -480,16 +487,16 @@ def write_agent(**kw):
         json.dump(kw, fh)
 
 
-check("no record means nothing is listening", tutor.agent_live(tmp) is None)
+check("no record means nothing is listening", daemon.agent_live(tmp) is None)
 
 write_agent(host="some-other-node", pid=1, agent="claude", state="listening")
-check("a record from another node is not believed", tutor.agent_live(tmp) is None)
+check("a record from another node is not believed", daemon.agent_live(tmp) is None)
 
 write_agent(host=host, pid=999999, agent="claude", state="listening")
-check("a record for a pid that is gone is not believed", tutor.agent_live(tmp) is None)
+check("a record for a pid that is gone is not believed", daemon.agent_live(tmp) is None)
 
 write_agent(host=host, pid=os.getpid(), agent="claude", state="listening")
-st = tutor.agent_live(tmp)
+st = daemon.agent_live(tmp)
 check("a record for a live process on this node is believed",
       bool(st) and st.get("agent") == "claude")
 
@@ -506,35 +513,35 @@ check("a record for a live process on this node is believed",
 # said "assistant not responding" while the tutor was writing the card.
 write_agent(host=host, pid=os.getpid(), agent="claude", state="working",
             last_seen=time.time() - 600)
-st = tutor.agent_live(tmp)
+st = daemon.agent_live(tmp)
 check("a daemon mid-turn is not declared dead for going quiet",
       bool(st) and st.get("state") == "working")
 
 write_agent(host=host, pid=999999, agent="claude", state="working",
             last_seen=time.time())
 check("but a daemon whose process is gone is not believed, heartbeat or not",
-      tutor.agent_live(tmp) is None)
+      daemon.agent_live(tmp) is None)
 
 # Only a record with no pid at all has nothing better to go on.
 write_agent(host=host, agent="claude", state="listening", last_seen=time.time() - 600)
 check("a pidless record still expires on its heartbeat",
-      tutor.agent_live(tmp) is None)
+      daemon.agent_live(tmp) is None)
 
 write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
             mode="interactive", cmd=sys.executable, last_seen=time.time() - 6000)
-st = tutor.agent_live(tmp)
+st = daemon.agent_live(tmp)
 check("an interactive assistant idle for an hour is still attached",
       bool(st) and st.get("state") == "attached")
 
 write_agent(host=host, pid=999999, agent="claude", state="attached",
             mode="interactive", cmd=sys.executable, last_seen=time.time())
 check("but one whose process is gone is not",
-      tutor.agent_live(tmp) is None)
+      daemon.agent_live(tmp) is None)
 
 write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
             mode="interactive", cmd="a-command-this-process-is-not")
 check("and a recycled pid running something else is not either",
-      tutor.agent_live(tmp) is None)
+      daemon.agent_live(tmp) is None)
 
 # `headless --stop` is for daemons. Someone is sitting in front of an interactive
 # session, and killing it is not what anyone typing that meant. This one needs a
@@ -546,7 +553,7 @@ with open(os.path.join(boxed, "agent.json"), "w", encoding="utf-8") as fh:
     json.dump({"host": host, "pid": os.getpid(), "agent": "claude",
                "state": "attached", "mode": "interactive", "cmd": sys.executable,
                "last_seen": time.time()}, fh)
-tutor.headless_stop({"courses_dir": box, "agents": {}}, [])
+daemon.headless_stop({"courses_dir": box, "agents": {}}, [])
 check("headless --stop leaves an interactive session alone",
       os.path.exists(os.path.join(boxed, "agent.json")))
 shutil.rmtree(box, ignore_errors=True)
@@ -555,27 +562,27 @@ write_agent(host=host, pid=os.getpid(), agent="claude", state="listening")
 
 # --- starting ----------------------------------------------------------------
 course = {"root": tmp, "dir": "fake-course", "name": "Fake"}
-code, msg = tutor.agent_start(CFG, course, "claude")
+code, msg = daemon.agent_start(CFG, course, "claude")
 check("starting is a no-op while one is already listening",
       code == 0 and "already listening" in msg)
 
 os.remove(os.path.join(live, "agent.json"))
-code, msg = tutor.agent_start(CFG, course, "claude")
+code, msg = daemon.agent_start(CFG, course, "claude")
 check("an agent with no headless recipe refuses rather than half-starting",
       code == 1 and "headless recipe" in msg)
 
-code, msg = tutor.agent_start(CFG, course, None)
+code, msg = daemon.agent_start(CFG, course, None)
 check("an unresolved agent refuses", code == 1 and "no agent resolved" in msg)
 
 ghost = dict(CFG, agents=dict(CFG["agents"],
                               ghost={"cmd": ["a-command-no-machine-has"],
                                      "headless": ["a-command-no-machine-has", "{prompt}"]}))
-code, msg = tutor.agent_start(ghost, course, "ghost")
+code, msg = daemon.agent_start(ghost, course, "ghost")
 check("an agent whose command this machine lacks refuses rather than "
       "listening and failing every turn",
       code == 1 and "not on the path" in msg)
 
-code, msg = tutor.agent_stop(course)
+code, msg = daemon.agent_stop(course)
 check("stopping something that is not there is not an error",
       code == 0 and "nothing was listening" in msg)
 
@@ -592,7 +599,7 @@ def git(*args, **kw):
 
 
 check("a directory that is not a repository is left alone",
-      tutor.sync(tempfile.mkdtemp(prefix="tutor-plain-")) is None)
+      gitsync.sync(tempfile.mkdtemp(prefix="tutor-plain-")) is None)
 
 sandbox = tempfile.mkdtemp(prefix="tutor-sync-")
 up = os.path.join(sandbox, "up")
@@ -609,7 +616,7 @@ with open(os.path.join(here, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("add", "-A", cwd=here)
 git("commit", "-qm", "first", cwd=here)
 
-check("a repository with no remote is left alone", tutor.sync(here, quiet=True) is None)
+check("a repository with no remote is left alone", gitsync.sync(here, quiet=True) is None)
 
 git("remote", "add", "origin", up, cwd=here)
 git("push", "-qu", "origin", "main", cwd=here)
@@ -621,7 +628,7 @@ with open(os.path.join(there, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("commit", "-qam", "handoff from elsewhere", cwd=there)
 git("push", "-q", cwd=there)
 
-check("a session pulls what another machine pushed", tutor.sync(here, quiet=True) is True)
+check("a session pulls what another machine pushed", gitsync.sync(here, quiet=True) is True)
 with open(os.path.join(here, "HANDOFF.md"), encoding="utf-8") as fh:
     check("and the handoff it wrote is the one now on disk",
           fh.read().strip() == "what the other machine taught")
@@ -637,7 +644,7 @@ with open(os.path.join(here, "HANDOFF.md"), "w", encoding="utf-8") as fh:
 git("commit", "-qam", "local work", cwd=here)
 
 check("a diverged branch reports rather than throwing",
-      tutor.sync(here, quiet=True) is False)
+      gitsync.sync(here, quiet=True) is False)
 check("and it does not touch the local work",
       open(os.path.join(here, "HANDOFF.md"), encoding="utf-8").read().strip()
       == "locally, at the same time")
@@ -649,7 +656,8 @@ shutil.rmtree(sandbox, ignore_errors=True)
 # only when its board comes back. The pages are served from disk and look new
 # while the endpoints behind them are the old ones -- invisible from outside.
 import subprocess as _sp
-tool_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+tool_src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f),
+                         encoding="utf-8").read() for f in ("watch.py", "loop.py"))
 check("there is a command to restart every board here",
       "def cmd_restart(" in tool_src)
 check("and it refuses to touch a board belonging to another node",
@@ -685,7 +693,7 @@ check("and it waits for the daemon's own record rather than reading it once",
       < tutors_src.index("for _ in range(RESTART_WAIT)")
       < tutors_src.index('print("  left alone'))
 check("the wait is bounded, because a person is watching a terminal",
-      tutor.RESTART_WAIT and tutor.RESTART_WAIT <= 60)
+      runwatch.RESTART_WAIT and runwatch.RESTART_WAIT <= 60)
 check("a start still on its way is its own answer, not a failure",
       "coming.append" in restart_src and "held.append" in restart_src)
 check("and a tutor still writing its handoff is said to be, not claimed restarted",
@@ -776,8 +784,8 @@ AWAY_CFG = {"courses_dir": away, "default_agent": "claude",
 
 was_env = os.environ.pop("TUTORBOARD_COURSES", None)
 started = []
-real = {k: getattr(tutor, k) for k in ("agent_start",)}
-tutor.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
+real = {k: getattr(daemon, k) for k in ("agent_start",)}
+daemon.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
 
 
 def away_agent(**kw):
@@ -818,7 +826,7 @@ try:
           code == 0 and out.getvalue() == "\n")
 finally:
     for k, v in real.items():
-        setattr(tutor, k, v)
+        setattr(daemon, k, v)
     if was_env is not None:
         os.environ["TUTORBOARD_COURSES"] = was_env
     shutil.rmtree(away, ignore_errors=True)
@@ -867,7 +875,7 @@ def wrote_failure(agent):
 
 
 wrote_failure("deepseek")
-woke = tutor.mark_waking(silent_live, "deepseek", pid=os.getpid())
+woke = daemon.mark_waking(silent_live, "deepseek", pid=os.getpid())
 check("a start does not erase the last turn's failure -- a daemon is most often "
       "restarted BECAUSE the turn fell over, and clearing the reason there "
       "empties the record at the one moment somebody is reading it",
@@ -881,7 +889,7 @@ check("and it still answers the flags a start is the answer to",
 # failure kept across a swap would read as "claude's last turn failed -- cannot
 # reach api.deepseek.com", about a host claude never opens.
 wrote_failure("deepseek")
-woke = tutor.mark_waking(silent_live, "claude", pid=os.getpid())
+woke = daemon.mark_waking(silent_live, "claude", pid=os.getpid())
 check("a failure does not follow the record onto the next provider: coming up "
       "as somebody else drops an error that was not theirs",
       not woke.get("last_error") and not woke.get("failed_at")
@@ -889,9 +897,9 @@ check("a failure does not follow the record onto the next provider: coming up "
 wrote_failure("deepseek")
 check("and the same is true of a climb-down between turns, which writes the "
       "new agent onto the record the same way",
-      tutor.not_this_agents_failure(silent_live, "claude")
+      daemon.not_this_agents_failure(silent_live, "claude")
       == {"last_error": None, "failed_at": 0, "failed_agent": None}
-      and tutor.not_this_agents_failure(silent_live, "deepseek") == {})
+      and daemon.not_this_agents_failure(silent_live, "deepseek") == {})
 
 # WHAT RETIRES IT IS SOMETHING NEWER, AND A TURN STARTING IS NOT THAT. A turn
 # that has begun settles nothing about the failure before it: a daemon killed
@@ -899,13 +907,13 @@ check("and the same is true of a climb-down between turns, which writes the "
 # state along.
 check("a turn that goes through is what clears it, and the daemon still does that",
       'agent_state(live, state="listening", last_error=None,\n'
-      '                        failed_at=0, failed_agent=None, retrying=False)'
+      '                           failed_at=0, failed_agent=None, retrying=False)'
       in tool_src)
 check("and the turn that merely STARTS does not, which is what the docstring "
       "above says happens",
-      'agent_state(live, state="working", turns=turns,\n'
-      '                    turn_started=time.time(), turn_signal=this_signal,\n'
-      '                    turn_repairs=turn_repairs)'
+      'agent_state(live, state="working", turns=ctx.turns,\n'
+      '                       turn_started=time.time(), turn_signal=this_signal,\n'
+      '                       turn_repairs=turn_repairs)'
       in tool_src)
 check("what stops the board painting last time's failure over a turn in flight "
       "is the reader, which does not report one older than the running turn",
@@ -919,18 +927,18 @@ blob = ('{"type":"result","subtype":"success","is_error":true,'
         '"result":"API Error: Connection dropped (ECONNRESET)",'
         '"duration_api_ms":0,"total_cost_usd":0}')
 check("an agent that reports its own failure is read as one, whatever it exited",
-      tutor.result_object_error("some output\n" + blob)
+      usage.result_object_error("some output\n" + blob)
       == "API Error: Connection dropped (ECONNRESET)")
 check("and a turn that went through is not made into a failure by the same read",
-      tutor.result_object_error('{"type":"result","is_error":false,"result":"ok"}')
+      usage.result_object_error('{"type":"result","is_error":false,"result":"ok"}')
       is None)
 check("so the daemon reads what the turn said BEFORE it believes the number, "
       "and a turn that reported a failure and exited 0 is still a failed turn",
-      "said = turn_output(logpath, mark)\n"
-      "        if not err and result_object_error(said):" in tool_src)
+      "said = usage.turn_output(logpath, mark)\n"
+      "    if not err and usage.result_object_error(said):" in tool_src)
 check("and what the board is told is the turn's own sentence rather than the "
       "number, which is the same for every cause",
-      tutor.failure_reason(blob, "exit 1")
+      usage.failure_reason(blob, "exit 1")
       == "API Error: Connection dropped (ECONNRESET) (exit 1)")
 
 # AND A RESULT OBJECT TOO LONG TO HAVE SURVIVED WHOLE still says what happened.
@@ -944,13 +952,13 @@ cut = ('rations":[' + "x" * 40 + '}],"is_error":true,'
        '"duration_ms":171868}')
 check("a result object cut off at the front is still read for the reason, "
       "rather than falling back to the number",
-      tutor.result_object_error(cut) == "API Error: 404 model not found")
+      usage.result_object_error(cut) == "API Error: 404 model not found")
 check("and a fragment is only answered for where it is a result object, so an "
       "ordinary log line carrying the word is not mistaken for a verdict",
-      tutor.result_object_error('  ... "result" of the sweep: 3 files\n') is None)
+      usage.result_object_error('  ... "result" of the sweep: 3 files\n') is None)
 check("a truncated result object that reports no failure is still the newest "
       "verdict, and ends the scan rather than letting an older one through",
-      tutor.result_object_error(
+      usage.result_object_error(
           '{"type":"result","is_error":true,"result":"an older failure"}\n'
           'ons":1}],"is_error":false,"result":"done","type":"result"}') is None)
 
@@ -971,12 +979,12 @@ check("and a wrap-up that failed does not stamp a stale note with this "
 # reaches the board in the provider's own words and then costs a turn per
 # message, for ever.
 check("the same failure twice stands the recipe down and hands the lesson on",
-      "egress.mark_failing(agent_name, why)" in tool_src
+      "egress.mark_failing(ctx.agent_name, why)" in tool_src
       and "has failed the same way twice" in tool_src)
 check("and a turn that goes through takes the stand-down off again, whichever "
       "kind it was",
-      "if egress.stood_down(agent_name):" in tool_src
-      and "egress.clear_unreachable(agent_name)" in tool_src)
+      "if egress.stood_down(ctx.agent_name):" in tool_src
+      and "egress.clear_unreachable(ctx.agent_name)" in tool_src)
 shutil.rmtree(silent, ignore_errors=True)
 
 

@@ -13,9 +13,7 @@ source, the prompts that tell a turn to name what it left uncommitted, and the
 board not reading a placeholder as an answer.
 """
 
-import importlib.machinery
 import json
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -29,10 +27,9 @@ sys.path.insert(0, ROOT)
 from tutorboard import direction, sense                     # noqa: E402
 from tutorboard.lesson import cards, git as lesson_git      # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-_spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(_spec)
-loader.exec_module(tutor)
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.runner import loop as runloop  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 BOARD = [sys.executable, os.path.join(ROOT, "bin", "board")]
 
@@ -90,21 +87,21 @@ try:
     # -- a turn that exits on it is woken once ------------------------------
     print("\n-- a turn that exits with it pending is woken once more --")
     out = "[2026-10-01 10:00:00] [aim] write the sweep\n"
-    line = tutor.report_owed(ws, "aim", out)
+    line = runloop.report_owed(ws, "aim", out)
     check("the daemon owes an [unfinished] turn", bool(line))
     check("which turn_signal reads as unfinished",
-          tutor.turn_signal(line) == "unfinished")
+          runturn.turn_signal(line) == "unfinished")
     check("and which names the placeholder", os.path.relpath(path, ws) in line)
     check("and keeps the message it was answering", "write the sweep" in line)
 
-    use, prompt, fresh = tutor.turn_plan({"headless": ["r"], "headless_first": ["f"]},
+    use, prompt, fresh = runturn.turn_plan({"headless": ["r"], "headless_first": ["f"]},
                                          0, 1, "unfinished")
     check("an unfinished turn resumes the session that did the work",
           use == ["r"] and not fresh)
     check("and is told to write the report over the card",
-          prompt is tutor.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
+          prompt is prompts.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
           and "uncommitted" in prompt)
-    check("it runs on a doing turn's clock", tutor.doing_now(ws, "unfinished"))
+    check("it runs on a doing turn's clock", runturn.doing_now(ws, "unfinished"))
 
     # -- a report written over it settles it ---------------------------------
     print("\n-- a report written over it is not owed anything --")
@@ -112,7 +109,7 @@ try:
     check("the report goes over the placeholder", code == 0)
     _, rmeta = cards.newest(room)
     check("and is no longer pending", not cards.is_pending(rmeta))
-    check("so nothing is owed", tutor.report_owed(ws, "aim", out) is None)
+    check("so nothing is owed", runloop.report_owed(ws, "aim", out) is None)
 
     # -- a second exit on a placeholder gets the stopped card -----------------
     print("\n-- an [unfinished] turn that also leaves it pending --")
@@ -127,7 +124,7 @@ try:
           sorted(lesson_git.uncommitted(ws) or []) == ["fit.py", "kept.py"])
     check("and can be narrowed to a thread's paths",
           lesson_git.uncommitted(ws, ["fit.py"]) == ["fit.py"])
-    again = tutor.report_owed(ws, "unfinished", line)
+    again = runloop.report_owed(ws, "unfinished", line)
     check("nothing more is woken", again is None)
     body = open(path2, encoding="utf-8").read()
     smeta, sbody = cards.parse_front_matter(body)
@@ -141,7 +138,7 @@ try:
           and "V/kept.py" not in sbody)
     check("and the board's own scratch is not listed", "live/" not in sbody)
     check("a stopped card is not pending, so the next exit owes nothing",
-          tutor.report_owed(ws, "aim", out) is None)
+          runloop.report_owed(ws, "aim", out) is None)
     check("no part file is left behind",
           not [n for n in os.listdir(room) if n.startswith(".")])
 
@@ -164,8 +161,8 @@ try:
         fh.write(json.dumps({"thread": "fit", "jobid": "12", "cmd": "sbatch sweep.sbatch",
                              "submitted": began + 1}) + "\n")
     check("the sitting's thread and its paths are read off the thread file",
-          tutor.owed_thread(ws) == ("fit", ["fit.py"]))
-    tutor.report_owed(ws, "unfinished", line)
+          runloop.owed_thread(ws) == ("fit", ["fit.py"]))
+    runloop.report_owed(ws, "unfinished", line)
     tmeta, tbody = cards.parse_front_matter(open(path3, encoding="utf-8").read())
     check("the stopped card names its thread in its front matter",
           tmeta.get("kind") == cards.STOPPED and tmeta.get("thread") == "fit")
@@ -192,12 +189,13 @@ finally:
 
 # -- the wiring, read as source ----------------------------------------------
 print("\n-- the loop settles a turn on its report --")
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-loop = src.split("def headless(")[-1].split("handoff ===")[0]
+src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+           encoding="utf-8").read()
+loop = src.split("def take_turn(")[-1].split("handoff ===")[0]
 check("the loop asks report_owed where nothing else is owed",
-      "if pending is None:\n            pending = report_owed(" in loop)
+      "if pending is None:\n        pending = report_owed(" in loop)
 check("before the debt is written down", loop.index("report_owed(") <
-      loop.index("owe(pending)\n\n    # The last turn"))
+      loop.index("owe(ctx, pending)\n    return"))
 check("a failed resume of an unfinished turn retries with its own prompt",
       "HEADLESS_UNFINISHED_PROMPT if this_signal == \"unfinished\"" in loop)
 check("the assistant is not swapped under an unfinished turn",

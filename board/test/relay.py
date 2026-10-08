@@ -24,6 +24,7 @@ Git is real (a bare origin and two clones); Slurm is a table.
 import fcntl
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -39,6 +40,7 @@ from tutorboard import jobs, leaving, relay                            # noqa: E
 from tutorboard.course import threads                                  # noqa: E402
 
 TUTOR = os.path.join(ROOT, "bin", "tutor")
+RELAY = os.path.join(ROOT, "bin", "relay")
 fails = []
 
 
@@ -456,8 +458,7 @@ try:
           and t1["problems"] == [jobs.NO_TURN] and len(slurm.scripts) == n)
     check("the relay has no turn to run, and the command no --turn",
           not hasattr(relay, "run_turn") and "turn" not in got
-          and "--turn" not in open(TUTOR, encoding="utf-8").read().split(
-              "def cmd_relay", 1)[1].split("\ndef ", 1)[0])
+          and "--turn" not in open(RELAY, encoding="utf-8").read())
 
     # --- a failed recipe: asked with a diagnostic, repaired on the Mac ---------
     file_from_mac({"id": "k1", "kind": "recipe", "thread": "knn",
@@ -777,12 +778,34 @@ try:
           relay.where_line(cluster).startswith("relay: last pass"))
 
     # --- the scrontab entry ---------------------------------------------------------
-    block = relay.scrontab_block("/usr/bin/python3", "/x/board/bin/tutor",
+    block = relay.scrontab_block("/usr/bin/python3", "/x/board/bin/relay",
                                  "/x/relay.log")
     check("the entry runs one pass every five minutes on c3_short",
-          "*/5 * * * * /usr/bin/python3 /x/board/bin/tutor relay --once --quiet"
+          "*/5 * * * * /usr/bin/python3 /x/board/bin/relay --once --quiet"
           in block and "#SCRON --partition=c3_short" in block
           and "#SCRON --output=/x/relay.log" in block)
+    check("and by default it names board/bin/relay, the relay's own entry",
+          " %s --once --quiet" % RELAY in relay.scrontab_block())
+
+    # --- board/bin/relay: the entry, and the relay path only ----------------------
+    def entry(*args, **kw):
+        p = subprocess.run([sys.executable] + list(args), cwd=base,
+                           env=dict(env, **kw), stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, timeout=300)
+        return p.returncode, p.stdout.decode("utf-8", "replace")
+    code, out = entry(RELAY, "--status")
+    check("`relay --status` is the same report `tutor relay --status` gives",
+          code == 0 and "last pass" in out and "research/Proj" in out)
+    code, out = entry(RELAY, "--once", TUTOR_SLURM="0")
+    check("and `relay` refuses a pass without Slurm",
+          code == 1 and "no Slurm" in out)
+    code, out = entry("-X", "importtime", RELAY, "--help")
+    loaded = set(re.findall(r"\|\s+(tutorboard[\w.]*)\s*$", out, re.M))
+    check("it imports the relay path and nothing of the board server, the tutor "
+          "runner or the assistants",
+          code == 0 and "tutorboard.relay" in loaded
+          and not [m for m in loaded if m.startswith((
+              "tutorboard.server", "tutorboard.runner", "tutorboard.agents"))])
     old = "# mine\n0 * * * * true\n" + relay.scrontab_block("a", "b", "c")
     new = relay.merged_crontab(old, block)
     check("installing replaces the old block and keeps the owner's lines",

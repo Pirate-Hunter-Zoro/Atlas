@@ -18,7 +18,8 @@
 #
 #  IT REIMPLEMENTS NOTHING. The submodule fast-forward, the pointer commit and
 #  the three guards that make an unattended commit safe are `pull_vendor` in
-#  `bin/tutor`; the cadence and the hearing are `hear_pass` in `bin/tutor`.
+#  `tutorboard/relay.py`; the cadence and the hearing are `hear_pass` in
+#  `tutorboard/gitsync.py`.
 #  This file is a stamp, a log and two calls.
 #
 #  Never fatal and never clever: a dirty tree, a detached HEAD

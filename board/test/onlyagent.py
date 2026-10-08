@@ -21,8 +21,6 @@ Under that environment:
   - THE SUITES THAT TOUCH AGENTS PASS under the same environment.
 """
 
-import importlib.machinery
-import importlib.util
 import io
 import json
 import os
@@ -131,23 +129,22 @@ check("python3, git and node still are",
 
 # Loaded after the environment is set: CONFIG and the key store are read off
 # XDG_CONFIG_HOME at import.
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 from tutorboard import assistants, keys, seeing                  # noqa: E402
 
-check("tutor reads the temporary config", tutor.CONFIG ==
+check("tutor reads the temporary config", recipes.CONFIG ==
       os.path.join(conf_dir, "config.json"))
-cfg = tutor.load_config()
-check("which carries the switch", tutor.only_agent(cfg) == "deepseek")
+cfg = recipes.load_config()
+check("which carries the switch", recipes.only_agent(cfg) == "deepseek")
 
 # ---- resolution --------------------------------------------------------------
 ws = os.path.join(box, "ws")
 os.makedirs(os.path.join(ws, "live"))
 said, why = [], []
 check("a workspace naming claude resolves to deepseek",
-      tutor.resolve_agent(cfg, {"root": ws, "agent": "claude"},
+      recipes.resolve_agent(cfg, {"root": ws, "agent": "claude"},
                           say=said.append, why=why) == "deepseek")
 check("with the policy line, naming the layer and the config line",
       len(why) == 1 and POLICY in why[0]
@@ -155,15 +152,15 @@ check("with the policy line, naming the layer and the config line",
       and '"only_agent": "deepseek"' in why[0])
 claude_cfg = dict(cfg, default_agent="claude", vision_agent="claude")
 check("so does a machine whose default_agent still says claude",
-      tutor.resolve_agent(claude_cfg, {}, say=lambda m: None) == "deepseek")
+      recipes.resolve_agent(claude_cfg, {}, say=lambda m: None) == "deepseek")
 check("claude and codex are barred by the switch, not merely missing",
-      tutor.agent_unavailable(cfg, "claude") == POLICY
-      and tutor.agent_unavailable(cfg, "codex") == POLICY)
+      recipes.agent_unavailable(cfg, "claude") == POLICY
+      and recipes.agent_unavailable(cfg, "codex") == POLICY)
 check("deepseek is available: installed, keyed, not barred",
-      tutor.agent_unavailable(cfg, "deepseek") is None
+      recipes.agent_unavailable(cfg, "deepseek") is None
       and keys.unkeyed(cfg["agents"]["deepseek"]) is None)
 check("a turn wanted by claude is handed to deepseek, never elsewhere",
-      tutor.choose_agent(cfg, "claude")[0] == "deepseek")
+      recipes.choose_agent(cfg, "claude")[0] == "deepseek")
 
 # ---- the board's listing -----------------------------------------------------
 assistants.forget()
@@ -198,19 +195,19 @@ check("an image routes through the switch's recipe when vision_agent and "
 
 # ---- a headless turn, built and run for opencode -----------------------------
 dspec = cfg["agents"]["deepseek"]
-use, template, fresh = tutor.turn_plan(dspec, 0, 1)
-cmd = tutor.with_usage(dspec, [a.replace("{prompt}", "hello from the test")
+use, template, fresh = runturn.turn_plan(dspec, 0, 1)
+cmd = usage.with_usage(dspec, [a.replace("{prompt}", "hello from the test")
                                for a in use])
 check("a fresh headless turn is opencode run with the model on the command line",
       fresh and os.path.basename(cmd[0]) == "opencode" and "run" in cmd
       and cmd[cmd.index("-m") + 1] == "deepseek/deepseek-flash"
       and "hello from the test" in cmd)
-env = tutor.turn_environment(dspec)
+env = runturn.turn_environment(dspec)
 check("its environment carries the key from keys.env and no Anthropic routing",
       (env or {}).get("DEEPSEEK_API_KEY") == FAKE_KEY
       and not any(k.startswith("ANTHROPIC_") for k in env))
 log = io.open(os.path.join(box, "turn.log"), "w")
-rc, timed_out = tutor.run_turn(cmd, ws, log, 30, env=env)
+rc, timed_out = runturn.run_turn(cmd, ws, log, 30, env=env)
 log.close()
 ran = [json.loads(line) for line in open(os.path.join(state, "argv.jsonl"))]
 check("the turn runs through opencode and exits 0",
@@ -219,7 +216,7 @@ check("with the key, the model, no ANTHROPIC_* and PWD at the workspace",
       ran and ran[0]["key"] == FAKE_KEY and not ran[0]["anthropic"]
       and "deepseek/deepseek-flash" in ran[0]["argv"]
       and os.path.realpath(ran[0]["pwd"]) == os.path.realpath(ws))
-use2, _, fresh2 = tutor.turn_plan(dspec, 1, 0)
+use2, _, fresh2 = runturn.turn_plan(dspec, 1, 0)
 check("a resumed turn is the --continue form of the same harness",
       not fresh2 and os.path.basename(use2[0]) == "opencode" and "--continue" in use2)
 

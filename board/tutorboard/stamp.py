@@ -88,7 +88,8 @@ def blocked(tool=TOOL):
 
 
 def imports(tool=TOOL, timeout=30):
-    """Does the tree at `tool` compile `bin/tutor` and import the server?
+    """Does the tree at `tool` compile `bin/tutor` and import the server and
+    the tutor daemon's modules?
 
     Returns (ok, last line). Run once per new stamp before anything is bounced,
     because a ship that does not import would otherwise take down every board on
@@ -101,7 +102,9 @@ def imports(tool=TOOL, timeout=30):
     with tempfile.TemporaryDirectory(prefix="tutor-stamp-") as scratch:
         code = ("import py_compile, sys; "
                 "py_compile.compile('bin/tutor', cfile=%r, doraise=True); "
-                "sys.path.insert(0, '.'); import tutorboard.server.app"
+                "sys.path.insert(0, '.'); import tutorboard.server.app, "
+                "tutorboard.runner.loop, tutorboard.runner.watch, "
+                "tutorboard.agents.doctor"
                 % os.path.join(scratch, "tutor.pyc"))
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         try:

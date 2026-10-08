@@ -23,8 +23,6 @@ Three rules underneath, and each one is here because getting it wrong is silent:
     file in this home -- see `tutorboard/keys.py` for the measurement.
 """
 
-import importlib.machinery
-import importlib.util
 import os
 import stat
 import sys
@@ -40,10 +38,9 @@ os.environ.setdefault("BOARD_NO_TAILNET", "1")
 
 from tutorboard import keys, paths                            # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 fails = []
 
@@ -130,13 +127,13 @@ check("and one whose key is absent reports the key's NAME, so the dimmed "
 plain = {"cmd": ["claude"]}
 check("a recipe with no env leaves the turn's environment as it was, and "
       "marks it a turn so the pre-commit hook guards it",
-      tutor.turn_environment(plain, {"A": "1"}) == {"A": "1", "TUTORBOARD_TURN": "1"}
-      and tutor.turn_environment(plain).get("TUTORBOARD_TURN") == "1"
-      and tutor.turn_environment(plain).get("PATH") == os.environ.get("PATH"))
+      runturn.turn_environment(plain, {"A": "1"}) == {"A": "1", "TUTORBOARD_TURN": "1"}
+      and runturn.turn_environment(plain).get("TUTORBOARD_TURN") == "1"
+      and runturn.turn_environment(plain).get("PATH") == os.environ.get("PATH"))
 
 routed = {"env": {"ANTHROPIC_BASE_URL": "https://example.test",
                   "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}"}}
-env = tutor.turn_environment(routed, {"COLI_SESSION_ID": "s1"})
+env = runturn.turn_environment(routed, {"COLI_SESSION_ID": "s1"})
 check("env reaches the subprocess", env["ANTHROPIC_BASE_URL"] == "https://example.test")
 check("with {KEY} substituted", env["ANTHROPIC_AUTH_TOKEN"] == "sk-abc123")
 check("and a colibri mission's own variable lands in the SAME dict rather than "
@@ -145,12 +142,15 @@ check("and a colibri mission's own variable lands in the SAME dict rather than "
 missing = {"env": {"TOKEN": "{NOT_A_KEY}"}}
 check("a value naming a key that is not here is dropped rather than passed "
       "through with the braces on",
-      "TOKEN" not in tutor.turn_environment(missing, {}))
+      "TOKEN" not in runturn.turn_environment(missing, {}))
 
 # THE RULE THIS FILE EXISTS FOR. Nothing a recipe routes with may end up on a
 # command line, because argv is in `ps` output.
-tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-cmd = tutor.with_usage(dict(routed, usage_args=["--output-format", "json"]),
+# The recipes, a turn's environment, and the daemon that refuses an unkeyed one.
+tutor_src = "".join(open(os.path.join(ROOT, "tutorboard", *p), encoding="utf-8").read()
+                    for p in (("agents", "recipes.py"), ("runner", "turn.py"),
+                              ("runner", "loop.py")))
+cmd = usage.with_usage(dict(routed, usage_args=["--output-format", "json"]),
                        ["claude", "-p", "hello"])
 check("a key never reaches argv: `with_usage` adds flags and nothing else",
       not any("sk-abc123" in a or "AUTH_TOKEN" in a for a in cmd))
@@ -159,7 +159,7 @@ check("and the reason is written beside the function rather than in a commit "
       and "credentials.txt" in tutor_src)
 
 # ---- the whole of a provider: one entry and one line -----------------------
-D = tutor.DEFAULT_CONFIG
+D = recipes.DEFAULT_CONFIG
 ds = D["agents"]["deepseek"]
 check("deepseek runs through opencode, its own harness, and never through "
       "another provider's client",
@@ -184,7 +184,7 @@ check("no `--` before the prompt, because `with_usage` appends flags after it",
       "--" not in ds["headless_first"] and "--" not in ds["headless"])
 check("it reports what it cost through its own parser",
       ds["usage"] == "opencode-json" and ds["usage_args"] == ["--format", "json"]
-      and "opencode-json" in tutor.USAGE_PARSERS)
+      and "opencode-json" in usage.USAGE_PARSERS)
 check("it names the key it needs", ds["needs_key"] == "DEEPSEEK_API_KEY")
 check("and no ANTHROPIC_* routing is left anywhere in the recipe",
       not any(k.startswith(("ANTHROPIC_", "CLAUDE_CODE_")) for k in ds["env"]))
@@ -199,7 +199,7 @@ check("titles go to DeepSeek too, not to the machine's small model",
 check("and skills are off: this machine's describe-image skill sends a slate "
       "to another provider", overlay["permission"]["skill"] == "deny")
 
-real_env = tutor.turn_environment(ds, {})
+real_env = runturn.turn_environment(ds, {})
 check("the real recipe spends the key through the environment",
       real_env["DEEPSEEK_API_KEY"] == "sk-abc123")
 check("and the overlay's own braces pass through keys.fill untouched",
@@ -211,7 +211,7 @@ check("keys.fill leaves a brace that does not open a bare name alone",
 # THE ARGV RULE, ASKED OF THE REAL RECIPE rather than of a stand-in, because
 # this is the one that is unrecoverable: `ps` is readable by every account on
 # this machine and a leaked key cannot be un-leaked.
-real_cmd = tutor.with_usage(ds, [a.replace("{prompt}", "hello")
+real_cmd = usage.with_usage(ds, [a.replace("{prompt}", "hello")
                                  for a in ds["headless"]])
 check("and nothing of it reaches the command line",
       not any("sk-abc123" in a or "DEEPSEEK" in a for a in real_cmd))
@@ -234,7 +234,7 @@ unkeyed_cfg = {"default_agent": "ghost", "agents": {
               "needs_key": "NOT_A_KEY"}}}
 check("an unkeyed recipe cannot take a turn, in the same words a missing "
       "executable cannot",
-      "NOT_A_KEY" in (tutor.agent_unavailable(unkeyed_cfg, "ghost") or ""))
+      "NOT_A_KEY" in (recipes.agent_unavailable(unkeyed_cfg, "ghost") or ""))
 check("and the daemon refuses to start on one rather than listening and "
       "failing every turn into a log",
       "needs the key %s" in tutor_src)

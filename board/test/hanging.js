@@ -355,7 +355,7 @@ await sleep(40);
 // and the strip's ordinary rule is that a card landing IS the answer, so it
 // stopped talking about ten seconds into a job that takes minutes.
 //
-// The daemon says what a turn was woken for; see `turn_signal` in `bin/tutor`.
+// The daemon says what a turn was woken for; see `turn_signal` in `tutorboard/runner/turn.py`.
 {
   const replan = (cards) => JSON.stringify({
     state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach',
