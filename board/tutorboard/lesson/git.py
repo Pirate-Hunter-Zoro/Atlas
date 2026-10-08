@@ -15,6 +15,7 @@ import time
 
 from .. import atlas, leaving, paths, worktree
 from ..course import homework
+from ..course import repo as course_repo
 
 
 # Keyed by workspace root. One process serves one board, so in practice this
@@ -567,5 +568,6 @@ def uncommitted(root, paths=None):
         except ValueError:
             here = rel
         names.append(here)
+    scratch = os.path.relpath(course_repo.session_dir(root), root)
     return [n for n in names
-            if not n.startswith("live" + os.sep) and n != "live"]
+            if not n.startswith(scratch + os.sep) and n != scratch]
