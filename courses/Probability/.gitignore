@@ -1,5 +1,3 @@
 # Only what Atlas's root .gitignore does not already say.
 # hyperref's bookmark file, written beside a .tex built in place.
 *.out
-# The old board's lesson state, which becomes a session at the cutover.
-/live/

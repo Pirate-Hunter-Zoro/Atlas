@@ -61,9 +61,6 @@ slurm_jobs/**/logs/
 .env
 .DS_Store
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked.
-live/*
-
 # THE THREAD FILE IS TRACKED. It is this project's deliverables and threads,
 # which is judgement no other file contains, and it must survive the blanket
 # *.json rule above. `board thread --check` says what has gone stale in it.

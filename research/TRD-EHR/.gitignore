@@ -24,9 +24,6 @@ node_modules/
 writeup/
 slurm-*.out
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked
-live/
-
 # ---- Other authors' published papers: on disk, never tracked ----
 # This repository is public. The two citation libraries hold published PDFs
 # whose copyright belongs to their authors and publishers, so they live here

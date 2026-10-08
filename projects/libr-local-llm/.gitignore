@@ -41,9 +41,6 @@ __pycache__/
 *.pyc
 node_modules/
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked.
-live/*
-
 # THE THREAD FILE IS TRACKED: this project's deliverables and threads, which is
 # judgement no other file contains. The negation comes after the `*.json` rule
 # above, or that rule is the last match and wins.
