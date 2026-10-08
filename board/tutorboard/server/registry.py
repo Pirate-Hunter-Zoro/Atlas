@@ -191,7 +191,7 @@ def open_bound(atlas, subject, title):
 # ---------------------------------------------------------------------------
 # the one way into another subject's tutor
 # ---------------------------------------------------------------------------
-def runner_route(subject, line, base=None, ask="", turn=False, before=None):
+def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake=True):
     """Hand `line` to the tutor of `subject`. A STUB: T21 replaces it with
     the runner's queue.
 
@@ -207,7 +207,8 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None):
     `before(repo, id)` runs once the session is chosen and before anything
     is written into it; whatever it raises propagates, and a dict it returns
     is merged into the record. `turn` also writes the record into the
-    session's transcript, as the student's.
+    session's transcript, as the student's. `wake` False leaves the tutor to
+    a caller that started one itself (`/elsewhere`).
 
     Returns {"session": id, "repo": Repo, "id": turn id, "record": record}.
     Raises LookupError when `subject` names no subject.
@@ -241,5 +242,6 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None):
     os.makedirs(repo.inbox, exist_ok=True)
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
-    spawn.wake_tutor(repo)
+    if wake:
+        spawn.wake_tutor(repo)
     return {"session": sid, "repo": repo, "id": tid, "record": record}

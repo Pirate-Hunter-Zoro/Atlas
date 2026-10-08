@@ -81,15 +81,36 @@ UNPREFIXED = (
     ("POST", "/sittings/items", "atlas"),
     ("POST", "/sittings/deck", "atlas"),
     ("POST", "/sittings/decks", "atlas"),
+    # machines
+    ("GET", "/meeting", "meeting"),
+    ("GET", "/meeting/", "meeting"),
+    ("GET", "/courses.json", "atlas"),
+    ("GET", "/atlas.json", "atlas"),
+    ("GET", "/news", "atlas"),
+    ("GET", "/missions", "atlas"),
+    ("GET", "/mission", "atlas"),
+    ("GET", "/meeting/deck.json", "atlas"),
+    ("GET", "/meeting/view", "atlas"),
+    ("GET", "/meeting/pdf", "atlas"),
+    ("POST", "/notes/what", "atlas"),
+    ("POST", "/notes", "atlas"),
+    ("POST", "/meeting/direction", "atlas"),
+    ("POST", "/default-agent", "atlas"),
+    ("POST", "/colibri", "atlas"),
+    ("POST", "/writeup/scopes", "atlas"),
+    ("POST", "/elsewhere", "atlas"),
+    ("POST", "/switch", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
     # writing
     ("POST", "/annotate/save", "subject?"),
 )
 
-# The route classes UNPREFIXED names.
+# The route classes UNPREFIXED names. A cross-subject one (and the meeting
+# page, which is its page) is 404 under `/s/<id>/`.
 SUBJECT_CLASSES = ("subject", "subject?")
 CROSS = "atlas"
+NOT_IN_SESSION = (CROSS, "meeting")
 
 
 def unprefixed_route(method, path):
@@ -330,7 +351,7 @@ class Handler(BaseHTTPRequestHandler):
         if getattr(self.server, "registry", None):
             if path in ("/", "/board", "/board/"):
                 return self.send_file(os.path.join(WEB, "board.html"))
-            if unprefixed_route("GET", path) == CROSS:
+            if unprefixed_route("GET", path) in NOT_IN_SESSION:
                 return self.not_in_session(path)
         return self.session_get(self.repo, path)
 
@@ -385,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.repo is None:
             return self.unprefixed("POST", path, query)
         if (getattr(self.server, "registry", None)
-                and unprefixed_route("POST", path) == CROSS):
+                and unprefixed_route("POST", path) in NOT_IN_SESSION):
             return self.not_in_session(path)
         return self.session_post(self.repo, path)
 

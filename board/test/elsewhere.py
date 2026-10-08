@@ -277,6 +277,15 @@ try:
     _spawn.tutor_cli = lambda args, timeout=30: (
         ran.append(list(args)) or (0, "colibri starting in PSYCH-ASR"))
 
+    def there():
+        """Where a dispatch to PSYCH-ASR lands: the newest open session bound
+        to it, which `runner_route` picks (or opens). Before the first, its
+        own `live/`, which holds no turn."""
+        from tutorboard import sessions as _sessions         # noqa: E402
+        from tutorboard.server import registry as _registry  # noqa: E402
+        sid = _registry.newest_open(base, "research/PSYCH-ASR")
+        return _sessions.repo(sid, base) if sid else _repo.Repo(psych)
+
     def send(body):
         req = urllib.request.Request(
             BASE + "/elsewhere", method="POST",
@@ -297,7 +306,7 @@ try:
               "this once rather than writing it into that sitting",
               ran and ran[-1][:3] == ["agent", "start", "PSYCH-ASR"]
               and ran[-1][-2:] == ["--agent", "colibri"])
-        over = _repo.Repo(psych)
+        over = there()
         said = turns.load_turns(over)
         check("the task is a turn of THEIRS over there, because they asked for it",
               said and said[-1]["text"] == "reproduce the corrected transcript"
@@ -331,7 +340,7 @@ try:
         _spawn.tutor_cli = lambda args, timeout=30: (
             1, "'colibri' is already working in TRD-EHR, and it runs one "
                "sitting at a time on this machine")
-        before = len(turns.load_turns(_repo.Repo(psych)))
+        before = len(turns.load_turns(there()))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "and another one"})
         check("and when the launcher refuses, the reason comes back with the "
@@ -339,7 +348,7 @@ try:
               body.get("ok") is False and "TRD-EHR" in (body.get("error") or ""))
         check("and the refused job is NOT left in that workspace's transcript "
               "with nothing that will ever read it",
-              len(turns.load_turns(_repo.Repo(psych))) == before)
+              len(turns.load_turns(there())) == before)
         check("and it left no mission record either, because a row about a job "
               "nobody is doing is worse than no row",
               [m for m in missions.stored(psych)
@@ -415,7 +424,7 @@ try:
         attach()
         quiet()
         ran[:] = []
-        before = len(turns.load_turns(_repo.Repo(psych)))
+        before = len(turns.load_turns(there()))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "read the fenced directory"})
         check("a dispatch naming an assistant where a DIFFERENT one is "
@@ -438,7 +447,7 @@ try:
               and "colibri" in (body.get("detail") or ""))
         check("and the task and the record are written, because the dispatch "
               "was allowed",
-              len(turns.load_turns(_repo.Repo(psych))) == before + 1
+              len(turns.load_turns(there())) == before + 1
               and [m for m in missions.stored(psych)
                    if m["task"] == "read the fenced directory"])
 
@@ -456,7 +465,7 @@ try:
         quiet()
         _spawn.tutor_cli = launcher(lets_go=False)
         ran[:] = []
-        before = len(turns.load_turns(_repo.Repo(psych)))
+        before = len(turns.load_turns(there()))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "and this one waits"})
         check("a holder still wrapping up when the wait runs out is refused "
@@ -470,7 +479,7 @@ try:
               and "tutor agent" not in (body.get("error") or ""))
         check("and a dispatch that did not start wrote neither the task nor a "
               "record, because a mission nobody is doing is a false fact",
-              len(turns.load_turns(_repo.Repo(psych))) == before
+              len(turns.load_turns(there())) == before
               and [m for m in missions.stored(psych)
                    if m["task"] == "and this one waits"] == [])
 
@@ -483,7 +492,7 @@ try:
         quiet()
         _spawn.tutor_cli = launcher(start=1)
         ran[:] = []
-        before = len(turns.load_turns(_repo.Repo(psych)))
+        before = len(turns.load_turns(there()))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "the one that cannot start"})
         check("a stop whose start is then refused puts the assistant it "
@@ -497,7 +506,7 @@ try:
               and "claude" in (body.get("error") or "")
               and "again" in (body.get("error") or ""))
         check("and it wrote nothing, because nothing was started",
-              len(turns.load_turns(_repo.Repo(psych))) == before
+              len(turns.load_turns(there())) == before
               and [m for m in missions.stored(psych)
                    if m["task"] == "the one that cannot start"] == [])
 
@@ -701,7 +710,7 @@ try:
         _spawn.tutor_cli = arrives("claude")
         quiet()
         ran[:] = []
-        before = len(turns.load_turns(_repo.Repo(psych)))
+        before = len(turns.load_turns(there()))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "the one that lost the race"})
         check("an assistant that attaches while the start is in flight is "
@@ -711,7 +720,7 @@ try:
               and "colibri" in (body.get("error") or ""))
         check("and nothing is written, because the holder is read before the "
               "task is and not after it",
-              len(turns.load_turns(_repo.Repo(psych))) == before
+              len(turns.load_turns(there())) == before
               and [m for m in missions.stored(psych)
                    if m["task"] == "the one that lost the race"] == [])
         os.remove(agent_json)
@@ -768,8 +777,10 @@ try:
         # passing run proves nothing about the order.
         _route = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                                    "machines.py"), encoding="utf-8").read()
-        _dispatched = _route.find("rec = missions.dispatch(")
-        _woken = _route.find("target.messages_path", _dispatched)
+        # The record is made in the `before` hook `runner_route` runs ahead
+        # of the turn and the inbox line.
+        _dispatched = _route.find('made["rec"] = missions.dispatch(')
+        _woken = _route.find("before=mission", _dispatched)
         check("and the mission record is written before the inbox line that "
               "wakes the daemon that reads it",
               0 < _dispatched < _woken)

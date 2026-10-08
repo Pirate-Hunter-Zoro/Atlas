@@ -345,11 +345,34 @@ DRIVE = {
     ("POST", "/sittings/decks", "library"): ("atlas", [("/sittings/decks", {}, OK)]),
     ("POST", "/sittings/deck", "library"): ("atlas", [
         ("/sittings/deck", {"picks": [], "items": []}, (400,))]),
+    # machines
+    ("GET", "/meeting", "handler"): ("atlas", [("/meeting", None, OK)]),
+    ("GET", "/courses.json", "machines"): ("atlas", [("/courses.json", None, OK)]),
+    ("GET", "/atlas.json", "machines"): ("atlas", [("/atlas.json", None, OK)]),
+    ("GET", "/news", "machines"): ("atlas", [("/news", None, OK)]),
+    ("GET", "/missions", "machines"): ("atlas", [("/missions", None, OK)]),
+    ("GET", "/mission", "machines"): ("atlas", [("/mission?ws=nope&id=t1", None, (404,))]),
+    ("GET", "/meeting/deck.json", "machines"): ("atlas", [("/meeting/deck.json", None, OK)]),
+    ("GET", "/meeting/view", "machines"): ("atlas", [("/meeting/view", None, OK)]),
+    ("GET", "/meeting/pdf", "machines"): ("atlas", [("/meeting/pdf", None, (404,))]),
+    ("POST", "/notes/what", "machines"): ("atlas", [("/notes/what", {"since": "7d"}, OK)]),
+    ("POST", "/notes", "machines"): ("atlas", [("/notes", {"since": "nope"}, (400,))]),
+    ("POST", "/meeting/direction", "machines"): ("atlas", [
+        ("/meeting/direction", {}, (400,))]),
+    ("POST", "/default-agent", "machines"): ("atlas", [
+        ("/default-agent", {"agent": "nobody-here"}, (400,))]),
+    ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, OK)]),
+    ("POST", "/writeup/scopes", "machines"): ("atlas", [
+        ("/writeup/scopes", {"repo": "courses/Alpha"}, OK)]),
+    ("POST", "/elsewhere", "machines"): ("atlas", [("/elsewhere", {"task": ""}, (400,))]),
+    ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
+    ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
+    ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
     # not yet classified in their modules' tables
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
     ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
-    ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
+
     ("POST", "/slate/save", "writing"): ("session", [
         ("/slate/save", {"page": 2, "w": 10, "h": 10,
                          "strokes": [{"pts": [[1, 1]], "m": "{mark}"}]}, OK)]),
@@ -583,6 +606,14 @@ status, _, grew = landed("POST", "/s/%s/library/feedback" % SID["B"],
                          {"document": DOC["B"], "text": "a note from B's board"})
 check("library feedback from a session's own board lands in that session",
       status == 200 and only(grew, DIR["B"], "[revise]"))
+status, _, grew = landed("POST", "/notes", {"since": "3650d", "want": [SUBJECT["B"]]})
+check("a meeting ask lands in the newest open session on its host, and nowhere else",
+      status == 200 and only(grew, DIR["B"], "[writeup]"))
+status, reply, grew = landed("POST", "/elsewhere", {"task": "a mission for Beta",
+                                                    "repo": SUBJECT["B"]})
+check("a mission sent elsewhere lands in that subject's session, as its turn",
+      status == 200 and only(grew, DIR["B"], "a mission for Beta")
+      and "a mission for Beta" in open(os.path.join(DIR["B"], "turns.jsonl")).read())
 status, _, grew = landed("POST", "/writeup", {"makes": "slides", "repo": SUBJECT["B"],
                                               "about": "a deck from home"})
 check("a deck asked for from the front door lands in its subject's session",

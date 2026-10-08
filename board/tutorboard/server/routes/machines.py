@@ -2,6 +2,22 @@
 
 Nothing here reaches the filesystem from a request: a course named in a
 request is matched against what this server already discovered.
+
+WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
+
+    atlas     unprefixed only, over every subject, by a sessionless Repo over
+              the Atlas root; 404 under `/s/<id>/`:
+              GET  /courses.json  /atlas.json  /news  /missions  /mission
+              GET  /meeting/deck.json  /meeting/view  /meeting/pdf
+              POST /notes/what  /notes  /meeting/direction  /default-agent
+              POST /colibri  /writeup/scopes  /elsewhere  /switch
+    session   under `/s/<id>/`: POST /seen (somebody is looking at this
+              session's subject)
+    both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
+              handler answers for the server
+
+`/notes`, `/meeting/direction` and `/elsewhere` ask another subject's tutor,
+and each goes through `registry.runner_route`.
 """
 
 import json
@@ -10,6 +26,7 @@ import time
 import urllib.parse
 
 from . import NOT_MINE
+from .. import registry
 from ...net import tailscale
 from ... import assistants
 from ... import limits
@@ -33,7 +50,6 @@ from ...course import threads
 from ...course.repo import Repo
 from ...lesson import notes
 from ...lesson import state
-from ...lesson import turns
 from ...course import repo as course_repo
 
 
@@ -806,20 +822,14 @@ def post(h, repo, path):
 
         # The task goes in as a turn of theirs, because that is what it is: they
         # asked for it, and a transcript over there that opens with the answer
-        # reads as an assistant that decided to do this on its own. One
-        # implementation of "a student said something" -- the same
-        # `turns.write_turn` and the same inbox line `/say` writes -- against a
-        # Repo for the root that came back from the walk.
-        target = Repo(match["root"])
-        tid = turns.next_turn_id(target)
+        # reads as an assistant that decided to do this on its own. It goes
+        # through `runner_route`, which picks the session on that subject.
         record = {
-            "id": tid, "rev": turns.turn_revision(target, tid), "kind": "text",
-            "answers": None,
+            "kind": "text", "answers": None,
             "t": time.time(),
             "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
             "from": "student", "text": task, "signal": None, "read": False,
         }
-        turns.write_turn(target, record)
 
         # AND THE MISSION IS A RECORD, IN THE WORKSPACE IT IS ABOUT.
         #
@@ -859,16 +869,27 @@ def post(h, repo, path):
         # workspace runs by default is asked at the release, off
         # `resolve_agent`, because that is the moment the answer has to be true.
         brought = agent if agent and was_holding != agent else ""
-        rec = missions.dispatch(match["root"], task=task, turn=tid,
-                                agent=agent, ship=bool(payload.get("ship")),
-                                frm=atlas.identify(repo.root), ceiling=ceiling,
-                                brought=brought, thread=thread)
-        # AND NOW THE INBOX LINE, WHICH IS THE WAKING. `board wait` polls this
-        # file four times a second, so everything the woken turn reads about
-        # itself is on disk before it lands. The line is their words and
-        # nothing else: what kind of turn this is comes out of `board brief`.
-        with open(target.messages_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record) + "\n")
+        made = {}
+
+        def mission(target, tid):
+            made["rec"] = missions.dispatch(
+                match["root"], task=task, turn=tid, agent=agent,
+                ship=bool(payload.get("ship")), frm=atlas.identify(repo.root),
+                ceiling=ceiling, brought=brought, thread=thread)
+
+        # AND NOW THE TURN AND THE INBOX LINE, WHICH IS THE WAKING, after the
+        # mission record: everything the woken turn reads about itself is on
+        # disk before it lands. The line is their words and nothing else: what
+        # kind of turn this is comes out of `board brief`.
+        try:
+            got = registry.runner_route(match["id"], record, turn=True,
+                                        base=registry.base_of(repo), wake=False,
+                                        ask=task[:60], before=mission)
+        except (LookupError, OSError) as exc:
+            return h.send_json({"ok": False, "repo": match["repo"], "agent": agent,
+                                "error": "nothing could be asked: %s" % exc},
+                               status=500)
+        tid, rec = got["id"], made["rec"]
         missions.forget()
         h.hub.worker.dirty.set()
         # WHAT IT DID, IN ONE SENTENCE, ON THE GLASS. A swap that happens
@@ -880,7 +901,7 @@ def post(h, repo, path):
                     % (stopped, match["repo"], agent))
         return h.send_json({"ok": True, "repo": match["repo"],
                             "agent": agent, "turn": tid, "detail": said,
-                            "stopped": stopped,
+                            "stopped": stopped, "session": got["session"],
                             "mission": rec["id"], "ship": rec["ship"],
                             "ceiling": rec["ceiling"]})
 
