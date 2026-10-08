@@ -336,8 +336,8 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     `materials/` by default, or `dest`, a path inside the subject (a
     directory, or the file's new name).
 
-    The upload's ink moves with it, from the session's `annotations/` to
-    `<subject>/.ink/`, re-keyed from the upload's ink id to the new path's
+    The upload's ink moves with it, from the session's `annotations/` or
+    `<subject>/.ink/` to `<subject>/.ink/`, re-keyed from the upload's ink id to the new path's
     (`ink_ident`). Refused: an unbound session, an upload not in `uploads/`,
     a destination outside the subject, hidden or fenced, or already taken,
     and ink already in `.ink/` under the new keys. Nothing is committed: a
@@ -362,15 +362,21 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     old, new = ink_ident("uploads/" + name), ink_ident(rel)
     from .server.routes import writing                 # local: avoids a cycle
     moves = []
-    for fname, key, ext in _ink_of(notes, old):
-        page = key.rsplit("/p", 1)[1]
-        nkey = "doc/%s/p%s" % (new, page)
-        target = os.path.join(ink, writing.ann_file(nkey) + ext)
-        if os.path.lexists(target):
-            raise Refused("%s already holds ink for %s; it belongs to no file "
-                          "there now -- delete it, or file under another name"
-                          % (target, nkey))
-        moves.append((os.path.join(notes, fname), target, key, nkey, ext))
+    # Ink drawn while the session was bound is already in `.ink/` (the server
+    # routes document keys there); ink drawn before the bind is in the
+    # session's annotations. `.ink/` first, so it wins a key held in both.
+    for folder in (ink, notes):
+        for fname, key, ext in _ink_of(folder, old):
+            page = key.rsplit("/p", 1)[1]
+            nkey = "doc/%s/p%s" % (new, page)
+            target = os.path.join(ink, writing.ann_file(nkey) + ext)
+            if any(m[1] == target for m in moves):
+                continue
+            if os.path.lexists(target):
+                raise Refused("%s already holds ink for %s; it belongs to no file "
+                              "there now -- delete it, or file under another name"
+                              % (target, nkey))
+            moves.append((os.path.join(folder, fname), target, key, nkey, ext))
 
     os.makedirs(os.path.dirname(full), exist_ok=True)
     shutil.move(src, full)

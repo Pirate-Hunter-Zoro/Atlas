@@ -475,11 +475,19 @@ try:
           and "courses/Galois/materials/slides.pdf" in filed[0]["text"], filed)
 
     write(os.path.join(e_dir, "uploads", "scan.png"), b"\x89PNG scan")
+    # Ink drawn on it while the session was bound: the server put it in .ink/.
+    scan_key = "doc/%s/p1" % sessions.ink_ident("uploads/scan.png")
+    write(os.path.join(galois, ".ink", writing.ann_file(scan_key) + ".json"),
+          json.dumps({"card": scan_key, "strokes": [stroke]}))
     code, out = board(["file", "uploads/scan.png", "notes/ch7-scan.png",
                        "--session", e["id"]])
     check("file takes a relative path inside the subject and --session",
           code == 0 and os.path.isfile(os.path.join(galois, "notes", "ch7-scan.png")),
           out)
+    scan_new = "doc/%s/p1" % sessions.ink_ident("notes/ch7-scan.png")
+    loaded = lesson_notes.load_notes(InkDrawer)
+    check("ink already in .ink/ is re-keyed too",
+          loaded.get(scan_new) == [stroke] and scan_key not in loaded, loaded)
     write(os.path.join(e_dir, "uploads", "slides.pdf"), b"%PDF again\n")
     code, out = board(["file", "slides.pdf"], session=e_dir)
     check("and refuses a destination already taken",
