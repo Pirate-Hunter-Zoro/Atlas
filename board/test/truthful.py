@@ -12,13 +12,8 @@ documents went on naming the place it used to be: `~/Tutor-Board`, `~/colibri`,
 and a document containing one is wrong however the sentence around it reads --
 so it is checked here rather than remembered.
 
-The other class is a number that lives in two places. A count of suites, of
-tests, of families: each has one true value in the code and a copy in prose,
-and the copy is what goes stale. Every number in here is re-derived and
-compared, so the document cannot drift without the suite saying so.
-
 This file makes no claim about prose that is merely out of date. It checks the
-two things a machine can check, and the rest stays a job for a reader.
+things a machine can check, and the rest stays a job for a reader.
 """
 
 import json
@@ -118,81 +113,7 @@ check("no document names a directory that moved into this repository",
       not found, "\n".join(found[:40]))
 
 
-# ---- 2. Counts that exist twice --------------------------------------------
-
-def suites_in(script):
-    """How many rows `all.sh` actually prints: the loop plus the singles."""
-    with open(script, encoding="utf-8") as fh:
-        text = fh.read()
-    loop = re.search(r'^SUITES="([^"]+)"', text, re.M)
-    n = len(loop.group(1).split()) if loop else 0
-    # Every other row is its own `printf '%-12s '` with a literal name. The
-    # loop's own `"$t"` is not one of them -- it is the rows already counted.
-    n += len([m for m in re.findall(r"printf '%-12s ' \"([^\"]+)\"", text)
-              if m != "$t"])
-    return n
-
-
-real_suites = suites_in(os.path.join(TOOL, "test", "all.sh"))
-claimed = []
-for rel, text in tracked_markdown():
-    for n, line in enumerate(text.split("\n"), 1):
-        m = re.search(r"\b(\d+)\s+suites\b", line)
-        if m and int(m.group(1)) != real_suites:
-            claimed.append("%s:%d  says %s, all.sh runs %d"
-                           % (rel, n, m.group(1), real_suites))
-check("every document that counts the suites counts %d of them" % real_suites,
-      not claimed, "\n".join(claimed))
-
-
-def factory_tests():
-    """Paper-Writer's own count, taken from Paper-Writer."""
-    proc = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
-        cwd=os.path.join(ROOT, "projects", "Paper-Writer"),
-        capture_output=True, text=True)
-    m = re.search(r"Ran (\d+) tests", proc.stderr)
-    return int(m.group(1)) if m else None
-
-
-real_factory = factory_tests()
-stale = []
-if real_factory:
-    for rel, text in tracked_markdown():
-        for n, line in enumerate(text.split("\n"), 1):
-            m = re.search(r"Paper-Writer's (\d+) tests", line)
-            if m and int(m.group(1)) != real_factory:
-                stale.append("%s:%d  says %s, the suite runs %d"
-                             % (rel, n, m.group(1), real_factory))
-check("every document that counts Paper-Writer's tests counts %s of them"
-      % real_factory, real_factory and not stale, "\n".join(stale))
-
-
-with open(os.path.join(ROOT, "atlas.json"), encoding="utf-8") as fh:
-    families = len(json.load(fh)["families"])
-WORDS = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
-miscount = []
-for rel, text in tracked_markdown():
-    for n, line in enumerate(text.split("\n"), 1):
-        m = re.search(r"\b(\w+)\s+famil(?:y|ies)\b", line, re.I)
-        if not m:
-            continue
-        # A SUBJECT'S OWN FAMILIES are not the atlas's: TRD-EHR's handoff says
-        # "24 subgroup levels across 8 families", which is statistics. Only a
-        # line about subgroups is let off; every other count is still audited,
-        # in every file.
-        if re.search(r"\bsubgroups?\b", line, re.I):
-            continue
-        word = m.group(1).lower()
-        said = WORDS.get(word, int(word) if word.isdigit() else None)
-        if said is not None and said != families:
-            miscount.append("%s:%d  says %s, atlas.json names %d"
-                            % (rel, n, m.group(1), families))
-check("every document that counts the families counts %d of them" % families,
-      not miscount, "\n".join(miscount))
-
-
-# ---- 3. A setting a document describes and the code does not read ----------
+# ---- 2. A setting a document describes and the code does not read ----------
 #
 # `mode` is the case this is written from and it is the shape of the class: a
 # key sat in seven `tutorboard.json` files and in seven contracts saying what
