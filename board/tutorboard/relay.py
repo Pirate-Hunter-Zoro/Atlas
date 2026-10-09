@@ -202,12 +202,13 @@ def spaces(base):
     return [(w["root"], _rel(base, w["root"])) for w in atlas.workspaces(base)]
 
 
-def held_paths(where):
+def held_paths(where, base=None):
     """Repository-relative paths a standing hold covers, workspace by
     workspace: `holds.owned`, which is the hold files, the reports and
-    exports, and every held thread's files. The owner edits these at the
-    cluster and `board send` commits them, so neither an edit nor an unpushed
-    commit under them is a reason to skip."""
+    exports, and every held thread's files; and, given `base`, every path an
+    open coding session holds (`coding`). The owner edits these at the
+    cluster, so neither an edit nor an unpushed commit under them is a reason
+    to skip."""
     from . import holds
     out = []
     for root, ws in where:
@@ -216,7 +217,34 @@ def held_paths(where):
         except Exception:                                    # noqa: BLE001
             continue
         out.extend(ws + "/" + p.strip("/") for p in mine if p)
+    if base:
+        out.extend(coding(base))
     return out
+
+
+def coding(base):
+    """Repository-relative paths an open coding session (`board code`) holds
+    in this checkout. `[]` where none is registered or they cannot be read."""
+    from . import code
+    try:
+        return code.held(base)
+    except Exception:                                        # noqa: BLE001
+        return []
+
+
+HELD_UPSTREAM = "held path changed upstream"
+
+
+def held_upstream(base, ref, held):
+    """Held paths `HEAD...ref` changes: a pull would overwrite the owner's
+    work in a coding session, so it does not happen. None where git fails."""
+    if not held:
+        return []
+    code, out = _git(base, "-c", "core.quotePath=false", "diff", "--name-only",
+                     "HEAD...%s" % ref, "--", *held)
+    if code != 0:
+        return None
+    return sorted(l for l in out.splitlines() if l)
 
 
 def colibri_busy(base):
@@ -531,7 +559,8 @@ def sync(base, where, pull_vendor=None, said=None):
     dirty = _dirty(base)
     if dirty is None:
         return "git status failed", ""
-    held = held_paths(where)
+    held = held_paths(where, base)
+    coded = coding(base)
     busy_ws = colibri_busy(base)
 
     def cluster_s(p):
@@ -564,6 +593,19 @@ def sync(base, where, pull_vendor=None, said=None):
         if code != 0 or theirs_not:
             return ("the branch has commits origin lacks, outside the "
                     "cluster's paths: %s" % ", ".join(theirs_not[:5])), error
+    # A coding session's paths are the owner's until `board code --end`:
+    # origin changing one stops the pull rather than overwrite what is being
+    # written. The pass still runs, at this HEAD, and says why.
+    clash = []
+    if not error and _count(base, "HEAD..%s" % ref):
+        clash = held_upstream(base, ref, coded)
+        if clash is None:
+            error = ("could not tell whether origin changes a coding "
+                     "session's held paths, so nothing was pulled")
+        elif clash:
+            error = ("%s: %s. Nothing was pulled; `board code <session> --end` "
+                     "refuses the same files until they are merged by hand"
+                     % (HELD_UPSTREAM, ", ".join(clash[:5])))
     if not error and _count(base, "HEAD..%s" % ref):
         if ahead or mine or dirty:
             # Commits of its own to replay, or the owner's edits (a held
@@ -791,6 +833,11 @@ def publish(base, where, message, push=True, sync=None, said=None):
         return back
     if not _count(base, "%s..HEAD" % ref):
         return "", ""
+    _git(base, "fetch", "--quiet", remote, theirs)
+    clash = held_upstream(base, ref, coding(base))
+    if clash:
+        return "", "%s: %s; nothing was pushed" % (HELD_UPSTREAM,
+                                                    ", ".join(clash[:5]))
     from . import holds
     ok, why = holds.sync(base)
     if not ok and unwound("the rebase onto origin stopped, so it is "

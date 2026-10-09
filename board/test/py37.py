@@ -198,7 +198,9 @@ names = set(os.path.relpath(p, ROOT) for p in said)
 check("the walk reaches the entries and the relay modules",
       {"bin/relay", "bin/board", "tutorboard/relay.py", "tutorboard/jobs.py",
        "tutorboard/colibri.py", "tutorboard/fenced.py", "tutorboard/leaving.py",
-       "tutorboard/paths.py", "tutorboard/worktree.py"} <= names)
+       "tutorboard/paths.py", "tutorboard/worktree.py",
+       "tutorboard/code.py", "tutorboard/gitops.py", "tutorboard/audit.py"}
+      <= names)
 check("and follows their imports (relay imports atlas, which imports subjects)",
       {"tutorboard/atlas.py", "tutorboard/subjects.py"} <= names)
 for path in sorted(said):

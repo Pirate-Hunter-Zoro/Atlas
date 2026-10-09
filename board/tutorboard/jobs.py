@@ -1832,6 +1832,14 @@ def pin_problems(root, req):
         code = -1
     if code == 0:
         return []
+    # A coding session open here (`board code`) pushes to code/<session>, not
+    # main: a request from that session may pin a commit on that ref, when
+    # the held paths here are what that commit has.
+    session = req.get("session")
+    if isinstance(session, str) and session:
+        from . import code as coding
+        if coding.pin_ok(root, session, commit):
+            return []
     return ["HEAD here (%s) does not contain commit %s, the commit this "
             "request was filed after, so it would not run the code it was "
             "filed for" % (head(root, short=True) or "unknown", commit[:12])]

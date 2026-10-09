@@ -63,6 +63,11 @@ The assistant runs these. The student never does.
                                        it, run the thread's check, push, and
                                        print the coach's reply
     board coach <thread> < reply.md    on the Mac: the coach's reply to a step
+    board code <session> <path>...     on the cluster: hold these paths for a
+                                       coding session; each pause is a step on
+                                       code/<session>, checked and pushed.
+                                       --end commits them to main, --abandon
+                                       drops the ref. `board code --help`
     board colibri [--label <slug>] "<task>"
                                        queue a Colibri task: on the cluster it
                                        starts a generation if none is up; on
@@ -145,6 +150,12 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
+# `board code` runs on the cluster, on its python3, beside the data: it is
+# answered before anything below is imported, so it loads tutorboard/code.py
+# and what that needs, and no server, runner or model module.
+if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
+    from tutorboard import code as _code
+    sys.exit(_code.main(sys.argv[2:]))
 from tutorboard import (assistants, atlas, brief, carry, direction, gitops,
                         handoff, holds, jobs, keys, leaving, limits, machine, meeting,
                         missions, paths, plain, ports, processes, progress,
@@ -4127,6 +4138,13 @@ def tutor_health(live):
     return True
 
 
+def cmd_code(live, args):
+    """A coding session at the cluster: `board code --help`. Run as `board
+    code ...` it never gets here; this is for a caller holding COMMANDS."""
+    from tutorboard import code as coding
+    return coding.main(args)
+
+
 # ---------------------------------------------------------------------------
 COMMANDS = {
     "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
@@ -4144,7 +4162,7 @@ COMMANDS = {
     "ask-cluster": cmd_ask_cluster,
     "hold": cmd_hold, "release": cmd_release, "send": cmd_send,
     "coach": cmd_coach,
-    "colibri": cmd_colibri,
+    "colibri": cmd_colibri, "code": cmd_code,
     "notes": cmd_notes,
     "direction": cmd_direction, "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
@@ -4153,7 +4171,7 @@ COMMANDS = {
 
 # Commands about a directory or file they are given, not the workspace they run in:
 # no `live/` is made for them.
-NO_LIVE = ("textbook", "build", "session", "bind", "file")
+NO_LIVE = ("textbook", "build", "session", "bind", "file", "code")
 
 
 def help_for(cmd, fn):

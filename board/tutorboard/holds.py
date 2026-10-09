@@ -51,6 +51,13 @@ import time
 
 from . import cluster, jobs
 from .course import threads as course_threads
+# The check, and what of its output may leave, live in code.py; holds keeps
+# its names until T38c deletes it.
+from .code import (ANSI_RE, CHECK_SECONDS, CRASH_LINE, MAX_LINE,  # noqa: F401
+                   MAX_LINES, OUT_BYTES, OUT_HEAD, OUT_TAIL, RELAY_LINE,
+                   _argv_env, _head_phi, _policy, _program_ok, check_argv,
+                   check_output, check_spec, crash_type, output_open,
+                   relay_lines, run_check)
 
 HOLDS = "holds"
 COACH = "coach"
@@ -64,24 +71,7 @@ POLL_SECONDS = 20
 WAIT_SECONDS = 180
 WAIT_EVERY = 10
 
-# A check runs on the owner's node, in their terminal. Half an hour is a check
-# that is really a job, and a job goes through `board job`.
-CHECK_SECONDS = 30 * 60
-
-MAX_LINES = 40
-MAX_LINE = 300
-# An open workspace's output: the first `OUT_HEAD` and last `OUT_TAIL` lines,
-# at most `OUT_BYTES` in all. The end of a test run is where the failure is.
-OUT_HEAD = 40
-OUT_TAIL = 120
-OUT_BYTES = 16 * 1024
-RELAY_LINE = re.compile(r"^RELAY:\s?(.*)$")
-# The exception type of a crash, from a traceback's last line. Only the type:
-# the message after it can print a value.
-CRASH_LINE = re.compile(r"^([A-Za-z_][\w.]*(?:Error|Exception|Interrupt|Exit))\b")
 COACH_HEAD = re.compile(r"^<!-- coach (\S+) step (\d+) -->\s*$")
-ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
-                     r"|\x1b[@-Z\\-_]")
 
 
 # ---------------------------------------------------------------------------
@@ -170,53 +160,6 @@ def who(hid, rec):
 # ---------------------------------------------------------------------------
 # is output open here: may a check's output leave this workspace whole
 # ---------------------------------------------------------------------------
-def output_open(root, names_phi=None, cfg=None):
-    """True only when a check's full output may go back to the coach.
-
-    It fails closed. All four must hold, and anything else closes it:
-
-      1. its `tutorboard.json` says `"phi": false` literally, on disk;
-      2. and at HEAD (`_head_phi`), so an uncommitted edit opens nothing;
-      3. the workspace holds no fence (`fenced.holds`), which PSYCH-ASR does;
-      4. the lab's PHI policy loaded (`names_phi`), so a checkout without the
-         private `ai-config` is closed.
-
-    A missing file, a missing key, a `"phi": true` or a directory with no
-    `tutorboard.json` of its own (the repository's top, a family directory,
-    a directory inside a subject) is closed.
-
-    `names_phi` and `cfg` are for a caller that already has them; left None
-    they are read here.
-    """
-    from . import fenced
-    from .course import config
-    try:
-        cfg = cfg if cfg is not None else config.read_config(root)
-        if cfg.get("phi") is not False or _head_phi(root) is not False:
-            return False
-        if fenced.holds(root):
-            return False
-        if names_phi is None:
-            names_phi = _policy(root)
-        return callable(names_phi)
-    except Exception:                                        # noqa: BLE001
-        return False
-
-
-def _head_phi(root):
-    """What the committed `tutorboard.json` says for `"phi"`: True or False
-    literally, else None (no file at HEAD, bad JSON, no key, not a bool)."""
-    code, out = _git(root, "show", "HEAD:./tutorboard.json", timeout=20)
-    if code != 0:
-        return None
-    try:
-        said = json.loads(out)
-    except ValueError:
-        return None
-    phi = said.get("phi") if isinstance(said, dict) else None
-    return phi if isinstance(phi, bool) else None
-
-
 # ---------------------------------------------------------------------------
 # the validator: pure
 # ---------------------------------------------------------------------------
@@ -256,53 +199,6 @@ def slug(text):
     s = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")[:60]
     s = s.strip("-") or "hold"
     return "h-" + s if s.startswith(CHECK_PREFIX) else s
-
-
-def check_spec(spec, files):
-    """`(check, problems)`: the workspace's declared check, made concrete for
-    these held paths. PURE.
-
-    `one` is used when it can be filled from exactly one held path, `all`
-    otherwise. Each placeholder value is a workspace path, never an option:
-
-        {dir}     the held directory, or the held file's directory
-        {file}    the held file
-        {module}  the held path, dotted, its extension dropped:
-                  `Exercises/Sets/E01.lean` is `Exercises.Sets.E01`
-
-    `files` is `[(rel, is_dir)]`.
-    """
-    if not spec:
-        return None, []
-    one, every = spec.get("one"), spec.get("all")
-    if one and len(files or []) == 1:
-        rel, is_dir = files[0]
-        values = {"{dir}": rel if is_dir else (os.path.dirname(rel) or "."),
-                  "{module}": os.path.splitext(rel)[0].replace("/", ".")}
-        if not is_dir:
-            values["{file}"] = rel
-        argv, bad = [], []
-        for word in one:
-            for hole in re.findall(r"\{[^}]*\}", word):
-                val = values.get(hole)
-                if val is None:
-                    bad.append("%s needs a held file, and %s is a directory"
-                               % (hole, rel))
-                    continue
-                if (val != "." and course_threads._rel(val) != val) \
-                        or val.startswith("-") or "{" in val:
-                    bad.append("%r is not a path a check may be given" % val)
-                    continue
-                word = word.replace(hole, val)
-            argv.append(word)
-        if not bad:
-            return {"spec": "one", "argv": argv}, []
-        if not every:
-            return None, bad
-    if every:
-        return {"spec": "all", "argv": list(every)}, []
-    return None, ["the workspace's check has only `one`, which needs exactly "
-                  "one held path"]
 
 
 def check_label(chk):
@@ -423,13 +319,6 @@ def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
     if tid:
         rec["thread"] = tid
     return rec, []
-
-
-def _program_ok(word, tracked):
-    from .course import config
-    if word in config.CHECK_PROGRAMS:
-        return True
-    return config.check_program(word) and word in set(tracked or ())
 
 
 def refused_writes(paths, clean, standing):
@@ -870,163 +759,6 @@ def _message(root, what):
 # ---------------------------------------------------------------------------
 # the check, and `board send`
 # ---------------------------------------------------------------------------
-def relay_lines(text, names_phi=None):
-    """`(lines, withheld)`: what a report may carry out of a program's output.
-
-    Only lines behind `RELAY:`, prefix dropped, each through `relay.public`
-    (control characters gone, an absolute or home path made `<path>`, cut to
-    `MAX_LINE`), at most `MAX_LINES`. A line the lab's PHI policy flags is
-    withheld and counted.
-    """
-    from . import relay
-    out, withheld = [], 0
-    for line in (text or "").splitlines():
-        m = RELAY_LINE.match(line.rstrip("\r"))
-        if not m:
-            continue
-        said = relay.public(m.group(1), names_phi, MAX_LINE)
-        if said is None:
-            withheld += 1
-            continue
-        if not said:
-            continue
-        if len(out) < MAX_LINES:
-            out.append(said)
-    return out, withheld
-
-
-def check_output(text, root, names_phi, top=None):
-    """`{output, output_total, output_cut, withheld}`: a check's whole output,
-    fit for a public report. PURE. For an OPEN workspace only.
-
-    1. ANSI codes and control characters go.
-    2. The workspace's absolute path, its real path and the repository's top
-       become relative, so `leetcode/x/x_test.go:12` stays readable.
-    3. Each line goes through `relay.public`: any other absolute or home path
-       becomes `<path>`, and a line `names_phi` flags is withheld and counted.
-    4. The first `OUT_HEAD` and last `OUT_TAIL` lines are kept, each cut to
-       `MAX_LINE`, at most `OUT_BYTES` in all, and the cut is marked.
-    """
-    from . import relay
-    prefixes = []
-    for base in (root, os.path.realpath(root) if root else "",
-                 top, os.path.realpath(top) if top else ""):
-        if base and base not in prefixes:
-            prefixes.append(base.rstrip("/"))
-    prefixes.sort(key=len, reverse=True)
-    pats = [re.compile(re.escape(b) + r"(?:/|(?![\w.-]))") for b in prefixes]
-    kept, withheld = [], 0
-    for raw in (text or "").splitlines():
-        line = ANSI_RE.sub("", raw.rstrip("\r")).expandtabs(4)
-        for pat in pats:
-            line = pat.sub(lambda m: "" if m.group(0).endswith("/") else ".",
-                           line)
-        indent = len(line) - len(line.lstrip(" "))
-        said = relay.public(line, names_phi, MAX_LINE - min(indent, 40))
-        if said is None:
-            withheld += 1
-            continue
-        if not said:
-            continue
-        kept.append(" " * min(indent, 40) + said)
-    total = len(kept)
-    if total > OUT_HEAD + OUT_TAIL:
-        head, tail = kept[:OUT_HEAD], kept[-OUT_TAIL:]
-    else:
-        head, tail = kept, []
-    size = sum(len(x) + 1 for x in head + tail)
-    while size > OUT_BYTES and (head or tail):
-        gone = head.pop() if head else tail.pop(0)
-        size -= len(gone) + 1
-    cut = total - len(head) - len(tail)
-    out = head + (["… %d line%s cut …" % (cut, "" if cut == 1 else "s")]
-                  if cut else []) + tail
-    return {"output": out, "output_total": total, "output_cut": cut,
-            "withheld": withheld}
-
-
-def crash_type(text):
-    """The exception type a traceback ended on, or ""."""
-    for line in reversed((text or "").strip().splitlines()):
-        m = CRASH_LINE.match(line.strip())
-        if m:
-            return m.group(1).rsplit(".", 1)[-1]
-    return ""
-
-
-def check_argv(root, rel):
-    path = os.path.join(root, rel)
-    ext = os.path.splitext(rel)[1].lower()
-    if ext == ".py":
-        return ["python3", path]
-    if ext == ".sh" or not os.access(path, os.X_OK):
-        return ["bash", path]
-    return [path]
-
-
-def _argv_env(root, chk, cfg_path=None):
-    """`(argv, env)` for a hold's check, run without a shell."""
-    env = dict(os.environ)
-    if chk.get("script"):
-        return check_argv(root, chk["script"]), env
-    argv = list(chk.get("argv") or [])
-    from .course import config
-    if argv and argv[0] not in config.CHECK_PROGRAMS:
-        argv[0] = os.path.join(root, argv[0])
-    if cfg_path:
-        env["PATH"] = os.pathsep.join(list(cfg_path) + [env.get("PATH", "")])
-    return argv, env
-
-
-def run_check(root, chk, run=subprocess.run, timeout=CHECK_SECONDS,
-              names_phi=None, open_=False, path=None):
-    """Run a hold's check here, from the workspace root.
-
-    `{exit, relay, withheld, crash, seconds}`, and in an OPEN workspace
-    (`output_open`) also `output`, `output_total` and `output_cut`: stdout and
-    stderr merged, through `check_output`. In a closed one nothing else of the
-    output is kept: a check prints `RELAY:` lines for the report and anything
-    else for the owner's own eyes, and that stays in this terminal.
-
-    `chk` is the record's check, or a bare script path. `path` is the
-    workspace check's `path`, put in front of PATH.
-    """
-    if isinstance(chk, str):
-        chk = {"script": chk}
-    argv, env = _argv_env(root, chk, path)
-    t0 = time.time()
-    try:
-        p = run(argv, cwd=root, env=env, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT if open_ else subprocess.PIPE,
-                universal_newlines=True, timeout=timeout)
-        code, out, err = p.returncode, p.stdout or "", p.stderr or ""
-    except subprocess.TimeoutExpired:
-        code, out, err = 124, "", "TimeoutExpired"
-    except OSError as exc:
-        code, out, err = 127, "", type(exc).__name__
-    lines, withheld = relay_lines(out, names_phi)
-    got = {"exit": code, "relay": lines, "seconds": round(time.time() - t0, 1)}
-    if open_:
-        whole = check_output(out + err, root, names_phi, top_of(root) or None)
-        withheld += whole.pop("withheld")
-        got.update(whole)
-    if withheld:
-        got["withheld"] = withheld
-    if code != 0:
-        crash = crash_type(out + err if open_ else err)
-        if crash:
-            got["crash"] = crash
-    return got
-
-
-def _policy(root):
-    try:
-        from . import leaving
-        return leaving.policy()
-    except Exception:                                        # noqa: BLE001
-        return None
-
-
 def send(root, hid=None, wait=WAIT_SECONDS, say=print, run=subprocess.run,
          anyway=False, now=None):
     """`board send`: one step, checked here and sent to the coach. Exit code.
