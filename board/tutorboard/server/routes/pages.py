@@ -26,7 +26,7 @@ import urllib.parse
 from . import NOT_MINE
 from .. import multipart
 from ... import fenced, gitops, paths
-from ...course import results, walk
+from ...course import library, walk
 
 
 # THE SERVICE WORKER'S VERSION IS A HASH OF ITS OWN SHELL.
@@ -128,13 +128,13 @@ def get(h, repo, path):
         # is somebody's own output, out of their workspace, and the difference
         # that matters here is where the name came from: a digest this board
         # produced can be joined onto a directory, and a name out of a browser
-        # cannot. So it is looked up in what discovery found -- `results.find`
-        # is the whole of the check, the same rule as `reading.find` and
+        # cannot. So it is looked up in what discovery found -- `library.find_result`
+        # is the whole of the check, the same rule as `library.drawer_find` and
         # `walk.resolve` -- and a miss is a miss.
         ident = path[len("/result/"):]
         if not re.match(r"^[a-z0-9-]{1,80}$", ident):
             return h.send_bytes(b"not found", "text/plain", status=404)
-        target, _name = results.find(repo.root, ident)
+        target, _name = library.find_result(repo.root, ident)
         if not target:
             return h.send_bytes(b"not found", "text/plain", status=404)
         # NOT CACHED. The next job writes a new figure at the same name, and the

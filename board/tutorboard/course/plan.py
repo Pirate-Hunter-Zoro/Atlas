@@ -333,7 +333,7 @@ def _title(text):
 
 # Read off disk on every payload otherwise, four times a second, for a file
 # somebody edits once an evening. Same rule as `walk.units` and
-# `reading.documents`.
+# `library.drawer`.
 CACHE_SECONDS = 30
 _cache = {}
 

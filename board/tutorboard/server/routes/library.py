@@ -56,8 +56,8 @@ through `registry.runner_route`, which picks the
 session. Only a session asking its own tutor writes its own inbox.
 
 AN ID, NEVER A PATH. What arrives from the browser is compared against what
-discovery found -- `library.find` -- and a miss is a miss. `reading.find` is the
-rule and `/result/` is the worked example. A NOTE'S NAME is the same rule one
+discovery found -- `library.find` -- and a miss is a miss. `/result/` is the
+worked example. A NOTE'S NAME is the same rule one
 level down: matched against the names `library.notes` found beside that
 document, never joined onto a directory. A WORKSPACE and a SCOPE KEY on
 `/writeup` are the same rule again: `machines.workspaces` and `scopes.find` are
@@ -67,7 +67,7 @@ A DOCUMENT IS NOT THE ONLY THING A WORKSPACE MAKES, which is why the results
 are on this page rather than on a second one. A mission ends by naming what it
 wrote -- *figure `neighbor_count_sweep.png` and four tables* -- and until there
 was somewhere to look at those, the only way to read a finished result was a
-terminal. `course/results.py` already knew where every one of them is: the
+terminal. `course/library.py` already knew where every one of them is: the
 drawer puts a figure in a card, and what was missing was the list. One page,
 because "everything this workspace has produced" is one question, and because
 this is the page somebody already knows how to reach -- the front door offers it
@@ -102,7 +102,6 @@ from ...course import burn
 from ...course import config
 from ...course import ledger
 from ...course import library
-from ...course import results
 from ...lesson import turns
 
 
@@ -130,7 +129,7 @@ def get(h, repo, path):
     # first, and a workspace with no results still gets its documents.
     if path == "/library/results.json":
         try:
-            return h.send_json(results.browse(repo))
+            return h.send_json(library.browse_results(repo))
         except Exception as exc:                             # noqa: BLE001
             # The same reason `/library/stamp` catches: a 500 here paints "the
             # board is not answering" over a fault that is a directory walk.
@@ -138,10 +137,10 @@ def get(h, repo, path):
 
     # ONE TABLE, READ HERE RATHER THAN DOWNLOADED. A CSV handed to a browser is
     # a file an iPad puts somewhere nobody can find. An id, never a path --
-    # `results.table` does the same lookup `/result/` does, with the kind it
+    # `library.result_table` does the same lookup `/result/` does, with the kind it
     # will answer for changed, and a miss is a miss.
     if path.startswith("/library/table/"):
-        got = results.table(repo.root, unquote(path[len("/library/table/"):]))
+        got = library.result_table(repo.root, unquote(path[len("/library/table/"):]))
         return h.send_json(got, status=200 if got.get("ok") else 404)
 
     # A MARKED COPY, handed over to be kept. An id and a name, both matched

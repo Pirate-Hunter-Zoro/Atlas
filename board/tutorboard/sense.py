@@ -21,7 +21,7 @@ drill or a review.
 import os
 
 from . import fenced, plain
-from .course import config, homework, reading, results, walk
+from .course import config, homework, library, walk
 
 
 # arrives at a board with nothing on it and an assistant with no other context.
@@ -422,7 +422,7 @@ def where_sense(book, root=None, st=None):
 def reading_sense(repo):
     """The documents this course can show, named, with how to put one on a card."""
     try:
-        found = reading.documents(repo.root)
+        found = library.drawer(repo.root)
     except Exception:                                        # noqa: BLE001
         return ""
     if not found:
@@ -449,7 +449,7 @@ def results_sense(repo):
     address for it.
     """
     try:
-        found = results.figures(repo.root)
+        found = library.figures(repo.root)
     except Exception:                                        # noqa: BLE001
         return ""
     if not found:

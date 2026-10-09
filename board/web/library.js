@@ -3,7 +3,7 @@
 
    The ⋯ menu's document panel offers the two documents the BOARD makes: the
    exported lesson and the compiled write-up. The contents drawer offers what
-   `reading.py` found, as things to put on a card. Neither is "every paper and
+   `library.drawer` found, as things to put on a card. Neither is "every paper and
    presentation in this project", neither was reachable without opening a lesson
    first, and there was nowhere at all to say what was wrong with one.
 
@@ -1495,7 +1495,7 @@ els.noteSend.onclick = function () {
    ==========================================================================
    A mission's card ends by naming what it wrote -- "figure
    `neighbor_count_sweep.png` and four tables are in ..." -- and there was
-   nowhere to look at any of it. `course/results.py` already knew where every
+   nowhere to look at any of it. `course/library.py` already knew where every
    one of them was: the board's drawer puts a figure in a card, and what was
    missing was the list.
 
@@ -1861,7 +1861,7 @@ document.addEventListener("keydown", function (ev) {
    It is a second VIEW rather than a second page, and it draws the payload
    `/library/results.json` already sent -- one walk, one fence, one set of ids.
    A gallery with its own fetch would be a second answer about which figures
-   exist, which is the drift `results.py`'s own `_walk` exists to prevent.
+   exist, which is the drift `library._result_files` exists to prevent.
 
    Four things it has to get right, and each one is a way a grid of six hundred
    pictures turns into a page an iPad gives up on:

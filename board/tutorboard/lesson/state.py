@@ -7,7 +7,7 @@ import os
 import time
 
 from .. import machine, processes
-from ..course import homework, paper, reading, results
+from ..course import homework, library, paper
 
 
 def load_agent(repo):
@@ -234,10 +234,10 @@ def load_reading(repo):
 
     A deck explaining the machinery is the most useful thing in some of these
     repositories and the board could not display a page of it. See
-    `course/reading.py`.
+    `course/library.py`.
     """
     try:
-        return reading.status(repo)
+        return library.drawer_status(repo)
     except Exception:                                        # noqa: BLE001
         return None
 
@@ -248,10 +248,10 @@ def load_results(repo):
     The other half of `load_reading`. A document is what the project was written
     with; a figure is what it produced, and `results/<contrast>/
     propensity_by_arm.png` could not be put on the glass without somebody
-    copying it into the lesson inbox. See `course/results.py`.
+    copying it into the lesson inbox. See `course/library.py`.
     """
     try:
-        return results.status(repo)
+        return library.figures_status(repo)
     except Exception:                                        # noqa: BLE001
         return None
 

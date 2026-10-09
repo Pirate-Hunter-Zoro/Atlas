@@ -87,7 +87,7 @@ const LIBRARY = {
    results and figures in this interface." A mission's card ends by naming a
    figure and four tables; this is what the page is handed so it can draw them.
 
-   The shape is `course/results.py`'s, and the two things to notice are what is
+   The shape is `library.browse_results`', and the two things to notice are what is
    NOT in it: no `rel`, because the board addresses a result by id, and a
    `fenced` list, because a directory left out silently is one somebody scrolls
    looking for. */
@@ -1129,7 +1129,7 @@ const named = (title) => rows().filter(
 
   /* A WORKSPACE THE SIZE OF THE ONE THIS IS FOR -- forty figures over three
      directories, one of them too heavy to spend on a thumbnail. The shape is
-     `course/results.py`'s, sent down the same route, so this is the payload the
+     `library.browse_results`', sent down the same route, so this is the payload the
      page really gets and not a second idea of one. */
   const GAL = { ok: true, workspace: 'research/TRD-EHR', tables: 0, more: 0,
                 looked: ['results'], fenced: [], figures: 0, groups: [] };

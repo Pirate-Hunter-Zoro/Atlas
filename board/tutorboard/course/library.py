@@ -1,46 +1,52 @@
-"""library.py -- everything a workspace has WRITTEN, grouped into documents.
+"""library.py -- one inventory of a subject's documents and results.
 
-`reading.py` answers a different question and keeps its own numbers: "what can
-be put on the glass in a card", three levels deep, twenty-four documents, PDFs
-of at least 20 kB. Those are the right numbers for a drawer that offers a page
-of a deck, and the wrong ones for a workspace with fifty documents in it.
+THREE VIEWS, AND EACH IS A FILTER, NOT A WALK OF ITS OWN:
 
-This answers "everything this workspace has written", and the difference is
-GROUPING. **A document is a STEM in a DIRECTORY, in however many formats it
-has.** `paper.md` + `paper.pdf` + `paper.docx` is one document.
-`stage1_pipeline_walkthrough.tex` + `.pdf` is one document. The directory is the
-group, and the group is what the library draws a heading from.
+    documents   everything the subject has WRITTEN, grouped by stem (below)
+    drawer      the PDFs a card can show a page of: what the README points at,
+                then every PDF of the walk at least `MIN_PDF_BYTES` big and no
+                deeper than `DRAWER_DEPTH`, at most `DRAWER_MAX` of them
+    results     what a pipeline PRODUCED under the allowlist `LOOK_IN`: an
+                index by id, the library's results page, and the figures view
+                -- the newest `MAX_FIGURES` pictures of that index
 
-NOTHING IS DECLARED, which is what lets the two layouts that already exist stay
-where they are:
+`documents` and `drawer` filter one walk of the subject, `_files`. Results are
+a second tree, walked by `_result_files`, because `IGNORE` prunes `results/`
+from the first and the allowlist is the only way into it.
+
+A DOCUMENT IS A STEM IN A DIRECTORY, in however many formats it has.
+`paper.md` + `paper.pdf` + `paper.docx` is one document. Nothing is declared:
 
     title   `\\title{...}` in a `.tex`, the first `# ` in a `.md`, and the
-            filename through `reading._pretty` when a source says neither
+            filename through `_pretty` when a source says neither
     kind    `\\documentclass[...]{beamer}` is a deck; anything else is a paper
     stale   arithmetic -- the source's modification time against the PDF's
 
-THREE GROUPS, in this order. ARTIFACTS: a directory with a doc.json
-(`tutorboard/artifacts.py`) -- new ones at `docs/<slug>/`, whose id is the
-slug, and ones placed in an existing tree, which keep the id the walk gives
-them. LEGACY documents, found by the walk as before, ids unchanged. MATERIALS:
-any PDF under `materials/`, put there to be read.
+THREE GROUPS of documents, in this order. ARTIFACTS: a directory with a
+doc.json (`tutorboard/artifacts.py`) -- new ones at `docs/<slug>/`, whose id is
+the slug, and ones placed in an existing tree, which keep the id the walk gives
+them. LEGACY documents, found by the walk, ids unchanged: ink is keyed on them.
+MATERIALS: any PDF under `materials/`, put there to be read.
 
-THE FENCE IS THE SAME ONE. `fenced.refused` on the whole path, and
-`reading.NOT_OURS` on the directory names -- without the second, TRD-EHR's
-`references/` arrives as forty documents by other people.
+AN ID, NEVER A PATH. What arrives from a browser is compared against what
+discovery found, and a miss is a miss. The fence (`fenced.refused`) is asked of
+every directory pruned and every whole path offered, and `NOT_OURS` keeps a
+reference library of other people's papers out.
 
 Standard library only, like everything else.
 """
 
+import csv
 import hashlib
 import json
 import os
 import re
 import subprocess
 import time
+from urllib.parse import unquote
 
-from . import paper, reading
-from .. import artifacts, fenced, subjects
+from . import paper
+from .. import artifacts, fenced, paths, subjects
 
 # What a document can be written in, and what it can be built into. A stem with
 # neither a source nor a PDF is not a document, whatever else is beside it.
@@ -51,18 +57,30 @@ FORMATS = SOURCE + BUILT
 # Where a document this board makes goes, one directory per document.
 WRITEUPS = "writeups"
 
-# Deeper than the drawer, because a manuscript directory is two levels inside a
-# workspace already and its parts are a third. Not unbounded: a walk of a
-# repository is the one thing here that costs more than a stat.
+# Directories the walk never enters: the board's own working directory, build
+# output, dependencies and data. NOT THE FENCE -- `fenced.NEVER` is, and it is
+# asked on the whole path as well as here.
+IGNORE = {"live", "node_modules", "__pycache__", "build", "dist", "target",
+          "venv", ".venv", "env", "site-packages", "vendor", "results",
+          "data", "test_data", "archive"}
+
+# What a reference library is called. These are papers by other people; a
+# walkthrough of your own pipeline is not in one.
+NOT_OURS = ("references", "reference", "library", "papers", "reading",
+            "literature", "formats", "feedback")
+
+# How deep the walk goes. A manuscript directory is two levels inside a subject
+# and its parts are a third. Not unbounded: a walk of a repository is the one
+# thing here that costs more than a stat.
 MAX_DEPTH = 4
 
 # A library is allowed to be long. It is not allowed to be a file manager, and a
-# workspace with more than this has something other than documents in it.
+# subject with more than this has something other than documents in it.
 MAX_DOCS = 120
 
-# A stem with no source at all has to earn its place on size, the same way the
-# drawer's PDFs do: a figure exported as a one-page PDF is not a document.
-MIN_PDF_BYTES = reading.MIN_BYTES
+# A PDF with no source beside it earns its place on size: a figure exported as
+# a one-page PDF is not a document. The drawer's floor for every PDF.
+MIN_PDF_BYTES = 20000
 
 # A repository's furniture, which is not something it wrote up. Matched on the
 # stem, so `README.md` in every directory is skipped and `readme_of_the_grid.md`
@@ -71,20 +89,21 @@ FURNITURE = {"readme", "handoff", "license", "licence", "notice", "changelog",
              "contributing", "todo", "ai_instructions", "teaching", "claude",
              "agents", "direction", "index"}
 
-# HOW LONG AN ID MAY BE, and the number is not this module's. It is
-# `writing.ANN_DOC`'s: a mark on a page of a document is anchored to
-# `doc/<ident>/p<n>` and that pattern allows forty characters, so an id longer
-# than this is a document that cannot be written on. Derived rather than stored,
-# so shortening it costs nothing but a different URL.
+# HOW LONG AN ID MAY BE: `writing.ANN_DOC` anchors a mark on a page of a
+# document to `doc/<ident>/p<n>` and allows forty characters.
 IDENT_MAX = 40
 
 # A PIECE OF A DOCUMENT. `paper1-trd-prediction/parts/manuscript/` holds that
-# manuscript's own sections, one file each, so a section can be read on the
-# board alone. They are offered, tagged `piece`, after every whole document, and
-# each names the `whole` it was cut from: a correction goes to the whole, because
-# the pieces are re-cut from it and an edit made to a piece is lost on the next
-# cut.
+# manuscript's own sections, one file each. They are offered, tagged `piece`,
+# after every whole document, and each names the `whole` it was cut from: a
+# correction goes to the whole, because an edit made to a piece is lost on the
+# next cut.
 PIECES = ("parts", "sections")
+
+# Every view is rebuilt on demand and the hub asks for the drawer and the
+# figures on every subject payload. A file appears when a job or a build
+# finishes, which is not on a quarter-second boundary.
+CACHE_SECONDS = 30
 
 
 def _mtime(path):
@@ -132,7 +151,7 @@ def _from_source(src, stem):
     file -- which is what its author calls it out loud, and is the only name
     anybody would recognise it by.
     """
-    fallback = reading._pretty(stem)
+    fallback = _pretty(stem)
     if not src:
         return fallback, "paper"
     text = _said(src)
@@ -182,48 +201,70 @@ def _pages(path):
 
 
 # ---------------------------------------------------------------------------
-# finding them
+# the walk
 # ---------------------------------------------------------------------------
-def _walk(root, skip=()):
-    """Every stem in this workspace that has a document's formats beside it.
+def _pretty(path, fallback="document"):
+    """What to call a file in a list: its name, unpunctuated.
 
-    In file order, nearest the top first, which is the order the library draws.
-    `skip` holds directories, relative to `root`, the walk never enters: the
-    artifacts at `docs/<slug>/`, which are listed from their doc.json.
+    `stage1_pipeline_walkthrough.pdf` is `stage1 pipeline walkthrough`, which is
+    what its author calls it out loud.
     """
-    found, order = {}, []
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return re.sub(r"[_-]+", " ", stem).strip() or fallback
+
+
+def _depth(rel):
+    return 0 if rel in (".", "") else rel.count(os.sep) + 1
+
+
+def _files(root, skip=()):
+    """`(rel, name, path)` for every file the subject may offer, in walk order.
+
+    THE ONE WALK of a subject's own tree: `documents` groups it into stems and
+    the drawer filters it. Nearest the top first, directories and files sorted.
+    Hidden names, `IGNORE`, `NOT_OURS` and fenced names are never entered, and
+    nothing below `MAX_DEPTH` is. `skip` holds directories, relative to `root`,
+    never entered either: the artifacts at `docs/<slug>/`, listed from their
+    doc.json.
+    """
     for here, dirs, files in os.walk(root):
         rel = os.path.relpath(here, root)
-        depth = 0 if rel == "." else rel.count(os.sep) + 1
-        if depth >= MAX_DEPTH:
+        if _depth(rel) >= MAX_DEPTH:
             dirs[:] = []
         dirs[:] = sorted(d for d in dirs if not d.startswith(".")
-                         and d not in reading.IGNORE
-                         and d.lower() not in reading.NOT_OURS
+                         and d not in IGNORE
+                         and d.lower() not in NOT_OURS
                          and not fenced.refused(d)
                          and (d if rel == "." else os.path.join(rel, d))
                          .replace(os.sep, "/") not in skip)
         for name in sorted(files):
-            if name.startswith(".") or name.startswith("_"):
-                continue
-            stem, ext = os.path.splitext(name)
-            if not stem or ext.lower() not in FORMATS:
-                continue
-            if stem.lower() in FURNITURE:
+            if name.startswith("."):
                 continue
             path = os.path.join(here, name)
-            # The pruning above is the cheap half and it is not the rule: it
-            # only sees the directories this walk descends through. Asked of the
-            # whole path, at any depth, the way `reading._fenced` is.
+            # The pruning above sees only the directories descended through.
+            # The fence is asked of the whole path too, at any depth.
             if fenced.refused(path):
                 continue
-            key = (rel, stem)
-            if key not in found:
-                found[key] = {}
-                order.append(key)
-            found[key][ext.lower()] = path
-    # A source's PDF is beside it (`board build`), so the walk sees both; a
-    # PDF in a `build/` directory is no document's.
+            yield rel, name, path
+
+
+def _walk(root, skip=()):
+    """Every stem in this subject that has a document's formats beside it, as
+    `((rel, stem), {ext: path})`, in walk order."""
+    found, order = {}, []
+    for rel, name, path in _files(root, skip):
+        if name.startswith("_"):
+            continue
+        stem, ext = os.path.splitext(name)
+        if not stem or ext.lower() not in FORMATS:
+            continue
+        if stem.lower() in FURNITURE:
+            continue
+        key = (rel, stem)
+        if key not in found:
+            found[key] = {}
+            order.append(key)
+        found[key][ext.lower()] = path
     return [(k, found[k]) for k in order]
 
 
@@ -326,10 +367,8 @@ def _piece_of(where):
     return None
 
 
-# The payload this feeds is fetched when somebody opens the library rather than
-# four times a second, but a library of fifty documents is fifty `pdfinfo` runs
-# and a person tapping between pages of one should not pay for them again.
-CACHE_SECONDS = 30
+# A library of fifty documents is fifty `pdfinfo` runs, and a person tapping
+# between pages of one should not pay for them again.
 _cache = {}
 
 
@@ -413,9 +452,12 @@ def _documents(root):
 
 
 def forget():
-    """Drop the cache. For a test that writes a document under the process."""
+    """Drop every cache: documents, page counts, the drawer and the results.
+    For a test, and for a job or a note that has just written a file."""
     _cache.clear()
     _PAGES.clear()
+    _shown.clear()
+    _made.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -468,8 +510,7 @@ def find(root, ident_wanted):
     """The document with this id, or None.
 
     AN ID, NEVER A PATH. What arrives from the browser is compared against what
-    this module discovered, and a miss is a miss -- `reading.find` is the rule
-    and this is the same rule for a longer list.
+    this module discovered, and a miss is a miss.
     """
     wanted = str(ident_wanted or "").strip().lower()
     if not wanted:
@@ -771,7 +812,7 @@ def next_note(root, doc, day=None):
 # the marks up where the textarea is read.
 #
 # TWO IDENTS FOR ONE DOCUMENT, and both are asked. The drawer names a document
-# by `reading.ident` -- the slug of its filename -- and this module names it by
+# by `drawer_ident` -- the slug of its filename -- and this module names it by
 # where it sits, because a library has to tell two `paper.pdf`s apart.
 # Marking works on the board today, which means under the drawer's name; the
 # library's own name is what a mark made on the library page would carry. A
@@ -815,7 +856,7 @@ def mark_idents(root, doc):
     out = [doc["id"]]
     target = path_of(root, doc, ".pdf")
     if target:
-        drawer = reading.ident(root, target)
+        drawer = drawer_ident(root, target)
         if drawer and drawer not in out:
             out.append(drawer)
     return out
@@ -1372,3 +1413,613 @@ def status(repo):
     return {"workspace": subjects.identify(root), "documents": found,
             "subject": (found_subject or {}).get("id") or "",
             "writeups": WRITEUPS}
+
+
+# ---------------------------------------------------------------------------
+# THE DRAWER -- a page of a PDF in a card
+# ---------------------------------------------------------------------------
+# A deck that explains the machinery is shown a page at a time: a tutor
+# teaching `grade` puts slide 24 in the card that asks about it. The drawer is
+# a filter of the walk with a card's numbers rather than a library's, plus what
+# the README points at. Its ids are the slug of the filename, and ink drawn from
+# the board is keyed on them (`mark_idents`).
+
+# How deep a drawer PDF may sit: in a directory at most this far below the
+# subject. `docs/stage1_pipeline_walkthrough.pdf` is one.
+DRAWER_DEPTH = 3
+
+# A drawer is not a file manager.
+DRAWER_MAX = 24
+
+# A PDF the subject's README names. The path is matched, not the prose around
+# it, and it has to end in `.pdf`.
+POINTER = re.compile(r"[~\w./-]+\.pdf\b")
+
+_shown = {}
+
+
+def _big(path):
+    return _size(path) >= MIN_PDF_BYTES
+
+
+def _ours(path):
+    """Neither in a reference library nor inside the fence, asked of the whole
+    path: the README reaches files the walk never pruned its way to."""
+    norm = os.path.normpath(path)
+    if any(p.lower() in NOT_OURS for p in norm.split(os.sep)):
+        return False
+    return not fenced.in_fence(norm.replace(os.sep, "/"))
+
+
+def _drawer_walked(root):
+    """The walk's PDFs a card may show: shallow enough, big enough, ours."""
+    return [path for rel, name, path in _files(root)
+            if _depth(rel) <= DRAWER_DEPTH and name.lower().endswith(".pdf")
+            and _big(path) and _ours(path)]
+
+
+def _pointed_at(root):
+    """Every PDF the subject's README names and can reach, in README order.
+
+    Bounded to the subject, its parent and the Atlas root, plus
+    `paths.outside_tree()`: a path out of a file is a path anybody could have
+    written. Two passes, because a README gives the first deck in full and
+    names the one "in the same directory" by its bare filename, so a bare name
+    is looked for where the decks already found live.
+    """
+    try:
+        with open(os.path.join(root, "README.md"), "r", encoding="utf-8") as fh:
+            text = fh.read(200000)
+    except OSError:
+        return []
+    root = os.path.realpath(root)
+    parent = os.path.dirname(root)
+    base = subjects.root()
+
+    def keep(target):
+        if not os.path.isfile(target) or not _big(target) or not _ours(target):
+            return False
+        return paths.within(target, root, base, *paths.outside_tree())
+
+    named = [m.group(0) for m in POINTER.finditer(text)]
+    out, seen, where = [], set(), [root, parent, base]
+
+    for rel in named:
+        if not os.path.dirname(rel.lstrip("~/")):
+            continue                      # a bare name; the second pass has it
+        tries = ([os.path.expanduser(rel)] if rel.startswith("~")
+                 else [os.path.join(root, rel), os.path.join(parent, rel),
+                       os.path.join(base, rel)])
+        for candidate in tries:
+            target = os.path.realpath(candidate)
+            if keep(target) and target not in seen:
+                seen.add(target)
+                out.append(target)
+                if os.path.dirname(target) not in where:
+                    where.append(os.path.dirname(target))
+                break
+
+    for rel in named:
+        if os.path.dirname(rel.lstrip("~/")):
+            continue
+        for folder in where:
+            target = os.path.realpath(os.path.join(folder, rel))
+            if keep(target) and target not in seen:
+                seen.add(target)
+                out.append(target)
+                break
+    return out
+
+
+def drawer(root):
+    """The PDFs a card can show a page of, README-named first, then walk order,
+    as `{id, name, rel, at, size}`. Remembered for `CACHE_SECONDS`."""
+    key = os.path.realpath(root)
+    hit = _shown.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    got = _drawer(key)
+    _shown[key] = (time.time(), got)
+    return got
+
+
+def _drawer(root):
+    seen, out = set(), []
+    for path in _pointed_at(root) + _drawer_walked(root):
+        key = os.path.realpath(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"id": drawer_ident(root, key), "name": _pretty(key),
+                    "rel": _drawer_rel(root, key), "at": _mtime(key),
+                    "size": _size(key)})
+        if len(out) >= DRAWER_MAX:
+            break
+    return out
+
+
+def _drawer_rel(root, path):
+    """The PDF's path as a person would write it."""
+    root = os.path.realpath(root)
+    if path.startswith(root + os.sep):
+        return os.path.relpath(path, root)
+    home = os.path.realpath(os.path.expanduser("~"))
+    if path.startswith(home + os.sep):
+        return "~/" + os.path.relpath(path, home)
+    return path
+
+
+def drawer_ident(root, path):
+    """The drawer's id for one PDF: the slug of its filename, derived and never
+    stored, so a restarted board hands out the same ids."""
+    stem = re.sub(r"[^a-z0-9]+", "-", _pretty(path).lower()).strip("-")
+    return (stem or "doc")[:40]
+
+
+def drawer_find(root, ident_wanted):
+    """The drawer PDF with this id, as `(path, name)`, or `(None, None)`.
+
+    The id is compared against what `drawer` offers; nothing builds a path from
+    a request. The fence is asked once more, because this is what turns a name
+    from a browser into a file the rasteriser opens.
+    """
+    wanted = str(ident_wanted or "").strip().lower()
+    if not wanted:
+        return None, None
+    for doc in drawer(root):
+        if doc["id"] == wanted:
+            target = os.path.realpath(os.path.expanduser(doc["rel"])
+                                      if doc["rel"].startswith("~")
+                                      else os.path.join(root, doc["rel"]))
+            if not _ours(target):
+                return None, None
+            return (target, doc["name"]) if os.path.isfile(target) else (None, None)
+    return None, None
+
+
+def drawer_pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
+    """Every page of one drawer PDF, drawn and cached by `paper.pages_of`."""
+    target, name = drawer_find(repo.root, ident_wanted)
+    if not target:
+        return {"ok": False, "why": "none",
+                "detail": "This course does not offer a document by that name."}
+    return paper.pages_of(repo, target, name + ".pdf", "reading", width)
+
+
+def drawer_status(repo):
+    """The drawer as the subject payload carries it, or None when empty, so
+    the board does not offer the group."""
+    try:
+        found = drawer(repo.root)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not found:
+        return None
+    for doc in found:
+        doc["iso"] = time.strftime("%Y-%m-%d", time.localtime(doc["at"])) \
+            if doc["at"] else ""
+    return {"documents": found}
+
+
+# ---------------------------------------------------------------------------
+# RESULTS -- what a pipeline produced
+# ---------------------------------------------------------------------------
+# A second tree: `IGNORE` keeps `results/` out of the walk above, and the
+# allowlist `LOOK_IN` is the only way in. One walk builds an index of every
+# figure and table by id; the results page draws it grouped by directory, and
+# the figures view -- what a card can show -- is its newest `MAX_FIGURES`
+# pictures. A FIGURE IS NOT A `figure`: `/figure/` is TikZ the board compiled,
+# and `/result/<id>` serves a picture a pipeline wrote. `sw.js` never caches
+# `/result/`, because the next job rewrites a figure under the same name.
+
+# Where to look, and nowhere else, in the order a person would look.
+LOOK_IN = fenced.RESULT_DIRS
+
+# What a figure is: raster only. Vector pictures are `/figure/`'s.
+FIGURE_SUFFIXES = (".png", ".jpg", ".jpeg")
+
+# A 300-byte PNG is an axis and no data -- a plot that failed, or a spacer.
+FIGURE_MIN_BYTES = 1000
+
+# The figures view: what a card's briefing and drawer are offered.
+MAX_FIGURES = 24
+
+# How deep under a result directory to look. `results/counterfactual_pipeline/
+# bupropion_vs_ssri/propensity_by_arm.png` is three; deeper is an intermediate.
+RESULT_DEPTH = 3
+
+# A stop on the walk itself, whatever the tree holds.
+MAX_SEEN = 5000
+
+# What a table is. Read, never executed: `.json` is loaded to be re-printed.
+TABLES = (".csv", ".json", ".md", ".txt")
+
+# An empty file is not a table.
+MIN_TABLE_BYTES = 1
+
+# How many result directories the results page is offered, and rows in one.
+MAX_GROUPS = 120
+MAX_IN_GROUP = 60
+
+# A table read back for a page: rows read to the cap and stopped, the rest
+# counted up to `MAX_SCAN`; a text table bounded in bytes and characters.
+MAX_ROWS = 300
+MAX_COLS = 40
+MAX_CELL = 200
+MAX_SCAN = 200000
+MAX_TEXT_BYTES = 2000000
+MAX_TEXT_CHARS = 200000
+
+# A result id: long enough for a real path's slug, ended by a digest of the
+# path so a trimmed id stays unique.
+RESULT_ID_MAX = 80
+RESULT_STAMP = 8
+
+_made = {}
+
+
+def _result_where(rel):
+    """The directory a result sits in, below its result directory. A pipeline
+    writes `propensity_by_arm.png` once per contrast; this tells them apart."""
+    parts = rel.replace("\\", "/").split("/")[:-1]
+    return "/".join(parts[1:]) if len(parts) > 1 else "/".join(parts)
+
+
+def result_ident(rel):
+    """A stable, unique, URL-safe id for one result, from its whole path.
+
+    The slug of the path below its result directory, trimmed from the front to
+    fit, and a digest of the path on the end: no counter, so the id does not
+    depend on what else was found, and a card written today resolves next month.
+    """
+    rel = rel.replace("\\", "/")
+    stamp = hashlib.sha1(rel.encode("utf-8", "replace")).hexdigest()[:RESULT_STAMP]
+    parts = os.path.splitext(rel)[0].split("/")
+    said = "/".join(parts[1:]) if len(parts) > 1 else rel
+    out = re.sub(r"[^a-z0-9]+", "-", said.lower()).strip("-")
+    out = out[-(RESULT_ID_MAX - RESULT_STAMP - 1):].strip("-")
+    return "%s-%s" % (out, stamp) if out else "figure-%s" % stamp
+
+
+def _result_tops(root):
+    """`(name, directory)` for each result directory here, in `LOOK_IN` order.
+    `exports/results/` is walked as `results/`: a figure the cluster exported
+    keeps the path and the id it has there, and is not offered twice."""
+    out = []
+    for name in LOOK_IN:
+        if fenced.refused(name):
+            continue
+        tops = [os.path.join(root, name)]
+        if name == "results":
+            tops.append(os.path.join(root, paths.EXPORTS, name))
+        out.extend((name, t) for t in tops if os.path.isdir(t))
+    return out
+
+
+def _result_files(root):
+    """`(rel, mtime, size)` for every figure and table under the result
+    directories. The allowlist picks the trees, `fenced.refused` the
+    directories inside them, and `MAX_SEEN` stops the walk regardless."""
+    found, seen, had = [], 0, set()
+    root = os.path.realpath(root)
+    for name, top in _result_tops(root):
+        for here, dirs, files in os.walk(top):
+            rel_dir = os.path.relpath(here, top)
+            if _depth(rel_dir) >= RESULT_DEPTH:
+                dirs[:] = []
+            dirs[:] = sorted(d for d in dirs if not d.startswith(".")
+                             and not fenced.refused(d))
+            for f in sorted(files):
+                seen += 1
+                if seen > MAX_SEEN:
+                    return found
+                if f.startswith(".") or not f.lower().endswith(FIGURE_SUFFIXES + TABLES):
+                    continue
+                path = os.path.join(here, f)
+                rel = os.path.join(name, os.path.relpath(path, top))
+                if fenced.refused(rel) or rel in had:
+                    continue
+                had.add(rel)
+                try:
+                    st = os.stat(path)
+                except OSError:
+                    continue
+                if st.st_size < MIN_TABLE_BYTES:
+                    continue
+                found.append((rel.replace(os.sep, "/"), st.st_mtime, st.st_size))
+    return found
+
+
+def _result_record(rel, at, size):
+    ext = os.path.splitext(rel)[1].lower()
+    return {
+        "id": result_ident(rel),
+        "name": _pretty(rel, "figure"),
+        "where": _result_where(rel),
+        "rel": rel,
+        "at": at,
+        "size": size,
+        "kind": "figure" if ext in FIGURE_SUFFIXES else "table",
+        "format": ext.lstrip("."),
+        "iso": time.strftime("%Y-%m-%d", time.localtime(at)) if at else "",
+        # The filename as it stands, because a mission's card names it.
+        "file": os.path.basename(rel),
+    }
+
+
+def _produce(root):
+    """`(index, page)`: every result by id, newest first, and the results page
+    -- groups by directory, each capped and saying what it dropped."""
+    rows = sorted(_result_files(root), key=lambda r: (-r[1], r[0]))
+    index, groups, order = {}, {}, []
+    figs = tabs = 0
+    for rel, at, size in rows:
+        rec = _result_record(rel, at, size)
+        pic = rec["kind"] == "figure"
+        # The size floor is per kind: a 300-byte PNG is a plot that failed, and
+        # a 300-byte CSV is three rows of numbers.
+        if pic and size < FIGURE_MIN_BYTES:
+            continue
+        if rec["id"] in index:
+            continue              # a digest collision: dropped, never aliased
+        index[rec["id"]] = rec
+        where = rec["where"]
+        if where not in groups:
+            groups[where] = []
+            order.append(where)
+        groups[where].append(rec)
+        figs += 1 if pic else 0
+        tabs += 0 if pic else 1
+
+    out = []
+    for where in order[:MAX_GROUPS]:
+        rows_here = groups[where]
+        # Groups newest first; inside one, figures then tables by name, since a
+        # job writes its whole directory in the same few seconds.
+        kept = sorted(rows_here, key=lambda r: (r["kind"] != "figure",
+                                                r["name"]))[:MAX_IN_GROUP]
+        out.append({
+            "where": where or "results",
+            "at": max(r["at"] for r in rows_here),
+            "iso": max(rows_here, key=lambda r: r["at"])["iso"],
+            "figures": [_public(r) for r in kept if r["kind"] == "figure"],
+            "tables": [_public(r) for r in kept if r["kind"] == "table"],
+            "more": max(0, len(rows_here) - len(kept)),
+        })
+    return index, {"groups": out, "more": max(0, len(order) - MAX_GROUPS),
+                   "figures": figs, "tables": tabs}
+
+
+def _public(rec):
+    """A result as a page may see it: never with its path."""
+    one = dict(rec)
+    one.pop("rel", None)
+    return one
+
+
+def _results(root):
+    key = os.path.realpath(root)
+    hit = _made.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    try:
+        got = _produce(key)
+    except OSError:
+        got = ({}, {"groups": [], "more": 0, "figures": 0, "tables": 0})
+    _made[key] = (time.time(), got)
+    return got
+
+
+def result_index(root):
+    """Every result this subject has, by id, newest first."""
+    return _results(root)[0]
+
+
+def produced(root):
+    """What the library's results page draws: groups, and what was left off."""
+    return _results(root)[1]
+
+
+FIGURE_KEYS = ("id", "name", "where", "rel", "at", "size")
+
+
+def figures(root):
+    """THE FIGURES VIEW, a filter of the index: the newest `MAX_FIGURES`
+    pictures, as `{id, name, where, rel, at, size}`."""
+    out = []
+    for rec in result_index(root).values():
+        if rec["kind"] != "figure":
+            continue
+        out.append(dict((k, rec[k]) for k in FIGURE_KEYS))
+        if len(out) >= MAX_FIGURES:
+            break
+    return out
+
+
+def figures_status(repo):
+    """The figures view as the subject payload carries it, without paths, or
+    None for a subject with no figures."""
+    try:
+        found = figures(repo.root)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not found:
+        return None
+    out = []
+    for fig in found:
+        one = _public(fig)
+        one["iso"] = time.strftime("%Y-%m-%d", time.localtime(fig["at"])) \
+            if fig["at"] else ""
+        out.append(one)
+    return {"figures": out}
+
+
+def _result_path(root, ident_wanted, kind):
+    """`(path, label)` of the result of this kind with this id, against the
+    whole index rather than the figures view, or `(None, None)`."""
+    wanted = str(ident_wanted or "").strip().lower()
+    if not wanted:
+        return None, None
+    root = os.path.realpath(root)
+    rec = result_index(root).get(wanted)
+    if not rec or rec["kind"] != kind:
+        return None, None
+    if fenced.refused(rec["rel"]):
+        return None, None
+    target = os.path.realpath(paths.present(root, rec["rel"]) or
+                              os.path.join(root, rec["rel"]))
+    if not target.startswith(root + os.sep) or not os.path.isfile(target):
+        return None, None
+    label = rec["name"]
+    if rec["where"]:
+        label = "%s — %s" % (label, rec["where"])
+    return target, label
+
+
+def find_result(root, ident_wanted):
+    """The figure with this id, as `(path, label)`, or `(None, None)`: what
+    `/result/<id>` serves. An id, never a path."""
+    return _result_path(root, ident_wanted, "figure")
+
+
+# A card's image whose source is `/result/` and then anything up to the closing
+# parenthesis. Which of those are paths is decided by `embed_result_ids`.
+EMBED_SRC_RE = re.compile(r"(!\[[^\]]*\]\(\s*)/result/([^)\s]+)(\s*\))")
+
+
+def embed_result_ids(root, text):
+    """A card's text with every `/result/<path>` image rewritten to its id.
+
+    A tutor knows a figure by its path relative to the subject. The path is
+    LOOKED UP among the figures the index holds, never joined: one that is not
+    exactly one of them is left alone, and the route 404s it.
+    """
+    text = text or ""
+    if "/result/" not in text:
+        return text
+    by_rel = []
+
+    def sub(m):
+        src = unquote(m.group(2))
+        if "/" not in src and "." not in src:
+            return m.group(0)                 # already an id
+        if not by_rel:
+            try:
+                by_rel.append(dict((rec["rel"], rid)
+                                   for rid, rec in result_index(root).items()
+                                   if rec.get("kind") == "figure"))
+            except Exception:                                # noqa: BLE001
+                by_rel.append({})
+        rel = src[2:] if src.startswith("./") else src
+        rid = by_rel[0].get(rel)
+        return m.group(1) + "/result/" + rid + m.group(3) if rid else m.group(0)
+
+    return EMBED_SRC_RE.sub(sub, text)
+
+
+def browse_results(repo):
+    """The results page's whole payload, or a sentence saying why it is empty:
+    where it looked, and which fenced directories it refused to look in."""
+    root = repo.root
+    try:
+        got = produced(root)
+    except Exception:                                        # noqa: BLE001
+        got = {"groups": [], "more": 0, "figures": 0, "tables": 0}
+    out = dict(got)
+    out["ok"] = True
+    out["workspace"] = subjects.identify(root)
+    real = os.path.realpath(root)
+    out["looked"] = [os.path.relpath(t, real) for _n, t in _result_tops(real)]
+    out["fenced"] = list(fenced.holds(root))
+    if not out["groups"]:
+        out["why"] = _no_results(out)
+    return out
+
+
+def _no_results(out):
+    """Why the results page is empty: where it looked, then what it refused."""
+    if not out["looked"]:
+        said = ("This workspace has no results directory. A job that writes "
+                "one into %s appears here, with no registration of any kind."
+                % ", ".join("`%s/`" % n for n in LOOK_IN))
+    else:
+        said = ("There is a %s directory here, and nothing in it yet that this "
+                "board can show: a figure has to be a %s of at least %d bytes, "
+                "and a table one of %s."
+                % (", ".join("`%s/`" % n for n in out["looked"]),
+                   " or ".join(FIGURE_SUFFIXES), FIGURE_MIN_BYTES,
+                   " or ".join(TABLES)))
+    if out["fenced"]:
+        said += (" %s also holds %s. Nothing on this board looks inside it -- "
+                 "it is session content, and the refusal is by name in "
+                 "`tutorboard/fenced.py` -- so nothing in there is listed here "
+                 "or anywhere else."
+                 % (out["workspace"],
+                    ", ".join("`%s/`" % n for n in out["fenced"])))
+    return said
+
+
+def result_table(root, ident_wanted):
+    """One table, read back as rows (CSV) or text, for a page that cannot open
+    a file. An id, never a path; a miss is a miss."""
+    target, label = _result_path(root, ident_wanted, "table")
+    if not target:
+        return {"ok": False, "why": "none",
+                "detail": "This workspace has no result by that name."}
+    rec = result_index(os.path.realpath(root)).get(
+        str(ident_wanted or "").strip().lower()) or {}
+    out = {"ok": True, "id": rec.get("id") or "", "label": label,
+           "name": rec.get("name") or "", "where": rec.get("where") or "",
+           "file": rec.get("file") or "", "format": rec.get("format") or "",
+           "size": rec.get("size") or 0, "iso": rec.get("iso") or ""}
+    try:
+        if out["format"] == "csv":
+            out.update(_table_rows(target))
+        else:
+            out.update(_table_text(target))
+    except (OSError, UnicodeError, ValueError) as exc:
+        return {"ok": False, "why": "unreadable",
+                "detail": "%s could not be read: %s" % (out["file"], exc)}
+    return out
+
+
+def _table_rows(path):
+    """The head of a CSV as columns and rows, streamed: the rest is counted, up
+    to `MAX_SCAN`, past which the page says *at least*."""
+    columns, rows, more, capped = [], [], 0, False
+    with open(path, "r", encoding="utf-8", errors="replace", newline="") as fh:
+        for n, row in enumerate(csv.reader(fh)):
+            if n == 0:
+                columns = [str(c)[:MAX_CELL] for c in row[:MAX_COLS]]
+                continue
+            if len(rows) >= MAX_ROWS:
+                more += 1
+                if more >= MAX_SCAN:
+                    capped = True
+                    break
+                continue
+            rows.append([str(c)[:MAX_CELL] for c in row[:MAX_COLS]])
+    return {"shape": "rows", "columns": columns, "rows": rows,
+            "more": more, "capped": capped}
+
+
+def _table_text(path):
+    """A JSON, markdown or plain-text table, as text. Bounded twice."""
+    size = os.path.getsize(path)
+    if size > MAX_TEXT_BYTES:
+        return {"shape": "text", "text": "", "more": 0,
+                "why": "big",
+                "detail": ("This file is %.1f MB, which is too much to put on "
+                           "a page. It is at the path the row shows."
+                           % (size / 1000000.0))}
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        said = fh.read(MAX_TEXT_CHARS + 1)
+    more = max(0, len(said) - MAX_TEXT_CHARS)
+    said = said[:MAX_TEXT_CHARS]
+    if path.lower().endswith(".json") and not more:
+        # Re-printed, never acted on: `json.dumps` of what `json.loads` read.
+        try:
+            said = json.dumps(json.loads(said), indent=2, sort_keys=False)
+        except ValueError:
+            pass
+    return {"shape": "text", "text": said, "more": more}

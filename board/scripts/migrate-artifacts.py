@@ -43,7 +43,7 @@ BOARD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BOARD)
 
 from tutorboard import artifacts, build, fenced, sessions   # noqa: E402
-from tutorboard.course import homework, library, reading    # noqa: E402
+from tutorboard.course import homework, library    # noqa: E402
 from tutorboard.server.routes import writing                # noqa: E402
 
 ATLAS = os.path.dirname(BOARD)
@@ -185,7 +185,7 @@ def _skeleton(root, dest):
         rel = os.path.relpath(here, root)
         depth = 0 if rel == "." else rel.count(os.sep) + 1
         dirs[:] = [x for x in dirs if not x.startswith(".")
-                   and x not in reading.IGNORE and not fenced.refused(x)]
+                   and x not in library.IGNORE and not fenced.refused(x)]
         if depth > library.MAX_DEPTH:
             dirs[:] = []
             continue

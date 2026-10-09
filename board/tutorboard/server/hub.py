@@ -25,7 +25,7 @@ import time
 
 from .. import assistants, colibri, coursemacros, fenced, paths, writeups
 from .. import jobs as slurm_jobs
-from ..course import config, homework, results
+from ..course import config, homework, library
 from ..lesson import cards, git, notes, slate, state, turns, uploads
 
 # The payload is rebuilt only when something says it changed: a route's dirty
@@ -257,7 +257,7 @@ def subject_info(repo):
     return {
         "ok": True,
         "sets": sets,
-        "results": _safe(results.status, repo),
+        "results": _safe(library.figures_status, repo),
         "jobs": _safe(slurm_jobs.running, root) or [],
         "colibri": _safe(colibri.status),
         "unsaved": _safe(git.repo_dirty, repo),

@@ -51,7 +51,7 @@ import tempfile
 import zlib
 
 from . import paper
-from . import reading
+from . import library
 from .. import fenced
 
 # Print resolution for the re-rendered page. The board draws at 1240px across a
@@ -101,7 +101,7 @@ LIBRARY = "library/"
 
 # WHERE A MARKED COPY OF A LIBRARY DOCUMENT GOES: `live/marked/<id>/` in the
 # workspace serving it. `live/` is ignored by every workspace here and is never
-# walked by the library (`reading.IGNORE`), so a copy is not offered back as a
+# walked by the library (`library.IGNORE`), so a copy is not offered back as a
 # document, not handed to a revision as its source, and never tracked -- which
 # is what keeps a marked copy of fenced content inside the disk it came from.
 MARKED = "marked"
@@ -129,7 +129,7 @@ def target_for(repo, kind):
         ident = kind[len("doc/"):]
         if not re.match(r"\A[a-z0-9-]{1,40}\Z", ident):
             return None, None
-        path, _name = reading.find(repo.root, ident)
+        path, _name = library.drawer_find(repo.root, ident)
         if not path:
             return None, None
         return path, os.path.splitext(os.path.basename(path))[0]
@@ -655,8 +655,6 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
     `marked_dir`, never beside the document. Keeping a copy is not sending:
     nothing is marked delivered, and the ink goes with the next note.
     """
-    from . import library                        # local: library imports paper
-
     if mode != "new":
         return {"ok": False, "why": "no-overwrite",
                 "detail": "A document in the library is kept as a new marked "
@@ -786,7 +784,7 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
                 "detail": "There is no compiled document here to write on yet."}
 
     got = paper.pages(repo, kind) if kind in paper.KINDS \
-        else reading.pages(repo, ann_ident(kind))
+        else library.drawer_pages(repo, ann_ident(kind))
     pages_n = len(got.get("pages") or []) if got.get("ok") else 0
     marks = strokes_by_page(repo, kind, pages_n or paper.MAX_PAGES)
 

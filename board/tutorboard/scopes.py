@@ -36,7 +36,6 @@ import re
 from .course import config
 from .course import homework
 from .course import library
-from .course import results
 from .course import walk
 
 
@@ -50,7 +49,7 @@ from .course import walk
 # It is still a stop, because a workspace with four hundred figures is a picker
 # nobody can use, and what it drops it SAYS: `scopes()` carries the count and
 # the sheet paints it. The tree's own caps -- `walk.MAX_PARTS`,
-# `results.MAX_FIGURES`, `library.MAX_DOCS` -- are the caps on WALKING and are
+# `library.MAX_FIGURES`, `library.MAX_DOCS` -- are the caps on WALKING and are
 # above this one on purpose. This is the cap on OFFERING.
 MOST = 40
 
@@ -176,7 +175,7 @@ def _parts(root):
 def _results(root):
     """Figures, grouped by the directory they came out of.
 
-    THE DIRECTORY IS THE UNIT, NOT THE FIGURE, and `results._where` says why one
+    THE DIRECTORY IS THE UNIT, NOT THE FIGURE, and `library._result_where` says why one
     level down: a pipeline writes `propensity_by_arm.png` once per contrast
     under the same name every time, so the directory is the thing that tells
     three of them apart and is the thing somebody means when they say *this
@@ -184,7 +183,7 @@ def _results(root):
     """
     groups = {}
     order = []
-    for fig in results.figures(root):
+    for fig in library.figures(root):
         where = fig.get("where") or ""
         if where not in groups:
             groups[where] = []

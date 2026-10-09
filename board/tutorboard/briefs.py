@@ -415,10 +415,9 @@ def png_size(path):
 
 
 def snapshot(root_from, rid, subject_id, deck):
-    """Copy one figure beside a deck, through `results.find`. Its path relative
+    """Copy one figure beside a deck, through `library.find_result`. Its path relative
     to the deck, or "" where `root_from` offers no such id."""
-    from .course import results                        # local: a heavy import
-    target, _ = results.find(root_from, rid)
+    target, _ = library.find_result(root_from, rid)
     if not target:
         return ""
     ext = os.path.splitext(target)[1].lower() or ".png"
@@ -437,10 +436,9 @@ def figure_named(root, wanted):
     list of the ids it could mean (empty where it names none). An exact id
     first; otherwise every word of `wanted` must begin a word of the figure's
     file name, pretty name or folder."""
-    from .course import results                        # local: a heavy import
     want = str(wanted or "").strip().lower()
     try:
-        idx = results.index(root)
+        idx = library.result_index(root)
     except Exception:                                        # noqa: BLE001
         return []
     figs = dict((k, v) for k, v in idx.items() if v.get("kind") == "figure")
@@ -496,12 +494,11 @@ def _figures(blocks, since_ts, until_ts):
     """`(chosen, catalog, catalog_left)`: the period's figures, newest first and
     at most `PER_SUBJECT_FIGURES` a subject; every other figure of those
     subjects in the catalog, the ones the commits mention first."""
-    from .course import results                        # local: a heavy import
     stop = time.time() if until_ts is None else until_ts
     chosen, rest = [], []
     for b in blocks:
         try:
-            idx = results.index(b["root"])
+            idx = library.result_index(b["root"])
         except Exception:                                    # noqa: BLE001
             continue
         figs = sorted((r for r in idx.values() if r.get("kind") == "figure"),
@@ -531,12 +528,11 @@ def _figures(blocks, since_ts, until_ts):
 
 
 def _tables(blocks, since_ts, until_ts):
-    from .course import results                        # local: a heavy import
     stop = time.time() if until_ts is None else until_ts
     out = []
     for b in blocks:
         try:
-            idx = results.index(b["root"])
+            idx = library.result_index(b["root"])
         except Exception:                                    # noqa: BLE001
             continue
         for r in sorted(idx.values(), key=lambda r: -(r.get("at") or 0)):
@@ -946,7 +942,6 @@ def check_sources(base, deck, brief):
     number counts when some number in a source rounds to it (directly, or as a
     percentage); a figure when the board copied it from a subject the deck is
     about."""
-    from .course import results                        # local: a heavy import
     try:
         with open(os.path.join(deck, STEM + ".tex"), "r", encoding="utf-8",
                   errors="replace") as fh:
@@ -977,7 +972,7 @@ def check_sources(base, deck, brief):
     for w in drawn_from_record(brief):
         found = subjects.find(w, base)
         try:
-            offered[ws_slug(w)] = set(results.index(found["root"])) if found else set()
+            offered[ws_slug(w)] = set(library.result_index(found["root"])) if found else set()
         except Exception:                                    # noqa: BLE001
             offered[ws_slug(w)] = set()
     figures = []

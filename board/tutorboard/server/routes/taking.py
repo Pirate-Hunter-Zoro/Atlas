@@ -27,7 +27,7 @@ the whole of why.
 THE CLIENT NEVER NAMES A PATH. It names a KIND -- the lesson, or the written-up
 homework -- or an ID, and this resolves either to a file through what discovery
 already found: `live/export.json` and `live/hw.json` for the two the board
-builds, `reading.find` for a document the course points at. A query parameter carrying a repo-relative path
+builds, `library.drawer_find` for a document the course points at. A query parameter carrying a repo-relative path
 would be a directory traversal waiting to be written, and there is nothing it
 would buy -- the board knows where every one of these is.
 
@@ -45,7 +45,7 @@ import re
 
 from . import NOT_MINE
 from ...course import paper
-from ...course import reading
+from ...course import library
 from ...lesson import notes
 
 
@@ -85,9 +85,9 @@ def get(h, repo, path):
         # A document this course POINTS AT rather than one it built: a slide
         # deck, a walkthrough, a set of lecture slides. Same rasteriser, same
         # cache, same page route -- the only thing that differs is how the file
-        # was found, and `reading.find` is the whole of that check.
+        # was found, and `library.drawer_find` is the whole of that check.
         ident = path[len("/view/doc/"):]
-        return h.send_json(_inked(repo, reading.pages(repo, ident), ident))
+        return h.send_json(_inked(repo, library.drawer_pages(repo, ident), ident))
 
     if path.startswith("/doc/"):
         # ONE PAGE, ADDRESSED BY WHAT IT IS RATHER THAN BY THIS RENDER OF IT.
@@ -105,7 +105,7 @@ def get(h, repo, path):
         if not m:
             return h.send_bytes(b"not found", "text/plain", status=404)
         ident, page = m.group(1), int(m.group(2))
-        got = reading.pages(repo, ident)
+        got = library.drawer_pages(repo, ident)
         if not got.get("ok"):
             return h.send_bytes(b"not found", "text/plain", status=404)
         urls = got.get("pages") or []

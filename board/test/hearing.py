@@ -55,7 +55,7 @@ for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
              "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
 from tutorboard import cluster, gitops, holds, jobs, paths, sessions, stamp  # noqa: E402
-from tutorboard.course import results                                  # noqa: E402
+from tutorboard.course import library                                  # noqa: E402
 from tutorboard.runner import service                                  # noqa: E402
 from tutorboard.runner import turn as runturn                          # noqa: E402
 from tutorboard.server import app                                      # noqa: E402
@@ -488,19 +488,19 @@ try:
           paths.present(ws, rel) == os.path.join(ws, "exports", rel)
           and paths.present(ws, "results/knn/none.png") == ""
           and paths.present(ws, "results/../../../etc/passwd") == "")
-    results.forget()
-    figs = results.figures(ws)
+    library.forget()
+    figs = library.figures(ws)
     check("the results library offers it at its results/ path",
           [f["rel"] for f in figs] == [rel])
-    path, _ = results.find(ws, results.ident(rel))
+    path, _ = library.find_result(ws, library.result_ident(rel))
     check("and serves the exported bytes",
           path == os.path.realpath(os.path.join(ws, "exports", rel)))
     write(os.path.join(ws, rel), "\x89PNG" + "y" * 2000)
-    results.forget()
-    path, _ = results.find(ws, results.ident(rel))
+    library.forget()
+    path, _ = library.find_result(ws, library.result_ident(rel))
     check("a figure results/ holds is read from there, and offered once",
           path == os.path.realpath(os.path.join(ws, rel))
-          and len(results.figures(ws)) == 1)
+          and len(library.figures(ws)) == 1)
 finally:
     service.install(None)
     os.environ.pop("TUTORBOARD_COURSES", None)

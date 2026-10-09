@@ -155,8 +155,8 @@ subprocess.run(GIT + ["-C", atlas, "commit", "-q", "-m", "projects/Beta: the fix
                check=True)
 
 # The figure's and the table's ids, the same in both subjects.
-from tutorboard.course import results                         # noqa: E402
-_found = results.index(os.path.join(atlas, SUBJECT["A"]))
+from tutorboard.course import library                         # noqa: E402
+_found = library.result_index(os.path.join(atlas, SUBJECT["A"]))
 FIG = [k for k, v in _found.items() if v["rel"] == "figures/plot.png"][0]
 TABLE = [k for k, v in _found.items() if v["rel"] == "figures/t.csv"][0]
 

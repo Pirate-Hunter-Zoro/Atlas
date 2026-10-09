@@ -30,7 +30,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from tutorboard.course import plan, reading      # noqa: E402
+from tutorboard.course import library, plan      # noqa: E402
 from tutorboard import fenced, machines, sense   # noqa: E402
 
 fails = []
@@ -140,7 +140,7 @@ Do not read %s.
     # must not be checked against the one this machine really has.
     os.environ["TUTORBOARD_COURSES"] = home
     plan._cache.clear()
-    reading._cache.clear()
+    library.forget()
 
     # --- where the plan is ---------------------------------------------------
     check("a plan in a hub beside the repository is found from the README",
@@ -270,7 +270,7 @@ A multi-project narrative hub. The live task lists are
           plan.path(book) is None and plan.status(book, {}) is None)
 
     # --- the documents ------------------------------------------------------
-    docs = reading.documents(proj)
+    docs = library.drawer(proj)
     ids = [d["id"] for d in docs]
     check("a deck the README names by path is offered",
           "stage1-pipeline-walkthrough" in ids)
@@ -286,11 +286,11 @@ A multi-project narrative hub. The live task lists are
           docs[0]["name"] == "stage1 pipeline walkthrough")
 
     # An id from a request is checked by lookup, never by construction.
-    target, name = reading.find(proj, "stage2-reference-walkthrough")
+    target, name = library.drawer_find(proj, "stage2-reference-walkthrough")
     check("an id resolves to the file it names", target and os.path.isfile(target))
     check("and one this course does not offer resolves to nothing",
-          reading.find(proj, "../../../etc/passwd") == (None, None)
-          and reading.find(proj, "not-a-document") == (None, None))
+          library.drawer_find(proj, "../../../etc/passwd") == (None, None)
+          and library.drawer_find(proj, "not-a-document") == (None, None))
 
     # --- THE FENCE, WHICH IS NOT A DEPTH AND NOT A SIZE FLOOR ---------------
     #
@@ -311,8 +311,8 @@ and `stage2_reference_walkthrough.pdf` is in the same directory.
 
 The session content is under `phi/stage1/Audio Transcription.pdf`.
 """)
-    reading._cache.clear()
-    fenced_ids = [d["id"] for d in reading.documents(proj)]
+    library.forget()
+    fenced_ids = [d["id"] for d in library.drawer(proj)]
     check("a document inside the fenced directory is offered nowhere, however "
           "plainly the README names it",
           "audio-transcription" not in fenced_ids)
@@ -320,16 +320,16 @@ The session content is under `phi/stage1/Audio Transcription.pdf`.
           "stage1-pipeline-walkthrough" in fenced_ids
           and "stage2-reference-walkthrough" in fenced_ids)
     check("an id naming it resolves to nothing, so nothing renders it",
-          reading.find(proj, "audio-transcription") == (None, None))
+          library.drawer_find(proj, "audio-transcription") == (None, None))
     check("and the walk does not reach it either",
-          not [p for p in reading._in_repo(proj) if "Audio Transcription" in p])
+          not [p for p in library._drawer_walked(proj) if "Audio Transcription" in p])
     check("nor does the README-pointer path, which is the one the directory "
           "test alone would have walked past",
-          not [p for p in reading._pointed_at(proj)
+          not [p for p in library._pointed_at(proj)
                if "Audio Transcription" in p])
     check("the refusal is by directory name at any depth",
-          reading._fenced(os.path.join("a", "b", "c", "phi", "x.pdf"))
-          and not reading._fenced(os.path.join(
+          not library._ours(os.path.join("a", "b", "c", "phi", "x.pdf"))
+          and library._ours(os.path.join(
               "docs", "stage2_reference_walkthrough.pdf")))
     fenced_line = sense.reading_sense(type("R", (), {"root": proj})())
     check("and a tutor is never told the address of a page of it",
@@ -379,7 +379,7 @@ The session content is under `phi/stage1/Audio Transcription.pdf`.
 
     shutil.rmtree(os.path.join(proj, "phi"))
     fenced.forget()
-    reading._cache.clear()
+    library.forget()
 
     # --- what the tutor is told ---------------------------------------------
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
@@ -389,7 +389,7 @@ A walkthrough is at `~/projects/Research-Journey/psych-asr-feasibility/stage1_pi
 and `stage2_reference_walkthrough.pdf` is in the same directory.
 """)
     plan._cache.clear()
-    reading._cache.clear()
+    library.forget()
 
     # The plan reaches a turn through TUTOR.md now, never through the README
     # or a planning file the board finds (T30a); `where_sense` says so.

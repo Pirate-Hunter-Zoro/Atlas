@@ -453,7 +453,7 @@ def main():
             "a one-sitting document grew a contents page")
 
     # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED -- the same rule as
-    # `walk.resolve`, `reading.find` and every other name from outside.
+    # `walk.resolve`, `library.drawer_find` and every other name from outside.
     for bad_id in ("../../../etc", "nothing-was-filed-then", "", "20260826",
                    "live/archive/20260826-193000-ch-2-fields"):
         got = document.build(root, scope="sitting", which=bad_id, make_pdf=False)

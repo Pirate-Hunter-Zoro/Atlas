@@ -292,7 +292,7 @@ def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
     that was written months ago and is not built by anything here. The caching,
     the lock, the renderer and the page cap are identical whatever produced the
     PDF -- what differs is only how the file was found, which is the caller's
-    business. `reading.py` finds the decks; this draws them.
+    business. `library.drawer` finds the decks; this draws them.
     """
     width = max(400, min(2200, int(width or PAGE_WIDTH)))
     kind = tag

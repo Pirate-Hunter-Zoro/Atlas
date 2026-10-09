@@ -47,7 +47,7 @@ QUIET = 120
 OUTPUTS = {".tex": (".pdf",), ".md": (".docx", ".pdf")}
 
 # Directories the in-place walk never enters, beyond dot directories, the
-# fence and `reading.IGNORE`: a subject's uploads, the sessions store and the
+# fence and `library.IGNORE`: a subject's uploads, the sessions store and the
 # new artifacts, which are read directly.
 SKIP = ("materials", "sessions", DOCS)
 MAX_DEPTH = 4
@@ -231,7 +231,7 @@ def _entry(root, d, rec, ident=None):
 def list(root):                                              # noqa: A001
     """Every artifact of the subject at `root`: `docs/*/` by name, then the
     ones placed in place, in walk order. Fenced paths are never listed."""
-    from .course import reading                          # local: a heavy import
+    from .course import library                          # local: library imports this
     root = os.path.realpath(root)
     out = []
     top = os.path.join(root, DOCS)
@@ -255,7 +255,7 @@ def list(root):                                              # noqa: A001
         rel = os.path.relpath(here, root)
         depth = 0 if rel == "." else rel.count(os.sep) + 1
         dirs[:] = sorted(x for x in dirs if not x.startswith(".")
-                         and x not in reading.IGNORE and not fenced.refused(x)
+                         and x not in library.IGNORE and not fenced.refused(x)
                          and not (depth == 0 and x in SKIP))
         if depth >= MAX_DEPTH:
             dirs[:] = []

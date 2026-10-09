@@ -13,7 +13,7 @@ import re
 import time
 
 from .. import reasoning
-from ..course import results
+from ..course import library
 from ..server import tikz
 
 
@@ -179,10 +179,10 @@ def _parse(repo, files, jobs, every=None):
         # the brief tells it to -- and that door has no gate on it.
         rawbody = reasoning.card_body(rawbody)
         # A figure named by its path becomes its id here, once, before the body
-        # is cached -- see `results.embed_ids`.
+        # is cached -- see `library.embed_result_ids`.
         root = getattr(repo, "root", None)
         if root:
-            rawbody = results.embed_ids(root, rawbody)
+            rawbody = library.embed_result_ids(root, rawbody)
         body = extract_tikz(rawbody, jobs, repo)
         cards.append({
             "id": ident,

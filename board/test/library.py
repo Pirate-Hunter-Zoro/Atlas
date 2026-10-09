@@ -3,7 +3,7 @@
 
 Nothing showed a workspace's documents together. The ⋯ menu offers the two the
 BOARD makes -- the exported lesson and the compiled write-up -- and the contents
-drawer offers what `reading.py` found, as pages to put on a card. Neither is
+drawer offers what `library.drawer` found, as pages to put on a card. Neither is
 "every paper and presentation in this project", and there was nowhere at all to
 say what was wrong with one.
 
@@ -41,7 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from tutorboard import sense
-from tutorboard.course import library, reading
+from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
 from tutorboard.lesson import notes as lesson_notes
@@ -161,7 +161,7 @@ check("THE FENCE HOLDS: nothing in phi/ is in the library",
 check("and somebody else's reference library is not either",
       not [d for d in found if "references" in (d["dir"] or "")])
 check("the fence is the one list, read from fenced.py",
-      "phi" in reading.fenced.NEVER)
+      "phi" in library.fenced.NEVER)
 
 # AN ID, NEVER A PATH.
 ident = one("How Audio Becomes a Transcript")["id"]
@@ -249,7 +249,7 @@ check("a document can be marked under its library name",
       marked["id"] in idents)
 check("and under the drawer's name for the same file, which is where marking "
       "works today",
-      reading.ident(tmp, library.path_of(tmp, marked, ".pdf")) in idents)
+      library.drawer_ident(tmp, library.path_of(tmp, marked, ".pdf")) in idents)
 
 ink("doc/%s/p2" % marked["id"], strokes=4)
 ink("doc/%s/p5" % idents[-1], strokes=2, png=False)
