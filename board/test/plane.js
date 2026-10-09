@@ -1303,10 +1303,9 @@ const heelSwipe = (id, x, y, dx, dy) => {
   // underneath it and then do nothing for the rest of the gesture.
   {
     const js = fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8');
-    // The contact map, its expiry and the pinch pair are shared with the map
-    // surface now -- both count fingers the same way, and two copies of this
-    // would be two copies to get wrong. So the rule is checked where it lives,
-    // and the surface is checked for still going through it.
+    // The contact map, its expiry and the pinch pair live in plane-core.js,
+    // and the writing surface counts fingers through it. So the rule is checked
+    // where it lives, and the surface is checked for still going through it.
     const plane = fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8');
     /GESTURE_STALE/.test(plane) && /function live\(\)/.test(plane)
       ? ok('a contact that has gone quiet is dropped before it is counted')

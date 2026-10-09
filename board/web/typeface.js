@@ -25,9 +25,6 @@ function apply(face) {
   try { localStorage.setItem(KEY, face); } catch (e) {}
   var btn = document.getElementById("btn-face");
   if (btn) btn.title = "typeface: " + LABEL[face] + " — tap to change";
-  /* Every measured label was measured in the old face; say so. `gauge.js` is
-     not loaded yet on the first call, which is the call that needs nothing. */
-  if (window.Gauge && window.Gauge.faceChanged) window.Gauge.faceChanged();
   return face;
 }
 

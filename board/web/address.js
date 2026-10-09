@@ -16,12 +16,12 @@
    still parses (the home screen turns one into a session address through
    `sessions/.imported.json`; T55 deletes it):
 
-       #/w/<family>/<workspace>                the workspace, on its map
-       #/w/…/node/<id>                         one box on that map
+       #/w/<family>/<workspace>                the workspace
+       #/w/…/node/<id>                         one box on its map (gone)
        #/w/…/card/<nnnn>                       one card in the current lesson
        #/w/…/archive/<sitting>/<nnnn>          one card in a finished sitting
        #/w/…/doc/<ident>[/p<n>]                a document, optionally one page
-       #/w/…/code/<path>[::<symbol>]           a walk unit
+       #/w/…/code/<path>[::<symbol>]           a walk unit (gone)
        #/w/…/hw/<set>/<problem>                one problem of a problem set
        #/w/…/slate/<nnnn>                      one page of handwriting
 

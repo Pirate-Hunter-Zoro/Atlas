@@ -86,7 +86,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js',
                  'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
@@ -273,7 +273,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   w2.scrollTo = function () {};
   w2.EventSource = function () { w2.__es = this; this.readyState = 1;
     this.close = function () {}; this.addEventListener = function () {}; };
-  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js',
                    'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
   }
@@ -628,7 +628,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     ? ok('KaTeX and its auto-render extension load, so what follows is typeset '
          + 'by the thing that typesets the lesson')
     : fail('KaTeX did not load — the assertions below would prove nothing');
-  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js',
                    'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     w3.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
   }

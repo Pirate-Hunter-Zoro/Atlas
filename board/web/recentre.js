@@ -21,12 +21,8 @@
    JavaScript against `visualViewport`, with a counter-scale so the button stays
    the same size under a thumb however far the page has been zoomed in.
 
-   Extracted from board.js because the front door needs it too. The atlas is a
-   plane exactly as the map is, drawn by the same measuring (`gauge.js`) and
-   moved by the same gestures (`plane-core.js`) -- and a way back that exists on
-   one of the two is a way back nobody can rely on. Two copies of this would be
-   two spellings of one answer, which is the argument `gauge.js` already makes
-   and pays for.
+   Extracted from board.js because the front door needs it too: a way back
+   that exists on one page and not the other is a way back nobody can rely on.
 
    Loaded before board.js, home.js and readerzoom.js, which asks `unzoom` to
    put a page zoom back when a document opens over one.

@@ -30,7 +30,6 @@ var SHELL = [
   "/library",
   "/static/home.css",
   "/static/home.js",
-  "/static/gauge.js",
   "/static/recentre.js",
   "/static/address.js",
   "/static/mission.js",

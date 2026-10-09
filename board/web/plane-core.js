@@ -1,10 +1,9 @@
 /* ==========================================================================
    plane-core.js -- what every surface that is a PLANE has to get right.
 
-   There are two of them now. The writing surface has been a plane since the
-   page stopped being a box, and the map is one from the day it ships. Both
-   answer the same two questions on every frame -- what is the hand doing, and
-   where is the view allowed to be -- and the answers are not obvious. Every
+   The writing surface is a plane. It answers two questions on every frame --
+   what is the hand doing, and where is the view allowed to be -- and the
+   answers are not obvious. Every
    rule in this file was written after a gesture stopped working on somebody's
    iPad in the middle of real work:
 

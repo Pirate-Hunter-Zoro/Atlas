@@ -98,7 +98,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -1494,13 +1494,8 @@ if (es) {
   // THE PANEL THAT USED TO ANSWER THIS IS GONE, and that is the assertion
   // rather than the deletion. The \u22ef menu carried a documents panel listing
   // exactly two -- the last lesson exported and the last write-up compiled, off
-  // the payload's `papers`. That is a record of the last thing BUILT and not an
-  // inventory: a course with forty compiled PDFs had thirty-eight of them
-  // reachable from nothing. The way back is now the MAP -- a count on the box
-  // whose source the document came out of, and a control on the map bar for all
-  // of them. What the drawer then DRAWS is `test/shelf.js`, which has a server
-  // to answer it; what is checked here is that the old way is gone, cannot come
-  // back unnoticed, and has a way that works in its place.
+  // the payload's `papers`: a record of the last thing BUILT, not an inventory.
+  // The way to every document is the library, one tap away in the same menu.
   doc.getElementById('pushed-close').onclick();
   !doc.getElementById('btn-papers') && !doc.getElementById('papers')
     ? ok('the two-document panel is gone from the menu')
@@ -1513,35 +1508,11 @@ if (es) {
              + 'come back without anybody deciding to bring it back');
   }
 
-  // The map bar's control, which is the way to ALL of them. It is hidden until
-  // a payload says some box holds one -- a control that opens an empty list
-  // teaches somebody not to tap it -- and this suite renders no map, so what is
-  // asked of it is the wiring rather than the visibility.
-  const mapDocs = doc.getElementById('map-docs');
-  const shelf = doc.getElementById('shelf');
-  mapDocs && shelf
-    ? ok('the map bar carries a way to every document in the workspace')
-    : fail('a document is reachable only from the banner that made it');
-  if (mapDocs && shelf) {
-    const before = window.__asked.length;
-    mapDocs.onclick();
-    !shelf.hidden
-      ? ok('and it opens with the banner gone')
-      : fail('the documents drawer does not open');
-    window.__asked.slice(before).some((u) => /^\/shelf\.json/.test(u))
-      ? ok('asking the server on the tap, because the list is not on the payload')
-      : fail('the drawer opened without asking: ' + JSON.stringify(
-               window.__asked.slice(before)));
-    // The payload is rebuilt four times a second. A list of forty documents on
-    // it is the one thing the map's own rule forbids, so the box carries the
-    // COUNT and the drawer fetches the list.
-    !/"docs"\s*:\s*\[/.test(JSON.stringify(hwPayload()))
-      ? ok('and the payload carries no list of documents for it to have used')
-      : fail('the payload is carrying the document list');
-    doc.getElementById('btn-shelf-close').onclick();
-    shelf.hidden ? ok('and the drawer closes')
-                 : fail('the documents drawer cannot be closed');
-    es.onmessage({ data: JSON.stringify(hwPayload()) });
+  {
+    const lib = doc.getElementById('btn-library');
+    lib && doc.getElementById('barmenu').contains(lib)
+      ? ok('the library, every document in the subject, is in the menu')
+      : fail('a document is reachable only from the banner that made it');
   }
 
   // ------------------------------------------------------------------------
@@ -1781,8 +1752,8 @@ if (es) {
 
 // THE SESSION HEADER HOLDS FOUR SESSION CONTROLS: the subject chip, the
 // teach/do toggle, Make and End. The sitting badge and its kind chooser, the
-// review strip, the map and every way to it, the contents drawer's entry, the
-// shelf's and "elsewhere" are retired: drawn nowhere, until T51 deletes them.
+// review strip, the map and every way to it, the contents drawer, the shelf
+// and "elsewhere" are gone, markup and all.
 if (es) {
   var sessCtl = doc.querySelectorAll('#bar .sess-ctl');
   sessCtl.length === 4
@@ -1795,19 +1766,17 @@ if (es) {
   });
   ok('they are the chip, the toggle, Make and End');
 
-  /\[data-retired\][^{]*\.to-map\s*{\s*display:\s*none\s*!important/.test(css)
-    ? ok('a retired control and every way to the map are drawn nowhere')
-    : fail('board.css does not retire [data-retired] and .to-map');
   ['session', 'kind', 'rvbar', 'btn-map', 'btn-contents', 'btn-work-elsewhere',
-   'map-docs'].forEach(function (id) {
-    var el = doc.getElementById(id);
-    if (el && !el.hasAttribute('data-retired')) fail(id + ' is still drawn');
+   'map', 'map-docs', 'shelf', 'contents', 'review', 'elsewhere', 'steer',
+   'redirect', 'mapback', 'docnew'].forEach(function (id) {
+    if (doc.getElementById(id)) fail('#' + id + ' is still in the page');
   });
-  ok('the badge, the kind strip, the map, contents, shelf and elsewhere are retired');
+  !doc.querySelector('[data-retired], .to-map')
+    ? ok('the badge, the kind strip, the map, contents, shelf and elsewhere are gone')
+    : fail('a retired control is still in the page');
   Array.prototype.some.call(doc.querySelectorAll('#bar button, #bar a, #bar label'),
     function (el) {
-      return !el.closest('[hidden]') && !el.hasAttribute('data-retired')
-        && !el.classList.contains('to-map') && !el.classList.contains('sess-ctl')
+      return !el.classList.contains('sess-ctl')
         && /map|contents|elsewhere|lecture|review/.test(el.title || '');
     })
     ? fail('a retired control is still in the bar')
@@ -1841,68 +1810,6 @@ if (es) {
   doc.getElementById('btn-face').click();
   if (menu.hidden) ok('and closes behind a choice, so it cannot swallow the next tap');
   else fail('the menu stays open after a choice');
-}
-
-// A course is chapters and problem sets, and the board showed neither: the only
-// way to a different chapter was somebody typing `board open` in a terminal.
-if (es) {
-  var panel = doc.getElementById('contents');
-  var opener = doc.getElementById('btn-contents');
-  var frame = {
-    state: { course: 'G', session: 'lecture', mode: 'math',
-             chapter: 'Ch 02 — Rings' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' },
-    history: 3,
-    sets: ['ch01', 'ch02'],
-    contents: { chapters: [{ num: '01', label: 'Ch 01 — Groups' },
-                           { num: '02', label: 'Ch 02 — Rings' }],
-                sets: [{ name: 'ch01', rel: 'chapters/ch01/homework/a.tex' },
-                       { name: 'ch02', rel: 'chapters/ch02/homework/b.tex' }] },
-  };
-  es.onmessage({ data: JSON.stringify(frame) });
-
-  // Retired from the menu (T24); the drawer's code stands until T51.
-  if (opener && opener.hasAttribute('data-retired') && panel.hidden)
-    ok('the contents opener is retired and the drawer closed');
-  else fail('the contents opener is drawn, or the drawer is up unasked');
-
-  opener.onclick();
-  var text = doc.getElementById('contents-list').textContent;
-  if (/Ch 01 — Groups/.test(text) && /Ch 02 — Rings/.test(text))
-    ok('every chapter the course has is listed');
-  else fail('chapters are not offered: ' + text.slice(0, 90));
-  if (/Problem sets/.test(text) && /ch01/.test(text))
-    ok('and its problem sets beside them');
-  else fail('problem sets are not offered');
-  if (/Past lessons/.test(text) && /3 filed/.test(text))
-    ok('and the way back to what is already filed');
-  else fail('past lessons are not reachable from the contents');
-
-  var hereBtn = Array.prototype.filter.call(
-    doc.querySelectorAll('#contents-list button'),
-    function (b) { return /Ch 02/.test(b.textContent); })[0];
-  if (hereBtn && /here/.test(hereBtn.className))
-    ok('and the chapter you are in is marked as such');
-  else fail('there is no way to tell which chapter you are in');
-
-  doc.getElementById('btn-contents-close').onclick();
-  if (panel.hidden) ok('the panel closes');
-  else fail('the contents panel cannot be closed');
-
-  // A repository that follows no book has neither chapters nor sets, and must
-  // not be told it is broken -- its sittings are made as it goes. Nothing in the
-  // payload declares which kind of repository this is any more: having no
-  // chapters and no sets IS the answer.
-  es.onmessage({ data: JSON.stringify(Object.assign({}, frame, {
-    state: { course: 'TRD', session: 'lecture' },
-    history: 0, contents: { chapters: [], sets: [] } })) });
-  opener.onclick();
-  var text2 = doc.getElementById('contents-list').textContent;
-  if (/as you go/.test(text2) && !/No chapters or problem sets found/.test(text2))
-    ok('a repository with no book is told its sittings are made as it goes');
-  else fail('a bookless repository gets an empty or wrong contents: ' + text2.slice(0, 90));
-  doc.getElementById('btn-contents-close').onclick();
 }
 
 // ---------------------------------------------------------------------------

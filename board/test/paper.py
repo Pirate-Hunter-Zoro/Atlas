@@ -365,19 +365,19 @@ check("and the banner offers reading as well as keeping",
 #
 #    AND NOT FROM A PANEL OF TWO. The ⋯ menu's documents panel offered exactly
 #    the lesson and the write-up, off the payload's `papers` -- the last thing
-#    built, which is not an inventory. It is gone, and the way back to a
-#    document is the map: a count on the box, a tap, `/shelf.json`. Asserted as
-#    an ABSENCE rather than deleted, because a deletion that can silently come
-#    back is a deletion that will.
+#    built, which is not an inventory. It is gone, and the way to every
+#    document is the library, in the same menu. Asserted as an ABSENCE rather
+#    than deleted, because a deletion that can silently come back is a deletion
+#    that will.
 check("the two-document panel is gone from the menu",
       'id="btn-papers"' not in html and 'id="papers"' not in html
       and 'id="papers-list"' not in html)
 check("and nothing in the board still draws it",
       "function openPapers(" not in js and "function renderPapers(" not in js
       and "renderPapers()" not in js)
-check("the way back to a document is the map: a count on a box, and a drawer",
-      'id="shelf"' in html and 'id="map-docs"' in html
-      and "function openShelf(" in js)
+check("the way to every document is the library, from the menu",
+      'id="btn-library"' in html and 'id="shelf"' not in html
+      and "function openShelf(" not in js)
 check("which offers to make the one that is not there, so it is never a dead end",
       "compile it now" in js and "export it now" in js)
 

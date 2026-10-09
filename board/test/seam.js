@@ -48,7 +48,7 @@ const ok = (m) => console.log('ok   ' + m);
 const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const FILES = ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+const FILES = ['typeface.js', 'macros.js', 'plane-core.js',
                'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js'];
 
 // A board with a question owed, a surface open on it, and the wire stubbed. The

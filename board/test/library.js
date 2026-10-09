@@ -872,11 +872,12 @@ const named = (title) => rows().filter(
     ? ok('one kind of ink: no ink-mode switch, no directions send, no direction ask')
     : fail('the reader still offers a second kind of ink');
 
-  // 8. The two ways out, because a full-screen surface needs them.
+  // 8. The way out, because a full-screen surface needs one. There is no map
+  //    to go to.
   doc.getElementById('lib-back').getAttribute('href') === '/board'
-    && doc.getElementById('lib-map').getAttribute('href') === '/board?map=1'
-    ? ok('the board and the map are both one tap away')
-    : fail('there is no way back to the lesson');
+    && !doc.getElementById('lib-map')
+    ? ok('the board is one tap away, and nothing links to the map')
+    : fail('there is no way back to the lesson, or a link to the map is left');
 
   // 8b. AND IT GOES WHERE YOU CAME FROM.
   // The board's own row into this page is a lesson stepping sideways, so

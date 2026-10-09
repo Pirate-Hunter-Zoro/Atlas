@@ -14,10 +14,8 @@
 /* WHICH SESSION THIS BOARD IS. The server serves a board at `/s/<id>/board`,
    and everything the board asks about its session goes back under that prefix:
    `api` for a fetch, `atSession` for a URL the server handed over. Outside a
-   session (a test's one-session server) `BASE` is empty and every path is as
-   written.
-   Static assets stay absolute, and so do the cross-subject routes the server
-   answers only unprefixed (`/elsewhere`, `/colibri`, `/atlas.json`). */
+   session (a test's one-session server) `BASE` is empty. Static assets stay
+   absolute, and so do the cross-subject routes (`/subjects.json`). */
 function sessionBase() {
   var m = /^\/s\/[^\/]+/.exec((window.location && window.location.pathname) || "");
   return m ? m[0] : "";
@@ -84,14 +82,6 @@ var els = {
   jump: document.getElementById("jump"),
   panic: document.getElementById("panic"),
   findink: document.getElementById("findink"),
-  mapback: document.getElementById("mapback"),
-  redirect: document.getElementById("redirect"),
-  steer: document.getElementById("steer"),
-  steerNow: document.getElementById("steer-now"),
-  steerBox: document.getElementById("steerbox"),
-  steerClose: document.getElementById("steer-close"),
-  steerCancel: document.getElementById("steer-cancel"),
-  steerGo: document.getElementById("steer-go"),
   reopen: document.getElementById("reopen"),
   addFile: document.getElementById("btn-add-file"),
   scratch: document.getElementById("scratch"),
@@ -99,49 +89,7 @@ var els = {
   writer: document.getElementById("writer"),
   sent: document.getElementById("sent"),
   sentText: document.getElementById("sent-text"),
-  session: document.getElementById("session"),
-  kind: document.getElementById("kind"),
-  kindLecture: document.getElementById("kind-lecture"),
-  kindSets: document.getElementById("kind-sets"),
-  kindReview: document.getElementById("kind-review"),
-  kindWalk: document.getElementById("kind-walk"),
-  kindStance: document.getElementById("kind-stance"),
-  kindWho: document.getElementById("kind-who"),
-  kindWhoLead: document.getElementById("kind-who-lead"),
-  kindWhoWays: document.getElementById("kind-who-ways"),
-  kindWhoFence: document.getElementById("kind-who-fence"),
-  kindWhoNote: document.getElementById("kind-who-note"),
-  kindWhoUp: document.getElementById("kind-who-up"),
-  kindAim: document.getElementById("kind-aim"),
-  kindAimWays: document.getElementById("kind-aim-ways"),
-  kindDoc: document.getElementById("kind-doc"),
-  kindDocWays: document.getElementById("kind-doc-ways"),
   trace: document.getElementById("trace"),
-  elsewhere: document.getElementById("elsewhere"),
-  elsewhereList: document.getElementById("elsewhere-list"),
-  elsewhereWho: document.getElementById("elsewhere-who"),
-  elsewhereFence: document.getElementById("elsewhere-fence"),
-  elsewhereTask: document.getElementById("elsewhere-task"),
-  elsewhereSaid: document.getElementById("elsewhere-said"),
-  elsewhereShip: document.getElementById("elsewhere-ship"),
-  elsewhereShipNote: document.getElementById("elsewhere-ship-note"),
-  elsewhereGo: document.getElementById("elsewhere-go"),
-  stanceTeach: document.getElementById("stance-teach"),
-  stanceDo: document.getElementById("stance-do"),
-  kindCancel: document.getElementById("kind-cancel"),
-  rvbar: document.getElementById("rvbar"),
-  rvLead: document.getElementById("rv-lead"),
-  rvScope: document.getElementById("rv-scope"),
-  rvChange: document.getElementById("rv-change"),
-  review: document.getElementById("review"),
-  reviewTitle: document.getElementById("review-title"),
-  reviewList: document.getElementById("review-list"),
-  reviewAll: document.getElementById("review-all"),
-  reviewCount: document.getElementById("review-count"),
-  reviewStart: document.getElementById("review-start"),
-  reviewNote: document.getElementById("review-note"),
-  contents: document.getElementById("contents"),
-  contentsList: document.getElementById("contents-list"),
   agent: document.getElementById("agent"),
   finish: document.getElementById("finish"),
   finishLead: document.getElementById("finish-lead"),
@@ -183,10 +131,6 @@ var els = {
   pushedText: document.getElementById("pushed-text"),
   pushedGet: document.getElementById("pushed-get"),
   pushedView: document.getElementById("pushed-view"),
-  shelf: document.getElementById("shelf"),
-  shelfTitle: document.getElementById("shelf-title"),
-  shelfList: document.getElementById("shelf-list"),
-  shelfFoot: document.getElementById("shelf-foot"),
   carry: document.getElementById("carry"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
@@ -209,23 +153,7 @@ var els = {
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
   file: document.getElementById("file"),
-  drop: document.getElementById("drop"),
-  map: document.getElementById("map"),
-  mapTitle: document.getElementById("map-title"),
-  mapCount: document.getElementById("map-count"),
-  mapDocs: document.getElementById("map-docs"),
-  mapFit: document.getElementById("map-fit"),
-  mapClose: document.getElementById("map-close"),
-  mapPlane: document.getElementById("map-plane"),
-  mapSheet: document.getElementById("map-sheet"),
-  mapLoose: document.getElementById("map-loose"),
-  mapCrumb: document.getElementById("map-crumb"),
-  mapWhy: document.getElementById("map-why"),
-  work: document.getElementById("work"),
-  workTitle: document.getElementById("work-title"),
-  workSub: document.getElementById("work-sub"),
-  workList: document.getElementById("work-list"),
-  workClose: document.getElementById("work-close")
+  drop: document.getElementById("drop")
 };
 
 var seenIds = Object.create(null);
@@ -234,13 +162,9 @@ var firstPaint = true;
    restored from the very first payload are not thrown away before they are
    drawn. See the note in `render`. */
 var sittingKey = null;
-/* When a hand last touched the page. Several things here want to put the page
-   somewhere and then put it there again a moment later, once the mathematics has
-   typeset and the images have decoded and everything above has settled to its
-   real height. Repeating a scroll under somebody who has already started reading
-   is worse than landing in the wrong place, so every one of those repeats asks
-   first. A real gesture, not our own `scrollTo` -- which fires a scroll event
-   like any other and would otherwise cancel every repeat immediately. */
+/* When a hand last touched the page. A scroll repeated after typesetting
+   settles asks this first, because repeating it under somebody already reading
+   is worse than landing wrong. A real gesture, not our own `scrollTo`. */
 var handledAt = 0;
 /* How many payloads have brought a card. Anything that wants to put the page
    somewhere and then put it there again a moment later has to give that up the
@@ -447,22 +371,6 @@ function renderMarkdown(src) {
       continue;
     }
 
-    /* A THREAD PROPOSED ON THIS CARD, and the one tap that adds it. The server
-       wrote the proposal in words above this line (`cards.extract_threads`);
-       the state is the thread file's, read on every poll. */
-    var prop = line.match(/^\s*@@THREAD:([a-z0-9-]*):(new|there|bad)@@\s*$/);
-    if (prop) {
-      out.push('<div class="thread-propose" data-thread="' + prop[1]
-               + '" data-state="' + prop[2] + '">'
-               + (prop[2] === "new"
-                  ? '<button type="button" class="thread-accept">Add this thread</button>'
-                  : prop[2] === "there" ? "<span>on the map</span>"
-                  : "<span>not added: say what to change</span>")
-               + "</div>");
-      i++;
-      continue;
-    }
-
     /* heading */
     var h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
@@ -535,11 +443,13 @@ function renderMarkdown(src) {
            !/^\s*>/.test(lines[i]) &&
            !/^\s*([-*+]|\d+[.)])\s/.test(lines[i]) &&
            !/^\s*@@FIGURE:/.test(lines[i]) &&
-           !/^\s*@@THREAD:/.test(lines[i]) &&
            !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i])) {
       para.push(lines[i]);
       i++;
     }
+    /* A line no rule above took (a malformed placeholder) is text, never a
+       line the loop stands on for ever. */
+    if (!para.length) para.push(lines[i++]);
     out.push("<p>" + inline(para.join("\n").trim()).replace(/\n/g, " ") + "</p>");
   }
 
@@ -672,21 +582,11 @@ function sameOrigin(url) {
   } catch (e) { return false; }
 }
 
-/* A SLUG IS NOT A TITLE, AND ON THE GLASS IT IS THE FILENAME SHOWING THROUGH.
-
-   `board write` derives a card's filename from its title, so a tutor that
-   passes the slug where the title goes gets the slug drawn across the top of the
-   card -- reported as `LESSON not-for-every-i-for-one-i-and-that-is-the-whole-fix`
-   and, accurately, "What an eyesore."
-
-   It is not deleted: it stays in the front matter and it still names the file,
-   which is where it earns its keep. It is simply not a sentence written for a
-   reader, so it is not drawn as one -- and for a `lesson` card, whose head
-   exists only to carry a title, that takes the whole head away with it.
-
-   The test is narrow on purpose. No whitespace, all lower case, and three or
-   more parts joined by hyphens or underscores: that is a file stem. `Well-ordering`
-   has a capital and two parts and is a title; so is `mean-square`. */
+/* A SLUG IS NOT A TITLE. `board write` names the file from the title, so a
+   title that is a file stem is not drawn: it stays in the front matter and
+   names the file, and a `lesson` card's head goes with it. A stem is no
+   whitespace, all lower case, and three or more parts joined by hyphens or
+   underscores; `Well-ordering` and `mean-square` are titles. */
 function cardTitle(c) {
   var said = ((c && c.title) || "").trim();
   if (!said || /\s/.test(said)) return said;
@@ -695,24 +595,11 @@ function cardTitle(c) {
 }
 
 /* ------------------------------------------------- what the board just did */
-/* A RENDERING FAULT IS OVER BEFORE ANYBODY CAN DESCRIBE IT.
-
-   Two have now been diagnosed from a sentence -- "the next board showed up over
-   the yellow pulsing indicator, and then the AI response just all showed up at
-   once between the boards" -- and one of those diagnoses was WRONG, because
-   nothing anywhere could say whether the card typed, whether the hold was taken,
-   or whether it let go early. Each wrong guess costs somebody an evening and
-   then another report in the same words.
-
-   So the board keeps its own last few hundred moves and `☰ → what just
-   happened` reads them back on the device, with a copy button, because the
-   person who can see the fault is not the person who can read the source.
-
-   WHAT IT COSTS, since this runs in every sitting for ever: one small object
-   pushed onto a bounded array. Nothing is formatted, nothing touches the DOM and
-   nothing is measured until the panel is opened. The uninteresting renders --
-   a heartbeat, an uncommitted count changing -- are not recorded at all, or the
-   four-a-second poll would bury the twenty lines that matter. */
+/* A RENDERING FAULT IS OVER BEFORE ANYBODY CAN DESCRIBE IT, so the board keeps
+   its own last few hundred moves and `⋯ → what just happened` reads them back
+   on the device, with a copy button. It costs one small object pushed onto a
+   bounded array; nothing is formatted or measured until the panel opens, and
+   the uninteresting renders (a heartbeat, a count) are not recorded. */
 var TRACE_MAX = 300;
 var traceLog = [];
 var traceFrom = 0;
@@ -724,31 +611,16 @@ function trace(what, of) {
   if (traceLog.length > TRACE_MAX) traceLog.shift();
 }
 
-/* AND THE INK LAYER WRITES INTO THE SAME LOG, BECAUSE ITS FAULTS ARE THE ONES
-   THIS EXISTS FOR.
-
-   `annotate.js` is a module of its own and had nowhere to record anything, so
-   the one thing it can get badly wrong -- a stroke whose lift never arrived,
-   which refuses every scroll on the page until the mode is toggled -- arrived as
-   a sentence about scrolling with nothing underneath it. See `STROKE_QUIET`
-   there. Exposed rather than passed in: that file is loaded first, so it asks
-   for this at the moment it has something to say. */
+/* AND THE INK LAYER WRITES INTO THE SAME LOG: its worst fault, a stroke whose
+   lift never arrived, refuses every scroll (`STROKE_QUIET` in `annotate.js`).
+   Exposed rather than passed in, because that file loads first. */
 window.BoardTrace = trace;
 
-/* AND WHICH CODE IT CAME FROM, WHICH IS THE OTHER HALF OF "IT DIDN'T WORK".
-
-   `board.js` is in `sw.js`'s `SHELL`, so an installed app serves its cached copy
-   until `VERSION` moves, and nothing on the glass said which shell was running.
-   Two rendering faults were then diagnosed from a sentence, one of those
-   diagnoses was wrong, and neither report could distinguish *the fix is wrong*
-   from *the fix never reached this tablet*.
-
-   IT HAS TO COME FROM THE RUNNING PAGE AND NOT FROM THE SERVER. A server on new
-   code serving a device that held on to an old shell is precisely the case being
-   diagnosed, so a version the server reported would read correct in the one
-   situation it exists to catch. The cache's name IS `VERSION`, so the page can
-   answer it about itself -- and more than one shell cache present is itself
-   worth seeing, so they are all named rather than one being chosen. */
+/* AND WHICH SHELL IS RUNNING. `board.js` is in `sw.js`'s `SHELL`, so an
+   installed app serves its cached copy until `VERSION` moves. It is read from
+   the running page, never the server: a server on new code serving an old
+   shell is the case being diagnosed. The cache's name IS `VERSION`, and every
+   shell cache present is named. */
 var shellVersion = "shell unknown";
 
 function askShell() {
@@ -842,13 +714,8 @@ var KIND_LABEL = {
 };
 
 /* Which kinds are a reply to a piece of working, as opposed to new teaching.
-
-   `note` is in here, and leaving it out was most of why folding did nothing on a
-   real lesson: an evening on one exercise produced five `note` cards -- "no, and
-   it is a name collision", "the symbol is fixed, which element is h?" -- every
-   one of them an answer to something the student had just written, and every one
-   of them left open. A `lesson` or a `recap` is material that stands on its own
-   and is never folded. */
+   `note` is one: it answers what the student just wrote. A `lesson` or a
+   `recap` stands on its own and is never folded. */
 var REPLY_KIND = { wrong: 1, correct: 1, review: 1, note: 1 };
 
 /* What a reply says about the answer it replied to. Two kinds are a verdict;
@@ -856,21 +723,10 @@ var REPLY_KIND = { wrong: 1, correct: 1, review: 1, note: 1 };
    -- see where `verdictOf` is built. */
 var VERDICT_OF = { correct: "correct", wrong: "wrong" };
 
-/* AND THE KIND IS NOT WHAT DECIDES WHETHER A CARD IS REPLYING AT ALL.
-
-   `REPLY_KIND` is the folding rule and it is right for folding. It is the wrong
-   question for a band, because `lesson` is not in it and a `lesson` card is the
-   commonest reply in a sitting that DOES the work: the student sends "it runs
-   now", the turn reports what it found and teaches the next thing, and that card
-   is the response to what was handed in. Keyed on the kind there was no band on
-   it at all -- so in exactly the sittings where "we're not really in a
-   right-or-wrong scenario" is the normal case, nothing was said.
-
-   The question a band turns on is whether the card is a REPLY TO WORK THAT WAS
-   HANDED IN, and that is answered by the transcript rather than by the kind: see
-   `cardVerdict`. `recap` is the one kind that is never a reply however it falls
-   -- it is the reading of what has already happened, and a recap that went amber
-   because an answer happened to precede it is a page tinted for nothing. */
+/* AND THE KIND IS NOT WHAT DECIDES WHETHER A CARD IS REPLYING. `REPLY_KIND`
+   is the folding rule; a band turns on whether the card replies to work that
+   was handed in, which the transcript answers (`cardVerdict`). `recap` is the
+   one kind that is never a reply. */
 var NEVER_REPLY = { recap: 1 };
 
 /* The verdict on each question, by card id, as of the last render. Read by
@@ -888,39 +744,14 @@ function timeLabel(t) {
 var freshNodes = [];
 
 /* Keyed, and **in place**. A node that is already where it belongs is not
-   touched at all -- not moved, not re-appended, not re-inserted.
-
-   This used to collect every kept node into a fragment and append the fragment,
-   which detaches and re-inserts the entire lesson on every payload. The DOM is
-   happy with that; CSS is not. Taking a node out of the document and putting it
-   back restarts its animations, and every `.card` carried an entry animation, so
-   each frame slid the whole board up from half a rem and faded it back in --
-   read from a chair as the board glitching, shifting, and snapping back to where
-   it already was. Payloads arrive for reasons that have nothing to do with the
-   lesson (a slate save, a figure finishing, the uncommitted count changing), so
-   it happened while nothing on screen had changed at all.
-
-   It also threw away work: re-inserting a subtree forces style, layout and paint
-   for the whole lesson, and re-inserting a canvas costs a fresh compositor
-   layer. Moving only what actually moved is both correct and most of the fix. */
+   touched -- not moved, not re-appended. Re-inserting a node restarts its CSS
+   animations and forces style, layout and paint for the whole lesson, and
+   payloads arrive while nothing on screen has changed. */
 
 /* WHERE A CARD AT THE END OF THE LESSON GOES: ABOVE THE WRITING SURFACE, NEVER
-   BELOW IT.
-
-   This is the whole of a fault that was reported four times and patched three
-   times in the wrong place. A new card was APPENDED -- past the surface, which
-   has no key and is the last child of a lesson with a board open on it -- so the
-   tutor's reply typed itself out UNDERNEATH a full-height writing board, off the
-   bottom of the glass, where nobody could see a character of it. Then the hold
-   let go, the surface moved down to its proper place, and the finished card was
-   revealed in one jump.
-
-   From the chair that is exactly "the next board appeared under my answer and
-   then the whole response showed up at once between the boards" -- and every fix
-   before this one went looking at WHEN THE SURFACE MOVES, because that is what
-   the sentence sounds like. The surface was never the problem. A reply belongs
-   above the board you would answer it on, in the order the transcript is read,
-   and then it types where somebody is looking and nothing has to move at all. */
+   BELOW IT. The surface has no key and is the lesson's last child; a card
+   appended past it types out under a full-height board, off the glass. A
+   reply belongs above the board you would answer it on, where it is read. */
 function tailAnchor(host) {
   var n = host.lastChild, anchor = null;
   while (n && !(n.dataset && n.dataset.key)) { anchor = n; n = n.previousSibling; }
@@ -980,28 +811,16 @@ function render(data) {
      is worse than finding it when you come back. */
   if (!data.archived) {
     lastLive = data;
-    /* Before the early return below, because the map belongs to the COURSE and
-       not to the lesson in front of it: reading a past lesson must not freeze
-       the picture of the repository underneath it. */
-    paintMap(data.map, data.state || {});
     if (!pagesLoaded) { pagesLoaded = true; loadPages(); }
     document.getElementById("btn-history").hidden = !(data.history > 0);
     if (reading) { els.jump.hidden = false; return; }
   }
   var state = data.state || {};
 
-  /* WHICH SITTING IS ON SCREEN, AND THE MARKS THAT BELONG TO IT.
-
-     Cards are numbered from 0001 within a sitting, and the annotation store is
-     keyed by that number -- so the key `0001` means a different card the moment
-     a section is archived or a past lesson is opened. Nothing dropped the store
-     at either boundary, and the ink went on being drawn under its old key over
-     whatever card now carries it. Reported from the device: old annotations
-     showing up on new tutoring text blocks.
-
-     The sitting's own stamp is what identifies it, plus its label, because
-     `opened` is to the minute and two sittings can share one. A past lesson is
-     named by the archive's own id, which is unique by construction. */
+  /* WHICH TRANSCRIPT IS ON SCREEN, AND THE MARKS THAT BELONG TO IT. The
+     annotation store is keyed by card number, and `0001` names a different card
+     in a past lesson -- so the store is dropped at the boundary. The live one is
+     named by its stamp and label; a past one by the archive's own id. */
   var sitting = data.archived
     ? "past:" + (reading || "")
     : "live:" + (state.opened || "") + "|" + (state.chapter || "");
@@ -1036,43 +855,20 @@ function render(data) {
   });
   var at = Object.create(null);
   /* A CARD THE STUDENT HAS ANSWERED IS A QUESTION, WHATEVER IT CALLED ITSELF.
-
-     Everything the answer block is made of hangs off a card id: which board is
-     open, which page it is on, where the surface sits in the transcript,
-     whether a sent answer is a live board or a dead picture of one. All of it
-     was hung off `kind: question` alone -- and a tutor that poses the exercise
-     in a `lesson` card and asks at the foot of it, which is easy to do and
-     breaks nothing visible on the board, left the student's ink with nothing to
-     be about. It froze into a picture the moment it was sent, no board was kept
-     for it, and there was nothing to revise in place. Reported as: "my written
-     response was frozen in an image above ... ALL boards were independent of
-     each other and I could edit them any time. Where did this feature go?"
-
-     So the student's own work is the second authority, and the stronger one: a
-     card somebody has written an answer against was a question in the only
-     sense that matters here. It is read off the turns, which are on disk, so it
-     survives a reload and a second device -- and once a card has one answer it
-     keeps its boards for good. */
+     Everything the answer block is made of hangs off a question's id: its
+     board, its page, where the surface sits, whether a sent answer is a live
+     board. A tutor that asks at the foot of a `lesson` card has asked, so the
+     student's own answers (the turns, on disk) are the second and stronger
+     authority, and a card with one answer keeps its boards for good. */
   var isQuestion = Object.create(null);
   ordered.forEach(function (c, n) {
     at[c.id] = n;
     if (c.kind === "question") isQuestion[c.id] = true;
   });
-  /* AND A TURN THAT NAMES NOTHING IS ADOPTED BY THE CARD IT WAS WRITTEN UNDER.
-
-     A page handed in while no card had declared itself a question was recorded
-     answering nothing at all, and a turn that is about nothing cannot be given
-     a board, kept, revised or found again: it froze into a picture the moment
-     it was sent and the lesson lost every board between one response and the
-     next. Reported as: "I see no prior board work in between responses
-     anywhere, which really disorganizes the tutoring session."
-
-     Which card it was about is not a guess. It is the last one written before
-     the page was sent -- the thing they were looking at when they wrote it --
-     and both halves of that are on disk, so a lesson recorded before any of
-     this comes back with its boards rather than staying broken. Ink only: the
-     opening "begin" and a direction change are about the sitting rather than
-     about a card, and they keep falling where their time puts them. */
+  /* AND A TURN THAT NAMES NOTHING IS ADOPTED BY THE CARD IT WAS WRITTEN UNDER:
+     the last card written before the page was sent, both halves of which are on
+     disk. A turn about nothing could be given no board. Ink only: "begin" and a
+     direction change are about the session and fall where their time puts them. */
   var written = ordered.filter(function (c) { return typeof c.mtime === "number"; });
   (data.turns || []).forEach(function (t) {
     if (t.answers || t.kind !== "ink") return;
@@ -1091,40 +887,17 @@ function render(data) {
   var live = !data.archived && !reading;
 
   /* ------------------------------------------- one step, handed over */
-  /* THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT.
-
-     A coach card names the calls, the arguments and the order and lets you type
-     it, and there was no way out of any one of them: the only escape was the
-     aim chooser, which changes the WHOLE sitting to `build` and writes every
-     card after it the new way. Asked for as "in coach coding mode, I still want
-     to be able to have a 'fuck this, you do this step' option."
-
-     ON THE NEWEST CARD ONLY, because that is the step. The ones above it are
-     steps that have already been typed, and a button offering to write them is
-     a button that means nothing. `/handover` names the card, the sitting is
-     left exactly as it is, and the card that comes back is a report of that
-     step with the next one posed under it. See `_handover` in
-     `routes/lesson.py`. */
+  /* THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT: "you do this step".
+     On the newest card only, because that is the step. `/handover` names the
+     card and leaves the session as it is (`_handover` in `routes/lesson.py`). */
   var coaching = live && (state.aim_now || state.aim || "") === "coach";
   var thisStep = ordered.length ? ordered[ordered.length - 1].id : "";
 
-  /* Whether a written answer already has a board carrying the same ink.
-
-     The transcript froze every ink answer into a picture at the moment it was
-     sent -- which was right when the slate was one surface that got written
-     over, because then the picture was the only copy of what had been handed in.
-     It is not one surface any more: every question owns a page, nothing is ever
-     wiped, and that page is still under the board at the end of the question's
-     run. So the picture and the board are two copies of the same ink, one of
-     them dead, and going back up the lesson to an earlier answer found the dead
-     one. The board is the answer.
-
-     The rule already existed for the newest unanswered turn, a few lines below,
-     for exactly this reason. This is that rule, now that every question can keep
-     one. The picture comes back the moment there is no board to replace it:
-     a filed lesson, a past one, a browser that has never held this question's
-     page -- the mapping is local to the device that wrote it -- or a surface
-     that has not been built yet. */
+  /* Whether a written answer already has a board carrying the same ink. Every
+     question owns a page and nothing is wiped, so the frozen picture and the
+     board are two copies of the same ink, and the board is the answer. The
+     picture comes back when there is no board to replace it: a filed or past
+     lesson, a browser that never held the page, a surface not built yet. */
   function onABoard(m) {
     if (!(live && !!writer && m.kind === "ink" && !!m.png
           && !!m.answers && !!isQuestion[m.answers])) return false;
@@ -1135,17 +908,9 @@ function render(data) {
     return found;
   }
 
-  /* Feedback supersedes feedback. An answer is versioned and only its newest
-     revision is rendered -- three goes at Exercise 1.3 show as one attempt --
-     but the cards that replied to the first two were never versioned, so they
-     stayed open beside the third. Three "not quite" cards then sat in a row
-     under a single piece of working, and the reading order said they were
-     three live objections to what is on screen now, when two of them were
-     about ink that had already been rewritten. It is the reply, not the
-     lesson, that has been replaced: only the newest reply to the open question
-     stays open. The ones it replaced fold to their heading, one line each, and
-     open again on a tap -- a transcript keeps both halves and this removes
-     nothing. */
+  /* Feedback supersedes feedback. Only the newest revision of an answer is
+     rendered, so only the newest reply to the open question stays open; the
+     replies it replaced fold to their heading and open again on a tap. */
   var superseded = Object.create(null);
   /* Per question, not merely after the newest one. A question stays open for as
      long as it takes -- one exercise ran to eleven cards and two hours -- and
@@ -1162,65 +927,16 @@ function render(data) {
     run.slice(0, -1).forEach(function (id) { superseded[id] = true; });
   });
 
-  /* AND THE NEWEST REPLY IN A QUESTION'S RUN IS THE VERDICT ON WHAT THEY SENT.
-
-     Asked for in these words: "if I'm right in my response, put a nice green
-     sidebar down the response as it comes back. Red if I'm wrong. Yellow if
-     it's not really a right/wrong situation -- like if we're vibe-coding or I
-     ask a question." Every sitting, not only a lecture: a step that worked, a
-     step that did not, and a question put back to the person are the three
-     moods of a build as much as of a proof.
-
-     AMBER IS THE DEFAULT, NOT A THIRD CASE. Most replies in a doing sitting and
-     most in a walkthrough are neither right nor wrong -- `note` and `review`
-     are the tutor answering rather than marking -- and a surface that knows
-     only green and red has to guess at all of them.
-
-     `--ask` is that amber, and not `--note`, which the kinds use for `review`:
-     `--note` is the blue of an aside, and what was asked for is yellow.
-
-     WAITING IS NOT AMBER. A question whose reply has not arrived is a different
-     state from one answered with something that is neither right nor wrong, and
-     painting both the same colour is the defect this exists to fix in a new
-     coat. So an unanswered turn carries no verdict at all -- the pulsing strip
-     is what says the tutor is reading it -- and the colour arrives with the
-     reply, which is exactly when there is something to say.
-
-     This walk is `runEndOf`'s, deliberately: `isQuestion` rather than
-     `kind === "question"`, because a tutor who poses the exercise in a `lesson`
-     card and asks at the foot of it has asked a question, and the student's own
-     answer against that card is what settles it. The folding runs above split
-     on the kind alone and are left exactly as they were. */
-  /* AND THE SAME WALK PAINTS THE CARD, BECAUSE THE TWO HALVES USED TO
-     DISAGREE -- AND ONLY IN THE AMBER CASE.
-
-     "If the user asks a question, or we're not really in a 'right or wrong'
-     scenario, then the response should be highlighted with a yellow kind of
-     band." The verdict was computed here and painted on the student's own
-     answer and on the board holding the working. The CARD took its band from
-     its own KIND instead, so for a reply that is neither right nor wrong the
-     answer said amber and the card said grey -- two surfaces a finger's width
-     apart, disagreeing about the one thing on the glass worth knowing from
-     across a desk.
-
-     THE RESPONSE CARRIES THE BAND and the other two are quiet. That is the way
-     round it is, and it is decided once: the card is the moment -- it is what
-     arrives, it is what is read, and it is what the request is about -- while
-     the answer and its board are a label on work already handed in, so they
-     keep a thinner rule in the same colour. See `.mine[data-verdict]` and
-     `.board[data-verdict]` in `board.css`.
-
-     WHICH CARD IS A REPLY IS A QUESTION ABOUT THE TRANSCRIPT, NOT ABOUT THE
-     KIND. It is the first card written after the answer -- nothing else in the
-     run between the two. A `correct` or a `wrong` says so itself and carries its
-     verdict wherever it falls; everything else is amber only where it is
-     answering something. That is what keeps a `lesson` card teaching Chapter 5
-     plain while the `lesson` card that reported on the code you just sent is
-     painted: the first is separated from the answer by the card that already
-     replied to it, the second is not.
-
-     A page tinted end to end says nothing at all, which is the objection this
-     rule has to survive and does. */
+  /* AND THE NEWEST REPLY IN A QUESTION'S RUN IS THE VERDICT ON WHAT THEY SENT:
+     green if right, red if wrong, amber (`--ask`) when it is neither -- amber is
+     the default, not a third case. An unanswered turn carries no verdict; the
+     pulsing strip says the tutor is reading it. The walk is `runEndOf`'s and
+     uses `isQuestion`, not `kind === "question"`. */
+  /* AND THE SAME WALK PAINTS THE CARD. The response carries the band; the
+     answer and its board keep a thinner rule in the same colour
+     (`.mine[data-verdict]`, `.board[data-verdict]`). Which card is a reply is
+     about the transcript, not the kind: the first card written after the answer.
+     A `correct` or `wrong` carries its verdict wherever it falls. */
   var answeredAt = Object.create(null);
   (data.turns || []).forEach(function (t) {
     if (t.signal || !t.answers) return;
@@ -1247,14 +963,9 @@ function render(data) {
     var says = VERDICT_OF[c.kind] || (replying ? "open" : "");
     if (!says) return;
     cardVerdict[c.id] = says;
-    /* NOTHING MARKED THE RUN, AND THE RUN IS THE REWARD. A card arriving lit
-       and a tick that pops are one right answer said twice; what a correct
-       answer actually is, is the end of a piece of work, and four of them in a
-       row is the thing worth saying out loud. Reset by a wrong answer and by
-       nothing else -- not by an aside, not by a question, not by an evening's
-       teaching in between -- because wrong is the normal state of learning and
-       a counter that also punished thinking out loud would teach somebody to
-       stop answering. */
+    /* THE RUN IS THE REWARD: consecutive correct answers are counted. Reset by a
+       wrong answer and nothing else -- not an aside, a question or teaching in
+       between -- so thinking out loud is never punished. */
     if (says === "correct") streakAt[c.id] = ++streak;
     else if (says === "wrong") streak = 0;
     if (verdictFor && (replying || REPLY_KIND[c.kind])) verdictOf[verdictFor] = says;
@@ -1281,16 +992,10 @@ function render(data) {
     var pos = -1;
     ordered.forEach(function (c, n) { if (c.mtime <= when) pos = n; });
     if (t.answers && at[t.answers] !== undefined) {
-      /* Under the card it answers -- BUT NEVER ABOVE A CARD WRITTEN BEFORE IT.
-         A question stays open for an evening and collects several answers, so
-         pinning every one of them to the question card stacked a whole sitting's
-         typing hours above the feedback each piece of it was replying to. The
-         two rules disagree only when the question is not the newest card, and
-         where they disagree the clock is right.
-
-         Ink is unaffected in practice and would be right if it were: its board
-         is placed at the end of the question's run by `paintBoards`, and this
-         line moves a one-line receipt, not the working. */
+      /* Under the card it answers -- BUT NEVER ABOVE A CARD WRITTEN BEFORE IT. A
+         question collects answers over an evening; where the two rules disagree the
+         clock is right. Ink's board is placed by `paintBoards`, so this moves only
+         a one-line receipt. */
       pos = t.kind === "text" ? Math.max(pos, at[t.answers]) : at[t.answers];
     }
     items.push({ pos: pos, sub: 1, t: when, key: "turn:" + t.id, turn: t });
@@ -1299,23 +1004,10 @@ function render(data) {
     return (a.pos - b.pos) || (a.sub - b.sub) || (a.t - b.t);
   });
 
-  /* TWO QUESTIONS, AND ONLY THE SECOND OF THEM IS ABOUT THE KIND OF ANSWER.
-     They shared one condition, which is why a typed answer raised no receipt
-     and no pulse at all: "I also don't see the yellow pulsing tutor working
-     signal whenever I elect to type a response instead of writing one." What
-     was seen instead was the brief `saySending` strip, which expires, and then
-     silence for the whole turn.
-
-     IS AN ANSWER OUTSTANDING -- and it is, whether it was typed or written. A
-     signal is not one: a tap on "begin" or on an aim is in the transcript
-     because they did it, and "sent at 20:14" is a sentence about work handed in.
-
-     IS IT RENDERED INTO THE TRANSCRIPT -- and a page of ink that has been sent
-     and not yet answered is not, because the same ink is still on the writing
-     surface directly below and a frozen copy of it immediately above is the
-     same thing twice. It takes its proper place the moment the tutor replies,
-     which is when it stops being "what I am looking at" and becomes "what was
-     handed in". That argument is about ink and holds for ink only: a typed
+  /* TWO QUESTIONS, AND ONLY THE SECOND IS ABOUT THE KIND OF ANSWER. Is an answer
+     outstanding: yes, typed or written (a signal is not one). Is it rendered into
+     the transcript: not a sent, unanswered page of ink, which is still on the
+     surface directly below; it takes its place when the tutor replies. A typed
      answer is duplicated nowhere, so it stays. */
   awaitingReply = null;
   var lastItem = items[items.length - 1];
@@ -1323,14 +1015,9 @@ function render(data) {
     awaitingReply = lastItem.turn;
     if (lastItem.turn.kind !== "text") items.pop();
   }
-  /* AND IT IS STILL OUTSTANDING WHILE THE REPLY IS ARRIVING -- see
-     `replyArriving`. `awaitingReply` goes the instant a card's RECORD lands,
-     which is before a word of it is on the glass, so this is what the receipt
-     keeps talking about for the rest of the type-out.
-
-     Held only against a card. Anything of THEIRS arriving on top -- a signal
-     tap, which is a turn and is never a receipt -- means the answer the receipt
-     was about is no longer the newest thing they did. */
+  /* AND IT IS STILL OUTSTANDING WHILE THE REPLY IS ARRIVING (`replyArriving`):
+     `awaitingReply` goes when the card's RECORD lands, before a word is on the
+     glass. Held only against a card; a signal tap of theirs on top ends it. */
   /* A REPLY IS LANDING ON THIS FRAME -- something of theirs was outstanding when
      the last one was drawn, and it is not any more. That has to be remembered
      ACROSS payloads, because the card that answers a send arrives in the very
@@ -1357,14 +1044,8 @@ function render(data) {
                      agent: (data.agent && data.agent.state) || "-" });
   }
   var place = firstPaint ? null : anchorNow();
-  /* What is on screen already, by key. A payload arrives for all sorts of
-     reasons that have nothing to do with the lesson -- the tutor's heartbeat
-     lands every thirty seconds while it writes, the uncommitted count changes, a
-     figure finishes compiling -- and every one of them used to re-parse the
-     markdown of every card, rebuild its DOM, and hand the lot to a reconcile
-     that threw all of it away because the keys had not changed. On a tablet
-     holding a long lesson that is the whole cost of a frame, spent on nothing.
-     Build only what is genuinely new. */
+  /* What is on screen already, by key. Most payloads change nothing in the
+     lesson, so only what is genuinely new is parsed and built. */
   var onScreen = Object.create(null);
   for (var ex = 0; ex < els.cards.childNodes.length; ex++) {
     var exNode = els.cards.childNodes[ex];
@@ -1376,53 +1057,18 @@ function render(data) {
   var freshCards = [];
 
   items.forEach(function (item) {
-    /* A CARD WRITTEN OVER IS A CARD ARRIVING, AND IT USED TO BE NOTHING AT ALL.
-
-       The stamp was identity alone for a card, so a card rewritten in place had
-       been seen already: not fresh, not news, not typed out. That is every
-       response in a sitting that DOES the work. `board write` lands one sentence
-       so the board is not blank, the turn then writes code for four minutes, and
-       `board write --over` replaces that sentence with the report -- which
-       therefore appeared instantly, whole, with no typing and with the next
-       board already sitting under it. Reported from a direction change in
-       PSYCH-ASR: "when the response from the agent came back, it just showed up
-       suddenly and the next board, etc. was there before it."
-
-       The mtime is the version of a card, exactly as `rev` is the version of a
-       turn, and it belongs in the stamp for the same reason. With it here the
-       overwrite is fresh, so it types out; `anythingNew` is true, so the send
-       stops saying it is in flight; and `typingCards` holds the writing surface
-       where it is until the last character lands. One line, and it is what makes
-       the typing rule true of EVERY response rather than only of the ones that
-       happen to be written once. */
+    /* A CARD WRITTEN OVER IS A CARD ARRIVING. A doing turn lands one sentence and
+       later replaces it with the report (`board write --over`). The mtime is a
+       card's version, as `rev` is a turn's, so the overwrite is fresh: it types
+       out, `anythingNew` is true, and `typingCards` holds the surface until the
+       last character lands. */
     var stamp = item.key + (item.turn ? ":r" + (item.turn.rev || 1)
                                       : ":m" + Math.round(item.card.mtime));
     var fresh = !firstPaint && !seenIds[stamp];
-    /* NEWS IS A CARD. YOUR OWN ANSWER IS NOT NEWS.
-
-       `anythingNew` is the whole basis of the decision at the foot of this
-       function, and the only reveal it can lead to is `revealNewest` -- the top
-       of the newest thing the TUTOR has written, which on a board with a
-       question open sits directly ABOVE the writing surface. So counting a
-       fresh turn here means: the moment your own answer appears in the payload
-       the send provoked, the page is thrown up to the card above the board you
-       just wrote on.
-       Reported twice, the second time after the transcript had been stopped from
-       shifting underneath anybody: "after I submit my response, it still
-       glitch-scrolls me up to above the board." Nothing was shifting by then.
-       This was the board deciding, on its own, that something had arrived worth
-       reading -- and the something was the student.
-
-       Intermittent because it is gated on `!penBusy()`, whose tail is about a
-       second after the last touch: whether the payload beat the tail decided
-       whether the page jumped. And the jump is a GLITCH rather than a move
-       because `revealSentSettling` re-lands on the surface's foot 300ms and
-       900ms after a send, so a payload arriving inside that window is yanked up
-       and dragged back.
-
-       A turn appearing has its own answer to where the page should be, and it is
-       `revealSent`: the foot of the surface, where the receipt is. Nothing about
-       a turn belongs here. */
+    /* NEWS IS A CARD. YOUR OWN ANSWER IS NOT NEWS. `anythingNew` leads only to
+       `revealNewest`, the top of the tutor's newest card, which sits above the
+       writing surface; counting a fresh turn would throw the page up the moment
+       your own answer appears. A turn's own landing is `revealSent`. */
     if (fresh && item.card) anythingNew = true;
     seenIds[stamp] = true;
 
@@ -1590,13 +1236,9 @@ function render(data) {
     wanted.push({ key: wantKey, node: node });
   });
 
-  /* Reconcile rather than rebuild. Every payload used to blow the lesson away
-     and construct it again: every card's markdown re-parsed, every formula
-     re-typeset by KaTeX, every compiled figure re-fetched and re-decoded. That
-     cost grows with the length of the lesson and is paid on every keystroke of
-     the tutor's, on an iPad, for cards that did not change. Nodes are keyed by
-     card id and revision, so an unchanged card is left exactly where it is --
-     which also keeps its scroll position and any selection inside it. */
+  /* Reconcile rather than rebuild: nodes are keyed by card id and revision, so
+     an unchanged card is left exactly where it is, with its typesetting, scroll
+     position and selection. */
   reconcile(els.cards, wanted);
   paintSuperseded(superseded);
 
@@ -1606,20 +1248,9 @@ function render(data) {
   freshNodes.forEach(typeset);
   freshNodes.length = 0;
   /* After the typesetting, never before: KaTeX measures what it renders, and it
-     cannot measure what is display:none.
-
-     AND BEFORE `placeWriter`, WHICH IS THE HALF THAT WAS MISSING. The writing
-     surface is held where it is while a card types -- that is what "no next
-     board showing up until the agent's response is rendered" means -- and the
-     thing it asks in order to decide is `typingCards()`. These two lines used to
-     run at the FOOT of this function, a hundred lines after that question was
-     asked, so on the one frame that matters -- the frame the response lands on
-     -- nothing was typing yet, the surface came straight down under the new
-     question, and the answer then filled in above it. Every frame after that
-     held correctly, which is why this looked intermittent rather than wrong.
-
-     Nothing else here depends on the order: the cards are in the document by
-     now, which is all either pass needs. */
+     cannot measure what is display:none. And before `placeWriter`, which asks
+     `typingCards()` to decide whether to hold the surface: on the frame the
+     response lands, the card must already be typing. */
   if (freshCards.length) {
     trace("fresh", { cards: freshCards.map(function (c) {
       return (c.dataset && c.dataset.card) || "?"; }).join(","),
@@ -1637,35 +1268,19 @@ function render(data) {
   var started = (data.cards || []).length > 0;
   els.empty.hidden = started || linkDead;
 
-  /* WHO CAN BE ASKED, AND WHAT THE LOCAL MODEL'S SERVER IS DOING. Both off the
-     payload: the registry is in `bin/tutor` because an agent entry is a command
-     recipe, and the server's state is `squeue`, which the browser cannot ask.
-     `assistants` stays null when nothing could say -- which is not the same as
-     an empty list, and is why the chooser is not drawn rather than drawn empty. */
-  if (data.assistants !== undefined) assistants = data.assistants;
-  if (data.colibri !== undefined) colibriNow = data.colibri;
-  /* AND WHETHER THIS WORKSPACE HOLDS A FENCE. A directory walk on the server,
-     because the browser cannot look at a disk -- and the names rather than a
-     flag, so the row can say what a hosted pick will not be able to open. */
-  if (data.fenced !== undefined) fencedHere = data.fenced || [];
-  /* AND WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
+  /* WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
      card rendered against the wrong vocabulary is the defect this carries:
      `\E[...]` drawn as its own source, and `\EE{X}` drawn at the board's arity
      as a bare E with the brackets gone. Both engines take the course's own
      definition first now. See `tutorboard/coursemacros.py`. */
   if (data.macros !== undefined) setCourseMacros(data.macros);
 
-  /* WHICH OF THE BOARD'S OWN TWO DOCUMENTS EXIST -- the exported lesson and the
-     compiled write-up. It is what the banner's two buttons are enabled from,
-     and nothing else: a list of two is not an inventory, and the inventory is
-     the map's shelf. A shelf document is added to this table by name when the
-     drawer draws its row, so `warmPaper`, `inHand` and `saveCopy` work over
-     both without knowing the difference. */
+  /* WHICH OF THE SESSION'S OWN DOCUMENTS EXIST: what the banner's buttons
+     are enabled from, and what `warmPaper`, `inHand` and `saveCopy` read. */
   papers = data.papers || {};
   paintSession(state, data.push, data.agent, data.export,
                (data.hw && data.hw.build) || null);
   paintHomework(data.hw);
-  paintReview(state, data.review, data.walk);
   if (!started) paintWaiting(data);
   seedTextDrafts(data);
   paintNotesSend();
@@ -1675,49 +1290,17 @@ function render(data) {
      carries one (a past lesson, a test) is honoured. */
   if (data.unsaved !== undefined) paintSave(data.unsaved);
   if (data.sets) knownSets = data.sets;
-  if (data.contents) contents = data.contents;
-  planInfo = data.plan || null;
   readingInfo = data.reading || null;
-  if (data.results !== undefined) resultsInfo = data.results || null;
   paintOlder();
-  /* THE SITTING WAS FILED WHILE THIS PAGE WAS OPEN. `history` counts archived
-     sittings and rises by one exactly when `board archive` runs, which makes it
-     the epoch this needs -- no new field, and it is on every live payload.
-
-     TWO GUARDS, AND THE FIRST ONE IS THE WHOLE LESSON OF GETTING THIS WRONG.
-
-     ONLY WHEN THE FIELD IS ACTUALLY THERE. `render` is also called with frames
-     built by hand -- `showSession` passes an archived sitting with no `history`
-     on it at all -- so reading `data.history || 0` turns a missing field into
-     zero, and the next real frame then looks like an archive that has just
-     happened. Shipped that way for a few minutes it made the board unusable:
-     the page under the pen was replaced every couple of frames and the boards
-     were re-dealt whatever sheet came next. A missing field means "this frame
-     does not say", which is not the same as "none".
-
-     AND NEVER OFF AN ARCHIVED FRAME, for the same reason from the other side:
-     that frame is about a different sitting, and nothing it carries is news
-     about this one.
-
-     What goes, goes in both halves. The PAGES, because the archive renamed them
-     away and a debounced save writes them back. And the board-to-page MAP,
-     because every number in it now names a sheet that has moved. */
+  /* THE LESSON WAS FILED WHILE THIS PAGE WAS OPEN: `history` rose. Only when the
+     field is there (a frame built by hand has none, and a missing field is not
+     zero), and never off an archived frame. What goes, goes in both halves: the
+     pages the archive renamed away, and the board-to-page mapping. */
   if (typeof data.history === "number" && !data.archived) {
     if (pastCount !== null && data.history > pastCount) lessonWasFiled();
     pastCount = data.history;
   }
-  /* A SESSION ADDRESS needs no `/health` to tell this board from another:
-     the session is in the path. It is taken on the first payload, and the
-     map does not open over it. */
-  if (addrWanted && addrWanted.session && !mapLanded) {
-    var wantedHere = addrWanted;
-    addrWanted = null;
-    mapLanded = true;
-    addrGo(wantedHere);
-  }
-  /* Once per load, and only now: where a course opens depends on what its
-     documents are, and this is the first payload that says. */
-  mapLand();
+  land();
 
   var lastQuestion = 0, lastSent = 0, newestQ = null;
   (data.cards || []).forEach(function (c) {
@@ -1791,20 +1374,10 @@ function render(data) {
   /* Before anything reads the mapping: bring the chain of boards up to date with
      the transcript, and let the surface -- which may know more about where this
      lesson's working actually is than this browser does -- correct it. */
-  /* THE MAPPING BELONGS TO THE LIVE SITTING, AND ONLY IT MAY WRITE.
-
-     A past lesson is read through this same function, carrying the archive's own
-     card ids -- which start at 0001, the numbers this sitting is using. Left to
-     run, `syncSlots` mints a record for every question of the archive the live
-     mapping lacks, `repairPages` gives it a page off the archive's turns, and
-     `savePages` writes the lot under the LIVE key. One past lesson read is then
-     a handful of records naming boards that are on no screen, owning pages this
-     sitting is about to reach -- and the next tap on a real board finds its
-     sheet shared and copies itself off it.
-
-     Nothing is drawn from the mapping on an archived frame anyway: `paintBoards`
-     takes every board off the page and returns, and the surface is not built.
-     There is nothing here to bring up to date. */
+  /* THE BOARD-TO-PAGE MAPPING BELONGS TO THE LIVE LESSON, AND ONLY IT MAY
+     WRITE. A past lesson's card ids start at 0001 too; left to run, `syncSlots`,
+     `repairPages` and `savePages` would write its records under the live key.
+     Nothing is drawn from the mapping on an archived frame anyway. */
   if (!data.archived) {
     lastTurns = data.turns || [];
     syncSlots(qids, runEndOf, lastTurns);
@@ -1821,27 +1394,10 @@ function render(data) {
      question; whichever they picked, if they went back to an earlier one. A
      board that has scrolled off the top of the transcript is still a board, and
      going back to add a line to the proof on it is ordinary work. */
-  /* A NEW QUESTION LETS GO OF THE PIN, UNLESS THERE IS WORKING UNDER IT.
-
-     A pin that outlives its question parks the surface several cards above a new
-     question that then gets no board at all, so the ordinary answer is to let
-     go. Working carried onto a board by hand and not yet handed in is the
-     exception, and is the reason the pin was set one tap ago: take the surface
-     off it and the writing is a photograph with a blank surface underneath, which
-     is the report -- "I can't write on the original new board".
-
-     Only a pin a CARRY set, and only while what was carried is still unsent. A
-     pin from an ordinary tap is somebody reading back over the lesson, and the
-     new question outranks that. One question's grace either way, counted by
-     `pinHeld`, because a pin that never lets go is the first failure back
-     again.
-
-     Questions that arrive while a past lesson is open are not counted at all: a
-     live frame is kept and not drawn while `reading`, so it never reaches here,
-     and the grace is spent against whichever question is newest on the way back.
-     So the pin outlives every question asked during the read, and one more after
-     it -- however many that is. One tap on the newest board moves the surface,
-     which is the right way round, because the carried working is on no disk. */
+  /* A NEW QUESTION LETS GO OF THE PIN, UNLESS THERE IS WORKING UNDER IT. Only a
+     pin a CARRY set, and only while what was carried is unsent: one question's
+     grace, counted by `pinHeld`. Questions that arrive while a past lesson is
+     open are not counted (the live frame is not drawn then). */
   if (!data.archived && workingOn && workingOnAt !== (newestQ || "")) {
     if (pinCarried && !pinHeld && unsentInk(workingOn)) {
       pinHeld = true;
@@ -1881,15 +1437,9 @@ function render(data) {
   };
   if (workingOn) owed = !data.archived;
 
-  /* The writing surface goes at the END of the transcript, under whatever the
-     last thing in it is. That is what makes a correction work the way a person
-     expects: the tutor's feedback arrives, and the surface to fix the answer on
-     is beneath the feedback rather than scrolled off above it.
-
-     While an answer is waiting to be read there is nothing to put under, so the
-     surface stays where it is and says so underneath itself -- see paintSent.
-     What it must never do is sit under a frozen copy of the very ink still
-     showing on the surface: that is the same thing twice, one above the other. */
+  /* The writing surface goes at the END of the transcript, under the tutor's
+     feedback. While an answer is waiting to be read it stays where it is
+     (`paintSent`), and never under a frozen copy of the ink still on it. */
   /* The surface goes where the BOARD it is standing in for goes -- the attempt
      in hand at the end of the question's own run, or, if they went back, exactly
      where that earlier attempt was written. For the newest question the end of
@@ -1922,19 +1472,9 @@ function render(data) {
      `reopenedFor` are what a tap sets; with either of them the surface moves. */
   placeWriter(owed && !data.archived, qNode, live,
               replyArriving() && !workingOn && reopenedFor === null);
-  /* The boards do not come and go with the answer panel.
-
-     They used to: the whole set was torn down the moment nothing was owed, which
-     is the moment the tutor writes a `correct` card. So getting an exercise
-     RIGHT deleted every board on the page, and scrolling back up through the
-     lesson found nothing but the frozen pictures of what had been sent -- which
-     is a record of the answer, not a place to carry on working. Reported from
-     the device, in exactly those words: "I want the actual writing board
-     containing my response".
-
-     The one board that is not drawn is the one the LIVE surface is standing in
-     for, because that one is really there. With the panel shut there is no such
-     board, and every one of them gets its picture. */
+  /* The boards do not come and go with the answer panel: a `correct` card shuts
+     the panel and the boards stay, as places to carry on working. The one board
+     not drawn is the one the live surface stands in for. */
   /* A SURFACE HELD SHUT IS STILL THE SURFACE FOR THAT QUESTION.
      Every question's board is drawn as a picture except the one the live surface
      is standing in for -- so a surface held shut for the two seconds a card is
@@ -1989,15 +1529,8 @@ function render(data) {
     window.requestAnimationFrame(function () { if (!handledAt) revealNewest(false); });
     setTimeout(function () { if (!handledAt) revealNewest(false); }, 400);
   } else if (!anythingNew) {
-    /* NOTHING ARRIVED. Do not move the page.
-
-       A payload lands for all sorts of reasons that are not a card: the tutor's
-       heartbeat every thirty seconds, the uncommitted count changing, a figure
-       finishing. The old rule was "if they were at the bottom, scroll to the
-       bottom", which on a board already at the bottom is a no-op -- so this was
-       invisible for as long as the destination was the bottom. The moment the
-       destination became the newest card's first line, every heartbeat yanked
-       the page a screenful while nobody was doing anything at all. */
+    /* NOTHING ARRIVED. Do not move the page: a heartbeat, a count changing or a
+       figure finishing is not a card. */
   } else {
     cardsArrived++;
     /* Read, because it landed in front of somebody. Without this the workspace
@@ -2008,52 +1541,20 @@ function render(data) {
        whether or not the tutor's own state ever said so. */
     sendingAt = 0;
     sendingWord = "";
-    /* A CARD ARRIVING NEVER MOVES THE READER. IT GROWS INTO VIEW.
-
-       Asked for twice, the second time as a specification: "when I submit the
-       response, I'm scrolled to the bottom of the written/typed response I just
-       submitted, where I can clearly see the 'the tutor is writing...' message,
-       and once the tutor response is available, have it start getting portrayed
-       for the user to see line by line, WITHOUT scrolling the user down -- they'll
-       scroll their own way down to read the response." The first ask named the
-       thing it should feel like, which is any chat page on the web: the reader is
-       stationary and the text grows downward past them.
-
-       The layout grants it for nothing, which is the good part. Measured: before
-       the reply the run is [question][live board], and after it is
-       [question][the same board, frozen][receipt][reply][the next board]. The
-       student's working keeps its PLACE in the run -- a live surface and a dormant
-       board are one box by construction, same head and same height, because a
-       dormant board has to be indistinguishable from a live one -- and everything
-       new lands below it. So nothing above the reader changes height, the reply
-       appears in the space under their working where "the tutor is writing" was,
-       and it grows down through it. All that was ever needed was to stop aiming
-       the page at it.
-
-       `revealNewest` still exists, and is still right, for the two places that
-       are not this: the first paint of a lesson, where there is no reader yet to
-       leave alone, and the jump button, which is somebody asking to be taken
-       there. The button is the whole of what is left of the old behaviour -- a
-       card that begins below the fold has nothing to watch grow, and a page that
-       has silently changed under somebody needs to say so. */
+    /* A CARD ARRIVING NEVER MOVES THE READER. IT GROWS INTO VIEW, the way a chat
+       page does. The student's working keeps its place in the run (a live surface
+       and a dormant board are one box), so nothing above the reader changes height
+       and the reply grows down from where "the tutor is writing" was.
+       `revealNewest` is for the first paint and the jump button only. */
     var fresh = newestCardNode();
     var box = fresh && fresh.getBoundingClientRect();
     els.jump.hidden = !!box && box.top < window.innerHeight;
   }
 }
 
-/* Where to be after pressing Send: looking at the foot of the writing surface.
-
-   Send is the one moment in a sitting when the interesting thing is BELOW the
-   working rather than above it. The receipt that says it arrived sits under the
-   surface, and "the tutor is writing" sits under that -- and both of them are
-   the answer to the question a person actually has after pressing the button,
-   which is whether anything is happening. Landing anywhere above the working
-   answers a question nobody asked and hides the two lines that matter.
-
-   The foot of the surface goes a little above the middle of the window, so what
-   is under it is on screen with room to spare and the last thing written is
-   still visible above it. */
+/* Where to be after pressing Send: looking at the foot of the writing surface,
+   a little above the middle of the window, so the receipt and "the tutor is
+   writing" under it are on screen with the last thing written above. */
 function revealSent() {
   if (!els.writer || els.writer.hidden) return;
   var r = els.writer.getBoundingClientRect();
@@ -2070,16 +1571,9 @@ function revealSentSettling() {
   var at = Date.now();
   var news = cardsArrived;
   revealSent();
-  /* And not once a card has arrived.
-
-     These repeats exist to re-land on the surface's foot after the receipt and
-     the tutor's chip have settled to their real heights. The moment the tutor
-     REPLIES, the surface is not where it was: the reply lands above it and the
-     next board opens underneath, so `els.writer` is now a fresh blank sheet
-     below the card being read, and landing on its foot drags the reader down
-     past the very thing they were waiting for. That is the other half of being
-     "scrolled into the middle of that message" -- two smooth scrolls with
-     different destinations, one aimed above the card and one below it. */
+  /* And not once a card has arrived. These repeats re-land on the surface's foot
+     after the receipt settles; once the tutor replies, `els.writer` is the fresh
+     sheet below the reply, and landing on it drags the reader past the card. */
   [300, 900].forEach(function (ms) {
     setTimeout(function () {
       if (handledAt <= at && cardsArrived === news) revealSent();
@@ -2140,7 +1634,6 @@ function paintWaiting(data) {
    did not, because "the build failed" without the reason is a message that
    sends someone to a laptop. */
 function paintHomework(hw) {
-  currentSet = hw && hw.name ? hw.name : null;
   if (!hw) { els.hwbar.hidden = true; return; }
   els.hwbar.hidden = false;
 
@@ -2224,19 +1717,9 @@ function paintSession(state, push, agent, exported, hwBuilt) {
     els.agent.dataset.state = agent.state || "stale";
     els.agent.textContent =
       agent.state === "working" ? (agent.agent || "assistant") + " is working"
-      /* STARTING ONE IS NOT INSTANT, AND SILENCE READS AS DEATH.
-
-         A start brings the tailnet link up, starts the board, opens the
-         sitting, reads the addresses back and catches the repository up from
-         the remote -- all of it with the board already serving this page. Until
-         there was a word for it, the record on disk was the LAST run's, whose
-         pid is gone, and the board said "tutor stopped, nothing is reading the
-         board". Reported from a relaunch: "It seemed to tell me the tutor was
-         dead which put me in 'send again' mode leading to massive confusion."
-
-         The ellipsis is deliberate and so is the ordering: this is the first
-         thing the strip is asked about, because it is the state most likely to
-         be misread as the worst one. */
+      /* STARTING ONE IS NOT INSTANT, AND SILENCE READS AS DEATH: a tutor coming
+         up says so, with an ellipsis, and is asked about first because it is the
+         state most likely to be misread as the worst one. */
     : agent.state === "waking" ? (agent.agent || "assistant") + " is waking up…"
     : agent.state === "listening" ? (agent.agent || "assistant") + " listening"
       /* An interactive assistant is not listening to the board -- it is sitting
@@ -2260,39 +1743,11 @@ function paintSession(state, push, agent, exported, hwBuilt) {
        does on their behalf without being asked. */
     els.agent.title = agent.agent_why || "";
   }
-  /* The chip is the first thing the bar gives up width on, and squeezed hard it
-     is its status dot and nothing else. So the words live somewhere they can
-     still be got at rather than only in a chip that may have been trimmed.
-
-     AND IT DOES NOT STAMP ON A CLIMB-DOWN THAT WAS ALREADY WRITTEN THERE. This
-     line ran unconditionally five lines after the one above it and won every
-     time, so `agent_why` -- the sentence a student is owed when somebody else
-     is teaching -- reached nobody on any code path. `recipes.resolve`'s own
-     docstring says "AND THE STUDENT IS TOLD, which is the condition on all of
-     it"; that condition was not met. The real answer is that a title is a hover
-     tooltip on a device with no hover, which is why the sentence is now in the
-     busy strip as well -- see `stalledWord`. This keeps the chip's own words
-     for the case where there is nothing better to say. */
+  /* The chip is the first thing the bar gives up width on, so its words are also
+     its title -- unless `agent_why`, the sentence a student is owed when somebody
+     else is teaching, is already there. The busy strip says it too
+     (`stalledWord`), because a title is a tooltip and glass does not hover. */
   if (!els.agent.title) els.agent.title = els.agent.textContent;
-  var kind = state.session || "lecture";
-  sittingKind = kind;
-  lastSittingState = state;
-  els.session.hidden = false;
-  /* "review", not "test review": the badge sits in a bar that is already at
-     capacity, and eleven uppercase letters at this letter-spacing pushed the
-     chapter label to "Tes…" and the tutor chip to "no". The strip underneath
-     carries the full name, so the bar does not have to. */
-  /* THE BADGE NAMES THE STYLE TOO, AND SAYS IT OPENS. It is the only way to the
-     style and write-up rows, and a bare kind word ("LECTURE") on an iPad read as
-     a label: nothing on glass hovers, so nothing said it could be tapped, and
-     nothing said which style was running. */
-  /* In a lecture the style IS the news -- "lecture" is the default and says
-     nothing -- so the badge is the style and a caret, no longer than "homework",
-     which is what the bar has room for. The other kinds keep their own word. */
-  var style = kind === "lecture" ? styleWord(state) : "";
-  els.session.textContent = style ? style + " \u25be" : kind;
-  els.session.dataset.kind = kind;
-  els.session.title = "tap to switch: lecture, homework, test review, walkthrough";
   if (leavingTo) return;              /* a decision is in front of the student */
   if (state.finished) {
     els.finishLead.textContent = "Session finished.";
@@ -2309,30 +1764,13 @@ function paintSession(state, push, agent, exported, hwBuilt) {
   paintBanner(push, exported, hwBuilt);
 }
 
-/* THE BANNER, WHICH IS ABOUT A DOCUMENT AND NOT ABOUT THE SITTING.
-
-   Its own function because three things call it and none of them knows anything
-   about the sitting. They used to call `paintSession` with an empty state to
-   reach this code, which repainted the session badge as "lecture" for the
-   second before the next payload put it back -- a homework sitting announcing
-   itself as a lecture at the exact moment somebody exports their homework. */
+/* THE BANNER, WHICH IS ABOUT A DOCUMENT AND NOT ABOUT THE SESSION: three
+   callers know nothing about the session, so it is its own function. */
 function paintBanner(push, exported, hwBuilt) {
-  /* One banner, THREE things that can land in it. A push, an export and a
-     compile of the write-up are all "something slow happened, here is how it
-     went", and the newest one is the one the person is waiting on -- an export
-     triggers a payload the moment it finishes, and without this that payload
-     would repaint the banner with a push from an hour ago.
-
-     THE WRITE-UP'S RECORD COMES OFF DISK NOW, and that is the fix rather than a
-     tidying. It used to reach this function once, invented by the client from
-     the reply to `/hw/build` and belonging to no file anywhere -- so the very
-     next payload, a second later, repainted the banner from `push.json` and
-     took the controls for the document with it. Reported from the iPad: "it
-     compiles the homework, but it's not letting me view the compiled .pdf or
-     save it anywhere locally." The compile had worked. The button lived for
-     about a second, and a tap after that did nothing at all, because the URL
-     behind it had been cleared. `live/hw.json` is where that record has always
-     been written; the payload carries it as `hw.build`. */
+  /* One banner, THREE things that can land in it: a push, an export and a
+     compile of the write-up, and the newest is the one being waited on. The
+     write-up's record comes off disk (`hw.build` on the payload), so the next
+     payload does not repaint it away. */
   var last = push;
   if (exported && (!push || (exported.at || 0) > (push.at || 0))) last = exported;
   if (hwBuilt && (!last || (hwBuilt.at || 0) > (last.at || 0))) last = hwBuilt;
@@ -2344,20 +1782,9 @@ function paintBanner(push, exported, hwBuilt) {
   els.pushed.hidden = false;
   els.pushed.className = "pushed " + (last.ok ? "ok" : "bad");
   els.pushedIcon.textContent = last.ok ? "✓" : "✕";
-  /* AND A WAY TO READ IT, AND A WAY TO TAKE IT WITH YOU.
-
-     The repository copy is the archival one and nothing about it changes. But a
-     compute node is not a place an iPad can reach, and a tailnet path is not
-     something anybody can hand to a professor -- so a document that exists only
-     there is a document the person who asked for it cannot use. Asked for in
-     exactly those terms: "so I can save it to files in my iCloud, get it on my
-     phone, and email it to my prof, lickety split."
-
-     Which document this banner is ABOUT is decided here; whether that document
-     EXISTS is decided by the payload, off the files (`papers`), and not by the
-     record that happens to be in the banner. Those are different questions, and
-     conflating them is what made a `.tex` that failed to compile and a PDF
-     sitting on disk look the same from here. */
+  /* AND A WAY TO READ IT, AND A WAY TO TAKE IT WITH YOU, off the iPad. Which
+     document the banner is ABOUT is decided here; whether it EXISTS is the
+     payload's (`papers`), off the files. */
   offerDocument(last === exported ? "lesson"
                 : (last === hwBuilt || last.kind === "hw") ? "homework" : null);
   if (last === exported) {
@@ -2387,104 +1814,47 @@ function paintBanner(push, exported, hwBuilt) {
 }
 
 /* ======================================================================
-   THE TWO DOCUMENTS: reading one on the board, and taking one off it.
+   THE DOCUMENTS: reading one on the board, and taking one off it.
 
-   THIS WAS AN ANCHOR AND THE ANCHOR WAS A TRAP. Reported from the iPad: "when I
-   try to do the local export on the iPad, it just opens the document up, and I
-   can't put it anywhere. The only thing I can do is exit the app and go back in
-   again."
+   A document is never navigated to: in an installed web app iOS treats a
+   download link as a navigation, which leaves the board with no way back. It
+   is FETCHED and handed to the system as a file -- `navigator.share` with a
+   `File` (the share sheet, over the board), else a blob URL with `download`,
+   else a NEW context, never this one. `AbortError` is a Cancel, not a failure.
 
-   Both halves of that are the same mistake, and this page already knew better
-   about it somewhere else -- `renderScratch` says it in as many words:
-   installed to the home screen there is no browser chrome, so anything opened
-   in place has no back button and no way out of it short of killing the app. A
-   plain `<a download href="/download/lesson">` is exactly that. iOS honours
-   `download` in a Safari tab and ignores it in a standalone web app, where the
-   tap is a NAVIGATION: the web view leaves the board, renders the PDF with no
-   chrome around it, and there is nothing on the screen that goes back. The
-   share sheet the `Content-Disposition` was supposed to raise never appears,
-   which is the "I can't put it anywhere" half.
+   Reading is `readKind`: the pages, drawn to PNG by the machine that holds the
+   PDF, in the one reader (`reader.js`). Not an `<iframe>`: iOS renders a PDF
+   in a frame as one unscrollable page.
 
-   So the document is never navigated to. It is FETCHED, and handed to the
-   system as a file:
-
-     - `navigator.share` with a `File` raises the native share sheet OVER the
-       board. Files, iCloud Drive, a phone by AirDrop, an email to a professor
-       -- and Cancel returns to the lesson, because the lesson never went
-       anywhere. That is both halves answered by one mechanism, which is why it
-       is the first choice rather than a nicety.
-     - Where sharing a file is not available, a blob URL with `download` on it,
-       which is the desktop answer and saves without navigating either.
-     - And only if neither will do, a NEW context -- never this one. In a
-       standalone app that hands the PDF to Safari, which has chrome, a share
-       button and a way back to the board. A dead end in another app is
-       recoverable; a dead end in this one costs the lesson.
-
-   `AbortError` is somebody tapping Cancel and is not a failure. Anything else
-   says what went wrong, in the banner, where the export already reports.
-
-   AND READING IT IS A DIFFERENT QUESTION, which is the second report and the
-   reason this section is no longer only about downloads: "it compiles the
-   homework, but it's not letting me view the compiled .pdf or save it anywhere
-   locally on the iPad." A share sheet is somewhere to PUT a document. It is not
-   somewhere to read one, and "did the proof make it in" was not answerable from
-   the board at all. `readKind` is that half -- the pages, drawn to PNG by the
-   machine that holds the PDF, shown in the one reader (`reader.js`), which
-   this page can close.
-   Not an `<iframe>`: iOS renders a PDF in a frame as one unscrollable page.
-
-   THREE THINGS DECIDE THE CONTROLS, AND ONLY ONE OF THEM IS AN EVENT.
-
-     - `papers`, the table below, says which documents exist and when each was
-       written. The board's own two arrive on the payload; a document off the
-       shelf is added by name when the drawer draws its row. This is what
-       enables a button and what invalidates a warm copy.
-     - the banner's record says which document the banner is ABOUT.
-     - the map's shelf needs neither, and is why a document is reachable ten
-       days after it was made rather than for the one second the banner that
-       announced it stayed on screen.
+   `papers` says which documents exist and when each was written; it enables
+   the buttons and invalidates a warm copy. The banner's record says which
+   document the banner is ABOUT.
    ====================================================================== */
 
-/* Which documents exist right now, keyed by kind. `lesson` and `homework` come
-   off the payload, so they survive every repaint and every reload;
-   `shelf/<sid>` is put here by the shelf drawer from the record `/shelf.json`
-   gave it, which is what lets read and save work over a document the board did
-   not build. */
+/* Which documents exist right now, keyed by kind, off the payload: they
+   survive every repaint and every reload. */
 var papers = {};
 
-/* One fetched document per kind, kept against the moment the PDF was written so
-   a rebuild is never served from here.
-
-   WARMED THE MOMENT IT IS OFFERED, and this is the difference between the share
-   sheet appearing and an error. Safari's transient activation does not survive
-   an `await`: a `navigator.share` called after a fetch has resolved is a share
-   called without a user gesture, and it is refused. The document has to be in
-   hand BEFORE the tap, so it is fetched when the button appears -- which is also
-   when the person can first see it, so the wait is spent where nobody is looking
-   at it rather than after they have pressed. */
+/* One fetched document per kind, kept against the moment the PDF was written,
+   so a rebuild is never served from here. WARMED THE MOMENT IT IS OFFERED:
+   Safari refuses a `navigator.share` called after an `await`, so the document
+   has to be in hand before the tap. */
 var warm = Object.create(null);
 
 /* WHERE A DOCUMENT IS, SAID ONCE.
 
    A kind names a document to the server and is never a path -- and the kind is
    also the tail of the route, which is why there is one rule here rather than
-   three places that each glue a string together. Four families answer to the
-   same two routes: `lesson` and `homework`, the two the board itself builds;
-   `doc/<id>`, a document this course points at; and `shelf/<sid>`, a document
-   the workspace has written and the map's shelf found. Everything below --
-   warming, sharing, saving, the last-resort open -- works over all four
-   because only these two lines know the difference. */
+   three places that each glue a string together. Three families answer to the
+   same two routes: `lesson` and `homework`, the two the board itself builds,
+   and `doc/<id>`, a document this subject has. */
 function paperUrl(kind) { return BASE + "/download/" + kind; }
 function paperViewUrl(kind) { return BASE + "/view/" + kind; }
 
-/* THE NAME THE INK IS ANCHORED UNDER, and it is the same one however the
-   document was reached. A shelf document and a `doc/` document can be the same
-   PDF found two ways, and a mark made on page three has to come back on page
-   three both times -- so the family is stripped and the anchor is
-   `doc/<ident>/p<n>` for every one of them. */
+/* THE NAME THE INK IS ANCHORED UNDER: the family is stripped, and the anchor
+   is `doc/<ident>/p<n>`. */
 function paperIdent(kind) {
   if (kind.indexOf("doc/") === 0) return kind.slice(4);
-  if (kind.indexOf("shelf/") === 0) return kind.slice(6);
   return kind;
 }
 
@@ -2569,9 +1939,9 @@ function global_matches(query) {
 }
 
 /* ------------------------------------------------------- taking a copy away */
-/* `btn` is whichever control was tapped -- the banner's, a shelf row's, or the
-   one in the viewer's own bar. All three do the same thing to the same
-   document, and none of them may navigate this window. */
+/* `btn` is whichever control was tapped -- the banner's, or the one in the
+   reader's own bar. Both do the same thing to the same document, and neither
+   may navigate this window. */
 function saveCopy(kind, btn) {
   if (!kind || !papers[kind]) return;
   var got = inHand(kind);
@@ -2612,13 +1982,9 @@ function sayBadly(text) {
   els.pushedText.textContent = text;
 }
 
-/* THE SHARE SHEET FIRST, AND NOTHING THAT NAVIGATES EVER.
-
-   `navigator.share` with a `File` raises the native sheet OVER the board:
-   Files, iCloud Drive, a phone by AirDrop, an email to a professor -- and
-   Cancel returns to the lesson, because the lesson never went anywhere. That
-   is both halves of what was reported answered by one mechanism, which is why
-   it is the first choice and not a nicety. */
+/* THE SHARE SHEET FIRST, AND NOTHING THAT NAVIGATES EVER. `navigator.share`
+   with a `File` raises the native sheet OVER the board, and Cancel returns to
+   the lesson, which never went anywhere. */
 function shareIt(got, kind, btn) {
   var done = function (label) {
     if (btn) btn.textContent = label || "save a copy";
@@ -2640,14 +2006,10 @@ function shareIt(got, kind, btn) {
   return saveBlob(got, kind, done);
 }
 
-/* No share sheet here, and still nothing that navigates THIS window.
-
-   A blob URL with `download` on it saves without leaving the page, which is the
-   whole point -- but iOS ignores `download` in a standalone app and treats the
-   tap as a navigation, which is exactly the trap being fixed. So in the
-   installed app the last resort is a NEW context: that hands the PDF to Safari,
-   which has chrome, a share button and a way back. A dead end in another app is
-   recoverable; a dead end in this one costs the lesson. */
+/* No share sheet here, and still nothing that navigates THIS window: a blob
+   URL with `download` saves in place, but an installed iOS app treats it as a
+   navigation, so there the last resort is a NEW context (Safari, which has a
+   way back). */
 function saveBlob(got, kind, done) {
   var a = document.createElement("a");
   if (standalone() || !("download" in a)) {
@@ -2669,214 +2031,6 @@ function saveBlob(got, kind, done) {
   done("saved");
 }
 
-/* ============================================================ THE SHELF ====
-   EVERY DOCUMENT THE WORKSPACE HAS, REACHED FROM THE PICTURE OF IT.
-
-   What was here before was a list of two: the exported lesson and the compiled
-   write-up, off `papers`. That is the last thing built, not an inventory -- a
-   course with forty compiled PDFs in it had thirty-eight of them reachable from
-   nothing on this page, and the report was somebody who could not find their
-   own homework.
-
-   So the index is the MAP, because the map is already the picture of where the
-   work is and a document belongs where its source lives. Two ways in, one
-   drawer: a count on a box opens that box's documents, and the control on the
-   map bar opens all of them, grouped by box, with whatever belongs to no box
-   last.
-
-   NOTHING IS REGISTERED. Which box a document belongs to is worked out from
-   where the file sits, every time `/shelf.json` is asked -- there is no index
-   file, no sidecar and nothing to fall out of date.
-
-   AND THE DRAWER IS HTML. A diagram is not a list: documents do not become
-   boxes on the plane, because forty more boxes on a forty-box picture is the
-   grid the map was drawn to replace. */
-
-/* WHICH BOX THE DRAWER IS SHOWING, or null for the whole workspace. */
-var shelfNode = null;
-
-/* THE LAST ANSWER, KEPT FOR AS LONG AS THE DRAWER IS OPEN AND NO LONGER.
-   Refetched on every open. A document is a file on a disk that a compile can
-   replace between two taps, and the payload -- which arrives four times a
-   second -- deliberately does not carry the list: it carries the COUNTS, and
-   the list is one level down, on a tap. A stale shelf is a `read` that draws
-   last week's pages, so the simpler thing is also the correct one. */
-var shelfGot = null;
-
-function openShelf(nodeId) {
-  shelfNode = nodeId || null;
-  els.shelf.hidden = false;
-  els.shelfTitle.textContent = "Documents";
-  els.shelfFoot.textContent = "";
-  els.shelfList.textContent = "";
-  var waiting = document.createElement("div");
-  waiting.className = "none";
-  waiting.textContent = "looking…";
-  els.shelfList.appendChild(waiting);
-
-  var mine = shelfNode;
-  api("/shelf.json", { credentials: "same-origin" })
-    .then(function (r) { return r.json(); })
-    .then(function (got) {
-      if (els.shelf.hidden || shelfNode !== mine) return;
-      shelfGot = got && got.ok ? got : null;
-      renderShelf();
-    })
-    .catch(function () {
-      if (els.shelf.hidden || shelfNode !== mine) return;
-      shelfGot = null;
-      renderShelf();
-    });
-}
-
-function shelfGroups() {
-  return (shelfGot && shelfGot.groups) || [];
-}
-
-function renderShelf() {
-  if (els.shelf.hidden) return;
-  var groups = shelfGroups();
-  var one = null;
-  if (shelfNode) {
-    groups.forEach(function (g) { if (g.node === shelfNode) one = g; });
-  }
-
-  els.shelfTitle.textContent = shelfNode
-    ? ((one && one.box) || mapNodeName(shelfNode) || "Documents")
-    : "Every document in " + ((shelfGot && shelfGot.workspace) || "this workspace");
-
-  els.shelfList.textContent = "";
-  els.shelfFoot.textContent = "";
-
-  if (!shelfGot) {
-    var bad = document.createElement("div");
-    bad.className = "none";
-    bad.textContent = "The board could not say what documents there are.";
-    els.shelfList.appendChild(bad);
-    return;
-  }
-
-  var show = shelfNode ? (one ? [one] : []) : groups;
-  var drawn = 0;
-  show.forEach(function (g) {
-    /* The group's own heading, and it is drawn even for a single box: the name
-       of the box is the answer to "which of these is mine". */
-    var head = document.createElement("div");
-    head.className = "group";
-    head.textContent = g.box || "Unfiled";
-    els.shelfList.appendChild(head);
-    (g.docs || []).forEach(function (doc) {
-      els.shelfList.appendChild(shelfRow(doc));
-      drawn++;
-    });
-  });
-
-  if (!drawn) {
-    var none = document.createElement("div");
-    none.className = "none";
-    none.textContent = shelfNode
-      ? "Nothing has been written under this one yet."
-      : "This workspace has written no documents yet.";
-    els.shelfList.appendChild(none);
-  }
-
-  if (shelfNode) {
-    /* ONE QUIET LINE OUT OF ONE BOX AND INTO ALL OF THEM. Somebody who tapped a
-       badge asked about that box; this is the afterthought, not the offer. */
-    var all = document.createElement("button");
-    all.type = "button";
-    all.textContent = "every document in this workspace ("
-                      + (shelfGot.total || 0) + ")";
-    all.addEventListener("click", function () { openShelf(null); });
-    els.shelfFoot.appendChild(all);
-  } else {
-    els.shelfFoot.textContent = (shelfGot.total || 0)
-      + (shelfGot.total === 1 ? " document" : " documents")
-      + " — read one here, or save a copy to Files.";
-  }
-}
-
-/* ONE ROW. The title, then the muted line that says how much of it there is and
-   when, then the two things that can be done with it. */
-function shelfRow(doc) {
-  var row = document.createElement("div");
-  row.className = "shelf-row" + (doc.pdf ? "" : " unbuilt");
-
-  var head = document.createElement("strong");
-  head.textContent = doc.title || doc.sid;
-  row.appendChild(head);
-
-  var sub = document.createElement("span");
-  sub.className = "name";
-  /* SOMEBODY ELSE'S MATERIAL, AND A PDF OLDER THAN ITS SOURCE. Both are facts
-     about whether to trust what opens, so they are said before the numbers
-     rather than after them. */
-  if (doc.theirs) sub.appendChild(shelfFlag("theirs", false));
-  if (doc.stale) sub.appendChild(shelfFlag("source is newer", true));
-  var said = document.createElement("span");
-  /* WHICH SET IT CAME FROM, when the group it is filed under is not that set.
-     A chapter's group holds the book problems and any worksheet written for
-     that chapter, and the two are different pieces of work -- the server sends
-     `set` only when saying so tells the reader something the title does not. */
-  said.textContent = [doc.pages ? doc.pages + " pp" : "", doc.iso || "",
-                      doc.kind || "", doc.set || ""]
-    .filter(Boolean).join(" · ");
-  sub.appendChild(said);
-  row.appendChild(sub);
-
-  if (!doc.pdf) {
-    var no = document.createElement("span");
-    no.className = "name";
-    no.textContent = "no PDF built";
-    row.appendChild(no);
-    return row;
-  }
-
-  /* THE DOCUMENT GOES INTO `papers` UNDER ITS OWN KIND, and that is the whole
-     of what makes read and save work over it. `warmPaper`, `inHand`,
-     `offerDocument` and `saveCopy` all ask this table whether a document exists
-     and when it was written; a shelf document answers the same way the lesson
-     does. `at` is the record's own -- the moment the PDF was written -- so a
-     rebuild invalidates the warm copy exactly as it does for a lesson. */
-  var kind = "shelf/" + doc.sid;
-  papers[kind] = { name: shelfName(doc), at: doc.at, size: doc.size };
-
-  var acts = document.createElement("div");
-  acts.className = "shelf-acts";
-  acts.appendChild(act("read it here", "pushed-get quiet", function () {
-    els.shelf.hidden = true;
-    readKind(kind, doc.title || doc.sid);
-  }));
-  acts.appendChild(act("save a copy", "pushed-get", function (e) {
-    saveCopy(kind, e.currentTarget);
-  }));
-  row.appendChild(acts);
-  return row;
-}
-
-function shelfFlag(text, bad) {
-  var f = document.createElement("span");
-  f.className = "flag" + (bad ? " stale" : "");
-  f.textContent = text;
-  return f;
-}
-
-/* A FALLBACK NAME ONLY. The server names the file in the Content-Disposition
-   and `nameFrom` prefers that, because it is the side that knows the course. */
-function shelfName(doc) {
-  return (doc.sid || "document") + ".pdf";
-}
-
-/* What the map calls a box, for the drawer's head before the answer lands. */
-function mapNodeName(id) {
-  var show = mapShown();
-  var found = "";
-  ((show && show.nodes) || []).forEach(function (n) {
-    if (n.id === id) found = n.name;
-  });
-  return found;
-}
-
 function act(label, cls, fn) {
   var b = document.createElement("button");
   b.type = "button";
@@ -2886,23 +2040,14 @@ function act(label, cls, fn) {
   return b;
 }
 
-function kb(bytes) {
-  if (!bytes) return "";
-  return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB"
-                          : Math.max(1, Math.round(bytes / 1024)) + " KB";
-}
 
 /* ------------------------------------------------------ reading it, in place */
 /* THE ONE READER, `reader.js`, built over everything by this page. The pages
-   come back as pictures from `/view/<kind>`, drawn by the machine that holds
-   the PDF; why it is pictures rather than the PDF itself is in
-   `tutorboard/course/paper.py`. What is the board's own is on the bar: the
-   map, save a copy, and the document's last round. The pen, the pinch, the
-   marked copy (`/annotate/burn`) and every save of the ink are the reader's.
-
-   EVERY SAVE OF INK ON THIS PAGE GOES THROUGH `inkkeep.js`, a card's and a
-   page's alike: a failed save stays owed and is retried, and the lid shutting
-   flushes it. A send (`sendNotes`) is not a save. */
+   are pictures from `/view/<kind>` (`tutorboard/course/paper.py` says why).
+   The board's own tools on its bar: save a copy, and the last round. The pen,
+   the pinch, the marked copy and every ink save are the reader's: each save
+   goes through `inkkeep.js`, owed and retried. A send (`sendNotes`) is not a
+   save. */
 var paperOpen = null;          /* the kind on the glass, or null */
 
 var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
@@ -2921,7 +2066,6 @@ function readerTool(id, label, title, cls) {
 }
 
 var paperTools = {
-  map: readerTool("reader-map", "◈ map", "the map of this course", "to-map"),
   /* ITS LAST ROUND OF FEEDBACK, read as pairs in the library reader. */
   round: readerTool("reader-round", "",
                     "the last round's notes beside what was done, in the library"),
@@ -2932,7 +2076,7 @@ paperTools.round.hidden = true;
 var reader = window.Reader ? window.Reader.mount({
   keeper: keeper,
   url: function (path) { return BASE + path; },
-  tools: [paperTools.map, paperTools.round, paperTools.get]
+  tools: [paperTools.round, paperTools.get]
 }) : null;
 
 /* A DOCUMENT THIS COURSE POINTS AT, rather than one it built: `readKind` with
@@ -2958,10 +2102,9 @@ function readKind(kind, label, then) {
   reader.open({
     pagesUrl: paperViewUrl(kind),
     id: paperIdent(kind),
-    /* The caller's label first. A shelf row knows the document by the title
-       the workspace gave it; `have.name` is the filename the PDF will be SAVED
-       under, which is the right thing in a Files app and the wrong thing in a
-       title bar. */
+    /* The caller's label first: `have.name` is the filename the PDF will be
+       SAVED under, which is the right thing in a Files app and the wrong
+       thing in a title bar. */
     title: label || (have && have.name) || paperTitle(kind),
     /* THE INK IS THE DOCUMENT'S, however it was reached: `doc/<ident>/p<n>`. */
     inkKey: "doc/" + paperIdent(kind),
@@ -2995,7 +2138,7 @@ function readKind(kind, label, then) {
       paintPaperRound(kind);
       /* The address bar now names this document, so a link to it can be
          copied off the glass. */
-      mapRemember();
+      remember();
       if (then) then(got);
     },
     failed: function (got) {
@@ -3009,7 +2152,7 @@ function readKind(kind, label, then) {
       if (window.Annotate && window.Annotate.isOn()) setAnnotating(false);
       paperOpen = null;
       paperTools.round.hidden = true;
-      mapRemember();               /* and the address stops naming the document */
+      remember();                  /* and the address stops naming the document */
     }
   });
 }
@@ -3031,9 +2174,9 @@ function paperFailed(kind, got) {
               ? escapeHtml(why)
               /* A renderer's own output is a log, and a log reads as one. */
               : '<span class="detail">' + escapeHtml(why) + "</span>"));
-  /* The offer to MAKE it only exists for the two the board builds. A shelf
-     document that has gone is a file somebody moved, and there is no button on
-     this page that can put it back. */
+  /* The offer to MAKE it only exists for the two the board builds. A document
+     that has gone is a file somebody moved, and there is no button on this
+     page that can put it back. */
   if (got.why === "none" && (kind === "homework" || kind === "lesson")) {
     box.appendChild(act(kind === "homework" ? "compile it now" : "export it now",
                         "pushed-get", function () {
@@ -3063,7 +2206,7 @@ function paperFailed(kind, got) {
 function paintPaperRound(kind) {
   var b = paperTools.round;
   b.hidden = true;
-  if (kind.indexOf("doc/") !== 0 && kind.indexOf("shelf/") !== 0) return;
+  if (kind.indexOf("doc/") !== 0) return;
   api("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
         { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
@@ -3094,22 +2237,11 @@ if (reader) {
   }
 }
 
-/* The whole conversation as one document.
-
-   Asked for from the device: something to show a professor. A print of the
-   board is a screenshot of a scroll; this is the lesson typeset -- the tutor's
-   cards and the pages that were handed in, in the order they happened -- kept
-   in the repository under a numbered name, because "which one is the latest"
-   should not mean reading a timestamp. */
-/* The written-up work, compiled and kept -- and then handed over.
-
-   `board writeup build` is the compile, unchanged: the same one the tutor runs and
-   the same one a push runs before it commits a stale PDF, so there is one
-   compiler and one record of what LaTeX said. This only presses the button, and
-   then offers the result the same way the lesson export does.
-
-   `kind: "hw"` is what tells the banner which of the two documents it is
-   looking at, and therefore which download to offer. */
+/* The whole conversation as one document, kept in the repository under a
+   numbered name. */
+/* The written-up work, compiled and kept, then handed over. `board writeup
+   build` is the one compile; this presses the button and offers the result as
+   the lesson export does. `kind: "hw"` tells the banner which document it is. */
 function doExportHomework() {
   els.pushed.hidden = false;
   els.pushed.className = "pushed";
@@ -3139,26 +2271,11 @@ function doExportHomework() {
     });
 }
 
-/* THIS LESSON, AS IT WAS READ. AND THE WHOLE COURSE, TYPESET.
-
-   Two documents, and the difference is not a preference. Asked for from the
-   iPad: "for the tutor session export, I don't want the latex dump it currently
-   gives; I want it as if it were a screenshot of the entire iPad screen scrolled
-   down over the whole tutoring session."
-
-   So `lesson` is now the board's own pixels, photographed here, by the thing
-   that drew them -- `shot.js` explains why it cannot be anywhere else. `all`
-   stays the typeset transcript, and that is not laziness either: a past sitting
-   is not on the glass, so there is nothing on this device to photograph. The
-   server owns the name, the version, the repository copy and the git staging in
-   both cases, which is what keeps one numbered series in `transcripts/` rather
-   than two.
-
-   Photographing an evening's lesson is real work on a tablet -- a card at a
-   time, each one laid out, rasterised and drawn -- so it says which card it is
-   on. A progress count is not decoration here: this is the one button on the
-   page that can take twenty seconds, and a button that goes quiet for twenty
-   seconds is a button somebody presses again. */
+/* THIS LESSON, AS IT WAS READ. AND THE WHOLE COURSE, TYPESET. `lesson` is the
+   board's own pixels, photographed here (`shot.js` says why it cannot be
+   anywhere else); `all` is the typeset transcript, because a past lesson is not
+   on the glass. The server owns the name, the version and the repository copy.
+   It says which card it is on: this can take twenty seconds. */
 function doExport(scope, which) {
   els.pushed.hidden = false;
   els.pushed.className = "pushed";
@@ -3308,48 +2425,19 @@ function ownScroll(fn) {
   else fn();
 }
 
-/* A CARD IS TYPED OUT, AND NOTHING MOVES WHILE IT IS.
+/* A CARD IS TYPED OUT, AND NOTHING MOVES WHILE IT IS. A card arrives whole, so
+   this reveals what is already in hand.
 
-   Asked for in these words: "let's instead have it get typed out character by
-   character at a nice quick pace that outpaces reading but not outpacing my
-   eyes seeing it getting written". A card is a file and it arrives whole, so
-   there is nothing to stream; this is a reveal of something already in hand,
-   which is the honest version of the effect and the only one that cannot show a
-   half-parsed formula.
+   THE CARD IS ITS FINAL SIZE FROM THE FIRST FRAME. Every character is laid out
+   at once; the part not said yet carries `visibility: hidden`, which occupies
+   its space exactly, so moving a character across cannot reflow anything.
 
-   WHAT MAKES IT SMOOTH IS THAT THE CARD IS ITS FINAL SIZE FROM THE FIRST FRAME.
-   The version before this hid each block outright, so the card was one paragraph
-   tall when it landed and grew by a paragraph at a time -- and everything below
-   it, the writing surface included, was shoved down on every step. Reported from
-   the device: "the next board just shows up right underneath the board I was
-   writing on, and then a jarring change occurs and suddenly all of the tutor
-   response between the two shows up". That is the card growing, seen from
-   behind the glass.
+   MATHEMATICS, CODE AND FIGURES ARE ATOMS, hidden whole and shown whole when
+   the cursor reaches them, costing TYPE_ATOM characters of time. This runs
+   after typesetting: KaTeX cannot measure what is not laid out.
 
-   So nothing is ever removed from the layout. Every character of the card is
-   laid out the moment it arrives; what changes is only whether a character is
-   PAINTED. A run of text is split into the part already said and the part not
-   said yet, the second carrying `visibility: hidden` -- which occupies its space
-   exactly, to the pixel, and wraps exactly where it will wrap. Moving one
-   character from one to the other cannot reflow anything, in the card or under
-   it. The clip-path wipe it replaces could not do this: a clip is a rectangle,
-   and text does not arrive in rectangles.
-
-   MATHEMATICS, CODE AND FIGURES ARE ATOMS. Splitting the characters of a KaTeX
-   subtree destroys it, and a formula half-typed is nonsense to read anyway. Each
-   one is hidden whole and appears whole when the cursor reaches it, costing
-   TYPE_ATOM characters of time so it lands in its place in the sentence rather
-   than out of nowhere. This runs after the typesetting pass, never before:
-   KaTeX cannot measure what is not laid out.
-
-   NOTHING CANCELS IT. A hand on the page used to dump the remainder instantly,
-   which on a tablet is every reader every time -- a touch to scroll is a touch.
-   The cap on the whole card is the protection instead: a long card is typed
-   faster, never skipped.
-
-   It runs whether or not the card is on the glass. Typing below the fold costs
-   nothing, changes no height above the reader, and is over by the time somebody
-   scrolls down to it. */
+   NOTHING CANCELS IT; a long card is typed faster, never skipped. It runs
+   whether or not the card is on the glass. */
 var TYPE_CPS = 110;        /* characters a second: past reading speed, still a hand */
 var TYPE_MIN = 420;        /* even one line is typed, not placed */
 var TYPE_ALL = 4200;       /* and the longest card there can be is over in four seconds */
@@ -3360,24 +2448,12 @@ var TYPE_ATOM = 10;        /* what a formula or a figure costs, in characters */
    is the meaning. */
 var TYPE_ATOMIC = ".katex, .katex-display, pre, table, svg, img, figure";
 
-/* Whether anything is being typed at this moment. The writing surface and the
-   receipt above it both read it: see `replyArriving`.
-
-   A COUNT AND A DEADLINE, BECAUSE A HELD SURFACE THAT NEVER COMES BACK IS WORSE
-   THAN NO HOLD AT ALL. `requestAnimationFrame` does not run in a backgrounded
-   tab, so a card that arrives while the app is in the background stops
-   mid-sentence -- and a counter alone would keep the writing surface parked
-   until somebody came back and watched it finish.
-
-   THE DEADLINE IS A WATCHDOG AND NOT A BUDGET, which is the whole of the
-   difference: it measures SILENCE rather than elapsed time. A budget cannot be
-   set, because the card that runs longer in wall-clock than its own animation
-   asked for is precisely the longest one -- KaTeX measuring, a figure decoding,
-   and a tablet's main thread putting real milliseconds between frames -- so any
-   budget lets go in the middle of the card it is most needed for. Every frame
-   that lands pushes the deadline out again instead: a card making progress holds
-   for however long it takes, and a tab that has stopped animating lets go
-   `TYPE_STALL` after its last frame. */
+/* Whether anything is being typed at this moment; the writing surface and the
+   receipt above it read it (`replyArriving`). A count and a deadline, because
+   `requestAnimationFrame` stops in a background tab. THE DEADLINE IS A WATCHDOG,
+   NOT A BUDGET: every frame that lands pushes it out, so a card making progress
+   holds for as long as it takes, and a stalled tab lets go `TYPE_STALL` after
+   its last frame. */
 var typingNow = 0;
 var typingUntil = 0;
 var TYPE_STALL = 2500;     /* silence, not elapsed time, is what releases a hold */
@@ -3389,33 +2465,17 @@ var TYPE_SETTLE = 250;
 var settleTimer = null;
 var settleNode = null;
 
-/* WHICH CARDS ARE STILL ARRIVING -- A FACT ABOUT THE PAGE, NOT A CLASS ON A BODY.
-
-   `placeWriter` comes down as far as the first card that is still arriving, and
-   it used to find that card by looking for `.body.typing` -- a class only the
-   ANIMATION sets. So every path that holds the surface WITHOUT animating held
-   nothing findable: the loop found no card, the surface did not move, and the
-   receipt for the answer just handed in stayed below the board it was written
-   on until something else shook the page. A hold that depends on a class the
-   animation happens to set is lost by every path that does not animate, and
-   there is one of those again the moment a stall finishes a card early.
-
-   So the hold and the marker are the same fact now: taken together, given back
-   together, and nothing has to remember to set a class. */
+/* WHICH CARDS ARE STILL ARRIVING -- A FACT ABOUT THE PAGE, NOT A CLASS ON A
+   BODY. `placeWriter` comes down as far as the first card still arriving; the
+   hold and this marker are taken and given back together, so a path that holds
+   without animating (a stall) is still findable. */
 var typingHeld = [];
 
 function cardArriving(node) { return !!node && typingHeld.indexOf(node) !== -1; }
 
-/* AND A HOLD NEVER SURVIVES INTO THE NEXT PAYLOAD.
-
-   The settle is held against ONE arriving card. A payload drawn while it is
-   still running is a newer picture of the lesson, and holding the surface out of
-   place against a card that has already been superseded is a hold that has
-   outlived its reason -- which is how a surface ends up parked somewhere nobody
-   asked for and stays there. So `render` drops it on the way in.
-
-   `again` is false from there, because the render that is dropping it is about
-   to place the surface itself; calling back into `render` would be a loop. */
+/* AND A HOLD NEVER SURVIVES INTO THE NEXT PAYLOAD: a newer picture of the
+   lesson supersedes the card it was held for, so `render` drops it on the way
+   in. `again` is false there, since that render places the surface itself. */
 function settleEnd(again) {
   if (!settleTimer) return;
   clearTimeout(settleTimer);
@@ -3433,41 +2493,21 @@ function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
 
 /* One hold on the page, taken and given back in pairs, and the card it is for.
    The node is what `placeWriter` looks for; see `typingHeld`. */
-/* AND TAKING A HOLD ARMS THE WATCHDOG RATHER THAN ASKING IT ANYTHING.
-
-   This called `keepTyping()`, which increments nothing and answers one
-   question -- *had the deadline already passed* -- against a `typingUntil` left
-   behind by the LAST card. `typingNow` is bumped on the line above, so the test
-   passes its own guard, and the deadline it compares to is as old as the gap
-   between one card and the next. A card arriving six minutes after the previous
-   one therefore traced a `stall` before it had painted a single character.
-
-   That is a diagnostic telling the exact lie the diagnostic exists to prevent.
-   `board/README.md` says to read the trace before touching this code, and it
-   was read: `stall late=358559 held=1` on the frame a card began, beside that
-   same card's truthful `typed … stalled=0` four seconds later. The gap between
-   two cards is not a stall in either of them. */
+/* AND TAKING A HOLD ARMS THE WATCHDOG RATHER THAN ASKING IT ANYTHING. Asking
+   `keepTyping()` here compared against the LAST card's deadline, so a card
+   arriving minutes after the previous one traced a `stall` before painting a
+   character. The gap between two cards is not a stall in either. */
 function holdTyping(node) {
   typingNow++;
   if (node && typingHeld.indexOf(node) === -1) typingHeld.push(node);
   typingUntil = Date.now() + TYPE_STALL;
 }
 
-/* Still going. Called on every frame the animation actually gets, and it
-   answers one question: had the watchdog already let go.
-
-   A frame arriving AFTER the deadline means the main thread was away for longer
-   than `TYPE_STALL`, so the hold expired with this card still half painted --
-   the surface came down, the next board arrived, and the rest of the card
-   appeared in one go when the thread came back. That is the reported glitch
-   exactly, and it is indistinguishable from every other cause without the line
-   this records.
-
-   LETTING GO IS RIGHT; LETTING GO SILENTLY IS NOT. A held surface that never
-   comes back is worse than no hold at all, which is why the deadline exists --
-   but the caller now gets told, so a card whose pacing is lost can still be
-   finished as ONE event followed by the board, rather than as a jump. See
-   `finish` in `typeOut`. */
+/* Still going. Called on every frame the animation gets; it answers whether
+   the watchdog had already let go (a frame after the deadline: the main thread
+   was away longer than `TYPE_STALL`). Letting go is right, silently is not:
+   the caller is told, so `finish` in `typeOut` ends the card as one event
+   followed by the board. */
 function keepTyping() {
   var now = Date.now();
   var late = !!(typingNow > 0 && typingUntil && now > typingUntil);
@@ -3486,25 +2526,11 @@ function releaseTyping(node) {
   if (!typingNow && lastLive) render(lastLive);
 }
 
-/* THE ONE QUESTION BOTH SURFACES ASK: HAS THE REPLY ACTUALLY LANDED.
-
-   A reply has landed when its node is in the document, its mathematics is
-   typeset and the type-out has finished -- not when its RECORD arrived in a
-   payload. Two surfaces answer that question and they used to answer it
-   differently. The writing surface asked `typingCards()` and held. The busy
-   receipt asked whether a CARD EXISTED, and let go the instant one did.
-
-   So the pulse stopped, the next board came down, and the answer filled in
-   afterwards. Reported from the iPad: "the response appeared how I wanted it to,
-   but before it did, the second board showed up right underneath the last
-   board, and I was left hanging." The specification is in the same words: no
-   next board until the whole response is rendered, and the pulse visible at all
-   times until it is.
-
-   A picture inside the card needs no second mechanism: `img` is in
-   `TYPE_ATOMIC`, so a figure's box is laid out and its contents are invisible
-   until its own characters come due, which gives it the whole animation to
-   decode in. */
+/* THE ONE QUESTION BOTH SURFACES ASK: HAS THE REPLY ACTUALLY LANDED -- its node
+   in the document, typeset, typed out -- not has its record arrived. The
+   writing surface and the busy receipt both ask this, so no next board comes
+   down and the pulse stays until the whole response is rendered. A figure is
+   an atom (`TYPE_ATOMIC`), so it decodes within the animation. */
 function replyArriving() { return typingCards(); }
 
 /* The card's content in the order it is read: runs of text, and atoms. */
@@ -3598,25 +2624,10 @@ function typeOut(card) {
     return;
   }
 
-  /* EVERY CARD TYPES, AND REDUCE MOTION DOES NOT GOVERN THIS ONE ANIMATION.
-
-     This used to ask `prefers-reduced-motion: reduce` and, where it matched,
-     paint the card whole and hold a quarter of a second in place of typing --
-     on the reading that the pacing is a flourish and somebody who asked for
-     less movement does not want flourishes. `test/typed.js` asserted it in
-     those words. It was wrong, and the report that settles it is the third in
-     the owner's own words: "the tutor response would show up character by
-     character and then the next writing board wouldn't show up until AFTER the
-     tutor response was COMPLETELY rendered."
-
-     AN EXPLICIT REQUEST ABOUT ONE ANIMATION OUTRANKS A SYSTEM-WIDE DEFAULT
-     ABOUT MOVEMENT. Reduce Motion goes on governing everything else on the page
-     -- the card's entry slide, the reveal, the settle -- and it is not consulted
-     here. Nor is there a compromise in a shorter animation: what was reported is
-     the answer arriving all at once, and a faster dump is still a dump.
-
-     What is left of the un-animated path is a card with nothing to type, which
-     is a different case and has its own `skip` lines above. */
+  /* EVERY CARD TYPES, AND REDUCE MOTION DOES NOT GOVERN THIS ONE ANIMATION. The
+     owner asked for it explicitly, and an explicit request about one animation
+     outranks a system-wide default; Reduce Motion still governs the entry slide,
+     the reveal and the settle. A card with nothing to type is `skip` above. */
   var ms = Math.max(TYPE_MIN, Math.min(TYPE_ALL, Math.round(total / TYPE_CPS * 1000)));
   var rate = total / Math.max(1, ms);          /* characters per millisecond */
   var t0 = null, at = 0;
@@ -3639,19 +2650,10 @@ function typeOut(card) {
        that typed and a card that appeared. */
     trace("typed", { card: which, asked: ms, took: Date.now() - began,
                      stalled: stalled ? 1 : 0 });
-    /* A STALL LOSES THE PACING. IT MUST NOT ALSO LOSE THE ORDER.
-
-       The watchdog letting go beats parking the surface for ever, and that is
-       not in question. What letting go USED to mean is that the rest of the
-       card was painted in one go on the late frame and the board came down in
-       the same breath -- the whole of the reported fault, arriving from its own
-       safety valve.
-
-       So the card is finished whole, which is the pacing gone, and the hold is
-       handed to the settle rather than given back: nothing moves for
-       `TYPE_SETTLE`, and then the surface comes down. Two events, one of which
-       is no longer pretty. The hold taken above is the one the settle gives
-       back, so `typingNow` is not touched here. */
+    /* A STALL LOSES THE PACING. IT MUST NOT ALSO LOSE THE ORDER. The card is
+       finished whole and the hold is handed to the settle: nothing moves for
+       `TYPE_SETTLE`, then the surface comes down. The hold taken above is the one
+       the settle gives back, so `typingNow` is not touched here. */
     if (stalled && !settleTimer) {
       settleNode = card;
       settleTimer = setTimeout(function () { settleEnd(true); }, TYPE_SETTLE);
@@ -3692,25 +2694,12 @@ function typeOut(card) {
 
 /* ------------------------------------------------------- keeping the place --
 
-   NOTHING THAT ARRIVES ABOVE THE READER MAY MOVE THE READER.
-
-   Reported as: "intermittently, after I submit a response, it glitches and
-   scrolls me up above the last board I wrote my response on." Nothing scrolled.
-   The transcript grew ABOVE the writing surface and took the page down with it,
-   which from behind the glass is indistinguishable from being scrolled up.
-
-   Two things do that on a send. The answer becomes a turn, and it is rendered
-   into the transcript in its proper place -- above the surface -- unless it
-   happens to be the very last item, which it is only while the question being
-   answered is also the last card the tutor has written. And the frozen picture
-   of it is an `img` with a width and no height, so it occupies nothing at all
-   until it has decoded and then suddenly occupies a screenful.
-
-   Safari has no scroll anchoring, so this is it: note which node the reader is
-   actually looking at and where on the glass it sits, and after the lesson has
-   been rebuilt around it, put it back. Anchored by card or turn id rather than
-   by render key, because a key carries a version and the node the reader is
-   looking at is very often the one that was just rebuilt. */
+   NOTHING THAT ARRIVES ABOVE THE READER MAY MOVE THE READER. A sent answer is
+   rendered above the surface, and its frozen picture is an `img` with no height
+   until it decodes, so the page grows above the reader. Safari has no scroll
+   anchoring, so this is it: note which node the reader is looking at and where
+   it sits, and put it back after the rebuild. Anchored by card or turn id, not
+   render key, because a key carries a version. */
 function anchorId(node) {
   if (!node || !node.dataset) return null;
   if (node.dataset.card) return '[data-card="' + node.dataset.card + '"]';
@@ -3735,25 +2724,10 @@ function anchorNow() {
     last = { sel: sel, top: r.top };
   }
   /* PAST EVERYTHING KEYED IS WHERE A SEND LEAVES YOU. Hold the last thing above
-     the reader rather than giving up.
-
-     `revealSent` parks them at the FOOT of the writing surface, and the surface
-     is the tail of the run and carries no card or turn id of its own -- so every
-     keyed node is above the top of the glass and the walk above found nothing,
-     and gave up. Reported from that exact position: "just submitted another board
-     written response and got scrolled UP again to the middle of the last tutor
-     response." The receipt for the answer is inserted with the QUESTION it
-     answers, which an hour into an exercise is several cards up the page, so the
-     surface went down the page with it and what filled the glass instead was the
-     bottom of the card above.
-
-     Not the surface itself, though it is the thing being looked at: when the
-     tutor replies the surface MOVES, because the next board opens under the
-     newest word, and an anchor by that name would follow it down the page. It
-     does not need to be held. The place it occupied is taken by this question's
-     own board, frozen with the same ink in the same box -- the rule every dormant
-     board is built on -- so holding anything above it leaves the student's working
-     exactly where it was, which is the whole of what a reply needs. */
+     the reader rather than giving up: `revealSent` parks them at the foot of the
+     surface, which has no id. Not the surface itself, which moves when the tutor
+     replies; its place is taken by the question's own frozen board with the same
+     ink, so holding what is above it keeps the working where it was. */
   return last;
 }
 
@@ -3878,6 +2852,10 @@ function renderScratch(uploads) {
    arrives while you are reading is still there when you come back. */
 var reading = null;
 var lastLive = null;
+/* How many sittings this subject has filed, as of the last frame that said.
+   `null` until one does: "it went up" has no answer before there is a number
+   to compare with. */
+var pastCount = null;
 
 function openHistory() {
   var panel = document.getElementById("history");
@@ -4036,14 +3014,9 @@ function sendNotes(ids) {
 /* THE AUTOSAVE, and the only way ink reaches disk unasked: `inkkeep.js`. */
 function saveInk() { return keeper ? keeper.save() : Promise.resolve([]); }
 
-/* Not while a hand is on the glass.
-
-   `payload` no longer encodes a picture, but it still serialises every mark on
-   the card, and `JSON.stringify` of a well-annotated card is real main-thread
-   time -- landing, by construction, about a second after a stroke, which is the
-   middle of the next one. Same rule as the slate's own autosave: nothing about
-   getting ink to disk has to happen in a particular second, and the strokes are
-   still written the moment the hand stops. `pagehide` is the backstop. */
+/* Not while a hand is on the glass: serialising a well-annotated card is real
+   main-thread time, as with the slate's own autosave. The strokes are written
+   the moment the hand stops; `pagehide` is the backstop. */
 var noteSaveOwed = 0;
 var NOTE_SAVE_WAIT = 8000;
 
@@ -4129,23 +3102,10 @@ function haveNotes() {
   return !!(window.Annotate && window.Annotate.unsent().length);
 }
 
-/* What Send does, and what it must never do.
-
-   It used to ask first: with marks anywhere on the board, tapping Send on the
-   writing surface issued no request at all and raised a "Send what?" bar
-   instead, and the answer only went out on a second tap. That is a Send button
-   that does nothing, and it cost a real answer -- an evening's working sat in
-   live/slate/ for two days while the student believed they had handed it in,
-   and the board's own receipt never appeared because the code that writes it
-   was never reached. Nothing on the surface said a decision was outstanding.
-
-   So the working goes first, unconditionally, and it goes alone. The button
-   sits on the surface holding the working; that is what it means. Marks on the
-   lesson go only through the picker.
-
-   The one exception is an empty surface with unsent marks: there is no working
-   to send, and the marks are what is being handed in, so the picker opens for
-   them to be chosen. */
+/* What Send does: the working goes first, unconditionally, and alone. Marks on
+   the lesson go only through the picker. A Send that asks a question first is
+   a Send that does nothing. The one exception: an empty surface with unsent
+   marks opens the picker, because the marks are what is being handed in. */
 function askWhatToSend(sendWork) {
   var written = !writer || writer.strokes() > 0;
   if (!written && haveNotes()) {
@@ -4272,11 +3232,9 @@ function closeNotePick() {
   pickTicked = null;
 }
 
-/* The card under the glass, where `revealNewest` puts the newest one. From the
-   map the map goes first, because the card is in the lesson behind it. */
+/* The card under the glass, where `revealNewest` puts the newest one. */
 function pickJump(id) {
   closeNotePick();
-  if (els.map && !els.map.hidden) closeMap();
   var node = null;
   try { node = els.cards.querySelector('[data-card="' + id + '"]'); } catch (e) {}
   if (!node) return;
@@ -4331,9 +3289,9 @@ if (els.notepick) {
   }, true);
 }
 
-/* Its tap is registered with the moveable stack, as `#redirect`'s is: `Recentre`
-   tells a tap from a press-and-hold to move it, and a `click` listener of its
-   own would fire alongside. */
+/* Its tap is registered with the moveable stack: `Recentre` tells a tap from a
+   press-and-hold to move it, and a `click` listener of its own would fire
+   alongside. */
 function notesTap() {
   if (els.notepick.hidden) openNotePick(); else closeNotePick();
 }
@@ -4447,441 +3405,14 @@ els.home.addEventListener("click", function (e) {
 els.finishLeave.onclick = goLeave;
 
 
-/* ------------------------------------------------------- lecture or homework */
-/* Which kind of sitting this is was a terminal-only decision, so a student who
-   wanted help with a problem set had to find a keyboard to say so. The badge in
-   the title bar already names the kind; making it the control is the whole
-   change. The sets offered are the ones the repository actually has -- nothing
-   is typed, so nothing invented can reach the filesystem. */
+/* ------------------------------------------------- one step, written for them */
+/* The problem sets the subject has, by name, from `/subject.json`: what an
+   address to one problem is checked against. */
 var knownSets = [];
-var sittingKind = "lecture";
 
-function paintKindChooser() {
-  els.kindLecture.classList.toggle("on", sittingKind === "lecture");
-  els.kindReview.classList.toggle("on", sittingKind === "review");
-  els.kindWalk.classList.toggle("on", sittingKind === "walk");
-  /* Offered only where there is something to review. A repository with no
-     chapters and no parts would open a picker with nothing in it. */
-  els.kindReview.hidden = !(reviewInfo && (reviewInfo.units || []).length);
-  /* And only where there is source to walk through. A narrative repository --
-     all prose, no machinery -- has nothing to trace. */
-  els.kindWalk.hidden = !(walkInfo && (walkInfo.units || []).length);
-  /* WHO WRITES THE CODE, for this sitting. Not offered in the two sittings that
-     read rather than write: a review asks questions and a walkthrough traces
-     code that is already there, so neither has a stance to take and offering
-     one would suggest they did. */
-  paintStance();
-  /* AND WHAT THE SITTING IS FOR, which is the other question and the one that
-     could not be answered at all once a sitting was open. */
-  paintAim();
-  /* AND WHO WRITES IT, which is a third question and is answered for the
-     sitting being OPENED rather than the one that is. */
-  paintWho();
-  /* AND WHETHER THEY WANT A DOCUMENT OUT OF IT, which is not a question about
-     the sitting at all — so it is asked in every one of them, including the two
-     the aim row above is hidden in. */
-  paintDoc();
-  els.kindSets.innerHTML = "";
-  if (!knownSets.length) {
-    var none = document.createElement("span");
-    none.className = "muted";
-    none.textContent = "no problem sets in this course";
-    els.kindSets.appendChild(none);
-    return;
-  }
-  knownSets.forEach(function (name) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.textContent = name;
-    if (sittingKind === "homework" && currentSet === name) b.classList.add("on");
-    b.onclick = function () { setSitting("homework", name); };
-    els.kindSets.appendChild(b);
-  });
-}
-
-var currentSet = null;
-
-function setSitting(kind, name, chapter) {
-  els.kind.hidden = true;
-  api("/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      session: kind, hw: name || null, chapter: chapter || null,
-      /* Sent every time, including as null. A stance belongs to the sitting
-         being opened, so opening one without choosing a stance is how the
-         repository's own answer comes back -- and it has to be said rather than
-         omitted, or the last sitting's choice would outlive it. */
-      stance: takeStance(),
-      /* And the same for the assistant, for the same reason and with the same
-         shape: chosen for the sitting being opened, cleared by opening one that
-         does not name it. */
-      agent: takeAgent()
-    })
-  }).catch(function () { /* the payload will say what actually happened */ });
-}
-
-
-/* ------------------------------------------------ who writes it, this sitting */
-/* CHOSEN AS A SITTING OPENS, AND THAT IS THE DECISION RATHER THAN THE EASIER
-   ROUTE. The aim beside it changes in place, because it changes what the next
-   card is. An assistant changes WHO WRITES IT, and the conversation the
-   outgoing one was holding does not transfer -- which on the local model is a
-   15,900-token preamble re-paid at a few tokens a second, in hours. So this is
-   held like a stance and travels with the next sitting.
-
-   It is offered at all because none of the four layers that used to resolve it
-   can be reached from a tablet: `--agent` on a command line, a line in the
-   workspace's `tutorboard.json` that is a statement about it for ever, a
-   hostname, and a machine default. */
-var agentPick = null;       /* what they tapped, for the sitting about to open */
-var assistants = null;      /* what this machine has; null means it could not say */
-var colibriNow = null;      /* and what the local model's server is doing */
-var fencedHere = [];        /* the fenced directories THIS workspace holds */
-
-/* WHO MAY READ A FENCE, out of the same registry the buttons come from. The
-   recipe carrying `private` is the one assistant allowed to open one -- it runs
-   on our own hardware and nothing leaves the node -- so this is a lookup in what
-   the payload already carries rather than a name written down a second time
-   somewhere the browser can read. */
-function fenceReader() {
-  var all = (assistants && assistants.agents) || [];
-  return all.filter(function (a) { return a["private"]; })[0] || null;
-}
-
-/* WHAT A FENCED WORKSPACE SAYS, BEFORE THE TAP RATHER THAN AFTER IT.
-   Deliberately NOT a refusal: the fence stops a hosted assistant READING `phi`,
-   not existing, and the teaching thread on this very code is a hosted
-   conversation. So this is visibility -- the row names the directories, names
-   the one assistant that may open them, and where the pick is somebody else says
-   what that pick will not be able to open. The protection stays where it is. */
-function paintFence(node, names, now) {
-  names = names || [];
-  if (!names.length) {
-    node.textContent = "";
-    node.hidden = true;
-    return;
-  }
-  var held = names.map(function (n) { return n + "/"; }).join(", ");
-  var reader = fenceReader();
-  var line = "fenced — " + held + " ";
-  if (!reader) {
-    line += "is content no assistant on this machine may read.";
-  } else if (reader.missing) {
-    line += "may be read only by " + reader.name
-          + ", which is not installed here.";
-  } else {
-    line += "may be read only by " + reader.name + ".";
-    if (now !== reader.name) {
-      /* "may" rather than "will" where nobody is named: whatever is already
-         listening over there might BE the reader, and this line must not say
-         something it cannot know. */
-      line += now ? (" " + now + " will not be able to open " + held + ".")
-                  : (" whatever is listening there may not be able to open "
-                     + held + ".");
-    }
-  }
-  node.textContent = line;
-  node.hidden = false;
-}
-
-function takeAgent() {
-  var chosen = agentPick;
-  agentPick = null;
-  return chosen;
-}
-
-function paintWho() {
-  /* Who this machine can actually offer. One name is not a choice and a chooser
-     offering one is furniture, so the buttons need two; the row itself is drawn
-     for a fence as well, which is the case below.
-
-     The rules are `who.js` and are SHARED with the front door, which draws the
-     same list for the machine default. A second copy of them goes out of step
-     the first time a recipe grows a flag, and a flag on a recipe is how a
-     provider is added. */
-  var have = window.WhoChoice.offerable(assistants);
-  var reading = sittingKind === "review" || sittingKind === "walk";
-  /* A fence is drawn even where there is nothing to choose between. A box
-     holding session content on a machine carrying one assistant is the case
-     where the absence of a choice is exactly the thing worth saying. */
-  var choosing = have.length > 1;
-  els.kindWho.hidden = reading || (!choosing && !fencedHere.length);
-  if (els.kindWho.hidden) return;
-
-  var now = agentPick || currentAgent || (assistants && assistants["default"]);
-  var host = els.kindWhoWays;
-  els.kindWhoLead.hidden = !choosing;
-  /* Its own reason for refusing, before the tap rather than after it: one
-     sitting at a time, a key that is not here, and cards that must not be
-     committed. All three come off the recipe, so the button says whatever the
-     table says. A local model with no server is still the right thing to tap --
-     the tap is what starts one -- so it is dimmed rather than disabled. */
-  window.WhoChoice.draw(host, choosing ? have : [], now, {
-    dim: function (a) {
-      return a.exclusive && colibriNow && colibriNow.state !== "warm";
-    },
-    say: function (m) { els.kindWhoNote.textContent = m; },
-    pick: function (a) { agentPick = a.name; paintWho(); }
-  });
-
-  paintFence(els.kindWhoFence, fencedHere, now);
-
-  /* AND WHAT THE LOCAL MODEL'S SERVER IS DOING, which is the half no button can
-     express. Four states off `squeue`: nothing submitted, queued behind an
-     allocation, loading 429 GB off the filer, warm. Only while it is the one
-     picked -- a sentence about a Slurm job is noise over a hosted assistant. */
-  var local = have.filter(function (a) { return a.exclusive; })[0];
-  var picked = local && now === local.name;
-  if (!picked || !colibriNow) {
-    els.kindWhoNote.textContent = "";
-    els.kindWhoUp.hidden = true;
-    return;
-  }
-  els.kindWhoNote.textContent =
-      colibriNow.state === "warm" ? "the server is " + colibriNow.detail
-    : colibriNow.state === "queued" ? "the server is queued — " + colibriNow.detail
-    : colibriNow.state === "loading" ? "the server is coming up — " + colibriNow.detail
-    : colibriNow.detail + ". Starting one takes seven or eight minutes, and the "
-      + "first turn is hours of prefill — start it before you stop for the day.";
-  els.kindWhoUp.hidden = colibriNow.state !== "off";
-}
-
-/* The tap that starts it, and it returns at once: an allocation, a 429 GB load
-   and a warm-up generation cannot be reported by the request that asked for
-   them. The payload says what happened next. */
-els.kindWhoUp.onclick = function () {
-  els.kindWhoUp.hidden = true;
-  els.kindWhoNote.textContent = "submitting the job\u2026";
-  fetch("/colibri", { method: "POST" })
-    .then(function (r) { return r.json(); })
-    .then(function (got) {
-      if (got && got.colibri) colibriNow = got.colibri;
-      paintWho();
-      /* ONE VOICE, AND IT IS THE STATE. The reply carries a receipt for the
-         tap, and the state that comes back with it is strictly better -- a job
-         number and Slurm's own reason beat "submitting". The receipt is kept
-         only for the answer no state can express: this machine has not got
-         `coli-up` at all. */
-      if (got && got.started === false && got.detail && !colibriNow) {
-        els.kindWhoNote.textContent = got.detail;
-      }
-    })
-    .catch(function () { /* the payload will say what actually happened */ });
-};
-
-var currentAgent = null;    /* what the sitting says, if it says anything */
-
-/* The pick, and then there is no pick. It belongs to the sitting being opened
-   and must not survive it: leaving it set would make the next tap on `lecture`
-   silently carry an override chosen an hour ago for something else. */
-function takeStance() {
-  var chosen = stancePick;
-  stancePick = null;
-  return chosen;
-}
-
-/* --------------------------------------------------------- who writes it */
-/* A repository says once, in writing, whether the tutor is here to teach the
-   work or to do it, and that is right for a course and wrong for a project: the
-   grid-search plumbing around a bake-off and the one algorithm its owner needs
-   to understand live in the same repository and want opposite answers. So the
-   repository's word is the default and a SITTING may say otherwise -- chosen
-   here, in the open, beside the kind of sitting it belongs to.
-
-   It is never inferred and never sticky: `stancePick` is what the person tapped
-   for the sitting they are about to open, and it goes back to null the moment
-   one is open, because the next sitting starts from the repository again. */
-var stancePick = null;
-/* What the repository declares, from the payload. It was a hard-coded "teach"
-   here, so the chooser showed the wrong thing in every repository whose standing
-   answer is `do` -- and the busy strip could not tell a doing turn from a
-   teaching one unless the sitting had overridden it. */
-var declaredStance = "teach";
-
-function paintStance() {
-  var reading = sittingKind === "review" || sittingKind === "walk";
-  els.kindStance.hidden = reading;
-  if (reading) return;
-  /* What is showing as chosen is what the sitting is actually running under:
-     the tap if there has been one, otherwise what the board says is in force. */
-  var now = stancePick || currentStance || declaredStance;
-  els.stanceTeach.classList.toggle("on", now !== "do");
-  els.stanceDo.classList.toggle("on", now === "do");
-}
-
-var currentStance = null;
-
-/* ------------------------------------------ what this sitting is FOR */
-/* THE ONE CONTROL THAT CHANGES A SITTING WITHOUT LOSING IT.
-
-   Everything else on this panel opens a NEW sitting, which files the lesson
-   away. The aim was chosen once, on the map, at the moment of opening -- so
-   "wait, now teach me how this works", said three hours into building
-   something, cost the evening it was said in. This is the way out of that: the
-   aim of the sitting that is open, changed in place, with the transcript, the
-   cards and the tutor all left exactly where they are.
-
-   THE STYLES ARE THE STYLES `WORK` ALREADY NAMES, and the labels are the
-   strings that table already carries -- one set of words for the map and for
-   this, or the two drift. A way with a `needs` is left out on purpose: it is
-   held over a scope, and choosing one is choosing what it is over, which is a
-   tap on a box and a new sitting.
-
-   THE TAP IS THE INSTRUCTION, so it is sent at once rather than held like a
-   stance pick -- `/aim` writes it, puts it in the transcript and wakes a turn.
-   See `_aim` in `routes/lesson.py`. */
-var currentAim = null;            /* what the sitting says, if it says anything */
-var lastSittingState = {};        /* the state the badge was last painted from */
-var aimNow = "";                  /* what it is running under, workspace or family */
-
-function aimWays() {
-  return WORK.filter(function (way) { return !way.needs; });
-}
-
-/* THE STYLE A SITTING IS RUNNING UNDER, as one word, for the badge and for the
-   `for:` row's mark. The sitting's own aim, then the one the server resolved;
-   where neither names a style, the stance says who writes, which is the style.
-   Empty in the sittings that read rather than write. */
-function styleWord(state) {
-  state = state || {};
-  var kind = state.session || "lecture";
-  if (kind === "review" || kind === "walk") return "";
-  var aim = state.aim || state.aim_now || "";
-  if (aim === "teach" || aim === "build" || aim === "coach") return aim;
-  if (aim) return "";
-  return doingTurn(state) ? "build" : "teach";
-}
-
-function paintAim() {
-  /* Hidden in the two sittings that read rather than write, for the reason the
-     stance chooser is: a review asks and a walkthrough traces, and neither is
-     a sitting whose style is anybody's to change mid-way. */
-  var reading = sittingKind === "review" || sittingKind === "walk";
-  els.kindAim.hidden = reading;
-  if (reading) return;
-  /* One button is always marked: with no aim set anywhere the sitting still
-     runs under a style, and a row with nothing lit read as no style at all. */
-  var now = currentAim || aimNow || styleWord(lastSittingState) || "";
-  var host = els.kindAimWays;
-  host.innerHTML = "";
-  aimWays().forEach(function (way) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.textContent = way.label;
-    b.title = way.sub;
-    if (way.aim === now) b.className = "on" + (way.does ? " does" : "");
-    b.onclick = function () { setAim(way.aim); };
-    host.appendChild(b);
-  });
-}
-
-/* ------------------------------- a document, from any sitting at all */
-/* A PAPER OR A DECK IS A PRODUCT, NOT AN AIM, so these are not two more buttons
-   in the row above.
-
-   Tapping `paper` up there changes the SITTING: every card after it is a make
-   card, and the row itself is hidden in a review and a walkthrough — so in the
-   two sittings where a write-up is worth the most there was no way to ask for
-   one. Asked as a question: *"at any point can I have a presentation or paper
-   written up going through the things we talked about in that tutoring session?
-   Can I do that in ANY tutoring session?"*
-
-   `POST /artifact` changes no aim, archives nothing and replaces no tutor. The
-   document is written alongside the lesson and lands in the LIBRARY, because a
-   deck's slides arriving in a transcript somebody is mid-proof in is the
-   interruption the library page exists to avoid.
-
-   A TABLE OF ITS OWN, because a product is not a way of working: `WORK` is
-   what a tap on the map offers and nothing in it makes a document. Two entries
-   rather than one because which of the two is known at the moment of tapping,
-   and a second question after the tap is the ceremony this tool exists to
-   remove. */
-var DOCS = [
-  { makes: "paper", label: "Write it up as a paper",
-    sub: "A document rather than an answer, kept in writeups/." },
-  { makes: "slides", label: "Build me a deck about it",
-    sub: "Slides you can then read on the board." }
-];
-
-function paintDoc() {
-  if (!els.kindDoc) return;
-  /* Never hidden. That is the whole point of it: a review and a walkthrough are
-     exactly the sittings the aim row leaves out. */
-  var host = els.kindDocWays;
-  host.innerHTML = "";
-  DOCS.forEach(function (way) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.textContent = way.label;
-    b.title = way.sub;
-    b.onclick = function () { askWriteup(way.makes, b); };
-    host.appendChild(b);
-  });
-}
-
-/* Painted before the answer comes back, for the reason `setAim` is: the payload
-   that carries the record is a poll away, and a control that does nothing for a
-   second is a control somebody taps again. The strip in the chrome is the truth
-   from the next payload on — see `paintWriteups`. */
-function askWriteup(makes, button) {
-  els.kind.hidden = true;
-  if (button) button.disabled = true;
-  api("/artifact", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ make: makes === "slides" ? "deck" : "paper" })
-  }).catch(function () { /* the payload will say what actually happened */ })
-    .then(function () { if (button) button.disabled = false; });
-}
-
-/* ONE TAP ADDS A PROPOSED THREAD. The card and the id go over the wire and
-   nothing else; the server reads the thread back off the card. Painted as
-   added before the answer, for `handOver`'s reason, and put back on a no. */
-function acceptThread(card, tid, button) {
-  var box = button.parentNode;
-  button.disabled = true;
-  button.textContent = "adding\u2026";
-  api("/thread/accept", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ card: card, thread: tid })
-  }).then(function (r) {
-    return r.json().catch(function () { return {}; });
-  }).then(function (got) {
-    if (got && got.ok) {
-      box.setAttribute("data-state", "there");
-      box.innerHTML = "<span>added \u2014 it is on the map</span>";
-      return;
-    }
-    button.disabled = false;
-    button.textContent = "Add this thread";
-    var why = document.createElement("span");
-    why.className = "thread-refused";
-    why.textContent = (got && got.error) || "the board refused it";
-    var old = box.querySelector(".thread-refused");
-    if (old) box.removeChild(old);
-    box.appendChild(why);
-  }).catch(function () {
-    button.disabled = false;
-    button.textContent = "Add this thread";
-  });
-}
-
-els.cards.addEventListener("click", function (ev) {
-  var b = ev.target && ev.target.closest && ev.target.closest(".thread-accept");
-  if (!b || b.disabled) return;
-  var card = b.closest("[data-card]");
-  var box = b.closest(".thread-propose");
-  if (!card || !box) return;
-  ev.preventDefault();
-  acceptThread(card.dataset.card, box.getAttribute("data-thread"), b);
-});
-
-/* One step, written for them, and the sitting stays a coaching one. Painted
-   before the answer comes back for the reason `setAim` is: the payload that
-   carries it is a poll away, and a control that does nothing for a second is a
-   control somebody taps again. */
+/* One step, written for them, and the session stays in teach. Painted before
+   the answer comes back: the payload that carries it is a poll away, and a
+   control that does nothing for a second is a control somebody taps again. */
 function handOver(card, button) {
   if (button) {
     button.disabled = true;
@@ -4894,2762 +3425,52 @@ function handOver(card, button) {
   }).catch(function () { /* the payload will say what actually happened */ });
 }
 
-/* The aim row sets the session's MODE (`POST /mode`): an aim that writes the
-   code is `do`, any other is `teach`. T51 replaces the row. */
-var AIM_MODE = { build: "do", paper: "do", slides: "do" };
-
-function setAim(aim) {
-  els.kind.hidden = true;
-  /* Painted before the answer comes back, because the payload that carries it
-     is a poll away and a control that does nothing for a second is a control
-     somebody taps again. The next payload is the truth either way. */
-  currentAim = aim;
-  api("/mode", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: AIM_MODE[aim] || "teach" })
-  }).catch(function () { /* the payload will say what actually happened */ });
-}
-
-els.stanceTeach.onclick = function () {
-  stancePick = "teach";
-  paintStance();
-};
-els.stanceDo.onclick = function () {
-  stancePick = "do";
-  paintStance();
-};
-
-els.session.onclick = function () {
-  paintKindChooser();
-  els.kind.hidden = false;
-};
-els.kindLecture.onclick = function () { setSitting("lecture"); };
-els.kindReview.onclick = function () { els.kind.hidden = true; openPicker("review"); };
-els.kindWalk.onclick = function () { els.kind.hidden = true; openPicker("walk"); };
-els.kindCancel.onclick = function () { els.kind.hidden = true; };
-
-
-/* --------------------------------------------- a sitting held over a scope */
-/* Two sittings ask before they start, because in both the student is the only
-   one who knows the answer: a test review over chapters they are being examined
-   on, and a walkthrough over machinery they do not understand. Neither can begin
-   from a single tap the way a lecture does, and neither may take a name nobody
-   chose -- everything offered is discovered from the repository itself, so
-   nothing typed reaches the filesystem and nothing invented reaches the tutor's
-   prompt.
-
-   ONE panel serves both. They are the same decision in the same shape -- a list
-   of what exists, ticked, and one request at the end of it -- and a second copy
-   of this would be a second copy to keep in step. `pickerKind` says which, and
-   the title, the noun and the button follow from it.
-
-   The picks are held here rather than sent one at a time: a review over four
-   chapters is one decision, and sending it four times would file the lesson away
-   four times over. */
-var reviewInfo = null;              /* what the payload says can be reviewed */
-var walkInfo = null;                /* and what can be walked through */
-var pickerKind = "review";          /* which of the two the panel is open for */
-var reviewPick = [];                /* names ticked but not yet started */
-
-function pickerInfo() {
-  return pickerKind === "walk" ? walkInfo : reviewInfo;
-}
-
-function paintReview(state, info, walk) {
-  reviewInfo = info || null;
-  walkInfo = walk || null;
-  var kind = state.session || "lecture";
-  var walking = kind === "walk";
-  var on = walking || kind === "review";
-  /* What the sitting is running under, so the chooser opens showing the truth
-     rather than showing the repository's answer over the top of an override. */
-  currentStance = state.stance || null;
-  declaredStance = state.declared_stance || "teach";
-  /* What the sitting says. The server sends no inherited aim: who writes the
-     code is the session's `mode`. */
-  currentAim = state.aim || null;
-  aimNow = state.aim_now || "";
-  /* And who this sitting asked for, which is the fifth layer of a resolution
-     the other four of which no tablet can reach. */
-  currentAgent = state.agent || null;
-  var live = walking ? walkInfo : reviewInfo;
-  var scope = (live && live.scope) || [];
-  els.rvbar.hidden = !on;
-  if (!on) return;
-  els.rvLead.textContent = walking ? "walking through" : "test review";
-  var by = {};
-  ((live && live.units) || []).forEach(function (u) { by[u.name] = u; });
-  els.rvScope.textContent = scope.length
-    ? scope.map(function (n) { return (by[n] && by[n].label) || n; }).join(" · ")
-    /* Reachable from a terminal, not from this page. Say what is missing rather
-       than showing an empty strip that reads as "nothing to see". */
-    : "nothing chosen yet — tap change";
-}
-
-function reviewNoun(info) {
-  if (pickerKind === "walk") return "files";
-  return (info && info.of) === "parts" ? "parts of the project" : "chapters";
-}
-
-function paintReviewPicker() {
-  var host = els.reviewList;
-  var info = pickerInfo();
-  var walking = pickerKind === "walk";
-  host.innerHTML = "";
-  var units = (info && info.units) || [];
-  els.reviewTitle.textContent = walking
-    ? "Which file should the walkthrough cover?"
-    : "Which " + reviewNoun(info) + " is the test over?";
-  els.reviewStart.textContent = walking ? "start walkthrough" : "start review";
-  els.reviewNote.textContent = walking
-    ? "Nothing is written in a walkthrough — you trace it and the tutor asks. "
-      + "Starting one files the lesson you are in; it stays readable under ◷."
-    : "The questions are the tutor's; the scope is yours. "
-      + "Starting one files the lesson you are in — it stays readable under ◷.";
-
-  if (!units.length) {
-    var p = document.createElement("p");
-    p.className = "none";
-    p.textContent = walking
-      ? "There is no source in this repository to walk through."
-      : "There is nothing here to review: this repository has no "
-        + "chapters and no parts to ask over.";
-    host.appendChild(p);
-    els.reviewStart.disabled = true;
-    els.reviewCount.textContent = "";
-    return;
-  }
-
-  /* A walkthrough's list is files, and a repository has a hundred of them where
-     it has eleven chapters. Reading a flat hundred is not a thing anybody does,
-     so they are headed by the directory they are in -- which is how the person
-     choosing already thinks of them -- and each row is then the bare filename. */
-  var last = null;
-  units.forEach(function (u) {
-    if (walking && u.dir !== last) {
-      last = u.dir;
-      var head = document.createElement("div");
-      head.className = "pick-dir";
-      head.textContent = last === "." ? "(top level)" : last + "/";
-      host.appendChild(head);
-    }
-    var b = document.createElement("button");
-    b.type = "button";
-    /* Its own name on it, so an address naming a file can find its row rather
-       than counting from the top of a hundred. */
-    b.dataset.unit = u.name;
-    b.innerHTML = '<span class="tick">✓</span><span class="what"></span>';
-    b.querySelector(".what").textContent = walking ? u.short : u.label;
-    if (reviewPick.indexOf(u.name) >= 0) b.classList.add("on");
-    b.onclick = function () {
-      var at = reviewPick.indexOf(u.name);
-      if (at >= 0) reviewPick.splice(at, 1); else reviewPick.push(u.name);
-      paintReviewPicker();
-    };
-    host.appendChild(b);
-  });
-
-  els.reviewCount.textContent = reviewPick.length
-    ? reviewPick.length + " of " + units.length + " chosen"
-    : "nothing chosen yet";
-  els.reviewAll.textContent = reviewPick.length === units.length
-    ? "clear" : "select all";
-  /* Select-all over a hundred files is not a walkthrough anybody wants and is
-     one tap away from being an accident. It belongs to the review, where the
-     list is a course's eleven chapters. */
-  els.reviewAll.hidden = walking;
-  /* A sitting over nothing is not a sitting, and starting one would file the
-     lesson they are in away for no reason. */
-  els.reviewStart.disabled = reviewPick.length === 0;
-}
-
-function openPicker(kind) {
-  pickerKind = kind === "walk" ? "walk" : "review";
-  /* Reopening starts from what the sitting already covers, so "change" is an
-     edit rather than a fresh decision. */
-  var info = pickerInfo();
-  reviewPick = ((info && info.scope) || []).slice();
-  paintReviewPicker();
-  els.review.hidden = false;
-}
-
-function openReview() { openPicker("review"); }
-
-els.reviewAll.onclick = function () {
-  var units = (pickerInfo() && pickerInfo().units) || [];
-  reviewPick = reviewPick.length === units.length
-    ? [] : units.map(function (u) { return u.name; });
-  paintReviewPicker();
-};
-
-els.reviewStart.onclick = function () {
-  if (!reviewPick.length) return;
-  els.review.hidden = true;
-  api("/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session: pickerKind, over: reviewPick })
-  }).catch(function () { /* the payload will say what actually happened */ });
-};
-
-/* The strip's own change button reopens the picker for the sitting that is
-   actually open, not for whichever was opened last. */
-els.rvChange.onclick = function () {
-  openPicker(sittingKind === "walk" ? "walk" : "review");
-};
-document.getElementById("btn-review-close").onclick = function () {
-  els.review.hidden = true;
-};
-
-
-/* -------------------------------------------------------------------- map */
-/* THE FRONT DOOR OF A COURSE: what the repository IS, and the work drawn on it.
-
-   The boxes are the repository's own parts and the arrows are what imports what
-   -- an entity-relationship diagram of a working system. The outstanding work
-   sits ON that picture as numbered chips, coloured by where each step falls in
-   the order, so "what is left" and "where it lives" are one thing you look at.
-   The server's half is `tutorboard/course/map.py`; nothing here invents a box,
-   an arrow or a chip.
-
-   Four decisions everything below follows from.
-
-   THE TEXT IS MEASURED, NOT ESTIMATED. The first version wrapped labels by
-   counting characters against an assumed width, and a line of capitals is half
-   again as wide as that assumption -- so the words ran out of their boxes. A
-   canvas measures the real face at the real size; the results are cached, so a
-   box is measured once and not on every frame.
-
-   THE LAYOUT IS A LAYERED GRAPH, NOT A COLUMN. Ranks come from the dependency
-   depth (import cycles are real, so the cycle-closing edges are found and left
-   out of the ranking rather than allowed to run it away), and the order within a
-   rank is four passes of barycentre ordering. That is deterministic: the same
-   repository lays out identically every time, on every device, which is what
-   makes a map something you learn the shape of rather than something you re-read.
-
-   NOTHING IS LAID OUT BY A LIBRARY. There is no package manager at runtime and a
-   force-directed graph settles somewhere different on every open.
-
-   AND A GESTURE NEVER REDRAWS IT. The SVG is built once per payload that changes
-   it; panning and pinching are a transform on one wrapper. */
-
-/* One box. Every box on a picture shares one width -- a ragged right edge on
-   a diagram reads as a mistake -- and the text is wrapped to what is left after
-   the padding and the status stripe.
-
-   `MAP_W` is the narrowest that width gets. A picture whose names do not fit
-   in `MAP_NAME_LINES` lines at that width widens every box together, in steps,
-   up to `MAP_W_MOST`: a title cut to "Reviewer findings, the…" is a box
-   nobody can tell from its neighbour, and that was the complaint. Past the
-   widest, the name takes up to `MAP_NAME_MOST` lines, because a tooltip is
-   nothing on a touch screen and the name is what the box is for; only past
-   that does it ellipsize, with the whole of it on the box as its tooltip.
-   `mapW` is the width the picture on the glass was laid out at. */
-var MAP_W = 226;
-var MAP_W_MOST = 340;
-var mapW = MAP_W;
-var MAP_PAD = 13;
-var MAP_MARK = 5;            /* the status stripe down the left edge */
-var MAP_GAP_X = 92;          /* the gutter an arrow turns in */
-var MAP_GAP_Y = 22;
-var MAP_MARGIN = 34;
-var MAP_NAME = 15, MAP_ALSO = 11, MAP_DOES = 12;
-var MAP_NAME_LINES = 3, MAP_NAME_MOST = 5, MAP_DOES_LINES = 3;
-var MAP_CHIP_R = 11;         /* a numbered step, on the box it is about */
-var MAP_CHIP_GAP = 6;
-/* Below this the ranks stop being columns and become one column: a wide graph
-   on a phone is a graph nobody can follow, and a pipeline read downward is
-   still a pipeline. */
-var MAP_STACK_AT = 640;
-/* HOW MANY RANKS GO ACROSS BEFORE THE PICTURE WRAPS.
-
-   A dependency graph is a few ranks deep and this never fires on one. A CHAIN
-   is the case it exists for: twenty chapters, each pointing at the next, is
-   twenty ranks and came out six and a half thousand pixels wide -- a ribbon you
-   read in one direction, which is the failure the column layout was rejected
-   for, turned on its side. So a long sequence is wrapped into bands and read
-   the way a page of text is.
-
-   A FIXED number rather than one worked out from the width of the glass,
-   because the same repository has to lay out identically on every device: a map
-   whose shape depends on which iPad you opened it on is not a map you can
-   learn. Six ranks is a little under two thousand units, which fits a fitted
-   view without shrinking the labels past reading. */
-var MAP_RANKS_ACROSS = 6;
-
-var mapInfo = null;          /* the payload's map block, as it arrived */
-/* ONE LEVEL DOWN, WHEN SOMEBODY HAS ASKED FOR IT.
-
-   The payload's picture draws DIRECTORIES, and a directory is not a moving
-   part. *"Just looking at it should communicate everything one needs to know to
-   understand how the project works, and when we work on a TODO, it's obvious
-   what moving parts we'll be affecting."* The things that move are the modules
-   and, inside them, the classes and the functions -- so a box opens into its
-   files and a file opens into what it defines.
-
-   AN EXPANSION IS A NEW PICTURE, NOT A BIGGER ONE. Splicing a package's twelve
-   modules into a diagram that already has forty boxes on it produces the grid
-   the complaint started with; opening the box as its own picture, with a way
-   back up, keeps every depth legible. `map.inside` on the server returns one
-   level, with the arrows that LEAVE rolled up to the sibling box they land in.
-
-   AND IT IS FETCHED ON THE TAP. The payload is polled four times a second and
-   already reads the head of every source file for the top-level picture; this
-   parses them whole, which is affordable exactly because nobody is looking
-   inside a box until they ask. */
-var mapDeep = null;          /* the inside picture on the glass, or null */
-var mapTrail = [];           /* how the crumb reads: the boxes above this one */
-var mapDeepIn = "";          /* the course it was fetched in; see paintMapNow */
-var mapAsking = "";          /* the id in flight, so a second tap wins */
-var mapDrawn = "";           /* the signature of what is on the plane now */
-var mapBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
-var mapHere = "";            /* the box last opened -- where you are */
-var mapView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
-
-/* THE PICTURE THAT IS ACTUALLY ON THE GLASS. Every reader of the map goes
-   through this rather than at `mapInfo`, because the payload keeps arriving
-   while somebody is three boxes deep and must not drag them back to the top. */
-function mapShown() { return mapDeep || mapInfo; }
-
-function mapEl(tag, attrs) { return window.Gauge.el(tag, attrs); }
-
-/* ------------------------------------------------------------ measuring */
-/* How wide this string actually is, in the face the board actually ships.
-
-   The measuring itself lives in `gauge.js`, because there are two planes that
-   draw text into boxes now -- this map, and the atlas on the front door -- and
-   two surfaces measuring text two slightly different ways is two spellings of
-   one answer. Read that file for why an estimate is not good enough; the short
-   version is that a line of capitals is half again wider than characters times
-   a constant, and the labels ran out of their boxes.
-
-   These four are the names the rest of this file already calls. They stay. */
-function mapUiFace() { return window.Gauge.uiFace(); }
-function mapFont(size, weight) { return window.Gauge.font(size, weight); }
-function mapWidth(text, size, weight) {
-  return window.Gauge.width(text, size, weight) * mapSkew;
-}
-function mapWrap(text, size, weight, room, maxLines) {
-  return window.Gauge.wrap(text, size, weight, room / mapSkew, maxLines);
-}
-/* A name or a title: as few lines as it takes, balanced so the last line is
-   not one stranded word. */
-function mapLines(text, size, weight, room, maxLines) {
-  return window.Gauge.balance(text, size, weight, room / mapSkew, maxLines);
-}
-function mapFits(text, size, weight, room, maxLines) {
-  return window.Gauge.fits(text, size, weight, room / mapSkew, maxLines);
-}
-
-/* HOW MUCH WIDER THE GLASS PAINTS THAN THE GAUGE MEASURES. One, until a drawn
-   picture says otherwise. The canvas and the SVG are two renderers, and on the
-   iPad the names ran out of their boxes while every number here said they
-   fitted -- so after a picture is on the glass its lines are measured as they
-   were actually painted (`mapTrue`), and where the glass is wider this grows
-   and the picture is laid out once more. Thrown away when the face changes. */
-var mapSkew = 1;
-
-/* The width every box on this picture shares: the narrowest step from `MAP_W`
-   at which every name fits whole in its lines, never past `MAP_W_MOST`, and on
-   a narrow plane never wider than the plane. Arithmetic over the names alone,
-   so the same repository lays out the same way twice. */
-function mapBoxWide(nodes, wide) {
-  var most = MAP_W_MOST;
-  if (!wide) {
-    var cw = (els.mapPlane && els.mapPlane.clientWidth) || 0;
-    if (cw) most = Math.max(MAP_W, Math.min(most, cw - MAP_MARGIN * 2));
-  }
-  var w = MAP_W;
-  (nodes || []).forEach(function (n) {
-    var extra = MAP_PAD * 2 + MAP_MARK + (mapOpens(n) ? 28 : 0);
-    while (w < most
-           && !mapFits(n.name, MAP_NAME, 650, w - extra, MAP_NAME_LINES)) {
-      w = Math.min(most, w + 8);
-    }
-  });
-  return w;
-}
-
-/* HOW MANY DOCUMENTS THIS BOX HOLDS, as the plate reads. Off the payload, which
-   carries a COUNT per box and never the list -- the payload is rebuilt four
-   times a second and a list of forty documents on it forty times a minute is
-   the one thing the map's own rule forbids. The list is one level down, on a
-   tap. */
-function mapDocsLabel(n) { return "▤ " + (n.docs || 0); }
-
-/* IS THIS BOX A THREAD? A thread file's boxes carry their derived status in
-   `thread`; a derived box and a box one level down never do. */
-function mapThread(n) {
-  return !!n && !!n.thread && !n.outside && !mapDeep;
-}
-
-/* What a thread box says under its name: its status, and whether git shows
-   its paths changed. `requested` is a relay request the cluster has not
-   reported on, and the box says what it is waiting for. */
-function mapThreadSays(n) {
-  return (n.thread === "requested" ? "waiting for the cluster" : n.thread)
-         + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
-         + (n.unsaved ? " · unsaved" : "")
-         + (mapStopped(n) ? " · stopped" : "");
-}
-
-/* How many open decisions sit on this box, where it is a thread. */
-function mapDecisions(n) { return mapThread(n) ? (n.decisions || 0) : 0; }
-
-/* DID THIS THREAD'S LAST TURN STOP WITHOUT A REPORT? The server says so while
-   that `stopped` card is the newest on the board (`cards.stopped_thread`). */
-function mapStopped(n) { return mapThread(n) && !!n.stopped; }
-
-/* A TAP ON A TASK CHIP. On a thread it is the sheet, with that task chosen,
-   because the kind of sitting is still the owner's to pick; anywhere else it
-   opens the step's sitting, as it always has. */
-function mapChipTap(n, step) {
-  if (mapThread(n)) return openThread(n.id, step.label);
-  takeWork(n, step);
-}
-function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) + 14; }
-
-/* WHERE THE STEP CHIPS AND THE DOCUMENT PLATE SIT ALONG THE BOTTOM OF A BOX.
-
-   Both corners of a box are already taken -- the arrow down a level at the top
-   right, the other-ways dots at the bottom right -- so the plate goes at the
-   right end of the row the chips are in. When there are enough chips that they
-   would reach it, THE PLATE WINS: the chips wrap onto a row above and the box
-   grows to hold them. A step chip pushed under the plate is a step nobody can
-   tap; a taller box is a taller box.
-
-   Computed here rather than in `mapDraw` because the height is decided in
-   `mapShape` and the two have to agree about the number of rows. The answer
-   rides on the shape and `mapDraw` reads it back.
-
-   Everything is relative to the box's left edge; every box is `mapW` wide. */
-function mapChipPlan(node) {
-  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0)
-            + (mapStopped(node) ? 1 : 0);
-  var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
-  var left = MAP_PAD + MAP_MARK;
-  /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
-     so nothing of ours may pass `p.w - 30`. Without them the box's own padding
-     is the edge. */
-  var right = mapW - (mapMore(node) ? 30 : MAP_PAD);
-  var step = MAP_CHIP_R * 2 + MAP_CHIP_GAP;
-  var at = [], row = 0, col = 0, i;
-  for (i = 0; i < chips; i++) {
-    var edge = right - (row === 0 && plate ? plate + MAP_CHIP_GAP : 0);
-    /* Never wrap the first chip of a row: a box too narrow for one chip is a
-       box that would wrap for ever. */
-    if (col > 0 && left + col * step + MAP_CHIP_R * 2 > edge) { row++; col = 0; }
-    at.push({ row: row, col: col });
-    col++;
-  }
-  /* The dots get a row of their own even where nothing else needs one. Without
-     it the box ended exactly where its last line of text did, and that line's
-     tail sat under the dots -- which are filled, and drawn after the text. */
-  var rows = Math.max(chips ? row + 1 : 0, (plate || mapMore(node)) ? 1 : 0);
-  return { at: at, rows: rows, plate: plate, left: left, right: right, step: step };
-}
-
-function mapShape(node) {
-  var room = mapW - MAP_PAD * 2 - MAP_MARK;
-  /* The look-inside arrow is a filled circle at `p.w - 16`, radius 10, level
-     with the first line of the name -- so a name in a box that opens wraps
-     short of it. The lines below it clear the circle and keep the full room. */
-  var nameRoom = room - (mapOpens(node) ? 28 : 0);
-  var name = mapLines(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
-  if (!mapFits(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES)) {
-    name = mapLines(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_MOST);
-  }
-  var said = mapThread(node) ? mapThreadSays(node) : node.also;
-  var also = said ? mapWrap(said, MAP_ALSO, 400, room, 1) : [];
-  var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
-  var chips = mapChipPlan(node);
-  var h = MAP_PAD + name.length * 19
-        + (also.length ? 15 : 0)
-        + (does.length ? 5 + does.length * 16 : 0)
-        + (chips.rows ? 8 + chips.rows * MAP_CHIP_R * 2
-                          + (chips.rows - 1) * MAP_CHIP_GAP : 0)
-        + MAP_PAD;
-  return { name: name, also: also, does: does, chips: chips,
-           nameRoom: nameRoom, room: room, h: Math.max(60, h) };
-}
-
-/* ---------------------------------------------------------- the layout */
-/* Which arrows close a cycle. Imports go round in circles in real code, and a
-   depth computed over a cycle runs away -- every node in it one deeper than the
-   last, for ever. The edges that close one are found here and left out of the
-   ranking; they are still DRAWN, because a cycle is a true thing about the
-   repository and hiding it would make the picture a lie. */
-function mapAcyclic(n, pairs) {
-  var adj = [], state = [], keep = [], i;
-  for (i = 0; i < n; i++) { adj.push([]); state.push(0); }
-  pairs.forEach(function (e, k) { keep.push(true); adj[e[0]].push(k); });
-  function visit(v) {
-    state[v] = 1;
-    adj[v].forEach(function (k) {
-      var w = pairs[k][1];
-      if (state[w] === 1) { keep[k] = false; return; }
-      if (state[w] === 0) visit(w);
-    });
-    state[v] = 2;
-  }
-  for (i = 0; i < n; i++) if (!state[i]) visit(i);
-  return keep;
-}
-
-/* How deep into the dependencies each box sits: one past the deepest thing that
-   depends on it. That is the left-to-right reading of the diagram -- what is
-   used by everything sits on the right, what nothing else uses sits on the
-   left -- and it is the reading people already have of a pipeline. */
-function mapRanks(n, pairs, keep) {
-  var rank = [], i;
-  for (i = 0; i < n; i++) rank.push(0);
-  for (var pass = 0; pass < n + 1; pass++) {
-    var moved = false;
-    for (i = 0; i < pairs.length; i++) {
-      if (!keep[i]) continue;
-      if (rank[pairs[i][1]] < rank[pairs[i][0]] + 1) {
-        rank[pairs[i][1]] = rank[pairs[i][0]] + 1;
-        moved = true;
-      }
-    }
-    if (!moved) break;
-  }
-  return rank;
-}
-
-/* The order within a column: each box beside the average position of the boxes
-   it is joined to. Four passes, alternating direction, and every sort is stable
-   -- so two boxes with the same barycentre keep the order the repository gave
-   them, and the whole thing is arithmetic with one answer. */
-function mapOrder(byRank, pairs, keep) {
-  var pos = {};
-  function reindex() {
-    byRank.forEach(function (col) {
-      col.forEach(function (v, i) { pos[v] = i; });
-    });
-  }
-  reindex();
-  var into = {}, from = {};
-  pairs.forEach(function (e, k) {
-    if (!keep[k]) return;
-    (into[e[1]] = into[e[1]] || []).push(e[0]);
-    (from[e[0]] = from[e[0]] || []).push(e[1]);
-  });
-  function bary(v, side) {
-    var mates = side[v] || [];
-    if (!mates.length) return null;
-    var sum = 0;
-    mates.forEach(function (m) { sum += pos[m] || 0; });
-    return sum / mates.length;
-  }
-  function sweep(side, order) {
-    order.forEach(function (r) {
-      var col = byRank[r];
-      if (!col || col.length < 2) return;
-      var keyed = col.map(function (v, i) { return { v: v, i: i, b: bary(v, side) }; });
-      keyed.sort(function (a, b) {
-        if (a.b === null && b.b === null) return a.i - b.i;
-        if (a.b === null) return 1;
-        if (b.b === null) return -1;
-        return a.b === b.b ? a.i - b.i : a.b - b.b;
-      });
-      byRank[r] = keyed.map(function (x) { return x.v; });
-    });
-    reindex();
-  }
-  var down = [], up = [], r;
-  for (r = 0; r < byRank.length; r++) { down.push(r); up.unshift(r); }
-  for (var pass = 0; pass < 2; pass++) {
-    sweep(into, down);
-    sweep(from, up);
-  }
-}
-
-/* ------------------------------------------------- the documents region */
-/* EVERY PAPER AND DECK THIS WORKSPACE HAS WRITTEN, AS ONE REGION OF THE MAP.
-
-   Asked for in these words: *"When I'm on the map of a course, part of that
-   map should show all papers/presentations pertaining to that project/course.
-   I should be able to tap and see EVERYTHING from there."* A menu entry is not
-   that -- the map is where the owner looks, so the map is where they are.
-
-   One region at the top of the picture, not a box per document: forty section
-   PDFs spliced into the graph is the grid the map replaced. A column per group,
-   a row per document, and a group longer than `MAP_REGION_ROWS` says how many
-   more it has and opens in place -- nothing is dropped. Only on the workspace's
-   own top-level picture: a box's inside is about that box. */
-var MAP_REGION_ROWS = 8;
-var MAP_REGION_ROW = 21;
-var MAP_REGION_HEAD = 46;
-var MAP_REGION_GROUP = 26;
-var MAP_REGION_GAP = 22;
-var mapRegionOpen = {};      /* group key -> shown whole */
-
-function mapRegionOf(info) {
-  var d = info && info === mapInfo ? info.documents : null;
-  return d && d.total ? d : null;
-}
-
-/* What a row is called. A deck's title is how it is known; a paper's title is
-   often its first heading -- "Title page" -- and its file is what its author
-   calls it out loud. */
-function mapRegionLabel(doc) {
-  return (doc.kind === "deck" ? doc.name : doc.file) || doc.name || doc.id;
-}
-
-/* THE REGION'S HEAD: ITS TITLE, ITS COUNT, AND THE BUTTON THAT MAKES ANOTHER.
-
-   The title was drawn where it started and never measured, and the button was
-   right-aligned on the same baseline -- so on a two-column region in
-   OpenDyslexic "· 46" sat under "＋ new paper or deck", and on a phone the
-   button covered the whole title. SVG text does not wrap or ellipsize; nothing
-   in CSS can rescue it. So both are measured here, once, and the shape decides:
-
-     * WIDE: the region is widened until the title and the button sit side by
-       side with a gap. A picture that is wider by fifty units costs nothing.
-     * STACKED, or wherever they will not share a row: the button drops onto
-       its own row under the title, and the groups move down by that row.
-     * A title still wider than the plate keeps its COUNT and loses words --
-       how many documents there are is what the line is for. */
-var MAP_REGION_NEW = "＋ new paper or deck";
-/* Longest first; the head takes the first that fits beside its count. */
-var MAP_REGION_WORDS = ["Papers & presentations", "Papers & decks", "Documents"];
-var MAP_REGION_BTN_ROW = 30;     /* the second row the button drops onto */
-var MAP_REGION_SPACE = 12;       /* between the title and the button */
-
-function mapRegionHead(region, w) {
-  var count = " · " + ((region && region.total) || 0);
-  var room = w - MAP_PAD * 2;
-  var title = "", titleW = 0, i;
-  for (i = 0; i < MAP_REGION_WORDS.length; i++) {
-    title = MAP_REGION_WORDS[i] + count;
-    titleW = mapWidth(title, 15, 700);
-    if (titleW <= room) break;
-  }
-  if (titleW > room) {
-    var last = MAP_REGION_WORDS[MAP_REGION_WORDS.length - 1];
-    title = (mapWrap(last, 15, 700, room - mapWidth(count, 15, 700), 1)[0] || "")
-            + count;
-    titleW = mapWidth(title, 15, 700);
-  }
-  var bw = Math.round(mapWidth(MAP_REGION_NEW, 12, 600)) + 20;
-  var below = titleW + MAP_REGION_SPACE + bw > room;
-  return { title: title, titleW: titleW, label: MAP_REGION_NEW, bw: bw,
-           below: below,
-           h: MAP_REGION_HEAD + (below ? MAP_REGION_BTN_ROW : 0) };
-}
-
-function mapRegionShape(region, wide) {
-  var groups = region.groups || [];
-  var cols = [];
-  /* Stacked, the plate is one column plus the padding on BOTH sides: a row's
-     highlight runs `mapW` from just left of the column, and with no right
-     padding it stuck out past the plate's border. */
-  var w = wide ? 0 : mapW + MAP_PAD * 2;
-  if (wide) {
-    var want = MAP_PAD * 2 + MAP_REGION_SPACE
-               + mapWidth(MAP_REGION_WORDS[0] + " · " + (region.total || 0), 15, 700)
-               + Math.round(mapWidth(MAP_REGION_NEW, 12, 600)) + 20;
-    w = Math.ceil(want);
-  }
-  var head = mapRegionHead(region, wide ? Math.max(w, mapW * 2) : w);
-  var x = MAP_PAD, y = head.h, tall = 0;
-  groups.forEach(function (g) {
-    var all = (g.docs || []).length;
-    var open = !!mapRegionOpen[g.key] || all <= MAP_REGION_ROWS + 1;
-    var rows = open ? all : MAP_REGION_ROWS;
-    var h = MAP_REGION_GROUP + rows * MAP_REGION_ROW
-            + (all > MAP_REGION_ROWS + 1 ? MAP_REGION_ROW : 0);
-    cols.push({ group: g, x: x, y: y, rows: rows, open: open, h: h });
-    if (wide) {
-      x += mapW + MAP_REGION_GAP;
-      tall = Math.max(tall, h);
-    } else {
-      y += h + 10;
-      tall = y - head.h;
-    }
-  });
-  if (wide) w = Math.max(mapW * 2, x - MAP_REGION_GAP + MAP_PAD, w);
-  head = mapRegionHead(region, w);
-  return { cols: cols, w: w, h: head.h + tall + MAP_PAD, head: head };
-}
-
-/* THE FRAMES. Each deliverable is a frame and its threads are the boxes inside
-   it; a course's one deliverable is its book. Only on the workspace's own top
-   picture, and only where every box names a deliverable. */
-var MAP_FRAME_PAD = 18;
-var MAP_FRAME_HEAD = 44;
-var MAP_FRAME_GAP = 34;
-
-function mapFramesOf(info) {
-  if (!info || info !== mapInfo) return null;
-  var dels = info.deliverables || [];
-  if (!dels.length) return null;
-  var known = {};
-  dels.forEach(function (d) { known[d.id] = true; });
-  var all = (info.nodes || []).every(function (n) { return known[n.deliverable]; });
-  return all ? dels : null;
-}
-
-function mapLayout(info, wide) {
-  mapW = mapBoxWide((info && info.nodes) || [], wide);
-  var frames = mapFramesOf(info);
-  if (!frames) return mapRegioned(info, mapGraph(info, wide), wide, []);
-
-  /* One graph per deliverable, laid out by the same code as a whole picture,
-     then stacked down the plane, each inside its frame. An arrow between two
-     frames is still an arrow: `blockedBy` across deliverables is drawn. */
-  var nodes = info.nodes || [];
-  var idx = {};
-  nodes.forEach(function (n, k) { idx[n.id] = k; });
-  var placed = [], rects = [], top = MAP_MARGIN;
-  frames.forEach(function (d) {
-    var mine = nodes.filter(function (n) { return n.deliverable === d.id; });
-    var inner = mapGraph({ nodes: mine, edges: info.edges || [] }, wide);
-    var right = MAP_MARGIN + mapW, bottom = MAP_MARGIN;
-    inner.placed.forEach(function (p) {
-      if (!p) return;
-      right = Math.max(right, p.x + p.w);
-      bottom = Math.max(bottom, p.y + p.h);
-    });
-    var w = right - MAP_MARGIN + MAP_FRAME_PAD * 2;
-    /* THE FRAME'S TITLE IS NOT CUT TO ITS FIRST COLUMN. A deliverable with one
-       column of threads is a frame one box wide, and "Paper 2 — counterfactual…"
-       was all of its name there was room for. The frame widens to carry its
-       title on one line, as far as two columns of boxes; past that the title
-       wraps, balanced, to three. */
-    var said = d.title || d.id;
-    var one = Math.ceil(mapWidth(said, 15, 700)) + MAP_FRAME_PAD * 2 + 2;
-    w = Math.max(w, Math.min(one, mapW * 2 + MAP_GAP_X + MAP_FRAME_PAD * 2));
-    var title = mapLines(said, 15, 700, w - MAP_FRAME_PAD * 2, 3);
-    var head = MAP_FRAME_HEAD + (title.length - 1) * 19;
-    var dx = MAP_FRAME_PAD, dy = top - MAP_MARGIN + head;
-    inner.placed.forEach(function (p) {
-      if (!p) return;
-      p.x += dx;
-      p.y += dy;
-      placed[idx[p.node.id]] = p;
-    });
-    var h = head + (mine.length ? bottom - MAP_MARGIN : 0) + MAP_FRAME_PAD;
-    rects.push({ id: d.id, title: title, said: said, x: MAP_MARGIN, y: top,
-                 w: w, h: h, empty: !mine.length });
-    top += h + MAP_FRAME_GAP;
-  });
-
-  var pairs = [], drawn = [];
-  (info.edges || []).forEach(function (e) {
-    var a = idx[e.from], b = idx[e.to];
-    if (a === undefined || b === undefined || a === b) return;
-    pairs.push([a, b]);
-    drawn.push(e);
-  });
-  return mapRegioned(info, { placed: placed, edges: drawn, pairs: pairs },
-                     wide, rects);
-}
-
-/* One picture's boxes and arrows, laid out from the top left. */
-function mapGraph(info, wide) {
-  var nodes = (info.nodes || []).slice();
-  var idx = {};
-  nodes.forEach(function (n, k) { idx[n.id] = k; });
-  var pairs = [], drawn = [];
-  (info.edges || []).forEach(function (e) {
-    var a = idx[e.from], b = idx[e.to];
-    /* An arrow naming a box that is not here is not an arrow. Dropped rather
-       than drawn to nowhere: an arrow is read as a dependency. */
-    if (a === undefined || b === undefined || a === b) return;
-    pairs.push([a, b]);
-    drawn.push(e);
-  });
-
-  var joined = {};
-  pairs.forEach(function (e) { joined[e[0]] = true; joined[e[1]] = true; });
-
-  var keep = mapAcyclic(nodes.length, pairs);
-  var rank = mapRanks(nodes.length, pairs, keep);
-
-  var shapes = nodes.map(mapShape);
-  var placed = [];
-  var i;
-
-  if (!wide) {
-    /* One column, deepest last: the pipeline read downward. */
-    var order = nodes.map(function (n, k) { return k; });
-    order.sort(function (a, b) { return rank[a] === rank[b] ? a - b : rank[a] - rank[b]; });
-    var y = MAP_MARGIN;
-    order.forEach(function (v) {
-      placed[v] = { node: nodes[v], shape: shapes[v], x: MAP_MARGIN, y: y,
-                    w: mapW, h: shapes[v].h };
-      y += shapes[v].h + MAP_GAP_Y;
-    });
-  } else {
-    var byRank = [];
-    for (i = 0; i < nodes.length; i++) {
-      if (!joined[i]) continue;                 /* placed in the band below */
-      while (byRank.length <= rank[i]) byRank.push([]);
-      byRank[rank[i]].push(i);
-    }
-    mapOrder(byRank, pairs, keep);
-
-    /* The ranks, in bands. One band unless the graph is long enough to need
-       more, in which case the reading is the reading of a page: left to right
-       along a band, then back to the left of the next one down. */
-    var high = byRank.map(function (col) {
-      var h = 0;
-      col.forEach(function (v) { h += shapes[v].h + MAP_GAP_Y; });
-      return Math.max(0, h - MAP_GAP_Y);
-    });
-    var bandTop = MAP_MARGIN, tall = 0;
-    for (var b = 0; b < byRank.length; b += MAP_RANKS_ACROSS) {
-      var band = byRank.slice(b, b + MAP_RANKS_ACROSS);
-      var deep = 0;
-      band.forEach(function (col, k) { deep = Math.max(deep, high[b + k]); });
-      band.forEach(function (col, k) {
-        /* Columns in a band share a centre line, which is what makes a rank
-           read as a rank rather than as a column of boxes that happen to be
-           side by side. */
-        var y = bandTop + (deep - high[b + k]) / 2;
-        var x = MAP_MARGIN + k * (mapW + MAP_GAP_X);
-        col.forEach(function (v) {
-          placed[v] = { node: nodes[v], shape: shapes[v], x: x, y: y,
-                        w: mapW, h: shapes[v].h };
-          y += shapes[v].h + MAP_GAP_Y;
-        });
-      });
-      bandTop += deep + MAP_GAP_Y * 3;
-      tall = bandTop - MAP_MARGIN - MAP_GAP_Y * 3;
-    }
-
-    /* WHAT NOTHING IS JOINED TO. Documents, and any part that neither imports
-       nor is imported. They are content and they belong on the map, but wiring
-       them into the graph would assert a relationship that is not there -- so
-       they sit in a band underneath it, packed across the width the graph
-       already takes rather than stretching the picture into a longer column. */
-    var loose = [];
-    for (i = 0; i < nodes.length; i++) if (!joined[i]) loose.push(i);
-    if (loose.length) {
-      /* With no graph above to take its width from, the band is as near
-         square as it goes rather than one column a screen and a half tall. */
-      var across = byRank.length
-        ? Math.max(1, Math.min(MAP_RANKS_ACROSS, byRank.length))
-        : Math.max(1, Math.min(MAP_RANKS_ACROSS, Math.ceil(Math.sqrt(loose.length))));
-      var rowTop = MAP_MARGIN + (byRank.length ? tall + MAP_GAP_Y * 3 + 20 : 0);
-      var rowHigh = 0;
-      loose.forEach(function (v, k) {
-        var col = k % across;
-        if (col === 0 && k) { rowTop += rowHigh + MAP_GAP_Y; rowHigh = 0; }
-        placed[v] = { node: nodes[v], shape: shapes[v],
-                      x: MAP_MARGIN + col * (mapW + MAP_GAP_X), y: rowTop,
-                      w: mapW, h: shapes[v].h, apart: true };
-        rowHigh = Math.max(rowHigh, shapes[v].h);
-      });
-    }
-  }
-  return { placed: placed, edges: drawn, pairs: pairs };
-}
-
-/* The documents region over a laid-out picture, and the box round the lot. */
-function mapRegioned(info, graph, wide, frames) {
-  var placed = graph.placed;
-  /* THE DOCUMENTS GO ON TOP, and the graph moves down to make room: the top
-     left is where a fitted picture is read from, and it is where somebody
-     looking for a paper looks first. */
-  var docs = mapRegionOf(info), region = null;
-  if (docs) {
-    var rs = mapRegionShape(docs, wide);
-    region = { x: MAP_MARGIN, y: MAP_MARGIN, w: rs.w, h: rs.h, cols: rs.cols,
-               head: rs.head, docs: docs };
-    var down = rs.h + MAP_GAP_Y * 2;
-    placed.forEach(function (p) { if (p) p.y += down; });
-    frames.forEach(function (f) { f.y += down; });
-  }
-
-  var box = { x0: 0, y0: 0, x1: MAP_MARGIN, y1: MAP_MARGIN };
-  placed.forEach(function (p) {
-    if (!p) return;
-    box.x1 = Math.max(box.x1, p.x + p.w + MAP_MARGIN);
-    box.y1 = Math.max(box.y1, p.y + p.h + MAP_MARGIN);
-  });
-  frames.forEach(function (f) {
-    box.x1 = Math.max(box.x1, f.x + f.w + MAP_MARGIN);
-    box.y1 = Math.max(box.y1, f.y + f.h + MAP_MARGIN);
-  });
-  if (region) {
-    box.x1 = Math.max(box.x1, region.x + region.w + MAP_MARGIN);
-    box.y1 = Math.max(box.y1, region.y + region.h + MAP_MARGIN);
-  }
-  return { placed: placed, edges: graph.edges, pairs: graph.pairs, box: box,
-           wide: wide, region: region, frames: frames };
-}
-
-/* An arrow. Forward along the ranks it leaves the right edge and enters the
-   left, as a gentle cubic through the gutter -- which is empty by construction,
-   because the gutter is where a rank boundary is. An arrow that goes BACK is a
-   cycle, and it is drawn under the boxes rather than through them: a curve that
-   dips below both ends reads as a return path, which is what it is. */
-function mapEdgePath(a, b) {
-  var gap = 8;
-  if (b.x > a.x) {
-    var ax = a.x + a.w, ay = a.y + a.h / 2;
-    var bx = b.x - gap, by = b.y + b.h / 2;
-    var d = Math.max(34, (bx - ax) / 2);
-    return { d: "M" + ax + "," + ay + " C" + (ax + d) + "," + ay
-                + " " + (bx - d) + "," + by + " " + bx + "," + by,
-             hx: bx, hy: by, dir: "right",
-             /* IN THE GUTTER, which is empty by construction -- a rank boundary
-                is exactly where there are no boxes. That is the only place on
-                this picture a word can go without covering something. */
-             mx: (ax + bx) / 2, my: (ay + by) / 2 };
-  }
-  if (Math.abs(b.x - a.x) < 1 && b.y > a.y) {
-    var cx = a.x + a.w / 2;
-    return { d: "M" + cx + "," + (a.y + a.h) + " L" + cx + "," + (b.y - gap),
-             hx: cx, hy: b.y - gap, dir: "down",
-             mx: cx, my: (a.y + a.h + b.y - gap) / 2 };
-  }
-  var sx = a.x + a.w / 2, sy = a.y + a.h;
-  var tx = b.x + b.w / 2, ty = b.y + b.h + gap;
-  var dip = Math.max(36, Math.abs(tx - sx) / 4);
-  return { d: "M" + sx + "," + sy + " C" + sx + "," + (sy + dip)
-              + " " + tx + "," + (ty + dip) + " " + tx + "," + ty,
-           hx: tx, hy: ty, dir: "up",
-           /* A back edge dips below both ends, so the bottom of the dip is
-              below every box it passes. `0.75` rather than half because a cubic
-              does not reach its control points. */
-           mx: (sx + tx) / 2, my: Math.max(sy, ty) + dip * 0.75 };
-}
-
-function mapArrow(head) {
-  var s = 5;
-  if (head.dir === "right") {
-    return [head.hx, head.hy, head.hx - s * 1.6, head.hy - s,
-            head.hx - s * 1.6, head.hy + s];
-  }
-  if (head.dir === "down") {
-    return [head.hx, head.hy, head.hx - s, head.hy - s * 1.6,
-            head.hx + s, head.hy - s * 1.6];
-  }
-  return [head.hx, head.hy - s * 0.2, head.hx - s, head.hy + s * 1.4,
-          head.hx + s, head.hy + s * 1.4];
-}
-
-/* WHEN A STEP SHOULD BE DONE, as a colour. The plan's own order is the order;
-   the chips run hot to cold along it, so the shape of what is left is visible
-   without reading a single number. Four bands rather than a continuous ramp,
-   because four colours on an eleven-pixel circle can be told apart and a
-   gradient cannot. It is never a schedule: every chip is tappable, and which
-   one to do is the person's. */
-function mapWhen(order) {
-  if (order <= 1) return "now";
-  if (order <= 3) return "soon";
-  if (order <= 6) return "later";
-  return "some";
-}
-
-/* Build the whole picture. Once per payload that changes it, never per frame. */
-function mapDraw(info) {
-  var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
-  var out = mapLayout(info, wide);
-  mapBox = out.box;
-
-  var svg = mapEl("svg", {
-    width: out.box.x1, height: out.box.y1,
-    viewBox: "0 0 " + out.box.x1 + " " + out.box.y1
-  });
-
-  /* The frames go under everything: a deliverable is the ground its threads
-     stand on. */
-  (out.frames || []).forEach(function (f) {
-    var fg = mapEl("g", { "class": "frame" + (f.empty ? " empty" : ""),
-                          "data-frame": f.id });
-    fg.appendChild(mapEl("rect", { x: f.x, y: f.y, width: f.w, height: f.h,
-                                   rx: 15 }));
-    f.title.forEach(function (line, i) {
-      var ft = mapEl("text", { "class": "frame-name", x: f.x + MAP_FRAME_PAD,
-                               y: f.y + 28 + i * 19,
-                               "data-fit": "15 700 " + (f.w - MAP_FRAME_PAD * 2) });
-      ft.textContent = line;
-      fg.appendChild(ft);
-    });
-    mapNameTip(fg, f.title, f.said);
-    svg.appendChild(fg);
-  });
-
-  out.edges.forEach(function (e, k) {
-    var a = out.placed[out.pairs[k][0]], b = out.placed[out.pairs[k][1]];
-    if (!a || !b) return;
-    var path = mapEdgePath(a, b);
-    var line = mapEl("path", { "class": "edge", d: path.d });
-    /* An arrow eleven imports thick is a different fact from one that carries a
-       single mention, and the thickness is the only place to say it without
-       another label on the picture. */
-    if ((e.weight || 1) >= 5) line.setAttribute("class", "edge strong");
-    svg.appendChild(line);
-    svg.appendChild(mapEl("polygon", { "class": "edge-head",
-                                       points: mapArrow(path).join(" ") }));
-    /* WHAT FLOWS ALONG IT, where a written map says. `words`, `turns`, `a
-       graded transcript` -- the noun, not a sentence: an arrow that has to be
-       read as prose is a arrow nobody reads. A derived map has no labels and
-       never will, because an import is not a thing that flows; it is a
-       dependency, and the thickness already says how much of one.
-
-       Painted on a plate the colour of the plane, because a word laid straight
-       over a curve is unreadable and this picture is looked at while somebody
-       is thinking about something else. */
-    if (e.label && path.mx !== undefined) {
-      /* THE WORD HAS TO FIT WHERE IT IS PUT. A forward arrow between neighbouring
-         ranks has an 84-unit gutter, and the boxes are painted after the
-         arrows, so a wider word was buried at both ends. The word is cut to
-         the gutter it sits in; one whose plate would still land on a box it
-         does not join -- an arrow skipping a column, or a stacked arrow passing
-         behind the box between its ends -- is not drawn at all, and the full
-         word rides on the arrow as its tooltip either way. */
-      var span = path.dir === "right" ? (b.x - 8) - (a.x + a.w)
-               : path.dir === "down" ? mapW : Infinity;
-      var text = mapWrap(e.label, 10.5, 500, span - 10, 1)[0] || "";
-      var w = mapWidth(text, 10.5, 500) + 10;
-      var px0 = path.mx - w / 2, py0 = path.my - 8;
-      var hidden = !text || out.placed.some(function (q) {
-        return q && q !== a && q !== b
-               && px0 < q.x + q.w && px0 + w > q.x
-               && py0 < q.y + q.h && py0 + 16 > q.y;
-      });
-      if (text !== e.label || hidden) {
-        var full = mapEl("title", {});
-        full.textContent = e.label;
-        line.appendChild(full);
-      }
-      if (!hidden) {
-        svg.appendChild(mapEl("rect", { "class": "edge-plate",
-                                        x: px0, y: py0,
-                                        width: w, height: 16, rx: 5 }));
-        var t = mapEl("text", { "class": "edge-label",
-                                x: path.mx, y: path.my + 3.5 });
-        t.textContent = text;
-        svg.appendChild(t);
-      }
-    }
-  });
-
-  out.placed.forEach(function (p) {
-    if (!p) return;
-    var n = p.node;
-    var g = mapEl("g", {
-      "class": "node " + (n.kind || "part") + " " + (n.status || "unknown")
-               + (n.id === mapHere ? " here" : "") + (p.apart ? " apart" : "")
-               /* A SIBLING AN ARROW LEAVES TOWARDS, on a picture of one box's
-                  inside. It is a wall rather than part of what is being read,
-                  and it has to look like one. */
-               + (n.outside ? " outside" : "")
-               /* A THREAD IS COLOURED BY ITS DERIVED STATUS, which outranks
-                  the plan's next-and-later: done, running, written, result,
-                  open are facts on disk. */
-               + (mapThread(n) ? " thread t-" + n.thread
-                                 + (n.unsaved ? " unsaved" : "") : ""),
-      "data-id": n.id, tabindex: "0", role: "button",
-      "aria-label": n.name + ", " + (mapThread(n) ? mapThreadSays(n)
-                                                  : (n.status || "unknown"))
-    });
-    g.appendChild(mapEl("rect", { "class": "box", x: p.x, y: p.y,
-                                  width: p.w, height: p.h, rx: 11 }));
-    g.appendChild(mapEl("rect", { "class": "mark", x: p.x + 1.5, y: p.y + 9,
-                                  width: MAP_MARK, height: p.h - 18, rx: 2.5 }));
-    var tx = p.x + MAP_PAD + MAP_MARK;
-    var ty = p.y + MAP_PAD + 13;
-    p.shape.name.forEach(function (line) {
-      var t = mapEl("text", { "class": "name", x: tx, y: ty,
-                              "data-fit": MAP_NAME + " 650 " + p.shape.nameRoom });
-      t.textContent = line;
-      g.appendChild(t);
-      ty += 19;
-    });
-    mapNameTip(g, p.shape.name, n.name);
-    p.shape.also.forEach(function (line) {
-      var t = mapEl("text", { "class": "also", x: tx, y: ty + 1,
-                              "data-fit": MAP_ALSO + " 400 " + p.shape.room });
-      t.textContent = line;
-      g.appendChild(t);
-      ty += 15;
-    });
-    if (p.shape.does.length) {
-      ty += 5;
-      p.shape.does.forEach(function (line) {
-        var t = mapEl("text", { "class": "does", x: tx, y: ty,
-                                "data-fit": MAP_DOES + " 400 " + p.shape.room });
-        t.textContent = line;
-        g.appendChild(t);
-        ty += 16;
-      });
-    }
-    /* THE WORK, ON THE THING IT IS ABOUT. A numbered chip per step of the plan
-       that names this part, in the plan's order, coloured by how soon. Its own
-       tap, because a step is a sitting and the box is a different sitting. */
-    var plan = p.shape.chips;
-    /* The middle of the bottom row of chips, and every row above it. */
-    var chipRow = function (r) {
-      return p.y + p.h - MAP_PAD - MAP_CHIP_R + 2
-             - (plan.rows - 1 - r) * (MAP_CHIP_R * 2 + MAP_CHIP_GAP);
-    };
-    (n.steps || []).forEach(function (step, i) {
-      var seat = plan.at[i] || { row: 0, col: i };
-      var cx = p.x + plan.left + MAP_CHIP_R + seat.col * plan.step;
-      var cy = chipRow(seat.row);
-      var chip = mapEl("g", { "class": "chip " + mapWhen(step.order),
-                              "data-step": step.label, tabindex: "0",
-                              role: "button",
-                              "aria-label": "step " + step.num + ", " + step.title });
-      chip.appendChild(mapEl("circle", { cx: cx, cy: cy, r: MAP_CHIP_R }));
-      var t = mapEl("text", { x: cx, y: cy + 4, "text-anchor": "middle" });
-      t.textContent = step.num;
-      chip.appendChild(t);
-      chip.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        mapChipTap(n, step);
-      });
-      chip.addEventListener("keydown", function (ev) {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        mapChipTap(n, step);
-      });
-      g.appendChild(chip);
-    });
-    /* AN OPEN DECISION IS A CHIP OF ITS OWN, after the tasks: a question the
-       owner answers before the science can go on. Its tap is the sheet, where
-       the question is written out. */
-    if (mapDecisions(n)) {
-      var dseat = plan.at[(n.steps || []).length] || { row: 0, col: 0 };
-      var dx = p.x + plan.left + MAP_CHIP_R + dseat.col * plan.step;
-      var dy = chipRow(dseat.row);
-      var dchip = mapEl("g", { "class": "chip decision", "data-decisions": n.id,
-                               tabindex: "0", role: "button",
-                               "aria-label": n.decisions + " open decision"
-                                             + (n.decisions === 1 ? "" : "s") });
-      dchip.appendChild(mapEl("circle", { cx: dx, cy: dy, r: MAP_CHIP_R }));
-      var dt = mapEl("text", { x: dx, y: dy + 4, "text-anchor": "middle" });
-      dt.textContent = n.decisions > 1 ? "?" + n.decisions : "?";
-      /* Two characters in an eleven-unit circle: smaller, or they touch it. */
-      if (n.decisions > 1) dt.setAttribute("style", "font-size: 8.5px");
-      dchip.appendChild(dt);
-      mapTappable(dchip, function () { openThread(n.id, ""); });
-      g.appendChild(dchip);
-    }
-    /* A TURN ON THIS THREAD STOPPED WITHOUT A REPORT: a chip after the rest,
-       and its tap is the board, where the stopped card lists what it left. */
-    if (mapStopped(n)) {
-      var sseat = plan.at[(n.steps || []).length + (mapDecisions(n) ? 1 : 0)]
-                  || { row: 0, col: 0 };
-      var sx = p.x + plan.left + MAP_CHIP_R + sseat.col * plan.step;
-      var sy = chipRow(sseat.row);
-      var schip = mapEl("g", { "class": "chip stopped", "data-stopped": n.id,
-                               tabindex: "0", role: "button",
-                               "aria-label": "a turn stopped without a report" });
-      schip.appendChild(mapEl("circle", { cx: sx, cy: sy, r: MAP_CHIP_R }));
-      var stx = mapEl("text", { x: sx, y: sy + 4, "text-anchor": "middle" });
-      stx.textContent = "!";
-      schip.appendChild(stx);
-      mapTappable(schip, function () { closeMap(); });
-      g.appendChild(schip);
-    }
-    /* WHAT THIS BOX HAS WRITTEN, at the right end of the row of steps. Drawn
-       only where there is something to open: a plate reading zero is a plate
-       that teaches somebody not to look at plates.
-
-       Its own tap, and the tap stops here -- the box opens a sitting and this
-       opens a drawer, and one target cannot mean both. The documents are HTML
-       in that drawer rather than more boxes out here, because a diagram is not
-       a list and forty PDFs spliced into this picture is the grid the map
-       replaced. */
-    if ((n.docs || 0) > 0) {
-      var many = n.docs + (n.docs === 1 ? " document" : " documents");
-      var pw = plan.plate;
-      var px = p.x + plan.right - pw;
-      var py = chipRow(0) - MAP_CHIP_R;
-      var plate = mapEl("g", { "class": "docs", "data-docs": n.id,
-                               tabindex: "0", role: "button",
-                               "aria-label": many + " in " + n.name });
-      plate.appendChild(mapEl("rect", { x: px, y: py, width: pw,
-                                        height: MAP_CHIP_R * 2, rx: 7 }));
-      var pt = mapEl("text", { x: px + pw / 2, y: py + MAP_CHIP_R + 4,
-                               "text-anchor": "middle" });
-      pt.textContent = mapDocsLabel(n);
-      plate.appendChild(pt);
-      plate.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        openShelf(n.id);
-      });
-      plate.addEventListener("keydown", function (ev) {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        openShelf(n.id);
-      });
-      g.appendChild(plate);
-    }
-    /* LOOK INSIDE THIS ONE. Its own tap, at the top right, because the box
-       already has one and a single target cannot mean both "work on this" and
-       "show me what is in it". A symbol is a leaf and gets none. */
-    var opens = mapOpens(n);
-    if (opens) {
-      var ox = p.x + p.w - 16, oy = p.y + 16;
-      var dig = mapEl("g", { "class": "dig", "data-dig": n.id, tabindex: "0",
-                             role: "button",
-                             "aria-label": "look inside " + n.name
-                                           + ": " + opens });
-      dig.appendChild(mapEl("circle", { cx: ox, cy: oy, r: 10 }));
-      dig.appendChild(mapEl("polygon", {
-        points: [(ox - 2.6) + "," + (oy - 4.6), (ox - 2.6) + "," + (oy + 4.6),
-                 (ox + 4.2) + "," + oy].join(" ") }));
-      dig.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        mapDig(n.id);
-      });
-      dig.addEventListener("keydown", function (ev) {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        mapDig(n.id);
-      });
-      g.appendChild(dig);
-    }
-    /* THE OTHER WAYS TO WORK ON THIS ONE, at the bottom right, opposite the one
-       that goes down a level. The tap on the box is the sitting; this is the
-       sheet holding the ways that are chosen over a scope -- a walkthrough, a
-       drill, a document to be shown -- and it is drawn only where there is one
-       of them to offer or a line saying what the box is waiting on. A box whose
-       tap IS its one way gets none: a derived box, a box of somebody else's
-       tree, and a document. Three dots rather than a second arrow, because an
-       arrow here would read as another way down. */
-    if (mapMore(n)) {
-      var wx = p.x + p.w - 16, wy = p.y + p.h - 16;
-      var more = mapEl("g", { "class": "ways", "data-ways": n.id, tabindex: "0",
-                              role: "button",
-                              "aria-label": "other ways to work on " + n.name });
-      more.appendChild(mapEl("circle", { cx: wx, cy: wy, r: 10 }));
-      [-4, 0, 4].forEach(function (dx) {
-        more.appendChild(mapEl("circle", { "class": "dot", cx: wx + dx, cy: wy,
-                                           r: 1.5 }));
-      });
-      more.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        openWork(n.id, "");
-      });
-      more.addEventListener("keydown", function (ev) {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        openWork(n.id, "");
-      });
-      g.appendChild(more);
-    }
-    g.addEventListener("click", function () { mapTap(n); });
-    g.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mapTap(n); }
-    });
-    svg.appendChild(g);
-  });
-
-  if (out.region) svg.appendChild(mapRegionDraw(out.region));
-
-  els.mapSheet.innerHTML = "";
-  els.mapSheet.style.width = out.box.x1 + "px";
-  els.mapSheet.style.height = out.box.y1 + "px";
-  els.mapSheet.appendChild(svg);
-  /* Painted wider than measured: measure the glass, and lay out once more. */
-  if (mapTrue(svg) && !mapDraw.again) {
-    mapDraw.again = true;
-    try { return mapDraw(info); } finally { mapDraw.again = false; }
-  }
-  return out.placed.length;
-}
-
-/* A NAME CUT SHORT STILL SAYS ALL OF ITSELF, as the tooltip on its box. */
-function mapNameTip(g, lines, said) {
-  var last = lines[lines.length - 1] || "";
-  if (!/…$/.test(last) || /…$/.test(String(said || ""))) return;
-  var full = mapEl("title", {});
-  full.textContent = said;
-  g.insertBefore(full, g.firstChild);
-}
-
-/* EVERY LINE AS IT WAS ACTUALLY PAINTED, against the room it was wrapped to.
-
-   Each wrapped line carries its size, weight and room in `data-fit`. Where the
-   glass paints one wider than its room, `mapSkew` is raised by the worst
-   ratio of painted to measured and the answer is yes: lay out again. On the
-   second pass a line that still does not fit is squeezed to its room, so no
-   renderer can run a name out of its box. A plane that is not on the glass
-   measures zero and says nothing. */
-function mapTrue(svg) {
-  var lines = svg.querySelectorAll("text[data-fit]");
-  var worst = 1, over = [];
-  for (var i = 0; i < lines.length; i++) {
-    var t = lines[i];
-    if (typeof t.getComputedTextLength !== "function") return false;
-    var painted = 0;
-    try { painted = t.getComputedTextLength(); } catch (e) { painted = 0; }
-    if (!(painted > 0)) continue;
-    var fit = t.getAttribute("data-fit").split(" ");
-    var room = +fit[2];
-    if (painted <= room + 0.5) continue;
-    over.push([t, room]);
-    var said = mapWidth(t.textContent, +fit[0], +fit[1]);
-    if (said > 0) worst = Math.max(worst, painted / said);
-  }
-  if (!over.length) return false;
-  if (!mapDraw.again && worst > 1.001) {
-    mapSkew = Math.min(2, mapSkew * worst * 1.01);
-    return true;
-  }
-  over.forEach(function (o) {
-    o[0].setAttribute("textLength", o[1]);
-    o[0].setAttribute("lengthAdjust", "spacingAndGlyphs");
-  });
-  return false;
-}
-
-/* One tappable thing inside the region: a `g` that answers a tap and a key,
-   and stops the tap there so the plane does not read it as a pan. */
-function mapTappable(g, fn) {
-  g.setAttribute("tabindex", "0");
-  g.setAttribute("role", "button");
-  g.addEventListener("click", function (ev) { ev.stopPropagation(); fn(); });
-  g.addEventListener("keydown", function (ev) {
-    if (ev.key !== "Enter" && ev.key !== " ") return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    fn();
-  });
-  return g;
-}
-
-function mapRegionDraw(r) {
-  var g = mapEl("g", { "class": "docs-region" });
-  g.appendChild(mapEl("rect", { "class": "region", x: r.x, y: r.y,
-                                width: r.w, height: r.h, rx: 13 }));
-  var hd = r.head;
-  var head = mapEl("text", { "class": "region-name", x: r.x + MAP_PAD,
-                             y: r.y + 27 });
-  head.textContent = hd.title;
-  g.appendChild(head);
-
-  /* MAKE A NEW ONE: the header's Make menu, opened from the region. Beside
-     the title when the head measured room for both, under it when not. */
-  var bw = hd.bw;
-  var bx = hd.below ? r.x + MAP_PAD : r.x + r.w - MAP_PAD - bw;
-  var by = r.y + 11 + (hd.below ? MAP_REGION_BTN_ROW : 0);
-  var make = mapTappable(mapEl("g", { "class": "region-new",
-                                      "data-region-new": "1",
-                                      "aria-label": "make a new paper or deck" }),
-                         openMakeMenu);
-  make.appendChild(mapEl("rect", { x: bx, y: by, width: bw, height: 24, rx: 8 }));
-  var mt = mapEl("text", { x: bx + bw / 2, y: by + 16, "text-anchor": "middle" });
-  mt.textContent = hd.label;
-  make.appendChild(mt);
-  g.appendChild(make);
-
-  var room = mapW - 8;
-  r.cols.forEach(function (c) {
-    var gx = r.x + c.x, gy = r.y + c.y;
-    var docs = c.group.docs || [];
-    var gh = mapEl("text", { "class": "region-group", x: gx, y: gy + 15 });
-    gh.textContent = c.group.label + " · " + docs.length;
-    g.appendChild(gh);
-    docs.slice(0, c.rows).forEach(function (doc, i) {
-      var y = gy + MAP_REGION_GROUP + i * MAP_REGION_ROW;
-      var row = mapTappable(mapEl("g", {
-        "class": "region-doc" + (doc.pdf ? "" : " unbuilt"),
-        "data-doc": doc.id,
-        "aria-label": "read " + (doc.name || doc.file || doc.id)
-      }), function () { mapReadDoc(doc.id); });
-      row.appendChild(mapEl("rect", { x: gx - 4, y: y, width: mapW,
-                                      height: MAP_REGION_ROW - 2, rx: 5 }));
-      var t = mapEl("text", { x: gx + 2, y: y + 14 });
-      /* The glyph is measured, not assumed: the label gets what is left of the
-         row after it, and ends inside the row's own highlight. */
-      var mark = doc.kind === "deck" ? "▭ " : "▤ ";
-      t.textContent = mark
-        + (mapWrap(mapRegionLabel(doc), 12.5, 500,
-                   room - 6 - mapWidth(mark, 12.5, 500), 1)[0] || "");
-      row.appendChild(t);
-      var tip = mapEl("title", {});
-      tip.textContent = doc.name || "";
-      row.appendChild(tip);
-      g.appendChild(row);
-    });
-    var all = docs.length;
-    if (all > MAP_REGION_ROWS + 1) {
-      var my = gy + MAP_REGION_GROUP + c.rows * MAP_REGION_ROW;
-      var more = mapTappable(mapEl("g", { "class": "region-more",
-                                          "data-more": c.group.key }),
-                             function () {
-        mapRegionOpen[c.group.key] = !c.open;
-        mapDrawn = "";
-        paintMap(mapInfo, (lastLive && lastLive.state) || {});
-      });
-      more.appendChild(mapEl("rect", { x: gx - 4, y: my, width: mapW,
-                                       height: MAP_REGION_ROW - 2, rx: 5 }));
-      var mt2 = mapEl("text", { x: gx + 2, y: my + 14 });
-      mt2.textContent = c.open ? "show fewer"
-                               : "+ " + (all - c.rows) + " more";
-      more.appendChild(mt2);
-      g.appendChild(more);
-    }
-  });
-  return g;
-}
-
-/* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, and a fix or an
-   overhaul to send -- the library's own page, on that document. The
-   map is always the served workspace's, so nothing has to be switched first. */
-function mapReadDoc(id, page) {
-  if (!id) return;
-  window.location.href = BASE + "/library?from=map&doc=" + encodeURIComponent(id)
-    + (page > 0 ? "&page=" + Math.floor(page) : "");
-}
-
-/* ------------------------------------------------- one level down, on a tap */
-/* CAN THIS BOX BE OPENED, AND INTO WHAT.
-
-   A part with more than one file in it opens into those files. A file opens
-   into what it defines. A symbol is the leaf -- there is nothing under a
-   function that is still a box. And an OUTSIDE box, which is a sibling an
-   arrow leaves towards, opens into its own files: that is the sideways reading
-   of a diagram, and it is the one somebody following a dependency wants. */
-function mapOpens(n) {
-  if (!n) return "";
-  /* CODE IS NEVER A BOX. A thread's files are rows on its sheet, each one a
-     way into the code walk, and nothing opens a level down under a thread. */
-  if (mapThread(n)) return "";
-  if (n.kind === "symbol") return "";
-  if (n.kind === "module") return "what it defines";
-  if (n.outside) return "what is in it";
-  /* A box with ONE file in it still opens: the file is the way to its symbols,
-     which is the depth somebody is actually heading for. */
-  return (n.inside || 0) > 0
-    ? n.inside + (n.inside === 1 ? " file" : " files")
-    : "";
-}
-
-/* HAS THIS BOX ANYTHING LEFT TO ASK ABOUT? The answer decides whether the
-   control at its bottom right is drawn at all, and it is `workWays` that gives
-   it, so the control and the sheet behind it cannot disagree.
-
-   A wall, a derived box and a document are all boxes
-   whose tap is their one honest way to work, so none of them gets one. What is
-   left is an ordinary part, which has a control when it can be traced, drilled
-   or read -- or when the map says what it is waiting on, which is worth a tap
-   of its own. */
-function mapMore(n) {
-  if (!n || n.outside || mapDerived(n) || mapDoc(n)) return false;
-  /* A thread's tap IS its sheet, so it needs no second control for one. */
-  if (mapThread(n)) return false;
-  return !!workWays(n).length || !!((n.blockedBy || []).length);
-}
-
-/* A TAP ON THE BOX ITSELF OPENS ITS SITTING. Which sitting depends on what the
-   box is, and `takeWork` holds that whole rule -- including the wall, which is
-   a sibling an arrow leaves towards and means "take me there" rather than
-   "work on this". */
-function mapTap(n) {
-  if (!n) return;
-  /* A THREAD ASKS WHICH KIND OF SITTING, and offers its last kind first. */
-  if (mapThread(n)) return openThread(n.id, "");
-  takeWork(n, null);
+/* ------------------------------------------------- where the board is now */
+/* The surface on the glass, spelled as an address in the bar, so a link to it
+   can be copied off the glass: a document while one is open, else the lesson.
+   Always `replaceState`, so the back button still leaves the board. */
+var landed = false;
+
+function remember() {
+  addrShow(paperOpen ? { surface: "document:" + paperOpen }
+                     : { surface: "lesson" });
+}
+
+/* Once per load, once a payload is here: an address in the bar is followed,
+   against what the payload holds. Until `/health` has said which subject this
+   board is, a workspace address naming another one cannot be told apart from
+   one naming this one, so landing waits for it; `/health` answering runs this
+   by hand. A session address needs no `/health`: the session is in the path. */
+function land() {
+  if (landed || !addrWanted || !lastLive) return;
+  if (!addrWanted.session && !boardIdKnown) return;
+  landed = true;
+  var asked = addrWanted;
+  addrWanted = null;
+  addrGo(asked);
 }
-
-/* WHERE YOU ARE ON THE PICTURE, which is one box and is remembered. It is the
-   mark on the glass, the box a course reopens at, and what the bar spells while
-   the map is up -- one function, because three ideas of "here" is two of them
-   wrong. */
-function mapMark(id) {
-  mapHere = id || "";
-  var boxes = els.mapSheet.querySelectorAll(".node");
-  for (var i = 0; i < boxes.length; i++) {
-    boxes[i].classList.toggle("here", boxes[i].getAttribute("data-id") === mapHere);
-  }
-  mapRemember();
-}
-
-/* THE WAY BACK IS DERIVED FROM THE PAYLOAD, never remembered from the taps.
-
-   A trail kept as history is a trail that is wrong after a sideways step, a
-   reload, or a second tap that landed out of order. `map.inside` says which
-   depth it is and, for a symbol picture, which box is above it -- so the crumb
-   is read off the answer rather than off what somebody did to get it. */
-function mapWhereAbove(up) {
-  var found = null;
-  ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
-    if (n.id === up) found = n;
-  });
-  return found;
-}
-
-function mapDig(id) {
-  if (!id || mapAsking === id) return;
-  mapAsking = id;
-  mapCrumbSay("opening…");
-  api("/map/inside/" + encodeURIComponent(id))
-    .then(function (r) { return r.json().catch(function () { return {}; }); })
-    .then(function (got) {
-      if (mapAsking !== id) return;              /* a later tap won */
-      mapAsking = "";
-      if (!got || got.ok === false || !(got.nodes || []).length) {
-        mapCrumbSay((got && got.error) || "there is nothing inside that");
-        return;
-      }
-      var trail = [];
-      if (got.depth === "symbol") {
-        var above = mapWhereAbove(got.up);
-        if (above) trail.push({ id: above.id, name: above.name });
-      }
-      trail.push({ id: got.of, name: got.name });
-      mapTrail = trail;
-      mapDeep = got;
-      mapDeepIn = mapCourse();
-      els.work.hidden = true;
-      mapHere = "";
-      mapDrawn = "";
-      paintMap(mapInfo, (lastLive && lastLive.state) || {});
-      mapFit();
-    })
-    .catch(function () {
-      mapAsking = "";
-      mapCrumbSay("that could not be opened");
-    });
-}
-
-/* Back to the repository's own picture, which is the one the payload carries. */
-function mapOut() {
-  mapDeep = null;
-  mapTrail = [];
-  mapAsking = "";
-  els.work.hidden = true;
-  mapHere = "";
-  mapDrawn = "";
-  paintMap(mapInfo, (lastLive && lastLive.state) || {});
-  mapFit();
-}
-
-function mapCrumbSay(text) {
-  var host = els.mapCrumb;
-  if (!host) return;
-  var said = host.querySelector(".crumb-said");
-  if (!text) {
-    if (said && said.parentNode) said.parentNode.removeChild(said);
-    return;
-  }
-  if (!mapDeep && host.hidden) {
-    /* Nothing is open yet and the row is hidden, so a message about a tap in
-       flight has nowhere to sit. Show the row with the top of the trail on it. */
-    paintCrumb();
-  }
-  host.hidden = false;
-  if (!said) {
-    said = document.createElement("span");
-    said.className = "crumb-said";
-    host.appendChild(said);
-  }
-  said.textContent = text;
-}
-
-function paintCrumb() {
-  var host = els.mapCrumb;
-  if (!host) return;
-  host.innerHTML = "";
-  if (!mapDeep) { host.hidden = true; return; }
-  host.hidden = false;
-  var top = document.createElement("button");
-  top.type = "button";
-  top.className = "crumb";
-  top.textContent = mapCourse() || "the repository";
-  top.onclick = mapOut;
-  host.appendChild(top);
-  mapTrail.forEach(function (bit, i) {
-    var sep = document.createElement("span");
-    sep.className = "crumb-sep";
-    sep.textContent = "›";
-    host.appendChild(sep);
-    var b = document.createElement("button");
-    b.type = "button";
-    var last = i === mapTrail.length - 1;
-    b.className = "crumb" + (last ? " here" : "");
-    b.textContent = bit.name;
-    if (!last) b.onclick = function () { mapDig(bit.id); };
-    host.appendChild(b);
-  });
-}
-
-/* What the payload says, painted. The plane is NOT moved: a map that jumps back
-   to the origin because the tutor wrote a card is a map nobody can read while a
-   lesson is running.
-
-   Wrapped, and this is not defensive habit. This runs inside `render`, which is
-   what paints the lesson, and a map that threw on a payload would stop the
-   lesson painting at all -- a blank board in the middle of somebody's proof,
-   caused by the one surface on this page they were not using. A map that cannot
-   be drawn is a map that is not there; the lesson is untouched either way. */
-function paintMap(info, state) {
-  try { paintMapNow(info, state); }
-  catch (e) { mapDrawn = ""; }
-}
-
-/* AND DRAWN AGAIN THE MOMENT THE READING FACE ARRIVES.
-
-   Every box on this map is sized by measuring its label, and until the web font
-   has loaded that measurement is of a fallback face that is far narrower than
-   the one the label will be painted in -- so the first map of a cold load is
-   laid out for the wrong face and its words run out of their boxes. `gauge.js`
-   throws its cached answers away when the fonts settle and calls this; the
-   signature is cleared so the plane rebuilds rather than deciding nothing has
-   changed. Nothing is fetched and no payload is involved. */
-if (window.Gauge && window.Gauge.onFace) {
-  window.Gauge.onFace(function () {
-    mapSkew = 1;
-    if (!mapInfo) return;
-    mapDrawn = "";
-    paintMap(mapInfo, (lastLive && lastLive.state) || {});
-  });
-}
-
-function paintMapNow(info, state) {
-  mapInfo = info || null;
-  /* THE INSIDE OF A BOX BELONGS TO THE WORKSPACE IT WAS FETCHED IN. Switching
-     course leaves the crumb pointing at a box that is not on this map, and the
-     boxes under it would be a picture of somewhere else. */
-  var here = (state && state.course) || "";
-  if (mapDeep && mapDeepIn !== here) {
-    mapDeep = null;
-    mapTrail = [];
-  }
-
-  var show = mapShown();
-  var can = !!(show && (show.nodes || []).length);
-  if (els.mapCount) {
-    els.mapCount.textContent = can
-      ? (show.nodes.length + " " + mapUnit(show, show.nodes.length)
-         + (show.steps ? " · " + show.steps
-            + (show.steps === 1 ? " step" : " steps") : "")
-         + (show.capped ? " · of " + show.total : ""))
-      : "";
-  }
-  if (els.mapTitle) {
-    els.mapTitle.textContent = mapDeep ? mapDeep.name : (here || "the map");
-  }
-  /* EVERY DOCUMENT IN THE WORKSPACE, from the bar of the picture of it. The
-     number is the region's total, which is every document the library offers
-     -- not the sum of the box badges, which in a workspace of code is zero
-     because nothing there is filed under a box. */
-  if (els.mapDocs) {
-    var many = (mapInfo && mapInfo.documents && mapInfo.documents.total) || 0;
-    els.mapDocs.hidden = !many;
-    els.mapDocs.textContent = "▤ " + many + " documents";
-  }
-  if (els.mapWhy) els.mapWhy.textContent = mapWhySay(show);
-  mapControls(can);
-  paintLoose();
-  paintCrumb();
-  if (!can) { mapDrawn = ""; return; }
-
-  var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
-  var sign = JSON.stringify(show) + "|" + (wide ? "wide" : "stacked")
-             + "|" + Object.keys(mapRegionOpen).filter(function (k) {
-               return mapRegionOpen[k]; }).join(",");
-  if (sign === mapDrawn) return;
-  mapDraw(show);
-  mapDrawn = sign;
-  if (!mapView.held) mapFit();
-  else mapClamp();
-  mapPaint();
-}
-
-/* What the boxes on THIS picture are, so the count is not always "parts". */
-function mapUnit(show, n) {
-  var one = show && show.depth === "module" ? "file"
-          : show && show.depth === "symbol" ? "definition" : "part";
-  return n === 1 ? one : one + "s";
-}
-
-/* WHY THIS PICTURE SAYS WHAT IT SAYS, and whether it may be trusted as far as
-   the one above it. A Lean box found by a line-anchored pattern must not look
-   identical to a Python box `ast` read, and the only place that can be said is
-   on the picture itself. */
-function mapWhySay(show) {
-  if (!show) return "";
-  var said = show.why || "";
-  if (show.exact === false) {
-    said += (said ? "  " : "")
-          + "Found by pattern rather than parsed, so its arrows are not drawn "
-          + "— trust it less than a Python box.";
-  }
-  if (show.capped) {
-    said += (said ? "  " : "") + "Showing " + (show.nodes || []).length
-          + " of " + show.total + ".";
-  }
-  return said;
-}
-
-/* THE STEPS THIS COULD NOT PLACE, and they are not dropped.
-
-   A step names no file, or names one that has moved, and there is nowhere
-   honest to put it on the picture. Putting it on a box anyway would be a claim
-   about where the work is; leaving it out would take a choice away from the
-   person whose plan it is. So it goes in a tray under the bar, in the plan's
-   own order, coloured and numbered like every other chip and opening the same
-   sitting. */
-function paintLoose() {
-  var host = els.mapLoose;
-  if (!host) return;
-  /* Only on the repository's own picture. The plan's steps are about the
-     repository, and a tray of them under a diagram of one function is a row of
-     chips about somewhere else. */
-  var loose = (!mapDeep && mapInfo && mapInfo.loose) || [];
-  host.innerHTML = "";
-  host.hidden = !loose.length;
-  if (!loose.length) return;
-  var lead = document.createElement("span");
-  lead.className = "muted";
-  lead.textContent = "not on a box yet:";
-  host.appendChild(lead);
-  loose.forEach(function (step) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "loose-chip " + mapWhen(step.order);
-    b.innerHTML = '<span class="n"></span><span class="t"></span>';
-    b.querySelector(".n").textContent = step.num;
-    b.querySelector(".t").textContent = step.title;
-    b.onclick = function () { takeWork(null, step); };
-    host.appendChild(b);
-  });
-}
-
-function mapControls(can) {
-  var title = can ? "the map of this course"
-                  : "there is nothing in this repository to draw yet";
-  mapButtons().forEach(function (b) { b.title = title; });
-}
-
-/* Every control that opens the map: the one in the title bar, one in the head of
-   each drawer, and one on the document viewer. Found once -- they are all in the
-   markup, none of them is built at runtime, and this is read on every payload. */
-var mapWays = null;
-function mapButtons() {
-  if (!mapWays) {
-    mapWays = [];
-    var found = document.querySelectorAll(".to-map");
-    for (var i = 0; i < found.length; i++) mapWays.push(found[i]);
-  }
-  return mapWays;
-}
-
-/* ------------------------------------------------------------- the plane */
-/* Pan, pinch, wheel. The contact bookkeeping is `plane-core.js`, which the
-   writing surface uses too: which contacts are LIVE decides what a gesture is,
-   and a map that counted a finger whose lift was never delivered would zoom on
-   one finger and do nothing on two, exactly as the slate once did.
-
-   Made on the first contact rather than at load. Nothing on this page may fail
-   to start because a script that is not the lesson did not arrive: a board.js
-   that throws while loading is a blank screen, and the lesson has to be
-   reachable from every state this application can be in. */
-var mapHand = null;
-function mapFingers() {
-  if (!mapHand && window.Plane) mapHand = window.Plane.contacts({});
-  return mapHand;
-}
-
-function mapRoom() {
-  if (!window.Plane) return mapBox;
-  /* A third of a viewport of slack beyond the picture. Enough that a box at the
-     edge is not pinned against the glass; not so much that a flick leaves the
-     map off-screen, which looks exactly like a crash. */
-  return window.Plane.room(mapBox, els.mapPlane.clientWidth,
-                           els.mapPlane.clientHeight, mapView.k, 0.35);
-}
-
-function mapLimits() {
-  return { lo: Math.min(mapView.fit, 1) * 0.35,
-           hi: Math.max(mapView.fit, 1) * 3 };
-}
-
-function mapClamp() {
-  if (!window.Plane) return;
-  window.Plane.clamp(mapView, mapRoom(),
-                     els.mapPlane.clientWidth, els.mapPlane.clientHeight);
-}
-
-function mapPaint() {
-  els.mapSheet.style.transform =
-    "translate(" + mapView.ox + "px," + mapView.oy + "px) scale(" + mapView.k + ")";
-}
-
-/* WHERE THE MAP OPENS, and it is not "everything on the glass".
-
-   Fitting the whole picture by area is what makes a tall map unreadable: a
-   repository with twenty boxes in a column is a ribbon a thousand units long,
-   and squeezing that into an iPad's height puts it on screen at 68% -- legible
-   to nobody. The writing surface learned this first and the rule is written on
-   it: fit by WIDTH, never by area, and scroll the height. Capped at 1, because a
-   picture narrower than the glass is not one to magnify. ⤢ is there for the
-   other question, which is "show me all of it". */
-function mapFit() {
-  var cw = els.mapPlane.clientWidth, ch = els.mapPlane.clientHeight;
-  if (!cw || !ch || !(mapBox.x1 > 0) || !window.Plane) return;
-  /* Floored, because there is a size past which shrinking to fit stops being a
-     view of anything: a label at half size on a tablet is a grey smear, and a
-     map that opens as a grey smear is worse than one that opens at a readable
-     size with a pan to do. Wider than this and it opens legible and partly off
-     the glass -- ⤢ is one tap away for the whole shape. */
-  mapView.fit = Math.max(0.5, Math.min(1, cw / mapBox.x1));
-  mapView.k = mapView.fit;
-  mapView.ox = 0;
-  mapView.oy = 0;                      /* the top of it; clamp centres if short */
-  mapView.held = false;
-  mapClamp();
-  mapPaint();
-  /* And NOT remembered. A fit runs by itself whenever the picture is rebuilt or
-     the glass changes shape, and a view nobody chose must not overwrite the one
-     they did -- least of all before the landing rule has had a chance to read
-     it, which is how a course left on the map reopened in the lesson. */
-}
-
-/* ⤢ -- all of it, however small that has to be. The one gesture that answers
-   "where am I in this" rather than "what does this box say". */
-function mapWhole() {
-  var cw = els.mapPlane.clientWidth, ch = els.mapPlane.clientHeight;
-  if (!cw || !ch || !(mapBox.x1 > 0) || !window.Plane) return;
-  var lim = mapLimits();
-  window.Plane.frame(mapView, { x0: 0, y0: 0, x1: mapBox.x1, y1: mapBox.y1 },
-                     cw, ch, 12, lim.lo, lim.hi);
-  mapView.held = true;
-  mapClamp();
-  mapPaint();
-  mapRemember();
-}
-
-function mapZoom(k, cx, cy) {
-  if (!window.Plane) return;
-  var lim = mapLimits();
-  window.Plane.zoomAbout(mapView, k, cx, cy, lim.lo, lim.hi);
-  mapClamp();
-  mapPaint();
-  mapSettle();
-}
-
-els.mapPlane.addEventListener("pointerdown", function (ev) {
-  if (ev.pointerType === "mouse" && ev.button !== 0) return;
-  var hand = mapFingers();
-  if (!hand) return;
-  try { els.mapPlane.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
-  hand.note(ev.pointerId, ev.clientX, ev.clientY);
-  hand.begin(mapView.k);
-});
-
-els.mapPlane.addEventListener("pointermove", function (ev) {
-  var hand = mapFingers();
-  if (!hand || !hand.has(ev.pointerId)) return;
-  var prev = hand.note(ev.pointerId, ev.clientX, ev.clientY);
-  var spread = hand.spread();
-  if (spread) {
-    var r = els.mapPlane.getBoundingClientRect();
-    mapZoom(spread.k, spread.cx - r.left, spread.cy - r.top);
-    return;
-  }
-  if (hand.live().length !== 1 || !prev) return;
-  mapView.ox += ev.clientX - prev.x;
-  mapView.oy += ev.clientY - prev.y;
-  mapView.held = true;
-  mapClamp();
-  mapPaint();
-  mapSettle();
-});
-
-/* A lift is caught at the window as well as at the plane. A finger that leaves
-   past the edge never delivers one to the element, and a contact that stays in
-   the map for ever is a phantom the next gesture is counted against. */
-["pointerup", "pointercancel"].forEach(function (t) {
-  window.addEventListener(t, function (ev) {
-    if (mapHand) mapHand.forget(ev.pointerId);
-  }, true);
-});
-
-els.mapPlane.addEventListener("wheel", function (e) {
-  e.preventDefault();
-  if (e.ctrlKey || e.metaKey) {
-    var r = els.mapPlane.getBoundingClientRect();
-    mapZoom(mapView.k * (e.deltaY < 0 ? 1.08 : 0.93),
-            e.clientX - r.left, e.clientY - r.top);
-    return;
-  }
-  mapView.ox -= e.deltaX;
-  mapView.oy -= e.deltaY;
-  mapView.held = true;
-  mapClamp();
-  mapPaint();
-  mapSettle();
-}, { passive: false });
-
-window.addEventListener("resize", function () {
-  if (els.map.hidden) return;
-  /* Crossing the width at which the ranks become one column is a different
-     picture, and `paintMap` already knows: the layout mode is part of the
-     signature it compares, so this rebuilds only when it has actually changed. */
-  paintMap(mapInfo, (lastLive && lastLive.state) || {});
-  if (mapView.held) { mapClamp(); mapPaint(); } else { mapFit(); }
-});
-
-/* --------------------------------------------------- opening and leaving */
-function openMap(why) {
-  /* A PICTURE ALREADY ON THE GLASS IS A PICTURE. `mapDeep` holds a vendor
-     tree's, which does not come off this workspace's payload -- a workspace
-     with nothing of its own drawn can still be the one reading colibrì. */
-  if (!mapDeep && !(mapInfo && (mapInfo.nodes || []).length)) {
-    /* THE LESSON MUST ALWAYS BE REACHABLE, and a map with nothing on it is a
-       blank screen between somebody and their work. */
-    return false;
-  }
-  els.map.hidden = false;
-  document.body.classList.add("mapping");
-  /* The way back out of the picture's own pan and zoom, while there is a picture
-     to be lost in. */
-  if (els.mapback) { els.mapback.hidden = false; panicRemeasure(); }
-  mapDrawn = "";                       /* the plane had no size while hidden */
-  paintMap(mapInfo, (lastLive && lastLive.state) || {});
-  mapCloseSay();
-  if (why !== "restored") mapRemember();
-  return true;
-}
-
-function closeMap() {
-  els.map.hidden = true;
-  els.work.hidden = true;
-  document.body.classList.remove("mapping");
-  if (els.mapback) { els.mapback.hidden = true; panicRemeasure(); }
-  mapRemember();
-}
-
-/* NO SITTING UNDER THE MAP, NO LESSON TO GO BACK TO. The front door opens a
-   workspace on its map with nothing started, and a ✕ that then showed an empty
-   lesson would be a blank screen between somebody and the door they came from.
-   Nothing written by either side is what "no sitting" means: a lesson with one
-   turn in it is a lesson, and it stays reachable. */
-function mapNoSitting() {
-  if (reading || !lastLive) return false;
-  return !(lastLive.cards || []).length && !(lastLive.turns || []).length;
-}
-
-function mapLeave() {
-  if (mapNoSitting()) { window.location.href = "/"; return; }
-  closeMap();
-}
-
-function mapCloseSay() {
-  els.mapClose.title = mapNoSitting() ? "back to the front door"
-                                      : "back to the lesson";
-}
-
-els.mapClose.onclick = mapLeave;
-els.mapFit.onclick = function () { mapWhole(); };
-if (els.mapDocs) els.mapDocs.onclick = function () { openShelf(null); };
-mapButtons().forEach(function (b) {
-  b.onclick = function () {
-    /* Whatever is over the lesson goes with it. A drawer left open behind the
-       map is a drawer sitting on top of the lesson when the map closes. */
-    [els.contents, els.review, els.scratch, els.shelf,
-     document.getElementById("history"), els.kind, els.steer].forEach(function (panel) {
-      if (panel) panel.hidden = true;
-    });
-    if (paperOpen) closeReader();
-    openMap();
-  };
-});
-
-
-/* --------------------------------------------------------- ways to work */
-/* ONE RULE SORTS THIS TABLE, and it is `needs`.
-
-   A way with a `needs` is CHOSEN OVER SOMETHING -- a walkthrough over files, a
-   drill over a part, a document to be shown -- so it cannot be a standing
-   preference and it is offered on the MAP, where the something is a box you can
-   point at. A way with no `needs` is a STYLE: teaching, building, coaching are
-   how any sitting is run, they belong in the `for:` row and they are changed in
-   place, at any moment, without opening anything. And a paper or a deck is
-   neither: it is a PRODUCT, and products are `DOCS`.
-
-   That is why a tap on a box does not ask. The style is already set, so the
-   only question left is what to do over this one thing, and for most boxes
-   there is one honest answer -- open the sitting. The ways below are what is
-   left after that.
-
-   The words are the person's own made imperative, and they are NOT named after
-   the sitting kinds underneath -- nobody taps "lecture, stance do". `aim` rides
-   in `state.json` and into the line the tutor is woken with, so a sitting
-   opened as "walk me through it" is one the tutor knows is that. */
-var workNode = "";
-var workStep = "";
-
-var WORK = [
-  { aim: "teach", label: "Teach me how this works",
-    sub: "Worked through, with the mathematics done properly.",
-    session: "lecture" },
-  { aim: "build", label: "Write the code for me",
-    sub: "The tutor does the work and reports what it changed.",
-    /* `does` is a PAINT HINT and is never sent: the aim whose product is a
-       change is marked the way a doing stance is, because that is the state in
-       which the tutor writes what the person would otherwise have written. Who
-       actually writes the code is `config.AIM_STANCE`, on the server. */
-    session: "lecture", does: true },
-  { aim: "coach", label: "Tell me what to write, I'll code it",
-    sub: "One step at a time, in English. You type it.",
-    session: "lecture" },
-  { aim: "trace", label: "Walk me through the code",
-    sub: "Line by line, through what is already there.",
-    session: "walk", needs: "files" },
-  { aim: "drill", label: "Set me problems on it",
-    sub: "Asked cold, over this part of the repository.",
-    session: "review", needs: "part" },
-  { aim: "show", label: "Show me the document",
-    sub: "On the glass, a page at a time.",
-    session: "", needs: "doc" }
-];
-
-function workOn(id) {
-  var found = null;
-  var show = mapShown();
-  ((show && show.nodes) || []).forEach(function (n) {
-    if (n.id === id) found = n;
-  });
-  return found;
-}
-
-/* IS THIS BOX ONE THE SERVER KNOWS? `map.find` resolves the repository's own
-   parts; a module box and a symbol box are derived when somebody taps to look
-   inside and are not in that list, so sending one of their ids as `node` would
-   be refused. What they have instead is a SCOPE, which is the only thing a
-   walkthrough needs. */
-function mapDerived(node) {
-  return !!node && (node.kind === "module" || node.kind === "symbol");
-}
-
-/* What a walkthrough over this box covers, spelt the way `walk.label` spells
-   it: the file, and the thing inside it where there is one. */
-function mapScope(node) {
-  var rel = ((node && node.files) || [])[0] || "";
-  if (!rel) return "";
-  return rel + (node.symbol ? "::" + node.symbol : "");
-}
-
-/* WHAT IS LEFT TO ASK ABOUT THIS BOX, and it is only ever the ways held over a
-   scope. A style is changed in the `for:` row and a product is `DOCS`, so what
-   the sheet can honestly offer is a walkthrough, a drill and a document to be
-   shown -- each of them where the box can support it.
-
-   One function rather than a filter written out twice, because the sheet paints
-   these and the control that OPENS the sheet is drawn only where there is at
-   least one of them: a box offering a control that opens an empty panel is the
-   dead tap this whole change exists to remove. */
-function workWays(node) {
-  var files = (node && node.files) || [];
-  var doc = (node && node.doc) || "";
-  return WORK.filter(function (way) {
-    if (!way.needs) return false;
-    if (way.needs === "files" && !files.length) return false;
-    if (way.needs === "doc" && !doc) return false;
-    if (way.needs === "part" && !(node && node.dir)) return false;
-    /* A DERIVED BOX IS A SCOPE, NOT A PART. A function is something to be
-       walked through; it is not a directory to be examined on, and the tutor
-       cannot be told to write about a box the server has no record of. */
-    if (mapDerived(node) && way.aim !== "trace") return false;
-    return true;
-  });
-}
-
-/* THE OTHER WAYS, and that is the whole of this sheet. A tap on a box opens its
-   sitting; this opens behind the small control at the bottom right of it, for
-   the person who wants the walkthrough rather than the lesson -- and for the
-   line saying what the box is waiting on, which is worth reading before either.
-   A refusal lands here too, because this is where the question was asked. */
-function openWork(id, step) {
-  /* Last time's "waiting on" line goes before this time's is worked out. The
-     sheet's list is rebuilt from scratch every open; this line is not in the
-     list, so it would otherwise stack. */
-  var stale = els.work.querySelector(".work-blocked");
-  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-  var node = workOn(id);
-  workNode = node ? node.id : "";
-  workStep = step || "";
-  mapMark(workNode);
-
-  var chip = null;
-  if (workStep) {
-    var pool = node ? (node.steps || []) : ((mapInfo && mapInfo.loose) || []);
-    pool.forEach(function (s) { if (s.label === workStep) chip = s; });
-  }
-
-  els.workTitle.textContent = chip ? chip.title : (node ? node.name : "this course");
-  var sub = [];
-  if (chip) sub.push("step " + chip.num + (node ? " · " + node.name : ""));
-  else if (node && node.also) sub.push(node.also);
-  if (node && node.does && !chip) sub.push(node.does);
-  els.workSub.textContent = sub.join(" — ");
-
-  /* WHAT THIS ONE IS WAITING ON, and it is the field nothing could set until a
-     map could be written by hand. Discovery can see that a directory exists and
-     what it imports; it cannot see that the scorer is stuck behind a seam that
-     has not been built yet, because there is nothing on disk that says so.
-
-     It goes HERE rather than on the box. A box is eleven characters wide at the
-     zoom somebody actually reads the map at, and "a list is not a diagram" was
-     paid for once already -- but this is the sheet that opens when a person taps
-     a box intending to work on it, which is the exact moment "you cannot, yet,
-     and here is why" is worth saying. Named by the plain names of the boxes it
-     names, never their ids, because the ids are not what anybody calls them. */
-  var why = (node && node.blockedBy) || [];
-  if (why.length) {
-    var names = why.map(function (id) {
-      var on = workOn(id);
-      return on ? on.name : id;
-    });
-    var line = document.createElement("p");
-    line.className = "work-blocked";
-    line.textContent = "waiting on " + names.join(" and ")
-                     + (names.length === 1 ? "" : "");
-    els.workSub.insertAdjacentElement("afterend", line);
-  }
-
-  var host = els.workList;
-  host.innerHTML = "";
-  workWays(node).forEach(function (way) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "work-way";
-    b.innerHTML = '<strong></strong><span></span>';
-    b.querySelector("strong").textContent = way.label;
-    b.querySelector("span").textContent = way.sub;
-    b.onclick = function () { takeWay(way, node, chip); };
-    host.appendChild(b);
-  });
-  els.work.hidden = false;
-}
-
-/* ------------------------------------------------------- a thread's sheet */
-/* TAPPING A THREAD OPENS A SITTING ON IT, AND THE SHEET ASKS WHICH KIND.
-
-   Three kinds, and each is an aim the server already knows: learn is a board
-   lesson (the teach aim), coach is the owner writing the statistics with the
-   tutor guiding (coach), build is the tutor doing the work (build). The one
-   offered first is the thread's last kind, which the sheet's own fetch says.
-
-   Below the kinds, everything the thread holds, as rows rather than boxes:
-   code is never a box. A file opens in the code walk, a document in the
-   library, a past sitting in the archive. Fetched on the tap from
-   `/map/thread/<id>`, never carried on the payload. */
-var THREAD_KINDS = [
-  { kind: "learn", aim: "teach", label: "Learn it",
-    sub: "A board lesson: exercises, handwriting, a compiled write-up. No code." },
-  { kind: "coach", aim: "coach", label: "Coach me through the code",
-    sub: "You write the part being learned; one step per card. The tutor writes the plumbing." },
-  { kind: "build", aim: "build", label: "Build it",
-    sub: "The tutor or its agents do the work, and the card is the report." }
-];
-var threadAsking = "";
-var threadSheet = null;        /* what `/map/thread/<id>` last answered */
-var threadSaid = "";           /* a refusal, held over the sheet's repaint */
-var threadTask = "";           /* a mission's words, typed, held likewise */
-
-function openThread(id, step) {
-  var node = workOn(id);
-  if (!node) return;
-  if (threadAsking !== node.id) threadTask = "";
-  threadSaid = "";
-  var stale = els.work.querySelector(".work-blocked");
-  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-  workNode = node.id;
-  workStep = step || "";
-  mapMark(workNode);
-  threadSheet = null;
-  threadPaint(node, "");
-  els.work.hidden = false;
-  threadAsking = node.id;
-  api("/map/thread/" + encodeURIComponent(node.id))
-    .then(function (r) { return r.json().catch(function () { return {}; }); })
-    .then(function (got) {
-      if (threadAsking !== node.id || els.work.hidden) return;
-      if (!got || got.ok === false) return;
-      threadSheet = got;
-      threadPaint(node, got.kind || "");
-    })
-    .catch(function () { /* the sheet still offers the three kinds */ });
-}
-
-/* The task chosen, as `{label, title}`, off the chips or the fetched sheet. */
-function threadChip(node) {
-  if (!workStep) return null;
-  var chip = null;
-  (node.steps || []).forEach(function (s) { if (s.label === workStep) chip = s; });
-  ((threadSheet && threadSheet.tasks) || []).forEach(function (t) {
-    if (!chip && t.label === workStep) chip = { label: t.label, title: t.text };
-  });
-  return chip || { label: workStep, title: workStep };
-}
-
-function threadPaint(node, last) {
-  var chip = threadChip(node);
-  var sheet = threadSheet;
-  els.workTitle.textContent = node.name;
-  els.workSub.textContent = threadSaid
-    || (chip ? "task: " + chip.title + " — " : "") + (node.does || "");
-  var stale = els.work.querySelector(".work-blocked");
-  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-  if ((node.blockedBy || []).length) {
-    var line = document.createElement("p");
-    line.className = "work-blocked";
-    line.textContent = "waiting on " + node.blockedBy.map(function (b) {
-      var on = workOn(b);
-      return on ? on.name : b;
-    }).join(" and ");
-    els.workSub.insertAdjacentElement("afterend", line);
-  }
-
-  var host = els.workList;
-  host.innerHTML = "";
-  var first = last || "learn";
-  var kinds = THREAD_KINDS.slice().sort(function (a, b) {
-    return (a.kind === first ? 0 : 1) - (b.kind === first ? 0 : 1);
-  });
-  kinds.forEach(function (k) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "work-way kind" + (k.kind === first ? " last" : "");
-    b.setAttribute("data-kind", k.kind);
-    b.innerHTML = "<strong></strong><span></span>";
-    b.querySelector("strong").textContent = k.label
-      + (k.kind === first && last ? " · last time" : "");
-    b.querySelector("span").textContent = k.sub;
-    /* WHO TEACHES IT, before the tap: the workspace's provider for this kind,
-       else this machine's default (`sheet.agents`, from `kind_agents`). One
-       that cannot take a turn here says why, since another will take it. */
-    var who = sheet && sheet.agents && sheet.agents[k.kind];
-    if (who && who.agent) {
-      var w = document.createElement("em");
-      w.className = "work-agent" + (who.why ? " off" : "");
-      w.textContent = "with " + who.agent + (who.why ? " — " + who.why : "");
-      b.appendChild(w);
-    }
-    b.onclick = function () { takeThread(node, k, threadChip(node)); };
-    host.appendChild(b);
-  });
-  threadMission(host, node, sheet);
-  if (!sheet) return;
-
-  function section(title, rows) {
-    if (!rows.length) return;
-    var h = document.createElement("p");
-    h.className = "thread-head";
-    h.textContent = title;
-    host.appendChild(h);
-    rows.forEach(function (r) {
-      var el = document.createElement(r.go ? "button" : "p");
-      if (r.go) { el.type = "button"; el.onclick = r.go; }
-      el.className = "thread-row" + (r.cls ? " " + r.cls : "");
-      el.textContent = r.text;
-      if (r.data) el.setAttribute("data-" + r.data[0], r.data[1]);
-      host.appendChild(el);
-    });
-  }
-  /* A tap on a task chooses it for the sitting, and a second tap un-chooses. */
-  section("open tasks", (sheet.tasks || []).filter(function (t) {
-    return !t.done && t.label;
-  }).map(function (t) {
-    return { text: (t.label === workStep ? "● " : "○ ") + t.text,
-             cls: t.label === workStep ? "on" : "",
-             data: ["task", t.label],
-             go: function () {
-               workStep = workStep === t.label ? "" : t.label;
-               threadSaid = "";
-               threadPaint(node, last);
-             } };
-  }));
-  section("decisions", (sheet.decisions || []).map(function (d) {
-    return { text: d.rule ? d.q + " — " + d.rule : "? " + d.q,
-             cls: d.rule ? "" : "open" };
-  }));
-  section("files", (sheet.files || []).map(function (f) {
-    return f.dir ? { text: f.path + "/", cls: "dir" }
-                 : { text: f.path, data: ["file", f.path],
-                     go: function () { threadFile(f.path); } };
-  }));
-  section("outputs", (sheet.outputs || []).map(function (o) {
-    return { text: (o.there ? "✓ " : "· ") + o.path,
-             cls: o.there ? "" : "missing" };
-  }));
-  /* A write-up whose document is built opens in the reader at the anchor's
-     page -- the first page where the server could not place it. */
-  section("written up in", (sheet.writes || []).map(function (w) {
-    var row = { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
-                cls: w.found ? "" : "missing" };
-    if (w.doc) {
-      row.data = ["writes", w.doc];
-      row.go = function () { mapReadDoc(w.doc, w.page || 0); };
-    }
-    return row;
-  }));
-  section("jobs", (sheet.jobs || []).map(function (j) {
-    return { text: j.jobid + " · " + j.state.toLowerCase()
-                   + (j.cmd ? " · " + j.cmd : "") };
-  }));
-  section("documents", (sheet.documents || []).map(function (d) {
-    return { text: (d.kind === "deck" ? "▭ " : "▤ ") + d.name,
-             data: ["doc", d.id], go: function () { mapReadDoc(d.id); } };
-  }));
-  section("past sittings", (sheet.sittings || []).map(function (s) {
-    return { text: (s.kind ? s.kind + " · " : "") + (s.chapter || s.id)
-                   + (s.opened ? " · " + String(s.opened).slice(0, 10) : ""),
-             data: ["sitting", s.id],
-             go: function () { closeMap(); showSession(s.id); } };
-  }));
-}
-
-/* OR SEND IT AS A MISSION. Long work on this thread that runs with the iPad
-   shut: `POST /elsewhere` into this workspace, with the thread named, which
-   the server checks against the thread file before anything starts. Where one
-   is already out on the thread, the sheet says so instead (`sheet.mission`). */
-function threadMission(host, node, sheet) {
-  var box = document.createElement("div");
-  box.className = "thread-mission";
-  var live = sheet && sheet.mission;
-  if (live) {
-    var on = document.createElement("p");
-    on.className = "thread-row";
-    on.textContent = "a mission is out on this thread"
-      + (live.agent ? " (" + live.agent + ")" : "") + ": " + live.task;
-    box.appendChild(on);
-    host.appendChild(box);
-    return;
-  }
-  var ask = document.createElement("textarea");
-  ask.className = "thread-mission-task";
-  ask.rows = 2;
-  ask.placeholder = "Or send it as a mission: what should be done on this thread";
-  ask.value = threadTask;
-  var go = document.createElement("button");
-  go.type = "button";
-  go.className = "thread-mission-go";
-  go.textContent = "Send as a mission";
-  var ready = function () { go.disabled = !ask.value.trim() || !boardId; };
-  ask.addEventListener("input", function () { threadTask = ask.value; ready(); });
-  go.onclick = function () {
-    if (!ask.value.trim() || !boardId) return;
-    threadDispatch(node, ask, go);
-  };
-  ready();
-  box.appendChild(ask);
-  box.appendChild(go);
-  host.appendChild(box);
-}
-
-function threadDispatch(node, ask, go) {
-  go.disabled = true;
-  threadSaid = "sending it\u2026";
-  els.workSub.textContent = threadSaid;
-  fetch("/elsewhere", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: boardId, thread: node.id, agent: null,
-                           ship: false, task: ask.value.trim() })
-  }).then(function (r) {
-    return r.json().catch(function () { return {}; });
-  }).then(function (got) {
-    if (!got || got.ok === false) {
-      threadSaid = "That mission could not be sent: "
-        + ((got && got.error) || "the board refused it") + ".";
-      els.workSub.textContent = threadSaid;
-      go.disabled = false;
-      return;
-    }
-    threadTask = "";
-    ask.value = "";
-    threadSaid = "Sent as a mission on this thread. It keeps going with the "
-      + "iPad shut, and the bar says when it is done.";
-    els.workSub.textContent = threadSaid;
-  }).catch(function () {
-    threadSaid = "That mission could not be sent: the board did not answer.";
-    els.workSub.textContent = threadSaid;
-    go.disabled = false;
-  });
-}
-
-/* A FILE OF A THREAD OPENS IN THE CODE WALK, through the address resolver --
-   the one thing that puts the board on a surface. */
-function threadFile(rel) {
-  closeMap();
-  var text = spell({ surface: "code", path: rel });
-  var a = text ? addrParse(text) : null;
-  addrGo(a || { ws: boardId, surface: "code", path: rel, text: "" });
-}
-
-/* The sitting, of the kind chosen, on this thread and the task picked if any.
-   `kind` rides beside the aim it maps onto. */
-function takeThread(node, k, chip) {
-  els.work.hidden = true;
-  mapMark(node.id);
-  workSend({ session: "lecture", node: node.id, aim: k.aim, kind: k.kind,
-             step: (chip && chip.label) || null, begin: true }, node, chip);
-}
-
-/* IS THIS BOX A DOCUMENT AND NOTHING ELSE? A box the map drew for a write-up
-   carries the document and no code at all, so there is one thing to do with it
-   and reading it is that thing. A hand-drawn box that names a document AND real
-   files is a part of the repository that happens to have one, and it is worked
-   on like any other part. */
-function mapDoc(node) {
-  return !!node && node.kind === "doc" && !!node.doc
-         && !((node.files || []).length) && !node.dir;
-}
-
-/* THE TAP OPENS THE SITTING. It keeps the name `takeWork` and loses the `way`,
-   because taking the work on a box is the whole of what a tap means: the style
-   the sitting runs in is already set in the `for:` row, a document is
-   commissioned from the front door, and what is left has one answer per kind of
-   box. Asked for as: *"I don't want to be selecting when I open up a lesson; I
-   want to just change tutoring styles to anything any time."*
-
-   So no `aim` and no `makes` go over the wire. What the box IS decides which
-   sitting opens, and there is exactly one per kind of box.
-
-   A NAME FROM THE BROWSER IS NEVER CONSTRUCTED INTO ANYTHING. What goes over
-   the wire is the box's id and the step's label, and the server looks both up
-   in what discovery found before either reaches a filesystem or a prompt. The
-   sitting's own label is built there too, for the same reason. */
-function takeWork(node, chip) {
-  els.work.hidden = true;
-  /* A sibling an arrow leaves towards is a wall, and tapping a wall means take
-     me there rather than work on it. */
-  if (node && node.outside) return mapDig(node.id);
-  /* WHERE YOU ARE, before the sitting is asked for. The box tapped is the box
-     the map comes back to, and it is what the bar spells while the picture is
-     still up -- so a refusal, or a slow answer, leaves somebody looking at the
-     box they chose rather than at nothing in particular. */
-  mapMark((node && node.id) || "");
-  if (mapDoc(node)) {
-    closeMap();
-    openDoc(node.doc, node.name);
-    return;
-  }
-  var derived = mapDerived(node);
-  var body;
-  if (derived) {
-    /* A SCOPE RATHER THAN A PART, and a walkthrough is what a scope supports.
-       A SYMBOL BOX CARRIES THE ONE THING ITS WALKTHROUGH SHOULD COVER, which is
-       the whole payoff of a diagram whose nodes are the things: tapping `run`
-       opens a walkthrough of `run` and not of the file it lives in. Spelt the
-       way `walk.label` spells it, and re-resolved on the server.
-
-       NO BOX ID. `map.find` resolves this repository's own parts and would
-       refuse a module or a symbol -- which is correct: the scope is what says
-       what this is about. */
-    body = { session: "walk", node: null, over: [mapScope(node)],
-             begin: true };
-  } else if (node && node.hw) {
-    /* A PROBLEM SET IS A HOMEWORK SITTING, which is the one thing that box has
-       ever meant. The set is sent by the name discovery gave it and looked up
-       in what the course actually has. */
-    body = { session: "homework", hw: node.hw, begin: true };
-  } else {
-    body = { session: "lecture", node: (node && node.id) || null,
-             step: (chip && chip.label) || null, begin: true };
-  }
-  workSend(body, node, chip);
-}
-
-/* A WAY CHOSEN OVER SOMETHING, from the sheet. This is the other half of the
-   tap: `takeWork` opens what the box already is, and this opens what somebody
-   asked for instead -- and only the ways `workWays` offers reach it. */
-function takeWay(way, node, chip) {
-  els.work.hidden = true;
-  if (way.aim === "show") {
-    var name = node ? node.name : "document";
-    closeMap();
-    openDoc(node.doc, name);
-    return;
-  }
-  var derived = mapDerived(node);
-  var body = {
-    session: way.session,
-    aim: way.aim,
-    /* NOT THE ID OF A DERIVED BOX, for the reason `takeWork` gives:
-       `map.find` knows this repository's own parts and nothing else, and the
-       scope is what says which machinery this is about. */
-    node: (node && !derived && node.id) || null,
-    step: (chip && chip.label) || null,
-    /* NO STANCE. The aim answers it -- `build` with a stance of `teach` is a
-       contradiction -- and `config.AIM_STANCE` is where that answer lives. The
-       browser was sending both, which made it the thing deciding, on its own
-       authority, something the repository and its family had already said. */
-    /* AND GET ON WITH IT. Choosing a way to work is the instruction; a second
-       tap on "ask the tutor to begin", on the lesson behind the map they were
-       just looking at, is the ceremony this replaces. Asked as a question,
-       which is the worst way to find out: "do I ask the tutor to begin?" */
-    begin: true
-  };
-  if (way.session === "walk") {
-    body.over = derived
-      ? [mapScope(node)]
-      : ((node && node.files) || []).slice();
-  }
-  if (way.session === "review") body.over = [node.dir + "/"];
-  workSend(body, node, chip);
-}
-
-/* ONE POST, AND ONE PLACE A REFUSAL LANDS. The board asks for a sitting and the
-   server is the only thing that can say no -- a box that has moved, a scope
-   that resolves to nothing -- so the reason goes where the question was asked:
-   the sheet, opened for this box with the refusal in its sub line. A tap that
-   silently does nothing is the failure this replaces. */
-function workSend(body, node, chip) {
-  api("/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  }).then(function (r) {
-    return r.json().catch(function () { return {}; });
-  }).then(function (got) {
-    if (got && got.ok === false) {
-      if (mapThread(node)) {
-        openThread(node.id, (chip && chip.label) || "");
-        threadSaid = "That could not be opened: "
-          + (got.error || "the board refused it") + ".";
-        els.workSub.textContent = threadSaid;
-        return;
-      }
-      openWork((node && node.id) || "", (chip && chip.label) || "");
-      els.workSub.textContent = "That could not be opened: "
-        + (got.error || "the board refused it") + ".";
-      els.work.hidden = false;
-      return;
-    }
-    /* The sitting is open and the tutor has been asked to start. Leaving the
-       map is the point of having tapped, and what is behind it is the lesson
-       with the request already on it. */
-    closeMap();
-    addrSpent();
-  }).catch(function () {
-    /* The payload will say what actually happened; the board is not the place
-       to guess at a network. */
-    closeMap();
-  });
-}
-
-els.workClose.onclick = function () { els.work.hidden = true; };
-
-
-/* ---------------------------------------- where a course opens, and why */
-/* A COURSE OPENS WHERE YOU LEFT IT.
-
-   Not always on the map. On the surface you were last on in this course, and if
-   that was the map, on the part of the map you were looking at -- the same pan
-   and zoom, with the box you last opened still marked. Somebody three steps into
-   a derivation who taps their course must land in the derivation.
-
-   A course nobody has opened on this device yet, or one whose remembered
-   surface no longer exists, opens on the map. That is the default, and it is
-   the only time the map is put in front of anybody.
-
-   `localStorage`, and deliberately not `state.json`: two devices reading the
-   same course are two people looking at different parts of it, and that is
-   correct. It is a per-viewer convenience rather than state -- it can throw, it
-   can come back empty, and a private window or cleared site data wipes it -- so
-   every read and write is wrapped and the fallback is the map, which is the
-   default anyway. */
-var MAP_WHERE = "board.where.";
-/* Old enough to be a different week's intention rather than this evening's. */
-var MAP_WHERE_FRESH = 30 * 24 * 3600 * 1000;
-var mapLanded = false;
-var mapSettleTimer = null;
-
-function mapCourse() {
-  return ((lastLive && lastLive.state && lastLive.state.course) || "").trim();
-}
-
-/* Per session where there is one: two sessions on one subject are two
-   evenings, each left where it was. */
-function whereKey() { return MAP_WHERE + (SESSION ? "s:" + SESSION : mapCourse()); }
-
-function mapRemember() {
-  var course = mapCourse();
-  if (!course) return;
-  var here = { at: Date.now() };
-  if (!els.map.hidden) {
-    here.surface = "map";
-    here.x = mapView.ox; here.y = mapView.oy; here.k = mapView.k;
-    here.node = mapHere;
-  } else if (paperOpen) {
-    here.surface = "document:" + paperOpen;
-  } else {
-    here.surface = "lesson";
-  }
-  try {
-    window.localStorage.setItem(whereKey(), JSON.stringify(here));
-  } catch (e) { /* a private window, or no room. The map is the fallback. */ }
-  /* AND THE SAME PLACE, SPELLED AS AN ADDRESS. An address nobody can obtain is
-     a feature nobody uses: this is where one is got from -- off the bar, by
-     being somewhere. Only the three surfaces `here.surface` already names, and
-     always `replaceState`, so the back button still leaves the board rather
-     than walking backwards through a pan. */
-  addrShow(here);
-}
-
-/* Writing on every frame of a pan would be a JSON encode and a storage write
-   sixty times a second. The plane is remembered once it has stopped moving. */
-function mapSettle() {
-  if (mapSettleTimer) clearTimeout(mapSettleTimer);
-  mapSettleTimer = setTimeout(function () {
-    mapSettleTimer = null;
-    mapRemember();
-  }, 400);
-}
-
-function mapRecall() {
-  var course = mapCourse();
-  if (!course) return null;
-  try {
-    var raw = window.localStorage.getItem(whereKey());
-    if (!raw) return null;
-    var here = JSON.parse(raw);
-    if (!here || typeof here !== "object") return null;
-    if (!here.at || Date.now() - here.at > MAP_WHERE_FRESH) return null;
-    return here;
-  } catch (e) { return null; }
-}
-
-/* Once per load, on the first payload that knows which course this is. */
-function mapLand() {
-  if (mapLanded || !mapCourse()) return;
-  /* AN ADDRESS IN THE BAR OUTRANKS EVERYTHING, and it is the one thing here
-     that cannot be acted on the moment a payload arrives: until `/health` has
-     said which workspace this board IS, an address naming another one cannot
-     be told apart from one naming this one. Landing is not marked done, so the
-     next payload tries again -- and `addrReady` runs this by hand the moment
-     the answer lands, because a board whose lesson is already on screen gets no
-     further payload to be prompted by. */
-  if (addrWanted && !boardIdKnown) return;
-  mapLanded = true;
-  if (addrWanted) {
-    var asked = addrWanted;
-    addrWanted = null;
-    addrGo(asked);
-    return;
-  }
-  /* A KIND CHOSEN ON THE FRONT DOOR'S SHEET -- learn, coach or build -- is a
-     sitting asked for, so the board stays on the lesson and the aim is set
-     here, on the board that now serves the workspace. */
-  var kindWanted = kindAsked();
-  if (kindWanted) { setAim(KIND_AIMS[kindWanted]); return; }
-  /* An address that asks for the map outranks anything remembered: it is
-     somebody tapping "map" on the writing surface a second ago. */
-  if (mapAsked()) { openMap(); return; }
-  var here = mapRecall();
-  if (!here) { openMap(); return; }          /* never opened here: the default */
-  if (here.surface === "lesson") return;     /* they were working; leave them */
-  if (typeof here.surface === "string" && here.surface.indexOf("document:") === 0) {
-    var kind = here.surface.slice("document:".length);
-    var id = kind.indexOf("doc/") === 0 ? kind.slice(4) : "";
-    var known = (readingInfo && readingInfo.documents || []).filter(function (d) {
-      return d.id === id;
-    })[0];
-    /* A document that has since moved is a surface that no longer exists, and
-       the rule for that is the map. */
-    if (known) { openDoc(known.id, known.name); return; }
-    openMap();
-    return;
-  }
-  if (here.surface !== "map") { openMap(); return; }
-  mapHere = here.node || "";
-  if (!openMap("restored")) return;
-  /* The same part of the map, at the same magnification. Only if the numbers
-     are numbers: a record half-written by a browser that ran out of room must
-     not leave the plane somewhere it cannot be panned back from. */
-  if (typeof here.k === "number" && here.k > 0
-      && typeof here.x === "number" && typeof here.y === "number") {
-    mapView.k = here.k;
-    mapView.ox = here.x;
-    mapView.oy = here.y;
-    mapView.held = true;
-    mapClamp();
-    mapPaint();
-  }
-}
-
-/* `/board?kind=coach`, which is what the front door's Learn, Coach and Build
-   send. Read once and taken out of the address, like `map=1`. */
-var KIND_AIMS = { learn: "teach", coach: "coach", build: "build" };
-
-function kindAsked() {
-  var got = "";
-  try {
-    var m = /(^|[?&])kind=(learn|coach|build)(&|$)/.exec(window.location.search || "");
-    got = m ? m[2] : "";
-    if (got && window.history && window.history.replaceState) {
-      window.history.replaceState({}, "",
-        window.location.pathname
-        + (window.location.search || "")
-            .replace(/([?&])kind=(learn|coach|build)(&|$)/, "$1")
-            .replace(/[?&]$/, "")
-        + (window.location.hash || ""));
-    }
-  } catch (e) { return ""; }
-  return got;
-}
-
-/* `/board?map=1`, which is what the slate's own map link is. Read once and then
-   taken out of the address, so a reload is not a second instruction. */
-function mapAsked() {
-  var asked = false;
-  try {
-    asked = /(^|[?&])map=1(&|$)/.test(window.location.search || "");
-    if (asked && window.history && window.history.replaceState) {
-      window.history.replaceState({}, "",
-        window.location.pathname
-        + (window.location.search || "").replace(/([?&])map=1(&|$)/, "$1")
-                                        .replace(/[?&]$/, "")
-        /* The fragment survives. It is the address, and rewriting the bar to
-           drop `map=1` used to take it with it. */
-        + (window.location.hash || ""));
-    }
-  } catch (e) { return false; }
-  return asked;
-}
-
 
 /* ------------------------------------------------------------- addresses */
 /* ONE RESOLVER. `address.js` is the grammar and has no opinion about browsers;
    this is the only thing anywhere that takes an address and puts the board on
-   the surface it names.
-
-       #/w/<family>/<workspace>[/…]
-
-   Three rules, and they are the whole of why this is one function:
+   the surface it names: a session address, `#/s/<id>/…`, and the workspace
+   grammar old links were written in, `#/w/<family>/<workspace>/…`.
 
      1. A NAME FROM A BROWSER NEVER REACHES A FILESYSTEM. Every component is
-        looked up in what discovery already found and handed to this page --
-        `mapInfo.nodes`, `lastLive.cards`, `readingInfo.documents`,
-        `walkInfo.units`, `knownSets`, `lastLive.slate`, and for a past sitting
-        the archive's own list. A miss is a miss, said as "that is not here any
-        more", never as an error and never as something near it.
-     2. A LINK THAT NO LONGER RESOLVES SAYS SO WHERE IT IS WRITTEN. Meeting
-        notes from March open in September and half of what they point at has
-        moved. `markAddresses` checks every address written into the lesson
-        against the same payload this resolver uses, so a dead one reads as dead
-        in the sentence it is in rather than after the tap.
-     3. TWO SPELLINGS OF AN ADDRESS IS TWO BUGS. `spell` is the only thing on
-        this page that builds one, and it is what puts the current surface in
-        the bar so that an address can be copied off the glass at all.
+        looked up in what this page was handed -- `lastLive.cards`,
+        `readingInfo.documents`, `knownSets`, `lastLive.slate`, and for a past
+        lesson the archive's own list. A miss is a miss, said plainly.
+     2. A LINK THAT NO LONGER RESOLVES SAYS SO WHERE IT IS WRITTEN:
+        `markAddresses` checks every address in the lesson against the same
+        payload this resolver uses.
+     3. TWO SPELLINGS OF AN ADDRESS IS TWO BUGS. `spell` is the only builder.
 
-   Two surfaces the grammar names are finer than anything the board can paint
-   today: one function inside a file, and one problem inside a set. Neither is
-   dropped and neither is faked -- the address lands on the thing that CONTAINS
-   it and says in one line what it was pointing at. See §2.4 of the handoff. */
+   The map and the walkthrough are gone, so a box (`node`) and a source file
+   (`code`) are places no more and say so. One problem of a set is finer than
+   the board paints: the address is checked against the set and said in one
+   line. */
+/* What the documents of this subject are, off the payload's `reading`. */
+var readingInfo = null;
 
 var boardId = "";              /* this board's own `family/workspace` */
 var boardIdKnown = false;      /* whether `/health` has answered at all */
@@ -7677,17 +3498,12 @@ function spell(spec) {
   return g.format(out);
 }
 
-/* Where the board is now, in the bar. `mapRemember` already decides what "here"
-   means and is called from every place that changes it, so this rides along
-   rather than growing a second idea of the same thing. Always `replaceState`:
-   a pan is not a page, and the back button must still leave the board. */
+/* Where the board is now, in the bar, from `remember`. Always `replaceState`:
+   the back button must still leave the board. */
 function addrShow(here) {
   if (!here || !window.history || !window.history.replaceState) return;
   var want;
-  if (here.surface === "map") {
-    want = spell(here.node ? { surface: "node", node: here.node }
-                           : { surface: "workspace" });
-  } else if (typeof here.surface === "string"
+  if (typeof here.surface === "string"
              && here.surface.indexOf("document:doc/") === 0) {
     want = spell({ surface: "doc",
                    doc: here.surface.slice("document:doc/".length) });
@@ -7735,40 +3551,14 @@ function addrArrived(a) {
   return "ok";
 }
 
-/* AN ADDRESS TO A BOX IS SPENT THE MOMENT IT OPENS THE SITTING, and the bar has
-   to say so. A tap on a box asks for a sitting and `/session` files the one that
-   was open to do it -- so a bar still naming the box is a request that fires
-   again on the next load, and this board reloads itself: a ship restarts it, and
-   the app reopens on whatever hash it was left with. That is an evening filed
-   away by a reload nobody asked anything of.
-
-   `addrShow` cannot do it, and that is not an oversight there: its rule is never
-   to downgrade a bar naming a card, a page or a box to the bare workspace,
-   because overwriting one takes a followed link off the glass. This is the one
-   case where the address is genuinely finished -- the board is in the lesson the
-   box opened, not on the box. */
-function addrSpent() {
-  var now = addrParse(window.location.hash || "");
-  if (!now || now.ws !== boardId || now.surface !== "node") return;
-  var want = spell({ surface: "workspace" });
-  if (!want || want === window.location.hash) return;
-  try {
-    window.history.replaceState({}, "", window.location.pathname
-                                        + (window.location.search || "") + want);
-  } catch (e) { /* a browser that refuses keeps the bar it had */ }
-}
-
 /* Everything over the lesson goes, because an address is somebody saying where
    they want to be and a drawer left open is a drawer sitting on top of it. */
 function addrShut() {
-  [els.contents, els.review, els.scratch, els.shelf,
-   document.getElementById("history"), els.kind, els.work,
-   els.steer].forEach(function (p) {
+  [els.scratch, document.getElementById("history")].forEach(function (p) {
     if (p) p.hidden = true;
   });
   if (paperOpen) closeReader();
   closeViewer();
-  if (!els.map.hidden) closeMap();
 }
 
 /* A card, anywhere in whatever transcript is on screen. Lit for a moment: a
@@ -7782,15 +3572,6 @@ function addrToCard(id) {
   node.classList.add("landed");
   window.setTimeout(function () { node.classList.remove("landed"); }, 2400);
   return true;
-}
-
-function addrRow(host, attr, value) {
-  var rows, i;
-  try { rows = host.querySelectorAll("[" + attr + "]"); } catch (e) { return null; }
-  for (i = 0; i < rows.length; i++) {
-    if (rows[i].getAttribute(attr) === value) return rows[i];
-  }
-  return null;
 }
 
 /* ANOTHER WORKSPACE IS ANOTHER BOARD ON ANOTHER PORT, and the one thing that
@@ -7874,33 +3655,10 @@ function addrGo(a) {
 
   var surface = a.surface;
 
-  /* THE WORKSPACE'S OWN PICTURE, which is what both of these name. Whatever
-     was on the glass -- the inside of a box -- is a different
-     picture, and an address naming this workspace that left one of them up
-     would put the boxes of somewhere else under the box it was pointing at. */
-  if (surface === "workspace") {
-    if (mapDeep) mapOut();
-    if (!openMap()) {
-      /* NOTHING DRAWN IS SAID, AND BOTH WAYS ON ARE NAMED: the lesson is the
-         page this is, and ‹ in the corner is the door the address came from. */
-      addrSaid("↳", mapNoSitting()
-        ? "this workspace has no map drawn yet — ask the tutor to begin "
-          + "below, or ‹ goes back to the front door"
-        : "this workspace has no map drawn yet — here is the lesson");
-    }
-    return addrArrived(a);
-  }
-
+  /* The workspace is this board's lesson; a box on its map is no place now. */
+  if (surface === "workspace") return addrArrived(a);
   if (surface === "node") {
-    var box = null;
-    ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
-      if (n.id === a.node) box = n;
-    });
-    if (!box) return addrDead(a, "that box is not on this map any more");
-    if (mapDeep) mapOut();
-    if (!openMap()) return addrDead(a, "this workspace has no map to open");
-    takeWork(box, null);
-    return addrArrived(a);
+    return addrDead(a, "the map is gone, so that box is not a place any more");
   }
 
   if (surface === "card") {
@@ -7961,29 +3719,8 @@ function addrGo(a) {
   }
 
   if (surface === "code") {
-    var unit = null;
-    ((walkInfo && walkInfo.units) || []).forEach(function (u) {
-      if (u.path === a.path) unit = u;
-    });
-    if (!unit) {
-      return addrDead(a, "there is no " + a.path + " in this workspace");
-    }
-    openPicker("walk");
-    /* Chosen, so the one tap left is "start walkthrough". Reopening the picker
-       normally starts from what the sitting already covers; an address is a
-       person naming one file, which outranks that. */
-    reviewPick = [unit.name];
-    paintReviewPicker();
-    /* NOT `row`: this file already has a top-level `row()` that builds the
-       drawer's buttons, and shadowing it inside a function that may one day
-       call it is the same trap `paths` and `map` have already sprung here. */
-    var unitRow = addrRow(els.reviewList, "data-unit", unit.name);
-    if (unitRow && unitRow.scrollIntoView) unitRow.scrollIntoView({ block: "center" });
-    addrSaid("↳", a.symbol
-      ? "the board cannot open one function on its own yet — this is "
-        + unit.short + ", which " + a.symbol + " is in"
-      : unit.path + ", ready to walk through");
-    return addrArrived(a);
+    return addrDead(a, "walkthroughs are gone, so " + a.path
+                    + " is not a place on this board");
   }
 
   if (surface === "hw") {
@@ -7992,8 +3729,8 @@ function addrGo(a) {
     }
     var hw = (lastLive && lastLive.hw) || null;
     /* The problems of a set are only in the payload while that set is the
-       sitting. Where they are, an address naming one that is not there is
-       dead; where they are not, the set is as far as this can honestly check. */
+       one being written up. Where they are, an address naming one that is not
+       there is dead; where they are not, the set is as far as this can check. */
     if (hw && hw.name === a.set) {
       var found = false;
       (hw.problems || []).forEach(function (p) {
@@ -8001,14 +3738,7 @@ function addrGo(a) {
       });
       if (!found) return addrDead(a, a.set + " has no problem " + a.problem);
     }
-    openContents();
-    var srow = addrRow(els.contentsList, "data-set", a.set);
-    if (srow) {
-      srow.classList.add("here");
-      if (srow.scrollIntoView) srow.scrollIntoView({ block: "center" });
-    }
-    addrSaid("↳", "problem " + a.problem + " of " + a.set
-             + " — the board opens a set, not yet one problem inside one");
+    addrSaid("↳", "problem " + a.problem + " of " + a.set);
     return addrArrived(a);
   }
 
@@ -8042,10 +3772,7 @@ function addrMisses(a) {
   }
   if (!boardId || a.ws !== boardId) return "";   /* another board's to answer */
   if (a.surface === "node") {
-    why = "that box is not on this map any more";
-    ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
-      if (n.id === a.node) why = "";
-    });
+    why = "the map is gone, so that box is not a place any more";
   } else if (a.surface === "card") {
     why = "card " + a.card + " is not in the lesson that is open";
     ((lastLive && lastLive.cards) || []).forEach(function (c) {
@@ -8057,10 +3784,7 @@ function addrMisses(a) {
       if (d.id === a.doc) why = "";
     });
   } else if (a.surface === "code") {
-    why = "there is no " + a.path + " in this workspace";
-    ((walkInfo && walkInfo.units) || []).forEach(function (u) {
-      if (u.path === a.path) why = "";
-    });
+    why = "walkthroughs are gone, so " + a.path + " is not a place on this board";
   } else if (a.surface === "hw") {
     if ((knownSets || []).indexOf(a.set) < 0) {
       why = "there is no problem set called " + a.set + " here";
@@ -8112,7 +3836,7 @@ api("/health", { cache: "no-store" })
   })
   .then(function () {
     boardIdKnown = true;
-    mapLand();
+    land();
   });
 
 window.addEventListener("hashchange", function () {
@@ -8121,193 +3845,6 @@ window.addEventListener("hashchange", function () {
   if (!boardIdKnown && !a.session) { addrWanted = a; return; }
   addrGo(a);
 });
-
-
-/* --------------------------------------------------------------- contents */
-/* A course is chapters and problem sets, and until now the board showed neither:
-   the only way to a different chapter was somebody typing `board open` in a
-   terminal. Everything listed here is discovered from the repository itself, so
-   there is no index to keep in step and nothing that can go stale.
-
-   Opening one files the current lesson away whole -- cards, turns and answers
-   together -- so what is being left stays readable under the history button
-   rather than being written over by what comes next. */
-var contents = { chapters: [], sets: [] };
-var planInfo = null;        /* what this project says it is doing next */
-var readingInfo = null;     /* and what it can be shown */
-var resultsInfo = null;     /* and what its own pipeline produced */
-/* How many sittings this course has filed, as of the last frame that said.
-   `null` until one does: "it went up" has no answer before there is a number to
-   compare with, and arriving at a course with nine archived lessons is not nine
-   lessons being filed while you watch. */
-var pastCount = null;
-
-function row(label, sub, current, go) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.textContent = label;
-  if (sub) {
-    var s2 = document.createElement("span");
-    s2.className = "sub";
-    s2.textContent = "  " + sub;
-    b.appendChild(s2);
-  }
-  if (current) b.classList.add("here");
-  b.onclick = go;
-  return b;
-}
-
-function group(title) {
-  var d = document.createElement("div");
-  d.className = "group";
-  d.textContent = title;
-  return d;
-}
-
-function openContents() {
-  var host = els.contentsList;
-  host.innerHTML = "";
-  var here = (lastLive && lastLive.state && lastLive.state.chapter) || "";
-
-  if (contents.chapters.length) {
-    host.appendChild(group("Chapters"));
-    contents.chapters.forEach(function (c) {
-      host.appendChild(row(c.label, "", c.label === here, function () {
-        els.contents.hidden = true;
-        setSitting("lecture", null, c.label);
-      }));
-    });
-  }
-
-  if (contents.sets.length) {
-    host.appendChild(group("Problem sets"));
-    contents.sets.forEach(function (x) {
-      var r = row(x.name, x.rel, currentSet === x.name, function () {
-        els.contents.hidden = true;
-        setSitting("homework", x.name);
-      });
-      r.dataset.set = x.name;      /* what an address to a problem lands on */
-      host.appendChild(r);
-    });
-  }
-
-  /* WHAT THIS PROJECT SAYS COMES NEXT, which is a book course's chapter list in
-     the only form a project has one. This group is the whole reason a project
-     was harder to work in than a course: the drawer used to say "sittings here
-     are made as you go", which reads as helpful and means *you decide, at a
-     keyboard, every time*. A project does write down what is next -- it just
-     does not call it a syllabus and does not keep it in this repository. Tapping
-     one opens a lecture labelled with that step, and the tutor is woken having
-     already been told which step and where the plan is. */
-  if (planInfo && (planInfo.steps || []).length) {
-    host.appendChild(group("What's next"));
-    planInfo.steps.forEach(function (x) {
-      host.appendChild(row(x.label, "", x.label === here, function () {
-        els.contents.hidden = true;
-        setSitting("lecture", null, x.label);
-      }));
-    });
-    var note = document.createElement("p");
-    note.className = "none";
-    note.textContent = "from " + planInfo.where;
-    host.appendChild(note);
-  }
-
-  /* Machinery that already exists, which is most of what has to be understood
-     in a project and had nowhere to be taught. */
-  if (walkInfo && (walkInfo.units || []).length) {
-    host.appendChild(group("Walk through"));
-    var scope = walkInfo.scope || [];
-    host.appendChild(row(
-      scope.length ? "change what this walkthrough covers"
-                   : "walk me through some code",
-      scope.length ? scope.join(" · ")
-                   : walkInfo.units.length + " files",
-      sittingKind === "walk",
-      function () { els.contents.hidden = true; openPicker("walk"); }));
-  }
-
-  /* The documents somebody already wrote about how this works. A deck is often
-     the best explanation in the repository and the board could not show a page
-     of one, so it was read on a laptop beside a lesson on an iPad. */
-  if (readingInfo && (readingInfo.documents || []).length) {
-    host.appendChild(group("Read"));
-    readingInfo.documents.forEach(function (d) {
-      host.appendChild(row(d.name, d.iso || "", false, function () {
-        els.contents.hidden = true;
-        openDoc(d.id, d.name);
-      }));
-    });
-  }
-
-  /* And what the project PRODUCED. A figure the pipeline wrote had no route to
-     the glass at all -- the only one was copying it into the lesson inbox, a
-     second copy of a file the next job overwrites. Newest first, because the
-     one being asked about is the one that has just changed. It opens in the
-     viewer this page owns, not in a tab with no way back out of it. */
-  if (resultsInfo && (resultsInfo.figures || []).length) {
-    host.appendChild(group("Figures"));
-    resultsInfo.figures.forEach(function (f) {
-      var sub = f.where ? f.where : (f.iso || "");
-      host.appendChild(row(f.name, sub, false, function () {
-        els.contents.hidden = true;
-        openViewer("/result/" + f.id, f.where ? f.name + " — " + f.where : f.name);
-      }));
-    });
-  }
-
-  if (!contents.chapters.length && !contents.sets.length
-      && !(planInfo && (planInfo.steps || []).length)) {
-    /* A repository with no book AND no plan. Not an error to report -- it says
-       where to look instead. Sittings there are made as they go and stay
-       readable under ◷ like any other. */
-    host.appendChild(group("This course"));
-    var p = document.createElement("p");
-    p.className = "none";
-    p.textContent = "No chapters, problem sets or task list in this repository, "
-      + "so sittings here are made as you go. Each one stays readable under ◷.";
-    host.appendChild(p);
-  }
-
-  /* A test review is a way around the course too -- it is just one that covers
-     several chapters at once instead of opening one. */
-  if (reviewInfo && (reviewInfo.units || []).length) {
-    host.appendChild(group("Test review"));
-    var scope = reviewInfo.scope || [];
-    host.appendChild(row(
-      scope.length ? "change what this review covers" : "revise for a test",
-      scope.length ? scope.length + " chosen"
-                   : reviewInfo.units.length + " " + reviewNoun(reviewInfo),
-      sittingKind === "review",
-      function () { els.contents.hidden = true; openReview(); }));
-  }
-
-  host.appendChild(group("Past lessons"));
-  if (pastCount > 0) {
-    host.appendChild(row("open the history", pastCount + " filed", false, function () {
-      els.contents.hidden = true;
-      openHistory();
-    }));
-  } else {
-    var q = document.createElement("p");
-    q.className = "none";
-    q.textContent = "Nothing filed yet.";
-    host.appendChild(q);
-  }
-
-  els.contents.hidden = false;
-}
-
-/* The drawer fills on open: drawn at once from what is known, and again
-   when `/subject.json` answers with the subject as it is now. */
-document.getElementById("btn-contents").onclick = function () {
-  if (!els.contents.hidden) { els.contents.hidden = true; return; }
-  openContents();
-  fetchSubject(function () { if (!els.contents.hidden) openContents(); });
-};
-document.getElementById("btn-contents-close").onclick = function () {
-  els.contents.hidden = true;
-};
 
 
 /* The overflow menu. Closing on any choice matters more than it looks: on a
@@ -8320,32 +3857,13 @@ document.getElementById("btn-more").onclick = function (e) {
   if (!els.barmenu.hidden) placeMenu();
 };
 
-/* WHERE THE MENU GOES AND HOW MUCH ROOM IT HAS, measured against the glass.
-
-   Reported as "I can't see the refresh button when I tap the '...' menu", and
-   then, once it had been capped and made scrollable, as "that isn't scrollable
-   -- or at least when I try to scroll it, the main session page behind it is
-   what scrolls instead". Two defects, and the second one had two halves.
-
-   The first half is where the element LIVES, and that is fixed in `board.html`:
-   it hung inside `#chrome`, which is `position: sticky`, and WebKit does not
-   reliably hand a touch drag to a scroller nested in a sticky element.
-
-   The second half is this function, which measured with `window.innerHeight`.
-   That is the LAYOUT viewport, and the layout viewport is not what you can see.
-   The iPad keyboard comes up and takes half the glass while `innerHeight` does
-   not move; a pinch magnifies the page and `innerHeight` does not move. The cap
-   was then bigger than the screen, so the last entries were off the bottom AND
-   the menu did not overflow its own box -- and a box that does not overflow is
-   not a scroller, so iOS correctly gave the gesture to the page. That is both
-   halves of the complaint from one wrong number.
-
-   `window.visualViewport` is the honest one, and this file already knows it:
-   `panicPlace` is placed from it for exactly this reason. So the menu hangs
-   from the real bottom of the chrome stack -- which grows and shrinks with the
-   banners in it, a save offer and an export result being most of an inch, and
-   both up at the moment somebody goes looking for the reload -- and is capped
-   at the room left on the VISIBLE viewport below that. */
+/* WHERE THE MENU GOES AND HOW MUCH ROOM IT HAS, measured against the VISIBLE
+   viewport (`window.visualViewport`), never `innerHeight`: the keyboard and a
+   pinch change what can be seen and not the layout viewport, and a menu capped
+   taller than the screen does not overflow, so iOS scrolls the page instead.
+   It hangs from the real bottom of the chrome stack, whose banners come and
+   go. (It lives outside `#chrome` in `board.html`: WebKit does not hand a
+   touch drag to a scroller inside a sticky element.) */
 function placeMenu() {
   if (!els.barmenu || els.barmenu.hidden) return;
   var vv = window.visualViewport;
@@ -8870,29 +4388,11 @@ function paintLink(dead) {
   if (dead && !everGotData) els.empty.hidden = true;
 }
 
-/* NOT WHILE THE NIB IS DOWN.
-
-   A payload repaints the whole lesson: the transcript is reconciled, cards are
-   laid out, and KaTeX typesets whatever changed. That is a few hundred
-   milliseconds of main thread, and the main thread is also what turns pen
-   samples into ink -- so a payload landing mid-stroke is felt in the hand as the
-   surface going dead for half a second. And payloads land constantly WHILE
-   writing, because the writing itself is what produces them: the slate saves,
-   the server notices, the hub pushes.
-
-   Reported as: "sometimes when I'm writing on the board, touchscreen response
-   sometimes glitches out for half a second, which isn't the worst but is...
-   annoying."
-
-   So a payload that arrives with a nib down is held, and the NEWEST one is drawn
-   the moment the nib lifts. Only the newest: they are whole pictures of the
-   lesson, not increments, so an older one has nothing in it the newer lacks.
-
-   The window is deliberately the stroke itself and not `busy()`, whose tail runs
-   for seconds after the last sample -- that tail is right for "may I spend a
-   hundred milliseconds encoding a PNG" and much too generous for "may I show
-   what just arrived". A card must appear the moment the hand stops, not two and
-   a half seconds later. */
+/* NOT WHILE THE NIB IS DOWN. A payload repaints the lesson, which costs the
+   main thread the pen also needs, and payloads land constantly while writing.
+   So a payload that arrives with a nib down is held, and only the NEWEST is
+   drawn the moment the nib lifts. The window is the stroke itself, not
+   `busy()`, whose tail runs for seconds. */
 var heldPayload = null;
 var heldTimer = null;
 var heldSince = 0;
@@ -8938,20 +4438,11 @@ function renderOrHold(data) {
 }
 
 /* ------------------------------------------------ the payload, kept whole */
-/* THE SERVER SENDS THE WHOLE BOARD ONCE, THEN WHAT CHANGED.
-
-   A stream opens on the whole payload: the session, the newest forty cards
-   and their ink. Every push after it is a delta -- `cards_changed`,
-   `cards_removed` and the top-level keys that moved -- and is applied here to
-   `model`, which is the board as this page knows it. `render` is still handed
-   a whole frame every time, a copy of the model, so nothing downstream knows
-   there was a delta at all.
-
-   A card that slides out of the server's window is not removed: only
-   `cards_removed` removes, and it names files that are gone. Cards older than
-   the window come on a tap (`fetchOlder`), and what the subject holds -- its
-   problem sets, results, jobs, Colibri, the save count -- comes from
-   `/subject.json` (`fetchSubject`), not the stream. */
+/* THE SERVER SENDS THE WHOLE BOARD ONCE, THEN WHAT CHANGED: `cards_changed`,
+   `cards_removed` and the top-level keys that moved, applied here to `model`.
+   `render` is still handed a whole frame. A card that slides out of the
+   server's window stays; only `cards_removed` removes. Older cards come on a
+   tap (`fetchOlder`); what the subject holds comes from `/subject.json`. */
 var model = null;
 var olderLeft = 0;         /* cards older than the oldest one held */
 var olderBusy = false;
@@ -9079,13 +4570,7 @@ function subjectSoon() {
 function takeSubject(got) {
   subjectInfo = got;
   knownSets = (got.sets || []).map(function (x) { return x.name; });
-  contents = { chapters: contents.chapters || [], sets: got.sets || [] };
-  resultsInfo = got.results || null;
-  if (got.colibri !== undefined) colibriNow = got.colibri;
-  if (got.assistants !== undefined) assistants = got.assistants;
-  if (got.fenced !== undefined) fencedHere = got.fenced || [];
   if (got.unsaved !== undefined) paintSave(got.unsaved);
-  try { paintKindChooser(); } catch (e) { /* the chooser paints on the next frame */ }
   if (lastLive && !lastLive.archived) {
     try { paintBusy(lastLive); } catch (e) { /* and so does the strip */ }
   }
@@ -9134,28 +4619,15 @@ var lastNewestQ = "";
 /* The newest card of any kind, for the same reason and read at the same moment. */
 var lastNewestCard = "";
 /* Which question they are answering, if they went back to an earlier one, and
-   which question was newest when they went. Going back is a deliberate excursion
-   and the tutor asking something NEW ends it -- the same rule `reopenedFor` has
-   had from the start, and for the same reason: a request must not outlive what
-   it was made for.
-
-   Without the second half of that, going back to an earlier board pinned the
-   live surface there for the rest of the sitting. A new question then arrived to
-   find the surface parked several cards above it and no page of its own, so it
-   got no board at all -- a question posed with nowhere to answer it, which is
-   the worst state this board has. Reported from the device the evening the
-   boards became reachable enough for anyone to hit it. */
+   which question was newest when they went. A NEW question ends the excursion,
+   as with `reopenedFor`: otherwise the surface stays pinned above it and the
+   new question gets no board at all. */
 var workingOn = null;
 var workingOnAt = null;
 /* Whether a CARRY set the pin, and whether it has already been carried across
-   one new question.
-
-   The grace a carry gets belongs to a carry alone: the working was put on that
-   board by hand one tap ago and is on no disk anywhere, so moving the surface
-   off it leaves it as a photograph. An ordinary tap on an old board is somebody
-   reading back, and a new question outranks that. And one question only, either
-   way -- a pin that never lets go parks the surface above a question that then
-   gets no board at all, which is the failure `workingOnAt` exists to prevent. */
+   one new question. The grace belongs to a carry alone (its working is on no
+   disk), and lasts one question: a pin that never lets go leaves a new
+   question with no board. */
 var pinCarried = false;
 var pinHeld = false;
 /* The board the surface is standing in for, as `render` last worked it out.
@@ -9164,76 +4636,34 @@ var pinHeld = false;
 var liveSlot = null;
 /* Which slate page belongs to which board.
 
-   A question is not one board. It is a CHAIN of them, and that is what an
-   exercise actually looks like: you write, you hand it in, the tutor answers
-   underneath, and the next attempt carries on below the answer. Each of those
-   attempts is a board of its own -- it stays where it was written, it keeps what
-   was on it, and it can still be written on, because going back up an exercise
-   to add a line to an earlier attempt is ordinary work.
-
-   It used to be one page per question, and the single board slid down the run to
-   sit under the newest card. So the earlier attempts did not persist: there was
-   never more than one board per question to persist. Reported from a Galois
-   sitting, in these words: "the previous board for this same question that I
-   have not yet completed doesn't persist... I want ALL boards to persist and to
-   operate independently of each other."
-
-   Independently is the load-bearing word, and it is why a new attempt opens on a
-   COPY of the one before it rather than on the same sheet. The working carries
-   forward -- what is under the pen is everything written so far, which is what
-   a correction needs -- and the board above keeps what it had, for ever, because
-   they are two pages from the moment the copy is taken.
-
-   No page is ever destroyed. The surface used to be cleared whenever a new
-   question arrived -- with the reasoning that the next answer should not start
-   on top of the last one, which is true, and with the consequence that a page of
-   somebody's proof was deleted because the tutor asked something else, which is
-   not acceptable. Two hours of Exercise 1.3 went that way.
+   A question is a CHAIN of boards: you write, hand it in, the tutor answers,
+   and the next attempt carries on below the answer. Each attempt is a board
+   that stays where it was written and can still be written on. A new attempt
+   opens on a COPY of the one before, so the working carries forward and the
+   board above keeps what it had. No page is ever destroyed.
 
    The record is one entry per BOARD, kept per course because the pages are:
 
        "<question>#<attempt>": { p: <page index>, a: <card it sits under> }
 
-   `p` is missing on a board nobody has written on yet -- it is cut the moment
-   somebody touches it, so a question the student never reached does not leave a
-   sheet behind. `a` is where the board sits: the newest board of a question
-   floats to the end of that question's run, because an answer belongs under the
-   feedback it is answering, and it stops floating the moment it is frozen. */
-/* `p` IS A PAGE NUMBER NOW, NOT AN INDEX INTO THE SURFACE'S ARRAY.
-
-   It was an index, and an index is a position in a list this record outlives:
-   the list comes back from the server on every reload with only the pages that
-   were ever SAVED in it, so one page cut and never written on slid every board
-   after it onto its neighbour's sheet. Reported as "none of the boards have my
-   preserved written work on them", with the working sitting on disk the whole
-   time. `lesson/slate.py` carries the measurements.
-
-   The key is versioned because of it: every record written before this line was
-   an index, there is nothing in it that says so, and reading one as a number is
-   the same class of mistake in the other direction. A bumped key throws them
-   away and `repairPages` builds the mapping back out of the turns on disk,
-   which is where the authority always was. */
+   `p` is missing on a board nobody has written on yet (it is cut on first
+   touch). `a` is where the board sits: the newest board of a question floats
+   to the end of its run, under the feedback it answers, until it is frozen. */
+/* `p` IS A PAGE NUMBER, NOT AN INDEX INTO THE SURFACE'S ARRAY: the list comes
+   back with only the pages ever saved, so an index slides. The key is
+   versioned because records written as indices say nothing about it; a bumped
+   key drops them and `repairPages` rebuilds from the turns on disk
+   (`lesson/slate.py` carries the measurements). */
 var PAGES_KEY = "board.pages.n";
 var boardPage = {};
 var pagesLoaded = false;
 
-/* THE MAPPING BELONGS TO A SITTING, NOT TO A CHAPTER.
-
-   Cards are numbered from 0001 within a sitting, so `0002#1` names a different
-   board the moment the next sitting on the same chapter opens -- and under a
-   chapter-wide key yesterday's records come back under today's names. Two
-   things came of that, and both were reported as one. A record for an attempt
-   this sitting has not reached paints a SECOND board above the live one, on a
-   page the surface does not hold, so its picture is empty: "the last board
-   shows up but it's a page I can't write on, and right underneath it a NEW new
-   board". And a record nobody can see owns a page number this sitting is about
-   to mint, so a board is found sharing a sheet the moment it opens and is
-   copied off it again -- pages 68 and 69 of one evening, the same 114 strokes,
-   1.2 s apart.
-
-   `opened` is rewritten every time a sitting starts, so course, chapter and it
-   together name this sitting and no other. `sittingKey` in `render` drops the
-   annotation store at the same boundary for the same reason. */
+/* THE MAPPING BELONGS TO ONE LESSON, NOT TO A CHAPTER. Card numbers restart
+   with each lesson, so under a chapter-wide key old records come back under
+   new names: a phantom board above the live one, and a sheet shared and
+   copied off. `opened` is rewritten when a lesson starts, so course, chapter
+   and it name this one; `sittingKey` in `render` drops the annotation store at
+   the same boundary. */
 function pagesKey() {
   var st = (lastLive && lastLive.state) || {};
   return pagesScope(st) + ":" + (st.opened || "-");
@@ -9265,18 +4695,10 @@ function loadPages() {
   dropOtherSittings();
 }
 
-/* The records of every OTHER sitting on this chapter, thrown away.
-
-   A sitting's mapping is no use to any other sitting -- the card numbers it is
-   keyed by mean something else now -- and a key nothing will ever read again is
-   a key that only costs storage. The chapter's own sittings, and nothing wider:
-   another chapter, or another course, can be open in a second tab, and an entry
-   with no sitting in its name at all -- which is what a mapping written before
-   the key carried one looks like -- belongs to no sitting that can claim it.
-
-   Nothing at all while the sitting cannot be named. A key that cannot say which
-   sitting it is is the key this sitting would be writing to, and a sweep with
-   that in hand empties the board it is sitting on. */
+/* The records of every OTHER lesson on this chapter, thrown away: their card
+   numbers mean something else now. The chapter's only -- another can be open
+   in a second tab -- and nothing at all while this lesson cannot be named,
+   because that key is the one it would be writing to. */
 function dropOtherSittings() {
   var st = (lastLive && lastLive.state) || {};
   if (!st.opened) return;
@@ -9330,29 +4752,18 @@ function slotN(key) {
    "the board before this one" means, which is the whole of the carry-over. */
 var slotOrder = [];
 
-/* Every question this LIVE lesson has asked, over every frame of it so far.
-   What separates a board from a leftover record; see `pageOwnedByOther`.
-
-   It only ever grows. A card whose body is still being written is skipped for
-   that one payload (`load_cards`), and a question missing from one frame is not
-   a question that is over -- so a per-frame census would leave a real board's
-   sheet undefended for exactly the frame in which something else might take it.
-   Counting a leftover as a board costs nothing but the behaviour this already
-   had; the other mistake hands a board's sheet away. Empty until the first live
-   frame carrying a question, and while it is empty every record counts. */
+/* Every question this LIVE lesson has asked, over every frame so far: what
+   separates a board from a leftover record (`pageOwnedByOther`). It only grows,
+   because a question missing from one frame (a card still being written) is
+   not over. Empty until the first live frame with a question; while empty,
+   every record counts. */
 var seenQs = Object.create(null);
 var seenAny = false;
 
-/* The last board before this one that somebody has actually written on.
-
-   A follow-up question is a new question, so it gets a board of its own and that
-   board is blank -- right for a new exercise, wrong three cards into one, where
-   the proof being asked about is on the board above and the answer belongs with
-   it. The board cannot tell those two apart (a question card is a question card)
-   and guessing would be worse than asking: a new exercise opened on a copy of
-   the last one is somebody else's proof under your pen, and every board after it
-   carries every stroke of the evening. So the working is brought forward by the
-   person who knows, in one tap. */
+/* The last board before this one that somebody has actually written on. A
+   follow-up question gets a blank board; whether it belongs with the proof
+   above is the person's call, so the working is brought forward by one tap,
+   never by a guess. */
 function prevInkSlot(key) {
   if (!writer || !writer.inkOn) return null;
   var i = slotOrder.indexOf(key);
@@ -9364,32 +4775,13 @@ function prevInkSlot(key) {
   return null;
 }
 
-/* Bring that working onto this board, as a copy of it.
-
-   A copy, not the same sheet: from here the two go their own ways, which is the
-   rule every board on this page follows. Never over ink -- a board with anything
-   on it is somebody's work, and this would replace it.
-
-   The copy lands on the page this board is ALREADY HOLDING. A board is dealt a
-   page the moment it opens, so cutting a second one abandons the first: a blank
-   sheet nothing names and nothing can reach again, because `fresh` hands back
-   only the TRAILING blank and the copy is now past it. From the iPad that is
-   "the last board shows up but it's a page I can't write on, and right
-   underneath it a NEW new board", and on disk it is pages 64, 66 and 67 of one
-   evening, cut and never saved.
-
-   The one case that still cuts a sheet is a page this board is SHARING with
-   another board of this sitting. That sheet is not this board's to write over,
-   and a copy is how two boards that reached one page go their own ways -- the
-   same repair `restoreAnswer` makes when it finds the sharing. Every record in
-   the mapping belongs to this sitting, so "another board" means a board that is
-   on the screen; see `pagesKey`.
-
-   And not under a pen that is down. The blankness test in `clone` counts
-   committed strokes, a stroke still being drawn is not one of them, and the fill
-   now replaces what a page holds where it lies. `syncSlots` waits for the same
-   reason, and like it this comes back: the offer is re-rendered, and `writing`
-   expires, so a pen lift the sheet never saw cannot leave the button dead. */
+/* Bring that working onto this board, as a COPY: from here the two go their
+   own ways. Never over ink. The copy lands on the page this board already
+   holds (cutting a second abandons the first, since `fresh` hands back only
+   the trailing blank); the one case that cuts a sheet is a page this board
+   SHARES with another board on the screen (`pagesKey`), the repair
+   `restoreAnswer` makes too. Not under a pen that is down: `clone` counts only
+   committed strokes, so this waits, as `syncSlots` does, and comes back. */
 function carryOver(key) {
   if (!writer || !writer.clone) return;
   if (writer.writing && writer.writing()) { renderSoon(); return; }
@@ -9404,26 +4796,11 @@ function carryOver(key) {
   loadedTurn = null;
 }
 
-/* Carrying the working onto a board is asking to WRITE on that board.
-
-   Both controls that offer the carry come through here, so neither can take the
-   working without taking the surface with it. A carry that copies and then lets
-   the surface be worked out again from the newest question leaves the carried
-   writing on a dormant board with a blank one under it, which is the report:
-   "it STILL creates an extra board and I can't write on the original new
-   board". One tap, one board, and it is the one under the pen.
-
-   The pin goes on BEFORE the copy, so the single render this makes is already
-   the pinned one. Set afterwards it takes two renders, and the first of them
-   paints the dormant board with the blank one under it.
-
-   `workingOnAt` is not decoration. The pin is let go whenever it does not match
-   the newest question, and it defaults to null while a question id is a string,
-   so a pin set without it is gone on the very next frame.
-
-   And not under a pen that is down, which is `carryOver`'s own rule: the copy
-   waits, so the ask waits with it, and the offer is still standing to be made
-   again. Pinning anyway would move the live page out from under a hand. */
+/* Carrying the working onto a board is asking to WRITE on that board, so both
+   controls that offer the carry pin the surface there too. The pin goes on
+   BEFORE the copy, so the one render is already pinned, and with `workingOnAt`
+   set, or the next frame lets it go. Not under a pen that is down
+   (`carryOver`'s rule): the ask waits with the copy. */
 function carryHere(key) {
   if (!key || !boardPage[key]) return;
   if (writer && writer.writing && writer.writing()) { renderSoon(); return; }
@@ -9466,46 +4843,26 @@ function pageOf(key) {
   return rec ? rec.p : undefined;
 }
 
-/* Does any OTHER board already own this page?
-
-   One board per page is the rule and nothing enforced it. The slate hands back a
-   trailing blank page rather than cutting a new one every time -- right, or
-   every board leaves an empty sheet behind it -- but two boards that reach it
-   before either is written on both get the same index. From then on they are the
-   same sheet: writing on the earlier one changes the later one, which is what it
-   looks like from the outside and is exactly what it is. The slate cannot know;
-   it deals in ink, not in questions. */
+/* Does any OTHER board already own this page? One board per page: the slate
+   hands back a trailing blank page, and two boards that reach it before either
+   is written on would share it. The slate deals in ink, not questions. */
 function pageOwnedByOther(n, key) {
   if (n === undefined || !n) return false;
   for (var k in boardPage) {
     if (k === key || boardPage[k].p !== n) continue;
-    /* AND ANOTHER BOARD MEANS A BOARD THIS LESSON HAS.
-
-       A record for a question the lesson has never carried is not a board:
-       nothing draws it and nothing can be written on it. Counting it as an owner
-       makes a live board copy itself off a perfectly good sheet to get away from
-       a ghost, and the sheet is then abandoned, because `fresh` hands back only
-       the TRAILING blank. On disk that is pages 64, 66 and 67 of one evening.
-
-       Ignored rather than deleted. Deleting is the operation that can throw away
-       a record for a board somebody is writing on, and ignoring one for a frame
-       costs nothing. */
+    /* AND ANOTHER BOARD MEANS A BOARD THIS LESSON HAS. A record for a question the
+       lesson never carried is not an owner, and counting it makes a live board copy
+       itself off a good sheet. Ignored rather than deleted: deleting can throw away
+       a record for a board somebody is writing on. */
     if (!seenAny || seenQs[slotQ(k)]) return true;
   }
   return false;
 }
 
-/* The chain of boards, brought up to date with the transcript.
-
-   A board is frozen -- left exactly where it is, with what is on it -- as soon
-   as two things are true of it: what it holds has been handed in, and the tutor
-   has written something since. The next attempt then opens on a copy, so the
-   working carries forward and the two go their own ways from there.
-
-   Both halves are needed. Freezing on the send alone would cut a board every
-   time somebody pressed Send to check their working, and freezing on the
-   tutor's card alone would cut one for a hint about working that has not been
-   handed in yet. It is the reply to an answer that ends an attempt. */
+/* The chain of boards, brought up to date with the transcript. A board is
+   frozen once what it holds was handed in AND the tutor has written since; the
+   next attempt opens on a copy. Both halves are needed: it is the reply to an
+   answer that ends an attempt. */
 function syncSlots(qids, runEndOf, turns) {
   var changed = false;
   var handedIn = {};                  /* question -> the page its answer came off */
@@ -9587,46 +4944,21 @@ function unsentInk(key) {
 }
 
 /* Has the page this board points at stopped being the answer that came off it?
-
-   Fewer strokes than were handed in is the test, and it is the honest one: a
-   page can only lose strokes by being cleared, reused or cloned over, and any of
-   those means it is somebody else's sheet now. MORE strokes is the ordinary case
-   of carrying on writing after sending, and the live page is then the better
-   picture -- it holds the answer and the work since.
-
-   Returns the answer that came off it, which is the thing to show and the thing
-   to put back. */
+   Fewer strokes than were handed in is the test: a page loses strokes only by
+   being cleared, reused or cloned over. More strokes is carrying on writing.
+   Returns the answer that came off it. */
 function lostAnswer(key, share) {
   if (!writer || !writer.pages || !writer.hasPage) return null;
   var q = slotQ(key);
   var answer = sentAnswers()[q];
   if (!answer) return null;
   var page = pageOf(key);
-  /* AND ONLY THE BOARD IT WAS HANDED IN OFF.
-
-     An answer is keyed by QUESTION, and a question has as many boards as it took
-     attempts. The next attempt opens on a COPY of the one that was handed in --
-     that is what carrying the working forward means -- so it starts life holding
-     every stroke of that answer while never having been the sheet the answer came
-     off. Ask this of it and the reply is nonsense: erase the copy, which is the
-     first thing anybody does with it, and the board concludes its answer has been
-     destroyed and hands it back, on a page of its own, under the pen.
-
-     Reported from the iPad, in exactly that shape: "I got a new board to answer
-     the next prompt, and I elected to erase my copied over previous board work,
-     and started writing new work. Then all of a sudden, the old previous board
-     work showed up again and the new work I started on got wiped." Nothing was
-     lost -- `adoptInk` cuts a new page rather than writing over one -- but the
-     new working was orphaned on a sheet with nothing pointing at it, which from
-     behind a pen is the same thing.
-
-     The record says which sheet the answer came off, so the test is whether this
-     board is on it. If some OTHER board of this question is, the answer is
-     accounted for and this one is a copy: it is the student's, and erasing it
-     means what it says. The guard is the same one `repairPages` applies before it
-     moves anything -- if a board of the question already holds what the record
-     names, there is nothing to repair and nothing to reclaim. Where NO board
-     holds it the record has genuinely rotted, and the old behaviour is right. */
+  /* AND ONLY THE BOARD IT WAS HANDED IN OFF. An answer is keyed by question, and
+     the next attempt opens on a copy holding every stroke of it; erasing that copy
+     is ordinary and must not bring the old answer back under the pen. The record
+     says which sheet the answer came off: if some board of this question is on
+     it, the answer is accounted for (`repairPages`'s guard). Only where no board
+     holds it has the record rotted. */
   if (typeof answer.page === "number") {
     var from = answer.page;
     if (page !== from) {
@@ -9643,17 +4975,10 @@ function lostAnswer(key, share) {
   return null;
 }
 
-/* The frozen strokes of an answer, by the URL the turn carries.
-
-   `live/answers/<turn>.json` is written once, beside the picture, and never
-   touched again -- so unlike the slate page it came off, it cannot move. It is
-   what a past board is DRAWN from, and what comes back under the pen when the
-   sheet it was written on has been reused since.
-
-   Fetched once per URL. A failure is remembered as a failure rather than
-   retried, because the board falls back to the picture and a board that re-asks
-   for a file that is not there on every render is a board that spends the
-   evening asking. */
+/* The frozen strokes of an answer, by the URL the turn carries:
+   `live/answers/<turn>.json`, written once and never moved. A past board is
+   drawn from it. Fetched once per URL; a failure is remembered, and the board
+   falls back to the picture. */
 var frozenInk = {};
 function frozenFor(url) {
   if (!url) return null;
@@ -9670,73 +4995,33 @@ function frozenFor(url) {
 }
 
 /* A board whose sheet no longer holds what was handed in off it, given that
-   answer back on a page of its own.
-
-   Without this, touching such a board opened the sheet as it is NOW -- cleared,
-   or reused by a later question -- so the working vanished and the pen landed on
-   what read as a brand new surface. Reported from the iPad: the boards whose
-   colour was wrong were the same boards that "clear everything to be a new
-   writing surface" when you write on them, and they are the same boards for the
-   same reason: both halves were the frozen answer being shown by a picture
-   drawn for somebody else, over a page that had moved on.
-
-   Once per board per sitting, and never over ink: `adoptInk` cuts a new page, so
-   the sheet that had been reused keeps whatever is on it and belongs to whoever
-   is using it now. */
+   answer back on a page of its own, so the working does not vanish under the
+   pen. Once per board per lesson, and never over ink: `adoptInk` cuts a new
+   page. */
 var reclaimed = {};
 /* What the sheet held when its answer was first ruled gone. See below. */
 var reclaimFrom = {};
-/* ASKED WHEN A BOARD IS OPENED, NOT WHILE SOMEBODY IS SITTING ON IT.
-
-   This is a question about a board you are coming BACK to and finding changed --
-   "touching one opened the sheet as it is now, cleared or reused, so an evening's
-   working appeared to go". It is not a question about the board under your hand,
-   and asking it there is how the answer came back over a fresh start: clear your
-   own answer's sheet to write it again, which is an ordinary thing to do, and the
-   next render ruled the answer destroyed and handed it back on a page of its own.
-   Reported from the iPad alongside the carried-over copy: "I elected to erase my
-   ... board work, and started writing new work. Then all of a sudden, the old
-   previous board work showed up again and the new work I started on got wiped."
-
-   So the judgement is made once per board per opening. `reclaimSeen` is the slot
-   that was live last time round; when it changes, the new one is OWED a
-   judgement, and it stays owed until one is actually reached -- the frozen
-   strokes have to be fetched first, and a hand has to come off the glass, and
-   neither of those is a decision. Once judged, nothing the student then does to
-   that sheet re-opens the question. */
+/* ASKED WHEN A BOARD IS OPENED, NOT WHILE SOMEBODY IS SITTING ON IT: clearing
+   your own answer's sheet to write it again is ordinary. `reclaimSeen` is the
+   slot live last time round; a new one is OWED a judgement until one is
+   reached (the frozen strokes fetched, the hand off the glass). Once judged,
+   nothing done to that sheet reopens it. */
 var reclaimSeen = null;
 var reclaimOwed = null;
 function reclaimAnswer(key) {
   if (!writer || !writer.adoptInk || reclaimed[key]) { reclaimOwed = null; return; }
   /* A HALF of what was handed in, where showing the frozen picture asks only for
-     one stroke fewer -- and the difference is deliberate. Showing a picture is
-     reversible and costs nothing when it is wrong. Moving the page under the pen
-     is neither: somebody who sends an answer and then rubs two lines out of it
-     is on that sheet, editing it, and cutting a fresh copy from the send would
-     orphan the very edit they are making. A cleared or reused sheet holds a
-     handful of strokes out of hundreds; an edited one holds nearly all of them.
-     Only the first is a board whose answer has gone. */
+     one stroke fewer: moving the page under the pen is not reversible, and an
+     edited sheet holds nearly all its strokes while a cleared or reused one holds
+     a handful. */
   var answer = lostAnswer(key, 0.5);
   /* Judged: the answer is where it was handed in, or there is nothing frozen to
      put back. Either way the question is closed until this board is opened
      again. */
   if (!answer || !answer.ink) { delete reclaimFrom[key]; reclaimOwed = null; return; }
-  /* A SHEET THAT IS GAINING INK IS A SHEET SOMEBODY IS USING.
-
-     Between ruling the answer gone and being able to act on it there are two
-     waits -- the frozen strokes have to be fetched, and a hand has to come off
-     the glass -- and a person does not stand still through them. Somebody who
-     clears a sheet and starts writing on it has answered the question this was
-     about: the sheet is theirs and they are on it. Moving the pen to a fresh
-     copy of the send then orphans exactly the working they are in the middle
-     of, which is the second half of what was reported.
-
-     So the judgement is made once, against what the sheet held when it was
-     first ruled gone, and abandoned if the sheet has grown since. It never
-     comes back for that board, because the count it is compared against does
-     not rise -- which is right: there is nothing here that has to happen, and
-     the frozen answer is still on disk, still drawn on the dormant board, and
-     still one tap away. */
+  /* A SHEET THAT IS GAINING INK IS A SHEET SOMEBODY IS USING. The judgement is
+     made against what the sheet held when first ruled gone, and abandoned if it
+     has grown since; the frozen answer stays on disk and on the dormant board. */
   var at = pageOf(key);
   var now = (at !== undefined && writer.inkOn) ? writer.inkOn(at) : 0;
   if (reclaimFrom[key] === undefined) reclaimFrom[key] = now;
@@ -9752,33 +5037,11 @@ function reclaimAnswer(key) {
 }
 
 /* Which page a question sits on, taken back from the record when the record in
-   this browser has rotted.
-
-   `boardPage` lives in localStorage and there is nothing in a browser that
-   can tell a stale entry from a live one -- the pattern this repository keeps
-   relearning, one more time: a record with no way to expire. And it CAN rot: an
-   evening where the surface was told its page count too early was an evening
-   where question after question was refiled against a page it was never written
-   on, and the entry outlived the reload that made it.
-
-   The server knows better, and always did. Every answer handed in carries the
-   page it was sent from, so for any question that has been sent at all there is
-   an authority for where its working is, on disk, surviving this browser
-   entirely.
-
-   It is applied conservatively, because the record is not the whole truth: a
-   board written on and never sent has no record at all, and a page CLONED out of
-   a shared sheet has moved since the send that named it. So the record is taken
-   only where the entry in hand is already untrustworthy -- absent, past the end
-   of the pages, sharing a sheet with another board, or pointing at a blank page
-   when the record points at a written-on one. A healthy mapping is left exactly
-   as it is.
-
-   Which board of a question the record is about is not in doubt: an answer is
-   versioned rather than re-sent, so a question has one turn and its page is the
-   page of the attempt in hand. If any board of that question already holds it --
-   they went back and handed in an earlier attempt -- there is nothing to repair
-   and nothing to move. */
+   this browser has rotted. `boardPage` lives in localStorage with no way to
+   expire; every answer handed in carries the page it was sent from, on disk.
+   Applied only where the entry in hand is untrustworthy -- absent, past the end
+   of the pages, sharing a sheet, or blank where the record names a written-on
+   page. If any board of the question already holds it, nothing moves. */
 function repairPages() {
   if (!writer || !writer.ready || !writer.ready()) return;
   var sentOn = {};
@@ -9790,17 +5053,9 @@ function repairPages() {
     var have = sentOn[t.answers];
     if (!have || (t.t || 0) >= have.t) sentOn[t.answers] = { t: t.t || 0, page: page };
   });
-  /* Which question the RECORD says each page was sent for. A board sitting on a
-     page that belongs to somebody else's question is wrong on evidence, not on
-     suspicion -- and it is the one kind of wrong the conservative tests above
-     cannot see, because such an entry looks perfectly healthy: the page exists,
-     no other board claims it in this browser, and there is ink on it. It is just
-     somebody else's ink.
-
-     Reported from the board, looking back over a lesson: "their recordings are
-     out of wack. My writing from one section is wrong and came from a later
-     section, vice versa." Both halves of that are this: two boards swapped, each
-     looking fine on its own. */
+  /* Which question the RECORD says each page was sent for: a board on a page
+     that belongs to another question's answer is wrong on evidence, and looks
+     healthy to every other test above. */
   var pageOwner = {};
   for (var qq in sentOn) {
     var owned = sentOn[qq].page;
@@ -9830,22 +5085,11 @@ function repairPages() {
   if (changed) savePages();
 }
 
-/* Every question has a board under it, and one of them is real.
-
-   The board wanted, in the words it was asked for: it should LOOK like there
-   are several live infinite canvases on the page. It cannot be several -- a live
-   surface is two canvases at device resolution, about seventeen megabytes an
-   iPad, and iPadOS answers an exceeded canvas budget with blank canvases or a
-   reloaded tab. A dozen of those is not a slow board, it is a board that loses
-   your working.
-
-   So there is one live surface and the rest are photographs of themselves,
-   drawn by the same paint code with the same paper and the same ink, at CSS
-   resolution because nothing is going to be zoomed into them. Touch one and it
-   becomes the live one -- including under a pen already coming down, which is
-   handed straight through so its first stroke is not eaten by the swap. The
-   difference is invisible until you write, which is exactly when it stops
-   existing. */
+/* Every question has a board under it, and one of them is real. A live surface
+   is two device-resolution canvases (about 17 MB on an iPad), so there is one,
+   and the rest are photographs of themselves drawn by the same paint code at
+   CSS resolution. Touching one makes it the live one, handing a pen already
+   coming down straight through. */
 function boardSlot(key, qid) {
   var slot = els.cards.querySelector('[data-slot="' + key + '"]');
   if (slot) return slot;
@@ -9948,25 +5192,10 @@ function paintCarry(btn, key) {
 }
 
 function paintBoards(qids, liveKey, off) {
-  /* The answer each question actually handed in, newest revision.
-
-     A past board used to be a picture of a SLATE PAGE, taken now -- and a slate
-     page is live. It gets written on again, cleared, cloned, reused. So a board
-     under an old question showed whatever had happened to that sheet since,
-     which from the iPad is: "their recordings are out of wack. My writing from
-     one section is wrong and came from a later section" and later "the very
-     latest few are just repeats of my earliest".
-
-     Measured on this lesson rather than guessed: the answer to question 6 was
-     handed in off page 7 with 279 strokes, and page 7 now holds one; question
-     7's came off page 9 with 279, and page 9 now holds a different 228. Pages 4
-     and 12 are byte-identical. Every FROZEN answer was correct and distinct the
-     whole time -- nothing was ever lost -- and the boards were pointing at a
-     moving target.
-
-     What was handed in cannot move: it is written once, into live/answers/, and
-     never touched again. So a board whose page no longer holds the answer that
-     came off it shows the answer instead. */
+  /* The answer each question actually handed in, newest revision. A slate page
+     is live (written again, cleared, cloned, reused); what was handed in is
+     written once into live/answers/ and cannot move. So a board whose page no
+     longer holds the answer that came off it shows the answer instead. */
   var sentInk = sentAnswers();
   /* Every photograph is keyed by the paper it was taken on as well as by what is
      on it. The paper is a device setting -- one tap turns the whole sitting from
@@ -10034,20 +5263,9 @@ function paintBoards(qids, liveKey, off) {
     if (answer) {
       slot.querySelector(".board-hint").textContent = which + " · as it was handed in";
       var frozen = slot.querySelector(".board-shot");
-      /* Drawn from the frozen STROKES, by the slate, on the paper in hand.
-
-         It used to be the answer's own PNG, and that file is written for a
-         different reader: always dark ink on white, cropped to the writing,
-         because its job is to be legible to whatever agent opens it. Among the
-         boards it read as exactly what it is -- a white sheet in a run of black
-         ones, at a magnification of its own. "The color is inverted", from the
-         iPad, mid-proof. The strokes were on disk beside it the whole time, so
-         a past board can be drawn by the same code as a live one and is then
-         indistinguishable from it, which is the rule every board here follows.
-
-         The picture stays as the fallback for an answer with no frozen strokes
-         -- one handed in before they were kept -- because an inverted board
-         still shows the working, and a blank one does not. */
+      /* Drawn from the frozen STROKES, by the slate, on the paper in hand, so a past
+         board is indistinguishable from a live one. The answer's PNG (dark on white,
+         cropped, for an agent) is the fallback for an answer with no frozen strokes. */
       var ink = frozenFor(answer.ink);
       var mark = "frozen:" + (answer.ink || answer.png) + ":" + skin
                + ":" + (ink ? "ink" : "png");
@@ -10141,29 +5359,15 @@ var busyFrom = 0;
    recomputed in `tickBusy`, which fires on a timer and has no payload. */
 var busyDoing = false;
 var busyAim = "";                /* what the work IS, when the turn does it */
-/* WHAT THE TURN WAS WOKEN FOR, off the daemon's own record. One value matters
-   so far and it is `direction`: the turn a direction change wakes spends its
-   first ten seconds writing a card that says it is re-planning, and then several
-   minutes reading the plan, rewriting it and redrawing the map. The strip's
-   ordinary rule -- a card landed, so the answer is here, so stop talking -- is
-   exactly wrong over that card. Reported as: "I got left hanging for a bit while
-   it was thinking and modifying the plan." */
+/* WHAT THE TURN WAS WOKEN FOR, off the daemon's own record. One value matters:
+   `direction`, whose opening card is a receipt rather than the answer, so the
+   strip keeps talking over it. */
 var busySignal = "";
 var busyTimer = null;
-/* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET.
-
-   Between the tap and the board saying "the tutor is writing" there is a PNG
-   encode, a round trip, the server waking the tutor, and the next payload. On a
-   worked page and a busy node that is comfortably a second, and it can be much
-   longer. Nothing on the board changed in that gap. Reported: "make the time
-   between me hitting 'send' and something else happening more snappy so I don't
-   get tempted to double send. If it takes a minute for it to say 'tutor is
-   responding', say 'sending to tutor' until that happens. I want immediate
-   feedback."
-
-   So the strip that says what the tutor is doing says this too, from the tap
-   until the tutor picks it up. It expires: an inbox nobody is reading must not
-   leave "sending" on the screen for the rest of the evening. */
+/* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET. The strip says
+   "sending to tutor" from the tap until the tutor picks it up, so there is
+   immediate feedback and no temptation to send twice. It expires: an inbox
+   nobody is reading must not leave "sending" up all evening. */
 var sendingAt = 0;
 var sendingWord = "";
 var SENDING_FOR = 100000;
@@ -10176,36 +5380,17 @@ function saySending(word) {
      which tutor. Empty means the ordinary send, and the ordinary words. */
   sendingWord = word || "";
   if (lastLive) paintBusy(lastLive);
-  /* AND GO AND LOOK AT IT, NOW.
-
-     The strip lives under the writing surface, and at the moment of the tap the
-     reader is wherever they finished writing -- halfway up a page of working,
-     with the foot of the surface and everything under it off the bottom of the
-     glass. So the message was being posted somewhere nobody was looking, and by
-     the time `revealSent` brought them down to it -- after the round trip -- the
-     tutor had often already reported working, and what they arrived to was "the
-     tutor is writing". Reported as: "I want to IMMEDIATELY see a message like
-     'sending to tutor' in the time before the 'tutor is writing' message shows
-     up." It was there. They were not.
-
-     The landing was always going to happen; this is only it happening on the tap
-     rather than on the reply to it. `revealSentSettling` still re-lands once the
-     receipt has settled, and still stands down the moment a card arrives. */
+  /* AND GO AND LOOK AT IT, NOW: the strip is under the surface, so the reader is
+     brought there on the tap rather than on the reply. `revealSentSettling` still
+     re-lands once the receipt settles, and stands down when a card arrives. */
   revealSent();
 }
 
 /* The newest card's mtime -- a correction to an existing card counts as much as
    a new one, since either way something appeared for them to read. */
-/* IS THIS A TURN THAT DOES THE WORK, rather than one that teaches it.
-
-   The four ways of saying so are the four `sense.session_sense` reads, because
-   they live in different places and a person taps one without knowing which:
-   the aim they chose on the map, a stance chosen for the sitting, a sitting
-   whose product is a document, or a repository whose standing answer is `do`.
-
-   The board needs this for one reason and it is the whole of why the strip
-   below was wrong: in a doing turn, a card landing does NOT mean the work is
-   finished. */
+/* IS THIS A TURN THAT DOES THE WORK, rather than one that teaches it: the
+   session's mode (`stance_now`), or an older frame's aim, stance or product.
+   In a doing turn, a card landing does NOT mean the work is finished. */
 function doingTurn(state) {
   state = state || {};
   var aim = state.aim || "";
@@ -10234,32 +5419,13 @@ function newestCard(data) {
   return newest;
 }
 
-/* NOTHING THE READER CAN BE WAITING ON IS ALLOWED TO BE SILENT.
-
-   This strip used to know two things: the wire (`sending to the tutor`) and the
-   turn (`the tutor is writing`). Between them sat every state that actually
-   goes wrong, and the strip's answer to all of them was to hide itself:
-
-   - A tutor still coming up. The send lands in the inbox, nothing takes it, and
-     after a hundred seconds the strip vanished. A blank space where "sending"
-     was is indistinguishable from a send that never left.
-   - A turn that FAILED. The daemon writes `last_error` and goes back to
-     waiting, so the chrome says "claude listening", the strip goes, and the
-     student is looking at their own working with nothing coming and no way to
-     know it. "I don't ever want to be left hanging" is this one.
-   - A course with no tutor attached at all, where the work is being filed into
-     an inbox nobody is reading.
-
-   All three are now the same question -- IS THERE SOMETHING IN THE INBOX THAT
-   NOTHING HAS PICKED UP -- and the server answers it off disk (`notes.waiting`),
-   which is what makes it survive a reload, a second device and the daemon being
-   restarted underneath it. The browser's own `sendingAt` covers only the
-   sub-second before the first payload comes back, which is all it was ever
-   qualified to talk about.
-
-   The order below is the order of urgency, and it is deliberate: a turn in
-   progress beats a failure that is now being retried, which beats work sitting
-   unclaimed, which beats the wire. */
+/* NOTHING THE READER CAN BE WAITING ON IS ALLOWED TO BE SILENT. A tutor still
+   coming up, a turn that failed, and a session with no tutor attached are one
+   question -- IS THERE SOMETHING IN THE INBOX THAT NOTHING HAS PICKED UP -- and
+   the server answers it off disk (`notes.waiting`), so it survives a reload, a
+   second device and a restart. `sendingAt` covers only the sub-second before
+   the first payload. The order below is urgency: a turn in progress, then a
+   failure being retried, then work unclaimed, then the wire. */
 function longAgo(ms) {
   var secs = Math.max(0, Math.round(ms / 1000));
   if (secs < 60) return secs + "s";
@@ -10273,18 +5439,9 @@ function longAgo(ms) {
 function stalledWord(st, waiting, unsaved) {
   var who = (st && st.agent) || "the tutor";
 
-  /* A FAILED TURN IS NEWS ON ITS OWN, AND CANNOT WAIT ON THE INBOX TO SAY SO.
-
-     `board wait` marks a message read the moment it hands it over, which is
-     what consuming it means -- so by the time a turn fails, the message it
-     failed on is READ and there is nothing sitting in the inbox to notice. The
-     daemon also re-queues it internally rather than marking it unread again.
-     So this is asked first and asked independently: the one state where the
-     student has handed work in, the tutor took it, and no card is ever coming
-     is precisely the state that leaves no trace anywhere else.
-
-     Timed from the failure rather than from the send, because that is the fact
-     -- how long ago it fell over -- and it is the one a person can act on. */
+  /* A FAILED TURN IS NEWS ON ITS OWN, AND CANNOT WAIT ON THE INBOX TO SAY SO: the
+     message it failed on was marked read when it was handed over, so it leaves
+     no trace there. Asked first and independently, timed from the failure. */
   /* AND WHETHER THE WORK IS STILL THERE, which after a doing turn is the fact
      that decides what to do next. "Send again to retry it" reads as starting
      over, and a turn that was stopped after twenty minutes of writing code has
@@ -10426,15 +5583,8 @@ function paintBusy(data) {
          saying so would be the board guessing. This is the half-second of the
          send that belongs to the wire. */
       els.busy.hidden = false;
-      /* THE LINK IS THE FIRST THING THAT COULD BE WRONG, AND IT IS THE ONE
-         THING THE STRIP USED TO BE UNABLE TO SAY.
-
-         "Sending" is a claim about a message being carried, and with the stream
-         down nothing is carrying it: the send may never have left, and no
-         payload is coming to correct the word. The board it was sent to can go
-         down underneath a send -- a restart, a node change, a dropped tailnet
-         link -- and what the person saw was "sending to the tutor" for the rest
-         of the evening. Reported as: "now 'sending to the tutor' is hanging". */
+      /* THE LINK IS THE FIRST THING THAT COULD BE WRONG: with the stream down
+         nothing is carrying a send, so "sending" would be a claim nobody corrects. */
       els.busyText.textContent = linkDead
         ? "not connected to the board — this has not been sent yet"
         : (sendingWord || "sending to the tutor");
@@ -10503,26 +5653,11 @@ function paintBusy(data) {
      daemon says "working" for all of it. So this counted on for minutes after
      the answer was already on screen, which is how a 34-second card came to look
      like a four-minute wait. Once something new is on the board, stop talking. */
-  /* ...AND THAT IS A TEACHING TURN'S RULE TOO.
-
-     In a turn that DOES the work, the card landing is the opposite signal. The
-     turn opens with one sentence saying what it is about to do -- so the board
-     is not blank while it works -- and then writes code, runs it, and replaces
-     that sentence with the report. Hiding the strip when the sentence lands
-     takes the indicator away at precisely the moment there is most to say, and
-     leaves somebody looking at a one-line card for several minutes with nothing
-     on screen saying anything is happening. Reported as: "is claude going to
-     town in the background? If so, I'd like an indication that this is what's
-     happening on the app."
-
-     So in a doing turn the strip stays for as long as the tutor says it is
-     working, and says what kind of work it is.
-
-     A RE-PLANNING TURN IS THE SAME SHAPE, whatever the sitting is. The turn a
-     direction change wakes is told, in order: write one sentence so the board is
-     not blank, read the plan, rewrite it, redraw the map, then write the report
-     over that sentence. Its opening card is a receipt, not an answer, and hiding
-     the strip on it leaves the several minutes that follow silent. */
+  /* ...AND THAT IS A TEACHING TURN'S RULE TOO. A turn that DOES the work opens
+     with one sentence and then writes code, runs it, and replaces the sentence
+     with the report; so in a doing turn the strip stays for as long as the tutor
+     says it is working, and says what kind of work it is. A `direction` turn's
+     opening card is a receipt too. */
   if (!busyDoing && busySignal !== "direction" && newestCard(data) > busyFrom) {
     els.busy.hidden = true;
     if (busyTimer) { clearInterval(busyTimer); busyTimer = null; }
@@ -10575,14 +5710,9 @@ function tickBusy() {
      it and reading what came back. Say that instead, and say where the answer
      will appear, because the one-line card already up is not it. */
   if (busyDoing) {
-    /* WHAT the work is, and only where the sitting has said. A turn that does
-       the work is not always a turn that writes code: `doingTurn` is true for a
-       paper and for a deck as well, and it is true for a repository whose
-       standing answer is `do` without naming any aim at all. Saying "writing
-       the code and running it" over a sitting that is doing none of those is a
-       sentence about somebody else's evening -- reported, from the wrong board,
-       as "that doesn't make much sense as a message". So the aim chooses the
-       words and the fallback claims nothing. */
+    /* WHAT the work is, and only where an aim has said: `doingTurn` is also true
+       for a paper, a deck, or a plain `do`, so the aim chooses the words and the
+       fallback claims nothing. */
     var doingWord = busyAim === "build" ? " — writing the code and running it"
                   : busyAim === "paper" ? " — writing it up"
                   : busyAim === "slides" ? " — putting the deck together"
@@ -11073,19 +6203,10 @@ document.addEventListener("visibilitychange", function () {
   if (!document.hidden) markSeen(true);
 });
 
-/* The writing surface used to be capped against the visual viewport here, so
-   that pinch-zooming the page could not make it swallow the glass. The cap
-   worked and was still wrong: it was a fraction of what could be SEEN, so it
-   shrank by exactly the factor the page was magnified by -- and zooming in on
-   the writing therefore did nothing at all, because the block got smaller as
-   fast as the page got bigger. A surface for reading handwriting that cannot be
-   zoomed into is worse than one you can occasionally get lost in.
-
-   The button is the answer instead. It rides on the visual viewport, so it
-   cannot be zoomed off the glass, and one tap puts the magnification back. That
-   makes zooming safe without making it useless, which is the trade the cap had
-   backwards. What is left in the layout is `--gap` on `#writer`: the strip of
-   page down each side that is there to put a thumb on. */
+/* The writing surface is not capped against the visual viewport: a cap shrinks
+   as fast as the page is magnified, so zooming into the writing would do
+   nothing. The re-centre button is the way back instead; `--gap` on `#writer`
+   leaves page down each side for a thumb. */
 
 /* Whether the surface is shut only because something is still being typed into
    the lesson -- rather than because nothing is owed. `paintBoards` needs the
@@ -11096,23 +6217,10 @@ var writerHeldShut = false;
 var traceHeld = false;
 
 function placeWriter(owed, questionNode, live, hold) {
-  /* A BOARD THAT IS NOT OPEN YET DOES NOT OPEN WHILE A CARD IS STILL TYPING.
-
-     "I want the next board to not show up until all of the tutor response has
-      been written", and then again: "no next board showing up until the agent's
-      response is rendered."
-
-     Holding a surface WHERE IT IS answers that for a sitting that already has
-     one open. It answers nothing at all when there is none -- a tutor that asks
-     its first question in the same payload as the answer to the last one opens a
-     board, and the board opened the instant the card existed, which is while the
-     card was still blank. The objection to hiding it does not apply here: what
-     hiding costs is the tool bar going off the bottom of the screen and coming
-     back, and a surface that was never open has no tool bar to take away. It
-     simply arrives a beat later, under a response that has finished.
-
-     `typeOut` renders once more when the last character lands, which is what
-     opens it. */
+  /* A BOARD THAT IS NOT OPEN YET DOES NOT OPEN WHILE A CARD IS STILL TYPING. A
+     surface that was never open has no tool bar to take away, so it simply
+     arrives a beat later, under a finished response. `typeOut` renders once more
+     when the last character lands, which is what opens it. */
   writerHeldShut = !!(hold && owed && els.writer.hidden);
   if (writerHeldShut) owed = false;
   /* Only when something about it CHANGED. This runs on every payload and most
@@ -11158,43 +6266,17 @@ function placeWriter(owed, questionNode, live, hold) {
   /* The anchor is looked up by card id now, so it can be any node in the lesson
      rather than only the last child -- which means checking it is actually IN
      the lesson before inserting beside it. */
-  /* AND IT DOES NOT MOVE UNDER A CARD THAT IS STILL BEING WRITTEN.
-
-     Asked for in these words: "I want the next board to not show up until all of
-     the tutor response has been written." It used to come down the instant the
-     card existed, which was while the card was one paragraph tall -- so the next
-     board appeared directly under the last one and the tutor's answer then
-     filled in between them.
-
-     Held where it is, rather than hidden: hiding it would take the tool bar off
-     the bottom of the screen and put it back a few seconds later, which is a
-     bigger movement than the one being removed. The card types out BELOW it --
-     new cards land at the end of the lesson and this surface has no key, so the
-     reconcile steps over it -- and the surface comes down under the card in one
-     move when the last character lands. `typeOut` renders once more to do it. */
+  /* AND IT DOES NOT MOVE UNDER A CARD THAT IS STILL BEING WRITTEN. Held where it
+     is, not hidden (hiding would take the tool bar off the screen and back). The
+     card types out below it, and the surface comes down under the card in one
+     move when the last character lands; `typeOut` renders once more to do it. */
   var host = questionNode && questionNode.parentNode;
   if (hold) {
-    /* HELD -- BUT ONLY AGAINST THE CARD THAT IS TYPING.
-
-       "Leave it exactly where it is" was the whole of this, and it left the
-       surface above things that belong above IT. The receipt for the answer just
-       sent is a turn, not a card: it is never typed, it is the student's own
-       working, and the reconcile steps over an unkeyed surface -- so it landed
-       BELOW the board it had just been written on and hopped above it a couple
-       of seconds later when the reply finished. A shuffle is the thing this hold
-       exists to remove, not a thing for it to add.
-
-       So the surface comes down as far as the first card that is still being
-       typed and no further. Everything above that -- the receipt, an older card,
-       a figure that finished -- reconciles into its proper place immediately;
-       only the writing that is still arriving stays below.
-
-       WHICH CARD THAT IS COMES FROM THE HOLD ITSELF, not from a class on its
-       body. `.body.typing` is set by the animation, so any path that holds the
-       surface without animating -- a card finished early by a stall, and
-       whatever the next one of those turns out to be -- left this loop with
-       nothing to find. `typingHeld` cannot drift from the hold, because it IS
-       the hold; see `holdTyping`. */
+    /* HELD -- BUT ONLY AGAINST THE CARD THAT IS TYPING. The surface comes down as
+       far as the first card still being typed and no further, so the receipt and
+       anything finished reconcile into place at once. Which card that is comes
+       from the hold itself (`typingHeld`, see `holdTyping`), not from a class the
+       animation sets. */
     var kids = els.cards.children;
     var below = null, passed = false;
     for (var k = 0; k < kids.length; k++) {
@@ -11282,19 +6364,10 @@ function makeWriter(then) {
    to its page with the working still on it. */
 function restoreAnswer() {
   if (!writer) return;
-  /* Not until the surface knows what its pages actually are.
-
-     It is usable before the network answers -- one blank sheet, so a stroke made
-     in the first half-second is not thrown away -- and for that half-second the
-     page count is a lie. Acting on it did two kinds of damage, both silent.
-     A question recorded against a page past the end of that lie was ruled gone,
-     given a fresh page, and WRITTEN DOWN there: a reload refiled question after
-     question onto page 0, and an evening's working ended up on one sheet with
-     the mapping to it destroyed. And loading a sent answer onto the stand-in
-     page put strokes on it, which is exactly the condition under which the saved
-     pages are then refused adoption -- so the real working never arrived at all.
-
-     Waiting costs nothing: `onPages` calls this the moment the count is real. */
+  /* Not until the surface knows what its pages actually are. For its first
+     half-second it is one blank sheet, and acting on that count refiles
+     questions onto the wrong page and blocks the real pages' adoption. `onPages`
+     calls this the moment the count is real. */
   if (!writer.ready || !writer.ready()) return;
   /* The pages have only just become knowable, and this is the first thing to
      read the mapping when they do. */
@@ -11386,17 +6459,9 @@ function toastSent() {
 /* ------------------------------------------------------------------ input */
 /* --------------------------------------- one answer panel, two surfaces */
 /* The student writes on the slate or types, whichever they ANSWERED with last.
-   A typed draft is kept per question the way the slate keeps a page per
-   question, so flipping between the two does not lose either half.
-
-   THE INK CARRIES OVER FROM QUESTION TO QUESTION AND THE TYPING DOES NOT, AND
-   THE ASYMMETRY IS THE POINT. `carryOver` brings the previous question's page of
-   ink onto a blank sheet, because a proof being fixed a line at a time is worked
-   on that way. There is no typed twin of that control and there must not be one:
-   "there's no way I'm going to type the same thing again." A typed box that
-   opens with anything in it opens with something the person typed against THAT
-   question -- their own unsent draft, or the answer they are correcting -- and
-   nothing else. */
+   A typed draft is kept per question, as the slate keeps a page per question.
+   The ink carries over between questions (`carryOver`) and typing does not: a
+   typed box opens only with what was typed against THAT question. */
 
 var ANSWER_KIND = "answer-kind";
 var textDrafts = {};            /* question id -> typed draft */
@@ -11416,23 +6481,10 @@ function sittingTag() {
   return (SESSION ? "s:" + SESSION : (st.course || "")) + " @ " + (st.opened || "");
 }
 
-/* THE HALF A QUESTION WITH NO HISTORY OF ITS OWN OPENS ON.
-
-   Asked for in these words: "the default that shows up should be whatever last
-   one I used was. If I wrote last, a board should show up. If I typed last, a
-   typing thing should show up." So what is remembered is the half an answer was
-   SENT on, recorded on both send paths -- `say` for the words, the writer's
-   `onSend` for the ink -- and by a tab press as well, because a tap is a
-   statement.
-
-   AND THE FIRST QUESTION OF A SITTING HAS NO LAST, so the sitting's own aim
-   answers it: "If the AI mode is math teacher or code coaching, then it should
-   be the board... If the AI mode is vibe coding, then it should be the
-   keyboard." `doingTurn` is that split already and is the board's one answer to
-   it, so there is no second table here mapping aims onto surfaces. A half
-   remembered in another sitting does not outrank it: there is no last half here,
-   and this evening's aim is a better answer than a tap made in another
-   workspace. */
+/* THE HALF A QUESTION WITH NO HISTORY OF ITS OWN OPENS ON: whichever half the
+   last answer was SENT on (`say`, the writer's `onSend`, or a tab press). The
+   first question of a session has no last, so `doingTurn` answers: teach is
+   the board, do is the keyboard. */
 function answerKind() {
   try {
     var saved = JSON.parse(localStorage.getItem(ANSWER_KIND) || "null");
@@ -11499,20 +6551,9 @@ function restoreTextDraft() {
   autosize();
 }
 
-/* Which surface a question opens on: what the person actually asked for on THIS
-   question, else the one it was answered with, else the remembered choice.
-
-   The order matters and it was wrong. A question already answered in ink
-   returned "write" from its history whatever the tabs were told, so pressing
-   *type* on a question you had written an answer to did nothing at all -- it set
-   the remembered kind, repainted, and the history overruled it again on the way
-   back. Which is every question worth typing about: you write the proof, the
-   tutor asks what you meant by a line of it, and the answer to that is a
-   sentence.
-
-   Same shape as `chosen.json` on the other side of the wire: a decision
-   outranks an inference drawn from what happens to be on disk, and the decision
-   is the one thing the files cannot tell you. */
+/* Which surface a question opens on: what the person asked for on THIS
+   question, else the one it was answered with, else the remembered choice. A
+   decision outranks an inference from what is on disk. */
 var pickedKind = {};
 
 function panelKind() {
@@ -11548,21 +6589,11 @@ function paintPanel() {
   document.getElementById("drawbar").hidden = !(open && !typing);
   els.tabWrite.classList.toggle("on", !typing);
   els.tabType.classList.toggle("on", typing);
-  /* THE BOX BELONGS TO THE QUESTION, NOT TO WHICHEVER TAB IS SHOWING.
-     The draft is asked for whenever the panel is open rather than only when the
-     type half happens to be up: a question that opened on the slate used to
-     leave the previous question's words in the box. The ink comes back on the
-     slate, unsent words come back in the box, and neither depends on which tab
-     you were last on.
-
-     WHAT WAS SENT COMES BACK ABOVE THE BOX AND NOT INTO IT. The box opens empty
-     on every question -- it holds what has not been sent yet, and nothing else.
-     See `paintSay`.
-
-     The typesetting happens only on the half that is showing, and the height is
-     measured only where it can be: KaTeX cannot measure what is `display:none`,
-     and `scrollHeight` on a hidden textarea is zero, so a box sized while it
-     was hidden stays collapsed when the tab brings it out. */
+  /* THE BOX BELONGS TO THE QUESTION, NOT TO WHICHEVER TAB IS SHOWING: the draft
+     is restored whenever the panel is open. What was sent comes back ABOVE the
+     box (`paintSay`), never into it. Typesetting and sizing happen only on the
+     half that is showing: neither KaTeX nor `scrollHeight` measures what is
+     hidden. */
   if (open) restoreTextDraft();
   syncSaid();
   if (typing) { paintSay(); autosize(); }
@@ -11578,23 +6609,11 @@ function paintPanel() {
 var correctingTurn = null;
 
 /* ------------------------------------------ the rendered block above the box */
-/* THE TYPED HALF KEEPS WHAT IT SENT, IN PLACE, RENDERED.
-   "The typed prompt also disappears after I send it, unlike the written board
-   when I send that." The comparison is exact and it is the whole item: sent ink
-   stays where it was made -- `paintBoards` draws a board per attempt with the
-   ink still on it -- and `say()` emptied the box, so one half of this panel kept
-   what you handed in and the other cleared it.
-
-   ONE BLOCK, TWO JOBS. Above the box, it is a PREVIEW of what the transcript
-   will show while you type, and the RECORD of what was sent once you have sent
-   it. One renderer for both, and the same one a card goes through: two
-   renderers would differ on exactly the input somebody is squinting at.
-
-   THE BOX ITSELF CANNOT RENDER AND NEVER WILL. `#saybox` is a textarea, which
-   holds characters and no markup by definition. A `contenteditable` would render
-   in place and cost iOS autocorrect, its undo stack, selection under a thumb,
-   `autosize`, the draft save and the ⌘-Enter send. A block above it costs none
-   of that. */
+/* THE TYPED HALF KEEPS WHAT IT SENT, IN PLACE, RENDERED, as sent ink stays on
+   its board. One block above the box is the preview while typing and the record
+   once sent, through the same renderer a card uses. `#saybox` stays a textarea:
+   `contenteditable` would cost autocorrect, undo, selection, `autosize`, the
+   draft save and the ⌘-Enter send. */
 
 /* Text that is trying to be mathematics: a dollar, a TeX delimiter, or a
    backslash command. Any of those and the block opens; prose with none of them
@@ -11602,20 +6621,9 @@ var correctingTurn = null;
 var TEX_LIKE = /\$|\\\(|\\\[|\\[A-Za-z]/;
 
 /* A backslash command with no delimiter around it, which renders as NOTHING.
-   `$` is a hunt on an iPad keyboard, so `\gamma` on its own is the likeliest
-   thing to be typed and the likeliest thing to come back blank.
-
-   Asked of `protect`, the renderer's own first pass, rather than of a second
-   pattern: it parks math, inline code and fences in a store and hands back what
-   is left, so a command inside `$...$` is already gone from what is scanned and
-   a regex inside backticks is too.
-
-   It is a HINT and not a fix, which is the decision here. Wrapping anything
-   that looks like TeX was refused outright: `\d+`, `C:\temp` and a shell escape
-   are all backslash commands to a pattern and none of them is mathematics, and
-   this board is used in code workspaces where that is what a person is most
-   likely to be typing. Saying so costs a line of amber and cannot be wrong
-   about what anybody meant. */
+   Asked of `protect`, so math, code and fences are already parked. A HINT, not
+   a fix: `\d+` and `C:\temp` are backslash commands too, and this board is used
+   for code. */
 function bareCommand(src) {
   var store = [];
   var left = protect(String(src || "").replace(/\r\n/g, "\n"), store);
@@ -11680,14 +6688,9 @@ function paintSay() {
   els.saidHint.hidden = true;
 }
 
-/* THE TAP ON THE BLOCK, which is the typed counterpart of going back to a board
-   and adding a line to the ink already on it. It hands the sent answer back to
-   the box and says what the box is now for -- correcting THAT answer, in its
-   place, rather than answering beside it.
-
-   This is where the restore lives now. It used to run on every paint of the
-   panel, which is what kept the box pre-filled and meant it could never open
-   empty; a tap is somebody asking, so it has no guards. */
+/* THE TAP ON THE BLOCK, the typed counterpart of going back to a board: it
+   hands the sent answer back to the box, to be corrected in its place. A tap is
+   somebody asking, so it has no guards. */
 function correctSaid() {
   if (els.said.dataset.state !== "sent" || !saidNow || !saidNow.text) return;
   correctingTurn = saidNow.turn || null;
@@ -11750,24 +6753,10 @@ function say(signal) {
     saidNow = { question: answering.question, text: text, turn: null };
     paintSay();
   }
-  /* A CORRECTION REVISES; A SECOND ANSWER IS A SECOND ANSWER.
-
-     This asked `answering.latest` -- the newest turn on this question, of any
-     kind -- so EVERY typed answer after the first one overwrote the one before
-     it. A question stays open for an evening, and the whole of a Galois sitting
-     answered card 0001: three typed answers, hours apart, each a reply to a
-     different piece of feedback, and the transcript held the last of them. It
-     landed as "when I type a response and send it... it disappears once the
-     tutor response comes in", beside the comparison that says what is owed:
-     "just like previous writing boards, previous text prompts should be
-     preserved too". Ink keeps every attempt -- a board apiece, down the page --
-     and typing kept one.
-
-     `correctingTurn` is the narrower question and the right one: is the box
-     holding an answer it was HANDED, to fix. Only then is a send a new revision
-     of that answer, which is what keeps a correction in the place of the thing
-     it corrects. Anything typed into an empty box is new, and new is kept.
-     Signals always start fresh. */
+  /* A CORRECTION REVISES; A SECOND ANSWER IS A SECOND ANSWER. Only a box holding
+     an answer it was HANDED to fix (`correctingTurn`) sends a new revision of it;
+     anything typed into an empty box is new and kept, as ink keeps every
+     attempt. Signals always start fresh. */
   var revise = (!signal && correctingTurn) ? correctingTurn : null;
   return api("/say", {
     method: "POST",
@@ -11990,18 +6979,10 @@ document.addEventListener("paste", function (e) {
   upload(e.clipboardData.files);
 });
 
-/* drag and drop anywhere.
-
-   Two things make this need more care than the usual depth counter. iPadOS
-   raises dragenter for gestures that are not file drags at all -- the
-   app-switcher swipe among them -- and it does not reliably raise the matching
-   dragleave when the gesture ends outside the page. Left alone, the overlay
-   sticks on and covers the lesson.
-
-   So: only open it for a drag that actually carries files, close it on every
-   event that means the drag is over, and keep a watchdog for the times none of
-   those arrive. The overlay is pointer-events: none as well, so even a stuck
-   one is cosmetic rather than a wall across the board. */
+/* Drag and drop anywhere. iPadOS raises dragenter for gestures that are not
+   file drags and may never raise the dragleave, so the overlay opens only for
+   a drag carrying files, closes on every event that ends one, has a watchdog,
+   and is pointer-events: none. */
 var dragDepth = 0;
 var dragWatchdog = null;
 
@@ -12080,23 +7061,10 @@ document.getElementById("btn-theme").onclick = function () {
   if (window.Typeface) window.Typeface.theme("next");
 };
 document.getElementById("btn-print").onclick = function () { window.print(); };
-/* HOW MUCH IS ON THE LIVE SURFACE, for the photograph.
-
-   `shot.js` skips the live board when nothing has been written on it -- a foot
-   of blank dark paper as the last page of a document somebody is emailing to
-   their professor reads as a document that went wrong -- but working drawn and
-   not yet sent is the student's and belongs in it. `strokes()` is the same
-   question Send already asks before it hands the tutor an empty sheet.
-
-   Set HERE, at the top level, and not where the slate is mounted: `#writer` is
-   static markup in the page and the slate is mounted into it lazily, so the
-   surface is on the glass and in the export long before there is anything to
-   ask. Set from inside the mount, this never ran at all and every photograph
-   ended with a blank page.
-
-   No writer mounted is nothing written. A writer that cannot answer is kept --
-   "I could not tell" must never be the reason an evening's unsent working is
-   left out of the record. */
+/* HOW MUCH IS ON THE LIVE SURFACE, for the photograph: `shot.js` skips a blank
+   live board and keeps unsent working. Set here at the top level, because the
+   slate is mounted lazily. No writer is nothing written; a writer that cannot
+   answer is kept. */
 if (window.TutorShot) {
   window.TutorShot.url = BASE + "/export/shot";
   window.TutorShot.liveInk = function () {
@@ -12117,318 +7085,11 @@ document.getElementById("btn-library").onclick = function () {
 };
 
 
-/* --------------------------------------- putting one to work somewhere else */
-/* THE OTHER HALF OF THE SENTENCE THE NEWSBAR ANSWERS. Asked for in these words:
-   *"I want to be able to go into a different section of a project, or a
-   different fucking project completely, and put other agents to work on other
-   things while the first one is working."* The bar at the top of the page is how
-   it comes back, hours later, on whichever board is open then. This is how it
-   goes out, from the board you happen to have in front of you, without leaving
-   the lesson you are in the middle of.
-
-   A PANEL RATHER THAN A PAGE, deliberately, and the opposite choice to the
-   library's: nothing here touches this workspace. It hands another one a job and
-   closes, and the lesson behind it is exactly where it was.
-
-   The list is every workspace this machine has -- `/atlas.json`, which is a
-   directory walk rather than a registry, so a host with half the tree checked
-   out offers half of it and no list anywhere has to be edited. */
-var elsewhereList = null;       /* the workspaces, once asked for */
-var elsewherePick = null;       /* which one, by its bare directory name */
-var elsewhereAgent = null;      /* and who, or nothing for whatever is there */
-var elsewhereChose = false;     /* whether that `null` is a tap or a default */
-
-/* THE FENCE OF THE WORKSPACE BEING AIMED AT, which is the one thing this panel
-   could not see. A mission is dispatched INTO a box nobody is looking at, so
-   there is no second chance to notice what is in it. */
-function elsewhereFenced() {
-  var hit = (elsewhereList || []).filter(function (w) {
-    return w.repo === elsewherePick;
-  })[0];
-  return (hit && hit.fenced) || [];
-}
-
-/* AND WHO IS ALREADY LISTENING IN IT, which is the other thing this panel
-   could not see. Naming a DIFFERENT assistant stops that one first, and the
-   stop is a model call -- the daemon on its way out writes its handoff -- so
-   the tap buys a wait of minutes rather than of seconds. Which of the two it
-   is, is decided by a fact the row carries. */
-function elsewhereHolder() {
-  var hit = (elsewhereList || []).filter(function (w) {
-    return w.repo === elsewherePick;
-  })[0];
-  return (hit && hit.holder) || "";
-}
-
-/* Whether this tap will put somebody out. Naming nobody is "whoever is there"
-   and displaces nobody; the same assistant already there is left alone. Both
-   rules are the server's, and this says the same thing on the glass. */
-function elsewhereSwaps() {
-  var held = elsewhereHolder();
-  return !!(elsewhereAgent && held && held !== elsewhereAgent);
-}
-
-/* THE WAIT IS UP TO FIVE MINUTES AND THE GLASS MUST NOT GO STILL FOR IT.
-   A stop waits 180 s, a start 60, a put-back 60 more, and the request is held
-   for all of it -- correctly, because the server is threaded and the answer is
-   worth waiting for. A line that does not move for that long reads as a hang,
-   and the next thing a person does is tap again or close the panel, which are
-   the two wrong moves while a real stop-and-start is in flight. So the seconds
-   are counted out loud. */
-var elsewhereTick = null;
-
-function elsewhereWaiting(lead, why) {
-  elsewhereWaited();
-  var from = Date.now();
-  var paint = function () {
-    var n = Math.round((Date.now() - from) / 1000);
-    var line = lead + (why ? " \u2014 " + why : "");
-    /* AND WHERE THE ANSWER COMES OUT, once the wait is long enough that
-       somebody would go looking for it somewhere else. */
-    if (n >= 20) line += " \u2014 leave this open; what happened lands here";
-    els.elsewhereSaid.textContent = line + (n ? "  " + n + "s" : "");
-  };
-  paint();
-  elsewhereTick = setInterval(paint, 1000);
-}
-
-function elsewhereWaited() {
-  if (elsewhereTick) clearInterval(elsewhereTick);
-  elsewhereTick = null;
-}
-
-function openElsewhere() {
-  els.elsewhere.hidden = false;
-  /* A pick belongs to the mission being dispatched, not to the panel: the
-     default is the fence's and the last box aimed at may have held none. */
-  elsewhereChose = false;
-  elsewhereWaited();
-  els.elsewhereSaid.textContent = "";
-  els.elsewhereSaid.classList.remove("bad");
-  /* And the switch, for the same reason the assistant is: it is a decision about
-     THIS mission, and a push nobody asked for because a checkbox was still
-     ticked from last time is the one mistake this panel must not make. */
-  if (els.elsewhereShip) els.elsewhereShip.checked = false;
-  paintElsewhere();
-  /* EVERY OPEN, WITH THE HOLDERS ON IT, AND THE LAST LIST DRAWN MEANWHILE.
-     Which assistant is attached where is the fact the next tap acts on, and it
-     changes whenever one is started or stopped anywhere -- a list read once
-     when the page loaded is hours old by the evening. `holders=1` is asked for
-     rather than sent because the front door polls the same route every 20
-     seconds and draws none of it. */
-  fetch("/atlas.json?holders=1").then(function (r) { return r.json(); })
-    .then(function (got) {
-      elsewhereList = (got && got.workspaces) || (got && got.courses) || [];
-      paintElsewhere();
-    })
-    .catch(function () {
-      els.elsewhereSaid.textContent = "could not read what this machine has";
-      els.elsewhereSaid.classList.add("bad");
-    });
-}
-
-function paintElsewhere() {
-  var host = els.elsewhereList;
-  host.textContent = "";
-  if (!elsewhereList) {
-    var wait = document.createElement("div");
-    wait.className = "group";
-    wait.textContent = "reading the tree\u2026";
-    host.appendChild(wait);
-  } else {
-    var family = "";
-    elsewhereList.forEach(function (w) {
-      /* Not the one you are looking at. Handing this board a job is what the
-         box you are already in is for. */
-      if (w.current) return;
-      if ((w.family_name || w.family || "") !== family) {
-        family = w.family_name || w.family || "";
-        var head = document.createElement("div");
-        head.className = "group";
-        head.textContent = family || "workspaces";
-        host.appendChild(head);
-      }
-      var b = document.createElement("button");
-      b.type = "button";
-      if (w.repo === elsewherePick) b.className = "on";
-      var name = document.createElement("span");
-      name.textContent = w.course || w.repo;
-      var where = document.createElement("span");
-      where.className = "where";
-      /* What is already happening there, because handing a job to a workspace
-         mid-lesson is a different thing from handing one to an idle box. */
-      where.textContent = w.chapter || "";
-      b.appendChild(name);
-      b.appendChild(where);
-      /* AND WHO IS LISTENING IN IT, ON THE ROW, for the fence's reason: the
-         workspace is chosen before the assistant is, and this is the fact that
-         decides what the second choice COSTS. Naming a different one stops
-         this one, and the stop is a model call. */
-      if (w.holder) {
-        var holder = document.createElement("span");
-        holder.className = "holds";
-        holder.textContent = w.holder + " listening";
-        b.appendChild(holder);
-      }
-      /* And whether it holds a fence, ON THE ROW, because the choice of
-         workspace is made before the choice of assistant and this is what
-         makes that second choice matter. */
-      if ((w.fenced || []).length) {
-        var fenceTag = document.createElement("span");
-        fenceTag.className = "fence";
-        fenceTag.textContent = "fenced";
-        b.appendChild(fenceTag);
-      }
-      b.onclick = function () { elsewherePick = w.repo; paintElsewhere(); };
-      host.appendChild(b);
-    });
-  }
-
-  /* And who. Empty means "whatever is listening there, or whatever that
-     workspace resolves to" -- which is the honest default, because a workspace
-     may already have a tutor and a start against one is a no-op that says so.
-
-     EXCEPT WHERE THE TARGET HOLDS A FENCE, and there the default is the one
-     assistant that may read it. Not a refusal of the others: they are still on
-     the row and still tappable, and a tap is remembered as a tap -- what changes
-     is which of them is already chosen when nobody says. */
-  var fence = elsewhereFenced();
-  if (!elsewhereChose) {
-    var reader = fence.length ? fenceReader() : null;
-    elsewhereAgent = (reader && !reader.missing) ? reader.name : null;
-  }
-  var who = els.elsewhereWho;
-  who.textContent = "";
-  var have = (assistants && assistants.agents || []).filter(function (a) {
-    return a.headless && !a.missing;
-  });
-  if (have.length > 1) {
-    var lead = document.createElement("span");
-    lead.textContent = "who:";
-    who.appendChild(lead);
-    [null].concat(have).forEach(function (a) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.textContent = a ? a.name : "whatever is there";
-      if ((a && a.name) === elsewhereAgent) b.className = "on";
-      if (a && a.exclusive) {
-        b.title = "one sitting at a time — " + a.exclusive;
-      }
-      b.onclick = function () {
-        elsewhereAgent = a ? a.name : null;
-        elsewhereChose = true;
-        paintElsewhere();
-      };
-      who.appendChild(b);
-    });
-  }
-  paintFence(els.elsewhereFence, fence, elsewhereAgent);
-
-  /* WHO ACTUALLY PUSHES, said on the switch rather than left to be discovered.
-     "Ship it" reads as "and nobody looks at it", and the opposite is true: the
-     work is pushed by the workspace's ordinary tutor reading the diff, never by
-     the assistant that wrote it -- which is the whole reason a local model's
-     work can go to a public remote at all. */
-  if (els.elsewhereShipNote) {
-    var note = els.elsewhereShipNote;
-    note.hidden = !(els.elsewhereShip && els.elsewhereShip.checked);
-    if (!note.hidden) {
-      note.textContent = "When it finishes, this workspace's ordinary tutor "
-        + "reads the diff and pushes it \u2014 not "
-        + (elsewhereAgent || "whatever ran the mission")
-        + ", so the work gets a second pair of eyes"
-        + (fence.length ? " that could not read " + fence.join(", ") : "")
-        + ".";
-    }
-  }
-  els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
-}
-
-if (els.elsewhereShip) {
-  els.elsewhereShip.addEventListener("change", paintElsewhere);
-}
-
-els.elsewhereTask.addEventListener("input", function () {
-  els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
-});
-
-els.elsewhereGo.onclick = function () {
-  if (!elsewherePick || !els.elsewhereTask.value.trim()) return;
-  els.elsewhereGo.disabled = true;
-  els.elsewhereSaid.classList.remove("bad");
-  /* WHAT THE TAP IS DOING, NOT WHAT THE SHORTEST VERSION OF IT WOULD DO. A
-     dispatch into an empty workspace is a start and takes seconds. One that
-     names a different assistant than the one listening there is a stop, a
-     handoff written by a model, and then a start -- and the request is held
-     for the whole of it. The same line over both is what makes the long one
-     read as a hang. */
-  var held = elsewhereHolder();
-  elsewhereWaiting(
-    elsewhereSwaps()
-      ? "stopping " + held + " in " + elsewherePick + ", then starting "
-        + elsewhereAgent + "\u2026"
-      : "starting it\u2026",
-    elsewhereSwaps()
-      ? held + " writes its handoff on the way out, which is a model call, so "
-        + "this takes minutes rather than seconds"
-      : "");
-  fetch("/elsewhere", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: elsewherePick, agent: elsewhereAgent,
-                           ship: !!(els.elsewhereShip && els.elsewhereShip.checked),
-                           task: els.elsewhereTask.value.trim() })
-  }).then(function (r) { return r.json(); }).then(function (got) {
-    elsewhereWaited();
-    /* A REFUSAL IS AN ANSWER AND IT GOES ON THE GLASS. One colibri sitting at a
-       time machine-wide, and cards that must not be committed: both are refused
-       by name, both name the workspace or the line that changes it, and neither
-       is any use in a log. */
-    if (!got || got.ok === false) {
-      els.elsewhereSaid.textContent = (got && got.error)
-        || "that could not be started";
-      els.elsewhereSaid.classList.add("bad");
-      els.elsewhereGo.disabled = false;
-      return;
-    }
-    els.elsewhereTask.value = "";
-    /* A SWAP IS SAID OUT LOUD AND THE PANEL STAYS UP TO SAY IT. Dispatching a
-       named assistant into a workspace that had a different one stops that one,
-       and the person who tapped is the only one in a position to know it
-       happened. A dispatch that displaced nobody has nothing to read: it
-       clears the box and the panel goes away. */
-    if (got.stopped) {
-      els.elsewhereSaid.textContent = got.detail || "";
-      /* The box was just emptied, so the button stays off until something is
-         typed into it -- an enabled button whose handler returns on the first
-         line is a button that lies about what a tap will do. */
-      return;
-    }
-    els.elsewhere.hidden = true;
-  }).catch(function () {
-    elsewhereWaited();
-    els.elsewhereSaid.textContent = "the board did not answer";
-    els.elsewhereSaid.classList.add("bad");
-    els.elsewhereGo.disabled = false;
-  });
-};
-
-document.getElementById("btn-work-elsewhere").onclick = openElsewhere;
-document.getElementById("elsewhere-close").onclick = function () {
-  elsewhereWaited();
-  els.elsewhere.hidden = true;
-};
 /* Escape leaves the document, the way it leaves the picture viewer. A panel
    that covers the whole glass needs more than one way out of it. */
 document.addEventListener("keydown", function (e) {
-  if (e.key !== "Escape") return;
-  if (els.map && !els.map.hidden) mapLeave();
-  else if (paperOpen) closeReader();
-  else if (els.shelf && !els.shelf.hidden) els.shelf.hidden = true;
+  if (e.key === "Escape" && paperOpen) closeReader();
 });
-document.getElementById("btn-shelf-close").onclick = function () {
-  els.shelf.hidden = true;
-};
 document.getElementById("btn-export").onclick = function () { doExport("lesson"); };
 document.getElementById("btn-export-all").onclick = function () { doExport("all"); };
 document.getElementById("btn-export-hw").onclick = doExportHomework;
@@ -12600,35 +7261,17 @@ els.jump.onclick = function () {
 
 /* --------------------------------------------------------- the way back ----
 
-   A pinch-zoomed page has no reverse gear that can be relied on: the writing
-   surface is as wide as the glass by design, so at any real magnification it
-   covers everything there was to pinch on, and it swallows touches because a
-   pen stroke is a touch. The first answer was to cap the surface against what
-   could be seen, and that made zooming into the writing pointless -- the block
-   shrank as fast as the page grew. So the surface is left alone and this is the
-   way back instead: one tap puts the magnification where it started.
-
-   Where the stack sits, how it is dragged, and what the first tap does are all
-   in `recentre.js`, because the front door has the same two ways of being lost
-   and needed the same answer. What is here is which buttons this page has and
-   what the ones under the first one do.
-
-   Five, in order down the glass:
+   A pinch-zoomed page has no reliable reverse gear, so one tap puts the
+   magnification back. Placement, dragging and the first tap are `recentre.js`,
+   shared with the front door. In order down the glass:
 
      #panic     the page's own magnification, put back. The one that is dragged.
-     #findink   the view, put back over the writing. A surface with a zoom of
-                its own that `#panic` knows nothing about.
-     #mapback   the same, for the map of this workspace -- which is a plane with
-                its own pan and zoom, covers the whole glass, and until now was
-                painted OVER the way out of both.
-     #redirect  the way out of the whole plan. The only one that changes what
-                the work is rather than where you are looking at it from.
-     #notesend  the marks on the lesson, handed over through a picker. Always
-                there; a widget so it can be put where the ink is not. */
+     #findink   the view, put back over the writing.
+     #notesend  the marks on the lesson, handed over through a picker. */
 /* Safari pinches the page from `gesturestart` whatever `touch-action` says on
    some builds, so the page pinch is refused here as well as in `board.css`. The
-   writing surface and the map read their pinch from pointer events, which this
-   does not touch. Under `page-magnified` (`readerzoom.js`: a document open on
+   writing surface reads its pinch from pointer events, which this does not
+   touch. Under `page-magnified` (`readerzoom.js`: a document open on
    a page Safari has magnified) the pinch is Safari's, the way back out. */
 ["gesturestart", "gesturechange"].forEach(function (t) {
   document.addEventListener(t, function (e) {
@@ -12652,134 +7295,15 @@ if (els.panic && window.Recentre) {
           writer.fitInk();
           window.Recentre.flash(el);
         } },
-      /* THE MAP IS A PLANE, AND A PLANE CAN BE PANNED INTO NOTHING.
-
-         Its own ways back -- the ⤢ in the map's head, and the fit it opens on
-         -- are page chrome, and page chrome is exactly what a pinch pans off
-         the glass. So the map got the same treatment the writing surface
-         already had: a button in the stack that puts the picture back where it
-         opens, at the size it opens at, with the top of it on screen. */
-      { el: els.mapback, onTap: function (el) {
-          if (els.map && els.map.hidden) return;
-          mapView.held = false;
-          mapFit();
-          mapRemember();
-          window.Recentre.flash(el);
-        } },
       /* Its tap is registered here rather than as a `click` listener of its
          own, because `Recentre` has to tell a tap from a press-and-hold to move
          the button -- two listeners would fire one after the other. */
-      { el: els.redirect, w: 96, onTap: function () {
-          if (els.steer.hidden) steerOpen(); else steerShut();
-        } },
       { el: els.notesend, w: 150, onTap: notesTap },
     ],
   });
 }
 
 
-/* ------------------------------------------------ changing the direction */
-/* The plan was wrong, and saying so is one tap from wherever they are.
-
-   Everything this does is on the server -- `/direction` writes it down, files
-   the lesson away, and replaces the running assistant, which is the half no
-   prompt can do. What is here is the sheet, and the sheet's whole job is to say
-   what is about to happen BEFORE it happens: four irreversible-looking things at
-   once, and somebody who taps it not knowing that is somebody who never taps it
-   again.
-
-   It does not ask "are you sure". The confirmation is the sentence they have to
-   write. */
-function steerOpen() {
-  var now = (lastLive && lastLive.direction) || null;
-  if (now && now.text) {
-    els.steerNow.hidden = false;
-    els.steerNow.textContent = "In force" + (now.when ? " since " + now.when : "")
-      + ":\n" + now.text;
-  } else {
-    els.steerNow.hidden = true;
-    els.steerNow.textContent = "";
-  }
-  els.steer.hidden = false;
-  steerReady();
-  /* Not on a tablet: focusing raises the keyboard over the sheet before they
-     have read what it says. They tap the box when they are ready to write. */
-  if (!("ontouchstart" in window)) {
-    try { els.steerBox.focus(); } catch (e) {}
-  }
-}
-
-function steerShut() {
-  els.steer.hidden = true;
-}
-
-/* Nothing to send until there is a sentence. A direction of "" would archive the
-   lesson and wake a tutor with nothing to act on. */
-function steerReady() {
-  els.steerGo.disabled = !els.steerBox.value.trim();
-}
-
-function steerSend() {
-  var text = els.steerBox.value.trim();
-  if (!text) return;
-  els.steerGo.disabled = true;
-  els.steerGo.textContent = "changing…";
-  /* NOT SILENT WHILE IT HAPPENS. Everything this tap sets off is on the server
-     and none of it is quick: the lesson is filed, a new sitting is opened, and
-     the running tutor is stopped and another started in its place. The sheet
-     shuts, the board comes back empty because the old lesson has just gone, and
-     until the new tutor writes its first card there is nothing on the glass at
-     all. Reported as: "I did get a response, but I had to wait a bit and it
-     didn't give me any kind of 'tutor is working' visual confirmation — I was
-     left hanging."
-
-     The strip already exists for exactly this and the direction change was the
-     one send that never lit it. Said on the tap rather than on the reply, for
-     the same reason the ordinary send is. */
-  saySending("changing direction — replacing the tutor");
-  api("/direction", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: text })
-  }).then(function (r) { return r.json(); }).then(function (data) {
-    els.steerGo.textContent = "change direction";
-    if (!data || !data.ok) {
-      sendingAt = 0;
-      sendingWord = "";
-      if (lastLive) paintBusy(lastLive);
-      steerReady();
-      return;
-    }
-    els.steerBox.value = "";
-    steerShut();
-    /* Back to the lesson, whatever was over it. The board it comes back to is
-       empty for a moment -- the old lesson has just been filed -- and then the
-       new tutor writes into it. */
-    addrShut();
-  }).catch(function () {
-    els.steerGo.textContent = "change direction";
-    sendingAt = 0;
-    sendingWord = "";
-    if (lastLive) paintBusy(lastLive);
-    steerReady();
-  });
-}
-
-/* `#redirect`'s tap is wired where the stack is mounted, at the top of this
-   file: every button up there can also be pressed and held to move the trio, so
-   a second listener here would fire alongside it. */
-if (els.steerBox) {
-  els.steerBox.addEventListener("input", steerReady);
-  els.steerBox.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      steerSend();
-    }
-  });
-}
-if (els.steerGo) els.steerGo.onclick = steerSend;
-if (els.steerClose) els.steerClose.onclick = steerShut;
-if (els.steerCancel) els.steerCancel.onclick = steerShut;
 window.addEventListener("scroll", function () {
   /* `following` reads a rectangle, which forces layout, and this fires for
      every frame of a flick. It is only ever asked while there is a button to
@@ -12804,33 +7328,14 @@ document.addEventListener("visibilitychange", function () {
    this installs the app shell; over plain HTTP it is skipped and everything
    still works, just without offline start-up. */
 if ("serviceWorker" in navigator && window.isSecureContext) {
-  /* Swiping out of an installed iOS app and back in RESUMES it -- the document
-     is restored from memory and never re-executes. Without an explicit check,
-     a fixed bug stays on screen until the app is force-quit, which is not
-     something anyone should have to know. So: ask for an update every time the
-     app comes back to the foreground, and take a new worker when there is one.
+  /* Swiping out of an installed iOS app and back in RESUMES it, so an update is
+     asked for every time the app comes back to the foreground.
 
-     BUT NEVER OUT FROM UNDER SOMEBODY WHO IS READING IT.
-
-     Reported from the iPad: "there are a few times when after I sent a response,
-     the whole screen went white, and then the page reloaded with the tutor
-     response and all prior responses collapsed (though reachable) and all prior
-     boards only yielding the frozen canvas of my work." Every part of that is
-     one `location.reload()`, fired the instant a new service worker claimed the
-     page, with no regard for what the page was in the middle of. A reload is
-     cheap for the code and expensive for the person: the scroll position goes,
-     every card folds back to how it renders on a first visit, the live surface
-     is replaced by the picture of the last thing sent, and there is a white
-     flash in the middle of a proof. And a new worker arrives at a moment nobody
-     chose -- an update is asked for on every return to the foreground, and
-     sending a response is exactly when an app comes back to the foreground.
-
-     So a new worker is now NEWS, not an event. Taken at once when the page is
-     hidden, because then it costs nothing and the app is on the new code the
-     moment it is picked up again. Offered, otherwise, in a strip that says what
-     it is -- so somebody who wants the fix now can have it, and somebody in the
-     middle of an exercise is not interrupted by one. And never while there is
-     ink the disk has not been told about, whichever way it is taken. */
+     BUT NEVER OUT FROM UNDER SOMEBODY WHO IS READING IT. A reload loses the
+     scroll position, folds every card and flashes white mid-proof, and a new
+     worker arrives at a moment nobody chose. So a new worker is NEWS: taken at
+     once when the page is hidden, offered in a strip otherwise, and never while
+     there is ink the disk has not been told about. */
   var hadController = !!navigator.serviceWorker.controller;
   var reloading = false;
   var updateWaiting = false;

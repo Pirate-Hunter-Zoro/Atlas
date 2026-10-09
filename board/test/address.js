@@ -185,14 +185,13 @@ const VIEW = {
   pages: ['/paper/a.png', '/paper/b.png'],
 };
 
-// Every address the lesson itself carries: one live, one dead, one gibberish.
+// Every address the lesson itself carries: one live, one dead, one gibberish,
+// and one to a box on the map, which is gone.
 const BODY = [
-  'See [the typist](#/w/courses/Galois-Theory/node/typist).',
+  'See [the deck](#/w/courses/Galois-Theory/doc/stage2-deck).',
   'And [a card that has gone](#/w/courses/Galois-Theory/card/0099).',
   'And [not an address at all](#/w/courses/Galois-Theory/card/99).',
   'And [somewhere else](#/w/research/PSYCH-ASR/node/typist).',
-  // The hand-off itself: the work has left this box, so the card names the box
-  // it continues in. Written the way `node_sense` hands the address over.
   'The grader is where this continues: [the grader](#/w/courses/Galois-Theory/node/grader).',
 ].join('\n\n');
 
@@ -203,21 +202,9 @@ const LIVE = {
   turns: [], messages: [], uploads: [], notes: [], notes_sent: [],
   slate: [{ page: 12, name: 'page-12.png', url: '/slate/page-12.png' }],
   push: null, agent: null, history: 1,
-  map: { nodes: [{ id: 'typist', name: 'the typist', kind: 'part',
-                   status: 'working', does: 'Turns the waveform into words.',
-                   files: ['psych_asr/asr.py'], dir: 'psych_asr', steps: [] },
-                 { id: 'grader', name: 'the grader', kind: 'part',
-                   status: 'unknown', does: 'Scores a transcript.',
-                   files: ['psych_asr/grade.py'], dir: 'psych_asr/grade',
-                   steps: [] }],
-         edges: [], loose: [] },
   reading: { documents: [{ id: 'stage2-deck', name: 'The Stage 2 deck' }] },
-  walk: { units: [{ name: 'psych_asr/asr.py', label: 'psych_asr/asr.py',
-                    path: 'psych_asr/asr.py', short: 'asr.py', dir: 'psych_asr',
-                    kind: 'file', symbol: '' }], scope: [] },
   sets: ['ch07'],
   hw: { name: 'ch07', total: 1, written: 0, problems: [{ label: '4.1' }] },
-  contents: { chapters: [], sets: [{ name: 'ch07', rel: 'hw/ch07.tex' }] },
 };
 
 // jsdom will not navigate, and says so loudly. That is the one thing this test
@@ -254,25 +241,15 @@ window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
 const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
 let asked = [];
-// What the board asked FOR, as well as where: a tap on a box opens a sitting,
-// and which sitting is in the body rather than in the path.
-const posted = [];
-window.fetch = (u, opts) => {
+window.fetch = (u) => {
   const url = String(u);
   asked.push(url);
-  if (opts && opts.body) {
-    try { posted.push({ url: url, body: JSON.parse(opts.body) }); } catch (e) {}
-  }
   if (/slate\/state/.test(url)) return json({ pages: [] });
   if (url.indexOf('/health') === 0) return json(HEALTH);
   if (url === '/archive') return json({ sessions: [{ id: SITTING, cards: 1, turns: 0 }] });
   if (url === '/archive/' + SITTING) return json(PAST);
   if (url.indexOf('/archive/') === 0) return json({ ok: false, error: 'no such session' });
   if (url.indexOf('/view/') === 0) return json(VIEW);
-  // THE SITTING A TAP ASKS FOR, answered rather than left hanging: what the
-  // board does once it is open -- leaving the map, and spending the address
-  // that opened it -- is half of what a node address means.
-  if (url === '/session') return json({ ok: true, session: 'lecture' });
   return new Promise(() => {});          // everything else never answers
 };
 
@@ -283,7 +260,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['address.js', 'typeface.js', 'macros.js', 'gauge.js',
+for (const f of ['address.js', 'typeface.js', 'macros.js',
                  'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js',
                  'reader.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
@@ -324,8 +301,7 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
 
   // -- rule 3, where it is written: three links in one card, three answers.
   const links = Array.from(card.querySelectorAll('a'));
-  const live = links.find((a) => /typist/.test(a.getAttribute('href') || '')
-                                && /Galois/.test(a.getAttribute('href') || ''));
+  const live = links.find((a) => /doc\/stage2-deck/.test(a.getAttribute('href') || ''));
   const gone = links.find((a) => /card\/0099/.test(a.getAttribute('href') || ''));
   const junk = links.find((a) => /card\/99$/.test(a.getAttribute('href') || ''));
   if (live && !live.classList.contains('dead') && !live.classList.contains('bad')) {
@@ -345,58 +321,28 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   const at = (frag) => window.__addrGo(A.parse(frag));
   const W = '#/w/courses/Galois-Theory';
 
-  at(W);
-  if (!el('map').hidden) ok('the workspace address opens the map');
-  else fail('the workspace address did not open the map');
-
-  // A NODE ADDRESS OPENS THAT BOX'S SITTING, which is what an address to a box
-  // is for: the map is drawn, the box is marked as where you are, and the
-  // sitting is asked for in one go. No sheet asks which one first.
-  posted.length = 0;
-  at(W + '/node/typist');
-  await tick();
-  const went = posted.filter((p) => p.url === '/session').pop();
-  if (went && went.body.node === 'typist' && went.body.begin === true
-      && el('work').hidden) {
-    ok('a node address opens that box\'s sitting');
-  } else fail('a node address did not open the box: ' + JSON.stringify(went));
-
-  // AND IT IS SPENT. Opening a sitting files the one that was open, so a bar
-  // still naming the box is an evening filed away by the next reload -- and
-  // this board reloads itself when it is shipped. Once the sitting is open the
-  // board is in the lesson, and the bar says the workspace.
-  if (!/\/node\//.test(window.location.hash)) {
-    ok('and the bar stops naming the box, so a reload cannot ask twice');
-  } else fail('the bar still names the box: ' + window.location.hash);
-
-  if (at(W + '/node/nowhere') === 'gone' && /not on this map/.test(said())) {
-    ok('a node that is not on the map is a miss, said plainly');
-  } else fail('a missing node was not reported: ' + said());
-
-  // -- THE HAND-OFF LANDS. A component boundary is a stopping point, and the
-  //    card that stops names the box the work continues in. What makes that a
-  //    tap rather than an errand is only this: the address in the card resolves
-  //    and opens that box. `tutorboard/spell.py` spells it and `test/aiming.py`
-  //    asserts the string it hands the turn; this is the other end of it.
-  const hand = Array.from(card.querySelectorAll('a'))
-    .find((a) => /node\/grader/.test(a.getAttribute('href') || ''));
-  if (hand && !hand.classList.contains('dead') && !hand.classList.contains('bad')) {
-    ok('a hand-off to another box reads as a live link where it is written');
-  } else fail('the hand-off link was not marked live');
-  posted.length = 0;
-  at(W + '/node/grader');
-  await tick();
-  const handed = posted.filter((p) => p.url === '/session').pop();
-  if (handed && handed.body.node === 'grader' && handed.body.begin === true) {
-    ok('and the box it names opens, which is what makes it a tap');
-  } else fail('the hand-off address did not open the box: '
-              + JSON.stringify(handed));
+  // THE MAP IS GONE. The workspace is its lesson, and a box is a place no
+  // more: an address to one is a miss, said plainly, where it is written and
+  // when it is followed.
+  if (at(W) === 'ok' && !el('map')) {
+    ok('the workspace address is the lesson, with no map to open');
+  } else fail('the workspace address did not land on the lesson');
+  const box = links.find((a) => /node\/grader/.test(a.getAttribute('href') || ''));
+  if (box && box.classList.contains('dead') && /map is gone/.test(box.title)) {
+    ok('a link to a box on the map reads as dead where it is written');
+  } else fail('a link to a box was not marked dead: ' + (box && box.title));
+  if (at(W + '/node/typist') === 'gone' && /map is gone/.test(said())) {
+    ok('and followed, it is a miss, said plainly');
+  } else fail('a node address was not reported: ' + said());
 
   at(W + '/doc/stage2-deck');
   await tick();
-  if (!el('reader').hidden && el('map').hidden) {
-    ok('a document address opens the viewer, and the map it was over closes');
-  } else fail('the document did not open, or the map stayed over it');
+  if (!el('reader').hidden) {
+    ok('a document address opens the viewer');
+  } else fail('the document did not open');
+  if (window.location.hash === W + '/doc/stage2-deck') {
+    ok('and puts where it is in the bar, so an address can be copied off it');
+  } else fail('the bar does not name the surface: ' + window.location.hash);
 
   scrolled = [];
   at(W + '/doc/stage2-deck/p2');
@@ -415,23 +361,13 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
     ok('a document that has moved is a miss, not an error');
   } else fail('a missing document was not reported: ' + said());
 
-  at(W + '/code/psych_asr/asr.py::run');
-  if (!el('review').hidden
-      && el('review-list').querySelector('[data-unit="psych_asr/asr.py"]')
-      && /asr\.py/.test(said())) {
-    ok('a code address opens the walkthrough picker on that file');
-  } else fail('a code address did not reach the file: ' + said());
+  if (at(W + '/code/psych_asr/asr.py::run') === 'gone'
+      && /walkthroughs are gone/.test(said())) {
+    ok('a code address is a miss: there is no walkthrough to open');
+  } else fail('a code address was not reported: ' + said());
 
-  if (at(W + '/code/psych_asr/nowhere.py') === 'gone'
-      && /no psych_asr\/nowhere\.py/.test(said())) {
-    ok('a file that is not in the repository is a miss');
-  } else fail('a missing file was not reported: ' + said());
-
-  at(W + '/hw/ch07/4.1');
-  if (!el('contents').hidden
-      && el('contents-list').querySelector('[data-set="ch07"]')
-      && /4\.1/.test(said())) {
-    ok('a homework address opens the set it is in and names the problem');
+  if (at(W + '/hw/ch07/4.1') === 'ok' && /4\.1/.test(said())) {
+    ok('a homework address names the problem in the set it is in');
   } else fail('a homework address did not land: ' + said());
 
   if (at(W + '/hw/ch07/9.9') === 'gone' && /no problem 9\.9/.test(said())) {
@@ -476,8 +412,7 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   at(W + '/doc/stage2-deck');
   await tick();
   at(W);
-  if (el('reader').hidden && el('contents').hidden && el('review').hidden
-      && !el('map').hidden) {
+  if (el('reader').hidden) {
     ok('every surface can be left: one address takes down what another put up');
   } else fail('a surface was left open over the one the address named');
 
@@ -493,11 +428,6 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
     ok('the board spells addresses for its own workspace, one way');
   } else fail('the board spelled a wrong address: '
               + window.__spell({ surface: 'card', card: '0007' }));
-
-  at(W + '/node/typist');
-  if (window.location.hash === W + '/node/typist') {
-    ok('and puts where it is in the bar, so an address can be copied off it');
-  } else fail('the bar does not name the surface: ' + window.location.hash);
 
   // -- the wiring. The hash IS the way in: a tap on a link in a card changes
   //    it and nothing else happens, so if the resolver is not listening there

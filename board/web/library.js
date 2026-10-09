@@ -184,9 +184,6 @@ var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
   var from = "";
   try { from = new URLSearchParams(location.search).get("from") || ""; }
   catch (e) { from = ""; }
-  /* Outside a session there is no board, so no map to go to. */
-  var map = document.getElementById("lib-map");
-  if (map && !BASE) map.hidden = true;
   if (from === "archived") {
     var note = document.createElement("p");
     note.id = "lib-archived";

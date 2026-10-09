@@ -398,10 +398,10 @@ function gesture(target, name) {
            + palm.defaultPrevented + ', --zoom=' + zoom());
 
   /* AN OVERLAY ABOVE THE DOCUMENT IS NOT THE DOCUMENT. Two fingers on the
-     steer panel's box scroll it, and pinch nothing behind it; Safari still
-     gets no zoom, because a pair whose gap changes is refused anywhere. */
+     annotations picker's list scroll it, and pinch nothing behind it; Safari
+     still gets no zoom, because a pair whose gap changes is refused anywhere. */
   {
-    const box = el('steerbox');
+    const box = el('notepick-list');
     const s = touch(box, 'touchstart', [[100, 300], [160, 300]]);
     const pan = touch(box, 'touchmove', [[100, 250], [160, 250]]);
     const built = pages.classList.contains('pinching');

@@ -81,7 +81,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'recentre.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }

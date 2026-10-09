@@ -285,10 +285,10 @@ try:
     js = open(os.path.join(BOARD, "web", "board.js"), encoding="utf-8").read()
     check("the board draws a card's by-line", "card-by" in js and "c.by" in js)
     who = open(os.path.join(BOARD, "web", "who.js"), encoding="utf-8").read()
-    for page in ("board.js", "home.js"):
-        src = open(os.path.join(BOARD, "web", page), encoding="utf-8").read()
-        check("%s draws the chooser through the shared rules" % page,
-              "WhoChoice" in src)
+    # The board's per-sitting chooser is gone (D27: no per-session provider
+    # override); the home screen draws the machine's default with the rules.
+    home = open(os.path.join(BOARD, "web", "home.js"), encoding="utf-8").read()
+    check("home.js draws the chooser through the shared rules", "WhoChoice" in home)
     check("an unkeyed recipe is drawn dimmed with the key and the file in its "
           "title", "a.unkeyed" in who and "keys" in who)
 finally:

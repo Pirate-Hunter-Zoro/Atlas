@@ -13,7 +13,7 @@
 //   * Older cards come on a tap from `/cards?before=`, below what is held.
 //   * A payload whose map, plan, reading, direction, news and missions are
 //     null, with no sets, results, jobs or Colibri on it, paints without a
-//     throw; `/subject.json` fills the drawer when it opens.
+//     throw; the subject's sets and counts come from `/subject.json`.
 //
 // jsdom is a development-only dependency; without it this skips.
 
@@ -150,7 +150,7 @@ window.EventSource = function (url) {
   return stream;
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'ink-core.js', 'slate-core.js',
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js',
                  'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
@@ -221,15 +221,54 @@ setTimeout(() => {
     check('with the count of what is left', !older.hidden
           && /420 earlier cards/.test(older.textContent));
 
+    // The subject is asked for on a push, not carried on it.
     asked.length = 0;
-    doc.getElementById('btn-contents').onclick();
-    check('opening the drawer asks for /subject.json', asked.indexOf('/subject.json') >= 0);
-    setTimeout(() => {
-      const list = doc.getElementById('contents-list').textContent;
-      check('and the drawer fills with the subject\'s problem sets', /hw01/.test(list));
-      console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-        : '\nthe board opens on forty cards, takes deltas, and stays quick');
-      process.exit(errors.length ? 1 : 0);
-    }, 20);
+    stream.onmessage({ data: JSON.stringify(whole) });
+    check('a push asks for the subject on its own route, /subject.json',
+          asked.indexOf('/subject.json') >= 0);
+    refusingStore();
+    console.log(errors.length ? '\n' + errors.length + ' FAILURES'
+      : '\nthe board opens on forty cards, takes deltas, and stays quick');
+    process.exit(errors.length ? 1 : 0);
   }, 20);
 }, 20);
+
+// ---- a browser that refuses site data ------------------------------------------
+// A private window, or site data turned off: every touch of `localStorage`
+// throws. The board keeps per-device conveniences there and none of them may
+// cost the lesson.
+function refusingStore() {
+  const d = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
+    runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://board.test/board',
+  });
+  const w = d.window;
+  let threw = null;
+  w.addEventListener('error', (e) => { threw = e.message; });
+  Object.defineProperty(w, 'localStorage', {
+    get() { throw new w.DOMException('refused', 'SecurityError'); },
+  });
+  w.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w.Element.prototype.scrollIntoView = function () {};
+  w.renderMathInElement = () => {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w.scrollTo = () => {};
+  w.fetch = () => new Promise(() => {});
+  w.EventSource = function () { return { close() {}, readyState: 1, addEventListener() {} }; };
+  try {
+    for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js',
+                     'slate-core.js', 'annotate.js']) {
+      w.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
+    }
+    let src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
+    src = src.replace(/\}\)\(\);\s*$/, 'window.__render = render;\n'
+                      + 'window.__absorb = absorb;\nwindow.__frame = frame;\n})();');
+    w.eval(src);
+    w.__absorb(JSON.parse(JSON.stringify(whole)));
+    w.__render(w.__frame());
+  } catch (e) { threw = e.message; }
+  check('a browser that refuses site data still paints the lesson'
+        + (threw ? ' (threw: ' + threw + ')' : ''),
+        !threw && d.window.document.querySelectorAll('#cards .card[data-card]').length === 40);
+  w.close();
+}
