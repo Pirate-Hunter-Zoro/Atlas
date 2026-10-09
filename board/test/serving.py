@@ -7,14 +7,8 @@ listens there for every session, at `/s/<id>/`. Part 0 checks that server:
 the port it takes, the arguments it accepts, that it opens exactly one
 listener, and that nothing in it touches the tailnet name.
 
-Parts 1 to 4 check the per-workspace boards that still exist until T49
-deletes them. There the name could move a person mid-sentence into another
-course, and four separate faults each did it: a bare `board vpn serve` on
-every launch, `served_port` reading the first TCP forward instead of the
-name's proxy line, `tutor restart` letting a board claim a name pointing at
-nothing, and a guard reading "answering" as "somebody's lesson" while an
-ended generation's board held the address. Each is checked by what the code
-does.
+Part 1 checks that the per-workspace machinery is gone: no `board start`,
+`stop` or address-moving `vpn serve`, and no old launcher.
 """
 
 import importlib.machinery
@@ -142,156 +136,29 @@ finally:
 brd = load("bin/board", "board_cli_serving")
 
 # ---------------------------------------------------------------------------
-# 1. The parse. This is the real shape: a tree of TCP forwards, one per board,
-#    and the https names last with their proxy targets.
+# 1. Nothing per-workspace is left to move the name.
 # ---------------------------------------------------------------------------
-STATUS = """\
-|-- tcp://compute-node.tail0c6c62.ts.net:8937 (tailnet only)
-|-- tcp://100.105.212.85:8937
-|--> tcp://127.0.0.1:8937
-|-- tcp://compute-node.tail0c6c62.ts.net:9171 (tailnet only)
-|--> tcp://127.0.0.1:9171
-
-https://board.tail0c6c62.ts.net (tailnet only)
-|-- / proxy http://127.0.0.1:8787
-
-https://compute-node.tail0c6c62.ts.net (tailnet only)
-|-- / proxy http://127.0.0.1:9098
-"""
-
-by_name = brd.served_by_name(STATUS)
-check("a name's target is read off its proxy line, not off a TCP forward",
-      by_name.get("compute-node.tail0c6c62.ts.net") == 9098)
-check("and every name is read, because two of them can point different ways",
-      by_name.get("board.tail0c6c62.ts.net") == 8787)
-check("a TCP forward is never mistaken for the address",
-      8937 not in by_name.values() and 9171 not in by_name.values())
-check("and the ports an https name serves are exactly the proxied ones",
-      sorted(brd.served_ports(STATUS)) == [8787, 9098])
-check("an empty status says nobody holds it, rather than guessing",
-      brd.served_ports("") == [] and brd.served_by_name("") == {})
-
-# ---------------------------------------------------------------------------
-# 2. The guard. A name held by a board that is UP is that board's, and a start
-#    does not take it. A name pointing at nothing is free.
-# ---------------------------------------------------------------------------
+gone = ("free_port", "default_port", "served_ports", "recorded_ports",
+        "boards_serving", "drop_strays", "ts_" + "repoint", "cmd_start", "cmd_stop")
+check("bin/board has no per-workspace server machinery: " +
+      ", ".join(n for n in gone if hasattr(brd, n)),
+      not any(hasattr(brd, n) for n in gone))
+check("and no `board start` or `board stop`",
+      "start" not in brd.COMMANDS and "stop" not in brd.COMMANDS)
 calls = []
-
-
-def fake_ts(*args, **kw):
-    calls.append(args)
-    if args[:2] == ("serve", "status"):
-        return 0, STATUS
-    return 0, ""
-
-
-brd.ts = fake_ts
-brd.ts_daemon_running = lambda: True
-brd.ts_info = lambda: ("100.0.0.1", "compute-node.tail0c6c62.ts.net")
-
-# 9098 answers AND a live record names it -- it is somebody's lesson -- so 9171
-# coming up must not take it. Both halves are stubbed because both are the test:
-# answering alone is what let a leftover hold the address.
-brd.port_answers = lambda p: p == 9098
-brd.recorded_ports = lambda: {9098}
-calls[:] = []
-brd.ts_repoint(9171)
-check("a board coming up does not take a name that points at a live board",
-      not any(a[:1] == ("serve",) and "--bg" in a for a in calls))
-
-# Nothing answers on the port the name points at: the course whose board that
-# was has gone, and leaving the address pointing at a corpse helps nobody.
-brd.port_answers = lambda p: False
-brd.recorded_ports = lambda: set()
-calls[:] = []
-brd.ts_repoint(9171)
-check("but it does take one that points at nothing at all",
-      any("--bg" in a for a in calls))
-
-# AND THE ONE THAT COST AN EVENING: a board that answers and that NO RECORD
-# NAMES. Its repository's record was overwritten by the board that replaced it,
-# so it is invisible to everything that reads records -- and on the answering
-# test alone it outranked the live board for as long as its process survived.
-# Answering is not owning.
-brd.port_answers = lambda p: p == 9098
-brd.recorded_ports = lambda: {9171}
-calls[:] = []
-brd.ts_repoint(9171)
-check("a board left behind by an ended generation does not hold the address, "
-      "however healthily it answers",
-      any("--bg" in a for a in calls))
-
-# AND "CANNOT TELL" IS NOT "NOBODY HAS ONE". Where the repository layout cannot
-# be read at all, `recorded_ports` answers None and the guard falls back to the
-# rule it replaced -- believe answering, leave the name alone. An empty set here
-# would read as "no record names anything", which takes the address from whoever
-# is holding it, in exactly the case where least is known.
-brd.port_answers = lambda p: p == 9098
-brd.recorded_ports = lambda: None
-calls[:] = []
-brd.ts_repoint(9171)
-check("and where nothing can be read, it leaves the address where it is",
-      not any("--bg" in a for a in calls))
-
-# And forced, when a person says which course they mean.
-brd.port_answers = lambda p: p == 9098
-brd.recorded_ports = lambda: {9098}
-calls[:] = []
-brd.ts_repoint(9171, force=True)
-check("and a forced claim takes it whatever is holding it",
-      any("--bg" in a for a in calls))
-
-
-# ---------------------------------------------------------------------------
-# 3. What each caller is entitled to. `--if-free` asks; a bare serve forces; and
-#    anything that runs WITHOUT a person present must ask.
-# ---------------------------------------------------------------------------
-board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
-# The launcher and the daemon machinery it was split into.
-_runner = os.path.join(ROOT, "tutorboard", "runner")
-tutor_src = "".join(open(p, encoding="utf-8").read() for p in (
-    [os.path.join(ROOT, "bin", "tutor")]
-    + [os.path.join(_runner, f) for f in sorted(os.listdir(_runner))
-       if f.endswith(".py")]))
-
-check("`vpn serve --if-free` exists, and routes through the guard",
-      '"--if-free" in args' in board_src and board_src.count('"--if-free" in args') >= 2)
-
-watch = tutor_src[tutor_src.index("def watch_once("):]
-watch = watch[:watch.index("\ndef ", 1)]
-check("the watchdog's own claim, where nobody chose, asks first",
-      '"vpn", "serve", "--if-free")' in watch)
-check("and the launcher has no claim of its own any more",
-      "def link(" not in tutor_src)
-
-# AND THE LEFTOVER IS NOT MERELY OUTRANKED, IT IS STOPPED. The moment a
-# repository's next board starts is the moment the previous one became a
-# leftover, and `.board.json` holds one pid -- so a second live board for one
-# repository is unreachable by every command that works from the record, while
-# still holding a port, a socket and, on the answering test, the address.
-start = board_src[board_src.index("def cmd_start("):]
-start = start[:start.index("\ndef ", 1)]
-check("a new board clears what its own repository left behind, before it starts",
-      start.find("drop_strays(live)") != -1
-      and start.find("drop_strays(live)") < start.find("subprocess.Popen"))
-check("and it only ever stops this repository's own, on this node",
-      "paths.same_dir(at, root)" in board_src)
-check("answering is not owning, and the guard says which it means",
-      "recorded_ports()" in board_src
-      and "p in mine" in board_src)
-
-# ---------------------------------------------------------------------------
-# 4. A deploy restarts every board, so it must remember who had the name BEFORE
-#    it starts stopping things -- while the answer is still true.
-# ---------------------------------------------------------------------------
-restart = tutor_src[tutor_src.index("def cmd_restart("):]
-restart = restart[:restart.index("\ndef ", 1)]
-asked = restart.find('"vpn", "holder"')
-stopped = restart.find('board(c["root"], "stop")')
-check("a restart reads the holder before it stops anything",
-      asked != -1 and stopped != -1 and asked < stopped)
-check("and hands the name back afterwards",
-      restart.find('"vpn", "serve"') > stopped)
+brd.ts = lambda *a, **kw: (calls.append(a) or (0, ""))
+import contextlib                                             # noqa: E402
+import io                                                     # noqa: E402
+with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+    refused_serve = brd.cmd_vpn(None, ["serve"])
+    brd.cmd_vpn(None, ["status"])
+check("`board vpn` only reports: serve is refused, and status sets nothing",
+      refused_serve != 0 and calls
+      and not any("--bg" in a or a[:1] in (("up",), ("down",)) for a in calls))
+check("the old launcher is gone", not os.path.exists(os.path.join(ROOT, "bin", "tutor")))
+for mod in ("ports", "choice", "supervise", "processes", "machines"):
+    check("tutorboard/%s.py is gone" % mod,
+          not os.path.exists(os.path.join(ROOT, "tutorboard", mod + ".py")))
 
 print()
 if fails:

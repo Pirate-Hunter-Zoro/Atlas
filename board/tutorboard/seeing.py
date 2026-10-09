@@ -593,11 +593,11 @@ def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
             "%s is inside `%s/`, which is fenced -- and `board see` sends a "
             "file to a hosted provider. Nothing in there may leave this "
             "machine. The local model reads it where it sits; see the "
-            "`private` recipe in `tutor --agents`." % (path, hit))
+            "`private` recipe in agents/recipes.py." % (path, hit))
     if not os.path.isfile(path):
         raise Refused("there is no file at %s" % path)
-    # Resolved once, here, rather than on each pass below: `route` asks
-    # `tutor --agents --json` when it is handed nothing, and the retry must not
+    # Resolved once, here, rather than on each pass below: `route` builds
+    # the provider table when it is handed nothing, and the retry must not
     # buy a second subprocess to answer a question that has not changed.
     table = registry() if table is None else table
     settings, why = route(agent, table)

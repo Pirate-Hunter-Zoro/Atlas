@@ -587,18 +587,11 @@ check("ship.sh restarts with launchctl kickstart -k gui/$(id -u)/tutor-board "
       'TARGET="gui/$(id -u)/${TUTORBOARD_LABEL:-tutor-board}"' in ship
       and 'launchctl kickstart -k "$TARGET"' in ship
       and "tutor restart" not in ship and "ssh" not in ship)
-TUTOR = os.path.join(ROOT, "bin", "tutor")
-for argv in (["restart"], ["restart", "--tutors", "--stale"], ["watch"],
-             ["pull", "--hear"]):
-    p = subprocess.run([sys.executable, TUTOR] + argv, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, universal_newlines=True,
-                       timeout=60)
-    check("`tutor %s` refuses and names the LaunchAgent" % " ".join(argv),
-          p.returncode != 0 and "LaunchAgent tutor-board" in p.stdout, p.stdout)
 from tutorboard.runner import daemon  # noqa: E402
-refused = daemon.agent_start({}, {"dir": "Proj"}, "fake")
-check("`tutor agent start` refuses and names the LaunchAgent",
-      refused[0] == 1 and "LaunchAgent tutor-board" in refused[1], refused)
+check("the old launcher, its restart, watch and pull --hear, is gone, and nothing "
+      "starts a tutor daemon",
+      not os.path.exists(os.path.join(ROOT, "bin", "tutor"))
+      and not hasattr(daemon, "agent_start"))
 
 
 # ===========================================================================

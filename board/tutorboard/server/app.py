@@ -45,9 +45,7 @@ class BoardServer(ThreadingHTTPServer):
     `HTTPServer.server_bind` asks `socket.getfqdn` for the name of the address
     it bound, and nothing here reads the answer. On the Mac that lookup goes out
     through the tailnet's resolver and an exit node, and was measured taking
-    over thirty seconds for the tailnet address -- longer than `board start`
-    waits for the record, so a board started by `tutor watch` was called dead,
-    killed as a leftover on the next pass, and started again.
+    over thirty seconds for the tailnet address.
     """
 
     def server_bind(self):
@@ -79,9 +77,6 @@ def parse(argv):
             host = "0.0.0.0"
         elif a == "--local":
             host = "127.0.0.1"
-        elif a in ("--root", "-r"):
-            raise SystemExit("serve.py serves every session under /s/<id>/; "
-                             "--root is gone (use --atlas for a test tree)")
         else:
             raise SystemExit("serve.py: unknown argument %r" % a)
         i += 1

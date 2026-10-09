@@ -1348,7 +1348,7 @@ def hand_over(repo, keys):
 
 def _settle(repo, doc):
     """The rounds' answers validated, where the wipe runs -- the only code
-    after a turn that is not `bin/tutor`. Said on the board's log if it fails,
+    after a turn that is not the runner. Said on the board's log if it fails,
     rather than swallowed: a validation nobody hears fail is a silent round."""
     from . import ledger                              # local: avoids a cycle
 

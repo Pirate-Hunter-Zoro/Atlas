@@ -11,8 +11,7 @@ def slurm_nodes():
     """Nodes where this user currently holds an allocation, or None if unknown.
 
     Platform knowledge, so it lives here: `board` uses it to decide whether a
-    lock belongs to a job that has ended, and `tutor restart --wait` uses it to
-    decide whether the node named in a record is a machine that still exists. Where
+    lock belongs to a job that has ended. Where
     there is no `squeue` the answer is None -- unknown, not empty -- and every
     caller must treat those differently, because "no allocations" and "not a
     cluster" lead to opposite decisions.

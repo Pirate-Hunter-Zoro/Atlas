@@ -25,7 +25,7 @@ sys.path.insert(0, ROOT)
 
 from tutorboard import paths
 from tutorboard.course import repo as course_repo
-from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.server import handler, hub, tikz
 
 fails = []
 
@@ -192,10 +192,8 @@ loop = inspect.getsource(hub.Hub.poll_loop)
 check("and its loop walks no missions",
       "missions" not in loop and "spawn" not in loop)
 app = open(os.path.join(ROOT, "tutorboard", "server", "app.py"), encoding="utf-8").read()
-spawn_src = inspect.getsource(spawn)
 check("and serve.py starts no mission sweep: cross-board missions are gone",
-      "sweep_missions" not in app and "ship_missions" not in spawn_src
-      and "missions" not in spawn_src)
+      "sweep_missions" not in app and "ship_missions" not in app)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print()

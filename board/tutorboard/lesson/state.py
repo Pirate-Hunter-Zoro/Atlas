@@ -6,33 +6,20 @@ import json
 import os
 import time
 
-from .. import machine, processes
+from .. import machine
+from ..runner import daemon
 from ..course import homework, library, paper
 
 
 def load_agent(repo):
-    """Is an assistant attached, and is it working or waiting?
-
-    An assistant nobody can see is worse than none. How that is decided depends
-    on which kind it is: a headless daemon has a heartbeat and goes stale after
-    two minutes of silence, while an interactive one is idle for as long as the
-    person is thinking and is judged by whether its process is still there.
-    Applying the heartbeat rule to both is why this indicator never once turned
-    green in an ordinary `tutor` session.
-    """
+    """The session's agent record, with `state` "stale" where the process it
+    names is gone (`daemon.attached`), and its `failure` and `stood_down`."""
     try:
         with open(os.path.join(repo.live, "agent.json"), "r", encoding="utf-8") as fh:
             st = json.load(fh)
     except (OSError, ValueError):
         return None
-    if st.get("state") == "waking" and processes.waking_now(st):
-        # Say so, rather than letting the pid test below judge a record that has
-        # no pid yet. This is the state the board most needs to be able to
-        # paint: a start is in flight, nothing is lost, and the thing NOT to do
-        # is send again. See `processes.agent_is_attached`.
-        st["failure"] = None
-        return st
-    if not processes.agent_is_attached(st, machine.node_name()):
+    if not daemon.attached(st, machine.node_name()):
         # A daemon being BOUNCED is not a daemon that died, and the board is the
         # only place anybody finds out which it was. A restart marks the record
         # on its way out, so the gap between the old process going and the new

@@ -48,7 +48,7 @@ import threading                                              # noqa: E402
 
 from tutorboard import sessions                               # noqa: E402
 from tutorboard.course import repo as course_repo             # noqa: E402
-from tutorboard.server import app, handler, registry, spawn   # noqa: E402
+from tutorboard.server import app, handler, registry          # noqa: E402
 from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
@@ -76,22 +76,10 @@ def _wake(repo):
     return False
 
 
-def _board(where, args, timeout=90, given=None, session=None):
-    CALLS.append({"fn": "board", "cwd": where, "args": list(args), "session": session})
-    return 0, "ok"
-
-
-def _tutor(args, timeout=30):
-    CALLS.append({"fn": "tutor", "args": list(args)})
-    return 0, "ok"
-
-
 from tutorboard.course import screenshot as course_shot       # noqa: E402
 from tutorboard.lesson import git as lesson_git               # noqa: E402
 
 runner_service.wake = _wake
-spawn.board_cli = _board
-spawn.tutor_cli = _tutor
 
 
 def recorder(name, answer):
@@ -362,14 +350,11 @@ DRIVE = {
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
     # machines
-    ("GET", "/courses.json", "machines"): ("atlas", [("/courses.json", None, OK)]),
-    ("GET", "/atlas.json", "machines"): ("atlas", [("/atlas.json", None, OK)]),
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, (400,))]),
     ("GET", "/relay.json", "machines"): ("atlas", [("/relay.json", None, OK)]),
-    ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
     # pages
@@ -570,9 +555,6 @@ for who in ("A", "B"):
               os.path.join(sdir, "annotations"))))
     check("an upload in %s lands in its uploads/" % who,
           any(n.endswith("hand-in.txt") for n in os.listdir(os.path.join(sdir, "uploads"))))
-    board = [c for c in CALLS if c["fn"] == "board" and c["session"] == sdir]
-    check("any board command a route in %s runs works on session %s" % (who, who),
-          all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
 
 # One id, two subjects: the session, or ?subject=, decides whose file it is.
 for who in ("A", "B"):

@@ -29,17 +29,12 @@ sys.path.insert(0, ROOT)
 # and writing the real one would take this machine out of service.
 os.environ.setdefault("BOARD_STATE_DIR", tempfile.mkdtemp(prefix="agents-state-"))
 os.environ.setdefault("BOARD_NO_TAILNET", "1")
-from tutorboard import limits, processes                      # noqa: E402
+from tutorboard import limits                                 # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
 from tutorboard.runner import daemon  # noqa: E402
 from tutorboard import gitops  # noqa: E402
 from tutorboard.agents import recipes  # noqa: E402
 from tutorboard.runner import turn as runturn  # noqa: E402
-from tutorboard.runner import watch as runwatch  # noqa: E402
 from tutorboard.agents import usage  # noqa: E402
 
 fails = []
@@ -140,7 +135,7 @@ from tutorboard.net import egress as _egress                  # noqa: E402
 check("a workspace's `agent` key and the sitting's are read by nothing",
       not hasattr(_course_config, "workspace_agent")
       and not hasattr(_course_config, "sitting_agent")
-      and "agent" not in recipes.read_course(tempfile.mkdtemp()))
+      and not hasattr(recipes, "read_course"))
 check("and the strike stand-down is gone", not hasattr(_egress, "mark_failing"))
 
 # The machine's own file: `provider`, with a `default_agent` read where it
@@ -260,28 +255,15 @@ os.unlink(_stdin_log.name)
 check("nothing in the table claims to teach for nothing",
       not any("cost" in spec for spec in D["agents"].values()))
 
-# --- `tutor --agents --json` is the table the board reads --------------------
-import subprocess                                             # noqa: E402
-_xdg = tempfile.mkdtemp(prefix="tutor-agents-xdg-")
-os.makedirs(os.path.join(_xdg, "tutor-board"))
-with open(os.path.join(_xdg, "tutor-board", "config.json"), "w",
-          encoding="utf-8") as fh:
-    json.dump({"provider": "deepseek", "fallback": "codex"}, fh)
-_p = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "tutor"),
-                     "--agents", "--json"],
-                    env=dict(os.environ, XDG_CONFIG_HOME=_xdg),
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
-try:
-    _table = json.loads(_p.stdout.decode().strip().splitlines()[-1])
-except (ValueError, IndexError):
-    _table = {}
-check("--agents --json names the provider and its fallback",
+# --- the provider table the board reads, built in-process -------------------
+_table = recipes.listing({"provider": "deepseek", "fallback": "codex",
+                          "agents": recipes.load_config().get("agents")})
+check("the table names the provider and its fallback",
       _table.get("default") == "deepseek" and _table.get("fallback") == "codex")
-check("and it is the same table the board reads in-process",
-      set(_table) == set(recipes.listing(recipes.load_config())))
 check("and carries no switch", "only" not in _table
       and not any("barred" in a for a in _table.get("agents") or []))
-shutil.rmtree(_xdg, ignore_errors=True)
+check("and the old launcher, which printed it as --agents, is gone",
+      not os.path.exists(os.path.join(ROOT, "bin", "tutor")))
 
 # An in-fence recipe is no vision route either: an image is a hosted call.
 from tutorboard import seeing                                 # noqa: E402
@@ -312,75 +294,44 @@ def write_agent(**kw):
         json.dump(kw, fh)
 
 
-check("no record means nothing is listening", daemon.agent_live(tmp) is None)
+def attached():
+    return daemon.attached(daemon.agent_record_at(live), host)
+
+
+check("no record means nothing is listening", not attached())
 
 write_agent(host="some-other-node", pid=1, agent="claude", state="listening")
-check("a record from another node is not believed", daemon.agent_live(tmp) is None)
+check("a record from another node is not believed", not attached())
 
 write_agent(host=host, pid=999999, agent="claude", state="listening")
-check("a record for a pid that is gone is not believed", daemon.agent_live(tmp) is None)
+check("a record for a pid that is gone is not believed", not attached())
 
 write_agent(host=host, pid=os.getpid(), agent="claude", state="listening")
-st = daemon.agent_live(tmp)
-check("a record for a live process on this node is believed",
-      bool(st) and st.get("agent") == "claude")
+check("a record for a live process on this node is believed", attached())
 
-# --- the two kinds of record expire differently ------------------------------
-# A headless daemon has a heartbeat, so silence means it died. An interactive
-# assistant is idle for exactly as long as the person in front of it is thinking,
-# and judging that by a heartbeat is why the board's indicator never once turned
-# green in an ordinary `tutor` session: nothing outside headless ever wrote one.
-
-# A daemon records its own pid, and a process either exists or it does not.
-# The heartbeat is written at turn boundaries, so a daemon in the middle of a
-# long turn goes silent while working perfectly well -- and a teaching turn
-# routinely runs past two minutes. That silence used to read as death: the board
-# said "assistant not responding" while the tutor was writing the card.
+# The runner writes its own pid, and a process either exists or it does not:
+# a turn that goes quiet for ten minutes is still working.
 write_agent(host=host, pid=os.getpid(), agent="claude", state="working",
             last_seen=time.time() - 600)
-st = daemon.agent_live(tmp)
-check("a daemon mid-turn is not declared dead for going quiet",
-      bool(st) and st.get("state") == "working")
+check("a turn in flight is not declared dead for going quiet", attached())
 
 write_agent(host=host, pid=999999, agent="claude", state="working",
             last_seen=time.time())
-check("but a daemon whose process is gone is not believed, heartbeat or not",
-      daemon.agent_live(tmp) is None)
+check("but a record whose process is gone is not believed, heartbeat or not",
+      not attached())
 
 # Only a record with no pid at all has nothing better to go on.
 write_agent(host=host, agent="claude", state="listening", last_seen=time.time() - 600)
-check("a pidless record still expires on its heartbeat",
-      daemon.agent_live(tmp) is None)
-
-write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
-            mode="interactive", cmd=sys.executable, last_seen=time.time() - 6000)
-st = daemon.agent_live(tmp)
-check("an interactive assistant idle for an hour is still attached",
-      bool(st) and st.get("state") == "attached")
-
-write_agent(host=host, pid=999999, agent="claude", state="attached",
-            mode="interactive", cmd=sys.executable, last_seen=time.time())
-check("but one whose process is gone is not",
-      daemon.agent_live(tmp) is None)
-
-write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
-            mode="interactive", cmd="a-command-this-process-is-not")
-check("and a recycled pid running something else is not either",
-      daemon.agent_live(tmp) is None)
-
-write_agent(host=host, pid=os.getpid(), agent="claude", state="listening")
+check("a pidless record still expires on its heartbeat", not attached())
+check("a recycled pid running something else is not this process",
+      not daemon.pid_alive(os.getpid(), "a-command-this-process-is-not"))
 
 # --- starting ----------------------------------------------------------------
 # NOTHING STARTS A DAEMON: the board server's runner takes every turn.
-course = {"root": tmp, "dir": "fake-course", "name": "Fake"}
-code, msg = daemon.agent_start(CFG, course, "claude")
-check("a start is refused, and says the server takes the turns",
-      code == 1 and "board server" in msg)
-os.remove(os.path.join(live, "agent.json"))
-
-code, msg = daemon.agent_stop(course)
-check("stopping something that is not there is not an error",
-      code == 0 and "nothing was listening" in msg)
+check("there is no daemon to start, stop or hand over",
+      not any(hasattr(daemon, n) for n in ("agent_start", "agent_stop",
+                                           "agent_live", "handed_off",
+                                           "mark_waking", "courses")))
 
 # --- catching up with another machine ---------------------------------------
 # A handoff written on one machine is worth nothing to another that never
@@ -447,20 +398,9 @@ check("and it does not touch the local work",
 
 shutil.rmtree(sandbox, ignore_errors=True)
 
-# --- restarting every board on this machine ----------------------------------
-# A board read serve.py when it started, so a change to the tool reaches a course
-# only when its board comes back. The pages are served from disk and look new
-# while the endpoints behind them are the old ones -- invisible from outside.
-import subprocess as _sp
-tool_src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f),
-                         encoding="utf-8").read() for f in ("watch.py", "loop.py"))
-check("there is a command to restart every board here",
-      "def cmd_restart(" in tool_src)
-check("and it refuses to touch a board belonging to another node",
-      'info["node"] != host' in tool_src)
-check("and only ones that are genuinely answering",
-      "board_is_running" in tool_src)
-
+# --- shipping ---------------------------------------------------------------
+tool_src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+                encoding="utf-8").read()
 ship = os.path.join(ROOT, "scripts", "ship.sh")
 check("there is one command that ships a change", os.path.isfile(ship))
 ship_src = open(ship, encoding="utf-8").read() if os.path.isfile(ship) else ""
@@ -468,46 +408,6 @@ check("and it restarts the one board server, which runs every turn",
       'launchctl kickstart -k "$TARGET"' in ship_src)
 check("and restarts nothing when the push failed",
       "nothing has been restarted" in ship_src)
-check("a tutor mid-turn is not bounced out of the card it is writing",
-      "mid-turn" in tool_src)
-check("a restart that did not happen is not reported as one",
-      "did not come back" in tool_src and 'now["pid"] != was' in tool_src)
-# AND THE SAME MISTAKE THE OTHER WAY ROUND. `agent_start` writes `waking` with no
-# pid and then forks, so a record read the instant it returns has no pid in it --
-# and the check above then called every successful restart one it had left alone.
-# Read off a real ship, with both daemons coming back on the new code at the
-# time: "left alone: claude starting in Galois-Theory".
-restart_src = tool_src[tool_src.index("def cmd_restart("):]
-restart_src = restart_src[:restart_src.index("\ndef ", 1)]
-check("a restart that DID happen is not reported as one that did not",
-      "RESTART_WAIT" in restart_src and "coming back" in restart_src)
-# The tutor half only: the boards above have a `left alone` of their own, for a
-# board belonging to another node, and it is the right answer there.
-tutors_src = restart_src[restart_src.index('"--tutors" not in args'):]
-check("and it waits for the daemon's own record rather than reading it once",
-      tutors_src.index("agent_start(cfg, c, name)")
-      < tutors_src.index("for _ in range(RESTART_WAIT)")
-      < tutors_src.index('print("  left alone'))
-check("the wait is bounded, because a person is watching a terminal",
-      runwatch.RESTART_WAIT and runwatch.RESTART_WAIT <= 60)
-check("a start still on its way is its own answer, not a failure",
-      "coming.append" in restart_src and "held.append" in restart_src)
-check("and a tutor still writing its handoff is said to be, not claimed restarted",
-      "still writing its handoff" in tool_src)
-check("and stopping one waits for its handoff to be written",
-      "agent_live(c[\"root\"])" in tool_src)
-
-# A restart is when a changed default actually reaches a course. It used to
-# bring back whatever the record named, so a config that said `claude` sat beside
-# a board running `free` indefinitely -- and the only way out was to stop the
-# tutor by hand. The stop is the safe moment: SIGTERM makes the outgoing tutor
-# write HANDOFF.md, which is exactly what the incoming one reads.
-check("a restart asks configuration which tutor to bring back",
-      "recipes.resolve(cfg)[0] or was_name" in tool_src)
-check("and falls back to the one that was running if nothing resolves",
-      "or was_name" in tool_src)
-check("and says so when the restart changed the tutor",
-      '"%s (%s -> %s)" % (c["dir"], was_name, name)' in tool_src)
 
 
 print()
@@ -523,8 +423,6 @@ print()
 import time as _time                                         # noqa: E402
 from tutorboard.lesson import state as _state                # noqa: E402
 
-check("a restart says on disk that it is a restart",
-      'agent_state(c["root"] + "/live", restarting=True' in tool_src)
 check("a record left by a restart in flight reads as reattaching",
       _state._reattaching({"restarting": True, "stopped_at": _time.time()}))
 check("and one left by a restart that never finished does not, for ever",
@@ -537,94 +435,6 @@ check("and the board has a word for it that is not 'nothing is reading'",
       open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read())
 
 print()
-# `tutor agent ensure` is `start` that says nothing when there was nothing to
-# do, and `tutor agent which` names the assistant a workspace runs.
-
-import contextlib                                            # noqa: E402
-import io as _io                                             # noqa: E402
-
-away = tempfile.mkdtemp(prefix="tutor-away-")
-away_root = os.path.join(away, "courses", "Fake-Course")
-away_live = os.path.join(away_root, "live")
-os.makedirs(away_live)
-open(os.path.join(away_root, "AI_INSTRUCTIONS.md"), "w").close()
-
-AWAY_CFG = {"courses_dir": away, "provider": "claude",
-            "agents": {"claude": {"cmd": [sys.executable],
-                                  "headless": [sys.executable, "-c", "pass"]}}}
-
-was_env = os.environ.pop("TUTORBOARD_COURSES", None)
-started = []
-real = {k: getattr(daemon, k) for k in ("agent_start",)}
-daemon.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
-
-
-def away_agent(**kw):
-    path = os.path.join(away_live, "agent.json")
-    if not kw:
-        if os.path.exists(path):
-            os.remove(path)
-        return
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(kw, fh)
-
-
-try:
-    away_agent(host=host, agent="claude", state="listening", pid=os.getpid())
-    del started[:]
-    check("ensure starts nothing when a tutor is already attached",
-          tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0 and not started)
-
-    away_agent(host=host, agent="claude", state="listening", pid=999999)
-    del started[:]
-    check("and starts one when the record names a process that is gone",
-          tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0
-          and started == ["Fake-Course"])
-
-    out = _io.StringIO()
-    with contextlib.redirect_stdout(out):
-        code = tutor.cmd_agent(AWAY_CFG, ["which", "Fake-Course"])
-    check("the launcher will say which assistant a workspace runs, and say "
-          "nothing else, because the board reads this rather than a person",
-          code == 0 and out.getvalue() == "claude\n")
-
-    out = _io.StringIO()
-    with contextlib.redirect_stdout(out):
-        code = tutor.cmd_agent(dict(AWAY_CFG, provider="nonesuch"),
-                               ["which", "Fake-Course"])
-    check("and an empty line where the configuration resolves to nothing, "
-          "rather than a name nothing can run",
-          code == 0 and out.getvalue() == "\n")
-finally:
-    for k, v in real.items():
-        setattr(daemon, k, v)
-    if was_env is not None:
-        os.environ["TUTORBOARD_COURSES"] = was_env
-    shutil.rmtree(away, ignore_errors=True)
-
-# The record is the only evidence there is from another machine: the pid in it
-# belongs to a process table this one cannot read, and reading the local one
-# instead is how a stranger's process gets mistaken for a tutor.
-now = time.time()
-check("a record from the node in question, beating, reads as attached",
-      processes.agent_attached_away(
-          {"host": "othernode", "last_seen": now, "state": "listening"}, "othernode"))
-check("the same record does not vouch for a different node",
-      not processes.agent_attached_away(
-          {"host": "othernode", "last_seen": now}, "thirdnode"))
-check("silence past three of the daemon's own wake-ups is death",
-      not processes.agent_attached_away(
-          {"host": "othernode", "last_seen": now - processes.AWAY_SILENCE - 1},
-          "othernode"))
-check("a start in flight over there is not a death either",
-      processes.agent_attached_away(
-          {"host": "othernode", "state": "waking", "waking_at": now}, "othernode"))
-check("and one that never finished does not claim to be starting for ever",
-      not processes.agent_attached_away(
-          {"host": "othernode", "state": "waking",
-           "waking_at": now - processes.WAKING_GRACE - 1}, "othernode"))
-
-
 # ------------------------------------------- a turn that wrote nothing says so
 #
 # THE HALF THAT MAKES A BROKEN PROVIDER SPECTACULAR RATHER THAN MERELY BROKEN.
@@ -645,26 +455,6 @@ def wrote_failure(agent):
                    "handover": "2026-09-20 10:00:00"}, fh)
 
 
-wrote_failure("deepseek")
-woke = daemon.mark_waking(silent_live, "deepseek", pid=os.getpid())
-check("a start does not erase the last turn's failure -- a daemon is most often "
-      "restarted BECAUSE the turn fell over, and clearing the reason there "
-      "empties the record at the one moment somebody is reading it",
-      (woke.get("last_error") or "").startswith("API Error")
-      and woke.get("failed_at"))
-check("and it still answers the flags a start is the answer to",
-      not woke.get("handover") and woke.get("state") == "waking")
-
-# AND THE FAILURE BELONGS TO THE PROVIDER IT HAPPENED TO. The board reads the
-# agent and the error out of one record and puts them in one sentence, so a
-# failure kept across a swap would read as "claude's last turn failed -- cannot
-# reach api.deepseek.com", about a host claude never opens.
-wrote_failure("deepseek")
-woke = daemon.mark_waking(silent_live, "claude", pid=os.getpid())
-check("a failure does not follow the record onto the next provider: coming up "
-      "as somebody else drops an error that was not theirs",
-      not woke.get("last_error") and not woke.get("failed_at")
-      and not woke.get("failed_agent"))
 wrote_failure("deepseek")
 check("and the same is true of a climb-down between turns, which writes the "
       "new agent onto the record the same way",

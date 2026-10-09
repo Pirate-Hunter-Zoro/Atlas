@@ -33,8 +33,8 @@ Slurm, and talks to the Mac only through git.
 ## Layout
 
 `serve.py` is the HTTP server; its routes, hub and spawning live in `tutorboard/server/`.
-`bin/board` is the CLI a tutor turn and the owner use, and `bin/tutor` starts sessions and
-supervises boards and tutors. `tutorboard/` holds the library: `lesson/` (cards, slate,
+`bin/board` is the CLI a tutor turn and the owner use, and `bin/relay` is the cluster's
+scheduled entry. `tutorboard/` holds the library: `lesson/` (cards, slate,
 uploads, turns), `course/` (documents, homework, threads, the library), `net/` (Tailscale and
 egress), and top-level modules for the relay, jobs, Colibri, holds, the brief and the PHI fence
 (`fenced.py`). `web/` is the browser side (board, home and library pages, `sw.js`, vendored

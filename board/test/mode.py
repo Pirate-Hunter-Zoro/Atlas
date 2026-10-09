@@ -84,7 +84,7 @@ from tutorboard.course import config                                 # noqa: E40
 from tutorboard.course import repo as course_repo                    # noqa: E402
 from tutorboard.lesson import archive, turns                         # noqa: E402
 from tutorboard.runner import turn as runturn                        # noqa: E402
-from tutorboard.server import handler, hub, spawn, tikz              # noqa: E402
+from tutorboard.server import handler, hub, tikz              # noqa: E402
 from tutorboard.runner import service as runner_service  # noqa: E402
 
 

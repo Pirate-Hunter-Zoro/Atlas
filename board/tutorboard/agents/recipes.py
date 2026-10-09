@@ -144,24 +144,6 @@ def load_config():
     return cfg
 
 
-def read_course(root):
-    """What a course calls itself: its `tutorboard.json`, name defaulted.
-
-    A `mode`, `stance` or `agent` left in the file is dropped on the way past:
-    a key left in a course's own file must never be the reason two courses
-    behave differently. Who takes a turn is the machine's one provider setting.
-    """
-    cfg = {"name": os.path.basename(root).replace("-", " ")}
-    try:
-        with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
-            cfg.update(json.load(fh) or {})
-    except (OSError, ValueError):
-        pass
-    cfg.pop("mode", None)
-    cfg.pop("stance", None)
-    cfg.pop("agent", None)
-    return cfg
-
 def this_host():
     """What this machine calls itself. One place decides; see boardlib."""
     return machine.node_name()

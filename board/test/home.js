@@ -7,7 +7,7 @@
 //      `imported`, or to the subject's page, or said where nothing holds it.
 //   2. Against a real server on a temp Atlas whose Galois live/ was imported
 //      (45 cards, so card 0003 is older than the board's window of 40): `/`
-//      asks nothing of /switch or /atlas.json, New session opens an unbound
+//      asks nothing of the old switch route or /atlas.json, New session opens an unbound
 //      session in teach, "Linear Algebra" made as a course is listed and
 //      committed, no visible control gets a 404, and
 //      `#/w/Courses/Galois-Theory/card/0003` lands on that card in the
@@ -256,7 +256,7 @@ async function stubbed() {
   d.getElementById('artmaker-close').click();
 
   const urls = () => w.asked.map((r) => r.url);
-  check('the start screen asks nothing of /switch or /atlas.json',
+  check('the start screen asks nothing of the old switch route or /atlas.json',
         !urls().some((u) => /^\/(switch|atlas\.json)/.test(u)));
   check('and reads the sessions, subjects, notices and assistants it draws',
         ['/sessions.json', '/subjects.json', '/notices.json', '/assistants.json']
@@ -667,7 +667,7 @@ async function real() {
     await until(() => w.__requests.some((r) => r.url === '/assistants.json' && r.status), 8000);
 
     const asked = () => w.__requests.map((r) => r.url);
-    check('/ makes no request to /switch or /atlas.json',
+    check('/ makes no request to the old switch route or /atlas.json',
           !asked().some((u) => /^\/(switch|atlas\.json)/.test(u)));
     check('every request / makes is answered, none 404',
           w.__requests.every((r) => r.status && r.status !== 404));

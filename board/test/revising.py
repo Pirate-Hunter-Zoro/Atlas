@@ -37,7 +37,6 @@ sys.path.insert(0, ROOT)
 from tutorboard import sense
 from tutorboard.course import library
 from tutorboard.course.repo import Repo
-from tutorboard.server import spawn
 from tutorboard.runner import service as runner_service  # noqa: E402
 from tutorboard.server.routes import library as library_route
 

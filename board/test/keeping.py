@@ -14,11 +14,7 @@ person writing on it. Reported as "Galois-Theory tutor session up and crashed".
 
 So: the directories are re-asserted before anything writes.
 
-And a second, later the same evening, reported as "it says 'could not move the
-board' when I try to access Galois-Theory in the app". That is the hub's message
-for any failed `/switch`, and it could not say more because the server was
-returning a 500 -- which is why the route is driven here against a real server
-rather than read.
+And a child process a server starts is handed a stdin of its own.
 """
 
 import importlib.machinery
@@ -39,12 +35,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from tutorboard.course import repo as course_repo                 # noqa: E402
-from tutorboard.server import spawn                               # noqa: E402
 from tutorboard.server.handler import Handler                     # noqa: E402
 from tutorboard.server.hub import Hub                             # noqa: E402
 from tutorboard.server.tikz import TikzWorker                     # noqa: E402
-from tutorboard.server.routes import machines as machines_route   # noqa: E402
-from tutorboard import machine, machines as machines_mod          # noqa: E402
 
 fails = []
 
@@ -135,52 +128,6 @@ check("the re-assertion happens before any route writes, not inside one",
 
 
 # ---------------------------------------------------------------------------
-# 2. opening a course, which has to move the address
-# ---------------------------------------------------------------------------
-# A course has its own port, so opening one means re-pointing the one name the
-# iPad app is installed against -- and nothing else is going to do it. Without
-# that the hub asks the address which course it is serving, gets the old answer
-# for a minute, and can only say so: "I can hit it, but it never seems to work.
-# It just gives me the options to 'ask again' or 'stay here'."
-ran = []
-started = []
-machines_route.spawn.board_cli = lambda repo, args, timeout=90: (
-    ran.append(list(args)) or (0, "board up (pid 1)"))
-machines_route.spawn.tutor_cli = lambda args: (started.append(args) or (0, "starting"))
-machines_route.tailscale.tailnet_self = lambda: "here.example"
-machines_route.choice.remember_chosen = lambda *a, **k: None
-
-status, doc = post(PORT, "/switch",
-                   json.dumps({"repo": "Galois-Theory"}).encode())
-check("tapping a course this machine serves starts its board",
-      status == 200 and doc.get("ok") and ["start"] in ran)
-check("and takes the tailnet name for it, in the same request",
-      ["vpn", "serve"] in ran and ran.index(["start"]) < ran.index(["vpn", "serve"]))
-check("and says so, so the hub knows there is something to wait for",
-      doc.get("address") is True)
-check("and the tutor follows the course",
-      started == [["agent", "start", "Galois-Theory"]])
-
-# A MAP IS ONLY LOOKING. The front door opens a workspace on its map, and a tap
-# on a box is what begins a sitting and wakes a tutor -- so a map-only switch
-# moves the board and the address and starts no assistant.
-ran[:] = []
-started[:] = []
-status, doc = post(PORT, "/switch",
-                   json.dumps({"repo": "Galois-Theory", "agent": False}).encode())
-check("a map-only switch still starts the board and takes the name",
-      status == 200 and doc.get("ok") and ["start"] in ran
-      and ["vpn", "serve"] in ran)
-check("and does not run `tutor agent start`", started == [])
-
-msrc = open(os.path.join(ROOT, "tutorboard", "server", "routes", "machines.py"),
-            encoding="utf-8").read()
-check("the request handler is never used as a loop variable",
-      not [ln for ln in msrc.splitlines()
-           if ln.strip().startswith(("for h in ", "for h,"))])
-
-
-# ---------------------------------------------------------------------------
 # 3c. a server has no standard input
 # ---------------------------------------------------------------------------
 # A board asked to hand its tutor over recorded an interpreter crash where a
@@ -205,14 +152,10 @@ except OSError:
     check("a child given DEVNULL for stdin starts even where the parent has none",
           False)
 
-for mod, why in (("server/spawn.py", "the hub's own commands"),):
-    src = open(os.path.join(ROOT, "tutorboard", mod), encoding="utf-8").read()
-    spawns = [ln for ln in src.splitlines() if "sys.executable" in ln]
-    check("%s spawns python and says so (%s)" % (mod, why), bool(spawns))
-    check("and every one of them is handed a stdin (%s)" % why,
-          all("stdin" in src.split(ln)[1].split(")")[0] or "stdin" in ln
-              for ln in spawns))
-
+src = open(os.path.join(ROOT, "tutorboard", "runner", "turn.py"),
+           encoding="utf-8").read()
+check("a turn's process is handed a stdin of its own",
+      "stdin=subprocess.DEVNULL" in src)
 
 
 shutil.rmtree(TMP, ignore_errors=True)

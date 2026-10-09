@@ -33,7 +33,7 @@ import threading
 import time
 import traceback
 
-from tutorboard import paths, processes, sessions
+from tutorboard import paths, sessions
 from tutorboard.agents import recipes
 from tutorboard.course import config as course_config
 from tutorboard.lesson import cards as lesson_cards, inbox
@@ -86,7 +86,7 @@ def kill_group(pgid, needle=None, grace=KILL_GRACE):
         pgid = int(pgid)
     except (TypeError, ValueError):
         return False
-    if pgid <= 1 or not processes.pid_alive(pgid, needle):
+    if pgid <= 1 or not daemon.pid_alive(pgid, needle):
         return False
     try:
         os.killpg(pgid, signal.SIGTERM)
@@ -151,7 +151,7 @@ class Runner(object):
         record names no live process, so the board says a tutor is listening
         rather than that nothing is attached."""
         st = daemon.agent_record_at(where) or {}
-        if st.get("pid") == os.getpid() or processes.pid_alive(st.get("pid")):
+        if st.get("pid") == os.getpid() or daemon.pid_alive(st.get("pid")):
             return False
         name = st.get("agent") or recipes.resolve(recipes.load_config())[0]
         daemon.agent_state(where, pid=os.getpid(), host=recipes.this_host(),

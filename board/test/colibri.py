@@ -236,9 +236,9 @@ check("where squeue cannot be asked, observe says so rather than off",
 colibri._run = fake_run
 
 # THE MAC READS ONLY relay/status.json (D27): no squeue, no log, no start.
-from tutorboard.server import spawn                          # noqa: E402
 check("the Mac has no start control: the server starts for a filed task",
-      not hasattr(spawn, "wake_colibri") and not hasattr(colibri, "submitted")
+      not os.path.exists(os.path.join(ROOT, "tutorboard", "server", "spawn.py"))
+      and not hasattr(colibri, "submitted")
       and not hasattr(colibri, "forget"))
 mac = tempfile.mkdtemp(prefix="tutor-coli-mac-")
 
@@ -486,10 +486,7 @@ check("the name is validated as a name and nothing else",
 carries = [n for n, sp in AGENTS.items() if sp.get("private")]
 check("no built-in recipe says it may read a fence: " + ", ".join(carries),
       carries == [])
-listed = json.loads(subprocess.run(
-    [sys.executable, os.path.join(ROOT, "bin", "tutor"), "--agents", "--json"],
-    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-    ).stdout.decode("utf-8", "replace").strip().splitlines()[-1])
+listed = recipes.listing(recipes.load_config())
 check("and the browser is told the same",
       [a["name"] for a in listed["agents"] if a.get("private")] == [])
 check("beside whether this machine has it at all, because an assistant that "
@@ -512,9 +509,9 @@ RT = dict(R, courses_dir=tree)
 
 # NO SITTING STARTS A DAEMON ANY MORE, colibri's included: the board server's
 # runner takes every turn, and a start is refused before any recipe is read.
-code, msg = daemon.agent_start(RT, course, "colibri")
-check("a colibri sitting is refused like any other start: the server runs turns",
-      code == 1 and "board server" in msg
+check("a colibri sitting is refused like any other start: nothing starts a "
+      "daemon, and the server runs turns",
+      not hasattr(daemon, "agent_start")
       and not os.path.exists(os.path.join(live, "agent.json")))
 shutil.rmtree(tree, ignore_errors=True)
 os.environ.pop("TUTORBOARD_COURSES", None)

@@ -560,8 +560,8 @@ def pull_vendor(quiet=False):
         return False
 
     msg = ("vendor/colibri moves from %s to %s\n\n"
-           "The pointer only. Written by `tutor resume` on login, which is the "
-           "one moment a compute node gets, and committed here rather than left "
+           "The pointer only. Written by the relay on the cluster, and "
+           "committed here rather than left "
            "dirty -- an uncommitted pointer nobody touched shows on the board as "
            "unsaved work, which is a lie the person cannot act on."
            % (before[:8], after[:8]))
@@ -1496,7 +1496,7 @@ def where_line(base=None, now=None):
 
 
 def status(base=None, now=None):
-    """What `tutor relay --status` prints: the last pass, and every
+    """What `relay --status` prints: the last pass, and every
     workspace's requests by state."""
     base = os.path.realpath(base or subjects.root())
     lines = [where_line(base, now) or "relay: no pass has run here"]

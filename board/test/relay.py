@@ -47,7 +47,6 @@ REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
 from tutorboard import code as coding, jobs, leaving, relay            # noqa: E402
 
-TUTOR = os.path.join(ROOT, "bin", "tutor")
 RELAY = os.path.join(ROOT, "bin", "relay")
 fails = []
 
@@ -1029,20 +1028,20 @@ echo "SESSION-9 is in this row"
                    base, "state"), TUTOR_SLURM="1")
 
     def tutor(*args, **kw):
-        p = subprocess.run([sys.executable, TUTOR] + list(args), cwd=base,
+        p = subprocess.run([sys.executable, RELAY] + list(args), cwd=base,
                            env=dict(env, **kw), stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, timeout=300)
         return p.returncode, p.stdout.decode("utf-8", "replace")
-    code, out = tutor("relay", "--once")
-    check("`tutor relay --once` runs a pass", code == 0
+    code, out = tutor("--once")
+    check("`relay --once` runs a pass", code == 0
           and "1 submitted" in out
           and load(os.path.join(cws, "relay", "reports", "r7.json"))["jobid"]
           == "7777")
-    code, out = tutor("relay", "--status")
-    check("`tutor relay --status` shows the last pass and the requests",
+    code, out = tutor("--status")
+    check("`relay --status` shows the last pass and the requests",
           code == 0 and "last pass" in out and "projects/Proj" in out
           and "submitted" in out and "7777 (PENDING)" in out)
-    code, out = tutor("relay", "--once", TUTOR_SLURM="0")
+    code, out = tutor("--once", TUTOR_SLURM="0")
     check("and refuses on a machine without Slurm",
           code == 1 and "no Slurm" in out)
     check("the relay's last pass is one line, which `--status` opens on",
@@ -1076,7 +1075,7 @@ echo "SESSION-9 is in this row"
                            stderr=subprocess.STDOUT, timeout=300)
         return p.returncode, p.stdout.decode("utf-8", "replace")
     code, out = entry(RELAY, "--status")
-    check("`relay --status` is the same report `tutor relay --status` gives",
+    check("`relay --status` reports from the entry scrontab runs",
           code == 0 and "last pass" in out and "projects/Proj" in out)
     code, out = entry(RELAY, "--once", TUTOR_SLURM="0")
     check("and `relay` refuses a pass without Slurm",
@@ -1118,7 +1117,7 @@ echo "SESSION-9 is in this row"
     os.environ["BOARD_STATE_DIR"] = os.path.join(base, "state")
     scron = Scron()
     ok, _ = relay.install(run=scron)
-    check("`tutor relay --install` writes it through scrontab",
+    check("`relay --install` writes it through scrontab",
           ok and scron.written and "relay-pass.sh" in scron.written
           and scron.written.startswith("# mine"))
 finally:

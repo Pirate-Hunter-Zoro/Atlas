@@ -101,7 +101,7 @@ def asks_the_system(path):
     return found
 
 
-for rel in ("bin/board", "bin/tutor", "serve.py"):
+for rel in ("bin/board", "bin/relay", "serve.py"):
     check("%s does not ask the system for the hostname itself" % rel,
           not asks_the_system(os.path.join(ROOT, rel)))
 
@@ -142,8 +142,8 @@ check("it is at most sixty lines", len(setup_src.splitlines()) <= 60)
 check("it is sound bash", subprocess.run(["bash", "-n", SETUP]).returncode == 0)
 check("it bootstraps and checks ai-config",
       "bootstrap.sh" in setup_src and "ai-config" in setup_src)
-check("it installs the relay through bin/relay where that exists, else tutor relay",
-      'bin/relay" --install' in setup_src and "relay --install" in setup_src)
+check("it installs the relay through bin/relay, and names no other launcher",
+      'bin/relay" --install' in setup_src and "tutor" not in setup_src)
 check("and checks the remote answers", "ls-remote origin" in setup_src)
 check("and installs no timer and starts no board or tutor",
       "systemctl" not in setup_src and "restart" not in setup_src

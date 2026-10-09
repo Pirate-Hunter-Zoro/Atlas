@@ -50,7 +50,7 @@ from tutorboard import artifacts, briefs, gitops, sense, sessions, writeups  # n
 from tutorboard.course import library                                        # noqa: E402
 from tutorboard.lesson import notes as lesson_notes                          # noqa: E402
 from tutorboard.runner import service as runner_service                    # noqa: E402
-from tutorboard.server import app, handler, registry, spawn                  # noqa: E402
+from tutorboard.server import app, handler, registry                  # noqa: E402
 from tutorboard.server.routes import library as library_route                # noqa: E402
 from tutorboard.server.routes import writing as writing_route                # noqa: E402
 

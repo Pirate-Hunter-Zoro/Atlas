@@ -35,7 +35,6 @@ sys.path.insert(0, ROOT)
 from tutorboard import cluster, exports, jobs                          # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
-TUTOR = os.path.join(ROOT, "bin", "tutor")
 fails = []
 
 
@@ -326,8 +325,8 @@ check("once", jobs.report(spare, run=s3) == [])
 from tutorboard.runner import turn as runturn  # noqa: E402
 check("the inbox line wakes a turn signalled `job`, the way [direction] does",
       runturn.turn_signal("[2026-10-01 10:00:00] " + said) == "job")
-source = "".join(open(p, encoding="utf-8").read() for p in (
-    TUTOR, os.path.join(ROOT, "tutorboard", "runner", "loop.py")))
+source = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+              encoding="utf-8").read()
 check("the board daemon no longer polls jobs; the relay's pass does",
       "beat_jobs" not in source and "def job_pass" not in source
       and "jobs.report(ws" in open(os.path.join(ROOT, "tutorboard", "relay.py"),

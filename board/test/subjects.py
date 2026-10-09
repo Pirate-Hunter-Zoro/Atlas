@@ -18,7 +18,7 @@ sys.path.insert(0, ROOT)
 
 os.environ.pop("TUTORBOARD_COURSES", None)
 
-from tutorboard import colibri, machines, subjects  # noqa: E402
+from tutorboard import colibri, subjects  # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
 fails = []
@@ -43,10 +43,9 @@ def mk(base, rel, cfg=None):
 # --- root -------------------------------------------------------------------
 check("root() is the parent of board/",
       subjects.root() == os.path.dirname(os.path.realpath(ROOT)))
-check("there is no atlas.json, and the front door's families come from code",
+check("there is no atlas.json, and the subjects' parents come from code",
       not os.path.exists(os.path.join(subjects.root(), "atlas.json"))
-      and [f["id"] for f in machines.FAMILIES]
-      == ["courses", "projects", "board", "vendor"])
+      and [d for d, _ in subjects.DIRS] == ["courses", "projects"])
 check("and atlas.py is gone",
       not os.path.exists(os.path.join(ROOT, "tutorboard", "atlas.py")))
 from tutorboard import relay                                  # noqa: E402

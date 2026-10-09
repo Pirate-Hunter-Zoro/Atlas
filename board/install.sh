@@ -99,12 +99,11 @@ fi
 # A clone can arrive without the executable bit -- some filesystems and some
 # archive paths drop it -- and then `board` is unrunnable for no visible reason.
 # Put it back rather than making anyone diagnose it.
-chmod +x "$HERE/bin/board" "$HERE/bin/tutor" "$HERE/serve.py" "$HERE/install.sh" \
+chmod +x "$HERE/bin/board" "$HERE/bin/relay" "$HERE/serve.py" "$HERE/install.sh" \
         "$HERE/scripts/save-and-push.sh" "$HERE"/../.githooks/* 2>/dev/null || true
 mkdir -p "$BIN"
 ln -sf "$HERE/bin/board" "$BIN/board"
-ln -sf "$HERE/bin/tutor" "$BIN/tutor"
-good "tutor, board -> $BIN"
+good "board -> $BIN"
 case ":$PATH:" in
   *":$BIN:"*) : ;;
   *) warn "$BIN is not on your PATH — add it to your shell profile" ;;
@@ -228,7 +227,7 @@ case "$ts_kind" in
     say  "        Only needed to reach the board from a device on another network."
     python3 -c 'import sys; sys.path.insert(0, "'"$HERE"'"); from tutorboard.net import tailscale; print(tailscale.tailscale_download_hint())' 2>/dev/null \
       | sed 's/^/          /'
-    say  "        then: board vpn up" ;;
+    say  "        then, once: tailscale serve --bg --https=443 http://127.0.0.1:8778" ;;
 esac
 
 say
@@ -237,6 +236,6 @@ if [ "$ok" -eq 0 ]; then
 else
   say "Usable, with the gaps above. From anywhere:"
 fi
-say "  tutor --list       # what it can see"
-say "  tutor --agents     # which assistants are configured"
+say "  board doctor --dry   # what this machine has, and who takes a turn"
+say "  board status        # is the one board server up"
 exit 0

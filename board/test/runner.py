@@ -322,18 +322,15 @@ try:
     # -----------------------------------------------------------------------
     # nothing else starts a turn: no daemon, no waiter
     # -----------------------------------------------------------------------
-    p = subprocess.run([sys.executable, os.path.join(BOARD, "bin", "tutor"),
-                        "headless", "Demo"], stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, universal_newlines=True, timeout=60)
-    check("`tutor headless` is gone: it prints the usage, which no longer names it",
-          p.returncode == 2 and "tutor headless" not in p.stdout, p.stdout[:300])
+    check("`tutor headless` is gone with the old launcher",
+          not os.path.exists(os.path.join(BOARD, "bin", "tutor")))
     p = subprocess.run([sys.executable, os.path.join(BOARD, "bin", "board"), "wait"],
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        universal_newlines=True, timeout=60, cwd=atlas)
     check("and so is `board wait`", p.returncode != 0 and "unknown command" in p.stdout,
           p.stdout[:300])
-    check("and no daemon is started: `tutor agent start` is refused",
-          daemon.agent_start({}, {"dir": "Demo"}, "fake")[0] == 1)
+    check("and no daemon is started: there is no `agent_start`",
+          not hasattr(daemon, "agent_start"))
 
     # -----------------------------------------------------------------------
     # the server: /say to spawn, and the turn's environment

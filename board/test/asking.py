@@ -35,7 +35,7 @@ from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
 from tutorboard.runner import turn as runturn
-from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.server import handler, hub, tikz
 from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []

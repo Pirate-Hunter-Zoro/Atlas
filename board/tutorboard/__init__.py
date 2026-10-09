@@ -2,10 +2,10 @@
 
 The package is organised by WHAT A THING IS ABOUT, because that is the question
 somebody actually has when they arrive: not "where does this function live" but
-"where is the code that decides which machine serves the address".
+"where is the code that decides which assistant takes a turn".
 
-    paths, ports, choice        what this machine knows about itself
-    machine, processes, tex     what this machine IS, and what is alive on it
+    paths                       what this machine knows about itself
+    machine, tex                what this machine IS
     net/                        the tailnet this board is reached on, and
                                 whether a turn can get out to a model
     limits, reasoning, handoff  what a model said, what it may not say, and what
@@ -15,7 +15,7 @@ somebody actually has when they arrive: not "where does this function live" but
     lesson/                     what is on the board right now: cards, turns,
                                 answers, the slate, the archive
     server/                     the HTTP board itself, and its routes
-    cli/                        the commands: board, tutor
+    runner/                     the turns: one fresh provider process each
 
 Standard library only, everywhere. A board runs on a compute node with no
 package manager and no right to install one.

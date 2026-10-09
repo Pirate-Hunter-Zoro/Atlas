@@ -1535,7 +1535,7 @@ def word_diff(old, new, tex=True, focus=""):
 # ---------------------------------------------------------------------------
 def settle(repo, doc):
     """Validate every round that has changed. Run where the wipe runs, on the
-    same two GETs, because there is no hook after a turn outside `bin/tutor`."""
+    same two GETs, because there is no hook after a turn outside the runner."""
     rs = rounds(repo.root, doc)
     for n, (_rec, path) in enumerate(rs):
         check(repo.root, doc, path, later=n < len(rs) - 1)

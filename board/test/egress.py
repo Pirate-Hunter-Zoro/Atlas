@@ -258,7 +258,7 @@ check("asking about one provider is a different question from asking about the "
 tutor_src = "".join(
     open(os.path.join(ROOT, *p), encoding="utf-8").read()
     for p in (("tutorboard", "runner", "loop.py"), ("tutorboard", "agents", "recipes.py"),
-              ("tutorboard", "agents", "usage.py"), ("bin", "tutor"),
+              ("tutorboard", "agents", "usage.py"),
               ("tutorboard", "runner", "service.py")))
 check("the tutor asks whether the MACHINE can get out only after a turn has "
       "actually failed -- a round trip in front of every card is a round trip "
@@ -381,19 +381,6 @@ check("and the debt is taken on when the message is TAKEN rather than when a "
 check("and every path out of a turn settles it once, off what the turn left "
       "owed, rather than every path having to remember to",
       "    owe(ctx, pending)\n" in tutor_src)
-
-# --- and the last thing a daemon writes does not land on its successor ------
-own_live = os.path.join(sandbox, "live-own")
-os.makedirs(own_live, exist_ok=True)
-check("a record nobody has claimed is this process's to write",
-      daemon.record_is_ours(own_live))
-daemon.agent_state(own_live, pid=os.getpid())
-check("and so is one naming this process", daemon.record_is_ours(own_live))
-daemon.agent_state(own_live, pid=os.getpid() + 1)
-check("but a record naming somebody else is not, which is what stops an "
-      "exiting daemon stamping `stopped` on the successor that replaced it -- "
-      "`supervise.tutor_verdict` reads that as a person saying no and never "
-      "revives it", not daemon.record_is_ours(own_live))
 
 # --- the wrap-up runs as whoever can write it -------------------------------
 #

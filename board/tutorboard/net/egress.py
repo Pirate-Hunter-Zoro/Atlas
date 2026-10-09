@@ -86,8 +86,7 @@ def egress_ok(timeout=12, urls=None, also=()):
     questions have different answers: a filter that drops one provider's
     hostname leaves every other host on the internet reachable, so the
     machine-wide probe says yes while the turn that just failed could not open a
-    socket. The recipe names its own endpoint; see `agent_probe_urls` in
-    `bin/tutor`.
+    socket. The recipe names its own endpoint; see `agent_probe_urls`.
     """
     import urllib.error
     import urllib.request

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`tutor doctor` is a one-turn smoke test per provider.
+"""`board doctor` is a one-turn smoke test per provider.
 
     python3 test/doctor.py
 
@@ -16,6 +16,8 @@ nothing on stdin, in a scratch directory with `PWD` saying so.
     and no process is started for it.
   - ONE FAILURE IS EXIT 1, and nothing is written outside the scratch
     directory: no limit mark, no cost line.
+  - `--dry` SPENDS NO TURN, and neither does a doctor run inside a turn.
+    `board doctor --dry` runs on a fixture config, from the command line.
 """
 
 import contextlib
@@ -26,6 +28,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -40,10 +43,10 @@ os.environ.setdefault("BOARD_NO_TAILNET", "1")
 from tutorboard import limits                                  # noqa: E402
 from tutorboard.agents import doctor, recipes                  # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+loader = importlib.machinery.SourceFileLoader("boardcli", os.path.join(ROOT, "bin", "board"))
+spec = importlib.util.spec_from_loader("boardcli", loader)
+board = importlib.util.module_from_spec(spec)
+loader.exec_module(board)
 
 fails = []
 
@@ -104,10 +107,10 @@ def seen():
         return []
 
 
-def run(args, cfg=CFG):
+def run(args, cfg=CFG, dry=False):
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        code = doctor.cmd_doctor(cfg, args)
+        code = doctor.cmd_doctor(cfg, args, dry=dry)
     return code, out.getvalue()
 
 
@@ -156,12 +159,61 @@ try:
     check("a provider that hangs is cut at the cap and says so",
           not ok and "timed out" in line, line)
 
-    out = io.StringIO()
-    with contextlib.redirect_stdout(out):
-        code = tutor.main(["--help"])
-    check("`tutor doctor` is documented as the smoke test",
-          "tutor doctor [agent]" in out.getvalue()
-          and "one real turn per provider" in out.getvalue())
+    # --- dry: no turn ----------------------------------------------------
+    before = len(seen())
+    code, out = run([], dry=True)
+    check("--dry names each recipe and what would run, and starts nothing",
+          code == 0 and "dry  good" in out and "dry  mute" in out
+          and FAKE in out and len(seen()) == before, out)
+    code, out = run(["gone"], dry=True)
+    check("and a recipe that cannot take a turn still fails it, with the reason",
+          code == 1 and "FAIL gone" in out and "not on the path" in out, out)
+
+    # --- `board doctor`, the command ---------------------------------------
+    board.machine_check = lambda: True
+    real = recipes.load_config
+    recipes.load_config = lambda: CFG
+    try:
+        out = io.StringIO()
+        os.environ["TUTORBOARD_TURN"] = "1"
+        with contextlib.redirect_stdout(out):
+            code = board.main(["doctor"])
+        check("inside a turn `board doctor` is dry: a turn never starts a turn",
+              code == 0 and "inside a turn: dry" in out.getvalue()
+              and "dry  good" in out.getvalue() and len(seen()) == before,
+              out.getvalue())
+        del os.environ["TUTORBOARD_TURN"]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = board.main(["doctor", "good"])
+        check("and outside one it spends the turn on the recipe named",
+              code == 0 and "ok   good" in out.getvalue()
+              and len(seen()) == before + 1, out.getvalue())
+    finally:
+        recipes.load_config = real
+        os.environ.pop("TUTORBOARD_TURN", None)
+
+    xdg = os.path.join(box, "xdg")
+    os.makedirs(os.path.join(xdg, "tutor-board"))
+    with open(os.path.join(xdg, "tutor-board", "config.json"), "w") as fh:
+        json.dump(CFG, fh)
+    env = dict(os.environ, XDG_CONFIG_HOME=xdg)
+    env.pop("TUTORBOARD_TURN", None)
+    before = len(seen())
+    p = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
+                        "doctor", "--dry"], env=env, cwd=box,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       universal_newlines=True, timeout=180)
+    check("`board doctor --dry` runs on a fixture config: the machine, then a "
+          "dry line each for its provider and fallback, and no turn",
+          "python:" in p.stdout and "dry  good" in p.stdout
+          and "dry  mute" in p.stdout and len(seen()) == before, p.stdout[-800:])
+    help_out = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
+                               "help"], stdout=subprocess.PIPE,
+                              universal_newlines=True, timeout=60).stdout
+    check("`board doctor` is documented as the smoke test, with --dry",
+          "board doctor [--dry] [name ...]" in help_out
+          and "one real turn" in help_out)
 finally:
     shutil.rmtree(box, ignore_errors=True)
 

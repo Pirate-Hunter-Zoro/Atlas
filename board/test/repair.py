@@ -39,7 +39,6 @@ os.environ["BOARD_STATE_DIR"] = box
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 from tutorboard import jobs, sessions                                  # noqa: E402
 
-TUTOR = os.path.join(ROOT, "bin", "tutor")
 BOARD = os.path.join(ROOT, "bin", "board")
 fails = []
 

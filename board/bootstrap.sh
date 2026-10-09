@@ -65,7 +65,7 @@ warn() { printf '  ----  %s\n' "$*"; }
 
 # --- ai-config ---------------------------------------------------------------
 # The one private repository nested inside Atlas. Its URL is fixed here and in
-# bin/tutor's AI_CONFIG_URL; nothing else is ever cloned into the tree.
+# tutorboard/gitops.py's AI_CONFIG_URL; nothing else is ever cloned into the tree.
 AI_CONFIG="ai-config"
 AI_CONFIG_URL="https://github.com/Pirate-Hunter-Zoro/ai-config.git"
 

@@ -7,7 +7,7 @@
    them can be tapped, and what does a dimmed one say about itself.
 
    ONE COPY, because the alternative was measured in the registry comment in
-   `bin/tutor`: two lists go out of step the first time a recipe grows a flag,
+   `agents/recipes.py`: two lists go out of step the first time a recipe grows a flag,
    and a flag on a recipe is exactly how a provider is added. `unkeyed` was the
    third such flag and it arrived after both surfaces existed.
 

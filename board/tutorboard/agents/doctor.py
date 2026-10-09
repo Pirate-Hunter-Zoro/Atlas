@@ -1,7 +1,8 @@
-"""`tutor doctor`: one real turn per provider, the way the runner sends it.
+"""`board doctor`'s turns: one real turn per provider, the way the runner sends it.
 
-    tutor doctor              the configured `provider` and its `fallback`
-    tutor doctor codex ...    the recipes named instead
+    board doctor              the configured `provider` and its `fallback`
+    board doctor codex ...    the recipes named instead
+    board doctor --dry        no turn: whether each could take one, and its argv
 
 Each recipe gets one fresh turn in a scratch directory: its `headless_first`
 argv with the usage flags, its own environment (`turn_environment`), nothing on
@@ -24,7 +25,7 @@ from tutorboard.runner import turn as runturn
 DOCTOR_TURN_SECONDS = 300
 
 DOCTOR_PROMPT = (
-    "This is a one-turn check of the tutoring harness, run by `tutor doctor`. "
+    "This is a one-turn check of the tutoring harness, run by `board doctor`. "
     "Reply with the code word %(word)s and nothing else. Do not read or write "
     "any file and run no command.")
 
@@ -68,15 +69,29 @@ def smoke(cfg, name, timeout=DOCTOR_TURN_SECONDS):
     return True, "ok   %-9s answered in %.1f s (%s)" % (name, took, " ".join(argv[:1]))
 
 
-def cmd_doctor(cfg, args):
-    """`tutor doctor [name ...]`: a smoke turn per provider. Exit 0 or 1."""
+def dry_line(cfg, name):
+    """`(ok, line)` for a recipe without a turn: can it take one here, and
+    what would run."""
+    why = recipes.unavailable(cfg, name)
+    if why:
+        return False, "FAIL %-9s cannot take a turn here: %s" % (name, why)
+    argv = runturn.fresh_recipe(cfg["agents"][name])
+    return True, "dry  %-9s would run: %s" % (name, " ".join(argv[:1]))
+
+
+def cmd_doctor(cfg, args, dry=False):
+    """A smoke turn per provider (`dry`: none, only whether each could take
+    one). Exit 0 or 1."""
     cfg = cfg or recipes.load_config()
     names = [a for a in args if not a.startswith("-")]
     if not names:
         names = [n for n in (recipes.provider(cfg), recipes.fallback(cfg)) if n]
+    if not names:
+        print("FAIL nobody: no provider or fallback is configured")
+        return 1
     ok = True
     for name in dict.fromkeys(names):
-        good, line = smoke(cfg, name)
+        good, line = dry_line(cfg, name) if dry else smoke(cfg, name)
         print(line)
         ok = ok and good
     return 0 if ok else 1

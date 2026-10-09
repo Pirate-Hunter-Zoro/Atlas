@@ -35,11 +35,7 @@ else
 fi
 
 # 3. the relay's scrontab entry.
-if [ -f "$BOARD/bin/relay" ]; then
-  python3 "$BOARD/bin/relay" --install || warn "the relay entry was not installed"
-else
-  python3 "$BOARD/bin/tutor" relay --install || warn "the relay entry was not installed"
-fi
+python3 "$BOARD/bin/relay" --install || warn "the relay entry was not installed"
 
 # 4. the remote: the relay pulls and pushes through it and nothing else.
 if git -C "$ROOT" ls-remote origin HEAD >/dev/null 2>&1; then

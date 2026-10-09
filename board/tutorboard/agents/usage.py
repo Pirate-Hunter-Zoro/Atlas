@@ -3,7 +3,7 @@
 The agent's own output is the only record of a turn: whether it failed and in
 what words (`failure_reason`), what it used (`read_turn_usage`, one parser per
 provider), what that cost (`priced`, off the recipe's table), and the line in
-`live/cost.jsonl` that `tutor cost` adds up.
+the session's `cost.jsonl` that `board cost` adds up.
 """
 
 import json
@@ -154,7 +154,7 @@ def turn_output(path, offset, cap=20000, line_cap=400000):
 # the next change to any of it would have been guesswork wearing a comment.
 #
 # `--output-format json` makes the agent say what its turn cost. This writes it
-# down, one line per turn, and `tutor cost` adds it up. The cost of the
+# down, one line per turn, and `board cost` adds it up. The cost of the
 # accounting is zero: it is a field in output the daemon was already logging.
 #
 # `usage` in that JSON is cumulative for the whole invocation -- every round trip
@@ -571,7 +571,7 @@ def _share(window):
 
 
 def cost_all(cfg, found):
-    """`tutor cost`: every place in `found` that billed, one line each.
+    """`board cost`: every place in `found` that billed, one line each.
     Each is `{dir, root}`, `root` a session directory or a workspace root."""
     share = _share(_window(cfg))
     rows = [(c, read_costs(c["root"])) for c in found]
@@ -580,7 +580,7 @@ def cost_all(cfg, found):
         print("no turn has reported a cost on this machine yet.")
         print("Turns record one only on a recipe whose `usage` names a "
               "parser -- `claude-json`, `codex-jsonl` or `opencode-json`; see "
-              "`tutor --agents`.")
+              "agents/recipes.py.")
         return 0
     print("%-22s %6s %8s %11s %10s  %s" %
           ("where", "turns", "trips/t", "tokens/t", "total", "who"))

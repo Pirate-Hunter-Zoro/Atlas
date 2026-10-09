@@ -4,8 +4,8 @@ The board server reads its code once, when it starts. What tells a stale
 process from a fresh one is a stamp: a short hash of the git trees the process
 loads, read when it starts (`LOADED`) and compared against what HEAD holds now.
 
-THE STAMP COVERS WHAT A PROCESS LOADS AND NOTHING ELSE: `serve.py`,
-`tutorboard/` and `bin/tutor` while it exists. HEAD moves every time a course
+THE STAMP COVERS WHAT A PROCESS LOADS AND NOTHING ELSE: `serve.py` and
+`tutorboard/`. HEAD moves every time a course
 saves its homework, and a bounce per answer is a lesson nobody can finish.
 `web/` is out because the shell is served from disk and `sw.js`'s VERSION
 already moves it; `bin/board` is out because it is a fresh CLI on every call.
@@ -24,7 +24,6 @@ A leaf module: os, subprocess, hashlib, time and nothing of this package, so it
 can be imported before the package it stamps.
 """
 
-import contextlib
 import hashlib
 import os
 import subprocess
@@ -33,7 +32,7 @@ import tempfile
 import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-STAMPED = ("bin/tutor", "serve.py", "tutorboard")
+STAMPED = ("serve.py", "tutorboard")
 
 # `/health?code=1` asks too, so a burst of it does not become a burst of git.
 CACHE_FOR = 10.0
@@ -46,8 +45,8 @@ LOADED = None
 def tree(tool=TOOL, cached=True):
     """Twelve hex characters naming the stamped trees at HEAD, or None.
 
-    A stamped path HEAD does not have is left out, so the stamp outlives
-    `bin/tutor`. `cached` False asks git now."""
+    A stamped path HEAD does not have is left out. `cached` False asks git
+    now."""
     now = time.time()
     hit = _cache.get(tool)
     if cached and hit and now - hit[0] < CACHE_FOR:
@@ -92,8 +91,8 @@ def blocked(tool=TOOL):
 
 
 def imports(tool=TOOL, timeout=30):
-    """Does the tree at `tool` compile `serve.py` (and `bin/tutor` while it
-    exists) and import the server and the runner?
+    """Does the tree at `tool` compile `serve.py` and import the server and
+    the runner?
 
     Returns (ok, last line). Run once per new stamp before the server gives
     way to it, because a tree that does not import would otherwise leave
@@ -104,7 +103,7 @@ def imports(tool=TOOL, timeout=30):
     instead of remembering a good tree as a bad one.
     """
     with tempfile.TemporaryDirectory(prefix="tutor-stamp-") as scratch:
-        sources = [s for s in ("serve.py", "bin/tutor")
+        sources = [s for s in ("serve.py",)
                    if os.path.isfile(os.path.join(tool, s))]
         code = ("import os, py_compile, sys; "
                 "[py_compile.compile(s, cfile=os.path.join(%r, '%%d.pyc' %% n), "
@@ -165,31 +164,3 @@ def moved(tool=TOOL):
     if not _imported[now]:
         return None
     return "committed board code moved from %s to %s" % (LOADED, now)
-
-
-LOCK = "/tmp/tutor-restart-%d.lock" % os.getuid()
-
-
-@contextlib.contextmanager
-def restart_lock(wait=True, path=None):
-    """One restart of this node's boards at a time. Yields whether it is held.
-
-    Node-local on purpose: `/tmp` is this machine's, and the boards a restart
-    stops are this machine's too. A lesson save, a ship and a watch beat can all
-    reach for the same board together, and two of them stopping and starting it
-    at once is a board on a fallback port.
-    """
-    import fcntl
-    fh = open(path or LOCK, "a")
-    try:
-        try:
-            fcntl.flock(fh, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
-        except OSError:
-            yield False
-            return
-        try:
-            yield True
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
-    finally:
-        fh.close()

@@ -275,7 +275,7 @@ check("an untracked artifact leaves without a commit",
 # ---------------------------------------------------------------------------
 # the payload, the route, and the strip
 # ---------------------------------------------------------------------------
-from tutorboard.server import handler, hub, spawn, tikz            # noqa: E402
+from tutorboard.server import handler, hub, tikz            # noqa: E402
 from tutorboard.runner import service as runner_service  # noqa: E402
 
 repo = course_repo.Repo(root)

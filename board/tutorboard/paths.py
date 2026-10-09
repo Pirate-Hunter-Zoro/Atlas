@@ -21,7 +21,6 @@ CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
     "tutor-board")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
-CHOSEN = os.path.join(CONFIG_DIR, "chosen.json")
 # The provider credentials, beside the config the launcher already reads and
 # never in the tree -- this repository is public. `NAME=value` a line; see
 # `tutorboard/keys.py`, which is the only thing that opens it.

@@ -50,7 +50,7 @@ os.environ["TUTORBOARD_PAGES"] = os.path.join(tmp, ".pages")
 from tutorboard import sessions                               # noqa: E402
 from tutorboard.course import repo as course_repo             # noqa: E402
 from tutorboard.runner import service as runner_service      # noqa: E402
-from tutorboard.server import app, spawn                      # noqa: E402
+from tutorboard.server import app                             # noqa: E402
 from tutorboard.net import tailscale                         # noqa: E402
 
 # No tailnet here: `tailscale status` can take 20 s to give up when tailscaled
@@ -68,8 +68,6 @@ def check(name, cond):
 
 CALLS = []
 runner_service.wake = lambda repo: CALLS.append(("wake", repo.live)) or False
-spawn.board_cli = lambda where, a, **kw: CALLS.append(("board", list(a))) or (0, "ok")
-spawn.tutor_cli = lambda a, **kw: CALLS.append(("tutor", list(a))) or (0, "ok")
 
 
 def write(path, text):
