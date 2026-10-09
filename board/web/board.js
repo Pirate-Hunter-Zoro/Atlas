@@ -76,6 +76,8 @@ var els = {
   newverNow: document.getElementById("newver-now"),
   newverLater: document.getElementById("newver-later"),
   hwbar: document.getElementById("hwbar"),
+  healthbar: document.getElementById("healthbar"),
+  healthText: document.getElementById("health-text"),
   hwSet: document.getElementById("hw-set"),
   hwCount: document.getElementById("hw-count"),
   hwBuild: document.getElementById("hw-build"),
@@ -1267,6 +1269,10 @@ function render(data) {
      board waiting to start. */
   var started = (data.cards || []).length > 0;
   els.empty.hidden = started || linkDead;
+
+  /* THE CLUSTER'S HEALTH, the same for every session: relay looks down, not
+     synced, a skipped pass (`relay.health`). */
+  if (data.relay !== undefined) paintHealth(data.relay);
 
   /* WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
      card rendered against the wrong vocabulary is the defect this carries:
@@ -3423,6 +3429,19 @@ els.finishLeave.onclick = goLeave;
 /* The problem sets the subject has, by name, from `/subject.json`: what an
    address to one problem is checked against. */
 var knownSets = [];
+
+/* The health strip under the bar: the worst line first, all of them in its
+   tooltip. Hidden while the cluster is well. */
+function paintHealth(h) {
+  if (!els.healthbar) return;
+  var lines = (h && h.lines) || [];
+  els.healthbar.hidden = lines.length === 0;
+  els.healthText.textContent = lines.length
+    ? lines[0] + (lines.length > 1 ? "  (+" + (lines.length - 1) + " more)" : "")
+    : "";
+  els.healthbar.title = lines.join("\n");
+  els.healthbar.classList.toggle("down", !!(h && h.down));
+}
 
 /* One step, written for them, and the session stays in teach. Painted before
    the answer comes back: the payload that carries it is a poll away, and a

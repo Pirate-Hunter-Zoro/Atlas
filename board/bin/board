@@ -2161,8 +2161,9 @@ def cmd_colibri(live, args):
     the queue has been empty for 20 minutes. A generation that dies is replaced
     by its clone, which resumes the task by name; three deaths fail it.
 
-    ON THE MAC it files a `colibri` relay request instead, committed and pushed
-    like `board job`'s. The workspace opts in with `relay.colibri: true` in its
+    ON THE MAC it files a `colibri` relay request instead (`colibri.ask`,
+    which the iPad's POST /colibri shares), committed and pushed like `board
+    job`'s, and says what the wait is (`colibri.estimate`). The workspace opts in with `relay.colibri: true` in its
     tutorboard.json.
 
     A task is read-only analysis: Colibri writes its outputs under the
@@ -2207,21 +2208,15 @@ def cmd_colibri(live, args):
         print("task %s%s: %s. `board colibri --show` lists the queue."
               % (rec["id"], " (`%s`)" % label if label else "", said))
         return 0
-    taken = set(r["id"] for r in jobs.requests(root))
-    req = {"id": jobs.new_id(label, "colibri", taken), "kind": "colibri",
-           "brief": brief, "filed": round(time.time(), 3)}
-    if label:
-        req["label"] = label
-    if session:
-        req["session"] = session
-    ok, problems = jobs.check(root, req)
-    if problems:
+    got = colibri.ask(root, brief, label, session)
+    if not got["ok"]:
         print("board colibri: %d problem(s), and nothing was filed:"
-              % len(problems), file=sys.stderr)
-        for line in problems:
+              % len(got["problems"]), file=sys.stderr)
+        for line in got["problems"]:
             print("  " + line, file=sys.stderr)
         return 1
-    return _request_filed(root, ok)
+    print("%s. %s." % (got["said"], colibri.estimate(colibri.status())))
+    return 0
 
 
 # ---------------------------------------------------------------------------

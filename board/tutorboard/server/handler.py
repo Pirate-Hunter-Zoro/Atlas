@@ -89,6 +89,7 @@ UNPREFIXED = (
     # machines
     ("GET", "/courses.json", "atlas"),
     ("GET", "/atlas.json", "atlas"),
+    ("GET", "/relay.json", "atlas"),
     ("GET", "/news", "atlas"),
     ("GET", "/missions", "atlas"),
     ("GET", "/mission", "atlas"),

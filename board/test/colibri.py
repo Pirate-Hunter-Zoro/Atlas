@@ -8,8 +8,9 @@
 2. A SLOW RECIPE'S TIMEOUT IS A FLOOR, so a machine that adds one does not have
    every turn killed at the sitting's cap.
 
-3. THE SERVER'S FOUR STATES, off `squeue`, and a start control that returns at
-   once and is refused where Slurm is.
+3. THE SERVER'S FOUR STATES, off `squeue` on the cluster; on the Mac off
+   relay/status.json only, with no start control; and the relay timing a
+   cold load.
 
 4. A SITTING CAN CHOOSE ITS ASSISTANT, above the workspace's own answer.
 
@@ -180,10 +181,8 @@ def fake_run(args, timeout=10):
 colibri._run = fake_run
 
 
-def state(**kw):
-    colibri.forget()
-    colibri._ASKED["at"] = 0.0
-    return colibri.status(**kw)
+def state():
+    return colibri.observe()
 
 
 QUEUE["lines"] = ""
@@ -198,7 +197,7 @@ now = state()
 check("a job Slurm has not run yet reads as queued", now["state"] == "queued")
 check("and Slurm's own reason is what is shown, because a 950 GB ask can pend "
       "indefinitely and nothing else says why",
-      now["detail"] == "Resources")
+      now["detail"] == "Resources" and now["reason"] == "Resources")
 check("the job number comes back, so a person can go and look at it",
       now["job"] == "4231")
 
@@ -230,65 +229,79 @@ now = state()
 check("a job whose engine fell over is not reported as loading for ever",
       now["state"] == "off" and "failed to load" in now["detail"])
 
-# The cache, because the board polls four times a second.
-QUEUE["lines"] = ""
-del asked[:]
-colibri.forget()
-colibri.status()
-first = len(asked)
-for _ in range(20):
-    colibri.status()
-check("twenty polls ask Slurm once", len(asked) == first)
-check("and the window is the one the rest of the board uses", colibri.TTL == 15.0)
+_was_run = colibri._run
+colibri._run = lambda args, timeout=10: None
+check("where squeue cannot be asked, observe says so rather than off",
+      colibri.observe() is None)
+colibri._run = fake_run
 
-# A start that has been asked for but is not yet in the queue still says so:
-# sbatch takes about a second, and "nothing is running" reported back to
-# somebody who has just tapped start is how a second tap happens.
-colibri.submitted()
-check("a submit in flight reads as queued rather than as nothing",
-      colibri.status()["state"] == "queued")
-colibri._ASKED["at"] = time.time() - colibri.SUBMIT_GRACE - 1
-colibri.forget()
-check("and a submit that never appeared does not claim to be queued for ever",
-      colibri.status()["state"] == "off")
-
-# And the control refuses rather than submitting a second job.
+# THE MAC READS ONLY relay/status.json (D27): no squeue, no log, no start.
 from tutorboard.server import spawn                          # noqa: E402
+check("the Mac has no start control: the server starts for a filed task",
+      not hasattr(spawn, "wake_colibri") and not hasattr(colibri, "submitted")
+      and not hasattr(colibri, "forget"))
+mac = tempfile.mkdtemp(prefix="tutor-coli-mac-")
 
-# These stand in for the Mac's board, so they say so: on the cluster `sbatch`
-# is on the PATH and the button is refused before it reads the queue at all.
-os.environ["TUTOR_SLURM"] = "0"
-QUEUE["lines"] = "4231|PENDING||Priority"
-colibri.forget()
-colibri._ASKED["at"] = 0.0
-started, said = spawn.wake_colibri()
-check("with a job already queued, the control does not submit a second",
-      started is False and "Priority" in said)
-QUEUE["lines"] = "4231|RUNNING|compute304|None"
+
+def mac_status(block, now=None):
+    os.makedirs(os.path.join(mac, "relay"), exist_ok=True)
+    with open(os.path.join(mac, "relay", "status.json"), "w") as fh:
+        json.dump({"skipped": "", "last_error": "", "push_pending": False,
+                   "outstanding": {}, "colibri": block, "at": 1}, fh)
+    del asked[:]
+    return colibri.status(mac, now=now)
+
+
+QUEUE["lines"] = ""
+now = mac_status({"state": "loading", "ends": int(time.time()) + 7200,
+                  "queue": 2, "task": "coli-20261009-120000-abcd",
+                  "load_s": 4080, "reason": ""})
+check("the Mac reads loading from status.json while squeue says nothing",
+      now["state"] == "loading" and asked == []
+      and "68 min" in now["detail"] and now["queue"] == 2
+      and now["task"] == "coli-20261009-120000-abcd")
+check("and \"off\" never shows while status says loading",
+      "off" not in now["state"] and "no server" not in now["detail"])
+now = mac_status({"state": "warm", "ends": 10000 + 3 * 3600, "queue": 0,
+                  "task": None, "load_s": 4080, "reason": ""}, now=10000)
+check("warm, with the time left reckoned from the published walltime end",
+      now["state"] == "warm" and now["left"] == 3 * 3600
+      and "3 h 00 min left" in now["detail"])
+now = mac_status(None)
+check("with no colibri block the state is unknown, never off",
+      now["state"] == "unknown")
+check("a cold-start estimate comes from the load the relay timed",
+      "68 min" in colibri.estimate({"state": "off", "load_s": 4080})
+      and "cold start" in colibri.estimate({"state": "off", "load_s": 4080})
+      and "warm" in colibri.estimate({"state": "warm"}))
+shutil.rmtree(mac, ignore_errors=True)
+
+# THE RELAY TIMES A COLD LOAD: seen running and not warm, then warm.
+memo = {}
+open(OUT, "w").close()
+open(ERR, "w").close()
+QUEUE["lines"] = "4231|RUNNING|compute304|None|8:00:00|"
+got = colibri.relay_status({}, memo, now=1000.0)
+check("a generation seen cold is remembered with the pass that saw it",
+      got["state"] == "loading" and memo["cold"] == {"4231": 1000.0}
+      and got["load_s"] is None and got["ends"] == 1000 + 8 * 3600)
 with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("COLIBRI-SERVE READY\n")
-colibri.forget()
-started, said = spawn.wake_colibri()
-check("and does nothing at all against a warm one", started is False)
-
-# WHERE SLURM IS, THE BUTTON STARTS NOTHING. Colibri on the node is directed
-# only from the Mac, by a relay request; a board served on the cluster that
-# could start it from a button is a model turn nobody on the Mac asked for.
-QUEUE["lines"] = ""
-colibri.forget()
-colibri._ASKED["at"] = 0.0
-os.environ["TUTOR_SLURM"] = "1"
-_was_up = colibri.up_command
-colibri.up_command = lambda: "/bin/false"
-_asked_before = len(asked)
-started, said = spawn.wake_colibri()
-check("on a machine with Slurm the start button is refused and names the Mac route",
-      started is False and "relay request from the Mac" in said
-      and "board colibri" in said)
-check("and it is refused before Slurm is even asked, so nothing is submitted",
-      len(asked) == _asked_before and not colibri._ASKED["at"])
-colibri.up_command = _was_up
-os.environ.pop("TUTOR_SLURM", None)
+QUEUE["lines"] = "4231|RUNNING|compute304|None|7:00:00|"
+got2 = colibri.relay_status(got, memo, now=1000.0 + 3600 + 100)
+check("the first pass that sees it warm records the load",
+      got2["state"] == "warm" and got2["load_s"] == 3700
+      and memo["cold"] == {})
+check("and the walltime end does not move for squeue's jitter",
+      got2["ends"] == got["ends"])
+check("no node name and no path in the public block",
+      "compute304" not in json.dumps(got2) and "/" not in json.dumps(got2))
+colibri._run = lambda args, timeout=10: None
+got3 = colibri.relay_status(got2, memo, now=9999.0)
+check("where squeue cannot be asked the published state stands",
+      got3["state"] == "warm" and got3["ends"] == got2["ends"]
+      and got3["load_s"] == 3700)
+colibri._run = fake_run
 
 # ---------------------------------------------------------------------------
 # 3b. the chain, which is what makes the server always up
@@ -540,5 +553,5 @@ for name in ("colibri.py", "relay.py"):
     check("no `missions.` call remains in %s" % name, "missions." not in src)
 
 print("%d FAILURES" % len(fails) if fails
-      else "the local model is one tap away, and it refuses the two taps it should")
+      else "Colibri is read off squeue on the cluster and off status.json on the Mac")
 sys.exit(1 if fails else 0)

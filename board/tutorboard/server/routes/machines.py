@@ -7,7 +7,8 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
-              GET  /courses.json  /atlas.json  /news  /missions  /mission
+              GET  /courses.json  /atlas.json  /relay.json  /news  /missions
+                   /mission
               POST /meeting  /default-agent
               POST /colibri  /elsewhere  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
@@ -36,6 +37,7 @@ from ... import choice
 from .. import spawn
 from ... import subjects
 from ... import colibri
+from ... import relay
 from ... import machines
 from ... import briefs
 from ... import missions
@@ -77,6 +79,13 @@ def get(h, repo, path):
         want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
         return h.send_json(machines.atlas_payload(
             repo, holders=want.get("holders", [""])[0] == "1"))
+
+    if path == "/relay.json":
+        # THE CLUSTER'S HEALTH, AS THE MAC SEES IT: relay down, not synced,
+        # the relay's own status, and Colibri with its panel's tasks
+        # (`relay.health`). Everything about the cluster comes from
+        # relay/status.json and this tree, never from Slurm (D27).
+        return h.send_json(relay.panel(repo.root))
 
     if path == "/news":
         # The same list the board payload carries, for a surface that is not on
@@ -277,18 +286,35 @@ def post(h, repo, path):
                             "assistants": table})
 
     if path == "/colibri":
-        # START THE LOCAL MODEL'S SERVER, AND SAY SO AT ONCE.
-        #
-        # `coli-code` exits with "No colibri server is running. Start one:
-        # coli-up", which is the right message in a terminal and a dead end on an
-        # iPad. It cannot be done inside this request either -- an allocation, a
-        # 429 GB load and a warm-up generation is seven or eight minutes on a
-        # good day and can pend indefinitely -- so this returns the state and
-        # lets the payload carry the rest. See `spawn.wake_colibri`.
-        started, said = spawn.wake_colibri()
+        # FILE A COLIBRI TASK: {brief, label?, session?}. The Mac starts no
+        # server; it files a `colibri` relay request in libr-local-llm, the
+        # way `board colibri` does (`colibri.ask`), and the relay's next pass
+        # queues it and starts a generation where none is up.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:                                    # noqa: BLE001
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not str(payload.get("brief") or "").strip():
+            return h.send_json({"ok": False, "error": "say what the task is"},
+                               status=400)
+        found = subjects.find(colibri.WORKSPACE, base=repo.root)
+        if not found:
+            return h.send_json({"ok": False, "error": "no %s here to file in"
+                                % colibri.WORKSPACE}, status=404)
+        got = colibri.ask(found["root"], payload.get("brief"),
+                          label=str(payload.get("label") or "").strip(),
+                          session=str(payload.get("session") or "").strip())
+        now = colibri.status(repo.root)
+        if not got["ok"]:
+            return h.send_json({"ok": False, "id": got.get("id"),
+                                "error": "; ".join(got["problems"]),
+                                "colibri": now}, status=409)
+        relay.forget()
         h.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "started": started, "detail": said,
-                            "colibri": colibri.status(fresh=True)})
+        return h.send_json({"ok": True, "id": got["id"], "detail": got["said"],
+                            "estimate": colibri.estimate(now), "colibri": now})
 
     if path == "/elsewhere":
         # PUT AN ASSISTANT TO WORK IN A WORKSPACE YOU ARE NOT LOOKING AT.
@@ -359,7 +385,7 @@ def post(h, repo, path):
             # THE ONE ASSISTANT WITH A CEILING. A colibrì turn runs inside the
             # serve job's allocation, so the mission cannot outlive that job's
             # walltime -- and until this nothing anywhere said what it was.
-            left = (colibri.status() or {}).get("left")
+            left = (colibri.status(repo.root) or {}).get("left")
             if left:
                 ceiling = time.time() + float(left)
         # A dispatch starts no assistant, so it brings none for the mission's

@@ -222,11 +222,19 @@ try:
           got["pulled"] is False and ear.pulls == 2 and rec.get("ok") is False
           and rec.get("step") == "pull" and rec.get("said")
           and rec.get("remote") == origin_main(), rec)
+    from tutorboard import relay                                    # noqa: E402
+    told = relay.health(mac, state_dir=state, fresh=True)
+    check("a diverged tree shows \"not synced\" in git's own words",
+          told["synced"] is False
+          and any(l.startswith("not synced: ") for l in told["lines"])
+          and told["pull"]["said"].count("not synced") == 1, told)
     git(mac, "reset", "-q", "--hard", "origin/main")
     git(mac, "pull", "-q", "--ff-only")
     ear.once()
     check("and once HEAD has origin's main the record says ok again",
           pull_state().get("ok") is True and ear.pulls == 2, pull_state())
+    check("and the health says synced again",
+          relay.health(mac, state_dir=state, fresh=True)["synced"] is True)
     git(mac, "remote", "set-url", "origin", os.path.join(base, "nowhere.git"))
     got = ear.once()
     check("an ls-remote that fails pulls nothing and is recorded",

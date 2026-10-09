@@ -93,7 +93,6 @@ from tutorboard.lesson import git as lesson_git               # noqa: E402
 runner_service.wake = _wake
 spawn.board_cli = _board
 spawn.tutor_cli = _tutor
-spawn.wake_colibri = lambda timeout=1800: (CALLS.append({"fn": "colibri"}) or (False, "fake"))
 
 
 def recorder(name, answer):
@@ -374,7 +373,8 @@ DRIVE = {
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
-    ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, OK)]),
+    ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, (400,))]),
+    ("GET", "/relay.json", "machines"): ("atlas", [("/relay.json", None, OK)]),
     ("POST", "/elsewhere", "machines"): ("atlas", [("/elsewhere", {"task": ""}, (400,))]),
     ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),

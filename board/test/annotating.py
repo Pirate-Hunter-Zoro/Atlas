@@ -347,7 +347,12 @@ try:
     check("the upload wakes nothing: one [uploaded] line, wake false",
           len(lines) == 1 and lines[0]["text"].startswith("[uploaded] slides.pdf (")
           and lines[0]["wake"] is False, lines)
-    state = server.js("/s/%s/board.json" % sa)[1]
+    # The payload is rebuilt on the hub's next tick, about a second away.
+    for _ in range(50):
+        state = server.js("/s/%s/board.json" % sa)[1]
+        if state.get("uploads"):
+            break
+        time.sleep(0.1)
     check("the session drawer lists it as a readable PDF",
           [u.get("doc") for u in state.get("uploads", [])] == ["uploads-slides"])
 

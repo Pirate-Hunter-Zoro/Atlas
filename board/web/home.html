@@ -35,6 +35,10 @@
   <!-- An old link that could not be followed says so here. -->
   <p id="said" class="said" hidden></p>
 
+  <!-- The cluster's health (GET /relay.json): relay looks down, not synced,
+       a skipped pass. Drawn only when there is something to say. -->
+  <div id="health" class="health" hidden></div>
+
   <section id="continue">
     <h2>Continue</h2>
     <div id="open-list" class="rows"></div>
@@ -67,6 +71,25 @@
     </div>
     <div id="project-list" class="rows"></div>
     <p id="project-none" class="hint" hidden>No project yet.</p>
+  </section>
+
+  <!-- libr-local-llm's Colibri: its state, its queue and its tasks, from
+       relay/status.json and the reports (GET /relay.json), and a task filed
+       through POST /colibri. Drawn only where that project is here. -->
+  <section id="colibri" hidden>
+    <div class="head">
+      <h2>Colibri</h2>
+      <a id="colibri-subject" class="add" href="#">libr-local-llm</a>
+    </div>
+    <p id="colibri-state" class="coli-state"></p>
+    <div id="colibri-tasks" class="rows"></div>
+    <p id="colibri-none" class="hint" hidden>No task filed yet.</p>
+    <textarea id="colibri-brief" rows="3" placeholder="What should Colibri do? Read-only analysis; it reports RELAY: lines."></textarea>
+    <button id="colibri-file" class="action" type="button" disabled>
+      <span class="action-name">File a task</span>
+      <span class="action-sub" id="colibri-file-sub"></span>
+    </button>
+    <p id="colibri-said" class="hint" hidden></p>
   </section>
 
   <section id="past">

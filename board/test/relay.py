@@ -34,6 +34,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -243,6 +244,11 @@ try:
     def run_pass(now=None):
         return relay.run_pass(cluster, run=slurm, now=now)
 
+    # Colibri's squeue, as rows: none until a check below puts one there.
+    from tutorboard import colibri as coli
+    COLI = {"rows": []}
+    coli._all_jobs = lambda: COLI["rows"]
+
     # --- a request runs --------------------------------------------------------
     good = {"id": "r1", "kind": "recipe", "label": "knn",
             "session": "20261008-120000", "recipe": "slurm/sweep.sbatch",
@@ -262,9 +268,13 @@ try:
     check("the first pass commits relay/status.json with its reports",
           st and st["skipped"] == "" and st["last_error"] == ""
           and st["push_pending"] is False and isinstance(st["at"], int)
-          and sorted(st) == ["at", "last_error", "push_pending", "skipped"]
+          and sorted(st) == ["at", "colibri", "last_error", "outstanding",
+                             "push_pending", "skipped"]
           and "relay/status.json" in git(origin, "show", "--name-only",
                                          "--format=", "main").split())
+    check("it names the request still out, by subject, and Colibri off",
+          st and st["outstanding"] == {"projects/Proj": {"r1": "submitted"}}
+          and st["colibri"]["state"] == "off" and st["colibri"]["queue"] == 0)
     rep = load(os.path.join(cws, "relay", "reports", "r1.json"))
     jid = rep and rep.get("jobid")
     check("its report says submitted, with the Slurm id",
@@ -330,9 +340,9 @@ try:
           "the cluster's HEAD has moved since",
           filed_at.startswith(rep.get("ran_at") or "-")
           and not git(cluster, "rev-parse", "HEAD").startswith(rep["ran_at"]))
-    check("the commit touches only relay/reports/ and exports/",
+    check("the commit touches only relay/reports/, exports/ and the status",
           all(p.startswith(("projects/Proj/relay/reports/",
-                            "projects/Proj/exports/"))
+                            "projects/Proj/exports/")) or p == relay.STATUS
               for p in git(cluster, "show", "--name-only", "--format=",
                            "HEAD").split()))
     check("and carries no trailer", "Co-Authored" not in git(
@@ -606,7 +616,7 @@ try:
     run_pass()
     dg1 = load(os.path.join(cws, "relay", "reports", "dg1.json"))
     touched = set(git(origin, "log", "--name-only", "--format=",
-                      "%s..main" % before).split())
+                      "%s..main" % before).split()) - {relay.STATUS}
     check("it completes with only its RELAY: lines, and publishes its reports "
           "and nothing else", dg1["state"] == "completed"
           and dg1["relay"] == ["has RESULTS_DIR/trained_models entries 0"]
@@ -711,7 +721,6 @@ try:
           and not relay.owned(cluster, "relay/other.json", where=[]))
 
     # --- a colibri request: a task, read-only, checked once it is done -------
-    from tutorboard import colibri as coli
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "tutorboard.json"),
           json.dumps({"name": "Proj", "relay": {"colibri": True, "exports": [
@@ -744,8 +753,10 @@ try:
         coli.finish_task(queue, task_of(rid), True)
 
     def pushed_since(sha):
+        """What reached origin since `sha`, less the relay's status, which
+        rides with any report that changes what is outstanding."""
         return set(git(origin, "log", "--name-only", "--format=",
-                       "%s..main" % sha).split())
+                       "%s..main" % sha).split()) - {relay.STATUS}
     try:
         file_from_mac({"id": "c1", "kind": "colibri", "thread": "knn",
                        "brief": "grade the diarization of SESSION-1"})
@@ -869,6 +880,61 @@ try:
     os.environ.pop("BOARD_STATE_DIR", None)
     if state_was is not None:
         os.environ["BOARD_STATE_DIR"] = state_was
+
+    # --- status.json: outstanding requests and Colibri, and nothing private ----
+    logs = os.path.join(base, "coli-logs")
+    os.makedirs(logs)
+    os.environ["COLI_LOG_DIR"] = logs
+    file_from_mac(dict(good, id="r10"))
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("status.json lists each request not yet ended, under its subject",
+          st["outstanding"].get("projects/Proj", {}).get("r10") == "submitted"
+          and "r1" not in st["outstanding"].get("projects/Proj", {}))
+    tip = git(origin, "rev-parse", "main")
+    got = run_pass()
+    check("an identical pass makes no commit",
+          not got["error"] and git(origin, "rev-parse", "main") == tip)
+    started = time.time() - 3600
+    COLI["rows"] = [{"id": "4231", "state": "RUNNING", "node": "compute304",
+                     "reason": "None", "left": 8 * 3600, "start": started}]
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("Colibri loading reaches status.json with its walltime end",
+          st["colibri"]["state"] == "loading"
+          and abs(st["colibri"]["ends"] - (time.time() + 8 * 3600)) < 60
+          and st["colibri"]["load_s"] is None)
+    tip = git(origin, "rev-parse", "main")
+    COLI["rows"][0]["left"] = 8 * 3600 - 2
+    got = run_pass()
+    check("and an identical pass while it loads makes no commit: the "
+          "walltime end holds through squeue's jitter",
+          not got["error"] and git(origin, "rev-parse", "main") == tip)
+    write(os.path.join(logs, "colibri_serve_out-4231.txt"),
+          "COLIBRI-SERVE READY\n")
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("the pass that first sees it warm records the cold load it timed",
+          st["colibri"]["state"] == "warm"
+          and 3590 <= (st["colibri"]["load_s"] or 0) <= 3700)
+    COLI["rows"] = []
+    run_pass()
+    host = socket.gethostname()
+    versions = git(origin, "log", "--format=%H", "main", "--",
+                   "relay/status.json").split()
+    blobs = [git(origin, "show", "%s:relay/status.json" % v) for v in versions]
+    check("no status.json ever pushed names an absolute path or a node",
+          len(blobs) > 5 and not any(
+              base in b or "compute304" in b or host in b
+              or host.split(".")[0] in b or re.search(r'(^|[\s"(])/[\w~]', b)
+              for b in blobs))
+    said = relay.status_doc("fetch failed on %s: /scratch/lab/x" % host, "",
+                            0, 1)
+    check("a skip reason naming this host or a path is published without "
+          "either", host not in said["skipped"]
+          and "/scratch" not in said["skipped"] and "<node>" in said["skipped"]
+          and "<path>" in said["skipped"])
+    os.environ.pop("COLI_LOG_DIR", None)
 
     # --- the command, status and where ------------------------------------------
     bin_dir = os.path.join(base, "bin")

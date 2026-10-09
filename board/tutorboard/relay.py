@@ -79,6 +79,8 @@ MAX_LINE = 200
 READ_TAIL = 2 * 1024 * 1024
 MAX_NOTE = 2000
 
+# How often scrontab runs a pass, in minutes.
+PASS_MINUTES = 5
 # What the scrontab entry asks for. A pass is git and a few sbatch calls.
 SCRON_PARTITION = "c3_short"
 SCRON_TIME = "00:15:00"
@@ -905,14 +907,17 @@ def check_task(ws, rec, names_phi=None):
 # ---------------------------------------------------------------------------
 # relay/status.json: the relay's public health
 # ---------------------------------------------------------------------------
-# `{"skipped", "last_error", "push_pending", "at"}`, every string through
-# `public`. Computed at the end of every pass; written and committed only
-# when a field other than `at` changed, so an idle relay makes no commits and
-# the file is never left edited in the tree. A pass that runs commits it with
-# its reports (`publish`). A skipped pass cannot touch the branch, so it
-# commits the file on top of origin's tip through a temporary index and
-# pushes that (`status_aside`): HEAD, the index and the tree stay as they
-# were, and the next pull brings it in.
+# `{"skipped", "last_error", "push_pending", "outstanding", "colibri", "at"}`,
+# every string through `public`. `outstanding` is `{subject: {request id:
+# state}}` for each request the cluster has not ended; `colibri` is
+# `colibri.relay_status`'s block, or null where this checkout has no queue.
+# Neither names a node or a path. Computed at the end of every pass; written
+# and committed only when a field other than `at` changed, so an idle relay
+# makes no commits and the file is never left edited in the tree. A pass that
+# runs commits it with its reports (`publish`). A skipped pass cannot touch the
+# branch, so it commits the file on top of origin's tip through a temporary
+# index and pushes that (`status_aside`): HEAD, the index and the tree stay as
+# they were, and the next pull brings it in.
 #
 # The cluster is its only writer. A status commit is made only on a base that
 # already holds every status commit origin has, so two never diverge and a
@@ -921,14 +926,95 @@ def check_task(ws, rec, names_phi=None):
 WITHHELD = "(withheld by the PHI policy)"
 
 
-def status_doc(skipped, error, push_pending, at, names_phi=None):
+def status_doc(skipped, error, push_pending, at, names_phi=None,
+               outstanding=None, colibri=None):
     def say(text):
         if not text:
             return ""
-        said = public(text, names_phi, 400)
+        said = public(_no_node(text), names_phi, 400)
         return said if said is not None else WITHHELD
+    out = {}
+    for subject, reqs in sorted((outstanding or {}).items()):
+        name = public(subject, names_phi, 120)
+        if not name or not reqs:
+            continue
+        out[name] = dict((rid, public(st, names_phi, 20) or "?")
+                         for rid, st in sorted(reqs.items())
+                         if jobs.REQUEST_ID_RE.match(str(rid)))
     return {"skipped": say(skipped), "last_error": say(error),
-            "push_pending": bool(push_pending), "at": int(at)}
+            "push_pending": bool(push_pending), "outstanding": out,
+            "colibri": _colibri_status(colibri) if colibri else None,
+            "at": int(at)}
+
+
+def _colibri_status(block):
+    """`colibri.relay_status`'s block, each field checked for its type: the
+    status is public, so nothing but a state, numbers and a task id."""
+    def num(v):
+        return int(v) if isinstance(v, (int, float)) and not isinstance(
+            v, bool) else None
+    task = block.get("task")
+    reason = block.get("reason")
+    return {"state": str(block.get("state") or "unknown")[:12],
+            "ends": num(block.get("ends")), "queue": num(block.get("queue")) or 0,
+            "task": task if isinstance(task, str) and _TASK_RE.match(task)
+            else None,
+            "load_s": num(block.get("load_s")),
+            "reason": reason if isinstance(reason, str)
+            and re.match(r"^[A-Za-z]{1,40}$", reason) else ""}
+
+
+_TASK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
+
+
+def _no_node(text):
+    """`text` with this machine's own host name, whole or short, as
+    `<node>`: the status names no node."""
+    text = str(text)
+    try:
+        host = socket.gethostname() or ""
+    except OSError:
+        host = ""
+    for name in sorted(set([host, host.split(".")[0]]), key=len, reverse=True):
+        if len(name) >= 3:
+            text = re.sub(r"(?<![\w.-])%s(?![\w-])" % re.escape(name),
+                          "<node>", text)
+    return text
+ENDED = ("refused", "completed", "failed")
+
+
+def outstanding(where):
+    """`{subject: {request id: state}}`: every request in the tree whose
+    report has not ended it, `requested` where it has no report."""
+    out = {}
+    for ws, rel in where:
+        try:
+            reps = jobs.reports(ws)
+            for req in jobs.requests(ws):
+                rid = request_id(req)
+                st = str((reps.get(rid) or {}).get("state") or "requested")
+                if st not in ENDED:
+                    out.setdefault(rel, {})[rid] = st
+        except Exception:                                    # noqa: BLE001
+            continue
+    return out
+
+
+def colibri_block(base, st, now):
+    """Colibri's block for `relay/status.json`, or None where this checkout
+    has no queue. `st` is `relay/state.json`, whose `colibri` keeps what
+    timing a load needs. Where it fails, HEAD's block stands."""
+    from . import colibri
+    prev = status_at(base).get("colibri")
+    try:
+        if not colibri.queue_root():
+            return None
+        memo = st.get("colibri") if isinstance(st.get("colibri"), dict) else {}
+        got = colibri.relay_status(prev, memo, now)
+        st["colibri"] = memo
+        return got
+    except Exception:                                        # noqa: BLE001
+        return prev if isinstance(prev, dict) else None
 
 
 def _same_status(a, b):
@@ -1125,7 +1211,8 @@ def _locked_pass(base, run, now, pull_vendor, push):
             summary["skipped"] = skip
             up = upstream(base)
             doc = status_doc(skip, "; ".join(errors), up and _count(
-                base, "%s..HEAD" % up[2]), t0, leaving.policy(base))
+                base, "%s..HEAD" % up[2]), t0, leaving.policy(base),
+                outstanding(where), colibri_block(base, st, t0))
             if push:
                 err = status_aside(base, doc)
                 if err:
@@ -1137,10 +1224,11 @@ def _locked_pass(base, run, now, pull_vendor, push):
             # Waiting to be pushed: what an earlier pass committed and could
             # not push. Written only where HEAD has all origin has.
             up = upstream(base)
+            block = colibri_block(base, st, t0)
             if up and not _count(base, "HEAD..%s" % up[2]):
                 wrote = write_status(base, status_doc(
                     "", "; ".join(errors), _count(base, "%s..HEAD" % up[2]),
-                    t0, leaving.policy(base)))
+                    t0, leaving.policy(base), outstanding(where), block))
             ids = summary["submitted"] + summary["refused"] + summary["ended"]
             msg = ("relay: %d report(s) -- %s" % (len(ids), ", ".join(ids[:6]))
                    if ids else "relay: reports")
@@ -1411,6 +1499,143 @@ def status(base=None, now=None):
 
 
 # ---------------------------------------------------------------------------
+# the Mac's view of the cluster: relay down, not synced, Colibri
+# ---------------------------------------------------------------------------
+# Read on the Mac from its own tree and `<state>/pull.json` only, never from
+# Slurm (D27). A request whose commit origin has, with no report
+# `DOWN_AFTER` seconds later, says the relay looks down: every pass reports
+# every request it can see. A failed pull or ls-remote in pull.json
+# (`cluster.Ear`) says "not synced". `health` is cached for `HEALTH_TTL`
+# seconds because the board's payload asks on every build.
+DOWN_AFTER = 15 * 60
+HEALTH_TTL = 20.0
+_HEALTH = {}
+
+
+def forget():
+    """Drop the cached health: something just changed it."""
+    _HEALTH.clear()
+
+
+def _filed_at(atlas, rel):
+    """`(sha, commit time)` of the last commit touching `rel`, or `(None, 0)`."""
+    code, out = _git(atlas, "log", "-1", "--format=%H %ct", "--", rel,
+                     timeout=20)
+    parts = out.split() if code == 0 else []
+    if len(parts) != 2 or not parts[1].isdigit():
+        return None, 0
+    return parts[0], int(parts[1])
+
+
+def stale_requests(atlas, now=None, after=DOWN_AFTER):
+    """`[{subject, id, since}]`: each request with no report `after` seconds
+    past the commit that filed it. One not committed, or committed and not
+    on origin's main, is not the relay's to have seen."""
+    now = float(now or time.time())
+    on_origin = _git(atlas, "rev-parse", "--verify", "--quiet",
+                     "refs/remotes/origin/main")[0] == 0
+    out = []
+    for ws in subjects.roots(atlas):
+        reqs = jobs.requests(ws)
+        if not reqs:
+            continue
+        reps = jobs.reports(ws)
+        for req in reqs:
+            rid = request_id(req)
+            if rid in reps:
+                continue
+            rel = _rel(atlas, os.path.join(jobs.requests_dir(ws), "%s.json"
+                                           % req.get(jobs.FILE_KEY)))
+            sha, when = _filed_at(atlas, rel)
+            if not sha or now - when < after:
+                continue
+            if on_origin and _git(atlas, "merge-base", "--is-ancestor", sha,
+                                  "refs/remotes/origin/main")[0] != 0:
+                continue
+            out.append({"subject": _rel(atlas, ws), "id": rid, "since": when})
+    out.sort(key=lambda r: (r["since"], r["id"]))
+    return out
+
+
+def pull_health(state_dir=None):
+    """pull.json as the Mac's health: `{ok, said, step, at}`, `said` being
+    "not synced: <git's words>" when the last pull or ls-remote failed; None
+    where the cluster thread has written none."""
+    from . import cluster
+    path = os.path.join(state_dir or paths.STATE_DIR, cluster.PULL_STATE)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("ok") is not False:
+        return {"ok": True, "said": "", "step": rec.get("step"),
+                "at": rec.get("at")}
+    said = str(rec.get("said") or "the %s failed" % (rec.get("step") or "pull"))
+    if not said.startswith("not synced"):
+        said = "not synced: " + said
+    return {"ok": False, "said": said[:400], "step": rec.get("step"),
+            "at": rec.get("at")}
+
+
+def health(atlas, now=None, state_dir=None, fresh=False):
+    """The cluster's health as the Mac sees it: `{down, stale, pull, status,
+    lines}`. `lines` are the sentences to show, worst first; `[]` when all
+    is well."""
+    atlas = os.path.realpath(atlas)
+    key = (atlas, state_dir)
+    t = time.time()
+    hit = _HEALTH.get(key)
+    if not fresh and now is None and hit and t - hit[0] < HEALTH_TTL:
+        return json.loads(hit[1])
+    stale = stale_requests(atlas, now)
+    pull_said = pull_health(state_dir)
+    doc = read_status(atlas)
+    lines = []
+    if stale:
+        lines.append("relay looks down: %s had no report %d minutes after "
+                     "%s commit" % (
+                         ", ".join("%s %s" % (r["subject"], r["id"])
+                                   for r in stale[:3])
+                         + (" and %d more" % (len(stale) - 3)
+                            if len(stale) > 3 else ""),
+                         DOWN_AFTER // 60,
+                         "its" if len(stale) == 1 else "their"))
+    if pull_said and not pull_said["ok"]:
+        lines.append(pull_said["said"])
+    if doc.get("skipped"):
+        lines.append("the relay skipped its last pass: %s" % doc["skipped"])
+    if doc.get("last_error"):
+        lines.append("the relay's last error: %s" % doc["last_error"])
+    if doc.get("push_pending"):
+        lines.append("the relay has reports it has not pushed yet")
+    out = {"down": bool(stale), "stale": stale, "pull": pull_said,
+           "synced": not (pull_said and not pull_said["ok"]),
+           "status": dict((k, doc.get(k)) for k in (
+               "skipped", "last_error", "push_pending", "at")),
+           "lines": lines}
+    _HEALTH[key] = (t, json.dumps(out))
+    return out
+
+
+def panel(atlas, now=None, state_dir=None):
+    """GET /relay.json: `health`, and Colibri as status.json says it, with
+    the libr-local-llm tasks the panel lists and what filing one costs."""
+    from . import colibri
+    out = health(atlas, now, state_dir)
+    st = colibri.status(atlas, now)
+    found = subjects.find(colibri.WORKSPACE, base=atlas)
+    out.update({"ok": True, "colibri": st,
+                "colibri_subject": found["id"] if found else None,
+                "colibri_tasks": colibri.tasks_on_mac(found["root"])
+                if found else [],
+                "estimate": colibri.estimate(st)})
+    return out
+
+
+# ---------------------------------------------------------------------------
 # the scrontab entry
 # ---------------------------------------------------------------------------
 def scrontab_block(python=None, entry=None, log=None):
@@ -1431,8 +1656,9 @@ def scrontab_block(python=None, entry=None, log=None):
         "#SCRON --job-name=tutor-relay",
         "#SCRON --output=%s" % log,
         "#SCRON --open-mode=append",
-        "*/5 * * * * RELAY_PYTHON=%s bash %s" % (shlex.quote(python),
-                                                 shlex.quote(entry)),
+        "*/%d * * * * RELAY_PYTHON=%s bash %s" % (PASS_MINUTES,
+                                                  shlex.quote(python),
+                                                  shlex.quote(entry)),
         SCRON_END,
     ]) + "\n"
 

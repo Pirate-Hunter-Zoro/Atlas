@@ -3,10 +3,10 @@ board open: in full to a browser that connects, then as deltas.
 
 The payload is the session's and nothing else's: session.json, the newest
 WINDOW cards and their ink, the turns, the unread count, the slate, the
-drafts, the agent, the write-up's status and the subject's macros. What the
-subject holds -- its problem sets, results, jobs and Colibri -- is
-`GET /subject.json` (`subject_info`), fetched when the board opens and when
-the drawer does. Older cards are `GET /cards?before=<n>` (`older_cards`).
+drafts, the agent, the write-up's status and the subject's macros; and one
+shared key, `relay`, the cluster's health. What the subject holds -- its
+problem sets, results, jobs and Colibri -- is `GET /subject.json`
+(`subject_info`), fetched when the board opens and when the drawer does. Older cards are `GET /cards?before=<n>` (`older_cards`).
 
 A push after the first payload is a delta:
 
@@ -23,7 +23,8 @@ import stat
 import threading
 import time
 
-from .. import assistants, colibri, coursemacros, fenced, paths, writeups
+from .. import assistants, cluster, colibri, coursemacros, fenced, paths
+from .. import relay, writeups
 from .. import jobs as slurm_jobs
 from ..course import config, homework, library
 from ..lesson import cards, git, notes, slate, state, turns, uploads
@@ -154,6 +155,9 @@ class Hub:
             # THE MACROS THIS SUBJECT WRITES IN, so KaTeX takes the subject's
             # definition first, as LaTeX does (`tutorboard/coursemacros.py`).
             "macros": coursemacros.for_workspace(repo.root),
+            # THE CLUSTER'S HEALTH: relay down, not synced, the relay's own
+            # status (`relay.health`, cached). The same for every session.
+            "relay": _safe(relay.health, cluster.atlas_of(repo.root)),
         }
         for key in GONE:
             data[key] = None
@@ -259,7 +263,7 @@ def subject_info(repo):
         "sets": sets,
         "results": _safe(library.figures_status, repo),
         "jobs": _safe(slurm_jobs.running, root) or [],
-        "colibri": _safe(colibri.status),
+        "colibri": _safe(colibri.status, cluster.atlas_of(root)),
         "unsaved": _safe(git.repo_dirty, repo),
         "assistants": _safe(assistants.listing),
         "fenced": list(_safe(fenced.holds, root) or []),

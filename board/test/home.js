@@ -114,6 +114,20 @@ async function stubbed() {
       meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00', pages: 4,
                  period: 'the last week', subjects: ['TRD-EHR'],
                  check: { numbers: [{ value: '0.7', frame: 2 }], figures: [], internal: [] } } },
+    // The cluster's health and Colibri (`relay.panel`).
+    '/relay.json': { ok: true, down: true,
+      lines: ['relay looks down: projects/TRD-EHR 2026-10-09-knn had no report 15 minutes after its commit',
+              'not synced: fatal: Not possible to fast-forward, aborting.'],
+      colibri: { state: 'loading', left: 7000, queue: 1, task: 'coli-20261009-120000-abcd',
+                 load_s: 4080, detail: 'loading, a cold load takes about 68 min' },
+      colibri_subject: 'projects/libr-local-llm',
+      colibri_tasks: [
+        { id: '2026-10-09-rows-colibri', label: 'rows', brief: 'count rows', state: 'running',
+          task: 'coli-20261009-120000-abcd', attempts: 1, deaths: 0, note: '', relay: [] },
+        { id: '2026-10-08-colibri', label: '', brief: 'smoke test', state: 'completed',
+          task: 'coli-x', attempts: 1, deaths: 0, note: 'Colibri finished.',
+          relay: ['python 3.12.3'] }],
+      estimate: 'a generation is coming up: the relay\'s next pass (every 5 min) queues it' },
     '/assistants.json': { ok: true, assistants: { default: 'claude', agents: [
       { name: 'claude', headless: true, cmd: 'claude' },
       { name: 'codex', headless: true, cmd: 'codex' }] } },
@@ -139,6 +153,10 @@ async function stubbed() {
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
       }
       if (method === 'POST' && url === '/session/delete') got = { ok: true, id: body.id };
+      if (method === 'POST' && url === '/colibri') {
+        got = { ok: true, id: '2026-10-09-colibri', detail: 'request 2026-10-09-colibri filed and pushed',
+                estimate: 'a cold start: about 68 min' };
+      }
       if (method === 'POST' && url === '/subjects/new') {
         got = { ok: true, subject: { id: 'projects/' + body.name, kind: 'project',
                                      slug: body.name, name: body.name } };
@@ -254,6 +272,35 @@ async function stubbed() {
         d.querySelectorAll('#notice-list .notice').length === 1);
   d.querySelector('#notice-list .dismiss').click();
   check('with none left, the section hides', d.getElementById('notices').hidden);
+
+  // The cluster's health and the Colibri panel, both from /relay.json.
+  const health = d.getElementById('health');
+  check('the health lines from /relay.json are drawn, relay down first',
+        !health.hidden && health.children.length === 2
+        && /relay looks down/.test(health.children[0].textContent)
+        && /not synced/.test(health.children[1].textContent));
+  const coli = d.getElementById('colibri');
+  check('libr-local-llm\'s Colibri panel shows its state, queue and tasks',
+        !coli.hidden && /loading/.test(d.getElementById('colibri-state').textContent)
+        && /1 task waiting/.test(d.getElementById('colibri-state').textContent)
+        && d.querySelectorAll('#colibri-tasks .row').length === 2
+        && /running now/.test(d.querySelectorAll('#colibri-tasks .row')[0].textContent)
+        && /RELAY: python 3.12.3/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent));
+  const brief = d.getElementById('colibri-brief');
+  const fileBtn = d.getElementById('colibri-file');
+  check('filing waits for a brief', fileBtn.disabled);
+  brief.value = 'grade the diarization';
+  brief.dispatchEvent(new w.Event('input'));
+  check('and shows what the wait will be before the tap',
+        !fileBtn.disabled && /coming up/.test(d.getElementById('colibri-file-sub').textContent));
+  fileBtn.click();
+  await sleep(60);
+  const coliAsk = w.asked.filter((r) => r.url === '/colibri' && r.method === 'POST');
+  check('a task is filed with POST /colibri and its brief, and the reply\'s '
+        + 'cold-start estimate is shown',
+        coliAsk.length === 1 && coliAsk[0].body.brief === 'grade the diarization'
+        && /68 min/.test(d.getElementById('colibri-said').textContent)
+        && brief.value === '');
 
   // + new project: it asks "patient data?" before it can be made.
   d.getElementById('new-project').click();

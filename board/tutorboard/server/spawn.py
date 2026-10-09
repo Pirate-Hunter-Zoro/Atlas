@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-import threading
 import time
 
 from .. import paths
@@ -70,64 +69,6 @@ def tutor_cli(args, timeout=30):
         return p.returncode, p.stdout.decode("utf-8", "replace")
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 1, str(exc)
-
-
-# ---------------------------------------------------------------------------
-# the local model's server, which takes minutes rather than seconds
-# ---------------------------------------------------------------------------
-# `coli-code` exits 1 with "No colibri server is running. Start one: coli-up",
-# which is the right message in a terminal and a dead end on an iPad. Starting
-# one is not something a request can wait for: `coli-up` waits for an
-# allocation, waits out a 429 GB load and then warms the model with a real
-# generation -- seven to eight minutes on a good day, and it can pend
-# indefinitely behind a 950 GB ask.
-#
-# So a tap submits `coli-up` and returns: nothing that takes as long as a start
-# can be reported by the request that triggered it. What the board paints while
-# it happens comes from `colibri.status`, off `squeue`, and not from here.
-
-
-def wake_colibri(timeout=1800):
-    """Submit the local model's server and return at once. Never blocks.
-
-    Returns (started, what to say). A second tap does nothing and says why:
-    `coli-up` itself refuses when a job is already submitted, and this refuses
-    before it gets there so the answer comes back inside the request.
-
-    REFUSED WHERE SLURM IS. Colibri on the node is directed only from the Mac,
-    by a relay request; a board served on the cluster starting it from a
-    button is a model turn nobody on the Mac asked for.
-    """
-    from .. import colibri, jobs
-
-    if jobs.has_slurm():
-        return False, ("not from a board on the cluster: Colibri starts only "
-                       "for a relay request from the Mac — run `board "
-                       "colibri <thread> \"<task>\"` there")
-    now = colibri.status(fresh=True)
-    if now["state"] != "off":
-        return False, "already %s" % now["detail"]
-    cmd = colibri.up_command()
-    if not cmd:
-        return False, ("`coli-up` is not on the path here; see "
-                       "projects/libr-local-llm/README.md §3")
-    colibri.submitted()
-
-    def run():
-        # `--warm`: a sitting wants Colibri answering live, which is the
-        # chain. A task queued without a sitting is `board colibri`'s, on
-        # demand.
-        try:
-            subprocess.run([cmd, "--warm"], cwd=paths.TOOL, stdin=_NO_STDIN,
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=timeout)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-        colibri.forget()
-
-    threading.Thread(target=run, daemon=True).start()
-    return True, ("starting the server — seven or eight minutes, longer if the "
-                  "partition is full")
 
 
 # ---------------------------------------------------------------------------

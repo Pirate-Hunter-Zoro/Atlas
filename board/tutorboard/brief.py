@@ -128,19 +128,37 @@ def book_sense(root):
 
 
 def relay_sense(root):
-    """The requests here the cluster has not ended, or ""."""
+    """The requests here the cluster has not ended, and the cluster's health
+    where the relay looks down or this checkout is not synced; or ""."""
     try:
         waiting = jobs.outstanding(root)
     except Exception:                                        # noqa: BLE001
+        waiting = []
+    health = _health(root)
+    if not waiting and not health:
         return ""
-    if not waiting:
-        return ""
-    out = ["\n--- out on the cluster ---",
-           "Waiting on the cluster (the pull hears each ending as a [job] line):"]
-    out.extend("  %s  %s  %s" % (r["request"], str(r.get("state") or "").lower(),
-                                 r.get("cmd") or "")
-               for r in waiting[:10])
+    out = ["\n--- out on the cluster ---"]
+    out.extend(health)
+    if waiting:
+        out.append("Waiting on the cluster (the pull hears each ending as a "
+                   "[job] line):")
+        out.extend("  %s  %s  %s" % (r["request"],
+                                     str(r.get("state") or "").lower(),
+                                     r.get("cmd") or "")
+                   for r in waiting[:10])
     return "\n".join(out)
+
+
+def _health(root):
+    """`relay.health`'s "relay looks down" and "not synced" lines: a request
+    filed now would wait on either."""
+    from . import cluster, relay
+    try:
+        got = relay.health(cluster.atlas_of(root))
+    except Exception:                                        # noqa: BLE001
+        return []
+    return ["HEALTH: " + l for l in got.get("lines") or []
+            if l.startswith(("relay looks down", "not synced"))]
 
 
 def beside_sense(repo):

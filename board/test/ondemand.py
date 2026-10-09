@@ -113,7 +113,6 @@ def reset():
               os.path.join(QUEUE, "relay")):
         shutil.rmtree(d, ignore_errors=True)
     os.makedirs(STATE)
-    colibri.forget()
 
 
 def put(jid, state="RUNNING", dep=""):

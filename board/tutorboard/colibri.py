@@ -1,41 +1,31 @@
-"""Is the local model up, and what is it doing on its way there.
+"""Colibri, the local model: its server's state, and its task queue.
 
-`coli-code` is the recipe the `colibri` agent runs, and it needs a server: a
-Slurm job on a compute node holding 429 GB of weights warm behind a loopback
-gateway. On a terminal the answer to "there is no server" is one line of advice
--- *start one: coli-up* -- and on an iPad that is a dead end.
+`coli-code` is the client a task runs, and it needs a server: a Slurm job on a
+compute node holding 429 GB of weights warm behind a loopback gateway. A
+generation starts when a task is filed and none is up (`file`, `_ensure`).
 
-So this module answers two questions and nothing else. WHICH OF FOUR STATES the
-server is in, in words a board can paint; and START ONE, returning at once.
+ON THE CLUSTER `observe` reads the server's state off `squeue` and the serve
+job's two log sentinels. The relay pass asks once per pass and publishes the
+public part in `relay/status.json` (`relay_status`).
 
-    off      nothing is submitted. There is a control, and it offers to start one
+ON THE MAC `status` reads only that file (D27): no `squeue`, no log, and no
+start control. The Mac files a task (`ask`, which `board colibri` and POST
+/colibri share), and the relay's next pass queues it here.
+
+    off      nothing is submitted; filing a task starts one
     queued   the job exists and Slurm has not run it yet; the reason is Slurm's
     loading  the job is running. 429 GB off the filer, then a warm-up generation
     warm     it has answered a request, which is the only proof that it can
+    unknown  (the Mac only) the relay has not said
 
-`squeue` IS THE SOURCE OF TRUTH and nothing here writes a state file. A state
-file goes stale the moment a job ends and `squeue` never does -- the same choice
-`coli-up`, `coli-code` and the `ollama-*` three already made. It is asked once
-per poll and the board polls four times a second, so the answer is cached for
-`TTL` seconds; `machines.held_nodes` is the pattern, not the function.
+THE CHAIN. A generation near its walltime submits the next, which loads on
+another node while this one answers, so `squeue` can list two generations. The
+one reported is the one that can ANSWER: warm beats loading, and between two
+warm ones the one with more walltime left wins.
 
-FOUR STATES AND ONE FACT. The fact is the chain: a generation two hours from its
-walltime submits the next one, which loads 406.7 GB on another node while this one
-goes on answering, and only once that one says `COLIBRI-SERVE LOADED` does this one
-give its node back. So `squeue` lists TWO generations for an hour at a time, and
-the one to report is the one that can ANSWER -- warm beats loading, and between two
-warm ones the one with more walltime left is the one that is not about to hand
-over. The other is reported as a clause on the end of the sentence, because "this
-server goes away in twenty minutes" is not sayable without it.
-
-THE DIFFERENCE BETWEEN `loading` AND `warm` IS WORTH PAINTING and cannot be got
-from Slurm. The gateway binds its port before it loads anything -- deliberately,
-so a bad argument fails in milliseconds rather than after 429 GB -- so a TCP
-probe answers instantly and says nothing about whether the thing can generate.
-The job prints two lines instead, and they are what is read here: `API listening
-on` when the engine is up, and `COLIBRI-SERVE READY` when it has completed a
-real generation. Between them the model answers at roughly a fifth of its steady
-rate, which is worth knowing before somebody sends an hour of work into it.
+`loading` and `warm` cannot be told apart from Slurm: the gateway binds its port
+before it loads anything. The job prints `API listening on` when the engine is
+up and `COLIBRI-SERVE READY` once it has completed a real generation.
 """
 
 import json
@@ -58,15 +48,17 @@ LOADED = "COLIBRI-SERVE LOADED"
 READY = "COLIBRI-SERVE READY"
 FAILED = "COLIBRI-SERVE FAILED"
 
-TTL = 15.0
-_CACHE = {"at": 0.0, "was": None}
+# The states `relay/status.json` may carry; anything else reads as unknown.
+STATES = ("off", "queued", "loading", "warm")
 
-# The window in which a start that has been asked for but is not yet in the
-# queue still says so. `sbatch` returns a job id in about a second, so this is
-# short -- and it is in memory rather than on disk for the same reason the rest
-# of this file reads `squeue`: a record of an intention outlives the intention.
+# A start this machine submitted, still missing from `squeue`, is "just
+# submitted" for this long (`_recent_start`): `sbatch` returns a job id in
+# about a second.
 SUBMIT_GRACE = 45.0
-_ASKED = {"at": 0.0}
+
+# A published walltime end that moved by less than this is kept as it was, so
+# `squeue`'s jitter makes no status commit.
+ENDS_SLACK = 180
 
 
 def log_dir():
@@ -138,24 +130,28 @@ def time_left(said):
 
 
 def _jobs():
-    """Every generation of the chain Slurm knows about: id, state, node, reason, left.
+    """Every generation of the chain Slurm knows about: id, state, node,
+    reason, time left and start. `[]` where `squeue` could not be asked.
 
-    THE TIME LEFT IS WHY THIS ASKS FOR MORE THAN IT PAINTS. A colibrì turn runs
-    inside this allocation -- `coli-code` steps into it with `srun --overlap` --
-    so a job set going on the local model cannot outlive the walltime here, and
-    nothing anywhere used to say what that was. The mission record stamps it on a
-    mission at dispatch, and under a chain it is the ceiling of THIS generation
-    rather than of the chain: the server comes back on another node, the client
-    does not.
-    """
+    A colibrì turn runs inside this allocation (`coli-code` steps into it with
+    `srun --overlap`), so the time left is the ceiling of THIS generation."""
     return [r for r in (_all_jobs() or []) if not standing_by(r)]
+
+
+def _started(said):
+    """Slurm's `%S`, `YYYY-MM-DDTHH:MM:SS` local, as epoch seconds, or None."""
+    try:
+        return time.mktime(time.strptime((said or "").strip()[:19],
+                                         "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _all_jobs():
     """Every row `squeue` lists under the job name, clones included, or None
     where `squeue` could not be asked -- which is not the same as no jobs."""
     out = _run(["squeue", "-u", os.environ.get("USER", ""), "-n", JOB_NAME,
-                "-h", "-o", "%i|%T|%N|%r|%L"])
+                "-h", "-o", "%i|%T|%N|%r|%L|%S"])
     if out is None:
         return None
     rows = []
@@ -166,7 +162,8 @@ def _all_jobs():
         rows.append({"id": parts[0].strip(), "state": parts[1].strip().upper(),
                      "node": (parts[2].strip() if len(parts) > 2 else ""),
                      "reason": (parts[3].strip() if len(parts) > 3 else ""),
-                     "left": time_left(parts[4] if len(parts) > 4 else "")})
+                     "left": time_left(parts[4] if len(parts) > 4 else ""),
+                     "start": _started(parts[5] if len(parts) > 5 else "")})
     return rows
 
 
@@ -245,30 +242,26 @@ def _next_clause(nxt):
     return "; the next generation is loading on %s" % (nxt["node"] or "another node")
 
 
-def _read():
-    """The state, uncached. Four states, a sentence for each, and the chain."""
-    rows = _jobs()
-    job, nxt = _serving(rows)
+def observe(rows=None):
+    """The server's state off `squeue` and the logs, on the cluster. None where
+    `squeue` could not be asked. `rows` is `_all_jobs()` where the caller has
+    it. `detail` names nodes, so it never leaves the cluster."""
+    rows = _all_jobs() if rows is None else rows
+    if rows is None:
+        return None
+    job, nxt = _serving([r for r in rows if not standing_by(r)])
     if not job:
-        if time.time() - _ASKED["at"] <= SUBMIT_GRACE:
-            # ASKED FOR AND NOT YET IN THE QUEUE. `sbatch` takes about a second
-            # and the board polls four times a second, so without this a tap
-            # reports "nothing is running" back to the person who just tapped it
-            # -- which is how a second tap happens.
-            return {"state": "queued", "job": None, "node": "", "next": None,
-                    "left": None, "detail": "submitting the job"}
         # OFF IS THE NORMAL STATE: a generation runs while there is a task.
         return {"state": "off", "job": None, "node": "", "next": None,
-                "left": None,
+                "left": None, "reason": "",
                 "detail": "no server is running; filing a task starts one"}
     tail = _next_clause(nxt)
     said = {"job": job["id"], "node": job["node"], "left": job["left"],
-            "next": (nxt["id"] if nxt else None)}
+            "next": (nxt["id"] if nxt else None), "reason": ""}
     if job["state"] != "RUNNING":
-        said.update(state="queued", node="",
-                    # Slurm's own word for why, not a guess. A 950 GB ask can pend
-                    # indefinitely behind a nearly-full node and the reason is the
-                    # only thing that says so.
+        # Slurm's own word for why, not a guess: a 950 GB ask can pend
+        # indefinitely behind a nearly-full node.
+        said.update(state="queued", node="", reason=job["reason"],
                     detail=(job["reason"] or "waiting for an allocation") + tail)
         return said
     if _tail(_out(job["id"]), READY):
@@ -288,35 +281,204 @@ def _read():
     return said
 
 
-def status(fresh=False):
-    """The state, cached. Safe to ask on every poll."""
-    now = time.time()
-    if fresh or _CACHE["was"] is None or now - _CACHE["at"] > TTL:
-        _CACHE["was"] = _read()
-        _CACHE["at"] = now
-    return dict(_CACHE["was"])
+# ---------------------------------------------------------------------------
+# relay/status.json: what the cluster publishes, and what the Mac reads
+# ---------------------------------------------------------------------------
+# The public block is `{state, ends, queue, task, load_s, reason}`: the state,
+# when this generation's walltime ends (epoch seconds; the Mac subtracts now,
+# so it does not change every pass), how many tasks wait, the task running,
+# the last cold load the relay timed, and Slurm's one-word pending reason. No
+# node name and no path. `memo` is the relay's own record of what it saw
+# (`relay/state.json` `colibri`): the start of each generation it saw cold, so
+# the first pass that sees it warm times its load.
+_REASON_RE = re.compile(r"^[A-Za-z]{1,40}$")
 
 
-def forget():
-    """Drop the cache, because something just changed it."""
-    _CACHE["at"] = 0.0
+def relay_status(prev=None, memo=None, now=None):
+    """The public block for `relay/status.json`. `prev` is the block HEAD
+    has, `memo` a dict this updates. Where `squeue` cannot be asked, the
+    state and walltime are `prev`'s."""
+    now = float(now or time.time())
+    prev = prev if isinstance(prev, dict) else {}
+    memo = memo if memo is not None else {}
+    rows = _all_jobs()
+    out = {"state": prev.get("state") if prev.get("state") in STATES
+           else "unknown", "ends": prev.get("ends"),
+           "reason": prev.get("reason") or ""}
+    if rows is not None:
+        got = observe(rows)
+        out["state"] = got["state"]
+        out["reason"] = (got.get("reason") if _REASON_RE.match(
+            got.get("reason") or "") else "") if got["state"] == "queued" else ""
+        ends = None
+        if got.get("left") is not None and got["state"] in ("loading", "warm"):
+            ends = int(now + got["left"])
+            old = prev.get("ends")
+            if isinstance(old, int) and abs(old - ends) < ENDS_SLACK:
+                ends = old
+        out["ends"] = ends
+        _time_loads(rows, memo, now)
+    out["load_s"] = memo.get("load_s") if isinstance(
+        memo.get("load_s"), int) else prev.get("load_s")
+    queued, running = 0, None
+    root = queue_root()
+    for rec in (tasks(root) if root else []):
+        if rec.get("queue") == "queued":
+            queued += 1
+        elif rec.get("queue") == "running" and running is None:
+            running = str(rec.get("id"))
+    out["queue"] = queued
+    out["task"] = running
+    return out
 
 
-def up_command():
-    """`coli-up`, if this machine has it. Named so a refusal can say what is missing."""
-    import shutil
-    return shutil.which("coli-up")
+def _time_loads(rows, memo, now):
+    """Time a cold load: a generation seen running and not warm is `cold`,
+    with its start (Slurm's, else the first pass that saw it); the first pass
+    that sees it warm records `load_s`, now less that start."""
+    cold = memo.get("cold") if isinstance(memo.get("cold"), dict) else {}
+    alive = set()
+    for r in rows:
+        if r.get("state") != "RUNNING":
+            continue
+        jid = str(r["id"])
+        alive.add(jid)
+        warm = _tail(_out(jid), READY)
+        if not warm:
+            if jid not in cold:
+                cold[jid] = float(r.get("start") or now)
+            continue
+        if jid in cold:
+            took = int(now - cold.pop(jid))
+            if took > 0:
+                memo["load_s"] = took
+    memo["cold"] = dict((k, v) for k, v in cold.items() if k in alive)
 
 
-def submitted():
-    """Somebody has just asked for a start that Slurm has not listed yet.
+def status(base=None, now=None):
+    """The server's state on the Mac, read only from `relay/status.json` in
+    the Atlas tree `base` (D27). `{state, left, queue, task, load_s, detail,
+    at}`; `state` is `unknown` where the relay has not said."""
+    from . import relay
+    now = float(now or time.time())
+    doc = relay.read_status(base or subjects.root())
+    got = doc.get("colibri")
+    got = got if isinstance(got, dict) else {}
+    state = got.get("state") if got.get("state") in STATES else "unknown"
+    ends = got.get("ends")
+    left = (max(0, int(ends - now)) if isinstance(ends, (int, float))
+            and not isinstance(ends, bool) and state in ("loading", "warm")
+            else None)
+    load_s = got.get("load_s") if isinstance(got.get("load_s"), int) else None
+    queue = got.get("queue") if isinstance(got.get("queue"), int) else 0
+    task = got.get("task") if isinstance(got.get("task"), str) else None
+    reason = got.get("reason") if isinstance(got.get("reason"), str) else ""
+    return {"state": state, "left": left, "queue": queue, "task": task,
+            "load_s": load_s, "at": doc.get("at"),
+            "detail": _words(state, left, reason, load_s)}
 
-    Set by `spawn.wake_colibri` and read by `_read`, in memory rather than on
-    disk for the same reason the rest of this file reads `squeue`: a record of
-    an intention outlives the intention.
-    """
-    _ASKED["at"] = time.time()
-    forget()
+
+def _minutes(secs):
+    m = int(round(secs / 60.0))
+    if m < 90:
+        return "%d min" % max(1, m)
+    return "%d h %02d min" % (m // 60, m % 60)
+
+
+def _words(state, left, reason, load_s):
+    if state == "warm":
+        return "warm" + (", %s left" % _minutes(left) if left else "")
+    if state == "loading":
+        return "loading" + (", a cold load takes about %s" % _minutes(load_s)
+                            if load_s else "")
+    if state == "queued":
+        return "queued" + (" (%s)" % reason if reason else "")
+    if state == "off":
+        return "no server is running; filing a task starts one"
+    return "the relay has not said what Colibri is doing"
+
+
+def estimate(st, every=None):
+    """What filing a task now costs in waiting, from `status`'s `st`: the
+    relay's next pass, then a cold load timed by the relay where none is up."""
+    from . import relay
+    every = every or relay.PASS_MINUTES
+    pass_in = "the relay's next pass (every %d min) queues it" % every
+    if st.get("state") == "warm":
+        return "Colibri is warm: %s and it starts" % pass_in
+    if st.get("state") in ("loading", "queued"):
+        return "a generation is coming up: %s, and it starts once that is warm" \
+            % pass_in
+    if st.get("load_s"):
+        return ("a cold start: %s, then a load of about %s (the last one the "
+                "relay timed)" % (pass_in, _minutes(st["load_s"])))
+    return ("a cold start: %s, then a load the relay has not timed yet "
+            "(over an hour)" % pass_in)
+
+
+def ask(root, brief, label="", session="", push=True):
+    """The Mac's `board colibri` and POST /colibri: a `colibri` relay request
+    from subject `root`, checked, committed and pushed. `{ok, id, said,
+    problems}`; `problems` lists why a request was not filed."""
+    brief = (brief or "").strip()
+    if not brief:
+        return {"ok": False, "problems": ["say what the task is"]}
+    if len(brief) > jobs.MAX_BRIEF:
+        return {"ok": False, "problems": [
+            "the task is %d characters and the cap is %d"
+            % (len(brief), jobs.MAX_BRIEF)]}
+    if label and not jobs.LABEL_RE.match(label):
+        return {"ok": False, "problems": [
+            "a label is 1-40 characters of a-z, 0-9 and hyphen"]}
+    if session and not jobs.SESSION_RE.match(session):
+        return {"ok": False, "problems": ["%r is not a session id" % session]}
+    taken = set(r["id"] for r in jobs.requests(root))
+    req = {"id": jobs.new_id(label, "colibri", taken), "kind": "colibri",
+           "brief": brief, "filed": round(time.time(), 3)}
+    if label:
+        req["label"] = label
+    if session:
+        req["session"] = session
+    ok, problems = jobs.check(root, req)
+    if problems:
+        return {"ok": False, "problems": list(problems)}
+    hidden = jobs.request_visible(root)
+    if hidden:
+        return {"ok": False, "problems": [hidden]}
+    changed = jobs.dirty(root)
+    if changed:
+        return {"ok": False, "problems": [jobs.dirty_said(root, changed)]}
+    path, done, said = jobs.file_request(root, ok, push=push)
+    if not done:
+        return {"ok": False, "id": ok["id"], "problems": [
+            "the request is written at %s but did not reach the cluster: %s"
+            % (os.path.relpath(path, root), said)]}
+    return {"ok": True, "id": ok["id"], "problems": [],
+            "said": "request %s filed and pushed; the relay's next pass "
+                    "queues it" % ok["id"]}
+
+
+def tasks_on_mac(root, limit=20):
+    """The `colibri` requests filed from subject `root`, newest first, each
+    with its report's progress: what the Colibri panel lists."""
+    reps = jobs.reports(root)
+    out = []
+    for req in jobs.requests(root):
+        if req.get("kind") != "colibri":
+            continue
+        rid = str(req.get("id") or "")
+        rep = reps.get(rid) or {}
+        out.append({"id": rid, "label": req.get("label") or "",
+                    "brief": str(req.get("brief") or "")[:200],
+                    "filed": req.get("filed") or 0,
+                    "state": rep.get("state") or "filed",
+                    "task": rep.get("task") or "",
+                    "attempts": rep.get("attempts") or 0,
+                    "deaths": rep.get("deaths") or 0,
+                    "note": rep.get("note") or "",
+                    "relay": [str(x) for x in rep.get("relay") or []][:6]})
+    out.sort(key=lambda r: -_stamp(r["filed"]))
+    return out[:limit]
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +971,6 @@ def _ensure(start=None):
         return "no generation started: %s" % said
     with open(os.path.join(state_dir(), "started.json"), "w") as fh:
         json.dump({"job": job, "at": time.time()}, fh)
-    forget()
     return said
 
 

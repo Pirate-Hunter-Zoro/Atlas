@@ -54,7 +54,12 @@
   </div>
 </header>
 
-
+<!-- The cluster's health (`relay.health`, the payload's `relay`): relay looks
+     down, not synced, a skipped pass. Drawn only when there is something. -->
+<div id="healthbar" class="healthbar" hidden>
+  <span class="health-lead">cluster</span>
+  <span id="health-text"></span>
+</div>
 
 <!-- End of session. Asked here, because the person answering is on an iPad. -->
 <div id="finish" class="finish" hidden>

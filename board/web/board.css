@@ -426,6 +426,16 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 }
 
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
+/* The cluster's health: one line, the worst first, the rest in its tooltip. */
+.healthbar {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .5rem max(1rem, env(safe-area-inset-left)) .5rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui); font-size: .82rem;
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--bad) 10%, var(--paper));
+}
+.health-lead { font-weight: 700; letter-spacing: .04em; flex: none; }
+#health-text { min-width: 0; overflow-wrap: anywhere; }
 /* A FAILED BUILD SHOWS THE LAST LINE OF THE LOG, which can be a hundred and
    sixty characters of monospace. Unshrinkable, it crushed the count to a column
    of single words and pushed the strip off the glass. The set's name stays
