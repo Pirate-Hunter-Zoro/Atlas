@@ -137,7 +137,10 @@ const zOf = (sel) => {
   {
     const mine = zOf('#redirect');
     const map = zOf('#map');
-    const paper = zOf('#paper');
+    /* The board's reader is built by reader.js, over everything. */
+    const rcss = fs.readFileSync(path.join(WEB, 'reader.css'), 'utf8');
+    const over = /#reader\.reader-over\s*\{[^}]*z-index:\s*(\d+)/.exec(rcss);
+    const paper = over ? +over[1] : null;
     const menu = zOf('\\.barmenu');
     mine && map && mine > map
       ? ok('it sits over the map (' + mine + ' against ' + map + ')')

@@ -359,7 +359,7 @@ check("and the banner is its own function, so an export no longer repaints the "
 check("whether a document exists comes from the payload's `papers`",
       "var papers = {};" in js and "papers = data.papers || {};" in js)
 check("and the banner offers reading as well as keeping",
-      'id="pushed-view"' in html and "openPaper(bannerKind)" in js)
+      'id="pushed-view"' in html and "readKind(bannerKind)" in js)
 
 # 3. Reachable at any moment, not only in the banner of the build that made it.
 #
@@ -400,14 +400,20 @@ check("every last-resort open is a NEW context (%d of them)" % len(opens),
 # its own box so ink could be anchored to it (§2.4) -- which changed nothing
 # about what is on the glass. What matters is that a page is an <img> built
 # here and put into the panel, and that there is no frame anywhere near it.
-check("the pages are drawn server-side and shown as pictures",
-      "<iframe" not in html
-      and 'createElement("img")' in js
-      and re.search(r"els\.paperPages\.appendChild\(\w+\)", js) is not None)
+# THE ONE READER (`reader.js`) draws every PDF on the glass, the board's too:
+# the board mounts it, it builds its own markup, and every page is an <img>
+# in a box of its own.
+reader = open(os.path.join(ROOT, "web", "reader.js"), encoding="utf-8").read()
+check("the pages are drawn server-side and shown as pictures, by the one reader",
+      "<iframe" not in html and 'src="/static/reader.js"' in html
+      and "Reader.mount(" in js and "reader.open(" in js
+      and 'createElement("img")' in reader
+      and re.search(r"els\.pages\.appendChild\(\w+\)", reader) is not None)
 check("and each page is its own box, so ink anchors to the page it is on",
-      'class = "paper-page"' in js.replace("className", "class"))
-check("and the panel can be closed, which is the whole reason it is a panel",
-      "function closePaper()" in js and 'id="paper-close"' in html)
+      'className = "lib-page"' in reader)
+check("and the reader can be closed, which is the whole reason it is a panel",
+      'id="reader-close"' in reader and "function closeReader()" in js
+      and 'id="paper' not in html)
 
 # 6. The service worker leaves every one of them alone. It answers only an
 #    allowlist -- the exact paths in SHELL, and fonts and KaTeX -- so a

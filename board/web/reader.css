@@ -1,0 +1,146 @@
+/* ==========================================================================
+   reader.css -- the one reader's sheet (`reader.js`).
+
+   Every PDF on the glass is this markup: the library's documents, the
+   meeting deck and a document opened on the board. The board's reader is
+   built by `reader.js` and goes over everything (`reader-over`); the
+   library's and the deck's are the page.
+   ========================================================================== */
+#reader-bar button {
+  font: inherit; font-size: .82rem; cursor: pointer;
+  padding: .35rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+/* What is behind an open reader holds still (`reader.js`, `open`). */
+body.reading { overflow: hidden; }
+#reader {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  overflow: hidden;
+}
+/* Above the pages while a pinch transforms them. */
+#reader > :not(#reader-pages) { position: relative; z-index: 1; }
+#reader-bar {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+}
+#reader-bar strong { font-size: .95rem; }
+#reader-bar button:last-child { margin-left: auto; }
+/* The pen, lit while it is on, so there is no doubt about whether the next
+   touch will scroll the document or draw on it. */
+#reader-pen.on {
+  background: var(--note); border-color: var(--note); color: #fff;
+}
+#reader-pen:disabled { opacity: .45; cursor: default; }
+/* While the pen is on, a page is a surface to draw on and not a picture to
+   drag. Without this the stroke starts a native image drag, the browser owns
+   the gesture from that moment, and the pointer stream stops. */
+body.annotating .lib-page img {
+  -webkit-user-select: none; user-select: none;
+  -webkit-user-drag: none; -webkit-touch-callout: none;
+}
+/* The one line in the reader that is owed to a reader: a turn running on this
+   document, and ink that was drawn on a version with a different page count. */
+.reader-said {
+  margin: 0; padding: .45rem 1rem;
+  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--paper-2); border-bottom: 1px solid var(--rule);
+}
+/* Where the ink is. Quiet when it is saved, amber while it is on its way, red
+   when it is not saved -- the one state that should make somebody look. */
+.reader-kept { font-size: .76rem; color: var(--ink-2); }
+.reader-kept.busy { color: var(--ask); }
+.reader-kept.bad { color: var(--bad); font-weight: 600; }
+#reader-keep:disabled { opacity: .45; cursor: default; }
+.reader-rebuilt { color: var(--ink); }
+.reader-copy {
+  margin: 0; padding: .45rem 1rem;
+  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--paper-2); border-bottom: 1px solid var(--rule);
+}
+.reader-copy.bad { color: var(--bad); }
+.reader-rebuilt button, .reader-copy button {
+  font: inherit; font-size: .78rem; cursor: pointer; margin-left: .5rem;
+  padding: .2rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+/* A block, not a centred flex column: a page zoomed wider than the glass has
+   to overflow to the right, where it can be scrolled to, rather than to both
+   sides, where its left edge cannot. */
+#reader-pages {
+  flex: 1; overflow: auto; min-height: 0;
+  padding: 1rem;
+  -webkit-overflow-scrolling: touch;
+  /* The anchor is the library's (`holdAnchor`), and one is enough. */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+}
+/* `position: relative` is the whole of what the ink needs: `canvas.ann-layer`
+   is absolutely positioned and would otherwise hang off `#reader-pages` and
+   land on page one whichever page was written on. */
+.lib-page {
+  margin: 0 auto 2.75rem; position: relative;
+  width: calc(min(100%, 54rem) * var(--zoom, 1));
+}
+/* The palm: while the nib is down or only just lifted (`pen-writing`), nothing
+   the browser owns moves the pages. Otherwise a finger scrolls either way, pen
+   on or off, and the ink layer over a zoomed page lets it pan sideways too. The
+   pinch is `readerzoom.js`'s, which adds `.zoomable`. */
+body.pen-writing #reader-pages.zoomable { touch-action: none; }
+body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
+  touch-action: pan-x pan-y;
+}
+#reader-pages.pinching { will-change: transform; }
+.lib-page img {
+  display: block; width: 100%; height: auto;
+  /* A page not yet decoded is a letter page tall rather than no height at all,
+     so the pages under it are roughly where they will be. */
+  aspect-ratio: auto 8.5 / 11;
+  border: 1px solid var(--rule); border-radius: .2rem;
+  background: #fff;
+}
+/* THE PAGE'S BOX IS THE PICTURE. Ink is stored in fractions of `.lib-page`,
+   and a caption in flow is a fixed height added to a picture that grows with
+   the zoom -- so every height fraction would name a different place on the
+   page at every zoom. Out of flow, in the margin under the page, the box and
+   the picture are the same rectangle. */
+.lib-page figcaption {
+  position: absolute; left: 0; right: 0; top: 100%;
+  /* One line: the margin holds one, and a second would sit on the next page. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center; font-size: .7rem; color: var(--ink-3); padding-top: .25rem;
+}
+
+/* A page the reader could not draw says why in the pages' place, with what
+   can still be done about it. */
+.reader-say {
+  max-width: 30rem; margin: 2rem auto; text-align: center;
+  font-family: var(--ui); font-size: .9rem; color: var(--ink-2);
+}
+.reader-say strong { display: block; margin-bottom: .5rem; color: var(--ink); }
+.reader-say button { margin-top: .9rem; }
+.reader-say button + button { margin-left: .45rem; }
+.reader-say .detail {
+  display: block; margin-top: .7rem; text-align: left;
+  font-family: var(--mono); font-size: .72rem; color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* OVER EVERYTHING, on a page whose reader `reader.js` built: the board's
+   lesson, its chrome and its menu are under it, and only the pen's own bar
+   and the calculator go above (`board.css`, `body.reading`). */
+#reader.reader-over {
+  z-index: 95;
+  padding-top: env(safe-area-inset-top);
+  font-family: var(--ui);
+}
+#reader.reader-over #reader-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#reader.reader-over #reader-sub {
+  flex: 0 1 auto; min-width: 0; font-size: .78rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#reader-pen[aria-pressed="true"] { color: var(--ask); }

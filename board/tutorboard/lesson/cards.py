@@ -90,7 +90,7 @@ THREAD_BLOCK = re.compile(
 )
 
 
-def proposals(body):
+def thread_blocks(body):
     """Every thread proposed on a card body, parsed: `[(dict or None, raw)]`."""
     out = []
     for m in THREAD_BLOCK.finditer(body or ""):
@@ -157,7 +157,7 @@ def proposed(cards_dir, card_id, tid):
                 _meta, body = parse_front_matter(fh.read())
         except OSError:
             return None
-        for one, _raw in proposals(body):
+        for one, _raw in thread_blocks(body):
             if one and one.get("id") == tid:
                 return one
     return None

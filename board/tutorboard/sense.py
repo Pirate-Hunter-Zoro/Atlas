@@ -779,9 +779,12 @@ MAKE_SENSE = (
 REVISE_SENSE = (
     "Feedback has been written on a document in this repository, from the "
     "LIBRARY rather than from the lesson. The document is `%s`. The feedback is "
-    "`%s`. Read both, revise the document on what it says, and record what you "
-    "did the way your instructions say: in the round's ledger where one is "
-    "named below, and otherwise at the bottom of that feedback file. "
+    "`%s`. Read both, and decide what each mark and line asks for: an edit to "
+    "the document, which you make in its source, or where the work goes next, "
+    "which you write in the subject's TUTOR.md with `board memo` -- your "
+    "choice, made per request. Record what you did the way your instructions "
+    "say: in the round's ledger where one is named below, and otherwise at the "
+    "bottom of that feedback file. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
     "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
@@ -948,109 +951,6 @@ def ship_sense(agent, task):
     """The inbox line for a mission that has been told to ship itself."""
     return (SHIP_SENSE % (agent or "an assistant", (task or "").strip())
             + MEASURE_SENSE + RULE_SENSE)
-
-
-# WHAT A TURN WOKEN BY A MARK ON A MEETING SLIDE IS TOLD, and the whole of it
-# is one word: PROPOSE.
-#
-# The marks on a meeting deck are not feedback on the deck. Said in these words:
-# *"I want to be able to annotate these presentations, but NOT to give feedback
-# on them in terms of the presentation -- they're just for a meeting to
-# communicate what I've been working on. My mentors, seeing this presentation,
-# will give me suggestions on new directions to take -- THAT'S what these
-# annotations will serve as."* So the ink is input to what comes next, and the
-# deck is the Meetings subject's, so its tutor is the one asked (`briefs.deck`).
-#
-# IT MAY NOT APPLY THE DIRECTION, and that is the point of the whole route.
-# `direction.write` at the root, a new sitting that ARCHIVES the lesson, the
-# last turn's note forgotten and the assistant REPLACED -- two of those are
-# destructive, and doing them unattended to five workspaces because somebody
-# drew on five slides is the worst outcome available here. So this turn reads
-# the marks, works out what is being suggested, and puts ONE card on the board
-# saying what it would change. The person taps ⟳ rethink if they agree.
-DIRECTION_MARK_SENSE = (
-    "SOMEBODY MARKED UP A SLIDE ABOUT THIS WORKSPACE IN A MEETING, and those "
-    "marks are a SUGGESTED NEW DIRECTION rather than a complaint about the "
-    "slide. The deck is the one at `%(deck)s`; it is a throwaway communication "
-    "tool and nothing about it is yours to fix.\n\n"
-    "The slide was page %(pages)s, and it said what had landed in this "
-    "workspace %(since)s. Their marks on it are here:\n%(images)s\n"
-    "OPEN EVERY IMAGE. The marks are the suggestion; the page number alone "
-    "says nothing about what they point at.\n\n"
-) + (
-    "DO THIS, AND STOP AT THE END OF IT:\n"
-    "1. Read the marks, and read what this workspace is actually doing -- the "
-    "plan file the briefing names, the map, and DIRECTION.md if there is one.\n"
-    "2. `board write` ONE card, under 200 words, that says: what you read the "
-    "marks as asking for, the ONE sentence of new direction you would set, what "
-    "in the present plan it would make pointless, and the one thing you need "
-    "from them to be sure. Plain words, no headings.\n"
-    "3. End the turn.\n\n"
-    "YOU ARE PROPOSING, NOT APPLYING. Do not write or edit DIRECTION.md, do not "
-    "rewrite the plan, do not redraw the map, do not open or archive a sitting, "
-    "and do not touch the session's state. The direction changes when they tap "
-    "⟳ rethink on this board and not before -- say so in the card, and put "
-    "the sentence you would set in it in a form they can use as it stands. If "
-    "the marks are illegible or say nothing you can act on, the card says that "
-    "instead; guessing at a direction is worse than asking."
-)
-
-# The half of that line that says what to do, shared with a page of a
-# workspace's own document marked as a direction (`doc_direction_sense`).
-PROPOSE_ONLY_SENSE = DIRECTION_MARK_SENSE[DIRECTION_MARK_SENSE.index("DO THIS, AND STOP"):]
-
-# A PAGE OF THIS WORKSPACE'S OWN DOCUMENT, MARKED AS A DIRECTION. The library's
-# third ask. The ink is not about the document -- the reader said so by choosing
-# this ask over "fix what is wrong" -- and it is usually a mentor's suggestion,
-# sometimes one not yet confirmed with them.
-DOC_DIRECTION_SENSE = (
-    "THEY MARKED A PAGE OF A DOCUMENT IN THIS WORKSPACE AS A SUGGESTED NEW "
-    "DIRECTION, not as a complaint about the document. The document is "
-    "`%(doc)s`, page %(pages)s. Do not revise the document; nothing "
-    "about it is yours to fix in this turn.\n\n"
-    "Their marks on it:\n%(image)s\n"
-    "OPEN EVERY IMAGE. The marks are the suggestion; the page number alone says "
-    "nothing about what they point at.\n\n"
-    "What they typed with it: %(words)s\n\n"
-    "It usually comes from a mentor, and may be one they have not yet confirmed "
-    "with that mentor -- so the one thing you need from them (step 2) is worded "
-    "as a question they could put to the mentor. Marks on several pages may be "
-    "several suggestions: if they pull in different directions, the card says "
-    "so and proposes the one you would take first.\n\n"
-)
-
-
-def doc_direction_sense(doc_rel, pages, images, words="", missing=()):
-    """The inbox line for pages of a document marked as a direction.
-
-    `images` is `[(page, repository-relative picture)]`; `missing` is the
-    marked pages with no picture, which stay on the page to be sent again.
-    """
-    shown = "\n".join(
-        ["  - page %s: `%s`" % (p, img) for p, img in images]
-        + ["  - page %s: no picture was saved of the marks; they stay on the "
-           "page and come in a later direction" % p for p in missing]) \
-        or "  - (no picture was saved of the marks)"
-    said = (words or "").strip() or "(nothing -- the marks are all of it)"
-    return DOC_DIRECTION_SENSE % {
-        "doc": doc_rel, "pages": ", ".join(str(p) for p in pages) or "?",
-        "image": shown, "words": said} + PROPOSE_ONLY_SENSE
-
-
-def direction_mark_sense(deck_rel, pages, images, since=""):
-    """The inbox line for one workspace's marked slide.
-
-    `pages` are the page numbers of this workspace's marked slides and `images`
-    are the repository-relative pictures of the ink on them -- the picture, not
-    the coordinates, because the coordinates are no use to a reader.
-    """
-    said = ", ".join(str(p) for p in pages) or "?"
-    shown = "\n".join("  - page %s: `%s`" % (p, img) for p, img in images) \
-        or "  - (no picture was saved of the marks)"
-    return DIRECTION_MARK_SENSE % {
-        "deck": deck_rel, "pages": said, "images": shown,
-        "since": ("since %s" % since) if since else "recently",
-    }
 
 
 # WHAT A DOCUMENT ASKED FOR MID-SITTING IS WOKEN WITH, and the whole of the

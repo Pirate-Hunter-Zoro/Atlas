@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/typeface.css">
 <link rel="stylesheet" href="/static/katex/katex.min.css">
 <link rel="stylesheet" href="/static/board.css">
+<link rel="stylesheet" href="/static/reader.css">
 <!-- the drawing controls live in this page now, so they need their styles -->
 <link rel="stylesheet" href="/static/slate.css">
 <script src="/static/typeface.js" defer></script>
@@ -471,17 +472,6 @@
   </span>
 </div>
 
-<!-- THE THREE THINGS "SAVE" MEANS, asked once, on the glass, in the same shape
-     as every other choice the board puts up. Over the original is a real
-     overwrite and says so; the strokes stay in the drawer either way, so a
-     later compile that rewrites the PDF has not taken the writing with it. -->
-<div id="keepwhat" class="sendwhat" hidden>
-  <span id="keepwhat-lead">Keep this writing?</span>
-  <button id="keep-same" type="button" class="primary">write it into this PDF</button>
-  <button id="keep-new" type="button">save as a new file</button>
-  <button id="keep-none" type="button" class="quiet">don't save it</button>
-</div>
-
 <button id="jump" class="jump" hidden>↓ new</button>
 
 <!-- The way back, from anywhere.
@@ -663,43 +653,10 @@
   <button id="reading-back" type="button">back to the lesson</button>
 </div>
 
-<!-- A PDF, read on the board.
-     NOT an iframe and NOT a navigation, and both of those are the point. iOS
-     renders a PDF in a frame as one unscrollable page, and navigating to one in
-     a standalone web app leaves the board with no chrome and no way back --
-     which is the trap `saveCopy` in board.js was written to avoid. So the pages
-     are drawn to PNG by the machine that holds the PDF and shown here, in a
-     viewer this page owns and can close. See `tutorboard/course/paper.py`. -->
-<div id="paper" class="paper" hidden>
-  <div class="paper-bar">
-    <strong id="paper-name">document</strong>
-    <span id="paper-sub" class="muted"></span>
-    <button class="to-map" type="button" title="the map of this course">◈ map</button>
-    <!-- THE PEN, HERE, because the title bar is underneath this panel. A
-         document is read full-screen and `#chrome` is behind it, so the
-         lesson's own annotate button cannot be reached while one is open --
-         which made a page of a deck the one surface on the board you could look
-         at and not write on. -->
-    <button id="paper-ink" type="button" aria-pressed="false"
-            title="write on this page">✎</button>
-    <!-- WHAT BECOMES OF THE WRITING. The pen above has always worked; the ink
-         went into the board's own drawer and stayed there, which is a place to
-         keep a mark and not a place to keep a document. This asks the only
-         question there is about it -- over the original, as a new file, or not
-         at all -- and it is hidden until there is ink to ask about. -->
-    <button id="paper-keep" type="button" hidden
-            title="put this writing into a PDF">keep writing</button>
-    <!-- ITS LAST ROUND OF FEEDBACK, read as pairs in the library reader. -->
-    <button id="paper-round" type="button" hidden
-            title="the last round's notes beside what was done, in the library"></button>
-    <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT; a tap puts it back. The
-         pinch is `readerzoom.js`'s, the library reader's own. -->
-    <button id="paper-zoom" type="button" title="back to the page width" hidden>100%</button>
-    <button id="paper-get" type="button" class="pushed-get">save a copy</button>
-    <button id="paper-close" type="button" title="back to the lesson">✕</button>
-  </div>
-  <div id="paper-pages" class="paper-pages"></div>
-</div>
+<!-- A PDF, read on the board: `reader.js` builds the one reader (`#reader`)
+     over everything when board.js mounts it. Not an iframe and not a navigation:
+     iOS renders a PDF in a frame as one unscrollable page, and navigating to
+     one in a standalone web app leaves the board with no way back. -->
 
 <!-- THE MAP. The front door of a course: its working parts, what is done and
      what is not, and a tap on any of them.
@@ -933,8 +890,11 @@
 <script src="/static/annotate.js"></script>
 <!-- The annotation tool bar. Mounted by board.js, so before it. -->
 <script src="/static/annbar.js"></script>
-<!-- A document's own pinch: the library reader's, on `#paper-pages`. -->
+<!-- The one reader: its pinch, the save its ink goes through, and the reader
+     itself. Before board.js, which opens every document through it. -->
 <script src="/static/readerzoom.js"></script>
+<script src="/static/inkkeep.js"></script>
+<script src="/static/reader.js"></script>
 <!-- The lesson, photographed by the device that drew it. BEFORE board.js and
      NOT deferred, like every other thing board.js talks to: a deferred script
      runs after the document is parsed, which is after this classic one at the

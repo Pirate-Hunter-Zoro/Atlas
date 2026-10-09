@@ -17,45 +17,42 @@
      than to a workspace, so it is the same bar, the same page boxes and the
      same pen -- a second set of either is a second thing to keep in step. -->
 <link rel="stylesheet" href="/static/board.css">
+<link rel="stylesheet" href="/static/reader.css">
 <link rel="stylesheet" href="/static/library.css">
 <script src="/static/typeface.js" defer></script>
 </head>
 <body>
 
-<!-- ONE DECK, AND IT BELONGS TO THE REPOSITORY. `meetings/` is at the root on
-     purpose: a note about five workspaces filed under one of them is misfiled.
-     So the way back from here is the front door and not a workspace, and the
-     bar is the reader's own -- `#reader` is fixed to the whole viewport, and a
-     second bar above it would be a header nothing can reach. -->
+<!-- ONE DECK, the artifact of projects/Meetings. The way back from here is the
+     front door, and the bar is the one reader's own (`reader.js` adopts this
+     markup) -- `#reader` is fixed to the whole viewport, and a second bar above
+     it would be a header nothing can reach. -->
 <div id="reader">
   <div id="reader-bar">
     <a id="deck-back" href="/" title="back to everything">‹ Everything</a>
     <strong id="reader-name">Meeting deck</strong>
     <span id="reader-sub" class="muted"></span>
     <span id="deck-count" class="muted"></span>
-    <!-- THE PEN, ON THE SLIDE ITSELF. A mark here is not a complaint about the
-         slide: the deck is a throwaway communication tool, and what somebody's
-         mentor draws on a frame is a suggested new direction for the project
-         that frame is about. -->
+    <!-- THE PEN, ON THE SLIDE ITSELF. A mark here is feedback on the deck,
+         like ink on any document in a library. -->
     <button id="reader-pen" type="button" title="draw on the slide">✎ mark it up</button>
     <!-- WHERE THE INK IS: saved and on how many slides, being saved, or not
          saved and being retried. The library reader's line, off the same
          save path (`inkkeep.js`). -->
     <span id="reader-kept" class="reader-kept" role="status" aria-live="polite" hidden></span>
-    <button id="deck-send" type="button" title="send the marks as direction" disabled>
-      send as direction</button>
+    <button id="deck-send" type="button" title="your marks, and what you type, as a revision" disabled>
+      say what is wrong</button>
     <a id="deck-pdf" href="/meeting/pdf" target="_blank" rel="noopener"
        title="the deck itself">⤓ the file</a>
     <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT, and a tap puts it back. -->
     <button id="reader-zoom" type="button" title="back to the page width" hidden>100%</button>
     <button id="reader-close" type="button" title="back to the front door">✕</button>
   </div>
-  <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. Which workspaces are
+  <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. Which slides are
        marked, what sending them will do, and what happened when it was done. -->
   <p id="reader-said" class="reader-said" hidden></p>
   <!-- INK KNOWS ITS BUILD. A deck recompiled in place moves its slides under
-       the marks, and this says so. No marked copy is offered: ink here is
-       direction, and its pictures go to `meetings/marks/` when it is sent. -->
+       the marks, and this says so. -->
   <p id="reader-rebuilt" class="reader-said reader-rebuilt" hidden></p>
   <!-- WHAT NO SOURCE SUPPORTS. Every number and figure on the deck is checked
        against the brief it was written over; what is not found is listed
@@ -67,22 +64,19 @@
   <div id="reader-pages"></div>
 </div>
 
-<!-- WHAT IS ABOUT TO HAPPEN, BEFORE IT HAPPENS. Sending wakes a turn in every
-     marked workspace, and somebody who taps it not knowing that is somebody
-     who will not tap it a second time. It says, by name, that nothing is
-     applied: each workspace writes a card proposing a direction and stops. -->
+<!-- SAYING WHAT IS WRONG, the library's way: the marks and the words go to
+     `/library/feedback` as one round on the deck, and the deck's host tutor
+     gets a [revise] turn that edits the deck or writes TUTOR.md, its choice. -->
 <div id="note" hidden>
   <div id="note-box">
-    <strong id="deck-ask-title">Send these marks as direction</strong>
+    <strong id="deck-ask-title">Say what is wrong with the deck</strong>
     <p id="deck-ask-list" class="muted"></p>
-    <p class="muted">Each of those workspaces gets one turn that reads your
-      marks and writes <strong>one card proposing</strong> a new direction.
-      Nothing is applied: no plan is rewritten, no sitting is archived, no
-      assistant is replaced. You take it or leave it on that board.</p>
+    <textarea id="deck-ask-text" rows="5"
+      placeholder="What is wrong with it, or where the work should go next. Optional: the marks say it too."></textarea>
     <p id="deck-ask-said" class="note-said" hidden></p>
     <div id="note-acts">
       <button id="deck-ask-cancel" type="button" class="quiet">cancel</button>
-      <button id="deck-ask-go" type="button" class="primary">send them</button>
+      <button id="deck-ask-go" type="button" class="primary">send it</button>
     </div>
   </div>
 </div>
@@ -98,10 +92,7 @@
 <script src="/static/inkkeep.js"></script>
 <script src="/static/recentre.js"></script>
 <script src="/static/readerzoom.js"></script>
-<!-- The library reader's pins, loaded so the two readers stay one reader. The
-     meeting deck asks nothing of it: its direction route changes nothing, so
-     there is no round of requests to pin. -->
-<script src="/static/ledger.js"></script>
+<script src="/static/reader.js"></script>
 <script src="/static/meeting.js"></script>
 </body>
 </html>

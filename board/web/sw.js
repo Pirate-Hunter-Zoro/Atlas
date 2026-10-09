@@ -55,6 +55,8 @@ var SHELL = [
   "/static/annbar.js",
   "/static/viewpin.js",
   "/static/readerzoom.js",
+  "/static/reader.js",
+  "/static/reader.css",
   "/static/ledger.js",
   "/static/ledger.css",
   "/static/calc-core.js",

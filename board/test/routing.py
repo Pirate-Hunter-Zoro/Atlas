@@ -354,9 +354,6 @@ DRIVE = {
                                    "state": "done"}, None)]),
     ("POST", "/library/feedback", "library"): ("subject", [
         ("/library/feedback", {"document": "{doc}", "text": "fix {mark}"}, OK)]),
-    ("POST", "/library/direction", "library"): ("subject", [
-        ("/library/direction", {"document": "{doc}", "page": 1,
-                                "text": "turn {mark}"}, OK)]),
     ("POST", "/doc/delete", "library"): ("subject", [
         ("/doc/delete", {"id": "nope"}, (404,))]),
     ("POST", "/writeup", "library"): ("subject?", [
@@ -377,8 +374,6 @@ DRIVE = {
     ("GET", "/meeting/view", "machines"): ("atlas", [("/meeting/view", None, OK)]),
     ("GET", "/meeting/pdf", "machines"): ("atlas", [("/meeting/pdf", None, (404,))]),
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
-    ("POST", "/meeting/direction", "machines"): ("atlas", [
-        ("/meeting/direction", {}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, OK)]),

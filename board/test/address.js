@@ -284,7 +284,8 @@ window.EventSource = function () {
 };
 
 for (const f of ['address.js', 'typeface.js', 'macros.js', 'gauge.js',
-                 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
+                 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js',
+                 'reader.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -393,7 +394,7 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
 
   at(W + '/doc/stage2-deck');
   await tick();
-  if (!el('paper').hidden && el('map').hidden) {
+  if (!el('reader').hidden && el('map').hidden) {
     ok('a document address opens the viewer, and the map it was over closes');
   } else fail('the document did not open, or the map stayed over it');
 
@@ -475,7 +476,7 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   at(W + '/doc/stage2-deck');
   await tick();
   at(W);
-  if (el('paper').hidden && el('contents').hidden && el('review').hidden
+  if (el('reader').hidden && el('contents').hidden && el('review').hidden
       && !el('map').hidden) {
     ok('every surface can be left: one address takes down what another put up');
   } else fail('a surface was left open over the one the address named');

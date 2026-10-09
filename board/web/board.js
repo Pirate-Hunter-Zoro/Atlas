@@ -171,16 +171,6 @@ var els = {
   shelfTitle: document.getElementById("shelf-title"),
   shelfList: document.getElementById("shelf-list"),
   shelfFoot: document.getElementById("shelf-foot"),
-  paper: document.getElementById("paper"),
-  paperName: document.getElementById("paper-name"),
-  paperSub: document.getElementById("paper-sub"),
-  paperGet: document.getElementById("paper-get"),
-  paperInk: document.getElementById("paper-ink"),
-  paperKeep: document.getElementById("paper-keep"),
-  paperRound: document.getElementById("paper-round"),
-  keepwhat: document.getElementById("keepwhat"),
-  paperPages: document.getElementById("paper-pages"),
-  paperZoom: document.getElementById("paper-zoom"),
   carry: document.getElementById("carry"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
@@ -2413,8 +2403,9 @@ function paintBanner(push, exported, hwBuilt) {
    homework, but it's not letting me view the compiled .pdf or save it anywhere
    locally on the iPad." A share sheet is somewhere to PUT a document. It is not
    somewhere to read one, and "did the proof make it in" was not answerable from
-   the board at all. `openPaper` is that half -- the pages, drawn to PNG by the
-   machine that holds the PDF, shown in a panel this page owns and can close.
+   the board at all. `readKind` is that half -- the pages, drawn to PNG by the
+   machine that holds the PDF, shown in the one reader (`reader.js`), which
+   this page can close.
    Not an `<iframe>`: iOS renders a PDF in a frame as one unscrollable page.
 
    THREE THINGS DECIDE THE CONTROLS, AND ONLY ONE OF THEM IS AN EVENT.
@@ -2586,8 +2577,8 @@ function saveCopy(kind, btn) {
    export already reports -- but a tap in the viewer happens with the banner
    behind a full-screen panel, so that one says it in the panel instead. */
 function sayBadly(text) {
-  if (els.paper && !els.paper.hidden) {
-    paperSay("<strong>That did not work</strong>" + escapeHtml(text));
+  if (paperOpen && reader) {
+    reader.say("<strong>That did not work</strong>" + escapeHtml(text));
     return;
   }
   els.pushed.hidden = false;
@@ -2829,7 +2820,7 @@ function shelfRow(doc) {
   acts.className = "shelf-acts";
   acts.appendChild(act("read it here", "pushed-get quiet", function () {
     els.shelf.hidden = true;
-    openPaper(kind, doc.title || doc.sid);
+    readKind(kind, doc.title || doc.sid);
   }));
   acts.appendChild(act("save a copy", "pushed-get", function (e) {
     saveCopy(kind, e.currentTarget);
@@ -2877,154 +2868,125 @@ function kb(bytes) {
 }
 
 /* ------------------------------------------------------ reading it, in place */
-/* The pages come back as pictures from `/view/<kind>`, drawn by the machine
-   that holds the PDF. Everything about why it is pictures rather than the PDF
-   itself is in `tutorboard/course/paper.py`; the short of it is that iOS gives
-   a PDF in a frame one unscrollable page, and a PDF navigated to in a
-   standalone app is a lesson with no way back to it. */
-var paperOpen = null;
+/* THE ONE READER, `reader.js`, built over everything by this page. The pages
+   come back as pictures from `/view/<kind>`, drawn by the machine that holds
+   the PDF; why it is pictures rather than the PDF itself is in
+   `tutorboard/course/paper.py`. What is the board's own is on the bar: the
+   map, save a copy, and the document's last round. The pen, the pinch, the
+   marked copy (`/annotate/burn`) and every save of the ink are the reader's.
 
-/* A DOCUMENT THIS COURSE POINTS AT, rather than one it built. `openPaper` takes
-   `doc/<id>` as its kind and everything below works unchanged, because the
-   route, the rasteriser, the cache and the page URLs are the same ones -- what
-   differs is only how the file was found. Whether `save a copy` is offered is
-   one question and one question only: is this kind in `papers`. A deck opened
-   through `doc/` is not, so its button hides itself; a document opened off the
-   shelf is, because the drawer put it there from the record `/shelf.json`
-   gave it. */
-function openDoc(id, name, then) { openPaper("doc/" + id, name, then); }
+   EVERY SAVE OF INK ON THIS PAGE GOES THROUGH `inkkeep.js`, a card's and a
+   page's alike: a failed save stays owed and is retried, and the lid shutting
+   flushes it. A send (`sendNotes`) is not a save. */
+var paperOpen = null;          /* the kind on the glass, or null */
 
-/* A DOCUMENT ZOOMS ITSELF, AND A PALM DOES NOT SCROLL IT: `readerzoom.js`, the
-   library reader's own pinch, on these pages. The page itself is never pinched
-   (`board.css`), so without this a pinch on a paper did nothing and a pinch
-   shut was Safari's. Made on first open, because `#paper-pages` is all it
-   needs and a board that never opens a document never pays for it. */
-var paperZoomer = null;
-function paperZoomReady() {
-  if (paperZoomer || !window.ReaderZoom || !els.paperPages) return paperZoomer;
-  paperZoomer = window.ReaderZoom.make({
-    scroller: els.paperPages,
-    surface: els.paper,
-    bar: els.paper ? els.paper.querySelector(".paper-bar") : null,
-    chip: els.paperZoom,
-    page: ".paper-page",
-    open: function () { return !!paperOpen; },
-  });
-  return paperZoomer;
+var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
+  url: BASE + "/annotate/save",
+  paint: function () { if (reader) reader.paintKeep(); }
+}) : null;
+
+function readerTool(id, label, title, cls) {
+  var b = document.createElement("button");
+  b.type = "button";
+  b.id = id;
+  b.textContent = label;
+  b.title = title;
+  if (cls) b.className = cls;
+  return b;
 }
+
+var paperTools = {
+  map: readerTool("reader-map", "◈ map", "the map of this course", "to-map"),
+  /* ITS LAST ROUND OF FEEDBACK, read as pairs in the library reader. */
+  round: readerTool("reader-round", "",
+                    "the last round's notes beside what was done, in the library"),
+  get: readerTool("reader-get", "save a copy", "this PDF, to keep", "pushed-get")
+};
+paperTools.round.hidden = true;
+
+var reader = window.Reader ? window.Reader.mount({
+  keeper: keeper,
+  url: function (path) { return BASE + path; },
+  tools: [paperTools.map, paperTools.round, paperTools.get]
+}) : null;
+
+/* A DOCUMENT THIS COURSE POINTS AT, rather than one it built: `readKind` with
+   `doc/<id>`. Whether `save a copy` is offered is one question only: is this
+   kind in `papers`. */
+function openDoc(id, name, then) { readKind("doc/" + id, name, then); }
 
 /* `then` is handed what `/view` answered, once the pages are on screen. An
    address naming one page of a document cannot scroll to it until the pictures
    exist, and there is nothing else on this page that knows when that is. */
-function openPaper(kind, label, then) {
-  if (!kind) return;
+function readKind(kind, label, then) {
+  if (!kind || !reader) return;
   paperOpen = kind;
-  els.paper.hidden = false;
-  document.body.classList.add("papering");
-  /* Every document opens at the page width, whatever the last was left at. */
-  if (paperZoomReady()) { paperZoomer.live(true); paperZoomer.set(1); }
   var have = papers[kind];
-  /* The caller's label first. A shelf row knows the document by the title the
-     workspace gave it; `have.name` is the filename the PDF will be SAVED
-     under, which is the right thing in a Files app and the wrong thing in a
-     title bar. */
-  els.paperName.textContent = label || (have && have.name) || paperTitle(kind);
-  els.paperSub.textContent = "";
-  els.paperGet.hidden = !have;
-  els.paperGet.textContent = "save a copy";
-  els.paperGet.disabled = false;
+  paperTools.get.hidden = !have;
+  paperTools.get.textContent = "save a copy";
+  paperTools.get.disabled = false;
+  paperTools.round.hidden = true;
   /* In hand before the tap: Safari will not raise the share sheet for a
      `navigator.share` called after a fetch has resolved, so the wait is spent
      while the pages are being drawn rather than after `save a copy`. */
   if (have) warmPaper(kind);
-  paperSay("<strong>Drawing the pages…</strong>"
-           + "A long document takes a few seconds the first time. "
-           + "After that it opens straight away.");
-  els.paperPages.scrollTop = 0;
-
-  fetch(paperViewUrl(kind), { credentials: "same-origin" })
-    .then(function (r) { return r.json(); })
-    .then(function (got) {
-      if (paperOpen !== kind) return;          /* closed, or another opened */
-      if (!got || !got.ok) {
-        paperFailed(kind, got || {});
-        if (then) then(null);
-        return;
-      }
-      /* Same order as before the fetch: the caller's label wins. `got.name` is
-         the name the PDF SAVES under, which belongs in a Files app. */
-      els.paperName.textContent = label || got.name || paperTitle(kind);
-      els.paperSub.textContent = got.n + (got.n === 1 ? " page" : " pages")
+  reader.open({
+    pagesUrl: paperViewUrl(kind),
+    id: paperIdent(kind),
+    /* The caller's label first. A shelf row knows the document by the title
+       the workspace gave it; `have.name` is the filename the PDF will be SAVED
+       under, which is the right thing in a Files app and the wrong thing in a
+       title bar. */
+    title: label || (have && have.name) || paperTitle(kind),
+    /* THE INK IS THE DOCUMENT'S, however it was reached: `doc/<ident>/p<n>`. */
+    inkKey: "doc/" + paperIdent(kind),
+    /* KEEP A MARKED COPY: the ink burned into a new PDF beside the original. */
+    burn: kind,
+    src: atSession,
+    count: function (got) {
+      return got.n + (got.n === 1 ? " page" : " pages")
         + (got.truncated ? " (the first " + got.n + " only)" : "");
-      els.paperPages.innerHTML = "";
-      got.pages.forEach(function (url, i) {
-        /* EACH PAGE IN ITS OWN BOX, because the box is what the ink is
-           anchored to. A page is a picture whose size on the glass depends on
-           the width of the panel and the zoom -- so ink stored in page pixels
-           would be somewhere else the moment the iPad rotates. Stored in
-           fractions of this box, it is in the same place on the page for ever,
-           which is the trick `annotate.js` already plays one level in, on
-           cards.
-
-           The key is the tail of a §2.1 address, `doc/<ident>/p<n>`, so a mark
-           sent to the tutor names a place the tutor can open. */
-        var box = document.createElement("div");
-        box.className = "paper-page";
-        var ident = paperIdent(kind);
-        box.dataset.ann = "doc/" + ident + "/p" + (i + 1);
-        /* A page: the same ink the library reader draws on the same page, so
-           the same units (`annotate.js`, `PAGE_REF`). */
-        box.setAttribute("data-ann-page", "");
-
-        var img = document.createElement("img");
-        img.src = atSession(url);
-        /* Lazily, because a hundred-page transcript is a hundred pictures and
-           the person is reading page one. */
-        img.loading = i < 2 ? "eager" : "lazy";
-        img.decoding = "async";
-        img.alt = "page " + (i + 1);
-        box.appendChild(img);
-        els.paperPages.appendChild(box);
-        /* A picture arrives with no height until it has decoded, and a layer
-           sized against a zero-height box covers nothing. `annotate.js` already
-           re-sizes on its own when a card grows; this is the same event, said
-           explicitly because an image is the one thing that grows all at once
-           long after it was inserted. */
-        if (window.Annotate) {
-          window.Annotate.attach(box);
-          img.addEventListener("load", function () {
-            window.Annotate.redrawAll();
-          });
-        }
-      });
-      /* Marks made on this document before, put back. Same call the lesson
-         makes; the store is keyed by a string and does not care which kind of
-         thing the string names. */
-      if (window.Annotate && lastLive) {
+    },
+    drawing: function () {
+      reader.say("<strong>Drawing the pages…</strong>"
+                 + "A long document takes a few seconds the first time. "
+                 + "After that it opens straight away.");
+    },
+    /* Marks made on this document before, put back: the cards' off the
+       payload, and the document's own, which come with its pages. A stroke
+       stored with a retired kind field is ordinary ink here. */
+    ink: function (got) {
+      if (!window.Annotate) return;
+      if (lastLive) {
         window.Annotate.load(lastLive.notes);
         window.Annotate.loadSent(lastLive.notes_sent);
       }
-      /* A document's own ink comes with its pages; the payload carries the
-         cards' only. */
-      if (window.Annotate && got.ink) {
+      if (got.ink) {
         window.Annotate.load(got.ink);
         window.Annotate.loadSent(got.ink_sent || {});
       }
-      /* Marks restored means there may be something to keep, and the offer is
-         drawn off the store rather than off this session's strokes -- ink put on
-         this document a week ago is still ink on this document. */
-      paintKeep();
+    },
+    drawn: function (got) {
       paintPaperRound(kind);
-      /* The address bar now names this document, so a link to it can be copied
-         off the glass. */
+      /* The address bar now names this document, so a link to it can be
+         copied off the glass. */
       mapRemember();
       if (then) then(got);
-    })
-    .catch(function () {
-      if (paperOpen !== kind) return;
-      paperFailed(kind, { detail: "the board did not answer" });
+    },
+    failed: function (got) {
+      paperFailed(kind, got || {});
       if (then) then(null);
-    });
+    },
+    onClose: function () {
+      /* The pen goes with the reader. Leaving annotate mode on when the
+         document closes drops somebody back into the lesson with the pen out
+         and the toolbar up, which is a mode they did not ask for. */
+      if (window.Annotate && window.Annotate.isOn()) setAnnotating(false);
+      paperOpen = null;
+      paperTools.round.hidden = true;
+      mapRemember();               /* and the address stops naming the document */
+    }
+  });
 }
 
 /* A document that cannot be drawn here is still a document. Say why in a
@@ -3039,19 +3001,18 @@ function paperFailed(kind, got) {
       ? "This machine cannot draw the pages."
       : "The pages could not be drawn.";
   var why = got.detail || "";
-  paperSay("<strong>" + escapeHtml(lead) + "</strong>"
+  var box = reader.say("<strong>" + escapeHtml(lead) + "</strong>"
            + (got.why === "none" || got.why === "no-renderer"
               ? escapeHtml(why)
               /* A renderer's own output is a log, and a log reads as one. */
               : '<span class="detail">' + escapeHtml(why) + "</span>"));
-  var box = els.paperPages.querySelector(".paper-say");
   /* The offer to MAKE it only exists for the two the board builds. A shelf
      document that has gone is a file somebody moved, and there is no button on
      this page that can put it back. */
   if (got.why === "none" && (kind === "homework" || kind === "lesson")) {
     box.appendChild(act(kind === "homework" ? "compile it now" : "export it now",
                         "pushed-get", function () {
-      closePaper();
+      closeReader();
       if (kind === "homework") doExportHomework();
       else doExport("lesson");
     }));
@@ -3070,17 +3031,12 @@ function paperFailed(kind, got) {
   }
 }
 
-function paperSay(html) {
-  els.paperPages.innerHTML = '<div class="paper-say">' + html + "</div>";
-}
-
 /* ITS ROUND, ONE TAP AWAY IN THE LIBRARY. The pairs -- what was written beside
    what was done -- live in the library reader (`ledger.js`); a second panel of
    them here would be a second ledger on the glass. So a document with rounds
    says where its last one stands, and the chip opens it there. */
 function paintPaperRound(kind) {
-  var b = els.paperRound;
-  if (!b) return;
+  var b = paperTools.round;
   b.hidden = true;
   if (kind.indexOf("doc/") !== 0 && kind.indexOf("shelf/") !== 0) return;
   api("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
@@ -3099,24 +3055,18 @@ function paintPaperRound(kind) {
     .catch(function () { /* no rounds to point at */ });
 }
 
-function closePaper() {
-  /* The pen goes with the panel. Leaving annotate mode on when the document
-     closes drops somebody back into the lesson with the pen out and the
-     toolbar up, which is a mode they did not ask for and did not turn on. */
-  if (window.Annotate && window.Annotate.isOn()) {
-    setAnnotating(false);
+/* Shut. The reader saves what is owed first and lets the pictures go. */
+function closeReader() { if (reader) reader.close(); }
+
+if (reader) {
+  paperTools.get.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };
+  /* THE PEN, ON THE READER'S BAR, because the title bar is underneath it: the
+     same mode as the lesson's own pen, reported on whichever is reachable. */
+  if (reader.els.pen) {
+    reader.els.pen.onclick = function () {
+      setAnnotating(!(window.Annotate && window.Annotate.isOn()));
+    };
   }
-  paperOpen = null;
-  closeKeep();
-  if (els.paperKeep) els.paperKeep.hidden = true;
-  if (els.paperRound) els.paperRound.hidden = true;
-  els.paper.hidden = true;
-  document.body.classList.remove("papering");
-  if (paperZoomer) paperZoomer.live(false);
-  mapRemember();               /* and the address stops naming the document */
-  /* The pictures go with it. A hundred decoded pages held behind a closed
-     panel is memory the iPad wants for the lesson. */
-  els.paperPages.innerHTML = "";
 }
 
 /* The whole conversation as one document.
@@ -4038,27 +3988,28 @@ function closeViewer() {
    are asking about. */
 var noteSaveTimer = null;
 
-/* With a list of card ids, those cards go to the tutor and nothing else does;
-   without one, this is the autosave. There is no "send everything unsent": a
-   default like that re-delivered a card marked up yesterday as a fresh turn
-   every time anything else was sent. What goes is what was ticked. */
-function saveNotes(sendIds) {
-  if (!window.Annotate) return Promise.resolve([]);
-  var send = Array.isArray(sendIds);
-  var ids = send ? sendIds : window.Annotate.unsaved();
-  if (!ids.length) return Promise.resolve([]);
+/* THE TICKED CARDS GO TO THE TUTOR, and nothing else does. There is no "send
+   everything unsent": a default like that re-delivered a card marked up
+   yesterday as a fresh turn every time anything else was sent. What goes is
+   what was ticked. A send is not a save: every save is the keeper's
+   (`saveInk`). */
+function sendNotes(ids) {
+  if (!window.Annotate || !ids.length) return Promise.resolve([]);
   return Promise.all(ids.map(function (id) {
-    var body = window.Annotate.payload(id, send);
+    var body = window.Annotate.payload(id, true);
     return api("/annotate/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }).then(function () {
       window.Annotate.clean(id);
-      if (send) window.Annotate.sent(id);
+      window.Annotate.sent(id);
     });
   }));
 }
+
+/* THE AUTOSAVE, and the only way ink reaches disk unasked: `inkkeep.js`. */
+function saveInk() { return keeper ? keeper.save() : Promise.resolve([]); }
 
 /* Not while a hand is on the glass.
 
@@ -4084,7 +4035,7 @@ function queueNoteSave() {
       return;
     }
     noteSaveOwed = 0;
-    saveNotes(false);
+    saveInk();
   }, 900);
 }
 
@@ -4103,13 +4054,12 @@ if (window.Annotate) {
     queueNoteSave();
     annBar.paint();
     paintNotesSend();
-    /* The offer to keep this writing appears the moment there IS writing, and
-       goes away when the last stroke is erased. Same signal the autosave uses. */
-    paintKeep();
+    /* The offer of a marked copy appears the moment there IS writing on the
+       document, and goes away when the last stroke is erased. */
+    if (reader) reader.paintKeep();
   });
-  /* A closing tab must not take the last stroke with it -- or the last sentence
-     still being typed. */
-  window.addEventListener("pagehide", function () { saveNotes(false); });
+  /* A closing tab must not take the last sentence still being typed. The
+     last stroke is the keeper's: it flushes on `pagehide` itself. */
   window.addEventListener("pagehide", function () { flushTextDraft(); });
 }
 
@@ -4122,11 +4072,11 @@ function setAnnotating(next) {
                             : "write on the lesson itself";
   /* The same mode, reported on whichever control is actually reachable. A
      document is read full-screen over the chrome, so while one is open the pen
-     on the paper bar is the only one of the two anybody can see. */
-  if (els.paperInk) {
-    els.paperInk.setAttribute("aria-pressed", next ? "true" : "false");
-    els.paperInk.title = next ? "stop writing on this page"
-                              : "write on this page";
+     on the reader's bar is the only one of the two anybody can see. */
+  var pen = reader && reader.els.pen;
+  if (pen) {
+    pen.setAttribute("aria-pressed", next ? "true" : "false");
+    pen.title = next ? "stop writing on this page" : "write on this page";
   }
   annBar.paint();
 }
@@ -4322,7 +4272,7 @@ function pickSend() {
      pressed. What follows encodes a picture per card and waits on a request
      for each. */
   saySending();
-  saveNotes(ids).then(function () {
+  sendNotes(ids).then(function () {
     pickSending = false;
     els.notesend.disabled = false;
     closeNotePick();
@@ -4460,7 +4410,7 @@ function goLeave() {
   try {
     window.dispatchEvent(new CustomEvent("board:leave", { detail: { to: to } }));
   } catch (e) { /* an old engine without CustomEvent still leaves */ }
-  saveNotes(false);
+  if (keeper) keeper.flush();
   window.location.href = to;
 }
 
@@ -6379,8 +6329,8 @@ if (els.docNew) {
   els.docNewClose.onclick = closeDocNew;
 }
 
-/* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, send it, fixes or an
-   overhaul, and directions -- the library's own page, on that document. The
+/* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, and a fix or an
+   overhaul to send -- the library's own page, on that document. The
    map is always the served workspace's, so nothing has to be switched first. */
 function mapReadDoc(id, page) {
   if (!id) return;
@@ -6939,7 +6889,7 @@ mapButtons().forEach(function (b) {
      document.getElementById("history"), els.kind, els.steer].forEach(function (panel) {
       if (panel) panel.hidden = true;
     });
-    if (els.paper && !els.paper.hidden) closePaper();
+    if (paperOpen) closeReader();
     openMap();
   };
 });
@@ -7563,7 +7513,7 @@ function mapRemember() {
     here.surface = "map";
     here.x = mapView.ox; here.y = mapView.oy; here.k = mapView.k;
     here.node = mapHere;
-  } else if (els.paper && !els.paper.hidden && paperOpen) {
+  } else if (paperOpen) {
     here.surface = "document:" + paperOpen;
   } else {
     here.surface = "lesson";
@@ -7843,7 +7793,7 @@ function addrShut() {
    els.steer].forEach(function (p) {
     if (p) p.hidden = true;
   });
-  if (els.paper && !els.paper.hidden) closePaper();
+  if (paperOpen) closeReader();
   closeViewer();
   if (!els.map.hidden) closeMap();
 }
@@ -7969,9 +7919,9 @@ function addrGo(a) {
       return addrDead(a, "that document is not in this workspace any more");
     }
     openDoc(known.id, known.name, function (got) {
-      if (!got) return;              /* `openPaper` has already said why */
+      if (!got) return;              /* `readKind` has already said why */
       if (!a.page) { addrArrived(a); return; }
-      var pages = els.paperPages.querySelectorAll("img");
+      var pages = reader.els.pages.querySelectorAll(".lib-page img");
       if (a.page > pages.length) {
         addrDead(a, known.name + " has "
                  + (pages.length === 1 ? "one page" : pages.length + " pages")
@@ -11543,7 +11493,6 @@ document.addEventListener("visibilitychange", function () { hideDrop(); });
 
 /* ------------------------------------------------------------------ chrome */
 var FS_KEY = "board.fontsize";
-var THEME_KEY = "board.theme";
 
 function setFontSize(px) {
   px = Math.max(14, Math.min(30, px));
@@ -11554,22 +11503,12 @@ function currentFontSize() {
   var v = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--fs"), 10);
   return isNaN(v) ? 18 : v;
 }
-function applyTheme(mode) {
-  document.body.dataset.mode = mode;
-  syncSystemTheme();
-  try { localStorage.setItem(THEME_KEY, mode); } catch (e) {}
-}
-function syncSystemTheme() {
-  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.body.classList.toggle("sys-dark", dark);
-}
 
 document.getElementById("btn-bigger").onclick = function () { setFontSize(currentFontSize() + 1); };
 document.getElementById("btn-smaller").onclick = function () { setFontSize(currentFontSize() - 1); };
+/* The theme is `typeface.js`'s, one function for every page. */
 document.getElementById("btn-theme").onclick = function () {
-  var order = ["auto", "light", "dark"];
-  var next = order[(order.indexOf(document.body.dataset.mode) + 1) % 3];
-  applyTheme(next);
+  if (window.Typeface) window.Typeface.theme("next");
 };
 document.getElementById("btn-print").onclick = function () { window.print(); };
 /* HOW MUCH IS ON THE LIVE SURFACE, for the photograph.
@@ -11599,112 +11538,8 @@ if (window.TutorShot) {
 
 /* Three controls, one document, and none of them navigates this window. */
 els.pushedGet.onclick = function (e) { saveCopy(bannerKind, e.currentTarget); };
-els.pushedView.onclick = function () { openPaper(bannerKind); };
-if (els.paperInk) {
-  els.paperInk.onclick = function () {
-    setAnnotating(!(window.Annotate && window.Annotate.isOn()));
-    paintKeep();
-  };
-}
+els.pushedView.onclick = function () { readKind(bannerKind); };
 
-/* ------------------------------------------------- keeping what was written */
-
-/* Ink on the document that is open, counted off the annotation store. The keys
-   are the ones `openPaper` put on the page boxes, so this asks the same
-   question the burner will ask on the server: is there anything on this
-   document at all. */
-function inkOnPaper(kind) {
-  if (!kind || !window.Annotate) return 0;
-  var ident = kind.indexOf("doc/") === 0 ? kind.slice(4) : kind;
-  var prefix = "doc/" + ident + "/p";
-  return window.Annotate.marked().filter(function (id) {
-    return id.indexOf(prefix) === 0;
-  }).length;
-}
-
-/* The button appears when there is something to keep and goes away when there
-   is not. Offering it over a clean document would be offering to write a file
-   identical to the one already there. */
-function paintKeep() {
-  if (!els.paperKeep) return;
-  var n = paperOpen ? inkOnPaper(paperOpen) : 0;
-  els.paperKeep.hidden = !n;
-  els.paperKeep.textContent = n === 1 ? "keep writing (1 page)"
-                                      : "keep writing (" + n + " pages)";
-}
-
-function closeKeep() { if (els.keepwhat) els.keepwhat.hidden = true; }
-
-/* The outcome, in the viewer's own subtitle, which is where this panel already
-   says how many pages a document has. Not `paperSay`: that one replaces the
-   pages with a message, and the pages are what somebody is looking at. */
-var keepSaidTimer = null;
-function keepSaid(text) {
-  if (!els.paperSub) return;
-  var was = els.paperSub.dataset.was || els.paperSub.textContent;
-  els.paperSub.dataset.was = was;
-  els.paperSub.textContent = text;
-  /* The line ellipsizes in a narrow bar, so the whole sentence is its tooltip. */
-  els.paperSub.title = text;
-  clearTimeout(keepSaidTimer);
-  keepSaidTimer = setTimeout(function () {
-    els.paperSub.textContent = els.paperSub.dataset.was || "";
-    els.paperSub.removeAttribute("title");
-    delete els.paperSub.dataset.was;
-  }, 4000);
-}
-
-function keepWriting(mode) {
-  closeKeep();
-  var kind = paperOpen;
-  if (!kind) return;
-  if (mode === "none") {
-    /* Answered here as well as on the server, so that the one choice which
-       writes nothing also costs nothing -- no request, no page drawn, and the
-       marks left exactly where they are. */
-    keepSaid("Kept on the board. Nothing written to a file.");
-    return;
-  }
-  els.paperKeep.disabled = true;
-  var was = els.paperKeep.textContent;
-  els.paperKeep.textContent = "writing…";
-  api("/annotate/burn", {
-    method: "POST", credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: kind, mode: mode })
-  }).then(function (r) { return r.json(); }).then(function (got) {
-    els.paperKeep.disabled = false;
-    els.paperKeep.textContent = was;
-    if (!got || !got.ok) {
-      keepSaid((got && got.detail) || "That did not work.");
-      return;
-    }
-    keepSaid(got.detail || "Saved.");
-    /* The pages under the viewer are now a render of a file that has changed,
-       so the one that was overwritten is reopened rather than left showing the
-       version from before the ink went in. */
-    if (got.mode === "same") openPaper(kind, els.paperName.textContent);
-  }).catch(function () {
-    els.paperKeep.disabled = false;
-    els.paperKeep.textContent = was;
-    keepSaid("The board did not answer.");
-  });
-}
-
-if (els.paperKeep) {
-  els.paperKeep.onclick = function () {
-    if (!els.keepwhat) return keepWriting("new");
-    els.keepwhat.hidden = false;
-  };
-}
-if (els.keepwhat) {
-  document.getElementById("keep-same").onclick = function () { keepWriting("same"); };
-  document.getElementById("keep-new").onclick = function () { keepWriting("new"); };
-  document.getElementById("keep-none").onclick = function () { keepWriting("none"); };
-}
-
-els.paperGet.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };
-document.getElementById("paper-close").onclick = closePaper;
 /* A PAGE, so it is a navigation rather than a panel -- and a plain one, the way
    the slate is: the lesson is files and is still here when you come back, and
    nothing on the library page can change it. */
@@ -12019,7 +11854,7 @@ document.getElementById("elsewhere-close").onclick = function () {
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
   if (els.map && !els.map.hidden) mapLeave();
-  else if (els.paper && !els.paper.hidden) closePaper();
+  else if (paperOpen) closeReader();
   else if (els.shelf && !els.shelf.hidden) els.shelf.hidden = true;
 });
 document.getElementById("btn-shelf-close").onclick = function () {
@@ -12380,15 +12215,10 @@ window.addEventListener("scroll", function () {
   if (els.jump.hidden) return;
   if (following()) els.jump.hidden = true;
 });
-if (window.matchMedia) {
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncSystemTheme);
-}
-
 try {
   var savedFs = localStorage.getItem(FS_KEY);
   if (savedFs) setFontSize(parseInt(savedFs, 10));
-  applyTheme(localStorage.getItem(THEME_KEY) || "auto");
-} catch (e) { applyTheme("auto"); }
+} catch (e) { /* the sheet's own size stands */ }
 
 connect();
 

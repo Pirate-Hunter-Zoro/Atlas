@@ -9,15 +9,16 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               the Atlas root; 404 under `/s/<id>/`:
               GET  /courses.json  /atlas.json  /news  /missions  /mission
               GET  /meeting/deck.json  /meeting/view  /meeting/pdf
-              POST /meeting  /meeting/direction  /default-agent
+              POST /meeting  /default-agent
               POST /colibri  /writeup/scopes  /elsewhere  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
 
-`/meeting`, `/meeting/direction` and `/elsewhere` ask another subject's
-tutor, and each goes through `registry.runner_route`.
+`/meeting` and `/elsewhere` ask another subject's tutor, and each goes
+through `registry.runner_route`. Ink on the deck is the Meetings subject's,
+and so is feedback on it (`/library/feedback?subject=projects/Meetings`).
 """
 
 import json
@@ -40,7 +41,6 @@ from ... import briefs
 from ... import missions
 from ... import news
 from ... import progress
-from ... import proposals
 from ... import scopes
 from ... import stamp
 from ...course import config
@@ -48,6 +48,19 @@ from ...course import paper
 from ...course import threads
 from ...lesson import state
 from ...course import repo as course_repo
+
+
+def _deck_ink(repo, base):
+    """`(ink, ink_repo)` for the meeting deck. Its ink is the Meetings
+    subject's (`/annotate/save?subject=projects/Meetings`, the repo
+    `/library/feedback` reads); ink saved at the Atlas root before it was
+    loads in place under it."""
+    root = briefs.meetings_root(base)
+    meet = registry.sessionless(root, base) if root else repo
+    ink = briefs.ink_keys(repo)
+    if meet is not repo:
+        ink.update(briefs.ink_keys(meet))
+    return ink, meet
 
 
 def get(h, repo, path):
@@ -87,7 +100,8 @@ def get(h, repo, path):
     if path == "/meeting/deck.json":
         # Being written, ready, or did not land: `briefs.judge`, which reads
         # `artifacts.status` and checks a built deck once against its sources.
-        rec = briefs.deck(atlas.root() or repo.root)
+        base = atlas.root() or repo.root
+        rec = briefs.deck(base)
         if not rec:
             return h.send_json({"ok": False,
                                 "detail": "No deck has been made yet."})
@@ -97,7 +111,7 @@ def get(h, repo, path):
             "built": bool(rec["has_pdf"]), "host": rec["host"],
             "workspaces": rec["workspaces"], "names": rec["names"],
             "pages": rec["pages"], "unsupported": rec["unsupported"],
-            "marked": sorted(briefs.ink_keys(repo)),
+            "marked": sorted(_deck_ink(repo, base)[0]),
         })
 
     if path == "/meeting/view":
@@ -118,10 +132,11 @@ def get(h, repo, path):
         out = paper.pages_of(repo, rec["pdf"], briefs.STEM + ".pdf", "meeting")
         if out.get("ok"):
             # The marks come WITH the pages: this page opens no session.
-            out["ink"] = briefs.ink_keys(repo)
-            out["build"], out["rebuilt"] = briefs.drawn_on(repo, rec["pdf"], out)
+            out["ink"], meet = _deck_ink(repo, base)
+            out["build"], out["rebuilt"] = briefs.drawn_on(meet, rec["pdf"], out)
             out["deck"] = briefs.deck_id(base)
             out["pages_of"] = rec["pages"]
+            out["workspaces"] = rec["workspaces"]
             out["names"] = rec["names"]
             out["since"] = rec["since"]
             out["period"] = rec["period"]
@@ -277,23 +292,6 @@ def post(h, repo, path):
         except Exception as exc:                             # noqa: BLE001
             return h.send_json({"ok": False,
                                 "detail": str(exc)[-300:]}, status=500)
-
-    if path == "/meeting/direction":
-        # THE MARKS ARE DIRECTION, AND THIS IS THE ONE ROUTE THAT SAYS SO.
-        #
-        # Not `/library/feedback`, which is the obvious next line of code and is
-        # wrong: that writes a feedback file and wakes a `[revise]` turn, which
-        # would spend a turn polishing a throwaway deck while throwing away what
-        # the marks actually said. See `tutorboard/proposals.py` -- the routing
-        # is the geometry, and what lands is a PROPOSAL rather than a direction.
-        try:
-            got = proposals.send(repo, atlas.root() or repo.root)
-        except Exception as exc:                             # noqa: BLE001
-            return h.send_json({"ok": False, "sent": [], "skipped": [],
-                                "detail": str(exc)[-300:]}, status=500)
-        if got.get("ok"):
-            h.hub.worker.dirty.set()
-        return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/default-agent":
         # THE ONE PROVIDER SETTING, SET FROM THE FRONT DOOR: `provider` in this

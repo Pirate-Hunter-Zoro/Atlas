@@ -74,7 +74,6 @@ UNPREFIXED = (
     ("GET", "/library/evidence/*", "subject"),
     ("POST", "/library/ledger/*", "subject"),
     ("POST", "/library/feedback", "subject"),
-    ("POST", "/library/direction", "subject"),
     ("POST", "/doc/delete", "subject"),
     ("POST", "/writeup", "subject?"),
     # pages
@@ -92,7 +91,6 @@ UNPREFIXED = (
     ("GET", "/meeting/view", "atlas"),
     ("GET", "/meeting/pdf", "atlas"),
     ("POST", "/meeting", "atlas"),
-    ("POST", "/meeting/direction", "atlas"),
     ("POST", "/default-agent", "atlas"),
     ("POST", "/colibri", "atlas"),
     ("POST", "/writeup/scopes", "atlas"),

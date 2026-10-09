@@ -181,6 +181,64 @@ const board = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
     : fail('the wash is defined once, so one theme gets a tint nobody can see');
 }
 
+// ONE THEME FUNCTION. `Typeface.theme` in typeface.js is the only code that
+// sets `body[data-mode]` or `sys-dark`, and `syncSystemTheme` is defined once.
+// Every page loads typeface.js; no page keeps a copy of its own.
+{
+  const js = fs.readdirSync(WEB).filter((f) => /\.js$/.test(f) && f !== 'sw.js');
+  const defs = js.filter((f) => /function syncSystemTheme\b/.test(
+    fs.readFileSync(path.join(WEB, f), 'utf8')));
+  defs.join() === 'typeface.js'
+    ? ok('one syncSystemTheme, in typeface.js')
+    : fail('syncSystemTheme is defined in: ' + defs.join(', '));
+  const setters = js.filter((f) => f !== 'typeface.js'
+    && /dataset\.mode\s*=|["']sys-dark["']|board\.theme|board-theme/.test(
+      fs.readFileSync(path.join(WEB, f), 'utf8')));
+  !setters.length
+    ? ok('and no other script sets the theme or reads its key')
+    : fail('theme code outside typeface.js: ' + setters.join(', '));
+  const pages = fs.readdirSync(WEB).filter((f) => /\.html$/.test(f));
+  const without = pages.filter((f) => !/src="\/static\/typeface\.js"/.test(
+    fs.readFileSync(path.join(WEB, f), 'utf8')));
+  !without.length
+    ? ok('every page loads typeface.js: ' + pages.join(', '))
+    : fail('pages without typeface.js: ' + without.join(', '));
+}
+
+// And it works: the remembered mode at load, "next" through the three, and
+// `sys-dark` following the system.
+let JSDOM = null;
+try { ({ JSDOM } = require('jsdom')); } catch (e) { JSDOM = null; }
+if (!JSDOM) {
+  console.log('skip  jsdom is not installed — the theme function is not driven');
+} else {
+  const dom = new JSDOM('<!doctype html><body><button id="btn-face"></button></body>',
+                        { runScripts: 'outside-only', url: 'https://board.test/' });
+  const w = dom.window;
+  let dark = true;
+  const listeners = [];
+  w.matchMedia = (q) => ({
+    matches: /dark/.test(q) ? dark : false,
+    addEventListener: (n, fn) => listeners.push(fn),
+  });
+  w.localStorage.setItem('board.theme', 'light');
+  w.eval(fs.readFileSync(path.join(WEB, 'typeface.js'), 'utf8'));
+  const body = w.document.body;
+  body.dataset.mode === 'light' && body.classList.contains('sys-dark')
+    ? ok('a page opens in the remembered mode, with sys-dark saying what the system is')
+    : fail('at load: mode ' + body.dataset.mode + ', sys-dark ' + body.classList.contains('sys-dark'));
+  const seen = [w.Typeface.theme('next'), w.Typeface.theme('next'), w.Typeface.theme('next')];
+  seen.join(',') === 'dark,auto,light' && w.localStorage.getItem('board.theme') === 'light'
+    ? ok('Typeface.theme("next") steps light, dark, auto and remembers each')
+    : fail('next stepped ' + seen.join(','));
+  dark = false;
+  listeners.forEach((fn) => fn());
+  !body.classList.contains('sys-dark') && listeners.length === 1
+    ? ok('and sys-dark follows the system, from one listener')
+    : fail('the system change: ' + listeners.length + ' listeners, sys-dark '
+           + body.classList.contains('sys-dark'));
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nthe theme reaches the whole window');
 process.exit(errors.length ? 1 : 0);

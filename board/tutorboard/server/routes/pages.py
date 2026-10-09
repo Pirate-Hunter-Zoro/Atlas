@@ -258,6 +258,7 @@ def source_page(repo, raw, query):
         '<span class="muted">%(where)s, read-only</span></header>\n'
         '<pre class="code numbered"><code data-source="1" data-lang="%(lang)s" '
         'data-from="%(first)d" data-to="%(last)d">%(body)s</code></pre>\n'
+        '<script src="/static/typeface.js"></script>\n'
         '<script src="/static/vendor/highlight/highlight.min.js"></script>\n'
         '<script src="/static/codeview.js"></script>\n'
         '</body>\n</html>\n') % {

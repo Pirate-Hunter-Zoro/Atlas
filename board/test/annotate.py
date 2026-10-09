@@ -169,23 +169,21 @@ try:
     check("marking the same card again revises that turn", len(sent) == 1)
     check("and the revision is recorded", sent[0]["rev"] == 2)
 
-    # --- a page's direction picture is its own file ---------------------------
-    # The library reader saves one picture per kind of ink, so a page with a
-    # fix and a direction on it never has one kind filed as the other.
+    # --- one kind of ink: old ink loads in place -----------------------------
+    # A stroke stored with the retired direction field is ordinary ink: it is
+    # saved and read back as it stands, a page has one picture, and a stale
+    # `png_kind` names no second file.
     page = "doc/a-deck/p2"
     stem = os.path.join(repo.notes, writing_route.ann_file(page))
     fix = {"c": "#e8746c", "w": 3, "pg": 1, "p": [0.1, 0.1, 0.2, 0.2]}
-    way = dict(fix, dir=1)
-    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG})
-    fix_png = open(stem + ".png", "rb").read()
-    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG[:-4] + "AAAA",
+    old = json.loads('{"c": "#3366cc", "w": 3, "pg": 1, "dir": 1, "p": [0.3, 0.3, 0.4, 0.4]}')
+    post("/annotate/save", {"card": page, "strokes": [fix, old], "png": PNG})
+    post("/annotate/save", {"card": page, "strokes": [fix, old], "png": PNG[:-4] + "AAAA",
                             "png_kind": "dir"})
-    check("a picture saved for direction ink goes to <stem>.dir.png",
-          os.path.isfile(stem + ".dir.png"))
-    check("and the fix picture beside it is left alone",
-          open(stem + ".png", "rb").read() == fix_png)
-    check("a direction stroke is stored with its `dir` field, a fix with none",
-          notes.load_notes(repo)[page] == [fix, way])
+    check("a page's picture is one file, whatever a stale reader calls it",
+          os.path.isfile(stem + ".png") and not os.path.exists(stem + ".dir.png"))
+    check("and old ink with the retired field is read back in place, as it was saved",
+          notes.load_notes(repo)[page] == [fix, old])
 
     # --- saving mid-session must not end the session --------------------------
     # `board push` from a terminal archives a code session, because a commit is

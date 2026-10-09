@@ -1549,11 +1549,12 @@ if (es) {
   //
   // And because navigating to one in a standalone app is the trap the whole
   // handover was rewritten to escape. The pages are drawn by the machine that
-  // holds the PDF and shown in a panel this page owns and can close.
-  var paper = doc.getElementById('paper');
+  // holds the PDF and shown in the one reader (`reader.js`), which this page
+  // mounts and can close.
   var boardHtml = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
-  paper && !/\<iframe/.test(boardHtml)
-    ? ok('the document is read in a panel of pictures, not in a frame')
+  /src="\/static\/reader\.js"/.test(boardHtml) && !/\<iframe/.test(boardHtml)
+    && /Reader\.mount\(/.test(fs.readFileSync(path.join(WEB, 'board.js'), 'utf8'))
+    ? ok('the document is read in the one reader, as pictures, not in a frame')
     : fail('the viewer is a frame, which iOS renders as one unscrollable page');
 
   // The filename is the SERVER's business -- it knows the course and the set --

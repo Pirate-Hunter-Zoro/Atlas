@@ -49,7 +49,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library.json  /library/stamp  /library/results.json
               /library/table/*  /library/view/*  /library/note/*
               /library/ledger/* (GET and POST)  /library/evidence/*
-              /library/feedback  /library/direction  /doc/delete  /writeup
+              /library/feedback  /doc/delete  /writeup
     session   under `/s/<id>/` only: /shelf.json  /library/marked/*
               /writeup/seen
 
@@ -324,40 +324,6 @@ def post(h, repo, path):
                                payload.get("state"), payload.get("why") or "")
         library.forget()
         return h.send_json(got, status=200 if got.get("ok") else 400)
-
-    # A PAGE MARKED AS A DIRECTION, not as a complaint: the note panel's third
-    # ask. It never goes near `_revise` -- see `proposals.from_document`.
-    if path == "/library/direction":
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        doc = library.find(repo.root, str(payload.get("document") or "").strip())
-        if not doc:
-            return h.send_json({"ok": False, "error": "no such document"},
-                               status=404)
-        from ... import proposals                      # local: avoids a cycle
-        # THE PAGES THE READER PICTURED FOR THIS SEND, each with how many
-        # direction strokes it had then. Only those go; a missing list sends
-        # nothing drawn.
-        pictured = {}
-        for it in payload.get("pictured") or []:
-            if isinstance(it, dict) and writing.ann_ok(str(it.get("key") or "")):
-                try:
-                    pictured[str(it["key"])] = int(it.get("n"))
-                except (TypeError, ValueError):
-                    pass
-        rec = proposals.from_document(repo, doc, payload.get("page"),
-                                      payload.get("text") or "", pictured)
-        # THE INK LEFT ON THE DOCUMENT, so the reader takes the sent direction
-        # strokes off its glass: `Annotate.load` never takes a mark away. The
-        # reader refreshes the keys named in `stripped` and drops the strokes
-        # in `wiped`.
-        if rec.get("ok"):
-            rec["ink"] = library.ink(repo, doc)
-            rec["wiped"] = library.wiped(repo, doc)
-        h.hub.worker.dirty.set()
-        return h.send_json(rec, status=200 if rec.get("ok") else 400)
 
     if path == "/writeup":
         return _writeup(h, repo)

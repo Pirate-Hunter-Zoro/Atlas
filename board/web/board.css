@@ -80,14 +80,14 @@ html { touch-action: pan-x pan-y; }
    Safari ignores `Recentre.unzoom`, its own pinch out is the only way back,
    and the rule above forbids it. `readerzoom.js` puts `page-magnified` on
    <html> while a document is open and `visualViewport.scale` is over 1.01,
-   and takes it off the moment either stops. The reader (`#reader`, `#paper`)
+   and takes it off the moment either stops. The reader (`#reader`)
    and everything in it get the pinch as well, because `touch-action` is
    intersected down the tree; `!important` because the ink layers' and the
    bars' own rules are more specific. A hand writing (`pen-writing`) keeps
    its `none`. */
 html.page-magnified { touch-action: manipulation; }
-html.page-magnified body:not(.pen-writing) :is(#reader, #paper),
-html.page-magnified body:not(.pen-writing) :is(#reader, #paper) * {
+html.page-magnified body:not(.pen-writing) #reader,
+html.page-magnified body:not(.pen-writing) #reader * {
   touch-action: manipulation !important;
 }
 
@@ -1468,7 +1468,7 @@ body.mapping #notesend { z-index: 97; }
 #redirect:hover { filter: brightness(1.06); }
 /* The other two ride at 62 and are covered by the map; this one is not, so it
    is the one thing over a map that must not look like part of it. */
-body.mapping #redirect, body.papering #redirect {
+body.mapping #redirect, body.reading #redirect {
   box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
 
@@ -1555,7 +1555,7 @@ body.mapping #redirect, body.papering #redirect {
    without it the box is sized to the half of the screen right of `left` and
    the transform never gives the other half back, so it could not be wider
    than 50vw whatever its `max-width` said. */
-.reading {
+#reading {
   position: fixed; left: 50%; transform: translateX(-50%);
   width: max-content; max-width: calc(100vw - 1.5rem);
   bottom: calc(1.2rem + env(safe-area-inset-bottom)); z-index: 45;
@@ -1745,106 +1745,12 @@ body.mapping #redirect, body.papering #redirect {
 #viewer-close:hover { background: #262a31; }
 body.viewing { overflow: hidden; }
 
-/* ---------- a PDF, read on the board ---------- */
-/* The pages are pictures, drawn by the machine that holds the PDF. Not a frame
-   and not a navigation: iOS renders a PDF in a frame as one unscrollable page,
-   and navigating to one in a standalone app leaves the board with no chrome and
-   no way back. This is a panel the page owns, so ✕ returns to the lesson. */
-#paper {
-  position: fixed; inset: 0; z-index: 95;
-  display: flex; flex-direction: column;
-  background: var(--paper-2, #16171a);
-}
-.paper-bar {
-  flex: none; display: flex; align-items: center; gap: .7rem;
-  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
-  padding-top: max(.6rem, env(safe-area-inset-top));
-  font-family: var(--ui); font-size: .85rem;
-  background: var(--paper); color: var(--ink);
-  border-bottom: 1px solid var(--rule);
-}
-#paper-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The subtitle is also where `keep writing` says what it did, for four seconds,
-   in a whole sentence from the server. Unshrinkable, that sentence pushed the
-   title to nothing and save and close off the glass. It ellipsizes like the
-   title, and the whole sentence is its tooltip. */
-#paper-sub {
-  flex: 0 1 auto; min-width: 0; font-size: .78rem;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-#paper-keep { flex: none; white-space: nowrap; }
-/* The right-hand group starts at the map glyph, which is always there;
-   `save a copy` is not -- a document with no build record has none --
-   so the push to the right cannot hang off it. */
-#paper-get { flex: none; }
-#paper-close {
-  flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
-  border-radius: .35rem; border: 1px solid var(--rule);
-  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
-}
-/* Scrolls itself. The body is locked while this is up, so a two-finger drag
-   inside the pages cannot end up panning the lesson underneath. */
-/* A BLOCK, NOT A CENTRED FLEX COLUMN: a page zoomed wider than the glass has
-   to overflow to the right, where it can be scrolled to, rather than to both
-   sides, where its left edge cannot. The pinch is `readerzoom.js`'s, which
-   adds `.zoomable` and sets `--zoom`. */
-.paper-pages {
-  flex: 1 1 auto; overflow: auto; min-height: 0; -webkit-overflow-scrolling: touch;
-  padding: 1rem max(.6rem, env(safe-area-inset-left))
-           max(2rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-right));
-  overscroll-behavior: contain;
-}
-/* Above the pages while a pinch transforms them. */
-#paper > .paper-bar { position: relative; z-index: 1; }
-.paper-pages.pinching { will-change: transform; }
-/* The palm, as in the library reader: while the nib is down or only just
-   lifted, nothing the browser owns moves the pages; otherwise a finger pans a
-   zoomed page either way, over the ink layer too. */
-body.pen-writing .paper-pages.zoomable { touch-action: none; }
-body.annotating:not(.pen-writing) .paper-pages canvas.ann-layer {
-  touch-action: pan-x pan-y;
-}
-#paper-zoom { flex: none; }
-/* A page is white because paper is white -- the board's dark skin belongs to
-   the lesson, and a typeset document inverted is a document nobody can read. */
-.paper-pages img {
-  width: 100%; height: auto; display: block;
-  background: #fff; border-radius: .3rem;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
-}
-/* ONE PAGE, IN ITS OWN BOX, and the box is what the ink is anchored to.
-
-   A page's size on the glass is whatever the panel's width and the reader's
-   zoom make it, so ink stored in page pixels is somewhere else the moment the
-   iPad rotates. Stored in fractions of this box it stays on the same words for
-   ever — which is the trick the lesson already plays one level in, on cards.
-
-   `position: relative` is the whole of what the layer needs: `canvas.ann-layer`
-   is absolutely positioned and would otherwise hang off `.paper-pages` and land
-   on page one whichever page was written on. */
-.paper-page {
-  position: relative; margin: 0 auto .9rem;
-  width: calc(min(100%, 46rem) * var(--zoom, 1));
-}
-
-.paper-say {
-  max-width: 30rem; margin: 2rem auto; text-align: center;
-  font-family: var(--ui); font-size: .9rem; color: var(--ink-2);
-}
-.paper-say strong { display: block; margin-bottom: .5rem; color: var(--ink); }
-.paper-say button { margin-top: .9rem; }
-.paper-say button + button { margin-left: .45rem; }
-.paper-say .detail {
-  display: block; margin-top: .7rem; text-align: left;
-  font-family: var(--mono); font-size: .72rem; color: var(--ink-3);
-  overflow-wrap: anywhere;
-}
-body.papering { overflow: hidden; }
+/* ---------- a PDF, read on the board: `reader.css`, the one reader ---------- */
 
 /* ---------- print ---------- */
 @media print {
   #bar, #drawbar, #scratch, #contents, #review, #shelf, .jump, .drop,
-  .finish, .pushed, #panic, #mapback, #reopen, #viewer, #paper { display: none !important; }
+  .finish, .pushed, #panic, #mapback, #reopen, #viewer, #reader { display: none !important; }
   body { background: #fff; color: #000; }
   #board { max-width: none; padding: 0; }
   .card { break-inside: avoid; animation: none; }
@@ -1854,7 +1760,7 @@ body.papering { overflow: hidden; }
 }
 
 /* ---------- a choice strip ---------- */
-/* `#kind` and `#keepwhat`. Docked above the tool bar, because that is where the hand and the Send button
+/* `#kind`. Docked above the tool bar, because that is where the hand and the Send button
    already are, and a dialogue in the middle of the page is a dialogue that gets
    dismissed by accident on a tablet. */
 .sendwhat {
@@ -1968,14 +1874,13 @@ body.papering { overflow: hidden; }
   font-family: var(--ui); font-size: .8rem;
 }
 body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
-/* ABOVE THE DOCUMENT PANEL while one is open. `#paper` is z-index 95 and this
-   bar is 58, so with a deck on the glass the pen's own controls were behind it
-   — the ink went down and there was no way to change the nib, undo it or put
-   it away. Only while papering: in the lesson the bar's ordinary place in the
-   stack is the right one, and raising it there would put it over the menu,
-   which is the one thing that must stay on top. */
-body.papering .annbar { z-index: 96; }
-#paper-ink[aria-pressed="true"] { color: var(--ask); }
+/* ABOVE THE READER while one is open. `#reader` is z-index 95 on the board
+   and this bar is 58, so with a deck on the glass the pen's own controls were
+   behind it — the ink went down and there was no way to change the nib, undo
+   it or put it away. Only while reading: in the lesson the bar's ordinary place
+   in the stack is the right one, and raising it there would put it over the
+   menu, which is the one thing that must stay on top. */
+body.reading .annbar-board { z-index: 96; }
 /* A control is not prose, and on a tablet the difference is not academic.
    `body.annotating #board *` already refuses selection over the lesson -- and
    this bar is fixed-position, OUTSIDE #board, so none of it applied here. Press
@@ -2878,7 +2783,7 @@ button.thread-row:hover { background: var(--paper-2); }
   color: var(--ink-2); padding: .18rem .4rem;
 }
 .head-acts .to-map:hover { border-color: var(--accent); color: var(--accent); }
-.paper-bar .to-map {
+#reader-bar .to-map {
   flex: none; cursor: pointer; height: 2.2rem; padding: 0 .6rem;
   border-radius: .35rem; border: 1px solid var(--rule);
   background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
@@ -2989,6 +2894,6 @@ body.mapping { overflow: hidden; }
 /* Over a document, the image viewer or the map, which is exactly when a
    problem set is open and a calculator wanted -- the annotation bar's
    precedent. Still under the sheets (98) and the menu (99). */
-body.papering #calc, body.viewing #calc { z-index: 96; }
+body.reading #calc, body.viewing #calc { z-index: 96; }
 body.mapping #calc { z-index: 97; }
 @media print { #calc { display: none !important; } }

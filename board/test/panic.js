@@ -86,7 +86,7 @@ const zoomTo = async (scale, offsetLeft, offsetTop) => {
 
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'reader.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -470,9 +470,9 @@ const press = (type, x, y) => btn.dispatchEvent(
         : fail('nothing on the board reads ?map=1, so the slate\'s link lands nowhere');
     }
 
-    // The document viewer covers the whole glass, so the bar underneath it is
-    // not reachable and it needs one of its own.
-    inside('#paper')
+    // The reader covers the whole glass, so the bar underneath it is not
+    // reachable and it needs one of its own.
+    inside('#reader')
       ? ok('from the document viewer, mid-deck')
       : fail('a document open over the lesson has no way to the map');
 

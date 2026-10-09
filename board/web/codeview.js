@@ -120,12 +120,7 @@ if (typeof module !== "undefined" && module.exports) module.exports = api;
 if (typeof document !== "undefined" && document.querySelector
     && document.body && document.body.classList
     && document.body.classList.contains("source-page")) {
-  /* The board's theme, as the library reads it. */
-  try { document.body.dataset.mode = localStorage.getItem("board.theme") || "auto"; }
-  catch (e) { document.body.dataset.mode = "auto"; }
-  var dark = window.matchMedia
-    && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.body.classList.toggle("sys-dark", !!dark);
+  /* The board's theme is `typeface.js`'s, loaded before this on the page. */
   upgrade(document);
 }
 })();

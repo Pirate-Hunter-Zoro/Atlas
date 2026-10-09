@@ -5,11 +5,11 @@
 //
 // Two halves, both driven through the real pages in a real DOM:
 //
-//   * THE BOARD'S DOCUMENT PANEL (`#paper`, every paper, deck and write-up a
-//     box or the contents drawer opens) zooms with `readerzoom.js`, the
-//     library reader's own pinch. The board refuses the page pinch outright
-//     (`html { touch-action: pan-x pan-y }`), so before this a pinch on a
-//     document did nothing at all.
+//   * THE BOARD'S READER (`reader.js`, built over the board: every paper,
+//     deck and write-up a box, a card or the contents drawer opens) zooms with
+//     `readerzoom.js`, the one reader's pinch. The board refuses the page
+//     pinch outright (`html { touch-action: pan-x pan-y }`), so without it a
+//     pinch on a document would do nothing at all.
 //   * SAFARI GETS NO PINCH WHILE A DOCUMENT IS OPEN, on the panel or in the
 //     library reader the map's documents region opens. Two fingertips on the
 //     pages or the bar are the reader's from their touchstart -- fingers
@@ -21,8 +21,13 @@
 //     A non-passive move is armed at a gesture's first touch and dropped once
 //     a lone finger passes 10 px, so one finger scrolls natively.
 //
-// And the ink stays on its words through a pinch on the panel: `inkzoom.js`,
-// the case the library and the deck already run, on `.paper-page`.
+// And the ink stays on its words through a pinch on the reader: `inkzoom.js`,
+// the case the library and the deck already run.
+//
+// THE ONE READER ON THE BOARD, too: a document opened from a card goes
+// through `Reader.open`, old ink stored with the retired direction field loads
+// in place, and every save of ink -- a card's and a page's -- goes through
+// `inkkeep.js`, which retries a save that failed.
 
 const fs = require('fs');
 const path = require('path');
@@ -42,9 +47,14 @@ const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const HEALTH = { ok: true, id: 'research/TRD-EHR', dir: 'TRD-EHR' };
+const OLD_KEY = 'doc/paper1-trd-prediction/p1';
 const VIEW = {
   ok: true, name: 'Paper 1', n: 2,
   pages: ['/paper/m-1.png', '/paper/m-2.png'],
+  /* Ink as a retired reader stored it: the stroke carries the old kind
+     field. It loads as ordinary ink, in place. */
+  ink: { [OLD_KEY]: [JSON.parse('{"c":"#3366cc","w":2,"pg":1,"dir":1,'
+                                + '"p":[0.2,0.6,0.5,0.6],"pr":[0.5,0.5]}')] },
 };
 const LIVE = {
   state: { course: 'TRD-EHR', session: 'lecture', mode: 'research' },
@@ -73,8 +83,18 @@ window.scrollBy = () => {};
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
 const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
-window.fetch = (u) => {
+/* `/annotate/save` answers as `net.save` says: ok, or a 500. */
+const net = { save: 'ok', saves: [] };
+window.fetch = (u, o) => {
   const url = String(u);
+  if (/annotate\/save/.test(url)) {
+    net.saves.push({ url: url, body: JSON.parse((o && o.body) || '{}'), was: net.save });
+    if (net.save === 'refused') {
+      return Promise.resolve({ ok: false, status: 500,
+                               json: () => Promise.resolve({ ok: false }) });
+    }
+    return json({ ok: true });
+  }
   if (/slate\/state/.test(url)) return json({ pages: [] });
   if (url.indexOf('/health') === 0) return json(HEALTH);
   if (url.indexOf('/view/') === 0) return json(VIEW);
@@ -93,8 +113,11 @@ const SCRIPTS = (HTML.match(/src="\/static\/[\w.-]+"/g) || [])
   .filter((f) => f !== 'board.js' && f !== 'typeface.js');
 SCRIPTS.indexOf('readerzoom.js') >= 0
   && SCRIPTS.indexOf('readerzoom.js') > SCRIPTS.indexOf('annotate.js')
-  ? ok('board.html loads the library reader\'s pinch, after the pen it asks about')
-  : fail('board.html does not load readerzoom.js: ' + SCRIPTS.join(', '));
+  && SCRIPTS.indexOf('reader.js') > SCRIPTS.indexOf('inkkeep.js')
+  && SCRIPTS.indexOf('inkkeep.js') > SCRIPTS.indexOf('annotate.js')
+  ? ok('board.html loads the one reader, its pinch and its save, after the pen they ask about')
+  : fail('board.html does not load reader.js, inkkeep.js and readerzoom.js: ' + SCRIPTS.join(', '));
+window.INK_RETRY_MS = 60;
 for (const f of SCRIPTS) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
@@ -102,7 +125,7 @@ for (const f of SCRIPTS) {
 try {
   let src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
   src = src.replace('})();',
-    'window.__openDoc = openDoc;\nwindow.__closePaper = closePaper;\n})();');
+    'window.__openDoc = openDoc;\nwindow.__closeReader = closeReader;\n})();');
   window.eval(src);
 } catch (e) { fail('board.js: ' + e.message); }
 
@@ -136,15 +159,72 @@ function gesture(target, name) {
   await sleep(20);
   if (window.__live) window.__live(LIVE);
 
-  /* ---- the board's document panel ------------------------------------- */
+  /* ---- the board's reader --------------------------------------------- */
+  const opened = [];
+  const realOpen = window.Reader.open;
+  const mounted = window.Reader.els();
+  const inst = mounted && window.Reader.mount();
+  const instOpen = inst.open;
+  inst.open = function (o) { opened.push(o); return instOpen.call(this, o); };
   window.__openDoc('paper1-trd-prediction', 'Paper 1');
   await sleep(20);
-  const pages = el('paper-pages');
-  const chip = el('paper-zoom');
-  const boxes = pages.querySelectorAll('.paper-page');
-  boxes.length === 2 && !el('paper').hidden
-    ? ok('a document opens on the board, a box per page')
+  inst.open = instOpen;
+  window.Reader.open = realOpen;
+  const pages = el('reader-pages');
+  const chip = el('reader-zoom');
+  const boxes = pages.querySelectorAll('.lib-page');
+  opened.length === 1 && opened[0].pagesUrl === '/view/doc/paper1-trd-prediction'
+    && opened[0].inkKey === 'doc/paper1-trd-prediction' && opened[0].burn === 'doc/paper1-trd-prediction'
+    ? ok('a document opened from a card goes through Reader.open, with its ink key and its burn kind')
+    : fail('the board opened a document without Reader.open: ' + JSON.stringify(opened));
+  boxes.length === 2 && !el('reader').hidden && el('reader').classList.contains('reader-over')
+    && boxes[0].dataset.ann === 'doc/paper1-trd-prediction/p1'
+    ? ok('a document opens on the board in the built reader, a box per page')
     : fail('the document did not open: ' + boxes.length + ' pages');
+  !el('paper') && !el('paper-pages') && !el('keepwhat')
+    ? ok('the board has no panel of its own: #paper and keep writing are gone')
+    : fail('the old document panel is still in board.html');
+  const oldInk = window.Annotate.marked().indexOf(OLD_KEY) >= 0
+    && window.Annotate.payload(OLD_KEY, false).strokes.length === 1;
+  oldInk
+    ? ok('old ink stored with the retired direction field loads in place, as ordinary ink')
+    : fail('old ink did not load: ' + window.Annotate.marked().join(', '));
+  const keep = el('reader-keep');
+  keep && !keep.hidden && !keep.disabled && /marked copy/.test(keep.textContent)
+    ? ok('keep writing is the marked copy: one button, live once there is ink')
+    : fail('the marked-copy button: ' + (keep ? keep.hidden + '/' + keep.disabled : 'missing'));
+
+  /* EVERY SAVE GOES THROUGH INKKEEP. A page's ink and a card's: a save the
+     board answers 500 stays owed and is retried, and only the retry that
+     lands cleans it. */
+  {
+    const S = { c: '#e8746c', w: 2, pg: 1, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
+    const P2 = 'doc/paper1-trd-prediction/p2';
+    const draw = (key, s) => { window.Annotate.load({ [key]: [s] }); window.Annotate.clear(key); window.Annotate.undo(); };
+    net.save = 'refused';
+    net.saves.length = 0;
+    draw(P2, S);
+    draw('0001', { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] });
+    await sleep(1000);
+    const first = net.saves.filter((x) => x.was === 'refused').map((x) => x.body.card);
+    const owed = window.Annotate.unsaved();
+    first.indexOf(P2) >= 0 && first.indexOf('0001') >= 0
+      && owed.indexOf(P2) >= 0 && owed.indexOf('0001') >= 0
+      ? ok('a refused save of a page and of a card both stay owed')
+      : fail('after a 500: tried ' + JSON.stringify(first) + ', owed ' + JSON.stringify(owed));
+    net.save = 'ok';
+    await sleep(200);
+    const retried = net.saves.filter((x) => x.was === 'ok').map((x) => x.body.card);
+    retried.indexOf(P2) >= 0 && retried.indexOf('0001') >= 0
+      && window.Annotate.unsaved().length === 0
+      && net.saves.every((x) => /^\/annotate\/save$/.test(x.url) && !x.body.send)
+      ? ok('and the keeper retries them on its own, cleans them once they land, and sends nothing')
+      : fail('the retry: ' + JSON.stringify(retried) + ', still owed '
+             + JSON.stringify(window.Annotate.unsaved()));
+    window.Annotate.clear(P2);
+    window.Annotate.clear('0001');
+    await sleep(1000);
+  }
   pages.classList.contains('zoomable') && chip
     ? ok('the panel pinches itself, with a chip that says the zoom')
     : fail('the document panel is not wired to readerzoom.js');
@@ -180,7 +260,7 @@ function gesture(target, name) {
 
   (doc.documentElement.getAttribute('style') || '') === htmlBefore
     && (doc.body.style.transform || '') === bodyBefore
-    && !pages.contains(doc.querySelector('.paper-bar'))
+    && !pages.contains(el('reader-bar'))
     ? ok('nothing outside the pages is scaled: the bar and the page stay put')
     : fail('a pinch on a document touched the page or its bar');
 
@@ -213,7 +293,7 @@ function gesture(target, name) {
   /* A WIDE SHUT PUTS A FINGER ON THE BAR. Its touches go to the bar, not the
      pages, and they are still the reader's. */
   {
-    const bar = doc.querySelector('.paper-bar');
+    const bar = el('reader-bar');
     touch(pages, 'touchstart', [[100, 300]]);
     const s2 = touch(bar, 'touchstart', [[100, 300], [400, 40]]);
     const m2 = touch(bar, 'touchmove', [[175, 235], [325, 105]]);
@@ -231,7 +311,7 @@ function gesture(target, name) {
      once the finger lifts as a tap: unmoved, the pair's gap unchanged, however
      long it was held. */
   {
-    const btn = el('paper-ink');
+    const btn = el('reader-pen');
     let clicks = 0;
     const count = (e) => { if (e.target === btn) { clicks++; e.stopPropagation(); } };
     window.addEventListener('click', count, true);
@@ -344,7 +424,7 @@ function gesture(target, name) {
      is built only from fingers that land within PAIR_MS of each other, or
      beside a first finger that has not begun to scroll. */
   {
-    const bar = doc.querySelector('.paper-bar');
+    const bar = el('reader-bar');
     touch(pages, 'touchstart', [[300, 400]], undefined, { ts: 5000 });
     touch(pages, 'touchmove', [[300, 370]], undefined, { ts: 5040 });
     const late = touch(bar, 'touchstart', [[300, 370], [600, 40]], undefined, { ts: 5600 });
@@ -429,12 +509,12 @@ function gesture(target, name) {
     : fail('palm rejection on a document: finger ' + nib.defaultPrevented + ', palm '
            + hand.defaultPrevented + ', beside the Pencil ' + beside.defaultPrevented);
 
-  /* The latch refuses a pan on the whole panel (`body.pen-writing
-     .paper-pages.zoomable`), its bare strips too, so a finger landing on one
+  /* The latch refuses a pan on the whole reader (`body.pen-writing
+     #reader-pages.zoomable`), its bare strips too, so a finger landing on one
      of those is scrolled by hand like a finger on an ink layer. */
   {
     const sheet = doc.createElement('style');
-    sheet.textContent = '#paper-pages { overflow-y: auto; }';
+    sheet.textContent = '#reader-pages { overflow-y: auto; }';
     doc.head.appendChild(sheet);
     Object.defineProperty(pages, 'scrollHeight', { configurable: true, value: 5000 });
     Object.defineProperty(pages, 'clientHeight', { configurable: true, value: 700 });
@@ -487,12 +567,12 @@ function gesture(target, name) {
   {
     chip.click();
     touch(pages, 'touchstart', [[100, 300]]);
-    const s2 = touch(el('paper'), 'touchstart', [[100, 300], [300, 300]]);
-    const m2 = touch(el('paper'), 'touchmove', [[50, 300], [350, 300]]);
-    touch(el('paper'), 'touchend', []);
+    const s2 = touch(el('reader'), 'touchstart', [[100, 300], [300, 300]]);
+    const m2 = touch(el('reader'), 'touchmove', [[50, 300], [350, 300]]);
+    touch(el('reader'), 'touchend', []);
     s2.defaultPrevented && m2.defaultPrevented && zoom() === '1.5'
       ? ok('a finger on the panel outside its pages and bar is the reader\'s from its touchstart')
-      : fail('a finger on #paper itself: start refused ' + s2.defaultPrevented + ', move '
+      : fail('a finger on #reader itself: start refused ' + s2.defaultPrevented + ', move '
              + m2.defaultPrevented + ', --zoom=' + zoom());
   }
 
@@ -533,20 +613,20 @@ function gesture(target, name) {
     : fail('the viewport clamp stayed: ' + vp.getAttribute('content'));
 
   const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-  /width: calc\(min\(100%, 46rem\) \* var\(--zoom, 1\)\)/.test(css)
-    && /body\.pen-writing \.paper-pages\.zoomable \{ touch-action: none; \}/.test(css)
-    && !/touch-action:[^;]*pinch-zoom/.test(css)
-    ? ok('board.css lays a page out at the zoom, and nothing gives the page its pinch back')
-    : fail('board.css does not lay the panel\'s pages out at --zoom');
+  const rcss = fs.readFileSync(path.join(WEB, 'reader.css'), 'utf8');
+  /width: calc\(min\(100%, 54rem\) \* var\(--zoom, 1\)\)/.test(rcss)
+    && /body\.pen-writing #reader-pages\.zoomable \{ touch-action: none; \}/.test(rcss)
+    && !/touch-action:[^;]*pinch-zoom/.test(css + rcss)
+    ? ok('reader.css lays a page out at the zoom, and nothing gives the page its pinch back')
+    : fail('reader.css does not lay the reader\'s pages out at --zoom');
   /html\.page-magnified \{ touch-action: manipulation; \}/.test(css)
-    && /html\.page-magnified body:not\(\.pen-writing\) :is\(#reader, #paper\) \* \{\s*touch-action: manipulation !important;/.test(css)
+    && /html\.page-magnified body:not\(\.pen-writing\) #reader \* \{\s*touch-action: manipulation !important;/.test(css)
     ? ok('board.css gives the page and the reader the pinch back under page-magnified, and only there')
     : fail('board.css has no page-magnified rule for the page and the reader');
 
   /* ---- the ink stays on its words through a pinch ---------------------- */
   boxes.length && await require('./inkzoom')(window, {
-    ok, fail, name: 'board document', scroller: 'paper-pages', page: '.paper-page',
-    css: 'board.css', fit: 736, naturalHeight: 1604,
+    ok, fail, name: 'board document', naturalHeight: 1604,
   });
 
   /* A shut panel leaves nothing on the page that refuses a touch: the lesson
@@ -558,7 +638,7 @@ function gesture(target, name) {
       if (n === 'touchstart' && o && o.capture) gone.push(fn);
       return rem.call(this, n, fn, o);
     };
-    window.__closePaper();
+    window.__closeReader();
     doc.removeEventListener = rem;
     const s2 = touch(doc.body, 'touchstart', [[100, 300], [400, 300]]);
     const m2 = touch(doc.body, 'touchmove', [[150, 300], [350, 300]]);

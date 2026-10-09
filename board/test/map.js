@@ -290,7 +290,7 @@ function board(W, H, face) {
     },
   });
   for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'ink-core.js', 'slate-core.js',
-                   'annotate.js', 'shot.js']) {
+                   'annotate.js', 'shot.js', 'reader.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }
@@ -668,7 +668,7 @@ const at = (doc, id) => {
       ? ok('a tap on a document opens no sitting at all')
       : fail('a document box asked for a sitting: '
              + JSON.stringify(posts.map((x) => x.url)));
-    !doc.getElementById('paper').hidden && doc.getElementById('work').hidden
+    !doc.getElementById('reader').hidden && doc.getElementById('work').hidden
       ? ok('and puts the document on the glass instead')
       : fail('the document was not opened');
 
@@ -752,7 +752,7 @@ const at = (doc, id) => {
       ? ok('“set me problems” opens a review scoped to that part')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
     p = await pick('doc-deck', 'Show me the document');
-    p === null && !doc.getElementById('paper').hidden
+    p === null && !doc.getElementById('reader').hidden
       ? ok('and a document box, asked from the sheet, is read rather than posted')
       : fail('showing a document asked the server for a sitting');
 

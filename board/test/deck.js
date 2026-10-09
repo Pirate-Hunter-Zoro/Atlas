@@ -1,26 +1,16 @@
 // The meeting deck, read on the glass and marked up on it.
 //
 // Driven in a real DOM, because everything worth checking here is what the
-// page SENDS and DRAWS, and one of those things is a route it must never send
-// to.
+// page SENDS and DRAWS.
 //
-//   * A MARK IS DIRECTION, NOT FEEDBACK. Every line of this page makes
-//     `/library/feedback` the obvious next call, and it is the wrong one: that
-//     route files a complaint about the document and wakes a turn to fix the
-//     slides. The deck is a throwaway communication tool; what a mentor draws
-//     on a frame is a suggested new direction for the project that frame is
-//     about. `/meeting/direction` is the only route the marks go to.
-//   * THE PAGE IS HOW A MARK FINDS ITS PROJECT. One frame per workspace, and
-//     the caption under each page names it BEFORE anybody draws, so marking
-//     the wrong slide is visibly the wrong slide.
-//   * A MARK ON THE TITLE SLIDE BELONGS TO NOBODY, and the page says so rather
-//     than letting somebody believe it went somewhere.
-//   * NOTHING IS APPLIED. The panel says, before it sends, that each workspace
-//     writes a card PROPOSING a direction and stops -- because the route it
-//     would be easy to build instead archives a lesson and replaces an
-//     assistant, unattended, in as many workspaces as there are marked slides.
-//   * NO NAME GOES OVER THE WIRE. There is one deck, so `/meeting/view` takes
-//     no argument at all.
+//   * THE ONE READER. The deck is drawn by `reader.js`, the same pages, pen,
+//     pinch and save as every other PDF on the glass.
+//   * A MARK IS FEEDBACK ON THE DECK, like ink on any document: kept in the
+//     Meetings subject, and sent with what is typed to `/library/feedback`
+//     there, which queues a `[revise]` turn. No direction route, no second
+//     kind of ink.
+//   * NO NAME GOES OVER THE WIRE for the pages. There is one deck, so
+//     `/meeting/view` takes no argument at all.
 
 const fs = require('fs');
 const path = require('path');
@@ -39,13 +29,12 @@ const ok = (m) => console.log('ok   ' + m);
 const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* What `/meeting/view` serves: the pages, the page map, the names those
-   workspaces are drawn under, and whatever ink is already on them. */
+/* What `/meeting/view` serves: the pages, the subjects the deck covers, and
+   whatever ink is already on them. */
 const VIEW = {
   ok: true, n: 3, truncated: false,
   pages: ['/paper/deck-1.png', '/paper/deck-2.png', '/paper/deck-3.png'],
-  pages_of: { 2: 'research/PSYCH-ASR', 3: 'research/TRD-EHR' },
-  names: { 'research/PSYCH-ASR': 'PSYCH-ASR', 'research/TRD-EHR': 'TRD-EHR' },
+  workspaces: ['projects/PSYCH-ASR', 'projects/TRD-EHR'],
   since: 'last week',
   ink: {},
   unsupported: {
@@ -72,12 +61,11 @@ window.fetch = (u, opts) => {
   if (/annotate\/save/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({ ok: true }) });
   }
-  if (/meeting\/direction/.test(url)) {
+  if (/library\/feedback/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({
-      ok: true, sent: [{ workspace: 'research/PSYCH-ASR', name: 'PSYCH-ASR',
-                         pages: [2], turn: '0007' }],
-      skipped: [],
-      detail: '1 workspace has been asked to propose a new direction.',
+      ok: true, rel: 'projects/Meetings/docs/meeting/feedback/2026-10-09-v1.md',
+      revise: 'board', asked: true,
+      detail: 'The tutor has been asked to revise it, in the newest session on this subject.',
     }) });
   }
   return new Promise(() => {});
@@ -111,7 +99,7 @@ try { window.eval(fs.readFileSync(path.join(WEB, 'meeting.js'), 'utf8')); }
 catch (e) { fail('meeting.js: ' + e.message); }
 
 // THE DECK ZOOMS ITSELF, the library reader's way: `readerzoom.js` owns the
-// pinch and the palm, and a deck without it is a deck `library.css` would not
+// pinch and the palm, and a deck without it is a deck `reader.css` would not
 // let a palm-free pen scroll.
 doc.getElementById('reader-pages').classList.contains('zoomable')
   && doc.getElementById('reader-zoom')
@@ -127,7 +115,7 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
     ? ok('the page asks for the one deck, and names nothing')
     : fail('the view was asked for as: ' + asked.map((a) => a.url).join('|'));
 
-  // 2. Every slide is an anchor, and every slide says whose it is.
+  // 2. Every slide is an anchor, in the one reader.
   const pages = Array.prototype.slice.call(doc.querySelectorAll('.lib-page'));
   pages.length === 3
     ? ok('every slide is drawn')
@@ -136,12 +124,15 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
     === 'doc/meeting/p1|doc/meeting/p2|doc/meeting/p3'
     ? ok('and each one carries the page address the pen anchors to')
     : fail('anchors: ' + pages.map((p) => p.dataset.ann).join('|'));
-  /PSYCH-ASR/.test(pages[1].querySelector('figcaption').textContent)
-    && /every project/.test(pages[0].querySelector('figcaption').textContent)
-    ? ok('and says which project it is about before anybody draws on it, '
-         + 'because the page is how a mark finds its project')
+  pages.map((p) => p.querySelector('figcaption').textContent).join('|') === '1|2|3'
+    && /2 projects/.test(doc.getElementById('deck-count').textContent)
+    && /3 slides · last week/.test(doc.getElementById('reader-sub').textContent)
+    ? ok('and the reader numbers the slides and says what the deck covers')
     : fail('captions: ' + pages.map(
         (p) => p.querySelector('figcaption').textContent).join(' | '));
+  window.Reader && window.Reader.current() && window.Reader.current().id === 'meeting'
+    ? ok('the deck is open in the one reader (`Reader.open`)')
+    : fail('the deck is not drawn by reader.js');
 
   // 2a. What no source supports is on the page, with the slide it is on.
   {
@@ -179,66 +170,55 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
       : fail('done left the pen on, or the bar up');
   }
 
-  // 3. Nothing to send until something is marked.
+  // 3. Words alone are feedback, so the send is live once the deck is drawn.
   const send = doc.getElementById('deck-send');
-  send.disabled
-    ? ok('there is nothing to send until something is marked')
-    : fail('the send button was live with no marks');
+  !send.disabled && /say what is wrong/.test(send.textContent)
+    ? ok('say what is wrong is live on a drawn deck')
+    : fail('the send button: ' + send.disabled + ' ' + send.textContent);
 
-  // 4. A mark on the title slide belongs to nobody, and it is SAID.
+  // 4. A mark on a slide is said, by slide.
   //
   // `load` restores ink without firing the page's own change callback -- which
   // is right, because that is what a reload does. `clear` on a key nothing is
   // drawn on fires it and changes nothing else, which is the cheapest way to
   // reach the repaint a stroke would have caused without a canvas to stroke on.
-  window.Annotate.load({ 'doc/meeting/p1': [[[0.1, 0.1], [0.4, 0.2]]] });
-  window.Annotate.clear('doc/meeting/p9');
-  await sleep(10);
-  const said = doc.getElementById('reader-said').textContent;
-  /go nowhere/.test(said) && doc.getElementById('deck-send').disabled
-    ? ok('a mark on the title slide is said to go nowhere rather than '
-         + 'silently dropped')
-    : fail('the title-slide mark was not reported: ' + said);
-
-  // 5. A mark on a project's slide is that project's direction.
   window.Annotate.load({ 'doc/meeting/p2': [[[0.2, 0.2], [0.5, 0.3]]] });
   window.Annotate.clear('doc/meeting/p9');
   await sleep(10);
-  !doc.getElementById('deck-send').disabled
-    && /PSYCH-ASR/.test(doc.getElementById('reader-said').textContent)
-    ? ok('a mark on a project slide names that project, and the send is live')
-    : fail('the marked project was not picked up: '
-           + doc.getElementById('reader-said').textContent);
+  /Marked on slide 2\./.test(doc.getElementById('reader-said').textContent)
+    ? ok('a mark on a slide is said, by slide')
+    : fail('the mark was not reported: ' + doc.getElementById('reader-said').textContent);
 
-  // 6. IT SAYS WHAT IS ABOUT TO HAPPEN BEFORE IT HAPPENS, and the thing it
-  //    says is the thing that makes it safe.
-  doc.getElementById('deck-send').dispatchEvent(
-    new window.MouseEvent('click', { bubbles: true }));
+  // 5. The panel says what goes with it, and takes words.
+  send.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await sleep(10);
   const panel = doc.getElementById('note');
-  !panel.hidden && /PSYCH-ASR/.test(doc.getElementById('deck-ask-list').textContent)
-    ? ok('sending asks first, and names which projects it would wake')
-    : fail('the confirmation did not open');
-  /proposing/i.test(panel.textContent) && /Nothing is applied/.test(panel.textContent)
-    ? ok('and says plainly that nothing is applied: each one writes a card')
-    : fail('the panel does not say what it will not do');
+  !panel.hidden && /slide 2/.test(doc.getElementById('deck-ask-list').textContent)
+    && doc.getElementById('deck-ask-text')
+    ? ok('say what is wrong opens a panel that names the marked slides and takes words')
+    : fail('the feedback panel did not open');
+  !/propos|direction/i.test(panel.textContent)
+    ? ok('and nothing on it is about directions or a proposal')
+    : fail('the panel still speaks of directions: ' + panel.textContent);
 
-  // 7. The marks go to `/meeting/direction` and nowhere else.
+  // 6. The marks and the words go to `/library/feedback` in Meetings.
   sent.length = 0;
+  doc.getElementById('deck-ask-text').value = 'Slide 2 needs the ROC curve.';
   doc.getElementById('deck-ask-go').dispatchEvent(
     new window.MouseEvent('click', { bubbles: true }));
   await sleep(30);
-  const where = sent.map((r) => r.url);
-  where.indexOf('/meeting/direction') !== -1
-    ? ok('the marks are sent as direction')
-    : fail('nothing was sent: ' + where.join('|'));
-  !where.some((u) => /library\/feedback/.test(u))
-    ? ok('and never as feedback on the deck, which would spend a turn fixing '
-         + 'the slides and throw away what the marks said')
-    : fail('the page filed feedback on the deck');
-  /propose a new direction/.test(doc.getElementById('deck-ask-said').textContent)
-    ? ok('and the reply says what was asked of them')
-    : fail('the reply was not painted');
+  const filed = sent.filter((r) => /\/library\/feedback\?subject=projects%2FMeetings$/.test(r.url));
+  const fbody = filed.length ? JSON.parse(filed[0].opts.body) : {};
+  fbody.document === 'meeting' && /ROC/.test(fbody.text)
+    ? ok('the marks go as feedback on the deck, to the Meetings subject')
+    : fail('nothing was filed: ' + sent.map((r) => r.url).join('|'));
+  !sent.some((r) => /direction/.test(r.url))
+    ? ok('and no direction route is asked')
+    : fail('the page asked a direction route');
+  /Filed at projects\/Meetings\/docs\/meeting\/feedback/.test(
+    doc.getElementById('deck-ask-said').textContent)
+    ? ok('and the reply says where the round was filed')
+    : fail('the reply was not painted: ' + doc.getElementById('deck-ask-said').textContent);
 
   // 8. Nothing on this page knows how to touch a lesson.
   //
@@ -248,9 +228,8 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
   // explaining it.
   const js = fs.readFileSync(path.join(WEB, 'meeting.js'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  !/library\/feedback|"\/say"|\/session|"\/direction"|live\/cards/.test(js)
-    ? ok('nothing in it knows how to write a card, file feedback, or apply a '
-         + 'direction')
+  !/"\/say"|\/session|direction|live\/cards/.test(js)
+    ? ok('nothing in it knows how to write a card or reach a direction route')
     : fail('meeting.js reaches somewhere it must not');
 
   // 9. The way back, because this is a full-screen surface -- and it is named
@@ -267,8 +246,8 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
   await inkIsKept();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-                            : '\na mark on a meeting slide is that project\'s '
-                              + 'direction, and nothing about the slide');
+                            : '\na mark on a meeting slide is feedback on the deck, '
+                              + 'in the one reader');
   process.exit(errors.length ? 1 : 0);
 })();
 
@@ -350,8 +329,9 @@ async function inkIsKept() {
   const first = saves().pop();
   const body = first ? JSON.parse(first.opts.body) : {};
   (body.build || {}).digest === BUILD.digest && body.card === P2 && !body.send
-    && body.deck === net.deck
-    ? ok('ink: a saved slide carries the build and the deck it was drawn on, and is not a send')
+    && body.deck === net.deck && /subject=projects%2FMeetings/.test(first.url)
+    ? ok('ink: a saved slide carries the build and the deck it was drawn on, is not a '
+         + 'send, and is kept in the Meetings subject')
     : fail('ink: the save was: ' + (first && first.opts.body));
   kept() === 'saved · 1 page marked'
     ? ok('ink: once it lands the bar says “saved · 1 page marked”')
@@ -402,10 +382,10 @@ async function inkIsKept() {
   byId('deck-send').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   byId('deck-ask-go').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   await sleep(40);
-  !log.some((r) => /meeting\/direction/.test(r.url))
+  !log.some((r) => /library\/feedback/.test(r.url))
     && /not saved yet/.test(byId('deck-ask-said').textContent)
-    ? ok('ink: marks the board has not got are not sent as direction, and it says so')
-    : fail('ink: direction went with unsaved ink: ' + byId('deck-ask-said').textContent);
+    ? ok('ink: marks the board has not got are not filed, and it says so')
+    : fail('ink: feedback went with unsaved ink: ' + byId('deck-ask-said').textContent);
   // ---- close waits for the ink, and says when it will not save ---------
   byId('reader-close').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   await sleep(40);

@@ -4,7 +4,7 @@
    THE READER ZOOMS ITSELF, AND SAFARI DOES NOT. Safari's own pinch scales the
    whole page -- bar and all -- and leaves the reader scrolling a layout that
    thinks nothing happened. Here a pinch changes the WIDTH the pages are laid
-   out at (`--zoom` on the scroller, read by `.lib-page` in `library.css`): the
+   out at (`--zoom` on the scroller, read by `.lib-page` in `reader.css`): the
    pictures and the ink are re-laid out rather than magnified, the pen measures
    real pixels at any zoom, and ink kept in fractions of a page lands where it
    was drawn. While the fingers are down the scroller is only transformed,
@@ -16,7 +16,7 @@
    contact wider than a fingertip, anything landing while the Pencil is on the
    glass, or anything landing while the nib has only just lifted (`pen-writing`,
    `annotate.js`'s latch, which also sets `touch-action: none` on the pages in
-   `library.css`). A hand writing is never a pinch either.
+   `reader.css`). A hand writing is never a pinch either.
 
    AND SAFARI NEVER GETS A PINCH WHILE A DOCUMENT IS OPEN. A pinch the reader
    does not take is Safari's, and a shut it takes bounces the whole page. A

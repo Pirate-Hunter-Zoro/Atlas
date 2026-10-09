@@ -102,20 +102,15 @@ def ann_path(repo, key, ext=".json"):
     return os.path.join(course_repo.ink_dir(repo, key), ann_file(key) + ext)
 
 
-def png_path(repo, key, kind="fix"):
-    """Where one key's picture of one kind of ink is kept.
-
-    ONE FILE PER KIND, because each send re-saves only its own kind's
-    pictures and a page whose image has not loaded is skipped: a shared file
-    could be filed holding the other kind's marks. `ann_file` never puts a `.`
-    in a stem, so `<stem>.dir.png` cannot be another key's `<stem>.png`.
-    """
-    return ann_path(repo, key, ".dir.png" if kind == "dir" else ".png")
+def png_path(repo, key):
+    """Where one key's picture of its ink is kept. A `<stem>.dir.png` beside
+    it is a retired kind's picture, and nothing reads it."""
+    return ann_path(repo, key, ".png")
 
 
 # THE STROKES THE BOARD TOOK OFF A PAGE, kept until every reader has let them
-# go. A landed round's wipe and a sent direction delete strokes on disk, but a
-# reader still showing them saves them back as new ink. So `strip_kind` buries
+# go. A landed round's wipe deletes strokes on disk, but a reader still showing
+# them saves them back as new ink. So `library.strip` buries
 # what it takes in `<stem>.gone` (not `.json`, so no drawer read sees it), the
 # reader is told which (`library.wiped`), and `/annotate/save` refuses those
 # exact strokes on that page. A save carrying none of them means the reader has
@@ -281,9 +276,7 @@ def post(h, repo, path):
         # UNLESS NOTHING CHANGED. The library re-saves a page only to attach
         # its picture before a note goes, with the very strokes already on
         # disk; clearing the flag there would send ink a round already
-        # delivered a second time. `sent` is about FIX ink only (a sent
-        # direction is taken off the page, `library.strip_kind`), so direction
-        # ink drawn beside delivered fixes does not put the fixes back.
+        # delivered a second time.
         try:
             with open(record_path, "r", encoding="utf-8") as fh:
                 was = json.load(fh)
@@ -300,8 +293,7 @@ def post(h, repo, path):
             strokes = kept
         if not sent:
             sent = bool(was.get("sent")) and \
-                notes.of_kind(was.get("strokes") or [], "fix") == \
-                notes.of_kind(strokes, "fix")
+                (was.get("strokes") or []) == strokes
         rec = {"card": card, "strokes": strokes, "sent": sent}
         # WHICH BUILD THE INK WAS DRAWN ON, as the reader that drew it says.
         # A document rebuilt overnight moves its text under the marks, and the
@@ -324,23 +316,11 @@ def post(h, repo, path):
         if marker in png:
             import base64
             try:
-                saved_png = png_path(repo, card, "dir" if payload.get("png_kind")
-                                     == "dir" else "fix")
+                saved_png = png_path(repo, card)
                 with open(saved_png, "wb") as fh:
                     fh.write(base64.b64decode(png.split(marker, 1)[1]))
             except Exception:
                 saved_png = None
-        # A DIRECTION PICTURE IS OF THE STROKES IT WAS TAKEN WITH. A save that
-        # changes the page's direction strokes without bringing a new one
-        # deletes the old, so a send never carries a picture of other marks.
-        if not (saved_png and payload.get("png_kind") == "dir"):
-            sig = lambda ss: [notes.stroke_sig(s) for s in notes.of_kind(ss, "dir")]
-            if sig(was.get("strokes") or []) != sig(strokes):
-                try:
-                    os.remove(png_path(repo, card, "dir"))
-                except OSError:
-                    pass
-
         if not payload.get("send"):
             h.hub.worker.dirty.set()
             return h.send_json({"ok": True, "card": card})

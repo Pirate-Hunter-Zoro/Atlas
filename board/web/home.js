@@ -1699,25 +1699,11 @@ window.addEventListener("focus", refresh);
 window.addEventListener("pageshow", refresh);
 
 /* ---------------------------------------------------------------- chrome */
-var THEME_KEY = "board.theme";
-function applyTheme(mode) {
-  document.body.dataset.mode = mode;
-  syncSystemTheme();
-  try { localStorage.setItem(THEME_KEY, mode); } catch (e) {}
-}
-function syncSystemTheme() {
-  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.body.classList.toggle("sys-dark", dark);
-}
+/* The theme is `typeface.js`'s, one function for every page. */
 document.getElementById("btn-theme").onclick = function () {
-  var order = ["auto", "light", "dark"];
-  applyTheme(order[(order.indexOf(document.body.dataset.mode) + 1) % 3]);
+  if (window.Typeface) window.Typeface.theme("next");
 };
 document.getElementById("btn-reload").onclick = function () { location.reload(); };
-if (window.matchMedia) {
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncSystemTheme);
-}
-try { applyTheme(localStorage.getItem(THEME_KEY) || "auto"); } catch (e) { applyTheme("auto"); }
 
 /* ------------------------------------------------------------------ PWA */
 if ("serviceWorker" in navigator && window.isSecureContext) {

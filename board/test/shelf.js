@@ -173,7 +173,7 @@ function board() {
     + 'window.__paperViewUrl = paperViewUrl;\n'
     + 'window.__papers = function () { return papers; };\n'
     + 'window.__standIn = function (name, fn) {\n'
-    + '  if (name === "openPaper") openPaper = fn;\n'
+    + '  if (name === "readKind") readKind = fn;\n'
     + '  if (name === "saveCopy") saveCopy = fn;\n'
     + '  if (name === "mapReadDoc") mapReadDoc = fn;\n'
     + '};\n})();');
@@ -471,7 +471,7 @@ const plateOf = (doc, id) =>
   // ------------------------------------------------- read it, and save it
   {
     const opened = [], saved = [];
-    w.__standIn('openPaper', (kind, label) => opened.push([kind, label]));
+    w.__standIn('readKind', (kind, label) => opened.push([kind, label]));
     w.__standIn('saveCopy', (kind) => saved.push(kind));
     const row = doc.querySelectorAll('#shelf-list .shelf-row')[0];
     const acts = Array.prototype.map.call(row.querySelectorAll('.shelf-acts button'),

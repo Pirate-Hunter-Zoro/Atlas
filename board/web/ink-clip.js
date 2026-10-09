@@ -128,9 +128,6 @@ window.InkClip = {
                     q.length > 2 ? Math.round(q[2] * 100) / 100 : 0.5];
           }),
         };
-        /* A document's direction ink stays one when pasted in the library
-           reader (`Annotate.keepKinds`); every other surface drops it. */
-        if (s.dir) out.dir = 1;
         return out;
       }),
     };
