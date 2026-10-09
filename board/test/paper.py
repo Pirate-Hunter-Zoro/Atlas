@@ -426,7 +426,7 @@ for path in ("/download/lesson", "/download/homework", "/view/homework",
              "/paper/abc123-1.png"):
     check("the service worker never caches %s" % path, not sw_answers(path))
 check("and still caches the shell it exists for",
-      sw_answers("/static/board.js") and sw_answers("/board")
+      sw_answers("/static/board.js") and sw_answers("/static/board.html")
       and sw_answers("/static/katex/fonts/KaTeX_Main-Regular.woff2"))
 check("and every shell path is a file the server has",
       all(os.path.isfile(page_routes.shell_file(u)) for u in shell))

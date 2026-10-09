@@ -37,7 +37,7 @@ AI_CONFIG_TESTS = os.path.join(ROOT, "ai-config", "scripts", "test.sh")
 # Files in this directory that are not suites. A helper other than this file
 # is a shared case some suite requires; the run names the suites it runs in,
 # and fails when none does.
-HELPERS = ["run.py", "inkzoom.js"]
+HELPERS = ["run.py", "inkzoom.js", "sessionpage.js"]
 
 # Suites that must not run beside one another: each binds a fixed port or
 # writes shared state under ~/.config. Found by comparing a -j 1 run with a

@@ -10,6 +10,12 @@
    untouched. A cached lesson, document or figure is a stale one, worse than
    none, and a new live route must not need a line here to be left alone.
 
+   A SESSION'S PAGES ARE THE SHELL UNDER ANOTHER NAME. `/s/<id>/board` and
+   `/s/<id>/slate` are board.html and slate.html whatever the id, so they are
+   cached once, under their /static/ names, and a session URL the network
+   cannot answer gets the cached page (or the unreachable one). No session id
+   is ever a cache key.
+
    VERSION IS WRITTEN BY THE SERVER. `routes/pages.py` serves this file with
    the literal below replaced by a hash of every SHELL file, so any edit to the
    shell installs a new worker and a new cache by itself.
@@ -19,8 +25,8 @@ var VERSION = "board-shell-dev";
 
 var SHELL = [
   "/",
-  "/board",
-  "/slate",
+  "/static/board.html",
+  "/static/slate.html",
   "/library",
   "/meeting",
   "/static/home.css",
@@ -66,6 +72,16 @@ var SHELL = [
    under one name, and which font faces a lesson needs depends on its maths. */
 var RUNTIME = /^\/static\/(katex|fonts)\//;
 
+/* The cached page a session's navigation falls back to. */
+var SESSION_PAGE = /^\/s\/[^\/]+(?:\/(board|slate|library)?)?\/?$/;
+var SESSION_SHELL = { board: "/static/board.html", slate: "/static/slate.html",
+                      library: "/library" };
+
+function sessionShell(pathname) {
+  var m = SESSION_PAGE.exec(pathname);
+  return m ? SESSION_SHELL[m[1] || "board"] : null;
+}
+
 /* SHELL as a set of exact pathnames. A query string is not part of the match,
    because a home-screen icon can carry one. */
 var IN_SHELL = {};
@@ -108,6 +124,19 @@ self.addEventListener("fetch", function (e) {
             caches.open(VERSION).then(function (c) { c.put(req, copy); });
           }
           return res;
+        });
+      })
+    );
+    return;
+  }
+
+  /* A session's page: the network's while it answers, else the shell. */
+  var shellPage = sessionShell(url.pathname);
+  if (shellPage && isPage(req)) {
+    e.respondWith(
+      fetch(req).catch(function () {
+        return caches.match(shellPage).then(function (hit) {
+          return hit || unreachablePage();
         });
       })
     );

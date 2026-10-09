@@ -39,6 +39,8 @@
      stamp(id)   more fields for a fresh body of the key, or null
      paint()     repaint whatever says where the ink is
      saved(done) after a round, `done` = [{id, ok, gone}]
+     url         where a body is POSTed (default `/annotate/save`): the
+                 reader's session or subject route
    and answers `{save, queue, flush, settle, owed, failed}`. `InkKeep.words`
    is the one sentence both status lines say.
    ========================================================================== */
@@ -111,7 +113,7 @@ function make(opts) {
         init.keepalive = true;
         budget -= init.body.length;
       }
-      var job = fetch("/annotate/save", init).then(function (r) {
+      var job = fetch(opts.url || "/annotate/save", init).then(function (r) {
         var read = r && r.json ? r.json().catch(function () { return {}; })
                                : Promise.resolve({});
         return read.then(function (got) {

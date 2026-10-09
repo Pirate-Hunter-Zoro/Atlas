@@ -257,6 +257,9 @@ function create(opts) {
   /* Where the controls go. On the board that is the page's own chrome bar, so
      they read as part of the app rather than as a widget dropped on top of it. */
   var barHost = opts.bar || null;
+  /* Where its pages are read from and saved to, and the full-screen page: the
+     host's session routes (`stateUrl`, `saveUrl`, `fullUrl`). The component
+     knows about ink, not about which session it is in. */
 
   var api = {};
   var pages = [];
@@ -564,7 +567,7 @@ function create(opts) {
   if (compact) {
     var rFull = menuRow("Room");
     var aFull = el("a", "sl-chip", "full screen");
-    aFull.href = "/slate";
+    aFull.href = opts.fullUrl || "/slate";
     rFull.appendChild(aFull);
   }
 
@@ -2184,7 +2187,7 @@ function create(opts) {
       if (ctx.turn) body.turn = ctx.turn;
       if (ctx.answers) body.answers = ctx.answers;
     }
-    var done = fetch("/slate/save", {
+    var done = fetch(opts.saveUrl || "/slate/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -2467,7 +2470,7 @@ function create(opts) {
   layout();
   fitPage();
 
-  fetch("/slate/state").then(function (r) { return r.json(); }).then(function (d) {
+  fetch(opts.stateUrl || "/slate/state").then(function (r) { return r.json(); }).then(function (d) {
     var saved = (d.pages || []).filter(function (p) { return p && p.w && p.h; });
     /* Only adopt saved pages if nothing has been drawn in the meantime --
        whatever is under the pen wins over whatever the server remembered.

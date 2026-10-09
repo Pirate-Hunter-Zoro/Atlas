@@ -45,6 +45,37 @@
         the note goes, not the moment the pen lifts.
    ========================================================================== */
 
+/* WHOSE LIBRARY THIS IS. Under `/s/<id>/library` it is that session's subject,
+   and every route goes back under the prefix. Unprefixed, `?subject=<id>`
+   names the subject and rides on every subject route. `libUrl` is the one
+   place either is added; `libFetch` fetches through it. */
+function sessionBase() {
+  var m = /^\/s\/[^\/]+/.exec(location.pathname || "");
+  return m ? m[0] : "";
+}
+var BASE = sessionBase();
+var SUBJECT = "";
+try { SUBJECT = new URLSearchParams(location.search).get("subject") || ""; }
+catch (e) { SUBJECT = ""; }
+
+function libUrl(path) {
+  if (typeof path !== "string" || path.charAt(0) !== "/" || path.charAt(1) === "/"
+      || path.indexOf("/static/") === 0) return path;
+  if (BASE) return path.indexOf(BASE + "/") === 0 ? path : BASE + path;
+  if (!SUBJECT || /[?&]subject=/.test(path)) return path;
+  return path + (path.indexOf("?") === -1 ? "?" : "&")
+    + "subject=" + encodeURIComponent(SUBJECT);
+}
+
+function libFetch(path, init) { return fetch(libUrl(path), init); }
+
+/* One origin serves every session and subject, so what this device remembers
+   about a library is kept per session, or per subject outside one. `scoped`
+   adds that to a key; with neither, the key is as written. */
+var LIB_SCOPE = BASE ? "s:" + decodeURIComponent(BASE.slice(3))
+              : SUBJECT ? "subject:" + SUBJECT : "";
+function scoped(key) { return LIB_SCOPE ? key + LIB_SCOPE + ":" : key; }
+
 var els = {
   back: document.getElementById("lib-back"),
   where: document.getElementById("lib-where"),
@@ -134,16 +165,22 @@ var els = {
 var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
                           title: "back to everything" },
                   /* The board reopens on the map it was left on. */
-                  map: { href: "/board", text: "\u2039 Map",
+                  map: { href: BASE + "/board", text: "\u2039 Map",
                          title: "back to the map" } };
 
 (function backWhereYouCameFrom() {
   var el = els.back;
   if (!el) return;
+  /* Under a session, its board; a subject's library outside one has no board
+     to go back to, so it goes back to everything. */
+  if (BASE) {
+    Array.prototype.forEach.call(document.querySelectorAll('a[href^="/board"]'),
+      function (a) { a.setAttribute("href", BASE + a.getAttribute("href")); });
+  }
   var from = "";
   try { from = new URLSearchParams(location.search).get("from") || ""; }
   catch (e) { from = ""; }
-  var want = CAME_FROM[from];
+  var want = CAME_FROM[from] || (!BASE && SUBJECT ? CAME_FROM.home : null);
   if (!want) return;
   el.href = want.href;
   el.textContent = want.text;
@@ -189,7 +226,7 @@ var stampAll = "";           /* one hash of all of it */
    request that filed the note, and it runs for a minute or for an hour. Kept
    where a reload finds it again, because a tablet put down and picked up is the
    normal case and "the board forgot you asked" is the silence this removes. */
-var FLIGHT_KEY = "library.flight";
+var FLIGHT_KEY = LIB_SCOPE ? "library.flight:" + LIB_SCOPE : "library.flight";
 var flight = null;           /* {id, ask, at, stamp} */
 
 /* HOW SHORT A PURPOSE MAY BE. The server is the rule -- `library.PURPOSE_LEAST`
@@ -222,7 +259,7 @@ function since(at) {
 }
 
 function load() {
-  fetch("/library.json", { credentials: "same-origin" })
+  libFetch("/library.json", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) { paint(got || {}); })
     .catch(function () {
@@ -343,7 +380,7 @@ function poll() {
   if (stampTimer) clearTimeout(stampTimer);
   stampTimer = null;
   if (document.hidden) return;       /* a backgrounded tab asks nothing */
-  fetch("/library/stamp", { credentials: "same-origin" })
+  libFetch("/library/stamp", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) { moved(got || {}); })
     .catch(function () { /* the poll is quiet about a board that is down; the
@@ -574,7 +611,7 @@ function deleteButton(doc) {
     armed = null;
     b.disabled = true;
     b.textContent = "deleting";
-    fetch("/doc/delete", {
+    libFetch("/doc/delete", {
       method: "POST", credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subject: subject, id: doc.id })
@@ -747,7 +784,7 @@ els.readerPages.addEventListener("scroll", noteAnchor, { passive: true });
    the anchor is taken where it landed; and "not fixed — send them" is the
    filing panel, which carries every reopened pair. */
 var ledger = window.Ledger ? window.Ledger.make({
-  pages: els.readerPages, button: els.readerChanges, changed: load,
+  pages: els.readerPages, button: els.readerChanges, changed: load, url: libUrl,
   zoom: zoomer,
   send: function (doc) { say(doc, 0, "fixes"); },
   scrolled: function () { placeWanted = 0; noteAnchor(); },
@@ -767,7 +804,7 @@ function draw(doc, place, at) {
   if (!place) els.readerPages.scrollTop = 0;
   paintReaderSaid();
   var asked = doc.id;
-  fetch("/library/view/" + encodeURIComponent(doc.id),
+  libFetch("/library/view/" + encodeURIComponent(doc.id),
         { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
@@ -795,7 +832,7 @@ function draw(doc, place, at) {
            (`library.css`). */
         fig.setAttribute("data-ann-page", "");
         var img = document.createElement("img");
-        img.src = url;
+        img.src = libUrl(url);
         img.alt = "page " + (i + 1);
         img.setAttribute("loading", i < 2 ? "eager" : "lazy");
         fig.appendChild(img);
@@ -1070,7 +1107,7 @@ function savePictures(docId, kind) {
       var body = window.Annotate.payload(id, false);
       body.png = png;
       if (kind === "dir") body.png_kind = "dir";
-      return fetch("/annotate/save", {
+      return libFetch("/annotate/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -1098,6 +1135,7 @@ var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
   /* Only for the document on the glass: that is the only build this page
      knows it drew. */
   build: function (id) { return openBuild && mineKey(id) ? openBuild : null; },
+  url: libUrl("/annotate/save"),
   paint: function () { paintKept(); },
   saved: function (done) {
     if (done.some(function (d) { return d.ok; })) load();
@@ -1159,7 +1197,7 @@ function keepCopy() {
       throw new Error("The ink is not saved yet, so a copy would be missing "
                       + "some of it. It is retrying; keep the copy once it says saved.");
     }
-    return fetch("/annotate/burn", {
+    return libFetch("/annotate/burn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -1190,7 +1228,7 @@ function flushPenFor() {
 /* Fetched as soon as it exists, so the tap on *save a copy* can share it in the
    same gesture -- the only moment Safari allows the share sheet. */
 function warmCopy(copy) {
-  fetch(copy.url, { credentials: "same-origin" }).then(function (res) {
+  libFetch(copy.url, { credentials: "same-origin" }).then(function (res) {
     if (res.ok === false) throw new Error("the board would not give it up");
     return res.blob();
   }).then(function (blob) {
@@ -1329,7 +1367,7 @@ function pageInView() {
    a mentor's suggestion side by side. Each kind has its own send -- a
    suggestion sent as a correction spends a turn polishing slides while
    throwing the suggestion away. */
-var MODE_KEY = "library.inkmode:";
+var MODE_KEY = scoped("library.inkmode:");
 
 function modeOf(doc) {
   if (!doc) return "fixes";
@@ -1432,7 +1470,7 @@ function askSplit() {
   }
   var mine = ++splitAsked;
   var forDoc = noteFor.id;
-  fetch("/library/ledger/preview", {
+  libFetch("/library/ledger/preview", {
     method: "POST", credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document: forDoc, text: els.noteText.value,
@@ -1548,8 +1586,8 @@ function paintSend() {
 /* ONE DRAFT PER KIND OF SEND, so words about a direction never come back in a
    fix's panel and filing one leaves the other. A direction draft kept under
    the fixes' key (`ask: "direction"`) is read by the directions' panel only. */
-var DRAFT_KEY = "library.draft:";
-var DRAFT_DIR_KEY = "library.draft-dir:";
+var DRAFT_KEY = scoped("library.draft:");
+var DRAFT_DIR_KEY = scoped("library.draft-dir:");
 
 function draftKey(id, kind) {
   return (kind === "directions" ? DRAFT_DIR_KEY : DRAFT_KEY) + id;
@@ -1626,7 +1664,7 @@ function showRound(doc, note, button) {
   /* THE ID AND THE NAME, both matched on the server against what discovery
      found beside this document. Never a path -- the server holds the only
      mapping from one to the other. */
-  fetch("/library/note/" + encodeURIComponent(doc.id) + "/"
+  libFetch("/library/note/" + encodeURIComponent(doc.id) + "/"
         + encodeURIComponent(note.name), { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
@@ -1661,7 +1699,7 @@ function sendDirection(said) {
     /* WHICH PAGES WERE PICTURED FOR THIS SEND, and how many direction
        strokes each had: the server sends those pages only while they still
        have that many, and keeps every other. */
-    return fetch("/library/direction", {
+    return libFetch("/library/direction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -1734,7 +1772,7 @@ els.noteSend.onclick = function () {
      filed. */
   savePen().then(function () { return savePictures(forDoc, "fix"); },
                  function () { return savePictures(forDoc, "fix"); })
-  .then(function () { return fetch("/library/feedback", {
+  .then(function () { return libFetch("/library/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
@@ -1823,7 +1861,7 @@ var findWords = "";
 var resWhy = "";             /* the server's sentence for an empty walk */
 
 function loadResults() {
-  fetch("/library/results.json", { credentials: "same-origin" })
+  libFetch("/library/results.json", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) { paintResults(got || {}); })
     .catch(function () {
@@ -2030,7 +2068,7 @@ function paintShown(rec, keep) {
     return;
   }
   els.shownBody.appendChild(saidLine("Reading it…"));
-  fetch("/library/table/" + encodeURIComponent(rec.id),
+  libFetch("/library/table/" + encodeURIComponent(rec.id),
         { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) { drawTable(rec, got || {}); })
@@ -2377,7 +2415,7 @@ function figureTile(rec, i) {
      and which `sw.js` sends to the network always -- the next job rewrites a
      figure at the same name, so a cached one is last week's result under this
      week's label. */
-  img.dataset.src = "/result/" + encodeURIComponent(rec.id);
+  img.dataset.src = libUrl("/result/" + encodeURIComponent(rec.id));
   var wait = document.createElement("span");
   wait.className = "res-tile-wait";
   if (rec.size > GRID_HEAVY) {
@@ -2530,7 +2568,7 @@ function drawFigure(rec, keep) {
   var img = document.createElement("img");
   img.className = "res-figure";
   img.alt = rec.name;
-  img.src = "/result/" + encodeURIComponent(rec.id);
+  img.src = libUrl("/result/" + encodeURIComponent(rec.id));
   img.onerror = function () {
     dropPlane();
     els.shownBody.innerHTML = "";

@@ -10,6 +10,44 @@
 (function () {
 "use strict";
 
+/* WHICH SESSION THIS BOARD IS. The server serves a board at `/s/<id>/board`,
+   and everything the board asks about its session goes back under that prefix:
+   `api` for a fetch, `atSession` for a URL the server handed over. Outside a
+   session (a test's one-session server) `BASE` is empty and every path is as
+   written.
+   Static assets stay absolute, and so do the cross-subject routes the server
+   answers only unprefixed (`/elsewhere`, `/colibri`, `/atlas.json`). */
+function sessionBase() {
+  var m = /^\/s\/[^\/]+/.exec((window.location && window.location.pathname) || "");
+  return m ? m[0] : "";
+}
+var BASE = sessionBase();
+var SESSION = BASE ? decodeURIComponent(BASE.slice(3)) : "";
+
+function api(path, init) { return fetch(BASE + path, init); }
+
+/* A leading-slash URL the server wrote (`/answers/...`, `/doc/<id>/<n>.png`,
+   `/slate/page-...`), under this session. Idempotent, so a sink can apply it to
+   a URL somebody already prefixed. */
+function atSession(url) {
+  if (!BASE || typeof url !== "string" || url.charAt(0) !== "/"
+      || url.charAt(1) === "/") return url;
+  if (url.indexOf("/static/") === 0 || url.indexOf(BASE + "/") === 0) return url;
+  return BASE + url;
+}
+
+/* What markdown may link to inside the session: the rest is the web, or a
+   static asset, and stays as written. */
+var SESSION_URL = /^\/(result|doc|figure|answers|slate)\//;
+function mdUrl(url) { return BASE && SESSION_URL.test(url) ? BASE + url : url; }
+
+/* The page's own links to the session's other surfaces. */
+if (BASE) {
+  Array.prototype.forEach.call(
+    document.querySelectorAll('a[href^="/slate"], a[href^="/board"], a[href^="/library"]'),
+    function (a) { a.setAttribute("href", BASE + a.getAttribute("href")); });
+}
+
 var els = {
   bar: document.getElementById("bar"),
   dot: document.getElementById("dot"),
@@ -323,12 +361,15 @@ function inline(s) {
     /* `card-img` is what fits it to the card. A result figure is a 300-dpi PNG
        two thousand pixels wide, and an <img> with no rule on it is drawn at that
        size, so a graph put on the board ran off the glass. */
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img class="card-img" alt="$1" src="$2">')
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (all, alt, src) {
+      return '<img class="card-img" alt="' + alt + '" src="' + mdUrl(src) + '">';
+    })
     /* AN ADDRESS STAYS IN THIS PAGE. Every other link is the web, and the web
        opens in its own tab so that a tap on a citation is not the lesson
        leaving the glass. An address is the opposite thing: it is this board
        being asked to go somewhere, and a second tab is a second board. */
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
+      href = mdUrl(href);
       return href.indexOf("#/w/") === 0
         ? '<a href="' + href + '">' + text + "</a>"
         : '<a href="' + href + '" target="_blank" rel="noopener">' + text + "</a>";
@@ -368,7 +409,7 @@ function renderMarkdown(src) {
     if (fig) {
       var id = fig[1], status = fig[2];
       if (status === "ready") {
-        out.push('<div class="figure"><img alt="figure" src="/figure/' + id + '.svg"></div>');
+        out.push('<div class="figure"><img alt="figure" src="' + BASE + '/figure/' + id + '.svg"></div>');
       } else if (status === "error") {
         out.push('<div class="figure error">figure ' + id + " failed to compile</div>");
       } else {
@@ -721,7 +762,7 @@ var codeLine = "";
 var codeStale = false;
 
 function askCode() {
-  return fetch("/health?code=1", { cache: "no-store" }).then(function (r) {
+  return api("/health?code=1", { cache: "no-store" }).then(function (r) {
     if (r && r.ok === false) throw new Error("HTTP " + r.status);
     return r.json();
   }).then(function (h) {
@@ -1473,14 +1514,14 @@ function render(data) {
            not whatever the slate says now. The revision is in the URL, so
            there is nothing stale for the browser to hold on to. */
         var shotWrap = document.createElement("a");
-        shotWrap.href = m.png;
+        shotWrap.href = atSession(m.png);
         shotWrap.className = "slate-shot";
         shotWrap.addEventListener("click", function (e) {
           e.preventDefault();
           openViewer(m.png, "your answer · " + (m.iso || ""));
         });
         var shot = document.createElement("img");
-        shot.src = m.png;
+        shot.src = atSession(m.png);
         shot.loading = "lazy";
         shot.alt = "what you wrote";
         /* It has a width and no height, so until it decodes it occupies nothing
@@ -1500,7 +1541,7 @@ function render(data) {
         node.appendChild(box);
         m.files.forEach(function (f) {
           var a = document.createElement("a");
-          a.href = "/uploads/" + encodeURIComponent(f);
+          a.href = BASE + "/uploads/" + encodeURIComponent(f);
           a.target = "_blank";
           a.rel = "noopener";
           if (/\.(png|jpe?g|gif|webp|heic)$/i.test(f)) {
@@ -2387,8 +2428,8 @@ var warm = Object.create(null);
    the workspace has written and the map's shelf found. Everything below --
    warming, sharing, saving, the last-resort open -- works over all four
    because only these two lines know the difference. */
-function paperUrl(kind) { return "/download/" + kind; }
-function paperViewUrl(kind) { return "/view/" + kind; }
+function paperUrl(kind) { return BASE + "/download/" + kind; }
+function paperViewUrl(kind) { return BASE + "/view/" + kind; }
 
 /* THE NAME THE INK IS ANCHORED UNDER, and it is the same one however the
    document was reached. A shelf document and a `doc/` document can be the same
@@ -2628,7 +2669,7 @@ function openShelf(nodeId) {
   els.shelfList.appendChild(waiting);
 
   var mine = shelfNode;
-  fetch("/shelf.json", { credentials: "same-origin" })
+  api("/shelf.json", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
       if (els.shelf.hidden || shelfNode !== mine) return;
@@ -2906,7 +2947,7 @@ function openPaper(kind, label, then) {
         box.setAttribute("data-ann-page", "");
 
         var img = document.createElement("img");
-        img.src = url;
+        img.src = atSession(url);
         /* Lazily, because a hundred-page transcript is a hundred pictures and
            the person is reading page one. */
         img.loading = i < 2 ? "eager" : "lazy";
@@ -3006,7 +3047,7 @@ function paintPaperRound(kind) {
   if (!b) return;
   b.hidden = true;
   if (kind.indexOf("doc/") !== 0 && kind.indexOf("shelf/") !== 0) return;
-  fetch("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
+  api("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
         { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
@@ -3015,7 +3056,7 @@ function paintPaperRound(kind) {
       b.textContent = "Round " + r.round + (!r.landed ? " · revising"
         : r.done ? " done" : " · " + r.open + " open") + " → read in the library";
       b.onclick = function () {
-        window.location.href = "/library?doc=" + encodeURIComponent(got.document);
+        window.location.href = BASE + "/library?doc=" + encodeURIComponent(got.document);
       };
       b.hidden = false;
     })
@@ -3064,7 +3105,7 @@ function doExportHomework() {
   els.pushedIcon.textContent = "…";
   els.pushedText.textContent = "compiling the write-up — LaTeX takes a moment…";
   offerDocument(null);
-  return fetch("/hw/build", {
+  return api("/hw/build", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: "{}"
@@ -3138,7 +3179,7 @@ function doExport(scope, which) {
       : scope === "sitting"
         ? "building that sitting as a PDF…"
         : "building this lesson as a PDF…";
-  return fetch("/export", {
+  return api("/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scope: scope || "lesson", which: which || "" })
@@ -3171,7 +3212,7 @@ function doPush() {
   els.pushed.className = "pushed";
   els.pushedIcon.textContent = "…";
   els.pushedText.textContent = "saving and pushing…";
-  return fetch("/push", {
+  return api("/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({})
@@ -3206,7 +3247,7 @@ els.finishNo.onclick = function () {
   els.finish.hidden = true;
   els.finishLeave.hidden = true;
   leavingTo = null;
-  fetch("/dismiss-finish", { method: "POST" }).catch(function () {});
+  api("/dismiss-finish", { method: "POST" }).catch(function () {});
 };
 document.getElementById("pushed-close").onclick = function () {
   els.pushed.hidden = true;
@@ -3785,6 +3826,7 @@ function renderScratch(uploads) {
   }
 
   function tile(url, label, bust) {
+    url = atSession(url);
     var a = document.createElement("a");
     a.href = url;
     /* Never a new context. Installed to the home screen there is no browser
@@ -3831,7 +3873,7 @@ function openHistory() {
   var list = document.getElementById("history-list");
   panel.hidden = false;
   list.innerHTML = '<p class="name">looking…</p>';
-  fetch("/archive").then(function (r) { return r.json(); }).then(function (d) {
+  api("/archive").then(function (r) { return r.json(); }).then(function (d) {
     var sessions = d.sessions || [];
     if (!sessions.length) {
       list.innerHTML = '<p class="name">no finished lessons yet.</p>';
@@ -3886,7 +3928,7 @@ function openHistory() {
    the server twice for the same lesson to find out is a second request for an
    answer already in hand. */
 function showSession(id, then) {
-  fetch("/archive/" + encodeURIComponent(id))
+  api("/archive/" + encodeURIComponent(id))
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (!d || d.ok === false) { if (then) then(null); return; }
@@ -3938,7 +3980,7 @@ function buildViewer() {
 
 function openViewer(url, label) {
   if (!viewer) buildViewer();
-  viewer.querySelector("img").src = url;
+  viewer.querySelector("img").src = atSession(url);
   viewer.querySelector("figcaption").textContent = label || "";
   viewer.hidden = false;
   document.body.classList.add("viewing");
@@ -3971,7 +4013,7 @@ function saveNotes(sendIds) {
   if (!ids.length) return Promise.resolve([]);
   return Promise.all(ids.map(function (id) {
     var body = window.Annotate.payload(id, send);
-    return fetch("/annotate/save", {
+    return api("/annotate/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -4528,7 +4570,7 @@ var currentSet = null;
 
 function setSitting(kind, name, chapter) {
   els.kind.hidden = true;
-  fetch("/session", {
+  api("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -4855,7 +4897,7 @@ function paintDoc() {
 function askWriteup(makes, button) {
   els.kind.hidden = true;
   if (button) button.disabled = true;
-  fetch("/writeup", {
+  api("/writeup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ makes: makes })
@@ -4870,7 +4912,7 @@ function acceptThread(card, tid, button) {
   var box = button.parentNode;
   button.disabled = true;
   button.textContent = "adding\u2026";
-  fetch("/thread/accept", {
+  api("/thread/accept", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ card: card, thread: tid })
@@ -4915,7 +4957,7 @@ function handOver(card, button) {
     button.disabled = true;
     button.textContent = "handed over";
   }
-  fetch("/handover", {
+  api("/handover", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ card: card })
@@ -4932,7 +4974,7 @@ function setAim(aim) {
      is a poll away and a control that does nothing for a second is a control
      somebody taps again. The next payload is the truth either way. */
   currentAim = aim;
-  fetch("/mode", {
+  api("/mode", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode: AIM_MODE[aim] || "teach" })
@@ -5114,7 +5156,7 @@ els.reviewAll.onclick = function () {
 els.reviewStart.onclick = function () {
   if (!reviewPick.length) return;
   els.review.hidden = true;
-  fetch("/session", {
+  api("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session: pickerKind, over: reviewPick })
@@ -6357,7 +6399,7 @@ function sendDocNew() {
   if (!about) return;
   els.docNewGo.disabled = true;
   els.docNewSaid.textContent = "asking…";
-  fetch("/writeup", {
+  api("/writeup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ makes: docNewMakes, about: about })
@@ -6387,7 +6429,7 @@ if (els.docNew) {
    map is always the served workspace's, so nothing has to be switched first. */
 function mapReadDoc(id, page) {
   if (!id) return;
-  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id)
+  window.location.href = BASE + "/library?from=map&doc=" + encodeURIComponent(id)
     + (page > 0 ? "&page=" + Math.floor(page) : "");
 }
 
@@ -6472,7 +6514,7 @@ function mapDig(id) {
   if (!id || mapAsking === id) return;
   mapAsking = id;
   mapCrumbSay("opening…");
-  fetch("/map/inside/" + encodeURIComponent(id))
+  api("/map/inside/" + encodeURIComponent(id))
     .then(function (r) { return r.json().catch(function () { return {}; }); })
     .then(function (got) {
       if (mapAsking !== id) return;              /* a later tap won */
@@ -7154,7 +7196,7 @@ function openThread(id, step) {
   threadPaint(node, "");
   els.work.hidden = false;
   threadAsking = node.id;
-  fetch("/map/thread/" + encodeURIComponent(node.id))
+  api("/map/thread/" + encodeURIComponent(node.id))
     .then(function (r) { return r.json().catch(function () { return {}; }); })
     .then(function (got) {
       if (threadAsking !== node.id || els.work.hidden) return;
@@ -7490,7 +7532,7 @@ function takeWay(way, node, chip) {
    the sheet, opened for this box with the refusal in its sub line. A tap that
    silently does nothing is the failure this replaces. */
 function workSend(body, node, chip) {
-  fetch("/session", {
+  api("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -7554,6 +7596,10 @@ function mapCourse() {
   return ((lastLive && lastLive.state && lastLive.state.course) || "").trim();
 }
 
+/* Per session where there is one: two sessions on one subject are two
+   evenings, each left where it was. */
+function whereKey() { return MAP_WHERE + (SESSION ? "s:" + SESSION : mapCourse()); }
+
 function mapRemember() {
   var course = mapCourse();
   if (!course) return;
@@ -7568,7 +7614,7 @@ function mapRemember() {
     here.surface = "lesson";
   }
   try {
-    window.localStorage.setItem(MAP_WHERE + course, JSON.stringify(here));
+    window.localStorage.setItem(whereKey(), JSON.stringify(here));
   } catch (e) { /* a private window, or no room. The map is the fallback. */ }
   /* AND THE SAME PLACE, SPELLED AS AN ADDRESS. An address nobody can obtain is
      a feature nobody uses: this is where one is got from -- off the bar, by
@@ -7592,7 +7638,7 @@ function mapRecall() {
   var course = mapCourse();
   if (!course) return null;
   try {
-    var raw = window.localStorage.getItem(MAP_WHERE + course);
+    var raw = window.localStorage.getItem(whereKey());
     if (!raw) return null;
     var here = JSON.parse(raw);
     if (!here || typeof here !== "object") return null;
@@ -8119,7 +8165,7 @@ function markAddresses() {
    the link said rather than where this board was last left. */
 addrWanted = addrParse((window.location && window.location.hash) || "");
 
-fetch("/health", { cache: "no-store" })
+api("/health", { cache: "no-store" })
   .then(function (r) { return r.json(); })
   .then(function (h) { boardId = (h && h.id) || ""; })
   .catch(function () {
@@ -8573,7 +8619,7 @@ function renderOrHold(data) {
 
 function connect() {
   if (source) source.close();
-  source = new EventSource("/events");
+  source = new EventSource(BASE + "/events");
   source.onopen = function () { paintLink(false); };
   source.onerror = function () { paintLink(true); };
   source.onmessage = function (ev) {
@@ -8708,8 +8754,14 @@ var pagesLoaded = false;
    annotation store at the same boundary for the same reason. */
 function pagesKey() {
   var st = (lastLive && lastLive.state) || {};
-  return PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-")
-       + ":" + (st.opened || "-");
+  return pagesScope(st) + ":" + (st.opened || "-");
+}
+
+/* A session names its own records; a board outside one keys by course and
+   chapter, as a sitting did. */
+function pagesScope(st) {
+  return SESSION ? PAGES_KEY + ":s:" + SESSION
+                 : PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-");
 }
 
 function loadPages() {
@@ -8747,7 +8799,7 @@ function dropOtherSittings() {
   var st = (lastLive && lastLive.state) || {};
   if (!st.opened) return;
   var mine = pagesKey();
-  var here = PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-");
+  var here = pagesScope(st);
   var doomed = [];
   try {
     for (var i = 0; i < localStorage.length; i++) {
@@ -9128,7 +9180,7 @@ function frozenFor(url) {
     return have === "asking" ? null : have;
   }
   frozenInk[url] = "asking";
-  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+  fetch(atSession(url)).then(function (r) { return r.json(); }).then(function (d) {
     frozenInk[url] = (d && d.strokes && d.strokes.length) ? d : null;
     if (lastLive) render(lastLive);
   }).catch(function () { frozenInk[url] = null; });
@@ -9529,7 +9581,7 @@ function paintBoards(qids, liveKey, off) {
            it is rather than flashing the inverted picture up and swapping it a
            moment later. */
         if (drawn || !ink) {
-          frozen.src = drawn || answer.png;
+          frozen.src = drawn || atSession(answer.png);
           frozen.alt = "the answer handed in for question " + it.qid;
           slot.dataset.shot = mark;
         }
@@ -10306,7 +10358,7 @@ function writeupsShowing(data) {
 }
 
 function writeupSeen(id) {
-  fetch("/writeup/seen", {
+  api("/writeup/seen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: id })
@@ -10325,7 +10377,7 @@ function paintWriteups(show) {
     row.className = "news-row mission-row";
     row.dataset.state = w.state || "";
     if (done) {
-      row.href = "/library";
+      row.href = BASE + "/library";
       /* Going there IS reading it, so the row is retired on the way out rather
          than left for a second tap. */
       row.onclick = function () { writeupSeen(w.id); };
@@ -10530,7 +10582,7 @@ function markSeen(force) {
   if (!force && now - seenAt < SEEN_EVERY) return;
   seenAt = now;
   try {
-    fetch("/seen", { method: "POST", keepalive: true }).catch(function () {});
+    api("/seen", { method: "POST", keepalive: true }).catch(function () {});
   } catch (e) { /* offline; the marker is a convenience, not the lesson */ }
 }
 
@@ -10691,6 +10743,9 @@ function makeWriter(then) {
         root: document.getElementById("slate"),
         bar: document.getElementById("drawbar"),
         compact: true,
+        stateUrl: BASE + "/slate/state",
+        saveUrl: BASE + "/slate/save",
+        fullUrl: BASE + "/slate",
         context: function () {
           return { turn: answering.turn ? answering.turn.id : null,
                    answers: answering.question };
@@ -10819,7 +10874,7 @@ function restoreAnswer() {
     return;
   }
   var mark = id;
-  fetch(answering.turn.ink).then(function (r) { return r.json(); })
+  fetch(atSession(answering.turn.ink)).then(function (r) { return r.json(); })
     .then(function (data) {
       if (mark !== (answering.turn && answering.turn.id + ":r" + answering.turn.rev)) return;
       writer.load(data);
@@ -10875,7 +10930,7 @@ var textSaveTimer = null;
    answer the first question of this one -- see `answerKind`. */
 function sittingTag() {
   var st = (lastLive && lastLive.state) || {};
-  return (st.course || "") + " @ " + (st.opened || "");
+  return (SESSION ? "s:" + SESSION : (st.course || "")) + " @ " + (st.opened || "");
 }
 
 /* THE HALF A QUESTION WITH NO HISTORY OF ITS OWN OPENS ON.
@@ -10927,7 +10982,7 @@ function flushTextDraft() {
   clearTimeout(textSaveTimer);
   textSaveTimer = null;
   if (!lastTextQuestion) return;
-  fetch("/text/save", {
+  api("/text/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question: lastTextQuestion,
@@ -10941,7 +10996,7 @@ function saveTextDraft() {
   textDrafts[q] = els.saybox.value;
   clearTimeout(textSaveTimer);
   textSaveTimer = setTimeout(function () {
-    fetch("/text/save", {
+    api("/text/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: q, text: textDrafts[q] || "" })
@@ -11231,7 +11286,7 @@ function say(signal) {
      it corrects. Anything typed into an empty box is new, and new is kept.
      Signals always start fresh. */
   var revise = (!signal && correctingTurn) ? correctingTurn : null;
-  return fetch("/say", {
+  return api("/say", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: text, signal: signal || null,
@@ -11286,7 +11341,7 @@ function upload(files) {
   if (!files || !files.length) return;
   var form = new FormData();
   for (var i = 0; i < files.length; i++) form.append("f" + i, files[i], files[i].name);
-  fetch("/upload", { method: "POST", body: form }).catch(function () {});
+  api("/upload", { method: "POST", body: form }).catch(function () {});
 }
 
 els.file.addEventListener("change", function () { upload(els.file.files); els.file.value = ""; });
@@ -11416,6 +11471,7 @@ document.getElementById("btn-print").onclick = function () { window.print(); };
    "I could not tell" must never be the reason an evening's unsent working is
    left out of the record. */
 if (window.TutorShot) {
+  window.TutorShot.url = BASE + "/export/shot";
   window.TutorShot.liveInk = function () {
     if (!writer || !writer.strokes) return 0;
     try { return writer.strokes(); } catch (e) { return 1; }
@@ -11493,7 +11549,7 @@ function keepWriting(mode) {
   els.paperKeep.disabled = true;
   var was = els.paperKeep.textContent;
   els.paperKeep.textContent = "writing…";
-  fetch("/annotate/burn", {
+  api("/annotate/burn", {
     method: "POST", credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind: kind, mode: mode })
@@ -11534,7 +11590,7 @@ document.getElementById("paper-close").onclick = closePaper;
    the slate is: the lesson is files and is still here when you come back, and
    nothing on the library page can change it. */
 document.getElementById("btn-library").onclick = function () {
-  window.location.href = "/library";
+  window.location.href = BASE + "/library";
 };
 
 
@@ -12155,7 +12211,7 @@ function steerSend() {
      one send that never lit it. Said on the tap rather than on the reply, for
      the same reason the ordinary send is. */
   saySending("changing direction — replacing the tutor");
-  fetch("/direction", {
+  api("/direction", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: text })

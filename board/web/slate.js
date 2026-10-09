@@ -10,12 +10,28 @@
 (function () {
 "use strict";
 
+/* The session this page is in: `/s/<id>/slate` reads and saves that session's
+   pages, and its links go back to that session's board. Outside one the prefix
+   is empty. */
+function sessionBase() {
+  var m = /^\/s\/[^\/]+/.exec(location.pathname || "");
+  return m ? m[0] : "";
+}
+var BASE = sessionBase();
+if (BASE) {
+  Array.prototype.forEach.call(document.querySelectorAll('a[href^="/board"]'),
+    function (a) { a.setAttribute("href", BASE + a.getAttribute("href")); });
+}
+
 var writer = window.Slate.create({ root: document.getElementById("slate"),
-                                   compact: false });
+                                   compact: false,
+                                   stateUrl: BASE + "/slate/state",
+                                   saveUrl: BASE + "/slate/save",
+                                   fullUrl: BASE + "/slate" });
 
 /* Show which question is being answered, so the full-screen view is not
    context-free. */
-fetch("/board.json").then(function (r) { return r.json(); }).then(function (d) {
+fetch(BASE + "/board.json").then(function (r) { return r.json(); }).then(function (d) {
   var cards = d.cards || [];
   for (var i = cards.length - 1; i >= 0; i--) {
     if (cards[i].kind === "question") {

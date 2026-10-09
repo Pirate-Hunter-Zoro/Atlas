@@ -962,7 +962,7 @@
         throw new Error("this lesson is too long to photograph in one go ("
           + Math.round(bytes / 1048576) + "MB) — export the whole course instead");
       }
-      return fetch("/export/shot", {
+      return fetch(api.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1000,6 +1000,8 @@
     /* Set by the board, which is the side that knows: how much is written on
        the live surface. `blocks` skips a blank one. */
     liveInk: null,
+    /* Where the pictures go: the board sets it to its session's route. */
+    url: "/export/shot",
   };
 
   global.TutorShot = api;
