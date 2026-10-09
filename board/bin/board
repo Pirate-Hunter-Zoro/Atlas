@@ -1134,6 +1134,51 @@ def cmd_finish(live, args):
     return 0
 
 
+def push_code(live, held, message, only=None):
+    """`board push` in a session coding at the cluster: the held files go to
+    `code/<id>` as one commit on its tip (`code.vibe`), for the cluster's loop
+    to apply. Nothing is committed to main. `--` paths outside the held ones
+    are refused. Writes push.json as every push does."""
+    from tutorboard import code as coding
+    from tutorboard import sessions as stored
+    sid = os.path.basename(os.path.normpath(live.live))
+    paths = [p for p in held.get("paths") or [] if p]
+
+    def record(ok, detail, sha=""):
+        with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ok": ok, "at": time.time(),
+                       "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                       "workspace": held.get("subject"), "ref": held.get("ref"),
+                       "sha": sha, "detail": detail[-1200:]}, fh, indent=2)
+        print(detail, file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else 1
+
+    if only:
+        outside = []
+        for p in only:
+            rel = os.path.relpath(os.path.abspath(p), live.atlas).replace(os.sep, "/")
+            if not any(rel == h or rel.startswith(h + "/") or h.startswith(rel + "/")
+                       for h in paths):
+                outside.append(p)
+        if outside:
+            return record(False, (
+                "this session is coding at the cluster, so its pushes go to "
+                "code/%s and carry only the held paths (%s); not pushed: %s"
+                % (sid, ", ".join(paths), ", ".join(outside))))
+    since = held.get("seen") or ""
+    if not since:
+        code, since = gitops._git(live.atlas, "rev-parse", "HEAD")
+        if code != 0:
+            return record(False, "this checkout has no HEAD to push from")
+    sha, said = coding.vibe(live.atlas, sid, paths, since, message)
+    if not sha:
+        nothing = said.startswith("nothing to push")
+        return record(nothing, said)
+    new = dict(held, sha=sha, seen=sha, prev=held.get("sha") or "")
+    stored.set_code(sid, new, base=live.atlas)
+    return record(True, said, sha)
+
+
 def cmd_push(live, args):
     """Commit and push. It does not end the session, in any repository.
 
@@ -1199,6 +1244,12 @@ def cmd_push(live, args):
                            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
                            "detail": phi}, fh, indent=2)
             return 1
+
+    # A SESSION CODING AT THE CLUSTER PUSHES TO ITS REF, never to main (D17).
+    # Its held files reach main only through `board code <id> --end` there.
+    coding_now = (live.state() or {}).get("code") if live.stored else None
+    if isinstance(coding_now, dict) and coding_now.get("ref"):
+        return push_code(live, coding_now, message, only)
 
     # A THREAD HELD AT THE CLUSTER IS THE CLUSTER'S. Its files are being written
     # there, beside the data; a commit of them from here is the one thing that

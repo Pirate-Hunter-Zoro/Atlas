@@ -7,7 +7,7 @@ What the checks are about:
   * THE CLUSTER THREAD (`cluster.Ear`). One `git ls-remote` per pass. A pull
     only when origin's main is a commit HEAD lacks: with origin equal to HEAD
     there is none, and when it moves there is one. A failed pull or ls-remote
-    is recorded in pull.json. The code refs are kept for T38b.
+    is recorded in pull.json. The code refs are kept on the ear.
   * D16. A report wakes its open filing session, reopens an ended one, and
     is a home notice (`/notices.json`) where no session filed it. A notice
     starts no turn.
@@ -20,6 +20,11 @@ What the checks are about:
   * ONE LAUNCHAGENT. The plist lints, renders with an absolute interpreter,
     KeepAlive and ThrottleInterval 10; ship.sh kickstarts it; the old
     restart commands refuse and name it.
+  * CODING SESSIONS. A real server on port 8779 with TUTORBOARD_CLUSTER=1:
+    a step pushed to code/S wakes S within one tick and records session.json
+    `code`; a Mac commit to a held path on main is refused; `board push` in
+    S lands on code/S and the cluster's loop applies it; a deleted ref clears
+    `code` and puts the held files back.
   * ONE PATH ON BOTH MACHINES. A `results/` path the tree lacks is read from
     `exports/results/` by the results library.
 
@@ -199,7 +204,7 @@ try:
     git(cluster_top, "pull", "-q", "--ff-only")
     git(cluster_top, "push", "-q", "origin", "HEAD:refs/heads/code/20261009-120000")
     ear.once()
-    check("the code refs are kept on the ear, for T38b",
+    check("the code refs are kept on the ear",
           ear.code == {"refs/heads/code/20261009-120000": head(cluster_top)}
           and ear.pulls == 1)
     git(cluster_top, "push", "-q", "origin", ":refs/heads/code/20261009-120000")
@@ -751,6 +756,210 @@ finally:
             server.wait(20)
         except subprocess.TimeoutExpired:
             os.killpg(server.pid, signal.SIGKILL)
+
+
+# ===========================================================================
+# coding sessions: a real server with TUTORBOARD_CLUSTER=1 hears code/<id>
+# ===========================================================================
+import socket  # noqa: E402
+from tutorboard import code as coding  # noqa: E402
+
+CPOLICY = ("import re\n\ndef names_phi(text):\n"
+           "    return bool(re.search(r'SESSION-\\d+', str(text)))\n")
+
+
+class Clock(object):
+    """The cluster loop's clock, an hour ahead of every mtime."""
+
+    def __init__(self):
+        self.t = time.time() + 3600
+
+    def __call__(self):
+        return self.t
+
+
+def free_port(want):
+    """`want` when nothing listens there, else an ephemeral port."""
+    probe = socket.socket()
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        probe.bind(("127.0.0.1", want))
+        return want
+    except OSError:
+        return 0
+    finally:
+        probe.close()
+
+
+cbox = tempfile.mkdtemp(prefix="tutor-coding-")
+cserver = None
+try:
+    corigin = os.path.join(cbox, "origin.git")
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", corigin],
+                   check=True)
+    cmac = os.path.join(cbox, "mac")
+    os.makedirs(cmac)
+    git(cmac, "init", "-q", "-b", "main")
+    git(cmac, "config", "user.email", "t@example.com")
+    git(cmac, "config", "user.name", "t")
+    write(os.path.join(cmac, ".gitignore"),
+          "/sessions/\nai-config/\n**/relay/state/\n/relay/.lock*\n")
+    csubj = os.path.join(cmac, "projects", "Code")
+    write(os.path.join(csubj, "tutorboard.json"),
+          json.dumps({"name": "Code", "phi": False}))
+    write(os.path.join(csubj, "src", "a.py"), "x = 1\n")
+    write(os.path.join(csubj, "notes.md"), "notes\n")
+    git(cmac, "add", "-A")
+    git(cmac, "commit", "-q", "-m", "start")
+    git(cmac, "remote", "add", "origin", corigin)
+    git(cmac, "push", "-q", "-u", "origin", "main")
+    ccl = os.path.join(cbox, "cluster")
+    git(cbox, "clone", "-q", corigin, ccl)
+    git(ccl, "config", "user.email", "c@example.com")
+    git(ccl, "config", "user.name", "c")
+    write(os.path.join(ccl, "ai-config", "policy", "phi.py"), CPOLICY)
+    held = ["projects/Code/src"]
+    A = os.path.join("projects", "Code", "src", "a.py")
+    S = sessions.new("coding", base=cmac)["id"]
+    sessions.bind(S, "projects/Code", base=cmac)
+
+    def cinbox():
+        return lines_of(os.path.join(cmac, "sessions", S, "inbox",
+                                     "messages.jsonl"))
+
+    def ccode():
+        return (sessions.get(S, cmac) or {}).get("code")
+
+    def tip_of(ref="refs/heads/code/%s" % S):
+        return git(corigin, "for-each-ref", "--format=%(objectname)", ref).strip()
+
+    port = free_port(8779)
+    env = dict(os.environ, TUTORBOARD_CLUSTER="1",
+               BOARD_STATE_DIR=os.path.join(cbox, "macstate"))
+    env.pop("TUTORBOARD_COURSES", None)
+    env.pop("TUTORBOARD_FRESH", None)
+    cserver = subprocess.Popen(
+        [sys.executable, os.path.join(ROOT, "serve.py"), "--port", str(port),
+         "--atlas", cmac], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        universal_newlines=True, start_new_session=True, env=env)
+    clog = []
+    cport = None
+    for line in cserver.stderr:
+        clog.append(line)
+        if "listening on http://" in line:
+            cport = int(line.split("http://", 1)[1].split("/")[0].split(":")[1])
+            break
+    threading.Thread(target=lambda: [clog.append(l) for l in cserver.stderr],
+                     daemon=True).start()
+    check("a server on port %d runs the cluster thread" % (cport or 0),
+          cport and (port == 0 or cport == 8779)
+          and "threads: cluster" in "".join(clog), "".join(clog))
+
+    # The cluster: `board code S projects/Code/src`, an edit, one step.
+    os.environ["BOARD_STATE_DIR"] = os.path.join(cbox, "clusterstate")
+    reg, probs = coding.start(ccl, S, held)
+    write(os.path.join(ccl, A), "x = 2  # the cluster's edit\n")
+    loop = coding.Loop(ccl, reg, say=lambda m: None, clock=Clock())
+    pushed = loop.tick(fetch=False)
+    step1 = tip_of()
+    t_push = time.time()
+    check("the cluster pushes step 1 to code/S", not probs and pushed and step1,
+          probs)
+    got = until(lambda: [m for m in cinbox() if m.get("signal") == "code"],
+                cluster.EVERY + 15, 0.5)
+    waited = time.time() - t_push
+    print("     (heard in %.1f s; a tick is %d s)" % (waited, cluster.EVERY))
+    check("a pushed code/S step wakes S within one tick: one [code] step line",
+          len(got) == 1 and got[0]["text"].startswith("[code] step 1: Step 1")
+          and got[0].get("wake") is not False
+          and waited <= cluster.EVERY + 5, (got, waited))
+    check("the line names the diff the tutor reads itself",
+          got and ("git diff " in got[0]["text"])
+          and step1[:12] in got[0]["text"])
+    rec = ccode() or {}
+    check("session.json records code = {ref, sha, paths, step}",
+          rec.get("ref") == "refs/heads/code/%s" % S and rec.get("sha") == step1
+          and rec.get("paths") == held and rec.get("step") == 1, rec)
+    check("and a turn is queued for it",
+          until(lambda: calls(S, "start"), 60), "".join(clog)[-1500:])
+    check("the Mac's held file now holds the step",
+          open(os.path.join(cmac, A)).read() == "x = 2  # the cluster's edit\n")
+    from tutorboard.runner import turn as tturn  # noqa: E402
+    check("the [code] signal gets the prompt that reads the diff",
+          runturn.turn_signal("[2026-10-09 10:00:00] " + got[0]["text"]) == "code"
+          and tturn.turn_plan({"headless": ["x"]}, "code")[1]
+          .startswith("You are running headless") and "git diff" in
+          tturn.turn_plan({"headless": ["x"]}, "code")[1])
+
+    # The Mac may not commit a held path to main.
+    ok_, said_ = gitops.commit(cmac, [A], "the Mac edits a held file")
+    check("a Mac commit to a held path on main is refused, naming the session",
+          ok_ is False and "held by coding session %s" % S in said_
+          and "a.py" in said_, said_)
+    ok_, said_ = gitops.commit(cmac, ["projects/Code"], "the whole subject")
+    check("and so is a commit of the whole subject while a held file changed",
+          ok_ is False and "held by coding session" in said_, said_)
+    write(os.path.join(csubj, "notes.md"), "notes, more\n")
+    ok_, said_ = gitops.commit(cmac, ["projects/Code/notes.md"], "notes")
+    check("a path it does not hold commits as ever", ok_ is True
+          and "committed" in said_, said_)
+    git(cmac, "push", "-q")
+
+    # `board push` in S goes to code/S.
+    write(os.path.join(cmac, A), "x = 3  # the Mac's vibe edit\n")
+    main_before = tip_of("refs/heads/main")
+    inbox_before = len(cinbox())
+    p = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "bin", "board"), "push",
+         "use three"], cwd=cmac, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, universal_newlines=True, timeout=120,
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(cmac, "sessions", S),
+                 BOARD_STATE_DIR=os.path.join(cbox, "macstate")))
+    vibe = tip_of()
+    check("`board push` in S lands on code/S, on top of the step",
+          p.returncode == 0 and vibe and vibe != step1
+          and git(corigin, "rev-parse", vibe + "^").strip() == step1
+          and git(corigin, "show", "%s:%s" % (vibe, A.replace(os.sep, "/")))
+          == "x = 3  # the Mac's vibe edit\n", p.stdout)
+    check("and not on main", tip_of("refs/heads/main") == main_before)
+    check("session.json follows it", (ccode() or {}).get("sha") == vibe
+          and (ccode() or {}).get("seen") == vibe)
+    time.sleep(cluster.EVERY + 3)
+    check("the session's own push wakes nothing", len(cinbox()) == inbox_before,
+          cinbox()[inbox_before:])
+    loop.tick(fetch=True)
+    check("and the cluster's loop applies it to its working tree",
+          open(os.path.join(ccl, A)).read() == "x = 3  # the Mac's vibe edit\n")
+
+    # `board code S --end` at the cluster: one commit on main, and no ref.
+    ended = coding.end(ccl, S, title="use three", say=lambda m: None, wait=5)
+    check("the cluster ends it: one main commit, and the ref deleted",
+          ended == 0 and not tip_of() and tip_of("refs/heads/main") != main_before)
+    cleared = until(lambda: ccode() is None and sessions.get(S, cmac) is not None,
+                    cluster.EVERY + 15, 0.5)
+    check("deleting the ref clears code", cleared, ccode())
+    unheld = [m for m in cinbox() if m.get("signal") == "unheld"]
+    check("with a non-waking [unheld] line",
+          len(unheld) == 1 and unheld[0].get("wake") is False
+          and unheld[0]["text"].startswith("[unheld]"), unheld)
+    check("the Mac's held file goes back as HEAD had it, so main's --end "
+          "commit pulls cleanly in the same pass",
+          until(lambda: git(cmac, "rev-parse", "HEAD").strip()
+                == tip_of("refs/heads/main"), 30)
+          and open(os.path.join(cmac, A)).read() == "x = 3  # the Mac's vibe edit\n"
+          and git(cmac, "status", "--porcelain", "--", "projects").strip() == "",
+          git(cmac, "status", "--porcelain") + "".join(clog)[-800:])
+    ok_, said_ = gitops.commit(cmac, [A], "nothing held now")
+    check("and a commit there is no longer refused", ok_ is True, said_)
+finally:
+    os.environ["BOARD_STATE_DIR"] = os.path.join(box, "state")
+    if cserver is not None and cserver.poll() is None:
+        os.killpg(cserver.pid, signal.SIGTERM)
+        try:
+            cserver.wait(20)
+        except subprocess.TimeoutExpired:
+            os.killpg(cserver.pid, signal.SIGKILL)
+    shutil.rmtree(cbox, ignore_errors=True)
 
 
 # ===========================================================================

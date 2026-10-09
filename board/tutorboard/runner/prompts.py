@@ -26,6 +26,8 @@ TURN_TAIL = _read("turn-tail.md")
 
 HEADLESS_FIRST_PROMPT = _read("first.md") + TURN_TAIL
 HEADLESS_UNFINISHED_PROMPT = _read("unfinished.md") + TURN_TAIL
+# A step of a coding session at the cluster: a lesson turn about a diff.
+HEADLESS_CODE_PROMPT = _read("code.md") + TURN_TAIL
 HEADLESS_REVISE_PROMPT = _read("revise.md")
 HEADLESS_REWORK_PROMPT = _read("rework.md")
 HEADLESS_WRITEUP_PROMPT = _read("writeup.md")

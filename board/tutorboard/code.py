@@ -43,6 +43,12 @@ edit there never skips a pass, and an upstream change to one stops the pull
 with "held path changed upstream" instead of overwriting it. A request filed
 from the session may pin a commit on `code/<session>` (`pin_ok`).
 
+THE MAC'S SIDE of the same ref lives here too, because it is the same
+machinery: `vibe` is `board push` from a session coding at the cluster (one
+commit of the Mac's held files on the ref's tip, gated, fast-forward only),
+`step_of` reads a step's message for the Mac's ear (`cluster.Ear.hear_code`),
+and `edited` names the held files a working tree changed since a commit.
+
 THE CHECK, and what of its output may leave, live here too: `check_spec`,
 `run_check`, `check_output`, `relay_lines`, `crash_type` and `output_open`.
 
@@ -487,6 +493,116 @@ def apply(top, last, tip, held_paths):
             except OSError:
                 pass
     return ""
+
+
+# ---------------------------------------------------------------------------
+# the Mac's side of the ref: a vibe push, and the held files it keeps current
+# ---------------------------------------------------------------------------
+VIBE = "from the Mac"
+
+
+def _blob(top, rev, rel):
+    code, out = _git(top, "rev-parse", "--verify", "--quiet",
+                     "%s:%s" % (rev, rel))
+    return out if code == 0 else ""
+
+
+def edited(top, since, held_paths):
+    """Held files the working tree changed against commit `since`."""
+    here, err = tree(top, since, held_paths)
+    if err:
+        return None
+    return _changed(top, since, here, held_paths)
+
+
+def vibe(top, sid, held_paths, since, message):
+    """Push the working tree's held files to `code/<sid>` from the Mac (D17).
+    `(sha, said)`; sha is "" when nothing was pushed, and `said` why.
+
+    `since` is the commit whose held files this working tree was brought to
+    (`session.json` `code.seen`, else HEAD). The new commit's parent is the
+    tip origin has; its tree is that tip's with the held files this tree
+    changed since `since`. A file the tip changed too, to something else, is
+    refused by name. The commit-time gate runs first, as on the cluster.
+    Fast-forward only: the cluster's loop applies it to its working tree.
+    """
+    tip, err = remote_tip(top, sid)
+    if err:
+        return "", err
+    if not tip:
+        return "", ("code/%s is not on origin: the coding session ended or "
+                    "has not pushed a step yet, so nothing was pushed" % sid)
+    here, err = tree(top, since, held_paths)
+    if err:
+        return "", "could not read the held paths against %s: %s" % (
+            since[:12], err)
+    mine = _changed(top, since, here, held_paths)
+    if not mine:
+        return "", "nothing to push: the held files are as code/%s has them" % sid
+    theirs = set(_changed(top, since, tip, held_paths))
+    clash = [f for f in mine if f in theirs
+             and _blob(top, here, f) != _blob(top, tip, f)]
+    if clash:
+        return "", ("both sides changed: %s, here and on code/%s since %s. "
+                    "Nothing was pushed. Bring the cluster's version in first "
+                    "(`git restore --source=%s --worktree -- <file>`), redo the "
+                    "edit, and push again." % (", ".join(clash), sid,
+                                               since[:12], tip[:12]))
+    refused = gate(top, held_paths)
+    if refused:
+        return "", ("the commit-time gate refuses it, so nothing was pushed:\n  "
+                    + "\n  ".join(refused))
+    with _Index() as ix:
+        code, out = _git(top, "read-tree", tip, env=ix.env)
+        if code != 0:
+            return "", "read-tree failed: %s" % out
+        there = [f for f in mine if os.path.lexists(os.path.join(top, f))]
+        gone = [f for f in mine if f not in there]
+        if there:
+            code, out = _git(top, "add", "--", *there, env=ix.env)
+            if code != 0:
+                return "", "git add failed: %s" % out
+        if gone:
+            _git(top, "rm", "--cached", "-q", "--ignore-unmatch", "--", *gone,
+                 env=ix.env)
+        code, new = _git(top, "write-tree", env=ix.env)
+        if code != 0:
+            return "", "write-tree failed: %s" % new
+    if new == _tree_of(top, tip):
+        return "", "nothing to push: the held files are as code/%s has them" % sid
+    msg = "%s\n\n%s\nsession: %s\nfiles: %s\n" % (
+        (message or "a change").strip().splitlines()[0], VIBE, sid,
+        ", ".join(mine))
+    code, sha = _git(top, "commit-tree", new, "-p", tip, "-F", "-", input=msg)
+    if code != 0:
+        return "", "commit-tree failed: %s" % sha
+    code, out = _git(top, "push", "--quiet", "origin",
+                     "%s:%s" % (sha, ref(sid)), timeout=180)
+    if code != 0:
+        return "", "the push to code/%s failed: %s" % (
+            sid, (out.splitlines() or ["no answer"])[-1])
+    _git(top, "update-ref", tracking(sid), sha)
+    return sha, "pushed %s to code/%s: %s" % (sha[:12], sid, ", ".join(mine))
+
+
+def step_of(top, sha):
+    """What a commit on a code ref says of itself: `{step, subject, paths,
+    title, vibe}`. `step` is 0 for a commit that is not a step (a vibe push)."""
+    _, body = _git(top, "log", "-1", "--format=%B", sha)
+    lines = body.splitlines()
+    out = {"step": 0, "subject": "", "paths": [],
+           "title": lines[0].strip() if lines else "",
+           "vibe": VIBE in lines}
+    for line in lines:
+        m = re.match(r"^Step (\d+)$", line.strip())
+        if m:
+            out["step"] = int(m.group(1))
+        elif line.startswith("subject: "):
+            out["subject"] = line[len("subject: "):].strip()
+        elif line.startswith("paths: "):
+            out["paths"] = [p.strip() for p in line[len("paths: "):].split(",")
+                            if p.strip()]
+    return out
 
 
 # ---------------------------------------------------------------------------

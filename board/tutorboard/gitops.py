@@ -11,6 +11,13 @@ The Mac's timed pull is the board server's cluster thread (`cluster.Ear`).
 `board/scripts/save-and-push.sh` is a thin CLI over `save`. relay.py and
 holds.py keep their own cluster-side git until T38c replaces them.
 
+A PATH HELD AT THE CLUSTER IS THE CLUSTER'S. While a Mac session's
+`session.json` has `code` set (a coding session at the cluster, `code.py`),
+`commit` on main refuses any change to its held paths (`held_refusal`): those
+files reach main only through `board code <id> --end`, and the session's own
+`board push` goes to `code/<id>`. The store is `sessions/` under the root, which
+the cluster never has.
+
 Nothing here commits into an operation somebody started in a terminal: a
 rebase, a merge, a cherry-pick, a revert, a bisect or a detached HEAD all mean
 a person has their own plan for the next commit (`worktree.busy_reason`).
@@ -18,7 +25,9 @@ a person has their own plan for the next commit (`worktree.busy_reason`).
 Runs on the cluster's python3 too (relay path): no walrus, no `match`.
 """
 
+import json
 import os
+import re
 import subprocess
 import sys
 
@@ -71,6 +80,74 @@ def _hooks(root):
     return "enabled .githooks for this clone"
 
 
+# The Mac's session store under an Atlas root, and a session id in it.
+SESSIONS = "sessions"
+_SESSION_ID = re.compile(r"^\d{8}-\d{6}(?:-\d+)?$")
+MAIN = "main"
+
+
+def held_paths(root):
+    """`{session id: [held paths]}` for every session under `root` whose
+    session.json has `code` set. Empty where `root` has no session store
+    (the cluster, any other repository)."""
+    store = os.path.join(root, SESSIONS)
+    try:
+        names = sorted(os.listdir(store))
+    except OSError:
+        return {}
+    out = {}
+    for sid in names:
+        if not _SESSION_ID.match(sid):
+            continue
+        try:
+            with open(os.path.join(store, sid, "session.json"), "r",
+                      encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        code = rec.get("code") if isinstance(rec, dict) else None
+        if not isinstance(code, dict):
+            continue
+        held = [p.strip("/") for p in code.get("paths") or []
+                if isinstance(p, str) and p.strip("/")]
+        if held:
+            out[sid] = held
+    return out
+
+
+def _under(rel, base):
+    return rel == base or rel.startswith(base + "/")
+
+
+def held_refusal(root, paths):
+    """Why a commit of `paths` on main here would take files a coding session
+    at the cluster holds, or "". Only the files the commit would change count:
+    a commit of a whole subject whose held files are untouched goes through."""
+    held = held_paths(root)
+    if not held:
+        return ""
+    code, branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    if code != 0 or branch != MAIN:
+        return ""
+    _, changed = _git(root, "diff", "HEAD", "--name-only", "--", *paths)
+    _, new = _git(root, "ls-files", "--others", "--exclude-standard", "--",
+                  *paths)
+    files = _lines(changed + "\n" + new)
+    said = []
+    for sid, theirs in sorted(held.items()):
+        mine = [f for f in files if any(_under(f, h) for h in theirs)]
+        if mine:
+            said.append(
+                "nothing was committed: %s %s held by coding session %s at the "
+                "cluster. Its changes go to code/%s (`board push` from that "
+                "session) and reach main with `board code %s --end`; commit "
+                "other paths with `board push \"msg\" -- <paths>`."
+                % (", ".join(mine[:6]) + (" and %d more" % (len(mine) - 6)
+                                          if len(mine) > 6 else ""),
+                   "is" if len(mine) == 1 else "are", sid, sid, sid))
+    return "\n".join(said)
+
+
 def commit(root, paths, message, refuse=None):
     """Commit the named `paths` (relative to `root`) and nothing else.
     `(ok, said)`; nothing to commit is ok.
@@ -78,7 +155,8 @@ def commit(root, paths, message, refuse=None):
     `git add -A -- paths`, then a commit of exactly those paths: whatever else
     is staged stays staged and out of this commit. The message goes in as
     given, with no trailers. `refuse(paths)` may return a reason, and then
-    nothing is committed.
+    nothing is committed; so does a change on main to a path a coding session
+    at the cluster holds (`held_refusal`).
 
     `--only` is used only when something outside the paths is staged. It takes
     each path from the working tree, so it drops a staged removal of a file
@@ -99,6 +177,9 @@ def commit(root, paths, message, refuse=None):
         return False, ("nothing was committed: %s in this repository. Nothing "
                        "has been lost -- finish or abort it, then save again."
                        % busy)
+    held = held_refusal(root, paths)
+    if held:
+        return False, held
     said = []
     hooked = _hooks(root)
     if hooked:

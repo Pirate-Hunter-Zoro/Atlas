@@ -2973,6 +2973,22 @@ body.mapping #calc { z-index: 97; }
 .subjpick-phi { display: flex; align-items: center; gap: .35rem; }
 .subjpick-phi button.on { background: var(--ink); color: var(--paper); }
 
+/* Coding at the cluster: one line, the command in monospace, copied whole. */
+.codebar {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .45rem max(1rem, env(safe-area-inset-left)) .45rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui); font-size: .82rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+}
+.codebar-lead { color: var(--ink-3); flex: none; }
+.codebar .code-cmd {
+  flex: 1 1 12rem; min-width: 0; font-family: var(--mono);
+  font-size: .8rem; padding: .3rem .45rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.codebar #code-step { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codebar button { flex: none; }
+
 /* An ended session reads; it does not write. */
 .endedbar { background: var(--paper-2); }
 body[data-ended] #writer, body[data-ended] #begin, body[data-ended] #reopen,

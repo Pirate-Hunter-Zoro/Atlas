@@ -2561,6 +2561,32 @@ async function headerFlow() {
     && label.textContent === 'Grant Notes'
     ? ok('and binds the session to it') : fail('the new project was not bound: ' + label.textContent);
 
+  // CODING AT THE CLUSTER: the exact command to copy, `board code <id> <paths>`.
+  const codebar = doc.getElementById('codebar');
+  const codeCmd = doc.getElementById('code-cmd');
+  const codeBtn = doc.getElementById('btn-code');
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
+  codebar.hidden && codeBtn && !codeBtn.hidden && doc.getElementById('barmenu').contains(codeBtn)
+    ? ok('a session not coding at the cluster offers the command from the overflow menu')
+    : fail('the cluster command is drawn, or not offered, before coding starts');
+  codeBtn.click();
+  !codebar.hidden && codeCmd.value === 'board code 20261009-210000 '
+    ? ok('which shows `board code <id> ` with the paths left to type')
+    : fail('the menu showed ' + JSON.stringify(codeCmd.value));
+  doc.getElementById('code-close').click();
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: {
+    ref: 'refs/heads/code/20261009-210000', sha: 'abcdef0123456789', step: 2,
+    paths: ['projects/Grant-Notes/src', 'projects/Grant-Notes/tests/test_a.py'] } }) });
+  !codebar.hidden && codeCmd.value === 'board code 20261009-210000 projects/Grant-Notes/src '
+      + 'projects/Grant-Notes/tests/test_a.py'
+    && /step 2/.test(doc.getElementById('code-step').textContent) && codeBtn.hidden
+    ? ok('while coding, the header shows the exact command with its held paths, and the step')
+    : fail('the coding header shows ' + JSON.stringify(codeCmd.value) + ' hidden=' + codebar.hidden);
+  doc.querySelectorAll('#bar .sess-ctl').length === 4
+    ? ok('and the session controls are still four') : fail('the code line added a session control');
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
+  codebar.hidden ? ok('a cleared `code` hides it') : fail('the code line outlived `code`');
+
   // End, after a second tap.
   end.click();
   await sleep(20);

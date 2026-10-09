@@ -165,6 +165,12 @@ var els = {
   subjpickPhi: document.getElementById("subjpick-phi"),
   subjpickSaid: document.getElementById("subjpick-said"),
   endedbar: document.getElementById("endedbar"),
+  codebar: document.getElementById("codebar"),
+  codeCmd: document.getElementById("code-cmd"),
+  codeCopy: document.getElementById("code-copy"),
+  codeStep: document.getElementById("code-step"),
+  codeClose: document.getElementById("code-close"),
+  codeBtn: document.getElementById("btn-code"),
   chrome: document.getElementById("chrome"),
   drawbar: document.getElementById("drawbar"),
   home: document.getElementById("btn-home"),
@@ -8470,6 +8476,7 @@ function paintHeader(state) {
   if (ended) document.body.dataset.ended = "1";
   else delete document.body.dataset.ended;
   els.endedbar.hidden = !ended;
+  paintClusterCode(st);
   els.subjectBtn.disabled = ended;
   els.modeBtn.disabled = ended;
   els.makeBtn.disabled = ended;
@@ -8485,6 +8492,63 @@ function paintHeader(state) {
     els.endBtn.title = "end this session (tap twice)";
   }
 }
+
+/* CODING AT THE CLUSTER. session.json `code` is set while a coding session
+   holds paths there (`cluster.Ear` hears its ref): the strip shows the exact
+   command, `board code <id> <paths>`, and the last step. Before it starts the
+   overflow menu's entry opens the strip with `board code <id> ` to copy and
+   the paths left to type. */
+var clusterCodeAsked = false;
+
+function clusterCommand(st) {
+  var code = st.code || null;
+  var paths = (code && code.paths) || [];
+  return "board code " + (st.id || "") + (paths.length ? " " + paths.join(" ") : " ");
+}
+
+function paintClusterCode(st) {
+  if (!els.codebar) return;
+  var stored = isStoredState(st) && !!st.id;
+  var code = st.code && st.code.ref ? st.code : null;
+  if (els.codeBtn) els.codeBtn.hidden = !stored || !!code;
+  var show = stored && (!!code || clusterCodeAsked);
+  els.codebar.hidden = !show;
+  if (!show) return;
+  var cmd = clusterCommand(st);
+  if (els.codeCmd.value !== cmd) els.codeCmd.value = cmd;
+  els.codeClose.hidden = !!code;
+  if (code) {
+    els.codeStep.textContent = code.step ? "step " + code.step : "no step yet";
+    els.codeStep.title = code.sha ? "code/" + st.id + " at " + String(code.sha).slice(0, 12) : "";
+  } else {
+    els.codeStep.textContent = "then the paths you will write";
+    els.codeStep.title = "";
+  }
+}
+
+if (els.codeCopy) els.codeCopy.onclick = function () {
+  var text = els.codeCmd.value;
+  var said = function (word) {
+    els.codeCopy.textContent = word;
+    setTimeout(function () { els.codeCopy.textContent = "copy"; }, 1500);
+  };
+  try { els.codeCmd.select(); } catch (e) { /* not selectable here */ }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { said("copied"); },
+      function () { said(document.execCommand && document.execCommand("copy") ? "copied" : "select it"); });
+  } else {
+    said(document.execCommand && document.execCommand("copy") ? "copied" : "select it");
+  }
+};
+if (els.codeBtn) els.codeBtn.onclick = function () {
+  els.barmenu.hidden = true;
+  clusterCodeAsked = true;
+  paintClusterCode(headerState);
+};
+if (els.codeClose) els.codeClose.onclick = function () {
+  clusterCodeAsked = false;
+  paintClusterCode(headerState);
+};
 
 function paintMode(mode) {
   els.modeBtn.dataset.now = mode;

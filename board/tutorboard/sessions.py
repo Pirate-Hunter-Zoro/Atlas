@@ -6,6 +6,8 @@
     delete(id)        move the directory to the trash
     prune_trash()     drop trash entries older than 30 days (server start)
     bind(id, subject) set `subject`, with a non-waking `[bind]` line
+    set_code(id, code) record or clear the session's cluster coding session
+    coding()          {id: code} for every session with `code` set
     file(id, upload)  move an upload into the bound subject, ink and all
     all(), get(id), path(id), repo(id)
     import_live(atlas, workspace, subject)   a workspace's live/ becomes one
@@ -21,6 +23,14 @@ session.json = {id, title, subject, mode, opened, ended, writeup, seen, code,
 view}. `subject` is a subject id (`courses/X`, `projects/Y`) or null;
 `writeup` is a source path relative to the Atlas root, or null. Times are
 local `YYYY-MM-DD HH:MM:SS`.
+
+`code` is null, or the session's coding session at the cluster as the Mac
+last heard it (`cluster.Ear`): {ref, sha, paths, step, subject, prev, seen,
+at}. `ref` is `refs/heads/code/<id>`, `sha` its tip, `paths` the held paths
+(repository-relative), `prev` the tip before, and `seen` the commit whose held
+files this checkout's working tree holds. While it is set, `gitops.commit`
+refuses commits to the held paths on main and `board push` from the session
+goes to the ref.
 """
 
 import hashlib
@@ -283,6 +293,27 @@ def bind(sid, subject, base=None, now=None):
     _line(where, "[bind] %s" % found["id"], "bind", now=now,
           subject=found["id"])
     return rec, True
+
+
+def set_code(sid, code, base=None):
+    """Set session `sid`'s `code` to `code` (a dict), or clear it (None).
+    The record."""
+    where = _need(sid, base)
+    rec = get(sid, base)
+    rec["code"] = dict(code) if code else None
+    _save(where, rec)
+    return rec
+
+
+def coding(base=None):
+    """`{id: code}` for every session in the store with `code` set, ended or
+    not: a coding session at the cluster outlives the Mac session's End."""
+    out = {}
+    for rec in all(base):
+        code = rec.get("code")
+        if isinstance(code, dict) and code.get("ref") and rec.get("id"):
+            out[rec["id"]] = code
+    return out
 
 
 # ---------------------------------------------------------------------------

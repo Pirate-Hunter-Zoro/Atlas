@@ -187,7 +187,8 @@ def turn_plan(spec, signal=""):
     The signal picks the prompt: a revision, a rework, a ship and a document
     asked for mid-session are not part of the lesson and get their own; an
     `[unfinished]` report gets the prompt that reads `git status` and the
-    placeholder card; everything else is a lesson turn.
+    placeholder card; a `[code]` step from the cluster gets the prompt that
+    reads the step's diff; everything else is a lesson turn.
     """
     prompt = {
         "revise": prompts.HEADLESS_REVISE_PROMPT,
@@ -195,6 +196,7 @@ def turn_plan(spec, signal=""):
         "ship": prompts.HEADLESS_SHIP_PROMPT,
         "writeup": prompts.HEADLESS_WRITEUP_PROMPT,
         "unfinished": prompts.HEADLESS_UNFINISHED_PROMPT,
+        "code": prompts.HEADLESS_CODE_PROMPT,
     }.get(signal, prompts.HEADLESS_FIRST_PROMPT)
     return fresh_recipe(spec), prompt
 
@@ -228,9 +230,9 @@ _SIGNAL_TAG = re.compile(r"^\[[^\]\n]*\]\s*\[([a-z]+)\]")
 
 
 # Lines that wake nothing (`"wake": false`) and ride in front of the line that
-# did: a bind, a mode change, an upload, a filing. They say nothing about what
-# the turn is.
-QUIET_SIGNALS = ("bind", "mode", "uploaded", "filed")
+# did: a bind, a mode change, an upload, a filing, a coding session's ref
+# gone. They say nothing about what the turn is.
+QUIET_SIGNALS = ("bind", "mode", "uploaded", "filed", "unheld")
 
 
 def turn_signal(out):

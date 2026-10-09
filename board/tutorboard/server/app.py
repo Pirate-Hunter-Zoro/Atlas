@@ -14,7 +14,8 @@ Two more threads, each switched on by the LaunchAgent's environment
 test runs neither:
 
   * `TUTORBOARD_CLUSTER=1`: the cluster thread (`cluster.Ear`), which pulls
-    when origin's main moves and hears every subject's reports.
+    when origin's main moves, hears every subject's reports, and hears each
+    `code/<id>` ref: a coding session's step at the cluster wakes its session.
   * `TUTORBOARD_FRESH=1`: the freshness thread. Once committed board code
     differs from what this process loaded (`stamp.moved`) and no turn runs
     or waits, the server stops listening and exits 0; launchd (KeepAlive)
