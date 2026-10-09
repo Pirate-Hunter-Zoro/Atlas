@@ -76,7 +76,7 @@ os.environ["TUTORBOARD_COURSES"] = base
 os.environ["TUTORBOARD_TRASH"] = trash
 os.environ.pop("TUTORBOARD_SESSION", None)
 
-from tutorboard import gitops, meeting, paths, sessions, sittings   # noqa: E402
+from tutorboard import briefs, gitops, paths, sessions   # noqa: E402
 from tutorboard.course import homework                              # noqa: E402
 from tutorboard.course import repo as course_repo                   # noqa: E402
 from tutorboard.lesson import state as lesson_state                 # noqa: E402
@@ -301,16 +301,13 @@ try:
     write(os.path.join(d_dir, "cards", "0002-lesson.md"),
           "---\nkind: lesson\n---\nAnother.\n")
     sessions.end(d["id"], base=base, now=now - 3600)
-    sittings.forget()
-    blocks, _, why = meeting.blocks_for(base, ["courses/Galois"], now - 6 * 3600)
-    held = [r["id"] for blk in blocks for r in blk["sittings"]]
+    blocks, _, why = briefs.blocks_for(base, ["courses/Galois"], now - 6 * 3600)
+    held = [r for blk in blocks for r in blk["sessions"]]
     check("the meeting gather's session walk reads a fixture ended session",
-          not why and "courses/Galois@" + d["id"] in held, (why, held))
-    row = [r for blk in blocks for r in blk["sittings"]
-           if r["id"] == "courses/Galois@" + d["id"]]
-    check("as a filed row of its two cards, titled by the session",
-          row and row[0]["live"] is False and row[0]["cards"] == 2
-          and "Splitting fields" in row[0]["label"])
+          not why and d["id"] in [r["id"] for r in held], (why, held))
+    row = [r for r in held if r["id"] == d["id"]]
+    check("with its two cards, titled by the session",
+          row and row[0]["cards"] == 2 and row[0]["title"] == "Splitting fields")
 
     # ---- bind, and bind --create ----------------------------------------------
     from tutorboard.lesson import notes as lesson_notes             # noqa: E402

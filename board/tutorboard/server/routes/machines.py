@@ -9,15 +9,15 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               the Atlas root; 404 under `/s/<id>/`:
               GET  /courses.json  /atlas.json  /news  /missions  /mission
               GET  /meeting/deck.json  /meeting/view  /meeting/pdf
-              POST /notes/what  /notes  /meeting/direction  /default-agent
+              POST /meeting  /meeting/direction  /default-agent
               POST /colibri  /writeup/scopes  /elsewhere  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
 
-`/notes`, `/meeting/direction` and `/elsewhere` ask another subject's tutor,
-and each goes through `registry.runner_route`.
+`/meeting`, `/meeting/direction` and `/elsewhere` ask another subject's
+tutor, and each goes through `registry.runner_route`.
 """
 
 import json
@@ -37,7 +37,7 @@ from ... import atlas
 from ... import colibri
 from ... import machine
 from ... import machines
-from ... import meeting
+from ... import briefs
 from ... import missions
 from ... import news
 from ... import progress
@@ -218,74 +218,51 @@ def get(h, repo, path):
         return h.send_json(machines.atlas_payload(
             repo, holders=want.get("holders", [""])[0] == "1"))
 
-    # THE DECK, AND THERE IS EXACTLY ONE OF IT. No name arrives from the
-    # browser at all -- `meeting.STEM` is a constant, and the three routes
-    # below are the whole of what can be asked about it. That is not a saving
-    # in code; it is the reason no name from a request can reach the
-    # filesystem here.
+    # THE DECK, AND THERE IS EXACTLY ONE OF IT: the artifact
+    # projects/Meetings/docs/meeting/ (`briefs.py`). No name arrives from the
+    # browser, so no name from a request can reach the filesystem here.
     if path == "/meeting/deck.json":
-        # WHERE THE ONE DECK GOT TO: being written, ready, or did not land --
-        # judged here, because a writer turn takes minutes and the sheet and
-        # the reader both watch this. A built deck is read back the first time
-        # it is asked about: its page map off the PDF, its numbers against the
-        # sources.
-        base = atlas.root() or repo.root
-        meeting.status(base)
-        rec = meeting.deck(base)
+        # Being written, ready, or did not land: `briefs.judge`, which reads
+        # `artifacts.status` and checks a built deck once against its sources.
+        rec = briefs.deck(atlas.root() or repo.root)
         if not rec:
             return h.send_json({"ok": False,
                                 "detail": "No deck has been made yet."})
         return h.send_json({
-            "ok": True, "state": rec.get("state") or "",
-            "why": rec.get("why") or "",
-            "since": rec.get("since") or "", "period": rec.get("period") or "",
-            "at": rec.get("at") or 0, "built": bool(rec.get("has_pdf")),
-            "host": rec.get("host") or "",
-            "workspaces": rec.get("workspaces") or [],
-            "names": rec.get("names") or {},
-            "pages": rec.get("pages") or {},
-            "unsupported": rec.get("unsupported") or 0,
-            "marked": sorted(meeting.ink_keys(repo)),
+            "ok": True, "state": rec["state"], "why": rec["why"],
+            "since": rec["since"], "period": rec["period"], "at": rec["at"],
+            "built": bool(rec["has_pdf"]), "host": rec["host"],
+            "workspaces": rec["workspaces"], "names": rec["names"],
+            "pages": rec["pages"], "unsupported": rec["unsupported"],
+            "marked": sorted(briefs.ink_keys(repo)),
         })
 
     if path == "/meeting/view":
-        # THE SAME RASTERISER, THE SAME CACHE, THE SAME PAGE ADDRESSES the
-        # library's reader uses. Only a READY deck is drawn: one whose page
-        # map was read off its own build, so a mark finds its project.
+        # The library reader's rasteriser, cache and page addresses. Only a
+        # READY deck is drawn.
         base = atlas.root() or repo.root
-        meeting.status(base)
-        rec = meeting.deck(base)
+        rec = briefs.deck(base)
         if not rec or not rec.get("has_pdf"):
-            # Not `state`: that name is the lesson-state module, and binding
-            # it anywhere in `get` makes it local to all of `get`, which is
-            # `/health` raising UnboundLocalError on every call.
             deck_state = (rec or {}).get("state") or ""
             return h.send_json({
                 "ok": False, "why": "none" if not rec else deck_state,
                 "detail": ("There is no deck to read. Make one from the front "
                            "door." if not rec else
-                           "The deck is being written in %s. This page draws "
-                           "it when it is there." % ((rec.get("names") or {})
-                                                    .get(rec.get("host"))
-                                                    or rec.get("host"))
+                           "The deck is being written in Meetings. This page "
+                           "draws it when it is there."
                            if deck_state == "being written" else
                            (rec.get("why") or "The deck did not land."))})
-        out = paper.pages_of(repo, rec["pdf"], meeting.STEM + ".pdf", "meeting")
+        out = paper.pages_of(repo, rec["pdf"], briefs.STEM + ".pdf", "meeting")
         if out.get("ok"):
-            # The marks come WITH the pages: this page holds no live payload to
-            # read them out of, because it opens no sitting.
-            out["ink"] = meeting.ink_keys(repo)
-            # THE BUILD ON THE GLASS, handed back with every save, and the
-            # flag when ink on it was drawn on another.
-            out["build"], out["rebuilt"] = meeting.drawn_on(repo, rec["pdf"], out)
-            out["deck"] = meeting.deck_id(base)
-            out["pages_of"] = rec.get("pages") or {}
-            out["names"] = rec.get("names") or {}
-            out["since"] = rec.get("since") or ""
-            out["period"] = rec.get("period") or ""
-            # WHAT NO SOURCE SUPPORTS, shown beside the deck rather than
-            # silently shipped or silently dropped.
-            prov = meeting.provenance(base)
+            # The marks come WITH the pages: this page opens no session.
+            out["ink"] = briefs.ink_keys(repo)
+            out["build"], out["rebuilt"] = briefs.drawn_on(repo, rec["pdf"], out)
+            out["deck"] = briefs.deck_id(base)
+            out["pages_of"] = rec["pages"]
+            out["names"] = rec["names"]
+            out["since"] = rec["since"]
+            out["period"] = rec["period"]
+            prov = briefs.provenance(base)
             out["unsupported"] = {
                 "numbers": prov.get("numbers") or [],
                 "figures": prov.get("figures") or [],
@@ -293,8 +270,7 @@ def get(h, repo, path):
         return h.send_json(out)
 
     if path == "/meeting/pdf":
-        base = atlas.root() or repo.root
-        rec = meeting.deck(base)
+        rec = briefs.deck(atlas.root() or repo.root)
         if not rec or not rec.get("has_pdf"):
             return h.send_json({"ok": False, "error": "no deck"}, status=404)
         return h.send_file(rec["pdf"])
@@ -413,58 +389,28 @@ def post(h, repo, path):
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
-    if path == "/notes/what":
-        # WHICH PROJECTS, WITH WHAT EACH ONE HAS TO REPORT. Asked for in these
-        # words: *"I want to be able to select which projects meeting notes are
-        # generated for."* The counts are `meeting.gather`'s own, so the list
-        # cannot disagree with the brief the deck is written over.
+    if path == "/meeting":
+        # THE MEETING DECK: `{since, items}`, `items` the subjects it covers
+        # (none is every subject that moved). The brief is written and a
+        # `[writeup]` turn asked in a session bound to projects/Meetings
+        # (`library.ask_meeting`); the page then watches `/meeting/deck.json`.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001
             return h.send_json({"ok": False, "detail": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            payload = {}
         base = atlas.root() or repo.root
-        when, said = meeting.resolve_since(payload.get("since") or "", base)
+        when, said = briefs.resolve_since(payload.get("since") or "", base)
         if when is None:
             return h.send_json({"ok": False, "detail": said}, status=400)
-        blocks, every, _ = meeting.blocks_for(base, None, when)
-        got = dict((b["id"], b) for b in blocks)
-        out = []
-        for ws in every:
-            block = got.get(ws["id"])
-            out.append({
-                "id": ws["id"], "family": ws["family"],
-                "name": (block or {}).get("name") or ws["dir"],
-                "moved": bool(block),
-                "commits": len((block or {}).get("commits") or []),
-                "closed": len((block or {}).get("closed") or []),
-                "sittings": len((block or {}).get("sittings") or []),
-                "story": bool((block or {}).get("story")),
-                "fenced": bool((block or {}).get("fenced")),
-            })
-        return h.send_json({"ok": True, "since": said,
-                            "period": meeting.period_text(when),
-                            "workspaces": out})
-
-    if path == "/notes":
-        # THE MEETING DECK, FROM THE FRONT DOOR. Written by a turn over a brief,
-        # through `/writeup`'s own dispatch -- see `library.ask_meeting` -- so
-        # the reply is "being written" and the sheet watches
-        # `/meeting/deck.json` until it is ready or says why it did not land.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8"))
-        except Exception:                                    # noqa: BLE001
-            return h.send_json({"ok": False, "detail": "bad json"}, status=400)
-        base = atlas.root() or repo.root
-        when, said = meeting.resolve_since(payload.get("since") or "", base)
-        if when is None:
-            return h.send_json({"ok": False, "detail": said}, status=400)
-        # WHICH WORKSPACES, and only ones that are strings, matched against the
-        # walk; nothing from this list reaches a path.
-        want = [str(w) for w in (payload.get("want") or []) if str(w).strip()]
+        items = payload.get("items")
+        items = [str(w) for w in items if isinstance(w, str) and w.strip()][:200] \
+            if isinstance(items, list) else []
         from . import library as library_route         # local: a cycle
         try:
             return library_route.meeting_deck(h, repo, base, when, said,
-                                              want=want or None)
+                                              want=items or None)
         except Exception as exc:                             # noqa: BLE001
             return h.send_json({"ok": False,
                                 "detail": str(exc)[-300:]}, status=500)

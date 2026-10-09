@@ -279,7 +279,7 @@ check("and the payload says a document has been drawn on",
                                         "dir": {"pages": 0, "strokes": 0}}])
 # A DOCUMENT NOT MADE FROM SITTINGS SENDS ALL ITS INK EVERY ROUND, as it always
 # has: `waiting` is every marked page. Only a deck with a brief beside it keeps
-# ink an earlier round delivered behind -- test/sittings.py.
+# ink an earlier round delivered behind -- test/briefs.py.
 
 # THE INK COMES BACK WITH THE PAGES. The library page opens no sitting and reads
 # no `state.json`, so it holds no live payload to restore marks out of -- the

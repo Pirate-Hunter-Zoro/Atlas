@@ -215,35 +215,23 @@ window.fetch = (url, opts) => {
   if (/^\/health/.test(String(url))) {
     return Promise.resolve({ json: () => Promise.resolve(serving) });
   }
-  // The meeting deck's three routes. `/notes/what` is what each workspace has
-  // to report since the chosen period, `/notes` builds the deck, and
-  // `/meeting/deck.json` is the one from before.
-  if (url === '/notes/what') {
-    posted.push({ to: url, body: JSON.parse(opts.body) });
-    return Promise.resolve({ json: () => Promise.resolve({
-      ok: true, since: 'last week', workspaces: [
-        { id: 'research/PSYCH-ASR', name: 'PSYCH-ASR', moved: true,
-          commits: 3, closed: 1, files: 7 },
-        { id: 'courses/Galois-Theory', name: 'Galois-Theory', moved: false,
-          commits: 0, closed: 0, files: 0 },
-      ] }) });
-  }
-  // `/notes` asks for the deck and says it is being written; the sheet then
-  // watches `/meeting/deck.json`, which here says it is ready once asked.
-  if (url === '/notes') {
+  // The meeting deck's two routes. `/meeting` asks for the deck and says it
+  // is being written; the sheet then watches `/meeting/deck.json`, which here
+  // says it is ready once asked.
+  if (url === '/meeting') {
     posted.push({ to: url, body: JSON.parse(opts.body) });
     notesAsked = true;
     return Promise.resolve({ json: () => Promise.resolve({
       ok: true, name: 'meeting', state: 'being written',
-      host: 'research/PSYCH-ASR', where: 'PSYCH-ASR',
+      host: 'projects/Meetings', where: 'Meetings',
       workspaces: ['research/PSYCH-ASR'],
-      detail: 'The assistant is writing it in PSYCH-ASR.' }) });
+      detail: 'The assistant is writing it in Meetings.' }) });
   }
   if (url === '/meeting/deck.json') {
     return Promise.resolve({ json: () => Promise.resolve(notesAsked
       ? { ok: true, state: 'ready', built: true, period: 'the last week',
           workspaces: ['research/PSYCH-ASR'],
-          pages: { 2: 'research/PSYCH-ASR', 3: 'research/PSYCH-ASR' },
+          pages: { 1: 'projects/Meetings', 2: 'projects/Meetings' },
           unsupported: 0, marked: [] }
       : { ok: true, built: false }) });
   }
@@ -538,54 +526,42 @@ setTimeout(() => {
         && doc.getElementById('cards').hidden === false
         && doc.getElementById('atlas-what').textContent === 'Research');
 
-  // ---- the meeting deck: two questions, in this order ------------------
+  // ---- the meeting deck: one sheet, a period and the subjects --------
   doc.getElementById('atlas-up').onclick();
   doc.getElementById('atlas-notes').onclick();
-  const which = doc.getElementById('notes-which');
-  check('the deck asks how far back first, and nothing else',
+  const make = doc.getElementById('notes-make');
+  const rows = doc.querySelectorAll('#notes-list button');
+  check('the deck is one sheet: the period and the subjects together',
         doc.getElementById('notes-since').hidden === false
-        && which.hidden === true);
-
+        && !doc.getElementById('notes-which') && !doc.getElementById('notes-back'));
+  check('every course and project is offered, from the payload the door drew',
+        rows.length === 5);
+  check('nothing is made until a period is chosen', make.disabled === true);
   posted.length = 0;
   doc.querySelector('#notes-since button[data-since="7d"]').click();
+  check('choosing a period asks nothing yet, and makes the deck possible',
+        posted.length === 0 && make.disabled === false
+        && doc.querySelector('#notes-since button[data-since="7d"]')
+             .getAttribute('aria-pressed') === 'true');
+  rows[3].click();
+  check('a subject tapped is chosen', rows[3].getAttribute('aria-pressed') === 'true');
+  posted.length = 0;
+  make.onclick();
   setTimeout(() => {
-    check('choosing a period asks what each project has to report',
-          posted.length === 1 && posted[0].to === '/notes/what'
-          && posted[0].body.since === '7d');
-    check('and then the list of projects is what is on the sheet',
-          which.hidden === false
-          && doc.getElementById('notes-since').hidden === true);
-
-    const rows = doc.querySelectorAll('#notes-list button');
-    check('every project is offered, whether or not it moved', rows.length === 2);
-    check('and each row says what it has, not just its name -- ticking bare '
-          + 'names ten minutes before a meeting is guessing',
-          /3 commits/.test(rows[0].textContent)
-          && /nothing since/.test(rows[1].textContent));
-    check('the ones that moved are chosen already, because that is what the '
-          + 'deck covers when nobody says anything',
-          rows[0].getAttribute('aria-pressed') === 'true'
-          && rows[1].getAttribute('aria-pressed') === 'false');
-
-    rows[1].click();
-    posted.length = 0;
-    doc.getElementById('notes-make').onclick();
-    setTimeout(() => {
-      check('making the deck carries the projects that were ticked',
-            posted.length === 1 && posted[0].to === '/notes'
-            && posted[0].body.want.length === 2
-            && posted[0].body.want.indexOf('courses/Galois-Theory') !== -1);
-      check('and the period goes with them', posted[0].body.since === '7d');
-      check('the deck can then be read, on the page that can be marked up',
-            doc.getElementById('notes-read').hidden === false
-            && doc.getElementById('notes-read').getAttribute('href')
-               === '/meeting');
-      check('and the sheet says it replaced the one before it, because there '
-            + 'is only ever one',
-            /replaced the one before it/
-              .test(doc.getElementById('notes-said').textContent));
-      rest();
-    }, 20);
+    check('making the deck posts the period and the chosen subjects to /meeting',
+          posted.length === 1 && posted[0].to === '/meeting'
+          && posted[0].body.since === '7d'
+          && JSON.stringify(posted[0].body.items) === '["research/PSYCH-ASR"]');
+    check('the deck can then be read, on the page that can be marked up',
+          doc.getElementById('notes-read').hidden === false
+          && doc.getElementById('notes-read').getAttribute('href') === '/meeting');
+    check('and the sheet says it replaced the one before it, because there '
+          + 'is only ever one',
+          /replaced the one before it/
+            .test(doc.getElementById('notes-said').textContent));
+    check('no route of the old sheets is left on the page',
+          !/\/notes\/what|"\/notes"|\/sittings/.test(js));
+    rest();
   }, 20);
 }, 80);
 

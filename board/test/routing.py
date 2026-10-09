@@ -130,6 +130,9 @@ def write(path, text):
         fh.write(text)
 
 
+# The meeting deck's subject, as the repository tracks it.
+write(os.path.join(atlas, "projects", "Meetings", "tutorboard.json"),
+      json.dumps({"name": "Meetings", "phi": True}))
 for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
     write(os.path.join(atlas, rel, "tutorboard.json"),
           json.dumps({"name": os.path.basename(rel), "phi": False}))
@@ -363,11 +366,6 @@ DRIVE = {
         ("/library/marked/nope/x.pdf", None, (404,))]),
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
-    ("POST", "/sittings", "library"): ("atlas", [("/sittings", {}, OK)]),
-    ("POST", "/sittings/items", "library"): ("atlas", [("/sittings/items", {"picks": []}, OK)]),
-    ("POST", "/sittings/decks", "library"): ("atlas", [("/sittings/decks", {}, OK)]),
-    ("POST", "/sittings/deck", "library"): ("atlas", [
-        ("/sittings/deck", {"picks": [], "items": []}, (400,))]),
     # machines
     ("GET", "/meeting", "handler"): ("atlas", [("/meeting", None, OK)]),
     ("GET", "/courses.json", "machines"): ("atlas", [("/courses.json", None, OK)]),
@@ -378,8 +376,7 @@ DRIVE = {
     ("GET", "/meeting/deck.json", "machines"): ("atlas", [("/meeting/deck.json", None, OK)]),
     ("GET", "/meeting/view", "machines"): ("atlas", [("/meeting/view", None, OK)]),
     ("GET", "/meeting/pdf", "machines"): ("atlas", [("/meeting/pdf", None, (404,))]),
-    ("POST", "/notes/what", "machines"): ("atlas", [("/notes/what", {"since": "7d"}, OK)]),
-    ("POST", "/notes", "machines"): ("atlas", [("/notes", {"since": "nope"}, (400,))]),
+    ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/meeting/direction", "machines"): ("atlas", [
         ("/meeting/direction", {}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
@@ -663,9 +660,13 @@ status, _, grew = landed("POST", "/s/%s/library/feedback" % SID["B"],
                          {"document": DOC["B"], "text": "a note from B's board"})
 check("library feedback from a session's own board lands in that session",
       status == 200 and only(grew, DIR["B"], "[revise]"))
-status, _, grew = landed("POST", "/notes", {"since": "3650d", "want": [SUBJECT["B"]]})
-check("a meeting ask lands in the newest open session on its host, and nowhere else",
-      status == 200 and only(grew, DIR["B"], "[writeup]"))
+had = set(r["id"] for r in sessions.all(atlas))
+status, reply, grew = landed("POST", "/meeting", {"since": "3650d", "items": [SUBJECT["B"]]})
+made = [r for r in sessions.all(atlas) if r["id"] not in had]
+check("a meeting ask lands in a session bound to projects/Meetings, and nowhere else "
+      "(%d %s)" % (status, reply[:200]),
+      status == 200 and len(made) == 1 and made[0]["subject"] == "projects/Meetings"
+      and only(grew, sessions.path(made[0]["id"], atlas), "[writeup]"))
 status, reply, grew = landed("POST", "/elsewhere", {"task": "a mission for Beta",
                                                     "repo": SUBJECT["B"]})
 check("a mission sent elsewhere lands in that subject's session, as its turn",
@@ -679,15 +680,6 @@ status, _, grew = landed("POST", "/s/%s/writeup" % SID["A"],
                          {"makes": "slides", "repo": SUBJECT["B"], "about": "for Beta"})
 check("a deck asked for in session A for Beta lands in Beta's session, not A's",
       status == 200 and only(grew, DIR["B"], "[writeup]"))
-rows = json.loads(ask("POST", "/sittings", {})[1].decode("utf-8")).get("sittings") or []
-pick = [r["id"] for r in rows if r.get("ws") == SUBJECT["A"]][:1]
-groups = json.loads(ask("POST", "/sittings/items", {"picks": pick})[1].decode(
-    "utf-8")).get("groups") or []
-items = [i["id"] for g in groups for i in g.get("items") or []]
-status, reply, grew = landed("POST", "/sittings/deck", {"picks": pick, "items": items})
-check("a deck from sittings lands in the newest open session on its host "
-      "(%d %s)" % (status, reply[:200]),
-      status == 200 and only(grew, SECOND, "[writeup]"))
 had = set(r["id"] for r in sessions.all(atlas))
 status, _, grew = landed("POST", "/writeup?subject=" + LONE,
                          {"makes": "paper", "about": "nobody is here"})
@@ -728,7 +720,7 @@ check("/sessions.json lists both sessions", SID["A"] in listed and SID["B"] in l
 status, reply = ask("GET", "/subjects.json")
 check("/subjects.json lists every subject",
       sorted(s["id"] for s in json.loads(reply.decode("utf-8"))["subjects"])
-      == sorted(list(SUBJECT.values()) + [LONE]))
+      == sorted(list(SUBJECT.values()) + [LONE, "projects/Meetings"]))
 check("a library route without ?subject= is refused",
       ask("GET", "/library.json")[0] == 400)
 check("a library route naming no subject is 404",

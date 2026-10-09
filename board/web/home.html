@@ -118,7 +118,7 @@
              A glyph is not a label -- that was paid for once already with the
              map's bare diamond -- so this says what it makes. -->
         <button id="atlas-notes" type="button"
-                title="meeting notes across everything">notes</button>
+                title="the meeting deck, over a period you choose">meeting deck</button>
         <!-- A PAPER OR A DECK, COMMISSIONED FROM THE FRONT DOOR. "The ability
              to write a paper or a slide deck should just be an option on the
              homescreen, and from there I want to be able to specify which
@@ -129,14 +129,6 @@
              drawn, for the reason `notes` is. -->
         <button id="atlas-doc" type="button"
                 title="a paper or a slide deck, in any workspace">paper or deck</button>
-        <!-- A DECK OUT OF WHAT PAST SITTINGS DID, in any workspace and from any
-             date. "I just want to be able to select from tutoring sessions what
-             we've done over all sessions and get to pick a list of the things I
-             want to include in the presentation." Not the meeting deck: no
-             one-slide-per-project rule, and ink on it is a correction rather
-             than a direction. Labelled, for the reason `notes` is. -->
-        <button id="atlas-sittings" type="button"
-                title="a slide deck from things done in past sittings, any workspace">slides from sittings</button>
       </div>
     </div>
     <p id="atlas-blurb" class="atlas-blurb" hidden></p>
@@ -201,18 +193,14 @@
      decision to open something deserves the whole of what is known. It is also
      the answer to reading a card on a phone: the picture can be small as long
      as a tap makes it large. -->
-<!-- TWO QUESTIONS, IN THIS ORDER, because the second one cannot be asked until
-     the first is answered. How far back is a period; which projects is a list
-     of what each one HAS to report since that period, which is the only form
-     of the question anybody can answer ten minutes before a meeting.
-
-     Buttons rather than a date field: a date picker on a tablet is the wrong
-     shape of question. Ticks rather than bare names: "three commits, one step
-     closed" beside a project is the answer; its name alone is a guess. -->
+<!-- THE MEETING DECK, on one sheet: a period, and the subjects it covers --
+     none chosen is every subject that moved. Buttons rather than a date field:
+     a date picker on a tablet is the wrong shape of question. The deck is
+     projects/Meetings/docs/meeting/, and making one REPLACES the one before. -->
 <div id="notes" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
     <p class="eyebrow">the meeting deck</p>
-    <h3 id="notes-title">How far back?</h3>
+    <h3 id="notes-title">A deck for the meeting</h3>
     <p class="sheet-line" id="notes-line">A presentation for your mentors,
       written by the assistant from what landed. Every number is checked
       against its source.</p>
@@ -222,30 +210,16 @@
       <button type="button" data-since="7d">the last week</button>
       <button type="button" data-since="30d">the last month</button>
     </div>
-
-    <!-- WHICH PROJECTS. Asked second and only once the period is known, with
-         what each one has to report beside it. The ones that moved are ticked
-         already, because that is what the deck would cover if nobody said
-         anything — so the list is a chance to narrow it, not a form. -->
-    <div id="notes-which" hidden>
-      <p class="sheet-line" id="notes-which-line"></p>
-      <div id="notes-list" class="notes-which"></div>
-      <div class="sheet-actions">
-        <button id="notes-make" class="action primary" type="button">
-          <span class="action-name">Make the deck</span>
-          <span class="action-sub" id="notes-make-sub"></span>
-        </button>
-        <button id="notes-back" class="action" type="button">
-          <span class="action-name">Back</span>
-          <span class="action-sub">a different period</span>
-        </button>
-      </div>
+    <p class="sheet-line" id="notes-which-line">Which subjects? None chosen
+      is every one that moved.</p>
+    <div id="notes-list" class="notes-which"></div>
+    <div class="sheet-actions">
+      <button id="notes-make" class="action primary" type="button" disabled>
+        <span class="action-name">Make the deck</span>
+        <span class="action-sub" id="notes-make-sub">choose a period</span>
+      </button>
     </div>
-
     <p class="sheet-line" id="notes-said" hidden></p>
-    <!-- THE ONE FROM BEFORE, which is what you want in the ten minutes before
-         the meeting rather than a new one. There is only ever one: making a
-         new deck REPLACES it. -->
     <a id="notes-read" class="action primary" href="/meeting" hidden>
       <span class="action-name">Read the deck</span>
       <span class="action-sub" id="notes-read-sub"></span>
@@ -310,62 +284,6 @@
       </button>
       <button id="doc-close" class="action" type="button">
         <span class="action-name">Not now</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- SLIDES FROM SITTINGS: three steps in one sheet, and Back walks them in
-     reverse. Which sittings, from every workspace and every date; what they
-     did, all ticked, so the list is a chance to leave things out; and then the
-     deck being written, which this sheet watches until it is there.
-
-     THE TUTOR PLANS THE SLIDES. Nothing here says how many slides a thing
-     gets or which go together -- that was asked to be left to it -- and the
-     figures those sittings made are handed to it by the server rather than
-     picked here. The deck lands in the library of the workspace holding most
-     of what was ticked, where ink on a slide and "say what is wrong" redraw it
-     in place. -->
-<div id="sittings" class="sheet" hidden>
-  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sittings-title">
-    <p class="eyebrow">Slides from sittings</p>
-    <h3 id="sittings-title">Which sittings?</h3>
-    <p class="sheet-line" id="sittings-line">Every sitting in every workspace,
-      newest first. Tick the ones the deck draws from.</p>
-
-    <!-- THE ONES ALREADY ASKED FOR, first, because a deck takes minutes and the
-         person who asked for one has usually closed this sheet since. -->
-    <div id="sittings-decks" class="sittings-decks" hidden>
-      <p class="sittings-head">Decks already made</p>
-      <div id="sittings-decks-list"></div>
-    </div>
-
-    <div id="sittings-pick" hidden>
-      <div id="sittings-list" class="notes-which sittings-list"></div>
-    </div>
-    <div id="sittings-what" hidden>
-      <div id="sittings-items" class="notes-which sittings-list"></div>
-    </div>
-
-    <p class="sheet-line" id="sittings-said" hidden></p>
-    <p class="sheet-line" id="sittings-how" hidden>In the reader, tap
-      ✎ mark it up, draw on a slide, tap ✎ done marking, then say what is
-      wrong and send it. The deck is redrawn in place.</p>
-    <button id="sittings-read" class="action primary" type="button" hidden>
-      <span class="action-name">Read the deck</span>
-      <span class="action-sub" id="sittings-read-sub"></span>
-    </button>
-    <div class="sheet-actions">
-      <button id="sittings-go" class="action primary" type="button" disabled>
-        <span class="action-name" id="sittings-go-name">Show what was done in 0 sittings</span>
-        <span class="action-sub" id="sittings-go-sub"></span>
-      </button>
-      <button id="sittings-back" class="action" type="button" hidden>
-        <span class="action-name">Back</span>
-        <span class="action-sub" id="sittings-back-sub"></span>
-      </button>
-      <button id="sittings-close" class="action" type="button">
-        <span class="action-name">Close</span>
       </button>
     </div>
   </div>

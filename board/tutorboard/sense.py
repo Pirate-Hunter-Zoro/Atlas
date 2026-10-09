@@ -785,8 +785,8 @@ def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=(),
                  source=""):
     """The inbox line for one round of feedback on one document.
 
-    `brief` is the deck's `_brief.md` where the document is a deck made from
-    sittings, and "" for everything else. See `DECK_BRIEF_SENSE`. `ledger` and
+    `brief` is the deck's `_brief.md` where the document is a deck with a
+    brief beside it (the meeting deck), and "" for everything else. See `DECK_BRIEF_SENSE`. `ledger` and
     `ids` are the round's requests; see `LEDGER_SENSE`. `source` is the `.tex`
     or `.md` the document is built from; see `BUILD_SENSE`.
     """
@@ -843,10 +843,10 @@ def _ledger(ledger, ids):
                            ", ".join(shown), ledger)
 
 
-# A DECK MADE FROM SITTINGS IS CORRECTED WITH INK, AND THE INK MAY ASK FOR MORE.
+# A DECK WITH A BRIEF IS CORRECTED WITH INK, AND THE INK MAY ASK FOR MORE.
 #
 # `HEADLESS_REVISE_PROMPT` says *do not widen it*, which is right for a paper
-# whose scope somebody chose and wrong for this: the owner ticked what goes in,
+# whose scope somebody chose and wrong for this: the brief chose what goes in,
 # the tutor planned the slides, and a ring with "add the ROC curve" beside it is
 # the correction. So the turn is told where the deck's scope is written down --
 # the brief the server wrote before the deck existed -- that an addition asked
@@ -854,12 +854,12 @@ def _ledger(ledger, ids):
 # brief only catalogues, and that a frame stays one page, because a mark finds
 # its slide by page number.
 DECK_BRIEF_SENSE = (
-    " THIS DECK WAS COMPOSED FROM SITTINGS, and what it covers is written down "
+    " THIS DECK WAS COMPOSED FROM A BRIEF, and what it covers is written down "
     "in `%s`: read it before changing anything. Ink or a note asking for "
     "something to be ADDED is the feedback, not a widening -- add it, from the "
-    "sources the brief names; the past sittings' cards and transcripts it "
-    "points at are yours to read for this. A figure its catalog lists and the deck does not "
-    "have yet is fetched with `board deckfig %s <workspace id> <result id>`, "
+    "sources the brief names; the sessions' cards and transcripts it points "
+    "at are yours to read for this. A figure its catalog lists and the deck "
+    "does not have yet is fetched with `board deckfig %s <subject> <result id>`, "
     "which copies it into the deck's figures/ and prints the path to "
     "\\includegraphics; one the catalog does not list is found by giving a "
     "word from its file name in place of the id. Open the image before using "
@@ -950,9 +950,8 @@ def ship_sense(agent, task):
 # on them in terms of the presentation -- they're just for a meeting to
 # communicate what I've been working on. My mentors, seeing this presentation,
 # will give me suggestions on new directions to take -- THAT'S what these
-# annotations will serve as."* So the ink is input to what the workspace does
-# next, and the slide it is on is which workspace, because every frame names
-# one (`\meetingws`).
+# annotations will serve as."* So the ink is input to what comes next, and the
+# deck is the Meetings subject's, so its tutor is the one asked (`briefs.deck`).
 #
 # IT MAY NOT APPLY THE DIRECTION, and that is the point of the whole route.
 # `direction.write` at the root, a new sitting that ARCHIVES the lesson, the
@@ -1120,61 +1119,21 @@ def writeup_sense(makes, about=""):
             + MAKE_SENSE + MEASURE_SENSE + RULE_SENSE)
 
 
-# WHAT A DECK FROM SITTINGS IS ABOUT, and it is a file rather than a sentence.
+# WHAT THE MEETING DECK IS ABOUT. Said in these words: *"actually generate a
+# professional coherent presentation on my most recent progress"* -- something
+# the owner puts in front of their mentors without rewriting it.
+# `briefs.write_brief` writes the period's commits, TUTOR.md diffs and ended
+# sessions into `_brief.md`; this is the `about` that points at it, and
+# `writeup_sense` wraps it in the document method.
 #
-# Asked for in these words: *"I just want to be able to select from tutoring
-# sessions what we've done over all sessions and get to pick a list of the
-# things I want to include in the presentation. I leave it up to the AI tutor to
-# actually decide what slides are dedicated to which things accomplished."* The
-# picks cross workspaces and dates, so no single sentence holds them: the server
-# writes them into `_brief.md` beside where the deck goes -- the ticked items
-# with their sources, the figures it snapshotted, a catalog of the rest -- and
-# this is the `about` that points at it. `writeup_sense` wraps it in the
-# document method exactly as it wraps a scope.
-#
-# THE FILENAME IS FIXED, and that is the one thing here that is not the tutor's
-# to choose. `MAKE_SENSE` says the slug is a short name the tutor picks; the
-# front door finds this deck by the slug it made, so a better name is a deck
-# nobody can open from the sheet that asked for it.
-SITTINGS_ABOUT = (
-    "THE THINGS LISTED IN `writeups/%(slug)s/_brief.md`, which somebody ticked "
-    "from past sittings -- read that file first, whole. It says what goes in, "
-    "where each thing came from, which figures are already copied into "
-    "`writeups/%(slug)s/figures/` for you, and how to fetch any other. YOU "
-    "PLAN THE SLIDES: an item gets as many as it needs, items that belong "
-    "together share them, and there is no one-slide-per-workspace rule. The "
-    "deck presents the WORK -- what was built, shown, measured or proved, with "
-    "its numbers -- not the conversation that produced it. THE FILE IS "
-    "`writeups/%(slug)s/%(slug)s.tex`, that name exactly and no other: the "
-    "front door finds the deck by it. Build it with `board build "
-    "writeups/%(slug)s/%(slug)s.tex`."
-)
-
-
-def sittings_about(slug):
-    """What a deck composed from ticked sittings is about: its brief."""
-    return SITTINGS_ABOUT % {"slug": slug}
-
-
-# WHAT THE MEETING DECK IS ABOUT, and it is the deck from sittings with a
-# preset. Said in these words: *"actually generate a professional coherent
-# presentation on my most recent progress"* -- something the owner puts in front
-# of their mentors without rewriting it. `meeting.write_brief` writes the period's
-# commits, handoff and direction diffs, sittings and plan into `_brief.md`; this
-# is the `about` that points at it, and `writeup_sense` wraps it in the document
-# method exactly as it wraps the deck from sittings.
-#
-# TWO THINGS HERE ARE NOT THE WRITER'S TO CHOOSE. The file name, because the
-# front door finds the deck by it; and one `\meetingws` per frame, because the
-# page a mentor's mark is on is how that mark finds its project, and a page
-# with none or two refuses the deck.
+# THE FILE NAME IS NOT THE WRITER'S TO CHOOSE: the deck is the artifact
+# projects/Meetings/docs/meeting/, judged by its doc.json's source.
 MEETING_ABOUT = (
     "THE MEETING DECK: a progress presentation to the MENTORS who supervise "
     "these projects, over %(period)s. Everything it may say is in "
-    "`%(dir)s/_brief.md` -- read that file first, whole. It has each project's "
-    "commits with their whole messages, how its HANDOFF.md and DIRECTION.md "
-    "changed, the sittings held, the plan steps that closed and the ones still "
-    "open, and the figures already copied into `%(dir)s/figures/`. The "
+    "`%(dir)s/_brief.md` -- read that file first, whole. It has each subject's "
+    "commits with their whole messages, how its TUTOR.md changed, the sessions "
+    "that ended, and the figures already copied into `%(dir)s/figures/`. The "
     "audience knows the field and saw none of the work. Tell them what was "
     "FOUND, with its number and its figure; what CHANGED in direction, and "
     "why; what is NEXT, in plain words; and what you need FROM THEM. A "
@@ -1183,35 +1142,27 @@ MEETING_ABOUT = (
     "THE SHAPE: a title slide saying the period exactly as the brief gives it; "
     "one summary slide with each project in one line and its headline number; "
     "then, per project, as many slides as it needs; then one closing slide of "
-    "the decisions or asks for the mentors. "
-    "EVERY FRAME SAYS WHOSE IT IS: `\\usepackage{meetingws}` in the preamble "
-    "(the file is beside the deck), and inside every frame exactly one "
-    "`\\meetingws{<workspace id>}` -- or `\\meetingshared` on the title, "
-    "summary and closing slides. A mentor's mark on a page is routed to the "
-    "project its frame names, so a frame with none, or with two, refuses the "
-    "deck. ONE PAGE PER FRAME: no allowframebreaks, no \\pause, no overlays. "
-    "NO INTERNAL NAMES ON A SLIDE: no commit hashes, no names of boxes on the "
-    "map, no plan headings copied as the plan types them, no 'his' or 'her' "
-    "without saying whose (the senior author, a collaborator), and no links to "
-    "the board. NUMBERS ONLY FROM THE SOURCES: every number on a slide must "
-    "appear in the brief or a file it names; the board checks each one after "
-    "the build and lists any it cannot find beside the deck. A plan step marked "
-    "MAY ALREADY BE DONE is checked against the commit it names before it is "
-    "called next. "
-    "THE FILE IS `%(dir)s/meeting.tex`, that name exactly and no other. Build "
-    "it with `board build %(dir)s/meeting.tex --keep-aux`, and leave the `.aux` "
-    "it keeps: the page marks are read from it. A LaTeX error is yours to fix "
-    "before the turn ends. "
-    "THIS DECK IS NOT IN THE LIBRARY, whatever the line around this one says: "
-    "it is read on the board's meeting page, where a mark is a direction for "
-    "the project on that page."
+    "the decisions or asks for the mentors. ONE PAGE PER FRAME: no "
+    "allowframebreaks, no \\pause, no overlays. "
+    "NO INTERNAL NAMES ON A SLIDE: no commit hashes, no lines copied from "
+    "TUTOR.md as typed, no 'his' or 'her' without saying whose (the senior "
+    "author, a collaborator), and no links to the board. NUMBERS ONLY FROM THE "
+    "SOURCES: every number on a slide must appear in the brief or a file it "
+    "names; the board checks each one after the build and lists any it cannot "
+    "find beside the deck. "
+    "THE FILE IS `%(dir)s/meeting.tex` (`%(full)s/meeting.tex` from the Atlas "
+    "root), that name exactly and no other, and it outranks `writeups/<slug>/` "
+    "above. Write it whole: it replaces the deck before it. Build it with "
+    "`board build` on that file. A LaTeX error is yours to fix before the turn "
+    "ends."
 )
 
 
-def meeting_about(deck_dir, period):
+def meeting_about(deck_dir, period, full=None):
     """What the meeting deck is about: its brief, and the period it covers.
-    `deck_dir` is relative to the host workspace, where the turn runs."""
-    return MEETING_ABOUT % {"dir": deck_dir, "period": period}
+    `deck_dir` is relative to projects/Meetings; `full` to the Atlas root."""
+    return MEETING_ABOUT % {"dir": deck_dir, "period": period,
+                            "full": full or deck_dir}
 
 
 def session_sense(repo, doing=None, mission=False):

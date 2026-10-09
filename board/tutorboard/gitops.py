@@ -23,6 +23,10 @@ import time
 
 from tutorboard import worktree
 
+# The message of a save that names none. `briefs.SAVES` reads it back: a
+# commit saying only this is a save, not a piece of work.
+SAVE = "lesson complete"
+
 # A network step that waits longer than this is a credential prompt nobody can
 # see, or a remote that is down. Either way the answer is to stop and say so.
 NET_TIMEOUT = 120
@@ -381,7 +385,7 @@ def main(argv=None):
               "(a commit carries named paths only)")
         return 2
     cut = argv.index("--")
-    message = argv[0] if cut == 1 and argv[0] else "lesson complete"
+    message = argv[0] if cut == 1 and argv[0] else SAVE
     paths = argv[cut + 1:]
     code, top = _git(os.getcwd(), "rev-parse", "--show-toplevel")
     if code != 0 or not top:

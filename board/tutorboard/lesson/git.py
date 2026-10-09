@@ -294,7 +294,7 @@ def run_push(repo, message=None):
 
     # The workspace leads the message, and the commit is of the repository
     # the workspace is in, carrying only `save_pathspec`.
-    said = message or "lesson complete"
+    said = message or gitops.SAVE
     where = atlas.identify(repo.root)
     if where and not said.startswith(where):
         said = "%s: %s" % (where, said)

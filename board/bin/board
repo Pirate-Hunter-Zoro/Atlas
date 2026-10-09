@@ -79,18 +79,20 @@ The assistant runs these. The student never does.
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
-    board deckfig writeups/<deck> <ws> <id>
-                                       copy one more figure into a deck made
-                                       from sittings; prints the path to use
+    board deckfig <deck dir> <subject> <id>
+                                       copy one more figure into a deck whose
+                                       brief lists it; prints the path to use
     board direction --show             what this workspace is FOR, in their own
                                        words, when they have changed it. It
                                        outranks the plan, the map and the
                                        handoff. `board brief` already has it
     board direction < what.md          replace it -- their sentence, not yours
-    board notes --meeting --since 7d   THE meeting deck: a presentation to the
+    board meeting --since 7d [--subject <id>]...
+                                       THE meeting deck, projects/Meetings/
+                                       docs/meeting/: a presentation to the
                                        mentors, written by a turn over a brief
-                                       of the period. One of them, replaced
-                                       each time. --print shows the brief
+                                       of the period, replaced each time.
+                                       --print shows the brief
     board inbox [--all]                what the student sent; marks it read
     board slate [--all]                paths of the pages written on the iPad
     board wait [--timeout N]           block until the student sends something
@@ -160,9 +162,10 @@ if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
 from tutorboard import (assistants, atlas, brief, direction, gitops,
-                        handoff, holds, jobs, keys, leaving, limits, machine, meeting, memo,
+                        handoff, holds, jobs, keys, leaving, limits, machine, memo,
                         missions, paths, plain, ports, processes, progress,
-                        reasoning, seeing, sense, sessions, sittings, tex, worktree)
+                        reasoning, seeing, sense, sessions, tex, worktree)
+from tutorboard import briefs, subjects
 from tutorboard import mode as session_mode
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper
@@ -1351,7 +1354,7 @@ def cmd_push(live, args):
             print("`--` with no paths after it: name what to commit",
                   file=sys.stderr)
             return 1
-    message = " ".join(a for a in args if not a.startswith("--")) or "lesson complete"
+    message = " ".join(a for a in args if not a.startswith("--")) or gitops.SAVE
 
     # A SUBJECT THAT NAMES A THREAD NAMES A REAL ONE. `<thread>: msg` is how a
     # turn files its work under the question it answers, and a typo there is a
@@ -1977,72 +1980,64 @@ def cmd_round(live, args):
 
 
 def cmd_deckfig(live, args):
-    """Copy one more figure into a deck made from sittings.
+    """Copy one more figure into a deck whose brief lists it.
 
-        board deckfig writeups/<deck> <workspace id> <result id>
+        board deckfig <deck dir> <subject> <result id>
 
-    FOR A DECK WHOSE BRIEF LISTS IT. `_brief.md` beside the deck carries a
-    catalog of the figures the ticked workspaces have made, by workspace and
-    result id; this copies one of them into the deck's `figures/` as
-    `<workspace>--<id>.<ext>` and prints that path, relative to the deck, which
-    is what goes in `\\includegraphics` when the deck is built with `board
-    build`, in the deck's own directory. Open the image before you put it on a
-    slide.
+    The deck is a directory holding `_brief.json` -- the meeting deck is
+    `docs/meeting` in projects/Meetings -- named relative to this session's
+    subject, or to the Atlas root. The figure is copied into the deck's
+    `figures/` as `<subject>--<id>.<ext>`, and the path to put in
+    `\\includegraphics` is printed. Open the image before you put it on a slide.
 
-    AN ID, OR A WORD FROM ITS NAME. The catalog is cut at its newest few
-    hundred, so a figure somebody inks for by name ("add the ROC curve") may not
-    be listed: a word that picks out exactly one figure in that workspace is
-    taken as that figure, and one that matches several lists them.
+    AN ID, OR A WORD FROM ITS NAME: a word that picks out exactly one figure in
+    that subject is taken as it, and one that matches several lists them.
 
-    NAMES, NEVER PATHS. The workspace is one the deck's brief was made from, and
-    the id is one that workspace's results offer -- `results.find` resolves it and asks
-    the fence again before the file is opened -- and the deck is a directory
-    under this workspace's `writeups/` that holds `_brief.json`. Anything else
-    is refused, in a sentence.
+    NAMES, NEVER PATHS. The subject is one the deck's brief was made from, and
+    the id is one that subject's results offer -- `results.find` resolves it and
+    asks the fence again before the file is opened. Anything else is refused,
+    in a sentence.
     """
     if len(args) != 3:
-        print("board deckfig: say the deck, the workspace and the result id -- "
-              "board deckfig writeups/<deck> <workspace id> <result id>",
-              file=sys.stderr)
+        print("board deckfig: say the deck, the subject and the result id -- "
+              "board deckfig <deck dir> <subject> <result id>", file=sys.stderr)
         return 1
     want_deck, want_ws, want_id = args
-    home = os.path.realpath(os.path.join(live.root, "writeups"))
-    deck = os.path.realpath(os.path.join(live.root, want_deck))
-    if os.path.dirname(deck) != home:
-        print("board deckfig: %s is not a deck directory directly under this "
-              "workspace's writeups/" % want_deck, file=sys.stderr)
-        return 1
-    if not os.path.isfile(os.path.join(deck, sittings.BRIEF_JSON)):
-        print("board deckfig: %s has no %s, so it is not a deck made from "
-              "sittings" % (want_deck, sittings.BRIEF_JSON), file=sys.stderr)
-        return 1
-    ws = None
-    for w in atlas.workspaces():
-        if want_ws in (w["id"], w["dir"]):
-            ws = w
+    base = atlas.root() or live.root
+    deck = None
+    for top in (live.root, base):
+        here = os.path.realpath(os.path.join(top, want_deck))
+        if paths.within(here, os.path.realpath(base)) \
+                and os.path.isfile(os.path.join(here, briefs.BRIEF_JSON)):
+            deck = here
             break
-    if not ws:
-        print("board deckfig: %s is not a workspace in this repository"
+    if not deck:
+        print("board deckfig: %s holds no %s, so it is not a deck with a brief"
+              % (want_deck, briefs.BRIEF_JSON), file=sys.stderr)
+        return 1
+    found = subjects.find(want_ws, base)
+    if not found:
+        print("board deckfig: %s is not a subject in this repository"
               % want_ws, file=sys.stderr)
         return 1
-    allowed = sittings.drawn_from(deck)
-    if ws["id"] not in allowed:
+    allowed = briefs.drawn_from(deck)
+    if found["id"] not in allowed:
         print("board deckfig: this deck was made from %s, not %s -- a figure "
-              "comes from a workspace the deck is about"
-              % (", ".join(allowed) or "no workspace", ws["id"]), file=sys.stderr)
+              "comes from a subject the deck is about"
+              % (", ".join(allowed) or "no subject", found["id"]), file=sys.stderr)
         return 1
-    rid = sittings.figure_named(ws["root"], want_id)
+    rid = briefs.figure_named(found["root"], want_id)
     if isinstance(rid, list):
         print("board deckfig: %s matches %s in %s -- say one of those ids"
-              % (want_id, ", ".join(rid), ws["id"]) if rid else
+              % (want_id, ", ".join(rid), found["id"]) if rid else
               "board deckfig: %s offers no figure called %s -- the ids are in "
               "the brief's catalog, and a word from the file's name finds one "
-              "that is not listed" % (ws["id"], want_id), file=sys.stderr)
+              "that is not listed" % (found["id"], want_id), file=sys.stderr)
         return 1
-    got = sittings.snapshot(ws["root"], rid, ws["id"], deck)
+    got = briefs.snapshot(found["root"], rid, found["id"], deck)
     if not got:
         print("board deckfig: %s offers no figure called %s -- the ids are in "
-              "the brief's catalog" % (ws["id"], want_id), file=sys.stderr)
+              "the brief's catalog" % (found["id"], want_id), file=sys.stderr)
         return 1
     print(got)
     return 0
@@ -2070,35 +2065,21 @@ def cmd_mode(live, args):
     return 0
 
 
-def cmd_notes(live, args):
+def cmd_meeting(live, args):
     """The meeting deck: a presentation to the mentors, written over a brief.
 
-        board notes --meeting --since 7d
-        board notes --meeting --since 2026-09-01 --workspace projects/PSYCH-ASR
-        board notes --meeting --since last            (since the last deck)
-        board notes --meeting --since monday --print  (the brief; writes nothing)
-        board notes --meeting --since 7d --brief-to DIR
-                                   (the brief and its figures, written into DIR
-                                    and nowhere else; nothing is asked)
+        board meeting --since 7d
+        board meeting --since 2026-09-01 --subject projects/PSYCH-ASR
+        board meeting --since last            (since the last deck)
+        board meeting --since monday --print  (the brief; writes nothing)
 
-    THE DECK FROM SITTINGS WITH A PRESET, and the front door's meeting sheet is
-    the other entry point to the same engine. The period snaps to a local
-    midnight. Per workspace the brief carries the commits that are its own
-    work with their whole messages, the HANDOFF.md and DIRECTION.md diffs the
-    saves carried, those files' diff over the period, the sittings held, the
-    plan steps that closed and the open ones a commit looks to have done, and
-    the period's figures, copied beside the deck.
-
-    WITHOUT `--print` OR `--brief-to` IT IS ASKED FOR: the brief is written
-    into the host workspace's `writeups/meeting/` -- the fenced one where one
-    is chosen -- and a `[writeup]` turn there writes and builds the deck. It
-    replaces the one before it. `/meeting` reads it once it is built.
+    The period snaps to a local midnight. Per subject the brief carries the
+    commits that are its own work with their whole messages, how its TUTOR.md
+    changed, the sessions that ended in the period, and the period's figures.
+    Without `--print` it is asked for: the deck in projects/Meetings/docs/
+    meeting/ is replaced, its brief written beside it, and a `[writeup]` turn
+    in a session bound to projects/Meetings writes and builds `meeting.tex`.
     """
-    if "--meeting" not in args:
-        print("board notes: say what kind. `board notes --meeting --since 7d`.",
-              file=sys.stderr)
-        return 1
-
     def value(flag):
         if flag in args:
             n = args.index(flag)
@@ -2107,69 +2088,31 @@ def cmd_notes(live, args):
         return ""
 
     base = atlas.root() or live.root
-    when, human = meeting.resolve_since(value("--since"), base)
+    when, human = briefs.resolve_since(value("--since"), base)
     if when is None:
-        print("board notes: %s" % human, file=sys.stderr)
+        print("board meeting: %s" % human, file=sys.stderr)
         return 1
     want = [args[i + 1] for i, a in enumerate(args)
-            if a == "--workspace" and i + 1 < len(args)]
-
-    blocks, every, why = meeting.blocks_for(base, want or None, when)
-    if why:
-        print("board notes: %s" % why, file=sys.stderr)
-        return 1
-    if not blocks:
-        print("board notes: nothing landed in %s in %s" % (
-            human, ", ".join(w["id"] for w in every) or "any workspace"),
-              file=sys.stderr)
-        return 1
-    host, clash = meeting.host_for(blocks)
-    if clash:
-        print("board notes: %s" % clash, file=sys.stderr)
-        return 1
-    host_root = next(b["root"] for b in blocks if b["id"] == host)
-
+            if a == "--subject" and i + 1 < len(args)]
     if "--print" in args:
-        rec = meeting.write_brief(base, os.path.join(
-            host_root, meeting.WRITEUPS, meeting.DECK_DIR), blocks, when,
-            human=human, host=host, dry=True)
+        blocks, every, why = briefs.blocks_for(base, want or None, when)
+        if why or not blocks:
+            print("board meeting: %s" % (why or "nothing landed in %s" % human),
+                  file=sys.stderr)
+            return 1
+        rec = briefs.write_brief(base, briefs.deck_dir(base) or os.path.join(
+            base, briefs.MEETINGS, briefs.deck_rel()), blocks, when, human=human,
+            dry=True)
         sys.stdout.write(rec["markdown"] + "\n")
         return 0
-
-    target = value("--brief-to")
-    if target:
-        target = os.path.abspath(os.path.expanduser(target))
-        if paths.within(target, base):
-            print("board notes: --brief-to writes outside the repository; %s "
-                  "is inside it" % target, file=sys.stderr)
-            return 1
-        # A FENCED WORKSPACE'S BRIEF STAYS IN THAT WORKSPACE. The brief quotes
-        # its handoff and direction and copies its figures, and outside its root
-        # nothing scans it and nothing ignores it.
-        held = [b["id"] for b in blocks if b["fenced"]]
-        if held:
-            print("board notes: %s holds data that never leaves it, so its brief "
-                  "is not written outside it. Use --print, or ask for the deck."
-                  % ", ".join(held), file=sys.stderr)
-            return 1
-        rec = meeting.write_brief(base, target, blocks, when, human=human,
-                                  host=host)
-        print(os.path.join(target, meeting.BRIEF_MD))
-        print("%d workspace%s, host %s, %d figure%s copied" % (
-            len(rec["workspaces"]), "" if len(rec["workspaces"]) == 1 else "s",
-            host, len(rec["figures"]), "" if len(rec["figures"]) == 1 else "s"))
-        return 0
-
     from tutorboard.server.routes import library as library_route
-    got, err = library_route.ask_meeting(live, base, when, human,
-                                         want=want or None)
+    got, err = library_route.ask_meeting(live, base, when, human, want=want or None)
     if err:
-        print("board notes: %s" % (err[0].get("detail") or err[0].get("error")
-                                   or "it could not be asked for"),
-              file=sys.stderr)
+        print("board meeting: %s" % (err[0].get("detail") or err[0].get("error")
+                                     or "it could not be asked for"), file=sys.stderr)
         return 1
-    print("the meeting deck is being written in %s: %s" % (
-        got["host"], os.path.join(base, got["dir"], meeting.STEM + ".tex")))
+    print("the meeting deck is being written in session %s: %s" % (
+        got.get("session") or "?", os.path.join(base, got["dir"], briefs.STEM + ".tex")))
     return 0
 
 
@@ -4163,7 +4106,7 @@ COMMANDS = {
     "hold": cmd_hold, "release": cmd_release, "send": cmd_send,
     "coach": cmd_coach,
     "colibri": cmd_colibri, "code": cmd_code,
-    "notes": cmd_notes,
+    "meeting": cmd_meeting,
     "direction": cmd_direction, "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,

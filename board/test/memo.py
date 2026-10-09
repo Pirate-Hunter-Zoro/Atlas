@@ -213,7 +213,7 @@ try:
           got.endswith("## Open decisions\n\n- a\n"), got)
 
     # ---- no note is left -------------------------------------------------
-    # -w: `board notes --meeting` is the meeting deck, another command.
+    # Whole words (-w).
     p = subprocess.run(["git", "grep", "-n", "-w", "-e", "NEXT\\.md", "-e",
                         "board note", "--", "board"], cwd=ATLAS,
                        stdout=subprocess.PIPE, universal_newlines=True)

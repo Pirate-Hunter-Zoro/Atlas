@@ -261,8 +261,8 @@ def post(h, repo, path):
         # keys are page numbers, so they would land on the new deck's slides.
         # The save names its deck; `gone` tells the page to let it go.
         if card.startswith("doc/meeting/") and payload.get("deck") is not None:
-            from ... import atlas, meeting             # local: avoids a cycle
-            here = meeting.deck_id(atlas.root() or repo.root)
+            from ... import atlas, briefs              # local: avoids a cycle
+            here = briefs.deck_id(atlas.root() or repo.root)
             if str(payload.get("deck")) != here:
                 return h.send_json(
                     {"ok": False, "gone": True,

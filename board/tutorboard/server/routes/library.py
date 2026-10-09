@@ -19,14 +19,6 @@ that is not the lesson's.
                                     on this board or commissioned from the front
                                     door against any workspace on the machine
     POST /writeup/seen              one finished ask waved off the board's strip
-    POST /sittings                  every sitting in every workspace, as rows to
-                                    tick -- `tutorboard/sittings.py`
-    POST /sittings/items            what the ticked sittings did, as rows to
-                                    untick
-    POST /sittings/deck             a deck of what stayed ticked, asked for in
-                                    the workspace holding most of it
-    POST /sittings/decks            the newest few of those, and where each
-                                    one got to
     GET  /library/stamp             one hash of where every document is and
                                     when it last changed, cheap enough to ask
                                     every few seconds
@@ -60,12 +52,10 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library/feedback  /library/direction  /doc/delete  /writeup
     session   under `/s/<id>/` only: /shelf.json  /library/marked/*
               /writeup/seen
-    atlas     unprefixed only, over every subject: /sittings  /sittings/items
-              /sittings/deck  /sittings/decks
 
 AN ASK OF A TUTOR THAT IS NOT THIS SESSION'S -- feedback or a write-up from
-the library page, a write-up for another subject, a deck from sittings, the
-meeting deck -- goes through `registry.runner_route`, which picks the
+the library page, a write-up for another subject, the meeting deck -- goes
+through `registry.runner_route`, which picks the
 session. Only a session asking its own tutor writes its own inbox.
 
 AN ID, NEVER A PATH. What arrives from the browser is compared against what
@@ -109,8 +99,8 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from .. import spawn
-from ... import (artifacts, atlas, fenced, leaving, machines, paths, scopes,
-                 sense, sittings, subjects, writeups)
+from ... import (artifacts, atlas, briefs, fenced, leaving, machines, paths,
+                 scopes, sense, subjects, writeups)
 from ...course import burn
 from ...course import config
 from ...course import ledger
@@ -385,32 +375,6 @@ def post(h, repo, path):
             h.hub.worker.dirty.set()
         return h.send_json(got, status=code)
 
-    # SLIDES FROM SITTINGS: which sittings, what they did, the deck, and where
-    # each deck got to. See `tutorboard/sittings.py`, and `_sittings_deck` for
-    # why the deck goes through `/writeup`'s own dispatch.
-    if path in ("/sittings", "/sittings/items", "/sittings/deck",
-                "/sittings/decks"):
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        if not isinstance(payload, dict):
-            payload = {}
-        base = atlas.root() or repo.root
-        try:
-            if path == "/sittings":
-                return h.send_json(sittings.listing(base))
-            if path == "/sittings/items":
-                return h.send_json(sittings.items(base, _strings(payload, "picks")))
-            if path == "/sittings/decks":
-                return h.send_json(sittings.decks(base))
-        except Exception as exc:                             # noqa: BLE001
-            # A walk of every workspace's archive. A 500 paints "the board is not
-            # answering" over a fault that is a directory somebody can name.
-            return h.send_json({"ok": False, "error": str(exc)[-300:]},
-                               status=500)
-        return _sittings_deck(h, repo, base, payload)
-
     if path == "/writeup/seen":
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -563,12 +527,12 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None,
     """Ask for a document in the workspace `match` names -- or this one, where
     `match` is None -- and return `{id, rec, root}`, or the refusal already sent.
 
-    `/writeup`'s own body, pulled out so that `/sittings/deck` asks for its deck
-    through exactly the same order of things rather than a copy of it. `line` is
-    the inbox line where the caller has its own, and `prepare` is called with the
-    target's root and the ask's id once the ask is allowed and before it is
-    recorded -- the deck from sittings writes its brief there, so a refusal
-    leaves nothing behind and a recorded ask always has its brief.
+    `/writeup`'s own body. `line` is the inbox line where the caller has its
+    own, and `prepare` is called with the target Repo and the ask's id once the
+    ask is allowed and before it is recorded -- the meeting deck writes its
+    brief there, so a refusal leaves nothing behind and a recorded ask always
+    has its brief. A dict it returns may name the artifact (`doc_dir`) the ask
+    is judged by.
     """
     got, err = dispatch(repo, match, makes, about, line=line, prepare=prepare,
                         ask=ask)
@@ -628,10 +592,12 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
                        "It is Markdown.", src))
         if prepare:
             try:
-                prepare(target.root, wid)
+                got = prepare(target, wid)
             except Exception as exc:                         # noqa: BLE001
                 raise _Refusal({"ok": False,
                                 "error": "nothing could be prepared: %s" % exc}, 500)
+            if isinstance(got, dict) and got.get("doc_dir"):
+                doc_dir = got["doc_dir"]
         made["rec"] = writeups.ask(target.root, wid, makes, about,
                                    agent=config.sitting_agent(target.root) or "",
                                    doc_dir=doc_dir,
@@ -750,158 +716,73 @@ def _strings(payload, key):
     return [str(x) for x in got if isinstance(x, (str, int))][:500]
 
 
-def _sittings_deck(h, repo, base, payload):
-    """A deck of the things ticked from past sittings, in one host workspace.
-
-    THE ITEMS ARE RECOMPUTED HERE, from the sittings picked, and the ids that
-    arrived only choose among them. Nothing the page sent is a path or a
-    sentence: what goes in the brief is what this server found.
-
-    ONE HOST, THE WORKSPACE HOLDING THE MOST OF WHAT WAS TICKED -- or the
-    fenced one, where any tick is from a fenced workspace (`host_for`) -- and
-    that is a deliberate cut. A deck about three workspaces filed under one of them is
-    filed under one -- and in exchange the whole library loop is reused as it
-    is: the reader, the pen, "say what is wrong", and the redraw in place. A
-    root `decks/` directory would need its own route family for every one of
-    those.
-
-    THROUGH `/writeup`'s OWN DISPATCH, so the order is the one that is already
-    right: the start asked for over there first and nothing written if it is
-    refused; then the brief, the record and the inbox line.
-    """
-    groups, _ = sittings.gather(base, _strings(payload, "picks"))
-    groups = sittings.ticked(groups, _strings(payload, "items"))
-    if not groups:
-        return h.send_json({"ok": False, "error": "tick at least one thing"},
-                           status=400)
-    clash = sittings.mixed_fences(groups)
-    if clash:
-        return h.send_json({"ok": False, "error": clash}, status=400)
-    host = sittings.host_for(groups)
-    match = None
-    # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason:
-    # it is already up, and `wake_tutor` is a start only if nothing is reading.
-    if not paths.same_dir(next(g["row"]["root"] for g in groups
-                               if g["ws"] == host), repo.root):
-        for c in machines.workspaces(repo):
-            if c["id"] == host:
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-    host_root = match["root"] if match else repo.root
-    host_name = next(g["ws_name"] for g in groups if g["ws"] == host)
-    slug = sittings.deck_slug(host_root)
-    n = sum(len(g["items"]) for g in groups)
-    about = ("a deck of %d thing%s ticked from %d past sitting%s, briefed in "
-             "writeups/%s/%s" % (n, "" if n == 1 else "s", len(groups),
-                                 "" if len(groups) == 1 else "s", slug,
-                                 sittings.BRIEF_MD))[:writeups.ABOUT_CHARS]
-    line = "[writeup] " + sense.writeup_sense("slides",
-                                              sense.sittings_about(slug))
-
-    def prepare(root, wid):
-        sittings.write_brief(base, root, slug, groups, wid=wid, host=host)
-
-    got = _dispatch_writeup(h, repo, match, "slides", about, line=line,
-                            prepare=prepare, ask="a deck from sittings")
-    if not isinstance(got, dict):
-        return got
-    return h.send_json({
-        "ok": True, "id": got["id"], "slug": slug, "host": host,
-        "session": got.get("session"),
-        "repo": (match or {}).get("repo") or os.path.basename(
-            os.path.realpath(repo.root)),
-        "where": host_name, "state": "being written", "things": n,
-        "detail": ("The tutor is writing it in %s. It takes several minutes "
-                   "and this sheet says when it is ready. You can close it; "
-                   "the deck also appears under Decks already made."
-                   % host_name)})
-
-
 def ask_meeting(repo, base, since_ts, human, want=None):
     """Ask for THE MEETING DECK: `({id, host, where, dir, record}, None)`, or
     `(None, (payload, status))`.
 
-    THE DECK FROM SITTINGS WITH A PRESET, through the same dispatch. The period
-    and the workspaces choose what the brief holds (`meeting.blocks_for`); the
-    host is `sittings.host_for`'s answer, so a deck touching a fenced workspace
-    is written inside it by whatever may read it; and `meeting.prepare` runs
-    where the deck from sittings writes its brief -- once the ask is allowed,
-    before it is recorded -- so a refusal leaves the last deck standing.
+    The period and the subjects choose what the brief holds
+    (`briefs.blocks_for`). The ask goes through `dispatch` to projects/Meetings,
+    whose newest open session takes it (`runner_route`); `briefs.replace` runs
+    once the session is chosen and before the ask is recorded, so a refusal
+    leaves the last deck standing.
     """
-    from ... import meeting                          # local: a heavy import
-    blocks, every, why = meeting.blocks_for(base, want, since_ts)
+    blocks, every, why = briefs.blocks_for(base, want, since_ts)
     if why:
         return None, ({"ok": False, "detail": why}, 400)
     if not blocks:
         return None, ({"ok": False, "detail": (
             "Nothing landed in %s in %s, so there is nothing to present. "
             "Choose a longer period." % (human, ", ".join(
-                w["dir"] for w in every) or "any workspace"))}, 400)
-    host, clash = meeting.host_for(blocks)
-    if clash:
-        return None, ({"ok": False, "detail": clash}, 400)
-    host_block = next(b for b in blocks if b["id"] == host)
-    taken = meeting.occupied(host_block["root"])
-    if taken:
-        return None, ({"ok": False, "detail": taken}, 409)
-    match = None
-    # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason.
-    if not paths.same_dir(host_block["root"], repo.root):
-        for c in machines.workspaces(repo):
-            if c["id"] == host:
-                match = c
-                break
-        if not match:
-            return None, ({"ok": False, "detail": "unknown workspace %s" % host},
-                          404)
-    period = meeting.period_text(since_ts)
-    rel = "%s/%s" % (meeting.WRITEUPS, meeting.DECK_DIR)
+                s["id"] for s in every) or "any subject"))}, 400)
+    if not briefs.meetings_root(base):
+        return None, ({"ok": False, "detail": (
+            "%s is missing; `board bind %s --create --phi yes` makes it"
+            % (briefs.MEETINGS, briefs.MEETINGS))}, 409)
+    period = briefs.period_text(since_ts)
+    rel = briefs.deck_rel()
     about = ("the meeting deck for %s, briefed in %s/%s"
-             % (period, rel, meeting.BRIEF_MD))[:writeups.ABOUT_CHARS]
-    line = "[writeup] " + sense.writeup_sense("slides",
-                                              sense.meeting_about(rel, period))
+             % (period, rel, briefs.BRIEF_MD))[:writeups.ABOUT_CHARS]
+    line = "[writeup] " + sense.writeup_sense("slides", sense.meeting_about(
+        rel, period, "%s/%s" % (briefs.MEETINGS, rel)))
     made = {}
 
-    def prepare(root, wid):
-        made["rec"] = meeting.prepare(base, root, blocks, since_ts, human, wid,
-                                      host, repo=repo)
+    def prepare(target, wid):
+        made["rec"] = briefs.replace(
+            base, blocks, since_ts, human,
+            session=os.path.basename(target.live) if target.stored else None,
+            ink=briefs.ink_dirs(base, repo))
+        return made["rec"]
 
-    got, err = dispatch(repo, match, "slides", about, line=line, prepare=prepare,
-                        ask="the meeting deck")
+    got, err = dispatch(repo, {"id": briefs.MEETINGS}, "slides", about, line=line,
+                        prepare=prepare, ask="the meeting deck")
     if err:
         payload = dict(err[0])
         payload.setdefault("detail", payload.get("error") or "")
         return None, (payload, err[1])
-    return {"id": got["id"], "host": host, "where": host_block["name"],
-            "dir": made.get("rec", {}).get("dir") or "",
-            "record": made.get("rec") or {}, "woke": got.get("woke"),
-            "session": got.get("session")}, None
+    brief = made.get("rec", {}).get("brief") or {}
+    return {"id": got["id"], "host": briefs.MEETINGS, "where": "Meetings",
+            "dir": "%s/%s" % (briefs.MEETINGS, rel), "record": brief,
+            "woke": got.get("woke"), "session": got.get("session")}, None
 
 
 def meeting_deck(h, repo, base, since_ts, human, want=None):
-    """`POST /notes`: the meeting deck asked for, and the sheet told it is being
-    written. The sheet then watches `/meeting/deck.json`."""
+    """`POST /meeting`: the meeting deck asked for, and the page told it is
+    being written. The page then watches `/meeting/deck.json`."""
     got, err = ask_meeting(repo, base, since_ts, human, want=want)
     if err:
         return h.send_json(err[0], status=err[1])
-    if got.get("woke"):
-        h.note("nothing was reading the board; starting a tutor to write the "
-               "meeting deck")
     h.hub.worker.dirty.set()
     rec = got["record"]
     return h.send_json({
         "ok": True, "id": got["id"], "name": "meeting", "state": "being written",
         "host": got["host"], "where": got["where"], "dir": got["dir"],
         "session": got.get("session"),
-        "workspaces": rec.get("workspaces") or [],
+        "workspaces": rec.get("subjects") or [],
         "names": rec.get("names") or {}, "since": human,
         "period": rec.get("period") or "",
-        "detail": ("The assistant is writing it in %s. It takes several minutes, "
-                   "and this sheet says when it is ready. It replaces the deck "
-                   "before it." % got["where"])})
+        "detail": ("The assistant is writing it in Meetings. It takes several "
+                   "minutes, and this sheet says when it is ready. It replaces "
+                   "the deck before it.")})
 
 
 def rework_refused(repo, doc):
@@ -956,13 +837,13 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     # SOURCE rather than the rendering: that is the file whose committed state
     # was just checked, and it is the file the turn edits.
     #
-    # A DECK MADE FROM SITTINGS CARRIES ITS BRIEF, and the line says where it
-    # is: that is the file saying what the deck covers, and an addition asked
-    # for in ink is read against it rather than refused as a widening. Found by
-    # looking beside the document, never from anything the page sent.
+    # A DECK WITH A BRIEF BESIDE IT (the meeting deck) carries it, and the
+    # line says where it is: that is the file saying what the deck covers, and
+    # an addition asked for in ink is read against it rather than refused as a
+    # widening. Found by looking beside the document, never from the page.
     brief = ""
     if library.from_sittings(repo.root, doc):
-        brief = "%s/%s" % (doc["dir"], sittings.BRIEF_MD)
+        brief = "%s/%s" % (doc["dir"], library.DECK_BRIEF)
     if ask == "rework":
         line = "[rework] " + sense.rework_sense(doc.get("source") or doc["rel"],
                                                 note_rel, purpose, brief=brief,

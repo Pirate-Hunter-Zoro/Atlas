@@ -5,12 +5,9 @@
      agent should use them to decide which new directions we will take after
      the meeting's feedback."
 
-THE ROUTING IS IN THE GEOMETRY. Every frame of the deck names one workspace
-(`\\meetingws`), so ink on any of TRD-EHR's pages is direction input for TRD-EHR
-and for nothing else. Nobody types a workspace name and nobody picks one off a
-list; the page a mark is on is the answer. `meeting.page_map` reads which page
-is which off the compiled PDF, once, when the deck is read back -- because the
-deck on the glass is the one that was built.
+THE DECK IS THE MEETINGS SUBJECT'S (`briefs.deck`), so every page of it maps
+to projects/Meetings and a mark on any slide is input for the Meetings tutor,
+which knows every project the deck is about.
 
 **THIS IS NOT FEEDBACK AND IT DOES NOT GO THROUGH `/library/feedback`.** That
 route writes a feedback file and wakes a `[revise]` turn, which would spend a
@@ -36,47 +33,16 @@ import os
 import shutil
 import time
 
-from . import atlas, meeting, sense
+from . import atlas, briefs, sense
 from .lesson import turns
 
-# Where the picture of each marked slide is kept, under `meetings/`.
-#
-# BESIDE THE DECK, NOT IN THE BOARD THAT SERVED IT. The ink is stored by
-# whichever board was answering when somebody drew it, and the turn that reads
-# it runs somewhere else entirely -- a path into another workspace's
-# `live/annotations/` is a path that means nothing from where it is read. The
-# deck is a repository-level document; so is the picture of what was drawn on
-# it, and a repository-relative path resolves from every workspace in the tree.
+# Where the picture of each marked slide is kept: beside the deck, ignored,
+# so it goes to the trash with the deck it was drawn on.
 MARKS = "marks"
 
 
 def marks_dir(base):
-    return os.path.join(base, meeting.OUT_DIR, MARKS)
-
-
-def forget_pictures(base):
-    """Drop the pictures of the last deck's marks. Returns how many went.
-
-    Called when a deck is REPLACED, for the same reason the ink itself is
-    cleared: the pages are different now, and a picture of somebody's
-    suggestion about last week's page 4 is a suggestion about a workspace that
-    is not on page 4 any more.
-    """
-    where = marks_dir(base)
-    gone = 0
-    try:
-        names = os.listdir(where)
-    except OSError:
-        return 0
-    for n in names:
-        if not n.endswith(".png"):
-            continue
-        try:
-            os.remove(os.path.join(where, n))
-            gone += 1
-        except OSError:
-            continue
-    return gone
+    return os.path.join(briefs.deck_dir(base) or os.path.join(base, ".none"), MARKS)
 
 
 def by_workspace(repo, rec):
@@ -91,7 +57,7 @@ def by_workspace(repo, rec):
 
     pages = (rec or {}).get("pages") or {}
     out = {}
-    for key in meeting.ink_keys(repo):
+    for key in briefs.ink_keys(repo):
         found = writing.ann_doc_page(key)
         if not found:
             continue
@@ -158,7 +124,7 @@ def send(repo, base=None):
     with nothing said about it is a suggestion somebody believes was delivered.
     """
     base = base or atlas.root() or repo.root
-    rec = meeting.deck(base)
+    rec = briefs.deck(base)
     if not rec or not rec.get("has_pdf"):
         return {"ok": False, "sent": [], "skipped": [],
                 "detail": "there is no deck to have marked up."}

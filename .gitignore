@@ -62,12 +62,16 @@ build/
 /relay/state.json
 /relay/.lock*
 
-# ---- the meeting deck's pointer, and the pictures of its marks ----
-# The deck itself lives in its host workspace's `writeups/meeting/`, where its
-# `.tex` is tracked and a fenced host's push scan reads it. `meetings/` holds
-# only where it is, its state and page map (rewritten on every poll), and the
-# rendered ink copied out for the turn that reads it. Neither is a document.
-meetings/
+# ---- the meeting deck: projects/Meetings/docs/meeting/ ----
+# `meeting.tex` and doc.json are tracked. The brief quotes commits and
+# sessions, the figures are copies of results, and the sidecar and the marks'
+# pictures are rewritten on every build: none of them is tracked.
+/projects/Meetings/docs/meeting/_brief.*
+/projects/Meetings/docs/meeting/_provenance.json
+/projects/Meetings/docs/meeting/figures/
+/projects/Meetings/docs/meeting/marks/
+# An older machine's root pointer to the deck. Nothing writes it.
+/meetings/
 
 # ---- other people's published papers ----
 # The citation libraries hold PDFs whose copyright belongs to their authors.

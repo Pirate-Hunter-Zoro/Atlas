@@ -22,9 +22,9 @@ construction, and "I asked for a deck and nothing happened" is the same defect
 
 THE STATE IS THE ARTIFACT'S. An ask that made an artifact carries its
 directory (`dir`, relative to the root), and its state is `artifacts.status`
-of that doc.json: mtimes of the source and its build against `asked_at`. An
-ask with no artifact -- the deck from sittings and the meeting deck, which keep
-their own records -- is `writing` until somebody freezes it or `CEILING` passes.
+of that doc.json: mtimes of the source and its build against `asked_at`. The
+meeting deck is one such artifact. An ask with no artifact is `writing` until
+somebody freezes it or `CEILING` passes.
 
 THREE STATES, BECAUSE THEY ARE THE THREE A PERSON ACTS ON. `writing` -- leave it.
 `done` -- go and read it. `failed` -- ask again. Anything finer is a state nobody

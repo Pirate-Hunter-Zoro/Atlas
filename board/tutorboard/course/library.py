@@ -184,23 +184,6 @@ def _pages(path):
 # ---------------------------------------------------------------------------
 # finding them
 # ---------------------------------------------------------------------------
-# Where a meeting deck sits under its host, and how it is told apart: its brief
-# says `"kind": "meeting"`. Named here rather than imported from `meeting`,
-# which imports `sittings`, which imports this module.
-MEETING_HOME = "writeups"
-
-
-def _meeting_deck(path):
-    brief = os.path.join(path, "_brief.json")
-    if not os.path.isfile(brief):
-        return False
-    try:
-        with open(brief, "r", encoding="utf-8") as fh:
-            return '"kind": "meeting"' in fh.read(400)
-    except OSError:
-        return False
-
-
 def _walk(root, skip=()):
     """Every stem in this workspace that has a document's formats beside it.
 
@@ -220,11 +203,6 @@ def _walk(root, skip=()):
                          and not fenced.refused(d)
                          and (d if rel == "." else os.path.join(rel, d))
                          .replace(os.sep, "/") not in skip)
-        # THE MEETING DECK IS NOT A LIBRARY DOCUMENT. Its reader is
-        # `/meeting`, where ink is a direction for the project a page is
-        # about; here it would be a revision, filed under one of the projects.
-        if rel == MEETING_HOME:
-            dirs[:] = [d for d in dirs if not _meeting_deck(os.path.join(here, d))]
         for name in sorted(files):
             if name.startswith(".") or name.startswith("_"):
                 continue
@@ -880,13 +858,14 @@ def marks(repo, doc, index=None, kind="fix"):
     return out
 
 
-# The file beside a deck made from sittings that says what it covers. Named here
-# rather than imported from `sittings`, which imports this module.
+# The file beside a deck that says what it covers (`briefs.py`, which imports
+# this module).
 DECK_BRIEF = "_brief.md"
 
 
 def from_sittings(root, doc):
-    """Is this a deck made from sittings -- its brief beside it?"""
+    """Is this a deck with its brief beside it -- the meeting deck, or an
+    older deck made from sittings?"""
     where = (doc or {}).get("dir") or ""
     return bool(where) and os.path.isfile(
         os.path.join(root, *(where.split("/") + [DECK_BRIEF])))

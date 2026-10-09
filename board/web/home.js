@@ -93,15 +93,11 @@ var els = {
   notesSaid: document.getElementById("notes-said"),
   notesClose: document.getElementById("notes-close"),
   notesBtn: document.getElementById("atlas-notes"),
-  notesWhich: document.getElementById("notes-which"),
-  notesWhichLine: document.getElementById("notes-which-line"),
   notesList: document.getElementById("notes-list"),
   notesMake: document.getElementById("notes-make"),
   notesMakeSub: document.getElementById("notes-make-sub"),
-  notesBack: document.getElementById("notes-back"),
   notesRead: document.getElementById("notes-read"),
   notesReadSub: document.getElementById("notes-read-sub"),
-  notesTitle: document.getElementById("notes-title"),
   doc: document.getElementById("doc"),
   docBtn: document.getElementById("atlas-doc"),
   docTitle: document.getElementById("doc-title"),
@@ -115,26 +111,6 @@ var els = {
   docBack: document.getElementById("doc-back"),
   docBackSub: document.getElementById("doc-back-sub"),
   docClose: document.getElementById("doc-close"),
-  sittings: document.getElementById("sittings"),
-  sittingsBtn: document.getElementById("atlas-sittings"),
-  sittingsTitle: document.getElementById("sittings-title"),
-  sittingsLine: document.getElementById("sittings-line"),
-  sittingsDecks: document.getElementById("sittings-decks"),
-  sittingsDecksList: document.getElementById("sittings-decks-list"),
-  sittingsPick: document.getElementById("sittings-pick"),
-  sittingsList: document.getElementById("sittings-list"),
-  sittingsWhat: document.getElementById("sittings-what"),
-  sittingsItems: document.getElementById("sittings-items"),
-  sittingsSaid: document.getElementById("sittings-said"),
-  sittingsHow: document.getElementById("sittings-how"),
-  sittingsRead: document.getElementById("sittings-read"),
-  sittingsReadSub: document.getElementById("sittings-read-sub"),
-  sittingsGo: document.getElementById("sittings-go"),
-  sittingsGoName: document.getElementById("sittings-go-name"),
-  sittingsGoSub: document.getElementById("sittings-go-sub"),
-  sittingsBack: document.getElementById("sittings-back"),
-  sittingsBackSub: document.getElementById("sittings-back-sub"),
-  sittingsClose: document.getElementById("sittings-close"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
   busySub: document.getElementById("busy-sub")
@@ -954,43 +930,33 @@ els.sheetLibrary.onclick = function () {
 /* ------------------------------------------------------- the meeting deck */
 /* "I have generally two — sometimes three — meetings per week to talk about my
     research… I want to be able to select which projects meeting notes are
-    generated for… I want a presentation like the ones made for PSYCH-ASR
-    created and rendered for me."
+    generated for."
 
-   The front door is what is open when somebody remembers they have a meeting
-   in ten minutes, so it is where this lives. TWO QUESTIONS, in this order:
-   how far back, and then which projects — with what each one HAS to report
-   since that date beside it, because ticking bare names is guessing.
+   ONE SHEET: a period, and the subjects the deck covers -- none chosen is
+   every subject that moved. `POST /meeting {since, items}` writes the brief and
+   asks a writer turn in a session bound to projects/Meetings.
 
-   ONE DECK. Making a new one REPLACES the one before it: this is a one-off
-   communication tool and the only one worth keeping is the most recent. Its
-   `.tex` is tracked in the workspace it is written in, so `git log` holds every
-   deck there has been.
-
-   A WRITER TURN WRITES IT, over a brief of the period, and that takes
-   minutes -- so the sheet watches it and says being written, ready, or why it
-   did not land. Nothing a reader can be waiting on may be silent. */
+   ONE DECK. Making a new one REPLACES the one before it; git history keeps
+   every `meeting.tex` there has been. A writer turn takes minutes, so the
+   sheet watches `/meeting/deck.json` and says being written, ready, or why it
+   did not land. */
 var notesSince = "";       /* the period they chose */
-var notesWant = {};        /* workspace id -> ticked */
+var notesWant = {};        /* subject id -> chosen */
+var MEETINGS = "projects/Meetings";
 
 function openNotes() {
   els.notesSaid.hidden = true;
-  els.notesWhich.hidden = true;
-  els.notesSince.hidden = false;
-  els.notesTitle.textContent = "How far back?";
   notesSince = "";
   notesWant = {};
-  sinceButtons(false);
-  /* THE ONE FROM BEFORE, offered first, because that is what you want in the
-     ten minutes before the meeting -- or the one being written, watched. */
+  paintSince();
+  paintWhich();
+  /* THE ONE FROM BEFORE, offered first -- or the one being written, watched. */
   els.notesRead.hidden = true;
   pollNotes(true);
   els.notes.hidden = false;
 }
 
-/* WHERE THE ONE DECK GOT TO. A writer turn takes minutes, so the sheet watches
-   `/meeting/deck.json` while it is open: being written, ready, or did not land
-   -- the deck from sittings' three states, said in its words. */
+/* WHERE THE ONE DECK GOT TO, while the sheet is open. */
 var notesTimer = null;
 var NOTES_POLL = 10000;
 
@@ -1012,12 +978,12 @@ function watchNotes() {
 function paintNotesState(rec, quiet) {
   if (!rec.ok) return;
   var n = (rec.workspaces || []).length;
-  var what = n + (n === 1 ? " project" : " projects")
+  var what = n + (n === 1 ? " subject" : " subjects")
     + (rec.period ? ", " + rec.period : rec.since ? ", " + rec.since : "");
   if (rec.state === "being written") {
     els.notesRead.hidden = true;
-    notesSay("Being written in " + ((rec.names || {})[rec.host] || rec.host)
-             + " — " + what + ". This sheet says when it is ready.");
+    notesSay("Being written in Meetings — " + what
+             + ". This sheet says when it is ready.");
     watchNotes();
     return;
   }
@@ -1033,7 +999,7 @@ function paintNotesState(rec, quiet) {
     + ((rec.marked || []).length ? " · marked up" : "");
   if (!quiet) {
     var slides = Object.keys(rec.pages || {}).length;
-    notesSay("Ready: " + slides + (slides === 1 ? " project slide" : " project slides")
+    notesSay("Ready: " + slides + (slides === 1 ? " slide" : " slides")
              + " about " + what + ". It replaced the one before it."
              + (rec.unsupported ? " " + rec.unsupported + " thing"
                 + (rec.unsupported === 1 ? " on it is" : "s on it are")
@@ -1046,73 +1012,39 @@ function closeNotes() {
   if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
 }
 
-function sinceButtons(off) {
-  Array.prototype.forEach.call(
-    els.notesSince.querySelectorAll("button"),
-    function (b) { b.disabled = !!off; });
-}
-
 function notesSay(text, bad) {
   els.notesSaid.hidden = false;
   els.notesSaid.className = "sheet-line" + (bad ? " bad" : "");
   els.notesSaid.textContent = text;
 }
 
-/* WHICH PROJECTS, WITH WHAT EACH ONE HAS. `/notes/what` is `gather`'s own
-   output per workspace — the same counts the deck itself is assembled from, so
-   the list cannot disagree with the deck it produces. */
-function askWhich(since) {
-  notesSince = since;
-  sinceButtons(true);
-  notesSay("looking at what has landed…");
-  fetch("/notes/what", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ since: since })
-  }).then(function (r) { return r.json(); }).then(function (got) {
-    sinceButtons(false);
-    if (!got || !got.ok) {
-      notesSay((got && got.detail) || "that period could not be read", true);
-      return;
-    }
-    els.notesSaid.hidden = true;
-    els.notesRead.hidden = true;
-    els.notesSince.hidden = true;
-    els.notesWhich.hidden = false;
-    els.notesTitle.textContent = "Which projects?";
-    els.notesWhichLine.textContent = "Since " + got.since
-      + ". The ones that moved are already chosen.";
-    paintWhich(got.workspaces || []);
-  }).catch(function (e) {
-    sinceButtons(false);
-    notesSay(e.message || "the board did not answer", true);
-  });
+function paintSince() {
+  Array.prototype.forEach.call(
+    els.notesSince.querySelectorAll("button[data-since]"), function (b) {
+      b.setAttribute("aria-pressed",
+                     b.getAttribute("data-since") === notesSince ? "true" : "false");
+    });
+  paintTicks();
 }
 
-function paintWhich(list) {
-  notesWant = {};
+/* THE SUBJECTS, from the payload the door already drew: every course and
+   project but Meetings itself, which is where the deck goes. */
+function paintWhich() {
   els.notesList.innerHTML = "";
-  list.forEach(function (w) {
-    /* TICKED WHERE IT MOVED. That is what the deck covers when nobody says
-       anything, so the default state of the list is the default behaviour. */
-    notesWant[w.id] = !!w.moved;
+  ((atlas && atlas.workspaces) || []).forEach(function (c) {
+    var fam = aFamily(c.family) || {};
+    if (fam.vendor || fam.tool || c.id === MEETINGS) return;
     var b = document.createElement("button");
     b.type = "button";
-    b.setAttribute("data-id", w.id);
-    b.setAttribute("data-moved", w.moved ? "1" : "0");
+    b.setAttribute("data-id", c.id);
     var tick = document.createElement("span");
     tick.className = "tick";
     var name = document.createElement("span");
-    name.textContent = w.name;
-    var what = document.createElement("span");
-    what.className = "what";
-    what.textContent = whatOf(w);
+    name.textContent = c.course || c.repo || c.id;
     b.appendChild(tick);
     b.appendChild(name);
-    b.appendChild(what);
     b.onclick = function () {
-      notesWant[w.id] = !notesWant[w.id];
+      notesWant[c.id] = !notesWant[c.id];
       paintTicks();
     };
     els.notesList.appendChild(b);
@@ -1120,51 +1052,43 @@ function paintWhich(list) {
   paintTicks();
 }
 
-function whatOf(w) {
-  if (!w.moved) return "nothing since";
-  var bits = [];
-  if (w.commits) bits.push(w.commits + (w.commits === 1 ? " commit" : " commits"));
-  if (w.closed) bits.push(w.closed + (w.closed === 1 ? " step" : " steps") + " closed");
-  if (w.sittings) bits.push(w.sittings + (w.sittings === 1 ? " sitting" : " sittings"));
-  if (!bits.length && w.story) bits.push("the handoff moved");
-  return bits.join(", ");
+function chosen() {
+  return Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
 }
 
 function paintTicks() {
-  var n = 0;
   Array.prototype.forEach.call(
     els.notesList.querySelectorAll("button"), function (b) {
       var on = !!notesWant[b.getAttribute("data-id")];
       b.setAttribute("aria-pressed", on ? "true" : "false");
       b.querySelector(".tick").textContent = on ? "✓" : "·";
-      if (on) n += 1;
     });
-  els.notesMake.disabled = !n;
-  els.notesMakeSub.textContent = n
-    ? n + (n === 1 ? " project" : " projects") + ", replacing the last deck"
-    : "choose at least one";
+  var n = chosen().length;
+  els.notesMake.disabled = !notesSince;
+  els.notesMakeSub.textContent = !notesSince ? "choose a period"
+    : (n ? n + (n === 1 ? " subject" : " subjects") : "every subject that moved")
+      + ", replacing the last deck";
 }
 
 function makeDeck() {
-  var want = Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
-  if (!want.length) return;
+  if (!notesSince) return;
   els.notesMake.disabled = true;
   notesSay("asking for it…");
-  fetch("/notes", {
+  fetch("/meeting", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ since: notesSince, want: want })
+    body: JSON.stringify({ since: notesSince, items: chosen() })
   }).then(function (r) { return r.json(); }).then(function (rec) {
     rec = rec || {};
     els.notesMake.disabled = false;
-    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN: two fenced projects, an
-       assistant busy over there, a period in which nothing landed. */
+    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN: a period in which nothing
+       landed, a subject that is not there. */
     if (!rec.ok) {
       notesSay(rec.detail || rec.error || "the deck could not be asked for", true);
       return;
     }
-    notesSay(rec.detail || ("Being written in " + rec.where + "."));
+    notesSay(rec.detail || "Being written in Meetings.");
     els.notesRead.hidden = true;
     /* Asked at once, not in ten seconds: the answer may already be there. */
     pollNotes(false);
@@ -1178,14 +1102,6 @@ function makeDeck() {
 if (els.notesBtn) els.notesBtn.onclick = openNotes;
 if (els.notesClose) els.notesClose.onclick = closeNotes;
 if (els.notesMake) els.notesMake.onclick = makeDeck;
-if (els.notesBack) {
-  els.notesBack.onclick = function () {
-    els.notesWhich.hidden = true;
-    els.notesSince.hidden = false;
-    els.notesSaid.hidden = true;
-    els.notesTitle.textContent = "How far back?";
-  };
-}
 if (els.notes) {
   els.notes.addEventListener("click", function (ev) {
     if (ev.target === els.notes) closeNotes();
@@ -1194,7 +1110,9 @@ if (els.notes) {
 if (els.notesSince) {
   els.notesSince.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
-    if (b && !b.disabled) askWhich(b.getAttribute("data-since"));
+    if (!b) return;
+    notesSince = b.getAttribute("data-since");
+    paintSince();
   });
 }
 
@@ -1495,458 +1413,6 @@ if (els.doc) {
 }
 
 
-/* ------------------------------------------------------ slides from sittings */
-/* "I just want to be able to select from tutoring sessions what we've done
-    over all sessions and get to pick a list of the things I want to include in
-    the presentation. I leave it up to the AI tutor to actually decide what
-    slides are dedicated to which things accomplished... I don't want to be
-    limited to one slide per project."
-
-   THREE STEPS IN ONE SHEET, each replacing the last, and Back walks them in
-   reverse: which sittings, from every workspace and every date; what those
-   sittings did, all ticked, so the list is a chance to leave things out; and
-   the deck being written, watched until it is there.
-
-   NOTHING HERE DECIDES A SLIDE. How many a thing gets and which go together is
-   the tutor's, and the figures those sittings made reach it from the server,
-   not from a picker. What goes over the wire is ids the server handed out --
-   `tutorboard/sittings.py` recomputes the items from the sittings named and
-   only lets the ticks choose among them.
-
-   THE DECK LANDS IN A LIBRARY, the one of the workspace holding most of what
-   was ticked, and "Read the deck" opens it there. Ink on a slide and "say what
-   is wrong" are the library's own loop and redraw it in place. */
-var sitAt = 1;              /* which of the three steps is on the glass */
-var sitRows = [];           /* the sittings, as the server listed them */
-var sitWant = {};           /* sitting id -> ticked */
-var sitGroups = [];         /* what the ticked sittings did */
-var sitTicked = {};         /* item id -> ticked */
-var sitPicked = [];         /* the sittings the items were asked for */
-var sitDeck = null;         /* the deck this sheet asked for: {slug, where} */
-var sitDeckRows = [];       /* the decks already made, newest first */
-var sitTimer = null;
-/* WHICH ANSWER THE SHEET IS WAITING FOR, so one it has stopped waiting for
-   cannot repaint it -- `docWanted`'s rule. Back and a second tap are two
-   requests in flight, and the disk answers them in its own order. */
-var sitWanted = "";
-var SIT_POLL = 10000;
-
-function sitSay(text, bad) {
-  els.sittingsSaid.hidden = !text;
-  els.sittingsSaid.className = "sheet-line" + (bad ? " bad" : "");
-  els.sittingsSaid.textContent = text || "";
-}
-
-function sitPost(url, body) {
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(body || {})
-  }).then(function (r) { return r.json(); });
-}
-
-function sittingsStep(n) {
-  sitAt = n;
-  if (n !== 3) sitDeck = null;
-  els.sittingsPick.hidden = n !== 1;
-  els.sittingsWhat.hidden = n !== 2;
-  els.sittingsDecks.hidden = n !== 1 || !sitDeckRows.length;
-  els.sittingsGo.hidden = n === 3;
-  els.sittingsBack.hidden = n === 1;
-  els.sittingsRead.hidden = true;
-  els.sittingsHow.hidden = true;
-  sitSay("");
-  if (n === 1) {
-    els.sittingsTitle.textContent = "Which sittings?";
-    els.sittingsLine.textContent = "Every sitting in every workspace, newest "
-      + "first. Tick the ones the deck draws from.";
-    paintSittingTicks();
-    return;
-  }
-  if (n === 2) {
-    els.sittingsTitle.textContent = "What goes in the deck?";
-    els.sittingsLine.textContent = "Untick anything to leave out. The tutor "
-      + "decides how many slides each thing gets, and brings in the figures "
-      + "those sittings produced.";
-    els.sittingsBackSub.textContent = "different sittings";
-    paintItemTicks();
-    return;
-  }
-  els.sittingsTitle.textContent = "Being written";
-  els.sittingsBackSub.textContent = "what goes in the deck";
-}
-
-function openSittings() {
-  sitRows = [];
-  sitWant = {};
-  sitOpen = {};
-  sitGroups = [];
-  sitTicked = {};
-  sitPicked = [];
-  els.sittingsList.innerHTML = "";
-  els.sittingsItems.innerHTML = "";
-  sittingsStep(1);
-  els.sittings.hidden = false;
-  sitSay("reading every sitting…");
-  sitWanted = "list";
-  sitPost("/sittings").then(function (got) {
-    if (sitWanted !== "list") return;
-    sitWanted = "";
-    got = got || {};
-    if (!got.ok) { sitSay(got.error || "the sittings could not be read", true); return; }
-    sitSay("");
-    sitFold = got.fold || 20;
-    paintSittings(got.sittings || []);
-  }).catch(function (e) {
-    if (sitWanted !== "list") return;
-    sitWanted = "";
-    sitSay(e.message || "the board did not answer", true);
-  });
-  pollDecks();
-  if (sitTimer) clearInterval(sitTimer);
-  sitTimer = setInterval(function () {
-    if (!els.sittings.hidden && !document.hidden) pollDecks();
-  }, SIT_POLL);
-}
-
-function closeSittings() {
-  els.sittings.hidden = true;
-  sitWanted = "";
-  if (sitTimer) clearInterval(sitTimer);
-  sitTimer = null;
-}
-
-/* A HEADING PER WORKSPACE, and the rows under it newest first -- the order the
-   server sends them in. What each one holds is on its row, because ticking a
-   bare name is guessing.
-
-   EVERY SITTING IS SENT, and a workspace's past its first `sitFold` are folded
-   behind "show N older sittings" -- "over all sessions" means the oldest one
-   can be ticked, and a term of Galois Theory unfolded is a scroll. */
-var sitFold = 20;
-var sitOpen = {};           /* workspace id -> its older sittings are shown */
-
-function paintSittings(rows) {
-  sitRows = rows;
-  var host = els.sittingsList;
-  host.innerHTML = "";
-  var here = null;
-  var n = 0;
-  var hidden = {};
-  rows.forEach(function (r) {
-    if (r.ws !== here) {
-      here = r.ws;
-      n = 0;
-      var head = document.createElement("p");
-      head.className = "sittings-group";
-      head.textContent = r.ws_name + ((r.fenced || []).length
-        ? "  ·  holds " + r.fenced.join(", ") + "/" : "");
-      host.appendChild(head);
-    }
-    n += 1;
-    if (n > sitFold && !sitOpen[r.ws]) {
-      hidden[r.ws] = (hidden[r.ws] || 0) + 1;
-      return;
-    }
-    var b = sitRow(r.id, r.label, sitWhat(r), function () {
-      sitWant[r.id] = !sitWant[r.id];
-      paintSittingTicks();
-    });
-    b.setAttribute("data-ws", r.ws);
-    host.appendChild(b);
-  });
-  /* The fold goes under its own workspace's last shown row. */
-  Object.keys(hidden).forEach(function (ws) {
-    var last = null;
-    Array.prototype.forEach.call(host.querySelectorAll("button[data-id]"),
-      function (b) { if (b.getAttribute("data-ws") === ws) last = b; });
-    if (last) last.parentNode.insertBefore(sitMore(ws, hidden[ws]), last.nextSibling);
-  });
-  if (!rows.length) sitSay("There are no sittings to make a deck from yet.", true);
-  paintSittingTicks();
-}
-
-function sitMore(ws, n) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.className = "sittings-more";
-  b.textContent = "show " + n + (n === 1 ? " older sitting" : " older sittings");
-  b.onclick = function () {
-    sitOpen[ws] = true;
-    paintSittings(sitRows);
-  };
-  return b;
-}
-
-function sitWhat(r) {
-  var bits = [r.cards + (r.cards === 1 ? " card" : " cards")];
-  if (r.commits) bits.push(r.commits + (r.commits === 1 ? " commit" : " commits"));
-  return bits.join(" · ");
-}
-
-function sitRow(id, text, what, onTap) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.setAttribute("data-id", id);
-  var tick = document.createElement("span");
-  tick.className = "tick";
-  var body = document.createElement("span");
-  body.className = "sittings-text";
-  var name = document.createElement("span");
-  name.className = "name";
-  name.textContent = text;
-  body.appendChild(name);
-  if (what) {
-    var sub = document.createElement("span");
-    sub.className = "what";
-    sub.textContent = what;
-    body.appendChild(sub);
-  }
-  b.appendChild(tick);
-  b.appendChild(body);
-  b.onclick = onTap;
-  return b;
-}
-
-function sitTicks(host, want) {
-  var n = 0;
-  Array.prototype.forEach.call(host.querySelectorAll("button[data-id]"),
-    function (b) {
-      var on = !!want[b.getAttribute("data-id")];
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-      b.querySelector(".tick").textContent = on ? "✓" : "·";
-      if (on) n += 1;
-    });
-  return n;
-}
-
-function paintSittingTicks() {
-  if (sitAt !== 1) return;
-  var n = sitTicks(els.sittingsList, sitWant);
-  els.sittingsGo.disabled = !n;
-  els.sittingsGoName.textContent = "Show what was done in " + n
-    + (n === 1 ? " sitting" : " sittings");
-  els.sittingsGoSub.textContent = n ? "then choose what goes in" : "tick at least one";
-}
-
-/* WHAT THEY DID, asked of the server for exactly the sittings ticked. */
-function askItems() {
-  var picks = sitRows.filter(function (r) { return sitWant[r.id]; })
-    .map(function (r) { return r.id; });
-  if (!picks.length) return;
-  var key = "items:" + picks.join("|");
-  sitWanted = key;
-  els.sittingsGo.disabled = true;
-  sitSay("reading what " + (picks.length === 1 ? "that sitting" : "those "
-    + picks.length + " sittings") + " did…");
-  sitPost("/sittings/items", { picks: picks }).then(function (got) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    got = got || {};
-    els.sittingsGo.disabled = false;
-    if (!got.ok) { sitSay(got.error || "what they did could not be read", true); return; }
-    sitPicked = picks;
-    paintItems(got.groups || []);
-    sittingsStep(2);
-  }).catch(function (e) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sitSay(e.message || "the board did not answer", true);
-  });
-}
-
-var SIT_KIND = { commit: "commit", step: "a plan step finished",
-                 handoff: "from the handoff", whole: "the cards and the transcript" };
-
-function sitItemWhat(i) {
-  var said = SIT_KIND[i.kind] || i.kind;
-  if (i.kind === "commit" && i.detail) return said + " " + i.detail;
-  if (i.kind === "handoff" && i.detail) return said + " · " + i.detail;
-  return said;
-}
-
-/* ALL TICKED, because what those sittings did is what the deck covers when
-   nobody says anything -- so this list narrows a decision rather than asking
-   for one from nothing. The server has already left out what a handoff says
-   about the student and the next move. And each sitting has one tap to untick
-   all of it, because picking three things out of twenty-four should not be
-   twenty-one taps. */
-function paintItems(groups) {
-  sitGroups = groups;
-  sitTicked = {};
-  var host = els.sittingsItems;
-  host.innerHTML = "";
-  groups.forEach(function (g) {
-    var head = document.createElement("p");
-    head.className = "sittings-group";
-    head.textContent = g.ws_name + " — " + g.label;
-    host.appendChild(head);
-    var ids = (g.items || []).map(function (i) { return i.id; });
-    if (ids.length > 1) {
-      var all = document.createElement("button");
-      all.type = "button";
-      all.className = "sittings-all";
-      all.onclick = function () {
-        var on = !ids.every(function (id) { return sitTicked[id]; });
-        ids.forEach(function (id) { sitTicked[id] = on; });
-        paintItemTicks();
-      };
-      all.sitIds = ids;
-      host.appendChild(all);
-    }
-    (g.items || []).forEach(function (i) {
-      sitTicked[i.id] = true;
-      host.appendChild(sitRow(i.id, i.text, sitItemWhat(i), function () {
-        sitTicked[i.id] = !sitTicked[i.id];
-        paintItemTicks();
-      }));
-    });
-  });
-}
-
-function paintItemTicks() {
-  if (sitAt !== 2) return;
-  Array.prototype.forEach.call(els.sittingsItems.querySelectorAll(".sittings-all"),
-    function (b) {
-      var every = b.sitIds.every(function (id) { return sitTicked[id]; });
-      b.textContent = every ? "untick all of these" : "tick all of these";
-    });
-  var n = sitTicks(els.sittingsItems, sitTicked);
-  els.sittingsGo.disabled = !n;
-  els.sittingsGoName.textContent = "Write the deck (" + n
-    + (n === 1 ? " thing)" : " things)");
-  els.sittingsGoSub.textContent = n ? "the tutor plans the slides"
-                                    : "tick at least one";
-}
-
-function writeDeck() {
-  var items = Object.keys(sitTicked).filter(function (id) { return sitTicked[id]; });
-  if (!items.length) return;
-  var key = "deck:" + items.join("|");
-  sitWanted = key;
-  els.sittingsGo.disabled = true;
-  sitSay("asking for it…");
-  sitPost("/sittings/deck", { picks: sitPicked, items: items }).then(function (rec) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    rec = rec || {};
-    els.sittingsGo.disabled = false;
-    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN. An assistant busy in the
-       workspace it went to answers with what it is doing, and that is
-       something a person can act on. */
-    if (!rec.ok) { sitSay(rec.error || rec.detail || "it could not be asked for", true); return; }
-    sittingsStep(3);
-    sitDeck = { slug: rec.slug, where: rec.where };
-    els.sittingsLine.textContent = rec.detail || ("The tutor is writing it in "
-      + rec.where + ".");
-    pollDecks();
-  }).catch(function (e) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sitSay(e.message || "the board did not answer", true);
-  });
-}
-
-/* WHERE EACH DECK GOT TO. Asked on opening and every few seconds while the
-   sheet is open, because a deck takes minutes and the sheet says when it is
-   there rather than leaving somebody to guess. */
-function pollDecks() {
-  sitPost("/sittings/decks").then(function (got) {
-    if (!got || !got.ok) return;
-    paintDecks(got.decks || []);
-  }).catch(function () { /* a poll is quiet; the next one asks again */ });
-}
-
-function paintDecks(rows) {
-  sitDeckRows = rows;
-  var host = els.sittingsDecksList;
-  host.innerHTML = "";
-  rows.forEach(function (d) {
-    var row = document.createElement("div");
-    row.className = "sittings-deck" + (d.state === "did not land" ? " bad" : "");
-    var text = document.createElement("span");
-    text.className = "sittings-text";
-    text.appendChild(document.createTextNode(d.title + " · " + d.host_name + " · "));
-    var st = document.createElement("span");
-    st.className = "sittings-state";
-    st.textContent = d.state;
-    text.appendChild(st);
-    if (d.why) {
-      var why = document.createElement("span");
-      why.className = "what";
-      why.textContent = d.why;
-      text.appendChild(why);
-    }
-    row.appendChild(text);
-    if (d.state === "ready" && d.doc) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.textContent = "Read it";
-      b.onclick = function () { readDeck(d); };
-      row.appendChild(b);
-    }
-    host.appendChild(row);
-  });
-  els.sittingsDecks.hidden = sitAt !== 1 || !rows.length;
-  if (sitAt !== 3 || !sitDeck) return;
-  var mine = null;
-  rows.forEach(function (d) { if (d.slug === sitDeck.slug) mine = d; });
-  if (!mine) return;
-  if (mine.state === "ready" && mine.doc) {
-    els.sittingsTitle.textContent = "Ready";
-    els.sittingsRead.hidden = false;
-    els.sittingsReadSub.textContent = "in " + mine.host_name + "'s library";
-    els.sittingsHow.hidden = false;
-    sitSay("");
-    els.sittingsRead.onclick = function () { readDeck(mine); };
-  } else if (mine.state === "did not land") {
-    els.sittingsTitle.textContent = "Did not land";
-    sitSay(mine.why || ("The tutor ended without building the deck. Ask for "
-           + "it again."), true);
-  }
-}
-
-/* THE LIBRARY OF THE WORKSPACE IT WAS WRITTEN IN, opened on the deck itself.
-   Served by whichever board answers at this address, so a workspace that is not
-   the one being served is switched to first -- `openLibrary`'s journey, with
-   the document named on the way in. */
-function readDeck(d) {
-  var page = "/library?from=home&doc=" + encodeURIComponent(d.doc);
-  var card = null;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    if (c.id === d.host_id || c.repo === d.host) card = card || c;
-  });
-  closeSittings();
-  if (card && card.current) { location.href = page; return; }
-  switchTo(d.host, "", page);
-}
-
-if (els.sittingsBtn) els.sittingsBtn.onclick = openSittings;
-if (els.sittingsClose) els.sittingsClose.onclick = closeSittings;
-if (els.sittingsGo) {
-  els.sittingsGo.onclick = function () {
-    if (sitAt === 1) askItems();
-    else if (sitAt === 2) writeDeck();
-  };
-}
-/* BACK WALKS THEM IN REVERSE, one step at a time, keeping what was ticked. */
-if (els.sittingsBack) {
-  els.sittingsBack.onclick = function () {
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sittingsStep(sitAt === 3 ? 2 : 1);
-  };
-}
-if (els.sittings) {
-  els.sittings.addEventListener("click", function (ev) {
-    if (ev.target === els.sittings) closeSittings();
-  });
-}
-
-
 /* ------------------------------------------------------------ the address */
 /* THE FRONT DOOR IS THE ONLY THING THAT CAN MOVE THE ONE ADDRESS between two
    workspaces, so it is where every cross-workspace link lands. A board handed
@@ -2003,14 +1469,13 @@ function addrRoute() {
 
 window.addEventListener("hashchange", addrRoute);
 /* ESCAPE UNWINDS ONE THING AT A TIME, outermost first: the sheet over the
-   level, the document over the level, the deck, then the query, then the
+   level, the document over the level, the meeting deck, then the query, then the
    family. Closing two surfaces on one key is how somebody ends up two screens
    from where they were and cannot say which tap did it. */
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.sheet.hidden) closeSheet();
   else if (els.doc && !els.doc.hidden) closeDoc();
-  else if (els.sittings && !els.sittings.hidden) closeSittings();
   else if (els.notes && !els.notes.hidden) closeNotes();
   else if (atlasQuery()) clearFind();
   else if (atlasFamily) closeFamily();

@@ -561,11 +561,9 @@ main { max-width: 46rem; }
   border-radius: 0 .4rem .4rem 0;
   font-size: .92rem; line-height: 1.4;
 }
-/* HOW FAR BACK, and nothing else. One question, because the period is the only
-   part of it the person actually has an answer to — which workspaces is
-   answered by "the ones that moved", and the note works that out itself.
-   Buttons rather than a date field: a date picker on a tablet, ten minutes
-   before a meeting, is the wrong shape of question. */
+/* THE PERIOD. Buttons rather than a date field: a date picker on a tablet,
+   ten minutes before a meeting, is the wrong shape of question. The chosen
+   one is pressed. */
 .notes-since { display: grid; gap: .5rem; margin-top: 1.1rem; }
 @media (min-width: 30rem) { .notes-since { grid-template-columns: 1fr 1fr; } }
 .notes-since button {
@@ -577,9 +575,10 @@ main { max-width: 46rem; }
 .notes-since button:hover:not(:disabled) {
   border-color: var(--accent); background: var(--paper-2);
 }
-/* A build is LaTeX and takes a few seconds. The buttons go quiet for the whole
-   of it, because a second tap is a second document. */
-.notes-since button:disabled { opacity: .45; cursor: default; }
+.notes-since button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
 /* `--accent`, not a `--bad` of its own. This stylesheet has no such token, and
    inventing one means defining it in BOTH blocks at the top or it is invisible
    in one theme — which is the rule `test/hub.js` enforces. `.pushline.bad`
@@ -642,11 +641,9 @@ main { max-width: 46rem; }
    the stack must not sit under one. */
 #panic { z-index: 63; }
 
-/* ---------- which projects the deck is about ----------
-   The second half of the same question. A row per workspace with what it has
-   to report since the chosen period beside it, ticked where it moved — which
-   is what the deck covers when nobody says anything, so the list narrows a
-   decision rather than asking for one from nothing. */
+/* ---------- which subjects the deck is about ----------
+   A row per subject, chosen or not. None chosen is every subject that moved,
+   so the list narrows a decision rather than asking for one from nothing. */
 .notes-which { display: grid; gap: .3rem; margin-top: .7rem;
   max-height: 46vh; overflow: auto; }
 .notes-which button {
@@ -660,11 +657,7 @@ main { max-width: 46rem; }
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
-/* A project that did not move is still tappable — somebody may want a slide
-   saying so — but it does not look like one of the answers. */
-.notes-which button[data-moved="0"] { opacity: .62; }
 .notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
-.notes-which .what { margin-left: auto; font-size: .76rem; color: var(--ink-3); }
 
 /* ---------- a paper or a deck, asked for at the door ----------
    The same shape of choice the deck's period buttons are, three times over:
@@ -698,50 +691,4 @@ main { max-width: 46rem; }
    size; on a touch screen they are the 44pt the guideline asks for. */
 @media (pointer: coarse) {
   .atlas-tools button { min-height: 44px; padding: .5rem .8rem; }
-}
-
-/* ---------- slides from sittings ----------
-   The deck's own rows, reused: a tick, a name, and what each one holds. What
-   is added is a heading per workspace -- a list of forty sittings is only
-   readable grouped by where they were -- and the line under an item saying
-   where it came from. No colour of its own, for the reason `.doc-picks` has
-   none. */
-.sittings-list .sittings-group {
-  margin: .7rem 0 .1rem; font-family: var(--ui); font-size: .72rem;
-  font-weight: 620; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--ink-3);
-}
-.sittings-list .sittings-group:first-child { margin-top: 0; }
-/* The fold and the tick-all are quiet text buttons, not rows: nothing about
-   them is a thing that goes in the deck. Tall enough for a finger. */
-.sittings-list button.sittings-more,
-.sittings-list button.sittings-all {
-  display: block; justify-self: start; width: auto; min-height: 2.2rem;
-  margin: .1rem 0 .2rem;
-  padding: .3rem 0; border: 0; background: none; cursor: pointer;
-  font-family: var(--ui); font-size: .78rem; color: var(--ink-2);
-  text-decoration: underline; text-underline-offset: .15em;
-}
-.sittings-deck .sittings-text .what { display: block; margin: .15rem 0 0;
-  font-size: .78rem; color: var(--ink-3); }
-.sittings-list button { align-items: flex-start; }
-.sittings-list .sittings-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.sittings-list .sittings-text .what { display: block; margin: .15rem 0 0; }
-.sittings-decks { margin-top: .9rem; }
-.sittings-head {
-  margin: 0 0 .3rem; font-family: var(--ui); font-size: .72rem;
-  font-weight: 620; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--ink-3);
-}
-.sittings-deck {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .45rem 0; border-top: 1px solid var(--rule);
-  font-family: var(--ui); font-size: .84rem;
-}
-.sittings-deck .sittings-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.sittings-deck.bad .sittings-state { color: var(--accent); }
-.sittings-deck button {
-  font: inherit; font-size: .8rem; flex: none; cursor: pointer;
-  padding: .4rem .7rem; color: var(--ink); background: var(--paper);
-  border: 1px solid var(--rule); border-radius: .4rem;
 }
