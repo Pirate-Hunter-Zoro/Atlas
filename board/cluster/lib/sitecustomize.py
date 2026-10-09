@@ -1,8 +1,9 @@
 """sitecustomize.py -- every Python a relay recipe starts reports its failure.
 
-`relay_trap.sh` puts this directory on PYTHONPATH, and Python imports
-`sitecustomize` at startup, so `relay_hook.install` runs before any entrypoint
-without one of them importing it. A conda env's own sitecustomize, which this
+The relay's wrapper (`jobs.wrapper`) and `relay_trap.sh` put this directory
+on PYTHONPATH, and Python imports `sitecustomize` at startup, so
+`relay_hook.install` runs before any entrypoint without one of them
+importing it. A conda env's own sitecustomize, which this
 file shadows, is run after it. Nothing here may stop a job: every failure is
 swallowed.
 """

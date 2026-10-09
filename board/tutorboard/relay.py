@@ -24,8 +24,8 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
    analysis whose outputs go under the workspace's ignored `phi/`, so a
    finished one is checked (`check_task`): any change git can see in its
    workspace fails it, and nothing it wrote is committed. No model runs in
-   the pass: a failed job's recipe prints `RELAY:` lines
-   (`slurm_jobs/lib/relay_trap.sh`), and the Mac repairs it.
+   the pass: a failed job prints `RELAY:` lines (the wrapper's fingerprint,
+   board/cluster/lib), and the Mac repairs it.
 5. Only what this pass wrote under `relay/reports/` and `exports/` is
    committed (`staged_paths`), with `relay/status.json` when it changed;
    anything else there is named in `relay/state.json`. The pass rebases onto
@@ -42,9 +42,10 @@ file, so no payload names a path outside `relay/reports/`.
 
 A REPORT IS PUBLIC. It carries state, the Slurm id, times, the exit code, which
 `produces` paths exist, which exports landed, the lines the job printed behind
-`RELAY:`, and the exception type of a crash. Never a log tail. Every string in
-it goes through `public` first: absolute paths become `<path>`, and the lab's
-`names_phi` policy withholds what it matches.
+`RELAY:`, and the exception type of a crash. A log excerpt only where the
+subject's phi is literally false (`log_excerpt`, `code.output_open`). Every
+string in it goes through `public` first: absolute paths become `<path>`, and
+the lab's `names_phi` policy withholds what it matches.
 
 Standard library only.
 """
@@ -801,6 +802,7 @@ def finish(ws, rec, req, allowed, now, names_phi=None):
     crashed = crash_type(err) or crash_type(out)
     if crashed:
         rep["error"] = crashed
+    rep.update(log_excerpt(ws, out, err, names_phi))
     if state == "completed":
         landed, refused = export(ws, dict(rec, export=req.get("export")),
                                  allowed, names_phi)
@@ -813,6 +815,23 @@ def finish(ws, rec, req, allowed, now, names_phi=None):
         rep["export_refused"] = refused
     rep["note"] = recipe_note(rec, rep)
     return write_report(ws, request_id(req), rep)
+
+
+def log_excerpt(ws, out, err, names_phi):
+    """`{output, output_total, output_cut}` of a job's log, or {}.
+
+    Only where `code.output_open` holds: the subject's tutorboard.json says
+    `"phi": false` literally, on disk and at HEAD, it holds no fence, and the
+    policy loaded. Then stdout and stderr go through `code.check_output`, as a
+    `board code` step's do: paths made subject-relative, any other absolute
+    path `<path>`, a line the policy flags withheld, the middle cut."""
+    from . import code
+    if names_phi is None or not code.output_open(ws, names_phi=names_phi):
+        return {}
+    text = out if not err else (out.rstrip("\n") + "\n" + err if out
+                                else err)
+    got = code.check_output(text, ws, names_phi, code.top_of(ws) or None)
+    return dict((k, got[k]) for k in ("output", "output_total", "output_cut"))
 
 
 def recipe_note(rec, rep):
@@ -833,7 +852,9 @@ def recipe_note(rec, rep):
     if rep.get("exported") or rep.get("export_refused"):
         bits.append("%d exported, %d refused." % (
             len(rep.get("exported") or []), len(rep.get("export_refused") or [])))
-    if state != "COMPLETED":
+    if state != "COMPLETED" and "output" in rep:
+        bits.append("Its log, cut, is here too: the subject's phi is false.")
+    elif state != "COMPLETED":
         bits.append("The log stays on the cluster; its RELAY: lines are what "
                     "it says here, and a diagnostic recipe asks it more.")
     return " ".join(bits)

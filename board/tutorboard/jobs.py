@@ -29,7 +29,9 @@ THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every five minutes).
 an exit-code file: `submit_recipe` wraps every recipe so its last act writes
 its exit code to `relay/state/<key>.exit`, which is ignored. A job that has
 left `squeue` with that file ended with that code; one that left without it
-DIED (timeout, node failure, a cancel). A raw `sbatch` has no wrapper, so its
+DIED (timeout, node failure, a cancel). The wrapper also loads the failure
+fingerprint (board/cluster/lib, `wrapper`), so every wrapped recipe says what
+failed behind `RELAY:`. A raw `sbatch` has no wrapper, so its
 leaving is ENDED, exit unknown. An ending is claimed once (`O_EXCL`, so two
 passes never report the same job twice), appended, and a `[job]` line is
 dropped in the inbox. That line wakes a turn the way `[direction]` does.
@@ -414,13 +416,37 @@ def array_tasks(header):
     return total
 
 
-def wrapper(header, command, exitfile, name=""):
+# The shared failure fingerprint: `relay_trap.sh`, `relay_hook.py` and the
+# `sitecustomize.py` that installs the hook in every Python a job starts.
+FINGERPRINT_LIB = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cluster",
+    "lib")
+
+
+def fingerprint(root, recipe):
+    """`{root, stage, config, lib}`: what `wrapper` exports so a recipe is
+    fingerprinted whether or not it sources `relay_trap.sh`. `config` is the
+    subject's tutorboard.json `relay.fingerprint`, as JSON."""
+    from .course import config
+    said = config.read_config(root).get("relay", {}).get("fingerprint")
+    return {"root": os.path.realpath(root), "stage": recipe,
+            "config": json.dumps(said if isinstance(said, dict) else {},
+                                 sort_keys=True),
+            "lib": FINGERPRINT_LIB}
+
+
+def wrapper(header, command, exitfile, name="", fp=None):
     """A batch script: `header`, then `command`, then the exit code written to
     `exitfile` as its last act. Pure.
 
     No trap: a job killed at its time limit must leave NO file, because that
     absence is how a death is told from an ending. An array task writes
     `<stem>_<task>.exit`.
+
+    With `fp` (`fingerprint`) it first exports RELAY_ROOT, RELAY_STAGE,
+    RELAY_CONFIG and RELAY_WRAPPED, and puts board/cluster/lib on PYTHONPATH,
+    so every Python the recipe starts reports its failure; on a non-zero exit
+    it prints `RELAY: recipe <recipe> failed: exit <n>, checkout <sha>`.
     """
     lines = ["#!/bin/bash"] + list(header)
     if name and not any(re.match(r"#SBATCH\s+(--job-name|-J)\b", h)
@@ -430,8 +456,29 @@ def wrapper(header, command, exitfile, name=""):
     lines += [
         "# Written by the relay: runs the command below, then records its exit",
         "# code. That file is how the end of this job is read without sacct.",
+    ]
+    if fp:
+        lines += [
+            "export RELAY_ROOT=%s" % shlex.quote(fp["root"]),
+            "export RELAY_STAGE=%s" % shlex.quote(fp["stage"]),
+            "export RELAY_CONFIG=%s" % shlex.quote(fp["config"]),
+            "export RELAY_WRAPPED=1",
+            'export PYTHONPATH=%s"${PYTHONPATH:+:$PYTHONPATH}"'
+            % shlex.quote(fp["lib"]),
+        ]
+    lines += [
         " ".join(shlex.quote(c) for c in command),
         "code=$?",
+    ]
+    if fp:
+        lines += [
+            'if [ "$code" -ne 0 ]; then',
+            '    sha="$(git -C "$RELAY_ROOT" rev-parse --short HEAD 2>/dev/null)"',
+            "    printf 'RELAY: recipe %s failed: exit %s, checkout %s\\n' "
+            '"$RELAY_STAGE" "$code" "${sha:-unknown}" >&2',
+            "fi",
+        ]
+    lines += [
         'out=%s"${SLURM_ARRAY_TASK_ID:+_$SLURM_ARRAY_TASK_ID}".exit'
         % shlex.quote(stem),
         'printf \'%s\\n\' "$code" > "$out.tmp" && mv -f "$out.tmp" "$out"',
@@ -447,7 +494,7 @@ def local_key(now=None):
 
 def submit_script(root, label, header, command, key, shown_as, produces=(),
                   export=(), env=None, run=subprocess.run, now=None,
-                  sbatch_env=None, extra=None):
+                  sbatch_env=None, extra=None, fp=None):
     """Write the wrapper for `command` at `relay/state/<key>.sbatch` and submit
     it from the workspace root. `(record, error)`.
 
@@ -467,7 +514,7 @@ def submit_script(root, label, header, command, key, shown_as, produces=(),
     name = re.sub(r"[^A-Za-z0-9._-]+", "-",
                   os.path.splitext(os.path.basename(shown_as.split()[0]))[0])[:40]
     with open(script, "w", encoding="utf-8") as fh:
-        fh.write(wrapper(header, command, exitfile, name=name))
+        fh.write(wrapper(header, command, exitfile, name=name, fp=fp))
     sent = ["sbatch"]
     if env:
         sent.append("--export=ALL," + ",".join(
@@ -491,7 +538,8 @@ def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
 
     The recipe runs where it is, under `bash`, from the workspace root: its
     `#SBATCH` lines, `$SLURM_SUBMIT_DIR` and log paths are what a bare sbatch
-    of it would give.
+    of it would give. The wrapper carries the failure fingerprint
+    (`fingerprint`).
     """
     full = os.path.join(root, recipe)
     try:
@@ -502,7 +550,8 @@ def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
     return submit_script(root, label, header, ["bash", full],
                          key or local_key(now), recipe, produces=produces,
                          export=export, env=env, run=run, now=now,
-                         sbatch_env=sbatch_env, extra=extra)
+                         sbatch_env=sbatch_env, extra=extra,
+                         fp=fingerprint(root, recipe))
 
 
 def _redacted(argv):
@@ -822,7 +871,8 @@ def relay_sense(root, rec):
 
     Everything the turn reports is in the report, because the log stays on the
     cluster: the state, the exit, which `produces` paths now exist there, which
-    exports landed here, the `RELAY:` lines and the note. A failure the Mac
+    exports landed here, the `RELAY:` lines and the note, and a cut of the log
+    only where the subject's phi is false (`relay.log_excerpt`). A failure the Mac
     repairs opens `[repair]` rather than `[job]` (`repairs`).
     """
     state = str(rec.get("state") or "")
@@ -864,6 +914,13 @@ def relay_sense(root, rec):
     if said:
         lines += ["", "What the job printed behind RELAY:"]
         lines += ["  " + l for l in said]
+    excerpt = _relay_said(rec.get("output"))
+    if excerpt:
+        cut = rec.get("output_cut") or 0
+        lines += ["", "Its log, %s line(s)%s (the subject's phi is false):"
+                  % (rec.get("output_total") or len(excerpt),
+                     ", %s cut from the middle" % cut if cut else "")]
+        lines += ["    " + l for l in excerpt]
     if rec.get("problems"):
         lines += ["", "Why the cluster refused it:"]
         lines += ["  - %s" % p for p in rec["problems"]]
@@ -888,6 +945,9 @@ def relay_sense(root, rec):
                      "stay on the cluster, uncommitted, for the owner to "
                      "settle, and the report names none of them."
                      % int(rec["changed"]))
+    elif failed(rec) and excerpt:
+        lines.append("It did NOT end cleanly. Its RELAY: lines and its log, "
+                     "above, are what it says.")
     elif failed(rec):
         lines.append("It did NOT end cleanly. Its log stays on the cluster, "
                      "and the RELAY: lines are what it says here.")
@@ -937,8 +997,8 @@ def ran_elsewhere(root, rec):
 # ---------------------------------------------------------------------------
 # A FAILED RECIPE WAKES A `[repair]` TURN ON THE MAC, a doing turn whatever the
 # workspace teaches under (`board brief`, `doing_now` in runner/turn.py). It reads
-# the report, the `RELAY:` lines its recipe's failure helper printed
-# (`slurm_jobs/lib/relay_trap.sh`), and the failing code, and then either
+# the report, the `RELAY:` lines the failure fingerprint printed
+# (board/cluster/lib, `wrapper`), and the failing code, and then either
 # fixes it here -- check, `board push`, rerun through `board job --fixes` --
 # or, where the report does not say enough, files a DIAGNOSTIC: a tracked
 # recipe that prints `RELAY:` lines and produces nothing (`board diagnose`).
@@ -1030,13 +1090,13 @@ def diagnostics(root):
 
 
 _SITE_RE = re.compile(r"\bat ([A-Za-z0-9_][A-Za-z0-9_./-]*\.[A-Za-z0-9]+):(\d+)")
-_STEP_LINE_RE = re.compile(r"\bfailed: exit \d+ after line (\d+)")
+_STEP_LINE_RE = re.compile(r"\b(?:failed: exit \d+|stopped) after line (\d+)")
 
 
 def failure_sites(relay):
     """`(["file:line", ...], recipe line or "")` out of a report's RELAY
     lines: where the Python failed, and the recipe line the shell stopped
-    after (`slurm_jobs/lib/relay_hook.py`, `relay_trap.sh`)."""
+    after (board/cluster/lib: `relay_hook.py`, `relay_trap.sh`)."""
     sites, step = [], ""
     for line in _relay_said(relay):
         body = line.split("RELAY:", 1)[-1].strip()
@@ -1459,6 +1519,7 @@ VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
 VAR_LINE_RE = re.compile(r"^#RELAY-VAR\s+(\S+)\s+(\S.*?)\s*$")
 # What no recipe may accept from a request, whatever it declares: each changes
 # what runs rather than what it runs on, and ALL and NONE are --export words.
+# Nor any RELAY_ name: those are the wrapper's fingerprint (`wrapper`).
 FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
                   "PYTHONPATH", "PYTHONSTARTUP", "BASH_ENV", "ENV", "HOME",
                   "SHELL", "IFS", "PROMPT_COMMAND")
@@ -1520,7 +1581,8 @@ def declarations(text):
         if not m:
             continue
         name, pattern = m.group(1), m.group(2)
-        if not VAR_NAME_RE.match(name) or name in FORBIDDEN_VARS:
+        if (not VAR_NAME_RE.match(name) or name in FORBIDDEN_VARS
+                or name.startswith("RELAY_")):
             problems.append("the recipe declares %r, which a request may not "
                             "set" % name)
             continue
@@ -1959,7 +2021,8 @@ def relayed(root):
             rec["commit"] = req["commit"]
         for key in ("exit", "ended", "note", "produced", "missing",
                     "exported", "export_refused", "relay", "error",
-                    "problems", "changed", "ran_at"):
+                    "problems", "changed", "ran_at", "output",
+                    "output_total", "output_cut"):
             if rep.get(key) not in (None, "", []):
                 rec[key] = rep[key]
         if rep.get("jobid"):

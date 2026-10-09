@@ -3,11 +3,11 @@
 
 What the checks are about:
 
-  * ON FAILURE ONLY. `slurm_jobs/lib/relay_trap.sh` prints the recipe, the
-    exit, the line it stopped after and the checkout; `relay_hook.py`, loaded
-    into every Python through `sitecustomize.py`, prints the exception type,
-    file and line, the inputs by name and count, and shapes. A job that
-    succeeds prints none of it.
+  * ON FAILURE ONLY. `relay_trap.sh` prints the recipe, the exit, the line
+    it stopped after and the checkout; `relay_hook.py`, loaded into every
+    Python through `sitecustomize.py`, prints the exception type, file and
+    line, the inputs by name and count, and shapes. A job that succeeds
+    prints none of it.
   * NEVER A VALUE. No exception message, no row, no location: a path is its
     `.env` key, and a file or directory name only from an allowlist built
     off tracked files (thread outputs and exports, request produces and
@@ -19,11 +19,18 @@ What the checks are about:
     value.
   * THE JOB'S STATUS. The trap changes no exit code, writes no file, and
     chains a recipe's own cleanup, which sees that status in `$?`.
-  * WIRED. Every TRD-EHR recipe sources it; every PSYCH-ASR recipe gets it
-    through `job_env.sh`; the two copies of the Python are one file.
+  * WIRED. One copy, in board/cluster/lib; each subject's
+    `slurm_jobs/lib/relay_trap.sh` is a two-line shim sourcing it, and the
+    subject's RELAY_* lists are its tutorboard.json `relay.fingerprint`.
+    Every TRD-EHR recipe sources the shim; every PSYCH-ASR recipe gets it
+    through `job_env.sh`.
+  * WRAPPED. The relay's wrapper (`jobs.wrapper`) loads the library and
+    prints the failure line itself, so a recipe with no `source` line is
+    fingerprinted too, and one with it prints that line once.
 
 Runs the real library files and the real diagnose.sbatch, copied into
-temporary workspaces, against synthetic ids (ID0001XQ, synthetic-alpha-17).
+temporary Atlas-shaped checkouts, against synthetic ids (ID0001XQ,
+synthetic-alpha-17).
 """
 
 import json
@@ -41,6 +48,7 @@ from tutorboard import jobs, relay                                     # noqa: E
 
 TRD = os.path.join(REPO, "projects", "TRD-EHR")
 PSY = os.path.join(REPO, "projects", "PSYCH-ASR")
+LIBDIR = os.path.join(REPO, "board", "cluster", "lib")
 fails = []
 
 
@@ -68,10 +76,37 @@ def relay_out(text):
 
 
 # --- wired -------------------------------------------------------------------------
-LIB = ("relay_hook.py", "sitecustomize.py")
-check("the two workspaces' Python helpers are one file",
-      all(read(os.path.join(TRD, "slurm_jobs", "lib", f))
-          == read(os.path.join(PSY, "slurm_jobs", "lib", f)) for f in LIB))
+LIB = ("relay_hook.py", "sitecustomize.py", "relay_trap.sh")
+tracked_files = subprocess.run(["git", "ls-files", "-z"], cwd=REPO,
+                               stdout=subprocess.PIPE,
+                               universal_newlines=True).stdout.split("\0")
+for f in LIB:
+    found = [t for t in tracked_files if os.path.basename(t) == f
+             and (f != "relay_trap.sh" or t.startswith("board/"))]
+    check("exactly one %s is tracked, in board/cluster/lib" % f,
+          found == ["board/cluster/lib/" + f])
+SHIM_SOURCE = ('source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." '
+               '&& pwd -P)/board/cluster/lib/relay_trap.sh"')
+shims = [read(os.path.join(w, "slurm_jobs", "lib", "relay_trap.sh"))
+         for w in (TRD, PSY)]
+check("each subject's relay_trap.sh is the same two-line shim, sourcing the "
+      "shared one", all(len(x.splitlines()) == 2
+                        and x.splitlines()[1] == SHIM_SOURCE for x in shims)
+      and shims[0] == shims[1])
+check("and no subject's slurm_jobs/lib holds Python of its own",
+      not any(t.endswith(".py") and "/slurm_jobs/lib/" in t
+              for t in tracked_files))
+FP = {}
+for w in (TRD, PSY):
+    FP[w] = (json.loads(read(os.path.join(w, "tutorboard.json")))
+             .get("relay", {}).get("fingerprint"))
+check("TRD-EHR's and PSYCH-ASR's lists are their tutorboard.json "
+      "relay.fingerprint", isinstance(FP[TRD], dict) and FP[TRD]["names"] is True
+      and FP[TRD]["open_keys"] == ["RESULTS_DIR", "EMBEDDINGS_DIR"]
+      and "RESULTS_DIR" in FP[TRD]["path_keys"]
+      and isinstance(FP[PSY], dict) and FP[PSY]["names"] is False
+      and FP[PSY]["open_keys"] == []
+      and "PSYCH_ASR_DATA" in FP[PSY]["path_keys"])
 SOURCE = 'source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"'
 recipes = []
 for dirpath, _, files in os.walk(os.path.join(TRD, "slurm_jobs")):
@@ -104,17 +139,17 @@ check("every PSYCH-ASR recipe sources job_env.sh, which sources the trap",
       and 'source "$_JOB_ENV_LIB/relay_trap.sh"' in read(
           os.path.join(PSY, "slurm_jobs", "lib", "job_env.sh")))
 for ws in (TRD, PSY):
-    for name in LIB + ("relay_trap.sh",):
-        p = subprocess.run(["git", "check-ignore", "-q",
-                            os.path.join("slurm_jobs", "lib", name)], cwd=ws)
-        check("%s: git sees slurm_jobs/lib/%s"
-              % (os.path.basename(ws), name), p.returncode != 0)
+    p = subprocess.run(["git", "check-ignore", "-q",
+                        os.path.join("slurm_jobs", "lib", "relay_trap.sh")],
+                       cwd=ws)
+    check("%s: git sees slurm_jobs/lib/relay_trap.sh" % os.path.basename(ws),
+          p.returncode != 0)
 
 # --- the traceback the prior hook prints cannot publish itself ------------------
 import importlib.util                                                 # noqa: E402
 import io                                                             # noqa: E402
 _spec = importlib.util.spec_from_file_location(
-    "relay_hook_under_test", os.path.join(TRD, "slurm_jobs", "lib", "relay_hook.py"))
+    "relay_hook_under_test", os.path.join(LIBDIR, "relay_hook.py"))
 _rh = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_rh)
 _real, _buf = sys.stderr, io.StringIO()
@@ -133,17 +168,17 @@ check("an exception message holding a RELAY: line is printed, never published",
       and sys.stderr is _real)
 
 # --- the lists agree with the pipeline ----------------------------------------------
-TRAP = read(os.path.join(TRD, "slurm_jobs", "lib", "relay_trap.sh"))
 DIAG = os.path.join(TRD, "slurm_jobs", "quick_runs", "diagnose.sbatch")
-encoders = re.search(r'^export RELAY_ENCODERS="([^"]*)"', TRAP, re.M)
-encoders = encoders.group(1).split() if encoders else []
+encoders = FP[TRD].get("encoders") or []
+diag_encoders = re.search(r'^ENCODERS="([^"]*)"', read(DIAG), re.M)
+diag_encoders = diag_encoders.group(1).split() if diag_encoders else []
 pipeline = re.search(r"^EMBEDDERS = \[([^\]]*)\]", read(os.path.join(
     TRD, "scripts", "pipeline", "predictions", "plot_cross_embedder.py")), re.M)
 pipeline = re.findall(r'"([^"]+)"', pipeline.group(1)) if pipeline else []
 declared, _ = jobs.declarations(read(DIAG))
-check("RELAY_ENCODERS is the pipeline's EMBEDDERS, and diagnose.sbatch's "
-      "EMBEDDER takes exactly those",
-      encoders and encoders == pipeline
+check("the fingerprint's encoders are the pipeline's EMBEDDERS and "
+      "diagnose.sbatch's ENCODERS, and its EMBEDDER takes exactly those",
+      encoders and encoders == pipeline and diag_encoders == encoders
       and all(re.fullmatch(declared["EMBEDDER"], e) for e in encoders)
       and not any(re.fullmatch(declared["EMBEDDER"], v) for v in (
           "ID0003AB", "bge-small-en-v1.5/../ID0003AB", "bge-large",
@@ -163,22 +198,26 @@ check("LOOK may end in a slash and never climbs",
       re.fullmatch(declared["LOOK"], "RESULTS_DIR/neighbor_count_sweep/")
       and not re.fullmatch(declared["LOOK"], "RESULTS_DIR/../x")
       and not re.fullmatch(declared["LOOK"], "PATIENT_JSON_DIR"))
-sys.path.insert(0, os.path.join(TRD, "slurm_jobs", "lib"))
+sys.path.insert(0, LIBDIR)
 sys.dont_write_bytecode = True
 import relay_hook                                                      # noqa: E402
 _saved = dict(os.environ)
-os.environ.update(RELAY_ROOT=TRD, RELAY_NAMES="1", RELAY_ENCODERS=" ".join(
-    encoders), RELAY_ALLOW=re.search(r'^export RELAY_ALLOW="([^"]*)"', TRAP,
-                                     re.M).group(1))
+os.environ.pop("RELAY_CONFIG", None)
+os.environ.update(RELAY_ROOT=TRD)
 real = relay_hook.allowlist()
 spine = json.loads(read(os.path.join(TRD, "threads.json")))
 outputs = [o for t in spine["threads"] for o in t.get("outputs") or []]
-check("the real allowlist (%d names) holds every segment of every thread "
-      "output, the request's produces and the recipes' results/ paths"
-      % len(real),
+check("the real allowlist (%d names), read off tutorboard.json with no "
+      "RELAY_CONFIG, holds every segment of every thread output, the "
+      "request's produces and the recipes' results/ paths" % len(real),
       outputs and all(seg in real for o in outputs for seg in o.split("/"))
       and "neighbor_count_sweep" in real and "parity" in real
-      and "google_medgemma-27b-text-it" in real)
+      and "google_medgemma-27b-text-it" in real
+      and relay_hook.config() == FP[TRD])
+os.environ.update(RELAY_CONFIG="not json")
+check("a RELAY_CONFIG that cannot be read names nothing",
+      relay_hook.allowlist() == frozenset()
+      and relay_hook.config() == {"names": False})
 os.environ.clear()
 os.environ.update(_saved)
 
@@ -188,9 +227,17 @@ PY = sys.executable
 
 
 def workspace(src, name, whole=False, ignore=""):
-    """A git workspace holding `src`'s library -- or, `whole`, its recipes,
-    thread file and requests -- with data outside it."""
-    ws = os.path.join(base, name)
+    """An Atlas-shaped git checkout, board/cluster/lib and one subject under
+    projects/, and the subject: `src`'s shim and tutorboard.json -- or,
+    `whole`, its recipes, thread file and requests too -- with data outside
+    it."""
+    top = os.path.join(base, name)
+    shutil.copytree(LIBDIR, os.path.join(top, "board", "cluster", "lib"),
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    write(os.path.join(top, ".gitignore"), "__pycache__/\n")
+    ws = os.path.join(top, "projects", os.path.basename(src))
+    os.makedirs(ws)
+    shutil.copy(os.path.join(src, "tutorboard.json"), ws)
     if whole:
         shutil.copytree(os.path.join(src, "slurm_jobs"),
                         os.path.join(ws, "slurm_jobs"),
@@ -204,7 +251,7 @@ def workspace(src, name, whole=False, ignore=""):
                         ignore=shutil.ignore_patterns("__pycache__"))
     write(os.path.join(ws, "scripts", "__init__.py"), "")
     write(os.path.join(ws, ".gitignore"), "__pycache__/\nresults/\n" + ignore)
-    subprocess.run(["git", "init", "-q"], cwd=ws, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=top, check=True)
     return ws
 
 
@@ -472,6 +519,64 @@ set -e
                   for l in said)
           and "RELAY: step python -c, recipe slurm_jobs/lib.sbatch" in said)
 
+    # --- under the relay's wrapper ---------------------------------------------------
+    def wrapped(recipe, body, env=None):
+        """`bash <wrapper>` as a node runs it: jobs.wrapper around `bash
+        <recipe>`, with the fingerprint `submit_recipe` gives it."""
+        full = os.path.join(ws, "slurm_jobs", recipe)
+        write(full, body)
+        sdir = os.path.join(ws, "relay", "state")
+        os.makedirs(sdir, exist_ok=True)
+        exitfile = os.path.join(sdir, recipe.replace(".", "-") + ".exit")
+        script = exitfile[:-len(".exit")] + ".sbatch"
+        write(script, jobs.wrapper(
+            [], ["bash", full], exitfile,
+            fp=jobs.fingerprint(ws, "slurm_jobs/" + recipe)))
+        code, out = run(ws, "", None, env, path=script)
+        with open(exitfile) as fh:
+            return code, out, fh.read().strip()
+
+    code, out, wrote = wrapped("bare.sbatch", """#!/bin/bash
+%s -m scripts.fit
+""" % PY, env)
+    said = relay_out(out)
+    check("wrapped, a recipe with no source line still fingerprints: the "
+          "Python's failure, named off RELAY_CONFIG",
+          code == 1 and wrote == "1"
+          and any(re.match(r"RELAY: error FileNotFoundError at "
+                           r"scripts/fit\.py:\d+ in main$", l) for l in said)
+          and "RELAY: step scripts.fit, recipe slurm_jobs/bare.sbatch" in said
+          and "RELAY: missing RESULTS_DIR/trained_models/<file> ext joblib"
+          in said and clean_lines(said))
+    check("and the wrapper's failure line, with the checkout",
+          said[-1:] == ["RELAY: recipe slurm_jobs/bare.sbatch failed: exit 1, "
+                        "checkout %s" % sha])
+    code, out, wrote = wrapped("stopped.sbatch", """#!/bin/bash
+set -e
+%s
+set -u
+echo one
+false
+echo never
+""" % SOURCE)
+    said = relay_out(out)
+    check("wrapped, a recipe that sources the trap says the line it stopped "
+          "after, and the failure line comes once, from the wrapper",
+          code == 1 and wrote == "1" and said == [
+              "RELAY: recipe slurm_jobs/stopped.sbatch stopped after line 6",
+              "RELAY: recipe slurm_jobs/stopped.sbatch failed: exit 1, "
+              "checkout %s" % sha]
+          and jobs.failure_sites([l[7:] for l in said]) == ([], "6"))
+    code, out, wrote = wrapped("fine.sbatch", """#!/bin/bash
+%s
+echo fine
+""" % SOURCE)
+    check("and a wrapped job that succeeds prints no RELAY: line",
+          code == 0 and wrote == "0" and relay_out(out) == [])
+    check("a request may not set a RELAY_ variable, whatever a recipe "
+          "declares", jobs.declarations(
+              "#!/bin/bash\n#RELAY-VAR RELAY_CONFIG .*\n")[0] == {})
+
     # --- the probe: the real diagnose.sbatch, module and conda stubbed --------------
     shim = os.path.join(base, "shim")
     os.makedirs(shim)
@@ -538,14 +643,14 @@ set -e
     check("LOOK at an unnamed directory, out of a key, or at another key is "
           "refused without echoing it", all(refused))
     code, said = diagnose(EMBEDDER="ID0003AB")
-    check("EMBEDDER outside RELAY_ENCODERS is refused before anything is "
+    check("EMBEDDER outside ENCODERS is refused before anything is "
           "listed, and not echoed", code == 12
-          and "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
+          and "RELAY: probe EMBEDDER refused: not one of ENCODERS"
           in said and not any(l.startswith("RELAY: has") for l in said)
           and clean_lines(said))
     code, said = diagnose(EMBEDDER="bge-small-en-v1.5 bge-en-icl")
     check("two listed names in one EMBEDDER are refused: a whole word only",
-          code == 12 and "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
+          code == 12 and "RELAY: probe EMBEDDER refused: not one of ENCODERS"
           in said and clean_lines(said))
     code, said = diagnose(EMBEDDER="bge-small-en-v1.5")
     check("a listed EMBEDDER re-derives its directories",

@@ -300,8 +300,13 @@ try:
     # --- job_env.sh: a missing data root stops the job ------------------------
     base = fresh("jobenv")
     bases.append(base)
-    ws = os.path.join(base, "ws")
+    # Atlas-shaped: the subject's relay_trap.sh is a shim sourcing the shared
+    # one four levels up, in board/cluster/lib.
+    ws = os.path.join(base, "projects", "ws")
     shutil.copytree(LIB, os.path.join(ws, "slurm_jobs", "lib"),
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(os.path.join(ROOT, "board", "cluster", "lib"),
+                    os.path.join(base, "board", "cluster", "lib"),
                     ignore=shutil.ignore_patterns("__pycache__"))
     recipe = os.path.join(ws, "slurm_jobs", "job.sbatch")
     put(recipe, "#!/bin/bash\nset -e\nsource slurm_jobs/lib/job_env.sh\n"

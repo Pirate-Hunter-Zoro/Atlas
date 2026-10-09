@@ -21,7 +21,8 @@
 # name (`relay_hook.allowlist`); the rest of a directory is counts by extension.
 #
 #   EMBEDDER=<name>   look at that encoder's directories, as the sweep re-derives
-#                     them; one of RELAY_ENCODERS (relay_trap.sh), nothing else
+#                     them; one of ENCODERS below (tutorboard.json's
+#                     relay.fingerprint.encoders), nothing else
 #   LOOK=RESULTS_DIR/neighbor_count_sweep
 #                     list that one directory three levels down instead; every
 #                     segment after the key must be an allowlisted name
@@ -31,6 +32,8 @@
 
 set -e
 source "${SLURM_SUBMIT_DIR:-$PWD}/slurm_jobs/lib/relay_trap.sh"
+
+ENCODERS="bge-small-en-v1.5 bge-en-icl Qwen-Qwen3-Embedding-4B Qwen-Qwen3-Embedding-8B"
 
 DIAGNOSABLE="
 scripts.data_loading.build_jsons
@@ -81,9 +84,9 @@ scripts.pipeline.vectors.forge_vectors
 if [[ -n "${EMBEDDER:-}" ]]; then
   # One whole word of the list: a value holding a space is two names.
   _known=0
-  for _e in ${RELAY_ENCODERS}; do [[ "${EMBEDDER}" == "${_e}" ]] && _known=1; done
+  for _e in ${ENCODERS}; do [[ "${EMBEDDER}" == "${_e}" ]] && _known=1; done
   if [[ "${_known}" != 1 ]]; then
-    echo "RELAY: probe EMBEDDER refused: not one of RELAY_ENCODERS"
+    echo "RELAY: probe EMBEDDER refused: not one of ENCODERS"
     exit 12
   fi
 fi

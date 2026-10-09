@@ -2,7 +2,7 @@
 """The relay path parses, and runs, on the cluster's python3, which may be 3.7.
 
 The relay path is board/bin/relay, board/bin/board (for its `code`
-subcommand), the modules relay, jobs, colibri, exports, cluster, code, fenced,
+subcommand), the failure fingerprint in board/cluster/lib, the modules relay, jobs, colibri, exports, cluster, code, fenced,
 leaving, paths, worktree, gitops and audit, and every tutorboard module they
 import, followed to the end. A module named here that does not exist yet is
 skipped.
@@ -28,7 +28,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(ROOT, "tutorboard")
 
-ENTRIES = [os.path.join(ROOT, "bin", "relay"), os.path.join(ROOT, "bin", "board")]
+ENTRIES = [os.path.join(ROOT, "bin", "relay"), os.path.join(ROOT, "bin", "board"),
+           os.path.join(ROOT, "cluster", "lib", "relay_hook.py"),
+           os.path.join(ROOT, "cluster", "lib", "sitecustomize.py")]
 MODULES = ["relay", "jobs", "colibri", "exports", "cluster", "code", "fenced",
            "leaving", "paths", "worktree", "gitops", "audit"]
 BUILTINS = ("list", "dict", "tuple", "set", "frozenset", "type")
@@ -199,7 +201,8 @@ check("the walk reaches the entries and the relay modules",
       {"bin/relay", "bin/board", "tutorboard/relay.py", "tutorboard/jobs.py",
        "tutorboard/colibri.py", "tutorboard/fenced.py", "tutorboard/leaving.py",
        "tutorboard/paths.py", "tutorboard/worktree.py",
-       "tutorboard/code.py", "tutorboard/gitops.py", "tutorboard/audit.py"}
+       "tutorboard/code.py", "tutorboard/gitops.py", "tutorboard/audit.py",
+       "cluster/lib/relay_hook.py", "cluster/lib/sitecustomize.py"}
       <= names)
 check("and follows their imports (relay imports subjects and exports)",
       {"tutorboard/subjects.py", "tutorboard/exports.py"} <= names)

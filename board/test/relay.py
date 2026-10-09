@@ -485,6 +485,85 @@ try:
           and rep.get("error") == "ValueError"
           and "1234" not in json.dumps(rep) and "starting" not in json.dumps(rep))
 
+    # --- a log excerpt only where phi is literally false ----------------------
+    # Two subjects run the same failing recipe, which sources nothing: the
+    # wrapper fingerprints it in both, and only the open one's report carries
+    # its log.
+    git(mac, "pull", "-q", "--rebase")
+    BOOM = """#!/bin/bash
+#SBATCH --time=00:05:00
+echo "working in $PWD/results"
+for i in $(seq 1 300); do echo "progress line $i"; done
+echo "SESSION-9 is in this row"
+%s src/boom.py
+""" % sys.executable
+    for name, phi in (("Open", False), ("Shut", True)):
+        sub = os.path.join(mac, "projects", name)
+        write(os.path.join(sub, "tutorboard.json"),
+              json.dumps({"name": name, "phi": phi}))
+        write(os.path.join(sub, ".gitignore"), "results/\nlogs/\n")
+        write(os.path.join(sub, "slurm", "boom.sbatch"), BOOM)
+        write(os.path.join(sub, "src", "boom.py"),
+              "def main():\n    raise ValueError('patient 1234')\n\n\nmain()\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "two subjects, one open")
+    git(mac, "push", "-q")
+    for name in ("Open", "Shut"):
+        sub = os.path.join(mac, "projects", name)
+        ok, problems = jobs.check(sub, {
+            "id": "boom-" + name.lower(), "kind": "recipe", "label": "boom",
+            "recipe": "slurm/boom.sbatch", "filed": time.time()})
+        jobs.file_request(sub, ok, push=False)
+    git(mac, "push", "-q")
+    got = run_pass()
+    reps = {}
+    for name in ("Open", "Shut"):
+        sub = os.path.join(cluster, "projects", name)
+        jid = load(os.path.join(sub, "relay", "reports",
+                                "boom-%s.json" % name.lower()))["jobid"]
+        slurm.run_job(jid)
+    got = run_pass()
+    for name in ("Open", "Shut"):
+        reps[name] = load(os.path.join(cluster, "projects", name, "relay",
+                                       "reports", "boom-%s.json"
+                                       % name.lower()))
+    opened, shut = reps["Open"], reps["Shut"]
+    check("both fail, and a recipe with no source line still fingerprints: "
+          "the Python's file and line, and the wrapper's failure line",
+          all(r["state"] == "failed" and r["exit"] == "1:0"
+              and "error ValueError at src/boom.py:2 in main" in r["relay"]
+              and any(l.startswith("recipe slurm/boom.sbatch failed: exit 1, "
+                                   "checkout ") for l in r["relay"])
+              for r in (opened, shut)))
+    out = opened.get("output") or []
+    check("the open subject's report carries its log, cut from the middle",
+          opened.get("output_total", 0) > 300 and opened.get("output_cut", 0) > 0
+          and len(out) == opened["output_total"] - opened["output_cut"] + 1
+          and any("cut" in l for l in out))
+    check("with the subject's paths made relative, nothing else absolute, and "
+          "what the policy matches withheld",
+          "working in results" in out
+          and any('File "src/boom.py", line 2' in l for l in out)
+          and base not in json.dumps(opened)
+          and os.path.realpath(base) not in json.dumps(opened)
+          and "SESSION-9" not in json.dumps(opened))
+    check("and its note says the log is there",
+          "Its log, cut, is here too" in opened["note"])
+    check('the "phi": true subject\'s report carries no output at all',
+          not any(k in shut for k in ("output", "output_total", "output_cut"))
+          and "progress line" not in json.dumps(shut)
+          and "The log stays on the cluster" in shut["note"])
+    git(mac, "pull", "-q", "--rebase")
+    open_view = jobs.view(os.path.join(mac, "projects", "Open"))["relay:boom-open"]
+    said = jobs.relay_sense(os.path.join(mac, "projects", "Open"), open_view)
+    shut_view = jobs.view(os.path.join(mac, "projects", "Shut"))["relay:boom-shut"]
+    check("the Mac's [job] line shows the open log and not the shut one",
+          "Its log, %d line(s), %d cut from the middle" % (
+              opened["output_total"], opened["output_cut"]) in said
+          and "    working in results" in said
+          and "Its log," not in jobs.relay_sense(
+              os.path.join(mac, "projects", "Shut"), shut_view))
+
     # --- a dirty tree skips the pass -------------------------------------------
     file_from_mac(dict(good, id="r5"))
     write(os.path.join(cws, "AI_INSTRUCTIONS.md"), "# an owner's edit\n", "a")

@@ -1,9 +1,10 @@
 """relay_hook.py -- what a failed Python step says about itself, behind RELAY:.
 
 `sitecustomize.py` beside this file installs `hook` in every Python a recipe
-starts: `relay_trap.sh` puts this directory on PYTHONPATH, so no entrypoint
-imports anything. On an uncaught exception, after the usual traceback, it
-prints to stderr:
+starts: the relay's wrapper (`jobs.wrapper`) and `relay_trap.sh` put this
+directory, board/cluster/lib, on PYTHONPATH, so no entrypoint imports
+anything. On an uncaught exception, after the usual traceback, it prints to
+stderr:
 
     RELAY: error <type> at <file>:<line> in <function>
     RELAY: step <module>, recipe <recipe>
@@ -16,14 +17,13 @@ Nothing on success. A relay report is public, so it never prints a value, a
 row or the exception's message.
 
 A PATH IS PRINTED ONE SEGMENT AT A TIME, AND A SEGMENT ONLY FROM AN ALLOWLIST.
-The location is its `.env` key. Under a key in RELAY_OPEN_KEYS, a file or
-directory name is printed only if it is in the allowlist; from the first
-name that is not, the rest is one placeholder, `<dir>` or `<file>` with its
-extension when the extension is a known one (`<file 2 deep>` for two).
-No heuristic decides what looks like an id: per-patient trees name files and
-directories by patient id in every shape there is, so only a name the
-repository itself publishes is ever said. The allowlist is built here, from
-tracked files only:
+The location is its `.env` key. Under an open key, a file or directory name
+is printed only if it is in the allowlist; from the first name that is not,
+the rest is one placeholder, `<dir>` or `<file>` with its extension when the
+extension is a known one (`<file 2 deep>` for two). No heuristic decides what
+looks like an id: per-patient trees name files and directories by patient id
+in every shape there is, so only a name the repository itself publishes is
+ever said. The allowlist is built here, from tracked files only:
 
     threads.json         every segment of each thread's `outputs` and
                          `exports` paths
@@ -31,24 +31,30 @@ tracked files only:
                          `export` paths
     *.sbatch             every segment of each `results/...` path a recipe
                          names
-    RELAY_ENCODERS       the encoder directory names (relay_trap.sh)
-    RELAY_ALLOW          the judge model and fixed pipeline directories
+    encoders, allow      the config's names the files above do not carry
 
-Inside the workspace a path git tracks is code, and printed as it is. Code
+THE CONFIG is the subject's tutorboard.json `relay.fingerprint` (`config`):
+the RELAY_CONFIG JSON the wrapper exports, else the file under RELAY_ROOT.
+
+    path_keys   the environment variables that name data locations
+    open_keys   those of them whose allowlisted names may be printed
+    names       false names nothing at all, only keys, extensions and counts
+    encoders    directory names the pipeline derives (TRD-EHR: EMBEDDERS in
+                scripts/pipeline/predictions/plot_cross_embedder.py)
+    allow       other fixed directory names the code writes by name
+
+Inside the subject a path git tracks is code, and printed as it is. Code
 frames are reported only for tracked files.
 
-    RELAY_ROOT       the workspace (relay_trap.sh sets it)
-    RELAY_STAGE      the recipe (relay_trap.sh sets it)
-    RELAY_PATH_KEYS  the environment variables that name data locations
-    RELAY_OPEN_KEYS  those of them whose allowlisted names may be printed
-    RELAY_NAMES      0 names nothing at all, only keys, extensions and counts
+    RELAY_ROOT       the subject (the wrapper or relay_trap.sh sets it)
+    RELAY_STAGE      the recipe (likewise)
+    RELAY_CONFIG     the config, as JSON (the wrapper)
 
 `python -m relay_hook [--look KEY/sub/dir] [--module a.b]` is the diagnostic
 probe a diagnostic recipe runs: the same rules, and exit 0. It lists only
 allowlisted children; the rest of a directory is counts by extension.
 
-Standard library only. The twin copies in each workspace's
-`slurm_jobs/lib/` are byte-identical (`board/test/relayhook.py`).
+Standard library only; it runs on the cluster's python3, which may be 3.7.
 """
 
 import json
@@ -79,12 +85,39 @@ _PYTHON_M = re.compile(r"\bpython[0-9.]*\s+-m\s+([A-Za-z_][A-Za-z0-9_.]*)")
 _CACHE = {}
 
 
-def _env_words(name):
-    return [w for w in os.environ.get(name, "").split() if w]
+def config():
+    """The subject's `relay.fingerprint`, a dict. RELAY_CONFIG where it is set,
+    else tutorboard.json under RELAY_ROOT; {} where neither has one. A config
+    that is there but cannot be read names nothing (`names` false)."""
+    raw = os.environ.get("RELAY_CONFIG")
+    key = ("config", raw, _root())
+    if key not in _CACHE:
+        if raw:
+            try:
+                got = json.loads(raw)
+            except ValueError:
+                got = None
+        else:
+            doc = _read_json(os.path.join(_root(), "tutorboard.json"))
+            relay = doc.get("relay") if isinstance(doc, dict) else None
+            got = (relay.get("fingerprint", {}) if isinstance(relay, dict)
+                   else {})
+        _CACHE[key] = got if isinstance(got, dict) else {"names": False}
+    return _CACHE[key]
+
+
+def _words(name):
+    """A config list, as words. A string is split on whitespace."""
+    value = config().get(name)
+    if isinstance(value, str):
+        value = value.split()
+    if not isinstance(value, list):
+        return []
+    return [w for w in value if isinstance(w, str) and w]
 
 
 def _names_on():
-    return os.environ.get("RELAY_NAMES", "1") != "0"
+    return config().get("names", True) is not False
 
 
 def _root():
@@ -184,15 +217,14 @@ def published_paths(root=None):
 
 
 def allowlist():
-    """The path segments a report may print. Empty under RELAY_NAMES=0."""
+    """The path segments a report may print. Empty where `names` is false."""
     root = _root()
-    key = ("allow", root, _names_on(), os.environ.get("RELAY_ALLOW", ""),
-           os.environ.get("RELAY_ENCODERS", ""))
+    key = ("allow", root, os.environ.get("RELAY_CONFIG"))
     if key not in _CACHE:
         words = set()
         if _names_on():
-            words.update(_env_words("RELAY_ENCODERS"))
-            words.update(_env_words("RELAY_ALLOW"))
+            words.update(_words("encoders"))
+            words.update(_words("allow"))
             for p in published_paths(root):
                 words.update(_segments_of(p))
         _CACHE[key] = frozenset(w for w in words if _SEGMENT.match(w)
@@ -234,10 +266,10 @@ def _ext(path):
 
 
 def classify(path):
-    """`(key, its location)` for the longest location in RELAY_PATH_KEYS that
+    """`(key, its location)` for the longest location in `path_keys` that
     holds `path`, or `("", "")`."""
     best, where = "", ""
-    for key in _env_words("RELAY_PATH_KEYS"):
+    for key in _words("path_keys"):
         value = os.environ.get(key, "")
         if not value:
             continue
@@ -268,7 +300,7 @@ def _render(parts, full, prefix_ok):
 
 def _open_ok(key, parts):
     """May each of `parts`, under `key`, be printed?"""
-    allow = allowlist() if key in _env_words("RELAY_OPEN_KEYS") else ()
+    allow = allowlist() if key in _words("open_keys") else ()
     return lambda i: parts[i] in allow
 
 
@@ -318,7 +350,7 @@ def _nameable(path):
     p = os.path.realpath(path)
     key, loc = classify(p)
     if key:
-        if key not in _env_words("RELAY_OPEN_KEYS"):
+        if key not in _words("open_keys"):
             return False
         parts = _parts(os.path.relpath(p, loc))
         ok = _open_ok(key, parts)
@@ -651,7 +683,7 @@ def _listing(top, depth, budget):
 def _look(look):
     """`(directory, problem)`: where LOOK points, or why it is refused. The
     value is never echoed: only its key and allowlisted segments."""
-    open_keys = _env_words("RELAY_OPEN_KEYS")
+    open_keys = _words("open_keys")
     parts = [s for s in (look or "").strip().split("/") if s not in ("", ".")]
     key = parts[0] if parts else ""
     sub = parts[1:]
@@ -682,7 +714,7 @@ def probe(look="", module=""):
     out = ["probe checkout %s, recipe %s"
            % (_sha(), os.environ.get("RELAY_STAGE", "") or "none")]
     kinds = {"dir": [], "file": [], "missing": [], "unset": []}
-    for key in _env_words("RELAY_PATH_KEYS"):
+    for key in _words("path_keys"):
         value = os.environ.get(key, "")
         kinds["unset" if not value else "dir" if os.path.isdir(value)
               else "file" if os.path.isfile(value) else "missing"].append(key)
@@ -707,7 +739,7 @@ def probe(look="", module=""):
         else:
             tops.append((top, 3))
     else:
-        for k in _env_words("RELAY_OPEN_KEYS"):
+        for k in _words("open_keys"):
             value = os.environ.get(k)
             if not value:
                 continue

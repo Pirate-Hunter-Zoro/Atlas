@@ -194,6 +194,55 @@
       {
         "glob": "results/notebook_figures/density_num_encounters.png"
       }
-    ]
+    ],
+    "fingerprint": {
+      "path_keys": [
+        "PREP_DATA_DIR",
+        "OUTPUT_DATA_DIR",
+        "PROCEDURE_CSV_PATH",
+        "MEDICATION_CSV_PATH",
+        "DIAGNOSIS_CSV_PATH",
+        "ENCOUNTER_CSV_PATH",
+        "VITALS_CSV_PATH",
+        "PERSON_CSV_PATH",
+        "TRD_LIST_PATH",
+        "ANALYSIS_DIR",
+        "MDD_MED_DATE_CSV_PATH",
+        "PATIENT_JSON_DIR",
+        "SLICED_PATIENT_JSON_DIR",
+        "COHORT_PATH",
+        "HF_HOME",
+        "EMBEDDER_MODEL_PATH",
+        "VLLM_MODEL_PATH",
+        "ENDPOINTS_DIR",
+        "ARTIFACTS_DIR",
+        "NARRATIVES_DIR",
+        "FEATURE_DATAFRAME_PATH",
+        "EMBEDDINGS_DIR",
+        "JUDGEMENTS_DIR",
+        "RESULTS_DIR"
+      ],
+      "open_keys": [
+        "RESULTS_DIR",
+        "EMBEDDINGS_DIR"
+      ],
+      "names": true,
+      "encoders": [
+        "bge-small-en-v1.5",
+        "bge-en-icl",
+        "Qwen-Qwen3-Embedding-4B",
+        "Qwen-Qwen3-Embedding-8B"
+      ],
+      "allow": [
+        "google_medgemma-27b-text-it",
+        "trained_models",
+        "trained_models_pca",
+        "feature_importance",
+        "neighbor_count_sweep",
+        "best_k_panels",
+        "cross_embedder_retrieval",
+        "review"
+      ]
+    }
   }
 }
