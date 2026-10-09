@@ -252,6 +252,10 @@ def post(h, repo, path):
     # It marks THIS workspace and no other: a name from a browser never reaches
     # the filesystem, and there is exactly one root this server may write into.
     if path == "/seen":
+        # The session's own `seen`: the home screen counts the cards written
+        # after it as new.
+        if getattr(repo, "stored", False):
+            repo.set_state(seen=time.time())
         news.mark_seen(repo.root)
         # AND A MISSION THAT ENDED IN THIS WORKSPACE HAS NOW BEEN LOOKED AT.
         # Looking means coming here, which is exactly what has happened: the row

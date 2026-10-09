@@ -954,9 +954,8 @@ const named = (title) => rows().filter(
     : fail('&page= asked for page ' + paged.w.window.placeWanted);
 
   const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
-  /\/library\?from=home/.test(home)
-    ? ok('and the front door is what says so, on both routes in -- the one it '
-         + 'is already serving and the one it has to switch to')
+  /"\/library\?subject=" \+ enc\(s\.id\) \+ "&from=home"/.test(home)
+    ? ok('and the start screen is what says so, on every subject row')
     : fail('home.js opens the library without saying where from');
 
   doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));

@@ -17,7 +17,8 @@
 <link rel="stylesheet" href="/static/home.css">
 <script src="/static/typeface.js" defer></script>
 </head>
-<!-- face is applied before anything paints -->
+<!-- The start screen. Top to bottom: open sessions, a new one, notices, the
+     courses and projects, past sessions, three actions, settings. -->
 <body>
 
 <header id="bar">
@@ -26,157 +27,90 @@
     <span class="wordmark">Board</span>
   </div>
   <div class="bar-right">
-    <button id="btn-face" title="typeface">Aa</button>
-    <button id="btn-theme" title="light / dark / auto">◐</button>
-    <button id="btn-reload" title="reload the app">↻</button>
+    <button id="btn-reload" type="button" title="reload the app">↻</button>
   </div>
 </header>
 
 <main>
-  <section id="current" class="hero">
-    <p class="eyebrow" id="hero-eyebrow">current</p>
-    <h1 id="hero-course">…</h1>
-    <p class="chapter" id="hero-chapter"></p>
+  <!-- An old link that could not be followed says so here. -->
+  <p id="said" class="said" hidden></p>
 
-    <p id="waiting" class="waiting" hidden>
-      <span class="waiting-tag">your move</span>
-      <span id="waiting-text"></span>
-    </p>
+  <section id="continue">
+    <h2>Continue</h2>
+    <div id="open-list" class="rows"></div>
+    <p id="open-none" class="hint" hidden>No session is open.</p>
+  </section>
 
-    <!-- AN ANSWER THAT LANDED SOMEWHERE ELSE, on the surface that is open when
-         somebody comes back to the app. The board carries the same strip; this
-         is the other half, because a turn set going before bed is read from the
-         front door and not from the lesson it was left in. Each row is the way
-         back: a tap opens that workspace, which is what the front door does. -->
-    <div id="answers" class="answers" hidden>
-      <p class="answers-lead"><span class="news-dot"></span><span id="answers-lead">An answer is waiting</span></p>
-      <div id="answers-list"></div>
+  <button id="new-session" class="action primary" type="button">
+    <span class="action-name">New session</span>
+    <span class="action-sub" id="new-session-sub">starts unbound, in teach mode</span>
+  </button>
+
+  <section id="notices" hidden>
+    <h2>Notices</h2>
+    <div id="notice-list" class="rows"></div>
+  </section>
+
+  <section id="courses">
+    <div class="head">
+      <h2>Courses</h2>
+      <button id="new-course" class="add" type="button" data-kind="course">+ new</button>
     </div>
+    <div id="course-list" class="rows"></div>
+    <p id="course-none" class="hint" hidden>No course yet.</p>
+  </section>
 
-    <!-- AND WHAT IS STILL RUNNING. "just because I close the iPad doesn't mean
-         that should end. Next time I open the iPad and access the board, that
-         mission should still be going or notify me somewhere if it's done." This
-         is that next time: the front door is the surface that is open when
-         somebody comes back, so a job set going last night is read from here.
-         Above the answers in the reading order of the page for the same reason
-         the board's strip puts it there -- a thing that has not finished comes
-         before one that has. -->
-    <div id="missions" class="answers missions" hidden>
-      <!-- THE LEAD IS THE TAP: "if I click on that box that says 'A Mission is
-           still going' I can see what has been going on and been accomplished
-           thus far." The rows under it stay the way BACK into the workspace --
-           one surface per next move -- and each carries its own control, so a
-           second mission is reachable without the lead having to pick one. -->
-      <button type="button" id="missions-open" class="answers-lead mprog-lead">
-        <span class="news-dot"></span><span id="missions-lead">A mission is still going</span>
-        <span class="mprog-more">what it has done</span>
+  <section id="projects">
+    <div class="head">
+      <h2>Projects</h2>
+      <button id="new-project" class="add" type="button" data-kind="project">+ new</button>
+    </div>
+    <div id="project-list" class="rows"></div>
+    <p id="project-none" class="hint" hidden>No project yet.</p>
+  </section>
+
+  <section id="past">
+    <h2>Past sessions</h2>
+    <div id="past-list" class="rows"></div>
+    <p id="past-none" class="hint" hidden>No session has ended yet.</p>
+  </section>
+
+  <section id="make" class="actions">
+    <!-- Notes and Annotate are wired in T40; until then they are drawn
+         disabled and call nothing. -->
+    <button id="act-notes" class="action" type="button" disabled>
+      <span class="action-name">Notes</span>
+      <span class="action-sub">a blank canvas, not wired yet</span>
+    </button>
+    <button id="act-annotate" class="action" type="button" disabled>
+      <span class="action-name">Annotate a PDF</span>
+      <span class="action-sub">upload one and write on it, not wired yet</span>
+    </button>
+    <button id="act-meeting" class="action" type="button">
+      <span class="action-name">Meeting deck</span>
+      <span class="action-sub">over a period you choose</span>
+    </button>
+  </section>
+
+  <section id="settings">
+    <h2>Settings</h2>
+    <div class="settings">
+      <button id="btn-theme" type="button" title="light / dark / auto">
+        <span class="set-lead">theme</span> <span id="theme-now">auto</span>
       </button>
-      <div id="missions-list"></div>
-      <div id="mission-progress" class="mprog" hidden></div>
-    </div>
-
-    <div class="actions">
-      <a class="action primary" href="/board">
-        <span class="action-name">Continue the lesson</span>
-        <span class="action-sub" id="hero-count"></span>
-      </a>
-      <a class="action" href="/slate">
-        <span class="action-name">✎ Write</span>
-        <span class="action-sub" id="hero-slate">the slate</span>
-      </a>
-    </div>
-  </section>
-
-  <!-- THE ATLAS, IN TWO LEVELS, AND NEITHER OF THEM IS A PLANE.
-
-       This used to be ONE SVG plane -- a region per family, a card per
-       workspace -- panned and pinched, with a `fit` button because it could not
-       be seen at once. Six families and a dozen workspaces is a list of six. A
-       list is not a diagram, and drawing it on a plane is what produced the
-       wacky zooming: the gesture layer was solving a problem the content did
-       not have, and the page underneath could be pinched over the top of it.
-
-       So: the families as large tappable things, then one family's workspaces
-       as cards, then -- on the board, where it belongs -- the project map,
-       which is the one thing here whose shape genuinely needs a plane. -->
-  <section id="atlas-wrap">
-    <div class="atlas-head">
-      <!-- THE WAY BACK OUT OF A FAMILY, and it is the first thing in the row.
-           It names where it goes -- Everything, the word on the heading it
-           returns to -- because a control that says something else is a control
-           nobody connects to the place they are trying to reach. The head is
-           sticky, so it is still on the glass at the bottom of a long family. -->
-      <button id="atlas-up" class="atlas-back" type="button" hidden
-              title="back to everything">
-        <span class="atlas-back-chev" aria-hidden="true">&lsaquo;</span>
-        <span>Everything</span>
+      <button id="btn-face" type="button" title="typeface">
+        <span class="set-lead">face</span> Aa
       </button>
-      <h2 id="atlas-what">Everything</h2>
-      <div class="atlas-tools">
-        <!-- NOTES FOR A MEETING, from the front door, because the front door is
-             what is open when somebody remembers they have one in ten minutes.
-             A glyph is not a label -- that was paid for once already with the
-             map's bare diamond -- so this says what it makes. -->
-        <button id="atlas-notes" type="button"
-                title="the meeting deck, over a period you choose">meeting deck</button>
-        <!-- A PAPER OR A DECK, COMMISSIONED FROM THE FRONT DOOR. "The ability
-             to write a paper or a slide deck should just be an option on the
-             homescreen, and from there I want to be able to specify which
-             projects/course, and which sections/results." It is here because
-             a document is not a lesson: asking for one used to cost a sitting
-             in the workspace it is about, and the workspace it is about is
-             usually not the one the board is serving. Labelled rather than
-             drawn, for the reason `notes` is. -->
-        <button id="atlas-doc" type="button"
-                title="a paper or a slide deck, in any workspace">paper or deck</button>
-      </div>
     </div>
-    <p id="atlas-blurb" class="atlas-blurb" hidden></p>
-    <!-- ACROSS ALL OF IT, WITHOUT KNOWING WHICH DOOR IT IS BEHIND.
-         The two levels are a hierarchy and a hierarchy answers one question:
-         what is in this family. It cannot answer the other one -- where is the
-         thing called colibri -- because at the door no workspace is on the
-         glass and inside a family every other family's is hidden. This is the
-         flat read of the same payload: type and every match from every family
-         is a card, with the family it belongs to written on it. -->
-    <div class="atlas-find">
-      <input id="atlas-q" type="search" autocomplete="off"
-             autocorrect="off" autocapitalize="none" spellcheck="false"
-             placeholder="find a course, project or tree">
-      <button id="atlas-q-clear" type="button" hidden title="clear">clear</button>
+    <div id="who" class="who" hidden>
+      <span class="who-lead">default assistant</span>
+      <span id="who-ways" class="who-ways"></span>
+      <span id="who-note" class="who-note"></span>
     </div>
-    <!-- LEVEL ONE: the doors. The `/atlas.json` payload carries the families in the
-         order they should be drawn, with a sentence each. -->
-    <div id="doors" class="doors"></div>
-    <!-- LEVEL TWO: one family's workspaces, each saying what is next in it and
-         how much is outstanding. HTML in a grid, so the browser wraps the text
-         and a shouted plan step cannot run out of a box. -->
-    <div id="cards" class="cards" hidden></div>
-    <!-- THE FLAT LEVEL: every family at once, filtered. Same grid, same cards,
-         because a match is the same thing it was behind its door. -->
-    <div id="found" class="cards" hidden></div>
-    <p id="atlas-empty" class="hint" hidden>Nothing to draw yet.</p>
   </section>
 
-  <!-- WHO THIS MACHINE TEACHES WITH, beside the line that already says which
-       machine it is. The sitting's own chooser is on the board; this is the
-       layer under it -- what a workspace gets when nobody has said otherwise --
-       and it is the one an evening that has run out of allowance needs. -->
-  <section id="who" class="who" hidden>
-    <span class="who-lead">assistant</span>
-    <span id="who-ways" class="who-ways"></span>
-    <span id="who-note" class="who-note"></span>
-  </section>
-
-  <p id="where" class="where"></p>
-
-<!-- The way back, from anywhere on the front door.
-     There is ONE way to be lost here now rather than two: the page's own
-     magnification. The atlas was a plane with a pan and a zoom of its own and
-     the page could be pinched over the top of that, so there were two, and the
-     control that answered the first was page chrome a pinch took off the glass.
-     Placed against the VISUAL viewport by `recentre.js`. A tap re-centres; a
-     press and hold moves it. -->
+<!-- The way back from a pinched page: placed against the visual viewport by
+     `recentre.js`. A tap re-centres; a press and hold moves it. -->
 <button id="panic" type="button"
         title="tap to put the zoom back &middot; press and hold to move this button">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
@@ -189,34 +123,58 @@
 
 </main>
 
-<!-- One workspace, in full, because a card on a plane is a summary and the
-     decision to open something deserves the whole of what is known. It is also
-     the answer to reading a card on a phone: the picture can be small as long
-     as a tap makes it large. -->
-<!-- THE MEETING DECK, on one sheet: a period, and the subjects it covers --
-     none chosen is every subject that moved. Buttons rather than a date field:
-     a date picker on a tablet is the wrong shape of question. The deck is
-     projects/Meetings/docs/meeting/, and making one REPLACES the one before. -->
+<!-- A new course or project: a name, and for a project whether it holds
+     patient data. POST /subjects/new makes and commits it. -->
+<div id="maker" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="maker-title">
+    <p class="eyebrow" id="maker-kind">new course</p>
+    <h3 id="maker-title">What is it called?</h3>
+    <input id="maker-name" type="text" autocomplete="off" autocorrect="off"
+           spellcheck="false" placeholder="Linear Algebra">
+    <div id="maker-phi" class="maker-phi" hidden>
+      <p class="sheet-line">Patient data?</p>
+      <div class="picks">
+        <button type="button" data-phi="yes">yes</button>
+        <button type="button" data-phi="no">no</button>
+      </div>
+    </div>
+    <p class="sheet-line" id="maker-said" hidden></p>
+    <div class="sheet-actions">
+      <button id="maker-go" class="action primary" type="button" disabled>
+        <span class="action-name">Create</span>
+        <span class="action-sub" id="maker-go-sub">name it first</span>
+      </button>
+      <button id="maker-close" class="action" type="button">
+        <span class="action-name">Not now</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- The meeting deck: a period, and the subjects it covers; none chosen is
+     every subject that moved. The deck is projects/Meetings/docs/meeting/, and
+     making one replaces the one before. -->
 <div id="notes" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
     <p class="eyebrow">the meeting deck</p>
     <h3 id="notes-title">A deck for the meeting</h3>
-    <p class="sheet-line" id="notes-line">A presentation for your mentors,
-      written by the assistant from what landed. Every number is checked
-      against its source.</p>
+    <p class="sheet-line">A presentation for your mentors, written by the
+      assistant from what landed. Every number is checked against its source.</p>
     <div id="notes-since" class="notes-since">
       <button type="button" data-since="last">since the last deck</button>
       <button type="button" data-since="monday">since Monday</button>
       <button type="button" data-since="7d">the last week</button>
       <button type="button" data-since="30d">the last month</button>
     </div>
-    <p class="sheet-line" id="notes-which-line">Which subjects? None chosen
-      is every one that moved.</p>
+    <p class="sheet-line">Which subjects? None chosen is every one that moved.</p>
     <div id="notes-list" class="notes-which"></div>
     <div class="sheet-actions">
       <button id="notes-make" class="action primary" type="button" disabled>
         <span class="action-name">Make the deck</span>
         <span class="action-sub" id="notes-make-sub">choose a period</span>
+      </button>
+      <button class="action" id="notes-close" type="button">
+        <span class="action-name">Close</span>
       </button>
     </div>
     <p class="sheet-line" id="notes-said" hidden></p>
@@ -224,138 +182,12 @@
       <span class="action-name">Read the deck</span>
       <span class="action-sub" id="notes-read-sub"></span>
     </a>
-    <button class="sheet-open" id="notes-close" type="button">close</button>
-  </div>
-</div>
-
-<!-- THREE QUESTIONS AND NOTHING ELSE: which product, which workspace, what it
-     is over. Each one replaces the last inside this one sheet, and Back walks
-     them in reverse, because a document commissioned from the front door is
-     three decisions and a wizard of three screens is two screens too many.
-
-     A PRODUCT IS NOT AN AIM. `paper` and `slides` used to sit in the row of
-     ways a sitting can be run, which made asking for a document a change to
-     what the sitting was FOR. They are asked for here instead, of any
-     workspace, without opening a sitting in it at all.
-
-     THE ASK IS WRITTEN WHERE THE WORK IS. The document is produced by whatever
-     assistant is working in that workspace and lands in ITS library, so this
-     sheet says which workspace it went to rather than implying anything will
-     appear on this board. -->
-<div id="doc" class="sheet" hidden>
-  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="doc-title">
-    <p class="eyebrow">a paper or a deck</p>
-    <h3 id="doc-title">Which one?</h3>
-    <p class="sheet-line" id="doc-line">Written where the work is, by whoever is
-      working there. It lands in that workspace's library.</p>
-
-    <!-- TWO BUTTONS, NOT A QUESTION AND THEN A CHOICE. Which of the two is
-         known at the moment of tapping; the board's own row makes the same
-         decision for the same reason. -->
-    <div id="doc-makes" class="doc-picks">
-      <button type="button" data-makes="paper">a paper</button>
-      <button type="button" data-makes="slides">a slide deck</button>
-    </div>
-
-    <!-- WHICH WORKSPACE, out of the payload this page already polls. No fetch:
-         the atlas is in memory, and a second source for the same list is a
-         second list to go stale. A vendor tree is not offered -- nothing is
-         handed in to somebody else's repository. -->
-    <div id="doc-where" class="doc-picks doc-scroll" hidden></div>
-
-    <!-- WHAT IT IS OVER, asked of the workspace itself, because only it knows
-         what it has: its sections, its results, the evening just taught. The
-         order they come back in is theirs and is kept. -->
-    <div id="doc-scopes" class="doc-picks doc-scroll" hidden></div>
-
-    <p class="sheet-line" id="doc-said" hidden></p>
-    <!-- THE ONE TAP THAT GETS TO IT, and it is the journey the sheet's
-         "Papers & decks" makes: the library is served by whichever board is
-         answering at this address, so a workspace that is not the one being
-         served is switched to first. -->
-    <button id="doc-read" class="action primary" type="button" hidden>
-      <span class="action-name">Papers, decks &amp; results</span>
-      <span class="action-sub" id="doc-read-sub"></span>
-    </button>
-    <div class="sheet-actions">
-      <button id="doc-back" class="action" type="button" hidden>
-        <span class="action-name">Back</span>
-        <span class="action-sub" id="doc-back-sub"></span>
-      </button>
-      <button id="doc-close" class="action" type="button">
-        <span class="action-name">Not now</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<div id="sheet" class="sheet" hidden>
-  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheet-name">
-    <p class="eyebrow" id="sheet-family"></p>
-    <h3 id="sheet-name"></h3>
-    <p class="sheet-line" id="sheet-where"></p>
-    <p class="sheet-next" id="sheet-next" hidden>
-      <span class="waiting-tag">next</span>
-      <span id="sheet-next-text"></span>
-    </p>
-    <p class="sheet-line" id="sheet-meta"></p>
-    <!-- THE THREE KINDS OF SITTING, in every workspace: a course, a practice
-         repository, a research project or a tool, with a thread file or
-         without. Each moves the board here and sets the sitting's kind on it
-         (`/board?kind=`, which board.js reads once and sends to POST /aim). -->
-    <div class="sheet-kinds" id="sheet-kinds">
-      <button id="sheet-learn" class="action" type="button" data-kind="learn">
-        <span class="action-name">Learn</span>
-        <span class="action-sub">a board lesson: exercises, handwriting, a write-up</span>
-      </button>
-      <button id="sheet-coach" class="action" type="button" data-kind="coach">
-        <span class="action-name">Coach</span>
-        <span class="action-sub">you write the code; one step per card</span>
-      </button>
-      <button id="sheet-build" class="action" type="button" data-kind="build">
-        <span class="action-name">Build</span>
-        <span class="action-sub">the tutor does the work and reports</span>
-      </button>
-    </div>
-    <div class="sheet-actions">
-      <button id="sheet-open" class="action primary" type="button">
-        <span class="action-name">Open this</span>
-        <span class="action-sub" id="sheet-open-sub"></span>
-      </button>
-      <!-- EVERY PAPER AND DECK THIS WORKSPACE HAS, without opening a sitting
-           to get there. Asked for in those words -- "view all papers and
-           presentations related to a project very easily" -- and a sitting is
-           exactly what it should not cost: reading a document nobody is
-           teaching from has nothing to do with the lesson. The board has to be
-           serving that workspace to answer for it, so this moves the board
-           first where it is somewhere else, the same way Open this does. -->
-      <button id="sheet-library" class="action" type="button">
-        <span class="action-name">Papers, decks &amp; results</span>
-        <span class="action-sub" id="sheet-library-sub"></span>
-      </button>
-      <button id="sheet-close" class="action" type="button">
-        <span class="action-name">Not now</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- The switch overlay. It used to be a word and a 700ms timer: the page said
-     "moving the board…", reloaded, and landed back on the course you had just
-     tapped away from, because the address had not moved yet and nothing was
-     watching for it to. It now says what it is waiting for and waits for the
-     thing itself. It asks nothing: a tap dismisses it. -->
-<div id="busy" class="busy" hidden>
-  <div class="busy-box">
-    <p id="busy-text">opening…</p>
-    <p id="busy-sub" class="busy-sub"></p>
   </div>
 </div>
 
 <script src="/static/address.js"></script>
 <script src="/static/recentre.js"></script>
 <script src="/static/who.js"></script>
-<script src="/static/mission.js"></script>
 <script src="/static/home.js"></script>
 </body>
 </html>

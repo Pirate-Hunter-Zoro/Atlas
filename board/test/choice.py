@@ -265,31 +265,14 @@ check("the board opens one listener on loopback; `tailscale serve` publishes it"
 check("a board publishes whether it has a tutor at all",
       '"tutor": agent.get("state") or None' in serve_src)
 
-# ---- and the hub waits for the address to actually move ---------------------
+# ---- the start screen moves nothing ----------------------------------------
 #
-# The most direct of it: the page fired /switch, waited 700ms and reloaded.
-# Nothing had moved the address yet, so the reload landed on the board being
-# tapped AWAY from -- which is indistinguishable from a tap that did nothing. So
-# you tap it again. Ten times.
+# One server serves every session (T23): the start screen opens a session's
+# board by its URL, and has no switch to wait on and no machine to pick.
 home_src = open(os.path.join(ROOT, "web", "home.js"), encoding="utf-8").read()
-check("the hub no longer reloads on a timer and hopes",
-      "setTimeout(function () { location.href" not in home_src)
-check("it waits until the address serves what was asked for",
-      "function waitForAddress(" in home_src and "h.dir === repo" in home_src)
-check("and a board says which machine it is, so a client can tell what it "
-      "reached", '"host": tailscale.tailnet_self() or ""' in serve_src)
-check("a second tap while one is in flight is not a second switch",
-      "if (moving) return;" in home_src)
-# And it asks the person nothing. "ask again" / "stay here" was a dead end
-# wearing the clothes of a choice: reported as "I can hit it, but it never seems
-# to work. It just gives me the options to 'ask again' or 'stay here'".
-check("and it never ends in a question, because the switch has already happened",
-      "busy-again" not in home_src and "busy-stay" not in home_src
-      and "still on the old board" not in home_src)
-# There is one machine, and the hub is a list of what it has. A row of machines
-# to choose between was a choice about where a lesson lives, and there is
-# nowhere else for one to live.
-check("the hub offers no machine to pick, because there is one",
+check("the start screen asks no /switch and reads no /atlas.json",
+      "/switch" not in home_src and "/atlas.json" not in home_src)
+check("and it offers no machine to pick, because there is one",
       "hosts" not in home_src
       and not any("hosts" in ln for ln in
                   open(os.path.join(ROOT, "web", "home.html"),

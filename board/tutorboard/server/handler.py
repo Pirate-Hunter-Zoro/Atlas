@@ -60,7 +60,9 @@ UNPREFIXED = (
     ("GET", "/sessions.json", "sessions"),
     ("POST", "/sessions/new", "new"),
     ("GET", "/subjects.json", "subjects"),
+    ("POST", "/subjects/new", "subject-new"),
     ("GET", "/notices.json", "notices"),
+    ("GET", "/assistants.json", "assistants"),
     ("GET", "/library", "page"),
     ("GET", "/library/", "page"),
     # library
@@ -457,17 +459,22 @@ class Handler(BaseHTTPRequestHandler):
                 out["code"] = {"running": code_stamp.LOADED, "tree": code_stamp.tree()}
             return self.send_json(out)
         if how == "sessions":
-            return self.send_json({"ok": True, "sessions": [
-                dict(rec, url="/s/%s/board" % rec.get("id"))
-                for rec in sessions.all(registry.atlas)]})
+            return self.send_json(self.session_listing(registry))
         if how == "new":
             return self.new_session(registry)
         if how == "subjects":
             return self.send_json({"ok": True, "subjects": [
                 {k: one[k] for k in ("id", "kind", "slug", "name")}
                 for one in subjects.all(registry.atlas)]})
+        if how == "subject-new":
+            return self.new_subject(registry)
         if how == "notices":
             return self.send_json({"ok": True, "notices": []})
+        if how == "assistants":
+            # The home screen's default-assistant setting: what POST
+            # /default-agent chooses among. None when it could not be asked.
+            from .. import assistants
+            return self.send_json({"ok": True, "assistants": assistants.listing()})
         if how == "meeting":
             return self.send_file(os.path.join(WEB, "meeting.html"))
         if how in SUBJECT_CLASSES:
@@ -507,6 +514,60 @@ class Handler(BaseHTTPRequestHandler):
         self.note("session %s opened" % rec["id"])
         return self.send_json({"ok": True, "id": rec["id"], "session": rec,
                                "url": "/s/%s/board" % rec["id"]})
+
+    @staticmethod
+    def session_listing(registry):
+        """GET /sessions.json: every session, newest first, each with its
+        board's URL and its subject's name; an open one also with its newest
+        card and the count of cards since `seen` (`sessions.summary`).
+        `imported` maps an old workspace id to its imported session, for the
+        home screen's redirect of old `#/w/` links (T55 deletes it)."""
+        names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
+        out = []
+        for rec in sessions.all(registry.atlas):
+            one = dict(rec, url="/s/%s/board" % rec.get("id"),
+                       subject_name=names.get(rec.get("subject")) or None)
+            if not rec.get("ended"):
+                one.update(sessions.summary(rec, registry.atlas))
+            out.append(one)
+        return {"ok": True, "sessions": out,
+                "imported": sessions.imported(registry.atlas)}
+
+    def new_subject(self, registry):
+        """POST /subjects/new {kind: course|project, name, phi}: make the
+        subject and commit it (`subjects.create`). A project needs `phi`
+        answered; a refusal is 400 in `subjects.create`'s own words."""
+        try:
+            body = self.read_body()
+            payload = json.loads(body.decode("utf-8")) if body.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            return self.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            return self.send_json({"ok": False, "error": "bad json"}, status=400)
+        parent = {"course": "courses", "project": "projects"}.get(payload.get("kind"))
+        name = str(payload.get("name") or "").strip()
+        if not parent:
+            return self.send_json({"ok": False,
+                                   "error": "kind is course or project"}, status=400)
+        if "/" in name or "\\" in name:
+            return self.send_json({"ok": False,
+                                   "error": "a name has no slash in it"}, status=400)
+        phi = payload.get("phi")
+        if phi is not None and not isinstance(phi, bool):
+            return self.send_json({"ok": False,
+                                   "error": "phi is true or false"}, status=400)
+        try:
+            made, ok, said = subjects.create("%s/%s" % (parent, name), phi=phi,
+                                             base=registry.atlas)
+        except subjects.Refused as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, status=400)
+        if not ok:
+            return self.send_json({"ok": False,
+                                   "error": "not committed, so not made: %s" % said},
+                                  status=500)
+        self.note("subject %s made" % made["id"])
+        return self.send_json({"ok": True, "said": said, "subject": {
+            k: made[k] for k in ("id", "kind", "slug", "name")}})
 
     # -- server sent events ---------------------------------------------
     def sse(self, hub):

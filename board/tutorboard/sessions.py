@@ -416,6 +416,57 @@ def show(rec):
     return json.dumps(rec, indent=2)
 
 
+def summary(rec, base=None):
+    """What the home screen shows of a session beyond session.json:
+    `{last_card: {id, title} or None, new_cards}`.
+
+    `new_cards` counts the cards written after `seen` (epoch seconds; the
+    board's POST /seen sets it). Only the newest card's file is opened, for
+    its title; the rest are a listdir and a stat each.
+    """
+    from .lesson import cards as lesson_cards               # local: heavy
+    out = {"last_card": None, "new_cards": 0}
+    where = path(rec.get("id"), base)
+    if not where:
+        return out
+    folder = os.path.join(where, "cards")
+    try:
+        names = sorted(n for n in os.listdir(folder)
+                       if lesson_cards.CARD_RE.match(n))
+    except OSError:
+        return out
+    try:
+        seen = float(rec.get("seen") or 0)
+    except (TypeError, ValueError):
+        seen = 0.0
+    fresh = 0
+    for name in names:
+        try:
+            if os.stat(os.path.join(folder, name)).st_mtime > seen:
+                fresh += 1
+        except OSError:
+            continue
+    out["new_cards"] = fresh
+    if names:
+        last = names[-1]
+        title = ""
+        try:
+            with open(os.path.join(folder, last), "r", encoding="utf-8") as fh:
+                meta, _ = lesson_cards.parse_front_matter(fh.read(2000))
+            title = (meta.get("title") or "").strip()[:120]
+        except (OSError, ValueError, UnicodeDecodeError):
+            title = ""
+        out["last_card"] = {"id": last[:4], "title": title}
+    return out
+
+
+def imported(base=None):
+    """`sessions/.imported.json`, `{old workspace id: session id}`, for the
+    home screen's redirect of old `#/w/...` links. T55 deletes it."""
+    found = course_repo._read_json(os.path.join(store(base), IMPORTED))
+    return {str(k): str(v) for k, v in found.items() if ID_RE.match(str(v))}
+
+
 # ---------------------------------------------------------------------------
 # import_live: a workspace's live/ becomes one open session (the cutover)
 # ---------------------------------------------------------------------------

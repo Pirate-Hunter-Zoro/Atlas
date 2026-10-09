@@ -4,16 +4,15 @@
 //      button and go to a map of the course/project. I want to just go straight
 //      to the map of a course/project, no tutoring session necessary."
 //
-// Three halves. `addrRoute` in `home.js` carries a bare workspace address to
-// the board whole, which `addrGo` opens as the map. `switchTo` tells `/switch`
-// a map is only looking, so no assistant is started. And the map's ✕ on a
-// board with no sitting under it goes back to the door, not to a blank lesson.
+// Two halves. The map's ✕ on a board with no sitting under it goes back to
+// the door, not to a blank lesson; and `/switch` tells the server a map is
+// only looking, so no assistant is started. The start screen opens sessions
+// by URL and has no switch of its own (T23; test/home.js).
 
 const fs = require('fs');
 const path = require('path');
 
 const WEB = path.join(__dirname, '..', 'web');
-const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
 const board = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
 const errors = [];
 function check(name, ok) {
@@ -28,61 +27,7 @@ function fn(src, name) {
   return rest.slice(0, rest.indexOf('\n}\n') + 2);
 }
 
-// ------------------------------------------------------------ addrRoute
-const ADDR = '#/w/courses/Probability';
-function route(current, surface) {
-  const went = { href: null, switched: null };
-  const location = {
-    hash: ADDR,
-    set href(v) { went.href = v; }
-  };
-  const atlas = { workspaces: [{ id: 'courses/Probability',
-                                 repo: 'Probability', current: current }] };
-  const Address = { parse: function () {
-    return { text: ADDR, ws: 'courses/Probability', surface: surface };
-  } };
-  const body = fn(home, 'addrNow') + fn(home, 'addrRoute')
-    + '\nreturn addrRoute;';
-  new Function('window', 'location', 'atlas', 'atlasSay', 'switchTo',
-               'addrDone', body)(
-    { Address: Address, location: location }, location, atlas,
-    function () {},
-    function (repo, addr, page, mapOnly) {
-      went.switched = { repo: repo, addr: addr, page: page, mapOnly: mapOnly };
-    }, '')();
-  return went;
-}
-
-check('home.js has addrRoute', fn(home, 'addrRoute') !== '');
-let w = route(true, 'workspace');
-check('a workspace already served lands on the board WITH its address',
-      w.href === '/board' + ADDR);
-w = route(false, 'workspace');
-check('a workspace not served is switched to with its address intact',
-      w.switched && w.switched.repo === 'Probability' && w.switched.addr === ADDR);
-check('and the switch is map-only', w.switched && w.switched.mapOnly === true);
-w = route(false, 'card');
-check('an address naming a card still starts the assistant',
-      w.switched && w.switched.addr === ADDR && !w.switched.mapOnly);
-
-// ------------------------------------------------------------- switchTo
-function asked(mapOnly) {
-  let sent = null;
-  const body = fn(home, 'switchTo') + '\nreturn switchTo;';
-  const fetch = function (url, opts) {
-    sent = JSON.parse(opts.body);
-    return new Promise(function () {});
-  };
-  new Function('fetch', 'moving', 'showBusy', body)(fetch, null,
-                                                     function () {})(
-    'Probability', ADDR, '', mapOnly);
-  return sent;
-}
-check('a map-only switch asks /switch not to start an assistant',
-      asked(true).agent === false);
-check('an ordinary switch asks nothing of the kind',
-      !('agent' in asked(false)));
-
+let w;
 // --------------------------------------------------------- the ✕ on the map
 function leave(live, reading) {
   const went = { href: null, closed: false };
@@ -113,24 +58,6 @@ const routes = fs.readFileSync(path.join(__dirname, '..', 'tutorboard', 'server'
 const sw = routes.slice(routes.indexOf('if path == "/switch"'));
 check('/switch reads the agent flag before starting one',
       /payload\.get\("agent", True\) is not False/.test(sw));
-
-// ------------------------------------------- learn, coach, build from the door
-function openAs(current, kind) {
-  const went = { href: null, switched: null };
-  const location = { set href(v) { went.href = v; } };
-  new Function('location', 'switchTo', fn(home, 'openAs') + '\nreturn openAs;')(
-    location, function (repo, addr, page, mapOnly) {
-      went.switched = { repo: repo, addr: addr, page: page, mapOnly: mapOnly };
-    })({ repo: 'Algo-Solutions', current: current }, kind);
-  return went;
-}
-w = openAs(false, 'coach');
-check('Coach on the sheet switches the board and lands on the lesson as coach',
-      w.switched && w.switched.repo === 'Algo-Solutions'
-      && w.switched.page === '/board?kind=coach' && !w.switched.mapOnly);
-w = openAs(true, 'build');
-check('and on the workspace already served it goes straight there',
-      w.href === '/board?kind=build' && !w.switched);
 
 function kindAsked(search) {
   const replaced = [];
