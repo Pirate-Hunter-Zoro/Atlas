@@ -283,7 +283,7 @@ try:
         own `live/`, which holds no turn."""
         from tutorboard import sessions as _sessions         # noqa: E402
         from tutorboard.server import registry as _registry  # noqa: E402
-        sid = _registry.newest_open(base, "research/PSYCH-ASR")
+        sid = _registry.newest_open(base, "projects/PSYCH-ASR")
         return _sessions.repo(sid, base) if sid else _repo.Repo(psych)
 
     def send(body):
