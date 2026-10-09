@@ -5,12 +5,12 @@ Not a speed test. A tutor billed by the token pays for every character it is
 told to read, and it pays again for every round trip inside a turn, because each
 one resends the whole conversation. Two things follow, and this file guards both:
 
-- **A turn is a fresh process and is told what to read in one call.** The
-  single prompt this replaced told every turn to read AI_INSTRUCTIONS.md,
-  TEACHING.md, BRIEF.md, HANDOFF.md and every card -- roughly fourteen thousand
-  tokens, plus one round trip per card.
-- **A lesson is read back in one call.** `board recap` is that call. Reading a
-  twelve-card lesson card by card is twelve round trips for what fits in one.
+- **A turn is a fresh process and is handed what it must read.** The brief
+  and the recap ride in its prompt (test/injected.py); it reads no document
+  and no card file by file.
+- **A lesson is read back in one block.** The recap is that block, also
+  printed by `board recap`. Reading a twelve-card lesson card by card is
+  twelve round trips for what fits in one.
 """
 
 import json
@@ -46,8 +46,10 @@ first = prompts.HEADLESS_FIRST_PROMPT
 EVERY_PROMPT = [v for k, v in vars(prompts).items()
                 if k.isupper() and isinstance(v, str)]
 
-check("a turn reads the standing rules in one call, not three documents",
-      "board brief" in first and "board recap" in first)
+check("a turn is told the brief and the recap are above, and not to fetch them",
+      "The brief and the recap are above" in first
+      and "Do not run `board brief` or `board recap`" in first
+      and "Run these" not in first)
 check("and is told NOT to read the documents that call replaced",
       "Do not read" in first and "AI_INSTRUCTIONS.md" in first
       and "board/TEACHING.md" in first)
@@ -73,8 +75,9 @@ check("the handoff is capped, because it is read on every future session",
       "350 words" in prompts.HANDOFF_PROMPT)
 check("and it is written through the one command that enforces the cap",
       "board handoff" in prompts.HANDOFF_PROMPT)
-check("the wrap-up reads the lesson back in one call",
-      "board recap" in prompts.HANDOFF_PROMPT
+check("the wrap-up is handed the recap, and told not to fetch it",
+      "The recap is above" in prompts.HANDOFF_PROMPT
+      and "Do not run `board recap`" in prompts.HANDOFF_PROMPT
       and "file by file" in prompts.HANDOFF_PROMPT)
 check("the handoff turn reads no document to write itself",
       "do not read ai_instructions.md" in prompts.HANDOFF_PROMPT.lower()

@@ -20,11 +20,13 @@ The assistant runs these. The student never does.
     board write --over <card> ...      write over a card already on the board
     board write pending <slug>         the placeholder a doing turn writes first;
                                        the report goes --over it
-    board brief                        what a turn is BOUND by, in ONE call: the
-                                       method, the subject's RULES.md at HEAD,
-                                       and its TUTOR.md
-    board recap [--cards N|--all]      the lesson so far in ONE call: every card as
-                                       a line, the newest in full, their turns
+    board brief                        what a turn is BOUND by: the method, the
+                                       subject's RULES.md at HEAD, and its
+                                       TUTOR.md. Every turn is handed it; this
+                                       prints it by hand
+    board recap [--cards N|--all]      the lesson so far: every card as a line,
+                                       the newest in full, their turns. Every
+                                       turn is handed it; this prints it by hand
     board memo <section> < text        replace one section of the bound subject's
                                        TUTOR.md: "Where things are", "Now",
                                        "Open decisions" or "Done recently".
@@ -184,11 +186,6 @@ SERVE = os.path.join(TOOL, "serve.py")
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
          "pending")
 
-# How many cards `board recap` names as lines. Every turn reads this, so it is
-# the one part of the recap that must not grow with the lesson -- see cmd_recap.
-# Wide enough to hold a whole sitting's worth of shape, which is what a turn
-# reasons about; a chapter's worth is HANDOFF.md's job.
-LINES = 40
 
 
 # ---------------------------------------------------------------------------
@@ -1544,39 +1541,14 @@ def cmd_slate(live, args):
     return 0
 
 
-def card_meta(raw):
-    """Front matter and body of a card, without pulling in a YAML parser."""
-    meta, text = {}, raw
-    if raw.startswith("---"):
-        end = raw.find("\n---", 3)
-        if end != -1:
-            for line in raw[3:end].splitlines():
-                if ":" in line:
-                    k, v = line.split(":", 1)
-                    meta[k.strip().lower()] = v.strip()
-            text = raw[end + 4:].lstrip("\n")
-    return meta, text
-
-
 def cmd_recap(live, args):
-    """The lesson so far, compactly, in ONE command.
+    """The lesson so far, compactly, in ONE command: `brief.recap`.
 
-    This exists to be cheap. An assistant picking a course up cold used to be
-    told to read every card in `live/cards/` in order, which is one tool round
-    trip per card -- and on a model billed by the token every round trip resends
-    the whole conversation, so a twelve-card lesson costs twelve times the
-    growing context before a word of teaching is written. What it actually needs
-    is the shape of the lesson, the last thing it said, and the last thing the
-    student did.
-
-    So: one line per card, the newest cards in full, and the student's latest
-    turn with its file paths. `--cards N` widens the full window; `--all` prints
-    every card in full for the rare case where that is genuinely wanted.
+    Every turn is handed this already (`brief.turn_context`); the command is
+    for reading it by hand. One line per card, the newest card in full, and
+    the student's turns. `--cards N` widens the full window; `--all` prints
+    every card in full.
     """
-    names = live.card_names()
-    turns = read_turns(live)
-    st = live.state()
-
     full = 1
     if "--cards" in args:
         try:
@@ -1584,110 +1556,18 @@ def cmd_recap(live, args):
         except (IndexError, ValueError):
             pass
     if "--all" in args:
-        full = len(names)
-
-    head = " — ".join(x for x in (st.get("course"), st.get("session"),
-                                  st.get("chapter")) if x)
-    print(head or "no session open")
-    hw = st.get("hw")
-    if hw:
-        print("homework set: %s" % hw)
-
-    # Newest revision per turn id: the file is append-only and a correction
-    # supersedes in place, so an older revision is not part of the lesson.
-    newest = {}
-    for t in turns:
-        tid = t.get("id")
-        if tid and t.get("rev", 1) >= newest.get(tid, {}).get("rev", 0):
-            newest[tid] = t
-    live_turns = sorted(newest.values(), key=lambda t: t.get("t") or 0)
-    answered = {t.get("answers") for t in live_turns if t.get("answers")}
-
-    if not names:
-        print("no cards yet — nothing has been taught in this session")
-    else:
-        print("%d card(s), %d student turn(s)\n" % (len(names), len(live_turns)))
-        # The one thing in the recap that still grew with the lesson. A hundred
-        # and seven cards is 6.4k of titles, read at the start of every turn,
-        # for a shape a turn acts on the recent end of -- and the older end is
-        # what HANDOFF.md is for. So the list is the last LINES of them, with
-        # the earlier ones counted rather than named; `--all` prints the lot.
-        shown = names if full >= len(names) else names[-LINES:]
-        if len(shown) < len(names):
-            print("  (%d earlier card(s) not listed — HANDOFF.md is what carries "
-                  "the chapter, `board recap --all` lists them)"
-                  % (len(names) - len(shown)))
-        for n in shown:
-            with open(os.path.join(live.cards, n), "r", encoding="utf-8") as fh:
-                meta, _ = card_meta(fh.read())
-            cid = n[:4]
-            mark = ""
-            kind = (meta.get("kind") or "lesson").lower()
-            if kind == "question":
-                mark = "  <- answered" if cid in answered or n in answered \
-                       else "  <- OPEN, not answered yet"
-            print("  %s %-9s %s%s" % (cid, kind, meta.get("title", ""), mark))
-
-    for n in names[len(names) - full:] if full else []:
-        with open(os.path.join(live.cards, n), "r", encoding="utf-8") as fh:
-            raw = fh.read()
-        # Read back through the same gate the board reads through. A tutor whose
-        # own deliberation ended up in a card should see that the turn did not
-        # land -- and should certainly not be fed its own private working back as
-        # though it were the lesson so far.
-        meta_r, body_r = card_meta(raw)
-        clean = reasoning.card_body(body_r)
-        if clean != body_r:
-            raw = raw[:len(raw) - len(body_r)] + clean
-        print("\n--- %s, in full ---\n%s" % (n, raw.strip()))
-
-    # What the student has actually done, one line each. A fresh session picking
-    # this lesson up needs to know where they went wrong three cards ago without
-    # re-reading three cards, and this is the cheap form of that.
-    if len(live_turns) > 1:
-        print("\ntheir turns so far:")
-        for t in live_turns[:-1]:
-            what = (t.get("text") or "").strip().replace("\n", " ")
-            if t.get("signal"):
-                what = "[%s] %s" % (t["signal"], what)
-            if t.get("png") and not what:
-                what = "handwriting"
-            print("  %-19s %-6s %s" % (t.get("iso") or "?",
-                                       ("-> " + t["answers"]) if t.get("answers") else "",
-                                       what[:96]))
-
-    if live_turns:
-        t = live_turns[-1]
-        print("\n--- their most recent turn (%s) ---" % (t.get("iso") or "?"))
-        if t.get("answers"):
-            print("answers card %s" % t["answers"])
-        if t.get("signal"):
-            print("signal: %s" % t["signal"])
-        if t.get("text"):
-            print(t["text"].strip())
-        if t.get("png"):
-            print("handwriting: %s" % os.path.join(live.session, str(t["png"]).lstrip("/")))
-        for f in t.get("files", []) or []:
-            print("file: %s" % os.path.join(live.uploads, f))
-
-    unread = inbox.unread(live)
-    if unread:
-        print("\n%d unread message(s) in the inbox — `board inbox` has them"
-              % len(unread))
+        full = len(live.card_names())
+    sys.stdout.write(brief.recap(live, full=full))
     return 0
 
 
 def cmd_brief(live, args):
     """Everything a cold turn is bound by, in ONE call.
 
-    Every turn is its own session, so every turn is a cold turn. The brief is
-    the method, the subject's RULES.md at HEAD and its TUTOR.md, with
-    board/TEACHING.md named at the bottom for the rare rule that needs its
-    detail (`tutorboard.brief`).
-
-    Pair it with `board recap`, which is the other half: this is the standing
-    rules, that is the lesson so far. Two calls, and a turn needs nothing else
-    before it can teach.
+    The brief is the method, the subject's RULES.md at HEAD and its TUTOR.md,
+    with board/TEACHING.md named at the bottom for the rare rule that needs its
+    detail (`tutorboard.brief`). The runner hands it, and the recap, to every
+    lesson turn (`brief.turn_context`); this command is for reading it by hand.
 
     AND A MISSION IS BRIEFED AS A DOING TURN. `/elsewhere` writes the task into
     the target's inbox as a sentence of the student's and nothing else, so this

@@ -29,6 +29,9 @@ DEFAULT_CONFIG = {
             "cmd": ["claude"], "prompt": "argv", "label": "Claude",
             "headless_first": ["claude", "-p", "{prompt}"],
             "headless": ["claude", "-p", "{prompt}", "--continue"],
+            # The brief and the recap ride here (`runner.loop.handed`); any
+            # recipe without this field reads them prepended to its prompt.
+            "system_args": ["--append-system-prompt", "{system}"],
             "usage": "claude-json",
             "usage_args": ["--output-format", "json"],
             "extra_args": [],

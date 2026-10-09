@@ -199,6 +199,19 @@ def turn_plan(spec, signal=""):
     return fresh_recipe(spec), prompt
 
 
+def context_plan(signal=""):
+    """`(brief, recap)`: what a turn woken for `signal` is handed above its
+    prompt. A lesson turn gets both; an `[unfinished]` report the recap, which
+    shows the placeholder it owes; a revision, rework, ship or write-up is not
+    part of the lesson and gets neither, as its prompt says.
+    """
+    if signal in ("revise", "rework", "ship", "writeup"):
+        return False, False
+    if signal == "unfinished":
+        return False, True
+    return True, True
+
+
 # WHAT A TURN WAS WOKEN FOR, so the board can say it while the turn runs.
 #
 # `board inbox` prints a message as `[<iso>] [<signal>] <text>`, and the signal

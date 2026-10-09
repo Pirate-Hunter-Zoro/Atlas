@@ -11,7 +11,7 @@ import os
 import threading
 import time
 
-from tutorboard import handoff, jobs, limits, seeing
+from tutorboard import brief, handoff, jobs, limits, seeing
 from tutorboard.agents import recipes, usage
 from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
@@ -186,6 +186,23 @@ def for_this_turn(cfg, course, running, signal, log=None):
         log.write("-- staying on '%s' rather than '%s': %s\n" % (running, name, why))
     return cfg, running, cfg["agents"].get(running) or {}, None
 
+def handed(spec, prompt, context):
+    """`(prompt, extra argv)` with `context` handed to the provider.
+
+    A recipe with `system_args` (claude's `--append-system-prompt {system}`)
+    takes it as system prompt, so the prompt stays the turn's own; any other
+    provider reads it prepended to the prompt. Either way it comes first, and
+    the prompts say it is "above". The global CLAUDE.md still loads: this
+    appends to the system prompt rather than replacing it.
+    """
+    if not context:
+        return prompt, []
+    system = (spec or {}).get("system_args")
+    if system:
+        return prompt, [a.replace("{system}", context) for a in system]
+    return context + "\n\n" + prompt, []
+
+
 class Ctx(object):
     """One turn's state, built by the runner. `take_turn` reads and rebinds it.
 
@@ -272,7 +289,21 @@ def take_turn(ctx, message):
             # chapter's unfinished business as though it were this one's.
             "handoff": turn.handoff_clause(ctx.repo)}
     prompt = out.strip() if ctx.spec.get("raw_prompt") else template % fill
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use or []])
+    # THE BRIEF AND THE RECAP RIDE IN THE PROMPT, rendered here rather than
+    # fetched by the turn: two round trips fewer, each resending the whole
+    # conversation. A script agent builds its own context and gets neither.
+    wants_brief, wants_recap = turn.context_plan(this_signal)
+    context = ""
+    if wants_recap and not ctx.spec.get("raw_prompt"):
+        context = brief.turn_context(ctx.repo, this_signal, turn_repairs,
+                                     brief=wants_brief)
+        log.write("-- handed %s, %d characters, %s\n" % (
+            "the brief and the recap" if wants_brief else "the recap",
+            len(context), "as system prompt" if ctx.spec.get("system_args")
+            else "above the prompt"))
+    prompt, extra = handed(ctx.spec, prompt, context)
+    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use or []]
+                           + extra)
     # Where this turn's own words begin, so that if it fails we can read
     # back what it said rather than guess at why.
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
@@ -560,8 +591,10 @@ def wrap_up(ctx):
     log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
     chapter = turn.chapter_now(ctx.repo)
     wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompts.HANDOFF_PROMPT)
-                                      for a in wrap])
+    prompt, extra = handed(ctx.spec, prompts.HANDOFF_PROMPT,
+                           brief.turn_context(ctx.repo, brief=False))
+    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in wrap]
+                           + extra)
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     landing = os.path.join(root, "HANDOFF.md")
     try:

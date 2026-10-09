@@ -175,8 +175,8 @@ check("and a tutor whose chapter DOES have one is told to read it",
 code, out = board(root4, "brief")
 check("a headless turn's briefing no longer carries HANDOFF.md",
       code == 0 and "Chapter 1 leftovers" not in out)
-check("and the prompt sends the turn to that briefing",
-      "board brief" in prompts.HEADLESS_FIRST_PROMPT)
+check("and the prompt says that briefing is above it",
+      "The brief and the recap are above" in prompts.HEADLESS_FIRST_PROMPT)
 
 # --- a new tutor for the new chapter ------------------------------------------
 print("\n-- a chapter gets its own tutor --")

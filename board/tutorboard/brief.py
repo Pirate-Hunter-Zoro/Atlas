@@ -1,4 +1,4 @@
-"""Everything a cold turn has to know, in one call: `board brief`.
+"""Everything a cold turn has to know: the brief and the recap.
 
 Every turn is a cold turn, so the brief is what a turn costs before it teaches.
 It carries the method as `tutorboard.sense` states it, the subject's RULES.md
@@ -7,16 +7,23 @@ what the owner did away from the board, and the work out on the cluster. It
 points at board/TEACHING.md for a rule's detail. A subject's README.md is the
 owner's and never enters the brief.
 
+`recap` is the lesson so far: one line per card, the newest in full, the
+student's turns. The runner renders both in-process and hands them to every
+lesson turn (`turn_context`); `board brief` and `board recap` print the same
+text for manual use.
+
 `test/tokens.py` holds a fixture brief to `BUDGET` characters.
 """
 
+import json
 import os
 import time
 
-from . import jobs, memo, progress
+from . import jobs, memo, progress, reasoning
 from .course import config
 from .course import homework
 from .lesson import git as lesson_git
+from .lesson import inbox
 
 
 # The method in full, for the one section a rule needs. Turns run from the
@@ -26,11 +33,21 @@ METHOD = "board/TEACHING.md"
 # What a fixture brief may cost, in characters (`test/tokens.py`).
 BUDGET = 14000
 
+# How many cards the recap names as lines. Every turn reads this, so it is the
+# one part of the recap that must not grow with the lesson. Wide enough to hold
+# a whole sitting's worth of shape, which is what a turn reasons about.
+LINES = 40
+
+# What a recap handed to a turn may cost, in characters. Past it the recap is
+# rendered compact (`recap(compact=True)`): the newest card whole and one line
+# per earlier card, without the student's earlier turns.
+RECAP_LIMIT = 12000
+
 # The mechanics of a turn. Here rather than in `tutorboard.sense` because a
 # turn is the only thing that reads the brief.
 TURN_SENSE = (
     "This turn is its own session; nothing you hold survives it but the lesson "
-    "on disk (`board recap`), RULES.md and TUTOR.md. When this turn changes "
+    "on disk (handed to every turn as its recap), RULES.md and TUTOR.md. When this turn changes "
     "where things are, what is happening now, an open decision or what got "
     "done, rewrite that section with `board memo <section>` (its whole new text "
     "on stdin; TUTOR.md is capped at %d words). Never write RULES.md. Do not "
@@ -283,3 +300,197 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
                "The method in full is %s. Open the ONE section you need, not "
                "the whole file." % METHOD)
     return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# the recap
+# ---------------------------------------------------------------------------
+def card_meta(raw):
+    """Front matter and body of a card, without pulling in a YAML parser."""
+    meta, text = {}, raw
+    if raw.startswith("---"):
+        end = raw.find("\n---", 3)
+        if end != -1:
+            for line in raw[3:end].splitlines():
+                if ":" in line:
+                    k, v = line.split(":", 1)
+                    meta[k.strip().lower()] = v.strip()
+            text = raw[end + 4:].lstrip("\n")
+    return meta, text
+
+
+def read_turns(repo):
+    """Every student turn, newest revision last. The file is append-only."""
+    out = []
+    try:
+        with open(repo.path("turns.jsonl"), "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return out
+
+
+def recap(repo, full=1, compact=False):
+    """The lesson so far, as one string.
+
+    One line per card (the newest `LINES` of them), the newest `full` cards in
+    full, the student's earlier turns one line each, and their latest turn with
+    its file paths. `compact` drops the earlier turns and keeps the latest one
+    short: what is left is the newest card whole and one line per earlier card.
+    """
+    names = repo.card_names()
+    st = repo.state()
+    out = []
+
+    head = " — ".join(x for x in (st.get("course"), st.get("session"),
+                                  st.get("chapter")) if x)
+    out.append(head or "no session open")
+    if st.get("hw"):
+        out.append("homework set: %s" % st["hw"])
+
+    # Newest revision per turn id: a correction supersedes in place, so an
+    # older revision is not part of the lesson.
+    newest = {}
+    for t in read_turns(repo):
+        tid = t.get("id")
+        if tid and t.get("rev", 1) >= newest.get(tid, {}).get("rev", 0):
+            newest[tid] = t
+    turns = sorted(newest.values(), key=lambda t: t.get("t") or 0)
+    answered = {t.get("answers") for t in turns if t.get("answers")}
+
+    if not names:
+        out.append("no cards yet — nothing has been taught in this session")
+    else:
+        out.append("%d card(s), %d student turn(s)\n" % (len(names), len(turns)))
+        shown = names if full >= len(names) else names[-LINES:]
+        if len(shown) < len(names):
+            out.append("  (%d earlier card(s) not listed — HANDOFF.md is what "
+                       "carries the chapter, `board recap --all` lists them)"
+                       % (len(names) - len(shown)))
+        for n in shown:
+            with open(os.path.join(repo.cards, n), "r", encoding="utf-8") as fh:
+                meta, _ = card_meta(fh.read())
+            mark = ""
+            kind = (meta.get("kind") or "lesson").lower()
+            if kind == "question":
+                mark = ("  <- answered" if n[:4] in answered or n in answered
+                        else "  <- OPEN, not answered yet")
+            out.append("  %s %-9s %s%s" % (n[:4], kind, meta.get("title", ""), mark))
+
+    for n in names[len(names) - full:] if full else []:
+        with open(os.path.join(repo.cards, n), "r", encoding="utf-8") as fh:
+            raw = fh.read()
+        # Read back through the gate the board reads through: a tutor's own
+        # deliberation that ended up in a card is not the lesson so far.
+        _meta, body = card_meta(raw)
+        clean = reasoning.card_body(body)
+        if clean != body:
+            raw = raw[:len(raw) - len(body)] + clean
+        out.append("\n--- %s, in full ---\n%s" % (n, raw.strip()))
+
+    if len(turns) > 1 and not compact:
+        out.append("\ntheir turns so far:")
+        for t in turns[:-1]:
+            what = (t.get("text") or "").strip().replace("\n", " ")
+            if t.get("signal"):
+                what = "[%s] %s" % (t["signal"], what)
+            if t.get("png") and not what:
+                what = "handwriting"
+            out.append("  %-19s %-6s %s" % (
+                t.get("iso") or "?",
+                ("-> " + t["answers"]) if t.get("answers") else "", what[:96]))
+    elif len(turns) > 1:
+        out.append("\n(%d earlier turn(s) of theirs not listed; `board recap` "
+                   "lists them)" % (len(turns) - 1))
+
+    if turns:
+        t = turns[-1]
+        out.append("\n--- their most recent turn (%s) ---" % (t.get("iso") or "?"))
+        if t.get("answers"):
+            out.append("answers card %s" % t["answers"])
+        if t.get("signal"):
+            out.append("signal: %s" % t["signal"])
+        text = (t.get("text") or "").strip()
+        if text:
+            out.append(text if not compact or len(text) <= 400
+                       else text[:400] + " […]")
+        if t.get("png"):
+            out.append("handwriting: %s" % os.path.join(
+                repo.session, str(t["png"]).lstrip("/")))
+        for f in t.get("files", []) or []:
+            out.append("file: %s" % os.path.join(repo.uploads, f))
+
+    unread = inbox.unread(repo)
+    if unread:
+        out.append("\n%d unread message(s) in the inbox — `board inbox` has them"
+                   % len(unread))
+    return "\n".join(out) + "\n"
+
+
+def guarded_recap(repo, limit=RECAP_LIMIT):
+    """The recap a turn is handed: whole, or compact past `limit` characters."""
+    text = recap(repo)
+    if len(text) <= limit:
+        return text
+    return recap(repo, compact=True)
+
+
+# ---------------------------------------------------------------------------
+# what a turn is handed
+# ---------------------------------------------------------------------------
+def turn_brief(repo, signal="", repairs=None):
+    """The brief a turn woken for `signal` reads: `board brief`'s, answered
+    from what the runner knows rather than from `agent.json`.
+
+    A running mission and a `[repair]` batch brief a doing turn, as
+    `board brief` does inside one (`_repairing` in bin/board).
+    """
+    from . import sense            # reaches into the course package; see briefing
+    try:
+        from . import missions
+        rec = missions.live_mission(repo.root)
+    except Exception:                                        # noqa: BLE001
+        rec = None
+    fixing = None
+    if not rec:
+        rids = [r for r in (repairs or []) if isinstance(r, str) and r]
+        if rids:
+            fixing = rids
+        elif signal == jobs.REPAIR:
+            fixing = [jobs.last_repair(repo.root)]
+    return briefing(
+        repo, sense, doing=True if rec or fixing is not None else None,
+        mission=rec,
+        repair=jobs.repair_brief(repo.root, fixing) if fixing is not None else None)
+
+
+def turn_context(repo, signal="", repairs=None, brief=True):
+    """The brief and the recap, as one block a turn reads before its prompt.
+
+    `brief=False` hands over the recap alone (the wrap-up). A part that fails
+    to render says so in its place and names the command that prints it, so a
+    turn is never told something is above that is not.
+    """
+    parts = []
+    if brief:
+        try:
+            text = turn_brief(repo, signal, repairs)
+        except Exception as exc:                             # noqa: BLE001
+            text = ("(the brief could not be rendered here: %s. Run `board "
+                    "brief` for it.)\n" % exc)
+        parts.append("=== THE BRIEF: the method, RULES.md, TUTOR.md ===\n" + text)
+    try:
+        text = guarded_recap(repo)
+    except Exception as exc:                                 # noqa: BLE001
+        text = ("(the recap could not be rendered here: %s. Run `board "
+                "recap` for it.)\n" % exc)
+    parts.append("=== THE RECAP: the lesson so far ===\n" + text)
+    parts.append("=== END OF %s ===" % ("THE BRIEF AND THE RECAP" if brief
+                                        else "THE RECAP"))
+    return "\n".join(parts)
