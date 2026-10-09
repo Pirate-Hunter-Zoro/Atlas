@@ -399,7 +399,9 @@ def apply_tree(atlas, map_path):
         with open(map_path, "w", encoding="utf-8") as fh:
             json.dump(rec, fh, indent=2)
             fh.write("\n")
-    code, out = git(atlas, "add", "--", *sorted(set(staged)))
+    # `-f`: a subject that ignores `*.json` (PSYCH-ASR, libr-local-llm) still
+    # tracks the doc.json written here; it holds a title and a file name.
+    code, out = git(atlas, "add", "-f", "--", *sorted(set(staged)))
     if code:
         say("git add failed: %s" % out)
         return 1
