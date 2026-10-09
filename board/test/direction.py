@@ -178,7 +178,7 @@ try:
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
         lines = [json.loads(l) for l in fh if l.strip()]
     line = lines[-1].get("text", "") if lines else ""
-    check("the inbox carries it, which is what `board wait` watches", bool(lines))
+    check("the inbox carries it, which is what the queued turn is handed", bool(lines))
     check("the line says what happened", "[direction]" in line)
     check("carries their own words, not a summary of them", SAID in line)
     check("tells the turn to rewrite the plan", "REWRITE THE PLAN" in line)

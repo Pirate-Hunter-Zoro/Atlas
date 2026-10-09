@@ -49,6 +49,7 @@ os.environ["TUTORBOARD_PAGES"] = os.path.join(tmp, ".pages")
 from tutorboard import artifacts, briefs, gitops, sense, sessions, writeups  # noqa: E402
 from tutorboard.course import library                                        # noqa: E402
 from tutorboard.lesson import notes as lesson_notes                          # noqa: E402
+from tutorboard.runner import service as runner_service                    # noqa: E402
 from tutorboard.server import app, handler, registry, spawn                  # noqa: E402
 from tutorboard.server.routes import library as library_route                # noqa: E402
 from tutorboard.server.routes import writing as writing_route                # noqa: E402
@@ -111,7 +112,7 @@ MEET = os.path.join(base, "projects", "Meetings")
 DECK = os.path.join(MEET, "docs", "meeting")
 
 handler.PING_SECONDS = 0.5
-spawn.wake_tutor = lambda repo: False
+runner_service.wake = lambda repo: False
 
 try:
     # ---- the fixture: an Atlas with five subjects and a fortnight of work --
