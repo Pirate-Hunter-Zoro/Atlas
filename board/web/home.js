@@ -5,7 +5,8 @@
    courses and the projects, past sessions, three actions, and settings.
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
-   /subjects.json, /notices.json and /assistants.json. Everything it writes is
+   /subjects.json, /notices.json, /assistants.json and, for the meeting deck,
+   /library.json?subject=projects/Meetings. Everything it writes is
    one of: POST /sessions/new, /subjects/new, /meeting and /default-agent.
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
@@ -384,9 +385,15 @@ function route() {
 window.addEventListener("hashchange", route);
 
 /* ------------------------------------------------------- the meeting deck */
+/* ONE DECK, replaced by each ask; git history keeps every `meeting.tex`. A
+   writer turn takes minutes, so the sheet watches the Meetings library, whose
+   payload carries the deck's record as `meeting`. "Read the deck" is that
+   library with the deck opened (`?doc=`): `Reader.open`, and "say what is
+   wrong" files a round that queues a `[revise]` turn in a Meetings session. */
 var notesSince = "";
 var notesWant = {};
 var MEETINGS = "projects/Meetings";
+var MEETINGS_Q = "subject=" + encodeURIComponent(MEETINGS);
 var notesTimer = null;
 var NOTES_POLL = 10000;
 
@@ -413,9 +420,16 @@ function notesSay(text, bad) {
 }
 
 function pollNotes(quiet) {
-  return getJSON("/meeting/deck.json")
-    .then(function (rec) { paintNotesState(rec || {}, quiet); })
+  return getJSON("/library.json?" + MEETINGS_Q)
+    .then(function (got) { paintNotesState(got || {}, quiet); })
     .catch(function () { /* a poll is quiet; the next one asks again */ });
+}
+
+/* THE DECK'S ROW in the Meetings library: the document carrying `meeting`. */
+function deckRow(got) {
+  var out = null;
+  (got.documents || []).forEach(function (d) { if (d.meeting && !out) out = d; });
+  return out;
 }
 
 function watchNotes() {
@@ -426,9 +440,10 @@ function watchNotes() {
   }, NOTES_POLL);
 }
 
-function paintNotesState(rec, quiet) {
-  if (!rec.ok) return;
-  var n = (rec.workspaces || []).length;
+function paintNotesState(got, quiet) {
+  var rec = got.meeting;
+  if (!rec) return;
+  var n = (rec.subjects || []).length;
   var what = plural(n, "subject", "subjects")
     + (rec.period ? ", " + rec.period : rec.since ? ", " + rec.since : "");
   if (rec.state === "being written") {
@@ -442,14 +457,20 @@ function paintNotesState(rec, quiet) {
     if (!quiet) notesSay(rec.why || "The deck did not land. Ask for it again.", true);
     return;
   }
-  if (!rec.built) return;
+  var row = deckRow(got);
+  if (!rec.ready || !row) return;
+  var check = rec.check || {};
+  var unsupported = (check.numbers || []).length + (check.figures || []).length
+    + (check.internal || []).length;
+  els.notesRead.setAttribute("href", "/library?" + MEETINGS_Q + "&doc="
+    + encodeURIComponent(row.id) + "&from=home");
   els.notesRead.hidden = false;
   els.notesReadSub.textContent = what
-    + (rec.unsupported ? " · " + rec.unsupported + " to check" : "");
+    + (unsupported ? " · " + unsupported + " to check" : "")
+    + (row.marks && row.marks.pages ? " · marked up" : "");
   if (!quiet) {
-    var slides = Object.keys(rec.pages || {}).length;
-    notesSay("Ready: " + plural(slides, "slide", "slides") + " about " + what
-             + ". It replaced the one before it.");
+    notesSay("Ready: " + plural(rec.pages || row.pages || 0, "slide", "slides")
+             + " about " + what + ". It replaced the one before it.");
   }
 }
 

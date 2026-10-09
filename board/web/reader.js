@@ -1,13 +1,13 @@
 /* ==========================================================================
    reader.js -- the one reader: every PDF on the glass, and the ink on it.
 
-   ONE READER FOR EVERY PDF VIEW. The library's documents, the meeting deck
-   and a document opened from a card on the board are the same thing: page
-   pictures drawn by the machine holding the PDF (`course/paper.py` says why
-   it is pictures), one `figure.lib-page` per page carrying
-   `data-ann="<inkKey>/p<n>"`, the pen out of `annotate.js`, the pinch out of
-   `readerzoom.js`, and every save of the ink through `inkkeep.js`. A page
-   with `#reader` markup of its own (the library, the meeting deck) has it
+   ONE READER FOR EVERY PDF VIEW. The library's documents (the meeting deck
+   among them) and a document opened from a card on the board are the same
+   thing: page pictures drawn by the machine holding the PDF
+   (`course/paper.py` says why it is pictures), one `figure.lib-page` per page
+   carrying `data-ann="<inkKey>/p<n>"`, the pen out of `annotate.js`, the
+   pinch out of `readerzoom.js`, and every save of the ink through
+   `inkkeep.js`. A page with `#reader` markup of its own (the library) has it
    adopted; a page without one (the board) gets it built, the same ids, over
    everything else (`reader-over`).
 
@@ -27,7 +27,7 @@
    page owns `Annotate.onChange` (one listener) and the pen button.
 
    `Reader.open(o)` draws one document and answers its handle. `o`:
-     pagesUrl     the pages, as `/library/view`, `/view` and `/meeting/view`
+     pagesUrl     the pages, as `/library/view` and `/view`
                   answer: {ok, pages, truncated, ink, ink_sent, ...}
      id, title    the document
      inkKey       the anchor's head, `doc/<id>` unless said
@@ -59,9 +59,9 @@ function key(id) {
   });
 }
 
-/* THE MARKUP, for a page that has none. The same ids the library's and the
-   meeting deck's own markup carry, so one sheet (`reader.css`) and one set of
-   tests read all three. */
+/* THE MARKUP, for a page that has none. The same ids the library's own
+   markup carries, so one sheet (`reader.css`) and one set of tests read
+   both. */
 function build() {
   var root = document.createElement("div");
   root.id = "reader";

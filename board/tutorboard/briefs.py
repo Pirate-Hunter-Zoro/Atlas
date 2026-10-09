@@ -722,8 +722,9 @@ def write_brief(base, deck, blocks, since_ts, until_ts=None, human="", dry=False
 # asking: the deck replaced
 # ---------------------------------------------------------------------------
 def ink_dirs(base, repo=None):
-    """Where ink on the deck can be: Meetings' `.ink/`, the Atlas root's (the
-    `/meeting` page's sessionless Repo), and `repo`'s own annotations."""
+    """Where ink on the deck can be: Meetings' `.ink/` (the library's), the
+    Atlas root's (ink a sessionless save made without `?subject=`), and
+    `repo`'s own annotations."""
     out = []
     root = meetings_root(base)
     if root:
@@ -1088,31 +1089,28 @@ def judge(base=None, now=None):
 
 
 def deck(base=None, now=None):
-    """The deck as the `/meeting` routes and the front door read it, or None.
+    """The deck as the front door and the Meetings library read it, or None.
 
-    `has_pdf` is true only for a READY deck. `pages` maps every page to
-    Meetings: a mark on any slide is input for the Meetings tutor."""
+    `state` is `judge`'s. `ready` is true only for a READY deck with its PDF,
+    and only then are `pages` and `check` (what no source supports, from
+    `_provenance.json`) filled. `deck` is `deck_id`: a save of ink on it
+    names it, and a save naming another deck is refused."""
     d = deck_dir(base)
     rec = artifacts.read(d) if d else None
     if not rec:
         return None
     state, why = judge(base, now=now)
     brief = read_brief(d) or {}
-    pdf = os.path.join(d, STEM + ".pdf")
-    ready = state == "ready" and os.path.isfile(pdf)
+    ready = state == "ready" and os.path.isfile(os.path.join(d, STEM + ".pdf"))
     prov = provenance(deck=d) if ready else {}
-    n = int(prov.get("pages") or 0) if ready else 0
-    names = dict(brief.get("names") or {})
-    names[MEETINGS] = "Meetings"
-    return {"name": STEM, "state": state, "why": why, "dir": d, "pdf": pdf,
-            "tex": os.path.join(d, STEM + ".tex"), "has_pdf": ready,
-            "asked_at": rec.get("asked_at") or "",
-            "at": artifacts._when(rec.get("asked_at")),
+    names = brief.get("names") or {}
+    return {"state": state, "why": why, "ready": ready,
+            "deck": str(rec.get("asked_at") or ""),
             "since": brief.get("human") or "", "period": brief.get("period") or "",
-            "host": MEETINGS, "workspaces": brief.get("subjects") or [],
-            "names": names, "pages": dict((str(p), MEETINGS) for p in range(1, n + 1)),
-            "unsupported": (len(prov.get("numbers") or []) + len(prov.get("figures") or [])
-                            + len(prov.get("internal") or [])) if ready else 0}
+            "subjects": [names.get(s) or s for s in brief.get("subjects") or []],
+            "pages": int(prov.get("pages") or 0),
+            "check": dict((k, prov.get(k) or [])
+                          for k in ("numbers", "figures", "internal"))}
 
 
 def deck_id(base=None):
@@ -1121,27 +1119,3 @@ def deck_id(base=None):
     d = deck_dir(base)
     rec = artifacts.read(d) if d else None
     return str((rec or {}).get("asked_at") or "")
-
-
-# ---------------------------------------------------------------------------
-# the ink
-# ---------------------------------------------------------------------------
-def ink_keys(repo):
-    """Every annotation key on this deck in `repo` that has strokes under it."""
-    from .lesson import notes as lesson_notes          # local: avoids a cycle
-    from .server.routes import writing                 # local: avoids a cycle
-    out = {}
-    for key, strokes in lesson_notes.load_notes(repo).items():
-        found = writing.ann_doc_page(key)
-        if found and strokes and found[0] == SLUG:
-            out[key] = strokes
-    return out
-
-
-def drawn_on(repo, pdf, pages):
-    """`(build, rebuilt)` for the deck on the glass, the library's way.
-    `build` is `{digest, at, pages}`; `rebuilt` is `library.drawn_on`'s flag."""
-    build = {"digest": pages.get("digest") or "", "at": artifacts._mtime(pdf),
-             "pages": pages.get("n") or 0}
-    flag = library.drawn_on(repo, None, build["digest"], pages.get("ink") or {})["rebuilt"]
-    return build, flag

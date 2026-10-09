@@ -246,6 +246,12 @@ try:
                 m["read"] = True
                 fh.write(json.dumps(m) + "\n")
 
+    def deck_rec():
+        """The deck's record, as the front door watches it: the Meetings
+        library's payload, `meeting`."""
+        library.forget()
+        return ask("GET", "/library.json?subject=projects/Meetings")[1].get("meeting") or {}
+
     def files(name):
         return [os.path.join(h, n) for h, _, ns in os.walk(MEET) for n in ns if n == name]
 
@@ -277,11 +283,11 @@ try:
           and not any("old" in f for f in (briefs.read_brief(DECK) or {}).get("figures", [])))
     w = writeups.read(MEET, body.get("id"))
     check("the writeup record is judged by the artifact", (w or {}).get("dir") == "docs/meeting")
-    status, got = ask("GET", "/meeting/deck.json")
-    check("it is being written while the ask is unread",
-          got.get("state") == "being written" and not got.get("built"), got)
-    status, got = ask("GET", "/meeting/view")
-    check("and the reader draws nothing yet", not got.get("ok") and got.get("why") == "being written")
+    got = deck_rec()
+    check("it is being written while the ask is unread, said on the Meetings library",
+          got.get("state") == "being written" and not got.get("ready"), got)
+    status, got = ask("GET", "/library/view/meeting?subject=projects/Meetings")
+    check("and the reader draws nothing yet", not got.get("ok"), got)
     check("`last` measures from the deck asked for", briefs.resolve_since("last", base)[0])
 
     # ---- the writer writes and builds it ----------------------------------------
@@ -303,9 +309,19 @@ try:
                          "\\includegraphics[width=0.5\\linewidth]{%s}" % fig),
                    frame("Two arms", "The weighted arm reaches 0.713 in a subgroup.")))
     read_all(sid)
-    status, got = ask("GET", "/meeting/deck.json")
+    got = deck_rec()
     check("once built and the turn is over, it is ready", got.get("state") == "ready"
-          and got.get("built"), got)
+          and got.get("ready"), got)
+    check("and what no source gives rides on it, for the reader to list",
+          "0.713" in [n["value"] for n in got.get("check", {}).get("numbers", [])], got)
+    status, lib = ask("GET", "/library.json?subject=projects/Meetings")
+    row = [d for d in lib.get("documents", []) if d.get("meeting")]
+    check("the deck's row in the Meetings library carries it, with which deck it is",
+          len(row) == 1 and row[0]["id"] == "meeting"
+          and row[0]["meeting"]["deck"] == briefs.deck_id(base), row)
+    status, lib = ask("GET", "/library.json?subject=projects/TRD")
+    check("and no other subject's library does", "meeting" not in lib
+          and not [d for d in lib.get("documents", []) if "meeting" in d])
     prov = briefs.provenance(base)
     nums = [n["value"] for n in prov.get("numbers", [])]
     check("a number no source gives is listed beside the deck, with its slide",
@@ -407,7 +423,7 @@ try:
                          "{The findings}")))
     check("and ONE meeting.tex once it is written", len(files("meeting.tex")) == 1)
     read_all(sid)
-    status, got = ask("GET", "/meeting/deck.json")
+    got = deck_rec()
     check("a link to the tailnet under other words refuses the deck",
           got.get("state") == "did not land" and "ts.net" in got.get("why", ""), got)
 
@@ -416,7 +432,7 @@ try:
     read_all(sid)
     quiet, artifacts.QUIET = artifacts.QUIET, 0
     try:
-        status, got = ask("GET", "/meeting/deck.json")
+        got = deck_rec()
     finally:
         artifacts.QUIET = quiet
     check("a turn that ended without a deck did not land, and says so",

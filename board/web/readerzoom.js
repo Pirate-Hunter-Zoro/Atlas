@@ -81,12 +81,12 @@
    when the page has one (the board), and always into `ReaderZoom.trace()`,
    the last `TRACE_MAX`, read from Web Inspector. Nothing leaves the page.
 
-   The library reader, the meeting deck and the board's document panel use it:
+   The library reader and the board's document panel use it:
      ReaderZoom.make({ scroller, surface, bar, chip, page, open(), committed() })
        -> { set(z), zoom(), live(on) }
    `page` is the selector of one page box (`.lib-page` by default). A surface
    with an `open` says when its document opens and shuts with `live`; one
-   without (the meeting deck) is always open and is live from the start.
+   without is always open and is live from the start.
    ========================================================================== */
 
 (function () {

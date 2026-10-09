@@ -1,9 +1,9 @@
 /* ==========================================================================
    inkkeep.js -- ink on a reader's pages that says it is kept.
 
-   ONE SAVE PATH, loaded by both readers: the library's (`library.js`) and the
-   meeting deck's (`meeting.js`). Two copies are how one of them ends up
-   cleaning a page on a 500 and never trying it again.
+   ONE SAVE PATH, made by the one reader (`reader.js`) for every page that
+   reads a PDF. Two copies are how one of them ends up cleaning a page on a
+   500 and never trying it again.
 
    What it keeps:
 

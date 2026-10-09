@@ -108,7 +108,7 @@ from ...lesson import turns
 
 def get(h, repo, path):
     if path == "/library.json":
-        return h.send_json(library.status(repo))
+        return h.send_json(with_deck(library.status(repo), repo))
 
     # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
     # somebody, so it is stats and nothing else -- no titles read out of
@@ -712,8 +712,8 @@ def ask_meeting(repo, base, since_ts, human, want=None):
 
 
 def meeting_deck(h, repo, base, since_ts, human, want=None):
-    """`POST /meeting`: the meeting deck asked for, and the page told it is
-    being written. The page then watches `/meeting/deck.json`."""
+    """`POST /meeting`: the meeting deck asked for, and the sheet told it is
+    being written. The sheet then watches the Meetings library (`with_deck`)."""
     got, err = ask_meeting(repo, base, since_ts, human, want=want)
     if err:
         return h.send_json(err[0], status=err[1])
@@ -729,6 +729,26 @@ def meeting_deck(h, repo, base, since_ts, human, want=None):
         "detail": ("The assistant is writing it in Meetings. It takes several "
                    "minutes, and this sheet says when it is ready. It replaces "
                    "the deck before it.")})
+
+
+def with_deck(payload, repo):
+    """The Meetings library's payload with THE MEETING DECK's own record on
+    its row, as `meeting` (`briefs.deck`): being written, ready or did not
+    land, the period, the subjects, and what no source supports. The front
+    door watches this while the deck is written; the reader lists the check.
+    Every other subject's payload is returned as it came."""
+    if registry.subject_of(repo) != briefs.MEETINGS:
+        return payload
+    try:
+        rec = briefs.deck(registry.base_of(repo) or subjects.root())
+    except Exception:                                        # noqa: BLE001
+        rec = None
+    rel = briefs.deck_rel()
+    for doc in payload.get("documents") or []:
+        if doc.get("artifact") == rel:
+            doc["meeting"] = rec
+    payload["meeting"] = rec
+    return payload
 
 
 def rework_refused(repo, doc):

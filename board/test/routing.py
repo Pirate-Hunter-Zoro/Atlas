@@ -266,7 +266,7 @@ for name in sorted(os.listdir(ROUTES)):
     mod = name[:-3]
     EVERY.update(("GET", p, mod) for p in routes_of(src, "get"))
     EVERY.update(("POST", p, mod) for p in routes_of(src, "post"))
-for p in ("/board", "/slate", "/library", "/meeting", "/slate/page-"):
+for p in ("/board", "/slate", "/library", "/slate/page-"):
     EVERY.add(("GET", p, "handler"))
 
 # Served only unprefixed, by the handler's own table; driven in part 3.
@@ -357,15 +357,11 @@ DRIVE = {
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
     # machines
-    ("GET", "/meeting", "handler"): ("atlas", [("/meeting", None, OK)]),
     ("GET", "/courses.json", "machines"): ("atlas", [("/courses.json", None, OK)]),
     ("GET", "/atlas.json", "machines"): ("atlas", [("/atlas.json", None, OK)]),
     ("GET", "/news", "machines"): ("atlas", [("/news", None, OK)]),
     ("GET", "/missions", "machines"): ("atlas", [("/missions", None, OK)]),
     ("GET", "/mission", "machines"): ("atlas", [("/mission?ws=nope&id=t1", None, (404,))]),
-    ("GET", "/meeting/deck.json", "machines"): ("atlas", [("/meeting/deck.json", None, OK)]),
-    ("GET", "/meeting/view", "machines"): ("atlas", [("/meeting/view", None, OK)]),
-    ("GET", "/meeting/pdf", "machines"): ("atlas", [("/meeting/pdf", None, (404,))]),
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
@@ -579,8 +575,14 @@ for who in ("A", "B"):
           % (who, who), MARK[who].encode("utf-8") in own
           and MARK[who].encode("utf-8") in named and MARK[who].encode("utf-8") in table)
 
+# The meeting deck is read in the Meetings library: its own page and routes
+# are not served.
+gone = [p for p in ("/meeting", "/meeting/", "/meeting/view", "/meeting/deck.json",
+                    "/meeting/pdf") if ask("GET", p)[0] != 404]
+check("the meeting page and its GET routes are gone (404): %s" % gone, not gone)
+
 # Document ink saved outside a session: the named subject's .ink/, or the
-# Atlas root's with none named (the meeting deck's).
+# Atlas root's with none named.
 before = snapshot()
 ask("POST", "/annotate/save?subject=" + SUBJECT["B"],
     {"card": "doc/beta-notes/p3", "strokes": [{"pts": [[5, 5]]}]})

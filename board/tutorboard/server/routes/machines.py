@@ -8,7 +8,6 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
               GET  /courses.json  /atlas.json  /news  /missions  /mission
-              GET  /meeting/deck.json  /meeting/view  /meeting/pdf
               POST /meeting  /default-agent
               POST /colibri  /writeup/scopes  /elsewhere  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
@@ -17,8 +16,9 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               handler answers for the server
 
 `/meeting` and `/elsewhere` ask another subject's tutor, and each goes
-through `registry.runner_route`. Ink on the deck is the Meetings subject's,
-and so is feedback on it (`/library/feedback?subject=projects/Meetings`).
+through `registry.runner_route`. The deck is read in the Meetings subject's
+library (`/library?subject=projects/Meetings&doc=meeting`), and its ink and
+feedback are that subject's.
 """
 
 import json
@@ -44,22 +44,8 @@ from ... import progress
 from ... import scopes
 from ... import stamp
 from ...course import config
-from ...course import paper
 from ...lesson import state
 from ...course import repo as course_repo
-
-
-def _deck_ink(repo, base):
-    """`(ink, ink_repo)` for the meeting deck. Its ink is the Meetings
-    subject's (`/annotate/save?subject=projects/Meetings`, the repo
-    `/library/feedback` reads); ink saved at the Atlas root before it was
-    loads in place under it."""
-    root = briefs.meetings_root(base)
-    meet = registry.sessionless(root, base) if root else repo
-    ink = briefs.ink_keys(repo)
-    if meet is not repo:
-        ink.update(briefs.ink_keys(meet))
-    return ink, meet
 
 
 def get(h, repo, path):
@@ -92,65 +78,6 @@ def get(h, repo, path):
         want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
         return h.send_json(machines.atlas_payload(
             repo, holders=want.get("holders", [""])[0] == "1"))
-
-    # THE DECK, AND THERE IS EXACTLY ONE OF IT: the artifact
-    # projects/Meetings/docs/meeting/ (`briefs.py`). No name arrives from the
-    # browser, so no name from a request can reach the filesystem here.
-    if path == "/meeting/deck.json":
-        # Being written, ready, or did not land: `briefs.judge`, which reads
-        # `artifacts.status` and checks a built deck once against its sources.
-        base = subjects.root() or repo.root
-        rec = briefs.deck(base)
-        if not rec:
-            return h.send_json({"ok": False,
-                                "detail": "No deck has been made yet."})
-        return h.send_json({
-            "ok": True, "state": rec["state"], "why": rec["why"],
-            "since": rec["since"], "period": rec["period"], "at": rec["at"],
-            "built": bool(rec["has_pdf"]), "host": rec["host"],
-            "workspaces": rec["workspaces"], "names": rec["names"],
-            "pages": rec["pages"], "unsupported": rec["unsupported"],
-            "marked": sorted(_deck_ink(repo, base)[0]),
-        })
-
-    if path == "/meeting/view":
-        # The library reader's rasteriser, cache and page addresses. Only a
-        # READY deck is drawn.
-        base = subjects.root() or repo.root
-        rec = briefs.deck(base)
-        if not rec or not rec.get("has_pdf"):
-            deck_state = (rec or {}).get("state") or ""
-            return h.send_json({
-                "ok": False, "why": "none" if not rec else deck_state,
-                "detail": ("There is no deck to read. Make one from the front "
-                           "door." if not rec else
-                           "The deck is being written in Meetings. This page "
-                           "draws it when it is there."
-                           if deck_state == "being written" else
-                           (rec.get("why") or "The deck did not land."))})
-        out = paper.pages_of(repo, rec["pdf"], briefs.STEM + ".pdf", "meeting")
-        if out.get("ok"):
-            # The marks come WITH the pages: this page opens no session.
-            out["ink"], meet = _deck_ink(repo, base)
-            out["build"], out["rebuilt"] = briefs.drawn_on(meet, rec["pdf"], out)
-            out["deck"] = briefs.deck_id(base)
-            out["pages_of"] = rec["pages"]
-            out["workspaces"] = rec["workspaces"]
-            out["names"] = rec["names"]
-            out["since"] = rec["since"]
-            out["period"] = rec["period"]
-            prov = briefs.provenance(base)
-            out["unsupported"] = {
-                "numbers": prov.get("numbers") or [],
-                "figures": prov.get("figures") or [],
-                "internal": prov.get("internal") or []}
-        return h.send_json(out)
-
-    if path == "/meeting/pdf":
-        rec = briefs.deck(subjects.root() or repo.root)
-        if not rec or not rec.get("has_pdf"):
-            return h.send_json({"ok": False, "error": "no deck"}, status=404)
-        return h.send_file(rec["pdf"])
 
     if path == "/news":
         # The same list the board payload carries, for a surface that is not on
@@ -274,7 +201,8 @@ def post(h, repo, path):
         # THE MEETING DECK: `{since, items}`, `items` the subjects it covers
         # (none is every subject that moved). The brief is written and a
         # `[writeup]` turn asked in a session bound to projects/Meetings
-        # (`library.ask_meeting`); the page then watches `/meeting/deck.json`.
+        # (`library.ask_meeting`); the front door then watches the Meetings
+        # library's record of it (`/library.json?subject=projects/Meetings`).
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001

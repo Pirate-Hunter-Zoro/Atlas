@@ -100,6 +100,9 @@ var els = {
   readerRebuilt: document.getElementById("reader-rebuilt"),
   readerRebuiltSaid: document.getElementById("reader-rebuilt-said"),
   readerRebuiltKeep: document.getElementById("reader-rebuilt-keep"),
+  readerCheck: document.getElementById("reader-check"),
+  readerCheckHead: document.getElementById("reader-check-head"),
+  readerCheckList: document.getElementById("reader-check-list"),
   note: document.getElementById("note"),
   noteTitle: document.getElementById("note-title"),
   noteWhere: document.getElementById("note-where"),
@@ -206,6 +209,7 @@ var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
 
 var docs = [];
 var openDoc = null;          /* the document being read */
+var openDeck = null;         /* the meeting deck on the glass, `meeting.deck` */
 var openPages = 0;           /* how many pages it turned out to have */
 var drawnPages = 0;          /* how many it had when the ink on it was drawn */
 var noteFor = null;          /* the document a note is being written about */
@@ -284,6 +288,7 @@ function paint(got) {
        would re-draw the reader, so what it took comes off the glass here. */
     if (openDoc.wiped) takeInk(openDoc, null, openDoc.wiped);
     if (ledger && !els.reader.hidden) ledger.open(openDoc);
+    paintCheck();
   }
   if (noteFor) {
     docs.forEach(function (d) { if (d.id === noteFor.id) noteFor = d; });
@@ -335,9 +340,10 @@ function paint(got) {
   });
 }
 
-/* THE DOCUMENT THE CALLER CAME FOR, opened once. The front door's deck from
-   sittings lands here with `?doc=<id>`, because "Read the deck" that drops
-   somebody on a list of forty documents has made them find it. An id the list
+/* THE DOCUMENT THE CALLER CAME FOR, opened once. The front door's meeting
+   deck lands here with `?subject=projects/Meetings&doc=meeting`, because
+   "Read the deck" that drops somebody on a list of forty documents has made
+   them find it. An id the list
    does not have is a miss and opens nothing; asked once, so a reload of the
    list does not reopen a reader somebody has closed. */
 var docAsked = null;
@@ -451,6 +457,15 @@ function paintReaderSaid() {
   var said = [];
   var running = flightWords(openDoc.id);
   if (running) said.push(running);
+  /* THE MEETING DECK SAYS WHERE IT GOT TO: being written, or why it did not
+     land (`briefs.judge`). A ready one says nothing here. */
+  var meet = openDoc.meeting;
+  if (meet && meet.state === "being written") {
+    said.push("A new deck is being written in Meetings; this page draws it "
+              + "when the file changes.");
+  } else if (meet && meet.state === "did not land") {
+    said.push(meet.why || "The deck did not land. Ask for it again from the front door.");
+  }
   if (drawnPages && openPages && drawnPages !== openPages
       && window.Annotate && window.Annotate.marked().length) {
     /* KEPT, NOT CLEARED. A ring somebody drew is theirs, and a document that
@@ -649,6 +664,12 @@ var reader = window.Reader ? window.Reader.mount({
     /* Only for the document on the glass: that is the only build this page
        knows it drew. */
     build: function (id) { return openBuild && mineKey(id) ? openBuild : null; },
+    /* WHICH MEETING DECK, so a reader left open over a deck asked for again
+       cannot write the old deck's rings onto the new one's slides: the board
+       answers `gone`, and the ink is let go. */
+    stamp: function (id) {
+      return openDeck && mineKey(id) ? { deck: openDeck } : null;
+    },
     url: libUrl("/annotate/save"),
     paint: function () { paintKept(); },
     saved: function (done) {
@@ -664,7 +685,9 @@ function read(doc, changes, page) {
      changes", off (and one tap away) otherwise. */
   if (ledger) ledger.open(doc, !!changes);
   openBuild = null;
+  openDeck = deckOf(doc);
   paintRebuilt(null);
+  paintCheck();
   openPages = 0;
   drawnPages = 0;
   if (!reader) return;
@@ -818,7 +841,9 @@ function drawn(got, h) {
   /* THE BUILD ON THE GLASS, handed back with every save of this document's
      ink -- and the flag, when ink on it was drawn on another. */
   openBuild = got.build || null;
+  openDeck = deckOf(openDoc);
   paintRebuilt(got.rebuilt || null);
+  paintCheck();
   /* HOW MANY PAGES THE INK WAS DRAWN ON. Taken the first time this document
      is drawn with marks on it, so a later re-draw can say out loud that the
      deck reflowed under them. */
@@ -876,6 +901,44 @@ function takeInk(doc, have, wiped) {
   if (have) A.load(have);
 }
 
+/* ------------------------------------------------------ the meeting deck */
+/* The Meetings library's payload carries THE MEETING DECK's own record on its
+   row (`with_deck` on the server): its state, which deck it is, and what on it
+   no source supports. Any other document has none. */
+function deckOf(doc) {
+  return doc && doc.meeting && doc.meeting.deck ? doc.meeting.deck : null;
+}
+
+/* WHAT TO CHECK FIRST. A number no source gives, a figure the board did not
+   copy, a plan heading copied as the plan types it: each is listed with the
+   slide it is on, so it is checked before the meeting rather than found in
+   it. */
+function paintCheck() {
+  if (!els.readerCheck) return;
+  var u = (openDoc && openDoc.meeting && openDoc.meeting.check) || {};
+  var rows = [];
+  (u.numbers || []).forEach(function (x) {
+    rows.push("slide " + x.frame + (x.title ? " (" + x.title + ")" : "")
+              + ": " + x.value + " is in no source — “" + x.context + "”");
+  });
+  (u.figures || []).forEach(function (x) {
+    rows.push(x.file + " was not copied from any project's results");
+  });
+  (u.internal || []).forEach(function (x) {
+    rows.push("“" + x.heading + "” is a plan heading, copied as the plan types it");
+  });
+  els.readerCheckList.innerHTML = "";
+  rows.forEach(function (t) {
+    var li = document.createElement("li");
+    li.textContent = t;
+    els.readerCheckList.appendChild(li);
+  });
+  els.readerCheckHead.textContent = rows.length + (rows.length === 1
+    ? " thing on this deck is" : " things on this deck are")
+    + " not in any source — check before the meeting";
+  els.readerCheck.hidden = !rows.length;
+}
+
 /* Shut, by the reader's ✕ or Escape. What is owed is saved by the reader
    first; this is what is the page's to let go of. */
 function closeReader() { if (reader) reader.close(); }
@@ -890,11 +953,13 @@ function closed() {
   }
   openDoc = null;
   openBuild = null;
+  openDeck = null;
   openPages = 0;
   drawnPages = 0;
   placeWanted = 0;
   if (ledger) ledger.close();
   els.readerSaid.hidden = true;
+  paintCheck();
   paintRebuilt(null);
   paintPen();
   paintKept();

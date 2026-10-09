@@ -1,7 +1,7 @@
 /* ==========================================================================
    annbar.js -- the annotation tool bar, the only one.
 
-   The board, the library and the meeting deck all draw with `annotate.js`, and
+   The board and the library (the meeting deck too) draw with `annotate.js`, and
    marking up a slide is the same act as marking up a card, so every page mounts
    this one bar: pen, eraser, loop, the slate's nibs, the stock inks and an
    any-colour well (a white page wants a darker ink than a dark card does),

@@ -107,6 +107,13 @@ async function stubbed() {
     '/notices.json': { ok: true, notices: [
       { t: now - 60, text: 'report t0031 landed', subject: 'projects/TRD-EHR' },
       { t: now - 30, text: 'report t0032 landed', subject: 'projects/TRD-EHR' }] },
+    // The Meetings library, carrying the deck's record (`with_deck`).
+    '/library.json': { subject: 'projects/Meetings', documents: [
+      { id: 'meeting', artifact: 'docs/meeting', pdf: true, pages: 4, marks: { pages: 1 },
+        meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00' } }],
+      meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00', pages: 4,
+                 period: 'the last week', subjects: ['TRD-EHR'],
+                 check: { numbers: [{ value: '0.7', frame: 2 }], figures: [], internal: [] } } },
     '/assistants.json': { ok: true, assistants: { default: 'claude', agents: [
       { name: 'claude', headless: true, cmd: 'claude' },
       { name: 'codex', headless: true, cmd: 'codex' }] } },
@@ -232,6 +239,14 @@ async function stubbed() {
   check('Meeting deck opens its sheet over every subject but Meetings',
         !d.getElementById('notes').hidden && which.length === 3
         && which.indexOf('projects/Meetings') < 0);
+  await sleep(30);
+  const read = d.getElementById('notes-read');
+  check('a ready deck is offered as the Meetings library opened on it, the one reader',
+        !read.hidden && read.getAttribute('href')
+          === '/library?subject=projects%2FMeetings&doc=meeting&from=home'
+        && /1 to check/.test(d.getElementById('notes-read-sub').textContent)
+        && w.asked.some((r) => r.url === '/library.json?subject=projects%2FMeetings')
+        && !w.asked.some((r) => /^\/meeting\//.test(r.url)));
   d.getElementById('notes-close').click();
   check('Notes and Annotate a PDF are drawn and call nothing until T40',
         d.getElementById('act-notes').disabled && d.getElementById('act-annotate').disabled);
@@ -564,7 +579,7 @@ async function real() {
           + (bad.length ? ': ' + bad.join(', ') : ''), bad.length === 0);
     check('the controls pressed reached the meeting deck',
           w.__requests.some((r) => r.url === '/meeting' && r.method === 'POST')
-          && w.__requests.some((r) => r.url === '/meeting/deck.json'));
+          && w.__requests.some((r) => r.url === '/library.json?subject=projects%2FMeetings'));
 
     await oldLink(base, srv.sid, 'the fixture', true);
   } finally {

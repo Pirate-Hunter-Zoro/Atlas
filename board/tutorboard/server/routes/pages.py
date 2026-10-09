@@ -39,7 +39,7 @@ from ...course import results, walk
 SW_PLACEHOLDER = '"board-shell-dev"'
 # The board and the slate are cached under their /static/ names: a session's
 # `/s/<id>/board` falls back to them (`web/sw.js`).
-SW_PAGES = {"/": "home.html", "/library": "library.html", "/meeting": "meeting.html"}
+SW_PAGES = {"/": "home.html", "/library": "library.html"}
 _sw = {"stamp": None, "body": None, "src_stamp": None, "shell": ()}
 _sw_lock = threading.Lock()
 

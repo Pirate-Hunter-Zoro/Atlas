@@ -1,6 +1,6 @@
 // INK FOLLOWS THE READER'S ZOOM -- one case, run against every reader that
-// zooms (`test/library.js`, `test/deck.js` and `test/paperzoom.js`, the
-// board's built reader, each call it in one line). A reader that is not
+// zooms (`test/library.js` and `test/paperzoom.js`, the board's built
+// reader, each call it in one line). A reader that is not
 // the library's says where its pages are: `t.scroller`, `t.page`, `t.css` and
 // `t.fit`, the page's fit width in pixels, and `t.padX`, `t.gap`, `t.caption`
 // where its layout differs.

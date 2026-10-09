@@ -40,8 +40,7 @@ ICON = re.compile(r"\A/(apple-touch-icon|icon-\d+)\.png\Z")
 #   subject   a subject's own routes. Unprefixed, `?subject=<id>` names the
 #             subject and a sessionless Repo over it serves; under
 #             `/s/<id>/` the session's own subject does.
-#   subject?  the same, and with no `?subject=` the Atlas root serves (the
-#             meeting deck's ink and pages).
+#   subject?  the same, and with no `?subject=` the Atlas root serves.
 #   atlas     cross-subject: unprefixed only, served by a sessionless Repo over
 #             the Atlas root, and 404 under `/s/<id>/`.
 #
@@ -82,16 +81,11 @@ UNPREFIXED = (
     ("GET", "/result/*", "subject"),
     ("GET", "/source/*", "subject?"),
     # machines
-    ("GET", "/meeting", "meeting"),
-    ("GET", "/meeting/", "meeting"),
     ("GET", "/courses.json", "atlas"),
     ("GET", "/atlas.json", "atlas"),
     ("GET", "/news", "atlas"),
     ("GET", "/missions", "atlas"),
     ("GET", "/mission", "atlas"),
-    ("GET", "/meeting/deck.json", "atlas"),
-    ("GET", "/meeting/view", "atlas"),
-    ("GET", "/meeting/pdf", "atlas"),
     ("POST", "/meeting", "atlas"),
     ("POST", "/default-agent", "atlas"),
     ("POST", "/colibri", "atlas"),
@@ -104,11 +98,11 @@ UNPREFIXED = (
     ("POST", "/annotate/save", "subject?"),
 )
 
-# The route classes UNPREFIXED names. A cross-subject one (and the meeting
-# page, which is its page) is 404 under `/s/<id>/`.
+# The route classes UNPREFIXED names. A cross-subject one is 404 under
+# `/s/<id>/`.
 SUBJECT_CLASSES = ("subject", "subject?")
 CROSS = "atlas"
-NOT_IN_SESSION = (CROSS, "meeting")
+NOT_IN_SESSION = (CROSS,)
 
 
 def unprefixed_route(method, path):
@@ -371,13 +365,6 @@ class Handler(BaseHTTPRequestHandler):
         # lesson somebody else is mid-proof in. `/slate` is the precedent.
         if path in ("/library", "/library/"):
             return self.send_file(os.path.join(WEB, "library.html"))
-        # THE MEETING DECK, and it is a page of its own for the same reason the
-        # library is: it belongs to the REPOSITORY rather than to the workspace
-        # this board serves, and nothing on it may touch the sitting. Only the
-        # bare path -- `/meeting/view`, `/meeting/deck.json` and `/meeting/pdf`
-        # are data and are answered by `routes.machines` below.
-        if path in ("/meeting", "/meeting/"):
-            return self.send_file(os.path.join(WEB, "meeting.html"))
         if re.match(r"^/slate/page-\d+\.png$", path):
             return self.send_file(os.path.join(repo.slate, os.path.basename(path)))
 
@@ -477,8 +464,6 @@ class Handler(BaseHTTPRequestHandler):
             # /default-agent chooses among. None when it could not be asked.
             from .. import assistants
             return self.send_json({"ok": True, "assistants": assistants.listing()})
-        if how == "meeting":
-            return self.send_file(os.path.join(WEB, "meeting.html"))
         if how in SUBJECT_CLASSES:
             ident = (query.get("subject") or [""])[0]
             if ident:
