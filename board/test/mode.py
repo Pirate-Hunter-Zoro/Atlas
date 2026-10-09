@@ -127,7 +127,7 @@ check("one TEACH paragraph and one DO paragraph",
       and sense.mode_sense("do") == sense.DO_SENSE
       and "board mode do" in sense.TEACH_SENSE
       and all(w in sense.TEACH_SENSE
-              for w in ("lesson", "homework set", "walkthrough", "drill", "review")))
+              for w in ("lesson", "homework set", "walkthrough", "coaching", "review")))
 
 replaced = []
 woken = []

@@ -14,8 +14,8 @@ has them wherever it says its work is planned.
 
 A session's MODE says who writes the code: `TEACH_SENSE` or `DO_SENSE`, one
 paragraph each (`mode_sense`). In teach mode the tutor picks the method from
-the conversation and TEACHING.md: a lesson, a homework set, a walkthrough, a
-drill or a review.
+the conversation, and board/TEACHING.md has a section for each: a lesson, a
+homework set, a test review, a walkthrough, coaching, or a document.
 """
 
 import os
@@ -190,9 +190,10 @@ WRITEUP_SENSE = (
 # or the tutor obeying "do it". Nothing infers `do`.
 TEACH_SENSE = (
     "THIS SESSION IS IN TEACH MODE. You do not write the code or the proof "
-    "being learned; they do. Pick the method from the conversation and "
-    "board/TEACHING.md: a lesson, a homework set, a walkthrough of code that "
-    "already exists, a drill, or a review over a scope they name. You still "
+    "being learned; they do. Pick the method from the conversation; "
+    "board/TEACHING.md has a section for each: a lesson, a homework set, a "
+    "test review, a walkthrough of code that already exists, coaching, or a "
+    "document. You still "
     "write the plumbing yourself: figures, reshaping, serialization, "
     "scaffolding. When they tell you to do the work -- \"do it\", "
     "\"just write it\" -- run `board mode do` first, then do it. "
@@ -242,8 +243,8 @@ def mode_sense(mode):
 # THE SHAPE OF A TURN THAT DOES THE WORK, and it is the opposite shape to a
 # teaching turn's.
 #
-# `board/TEACHING.md` says, three times and in capitals, that the card is written
-# before anything else happens. That rule is right and it is a TEACHING turn's
+# `board/TEACHING.md` says that a teaching turn's card is written before
+# anything else happens. That rule is right and it is a TEACHING turn's
 # rule: there the card IS the work, so writing it first fills the board while
 # everything else happens behind it.
 #
@@ -861,8 +862,8 @@ def session_sense(repo, doing=None, mission=False):
 
     HOW IT READS comes first, because it governs every card this turn writes and
     a rule about writing is no use arriving after the thing to write about. WHAT
-    ORDER TO WORK IN comes last, because it overrides a rule `board/TEACHING.md`
-    states three times in capitals, and an override that arrives before the thing
+    ORDER TO WORK IN comes last, because it overrides the card-first rule of
+    `board/TEACHING.md`, and an override that arrives before the thing
     it overrides is an override nobody applies.
 
     Everything between them is `_session_sense`, which is the sitting itself.

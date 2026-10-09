@@ -42,49 +42,22 @@ def check(name, cond):
 
 
 # --- the prompts ----------------------------------------------------------
+# Literal phrases here count toward the 30 that test/teaching.py's docstring
+# caps across both files.
 first = prompts.HEADLESS_FIRST_PROMPT
-EVERY_PROMPT = [v for k, v in vars(prompts).items()
-                if k.isupper() and isinstance(v, str)]
 
 check("a turn is told the brief and the recap are above, and not to fetch them",
       "The brief and the recap are above" in first
-      and "Do not run `board brief` or `board recap`" in first
-      and "Run these" not in first)
-check("and is told NOT to read the documents that call replaced",
-      "Do not read" in first and "AI_INSTRUCTIONS.md" in first
-      and "board/TEACHING.md" in first)
-check("and not to read the lesson card by card",
-      "cards file by file" in first)
-check("there is no resume prompt: every turn is a fresh process",
-      not hasattr(prompts, "HEADLESS_RESUME_PROMPT"))
-check("a turn is told not to touch HANDOFF.md", "Do not touch `HANDOFF.md`" in first)
-check("a turn is told to keep TUTOR.md true with `board memo`",
-      "board memo" in first and "800 words" in first)
-check("and no prompt names `board wait`, which is gone",
-      all("board wait" not in p for p in EVERY_PROMPT))
-check("and no prompt names a live/ path a session does not have",
-      all("live/cards" not in p and "live/state.json" not in p
-          and "live/TEACHING.md" not in p for p in EVERY_PROMPT))
-
+      and "Do not run `board brief` or `board recap`" in first)
+check("and not to read the lesson card by card", "cards file by file" in first)
 # The prompt IS the inbox, already marked read. Telling the agent to run
 # `board inbox` as well bought an empty round trip on every single turn.
-check("a turn is not sent to `board inbox` for what it already has",
+check("and not to run `board inbox` for what it already has",
       "do not run `board inbox`" in first.lower())
-
-check("the handoff is capped, because it is read on every future session",
-      "350 words" in prompts.HANDOFF_PROMPT)
-check("and it is written through the one command that enforces the cap",
-      "board handoff" in prompts.HANDOFF_PROMPT)
-check("the wrap-up is handed the recap, and told not to fetch it",
-      "The recap is above" in prompts.HANDOFF_PROMPT
-      and "Do not run `board recap`" in prompts.HANDOFF_PROMPT
-      and "file by file" in prompts.HANDOFF_PROMPT)
-check("the handoff turn reads no document to write itself",
-      "do not read ai_instructions.md" in prompts.HANDOFF_PROMPT.lower()
-      and "board/TEACHING.md" in prompts.HANDOFF_PROMPT
-      and "old HANDOFF.md" in prompts.HANDOFF_PROMPT)
-check("the handoff is not a documentation review either",
-      "Do not review" in prompts.HANDOFF_PROMPT)
+check("a turn is told to keep TUTOR.md true with `board memo`",
+      "board memo" in first)
+check("there is no resume prompt: every turn is a fresh process",
+      not hasattr(prompts, "HEADLESS_RESUME_PROMPT"))
 
 # --- every turn is a fresh process ----------------------------------------
 # Every session's turn runs in the Atlas root, so a resume would pick up
@@ -113,27 +86,16 @@ check("the config says how big an allowance window is, without guessing",
 
 # --- the session's mode ------------------------------------------------------
 # `mode: do` is what the owner sets when they want the work done rather than
-# taught. It is never guessed: writing the code for somebody who wanted to learn
-# it is the one mistake here the next card cannot undo. One paragraph each.
-
+# taught. It is never guessed: anything that is not `do` teaches.
 from tutorboard import sense as serve_mod                    # noqa: E402
 
 check("teaching is the default, and anything that is not do teaches",
       serve_mod.mode_sense("teach") == serve_mod.TEACH_SENSE
       and serve_mod.mode_sense(None) == serve_mod.TEACH_SENSE
       and serve_mod.mode_sense("code") == serve_mod.TEACH_SENSE)
-do = serve_mod.mode_sense("do")
-check("do mode is told to write the code",
-      "you write the code" in do.lower())
-check("and to run what needs running", "run what needs running" in do)
-check("but still one card", "one card" in do.lower())
-check("and the card-first ordering is no longer claimed for a doing turn",
-      "before the rest" not in do)
-check("which has an order of its own that says so outright",
-      "opposite" in serve_mod.DOING_SENSE.lower()
-      and "board write --over" in serve_mod.DOING_SENSE)
-check("and to say what it did not actually verify", "did NOT verify" in do)
-check("and no subject is read anywhere in the config",
+check("do mode is a paragraph of its own",
+      serve_mod.mode_sense("do") == serve_mod.DO_SENSE != serve_mod.TEACH_SENSE)
+check("and no subject's config carries a mode",
       "mode" not in serve_mod.config.read_config(tempfile.gettempdir()))
 
 # --- board recap ----------------------------------------------------------
@@ -293,17 +255,14 @@ try:
     out = p.stdout.decode("utf-8", "replace")
     check("brief runs", p.returncode == 0)
     check("it says what this sitting is", "Test Course" in out and "Ch 1 - Groups" in out)
-    check("it carries the method rather than a pointer to it",
-          "THE LESSON IS EXERCISES" in out)
-    check("and the measure the work already has, which every sitting is asked for",
-          "NAME THE MEASURE THIS WORK ALREADY HAS" in out)
+    check("it carries the method, the measure and how a turn works",
+          serve_mod.METHOD_SENSE in out and serve_mod.MEASURE_SENSE in out
+          and brief_mod.TURN_SENSE in out)
     check("it carries the owner's RULES.md", "never make the user transcribe" in out)
     check("and the tutor's TUTOR.md, whole", "subgroups and orders" in out
           and "which book's notation" in out)
-    check("it says how a turn works now",
-          "board memo" in out and "Do not wait" in out and "own session" in out)
-    check("it names board/TEACHING.md for a rule that needs its detail",
-          "board/TEACHING.md" in out)
+    check("it names the method's file for a rule that needs its detail",
+          brief_mod.METHOD in out)
     check("and reads none of the contract, the handoff or the README",
           "padding that a turn" not in out and "they got cosets" not in out
           and "never briefed" not in out)
@@ -353,10 +312,6 @@ check("and appending it twice does not repeat it",
       == usage.with_usage(claude, claude["headless_first"]))
 check("an agent that reports nothing is simply not accounted for",
       usage.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
-check("and `board cost` splits the evening by who taught it, because the "
-      "reason to have three is to see which one it went on",
-      "by_agent.setdefault" in open(os.path.join(ROOT, "tutorboard", "agents",
-                                                 "usage.py"), encoding="utf-8").read())
 
 fd, logpath = tempfile.mkstemp(prefix="tutor-cost-", suffix=".log")
 try:
