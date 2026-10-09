@@ -29,8 +29,8 @@ from . import NOT_MINE
 from .. import registry
 from ...net import tailscale
 from ... import assistants
+from ... import keys
 from ... import limits
-from ... import paths
 from ... import choice
 from .. import spawn
 from ... import atlas
@@ -46,55 +46,8 @@ from ... import stamp
 from ...course import config
 from ...course import paper
 from ...course import threads
-from ...course.repo import Repo
 from ...lesson import state
 from ...course import repo as course_repo
-
-
-def _repin_open_sittings(want, known):
-    """Point every open sitting on this machine at `want`. Names what moved.
-
-    A sitting that named an assistant when it opened outranks the machine
-    default for ever, so changing the default alone leaves the evening it was
-    changed for exactly where it was. This is what makes the front door's tap
-    mean what the person tapping it means.
-
-    Two are left alone, and both would be a worse answer than not switching:
-
-    * A SITTING ON THE FENCED READER. `private` is the flag that says an
-      assistant may open the workspace holding `phi`, and it is the only one
-      that may: moving that sitting to a hosted provider puts identifiable
-      audio in front of a remote, from a tap that was about an allowance. It
-      is refused as a machine default one screen up for the same reason.
-    * A WORKSPACE WITH NO SITTING OPEN. There is nothing there to move, and
-      writing an agent into a `state.json` that has no session would pin an
-      evening nobody has started yet.
-
-    Never raises: a workspace whose `state.json` cannot be read or written is
-    skipped and the rest are still moved. A provider switch that half-worked is
-    worth more than one that threw.
-    """
-    moved = []
-    for ws in atlas.workspaces():
-        now = config.sitting_agent(ws["root"])
-        if not now or now == want:
-            continue
-        if (known.get(now) or {}).get("private"):
-            continue
-        try:
-            here = Repo(ws["root"])
-            st = here.state()
-            if not st.get("session"):
-                continue
-            st["agent"] = want
-            tmp = here.state_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(st, fh, indent=2)
-            os.replace(tmp, here.state_path)
-        except (OSError, ValueError, TypeError):
-            continue
-        moved.append(ws["dir"])
-    return moved
 
 
 def get(h, repo, path):
@@ -343,102 +296,57 @@ def post(h, repo, path):
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/default-agent":
-        # WHICH ASSISTANT THIS MACHINE FALLS BACK TO, SET FROM THE FRONT DOOR.
-        #
-        # The machine layer of `resolve_agent`'s precedence, which is the
-        # LOWEST one -- so writing it is half the job, and the other half is
-        # below: the sittings already open have named an assistant and that
-        # name outranks this.
-        #
-        # THE CHECKS ARE NOT OPTIONAL AND EACH ONE HAS ITS OWN REASON. An
-        # unknown name leaves the machine with no resolvable tutor. An unkeyed
-        # one is a daemon that listens and then fails every turn into a log. And
-        # a `private` recipe must never be the machine default, because it is
-        # the fenced reader and its cards must not be pushed -- a default is a
-        # decision about every workspace, including the ones whose `live/` is
-        # tracked.
+        # THE ONE PROVIDER SETTING, SET FROM THE FRONT DOOR: `provider` in this
+        # machine's config, and nothing else in that file. Every turn re-reads
+        # the config (`loop.for_this_turn`), so the next turn of every session
+        # takes it with nothing restarted. Refused: an unknown name, one this
+        # machine cannot run (binary or key missing), and an in-fence model,
+        # because only it reads phi and it never takes a turn here. An
+        # allowance that has run out is not refused: the fallback covers it.
+        from ...agents import recipes
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError):
             return h.send_json({"ok": False, "detail": "bad request"}, status=400)
         want = str((payload or {}).get("agent") or "").strip()
-        table = assistants.listing() or {}
-        known = {a.get("name"): a for a in (table.get("agents") or [])}
-        got = known.get(want)
-        if not got:
-            return h.send_json({"ok": False,
-                                "detail": "'%s' is not an assistant on this "
-                                          "machine" % want}, status=400)
-        if got.get("barred"):
-            # The switch outranks the machine default: writing one it bars
-            # would be a default no turn ever runs.
-            return h.send_json({"ok": False,
-                                "detail": "%s -- `tutor agent only --off` "
-                                          "lifts it" % got["barred"]},
-                               status=400)
-        if got.get("missing"):
-            return h.send_json({"ok": False,
-                                "detail": "`%s` is not installed here"
-                                          % got["missing"]}, status=400)
-        if got.get("unkeyed"):
-            return h.send_json({"ok": False,
-                                "detail": "%s is not in %s"
-                                          % (got["unkeyed"],
-                                             got.get("keys") or "the key file")},
-                               status=400)
-        if got.get("private"):
-            return h.send_json({"ok": False,
-                                "detail": "'%s' is the fenced reader and is "
-                                          "never a machine default -- choose it "
-                                          "for a sitting instead" % want},
-                               status=400)
+        cfg = recipes.load_config()
+        spec = (cfg.get("agents") or {}).get(want)
+        why = None
+        if not isinstance(spec, dict):
+            why = "'%s' is not an assistant on this machine" % want
+        else:
+            why = recipes.in_fence(cfg, want)
+            gone = recipes.missing_command(spec.get("cmd"))
+            need = keys.unkeyed(spec)
+            why = why or (gone and "`%s` is not installed here" % gone) or (
+                need and "%s is not in %s" % (need, keys.store()))
+        if why:
+            return h.send_json({"ok": False, "detail": why}, status=400)
         try:
-            with open(paths.CONFIG, "r", encoding="utf-8") as fh:
-                cfg = json.load(fh) or {}
+            with open(recipes.CONFIG, "r", encoding="utf-8") as fh:
+                on_disk = json.load(fh) or {}
         except (OSError, ValueError):
-            cfg = {}
-        cfg["default_agent"] = want
-        # Atomically, the way `limits.mark_limited` writes: this file is read by
-        # every `tutor` invocation on the machine and a half-written one takes
-        # the whole tool out.
-        os.makedirs(os.path.dirname(paths.CONFIG), exist_ok=True)
-        tmp = paths.CONFIG + ".tmp"
+            on_disk = {}
+        on_disk["provider"] = want
+        on_disk.pop("default_agent", None)
+        # Atomically: every turn reads this file, and a half-written one
+        # takes the tutor out.
+        os.makedirs(os.path.dirname(recipes.CONFIG), exist_ok=True)
+        tmp = recipes.CONFIG + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(cfg, fh, indent=2)
+                json.dump(on_disk, fh, indent=2)
                 fh.write("\n")
-            os.replace(tmp, paths.CONFIG)
+            os.replace(tmp, recipes.CONFIG)
         except OSError as exc:
             return h.send_json({"ok": False, "detail": str(exc)}, status=500)
-        # AND THE SITTINGS THAT HAVE ALREADY NAMED ONE, which is the half that
-        # was missing and the whole of why this tap read as doing nothing.
-        #
-        # `default_agent` is the LOWEST layer of `resolve_agent`'s precedence,
-        # so a sitting that named an assistant when it opened outranks it for
-        # ever -- and every sitting opened from the board names one, because the
-        # chooser on the open panel writes it. Reported from the iPad: *"when I
-        # tried to switch to codex on the homescreen, it wouldn't switch and I
-        # was stuck on claude, which I had used up my limit on."* Nothing was
-        # broken. The tap did exactly what it was written to do, and what it was
-        # written to do could not reach the evening it was tapped for.
-        #
-        # There is no other surface for this: the board's own chooser stages a
-        # choice for a sitting being OPENED and no route changes a running one.
-        # So a person out of allowance had to end the evening to change provider
-        # -- which is the laptop-and-account-page this tap exists to replace.
-        #
-        # It costs the lesson nothing. `session_turns` is 1, so every hosted
-        # turn is already cold and reads the evening back off `board brief` and
-        # `board recap`; and `resolve_agent` is re-asked at the top of every
-        # turn, so a running daemon picks this up on the next card with nothing
-        # restarted.
-        moved = _repin_open_sittings(want, known)
-        # Or the 900-second cache means the tap appears to do nothing for a
-        # quarter of an hour.
         assistants.forget()
         h.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "default": want, "moved": moved,
-                            "assistants": assistants.listing()})
+        table = assistants.listing()
+        return h.send_json({"ok": True, "default": want,
+                            "machine": (table or {}).get("machine"),
+                            "why": (table or {}).get("why"),
+                            "assistants": table})
 
     if path == "/colibri":
         # START THE LOCAL MODEL'S SERVER, AND SAY SO AT ONCE.

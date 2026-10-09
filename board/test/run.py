@@ -51,7 +51,7 @@ GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py",
           "code.py", "py37.py", "exporting.py", "phi_probe.py"]
 
 # Started first, because they are the longest; the rest follow by name.
-FIRST = ["link.js", "onlyagent.py", "plane.js", "factory", "seam.js", "relay.py"]
+FIRST = ["link.js", "plane.js", "factory", "seam.js", "relay.py"]
 
 
 class Suite(object):

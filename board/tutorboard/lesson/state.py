@@ -49,7 +49,7 @@ def load_agent(repo):
     st["failure"] = _failure(repo, st)
     # AND WHETHER THE PROVIDER ON THIS RECORD IS STANDING ASIDE, which until now
     # reached nobody. The expiry is written into `unreachable.json`, read by
-    # `agent_unavailable`, and rendered in two places a person holding an iPad
+    # `seeing.route`, and rendered in two places a person holding an iPad
     # cannot see: the `!!` lines in `agent.log` and the terminal output of
     # `board agents`. It is the one fact that answers "why is nothing
     # happening" -- the host, and when it will be asked again -- so it goes in

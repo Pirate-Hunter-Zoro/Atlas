@@ -1479,15 +1479,19 @@ function render(data) {
          the question mark are TEXT, they scale with the type, they survive the
          card being folded to its heading, and they are the whole of what this
          says to somebody who cannot tell the green from the red. */
-      if (c.kind !== "lesson" || shown || band) {
+      /* AND THE FALLBACK THAT WROTE IT, when the provider could not: `by` is
+         stamped by `board write` on a turn `recipes.resolve` handed over. */
+      if (c.kind !== "lesson" || shown || band || c.by) {
         head = '<div class="card-head">' +
                '<span class="kind">' + (KIND_LABEL[c.kind] || c.kind) + "</span>" +
                (run > 1 ? '<span class="streak">' + run + ' in a row</span>' : "") +
                (shown ? '<span class="card-title"></span>' : "") +
+               (c.by ? '<span class="card-by"></span>' : "") +
                '<span class="card-num">' + c.id + "</span></div>";
       }
       node.innerHTML = head + '<div class="body"></div>';
       if (shown) node.querySelector(".card-title").textContent = shown;
+      if (c.by) node.querySelector(".card-by").textContent = "by " + c.by;
       node.querySelector(".body").innerHTML = renderMarkdown(c.body || "");
       if (offer) {
         var over = document.createElement("button");
@@ -2248,7 +2252,7 @@ function paintSession(state, push, agent, exported, hwBuilt) {
      AND IT DOES NOT STAMP ON A CLIMB-DOWN THAT WAS ALREADY WRITTEN THERE. This
      line ran unconditionally five lines after the one above it and won every
      time, so `agent_why` -- the sentence a student is owed when somebody else
-     is teaching -- reached nobody on any code path. `choose_agent`'s own
+     is teaching -- reached nobody on any code path. `recipes.resolve`'s own
      docstring says "AND THE STUDENT IS TOLD, which is the condition on all of
      it"; that condition was not met. The real answer is that a title is a hover
      tooltip on a device with no hover, which is why the sentence is now in the
@@ -4655,10 +4659,7 @@ function paintWho() {
   var local = have.filter(function (a) { return a.exclusive; })[0];
   var picked = local && now === local.name;
   if (!picked || !colibriNow) {
-    /* The switch, when it is on, is what the greyed-out buttons mean. A page
-       whose who.js predates it says nothing rather than throwing. */
-    els.kindWhoNote.textContent = window.WhoChoice.only
-      ? window.WhoChoice.only(assistants) : "";
+    els.kindWhoNote.textContent = "";
     els.kindWhoUp.hidden = true;
     return;
   }

@@ -726,47 +726,31 @@ panel.hidden
   await sleep(60);
 }
 
-// THE ONLY-AGENT SWITCH. `tutor --agents --json` carries `only` and a `barred`
-// sentence on every recipe it rules out; the buttons stay drawn, greyed, and a
-// tap says the sentence and lands nowhere.
+// THERE IS NO SWITCH: one provider setting, and a recipe that cannot take a
+// turn right now (an in-fence model, an allowance gone) is drawn greyed with
+// the server's sentence as its title.
 {
   const lone = new JSDOM('<div id="ways"></div>', { runScripts: 'outside-only' });
   lone.window.eval(fs.readFileSync(path.join(WEB, 'who.js'), 'utf8'));
   const W = lone.window.WhoChoice;
-  const why = 'this machine is running DeepSeek only';
+  const why = "'colibri' is an in-fence model: only it reads phi, and it never takes a turn here";
   const table = {
-    only: { agent: 'deepseek', label: 'DeepSeek', why: why },
     agents: [
-      { name: 'claude', headless: true, cmd: 'claude', barred: why, unavailable: why },
-      { name: 'deepseek', headless: true, cmd: 'opencode' },
-      { name: 'colibri', headless: true, cmd: 'coli-code', private: 'phi' },
+      { name: 'claude', headless: true, cmd: 'claude' },
+      { name: 'colibri', headless: true, cmd: 'coli-code', private: 'phi', unavailable: why },
     ],
   };
   const host = lone.window.document.getElementById('ways');
-  const picked = [];
-  let note = '';
-  W.draw(host, W.offerable(table), 'deepseek', {
-    say: (m) => { note = m; }, pick: (a) => picked.push(a.name) });
+  W.draw(host, W.offerable(table), 'claude', { say: () => {}, pick: () => {} });
   const btn = (n) => Array.from(host.querySelectorAll('button'))
     .filter((b) => b.textContent === n)[0];
-  btn('claude') && btn('claude').classList.contains('away')
-    ? ok('a recipe the switch bars is still drawn, greyed')
-    : fail('the barred recipe is hidden or not greyed');
-  btn('claude').click();
-  picked.length === 0 && note === why
-    ? ok('and a tap on it says the switch and lands nowhere: "' + note + '"')
-    : fail('a tap on a barred recipe picked it or said "' + note + '"');
-  btn('colibri').click();
-  picked.join() === 'colibri'
-    ? ok('the fenced reader is not barred: the switch is about hosted providers')
-    : fail('the switch barred the fenced reader');
-  W.choosable(table).map((a) => a.name).join() === 'deepseek,colibri'
-    ? ok('and a barred recipe is not choosable')
-    : fail('choosable still offers a barred recipe');
-  /DeepSeek only/.test(W.only(table)) && /tutor agent only --off/.test(W.only(table))
-    && W.only({ agents: [] }) === ''
-    ? ok('the switch is one line under the buttons, naming how to lift it')
-    : fail('the switch line reads "' + W.only(table) + '"');
+  btn('colibri') && btn('colibri').classList.contains('away') && btn('colibri').title === why
+    ? ok('an in-fence recipe is drawn greyed, and says why')
+    : fail('the in-fence recipe is hidden, not greyed, or silent');
+  typeof W.only === 'undefined' && !/barred|only_agent/.test(
+    fs.readFileSync(path.join(WEB, 'who.js'), 'utf8'))
+    ? ok('and there is no switch to draw')
+    : fail('who.js still draws the only-agent switch');
 }
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'

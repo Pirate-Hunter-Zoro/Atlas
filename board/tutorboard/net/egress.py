@@ -119,12 +119,8 @@ def egress_ok(timeout=12, urls=None, also=()):
 # home directory is shared between compute nodes and a block seen on the
 # allocation that ended yesterday is not this machine's news.
 #
-# Written from a turn that has ALREADY failed, and from the one other moment
-# worth a round trip: a sitting being pointed at a recipe with a provider of its
-# own, which is rare, deliberate, and the moment a dead provider costs a student
-# a three-minute turn that writes nothing. Not before every card -- that would
-# put a round trip to the internet in front of every answer to ask a question
-# whose answer is almost always yes. See `probe_before_turn` in `agents/recipes.py`.
+# Written by `board see` when a vision endpoint refuses a connection, and read
+# by `seeing.route` and the board. The turn resolver does not consult it.
 UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
 
 # How long a block is believed for. One failed turn buys the finding, and one
@@ -208,24 +204,12 @@ def mark_unreachable(agent, host, until=None, node=None):
     return _stand_down(agent, host, "", until=until, node=node)
 
 
-def mark_failing(agent, why, until=None, node=None):
-    """Write down that this AGENT's turns fail here for a reason that is not the network.
-
-    A renamed model, a rejected key, a provider answering 404 to every request:
-    the host answers, so nothing above notices, and `choose_agent` hands the next
-    turn straight back to a recipe that cannot write a card. Every student
-    message then costs a full failed turn, for ever. This is the same climb-down
-    as a dark host, bought by repeated failure rather than by a probe, and `why`
-    is the provider's own sentence so the board can say what is wrong.
-    """
-    return _stand_down(agent, "", why, until=until, node=node)
-
-
 def stood_down(agent, now=None):
-    """`{host, why, until}` while this agent cannot take a turn here, else None.
+    """`{host, why, until}` while this agent's host does not answer here, else None.
 
-    Both kinds of stand-down: `host` is set when the provider's name does not
-    answer, `why` when its turns fail for a reason the network is innocent of.
+    Written by `board see` when a vision endpoint refuses a connection; read by
+    `seeing.route` and painted by the board. Turns do not consult it: the
+    resolver's reasons are a missing binary, a missing key and a usage limit.
     """
     got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
     if not isinstance(got, dict):

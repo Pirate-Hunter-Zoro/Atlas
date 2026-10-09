@@ -118,9 +118,6 @@ class Runner(object):
         self.cv = threading.Condition()
         self.stopping = False
         self.threads = []
-        # (agent, reason, count) of each session's last failure, so the same
-        # failure twice stands a recipe down (`loop.take_turn`).
-        self.striking = {}
 
     # -- queueing --------------------------------------------------------
     def queue(self, sid, job):
@@ -155,12 +152,7 @@ class Runner(object):
         st = daemon.agent_record_at(where) or {}
         if st.get("pid") == os.getpid() or processes.pid_alive(st.get("pid")):
             return False
-        name = st.get("agent")
-        if not name:
-            root = sessions.repo(os.path.basename(where), self.atlas).root
-            name = recipes.resolve_agent(recipes.load_config(),
-                                         recipes.read_course(root),
-                                         say=lambda m: None)
+        name = st.get("agent") or recipes.resolve(recipes.load_config())[0]
         daemon.agent_state(where, pid=os.getpid(), host=recipes.this_host(),
                            agent=name, state="listening")
         return True
@@ -184,22 +176,7 @@ class Runner(object):
             t = threading.Thread(target=self._work, name="turn-%d" % n, daemon=True)
             t.start()
             self.threads.append(t)
-        threading.Thread(target=self._keep_warm, name="probe", daemon=True).start()
         return self
-
-    def _keep_warm(self):
-        """Ask whether the default provider's own host answers, off the path
-        of any turn: `probe_before_turn` caches for PROBE_TTL in this process,
-        so a turn finds the answer already there and spawns at once."""
-        while not self.stopping:
-            try:
-                cfg = recipes.load_config()
-                name = recipes.resolve_agent(cfg, None, say=lambda m: None)
-                if name:
-                    recipes.probe_before_turn(cfg, name)
-            except Exception:                                # noqa: BLE001
-                pass
-            time.sleep(recipes.PROBE_TTL / 2.0)
 
     def _work(self):
         while True:
@@ -234,9 +211,10 @@ class Runner(object):
         cfg = recipes.load_config()
         course = {"root": repo.root, "dir": os.path.basename(repo.root),
                   "name": course_config.read_config(repo.root)["name"]}
-        plain = dict(recipes.read_course(repo.root), dir=course["dir"])
-        name = (recipes.resolve_agent(cfg, plain, say=lambda m: None)
-                or cfg.get("default_agent"))
+        # Who wrote last, so an `[unfinished]` report stays with it
+        # (`loop.for_this_turn`); every other turn re-resolves.
+        name = ((daemon.agent_record_at(repo.live) or {}).get("agent")
+                or recipes.resolve(cfg)[0])
         env = dict(os.environ)
         env["TUTORBOARD_SESSION"] = repo.live
         env["TUTORBOARD_TURN"] = "1"
@@ -254,8 +232,7 @@ class Runner(object):
         ctx = loop.Ctx(cfg=cfg, course=course, repo=repo, root=repo.root,
                        cwd=self.atlas, live=repo.live, log=log, logpath=logpath,
                        agent_name=name, spec=cfg["agents"].get(name) or {},
-                       turns=self._turns(repo.live), env=env, sid=sid,
-                       striking=self.striking.setdefault(sid, [None, None, 0]))
+                       turns=self._turns(repo.live), env=env, sid=sid)
         ctx.on_start = self._on_start(sid, ctx, landed)
         return ctx
 
@@ -314,11 +291,11 @@ class Runner(object):
                 return False
             if got.get("error") is None:
                 return True               # the [unfinished] report: now
-            # A failure the turn repaired itself (a climb-down): answer it again
+            # A failure the turn repaired itself (the fallback): answer it again
             # now only where another agent would take it, or the same failure
             # repeats for ever. Otherwise it stays owed for the next wake.
-            nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)
-            if nxt != ctx.agent_name:
+            nxt, _ = recipes.resolve(recipes.load_config())
+            if nxt and nxt != ctx.agent_name:
                 return True
             ctx.log.write("-- the message stays owed; the next turn answers it\n")
             return False

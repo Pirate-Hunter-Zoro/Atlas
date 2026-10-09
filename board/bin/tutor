@@ -8,12 +8,11 @@ message; nothing here starts one.
     tutor agent status          which course has an assistant attached
     tutor agent start galois    refused: the board server takes every turn
     tutor agent stop galois     ask it to write its handoff and go
-    tutor agent only deepseek   run one assistant only on this machine (--off lifts it)
     tutor resume [course]       bring the board back on this Mac (a stub on the cluster)
     tutor cost                  what every session's turns cost, one line each
     tutor cost <session|subject> [--turns]
                                 one session, or every session on a subject
-    tutor doctor [agent] [--keep]  prove a built-in recipe against its live provider
+    tutor doctor [agent]        one real turn per provider: does it write a card?
     tutor pull                  move vendor/colibri forward and commit the pointer
     tutor pull --hear [--status]  pull every 20 s; hear the cluster's reports
     tutor relay ...             board/bin/relay: the cluster's relay (what scrontab runs)
@@ -22,10 +21,11 @@ message; nothing here starts one.
     tutor watch                 keep the boards and tutors here up, and repair what dies
     tutor down [course]         stop serving here -- the boards, the tutors, the link
     tutor --list                the workspaces on disk
-    tutor --agents [--json]     which assistants are configured
+    tutor --agents [--json]     the provider, its fallback, and every recipe
 
 Boards run on the Mac. The cluster runs the relay and no model, ever.
-Which assistant runs is configuration, not code; see `tutor --agents`.
+Which assistant runs is one setting: `provider`, its one `fallback`, and
+`vision_agent` in the machine's config; see `tutor --agents`.
 """
 
 import json
@@ -44,7 +44,6 @@ RELAY = os.path.join(TOOL, "bin", "relay")
 
 def cmd_agent(cfg, args):
     """tutor agent status|start|ensure|stop|which [course]
-       tutor agent only <name>|--off
 
     The board drives this when a course is opened or left. Each course keeps its
     own assistant: they are cheap while idle, and one that survives being left
@@ -52,8 +51,6 @@ def cmd_agent(cfg, args):
     """
     sub = args[0] if args else "status"
     rest = [a for a in args[1:] if not a.startswith("--")]
-    if sub == "only":
-        return agent_only(cfg, args[1:])
     found = daemon.courses(cfg)
 
     if sub == "status":
@@ -76,16 +73,9 @@ def cmd_agent(cfg, args):
         return code
 
     if sub == "which":
-        # WHICH ASSISTANT THIS WORKSPACE RUNS WHEN NOBODY NAMES ONE.
-        #
-        # `resolve_agent` is the one place the precedence lives, and a dispatch
-        # has to know the answer: an assistant it STARTS for a mission is the
-        # mission's and is given back when the mission ends, while the
-        # workspace's own stays. A second copy of four layers in the server is
-        # a second copy that drifts. Nothing but the name on stdout, and an
-        # empty line where the configuration resolves to nothing, because the
-        # board reads this rather than a person.
-        print(recipes.resolve_agent(cfg, course, say=lambda m: None) or "")
+        # Who takes the next turn here: the name on stdout, empty where
+        # nobody can, because the board reads this rather than a person.
+        print(recipes.resolve(cfg)[0] or "")
         return 0
 
     if sub == "ensure":
@@ -95,7 +85,7 @@ def cmd_agent(cfg, args):
         # cannot.
         if daemon.agent_live(course["root"]):
             return 0
-        name = recipes.resolve_agent(cfg, course, daemon.flag(args, "--agent"))
+        name = recipes.resolve(cfg)[0]
         code, msg = daemon.agent_start(cfg, course, name)
         print(msg, file=sys.stderr if code else sys.stdout)
         return code
@@ -108,7 +98,7 @@ def cmd_agent(cfg, args):
         # wait` and costs nothing while nobody is asking it anything, so there is
         # no reason to make attention exclusive. They still write their handoff
         # when they are actually stopped.
-        name = recipes.resolve_agent(cfg, course, daemon.flag(args, "--agent"))
+        name = recipes.resolve(cfg)[0]
         # Somebody named this course -- on the command line, or by tapping it in
         # the hub, which comes through here. That is a decision and it moves the
         # address; `agent_start` does not record one, because its other callers
@@ -125,62 +115,6 @@ def cmd_agent(cfg, args):
 
     print("unknown: tutor agent %s" % sub, file=sys.stderr)
     return 1
-
-
-def agent_only(cfg, args):
-    """`tutor agent only <name>` sets the switch; `--off` lifts it.
-
-    One key, `only_agent`, in this machine's config, written the way the front
-    door writes `default_agent`: the file as it is on disk with one key
-    changed, atomically, because every `tutor` on the machine reads it. A name
-    the switch could not honour is refused before it is written -- a recipe
-    that is not here, the fenced reader, or one that cannot take a turn today
-    -- because a switch naming nothing runnable leaves the machine with no
-    tutor at all. A running daemon picks it up on its next turn.
-    """
-    off = "--off" in args
-    named = [a for a in args if not a.startswith("--")]
-    if off == bool(named):
-        print("usage: tutor agent only <name>   or   tutor agent only --off",
-              file=sys.stderr)
-        return 2
-    if named:
-        name = named[0]
-        spec = (cfg.get("agents") or {}).get(name)
-        bare = dict(cfg, only_agent=None)
-        why = (("there is no recipe called '%s'; try: tutor --agents" % name)
-               if not spec else
-               ("'%s' is the fenced reader, and the switch is about hosted "
-                "providers" % name) if spec.get("private") else
-               recipes.agent_unavailable(bare, name))
-        if why:
-            print("tutor agent only: %s" % why, file=sys.stderr)
-            return 1
-    try:
-        with open(recipes.CONFIG, "r", encoding="utf-8") as fh:
-            user = json.load(fh) or {}
-    except FileNotFoundError:
-        user = {}
-    except (OSError, ValueError) as exc:
-        print("tutor agent only: cannot read %s (%s)" % (recipes.CONFIG, exc),
-              file=sys.stderr)
-        return 1
-    if off:
-        user.pop("only_agent", None)
-    else:
-        user["only_agent"] = named[0]
-    os.makedirs(os.path.dirname(recipes.CONFIG), exist_ok=True)
-    tmp = recipes.CONFIG + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(user, fh, indent=2)
-        fh.write("\n")
-    os.replace(tmp, recipes.CONFIG)
-    if off:
-        print("only_agent is off: every installed assistant is available again")
-    else:
-        print("this machine is running %s only (\"only_agent\": \"%s\" in %s)"
-              % (recipes.agent_label(cfg, named[0]), named[0], recipes.CONFIG))
-    return 0
 
 
 def cmd_resume(cfg, args):
@@ -249,7 +183,7 @@ def cmd_resume(cfg, args):
         if daemon.agent_live(root):
             started = ", tutor already attached"
         else:
-            name = recipes.resolve_agent(cfg, course, daemon.flag(args, "--agent"))
+            name = recipes.resolve(cfg)[0]
             code, msg = daemon.agent_start(cfg, course, name)
             started = (", %s attached" % name) if code == 0 \
                 else (", no tutor (%s)" % msg)
@@ -338,113 +272,26 @@ def main(argv):
             print()
             return 0
         elif a == "--agents":
-            shadows = recipes.config_shadows()
-            # AS JSON, FOR THE BOARD, and out of this one table rather than a
-            # second list somewhere the browser can read. The board offers the
-            # choice of assistant for a sitting being opened, so it has to know
-            # which ones this machine actually has -- and the registry is here,
-            # because an agent entry is a command recipe. Asked once per board
-            # process and cached; see `tutorboard/assistants.py`.
+            # The board reads the same table in-process (`recipes.listing`).
+            table = recipes.listing(cfg)
             if "--json" in argv:
-                print(json.dumps({
-                    "default": cfg["default_agent"],
-                    # What a sitting that names nobody, in a workspace that
-                    # names nobody for its kind, gets ON THIS MACHINE, as in
-                    # `resolve_agent`. The thread sheet draws it.
-                    "machine": recipes.resolve_agent(cfg, None, say=lambda m: None),
-                    # Who reads an image for an assistant that cannot. Named
-                    # here rather than guessed at by the caller, because the
-                    # registry is this table and a second one drifts.
-                    "vision_agent": cfg.get("vision_agent") or None,
-                    # THE SWITCH, so the strip can say why every other button
-                    # is grey: the recipe this machine runs only, its label,
-                    # and the sentence each barred recipe carries. Null when
-                    # it is off. See `only_bars`.
-                    "only": ({"agent": recipes.only_agent(cfg),
-                              "label": recipes.agent_label(cfg, recipes.only_agent(cfg)),
-                              "why": "this machine is running %s only"
-                                     % recipes.agent_label(cfg, recipes.only_agent(cfg)),
-                              "config": recipes.CONFIG}
-                             if recipes.only_agent(cfg) else None),
-                    "agents": [
-                        {"name": n,
-                         "cmd": " ".join(spec.get("cmd", [])),
-                         "missing": recipes.missing_command(spec.get("cmd")),
-                         # AND THE SECOND WAY A RECIPE CANNOT RUN HERE. An
-                         # executable that is absent is `missing`; a key that is
-                         # absent is this. Both have to reach the browser,
-                         # because a button that is drawn, tapped, and dies in a
-                         # log file hands the person holding the iPad the one
-                         # thing they can least act on. The key's NAME is the
-                         # value, so the dimmed button's title can say which
-                         # line to put in the file.
-                         "unkeyed": keys.unkeyed(spec),
-                         # And where that file is, once, so the whole of the
-                         # setup instructions for a provider is on the glass.
-                         "keys": keys.store(),
-                         # Why this one may refuse to open, in the recipe's own
-                         # words, so the board can say it before the tap rather
-                         # than after.
-                         "exclusive": spec.get("exclusive") or None,
-                         "private": spec.get("private") or None,
-                         # Where an image goes when the assistant running the
-                         # sitting cannot see one. The whole route, because
-                         # `board see` resolves it out of this rather than out
-                         # of a second copy of the table -- an endpoint and a
-                         # model name are not secrets, and the key is named
-                         # rather than carried. See `tutorboard/seeing.py`.
-                         "vision": spec.get("vision") or None,
-                         # AND WHETHER IT COULD TAKE A TURN RIGHT NOW, which is
-                         # a different question from whether it is installed and
-                         # keyed. An allowance that has run out and a hostname
-                         # this machine cannot open are both facts already on
-                         # disk, and until they reached here the chooser drew a
-                         # dark provider as a live button: `deepseek` undimmed
-                         # and tappable while its TLS handshake was being reset
-                         # at 57 ms. This is a file read, not a round trip --
-                         # `agent_unavailable` is documented as reading those
-                         # findings rather than measuring them, precisely so it
-                         # can sit under a poll.
-                         "unavailable": recipes.agent_unavailable(cfg, n),
-                         # And whether that is the switch rather than a fact
-                         # about the recipe: a barred button is not tappable
-                         # at all, where a stood-down one still is.
-                         "barred": recipes.only_bars(cfg, n),
-                         # AND WHICH FIELDS OF IT THIS MACHINE'S CONFIG IS
-                         # HOLDING DOWN. A merged field is frozen at the day
-                         # somebody wrote it, so a fix shipped to the recipe
-                         # lands everywhere except here -- and nothing said so
-                         # until this. See `config_shadows`.
-                         "shadowed": shadows.get(n) or None,
-                         "headless": bool(spec.get("headless")
-                                          or spec.get("headless_first"))}
-                        for n, spec in sorted(cfg["agents"].items())],
-                }))
+                print(json.dumps(table))
                 return 0
             print("config: %s" % recipes.CONFIG)
             print("machine: %s (%s)" % (recipes.this_host(), machine.machine_shape()))
+            print("provider: %s   fallback: %s   vision: %s"
+                  % (table["default"], table["fallback"] or "none",
+                     table["vision_agent"] or "none"))
+            print("next turn: %s" % (table["machine"] or "nobody -- %s" % table["why"]))
+            if table["machine"] and table["why"]:
+                print("           %s" % table["why"])
             print()
-            if recipes.only_agent(cfg):
-                print("only: this machine is running %s only (\"only_agent\": "
-                      "\"%s\"; tutor agent only --off lifts it)\n"
-                      % (recipes.agent_label(cfg, recipes.only_agent(cfg)), recipes.only_agent(cfg)))
-            for n, spec in sorted(cfg["agents"].items()):
-                mark = "*" if n == cfg["default_agent"] else " "
-                gone = recipes.missing_command(spec.get("cmd"))
-                need = keys.unkeyed(spec)
-                print(" %s %-10s %-28s %s"
-                      % (mark, n, " ".join(spec.get("cmd", [])),
-                         "off: %s" % recipes.only_bars(cfg, n) if recipes.only_bars(cfg, n)
-                         else "not installed here" if gone
-                         else ("needs %s in %s" % (need, keys.store())) if need
-                         else ""))
-                if shadows.get(n):
-                    print("   %-10s config overrides: %s  (frozen at whatever "
-                          "the built-in recipe said that day)"
-                          % ("", ", ".join(shadows[n])))
-            print("\n* is the default. Edit the config to add your own.")
-            print("A provider is a recipe plus a key: one entry in `agents` "
-                  "and one line in\n%s." % keys.store())
+            for a in table["agents"]:
+                mark = "*" if a["name"] == table["default"] else " "
+                print(" %s %-10s %-28s %s" % (mark, a["name"], a["cmd"],
+                                              a["unavailable"] or ""))
+            print("\n* is the provider. A provider is a recipe plus a key: one "
+                  "entry in `agents`\nand one line in %s." % keys.store())
             return 0
         elif a == "--homework":
             flags["session"] = "homework"

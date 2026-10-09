@@ -169,7 +169,7 @@ try:
                                         "handover": "now", "agent": "claude",
                                         "last_seen": now})
 
-    cfg = {"courses_dir": tmp, "default_agent": "claude",
+    cfg = {"courses_dir": tmp, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
 

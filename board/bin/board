@@ -166,7 +166,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
 from tutorboard import (assistants, atlas, brief, direction, gitops,
-                        handoff, holds, jobs, keys, leaving, limits, machine, memo,
+                        handoff, holds, jobs, leaving, limits, machine, memo,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sessions, tex, worktree)
 from tutorboard import briefs, subjects
@@ -414,11 +414,8 @@ def cmd_open(live, args):
         elif a == "--homework":
             session = "homework"
         elif a == "--agent":
-            # WHICH ASSISTANT THIS SITTING WANTS, written with the sitting: a
-            # chapter change replaces the tutor the moment it is opened, so a
-            # choice written after that is one the incoming daemon never saw.
-            # Only the shape of the name is checked; `resolve_agent` drops one
-            # this machine has not got.
+            # Recorded with the sitting and never consulted: who takes a turn
+            # is the machine's one provider setting (`recipes.resolve`).
             agent = config.clean_agent(args[i + 1] if i + 1 < len(args) else "")
             if agent is None:
                 print("  --agent takes an assistant's name; ignored",
@@ -783,6 +780,10 @@ def cmd_write(live, args):
     head = "---\nkind: %s\n" % kind
     if title:
         head += "title: %s\n" % title
+    # A turn the fallback took says so on the card (`loop.take_turn` sets it).
+    by = config.clean_agent(os.environ.get("TUTORBOARD_FALLBACK"))
+    if by:
+        head += "by: %s\n" % by
     head += "---\n"
     # A CARD IS NEVER HALF ON THE BOARD.
     #
@@ -3867,59 +3868,21 @@ def cmd_doctor(live, args):
 def tutor_health(live):
     """Who teaches on this machine, and can they. Printed; True if they can.
 
-    Read off the registry (`tutor --agents --json`) rather than by asking a
-    provider, so `board doctor` stays something you can run while somebody is
-    waiting -- and rather than off `config.json`, which holds only what this
-    machine overrides: a recipe it does not mention is the built-in one.
+    Read off `recipes.listing` -- files only, no provider is asked -- so
+    `board doctor` stays something you can run while somebody is waiting.
+    `tutor doctor` is the one-turn smoke test that does ask.
     """
     table = assistants.listing()
     if not table:
-        print("teaching: unknown -- `tutor --agents --json` did not answer")
+        print("teaching: unknown -- the provider table could not be built")
         return False
-    wanted = table.get("machine") or table.get("default") or "(unset)"
-    print("teaching: '%s'" % wanted)
-    if table.get("only"):
-        print("only:     %s  (tutor agent only --off lifts it)"
-              % table["only"].get("why"))
-    recipe = {a.get("name"): a for a in (table.get("agents") or [])}.get(wanted)
-    if wanted != "(unset)" and (recipe is None or recipe.get("missing")):
-        print("          NOT INSTALLED here — every turn would fail into a log")
+    print("teaching: provider '%s', fallback '%s'"
+          % (table.get("default"), table.get("fallback") or "none"))
+    if not table.get("machine"):
+        print("          NOBODY can take a turn: %s" % table.get("why"))
         return False
-    # The second way a recipe cannot run, and it fails identically: a daemon
-    # that listens and then dies every turn in a log nobody opens. Named here
-    # because `board doctor` is what somebody runs while a student is waiting.
-    need = (recipe or {}).get("unkeyed")
-    if need:
-        print("          NEEDS %s in %s — put one `%s=...` line in it"
-              % (need, keys.store(), need))
-        return False
-    until = limits.limited_until()
-    if until:
-        print("allowance: run out until %s  (board limit --clear)"
-              % time.strftime("%H:%M", time.localtime(until)))
-
-    # A RECIPE THIS MACHINE'S CONFIG IS HOLDING DOWN, which is the failure
-    # nothing could see. `agents` merges one level deep, so a field named in
-    # `config.json` beats the built-in recipe for ever: a fix shipped to the
-    # tool lands on every machine except the one whose config mentions that
-    # field, and the symptom is the tool's own behaviour looking wrong. This
-    # machine's config held a verbatim copy of the whole table from an older
-    # version; its `codex` entry had neither the resume path nor the sandbox
-    # flag, so every resumed Codex turn failed silently while the recipe in the
-    # repository read correctly.
-    #
-    # Asked of the registry rather than worked out here, because the merge is
-    # in `bin/tutor` and a second opinion about it would drift -- the same rule
-    # `tutorboard/assistants.py` is built on. Not fatal: a machine may have a
-    # deliberate override, and this is the line that makes it a decision again
-    # rather than something forgotten.
-    held = [(a.get("name"), a.get("shadowed"))
-            for a in (table.get("agents") or []) if a.get("shadowed")]
-    for name, fields in held:
-        print("recipe:   '%s' -- %s overrides %s"
-              % (name, paths.CONFIG, ", ".join(fields)))
-        print("          The built-in recipe has moved on since that was "
-              "written. Remove it unless this machine needs it.")
+    if table.get("why"):
+        print("          %s" % table["why"])
     return True
 
 

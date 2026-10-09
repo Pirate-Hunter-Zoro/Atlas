@@ -14,8 +14,8 @@ agent names either an endpoint, a model and a key, or a COMMAND to run on the
 file -- a sighted assistant that is already installed needs no second provider
 and no second key. The running agent's own recipe is asked first, and
 `vision_agent` at the top of the config answers for the case where the agent
-running the sitting has no eyes. Both come out of `tutor --agents --json`, which
-is the registry, so there is no second table.
+running the turn has no eyes. Both come out of `recipes.listing`, which is the
+registry, so there is no second table.
 
 AND AN ANSWER IS NOT BELIEVED BECAUSE IT ARRIVED. The one failure this path
 must not have is a confident paragraph about a page nobody looked at -- a route
@@ -109,19 +109,11 @@ class Refused(Exception):
 
 
 def registry():
-    """`tutor --agents --json`, parsed, or {}. One subprocess, and it is fine.
-
-    This is a command a person or an assistant runs occasionally, not a poll:
-    `assistants.listing` caches it for the hub because the hub asks four times
-    a second, and nothing here does.
-    """
-    from .server import spawn
-    code, out = spawn.tutor_cli(["--agents", "--json"], timeout=30)
-    if code != 0:
-        return {}
+    """`recipes.listing()`, or {} when it cannot be built."""
+    from .agents import recipes
     try:
-        return json.loads(out.strip().splitlines()[-1]) or {}
-    except (ValueError, IndexError):
+        return recipes.listing() or {}
+    except Exception:                                        # noqa: BLE001
         return {}
 
 
@@ -146,10 +138,10 @@ def route(agent=None, table=None):
     that is installed here, and skipping them on the strength of the name would
     answer "every vision route on this machine is stood down" with one sitting
     on the path. An ENDPOINT route is skipped when the stand-down names its own
-    host, and also when the stand-down names no host at all: that is
-    `mark_failing`, a recipe whose requests are being refused for a reason the
-    network is innocent of -- a renamed model, a rejected key -- and this route
-    carries the same recipe's key to the same provider.
+    host, and also when the stand-down names no host at all.
+
+    AN IN-FENCE RECIPE IS NEVER A ROUTE: only it reads phi, and an image sent
+    from here goes to a hosted provider (`recipes.in_fence`).
 
     AND A ROUTE THAT SAYS IT CANNOT SEE IS NEVER HANDED A PAGE. `sighted: false`
     on a `vision` block is a fact about the model behind it, and an answer from
@@ -160,19 +152,13 @@ def route(agent=None, table=None):
     table = registry() if table is None else table
     agents = {a.get("name"): a for a in (table.get("agents") or [])}
     tried, dark, blind = [], [], []
-    # The switch's own recipe is asked right after the running agent: under
-    # `only_agent` every other name is barred, so a `vision_agent` or default
-    # still naming one would leave no route at all.
-    only = (table.get("only") or {}).get("agent")
-    for name in (agent, only, table.get("vision_agent"), table.get("default")):
+    for name in (agent, table.get("vision_agent"), table.get("default")):
         if not name or name in tried:
             continue
         tried.append(name)
-        # A recipe the machine's switch bars is not a route, whatever its
-        # recipe says: `only_agent` is a promise about which provider is
-        # called, and an image is a call.
-        if (agents.get(name) or {}).get("barred"):
-            dark.append("'%s' is off (%s)" % (name, agents[name]["barred"]))
+        if (agents.get(name) or {}).get("private"):
+            dark.append("'%s' is an in-fence model and never a vision route"
+                        % name)
             continue
         got = (agents.get(name) or {}).get("vision")
         if not got or not (got.get("endpoint") or got.get("cmd")):

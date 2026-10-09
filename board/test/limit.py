@@ -223,9 +223,9 @@ check("and the next turn answers what was owed first, since the inbox lines it "
 check("and the board is told the daemon is retrying, so it does not advise "
       "sending the same work again behind a turn already queued",
       "limited=until, retrying=True)" in src)
-check("and then the next turn climbs down to whoever can take it, which is "
-      "the whole reason to have three",
-      "nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)" in src)
+check("and then the next turn goes to the fallback, which is the whole reason "
+      "to have one",
+      "nxt, _ = recipes.resolve(recipes.load_config())" in src)
 check("and where there is nobody to climb down to it says so and goes on "
       "failing where that is visible, which is what one tutor always did",
       "nothing else here can take it" in src)

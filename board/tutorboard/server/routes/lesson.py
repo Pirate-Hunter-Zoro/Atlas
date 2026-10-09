@@ -147,29 +147,18 @@ def get(h, repo, path):
 def kind_agents(root):
     """Who a sitting of each kind opened from the thread sheet is taught by.
 
-    `{kind: {"agent": name, "why": unavailable-or-""}}`. A sheet's tap names no
-    assistant, so `resolve_agent` reads the workspace's `agent`, then this
-    machine's own default -- the `machine` the launcher reports -- for every
-    kind alike. An agent that cannot take a turn here says why, because
-    `choose_agent` will hand the turn to another and the sheet should not
-    promise the first. {}
-    when the launcher could not be asked: the sheet then draws no names.
+    `{kind: {"agent": name, "why": sentence-or-""}}`: the machine's one
+    provider setting for every kind alike -- who takes the next turn, and the
+    resolver's sentence when that is the fallback or nobody. {} when the
+    table could not be built: the sheet then draws no names.
     """
     from ... import assistants
     table = assistants.listing()
     if not table:
         return {}
-    cfg = config.read_config(root)
-    known = {a.get("name"): a for a in table.get("agents") or []}
-    out = {}
-    for kind in mapping.SITTING_KINDS:
-        name = (config.workspace_agent(cfg) or table.get("machine")
-                or table.get("default") or "")
-        one = known.get(name)
-        why = ("there is no assistant called '%s' here" % name if not one
-               else str(one.get("unavailable") or ""))
-        out[kind] = {"agent": name, "why": why}
-    return out
+    name = table.get("machine") or table.get("default") or ""
+    why = str(table.get("why") or "")
+    return {kind: {"agent": name, "why": why} for kind in mapping.SITTING_KINDS}
 
 
 def _mark(st, node, agent=None, root=None):
@@ -486,8 +475,8 @@ def post(h, repo, path):
         # Both are looked up in what the map and the plan actually hold, and
         # the sitting's label is built here from what came back.
         #
-        # WHICH ASSISTANT, for this sitting only. Only the shape of the name is
-        # checked here; `resolve_agent` drops a name this machine has not got.
+        # An assistant named for this sitting is recorded and never consulted:
+        # who takes a turn is the machine's one provider setting.
         agent = config.clean_agent(payload.get("agent"))
         # Whether the request also means "and get on with it". Sent by the map's
         # own sheet, where choosing a way to work IS the instruction; not by the

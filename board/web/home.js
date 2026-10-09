@@ -1595,16 +1595,14 @@ els.busy.onclick = function () {
 };
 
 /* -------------------------------------------------- who this machine teaches with
-   The board's chooser picks an assistant for a SITTING; this picks the one a
-   workspace gets when nobody has said otherwise, which is the layer under it in
-   `resolve_agent`'s precedence. Same buttons, same rules: `web/who.js`, shared
-   with `paintWho` on the board so the two cannot go out of step the first time
-   a recipe grows a flag.
+   The machine's one provider setting: every session's next turn goes to it,
+   or to its fallback when it cannot. Same buttons, same rules: `web/who.js`,
+   shared with `paintWho` on the board so the two cannot go out of step the
+   first time a recipe grows a flag.
 
    The thing this is for is an evening that has run out. Until now that meant a
    laptop, an account page and a config file; it is a tap. */
 var whoSaved = null;
-var whoOnlyLine = "";
 
 function paintWho(assistants) {
   /* A FIRST RELOAD AFTER A SHIP STILL RUNS THE OLD SHELL, so this page can be
@@ -1623,15 +1621,6 @@ function paintWho(assistants) {
     say: function (m) { els.whoNote.textContent = m; },
     pick: function (a) { setDefaultAgent(a.name); }
   });
-  /* THE SWITCH, under the buttons it greys out, for as long as it is on. The
-     line owns the note only while nothing else has said anything there: a
-     tap's answer is not painted over by the next poll. A page from before
-     `only` existed in who.js draws no line rather than throwing. */
-  var line = window.WhoChoice.only ? window.WhoChoice.only(assistants) : "";
-  if (!els.whoNote.textContent || els.whoNote.textContent === whoOnlyLine) {
-    els.whoNote.textContent = line;
-  }
-  whoOnlyLine = line;
 }
 
 function setDefaultAgent(name) {
@@ -1649,17 +1638,10 @@ function setDefaultAgent(name) {
     if (got && got.ok) {
       lastAssistants = got.assistants || lastAssistants;
       whoSaved = got["default"];
-      /* WHAT MOVED, BY NAME. The old sentence described the machine layer
-         accurately and read, to somebody out of allowance, as a tap that had
-         done nothing: the sittings already open are the ones they are switching
-         FOR, and those are exactly what the sentence did not mention. */
-      var moved = (got.moved || []);
-      els.whoNote.textContent = moved.length
-        ? name + " writes the next card, including the "
-          + (moved.length === 1 ? "sitting open in " : "sittings open in ")
-          + moved.join(", ") + "."
-        : name + " writes the next card in a workspace that has not named "
-          + "its own.";
+      /* Who takes the next turn: the provider, or the fallback and why. */
+      els.whoNote.textContent = got.why
+        ? got.why + "."
+        : name + " writes the next card in every session.";
     } else {
       whoSaved = null;
       els.whoNote.textContent = (got && got.detail) || "that did not take.";

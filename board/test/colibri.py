@@ -129,7 +129,7 @@ else:
 # 2. the clock
 # ---------------------------------------------------------------------------
 CFG = {"headless_timeout": 900, "doing_timeout": 3600,
-       "default_agent": "claude",
+       "provider": "claude",
        "agents": {"claude": {"cmd": ["claude"]}, "colibri": spec}}
 
 teach = tempfile.mkdtemp(prefix="tutor-coli-teach-")
@@ -434,7 +434,7 @@ else:
               subprocess.run(["bash", "-n", os.path.join(LLM, name)]).returncode == 0)
 
 # ---------------------------------------------------------------------------
-# 4. the fifth layer, which is the sitting
+# 4. no sitting or workspace chooses, and the fence is a refusal
 # ---------------------------------------------------------------------------
 tree = tempfile.mkdtemp(prefix="tutor-coli-tree-")
 work = os.path.join(tree, "projects", "Harness")
@@ -442,55 +442,27 @@ live = os.path.join(work, "live")
 os.makedirs(live)
 open(os.path.join(work, "AI_INSTRUCTIONS.md"), "w").close()
 
-R = {"default_agent": "claude",
-     "agents": {"claude": {"cmd": ["claude"]}, "codex": {"cmd": ["codex"]},
-                "colibri": spec}}
+R = {"provider": "claude", "fallback": "codex",
+     "agents": {"claude": {"cmd": [sys.executable],
+                           "headless_first": [sys.executable]},
+                "codex": {"cmd": [sys.executable],
+                          "headless_first": [sys.executable]},
+                "colibri": dict(spec, cmd=[sys.executable])}}
 course = {"root": work, "dir": "Harness", "name": "Harness"}
-
-
-def sitting(**kw):
-    with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
-        json.dump(kw, fh)
-
-
-sitting(session="lecture")
-check("a sitting that names no assistant resolves exactly as it always did",
-      recipes.resolve_agent(R, course) == "claude")
-
-sitting(session="lecture", agent="colibri")
-check("a sitting that names one beats the machine default",
-      recipes.resolve_agent(R, course) == "colibri")
-check("and it beats the workspace's own answer, because a choice made for an "
-      "evening is not a statement about the repository",
-      recipes.resolve_agent(R, dict(course, agent="codex")) == "colibri")
-check("the command line still beats the sitting",
-      recipes.resolve_agent(R, course, "codex") == "codex")
-
-sitting(session="lecture", agent="nonesuch")
-said = []
-check("a sitting asking for an assistant this machine has not got FALLS BACK "
-      "rather than leaving the course with no tutor at all",
-      recipes.resolve_agent(R, course, say=said.append) == "claude")
-check("and says so, once, where somebody can see it",
-      any("nonesuch" in m for m in said))
-# The other layers still refuse, and must: a workspace naming an agent in
-# writing is a decision, and quietly using a different one would be worse.
-sitting(session="lecture")
-check("a WORKSPACE naming an agent that does not exist still refuses",
-      recipes.resolve_agent(R, dict(course, agent="nonesuch"),
-                          say=lambda m: None) is None)
-
-check("the name is validated as a name and nothing else, because the registry "
-      "is in the launcher",
+with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
+    json.dump({"session": "lecture", "agent": "colibri"}, fh)
+with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Harness", "agent": "colibri"}, fh)
+check("a sitting or workspace naming colibri moves nothing: the provider takes it",
+      recipes.resolve(R) == ("claude", None))
+check("an in-fence recipe as the provider is refused, and the fallback takes it",
+      recipes.resolve(dict(R, provider="colibri"))[0] == "codex")
+check("and as the fallback it is never fallen into",
+      recipes.resolve(dict(R, provider="nonesuch", fallback="colibri"))[0] is None)
+check("the name is validated as a name and nothing else",
       config.clean_agent("Colibri") == "colibri"
       and config.clean_agent("../../etc/passwd") is None
       and config.clean_agent("") is None)
-sitting(session="lecture", agent="../../etc/passwd")
-check("so a path that reached state.json somehow is not read as an assistant",
-      config.sitting_agent(work) is None)
-check("and a workspace with no sitting at all answers None rather than raising",
-      config.sitting_agent(os.path.join(tree, "nothing", "here")) is None
-      and config.sitting_agent(None) is None)
 
 # ---------------------------------------------------------------------------
 # 5. the two refusals

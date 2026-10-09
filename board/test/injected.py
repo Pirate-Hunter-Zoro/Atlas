@@ -68,7 +68,7 @@ os.chmod(FAKE, 0o755)
 
 def configure(default):
     write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-        "default_agent": default, "vision_agent": default,
+        "provider": default, "vision_agent": default,
         "headless_timeout": 60, "doing_timeout": 60, "handoff_timeout": 60,
         "agents": {
             "plain": {"cmd": [FAKE], "label": "Plain",

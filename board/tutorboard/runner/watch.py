@@ -74,7 +74,7 @@ def finish_restart(cfg, args):
     # should be running here anyway.
     name = (daemon.flag(args, "--agent")
             or (daemon.agent_live(course["root"]) or {}).get("agent")
-            or recipes.resolve_agent(cfg, course))
+            or recipes.resolve(cfg)[0])
     for _ in range(FINISH_WAIT):
         if not daemon.agent_live(course["root"]):
             code, msg = daemon.agent_start(cfg, course, name)
@@ -257,13 +257,13 @@ def cmd_restart(cfg, args, only=None):
             continue
         # What configuration says NOW, not what happened to be running. A restart
         # used to bring back whatever the record named, which meant changing
-        # `default_agent` never reached a course whose tutor was restarted rather
+        # `provider` never reached a course whose tutor was restarted rather
         # than stopped -- the config said one thing and the board ran another, for
         # ever. This is the safe moment to act on it: the daemon is being stopped
         # anyway, and the SIGTERM below makes it write HANDOFF.md, which is
         # precisely the continuity a different tutor picks up from.
         was_name = st.get("agent")
-        name = recipes.resolve_agent(cfg, c) or was_name
+        name = recipes.resolve(cfg)[0] or was_name
         # Say, on disk, that this is a RESTART and not a death. The board reads
         # this record to decide what to tell the person holding the iPad, and a
         # daemon being bounced looks from there exactly like one that died: the
@@ -681,7 +681,7 @@ def ship_beat(cfg, host, memo, say):
                 os.kill(pid, _sig.SIGTERM)
             except OSError:
                 pass
-            clause = daemon.handed_off(cfg, c, now.get("agent") or recipes.resolve_agent(cfg, c))
+            clause = daemon.handed_off(cfg, c, now.get("agent") or recipes.resolve(cfg)[0])
             result("tutor", name, "restarting on %s" % tree)
             tell("%s: tutor restarting on %s (%s)" % (name, tree, clause))
     return landed()
@@ -754,7 +754,7 @@ def watch_once(cfg, host, memo, say):
         if tverdict == "revive" and now >= mem["tutor_at"]:
             # Whatever configuration says now, not what the dead record named:
             # the same rule `cmd_restart` follows, and for the same reason.
-            agent_name = recipes.resolve_agent(cfg, c) or st.get("agent")
+            agent_name = recipes.resolve(cfg)[0] or st.get("agent")
             # The handover flag has been acted on; leaving it set would make
             # every later stop of this tutor look like a machine going away.
             if st.get("handover"):

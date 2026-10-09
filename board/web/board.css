@@ -626,6 +626,7 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 }
 .card-title { font-size: 1.02rem; font-weight: 640; color: var(--ink); }
 .card-num { font-size: .7rem; color: var(--ink-3); margin-left: auto; flex: none; }
+.card-by { font-size: .7rem; color: var(--ink-3); flex: none; }
 
 /* Feedback that a later card has replaced: folded to its heading, one line, and
    opened again by tapping it. Not hidden -- a transcript keeps everything -- but

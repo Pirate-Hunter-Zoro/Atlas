@@ -119,7 +119,7 @@ log(kind="turn", rc=p.returncode, out=p.stdout)
 os.chmod(FAKE, 0o755)
 
 write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-    "default_agent": "fake", "vision_agent": "fake", "concurrency": 2,
+    "provider": "fake", "vision_agent": "fake", "concurrency": 2,
     "headless_timeout": 120, "doing_timeout": 180, "handoff_timeout": 60,
     "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
                         "headless_first": [FAKE, "{prompt}"],

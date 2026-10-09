@@ -76,7 +76,7 @@ try:
     make_course("Newer", node="compute999", pid=22, when=9000)
     make_course("NeverRan")
 
-    cfg = {"courses_dir": tmp, "default_agent": "claude",
+    cfg = {"courses_dir": tmp, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
 

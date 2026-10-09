@@ -281,6 +281,8 @@ def _parse(repo, files, jobs, every=None):
             "kind": (meta.get("kind") or "lesson").lower(),
             "title": meta.get("title", ""),
             "tag": meta.get("tag", ""),
+            # The fallback that wrote it, when the provider could not.
+            "by": meta.get("by", ""),
             "body": body,
             "mtime": st.st_mtime,
         })

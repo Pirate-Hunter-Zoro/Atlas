@@ -1,274 +1,312 @@
 #!/usr/bin/env python3
-"""THE FRONT DOOR SWITCHES PROVIDER, and the switch is one file on this machine.
+"""One provider setting: the provider, one fallback, and a tap that sets it.
 
     python3 test/provider.py
 
-An evening ends when the provider says no more, and until this existed the
-answer to that was a laptop, an account page and somebody editing a config file.
-This is the route behind the tap: it writes `default_agent` into
-`~/.config/tutor-board/config.json` and nothing else in that file.
+A real server (`serve.py --port 0`) on a temp Atlas, with its own config
+directory and state directory, and fake providers named claude, codex and
+deepseek (one script, told its name on the command line). Each answers a turn
+with `board write`, or, when its control file says so, fails the way a provider
+out of allowance does. Nothing here spends a cent or touches a real session.
 
-`default_agent` is the MACHINE layer of `resolve_agent`'s precedence, and it is
-the lowest one -- so writing it is not enough on its own. Every sitting opened
-from the board names an assistant, and that name outranks the default for ever,
-which meant this tap could not reach the one evening it is always tapped for:
-the one where the provider it is running on has just run out. So the route
-writes the file AND re-points every open sitting on this machine, and says
-which ones it moved.
-
-Two are left where they are, and each would be a worse answer than not
-switching: a sitting on the `private` recipe, which is the fenced reader and
-the only assistant allowed in the workspace holding `phi`; and a workspace with
-no sitting open, where there is nothing to move.
-
-Three refusals, and each one prevents a different silent failure:
-
-  - an unknown name leaves the machine with no resolvable tutor at all;
-  - an unkeyed or uninstalled one is a daemon that listens and then fails every
-    turn into a log nobody opens;
-  - and a `private` recipe is NEVER the machine default, because it is the
-    fenced reader and a default is a decision about every workspace, including
-    the ones whose `live/` is pushed to a public remote.
+  - A LIMITED CLAUDE FALLS BACK TO CODEX AND THE CARD NAMES IT: the turn that
+    hit the limit is answered again at once by codex, the card says `by codex`,
+    and the session's record says why.
+  - `/default-agent` CHANGES THE PROVIDER FOR THE NEXT TURN WITHOUT A RESTART:
+    it writes `provider` into the machine's config and nothing else, and the
+    same server process answers the next message with the new one.
+  - It refuses an unknown name, a recipe this machine cannot run, and an
+    in-fence model: only it reads phi, and it never takes a turn here.
 """
 
 import json
 import os
-import socket
+import shutil
+import signal
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
-from http.server import ThreadingHTTPServer
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
+HERE = os.path.dirname(os.path.abspath(__file__))
+BOARD = os.path.dirname(HERE)
+sys.path.insert(0, BOARD)
 
-os.environ.setdefault("BOARD_STATE_DIR", tempfile.mkdtemp(prefix="provider-state-"))
-# A TREE OF OUR OWN, BEFORE ANYTHING IMPORTS. The route driven below re-points
-# every OPEN SITTING on this machine at the chosen provider, and the real tree
-# is where somebody's evening is. Pointed at an empty directory here and filled
-# in by the cases that want workspaces in it.
-os.environ["TUTORBOARD_COURSES"] = tempfile.mkdtemp(prefix="provider-tree-")
-os.environ.setdefault("BOARD_NODE_NAME", "test-node")
-os.environ.setdefault("BOARD_NO_TAILNET", "1")
+box = tempfile.mkdtemp(prefix="tutor-provider-")
+CONFIG_HOME = os.path.join(box, "config")
+os.environ["XDG_CONFIG_HOME"] = CONFIG_HOME
+os.environ["BOARD_STATE_DIR"] = os.path.join(box, "state")
+os.environ["BOARD_NO_TAILNET"] = "1"
+os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
+for k in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
+          "TUTORBOARD_FALLBACK"):
+    os.environ.pop(k, None)
 
-from tutorboard import assistants, atlas, paths               # noqa: E402
-from tutorboard.course import repo as course_repo            # noqa: E402
-from tutorboard.server import handler, hub, tikz             # noqa: E402
+from tutorboard import assistants, sessions                   # noqa: E402
+from tutorboard.agents import recipes                         # noqa: E402
+from tutorboard.lesson import cards as lesson_cards           # noqa: E402
+from tutorboard.runner import daemon                          # noqa: E402
 
 fails = []
 
 
-def check(name, cond):
+def check(name, cond, detail=""):
     if cond:
         print("ok   " + name)
     else:
         fails.append(name)
-        print("FAIL " + name)
+        print("FAIL " + name + (("\n       " + str(detail)) if detail else ""))
 
 
-# A config file of our own. Writing the real one would change which assistant
-# this machine teaches with, from a test.
-box = tempfile.mkdtemp(prefix="provider-cfg-")
-paths.CONFIG = os.path.join(box, "config.json")
-with open(paths.CONFIG, "w", encoding="utf-8") as fh:
-    json.dump({"default_agent": "claude", "quota_tokens": 28000000}, fh)
-
-KEYS = "/nowhere/keys.env"
-TABLE = {"default": "claude", "vision_agent": "deepseek", "agents": [
-    {"name": "claude", "cmd": "claude", "missing": None, "unkeyed": None,
-     "keys": KEYS, "private": None, "exclusive": None, "headless": True},
-    {"name": "deepseek", "cmd": "claude", "missing": None, "unkeyed": None,
-     "keys": KEYS, "private": None, "exclusive": None, "headless": True},
-    {"name": "nokey", "cmd": "claude", "missing": None,
-     "unkeyed": "A_KEY", "keys": KEYS, "private": None,
-     "exclusive": None, "headless": True},
-    {"name": "gone", "cmd": "nope", "missing": "nope", "unkeyed": None,
-     "keys": KEYS, "private": None, "exclusive": None, "headless": True},
-    {"name": "colibri", "cmd": "coli-code", "missing": None, "unkeyed": None,
-     "keys": KEYS, "private": "it is the only assistant allowed to read `phi`",
-     "exclusive": "one KV slot", "headless": True},
-]}
-assistants.listing = lambda: TABLE
-
-tmp = tempfile.mkdtemp(prefix="provider-ws-")
-with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
-    json.dump({"name": "Test Workspace"}, fh)
-repo = course_repo.Repo(tmp)
-worker = tikz.TikzWorker(repo)
-worker.start()
-board = hub.Hub(repo, worker)
-board.payload = json.dumps(board.build())
-
-sock = socket.socket()
-sock.bind(("127.0.0.1", 0))
-port = sock.getsockname()[1]
-sock.close()
-httpd = ThreadingHTTPServer(("127.0.0.1", port), handler.Handler)
-httpd.daemon_threads = True
-httpd.repo = repo
-httpd.hub = board
-threading.Thread(target=httpd.serve_forever, daemon=True).start()
-BASE = "http://127.0.0.1:%d" % port
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
 
-def post(path, body):
-    req = urllib.request.Request(BASE + path, method="POST",
-                                 data=json.dumps(body).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return r.status, json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read().decode("utf-8"))
+# ---------------------------------------------------------------------------
+# the fake providers: one script, its name on the command line
+# ---------------------------------------------------------------------------
+CTL = os.path.join(box, "ctl")
+FAKE = os.path.join(box, "bin", "fake-provider")
+write(FAKE, r'''#!/usr/bin/env python3
+import os, subprocess, sys
+name, prompt = sys.argv[1], sys.argv[-1]
+if os.path.exists(os.path.join(%(ctl)r, "limited-" + name)):
+    print("API Error: Claude AI usage limit reached")
+    sys.exit(1)
+first = prompt.split("They just sent this:", 1)[-1].strip().splitlines()
+p = subprocess.run(["board", "write", "lesson", "reply"],
+                   input="Answer from %%s to %%s\n" %% (name, (first or ["?"])[0][:80]),
+                   universal_newlines=True, stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT)
+sys.exit(p.returncode)
+''' % {"ctl": CTL})
+os.chmod(FAKE, 0o755)
+os.makedirs(CTL)
 
 
-def cfg():
-    with open(paths.CONFIG, encoding="utf-8") as fh:
+def fake(name, **kw):
+    spec = {"replace": True, "cmd": [FAKE], "label": name.title(),
+            "headless_first": [FAKE, name, "{prompt}"], "usage": "none"}
+    spec.update(kw)
+    return spec
+
+
+CONFIG = os.path.join(CONFIG_HOME, "tutor-board", "config.json")
+write(CONFIG, json.dumps({
+    "provider": "claude", "fallback": "codex", "vision_agent": "claude",
+    "concurrency": 2, "headless_timeout": 60, "handoff_timeout": 30,
+    "quota_tokens": 28000000,
+    "agents": {"claude": fake("claude"), "codex": fake("codex"),
+               "deepseek": fake("deepseek"),
+               "gone": fake("gone", cmd=["a-command-no-machine-has"]),
+               "nokey": fake("nokey", needs_key="A_KEY_NOBODY_HAS"),
+               "colibri": fake("colibri", private="it reads phi")}}))
+
+
+def on_disk():
+    with open(CONFIG, encoding="utf-8") as fh:
         return json.load(fh)
 
 
+# ---------------------------------------------------------------------------
+# a temp Atlas with one course
+# ---------------------------------------------------------------------------
+atlas = os.path.join(box, "atlas")
+write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
+      json.dumps({"name": "Demo", "phi": False, "agent": "deepseek"}))
+write(os.path.join(atlas, ".gitignore"), "/sessions/\n")
+for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-qm", "fixture"]):
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t"] + args,
+                   cwd=atlas, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+SID = sessions.new("provider", base=atlas)["id"]
+sessions.bind(SID, "courses/Demo", base=atlas)
+LIVE = sessions.path(SID, atlas)
+
+
+def newest():
+    """`(text, parsed card)` of the session's newest card."""
+    path, _meta = lesson_cards.newest(os.path.join(LIVE, "cards"))
+    if not path:
+        return "", {}
+    text = open(path, encoding="utf-8").read()
+    meta, body = lesson_cards.parse_front_matter(text)
+    return text, dict(meta, body=body)
+
+
+def n_cards():
+    try:
+        return len([n for n in os.listdir(os.path.join(LIVE, "cards")) if n[:4].isdigit()])
+    except OSError:
+        return 0
+
+
+def record():
+    return daemon.agent_record_at(LIVE) or {}
+
+
+def until(cond, timeout=60.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if cond():
+            return True
+        time.sleep(0.1)
+    return bool(cond())
+
+
+class Server(object):
+    def __init__(self):
+        self.p = subprocess.Popen(
+            [sys.executable, os.path.join(BOARD, "serve.py"), "--port", "0",
+             "--atlas", atlas], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            universal_newlines=True, start_new_session=True)
+        self.port = None
+        self.lines = []
+        for line in self.p.stderr:
+            self.lines.append(line)
+            if "listening on http://" in line:
+                self.port = int(line.split("http://", 1)[1].split("/")[0].split(":")[1])
+                break
+        threading.Thread(target=self._drain, daemon=True).start()
+
+    def _drain(self):
+        for line in self.p.stderr:
+            self.lines.append(line)
+
+    def post(self, path, body=None):
+        req = urllib.request.Request(
+            "http://127.0.0.1:%d%s" % (self.port, path),
+            data=json.dumps(body or {}).encode(), method="POST",
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode())
+
+    def stop(self):
+        try:
+            self.p.send_signal(signal.SIGTERM)
+            self.p.wait(30)
+        except (OSError, subprocess.TimeoutExpired):
+            self.p.kill()
+
+
+server = None
 try:
-    status, got = post("/default-agent", {"agent": "deepseek"})
-    check("the tap writes the machine default", status == 200 and got.get("ok"))
-    check("and the file says so", cfg().get("default_agent") == "deepseek")
-    check("AND NOTHING ELSE IN THAT FILE MOVED. It is read by every `tutor` on "
-          "this machine; a route that rewrote it from defaults would silently "
-          "undo whatever somebody had set by hand",
-          cfg().get("quota_tokens") == 28000000 and len(cfg()) == 2)
+    server = Server()
+    pid = server.p.pid
+    check("serve.py comes up on an ephemeral port", bool(server.port),
+          "".join(server.lines))
 
-    for name, why in (("nonesuch", "an unknown name"),
-                      ("gone", "one this machine has not got"),
-                      ("nokey", "one whose key is not here"),
-                      ("colibri", "the fenced reader, which is never a "
-                                  "machine default")):
-        status, got = post("/default-agent", {"agent": name})
-        check("%s is refused, with the reason on the glass" % why,
-              status == 400 and not got.get("ok") and bool(got.get("detail")))
-    check("and none of the refusals changed the file",
-          cfg().get("default_agent") == "deepseek")
+    # ---- the provider takes the turn -------------------------------------
+    server.post("/s/%s/say" % SID, {"text": "first"})
+    until(lambda: n_cards() == 1 and record().get("state") == "listening", 30)
+    text, card = newest()
+    check("the provider answers, and a subject naming another is not asked",
+          "Answer from claude" in text and record().get("agent") == "claude",
+          (text, record()))
+    check("and a card the provider wrote carries no by-line", not card.get("by"))
 
-    status, got = post("/default-agent", {})
-    check("a request naming nobody is a refusal rather than a crash",
-          status == 400)
+    # ---- a limited claude falls back to codex, and the card names it ------
+    write(os.path.join(CTL, "limited-claude"), "")
+    server.post("/s/%s/say" % SID, {"text": "second"})
+    until(lambda: n_cards() == 2 and record().get("state") == "listening", 30)
+    text, card = newest()
+    rec = record()
+    check("a limited claude falls back to codex, which answers the same message",
+          "Answer from codex" in text and "second" in text, (text, rec))
+    check("and the card names it", card.get("by") == "codex", text)
+    check("and the record says who and why, for the strip",
+          rec.get("agent") == "codex"
+          and "'claude'" in (rec.get("agent_why") or "")
+          and "allowance" in (rec.get("agent_why") or ""), rec)
+    parsed = lesson_cards.load_cards(sessions.repo(SID, atlas), {})
+    check("the card the board draws carries `by`",
+          parsed and parsed[-1].get("by") == "codex", parsed[-1:] if parsed else None)
+    log = open(os.path.join(LIVE, "agent.log"), encoding="utf-8").read()
+    check("and the log says the next turn goes to the fallback",
+          "the next turn goes to 'codex'" in log, log[-800:])
 
-    # ---- AND THE SITTINGS ALREADY OPEN --------------------------------------
-    #
-    # `default_agent` is the LOWEST layer of `resolve_agent`'s precedence, and
-    # every sitting opened from the board names an assistant -- so this tap
-    # could not reach the one evening it is always tapped for. Reported from
-    # the iPad: "when I tried to switch to codex on the homescreen, it wouldn't
-    # switch and I was stuck on claude, which I had used up my limit on."
-    tree = os.environ["TUTORBOARD_COURSES"]
+    # ---- /default-agent: the next turn, no restart ------------------------
+    status, got = server.post("/default-agent", {"agent": "deepseek"})
+    check("the tap sets the provider", status == 200 and got.get("ok")
+          and got.get("default") == "deepseek", got)
+    cfg = on_disk()
+    check("and the file says `provider`, with nothing else in it moved",
+          cfg.get("provider") == "deepseek" and cfg.get("fallback") == "codex"
+          and cfg.get("quota_tokens") == 28000000 and "default_agent" not in cfg
+          and set(cfg["agents"]) == {"claude", "codex", "deepseek", "gone",
+                                     "nokey", "colibri"}, cfg)
+    check("and the answer carries who takes the next turn",
+          got.get("machine") == "deepseek" and (got.get("assistants") or {})
+          .get("default") == "deepseek", got)
+    server.post("/s/%s/say" % SID, {"text": "third"})
+    until(lambda: n_cards() == 3 and record().get("state") == "listening", 30)
+    text, card = newest()
+    check("the next turn is the new provider's, from the same server process",
+          "Answer from deepseek" in text and server.p.pid == pid
+          and server.p.poll() is None, text)
+    check("and it is not a fallback, so the card has no by-line",
+          not card.get("by") and not record().get("agent_why"), record())
 
-    def workspace(name, state):
-        root = os.path.join(tree, "courses", name)
-        os.makedirs(os.path.join(root, "live"), exist_ok=True)
-        with open(os.path.join(root, "tutorboard.json"), "w",
-                  encoding="utf-8") as fh:
-            json.dump({"name": name}, fh)
-        with open(os.path.join(root, "live", "state.json"), "w",
-                  encoding="utf-8") as fh:
-            json.dump(state, fh)
-        return root
+    # ---- the refusals -------------------------------------------------------
+    for name, why, word in (("nonesuch", "an unknown name", "not an assistant"),
+                            ("gone", "a recipe whose binary is missing",
+                             "not installed"),
+                            ("nokey", "a recipe whose key is missing",
+                             "A_KEY_NOBODY_HAS"),
+                            ("colibri", "an in-fence model", "in-fence")):
+        status, got = server.post("/default-agent", {"agent": name})
+        check("%s is refused, in words" % why,
+              status == 400 and not got.get("ok") and word in (got.get("detail") or ""),
+              got)
+    status, got = server.post("/default-agent", {})
+    check("a request naming nobody is refused rather than a crash", status == 400)
+    check("and no refusal changed the file", on_disk().get("provider") == "deepseek")
 
-    stuck = workspace("Stuck", {"session": "lecture", "agent": "claude"})
-    fenced = workspace("Fenced", {"session": "lecture", "agent": "colibri"})
-    unopened = workspace("Unopened", {"agent": "claude"})
-    free = workspace("Free", {"session": "lecture"})
-    atlas.forget()
+    # ---- the legacy key is read until T55 removes the shim ------------------
+    legacy = dict(on_disk())
+    legacy.pop("provider")
+    legacy["default_agent"] = "codex"
+    write(CONFIG, json.dumps(legacy))
+    check("a config still naming `default_agent` is read as the provider",
+          recipes.load_config()["provider"] == "codex")
+    status, got = server.post("/default-agent", {"agent": "claude"})
+    check("and the next tap writes `provider` and drops the legacy key",
+          status == 200 and on_disk().get("provider") == "claude"
+          and "default_agent" not in on_disk(), on_disk())
 
-    def agent_of(root):
-        with open(os.path.join(root, "live", "state.json"), encoding="utf-8") as fh:
-            return (json.load(fh) or {}).get("agent")
+    # ---- the thread sheet names the machine's choice for every kind ---------
+    from tutorboard.server.routes import lesson                # noqa: E402
+    os.remove(os.path.join(CTL, "limited-claude"))
+    assistants.forget()
+    sheet = lesson.kind_agents(os.path.join(atlas, "courses", "Demo"))
+    check("the sheet names who takes the next turn on every kind -- here the "
+          "fallback, claude's allowance still being gone -- and why, whatever "
+          "the subject's tutorboard.json says",
+          sheet and all(v["agent"] == "codex" and "allowance" in v["why"]
+                        for v in sheet.values()), sheet)
 
-    status, got = post("/default-agent", {"agent": "deepseek"})
-    check("the tap moves a sitting that had named an assistant, which is the "
-          "whole of what an evening out of allowance needs",
-          status == 200 and agent_of(stuck) == "deepseek")
-    check("and says which ones it moved, because the sentence that named only "
-          "the machine layer is what read as a tap doing nothing",
-          got.get("moved") == ["Stuck"])
-    check("THE FENCED READER IS LEFT WHERE IT IS. `private` is what says an "
-          "assistant may open the workspace holding `phi`, and moving that "
-          "sitting to a hosted provider from a tap about an allowance puts "
-          "identifiable audio in front of a remote",
-          agent_of(fenced) == "colibri")
-    check("a workspace with no sitting open is not pinned by this: there is "
-          "nothing to move, and writing one in would pin an evening nobody "
-          "has started", agent_of(unopened) == "claude")
-    check("and a sitting that never named one is left alone too -- the "
-          "machine default already reaches it",
-          agent_of(free) is None)
-    check("the file still says the same thing it would have",
-          cfg().get("default_agent") == "deepseek")
-
-    # A second tap on the same provider moves nothing: it is already there, and
-    # a report naming a workspace that did not change is a report nobody trusts.
-    status, got = post("/default-agent", {"agent": "deepseek"})
-    check("tapping the provider a sitting is already on moves nothing",
-          status == 200 and got.get("moved") == [])
-
-    # ---- THE PROVIDER, ON THE THREAD SHEET -----------------------------------
-    # The sheet says on each kind's button who will take it: the workspace's
-    # one provider, else this machine's own default, and why not where it
-    # cannot. A per-kind object names nothing.
-    from tutorboard.server.routes import lesson               # noqa: E402
-    kinded = workspace("Kinded", {})
-    with open(os.path.join(kinded, "tutorboard.json"), "w", encoding="utf-8") as fh:
-        json.dump({"name": "Kinded",
-                   "agent": {"learn": "deepseek", "build": "nokey"}}, fh)
-    plain = workspace("Plain", {})
-    with open(os.path.join(plain, "tutorboard.json"), "w", encoding="utf-8") as fh:
-        json.dump({"name": "Plain", "agent": "nokey"}, fh)
-    was_listing = assistants.listing
-    assistants.listing = lambda: dict(TABLE, machine="claude", agents=[
-        dict(a, unavailable=("A_KEY is not in %s" % KEYS
-                             if a["name"] == "nokey" else None))
-        for a in TABLE["agents"]])
-    sheet = lesson.kind_agents(kinded)
-    check("a per-kind object names nothing: every kind gets the machine's own",
-          all(sheet.get(k) == {"agent": "claude", "why": ""}
-              for k in ("learn", "coach", "build")))
-    sheet = lesson.kind_agents(plain)
-    check("the workspace's one provider is on every kind's button, and says "
-          "why it cannot take a turn here",
-          all(sheet.get(k, {}).get("agent") == "nokey"
-              and "A_KEY" in sheet[k]["why"] for k in ("learn", "coach", "build")))
-    assistants.listing = lambda: None
-    check("with no answer from the launcher it draws no names",
-          lesson.kind_agents(kinded) == {})
-    assistants.listing = was_listing
-    js = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
-    check("and the sheet draws it on each kind's button",
-          "sheet.agents[k.kind]" in js)
-
-    src = open(os.path.join(ROOT, "tutorboard", "server", "routes",
-                            "machines.py"), encoding="utf-8").read()
-    check("the file is written atomically, the way a limit record is -- every "
-          "`tutor` invocation reads it and a half-written one takes the tool out",
-          "os.replace(tmp, paths.CONFIG)" in src)
-    check("and the 900-second cache is dropped, or the tap appears to do "
-          "nothing for a quarter of an hour", "assistants.forget()" in src)
-
-    # ONE COPY OF THE CHOOSER'S RULES. Two go out of step the first time a
-    # recipe grows a flag, and a flag on a recipe is how a provider is added.
-    who = open(os.path.join(ROOT, "web", "who.js"), encoding="utf-8").read()
+    js = open(os.path.join(BOARD, "web", "board.js"), encoding="utf-8").read()
+    check("the board draws a card's by-line", "card-by" in js and "c.by" in js)
+    who = open(os.path.join(BOARD, "web", "who.js"), encoding="utf-8").read()
     for page in ("board.js", "home.js"):
-        js = open(os.path.join(ROOT, "web", page), encoding="utf-8").read()
+        src = open(os.path.join(BOARD, "web", page), encoding="utf-8").read()
         check("%s draws the chooser through the shared rules" % page,
-              "WhoChoice" in js)
-    for page in ("board.html", "home.html"):
-        markup = open(os.path.join(ROOT, "web", page), encoding="utf-8").read()
-        check("and %s loads them" % page, "/static/who.js" in markup)
+              "WhoChoice" in src)
     check("an unkeyed recipe is drawn dimmed with the key and the file in its "
-          "title, because that sentence is the whole of a provider's setup",
-          "a.unkeyed" in who and "keys" in who)
+          "title", "a.unkeyed" in who and "keys" in who)
 finally:
-    httpd.shutdown()
-    worker.stop() if hasattr(worker, "stop") else None
+    if server:
+        server.stop()
+    shutil.rmtree(box, ignore_errors=True)
 
 print("%d FAILURES" % len(fails) if fails
-      else "the provider is a tap, and the machine's own file is where it lands")
+      else "one provider, one fallback that names itself, and a tap that lands on the next turn")
 sys.exit(1 if fails else 0)

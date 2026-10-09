@@ -346,11 +346,11 @@ check("the claude recipe says how to ask what a turn cost",
       claude.get("usage") == "claude-json" and claude.get("usage_args"))
 check("the flag is appended rather than written into the recipe, so a machine "
       "carrying an old copy of it still reports",
-      "--output-format" not in claude["headless"]
-      and "--output-format" in usage.with_usage(claude, claude["headless"]))
+      "--output-format" not in claude["headless_first"]
+      and "--output-format" in usage.with_usage(claude, claude["headless_first"]))
 check("and appending it twice does not repeat it",
-      usage.with_usage(claude, usage.with_usage(claude, claude["headless"]))
-      == usage.with_usage(claude, claude["headless"]))
+      usage.with_usage(claude, usage.with_usage(claude, claude["headless_first"]))
+      == usage.with_usage(claude, claude["headless_first"]))
 check("an agent that reports nothing is simply not accounted for",
       usage.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
 check("and `board cost` splits the evening by who taught it, because the "

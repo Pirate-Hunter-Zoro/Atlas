@@ -164,24 +164,22 @@ ds = D["agents"]["deepseek"]
 check("deepseek runs through opencode, its own harness, and never through "
       "another provider's client",
       ds["cmd"][0] == "opencode" and ds["headless_first"][0] == "opencode"
-      and ds["headless"][0] == "opencode"
-      and "claude" not in ds["cmd"] + ds["headless_first"] + ds["headless"])
-check("the model is named on the command line of both turns and of the "
+      and "claude" not in ds["cmd"] + ds["headless_first"])
+check("the model is named on the command line of the turn and of the "
       "interactive sitting, because this machine's opencode default is another "
       "provider",
       all(t[t.index("-m") + 1] == "deepseek/deepseek-flash"
-          for t in (ds["cmd"], ds["headless_first"], ds["headless"])))
+          for t in (ds["cmd"], ds["headless_first"])))
 check("and it is the model the vision route reads with, so a rename is one "
       "id in two places that a test holds together",
       ds["headless_first"][ds["headless_first"].index("-m") + 1]
       == "deepseek/" + ds["vision"]["model"])
-check("it resumes with --continue, and only the resumed turn does",
-      "--continue" in ds["headless"] and "--continue" not in ds["headless_first"])
-check("no external plugin and no permission prompt: --pure and --auto on both",
-      all("--pure" in t and "--auto" in t
-          for t in (ds["headless_first"], ds["headless"])))
+check("every turn is fresh: no resume form and no --continue",
+      "headless" not in ds and "--continue" not in ds["headless_first"])
+check("no external plugin and no permission prompt: --pure and --auto",
+      "--pure" in ds["headless_first"] and "--auto" in ds["headless_first"])
 check("no `--` before the prompt, because `with_usage` appends flags after it",
-      "--" not in ds["headless_first"] and "--" not in ds["headless"])
+      "--" not in ds["headless_first"])
 check("it reports what it cost through its own parser",
       ds["usage"] == "opencode-json" and ds["usage_args"] == ["--format", "json"]
       and "opencode-json" in usage.USAGE_PARSERS)
@@ -212,7 +210,7 @@ check("keys.fill leaves a brace that does not open a bare name alone",
 # this is the one that is unrecoverable: `ps` is readable by every account on
 # this machine and a leaked key cannot be un-leaked.
 real_cmd = usage.with_usage(ds, [a.replace("{prompt}", "hello")
-                                 for a in ds["headless"]])
+                                 for a in ds["headless_first"]])
 check("and nothing of it reaches the command line",
       not any("sk-abc123" in a or "DEEPSEEK" in a for a in real_cmd))
 check("the recipe names the host its turns open",
@@ -229,15 +227,16 @@ check("the vision route is the raw OpenAI-format request, independent of the "
       "harness", ds["vision"]["endpoint"].endswith("/v1/chat/completions"))
 
 # ---- and the refusals, on the surfaces that draw them ----------------------
-unkeyed_cfg = {"default_agent": "ghost", "agents": {
+unkeyed_cfg = {"provider": "ghost", "agents": {
     "ghost": {"cmd": ["sh"], "headless": ["sh", "-c", "{prompt}"],
               "needs_key": "NOT_A_KEY"}}}
 check("an unkeyed recipe cannot take a turn, in the same words a missing "
       "executable cannot",
-      "NOT_A_KEY" in (recipes.agent_unavailable(unkeyed_cfg, "ghost") or ""))
-check("and no turn is spent on one: every turn asks who can take it, and an "
-      "unkeyed recipe is not offered",
-      "name, said = recipes.choose_agent(cfg, wanted)" in tutor_src)
+      "NOT_A_KEY" in (recipes.unavailable(unkeyed_cfg, "ghost") or ""))
+check("and no turn is spent on one: an unkeyed provider with no fallback "
+      "resolves to nobody, in words",
+      recipes.resolve(unkeyed_cfg)[0] is None
+      and "NOT_A_KEY" in recipes.resolve(unkeyed_cfg)[1])
 
 print("%d FAILURES" % len(fails) if fails
       else "a provider is a recipe plus a key, and neither is in the tree")

@@ -67,11 +67,11 @@ print(json.dumps({"type": "result", "is_error": False, "result": "done",
                             "cache_read_input_tokens": 300}}))
 ''')
 write(recipes.CONFIG, json.dumps({
-    "default_agent": "fake",
+    "provider": "fake",
     "agents": {"fake": {"cmd": [sys.executable], "prompt": "argv",
                         "headless": [sys.executable, PROVIDER, "{prompt}"],
                         "usage": "claude-json"}},
-    "fallback": None, "only_agent": None}))
+    "fallback": None}))
 
 ATLAS = os.path.join(BOX, "atlas")
 WS = os.path.join(ATLAS, "courses", "Fixture")
@@ -109,7 +109,7 @@ def wait(cond, timeout=120):
 runner = service.Runner(ATLAS, concurrency=2).start()
 try:
     cfg = recipes.load_config()
-    name = recipes.resolve_agent(cfg, recipes.read_course(WS))
+    name = recipes.resolve(cfg)[0]
     check("the fixture's config resolves its fake recipe", name == "fake")
     check("a line that wakes queues a turn", runner.wake(SID))
     wait(lambda: settled(1))

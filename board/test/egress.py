@@ -127,7 +127,7 @@ try:
         with open(paths.CONFIG, "w", encoding="utf-8") as fh:
             json.dump(doc, fh)
 
-    write_cfg({"default_agent": "claude"})
+    write_cfg({"provider": "claude"})
     check("the default probes the default agent's provider",
           egress.egress_probe_urls() == egress.DEFAULT_EGRESS_PROBE)
 
@@ -140,7 +140,7 @@ try:
     # EACH CONFIGURED PROVIDER'S ENDPOINT IS ON THE LIST, after the machine's
     # own and once each: on the Mac every provider is an ordinary choice, so a
     # filter on one hostname is not a machine with no way out.
-    write_cfg({"default_agent": "claude"})
+    write_cfg({"provider": "claude"})
     got = egress.egress_probe_urls(also=["https://api.deepseek.test/a",
                                          egress.DEFAULT_EGRESS_PROBE[0],
                                          "https://api.deepseek.test/a"])
@@ -244,18 +244,10 @@ check("a turn that goes through resets the count as well as the mark: a "
       abs(back - one) < 5)
 egress.clear_unreachable("deepseek")
 
-# --- a recipe that fails for a reason the network is innocent of ------------
-# The provider renames the model the recipe pins. The host answers, so nothing
-# above notices, and every message costs a failed turn for ever.
-egress.mark_failing("deepseek", "API Error: 404 model not found")
-check("a recipe whose turns keep failing is stood down like one that cannot be "
-      "reached, and says which it was",
-      (egress.stood_down("deepseek") or {}).get("why", "").startswith("API Error")
-      and egress.unreachable("deepseek") is None)
-check("and the same clearing answers both, because the same thing settles "
-      "both: a turn that went through",
-      egress.clear_unreachable("deepseek") is None
-      and egress.stood_down("deepseek") is None)
+# --- no strike stand-down -----------------------------------------------------
+check("a recipe that keeps failing is not stood down: the resolver's reasons are "
+      "a missing binary, a missing key and a usage limit",
+      not hasattr(egress, "mark_failing"))
 
 check("asking about one provider is a different question from asking about the "
       "machine, and takes its own urls",
@@ -273,41 +265,20 @@ check("the tutor asks whether the MACHINE can get out only after a turn has "
       "the student waits for",
       "if err:" in tutor_src and
       tutor_src.index("if err:") < tutor_src.index("if not egress.egress_ok(also="))
-check("with one exception, and it is the moment the question is cheap against "
-      "what it saves: a recipe with a provider OF ITS OWN is asked about once "
-      "before a turn is spent on it, since nothing else on the machine has an "
-      "opinion about that host",
-      "def probe_before_turn(" in tutor_src
-      and "probe_before_turn(cfg, wanted, log)" in tutor_src)
-check("and that probe is bounded -- cached, skipped for a recipe already stood "
-      "down, and never run for a recipe that talks to the machine's own provider",
-      "PROBE_TTL" in tutor_src and "if not own or egress.stood_down(name, now):"
-      in tutor_src)
+check("and no provider is probed before a turn: the resolver reads files only",
+      "probe_before_turn" not in tutor_src and "PROBE_TTL" not in tutor_src)
 check("and rotates when it is the network rather than the tutor",
       "egress.rotate_exit_node(" in tutor_src)
 check("and re-answers the message whose turn was lost, rather than waiting",
       "pending = owe(ctx, out)" in tutor_src
       and "owed = daemon.owed_message(repo.live)" in tutor_src)
-check("and says so on the record, because a board that reads `retrying` false "
-      "tells the student to send again behind a turn the daemon is taking",
-      'last_error="cannot reach %s" % host,' in tutor_src
-      and"""last_error="cannot reach %s" % host,
-                               failed_at=time.time(), failed_agent=ctx.agent_name,
-                               retrying=True)""" in tutor_src)
 check("and says plainly when it could not repair it",
       "turns will keep " in tutor_src)
 
-check("and asks about the failed turn's OWN provider before the machine's",
-      tutor_src.index("egress.egress_ok(urls=") < tutor_src.index("if not egress.egress_ok(also="))
-check("standing a dark provider down is the same climb-down as an exhausted "
-      "allowance: the message is re-answered by whoever can take it",
-      "egress.mark_unreachable(" in tutor_src and
-      "def agent_probe_urls(" in tutor_src)
-check("and `agent_unavailable` reads that finding rather than measuring it, "
-      "since it runs under a poll several times a second",
-      "egress.stood_down(name, now)" in tutor_src)
-check("a turn that goes through clears the mark",
-      "egress.clear_unreachable(ctx.agent_name)" in tutor_src)
+check("a dark host does not stand a turn's recipe down: nothing the resolver "
+      "reads is written from a failed turn's probe",
+      "egress.mark_unreachable(" not in tutor_src
+      and "egress.stood_down(" not in tutor_src)
 check("and the agent's own verdict is what the board reports, not `exit 1`",
       "def result_object_error(" in tutor_src and
       "said = result_object_error(text)" in tutor_src)
@@ -318,12 +289,7 @@ check("there is a command to ask, and to repair, by hand",
 check("and doctor says so, since an exit node is invisible until it is not",
       "every request a tutor makes leaves from there" in board_src)
 
-# --- the probe, run rather than grepped for ---------------------------------
-#
-# Asserting that the string `probe_before_turn(cfg, wanted, log)` appears in
-# `bin/tutor` proves the call site is spelt right and nothing whatever about
-# what it does. So the function is loaded and driven, with `egress_ok` stubbed:
-# the network is never touched and every branch that matters is.
+# --- the machine-wide probe, run rather than grepped for ----------------------
 
 from tutorboard.runner import daemon  # noqa: E402
 from tutorboard.agents import recipes  # noqa: E402
@@ -331,8 +297,7 @@ from tutorboard.runner import loop as runloop  # noqa: E402
 from tutorboard.agents import usage  # noqa: E402
 
 # Both run under this interpreter, which `missing_command` always counts as
-# installed: the climb-down below must not depend on which assistants this
-# machine has (test/onlyagent.py runs this suite with claude off the PATH).
+# installed: nothing below depends on which assistants this machine has.
 CFG = {"agents": {
     "deepseek": {"cmd": [sys.executable], "headless": [sys.executable],
                  "egress_probe": ["https://api.deepseek.test/v1/chat/completions"]},
@@ -368,89 +333,28 @@ check("and one whose key is not here adds none",
 _keys.unkeyed = was_unkeyed
 recipes.missing_command = was_missing
 
-was_ok = egress.egress_ok
-egress.egress_ok = answering("api.deepseek.test")
-egress.clear_unreachable("deepseek")
-recipes._PROBED.clear()
-host = recipes.probe_before_turn(CFG, "deepseek")
-check("a recipe with a provider of its own is asked about BEFORE the turn, and "
-      "the answer is the host that went dark",
-      host == "api.deepseek.test")
-check("and the finding is written down, so `choose_agent` can climb down "
-      "without anybody probing again",
-      (egress.stood_down("deepseek") or {}).get("host") == "api.deepseek.test")
-check("and the climb-down actually happens: the next turn goes to something "
-      "that can take it, and the reason comes back with it",
-      recipes.choose_agent(CFG, "deepseek")[0] == "claude"
-      and "api.deepseek.test" in (recipes.choose_agent(CFG, "deepseek")[1] or ""))
-before = len(asked)
-check("a provider already stood down is not asked again -- the record is the "
-      "answer, and a round trip to re-learn it is a round trip a student waits "
-      "for", recipes.probe_before_turn(CFG, "deepseek") is None
-      and len(asked) == before)
-egress.clear_unreachable("deepseek")
-recipes._PROBED.clear()
-recipes.probe_before_turn(CFG, "deepseek")
-before = len(asked)
-check("and the answer stands for PROBE_TTL, so a sitting cannot make the "
-      "daemon probe once a turn",
-      recipes.probe_before_turn(CFG, "deepseek") is None and len(asked) == before)
-recipes._PROBED.clear()
-egress.clear_unreachable("claude")
-check("a recipe that talks to the machine's own provider is not probed at all, "
-      "because the machine-wide probe on the failure path already answers for "
-      "it", recipes.probe_before_turn(CFG, "claude") is None
-      and egress.stood_down("claude") is None)
-egress.egress_ok = lambda timeout=12, urls=None, also=(): False
-egress.clear_unreachable("deepseek")
-recipes._PROBED.clear()
-check("and a machine with no egress at all is not this provider's fault, so "
-      "nothing is stood down for it",
-      recipes.probe_before_turn(CFG, "deepseek") is None
-      and egress.stood_down("deepseek") is None)
-egress.egress_ok = was_ok
-egress.clear_unreachable("deepseek")
-
-# --- and it is asked before the sitting's first turn, not only inside one ----
-check("every turn asks it before the provider is spawned, so a dark provider "
-      "is climbed down from before a turn is spent on it",
-      "recipes.probe_before_turn(cfg, wanted, log)" in tutor_src
-      and tutor_src.index("recipes.probe_before_turn(cfg, wanted, log)")
-      < tutor_src.index("= turn.run_turn("))
+# --- the fallback says so on every turn it takes -----------------------------
+# `agent_why` is rewritten every turn, so the sentence a student is owed lasts
+# exactly as long as the provider cannot take the turn.
+from tutorboard import limits as _limits                       # noqa: E402
+_limits.LIMIT_RECORD = os.path.join(sandbox, "limited.json")
+FB = dict(CFG, provider="deepseek", fallback="claude")
+was_load = recipes.load_config
+recipes.load_config = lambda: FB
+_limits.mark_limited(__import__("time").time() + 900, agent="deepseek")
+_, took, _, why = runloop.for_this_turn(FB, "claude", "")
+check("a turn the fallback takes says so, naming the provider and why",
+      took == "claude" and why and "deepseek" in why and "allowance" in why)
+_, took, _, why = runloop.for_this_turn(FB, "claude", "")
+check("and says it again on the next turn, not only on the one that moved",
+      took == "claude" and why and "deepseek" in why)
+_limits.clear_limited()
+_, took, _, why = runloop.for_this_turn(FB, "claude", "")
+check("and stops saying it when the provider is back",
+      took == "deepseek" and why is None)
+recipes.load_config = was_load
 check("and the swap is on the record the board reads, rather than only in the "
       "log", "agent_why=moved or None," in tutor_src)
-
-# --- and it goes on saying it, which is a different claim -------------------
-#
-# `agent_why` is rewritten every turn so it cannot outlive the swap it
-# describes, and `for_this_turn` returned None whenever nothing MOVED this
-# turn -- which is every turn after the first, once the daemon is already up on
-# the substitute. The sentence a student is owed therefore lasted exactly as
-# long as the record between the daemon starting and its first turn.
-egress.egress_ok = answering("api.deepseek.test")
-egress.clear_unreachable("deepseek")
-recipes._PROBED.clear()
-recipes.probe_before_turn(CFG, "deepseek")
-was_load, was_resolve = recipes.load_config, recipes.resolve_agent
-recipes.load_config = lambda: CFG
-recipes.resolve_agent = lambda cfg, course, *a, **k: "deepseek"
-workspace = os.path.join(sandbox, "Galois-Theory")
-os.makedirs(workspace, exist_ok=True)
-_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", "")
-check("a sitting taught by somebody other than the provider it asks for says "
-      "so on EVERY turn, not only on the turn that moved -- the student chose "
-      "deepseek, claude is teaching, and a name that changed silently is a "
-      "question rather than an answer",
-      took == "claude" and why and "deepseek" in why
-      and "api.deepseek.test" in why)
-recipes.resolve_agent = lambda cfg, course, *a, **k: "claude"
-_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", "")
-check("and it stops saying it when the sitting is getting what it asked for, "
-      "because a board explaining a climb-down that climbed home is a board "
-      "talking about the past", took == "claude" and why is None)
-recipes.load_config, recipes.resolve_agent = was_load, was_resolve
-egress.egress_ok = was_ok
-egress.clear_unreachable("deepseek")
 
 # --- the message a turn was taking, when the daemon does not come back ------
 #
@@ -498,20 +402,21 @@ check("but a record naming somebody else is not, which is what stops an "
 # a session whose last turn stood its provider down never takes another.
 check("the handoff re-asks who writes it instead of inheriting the recipe the "
       "last turn failed on",
-      "stuck = recipes.agent_unavailable(ctx.cfg, ctx.agent_name)" in tutor_src
+      "took, why_took = recipes.resolve(ctx.cfg)" in tutor_src
       and tutor_src.index("the handoff goes to")
       < tutor_src.index("wrap = ctx.spec.get(\"handoff\")"))
 check("and it rebinds the recipe, not just the name -- the environment is what "
-      "pointed the binary at the dead host",
-      "ctx.spec = ctx.cfg[\"agents\"].get(took) or {}" in tutor_src)
+      "points the binary at its provider",
+      "ctx.agent_name, ctx.spec = took, ctx.cfg[\"agents\"].get(took) or {}"
+      in tutor_src)
 check("and it is skipped rather than spent when nothing here can write one",
-      "    if stuck:\n" in tutor_src.split("def wrap_up(")[1]
+      "    if not took:\n" in tutor_src.split("def wrap_up(")[1]
       and "no handoff was attempted" in tutor_src)
 
 # --- what the board is given to say it with ---------------------------------
 check("the chooser is told which providers cannot take a turn right now, so a "
-      "dark one is not drawn as a live button",
-      '"unavailable": recipes.agent_unavailable(cfg, n),' in tutor_src)
+      "limited one is not drawn as a live button",
+      '"unavailable": unavailable(cfg, n),' in tutor_src)
 state_src = open(os.path.join(ROOT, "tutorboard", "lesson", "state.py"),
                  encoding="utf-8").read()
 check("and the lesson payload carries the stand-down itself -- the host and "

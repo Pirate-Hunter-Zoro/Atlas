@@ -6,8 +6,6 @@ import os
 import re
 import shlex
 
-from . import repo as course_repo
-
 
 # A session's MODE, in `session.json`: who writes the code. `teach` withholds
 # it; `do` writes it. A session opens in teach and changes only by `board mode`,
@@ -30,7 +28,8 @@ def read_config(root):
     """What a subject's `tutorboard.json` says: `name`, `phi`, `check`, `relay`.
 
     Everything is optional. `stance`, `aim`, `subtitle` and `mode` left in a
-    file are ignored; `agent` passes through (`workspace_agent`). `name` defaults
+    file are ignored, and so is `agent`: who takes a turn is the machine's
+    one provider setting (`recipes.resolve`). `name` defaults
     to the directory name with dashes as spaces. `phi` stays literal -- True or
     False exactly as written, None for anything else -- because only a literal
     False opens check output (`holds.output_open`, which also wants False at
@@ -52,8 +51,6 @@ def read_config(root):
         or os.path.basename(os.path.abspath(root)).replace("-", " "),
         "phi": phi if isinstance(phi, bool) else None,
         "relay": relay if isinstance(relay, dict) else {},
-        # The workspace's assistant, as written; `workspace_agent` reads it.
-        "agent": said.get("agent"),
     }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])
@@ -185,18 +182,9 @@ def clean_check(raw):
 
 
 # ---------------------------------------------------------------------------
-# WHICH ASSISTANT, and why only the shape of the name is checked here
+# An assistant's NAME from a request: only its shape is checked here. Who takes
+# a turn is the machine's one provider setting (`recipes.resolve`).
 # ---------------------------------------------------------------------------
-#
-# The registry is in `bin/tutor` and belongs there: an agent entry is a command
-# recipe, so a second model is a second entry whose `cmd` carries the flag, and
-# this file has no business knowing what commands a machine has. What a request
-# can be checked against here is that it is a NAME -- something safe to write
-# into `state.json` and match against the registry later.
-#
-# An unknown one is DROPPED by `resolve_agent` rather than refused: leaving a
-# session with no tutor at all over a word from a browser is worse than
-# ignoring the word.
 AGENT_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,31}$")
 
 
@@ -204,29 +192,6 @@ def clean_agent(agent):
     """An assistant name from a request, or None if it is not one. Never raises."""
     agent = str(agent or "").strip().lower()
     return agent if AGENT_RE.match(agent) else None
-
-
-def workspace_agent(cfg):
-    """The assistant `tutorboard.json` names for every sitting here, or None.
-
-    One name, lowercased and passed on as written, so `resolve_agent` can
-    refuse one this machine has not got rather than quietly teach with another.
-    An object (the old per-kind form) names nothing.
-    """
-    said = (cfg or {}).get("agent")
-    if not isinstance(said, str):
-        return None
-    return said.strip().lower() or None
-
-
-def sitting_agent(root):
-    """Which assistant THIS SITTING asked for, off its own `state.json`, or None.
-
-    Read here so that the launcher and the server ask one function.
-    """
-    if not root:
-        return None
-    return clean_agent(course_repo.session_state(root).get("agent"))
 
 
 def sitting_box(state):

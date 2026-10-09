@@ -599,7 +599,7 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
             if isinstance(got, dict) and got.get("doc_dir"):
                 doc_dir = got["doc_dir"]
         made["rec"] = writeups.ask(target.root, wid, makes, about,
-                                   agent=config.sitting_agent(target.root) or "",
+                                   agent="",
                                    doc_dir=doc_dir,
                                    session=(os.path.basename(target.live)
                                             if target.stored else None))

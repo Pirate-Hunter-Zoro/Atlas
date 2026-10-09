@@ -104,87 +104,23 @@ def report_owed(where, this_signal, out, log=None):
                      else "could not replace it"))
     return None
 
-def for_this_turn(cfg, course, running, signal, log=None):
-    """Who writes the next card. `(cfg, agent_name, spec, why)`.
+def for_this_turn(cfg, running, signal, log=None):
+    """Who writes the next card: `(cfg, name, spec, why)`.
 
-    THE ASSISTANT IS RE-RESOLVED EVERY TURN. This re-reads the config and the
-    sitting's own `state.json` at the top of each one and asks `resolve_agent`
-    again, so a tap on the front door and a sitting rewritten from the iPad both
-    land on the next card. Where the answer has not changed -- which is nearly
-    always -- nothing happens and nothing is paid.
-
-    What makes that cheap is that every turn is a fresh process: it holds no
-    conversation worth protecting and reconstructs the evening off disk whoever
-    takes it. There is no per-session choice: `course` is the subject's
-    tutorboard.json and the machine's config, and nothing else.
-
-    TWO GUARDS, AND THEY ARE THE WHOLE OF WHAT MUST NOT MOVE:
-
-      - not under an `[unfinished]`, whose report belongs to the agent that
-        did the work;
-      - never into or out of a `private` recipe. It is the fence flag: the only
-        assistant allowed to read `phi`, whose cards must not reach a remote. A
-        swap in is a hosted model in a fenced workspace; a swap out is that
-        workspace's tutor replaced by one that cannot open its files.
+    The config is re-read every turn, so `/default-agent` lands on the next
+    card with nothing restarted. `recipes.resolve` decides: the provider, else
+    the fallback with `why` saying so, else nobody (`name` None). An
+    `[unfinished]` report stays with the recipe that did the work while that
+    one can still take a turn.
     """
     cfg = recipes.load_config()
-    fresh = dict(course)
-    fresh.update(recipes.read_course(course["root"]))
-    # No "root": `resolve_agent` would read a sitting's choice off it, and a
-    # session carries none (one provider setting, no per-session override).
-    fresh.pop("root", None)
-    switched = []
-    wanted = recipes.resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m),
-                                   why=switched)
-    wanted = wanted or running
-    # AND WHETHER THE ONE BEING ASKED FOR CAN BE REACHED AT ALL, before a turn
-    # is spent finding out. Free for a recipe that talks to the machine's own
-    # provider, which is nearly all of them; see `probe_before_turn`.
-    recipes.probe_before_turn(cfg, wanted, log)
-    # Then the allowance, which is the other half and belongs to the agent.
-    name, said = recipes.choose_agent(cfg, wanted)
-    if name == running:
-        # AND IT GOES ON SAYING WHY FOR AS LONG AS IT IS TRUE, which is the
-        # difference between a climb-down and a silence. `agent_why` is rewritten
-        # on every turn precisely so it cannot outlive the swap it describes --
-        # so returning None here because nothing MOVED this turn wipes it on the
-        # first turn after the daemon came up on the substitute. Measured on the
-        # shape that started this: the sitting asks for `deepseek`, the daemon
-        # probes it dark and comes up as `claude` with the sentence on the
-        # record, and one turn later the record says `claude` and nothing else.
-        # The student chose a provider, is being taught by another, and the
-        # board has stopped mentioning it.
-        #
-        # What settles it is WANTED rather than RUNNING: the sitting's own
-        # choice against the one taking the turn. They differ for exactly as
-        # long as the stand-down or the allowance lasts, and `choose_agent`'s
-        # sentence already names the host and the hour.
-        # And the switch's own line for as long as it overrules what the
-        # sitting or workspace asked for, so a greyed-out claude on the strip
-        # is explained by the line that greyed it.
-        return cfg, running, cfg["agents"].get(running) or {}, (
-            said if name != wanted else (switched[0] if switched else None))
-    holding = (cfg["agents"].get(running) or {}).get("private")
-    taking = (cfg["agents"].get(name) or {}).get("private")
-    why = None
-    if recipes.only_bars(cfg, running) and not taking:
-        # A RECIPE THE SWITCH BARS TAKES NO FURTHER TURN, whatever its session
-        # holds: the switch is a promise about which provider is called, and
-        # the guards below protect a conversation, not a provider.
-        pass
-    elif signal == "unfinished":
-        why = "an unfinished report belongs to the session that did the work"
-    elif holding or taking:
-        why = "one of the two is the fenced reader, and that is nobody's automatic choice"
-    if why is None:
-        said = said or (switched[0] if switched else None) or (
-            "the sitting now asks for '%s'" % name)
-        if log:
-            log.write("-- %s\n" % said)
-        return cfg, name, cfg["agents"].get(name) or {}, said
-    if log:
-        log.write("-- staying on '%s' rather than '%s': %s\n" % (running, name, why))
-    return cfg, running, cfg["agents"].get(running) or {}, None
+    if (signal == "unfinished" and running
+            and not recipes.unavailable(cfg, running)):
+        return cfg, running, cfg["agents"].get(running) or {}, None
+    name, why = recipes.resolve(cfg)
+    if log and why:
+        log.write("-- %s\n" % why)
+    return cfg, name, (cfg["agents"].get(name) or {}) if name else {}, why
 
 def handed(spec, prompt, context):
     """`(prompt, extra argv)` with `context` handed to the provider.
@@ -211,8 +147,7 @@ class Ctx(object):
     the session directory; `env` the environment every turn gets before its
     recipe's own; `on_start(process)` runs once the provider exists. `cfg`,
     `agent_name` and `spec` are THIS turn's answer to who writes, re-asked by
-    `for_this_turn`. `turns` counts the session's turns, and `striking` is the
-    last failure and how often it repeated.
+    `for_this_turn`. `turns` counts the session's turns.
     """
 
     def __init__(self, **kw):
@@ -269,15 +204,21 @@ def take_turn(ctx, message):
     ticker = threading.Thread(target=beat, daemon=True)
     ticker.start()
 
-    # WHO WRITES THIS ONE, asked per turn, so an allowance that ran out is
-    # climbed down from and later climbed back to. See `for_this_turn`.
-    ctx.cfg, next_agent, next_spec, moved = for_this_turn(
-        ctx.cfg, ctx.course, ctx.agent_name, this_signal, log)
-    if moved:
-        ctx.agent_name, ctx.spec = next_agent, next_spec
-    # WHO IS WRITING, AND WHY IF IT CHANGED, BEFORE THE TURN RATHER THAN
-    # AFTER IT. The strip paints both off this record, and a failure is
-    # dropped with the agent it belongs to (`not_this_agents_failure`).
+    # WHO WRITES THIS ONE, asked per turn: the provider, else the fallback.
+    ctx.cfg, name, spec, moved = for_this_turn(
+        ctx.cfg, ctx.agent_name, this_signal, log)
+    if not name:
+        # Nobody here can take it. The message stays owed for the next wake,
+        # and the board says why in the resolver's own sentence.
+        beating.set()
+        log.write("!! %s\n" % moved)
+        daemon.agent_state(live, state="listening", last_error=moved,
+                           failed_at=time.time(), failed_agent=ctx.agent_name,
+                           retrying=False)
+        return {"owed": owe(ctx, out), "error": moved}
+    ctx.agent_name, ctx.spec = name, spec
+    # WHO IS WRITING, AND WHY WHEN IT IS THE FALLBACK, before the turn. The
+    # strip paints both off this record, and `board write` stamps the card.
     daemon.agent_state(live, agent=ctx.agent_name, agent_why=moved or None,
                        **daemon.not_this_agents_failure(live, ctx.agent_name))
     use, template = turn.turn_plan(ctx.spec, this_signal)
@@ -308,6 +249,10 @@ def take_turn(ctx, message):
     # back what it said rather than guess at why.
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     turn_env = turn.turn_environment(ctx.spec, base=ctx.env)
+    # `board write` puts `by: <name>` on a card the fallback wrote.
+    turn_env.pop("TUTORBOARD_FALLBACK", None)
+    if moved:
+        turn_env["TUTORBOARD_FALLBACK"] = ctx.agent_name
     timed_out = False
     cap = turn.turn_timeout(ctx.cfg, ctx.repo, ctx.spec,
                             jobs.REPAIR if turn_repairs else this_signal)
@@ -401,67 +346,19 @@ def take_turn(ctx, message):
             # answering it, it is the same message.
             pending = owe(ctx, out)
 
-            # AND THEN THE NEXT TURN CLIMBS DOWN. `for_this_turn` runs at
-            # the top of the loop and `choose_agent` will not offer this one
-            # again until its expiry passes, so the message we just failed
-            # to answer is handed to the next provider that is installed,
-            # keyed and unlimited -- and the lesson loses nothing, because a
-            # turn is cold and reads the evening back off disk.
-            #
-            # Where there is no such provider, `choose_agent` hands the turn
-            # back to this one and it fails where it is visible, which is
-            # exactly what this did before there was a second: the failure is
-            # on the card stream with its reason, `/health` publishes the
-            # limit, and `board limit` says until when.
-            nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)
-            if nxt != ctx.agent_name:
+            # AND THE NEXT TURN GOES TO THE FALLBACK: `recipes.resolve`
+            # will not offer this one again until the expiry passes. With no
+            # fallback able to take it, the message stays owed and the board
+            # says why.
+            nxt, _ = recipes.resolve(recipes.load_config())
+            if nxt and nxt != ctx.agent_name:
                 log.write("-- the next turn goes to '%s'\n" % nxt)
             else:
-                log.write("!! nothing else here can take it; turns will "
-                          "fail until the allowance returns -- `board "
-                          "limit` says when\n")
+                log.write("!! nothing else here can take it; turns wait "
+                          "until the allowance returns -- `board limit` "
+                          "says when\n")
             return {"owed": pending, "error": err}
 
-        # Not a limit. Ask the network, rather than guess -- and ask about
-        # THIS PROVIDER before asking about the machine, because the two
-        # have different answers and only the narrow one is ever true here.
-        # A filter that drops one hostname leaves the rest of the internet
-        # reachable, so the machine-wide probe reports a healthy network
-        # over a recipe whose every turn dies in the TLS handshake, and the
-        # board says `exit 1` about a fault no tutor can fix.
-        #
-        # Only when a turn has actually failed. Probing on every turn would
-        # add a round trip to the internet to every card the student waits
-        # for, to answer a question that is almost always yes.
-        own = recipes.agent_probe_urls(ctx.spec)
-        if own and not egress.egress_ok(urls=own) and egress.egress_ok(
-                also=recipes.provider_probe_urls(ctx.cfg)):
-            host = recipes.probe_host(own)
-            until = time.time() + egress.UNREACHABLE_WINDOW
-            egress.mark_unreachable(ctx.agent_name, host, until)
-            log.write("!! '%s' cannot reach %s from here, and everything "
-                      "else on the network answers; standing it down until "
-                      "%s\n" % (ctx.agent_name, host,
-                                time.strftime("%H:%M", time.localtime(until))))
-            # `retrying` for the same reason as the allowance above: the
-            # message is put back below and the next turn answers it.
-            daemon.agent_state(live, state="listening",
-                               last_error="cannot reach %s" % host,
-                               failed_at=time.time(), failed_agent=ctx.agent_name,
-                               retrying=True)
-            # The student sent something and got nothing, and the next turn
-            # climbs down exactly as it does for an allowance: `choose_agent`
-            # will not offer this recipe again until the expiry passes, and
-            # a cold turn reads the evening back off disk whoever takes it.
-            pending = owe(ctx, out)
-            nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)
-            if nxt != ctx.agent_name:
-                log.write("-- the next turn goes to '%s'\n" % nxt)
-            else:
-                log.write("!! nothing else here can take it; every turn "
-                          "will fail until %s answers from this machine\n"
-                          % host)
-            return {"owed": pending, "error": err}
         # AND WHETHER IT WAS THE MACHINE, kept, because the sentence below
         # recomputes the reason from the turn's own words and would write
         # `exit 1` over the top of it. `failWord` in `board.js` has a case
@@ -492,35 +389,6 @@ def take_turn(ctx, message):
         # one state this tool must never present as normal.
         # In words, not as an exit code. See `failure_reason`.
         why = "no egress" if dark_machine else usage.failure_reason(said, err)
-        # LOUD IS NOT THE SAME AS RECOVERABLE, and this is where the
-        # difference is paid. The two causes above both climb down: an
-        # exhausted allowance and a dark host each stand the recipe aside
-        # and hand the message to whoever can take it. Everything else --
-        # the provider renaming the model the recipe pins, the key being
-        # rejected, the endpoint answering 404 to every request -- reaches
-        # the board in the provider's own words and then happens again on
-        # the next message, and the next, for ever, a wasted turn each time.
-        # So a recipe that fails the same way twice is stood down on the
-        # same terms, and `choose_agent` gives the lesson to something that
-        # can write a card. `board agents` says until when.
-        if ctx.striking[0] == ctx.agent_name and ctx.striking[1] == why:
-            ctx.striking[2] += 1
-        else:
-            ctx.striking = [ctx.agent_name, why, 1]
-        if ctx.striking[2] >= 2 and not egress.stood_down(ctx.agent_name):
-            egress.mark_failing(ctx.agent_name, why)
-            until = (egress.stood_down(ctx.agent_name) or {}).get("until", 0)
-            log.write("!! '%s' has failed the same way twice (%s); standing "
-                      "it down until %s\n"
-                      % (ctx.agent_name, why,
-                         time.strftime("%H:%M", time.localtime(until))))
-            pending = owe(ctx, out)
-            nxt, _ = recipes.choose_agent(recipes.load_config(), ctx.agent_name)
-            if nxt != ctx.agent_name:
-                log.write("-- the next turn goes to '%s'\n" % nxt)
-            else:
-                log.write("!! nothing else here can take it; turns will "
-                          "fail until this recipe is repaired\n")
         daemon.agent_state(live, state="listening", last_error=why,
                            failed_at=time.time(), failed_agent=ctx.agent_name,
                            retrying=pending is not None)
@@ -534,14 +402,6 @@ def take_turn(ctx, message):
             log.write("-- a turn went through on '%s'; its allowance is "
                       "back\n" % ctx.agent_name)
             limits.clear_limited(ctx.agent_name)
-        # And the same argument for a provider that was dark: the expiry is
-        # a guess about when a filter might lift, a card written through it
-        # is a measurement, and the measurement wins.
-        if egress.stood_down(ctx.agent_name):
-            log.write("-- a turn went through on '%s'; it is not stood "
-                      "down any more\n" % ctx.agent_name)
-            egress.clear_unreachable(ctx.agent_name)
-        ctx.striking = [None, None, 0]
         daemon.agent_state(live, state="listening", last_error=None,
                            failed_at=0, failed_agent=None, retrying=False)
 
@@ -575,18 +435,15 @@ def wrap_up(ctx):
     """
     log, logpath, root = ctx.log, ctx.logpath, ctx.root
     ctx.cfg = recipes.load_config()
-    took, why_took = recipes.choose_agent(ctx.cfg, ctx.agent_name)
+    took, why_took = recipes.resolve(ctx.cfg)
+    if not took:
+        log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s\n"
+                  % (time.strftime("%H:%M:%S"), why_took))
+        return False, why_took
     if took != ctx.agent_name:
-        log.write("-- the handoff goes to '%s': %s\n"
-                  % (took, why_took or "it is what can write one here"))
-        ctx.agent_name = took
-        ctx.spec = ctx.cfg["agents"].get(took) or {}
-    stuck = recipes.agent_unavailable(ctx.cfg, ctx.agent_name)
-    if stuck:
-        log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s, and "
-                  "nothing else on this machine can write one\n"
-                  % (time.strftime("%H:%M:%S"), stuck))
-        return False, stuck
+        log.write("-- the handoff goes to '%s'%s\n"
+                  % (took, (": " + why_took) if why_took else ""))
+    ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
     daemon.agent_state(ctx.live, state="wrapping up")
     log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
     chapter = turn.chapter_now(ctx.repo)
