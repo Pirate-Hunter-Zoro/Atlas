@@ -17,8 +17,8 @@ correcting it is already a loop that exists.
 
 WHICH LEAVES ONE THING WITH NOWHERE TO BE SAID: that it is being written, and
 that it is there. A turn that writes no card is invisible on the board by
-construction, and "I asked for a deck and nothing happened" is the same defect
-`missions.py` was built against one workspace over. This module is the record.
+construction, so "I asked for a deck and nothing happened" had nowhere to be
+answered. This module is the record.
 
 THE RECORD IS THE SESSION'S. A stored session keeps its asks in its own
 `writeups/`, so two sessions on one subject each see their own, and nothing is
@@ -69,8 +69,8 @@ CEILING = 2 * 3600
 KEEP = 7 * 24 * 3600
 
 # The list is rebuilt at most this often. The hub polls four times a second and
-# deriving a state walks the workspace for its documents. `missions.TTL`, for the
-# same reason: the answer changes on the scale of a turn.
+# deriving a state walks the workspace for its documents, and the answer
+# changes on the scale of a turn.
 TTL = 5.0
 
 _CACHE = {}

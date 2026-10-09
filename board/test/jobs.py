@@ -30,7 +30,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import cluster, exports, jobs, missions                # noqa: E402
+from tutorboard import cluster, exports, jobs                          # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 TUTOR = os.path.join(ROOT, "bin", "tutor")
@@ -371,12 +371,6 @@ code, out = board(allowed, "job", "--label", "knn", "sbatch", "x")
 check("and so is a command with no `--` before it", code == 1 and "--" in out)
 code, out = board(allowed, "job", "--show")
 check("`--show` lists what is registered", code == 0 and "4242" in out)
-
-# --- missions carry a thread too ---------------------------------------------------
-rec = missions.dispatch(allowed, "do the thing", "t0007", thread="tripod")
-check("a mission records the thread it was dispatched for",
-      rec["thread"] == "tripod"
-      and missions.stored(allowed)[0]["thread"] == "tripod")
 
 # --- the real repository -----------------------------------------------------------
 for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Solutions",

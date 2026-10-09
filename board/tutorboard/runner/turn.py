@@ -75,13 +75,12 @@ def doing_now(where, signal=""):
 
     True when the session is in do mode (`config.mode_of`), and for the turns
     whose signal says so whatever the mode: a step handed over (`handover`), a
-    rework, a ship, a writeup, an unfinished doing turn, a repair. Each of those
+    rework, a writeup, an unfinished doing turn, a repair. Each of those
     writes code or a document, and a doing turn on a teaching turn's clock is a
     turn killed with the work half done. A plain revision is not here: it is
     over in a minute.
     """
-    if signal in ("handover", "rework", "ship", "writeup", "unfinished",
-                  "repair"):
+    if signal in ("handover", "rework", "writeup", "unfinished", "repair"):
         return True
     try:
         return config.mode_of(state_of(where)) == "do"
@@ -184,7 +183,7 @@ def turn_plan(spec, signal=""):
     """`(recipe, prompt)` for a turn woken for `signal`. Every turn is a fresh
     process with a fresh conversation, and reads the lesson back off disk.
 
-    The signal picks the prompt: a revision, a rework, a ship and a document
+    The signal picks the prompt: a revision, a rework and a document
     asked for mid-session are not part of the lesson and get their own; an
     `[unfinished]` report gets the prompt that reads `git status` and the
     placeholder card; a `[code]` step from the cluster gets the prompt that
@@ -193,7 +192,6 @@ def turn_plan(spec, signal=""):
     prompt = {
         "revise": prompts.HEADLESS_REVISE_PROMPT,
         "rework": prompts.HEADLESS_REWORK_PROMPT,
-        "ship": prompts.HEADLESS_SHIP_PROMPT,
         "writeup": prompts.HEADLESS_WRITEUP_PROMPT,
         "unfinished": prompts.HEADLESS_UNFINISHED_PROMPT,
         "code": prompts.HEADLESS_CODE_PROMPT,
@@ -204,10 +202,10 @@ def turn_plan(spec, signal=""):
 def context_plan(signal=""):
     """`(brief, recap)`: what a turn woken for `signal` is handed above its
     prompt. A lesson turn gets both; an `[unfinished]` report the recap, which
-    shows the placeholder it owes; a revision, rework, ship or write-up is not
+    shows the placeholder it owes; a revision, rework or write-up is not
     part of the lesson and gets neither, as its prompt says.
     """
-    if signal in ("revise", "rework", "ship", "writeup"):
+    if signal in ("revise", "rework", "writeup"):
         return False, False
     if signal == "unfinished":
         return False, True
@@ -254,10 +252,10 @@ def turn_signal(out):
 # one's signal is what `turn_signal` reads; a failed job's line behind a
 # student's message would otherwise be briefed as a lesson. The signals kept are
 # the ones whose own machinery the turn needs -- an owed report, a step handed
-# over, a rework, a ship, a write-up -- and all of them are doing
+# over, a rework, a write-up -- and all of them are doing
 # turns already. `turn_repairs` names every [repair] request in the batch, so
 # `board brief` names each.
-REPAIR_KEEPS = ("unfinished", "handover", "rework", "revise", "ship", "writeup")
+REPAIR_KEEPS = ("unfinished", "handover", "rework", "revise", "writeup")
 
 
 def woken_for(root, out, inbox=None):

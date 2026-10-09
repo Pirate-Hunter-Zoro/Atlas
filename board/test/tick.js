@@ -11,7 +11,7 @@
 //     delta adds a card, rewrites one and removes one, and a card that slid
 //     out of the server's window stays on the page.
 //   * Older cards come on a tap from `/cards?before=`, below what is held.
-//   * A payload whose map, plan, reading, direction, news and missions are
+//   * A payload whose map, plan, reading and direction are
 //     null, with no sets, results, jobs or Colibri on it, paints without a
 //     throw; the subject's sets and counts come from `/subject.json`.
 //
@@ -207,9 +207,11 @@ check('each of ' + times.length + ' pushes paints in under ' + PUSH_MS + ' ms (s
       times[times.length - 1] < PUSH_MS);
 
 // ---- null-safe ----------------------------------------------------------------
-check('null map, plan, reading, direction, news and missions paint without a throw',
-      ['map', 'plan', 'reading', 'direction', 'news', 'missions']
+check('null map, plan, reading and direction paint without a throw',
+      ['map', 'plan', 'reading', 'direction']
         .every((k) => k in whole && whole[k] === null) && errors.length === 0);
+check('and the payload carries no news or missions',
+      !('news' in whole) && !('missions' in whole));
 
 // ---- older cards, and the subject, on demand -----------------------------------
 setTimeout(() => {

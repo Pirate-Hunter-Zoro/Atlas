@@ -294,47 +294,6 @@ DOING_SENSE = (
 )
 
 
-# A MISSION HAS A TASK, SO IT NEEDS NOTHING ELSE TO BE ABOUT -- and it must
-# leave a trail rather than one report at the end.
-#
-# THIS REPLACES THE SITTING, IT DOES NOT SIT ON TOP OF IT. A mission is
-# dispatched into whatever workspace holds the work, and most of them teach:
-# `PSYCH-ASR` does, so the turn now running there was handed `METHOD_SENSE`
-# ("the lesson is EXERCISES"), `WRITEUP_SENSE` ("transcribe THEIR argument"),
-# and a chapter label to start from. It had been told to do the work and to
-# set exercises instead, in the same breath, and the exercises win because they
-# are cheaper. None of that is about a mission, so a mission
-# reads this instead -- which costs about a thousand words LESS than the
-# sitting it replaces, on a preamble prefilled at a few tokens a second.
-#
-# AND THE TRAIL IS THE OTHER HALF OF THE ASK: *"if I click on that box that
-# says 'A Mission is still going' I can see what has been going on and been
-# accomplished thus far."* `DOING_SENSE` already orders one sentence first and
-# the report last, and on this engine both of them arrive hours in. So the turn
-# is asked for a line per finished thing instead, to a file that survives the
-# node going away -- see `progress.py`.
-MISSION_SENSE = (
-    "THIS TURN IS A MISSION, AND IT ALREADY HAS ITS JOB. Somebody set it going "
-    "from another board, in a workspace nobody is sitting in front of, and the "
-    "task is the last thing in the inbox. That task is the whole scope of the "
-    "turn: you need no chapter, no box, and no agenda of your own. DO NOT ASK "
-    "WHICH PART OF THE REPOSITORY THIS IS ABOUT, and do not stop for an answer "
-    "-- nobody is there to give one, and a question is how a mission spends "
-    "hours saying nothing.\n"
-    "AND LEAVE A TRAIL, BECAUSE A REPORT AT THE END IS NOTHING AT ALL UNTIL "
-    "THEN. `board step` takes one line on stdin, under 25 words, saying what "
-    "you have just FINISHED. It lands on the mission at once and it is what "
-    "somebody tapping the mission reads. Call it straight after your opening "
-    "sentence, and again every time something a person would want to know has "
-    "landed: a file written, a suite run, a number measured, a decision taken. "
-    "What is DONE -- never what you are about to do.\n"
-    "AND A MISSION OUTLIVES THE NODE IT STARTED ON. When the machine under you "
-    "goes away, this same task is picked up again and the trail is the thing "
-    "that crosses over. `board step --show` prints every line of it, yours and "
-    "the board's. Read it before you start and do not redo what is on it. "
-)
-
-
 # WHAT A DOING TURN IS ALLOWED TO CHANGE, and it is the code rather than what
 # the code printed. A wrong artifact is a wrong rule with a file under it, so
 # the file is a symptom and hand-editing it treats the symptom: nobody can
@@ -342,7 +301,7 @@ MISSION_SENSE = (
 # of the module puts the old answer back.
 #
 # Carried by every turn whose product is a change -- the code written for them,
-# a paper, a deck, a revision, a ship, a mission -- because each of them can be
+# a paper, a deck, a revision -- because each of them can be
 # finished by hand and each of them is worthless when it is.
 RULE_SENSE = (
     "AND FIX THE RULE, NEVER ITS OUTPUT. Where a wrong thing was produced by "
@@ -714,34 +673,6 @@ def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
             + MEASURE_SENSE + RULE_SENSE)
 
 
-# WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.
-#
-# A mission was set going in this workspace from a board somewhere else, told to
-# ship itself when it was done, and it is done. The turn's own instructions are
-# in `runner/prompts/` (`HEADLESS_SHIP_PROMPT`); this is what it is being asked about.
-#
-# IT SAYS WHO DID THE WORK, because that is the whole reason this is a different
-# assistant from the one that did it. The local model is the only one allowed to
-# read the fenced directory, so it is the wrong thing to push its own diff: this
-# turn is a second pair of eyes that could not have read what it is checking.
-SHIP_SENSE = (
-    "A mission finished in this workspace and was told to ship itself. It was "
-    "run by `%s`, and what it was asked to do was:\n\n%s\n\n"
-    "The changes are sitting uncommitted in this repository. You are not the "
-    "assistant that made them, and that is deliberate. "
-    "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
-    "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
-    "exactly as you found them."
-)
-
-
-def ship_sense(agent, task):
-    """The inbox line for a mission that has been told to ship itself."""
-    return (SHIP_SENSE % (agent or "an assistant", (task or "").strip())
-            + MEASURE_SENSE + RULE_SENSE)
-
-
 # WHAT A DECK OR A PAPER ASKED FOR FROM A SESSION IS WOKEN WITH.
 #
 # The Make menu asks for one alongside a lesson, which must not be pushed off
@@ -857,7 +788,7 @@ def meeting_about(deck_dir, period, full=None):
                             "full": full or deck_dir}
 
 
-def session_sense(repo, doing=None, mission=False):
+def session_sense(repo, doing=None):
     """What this sitting is, wrapped in the two rules that hold for all of them.
 
     HOW IT READS comes first, because it governs every card this turn writes and
@@ -868,30 +799,20 @@ def session_sense(repo, doing=None, mission=False):
 
     Everything between them is `_session_sense`, which is the sitting itself.
 
-    `doing` is answered from the sitting unless a CALLER knows better, and two
-    do. A step handed over is a doing turn inside a coaching sitting, and the
-    sitting is unchanged on purpose. A mission is a change somebody asked a
-    workspace for from another board, and it is a doing turn whatever that
-    workspace teaches under -- `board brief` passes it. Asking the state would
-    say `teach` in both, which is right about the sitting and wrong about the
-    turn. Pass `True` or nothing: `False` would take the order away from a
-    workspace whose standing answer is to write the code.
-
-    `mission` is the STRONGER of the two and only `board brief` knows it: a
-    handed-over step happens inside a sitting somebody is watching, and a
-    mission happens in a workspace nobody is in. It replaces the sitting rather
-    than decorating it -- see `MISSION_SENSE` -- because most of what a sitting
-    says contradicts having been handed a task.
+    `doing` is answered from the sitting unless a CALLER knows better: a
+    `[repair]` turn is a doing turn whatever the session teaches under, and
+    `board brief` passes it. Pass `True` or nothing: `False` would take the
+    order away from a session whose standing answer is to write the code.
     """
     st = repo.state()
-    said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo, mission=mission)
+    said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo)
     # A turn whose product is a CHANGE rather than a card: a session in do mode.
     if doing is None:
         doing = config.mode_of(st) == "do"
     return said + (DOING_SENSE + RULE_SENSE if doing else "")
 
 
-def _session_sense(repo, mission=False):
+def _session_sense(repo):
     """What this sitting is, in a sentence an assistant can act on.
 
     `board open` takes a label -- "Ch 1 -- groups, fields and vector spaces" --
@@ -903,13 +824,7 @@ def _session_sense(repo, mission=False):
     One method, whatever is in the repository. What the repository decides is
     where the exercises come from -- `where_sense`. Who writes the code is the
     session's mode -- `mode_sense` -- and nothing else.
-
-    A MISSION IS ANSWERED BEFORE ANY OF THAT AND WHATEVER THE SITTING IS. The
-    sitting is about a scope somebody chose on the way in; a mission arrived
-    with its own, and every branch below would hand it a second one.
     """
-    if mission:
-        return MISSION_SENSE
     st = repo.state()
     kind = st.get("session") or "lecture"
     if kind not in ("lecture", "homework"):

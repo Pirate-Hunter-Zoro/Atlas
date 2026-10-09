@@ -106,10 +106,10 @@ else:
 
 # ---- A MISSION'S PROGRESS TRAIL IS WORDS ABOUT FENCED WORK ----------------
 #
-# `progress.py` writes one file per mission under `live/missions/`, and what
-# goes in it is the assistant's own sentences about what it just finished --
-# written, in the one workspace that has a fence, by the one assistant allowed
-# to read that fence. So it is exactly the kind of thing that must never become
+# Cross-board missions are gone, but a workspace's `live/missions/` can still
+# hold the trail files they wrote, one per mission, and what is in them is the
+# assistant's own sentences about what it just finished -- written, in the one
+# workspace that has a fence, by the one assistant allowed to read that fence. So it is exactly the kind of thing that must never become
 # a tracked file, and it is not kept out by being small or by nobody thinking
 # about it: `live/*` in every workspace excludes it.
 #

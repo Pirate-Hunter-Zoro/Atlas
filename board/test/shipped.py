@@ -36,7 +36,7 @@ from tutorboard.runner import daemon  # noqa: E402
 from tutorboard.agents import recipes  # noqa: E402
 from tutorboard.runner import watch as runwatch  # noqa: E402
 
-from tutorboard import machine, missions, paths, processes, stamp, supervise  # noqa: E402
+from tutorboard import machine, paths, processes, stamp, supervise  # noqa: E402
 
 fails = []
 
@@ -233,8 +233,6 @@ try:
         if (daemon.agent_record(root) or {}).get("host") == HOST else None)
     processes.board_is_running = lambda pid, root: bool(pid)
     machine.slurm_nodes = lambda: {HOST, THERE}
-    running_missions = {}
-    missions.of = lambda root: running_missions.get(os.path.basename(root), [])
 
     make_workspace("Up", board={"node": HOST, "pid": 11, "port": 9001,
                                 "code": "OLD"})
@@ -402,19 +400,7 @@ try:
     for w in ("Race", "Racer"):
         shutil.rmtree(os.path.join(tmp, w))
 
-    make_workspace("Mission", agent={"host": HOST, "pid": 4343,
-                                     "state": "listening", "agent": "claude",
-                                     "code": "OLD", "last_seen": time.time()})
-    running_missions["Mission"] = [{"id": "t1", "state": "running"}]
-    calls["kill"] = []
-    said = runwatch.ship_beat(cfg, HOST, m3, lambda line: None)
-    check("a tutor on a mission is deferred the same way",
-          calls["kill"] == [] and any(l.startswith("Mission: tutor mid-turn")
-                                      for l in said))
-    running_missions.clear()
-    runwatch.ship_beat(cfg, HOST, m3, lambda line: None)
-    check("and bounced once the mission ends", calls["kill"] == [4343])
-    for w in ("Tut", "Mission"):
+    for w in ("Tut",):
         shutil.rmtree(os.path.join(tmp, w))
 
     # =======================================================================

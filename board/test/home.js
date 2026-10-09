@@ -122,11 +122,14 @@ async function stubbed() {
                  load_s: 4080, detail: 'loading, a cold load takes about 68 min' },
       colibri_subject: 'projects/libr-local-llm',
       colibri_tasks: [
-        { id: '2026-10-09-rows-colibri', label: 'rows', brief: 'count rows', state: 'running',
-          task: 'coli-20261009-120000-abcd', attempts: 1, deaths: 0, note: '', relay: [] },
+        { id: '2026-10-09-rows-colibri', label: 'rows', brief: 'count rows', state: 'submitted',
+          phase: 'working', task: 'coli-20261009-120000-abcd', attempts: 1, deaths: 0,
+          note: '', relay: [] },
         { id: '2026-10-08-colibri', label: '', brief: 'smoke test', state: 'completed',
-          task: 'coli-x', attempts: 1, deaths: 0, note: 'Colibri finished.',
-          relay: ['python 3.12.3'] }],
+          phase: 'done', task: 'coli-x', attempts: 1, deaths: 0, note: 'Colibri finished.',
+          relay: ['python 3.12.3'] },
+        { id: '2026-10-09-sites-colibri', label: 'sites', brief: 'count sites', state: 'submitted',
+          phase: 'queued', task: 'coli-y', attempts: 0, deaths: 0, note: '', relay: [] }],
       estimate: 'a generation is coming up: the relay\'s next pass (every 5 min) queues it' },
     '/assistants.json': { ok: true, assistants: { default: 'claude', agents: [
       { name: 'claude', headless: true, cmd: 'claude' },
@@ -283,9 +286,11 @@ async function stubbed() {
   check('libr-local-llm\'s Colibri panel shows its state, queue and tasks',
         !coli.hidden && /loading/.test(d.getElementById('colibri-state').textContent)
         && /1 task waiting/.test(d.getElementById('colibri-state').textContent)
-        && d.querySelectorAll('#colibri-tasks .row').length === 2
-        && /running now/.test(d.querySelectorAll('#colibri-tasks .row')[0].textContent)
-        && /RELAY: python 3.12.3/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent));
+        && d.querySelectorAll('#colibri-tasks .row').length === 3
+        && /working/.test(d.querySelectorAll('#colibri-tasks .row')[0].textContent)
+        && /done/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
+        && /RELAY: python 3.12.3/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
+        && /queued/.test(d.querySelectorAll('#colibri-tasks .row')[2].textContent));
   const brief = d.getElementById('colibri-brief');
   const fileBtn = d.getElementById('colibri-file');
   check('filing waits for a brief', fileBtn.disabled);

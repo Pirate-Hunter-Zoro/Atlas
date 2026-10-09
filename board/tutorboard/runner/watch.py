@@ -14,7 +14,7 @@ import signal
 import sys
 import time
 
-from tutorboard import machine, missions, paths, processes, stamp, supervise
+from tutorboard import machine, paths, processes, stamp, supervise
 from tutorboard.agents import recipes
 from tutorboard.net import tailscale
 from tutorboard.runner import daemon
@@ -468,9 +468,6 @@ def await_elsewhere(cfg, elsewhere, tree, since):
             return "not restarted -- %s" % why
         if state == "working":
             return "mid-turn; its watch restarts it after the turn"
-        if said == "mid-turn" and any(x.get("state") == "running"
-                                      for x in missions.of(c["root"])):
-            return "on a mission; its watch restarts it after the mission"
         if said and not said.startswith("restarting"):
             return "not restarted -- %s" % said
         return None
@@ -531,7 +528,7 @@ def ship_beat(cfg, host, memo, say):
     address-holder restoration; another node's board is that node's beat's.
 
     A TUTOR MID-TURN IS NOT BOUNCED THIS BEAT. It is bounced on the first beat
-    it is listening with no mission running, without blocking: `restarting` on
+    it is listening, without blocking: `restarting` on
     the record, a SIGTERM that starts its handoff, and `handed_off` to bring it
     back as the agent the record names, because a deploy must not swap the
     assistant in the middle of a lesson.
@@ -662,9 +659,7 @@ def ship_beat(cfg, host, memo, say):
             if (not now or now.get("restarting") or now.get("code") == tree
                     or now.get("mode") == "interactive"):
                 continue
-            running = [x for x in missions.of(c["root"])
-                       if x.get("state") == "running"]
-            if (now.get("state") != "listening" or running
+            if (now.get("state") != "listening"
                     or now.get("pid") != st.get("pid")):
                 result("tutor", name, "mid-turn")
                 tell("%s: tutor mid-turn; restarted on a later beat" % name,

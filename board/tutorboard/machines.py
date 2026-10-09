@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 
-from . import choice, fenced, machine, missions, news, paths, ports, subjects
+from . import choice, fenced, machine, paths, ports, subjects
 from .course import config
 from .lesson import cards
 from .course import repo as course_repo
@@ -253,85 +253,7 @@ def _last_touched(root):
     return 0.0
 
 
-def _mark_news(cards, repo):
-    """Hang `news` and `news_at` on each card. Never raises; see `news`."""
-    try:
-        waiting = {n["id"]: n for n in news.waiting(repo)}
-    except Exception:                                # noqa: BLE001
-        waiting = {}
-    for c in cards:
-        hit = waiting.get(c.get("id"))
-        c["news"] = bool(hit)
-        c["news_at"] = hit["when"] if hit else 0
-        c["news_title"] = (hit or {}).get("title") or ""
-
-
-def _mark_missions(cards, repo):
-    """Hang `mission` on each card: the newest one in that workspace, or None.
-
-    The newest is the whole of it. A card on the front door has room for one
-    line and the strip on the board carries the list; what this field answers is
-    "is anything going on in there", which is what a person scanning eleven
-    boxes is asking. Never raises, for the same reason `_mark_news` does not.
-    """
-    try:
-        running = missions.waiting(repo)
-    except Exception:                                # noqa: BLE001
-        running = []
-    first = {}
-    for m in running:
-        first.setdefault(m.get("ws"), m)
-    for c in cards:
-        hit = first.get(c.get("id"))
-        c["mission"] = None if not hit else {
-            "id": hit.get("id"), "state": hit.get("state"),
-            "task": hit.get("task") or "", "agent": hit.get("agent") or "",
-            "at": hit.get("at") or 0, "ship": bool(hit.get("ship")),
-            "shipped": hit.get("shipped") or 0,
-            "reason": hit.get("reason") or "",
-            # The last thing it said it finished, and how many it has said. A
-            # card on the front door has room for one line, and after the first
-            # hour this is the more useful one: "still going" is a state,
-            # "measured the baseline: 68 of 74" is progress.
-            "step": hit.get("step") or "",
-            "steps": hit.get("steps") or 0,
-        }
-
-
-def _mark_holder(cards, ask):
-    """Hang `holder` on each card: the assistant listening in it, or "".
-
-    WHAT A DISPATCH WILL DISPLACE, SAID BEFORE THE TAP RATHER THAN AFTER IT.
-    `⇥ put an assistant to work elsewhere` stops whoever is there when it is
-    given a different name, and that stop is a model call -- the outgoing
-    daemon writes its handoff on the way out, and the request is held for the
-    whole of it. A panel that cannot see the holder cannot say which of those
-    two waits a tap just bought, so it says the short one and reads as a hang.
-    Same reason `fenced` rides here: a chooser must be able to say what a
-    choice costs while there is still a choice.
-
-    ASKED FOR RATHER THAN ALWAYS. This is an `agent.json` per workspace off a
-    shared filer -- 37 ms for eight of them against 0.4 ms for the rest of a
-    cached payload -- and the front door polls the same route every 20 seconds
-    while drawing none of it. So the dispatch panel asks and the door does not.
-
-    OUTSIDE THE ATLAS CACHE, for `_mark_news`'s reason: a name half a minute
-    old is a name somebody taps on. Never raises.
-    """
-    for c in cards:
-        if not ask:
-            # NOT ASKED FOR IS NOT "NOBODY IS THERE", and the rows are the
-            # cached objects themselves -- a name left by a caller that did ask
-            # would be read by one that did not as a fact it never requested.
-            c.pop("holder", None)
-            continue
-        try:
-            c["holder"] = missions.holder(c["root"])
-        except Exception:                            # noqa: BLE001
-            c["holder"] = ""
-
-
-def atlas_payload(repo, holders=False):
+def atlas_payload(repo):
     """Everything the front door draws, in family order.
 
     `families` carries the regions and their order, straight out of
@@ -345,9 +267,6 @@ def atlas_payload(repo, holders=False):
         # switched. Everything else in here can be half a minute old.
         for c in _ATLAS["value"]["workspaces"]:
             c["current"] = paths.same_dir(c["root"], repo.root)
-        _mark_news(_ATLAS["value"]["workspaces"], repo)
-        _mark_missions(_ATLAS["value"]["workspaces"], repo)
-        _mark_holder(_ATLAS["value"]["workspaces"], holders)
         return _ATLAS["value"]
 
     from .course import homework                     # circular at module scope
@@ -405,19 +324,6 @@ def atlas_payload(repo, holders=False):
         st = course_repo.session_state(root)
         c["session"] = st.get("session") or ""
         c["mode"] = config.mode_of(st)
-
-    # AND WHICH OF THEM ANSWERED WHILE NOBODY WAS LOOKING. Outside the cache
-    # above and re-asked on every hit, for the same reason `current` is: a badge
-    # saying an answer is waiting, half a minute after it was read, is a badge
-    # that teaches somebody to ignore badges.
-    _mark_news(cards, repo)
-    # AND WHAT IS STILL RUNNING IN EACH. Outside the cache for the same reason:
-    # a mission that finished half a minute ago and still says `running` is the
-    # one field on this page somebody would act on immediately.
-    _mark_missions(cards, repo)
-    # AND WHO IS ATTACHED IN EACH, which a dispatch displaces. Outside the
-    # cache for the same reason again; see `_mark_holder`.
-    _mark_holder(cards, holders)
 
     out = {"families": [{"id": f["id"], "name": f["name"], "blurb": f["blurb"],
                          "vendor": bool(f.get("vendor")),

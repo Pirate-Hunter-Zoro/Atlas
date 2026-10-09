@@ -367,15 +367,11 @@ DRIVE = {
     # machines
     ("GET", "/courses.json", "machines"): ("atlas", [("/courses.json", None, OK)]),
     ("GET", "/atlas.json", "machines"): ("atlas", [("/atlas.json", None, OK)]),
-    ("GET", "/news", "machines"): ("atlas", [("/news", None, OK)]),
-    ("GET", "/missions", "machines"): ("atlas", [("/missions", None, OK)]),
-    ("GET", "/mission", "machines"): ("atlas", [("/mission?ws=nope&id=t1", None, (404,))]),
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, (400,))]),
     ("GET", "/relay.json", "machines"): ("atlas", [("/relay.json", None, OK)]),
-    ("POST", "/elsewhere", "machines"): ("atlas", [("/elsewhere", {"task": ""}, (400,))]),
     ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
@@ -670,11 +666,6 @@ check("a meeting ask lands in a session bound to projects/Meetings, and nowhere 
       "(%d %s)" % (status, reply[:200]),
       status == 200 and len(made) == 1 and made[0]["subject"] == "projects/Meetings"
       and only(grew, sessions.path(made[0]["id"], atlas), "[writeup]"))
-status, reply, grew = landed("POST", "/elsewhere", {"task": "a mission for Beta",
-                                                    "repo": SUBJECT["B"]})
-check("a mission sent elsewhere lands in that subject's session, as its turn",
-      status == 200 and only(grew, DIR["B"], "a mission for Beta")
-      and "a mission for Beta" in open(os.path.join(DIR["B"], "turns.jsonl")).read())
 status, _, grew = landed("POST", "/artifact?subject=" + SUBJECT["B"],
                          {"make": "deck", "about": "a deck from home"})
 check("a deck asked for from a subject's row lands in its subject's session",

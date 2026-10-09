@@ -139,9 +139,6 @@ var els = {
   busySince: document.getElementById("busy-since"),
   newsBar: document.getElementById("newsbar"),
   newsLead: document.getElementById("news-lead"),
-  newsList: document.getElementById("news-list"),
-  missionList: document.getElementById("mission-list"),
-  missionProgress: document.getElementById("mission-progress"),
   writeupList: document.getElementById("writeup-list"),
   newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
@@ -1495,7 +1492,7 @@ function render(data) {
                         || !els.writer.hidden;
   }
   paintBusy(data);
-  /* And what has landed in the workspaces this one is not. See `paintNews`. */
+  /* And the documents asked for from this session. See `paintNews`. */
   paintNews(data);
 
   /* The ink layer is per card and idempotent: reconciled nodes keep the layer
@@ -5772,62 +5769,11 @@ function tickBusy() {
     : "the tutor is writing";
 }
 
-/* ------------------------------------------- an answer waiting somewhere else
+/* ------------------------------------------------- the strip in the chrome
 
-   THE PROBLEM, in the words it was reported in: "maybe something I give the
-   agent to do or think about is going to take a while. I want to be able to go
-   into a different section of a project, or a different fucking project
-   completely, and put other agents to work on other things while the first one
-   is working. We should set up a notification system where if a response that
-   takes a while comes back in a session, I'll get notified somewhere in the app
-   and can click that notification to take me back to that tutoring session."
-
-   A turn set going in PSYCH-ASR goes on running while its person works in
-   Galois-Theory, and until this there was nothing anywhere that said it had
-   finished: the only way to find out was to switch back and look, which is the
-   one thing somebody doing other work will not do. The server answers the whole
-   of the question off the shared filesystem -- see `tutorboard/news.py` -- and
-   what is here is the strip and the way back.
-
-   TWO THINGS THIS IS NOT.
-
-   It is not over the lesson. A notification about somewhere else that lands on
-   top of the proof somebody is reading has made their evening worse to tell them
-   about a card. It is a strip in the chrome, under the bar, with everything else
-   that is true but not what they are doing.
-
-   And it is not a queue of things to dismiss. The row goes when the answer is
-   read, which means going THERE -- and `✕` mutes this particular answer rather
-   than marking it read, because a person who taps it has not read anything. The
-   next card in that workspace brings the row back. */
-
-/* Answers the reader has waved away, by workspace and by the answer's own time:
-   muting `projects/PSYCH-ASR` at 10:04 does not mute the card it writes at 10:30.
-   In the page rather than on disk, deliberately -- it is a gesture about this
-   sitting, not a fact about the workspace. */
-var newsMuted = Object.create(null);
-
-function newsKey(item) {
-  return item.id + "@" + Math.round(item.when || 0);
-}
-
-/* The way back, and it is the SAME way the front door uses. A workspace other
-   than this one is another board on another port, and the installed app has one
-   origin baked into it -- so the browser cannot navigate there. The front door
-   is what moves the single name, and an address is how it is told where to.
-
-   A LINK, not a button with a handler. It is a link to a place: it belongs in
-   the address bar, it can be held down and opened in a tab, and the URL it goes
-   to is readable on the row rather than buried in a closure. Its own name is the
-   fallback when the grammar cannot spell the workspace -- better a front door
-   than a notification that does nothing. */
-function newsHref(item) {
-  var at = "";
-  if (window.Address && item && item.id) {
-    at = window.Address.format({ ws: item.id, surface: "workspace" });
-  }
-  return at ? "/" + at : "/";
-}
+   Documents asked for from this session, in the chrome under the bar rather
+   than over the lesson: the turn writing one writes no card, so this strip is
+   the only place "it is being written" and "it is there" can be said. */
 
 function newsAgo(when) {
   var ms = Date.now() - (when || 0) * 1000;
@@ -5835,156 +5781,11 @@ function newsAgo(when) {
   return longAgo(ms) + " ago";
 }
 
-/* A MISSION IS THIS STRIP IN THE PRESENT TENSE.
+/* A DOCUMENT ASKED FOR FROM THIS SESSION.
 
-   "when I put colibri or anything on a mission, just because I close the iPad
-    doesn't mean that should end. Next time I open the iPad and access the board,
-    that mission should still be going or notify me somewhere if it's done."
-
-   The row above is a turn that FINISHED behind you. A mission is one that has
-   not: set going in a workspace nobody is looking at, surviving the lid because
-   the daemon is detached, and until this with nothing anywhere saying it was
-   alive. The server holds the record -- see `tutorboard/missions.py` -- and this
-   is the surface. Above the answers, because a thing that has not finished is
-   the one a person wants to know about first.
-
-   IT SAYS WHICH OF THREE, because they are the three somebody does something
-   different about: still going (leave it), done (go and read it), failed (send
-   it again, or send it somewhere else). A failed one carries the reason on the
-   row rather than in a tooltip: "nothing is attached to that workspace any
-   more" and "the allocation colibri runs in ended" are the same word `failed`
-   and two completely different next moves. */
-var missionMuted = Object.create(null);
-var missionShown = "";
-
-var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
-
-function missionKey(m) {
-  /* The step count is part of the key, not just the state: a list rebuilt only
-     when the state changes would hold the first progress line for the whole of
-     a five-hour mission. Muting is keyed on state alone -- see `missionMute` --
-     because waving a row away must not un-wave itself on the next step. */
-  return (m.ws || "") + "/" + (m.id || "") + "@" + (m.state || "")
-         + "#" + (m.steps || 0);
-}
-
-function missionMute(m) {
-  return (m.ws || "") + "/" + (m.id || "") + "@" + (m.state || "");
-}
-
-/* WHAT IT HAS BEEN DOING, one tap off the row. `mission.js` draws it; this is
-   the way in, and it is a control of its own rather than the row, because the
-   row is the way back into that workspace and a disclosure that stole that tap
-   would be a notification with no door. */
-function missionProgress(m) {
-  var host = els.missionProgress;
-  if (!host || !window.MissionPanel) return;
-  if (window.MissionPanel.shown(host) === m.id) {
-    window.MissionPanel.hide(host);
-    return;
-  }
-  window.MissionPanel.show(host, m);
-}
-
-function missionsShowing(data) {
-  var out = [];
-  ((data && data.missions) || []).forEach(function (m) {
-    if (!missionMuted[missionMute(m)]) out.push(m);
-  });
-  return out.slice(0, 3);
-}
-
-function paintMissions(show) {
-  var sig = show.map(missionKey).join("~");
-  if (sig === missionShown) return;
-  missionShown = sig;
-  els.missionList.textContent = "";
-  show.forEach(function (m) {
-    /* A ROW ABOUT SOMEWHERE ELSE IS A LINK, for the reason the answers are: it
-       is a place, it goes through the front door, and it can be held down. A
-       mission in the workspace already open is not a place to go, so it is not
-       pretending to be one. */
-    var row = document.createElement(m.here ? "div" : "a");
-    row.className = "news-row mission-row";
-    row.dataset.ws = m.ws || "";
-    row.dataset.state = m.state || "";
-    if (!m.here) row.href = newsHref({ id: m.ws });
-    var pill = document.createElement("span");
-    pill.className = "mission-state";
-    pill.textContent = MISSION_WORD[m.state] || m.state || "";
-    /* AND WHETHER IT WAS TOLD TO SHIP ITSELF, which is a different thing after
-       it has finished from before: `ship` is what was asked for, `shipped` is
-       that a tutor has been handed the diff. The push's own outcome is the push
-       banner's -- one surface per fact. */
-    var tag = null;
-    if (m.ship) {
-      tag = document.createElement("span");
-      tag.className = "mission-ship";
-      tag.textContent = m.shipped ? "ship handed over" : "ships itself";
-    }
-    var where = document.createElement("span");
-    where.className = "news-where";
-    where.textContent = m.course || m.repo || m.ws || "";
-    where.title = where.textContent;
-    var what = document.createElement("span");
-    what.className = "news-what";
-    /* What it was put on, in the words it was asked in. A mission with no task
-       cannot happen -- the dispatcher refuses one -- so there is no fallback
-       here to invent. */
-    what.textContent = (m.agent ? m.agent + ": " : "") + (m.task || "");
-    var when = document.createElement("span");
-    when.className = "news-when";
-    when.textContent = newsAgo(m.at);
-    row.appendChild(pill);
-    if (tag) row.appendChild(tag);
-    row.appendChild(where);
-    row.appendChild(what);
-    row.appendChild(when);
-    if (!m.here) {
-      var go = document.createElement("span");
-      go.className = "news-go";
-      go.textContent = "\u2192";
-      row.appendChild(go);
-    }
-    /* WHAT IT HAS DONE, and it is two things on the row rather than one. The
-       last step it reported is the line that says the work is moving; the
-       control beside it opens the whole trail and every fact the record carries.
-       A mission that has reported nothing still has the second one, which is
-       the case the panel exists for. */
-    var more = document.createElement("span");
-    more.className = "mprog-more";
-    more.textContent = m.steps
-      ? m.steps + " step" + (m.steps === 1 ? "" : "s")
-      : "what it has done";
-    more.onclick = function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      missionProgress(m);
-    };
-    row.appendChild(more);
-    if (m.step) {
-      var did = document.createElement("span");
-      did.className = "mission-step";
-      did.textContent = m.step;
-      row.appendChild(did);
-    }
-    if (m.state === "failed" && m.reason) {
-      var why = document.createElement("span");
-      why.className = "mission-why";
-      why.textContent = m.reason;
-      row.appendChild(why);
-    }
-    els.missionList.appendChild(row);
-  });
-}
-
-/* A DOCUMENT ASKED FOR FROM THIS SITTING, WHICH IS THE ONE ROW ABOUT HERE.
-
-   Everything else in this strip is about somewhere else. This is about the board
-   in front of you — and it is in the chrome rather than on the glass for exactly
-   the reason the rest of it is: the lesson underneath belongs to somebody's
-   evening, and a deck being written must not push a proof off the screen. That
-   is the whole design of `POST /artifact`.
+   In the chrome rather than on the glass: the lesson underneath belongs to
+   somebody's evening, and a deck being written must not push a proof off the
+   screen. That is the whole design of `POST /artifact`.
 
    IT EXISTS BECAUSE THE TURN IS TOLD TO WRITE NO CARD. A write-up turn is
    invisible on the board by construction, so "I asked for a deck and nothing
@@ -5992,15 +5793,15 @@ function paintMissions(show) {
    derives its state from the library — see `tutorboard/writeups.py`.
 
    A FINISHED ONE IS A LINK TO THE LIBRARY, because that is where it went and
-   because reading it is what takes the row away. `✕` on the bar mutes rows about
-   elsewhere; a finished write-up is told to the SERVER it has been seen, since
-   the fact is about the document rather than about this page. */
+   because reading it is what takes the row away. A finished write-up waved
+   off is told to the SERVER it has been seen, since the fact is about the
+   document rather than about this page. */
 var WRITEUP_WORD = { writing: "being written", done: "in the library",
                      failed: "did not land" };
 var writeupShown = "";
 /* Finished ones `✕` has waved off, held here until the server's record says
    `seen` and the row stops arriving. Keyed by state, so the same ask failing
-   later is still news. */
+   later shows again. */
 var writeupMuted = Object.create(null);
 
 function writeupKey(w) {
@@ -6030,7 +5831,7 @@ function paintWriteups(show) {
   show.forEach(function (w) {
     var done = w.state === "done";
     var row = document.createElement(done ? "a" : "div");
-    row.className = "news-row mission-row";
+    row.className = "news-row writeup-row";
     row.dataset.state = w.state || "";
     if (done) {
       row.href = BASE + "/library" + (w.doc ? "?doc=" + encodeURIComponent(w.doc) : "");
@@ -6039,7 +5840,7 @@ function paintWriteups(show) {
       row.onclick = function () { writeupSeen(w.id); };
     }
     var pill = document.createElement("span");
-    pill.className = "mission-state";
+    pill.className = "writeup-state";
     pill.textContent = WRITEUP_WORD[w.state] || w.state || "";
     var where = document.createElement("span");
     where.className = "news-where";
@@ -6064,7 +5865,7 @@ function paintWriteups(show) {
     }
     if (w.state === "failed") {
       var why = document.createElement("span");
-      why.className = "mission-why";
+      why.className = "writeup-why";
       why.textContent = "nothing has appeared in the library. Ask again.";
       row.appendChild(why);
     }
@@ -6072,16 +5873,14 @@ function paintWriteups(show) {
   });
 }
 
-/* The one line at the top of the strip, over all three lists. Built out of what
-   is actually in them: a lead that says "an answer is waiting" over three rows
-   about missions is furniture that lies. */
-function newsLeadFor(answers, jobs, papers) {
+/* The one line at the top of the strip, built out of what is in it. */
+function newsLeadFor(papers) {
   var parts = [];
   var writing = 0;
-  (papers || []).forEach(function (w) {
+  papers.forEach(function (w) {
     if (w.state === "writing") writing++;
   });
-  var landed = (papers || []).length - writing;
+  var landed = papers.length - writing;
   if (writing) {
     parts.push(writing === 1 ? "a document is being written here"
                              : writing + " documents are being written here");
@@ -6090,125 +5889,38 @@ function newsLeadFor(answers, jobs, papers) {
     parts.push(landed === 1 ? "a document is in the library"
                             : landed + " documents are in the library");
   }
-  var going = 0;
-  jobs.forEach(function (m) { if (m.state === "running") going++; });
-  var ended = jobs.length - going;
-  if (going) {
-    parts.push(going === 1 ? "a mission is still going"
-                           : going + " missions are still going");
-  }
-  if (ended) {
-    parts.push(ended === 1 ? "a mission has ended"
-                           : ended + " missions have ended");
-  }
-  if (answers.length) {
-    parts.push(answers.length === 1
-      ? "an answer is waiting in another workspace"
-      : answers.length + " answers are waiting elsewhere");
-  }
   var said = parts.join(" \u00b7 ");
   return said.charAt(0).toUpperCase() + said.slice(1);
 }
 
 function paintNews(data) {
   if (!els.newsBar) return;
-  var items = (data && data.news) || [];
-  var show = [];
-  items.forEach(function (n) {
-    if (!newsMuted[newsKey(n)]) show.push(n);
-  });
-  /* Three at a time. A fourth is a list, and a list in the chrome is a page
-     somebody has to scroll past to reach their own lesson. */
-  show = show.slice(0, 3);
-  var jobs = els.missionList ? missionsShowing(data) : [];
   var papers = els.writeupList ? writeupsShowing(data) : [];
-  if (!show.length && !jobs.length && !papers.length) {
+  if (!papers.length) {
     els.newsBar.hidden = true;
-    els.newsList.textContent = "";
-    if (els.missionList) els.missionList.textContent = "";
     if (els.writeupList) els.writeupList.textContent = "";
-    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
-    newsShown = "";
-    missionShown = "";
     writeupShown = "";
     return;
   }
-  var sig = show.map(newsKey).join("~");
   els.newsBar.hidden = false;
-  els.newsLead.textContent = newsLeadFor(show, jobs, papers);
-  /* THE LEAD IS A TAP WHERE IT SAYS A MISSION IS STILL GOING, because that is
-     the sentence the ask points at and it is on this strip as well as on the
-     front door. The newest mission, which is the only one when there is one. */
-  els.newsLead.classList.toggle("mprog-lead", jobs.length > 0);
-  els.newsLead.onclick = jobs.length
-    ? function () { missionProgress(jobs[0]); }
-    : null;
-  if (els.writeupList) paintWriteups(papers);
-  if (els.missionList) paintMissions(jobs);
-  /* Rebuilt only when the list has actually changed. This is painted on every
-     payload, which is several times a second while a turn runs, and replacing
-     the rows under a thumb is a tap that lands on nothing. */
-  if (sig === newsShown) return;
-  newsShown = sig;
-  els.newsList.textContent = "";
-  show.forEach(function (n) {
-    var row = document.createElement("a");
-    row.className = "news-row";
-    row.href = newsHref(n);
-    row.dataset.ws = n.id;
-    var where = document.createElement("span");
-    where.className = "news-where";
-    where.textContent = n.course || n.repo || n.id;
-    where.title = where.textContent;
-    var what = document.createElement("span");
-    what.className = "news-what";
-    /* What it says it is, and failing that where it is. A card with no title is
-       ordinary -- most of them have none -- so the chapter is the fallback and
-       the plain fact is the last resort. */
-    what.textContent = n.title || n.chapter || "the tutor wrote a card";
-    var when = document.createElement("span");
-    when.className = "news-when";
-    when.textContent = newsAgo(n.when);
-    var go = document.createElement("span");
-    go.className = "news-go";
-    go.textContent = "→";
-    row.appendChild(where);
-    row.appendChild(what);
-    row.appendChild(when);
-    row.appendChild(go);
-    els.newsList.appendChild(row);
-  });
+  els.newsLead.textContent = newsLeadFor(papers);
+  paintWriteups(papers);
 }
-
-var newsShown = "";
 
 if (els.newsHide) {
   els.newsHide.onclick = function () {
-    ((lastLive && lastLive.news) || []).forEach(function (n) {
-      newsMuted[newsKey(n)] = true;
-    });
-    /* And the missions, by state as well as by name: waving away "still going"
-       is not waving away the same mission having FAILED, which is the thing
-       that has to be able to come back. */
-    ((lastLive && lastLive.missions) || []).forEach(function (m) {
-      missionMuted[missionMute(m)] = true;
-    });
     /* A FINISHED DOCUMENT IS RETIRED, on the server, because the fact is about
        the document rather than this page: a second device stops offering it
        too. Muted here as well, or the next payload paints it back before the
        server's record changes.
-       A DOCUMENT BEING WRITTEN HERE IS NOT MUTED, and that is deliberate: it
-       comes back on the next payload, because it is work happening on this
-       board rather than news. */
+       A DOCUMENT BEING WRITTEN HERE IS NOT MUTED: it comes back on the next
+       payload, because it is work happening on this board. */
     ((lastLive && lastLive.writeups) || []).forEach(function (w) {
       if (w.state === "writing") return;
       writeupMuted[writeupKey(w)] = true;
       writeupSeen(w.id);
     });
     els.newsBar.hidden = true;
-    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
-    newsShown = "";
-    missionShown = "";
     writeupShown = "";
   };
 }

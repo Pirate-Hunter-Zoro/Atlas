@@ -7,17 +7,16 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
-              GET  /courses.json  /atlas.json  /relay.json  /news  /missions
-                   /mission
+              GET  /courses.json  /atlas.json  /relay.json
               POST /meeting  /default-agent
-              POST /colibri  /elsewhere  /switch
+              POST /colibri  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
 
-`/meeting` and `/elsewhere` ask another subject's tutor, and each goes
-through `registry.runner_route`. The deck is read in the Meetings subject's
+`/meeting` asks the Meetings subject's tutor, through
+`library.ask_meeting`. The deck is read in the Meetings subject's
 library (`/library?subject=projects/Meetings&doc=meeting`), and its ink and
 feedback are that subject's.
 """
@@ -28,7 +27,6 @@ import time
 import urllib.parse
 
 from . import NOT_MINE
-from .. import registry
 from ...net import tailscale
 from ... import assistants
 from ... import keys
@@ -40,11 +38,7 @@ from ... import colibri
 from ... import relay
 from ... import machines
 from ... import briefs
-from ... import missions
-from ... import news
-from ... import progress
 from ... import stamp
-from ...course import config
 from ...lesson import state
 from ...course import repo as course_repo
 
@@ -69,16 +63,7 @@ def get(h, repo, path):
         # `/courses.json` stays exactly as it was -- the board's own switcher
         # reads it, and a payload two surfaces share is a payload that grows a
         # field for one of them and breaks the other.
-        #
-        # `holders=1` IS THE ONE FIELD THAT IS ASKED FOR RATHER THAN SENT.
-        # Which assistant is attached in each workspace is an `agent.json` per
-        # workspace off a shared filer -- 37 ms against 0.4 ms for the whole
-        # cached payload -- and the front door polls this route every 20
-        # seconds while drawing none of it. The dispatch panel draws it and
-        # asks for it; see `machines._mark_holder`.
-        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
-        return h.send_json(machines.atlas_payload(
-            repo, holders=want.get("holders", [""])[0] == "1"))
+        return h.send_json(machines.atlas_payload(repo))
 
     if path == "/relay.json":
         # THE CLUSTER'S HEALTH, AS THE MAC SEES IT: relay down, not synced,
@@ -86,57 +71,6 @@ def get(h, repo, path):
         # (`relay.health`). Everything about the cluster comes from
         # relay/status.json and this tree, never from Slurm (D27).
         return h.send_json(relay.panel(repo.root))
-
-    if path == "/news":
-        # The same list the board payload carries, for a surface that is not on
-        # the stream -- the front door polls, it does not subscribe.
-        return h.send_json({"news": news.waiting(repo)})
-
-    if path == "/missions":
-        # WHAT IS STILL RUNNING SOMEWHERE NOBODY IS LOOKING, and how the ones
-        # that stopped ended. `/news` above is the past tense of the same
-        # sentence and this is the present one; they are separate routes because
-        # a card that landed and a job still going are different things to do
-        # about it. Read off disk in every workspace on the machine, so a board
-        # that has only just started answers as well as the one that dispatched.
-        return h.send_json({"missions": missions.waiting(repo)})
-
-    if path == "/mission":
-        # ONE MISSION, TAPPED. Asked for in these words: *"if I click on that
-        # box that says 'A Mission is still going' I can see what has been going
-        # on and been accomplished thus far."*
-        #
-        # `/missions` above is the list and it is pushed four times a second, so
-        # nothing expensive may ride on it. This is a TAP: two `git` calls and a
-        # directory walk, once, for the one mission somebody is looking at.
-        #
-        # NEITHER NAME REACHES THE FILESYSTEM. The workspace is matched against
-        # what this server already discovered and the root comes off the match
-        # -- the rule `/switch` and `/elsewhere` follow -- and the mission id is
-        # matched against `missions.ID_RE`, which is a turn id and nothing else.
-        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
-        ws = (want.get("ws", [""])[0] or "").strip()
-        mid = (want.get("id", [""])[0] or "").strip()
-        match = None
-        for c in machines.workspaces(repo):
-            if ws in (c["repo"], c["id"]):
-                match = c
-                break
-        if not match or not missions.ID_RE.match(mid):
-            return h.send_json({"ok": False, "detail": "unknown mission"},
-                               status=404)
-        rec = next((m for m in missions.of(match["root"])
-                    if str(m.get("id")) == mid), None)
-        if not rec:
-            return h.send_json({"ok": False, "detail": "unknown mission"},
-                               status=404)
-        out = progress.of(match["root"], rec,
-                          working=missions.mid_turn(match["root"]))
-        out["ok"] = True
-        out["ws"] = match["id"]
-        out["repo"] = match["repo"]
-        out["course"] = news.course_name(match["root"]) or match["repo"]
-        return h.send_json(out)
 
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --
@@ -174,34 +108,13 @@ def get(h, repo, path):
 
 
 def post(h, repo, path):
-    # SOMEBODY IS LOOKING AT THIS WORKSPACE, NOW.
-    #
-    # The one fact the notifications are built out of, and the only one that
-    # cannot be derived: a board is a long-lived process that goes on running in
-    # an empty room, so "a request arrived" and "a person is reading this" are
-    # different things. The page says it -- on its first payload, when a card
-    # lands in front of it, and when the tab comes back to the front -- and it is
-    # throttled there rather than here.
-    #
-    # It marks THIS workspace and no other: a name from a browser never reaches
-    # the filesystem, and there is exactly one root this server may write into.
+    # SOMEBODY IS LOOKING AT THIS SESSION, NOW. Only the page can say so: a
+    # request arriving proves a browser is open, not that anybody reads it.
     if path == "/seen":
-        # The session's own `seen`: the home screen counts the cards written
-        # after it as new.
+        # The session's own `seen`: the home screen's Continue row counts the
+        # cards written after it as new.
         if getattr(repo, "stored", False):
             repo.set_state(seen=time.time())
-        news.mark_seen(repo.root)
-        # AND A MISSION THAT ENDED IN THIS WORKSPACE HAS NOW BEEN LOOKED AT.
-        # Looking means coming here, which is exactly what has happened: the row
-        # in the strip is the way back and this is the far end of it. Only the
-        # ones that ENDED -- a running mission stays on the list after a look,
-        # because it is still running and that is the fact being reported.
-        missions.looked(repo.root)
-        # The next payload has to be able to say the badge has gone; without
-        # this it says the old answer for up to `news.TTL`, and a notification
-        # that survives being read is one nobody trusts again.
-        news.forget()
-        missions.forget()
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
@@ -315,117 +228,6 @@ def post(h, repo, path):
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "id": got["id"], "detail": got["said"],
                             "estimate": colibri.estimate(now), "colibri": now})
-
-    if path == "/elsewhere":
-        # PUT AN ASSISTANT TO WORK IN A WORKSPACE YOU ARE NOT LOOKING AT.
-        #
-        # Asked for almost word for word: *"I want to be able to go into a
-        # different section of a project, or a different project completely, and
-        # put other agents to work on other things while the first one is
-        # working."* `machines.workspaces` is the list, `runner_route` queues
-        # the turn in that subject's session, and `news.elsewhere` is how you
-        # are told it landed.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:                                    # noqa: BLE001
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        task = (payload.get("task") or "").strip()
-        if not task:
-            return h.send_json({"ok": False, "error": "say what to do"},
-                               status=400)
-        agent = config.clean_agent(payload.get("agent"))
-        want = payload.get("repo") or ""
-        # Only a workspace this server already discovered, and the ROOT comes off
-        # the match rather than being rebuilt out of the name -- the same rule
-        # `/switch` follows, and for the same reason: the same name can sit under
-        # two families.
-        match = None
-        for c in machines.workspaces(repo):
-            if want in (c["repo"], c["id"]):
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-        # NOTHING IS STARTED OR STOPPED OVER THERE. The task is queued on the
-        # runner in the session `runner_route` picks, and the subject's provider
-        # writes it; a named assistant is kept on the mission record only.
-        stopped = ""
-        said = ""
-
-        # The task goes in as a turn of theirs, because that is what it is: they
-        # asked for it, and a transcript over there that opens with the answer
-        # reads as an assistant that decided to do this on its own. It goes
-        # through `runner_route`, which picks the session on that subject.
-        record = {
-            "kind": "text", "answers": None,
-            "t": time.time(),
-            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "from": "student", "text": task, "signal": None, "read": False,
-        }
-
-        # AND THE MISSION IS A RECORD, IN THE WORKSPACE IT IS ABOUT.
-        #
-        # Asked for in these words: *"just because I close the iPad doesn't mean
-        # that should end. Next time I open the iPad and access the board, that
-        # mission should still be going or notify me somewhere if it's done."*
-        # The daemon already survived the lid; nothing said it had. Written
-        # after the start was allowed and the task is on disk, because a record
-        # of a mission that was refused is a row about work nobody is doing --
-        # and BEFORE the inbox line, because that line is what wakes the daemon
-        # and `board brief` reads this record to know the turn is a doing one.
-        #
-        # `ship` is carried here and honoured when the mission ENDS -- see
-        # `missions.py` -- because the record is written once and read by that
-        # turn later. `done` only: a mission that failed may well have left
-        # changes in the tree, and pushing those is the opposite of what the
-        # switch means to whoever set it going.
-        ceiling = 0.0
-        if agent == "colibri":
-            # THE ONE ASSISTANT WITH A CEILING. A colibrì turn runs inside the
-            # serve job's allocation, so the mission cannot outlive that job's
-            # walltime -- and until this nothing anywhere said what it was.
-            left = (colibri.status(repo.root) or {}).get("left")
-            if left:
-                ceiling = time.time() + float(left)
-        # A dispatch starts no assistant, so it brings none for the mission's
-        # end to release.
-        brought = ""
-        made = {}
-
-        def mission(target, tid):
-            made["rec"] = missions.dispatch(
-                match["root"], task=task, turn=tid, agent=agent,
-                ship=bool(payload.get("ship")), frm=subjects.identify(repo.root),
-                ceiling=ceiling, brought=brought)
-
-        # AND NOW THE TURN AND THE INBOX LINE, WHICH IS THE WAKING, after the
-        # mission record: everything the woken turn reads about itself is on
-        # disk before it lands. The line is their words and nothing else: what
-        # kind of turn this is comes out of `board brief`.
-        try:
-            got = registry.runner_route(match["id"], record, turn=True,
-                                        base=registry.base_of(repo),
-                                        ask=task[:60], before=mission)
-        except (LookupError, OSError) as exc:
-            return h.send_json({"ok": False, "repo": match["repo"], "agent": agent,
-                                "error": "nothing could be asked: %s" % exc},
-                               status=500)
-        tid, rec = got["id"], made["rec"]
-        missions.forget()
-        h.hub.worker.dirty.set()
-        # WHAT IT DID, IN ONE SENTENCE, ON THE GLASS. A swap that happens
-        # silently in a workspace nobody is looking at is worse than one that is
-        # announced: the assistant that was there is gone and the only person
-        # who could have known is the one who tapped.
-        if stopped:
-            said = ("'%s' was stopped in %s and '%s' has it now."
-                    % (stopped, match["repo"], agent))
-        return h.send_json({"ok": True, "repo": match["repo"],
-                            "agent": agent, "turn": tid, "detail": said,
-                            "stopped": stopped, "session": got["session"],
-                            "mission": rec["id"], "ship": rec["ship"],
-                            "ceiling": rec["ceiling"]})
 
     if path == "/switch":
         try:

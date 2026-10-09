@@ -1545,7 +1545,7 @@ els.noteSend.onclick = function () {
 /* ==========================================================================
    WHAT THIS WORKSPACE HAS PRODUCED
    ==========================================================================
-   A mission's card ends by naming what it wrote -- "figure
+   A job's card ends by naming what it wrote -- "figure
    `neighbor_count_sweep.png` and four tables are in ..." -- and there was
    nowhere to look at any of it. `course/library.py` already knew where every
    one of them was: the board's drawer puts a figure in a card, and what was

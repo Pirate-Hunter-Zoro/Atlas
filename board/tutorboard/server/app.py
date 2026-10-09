@@ -36,7 +36,6 @@ from http.server import ThreadingHTTPServer
 from .. import cluster, jobs, paths, sessions, stamp, subjects
 from ..runner import service
 from .handler import Handler
-from . import spawn
 from .registry import Registry
 
 
@@ -151,10 +150,6 @@ def main(argv):
         pruned = sessions.prune_trash()
     except OSError:
         pruned = []
-    # The mission sweep walks this machine's real workspaces, so a server on
-    # a test tree (`--atlas`) leaves it off.
-    if os.path.realpath(atlas) == os.path.realpath(subjects.root()):
-        threading.Thread(target=spawn.sweep_missions, daemon=True).start()
     threads = []
     if os.environ.get("TUTORBOARD_CLUSTER") == "1":
         cluster.Ear(atlas).start()

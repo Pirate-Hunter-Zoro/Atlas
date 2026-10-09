@@ -524,7 +524,7 @@ did not run. If it is queued, say queued.
 ### The order of a doing turn
 
 A **doing turn** is one whose product is a change: do mode, a handed-over step, a
-document, a mission. **Its order is the opposite of a teaching turn's.** A card
+document. **Its order is the opposite of a teaching turn's.** A card
 written before the work can only describe an intention; the first time somebody
 asked for code, a plan came back, reported as *"I'm not sure any coding
 happened."*
@@ -585,14 +585,3 @@ mirror, and the failure is the module rather than the reader.** `helpers`,
 that has grown a second job is split before it gets a third. Getting away with it
 is not the test; **the test is whether a trace of the module can say what it is
 for.**
-
-### A mission: a doing turn nobody is watching
-
-A mission is a job set going in a subject from another board. The task arrives
-in the inbox as a plain sentence, and the brief says it is a mission.
-
-- **It already has its scope, so do not ask for one**: nobody is there to answer.
-- **Leave a trail: `board step`, one line under 25 words, saying what you have
-  just finished.** After your opening sentence, and each time something lands.
-- **It outlives the node it started on.** The task is picked up again elsewhere,
-  and `board step --show` prints the trail. Read it first and do not redo it.

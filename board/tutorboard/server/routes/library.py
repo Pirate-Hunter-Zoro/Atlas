@@ -67,7 +67,7 @@ document, never joined onto a directory. `/artifact` takes no path at all: the
 server picks the slug and the directory.
 
 A DOCUMENT IS NOT THE ONLY THING A WORKSPACE MAKES, which is why the results
-are on this page rather than on a second one. A mission ends by naming what it
+are on this page rather than on a second one. A job ends by naming what it
 wrote -- *figure `neighbor_count_sweep.png` and four tables* -- and until there
 was somewhere to look at those, the only way to read a finished result was a
 terminal. `course/library.py` already knew where every one of them is: the

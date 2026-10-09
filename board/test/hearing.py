@@ -684,7 +684,7 @@ def commit_tool(top, msg):
 tooltop = os.path.join(box, "tool")
 tool = copy_tool(tooltop)
 fixture = a_fixture_atlas(os.path.join(box, "atlas"))
-EDITED = os.path.join(tool, "tutorboard", "news.py")
+EDITED = os.path.join(tool, "tutorboard", "memo.py")
 server = None
 try:
     env = dict(os.environ, TUTORBOARD_FRESH="1")

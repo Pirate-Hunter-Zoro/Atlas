@@ -267,15 +267,10 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 #newver-now { margin-left: auto; }
 .newver button.quiet { border-color: transparent; background: transparent; }
 
-/* AN ANSWER WAITING SOMEWHERE ELSE.
-
-   A stack of rows rather than one line, because the whole point of it is that
-   more than one turn can be running at once -- that is the thing that was asked
-   for. Each row is a button the width of the strip: a notification somebody has
-   to aim at on a tablet is a notification they stop using.
-
-   It shares the chrome's own rhythm and colour and it is deliberately the
-   quietest thing in there. Nothing is wrong; something is READY. */
+/* DOCUMENTS ASKED FOR FROM THIS SESSION, in the chrome. Each row is the width
+   of the strip: a row somebody has to aim at on a tablet is one they stop
+   using. The quietest thing in the chrome: nothing is wrong, something is
+   being written or is ready. */
 .newsbar {
   display: block;
   padding: .55rem max(1rem, env(safe-area-inset-left)) .55rem max(1rem, env(safe-area-inset-right));
@@ -313,8 +308,8 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   padding: .45rem .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
-/* A workspace name is free text. Kept from taking the whole row, so the time
-   and the arrow stay inside the button that owns them. */
+/* Kept from taking the whole row, so the time and the arrow stay inside the
+   button that owns them. */
 .news-where {
   font-weight: 700; flex: 0 1 auto; min-width: 0; max-width: 45%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -324,105 +319,30 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 .news-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .76rem; }
 .news-go { flex: none; color: var(--ink-2); }
 
-/* A MISSION ROW IS AN ANSWER ROW PLUS A STATE, and the state is the only thing
-   on it that is worth a colour: still going, done, failed. The row wraps so a
-   failed one can put the reason on a second line -- "nothing is attached to
-   that workspace any more" and "the allocation ended" are the same word and
-   two different next moves, and neither fits beside a task. */
-.mission-row { flex-wrap: wrap; }
-.mission-state {
+/* A DOCUMENT ROW CARRIES ITS STATE as a pill, the only thing on it worth a
+   colour: `writing`, `done` or `failed`. The row wraps so a failed one can put
+   its reason on a second line. */
+.writeup-row { flex-wrap: wrap; }
+.writeup-state {
   flex: none; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
   padding: .1rem .3rem; border-radius: .25rem;
   border: 1px solid var(--rule); color: var(--ink-2);
 }
-.mission-row[data-state="running"] .mission-state {
+.writeup-row[data-state="writing"] .writeup-state {
   color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
 }
-.mission-row[data-state="failed"] .mission-state {
-  color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--rule));
-}
-.mission-row[data-state="failed"] {
-  border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
-}
-/* A DOCUMENT ASKED FOR FROM THIS SITTING wears the same row and the same pill,
-   because it is the same sentence about a different thing: something was set
-   going and here is where it got to. Its three states are `writing`, `done` and
-   `failed`, so only the first two need a colour of their own -- a mission's
-   `running` and `failed` already carry the other two readings. */
-.mission-row[data-state="writing"] .mission-state {
-  color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
-}
-.mission-row[data-state="done"] .mission-state {
+.writeup-row[data-state="done"] .writeup-state {
   color: var(--ask); border-color: color-mix(in srgb, var(--ask) 45%, var(--rule));
 }
-.mission-why {
+.writeup-row[data-state="failed"] .writeup-state {
+  color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--rule));
+}
+.writeup-row[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
+}
+.writeup-why {
   flex-basis: 100%; margin-top: .2rem;
   font-size: .76rem; color: var(--bad);
-}
-
-.mission-ship {
-  flex: none; font-size: .66rem; letter-spacing: .05em;
-  color: var(--ink-2);
-}
-
-/* WHAT IT HAS BEEN DOING. "Still going" is a state somebody is told to leave
-   alone, and after the first hour it is not something anybody can act on. The
-   last reported step sits on a line of its own under the task -- it is a
-   sentence, not a label, so it does not compete for the width -- and the
-   control beside the task opens the whole trail.
-
-   Quiet, because this is still the chrome. Nothing in here may read as louder
-   than the lesson under it. */
-.mission-step {
-  flex-basis: 100%; margin-top: .2rem;
-  font-size: .78rem; color: var(--ink);
-}
-.mprog-more {
-  flex: none; font-size: .66rem; letter-spacing: .05em; cursor: pointer;
-  padding: .1rem .3rem; border-radius: .25rem;
-  border: 1px dashed var(--rule); color: var(--ink-2);
-}
-.mprog-lead { cursor: pointer; text-decoration: underline dotted; }
-.mprog {
-  margin-top: .35rem;
-  padding: .5rem .6rem;
-  border-radius: .4rem;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-  font-size: .82rem;
-}
-.mprog-head { display: flex; align-items: baseline; gap: .5rem; }
-.mprog-who {
-  font-weight: 700; font-size: .7rem;
-  text-transform: uppercase; letter-spacing: .07em;
-}
-.mprog-close { margin-left: auto; flex: none; }
-.mprog p { margin: .3rem 0 0; }
-.mprog-facts { color: var(--ink-2); font-size: .76rem; }
-.mprog-task { color: var(--ink-2); }
-.mprog-quiet { color: var(--ink-2); font-style: italic; }
-.mprog-made { color: var(--ink); font-size: .76rem; }
-.mprog-why { color: var(--bad); }
-.mprog-ship { color: var(--ink-2); font-size: .76rem; }
-/* The trail reads top to bottom in the order it happened, which is the order a
-   person reconstructs an evening in. The board's own lines -- dispatched, a
-   turn started, picked up after the node went away -- are dimmed, because the
-   machinery working must not read as the assistant's report. */
-.mprog-steps {
-  list-style: none; margin: .4rem 0 0; padding: 0;
-  display: grid; gap: .2rem;
-}
-.mprog-step { display: flex; gap: .5rem; align-items: baseline; }
-.mprog-step.machine { color: var(--ink-2); font-style: italic; }
-.mprog-when {
-  flex: none; font-variant-numeric: tabular-nums;
-  font-size: .72rem; color: var(--ink-2);
-}
-.mprog-said { min-width: 0; }
-.mprog-names {
-  list-style: none; margin: .3rem 0 0; padding: 0;
-  display: grid; gap: .1rem;
-  font-size: .76rem; color: var(--ink-2);
 }
 
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }

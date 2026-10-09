@@ -45,7 +45,7 @@ QUIET = ("notes", "notes_sent")
 
 # Payload keys whose sources are gone (D27): null until the client code that
 # reads them is deleted.
-GONE = ("map", "plan", "reading", "direction", "news", "missions")
+GONE = ("map", "plan", "reading", "direction")
 
 
 def sentinel(live):

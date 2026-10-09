@@ -198,9 +198,7 @@ check("and the draft was kept in the session's text/ until then",
 # Nothing anywhere else.
 check("the other session on the same subject is untouched", tree(DIR["B"]) == before_b)
 after_subject = tree(os.path.join(atlas, SUBJECT))
-# `/seen` stamps the subject's `live/.seen.json` for the news strip, which is
-# the server's and goes with the news and missions; nothing else may move.
-after_subject.pop(os.path.join("live", ".seen.json"), None)
+# `/seen` writes only the session's own `seen`: nothing in the subject moves.
 check("and so is the subject", after_subject == before_subject)
 if after_subject != before_subject:
     print("     changed: " + " ".join(sorted(k for k in set(after_subject) | set(before_subject)

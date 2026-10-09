@@ -1629,7 +1629,8 @@ def panel(atlas, now=None, state_dir=None):
     found = subjects.find(colibri.WORKSPACE, base=atlas)
     out.update({"ok": True, "colibri": st,
                 "colibri_subject": found["id"] if found else None,
-                "colibri_tasks": colibri.tasks_on_mac(found["root"])
+                "colibri_tasks": colibri.tasks_on_mac(
+                    found["root"], running=st.get("task"))
                 if found else [],
                 "estimate": colibri.estimate(st)})
     return out

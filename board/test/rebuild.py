@@ -191,13 +191,11 @@ check("the hub holds no lock", "Lock(" not in src and "self.lock" not in src)
 loop = inspect.getsource(hub.Hub.poll_loop)
 check("and its loop walks no missions",
       "missions" not in loop and "spawn" not in loop)
-sweep = inspect.getsource(spawn.sweep_missions)
-check("the ship walk runs on its own thread, and there is no carry or "
-      "release walk any more",
-      "ship_missions" in sweep and "carry_missions" not in sweep
-      and "release_missions" not in sweep)
 app = open(os.path.join(ROOT, "tutorboard", "server", "app.py"), encoding="utf-8").read()
-check("and serve.py starts that thread", "target=spawn.sweep_missions" in app)
+spawn_src = inspect.getsource(spawn)
+check("and serve.py starts no mission sweep: cross-board missions are gone",
+      "sweep_missions" not in app and "ship_missions" not in spawn_src
+      and "missions" not in spawn_src)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print()

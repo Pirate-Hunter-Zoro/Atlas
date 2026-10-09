@@ -150,41 +150,16 @@
     inbox until it is up.</span>
 </div>
 
-<!-- AN ANSWER LANDED IN A WORKSPACE THIS IS NOT.
-     Asked for in these words: "maybe something I give the agent to do or think
-     about is going to take a while. I want to be able to go into a different
-     section of a project, or a different fucking project completely, and put
-     other agents to work on other things while the first one is working. We
-     should set up a notification system where if a response that takes a while
-     comes back in a session, I'll get notified somewhere in the app and can
-     click that notification to take me back to that tutoring session."
-
-     A row per workspace, and the row IS the way back: it carries the address of
-     that workspace and a tap goes through the front door, which is the one thing
-     that can move the single https name from one board to another. In the chrome
-     rather than over the lesson, because this is news about somewhere else and
-     must never be in front of the proof somebody is reading.
-
-     Two lists, and the order is deliberate: a mission still running is above an
-     answer that has landed, because the first is a thing that has not finished
-     and the second is one that has. -->
+<!-- DOCUMENTS ASKED FOR FROM THIS SESSION. The turn writing one is told to
+     write no card, so this strip is the only place it can be said that it is
+     being written and that it is there. In the chrome, never over the lesson. -->
 <div id="newsbar" class="newsbar" hidden>
   <div class="newsbar-lead">
     <span class="news-dot"></span>
-    <span id="news-lead">An answer is waiting</span>
+    <span id="news-lead">A document is being written</span>
     <button id="news-hide" type="button" class="quiet" title="not now">✕</button>
   </div>
-  <!-- A document asked for from the sitting on THIS board is first: it is the
-       only row in here about work happening where the reader is, and the turn
-       writing it is told to write no card, so this strip is the only place it
-       can be said at all. -->
   <div id="writeup-list"></div>
-  <div id="mission-list"></div>
-  <!-- WHAT A RUNNING MISSION HAS BEEN DOING, opened from a row above it. In the
-       chrome with the rest of the strip, for the same reason: it is true, it is
-       not what the reader is doing, and it must never cover the lesson. -->
-  <div id="mission-progress" class="mprog" hidden></div>
-  <div id="news-list"></div>
 </div>
 
 <!-- New code has arrived, and taking it means reloading the page. Which is
@@ -592,7 +567,6 @@
      is fetched by calc.js the first time the panel opens. -->
 <script src="/static/calc-core.js"></script>
 <script src="/static/calc.js"></script>
-<script src="/static/mission.js"></script>
 <!-- Code in a card: highlight.js (six languages) and the numbering board.js
      calls. Before board.js, which renders fences with them. -->
 <script src="/static/vendor/highlight/highlight.min.js"></script>

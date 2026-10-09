@@ -17,9 +17,8 @@ text for manual use.
 
 import json
 import os
-import time
 
-from . import jobs, memo, progress, reasoning
+from . import jobs, memo, reasoning
 from .course import config
 from .course import homework
 from .lesson import git as lesson_git
@@ -218,20 +217,16 @@ def beside_sense(repo):
     return "\n".join(out)
 
 
-def briefing(repo, sense, chapter=None, doing=None, mission=False,
-             repair=None):
+def briefing(repo, sense, chapter=None, doing=None, repair=None):
     """The whole cold briefing as one string.
 
     `sense` is `tutorboard.sense`, passed in rather than imported, because it
     reaches into the course package for the chapters and the homework sheet and
     this module is imported by things that have already paid for that.
 
-    `doing` goes straight to `sense.session_sense`: a mission or a repair is a
-    doing turn even where the session's mode is teach. `None` leaves the
-    session's mode to answer.
-
-    `mission` is the mission record this turn is working, or None; its trail
-    is carried below.
+    `doing` goes straight to `sense.session_sense`: a repair is a doing turn
+    even where the session's mode is teach. `None` leaves the session's mode
+    to answer.
 
     `repair` is the section a `[repair]` turn reads (`jobs.repair_brief`). It
     sits under the mode it overrides, and comes with `doing=True`.
@@ -296,7 +291,7 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
         out.append("\n" + "\n".join(repair))
 
     out.append("\n--- the method, and what this sitting is ---\n"
-               + sense.session_sense(repo, doing=doing, mission=mission))
+               + sense.session_sense(repo, doing=doing))
 
     if not _unbound(repo):
         said = rules_sense(root)
@@ -311,21 +306,6 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     waiting = relay_sense(root)
     if waiting:
         out.append(waiting)
-
-    # WHAT THIS MISSION HAS ALREADY DONE: `progress.py`'s trail, the lines a
-    # person reads on the panel, so a picked-up turn does not repeat them.
-    if mission:
-        trail = progress.read(root, str(mission.get("id") or ""))
-        if trail:
-            out.append("\n--- what this mission has done so far (%d step%s) ---"
-                       % (len(trail), "" if len(trail) == 1 else "s"))
-            for one in trail:
-                out.append("  %s  %s%s"
-                           % (time.strftime("%H:%M", time.localtime(one["at"])),
-                              "" if one["who"] == "agent" else "[board] ",
-                              one["said"]))
-            out.append("Do not do any of that again. Carry on from the last "
-                       "line, and `board step` the next thing you finish.")
 
     out.append("\n--- how a turn works here ---\n" + TURN_SENSE)
 
@@ -481,25 +461,18 @@ def turn_brief(repo, signal="", repairs=None):
     """The brief a turn woken for `signal` reads: `board brief`'s, answered
     from what the runner knows rather than from `agent.json`.
 
-    A running mission and a `[repair]` batch brief a doing turn, as
-    `board brief` does inside one (`_repairing` in bin/board).
+    A `[repair]` batch briefs a doing turn, as `board brief` does inside one
+    (`_repairing` in bin/board).
     """
     from . import sense            # reaches into the course package; see briefing
-    try:
-        from . import missions
-        rec = missions.live_mission(repo.root)
-    except Exception:                                        # noqa: BLE001
-        rec = None
     fixing = None
-    if not rec:
-        rids = [r for r in (repairs or []) if isinstance(r, str) and r]
-        if rids:
-            fixing = rids
-        elif signal == jobs.REPAIR:
-            fixing = [jobs.last_repair(repo.root)]
+    rids = [r for r in (repairs or []) if isinstance(r, str) and r]
+    if rids:
+        fixing = rids
+    elif signal == jobs.REPAIR:
+        fixing = [jobs.last_repair(repo.root)]
     return briefing(
-        repo, sense, doing=True if rec or fixing is not None else None,
-        mission=rec,
+        repo, sense, doing=True if fixing is not None else None,
         repair=jobs.repair_brief(repo.root, fixing) if fixing is not None else None)
 
 

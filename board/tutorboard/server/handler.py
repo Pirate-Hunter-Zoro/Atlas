@@ -90,13 +90,9 @@ UNPREFIXED = (
     ("GET", "/courses.json", "atlas"),
     ("GET", "/atlas.json", "atlas"),
     ("GET", "/relay.json", "atlas"),
-    ("GET", "/news", "atlas"),
-    ("GET", "/missions", "atlas"),
-    ("GET", "/mission", "atlas"),
     ("POST", "/meeting", "atlas"),
     ("POST", "/default-agent", "atlas"),
     ("POST", "/colibri", "atlas"),
-    ("POST", "/elsewhere", "atlas"),
     ("POST", "/switch", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),

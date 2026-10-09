@@ -99,7 +99,7 @@ def time_left(said):
     """Slurm's `%L` as seconds, or None where it does not mean a number.
 
     `UNLIMITED`, `INVALID` and a blank are all None, which is "nothing here
-    limits it" rather than zero -- and the difference matters, because a mission
+    limits it" rather than zero -- and the difference matters, because a task
     is failed by a ceiling that has passed and a zero is a ceiling that passed
     the instant it was written. The spellings are Slurm's own: `d-hh:mm:ss`,
     `hh:mm:ss`, `mm:ss`.
@@ -458,9 +458,27 @@ def ask(root, brief, label="", session="", push=True):
                     "queues it" % ok["id"]}
 
 
-def tasks_on_mac(root, limit=20):
+# A report's state as the panel words it: queued until a generation claims
+# the task, working while it runs, done once checked clean.
+PHASES = {"submitted": "queued", "running": "working", "completed": "done",
+          "failed": "failed", "refused": "refused"}
+
+
+def phase(state, task="", running=None):
+    """`filed`, `queued`, `working`, `done`, `failed` or `refused` for a
+    report's `state`. `running` is the task status.json says is running: a
+    task the relay has just claimed is working before its report says so."""
+    if not state:
+        return "filed"
+    if running and task and task == running and state == "submitted":
+        return "working"
+    return PHASES.get(state, state)
+
+
+def tasks_on_mac(root, limit=20, running=None):
     """The `colibri` requests filed from subject `root`, newest first, each
-    with its report's progress: what the Colibri panel lists."""
+    with its report's progress: what the Colibri panel lists. `running` is
+    status.json's running task (`phase`)."""
     reps = jobs.reports(root)
     out = []
     for req in jobs.requests(root):
@@ -472,6 +490,8 @@ def tasks_on_mac(root, limit=20):
                     "brief": str(req.get("brief") or "")[:200],
                     "filed": req.get("filed") or 0,
                     "state": rep.get("state") or "filed",
+                    "phase": phase(rep.get("state"), rep.get("task") or "",
+                                   running),
                     "task": rep.get("task") or "",
                     "attempts": rep.get("attempts") or 0,
                     "deaths": rep.get("deaths") or 0,

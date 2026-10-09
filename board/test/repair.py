@@ -401,8 +401,8 @@ try:
           and runturn.woken_for(ws, batch)[1] == [])
     course_repo._BOUND.update(saved)
     check("a signal with machinery of its own is kept, the repairs still named",
-          runturn.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
-                             "finished\n" + batch) == ("ship", rids))
+          runturn.woken_for(ws, "[2026-10-02 22:18:00] [writeup] a deck "
+                             "asked for\n" + batch) == ("writeup", rids))
     check("a revision ahead of a repair stays a revision, its own prompt and "
           "session", runturn.woken_for(ws, "[2026-10-02 22:18:00] [revise] the "
                                         "deck\n" + batch) == ("revise", rids))
@@ -410,7 +410,7 @@ try:
           runturn.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
     write(os.path.join(where, "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
-         "turn_signal": "ship", "turn_repairs": rids}))
+         "turn_signal": "writeup", "turn_repairs": rids}))
     code, out = brief_now()
     check("the brief is a doing turn's and names every [repair] request in "
           "the batch, each with its report",

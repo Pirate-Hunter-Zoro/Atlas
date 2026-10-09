@@ -9,7 +9,7 @@ suite guards behaviour, not wording:
   code names is a heading;
 - what a turn is actually handed: which of the `tutorboard.sense` blocks each
   kind of turn gets, and how often;
-- the commands those blocks name: `board write --over`, `board step`, `--help`.
+- the commands those blocks name: `board write --over`, `--help`.
 
 A rule's wording is checked only where a real session turned on it. This file
 and test/tokens.py hold at most 30 such literal phrases between them, the
@@ -251,7 +251,6 @@ try:
     # The turns that never run `board brief`: their inbox line is the whole of
     # what they read, so the rule and the measure ride in it, once.
     for line, why in (
-            (sense.ship_sense("colibri", "repair the transcript"), "a ship"),
             (sense.writeup_sense("paper", "the serve harness"), "a write-up"),
             (sense.revise_sense("docs/a/a.tex", "docs/a/feedback.md"),
              "a revision"),
@@ -262,8 +261,8 @@ try:
         check("%s carries the rule and the measure, once each" % why,
               line.count(RULE) == 1 and line.count(MEASURE) == 1)
 
-    # A MISSION replaces the session: it has its job, so it is not handed the
-    # method for teaching an exercise or the write-up.
+    # A teaching session is briefed as a lesson, and a leftover mission
+    # record from before the overhaul changes nothing: missions are gone.
     state(session="lecture")
 
     def _brief():
@@ -272,60 +271,18 @@ try:
             boardcli.cmd_brief(boardcli.course_repo.Repo(root), [])
         return out.getvalue()
 
-    _cold = _brief()
-    check("a teaching subject with no mission is briefed as a lesson",
-          sense.METHOD_SENSE in _cold and RULE not in _cold
-          and sense.MISSION_SENSE not in _cold)
     missions = os.path.join(root, "live", "missions")
     os.makedirs(missions, exist_ok=True)
-
-    def _mission(ended=""):
-        with open(os.path.join(missions, "0007.json"), "w", encoding="utf-8") as fh:
-            json.dump({"id": "0007", "task": "repair the transcript",
-                       "agent": "colibri", "at": time.time(), "ship": False,
-                       "host": "", "card_at": 0.0, "ceiling": 0.0,
-                       "ended": ended, "ended_at": time.time() if ended else 0.0,
-                       "reason": "", "looked": 0.0, "shipped": 0.0}, fh)
-
-    _mission()
-    check("a live mission is what `missions.running` reports",
-          boardcli.missions.running(root))
-    _sent = _brief()
-    check("the same subject briefs a mission as a doing turn, not a lesson",
-          sense.MISSION_SENSE in _sent and sense.DOING_SENSE in _sent
-          and sense.METHOD_SENSE not in _sent
-          and sense.WRITEUP_SENSE not in _sent)
-    _woken = (prompts.HEADLESS_FIRST_PROMPT
-              % {"inbox": "repair the transcript", "handoff": ""}) + _sent
-    check("and once across the inbox line and the brief together",
-          _woken.count(RULE) == 1 and _woken.count(MEASURE) == 1
-          and _woken.count(sense.DOING_SENSE) == 1)
-
-    def _step(*args, body=""):
-        out = io.StringIO()
-        old, sys.stdin = sys.stdin, io.StringIO(body)
-        try:
-            with contextlib.redirect_stdout(out):
-                code = boardcli.cmd_step(boardcli.course_repo.Repo(root), list(args))
-        finally:
-            sys.stdin = old
-        return code, out.getvalue()
-
-    _code, _said = _step(body="rebuilt the reference: 74 rows, 6 disagree")
-    check("`board step` lands the line on the running mission",
-          _code == 0 and "0007" in _said
-          and [s["said"] for s in boardcli.progress.read(root, "0007")]
-          == ["rebuilt the reference: 74 rows, 6 disagree"])
-    _code, _said = _step("--show")
-    check("`board step --show` reads the trail back", _code == 0 and "74 rows" in _said)
-    check("and the brief carries it", "74 rows" in _brief())
-    os.remove(os.path.join(missions, "0007.json"))
-    boardcli.progress.drop(root, "0007")
-    _code, _said = _step(body="nobody is waiting on this")
-    check("a step with no mission running is refused", _code == 1)
-    _mission(ended="done")
-    check("an ended mission leaves the subject teaching again",
-          sense.MISSION_SENSE not in _brief())
+    with open(os.path.join(missions, "0007.json"), "w", encoding="utf-8") as fh:
+        json.dump({"id": "0007", "task": "repair the transcript",
+                   "agent": "colibri", "at": time.time(), "ended": ""}, fh)
+    _cold = _brief()
+    check("a teaching subject is briefed as a lesson, a leftover mission "
+          "record or not", sense.METHOD_SENSE in _cold and RULE not in _cold
+          and sense.DOING_SENSE not in _cold)
+    check("and `board step` is gone with missions",
+          "step" not in boardcli.COMMANDS
+          and not hasattr(sense, "MISSION_SENSE"))
     shutil.rmtree(missions, ignore_errors=True)
     state(session="lecture")
 

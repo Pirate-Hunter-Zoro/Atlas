@@ -662,8 +662,12 @@ function coliRow(t, running) {
   var row = el("div", "row coli");
   var top = el("span", "row-top");
   top.appendChild(el("span", "row-name", t.label || t.brief || t.id));
-  var state = t.state === "filed" ? "filed, waiting for the relay" : t.state;
-  if (running && t.task && t.task === running) state = "running now";
+  /* `phase` is colibri.phase: queued, working, done (or filed, failed,
+     refused), from the report and status.json's running task. */
+  var phase = t.phase || t.state;
+  if (running && t.task && t.task === running && phase !== "done"
+      && phase !== "failed") phase = "working";
+  var state = phase === "filed" ? "filed, waiting for the relay" : phase;
   top.appendChild(el("span", "row-sub", state));
   row.appendChild(top);
   var sub = [t.id];

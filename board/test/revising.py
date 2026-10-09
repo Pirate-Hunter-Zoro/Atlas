@@ -23,11 +23,8 @@ is that the do-not-widen sentence is not in the prompt -- so that absence is
 asserted here, because a prompt that grew the sentence back would look like a
 working feature and behave like a correction.
 
-A SHIP IS THE SAME TURN WITH A DIFFERENT JOB, and it is guarded here for that
-reason: a mission told to ship itself wakes a `[ship]` line, which runs fresh,
-writes no card and pushes what another assistant wrote. Everything about the
-shape is the revision's; what is different is that the assistant running it is
-never the one that did the work.
+A `[ship]` line is no signal of its own: cross-board missions are gone, and
+so is the turn that shipped one.
 """
 import json
 import os
@@ -159,53 +156,13 @@ check("and says outright that this is not a correction",
 check("and that the lesson on the board is somebody else's",
       "NOT PART OF THE LESSON" in line and "its cards" in line)
 
-# ---------------------------------------------------------------------------
-# AND THE OTHER TURN OF THE SAME SHAPE: A MISSION SHIPPING ITSELF
-# ---------------------------------------------------------------------------
-# "when I put anything on a mission, I should have the option to tell it to ship
-#  its changes once it is done."
-#
-# A ship is a revision's twin. It is not part of the lesson, it runs fresh, it
-# writes no card, and the lesson must not resume into it -- a tutor whose next
-# card resumes a session about a git diff thinks the evening was about git. What
-# it does differently is who runs it: never the assistant that did the work.
-check("a ship line is read as the signal it carries",
-      runturn.turn_signal("[2026-09-17 21:40:02] [ship] a mission finished")
-      == "ship")
+# A MISSION SHIPPING ITSELF IS GONE with missions: `[ship]` picks the lesson
+# prompt like any line with no machinery of its own.
 use, template = runturn.turn_plan(SPEC, "ship")
-check("a ship runs fresh with its own prompt",
-      use == SPEC["headless_first"] and template is prompts.HEADLESS_SHIP_PROMPT)
-
-shipped = prompts.HEADLESS_SHIP_PROMPT
-check("a ship is told this turn is not part of the lesson",
-      "NOT PART OF THE LESSON" in shipped)
-check("and to write no card", "Write no card" in shipped)
-for name in ("board write", "board open", "the session's state", "its cards",
-             "HANDOFF.md"):
-    check("and a ship is not to touch %s" % name, name in shipped)
-check("it is told to READ the diff rather than trust it, because it is another "
-      "assistant's work",
-      "git diff" in shipped and "rather than trusting it" in shipped)
-check("and that session content in it is the one thing that stops the push",
-      "session content" in shipped and "STOP" in shipped)
-check("and that the refusal underneath it is not to be worked around",
-      "--anyway" in shipped and "do not work around it" in shipped)
-check("and it pushes with the one push there is",
-      "board push" in shipped)
-
-# A DOING TURN'S CLOCK. A ship reads a diff, judges it and pushes over a tailnet;
-# a teaching turn's fifteen minutes is a turn killed with the work half done.
-CFG = {"headless_timeout": 900, "doing_timeout": 3600}
-check("a ship gets a doing turn's time, whatever the sitting says",
-      runturn.turn_timeout(CFG, tempfile.mkdtemp(), None, "ship") == 3600)
-
-said = sense.ship_sense("colibri", "reproduce the corrected transcript")
-check("the line a ship is woken with names what the mission was asked to do",
-      "reproduce the corrected transcript" in said)
-check("and who did the work, which is the whole reason it is not them pushing",
-      "colibri" in said and "not the assistant that made them" in said)
-check("and says the lesson on the board is somebody else's",
-      "NOT PART OF THE LESSON" in said and "its cards" in said)
+check("a [ship] line has no prompt of its own any more",
+      template is prompts.HEADLESS_FIRST_PROMPT
+      and not hasattr(prompts, "HEADLESS_SHIP_PROMPT")
+      and not hasattr(sense, "ship_sense"))
 
 line = sense.revise_sense("writeups/serve/serve.tex",
                           "writeups/serve/feedback/2026-09-16-v1.md")

@@ -11,7 +11,8 @@ What the checks are about:
     asked.
   * THE PANEL. POST /colibri files a `colibri` request in libr-local-llm,
     committed and pushed, and answers with a cold-start estimate from the
-    load the relay timed. No brief is a 400.
+    load the relay timed. No brief is a 400. The filed task then shows
+    queued, working and done as the relay's reports and status.json say.
   * THE BRIEF names a relay that looks down.
 
 Synthetic repositories only: a bare origin and a "Mac" clone.
@@ -213,6 +214,65 @@ try:
     check("and the panel lists it, filed and waiting for the relay",
           [t["state"] for t in got["colibri_tasks"]] == ["filed"]
           and got["colibri_tasks"][0]["label"] == "rows", got)
+
+    # --- the filed task through the relay: queued, working, done ---------------
+    # The cluster's side, by its own functions: `colibri.relay_report` turns
+    # the task record into the report the relay commits, and status.json's
+    # Colibri block names the task a generation is running. The Mac hears
+    # both by a pull and the panel words each as queued, working and done.
+    rid = filed[0][:-len(".json")]
+    tid = "coli-20261009-130000-beef"
+    cluster = os.path.join(base, "cluster")
+    git(base, "clone", "-q", origin, cluster)
+    git(cluster, "config", "user.email", "t@example.com")
+    git(cluster, "config", "user.name", "t")
+    cllm = os.path.join(cluster, "projects", "libr-local-llm")
+
+    def relay_says(queue, colibri_block, n, **rec):
+        """One relay pass on the cluster: the task's report and status.json,
+        committed and pushed; then the Mac pulls."""
+        task = dict({"id": tid, "request": rid, "queue": queue,
+                     "attempts": 1 if queue != "queued" else 0,
+                     "at": time.time()}, **rec)
+        relay.write_report(cllm, rid, colibri.relay_report(task))
+        write(os.path.join(cluster, "relay", "status.json"), json.dumps({
+            "skipped": "", "last_error": "", "push_pending": False,
+            "outstanding": {}, "at": 10 + n,
+            "colibri": relay._colibri_status(colibri_block)}))
+        git(cluster, "add", "-A")
+        git(cluster, "commit", "-q", "-m", "relay: pass %d" % n)
+        git(cluster, "push", "-q")
+        git(mac, "pull", "-q", "--ff-only")
+        relay.forget()
+        code, got = ask("GET", "/relay.json")
+        return got
+
+    def mine(got):
+        return [t for t in got["colibri_tasks"] if t["id"] == rid]
+
+    got = relay_says("queued", {"state": "queued", "ends": None, "queue": 1,
+                                "task": None, "load_s": 4080,
+                                "reason": "Priority"}, 1)
+    check("a filed task the relay queued shows queued in the panel, with "
+          "status.json's queue", [t["phase"] for t in mine(got)] == ["queued"]
+          and got["colibri"]["queue"] == 1
+          and "queued (Priority)" in got["colibri"]["detail"], got)
+    got = relay_says("running", {"state": "warm",
+                                 "ends": int(time.time()) + 3600, "queue": 0,
+                                 "task": tid, "load_s": 4080, "reason": ""}, 2)
+    check("once a generation claims it, working, with status.json naming it",
+          [t["phase"] for t in mine(got)] == ["working"]
+          and got["colibri"]["task"] == tid
+          and got["colibri"]["state"] == "warm", got)
+    got = relay_says("done", {"state": "warm",
+                              "ends": int(time.time()) + 3000, "queue": 0,
+                              "task": None, "load_s": 4080, "reason": ""}, 3,
+                     checked=time.time(), changed=0,
+                     relay=["rows per site: 12"], ended_at=time.time())
+    check("and done once its report says completed, with its RELAY lines",
+          [t["phase"] for t in mine(got)] == ["done"]
+          and mine(got)[0]["relay"] == ["rows per site: 12"]
+          and got["colibri"]["task"] is None, got)
 finally:
     if httpd is not None:
         httpd.shutdown()

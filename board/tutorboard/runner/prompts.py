@@ -34,4 +34,3 @@ HEADLESS_CODE_PROMPT = _read("code.md") + TURN_TAIL
 HEADLESS_REVISE_PROMPT = _read("revise.md")
 HEADLESS_REWORK_PROMPT = _read("rework.md")
 HEADLESS_WRITEUP_PROMPT = _read("writeup.md")
-HEADLESS_SHIP_PROMPT = _read("ship.md")

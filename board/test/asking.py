@@ -114,27 +114,6 @@ check("and a legacy state naming a box changes nothing",
       "COMPONENT BOUNDARY" not in sense.session_sense(course_repo.Repo(made)))
 sitting(made, session="lecture")
 
-# A MISSION REPLACES THE SITTING RATHER THAN WEARING IT. It has a scope, the
-# task, and a question in its first card is how it spends nine hours saying
-# nothing.
-_mission = {"id": "t0056", "task": "repair the diarization", "agent": "colibri",
-            "at": time.time()}
-_sent = sense.session_sense(course_repo.Repo(made), doing=True,
-                            mission=_mission)
-check("a MISSION is told what it is, with the task named as the scope",
-      "THIS TURN IS A MISSION" in _sent
-      and "the task is the last thing in the inbox" in _sent)
-check("and it is still a doing turn, so nothing about the order of a change "
-      "is lost by replacing the sitting",
-      "THIS IS A DOING TURN" in _sent and "FIX THE RULE" in _sent)
-# AND IT COSTS LESS THAN WHAT IT REPLACES. This block rides in a preamble the
-# local model prefills at a few tokens a second.
-_was = sense.session_sense(course_repo.Repo(made), doing=True)
-check("and it is SHORTER than the sitting it replaces (%d words against %d), "
-      "because a preamble is prefilled at a few tokens a second"
-      % (len(_sent.split()), len(_was.split())),
-      len(_sent.split()) < len(_was.split()))
-
 # ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------

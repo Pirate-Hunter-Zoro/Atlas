@@ -203,7 +203,7 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake
 
     Every route that asks a subject other than its own session's for work --
     a library [revise] or [rework], the meeting deck, a
-    write-up commissioned from the front door, a mission -- calls this and
+    write-up commissioned from the front door -- calls this and
     nothing else. The line goes to the newest open session bound to
     `subject`; with none, to a new session bound to it, titled
     `<subject name>: <ask>`.

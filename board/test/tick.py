@@ -11,7 +11,7 @@ page, a pinned write-up, a slate page, a draft and the course's macros.
     builds, and none of them was called.
   * The payload carries the newest 40 cards, how many are older, the ink of
     the cards it carries and no other, the pinned write-up's progress and the
-    macros. Map, plan, reading, direction, news and missions are null; sets,
+    macros. Map, plan, reading and direction are null; sets,
     results, jobs and Colibri are not on it. Its size stays under SIZE_CAP.
   * The first tick pushes; an unchanged tick pushes nothing. A new card is
     one delta naming that card and the keys that moved and no others. An
@@ -147,9 +147,11 @@ try:
           ids == ["%04d" % i for i in range(N - 39, N + 1)], ids[:3])
     check("and how many are older", data.get("cards_older") == N - 40,
           data.get("cards_older"))
-    check("map, plan, reading, direction, news and missions are null",
+    check("map, plan, reading and direction are null",
           all(k in data and data[k] is None
-              for k in ("map", "plan", "reading", "direction", "news", "missions")))
+              for k in ("map", "plan", "reading", "direction")))
+    check("and news and missions are not on it: cross-board missions are gone",
+          "news" not in data and "missions" not in data)
     check("sets, results, jobs, Colibri and the save count are not on it",
           not [k for k in ("sets", "results", "jobs", "colibri", "unsaved",
                            "assistants", "fenced", "contents", "review", "walk")

@@ -1839,7 +1839,7 @@ def _result_record(rel, at, size):
         "kind": "figure" if ext in FIGURE_SUFFIXES else "table",
         "format": ext.lstrip("."),
         "iso": time.strftime("%Y-%m-%d", time.localtime(at)) if at else "",
-        # The filename as it stands, because a mission's card names it.
+        # The filename as it stands, because a job's card names it.
         "file": os.path.basename(rel),
     }
 
