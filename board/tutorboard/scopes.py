@@ -37,8 +37,7 @@ from .course import config
 from .course import homework
 from .course import library
 from .course import results
-from .course import review
-from .course import syllabus
+from .course import walk
 
 
 # How many rows any one group is ever given, and it is a stop rather than a
@@ -50,7 +49,7 @@ from .course import syllabus
 #
 # It is still a stop, because a workspace with four hundred figures is a picker
 # nobody can use, and what it drops it SAYS: `scopes()` carries the count and
-# the sheet paints it. The tree's own caps -- `review.MAX_UNITS`,
+# the sheet paints it. The tree's own caps -- `walk.MAX_PARTS`,
 # `results.MAX_FIGURES`, `library.MAX_DOCS` -- are the caps on WALKING and are
 # above this one on purpose. This is the cap on OFFERING.
 MOST = 40
@@ -97,9 +96,9 @@ def _chapters(root):
     """A course's chapters, in the order the course puts them in."""
     out = []
     taken = set()
-    every = syllabus.chapters(root)
+    every = homework.chapters(root)
     for c in every[:MOST]:
-        label = syllabus.label(c)
+        label = homework.chapter_label(c)
         if not label:
             continue
         key = _key("chapter", c.get("slug") or label, taken)
@@ -148,14 +147,12 @@ def _sets(root):
 def _parts(root):
     """A project's own top-level pieces.
 
-    `review.units` is the discovery, and it answers with chapters for a course
-    and parts for a project -- never both. So only the parts are taken here: a
-    course's chapters are their own group above, and a chapter offered twice
-    under two keys is two buttons that do the same thing.
+    A course that follows a book offers its chapters above instead, and never
+    its parts: a course's `latex/` directory is not a thing to write about.
     """
     out = []
     taken = set()
-    every = [u for u in review.units(root) if u.get("kind") == "part"]
+    every = [] if homework.chapters(root) else walk.parts(root)
     for u in every:
         key = _key("part", u["name"], taken)
         if not key:

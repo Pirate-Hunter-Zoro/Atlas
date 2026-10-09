@@ -30,8 +30,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import cluster, jobs, missions                         # noqa: E402
-from tutorboard.course import threads                                  # noqa: E402
+from tutorboard import cluster, exports, jobs, missions                # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 TUTOR = os.path.join(ROOT, "bin", "tutor")
@@ -105,23 +104,7 @@ def workspace(base, name, ignore):
     write(os.path.join(ws, ".gitignore"), ignore)
     write(os.path.join(ws, "AI_INSTRUCTIONS.md"), "# contract\n")
     os.makedirs(os.path.join(ws, "live"), exist_ok=True)
-    clean, problems = threads.validate(SPINE)
-    assert not problems, problems
-    write(threads.path(ws), json.dumps(SPINE))
     return ws
-
-
-SPINE = {
-    "version": 1,
-    "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": ""}],
-    "threads": [
-        {"id": "knn", "deliverable": "paper1", "title": "Weighted neighbours",
-         "question": "Does weighting beat cosine?",
-         "outputs": ["results/knn.csv"], "tasks": [{"text": "Run the sweep",
-                                                     "done": False}]},
-        {"id": "tripod", "deliverable": "paper1", "title": "TRIPOD"},
-    ],
-}
 
 base = tempfile.mkdtemp(prefix="tutor-jobs-")
 
@@ -134,7 +117,7 @@ check("the registry is relay/state/jobs.jsonl, whatever live/ says",
       and jobs.registry(allowed) == os.path.join(allowed, "relay", "state",
                                                  "jobs.jsonl"))
 check("a reader with no registry is handed a path that holds nothing, and git "
-      "is not asked", threads.jobs_of(wholesale) == [])
+      "is not asked", exports.jobs_of(wholesale) == [])
 
 # --- submitting ---------------------------------------------------------------
 slurm = Slurm()
@@ -157,10 +140,7 @@ rec2, why2 = jobs.submit(wholesale, "knn", ["srun", "x"], run=slurm)
 check("anything but sbatch is refused, and nothing is registered",
       rec2 is None and "sbatch" in why2 and len(jobs.records(wholesale)) == 1)
 
-threads._cache.clear()
-check("a job labelled with a thread's id makes that thread running",
-      threads.stages(wholesale)["knn"]["status"] == "running")
-check("and the payload carries it for the busy strip, titled by its label",
+check("the payload carries it for the busy strip, titled by its label",
       jobs.running(wholesale)[0]["title"] == "knn"
       and jobs.running(wholesale)[0]["state"] == "PENDING")
 
@@ -171,9 +151,9 @@ check("a job still running ends nothing",
       jobs.poll(wholesale, run=slurm, now=t0 + 5) == [])
 check("but the change to RUNNING is appended, once",
       jobs.records(wholesale)["1001"]["state"] == "RUNNING")
-n = len(threads.jobs_of(wholesale))
+n = len(exports.jobs_of(wholesale))
 jobs.poll(wholesale, run=slurm, now=t0 + 6)
-check("and an unchanged state appends nothing", len(threads.jobs_of(wholesale)) == n)
+check("and an unchanged state appends nothing", len(exports.jobs_of(wholesale)) == n)
 check("squeue is asked, and sacct never",
       any(os.path.basename(c[0]) == "squeue" for c in slurm.calls)
       and not any(os.path.basename(c[0]) == "sacct" for c in slurm.calls))
@@ -193,10 +173,7 @@ check("a raw sbatch gone from squeue is ENDED, exit unknown",
       and ended[0]["exit"] == "")
 check("and a second pass does not report it again",
       jobs.report(wholesale, run=slurm, now=t0 + 700) == [])
-threads._cache.clear()
-check("its thread is no longer running",
-      threads.stages(wholesale)["knn"]["status"] == "open"
-      and jobs.running(wholesale) == [])
+check("and it is no longer running", jobs.running(wholesale) == [])
 
 # No session filed it, so the line is a home notice (D16) and wakes no turn.
 lines = cluster.notices(wholesale)
@@ -335,7 +312,6 @@ jobs.drop = lambda *a, **k: (_ for _ in ()).throw(OSError("inbox full"))
 check("an ending whose inbox line cannot be written is not reported",
       jobs.report(spare, run=s3) == [])
 jobs.drop = _drop
-threads._cache.clear()
 check("but the job reads ended, not running",
       all(j["jobid"] != jid for j in jobs.running(spare)))
 again = jobs.report(spare, run=s3)
@@ -395,25 +371,12 @@ code, out = board(allowed, "job", "--label", "knn", "sbatch", "x")
 check("and so is a command with no `--` before it", code == 1 and "--" in out)
 code, out = board(allowed, "job", "--show")
 check("`--show` lists what is registered", code == 0 and "4242" in out)
-code, out = board(allowed, "thread", "--show", "knn")
-check("and `board thread --show` says the thread its label names is running",
-      code == 0 and json.loads(out)["stage"]["status"] == "running")
 
 # --- missions carry a thread too ---------------------------------------------------
 rec = missions.dispatch(allowed, "do the thing", "t0007", thread="tripod")
 check("a mission records the thread it was dispatched for",
       rec["thread"] == "tripod"
       and missions.stored(allowed)[0]["thread"] == "tripod")
-_live = missions.live_mission
-missions.live_mission = lambda root, now=None: rec
-threads._cache.clear()
-check("and while it is live its thread says running",
-      threads.stages(allowed)["tripod"]["status"] == "running")
-missions.live_mission = lambda root, now=None: None
-threads._cache.clear()
-check("and not once it has ended",
-      threads.stages(allowed)["tripod"]["status"] == "open")
-missions.live_mission = _live
 
 # --- the real repository -----------------------------------------------------------
 for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Solutions",
@@ -617,7 +580,7 @@ else:
             for part in ("requests", "reports"):
                 shutil.copytree(os.path.join(REPO, trd_rel, "relay", part),
                                 os.path.join(ws, "relay", part))
-            for f in ("tutorboard.json", "threads.json"):
+            for f in ("tutorboard.json",):
                 if os.path.isfile(os.path.join(REPO, trd_rel, f)):
                     shutil.copy(os.path.join(REPO, trd_rel, f),
                                 os.path.join(ws, f))

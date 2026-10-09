@@ -43,7 +43,7 @@ import json
 import os
 import time
 
-from . import atlas, paths
+from . import paths, subjects
 from .lesson import cards as lesson_cards
 from .course import repo as course_repo
 
@@ -154,8 +154,7 @@ def elsewhere(here, now=None):
     """
     now = now or time.time()
     out = []
-    for w in atlas.workspaces():
-        root = w["root"]
+    for parent, _kind, slug, root in subjects.walk():
         if paths.same_dir(root, here):
             continue
         when, which = newest_card(root)
@@ -170,11 +169,11 @@ def elsewhere(here, now=None):
         if when <= seen:
             continue
         out.append({
-            "id": w["id"],
-            "repo": w["dir"],
-            "family": w["family"],
-            "family_name": w["family_name"],
-            "course": course_name(root) or w["dir"],
+            "id": "%s/%s" % (parent, slug),
+            "repo": slug,
+            "family": parent,
+            "family_name": parent.title(),
+            "course": course_name(root) or slug,
             "chapter": _chapter(root),
             "card": which,
             "title": _title(root, which),

@@ -34,7 +34,7 @@ from ... import keys
 from ... import limits
 from ... import choice
 from .. import spawn
-from ... import atlas
+from ... import subjects
 from ... import colibri
 from ... import machines
 from ... import briefs
@@ -45,7 +45,6 @@ from ... import scopes
 from ... import stamp
 from ...course import config
 from ...course import paper
-from ...course import threads
 from ...lesson import state
 from ...course import repo as course_repo
 
@@ -100,7 +99,7 @@ def get(h, repo, path):
     if path == "/meeting/deck.json":
         # Being written, ready, or did not land: `briefs.judge`, which reads
         # `artifacts.status` and checks a built deck once against its sources.
-        base = atlas.root() or repo.root
+        base = subjects.root() or repo.root
         rec = briefs.deck(base)
         if not rec:
             return h.send_json({"ok": False,
@@ -117,7 +116,7 @@ def get(h, repo, path):
     if path == "/meeting/view":
         # The library reader's rasteriser, cache and page addresses. Only a
         # READY deck is drawn.
-        base = atlas.root() or repo.root
+        base = subjects.root() or repo.root
         rec = briefs.deck(base)
         if not rec or not rec.get("has_pdf"):
             deck_state = (rec or {}).get("state") or ""
@@ -148,7 +147,7 @@ def get(h, repo, path):
         return h.send_json(out)
 
     if path == "/meeting/pdf":
-        rec = briefs.deck(atlas.root() or repo.root)
+        rec = briefs.deck(subjects.root() or repo.root)
         if not rec or not rec.get("has_pdf"):
             return h.send_json({"ok": False, "error": "no deck"}, status=404)
         return h.send_file(rec["pdf"])
@@ -223,7 +222,7 @@ def get(h, repo, path):
                # The qualified name too, so a caller can tell
                # `courses/Probability` from a future
                # `projects/Probability` without guessing.
-               "id": atlas.identify(repo.root),
+               "id": subjects.identify(repo.root),
                "host": tailscale.tailnet_self() or "",
                "chosen": machines.chosen_target(),
                "tutor": agent.get("state") or None,
@@ -282,7 +281,7 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "detail": "bad json"}, status=400)
         if not isinstance(payload, dict):
             payload = {}
-        base = atlas.root() or repo.root
+        base = subjects.root() or repo.root
         when, said = briefs.resolve_since(payload.get("since") or "", base)
         if when is None:
             return h.send_json({"ok": False, "detail": said}, status=400)
@@ -440,17 +439,6 @@ def post(h, repo, path):
         if not match:
             return h.send_json({"ok": False, "error": "unknown workspace"},
                                status=404)
-        # THE THREAD IT IS FOR, where one is named: a mission is long work like
-        # a job, registered to a thread the same way. Refused when that
-        # workspace has no such thread, before anything is started or stopped.
-        thread = str(payload.get("thread") or "").strip()
-        if thread:
-            spine, _ = threads.read(match["root"])
-            if not (spine and threads.thread(spine, thread)):
-                return h.send_json(
-                    {"ok": False, "error": "%s has no thread called %r"
-                     % (match["repo"], thread)}, status=400)
-
         # NOTHING IS STARTED OR STOPPED OVER THERE. The task is queued on the
         # runner in the session `runner_route` picks, and the subject's provider
         # writes it; a named assistant is kept on the mission record only.
@@ -500,8 +488,8 @@ def post(h, repo, path):
         def mission(target, tid):
             made["rec"] = missions.dispatch(
                 match["root"], task=task, turn=tid, agent=agent,
-                ship=bool(payload.get("ship")), frm=atlas.identify(repo.root),
-                ceiling=ceiling, brought=brought, thread=thread)
+                ship=bool(payload.get("ship")), frm=subjects.identify(repo.root),
+                ceiling=ceiling, brought=brought)
 
         # AND NOW THE TURN AND THE INBOX LINE, WHICH IS THE WAKING, after the
         # mission record: everything the woken turn reads about itself is on

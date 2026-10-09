@@ -20,10 +20,8 @@ drill or a review.
 
 import os
 
-from . import fenced, plain, spell
-from .course import config, homework, reading, results, syllabus, walk
-# `map` is a builtin; the module keeps the name the board calls the thing.
-from .course import map as mapping
+from . import fenced, plain
+from .course import config, homework, reading, results, walk
 
 
 # arrives at a board with nothing on it and an assistant with no other context.
@@ -283,15 +281,15 @@ DOING_SENSE = (
     "report that, rather than describing all of it and doing none.\n"
     "AND WHERE THE NEW THING GOES: a new thing goes in a module named for the "
     "one job it does, and if that means moving something first, move it first. "
-    "This workspace has a map, and the boxes on it are its own modules with the "
-    "arrows drawn from what they import -- so a module that does six unrelated "
-    "things draws as one box with eleven arrows into it and teaches nobody "
-    "anything. The picture is a mirror, and the failure is the module rather "
-    "than the renderer. `helpers`, `utils`, `common` and `misc` are four "
-    "spellings of nobody decided. Python will let you append anything to any "
-    "file and it will run; getting away with it is not the test, and the test "
-    "is what the box looks like on the map. board/TEACHING.md says the same "
-    "under `Where a new thing goes`. "
+    "Whoever traces this workspace reads its modules and what each imports -- "
+    "so a module that does six unrelated things reads as one knot with eleven "
+    "arrows into it and teaches nobody anything. The structure is a mirror, and "
+    "the failure is the module rather than the reader. `helpers`, `utils`, "
+    "`common` and `misc` are four spellings of nobody decided. Python will let "
+    "you append anything to any file and it will run; getting away with it is "
+    "not the test, and the test is whether a trace of the module can say what "
+    "it is for. board/TEACHING.md says the same under `Where a new thing "
+    "goes`. "
 )
 
 
@@ -302,10 +300,9 @@ DOING_SENSE = (
 # dispatched into whatever workspace holds the work, and most of them teach:
 # `PSYCH-ASR` does, so the turn now running there was handed `METHOD_SENSE`
 # ("the lesson is EXERCISES"), `WRITEUP_SENSE` ("transcribe THEIR argument"),
-# a chapter label to start from, and `NO_NODE_SENSE`, whose last sentence is
-# *your first card asks which box the evening is about*. It had been told to do
-# the work and to ask a question instead, in the same breath, and the question
-# wins because it is cheaper. None of that is about a mission, so a mission
+# and a chapter label to start from. It had been told to do the work and to
+# set exercises instead, in the same breath, and the exercises win because they
+# are cheaper. None of that is about a mission, so a mission
 # reads this instead -- which costs about a thousand words LESS than the
 # sitting it replaces, on a preamble prefilled at a few tokens a second.
 #
@@ -526,199 +523,6 @@ def skip_sense(repo):
     return line
 
 
-# How many other boxes a card is handed the address of. The whole map where a
-# map is small, which is most of them; a cap because this line is paid for on
-# every cold turn and a forty-box listing buys nothing the first sixteen did not.
-MAX_ELSEWHERE = 16
-
-# Legacy sitting kinds a BOX is not the scope of: an imported state may still
-# say one, and asking it which box it is about is a question already answered.
-NOT_BY_BOX = ("review", "walk", "make")
-
-BOUNDARY_SENSE = (
-    " A COMPONENT BOUNDARY IS A STOPPING POINT. This sitting is about one box, "
-    "and sooner or later the work will honestly lead out of it: the next thing "
-    "that has to happen is in another part of the map. WHEN IT DOES, DO NOT "
-    "FOLLOW IT. Get what is in hand to a saving point, write up what was "
-    "agreed, say which box the work continues in, and stop. You may read and "
-    "talk about any other part of this repository -- that is not wandering. "
-    "What you may not do is start working in one. "
-    "AND THE HAND-OFF IS A TAP, NOT AN ERRAND. \"Go back to the map and open "
-    "the retrieval component\" is an instruction to somebody holding a tablet, "
-    "which is the same defect as asking them to type up your notes. Every box "
-    "has an ADDRESS; a card that names one renders as something they open with "
-    "a thumb, and the tap lands them in a sitting there. So write the box as a "
-    "markdown link to its address. The addresses are below. "
-    "AND IF THAT BOX HAS NO STEP OF THE PLAN ON IT, PROPOSE THE STEP IN THE "
-    "SAME CARD. You have just found out what the work there is, which makes "
-    "this turn the only thing in the system that knows what it should say -- and "
-    "the discovery is lost otherwise. One line, in the words a plan step is "
-    "written in. Whether it is taken is theirs."
-)
-
-NO_NODE_SENSE = (
-    " THIS SITTING IS ABOUT NO PART OF THE MAP, AND HERE THAT IS THE EXCEPTION. "
-    "This workspace is drawn as COMPONENTS rather than as the chapters of a "
-    "book: work in it belongs to a box, and a sitting is opened by tapping one. "
-    "Nobody tapped one for this sitting -- it was started from a terminal, "
-    "resumed after a reboot, or reached some other way -- so it has no scope, "
-    "and there is not one for you to infer. DO NOT PICK A PART OF THE "
-    "REPOSITORY TO WORK ON AND DO NOT SURVEY IT FOR AN AGENDA OF YOUR OWN."
-)
-
-# The ask, held apart from the paragraph above because one version of it points
-# at a list. A workspace sitting in no family has no address, so there is
-# nothing below to point at, and a line promising links that are not there is
-# worse than the plain question.
-NO_NODE_ASK = (
-    " Your first card asks which box the evening is about, and it asks it as "
-    "markdown links to the addresses below -- one per box, so the answer is a "
-    "thumb rather than a sentence."
-)
-NO_NODE_PLAIN = (
-    " Your first card asks which box the evening is about, and teaches nothing "
-    "until they have said."
-)
-
-
-def _by_box(st):
-    """Is a BOX what this sitting is scoped by? Not for a legacy review, walk
-    or make sitting, which arrived with a scope of its own."""
-    kind = ((st or {}).get("session") or "lecture").strip().lower()
-    return kind not in NOT_BY_BOX
-
-
-def _elsewhere(root, built, here_id=None):
-    """Every other box, with the address that opens a sitting in it.
-
-    THIS IS WHAT MAKES A HAND-OFF A TAP. A card that has to say the name of a
-    box and trust somebody to go and find it has handed them an errand; a card
-    carrying the address has handed them a link. The board spells one grammar
-    (`spell.py`, §2.1) and renders every address in a card as something you can
-    open, so this is the whole of what a turn needs to point at another box.
-
-    Boxes carrying steps of the plan come first, because those are the ones work
-    is owed on -- and each says whether it has any, because a box with none is
-    the case the hand-off has to PROPOSE a step for, and it has to know which
-    case it is in.
-    """
-    base = spell.here(root)
-    if not base:
-        # A directory sitting in no family has no address at all. Naming the
-        # boxes is still worth doing; claiming a tap that cannot happen is not.
-        return ""
-    rows = [n for n in built.get("nodes") or []
-            if n.get("kind") == "part" and n["id"] != (here_id or "")]
-    if not rows:
-        return ""
-    rows.sort(key=lambda n: 0 if n.get("steps") else 1)
-    said = []
-    for node in rows[:MAX_ELSEWHERE]:
-        name = node["name"]
-        if node.get("also") and node["also"] != name:
-            name += " (%s)" % node["also"]
-        steps = node.get("steps") or []
-        how = ("%d step%s of the plan on it"
-               % (len(steps), "" if len(steps) == 1 else "s")) if steps \
-            else "no step of the plan names it"
-        said.append("%s -- %s/node/%s, %s" % (name, base, node["id"], how))
-    line = (" The %sboxes on this map, and the address that opens a sitting in "
-            "each: %s." % ("other " if here_id else "", "; ".join(said)))
-    if len(rows) > MAX_ELSEWHERE:
-        line += (" There are %d more on the map; open it if the work leads "
-                 "somewhere none of these is."
-                 % (len(rows) - MAX_ELSEWHERE))
-    return line
-
-
-def node_sense(repo, st):
-    """The part of the map this sitting is about, handed over rather than hunted.
-
-    A sitting opened from the map names a BOX -- a part of the repository, its
-    one-line purpose, the files it is made of, the steps of the plan that name
-    it. All of that is on disk already, and a tutor that has to go and find it
-    pays for the search on every cold turn, in money and in latency, before a
-    word is taught. `where_sense` learned this for the plan; this is the same
-    lesson for the thing the plan is about.
-
-    Re-resolved on the way out rather than echoed back from `state.json`: a box
-    whose directory has been deleted between the sitting opening and the tutor
-    waking would otherwise send it to read machinery that is not there.
-
-    AND A SITTING WITH NO BOX SAYS SO, WHERE A BOX IS WHAT A SITTING IS. The map
-    tap is meant to be THE door, and it is one door among several: `tutor
-    galois`, `board open`, a chapter tapped in the contents drawer and a board
-    resumed after a reboot all leave `node` unset. This used to answer that with
-    the empty string, so the sitting had no scope and nothing said it was
-    missing -- and a turn with no scope picks one. The answer is not the same
-    everywhere and `map.scoped` is the thing that knows: a chapter of a book
-    already IS a scope, so nothing changes for a course.
-    """
-    st = st or {}
-    node_id = config.sitting_box(st)
-    # Answered before the map is built rather than after: a sitting a box is not
-    # the scope of has nothing to say about boxes whether or not one was tapped.
-    if not node_id and not _by_box(st):
-        return ""
-    try:
-        built = mapping.status(repo.root, st)
-    except Exception:                                        # noqa: BLE001
-        built = None
-    node = None
-    if built and node_id:
-        for one in built["nodes"]:
-            if one["id"] == node_id:
-                node = one
-                break
-    if not node:
-        # No box, or one whose files have gone out from under it. Both are a
-        # sitting with no scope, and in a workspace made of components that is
-        # worth a paragraph rather than a silence.
-        if not _by_box(st) or not built or not mapping.scoped(repo.root):
-            return ""
-        where = _elsewhere(repo.root, built)
-        return NO_NODE_SENSE + (NO_NODE_ASK if where else NO_NODE_PLAIN) + where
-    said = " This sitting is about %s" % node["name"]
-    if node.get("also"):
-        said += " (%s)" % node["also"]
-    said += ", a part of this repository."
-    if node.get("does"):
-        said += " What it is: %s" % node["does"]
-        if not said.endswith("."):
-            said += "."
-    files = node.get("files") or []
-    if files:
-        said += (" It is made of %d file%s: %s."
-                 % (len(files), "" if len(files) == 1 else "s",
-                    ", ".join(files[:6])
-                    + (", and %d more" % (len(files) - 6) if len(files) > 6 else "")))
-        said += (" Read those before your first card; do not survey the rest of "
-                 "the repository for an agenda of your own.")
-    steps = node.get("steps") or []
-    if steps:
-        said += (" The plan has %d step%s on this part: %s."
-                 % (len(steps), "" if len(steps) == 1 else "s",
-                    "; ".join("%s. %s" % (x["num"], x["title"]) for x in steps[:4])))
-    if node.get("doc"):
-        said += (" There is a document about it -- put a page of it in a card "
-                 "with ![](/doc/%s/<page>.png) when a slide says it better than "
-                 "you can." % node["doc"])
-    # THE BOX IS DESCRIBED TO EVERY SITTING THAT NAMES ONE; the boundary rule is
-    # only for the sittings a box actually SCOPES. A walkthrough opened over a
-    # box still wants to know what the box is, and is held over its own units --
-    # telling it to stop at a boundary it is not working inside says nothing.
-    if not _by_box(st):
-        return said
-    where = _elsewhere(repo.root, built, node["id"])
-    if not where:
-        # A one-box map, or a workspace with no address. The boundary rule is
-        # entirely about handing the work to ANOTHER box, so with nowhere to
-        # hand it to it is a paragraph about nothing -- and it would end by
-        # promising a list of addresses that is not there.
-        return said
-    return said + BOUNDARY_SENSE + where
-
-
 MAKE_SENSE = (
     "THIS IS A MAKE SITTING: its product is a DOCUMENT, not an answer. "
     "Nothing here is an exercise and nothing is handed in. You draft, they read "
@@ -743,16 +547,16 @@ MAKE_SENSE = (
     "examples, the document explains the concept and shows the examples -- it "
     "does not narrate the hand-check. A write-up of the evening is the one "
     "thing this sitting must not produce. "
-    "WHAT IT COVERS IS A DIFFERENT QUESTION, and its scope may be THE BOX, THE "
-    "CHAPTER, OR THE WHOLE EVENING. Where the machinery named below says which "
-    "-- the part of the map this sitting is on, or the chapter it is labelled "
+    "WHAT IT COVERS IS A DIFFERENT QUESTION, and its scope may be A PART OF THE "
+    "REPOSITORY, THE CHAPTER, OR THE WHOLE EVENING. Where the ask names which "
+    "-- a part of the repository, or the chapter the sitting is labelled "
     "with -- that is the scope, and not everything else that came up while you "
     "were looking at it. WHERE THE SCOPE IS THE EVENING it is the concepts this "
     "sitting covered and nothing else about it: read the lesson back with "
     "`board recap --all`, take the list of topics off the cards, and explain "
     "each one from scratch. Not the order they were taught in, not the "
     "questions, not the answers, not who got what wrong. If nothing names a "
-    "box, a chapter or the evening, ask in your first card what the document is "
+    "part, a chapter or the evening, ask in your first card what the document is "
     "to be about rather than drafting something and finding out. "
     "Work in sections: write one, put it on the board for them to read, take "
     "the corrections, then write the next -- a whole document dropped at once "
@@ -968,11 +772,9 @@ def ship_sense(agent, task):
 # `writeups/<slug>/`. `MAKE_SENSE` is that method and is appended by
 # `writeup_sense` rather than restated, or the two drift.
 #
-# THE SCOPE IS THE EVENING UNLESS SOMETHING ELSE IS NAMED, and that is the
-# difference from the map's own route. A box tapped on the map opens a make
-# sitting scoped to the box; this is the ask that had no route at all -- "write up
-# the four things we just covered" -- so the default is the concepts the cards
-# covered, read back with `board recap --all`.
+# THE SCOPE IS THE EVENING UNLESS SOMETHING ELSE IS NAMED: "write up the four
+# things we just covered" -- so the default is the concepts the cards covered,
+# read back with `board recap --all`.
 WRITEUP_ASK_SENSE = (
     "A DOCUMENT HAS BEEN ASKED FOR FROM THE SITTING ON THIS BOARD, and THIS "
     "TURN IS NOT PART OF THE LESSON. Nobody is waiting at a board for a card. "
@@ -1139,7 +941,7 @@ def _session_sense(repo, mission=False):
     # subject anything here still asks. A course with a syllabus has its
     # exercises written for it; one without has to be told where to look, and
     # being told is what stops it inventing chapters out of a README.
-    book = syllabus.opening(repo.root)
+    book = homework.opening(repo.root)
 
     # In a headless session this line is the whole prompt, so it has to carry the
     # pointer to the method as well as the pointer to the place.
@@ -1163,26 +965,25 @@ def _session_sense(repo, mission=False):
                      "assigned before teaching anything." % os.path.dirname(st_hw["rel"]))
             return (how + "This is a HOMEWORK sitting on %s (%s). The problems are "
                     "assigned, not yours to choose. %s Transcribe each statement "
-                    "before you teach it." % (st_hw["name"], st_hw["rel"], where)
-                    + node_sense(repo, st))
+                    "before you teach it." % (st_hw["name"], st_hw["rel"], where))
 
     if chapter:
         return (how + "This sitting is labelled %r and it is a %s. Start there."
-                % (chapter, kind)) + node_sense(repo, st)
+                % (chapter, kind))
     # A course that follows a book says so on disk. Naming its actual first
     # chapter beats telling an assistant to work it out, which is what produced
     # a Galois course opened at field extensions -- chapter four.
     if book:
-        every = syllabus.chapters(repo.root)
+        every = homework.chapters(repo.root)
         return (how + "This sitting is a %s and carries no chapter label. This course "
                 "follows a book and orders itself in %d chapters; the first is "
                 "%s. Open there unless TUTOR.md says otherwise, and name the "
                 "chapter you are opening in your first card. Do not start from "
                 "whatever you consider the foundation of the subject -- start "
                 "where the book starts."
-                % (kind, len(every), syllabus.label(book))) + node_sense(repo, st)
+                % (kind, len(every), homework.chapter_label(book)))
     return (how + "This sitting is a %s and carries no label of its own, so the only "
             "thing that says where to start is what the repository points at -- "
             "read that before your first card, and say in that card what you are "
             "opening and why. Do not guess from the subject and do not survey the "
-            "repository for an agenda of your own." % kind) + node_sense(repo, st)
+            "repository for an agenda of your own." % kind)

@@ -192,14 +192,3 @@ def clean_agent(agent):
     """An assistant name from a request, or None if it is not one. Never raises."""
     agent = str(agent or "").strip().lower()
     return agent if AGENT_RE.match(agent) else None
-
-
-def sitting_box(state):
-    """Which box of the map this sitting is on: its thread, else its node.
-
-    A workspace with a thread file opens sittings on THREADS, and `state.json`
-    carries `thread`. `node` is left only for a box of a derived map, which is
-    a part of the tree rather than a question.
-    """
-    state = state or {}
-    return str(state.get("thread") or state.get("node") or "").strip()

@@ -25,7 +25,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tutorboard import atlas, audit, fenced, leaving          # noqa: E402
+from tutorboard import audit, fenced, leaving          # noqa: E402
 
 
 # The whole REPOSITORY, not the tool: asked of git rather than derived by
@@ -375,7 +375,6 @@ try:
         subprocess.run(["git"] + args, cwd=tmp, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
     os.environ["TUTORBOARD_COURSES"] = tmp
-    atlas.forget()
     fenced.forget()
     leaving._POLICY["root"] = None
 
@@ -461,7 +460,6 @@ finally:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = was
-    atlas.forget()
     fenced.forget()
     leaving._POLICY["root"] = None
     shutil.rmtree(tmp, ignore_errors=True)

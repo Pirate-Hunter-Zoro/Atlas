@@ -170,7 +170,7 @@ chosen = os.path.join(cfg_dir, "chosen.json")
 # course records no choice either, so every check below would pass on a command
 # that failed outright.
 env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(home, "config"),
-           TUTORBOARD_COURSES=courses_dir,
+           TUTORBOARD_COURSES=home,
            BOARD_STATE_DIR=os.path.join(home, "state"))
 
 

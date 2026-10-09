@@ -544,7 +544,7 @@ import contextlib                                            # noqa: E402
 import io as _io                                             # noqa: E402
 
 away = tempfile.mkdtemp(prefix="tutor-away-")
-away_root = os.path.join(away, "Fake-Course")
+away_root = os.path.join(away, "courses", "Fake-Course")
 away_live = os.path.join(away_root, "live")
 os.makedirs(away_live)
 open(os.path.join(away_root, "AI_INSTRUCTIONS.md"), "w").close()

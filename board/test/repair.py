@@ -38,7 +38,6 @@ box = tempfile.mkdtemp(prefix="tutor-repair-state-")
 os.environ["BOARD_STATE_DIR"] = box
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 from tutorboard import jobs, sessions                                  # noqa: E402
-from tutorboard.course import threads                                  # noqa: E402
 
 TUTOR = os.path.join(ROOT, "bin", "tutor")
 BOARD = os.path.join(ROOT, "bin", "board")
@@ -77,16 +76,6 @@ DIAGNOSE = """#!/bin/bash
 
 python -m relay_hook --look "${LOOK:-}"
 """
-SPINE = {
-    "version": 1,
-    "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": ""}],
-    "threads": [
-        {"id": "knn", "deliverable": "paper1", "title": "Neighbours",
-         "files": ["src/knn.py"]},
-        {"id": "tripod", "deliverable": "paper1", "title": "Tripod",
-         "files": []},
-    ],
-}
 CHECK = "uv run --extra test python -m pytest tests -q"
 ORIGIN = "2026-10-02-knn-sweep"
 FIRST = {"id": ORIGIN, "kind": "recipe", "label": "knn",
@@ -110,7 +99,6 @@ scenes = tempfile.mkdtemp(prefix="tutor-repair-")
 def scene(reqs, reps, stance="teach"):
     """A workspace on disk holding these requests and reports. `{id: rec}`."""
     ws = tempfile.mkdtemp(dir=scenes)
-    write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "tutorboard.json"),
           json.dumps({"name": "Proj", "stance": stance, "check": CHECK}))
     write(os.path.join(ws, "slurm", "sweep.sbatch"), SWEEP)
@@ -121,7 +109,6 @@ def scene(reqs, reps, stance="teach"):
     for rid, rep in reps.items():
         write(os.path.join(ws, "relay", "reports", rid + ".json"),
               json.dumps(dict(rep, id=rid)))
-    threads._cache.clear()
     return ws, dict((r["request"], r) for r in jobs.relayed(ws))
 
 
@@ -282,7 +269,7 @@ try:
               diag(1, 1.0), [FIRST], set())))
     ok, problems = jobs.validate(
         {"id": "t-1", "kind": "turn", "thread": "knn", "brief": "why",
-         "fixes": ORIGIN}, threads.validate(SPINE)[0], set(), {}, ())
+         "fixes": ORIGIN}, None, set(), {}, ())
     check("a turn request is refused by the policy, `fixes` or not: no "
           "hosted turn diagnoses", ok is None and problems == [jobs.NO_TURN])
 
@@ -294,7 +281,6 @@ try:
     ws = os.path.join(top, "projects", "Proj")
     write(os.path.join(top, ".gitignore"), "/sessions/\n")
     write(os.path.join(ws, ".gitignore"), "live/\nrelay/state/\n")
-    write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "tutorboard.json"),
           json.dumps({"name": "Proj", "check": CHECK}))
     write(os.path.join(ws, "slurm", "sweep.sbatch"), SWEEP)
@@ -309,7 +295,6 @@ try:
           json.dumps({"course": "Proj", "session": "lecture"}))
     git(top, "add", "-A")
     git(top, "commit", "-q", "-m", "a request")
-    threads._cache.clear()
     jobs.hear(ws)
     write(os.path.join(ws, "relay", "reports", ORIGIN + ".json"),
           json.dumps(dict(FAILED, id=ORIGIN)))
@@ -385,7 +370,6 @@ try:
           json.dumps(SECOND))
     write(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"),
           json.dumps(dict(FAILED, id=SECOND["id"])))
-    threads._cache.clear()
     with open(inbox, encoding="utf-8") as fh:
         kept = [m for m in (json.loads(l) for l in fh if l.strip())
                 if m.get("signal") != "bind"]
@@ -438,7 +422,6 @@ try:
     os.remove(os.path.join(where, "agent.json"))
     os.remove(os.path.join(ws, "relay", "requests", SECOND["id"] + ".json"))
     os.remove(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"))
-    threads._cache.clear()
 
     # --- the commands ------------------------------------------------------------------
     env = dict(os.environ, TUTOR_SLURM="0")
@@ -500,7 +483,7 @@ rid = "2026-10-02-knn-across-embedders-neighbor-count-sweep"
 live_trd = os.path.join(REPO, "projects", "TRD-EHR")
 frozen = tempfile.mkdtemp(prefix="repair-2110916-")
 trd = os.path.join(frozen, "TRD-EHR")
-for _rel in ("threads.json", "tutorboard.json", "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+for _rel in ("tutorboard.json", "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
              "slurm_jobs/quick_runs/diagnose.sbatch", "relay/requests/%s.json" % rid,
              "relay/reports/%s.json" % rid):
     os.makedirs(os.path.dirname(os.path.join(trd, _rel)), exist_ok=True)

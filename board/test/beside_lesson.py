@@ -30,7 +30,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from tutorboard import atlas, brief                                   # noqa: E402
+from tutorboard import brief                                   # noqa: E402
 from tutorboard.course import repo as course_repo                     # noqa: E402
 from tutorboard.lesson import git as lesson_git                       # noqa: E402
 
@@ -181,7 +181,6 @@ try:
           % int((time.time() - t0) * 1000), time.time() - t0 < 2.0)
 
 finally:
-    atlas.forget()
     shutil.rmtree(base, ignore_errors=True)
 
 print()

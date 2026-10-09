@@ -2,9 +2,9 @@
 """Subjects: every directory under courses/ or projects/, with no registry.
 
 A fixture tree, never the real one: `all`, `find` (with the fallback from a
-moved qualified id to its slug), `kind_of`, `root`, `read_config`, the
-`atlas` shims and lookups by slug (`colibri.WORKSPACE`, a project by its
-bare name).
+moved qualified id to its slug), `kind_of`, `identify`, `roots`, `root`,
+`read_config` and lookups by slug (`colibri.WORKSPACE`, a project by its
+bare name). atlas.py is gone.
 """
 
 import json
@@ -18,7 +18,7 @@ sys.path.insert(0, ROOT)
 
 os.environ.pop("TUTORBOARD_COURSES", None)
 
-from tutorboard import atlas, colibri, subjects  # noqa: E402
+from tutorboard import colibri, machines, subjects  # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
 fails = []
@@ -43,10 +43,12 @@ def mk(base, rel, cfg=None):
 # --- root -------------------------------------------------------------------
 check("root() is the parent of board/",
       subjects.root() == os.path.dirname(os.path.realpath(ROOT)))
-check("there is no atlas.json, and the families come from code",
+check("there is no atlas.json, and the front door's families come from code",
       not os.path.exists(os.path.join(subjects.root(), "atlas.json"))
-      and [f["id"] for f in atlas.FAMILIES]
+      and [f["id"] for f in machines.FAMILIES]
       == ["courses", "projects", "board", "vendor"])
+check("and atlas.py is gone",
+      not os.path.exists(os.path.join(ROOT, "tutorboard", "atlas.py")))
 from tutorboard import relay                                  # noqa: E402
 _spaces = [ws for _, ws in relay.spaces(subjects.root())]
 check("relay.spaces holds every subject, both courses included",
@@ -70,7 +72,6 @@ try:
         fh.write("not a subject\n")
 
     os.environ["TUTORBOARD_COURSES"] = tmp
-    atlas.forget()
     check("TUTORBOARD_COURSES overrides root()", subjects.root() == tmp)
 
     # --- all ----------------------------------------------------------------
@@ -122,8 +123,6 @@ try:
           and hit["root"] == psych
           and (subjects.find("practice/Algo-Solutions") or {}).get("id")
           == "projects/Algo-Solutions")
-    check("and through the atlas shim too",
-          (atlas.find("research/PSYCH-ASR") or {}).get("id") == "projects/PSYCH-ASR")
     check("but residue under a legacy parent is never a subject",
           subjects.find("research/Leftover") is None
           and subjects.find("Leftover") is None)
@@ -131,35 +130,14 @@ try:
           subjects.find(os.path.join(tmp, "elsewhere", "PSYCH-ASR")) is None
           and subjects.find("vendor/PSYCH-ASR") is None)
 
-    # --- the atlas shims ----------------------------------------------------
-    ws = atlas.workspaces()
-    check("atlas.workspaces keeps its record shape",
-          all(sorted(w) == ["dir", "family", "family_name", "id", "root"]
-              for w in ws))
-    check("and lists the same subjects in atlas.FAMILIES order",
-          [w["id"] for w in ws] == [s["id"] for s in subjects.all()])
-    check("family and family_name come from the parent and atlas.FAMILIES",
-          ws[0]["family"] == "courses" and ws[0]["family_name"] == "Courses"
-          and ws[0]["dir"] == "Topology")
-    check("atlas.find by bare directory name",
-          atlas.find("libr-local-llm")["id"] == "projects/libr-local-llm")
-    check("atlas.family_of and identify read the parent directory",
-          atlas.family_of(topo) == "courses"
-          and atlas.identify(topo) == "courses/Topology"
-          and atlas.identify(os.path.join(tmp, "vendor", "colibri")) == "colibri")
+    # --- identify and roots ------------------------------------------------
+    check("roots lists every subject's directory in walk order",
+          subjects.roots() == [s["root"] for s in subjects.all()])
+    check("identify reads the parent directory",
+          subjects.identify(topo) == "courses/Topology"
+          and subjects.identify(os.path.join(tmp, "vendor", "colibri")) == "colibri")
     check("identify still names a subject that is gone",
-          atlas.identify(os.path.join(tmp, "courses", "Gone")) == "courses/Gone")
-
-    # A flat tree (no family directory) still reads as bin/tutor's courses_dir did.
-    flat = os.path.realpath(tempfile.mkdtemp(prefix="subjects-flat-"))
-    try:
-        mk(flat, "Galois-Theory", {"name": "Galois Theory"})
-        mk(flat, "scratch")
-        check("a flat tree lists its marked directories by bare name",
-              [w["id"] for w in atlas.workspaces(flat)] == ["Galois-Theory"]
-              and atlas.find("Galois-Theory", flat)["dir"] == "Galois-Theory")
-    finally:
-        shutil.rmtree(flat, ignore_errors=True)
+          subjects.identify(os.path.join(tmp, "courses", "Gone")) == "courses/Gone")
 
     # --- lookups by slug ----------------------------------------------------
     for key in ("COLI_QUEUE_ROOT", "LLM_REPO", "COLI_LOG_DIR"):
@@ -250,7 +228,6 @@ try:
           bool(refused("courses/open", phi=False)))
 finally:
     os.environ.pop("TUTORBOARD_COURSES", None)
-    atlas.forget()
     shutil.rmtree(tmp, ignore_errors=True)
 
 # --- the real tree ------------------------------------------------------------
@@ -265,8 +242,6 @@ for parent, _kind in subjects.DIRS:
         pass
 check("on this tree, all() is exactly the directories under the subject parents",
       set(s["id"] for s in subjects.all()) == listed)
-check("and atlas.workspaces() names the same subjects",
-      [w["id"] for w in atlas.workspaces()] == [s["id"] for s in subjects.all()])
 
 print()
 print("%d FAILURES" % len(fails) if fails

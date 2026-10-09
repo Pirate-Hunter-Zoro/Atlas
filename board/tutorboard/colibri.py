@@ -44,7 +44,7 @@ import re
 import subprocess
 import time
 
-from . import atlas, jobs, machine, subjects
+from . import jobs, machine, subjects
 
 
 # The job, the workspace it belongs to, and the two sentinels. All four match
@@ -763,7 +763,7 @@ def file(label, brief, workspace_root, request="", start=None, now=None):
         return None, "this machine has no %s workspace to queue in" % WORKSPACE
     with _Lock():
         rec = file_task(root, label, brief,
-                                 atlas.identify(workspace_root), request, now,
+                                 subjects.identify(workspace_root), request, now,
                                  baseline=_baseline(workspace_root))
         if rec is None:
             return None, "the task could not be written under %s" % root
@@ -900,7 +900,7 @@ def run_task(rec, job):
     -- the conversation was never written.
     """
     cmd = _tool("coli-code", "COLI_CODE")
-    where = atlas.find(rec.get("workspace") or "")
+    where = subjects.find(rec.get("workspace") or "")
     if not cmd or not where:
         return 2
     env = dict(os.environ, COLI_SESSION_ID=str(rec.get("session") or ""),
@@ -1117,7 +1117,7 @@ def relay_pass(check=None, now=None, start=None):
     kick(start)
     out = []
     for rec in tasks(root):
-        where = atlas.find(rec.get("workspace") or "")
+        where = subjects.find(rec.get("workspace") or "")
         if not where:
             continue
         if (rec.get("queue") == "done" and not rec.get("checked")

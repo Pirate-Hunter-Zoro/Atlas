@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-from tutorboard import atlas, choice, paths, processes
+from tutorboard import choice, paths, processes, subjects
 from tutorboard.agents import recipes
 from tutorboard.course import repo as course_repo
 
@@ -34,7 +34,7 @@ def flag(args, name):
 def courses(cfg):
     """Whatever is on disk. No registry, so nothing to keep in step.
 
-    `atlas.workspaces()` is the walk: a workspace per directory under a
+    `subjects.walk()` is the walk: a workspace per directory under a
     subject family (`subjects.DIRS`). Nothing anywhere lists the workspaces.
 
     `TUTORBOARD_COURSES` still beats everything, and it is not a nicety. It is
@@ -47,7 +47,7 @@ def courses(cfg):
     left a second board for the same course answering on a port nobody knew
     about. One variable, one meaning, everywhere. It now means "the repository
     root" rather than "the directory the courses are siblings in", which is the
-    same sentence about the new shape; `atlas.root()` reads it.
+    same sentence about the new shape; `subjects.root()` reads it.
     """
     # `TUTORBOARD_COURSES` beats the configuration; `courses_dir` is what a
     # person set, and it is honoured when they set something real. A value left
@@ -55,14 +55,14 @@ def courses(cfg):
     # -- see the note there, which is where that belongs, because a stale value
     # should be wrong ONCE at load rather than at every use.
     base = os.environ.get("TUTORBOARD_COURSES") or cfg.get("courses_dir") \
-        or atlas.root()
+        or subjects.root()
     out = []
-    for w in atlas.workspaces(base):
-        info = recipes.read_course(w["root"])
-        info["root"] = w["root"]
-        info["dir"] = w["dir"]
-        info["id"] = w["id"]
-        info["family"] = w["family"]
+    for parent, _kind, slug, root in subjects.walk(base):
+        info = recipes.read_course(root)
+        info["root"] = root
+        info["dir"] = slug
+        info["id"] = "%s/%s" % (parent, slug)
+        info["family"] = parent
         out.append(info)
     return out
 

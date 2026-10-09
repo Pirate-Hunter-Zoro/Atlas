@@ -40,7 +40,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import (atlas, colibri, fenced, machine, machines, missions,
+from tutorboard import (colibri, fenced, machine, machines, missions,
                         news, progress)
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import notes, state, turns
@@ -82,7 +82,6 @@ try:
     for r in (psych, trd, galois):
         write(os.path.join(r, "tutorboard.json"), json.dumps({"name": os.path.basename(r)}))
         os.makedirs(os.path.join(r, "live", "cards"), exist_ok=True)
-    atlas.forget()
     os.environ["TUTORBOARD_COURSES"] = base
 
     now = time.time()
@@ -146,7 +145,6 @@ try:
     old = os.path.join(base, "courses", "Probability")
     write(os.path.join(old, "tutorboard.json"), "{}\n")
     os.makedirs(os.path.join(old, "live", "cards"), exist_ok=True)
-    atlas.forget()
     card(old, "0004", "bayes", "Bayes.", now - 40 * 24 * 3600)
     check("a card from last month is history rather than news",
           all(n["id"] != "courses/Probability" for n in news.elsewhere(galois)))
@@ -919,7 +917,6 @@ try:
         write(os.path.join(held, "tutorboard.json"),
               json.dumps({"name": "HELD"}))
         os.makedirs(os.path.join(held, "live", "cards"), exist_ok=True)
-        atlas.forget()
         machines._ATLAS["value"] = None
 
         def attach(who, **kw):
@@ -988,7 +985,6 @@ finally:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = was_courses
-    atlas.forget()
     machines._ATLAS["value"] = None
     news.forget()
 

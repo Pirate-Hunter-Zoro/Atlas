@@ -428,7 +428,8 @@ for _where, _said in WHERE_THE_RULE_LIVES:
 # the concepts, read back in one call, not the order or the questions or who got
 # what wrong.
 for phrase, why in [
-    ("THE BOX, THE CHAPTER, OR THE WHOLE EVENING", "all three scopes are named"),
+    ("A PART OF THE REPOSITORY, THE CHAPTER, OR THE WHOLE EVENING",
+     "all three scopes are named"),
     ("board recap --all", "the lesson is read back in one call"),
     ("not the questions", "and the questions are not the document"),
 ]:
@@ -556,52 +557,17 @@ check("and the document keeps the two sections README names",
       and "### name the measure the work already has" in _METHOD)
 
 # ---------------------------------------------------------------------------
-# A COMPONENT BOUNDARY IS A STOPPING POINT -- in both places, again
+# COACHING HAS A SECTION OF ITS OWN
 # ---------------------------------------------------------------------------
-# The same two-places problem as *one module, one job*, and for the same reason:
-# a tutor with the document open reads `TEACHING.md`, and a headless turn reads
-# `node_sense` and nothing else. This rule is about what to do when the work
-# LEAVES the box -- which is the honest case the old focus line said nothing
-# about. It only said not to WANDER: not to pick an agenda outside the box. The
-# case it left open is the work genuinely leading into another component, where
-# the right answer is to stop rather than to follow it.
-_BOUNDARY = _flat(sense_mod.BOUNDARY_SENSE)
-BOUNDARY = (
-    ("a component boundary is a stopping point", "the rule itself"),
-    ("do not follow it",
-     "and that the work leading out of the box is not a reason to leave it"),
-    ("saving point",
-     "what happens instead: what is in hand gets to a saving point"),
-    ("which box the work continues in", "and the turn says where it continues"),
-    ("a tap, not an errand",
-     "the hand-off is a link they open, not an instruction to a person"),
-    ("markdown link", "so the box is named as one"),
-    ("propose the step",
-     "and a box with nothing planned on it gets the step proposed"),
-)
-for _phrase, _why in BOUNDARY:
-    check("TEACHING.md says " + _why, _phrase in _METHOD)
-    check("and a turn woken in a box is told the same: " + _why,
-          _phrase in _BOUNDARY)
-
-# AND THE OTHER HALF: a sitting that has NO box, where a box is what a sitting
-# is. `map.scoped` decides where that applies, so neither document may state it
-# as a rule for the whole board -- a chapter of a book already IS a scope.
-_NOBOX = _flat(sense_mod.NO_NODE_SENSE + sense_mod.NO_NODE_ASK)
 for _phrase, _why in (
-        ("no part of the map", "a sitting with no box says so"),
-        ("do not pick a part of the repository",
-         "and does not choose one for itself"),
-        ("first card asks which box", "it asks, in its first card"),
-        ("markdown links to the addresses", "and asks it as taps"),
-):
-    check("TEACHING.md says " + _why, _phrase in _METHOD)
-    check("and a turn woken without one is told the same: " + _why,
-          _phrase in _NOBOX)
-check("neither document makes it a rule for a book course, which has chapters "
-      "rather than components",
-      "the chapter already is the scope" in _METHOD
-      and "rather than as the chapters of a book" in _NOBOX)
+        ("## Coaching", "coaching has a section of its own"),
+        ("One step per card", "one step per card"),
+        ("Imports first, in prose", "imports come first, in prose"),
+        ("You write the plumbing yourself", "the tutor writes the plumbing"),
+        ("run the check yourself", "the tutor runs the check"),
+        ("You write no code for an estimator or a validation design",
+         "no code for estimators or validation design")):
+    check("TEACHING.md: " + _why, _phrase in text)
 
 check("every briefing carries the rule about how a card reads",
       "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE

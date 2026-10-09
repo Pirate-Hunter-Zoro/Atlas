@@ -21,7 +21,7 @@ What the checks are about:
     KeepAlive and ThrottleInterval 10; ship.sh kickstarts it; the old
     restart commands refuse and name it.
   * ONE PATH ON BOTH MACHINES. A `results/` path the tree lacks is read from
-    `exports/results/` by the thread check and the results library.
+    `exports/results/` by the results library.
 
 With TUTORBOARD_REHEARSE_LAUNCHD=1 it also rehearses the LaunchAgent for
 real, under the label tutor-board.rehearsal on port 8779 against copies: a
@@ -55,7 +55,7 @@ for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
              "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
 from tutorboard import cluster, gitops, holds, jobs, paths, sessions, stamp  # noqa: E402
-from tutorboard.course import results, threads                         # noqa: E402
+from tutorboard.course import results                                  # noqa: E402
 from tutorboard.runner import service                                  # noqa: E402
 from tutorboard.runner import turn as runturn                          # noqa: E402
 from tutorboard.server import app                                      # noqa: E402
@@ -120,16 +120,6 @@ RECIPE = """#!/bin/bash
 echo "RELAY: done"
 """
 
-SPINE = {
-    "version": 1,
-    "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": ""}],
-    "threads": [
-        {"id": "knn", "deliverable": "paper1", "title": "Neighbours",
-         "files": ["results/knn/sweep.png", "results/knn/gone.png"],
-         "exports": [{"path": "results/knn/sweep.png", "aggregate": True}]},
-    ],
-}
-
 base = tempfile.mkdtemp(prefix="tutor-hearing-")
 try:
     origin = os.path.join(base, "origin.git")
@@ -146,7 +136,6 @@ try:
     write(os.path.join(ws, ".gitignore"), "/results/\nrelay/state/\n")
     write(os.path.join(ws, "tutorboard.json"), json.dumps({"name": "Proj"}))
     write(os.path.join(ws, "slurm", "sweep.sbatch"), RECIPE)
-    write(threads.path(ws), json.dumps(SPINE))
     git(mac, "add", "-A")
     git(mac, "commit", "-q", "-m", "start")
     git(mac, "remote", "add", "origin", origin)
@@ -272,7 +261,6 @@ try:
           os.path.isfile(os.path.join(ws, "relay", "state", "reported",
                                       jobs.HEARD))
           and git(mac, "status", "--porcelain").strip() == "")
-    threads._cache.clear()
     lines = jobs.thread_relay(ws, "knn")
     check("`board brief` lists the request still out",
           any("Waiting on the cluster" in l for l in lines)
@@ -500,11 +488,6 @@ try:
           paths.present(ws, rel) == os.path.join(ws, "exports", rel)
           and paths.present(ws, "results/knn/none.png") == ""
           and paths.present(ws, "results/../../../etc/passwd") == "")
-    threads._cache.clear()
-    stale = threads.check(ws)
-    check("`board thread --check` counts it present, and a lost one stale",
-          not any("sweep.png" in l for l in stale)
-          and any("gone.png" in l for l in stale))
     results.forget()
     figs = results.figures(ws)
     check("the results library offers it at its results/ path",
@@ -534,11 +517,9 @@ scenes = tempfile.mkdtemp(prefix="tutor-fixing-")
 def scene(reqs):
     """A workspace on disk holding these requests. `{id: rec}`."""
     ws = tempfile.mkdtemp(dir=scenes)
-    write(threads.path(ws), json.dumps(SPINE))
     for r in reqs:
         write(os.path.join(ws, "relay", "requests", r["id"] + ".json"),
               json.dumps(r))
-    threads._cache.clear()
     return ws, dict((r["request"], r) for r in jobs.relayed(ws))
 
 

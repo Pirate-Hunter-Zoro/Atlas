@@ -18,10 +18,11 @@ definition, and TEACHING.md already describes it as a rung before a change. It
 is a sitting of its own now because in these repositories it is the whole of the
 work rather than the approach to it.
 
-What this module owns, and it is deliberately the same thing `review.py` owns:
-the list of what can be named, and the rule that a name arriving from the board
-is checked against that list before it reaches anything. Nothing is registered,
-nothing is declared, and nothing invented reaches the tutor's prompt.
+What this module owns: the list of what can be named, and the rule that a
+name arriving from the board is checked against that list before it reaches
+anything. Nothing is registered, nothing is declared, and nothing invented
+reaches the tutor's prompt. `parts` is the coarser list, a project's top-level
+pieces, which the Make menu offers as scopes.
 
 Standard library only, like everything else.
 """
@@ -30,8 +31,18 @@ import os
 import re
 import time
 
-from . import review
 from .. import fenced, subjects
+
+# What is not a part of a project: build output, dependencies, session
+# leftovers and anything hidden. None of them is a thing to be asked about.
+PART_IGNORE = {
+    "live", "node_modules", "__pycache__", "build", "dist", "target",
+    "venv", ".venv", "env", "site-packages", "archive", "uploads",
+    "answers", "logs", "tmp", "out", "coverage", "vendor", "textbook",
+}
+
+# How many parts a picker on a tablet is offered.
+MAX_PARTS = 60
 
 # What a walkthrough can be held over: source, in the languages these
 # repositories are actually written in. A document is not machinery -- a README
@@ -41,14 +52,13 @@ SOURCE = (".py", ".go", ".js", ".mjs", ".ts", ".jsx", ".tsx", ".R", ".r",
           ".sh", ".bash", ".lean", ".sql", ".jl", ".rs", ".c", ".h", ".cpp",
           ".hpp", ".java", ".m")
 
-# Directories that hold no machinery of this repository's own: `review.IGNORE`
-# is the same judgement made for the same reason, and the two must not be
-# allowed to disagree about what `node_modules` is.
+# Directories that hold no machinery of this repository's own: `PART_IGNORE`
+# and then some, so the two never disagree about what `node_modules` is.
 # `slurm_jobs` is deliberately NOT here. A job script is machinery in these
 # repositories -- it is where the resource ask, the array shape and the arguments
 # the pipeline actually runs with live -- and it is a thing somebody genuinely
 # needs walked through.
-IGNORE = set(review.IGNORE) | {"data", "test_data", "results", "notebooks",
+IGNORE = set(PART_IGNORE) | {"data", "test_data", "results", "notebooks",
                                "latex", "textbook", "chapters",
                                "handwritten", "transcripts", "references"}
 
@@ -366,7 +376,7 @@ def _unit(root, rel, base):
 def resolve(root, wanted, base=None):
     """Match names from a request against this subject's source, then Atlas's.
 
-    Returns (chosen, unknown), the same contract as `review.resolve`: a name
+    Returns (chosen, unknown): a name
     that matches nothing comes back rather than being dropped, because walking
     through two files when three were named is a worse answer than saying which
     one was not recognised.
@@ -450,65 +460,36 @@ def resolve(root, wanted, base=None):
 
 
 def label(u):
-    """What one piece of scope is called, everywhere it is named.
-
-    `psych_asr/evaluate/grade.py::grade` -- the file and, where there is one,
-    the thing inside it. One spelling, in the sitting label, on the strip, in
-    `state.json` and in the tutor's prompt, so that the scope written when the
-    sitting opened is the same string that is re-resolved when the board asks
-    what it covers.
-    """
+    """What one resolved unit is called: `psych_asr/evaluate/grade.py::grade`,
+    the file and, where there is one, the thing inside it."""
     return u["path"] + ("::" + u["symbol"] if u.get("symbol") else "")
 
 
-def scope(root, state):
-    """What the sitting in front of us is a walkthrough of, checked on the way out.
+def parts(root):
+    """A project's top-level pieces: `[{name, label, short, kind: "part"}]`.
 
-    Re-resolved rather than trusted, for the reason `review.scope` is: a file
-    can be renamed or a function deleted between the sitting being opened and
-    the board asking what it covers, and a scope naming machinery that is no
-    longer there would send the tutor to read a file that does not exist.
-
-    Through `resolve`, so a scope may name any path in Atlas: what is checked
-    is that everything it covers is still on disk wherever it lives.
+    Its directories, in listing order; a flat repository with none offers its
+    top-level source files instead. Capped at `MAX_PARTS`.
     """
-    chosen, _ = resolve(root, (state or {}).get("walk") or [])
-    return chosen
-
-
-def sitting_label(chosen):
-    """What `board open` files this sitting under, and what the badge reads.
-
-    Short names, because it goes in a title bar beside a course name. A
-    walkthrough is usually over one thing, occasionally two, and past three it
-    is counted rather than listed -- a label is an identifier and the scope
-    itself is on the strip underneath.
-    """
-    if not chosen:
-        return "Walkthrough"
-    if len(chosen) <= 3:
-        return "Walkthrough — " + ", ".join(u["short"] for u in chosen)
-    return "Walkthrough — %d files" % len(chosen)
-
-
-def status(root, state):
-    """What the board shows, and what the command line prints.
-
-    None when there is nothing to offer and nothing chosen, which is a real
-    answer about a narrative repository and not an empty list. A repository with
-    no source of its own but a scope elsewhere in Atlas still answers: the list
-    to pick from is empty and the scope is not, and the strip has something to
-    say.
-    """
-    every = units(root)
-    chosen = scope(root, state)
-    if not every and not chosen:
-        return None
-    return {
-        "of": "files",
-        "units": every,
-        "scope": [u["name"] for u in chosen],
-        "chosen": chosen,
-        "total": len(every),
-        "label": sitting_label(chosen),
-    }
+    out = []
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return out
+    for name in names:
+        if name.startswith(".") or name in PART_IGNORE:
+            continue
+        if os.path.isdir(os.path.join(root, name)):
+            out.append({"name": name, "label": name + "/", "short": name,
+                        "kind": "part"})
+    if out:
+        return out[:MAX_PARTS]
+    for name in names:
+        if name.startswith(".") or name in PART_IGNORE:
+            continue
+        path = os.path.join(root, name)
+        if os.path.isfile(path) and not name.endswith((".md", ".txt", ".json",
+                                                       ".lock", ".log")):
+            out.append({"name": name, "label": name, "short": name,
+                        "kind": "part"})
+    return out[:MAX_PARTS]

@@ -40,8 +40,8 @@ import time
 # `paths(root)` -- every plan a workspace has -- and the import would shadow it.
 # Same trap as `map` being a builtin, same answer: the module keeps its name and
 # the import is the one that moves.
-from .. import atlas
 from .. import paths as toolpaths
+from .. import subjects
 
 # What a plan is called, when nothing names one. Ordered: a repository with both
 # a ROADMAP and a TODO means the TODO, because the TODO is the one that changes.
@@ -101,7 +101,7 @@ def _allowed(target, root):
 
     Widened, not removed. `/etc/passwd` is still not a plan.
     """
-    return toolpaths.within(target, root, atlas.root(),
+    return toolpaths.within(target, root, subjects.root(),
                             *toolpaths.outside_tree())
 
 
@@ -121,7 +121,7 @@ def _resolve(root, rel):
         # /chapters.tsv` written from anywhere resolves the way it reads.
         tries = [os.path.join(root, rel),
                  os.path.join(os.path.dirname(root), rel),
-                 os.path.join(atlas.root(), rel)]
+                 os.path.join(subjects.root(), rel)]
 
     if not os.path.dirname(rel.lstrip("~/")):
         # A bare filename, which is how a README names a plan it expects the
@@ -130,7 +130,7 @@ def _resolve(root, rel):
         # of each family and one of each workspace, which is exactly the two
         # levels the tree has. Bounded and shallow: two directory listings
         # deep, not a tree walk.
-        tries += _beside(atlas.root(), os.path.basename(rel))
+        tries += _beside(subjects.root(), os.path.basename(rel))
 
     for path in tries:
         target = os.path.realpath(path)
@@ -211,57 +211,8 @@ def _pointed_at(root):
     return None
 
 
-def _has_threads(root):
-    """Is this workspace planned by its thread file?
-
-    It is once the file carries any task, open or ticked: from then on a TODO
-    left on disk beside it is never shown as a second plan, even when every
-    task is done. A thread file with no task at all is a map only, and an old
-    plan's steps still land on its boxes.
-    """
-    from . import threads                                    # local: a cycle
-    clean, problems = threads.read(root)
-    if not clean or problems:
-        return False
-    return any(t["tasks"] for t in clean["threads"])
-
-
-def _thread_steps(root):
-    """The open tasks of a workspace's thread file, as steps. Empty if none.
-
-    THE THREAD FILE IS THE PLAN WHERE IT HAS ANY. Each open task of a thread
-    that is not closed is a step, in the file's own order, and it carries the
-    thread it belongs to so the map puts it on that thread's box rather than
-    guessing from the paths it names.
-    """
-    from . import threads                                    # local: a cycle
-    clean, problems = threads.read(root)
-    if not clean or problems:
-        return []
-    out = []
-    for t in clean["threads"]:
-        if t["closed"]:
-            continue
-        for task in t["tasks"]:
-            if task["done"]:
-                continue
-            out.append({
-                "num": str(len(out) + 1),
-                "title": task["text"][:110],
-                "label": task["text"][:110],
-                "summary": _trim("%s -- %s" % (t["title"], task["text"])),
-                "line": 0,
-                "from": t["title"],
-                "file": threads.path(root),
-                "thread": t["id"],
-            })
-    return _distinct(out)
-
-
 def paths(root):
     """Every plan this repository has, in the order it names them.
-
-    A thread file that carries tasks is the plan, alone, open ones or none.
 
     Declared first, pointed at second, conventional third -- and a declaration
     stops the search, because a repository that says which file it plans in has
@@ -269,9 +220,6 @@ def paths(root):
     has three, and showing one of them as though it were the whole of what comes
     next is the failure this returns a list to prevent.
     """
-    if _has_threads(root):
-        from . import threads                                # local: a cycle
-        return [threads.path(root)]
     said = _named(root)
     if said:
         return [said]
@@ -407,8 +355,6 @@ def steps(root):
 
 
 def _steps(root):
-    if _has_threads(root):
-        return _thread_steps(root)[:MAX_STEPS]
     out = []
     every = paths(root)
     for target in every:
@@ -548,8 +494,8 @@ def status(root, state):
     """What the board shows, and what a cold turn is told.
 
     None where there is no plan at all, which is a real answer about a course
-    that follows a book -- it has a syllabus instead, and `syllabus.py` is what
-    reads that.
+    that follows a book -- it has chapters instead, and `homework.chapters`
+    reads those.
     """
     found = steps(root)
     if not found:

@@ -26,8 +26,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import exports, jobs                                   # noqa: E402
-from tutorboard.course import threads                                  # noqa: E402
+from tutorboard import exports, jobs, subjects                         # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 fails = []
@@ -61,38 +60,6 @@ RECIPE = """#!/bin/bash
 
 echo "RELAY: done"
 """
-
-SPINE = {
-    "version": 1,
-    "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": ""}],
-    "threads": [
-        {"id": "knn", "deliverable": "paper1", "title": "Neighbours",
-         "exports": [{"path": "results/sweep.png", "aggregate": True},
-                     "results/rows.csv"]},
-        {"id": "tripod", "deliverable": "paper1", "title": "TRIPOD",
-         "outputs": ["results/t.csv"]},
-    ],
-}
-
-# --- the thread file's exports ------------------------------------------------
-clean, problems = threads.validate(SPINE)
-knn = threads.thread(clean, "knn")
-check("a thread's exports validate, a bare string read as not yet answered",
-      not problems and knn["exports"] == [
-          {"path": "results/sweep.png", "aggregate": True},
-          {"path": "results/rows.csv", "aggregate": False}])
-check("and a thread with none has an empty list",
-      threads.thread(clean, "tripod")["exports"] == [])
-check("only an aggregate one is exportable",
-      threads.exportable(knn, "results/sweep.png")
-      and not threads.exportable(knn, "results/rows.csv"))
-bad = json.loads(json.dumps(SPINE))
-bad["threads"][0]["exports"] = [{"path": "scripts/x.png"},
-                                {"path": "results/model.joblib"},
-                                {"path": "results/a.png", "aggregate": "yes"}]
-_, problems = threads.validate(bad)
-check("an export outside results/, of the wrong kind, or with a non-boolean "
-      "aggregate is refused, all three at once", len(problems) == 3)
 
 # --- the validator ------------------------------------------------------------------
 declared = {"slurm/sweep.sbatch": jobs.declarations(RECIPE)}
@@ -253,14 +220,12 @@ check("fix_problems: a `fixes` naming a request with no failed report is "
 base = tempfile.mkdtemp(prefix="tutor-requests-")
 try:
     ws = os.path.join(base, "ws")
-    write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "jobs.jsonl"), json.dumps(
         {"thread": "tripod", "jobid": "77", "cmd": "sbatch t.sbatch",
          "submitted": 1.0}) + "\n" + json.dumps(
         {"jobid": "77", "state": "RUNNING"}) + "\n")
     write(os.path.join(ws, "relay", "requests", "r1.json"),
           json.dumps(dict(good, id="r1", filed=5.0, thread="knn")))
-    threads._cache.clear()
     view = jobs.view(ws)
     check("the view holds the local job and the request, each once",
           sorted(view) == ["77", "relay:r1"])
@@ -271,61 +236,38 @@ try:
           and view["relay:r1"]["label"] == "knn"
           and "EMBEDDER=bge-small" in view["relay:r1"]["cmd"]
           and view["relay:r1"]["submitted"] == 5.0)
-    st = threads.stages(ws)
-    check("and its thread says requested, while the local job's says running",
-          st["knn"]["status"] == "requested"
-          and st["tripod"]["status"] == "running")
-    check("requested sits between running and written",
-          threads.STAGES.index("running") < threads.STAGES.index("requested")
-          < threads.STAGES.index("written"))
     busy = dict((j["thread"], j) for j in jobs.running(ws))
     check("the busy strip carries the request, as REQUESTED",
           busy["knn"]["state"] == "REQUESTED")
 
-    t = threads.thread(clean, "knn")
-    req_rec = {"thread": "knn", "jobid": "relay:x", "state": "REQUESTED"}
-    run_rec = {"thread": "knn", "jobid": "9", "state": "RUNNING"}
-    check("stage: a request alone is requested",
-          threads.stage(t, set(), {}, [], [req_rec])["status"] == "requested")
-    check("stage: a request beside a running job is running",
-          threads.stage(t, set(), {}, [], [req_rec, run_rec])["status"]
-          == "running")
-
     write(os.path.join(ws, "relay", "reports", "r1.json"), json.dumps(
         {"id": "r1", "state": "running", "jobid": "88", "submitted": 6.0}))
-    threads._cache.clear()
     view = jobs.view(ws)
     check("a report saying running makes it RUNNING, with its Slurm id",
           view["relay:r1"]["state"] == "RUNNING"
-          and view["relay:r1"]["slurm"] == "88"
-          and threads.stages(ws)["knn"]["status"] == "running")
+          and view["relay:r1"]["slurm"] == "88")
 
     write(os.path.join(ws, "relay", "reports", "r1.json"), json.dumps(
         {"id": "r1", "state": "completed", "jobid": "88", "exit": "0:0",
          "produced": ["results/knn/best.json"], "note": "k=300 best"}))
-    threads._cache.clear()
     view = jobs.view(ws)
     check("a completed report ends it, carrying exit, produced and note",
           view["relay:r1"]["state"] == "COMPLETED"
           and view["relay:r1"]["exit"] == "0:0"
-          and view["relay:r1"]["note"] == "k=300 best"
-          and threads.stages(ws)["knn"]["status"] == "open")
+          and view["relay:r1"]["note"] == "k=300 best")
     write(os.path.join(ws, "relay", "reports", "r1.json"), json.dumps(
         {"id": "r1", "state": "refused", "problems": ["env DATA ..."]}))
-    threads._cache.clear()
     check("and a refused one is terminal too",
-          threads.finished(jobs.view(ws)["relay:r1"])
-          and threads.stages(ws)["knn"]["status"] == "open")
+          exports.finished(jobs.view(ws)["relay:r1"]))
 
     # On the cluster, the relay's own submission is a local job too.
     write(os.path.join(ws, "relay", "reports", "r1.json"), json.dumps(
         {"id": "r1", "state": "running", "jobid": "77"}))
-    threads._cache.clear()
     view = jobs.view(ws)
     check("a report naming a job this machine registered folds into it, once",
           sorted(view) == ["77"] and view["77"]["request"] == "r1")
     check("and the raw sbatch registry is not touched by any of it",
-          [j.get("jobid") for j in threads.jobs_of(ws)] == ["77", "77"])
+          [j.get("jobid") for j in exports.jobs_of(ws)] == ["77", "77"])
     check("ids are dated, slugged and made unique",
           jobs.new_id("knn", "Sweep.sbatch", (), now=0).endswith("-knn-sweep-sbatch")
           and jobs.new_id("knn", "x", {jobs.new_id("knn", "x")}).endswith("-2")
@@ -347,7 +289,6 @@ try:
     write(os.path.join(proj, "slurm", "diagnose.sbatch"),
           "#!/bin/bash\necho 'RELAY: has RESULTS_DIR entries 0'\n")
     write(os.path.join(proj, "notes.md"), "draft\n")
-    write(threads.path(proj), json.dumps(SPINE))
     write(os.path.join(proj, "tutorboard.json"), json.dumps(
         {"name": "Proj", "relay": {"exports": [{"glob": "results/*.png"}]}}))
     git(top, "add", "-A")
@@ -477,14 +418,10 @@ try:
     check("and with Slurm `--fixes` is refused: it links a relay request",
           p.returncode == 1 and b"--fixes" in p.stdout)
 
-    # --- `board thread export` is retired ----------------------------------------
+    # --- `board thread` is gone --------------------------------------------------
     code, out = board("thread", "export", "tripod", "results/t.csv")
-    check("`board thread export` is retired, naming relay.exports and asking "
-          "the owner's question", code == 1 and "retired" in out
-          and "relay.exports" in out
-          and "May results/t.csv be published?" in out)
-    check("and it wrote nothing to the thread file",
-          threads.thread(threads.read(proj)[0], "tripod")["exports"] == [])
+    check("`board thread` is gone with the thread file", code != 0
+          and not os.path.exists(os.path.join(proj, "threads.json")))
 finally:
     shutil.rmtree(base, ignore_errors=True)
 
@@ -596,9 +533,9 @@ try:
     target, done, said = jobs.file_request(leaky, req, push=False)
     check("a brief naming an absolute path is refused, and nothing is written",
           not done and "path" in said and not os.path.exists(target))
-    from tutorboard import atlas, leaving
+    from tutorboard import leaving
     saved = dict(leaving._POLICY)
-    leaving._POLICY.update(root=atlas.root(),
+    leaving._POLICY.update(root=subjects.root(),
                            fn=lambda t: "SESSION-" in str(t))
     try:
         said = jobs.request_leak(leaky, dict(req, brief="what SESSION-4 said"))

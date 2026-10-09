@@ -57,7 +57,7 @@ import re
 import time
 from urllib.parse import unquote
 
-from .. import atlas, fenced
+from .. import fenced, subjects
 from .. import paths as toolpaths
 
 # Where to look, and nowhere else. The allowlist, in the order a person would
@@ -578,7 +578,7 @@ def browse(repo):
         got = {"groups": [], "more": 0, "figures": 0, "tables": 0}
     out = dict(got)
     out["ok"] = True
-    out["workspace"] = atlas.identify(root)
+    out["workspace"] = subjects.identify(root)
     # WHERE IT LOOKED, SAID OUT LOUD. "Nothing here" is only useful beside the
     # list of places that were looked in, and the allowlist is that list.
     real = os.path.realpath(root)

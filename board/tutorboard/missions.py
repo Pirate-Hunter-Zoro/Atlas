@@ -73,7 +73,7 @@ import os
 import re
 import time
 
-from . import atlas, machine, news, paths, processes, progress
+from . import machine, news, paths, processes, progress, subjects
 from .course import repo as course_repo
 
 
@@ -727,9 +727,10 @@ def due(now=None):
     """
     now = float(now or time.time())
     out = []
-    for w in atlas.workspaces():
+    for parent, _kind, slug, root in subjects.walk():
+        w = {"id": "%s/%s" % (parent, slug), "dir": slug, "root": root}
         try:
-            got = of(w["root"], now)
+            got = of(root, now)
         except Exception:                                    # noqa: BLE001
             continue
         for rec in got:
@@ -800,16 +801,15 @@ def listing(here, now=None):
     """
     now = float(now or time.time())
     out = []
-    for w in atlas.workspaces():
-        root = w["root"]
+    for parent, _kind, slug, root in subjects.walk():
         for got in of(root, now):
             if got["state"] != "running" and got.get("looked"):
                 continue
-            got["ws"] = w["id"]
-            got["repo"] = w["dir"]
-            got["family"] = w["family"]
-            got["family_name"] = w["family_name"]
-            got["course"] = news.course_name(root) or w["dir"]
+            got["ws"] = "%s/%s" % (parent, slug)
+            got["repo"] = slug
+            got["family"] = parent
+            got["family_name"] = parent.title()
+            got["course"] = news.course_name(root) or slug
             got["here"] = paths.same_dir(root, here)
             # AND THE LAST THING IT SAID IT FINISHED, on the row itself. "Still
             # going" is the state a person is told to leave alone, and a row

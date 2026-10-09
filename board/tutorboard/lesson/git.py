@@ -12,7 +12,7 @@ import os
 import subprocess
 import time
 
-from .. import atlas, gitops, leaving, paths, worktree
+from .. import gitops, leaving, paths, subjects, worktree
 from ..course import homework
 from ..course import repo as course_repo
 
@@ -180,7 +180,7 @@ def save_pathspec(root, top, only=None):
 
     nested = [paths.TOOL]
     try:
-        nested += [w["root"] for w in atlas.workspaces()]
+        nested += subjects.roots()
     except OSError:
         pass
     narrowed = [os.path.join(real_top, s) for s in specs]
@@ -295,7 +295,7 @@ def run_push(repo, message=None):
     # The workspace leads the message, and the commit is of the repository
     # the workspace is in, carrying only `save_pathspec`.
     said = message or gitops.SAVE
-    where = atlas.identify(repo.root)
+    where = subjects.identify(repo.root)
     if where and not said.startswith(where):
         said = "%s: %s" % (where, said)
 

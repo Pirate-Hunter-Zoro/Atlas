@@ -43,6 +43,9 @@ LINES = 40
 # per earlier card, without the student's earlier turns.
 RECAP_LIMIT = 12000
 
+# The most the book's chapter list may cost the brief, in characters.
+BOOK_CHARS = 1500
+
 # The mechanics of a turn. Here rather than in `tutorboard.sense` because a
 # turn is the only thing that reads the brief.
 TURN_SENSE = (
@@ -98,6 +101,30 @@ def _unbound(repo):
     if not getattr(repo, "stored", False) or not atlas:
         return False
     return os.path.realpath(repo.root) == os.path.realpath(atlas)
+
+
+def book_sense(root):
+    """The book a course follows, as one line of its chapters, or "".
+
+    `board writeup new chNN` takes these numbers.
+    """
+    try:
+        every = homework.chapters(root)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not every:
+        return ""
+    head = "book: %d chapter%s -- " % (len(every), "" if len(every) == 1 else "s")
+    said, n = [], len(head)
+    for c in every:
+        one = ("%s %s" % (str(c.get("num") or "").strip(),
+                          (c.get("title") or c.get("slug") or "").strip())).strip()
+        if n + len(one) + 2 > BOOK_CHARS:
+            said.append("and %d more" % (len(every) - len(said)))
+            break
+        said.append(one)
+        n += len(one) + 2
+    return head + "; ".join(said)
 
 
 def relay_sense(root):
@@ -191,7 +218,7 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     """The whole cold briefing as one string.
 
     `sense` is `tutorboard.sense`, passed in rather than imported, because it
-    reaches into the course package for the syllabus and the homework sheet and
+    reaches into the course package for the chapters and the homework sheet and
     this module is imported by things that have already paid for that.
 
     `doing` goes straight to `sense.session_sense`: a mission or a repair is a
@@ -249,6 +276,10 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
                        "" if not (getattr(repo, "stored", False)
                                   and not st.get("subject"))
                        else ", once the session is bound to a subject"))
+    if not _unbound(repo):
+        book = book_sense(root)
+        if book:
+            out.append(book)
     # Who writes the code: the session's mode, and only that.
     cfg = config.read_config(root)
     out.append("mode: %s" % config.mode_of(st))

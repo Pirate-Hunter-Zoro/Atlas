@@ -65,7 +65,7 @@ import sys
 import tempfile
 import time
 
-from . import atlas, exports, jobs, leaving, paths, worktree
+from . import exports, jobs, leaving, paths, subjects, worktree
 
 LOCK = os.path.join("relay", ".lock")
 STATE = os.path.join("relay", "state.json")
@@ -199,7 +199,7 @@ def _rel(base, path):
 def spaces(base):
     """`[(workspace root, its path relative to the repository)]`, for every
     subject: each one is Atlas's own content."""
-    return [(w["root"], _rel(base, w["root"])) for w in atlas.workspaces(base)]
+    return [(where, _rel(base, where)) for where in subjects.roots(base)]
 
 
 def held_paths(where, base=None):
@@ -262,7 +262,7 @@ def colibri_busy(base):
             q = rec.get("queue")
             if q in ("queued", "running", "failed") or (
                     q == "done" and not rec.get("checked")):
-                found = atlas.find(rec.get("workspace") or "")
+                found = subjects.find(rec.get("workspace") or "")
                 if found:
                     out.append(_rel(base, found["root"]))
     except Exception:                                        # noqa: BLE001
@@ -361,7 +361,7 @@ def sync_spaces(where):
         return []
 
     def taken(root, ws):
-        # The spellings `atlas.find` accepts: family/name, bare name, root.
+        # The spellings `subjects.find` accepts: parent/slug, bare slug, root.
         return any(g and (g.strip("/") in (ws, os.path.basename(ws))
                           or paths.same_dir(root, g)) for g in given_up)
     return [ws for root, ws in asked if not taken(root, ws)]
@@ -683,7 +683,7 @@ def pull_vendor(quiet=False):
     underneath a build is the failure it exists to avoid. Moving it forward is
     the person's to do, by hand.
     """
-    base = atlas.root()
+    base = subjects.root()
     sub = os.path.join(base, "vendor", "colibri")
     if not os.path.isdir(os.path.join(sub, ".git")) and \
        not os.path.isfile(os.path.join(sub, ".git")):
@@ -1305,7 +1305,7 @@ def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
     `run` is how Slurm is asked (sbatch, scontrol, squeue), so a test can
     answer from a table; git is always the real one.
     """
-    base = os.path.realpath(base or atlas.root())
+    base = os.path.realpath(base or subjects.root())
     lock = os.path.join(base, LOCK)
     os.makedirs(os.path.dirname(lock), exist_ok=True)
     fh = open(lock, "a+")
@@ -1343,7 +1343,6 @@ def _locked_pass(base, run, now, pull_vendor, push):
                 if err:
                     errors.append(err)
         else:
-            atlas.forget()
             where = spaces(base)
             _work(base, where, run, t0, summary)
             errors.extend(summary.pop("errors", []))
@@ -1588,7 +1587,7 @@ def _ago(t, now=None):
 
 def where_line(base=None, now=None):
     """The relay's last pass in one line, or "" where it never ran."""
-    st = read_state(os.path.realpath(base or atlas.root()))
+    st = read_state(os.path.realpath(base or subjects.root()))
     if not st.get("last_pass"):
         return ""
     said = "relay: last pass %s on %s" % (_ago(st["last_pass"], now),
@@ -1608,7 +1607,7 @@ def where_line(base=None, now=None):
 def status(base=None, now=None):
     """What `tutor relay --status` prints: the last pass, and every
     workspace's requests by state."""
-    base = os.path.realpath(base or atlas.root())
+    base = os.path.realpath(base or subjects.root())
     lines = [where_line(base, now) or "relay: no pass has run here"]
     for ws, rel in spaces(base):
         reqs = jobs.requests(ws)

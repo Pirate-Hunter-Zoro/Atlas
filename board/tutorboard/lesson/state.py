@@ -1,5 +1,5 @@
 """What the board says about itself right now: the tutor, the write-up, the
-review scope, the contents.
+documents and figures it can show.
 """
 
 import json
@@ -7,12 +7,7 @@ import os
 import time
 
 from .. import machine, processes
-from ..course import homework, paper, plan, reading, results, review, syllabus, walk
-# `map` is a builtin, and a module called `map` imported under its own name
-# would shadow it for the rest of this file. The file keeps the name the board
-# calls the thing; the binding does not.
-from ..course import map as mapping
-from . import archive, cards
+from ..course import homework, paper, reading, results
 
 
 def load_agent(repo):
@@ -234,61 +229,6 @@ def load_hw(repo, st=None):
     return out
 
 
-def load_review(repo):
-    """What this test review covers, so the board can say so and paint the picker.
-
-    Cheap and always sent: it is a directory listing behind a lookup the payload
-    already does, and the picker needs the list of things to pick from before a
-    review sitting exists. The scope is re-resolved on every build rather than
-    echoed back from `state.json` -- a chapter renamed out from under a sitting
-    would otherwise stay on the strip for ever.
-    """
-    try:
-        st = review.status(repo.root, repo.state())
-    except Exception:                                        # noqa: BLE001
-        return None
-    if not st:
-        return None
-    st.pop("chosen", None)     # the names are enough; the board paints from units
-    return st
-
-
-def load_walk(repo):
-    """What this walkthrough covers, and what else could be walked through.
-
-    Sent on every payload for the same reason the review block is: the picker
-    needs something to offer before the sitting exists, and a student on an iPad
-    cannot name a file they cannot see. The list is a directory walk rather than
-    a directory listing, so it is the one discovery here that costs more than a
-    `stat` -- and is remembered for half a minute in `walk.units` rather than
-    redone four times a second for a repository whose files are not moving.
-    """
-    try:
-        st = walk.status(repo.root, repo.state())
-    except Exception:                                        # noqa: BLE001
-        return None
-    if not st:
-        return None
-    st.pop("chosen", None)     # the names are enough; the board paints from units
-    return st
-
-
-def load_plan(repo):
-    """What this project says it is doing next, so the drawer can offer it.
-
-    A course that follows a book has chapters and the drawer lists them; a
-    project had nothing, and the drawer said so -- "sittings here are made as
-    you go" -- which put every decision about what a sitting was about back on
-    the person holding the iPad. A project does write down what comes next; it
-    just does not call it a syllabus and does not keep it in this repository.
-    See `course/plan.py`.
-    """
-    try:
-        return plan.status(repo.root, repo.state())
-    except Exception:                                        # noqa: BLE001
-        return None
-
-
 def load_reading(repo):
     """The documents this course can be shown, as opposed to the two it builds.
 
@@ -314,48 +254,6 @@ def load_results(repo):
         return results.status(repo)
     except Exception:                                        # noqa: BLE001
         return None
-
-
-def load_map(repo):
-    """The picture of this repository, which is the way into it.
-
-    A course used to open on an empty board, and the drawer that came before
-    this one lists what a repository holds without saying how any of it fits
-    together -- which is a fine index and a poor front door. See
-    `course/mapping.py`.
-
-    Every repository gets one. Where nobody has drawn a map, it is derived from
-    what is on disk -- chapters, or the steps in the plan, or the repository's
-    own parts -- and says so. The past lessons go in because they are the only
-    record this board keeps of work actually finished, and a box that is done
-    should not be painted as though nobody had started it.
-    """
-    try:
-        return mapping.status(repo.root, repo.state(),
-                              archive.list_archive(repo))
-    except Exception:                                        # noqa: BLE001
-        return None
-
-
-def load_contents(repo):
-    """What this course is made of, so the board can offer a way around it.
-
-    Everything here is discovered, not registered: the chapter table or the
-    chapter directories, the problem sets, and the lessons already filed. A
-    course that is not a book simply has no chapters, and says so by returning
-    none rather than by inventing a chapter one.
-    """
-    try:
-        chapters = [{"num": c.get("num"), "label": syllabus.label(c)}
-                    for c in syllabus.chapters(repo.root)][:60]
-    except Exception:
-        chapters = []
-    try:
-        sets = [{"name": x["name"], "rel": x["rel"]}
-                for x in homework.sets(repo.root)][:60]
-    except Exception:
-        sets = []
-    return {"chapters": chapters, "sets": sets}
 
 
 def load_papers(repo):

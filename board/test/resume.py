@@ -40,7 +40,11 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-tmp = tempfile.mkdtemp(prefix="tutor-resume-")
+# An Atlas root, its workspaces under `courses/`: the two-level shape the
+# subject walk reads (`subjects.walk`).
+top = tempfile.mkdtemp(prefix="tutor-resume-")
+tmp = os.path.join(top, "courses")
+os.makedirs(tmp)
 calls = {"start": [], "agent": [], "sync": []}
 
 # Nothing here may touch the config of whoever is running it. `cmd_resume`
@@ -76,7 +80,7 @@ try:
     make_course("Newer", node="compute999", pid=22, when=9000)
     make_course("NeverRan")
 
-    cfg = {"courses_dir": tmp, "provider": "claude",
+    cfg = {"courses_dir": top, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
 
@@ -206,8 +210,8 @@ try:
     # --- a machine where nothing has ever run -------------------------------
     empty = tempfile.mkdtemp(prefix="tutor-resume-empty-")
     try:
-        os.makedirs(os.path.join(empty, "Fresh", "live"))
-        with open(os.path.join(empty, "Fresh", "tutorboard.json"), "w",
+        os.makedirs(os.path.join(empty, "courses", "Fresh", "live"))
+        with open(os.path.join(empty, "courses", "Fresh", "tutorboard.json"), "w",
                   encoding="utf-8") as fh:
             json.dump({"name": "Fresh", "mode": "math"}, fh)
         reset()
@@ -242,7 +246,7 @@ try:
         env = dict(os.environ, PATH=farm + os.pathsep + os.environ.get("PATH", ""),
                    HOME=farm, XDG_CONFIG_HOME=os.path.join(farm, "cfg"),
                    BOARD_STATE_DIR=os.path.join(farm, "state"),
-                   TUTORBOARD_COURSES=tmp)
+                   TUTORBOARD_COURSES=top)
         env.pop("TUTOR_SLURM", None)
         before = subprocess.run(["pgrep", "-f", "serve.py --root " + tmp],
                                 stdout=subprocess.PIPE).stdout
@@ -287,7 +291,7 @@ try:
     finally:
         shutil.rmtree(home, ignore_errors=True)
 finally:
-    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.rmtree(top, ignore_errors=True)
     shutil.rmtree(conf, ignore_errors=True)
 
 print()

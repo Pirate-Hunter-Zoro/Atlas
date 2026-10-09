@@ -61,6 +61,101 @@ TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 RECORD = "hw.json"
 
 
+# ---------------------------------------------------------------------------
+# A course's chapters: how a course that follows a book orders itself
+# ---------------------------------------------------------------------------
+# A course says so on disk, in one of two places: `chapters.tsv` at its root
+# (columns num, from, to, slug, title), or a `chapters/chNN-slug/` directory per
+# chapter. Nothing is registered. A course with neither is not a book, and has
+# no chapter one.
+CHAPTERS_TSV = "chapters.tsv"
+
+
+def _chapters_from_tsv(root):
+    out = []
+    try:
+        with open(os.path.join(root, CHAPTERS_TSV), "r", encoding="utf-8",
+                  errors="replace") as fh:
+            for line in fh:
+                line = line.rstrip("\n")
+                if not line.strip() or line.lstrip().startswith("#"):
+                    continue
+                cols = [c.strip() for c in line.split("\t") if c.strip() != ""]
+                if len(cols) < 2:
+                    continue
+                out.append({"num": cols[0],
+                            "slug": cols[-2] if len(cols) >= 3 else "",
+                            "title": cols[-1]})
+    except OSError:
+        return []
+    return out
+
+
+def _chapters_from_dirs(root):
+    out = []
+    for path in sorted(glob.glob(os.path.join(root, "chapters", "ch*"))):
+        if not os.path.isdir(path):
+            continue
+        name = os.path.basename(path)
+        m = re.match(r"ch(\d+)[-_]?(.*)$", name)
+        if not m:
+            continue
+        out.append({"num": m.group(1).lstrip("0") or "0", "slug": name,
+                    "title": m.group(2).replace("-", " ").strip()})
+    return out
+
+
+def chapters(root):
+    """Every chapter of the book this course follows, in the course's order:
+    `[{num, slug, title}]`. Empty where the subject is not a book."""
+    return _chapters_from_tsv(root) or _chapters_from_dirs(root)
+
+
+def opening(root):
+    """The chapter a course with no other instruction opens at, or None."""
+    every = chapters(root)
+    return every[0] if every else None
+
+
+def chapter_label(chapter):
+    """How a chapter is written on a line: `Ch 7 — Splitting fields`."""
+    if not chapter:
+        return ""
+    title = (chapter.get("title") or chapter.get("slug") or "").strip()
+    num = str(chapter.get("num") or "").strip()
+    if num and title:
+        return "Ch %s — %s" % (num, title)
+    return title or ("Ch %s" % num if num else "")
+
+
+def chapter_dir(root, name):
+    """`chapters/<dir>` of a chapter named by its label, slug or title, or "".
+
+    Looked up on disk, never built from the name: a table's slug is `rings`
+    and its directory `ch03-rings`.
+    """
+    want = str(name or "").strip()
+    if not want:
+        return ""
+    for c in chapters(root):
+        if want not in (chapter_label(c), c.get("slug"), c.get("title")):
+            continue
+        slug = c.get("slug") or ""
+        num = str(c.get("num") or "").strip()
+        cands = []
+        if slug:
+            cands.append(slug)
+            if num.isdigit():
+                cands.append("ch%02d-%s" % (int(num), slug))
+        if num.isdigit():
+            cands.extend(sorted(os.path.basename(p) for p in glob.glob(
+                os.path.join(root, "chapters", "ch%02d*" % int(num)))))
+        for one in cands:
+            if os.path.isdir(os.path.join(root, "chapters", one)):
+                return "chapters/" + one
+    return ""
+
+
 def _name_for(root, tex):
     """What to call this set: the folder that identifies it, not the file.
 
@@ -190,9 +285,8 @@ def _chapter_for(root, name, tex, text):
         return None
     if not slug:
         return None
-    from . import syllabus
     hits = []
-    for c in syllabus.chapters(root):
+    for c in chapters(root):
         try:
             num = int(str(c.get("num") or "").strip())
         except ValueError:
@@ -557,12 +651,20 @@ def _claim(found, session):
 def start(root, state, session=None, title=None, author=""):
     """The write-up this session writes into, made when it has none.
 
-    `(record, made)`. The bound set (pinned or named) is written in place, its
-    doc.json listing the session. Else a new artifact, `docs/<slug>/writeup.tex`
-    from the template, `<slug>` from `title`, the session's title, its chapter
-    label, or its id. ValueError where `root` cannot hold one.
+    `(record, made)`. A `title` naming one of this subject's sets (`ch08`,
+    `hw04`) is that set. Else the bound set (pinned or named) is written in
+    place, its doc.json listing the session. Else a new artifact,
+    `docs/<slug>/writeup.tex` from the template, `<slug>` from `title`, the
+    session's title, its chapter label, or its id. ValueError where `root`
+    cannot hold one.
     """
     state = state or {}
+    named = (title or "").strip()
+    if named:
+        for one in sets(root):
+            if named in (one["name"], one["rel"]):
+                _claim(one, session)
+                return one, False
     found = bound(root, state)
     if found and os.path.isfile(found["tex"]):
         _claim(found, session)

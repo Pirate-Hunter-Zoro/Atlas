@@ -16,7 +16,7 @@ def chosen_id(rec=None):
 
     One place decides how a record is spelled as an address, because two
     spellings of one name is two bugs. A record written before the move has no
-    `family`; it still names a workspace, and `atlas.find` still finds it by
+    `family`; it still names a workspace, and `subjects.find` still finds it by
     the bare directory, so it degrades to the old answer rather than to none.
     """
     rec = chosen_course() if rec is None else (rec or {})

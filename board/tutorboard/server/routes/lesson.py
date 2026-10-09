@@ -11,22 +11,16 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     GET  /archive             session   the session's filed lessons
     GET  /archive/<name>[/answers/<file>]
                               session   one of them, read only
-    GET  /map/inside/<id>     session   one box of the subject's map
-    GET  /map/thread/<id>     session   one thread's sheet
-    POST /direction           session   a new direction, and a new sitting
-    POST /thread/accept       session   a thread a card proposed
     POST /mode                session   teach or do, from now on
     POST /handover            session   one step written for them
     POST /dismiss-finish      session   the end-of-session offer waved off
-    POST /session             session   open a sitting on the subject
+    POST /session             session   label the sitting: a lecture on a
+                                        chapter, or a homework set
     POST /text/save           session   a typed answer's draft
     POST /say                 session   a typed turn, into the session's inbox
     POST /poke                session   rebuild the payload now; queue a turn
                                         when a line that wakes is waiting
     POST /end                 session   End: `ended` set, and the wrap-up queued
-
-`board` commands a route runs work on the session through
-`TUTORBOARD_SESSION` (`_cli`), never on the subject's `live/`.
 """
 
 import re
@@ -36,32 +30,18 @@ import os
 import urllib.parse
 
 from . import NOT_MINE
-from ...course import syllabus
-from ...course import plan
 from ...course import homework
 from .. import hub
 from .. import multipart
-from .. import spawn
 from ... import sessions
-from ... import direction
 from ... import mode as session_mode
 from ... import sense
 from ...course import config
-# `map` is a builtin; the module keeps the name the board calls the thing.
-from ...course import map as mapping
-from ...course import threads
 from ...lesson import archive
 from ...lesson import cards
 from ...lesson import inbox
 from ...lesson import turns
 from ...runner import service as runner
-
-
-def _cli(repo, args, **kw):
-    """`board <args>` in the subject's root, on this session."""
-    if repo.stored:
-        kw["session"] = repo.live
-    return spawn.board_cli(repo.root, args, **kw)
 
 
 def get(h, repo, path):
@@ -106,93 +86,15 @@ def get(h, repo, path):
     if path == "/archive":
         return h.send_json({"sessions": archive.list_archive(repo)})
 
-    if path.startswith("/map/inside/"):
-        # ONE LEVEL DOWN THE MAP, ON A TAP AND NEVER ON THE PAYLOAD.
-        #
-        # The payload is rebuilt four times a second and already reads the head
-        # of every source file in the repository for the top-level picture.
-        # This parses files whole, which is affordable exactly because nobody
-        # is looking inside a box until they ask.
-        #
-        # The id comes off the PATH the way an archived session's name does, and
-        # it is looked up in what discovery found rather than turned into a
-        # place: `map.inside` returns None for anything that is not a box or a
-        # module of one, and a miss is a 404.
-        want = path[len("/map/inside/"):].strip("/")
-        found = mapping.inside(repo.root, want, repo.state())
-        if not found:
-            return h.send_json({"ok": False,
-                                "error": "there is nothing inside that"},
-                               status=404)
-        found["ok"] = True
-        return h.send_json(found)
-
-    if path.startswith("/map/thread/"):
-        # ONE THREAD'S SHEET, ON A TAP: its files, outputs, write-ups, jobs,
-        # past sittings and documents. The id is looked up in the thread file
-        # and never made into a path; a miss is a 404.
-        want = path[len("/map/thread/"):].strip("/")
-        found = mapping.thread_sheet(repo.root, want, repo.state(),
-                                     archive.list_archive(repo))
-        if not found:
-            return h.send_json({"ok": False, "error": "no such thread"},
-                               status=404)
-        found["agents"] = kind_agents(repo.root)
-        found["ok"] = True
-        return h.send_json(found)
-
     return NOT_MINE
-
-
-def kind_agents(root):
-    """Who a sitting of each kind opened from the thread sheet is taught by.
-
-    `{kind: {"agent": name, "why": sentence-or-""}}`: the machine's one
-    provider setting for every kind alike -- who takes the next turn, and the
-    resolver's sentence when that is the fallback or nobody. {} when the
-    table could not be built: the sheet then draws no names.
-    """
-    from ... import assistants
-    table = assistants.listing()
-    if not table:
-        return {}
-    name = table.get("machine") or table.get("default") or ""
-    why = str(table.get("why") or "")
-    return {kind: {"agent": name, "why": why} for kind in mapping.SITTING_KINDS}
-
-
-def _mark(st, node, agent=None, root=None):
-    """Which box of the map this sitting is about, and which assistant writes it.
-
-    Both belong to the sitting and are cleared by opening one that does not
-    name them. A box of a thread file is a thread, and the sitting carries
-    `thread` in place of `node`. The mode is not touched: it changes only by
-    `POST /mode` or `board mode`.
-    """
-    on = None
-    if node and root:
-        clean, _bad = threads.read(root)
-        on = threads.thread(clean, node["id"])
-    st.pop("node", None)
-    st.pop("thread", None)
-    if on:
-        st["thread"] = on["id"]
-    elif node:
-        st["node"] = node["id"]
-    if agent:
-        st["agent"] = agent
-    else:
-        st.pop("agent", None)
 
 
 def _begin(h, repo):
     """Ask the tutor to start, without anybody tapping anything.
 
-    THE TAP WAS THE INSTRUCTION. Somebody who chose "write the code for me" on
-    the map has said what they want as plainly as they are going to; making them
-    then find a second button that says "ask the tutor to begin" is the ceremony
-    this whole tool exists to remove. Reported as a question, which is the worst
-    way to find a defect like this: *"do I ask the tutor to begin?"*
+    THE TAP WAS THE INSTRUCTION: a sitting opened with `begin` has said what
+    it wants, and a second button that says "ask the tutor to begin" is the
+    ceremony this whole tool exists to remove.
 
     The same three things `/say` does for a begin signal, in the same order and
     for the same reasons: a turn on the board so the transcript shows the ask, a
@@ -218,96 +120,6 @@ def _begin(h, repo):
         fh.write(json.dumps(dict(record, text=line)) + "\n")
     runner.wake(repo)
     return tid
-
-
-def _direction(h, repo):
-    """They have changed what this work is FOR. Everything below it is stale.
-
-    THE POINT OF THE BUTTON IS THAT IT IS ONE TAP, FROM ANYWHERE, MID-EVENING.
-    Asked for in these words: *"we may be balls deep in a project and I might
-    realize we need a massive direction change and overhaul... I want maximum
-    power, minimum pain."* Three things have to happen for that to be true, and
-    doing two of them is worse than doing none -- a direction written down that
-    the assistant never reads is a direction the person believes is in force.
-    The tutor that reads it is new by construction: every turn is a fresh
-    process, so nothing holds the old direction in a conversation.
-
-    1. **Write it down**, at the root, where it crosses machines and is read at
-       the start of every turn from now on. `tutorboard.direction`.
-    2. **Open a new sitting**, which archives the lesson they are in -- still
-       readable under the history button -- parks the handoff under the chapter
-       it was about, and puts the new direction in the title bar. The lesson that
-       was open was about the old direction; carrying it forward is the thing
-       they just said to stop.
-    3. **Queue the turn** that answers it, on the runner.
-    """
-    try:
-        payload = json.loads(h.read_body().decode("utf-8") or "{}")
-    except Exception:
-        return h.send_json({"ok": False, "error": "bad json"}, status=400)
-    text = (payload.get("text") or "").strip()
-    if not text:
-        return h.send_json({"ok": False,
-                            "error": "say what the new direction is"}, status=400)
-
-    was = repo.state()
-    course = was.get("course") or config.read_config(repo.root)["name"] or ""
-    # A RETHINK IN A WORKSPACE WITH A THREAD FILE IS ABOUT THE THREAD THE
-    # SITTING IS ON. Their sentence goes to that thread, not to DIRECTION.md:
-    # it rides in the inbox line and in the new sitting's `rethink`, and the
-    # woken turn rewrites the thread's tasks with `board thread`. The sitting is
-    # named after the thread, never after the first words of the sentence.
-    clean, _bad = threads.read(repo.root)
-    on = threads.thread(clean, str(was.get("thread") or "").strip())
-    if on:
-        kept, when = text[:direction.MAX_CHARS], time.strftime("%Y-%m-%d %H:%M")
-        label = on["title"]
-    else:
-        kept, when = direction.write(repo.root, text)
-        label = direction.label(kept)
-    # THE BOX AND THE SITTING'S OWN CHOICES CARRY OVER. A direction replaces what
-    # the work is about, not where on the map it is or who writes it. A sitting
-    # opened without its box is one the board asks a box for on the next load,
-    # and answering that files the lesson the direction just started.
-    opening = ["open", course, label, "--lecture"]
-    for flag, key in (("--node", "node"), ("--thread", "thread"),
-                      ("--agent", "agent")):
-        if was.get(key):
-            opening += [flag, str(was[key])]
-    _cli(repo, opening)
-    if on:
-        st = repo.state()
-        st["rethink"] = kept
-        with open(repo.state_path, "w", encoding="utf-8") as fh:
-            json.dump(st, fh, indent=2)
-
-    # Their own words, in the transcript, as a turn of theirs -- because that is
-    # what it is. The card that comes back is an answer to something they said,
-    # and a transcript that starts with the answer reads as the tutor deciding to
-    # change direction on its own.
-    tid = turns.next_turn_id(repo)
-    record = {
-        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
-        "answers": None,
-        "t": time.time(),
-        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "from": "student", "text": kept, "signal": "direction", "read": False,
-    }
-    turns.write_turn(repo, record)
-    line = ("[direction] "
-            + ((direction.RETHINK % {"id": on["id"], "title": on["title"]})
-               if on else direction.CHANGED)
-            + "\n\nTHEIR WORDS:\n" + kept
-            + "\n\n" + sense.session_sense(repo))
-    with open(repo.messages_path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(dict(record, text=line)) + "\n")
-
-    runner.wake(repo)
-    h.note("the %s changed; the lesson is archived"
-           % ("thread `%s`" % on["id"] if on else "direction"))
-    h.hub.worker.dirty.set()
-    return h.send_json({"ok": True, "chapter": label, "set": when,
-                        "thread": on["id"] if on else None})
 
 
 def _mode(h, repo):
@@ -401,47 +213,52 @@ def _handover(h, repo):
     return h.send_json({"ok": True, "card": card})
 
 
-def _accept_thread(h, repo):
-    """`POST /thread/accept {card, thread}`: add a thread a card proposed.
+def _session(h, repo):
+    """`POST /session {session, chapter?, hw?, begin?}`: label the sitting.
 
-    The browser names the card and the id, and nothing else. The thread is read
-    back off that card's own file (`cards.proposed`) and handed to `board thread
-    add`, which validates it against the file like any other edit.
+    A lecture, optionally on one of the book's chapters, or a homework set.
+    Both names are looked up in what the subject has (`homework.chapters`,
+    `homework.sets`), never carried through as typed. Nothing is filed away:
+    a session keeps every card until the owner ends it. The mode is not a
+    sitting's; only `POST /mode` changes it.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
     except Exception:                                        # noqa: BLE001
         return h.send_json({"ok": False, "error": "bad json"}, status=400)
-    card = str(payload.get("card") or "").strip()
-    tid = str(payload.get("thread") or "").strip()
-    one = cards.proposed(repo.cards, card, tid) if threads.ID_RE.match(tid) else None
-    if not one:
-        return h.send_json({"ok": False, "error": "card %s proposes no thread %r"
-                            % (card, tid)}, status=404)
-    state, problems = threads.proposal(repo.root, one)
-    if state == "there":
-        return h.send_json({"ok": True, "thread": tid, "detail": "already there"})
-    if problems:
-        return h.send_json({"ok": False, "error": problems[0]}, status=400)
-    code, out = _cli(repo, ["thread", "add", "--repo", repo.root],
-                     timeout=60, given=json.dumps(one))
-    threads.forget(repo.root)
+    kind = (payload.get("session") or "").strip().lower()
+    if kind not in ("lecture", "homework"):
+        return h.send_json({"ok": False, "error": "bad session"}, status=400)
+    want = (payload.get("hw") or "").strip()
+    chapter = (payload.get("chapter") or "").strip()
+    if chapter and chapter not in [homework.chapter_label(c)
+                                   for c in homework.chapters(repo.root)]:
+        return h.send_json({"ok": False, "error": "no such chapter"},
+                           status=400)
+    chosen = None
+    if kind == "homework" and want:
+        chosen = dict((x["name"], x) for x in homework.sets(repo.root)).get(want)
+        if not chosen:
+            return h.send_json({"ok": False, "error": "no such set"}, status=400)
+    change = {"session": kind, "finished": None, "hw": None,
+              # Legacy sitting keys: a box, a thread, a rethink.
+              "node": None, "thread": None, "rethink": None}
+    if chapter:
+        change["chapter"] = chapter
+        change["opened"] = time.strftime("%Y-%m-%d %H:%M")
+    if chosen:
+        change["hw"] = chosen["rel"]
+        change["chapter"] = chosen["name"]
+    repo.set_state(**change)
+    start = bool(payload.get("begin"))
+    if start:
+        _begin(h, repo)
     h.hub.worker.dirty.set()
-    if code != 0:
-        return h.send_json({"ok": False, "error": (out or "").strip()[-300:]
-                            or "board thread add refused it"}, status=400)
-    return h.send_json({"ok": True, "thread": tid,
-                        "detail": (out or "").strip().splitlines()[0]
-                        if (out or "").strip() else "added"})
+    return h.send_json({"ok": True, "session": kind,
+                        "hw": repo.state().get("hw"), "begun": start})
 
 
 def post(h, repo, path):
-    if path == "/direction":
-        return _direction(h, repo)
-
-    if path == "/thread/accept":
-        return _accept_thread(h, repo)
-
     if path == "/mode":
         return _mode(h, repo)
 
@@ -457,134 +274,7 @@ def post(h, repo, path):
         return h.send_json({"ok": True})
 
     if path == "/session":
-        # A lecture or a homework sitting, chosen from the board: a chapter, a
-        # problem set, or a box of the map. The mode is not a sitting's: it is
-        # the session's, and only `POST /mode` changes it.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        kind = (payload.get("session") or "").strip().lower()
-        if kind not in ("lecture", "homework"):
-            return h.send_json({"ok": False, "error": "bad session"}, status=400)
-        want = (payload.get("hw") or "").strip()
-        chapter = (payload.get("chapter") or "").strip()
-
-        # A tap on the map sends the box's id and, where a numbered step was
-        # tapped, that step's label -- and NEITHER is carried through as typed.
-        # Both are looked up in what the map and the plan actually hold, and
-        # the sitting's label is built here from what came back.
-        #
-        # An assistant named for this sitting is recorded and never consulted:
-        # who takes a turn is the machine's one provider setting.
-        agent = config.clean_agent(payload.get("agent"))
-        # Whether the request also means "and get on with it". Sent by the map's
-        # own sheet, where choosing a way to work IS the instruction; not by the
-        # contents drawer.
-        start = bool(payload.get("begin"))
-        node = None
-        node_id = str(payload.get("node") or payload.get("thread") or "").strip()
-        if node_id:
-            node = mapping.find(repo.root, node_id, repo.state())
-            if not node:
-                return h.send_json({"ok": False, "error": "no such part of the map"},
-                                      status=400)
-        step = None
-        step_label = str(payload.get("step") or "").strip()
-        if step_label:
-            for x in plan.steps(repo.root):
-                if x["label"] == step_label:
-                    step = x
-                    break
-            if not step:
-                return h.send_json({"ok": False, "error": "no such step"},
-                                      status=400)
-        if not chapter and (step or node):
-            chapter = step["label"] if step else node["name"]
-
-        # THE BOX WHOSE SITTING IS ALREADY OPEN IS A WAY BACK INTO IT, NOT A NEW
-        # ONE. Opening files the lesson away, so a tap on the box you are already
-        # working in must not empty the board. A different step on the same box
-        # is still a new sitting.
-        here = repo.state()
-        if (kind == "lecture" and node and not step
-                and config.sitting_box(here) == node["id"]
-                and (here.get("session") or "lecture") == "lecture"
-                and not here.get("finished")):
-            begun = start and not cards.load_cards(repo, [])
-            if begun:
-                _begin(h, repo)
-            h.hub.worker.dirty.set()
-            return h.send_json({"ok": True, "session": kind, "resumed": True,
-                                "begun": begun})
-
-        # Moving to a different chapter is starting a different lesson, and
-        # `board open` is what starts one: it files the current lesson away
-        # whole -- cards, turns and answers together -- so the one being left
-        # is still readable under the history button rather than being
-        # overwritten by the next.
-        if chapter:
-            # A chapter in a book course, or a STEP in a project's plan -- which
-            # is the same tap on the same drawer and has to be checked the same
-            # way: against what the repository actually has, never constructed
-            # from the request. A project has no chapters and its steps are not
-            # invented here either; they are the lines of the file its README
-            # points at, which is the only thing that says what comes next.
-            known = [syllabus.label(c) for c in syllabus.chapters(repo.root)]
-            known += [x["label"] for x in plan.steps(repo.root)]
-            # ...unless this label was BUILT here, out of a box or a step that
-            # has already been looked up. Checking it again against the chapter
-            # list would refuse every part of the map, none of which is a
-            # chapter of anything.
-            if chapter not in known and not (node or step):
-                return h.send_json({"ok": False, "error": "no such chapter"},
-                                      status=400)
-            course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
-            args = ["open", course, chapter,
-                    "--lecture" if kind == "lecture" else "--homework"]
-            if node:
-                args += ["--node", node["id"]]
-            if agent:
-                args += ["--agent", agent]
-            # A chapter gets a tutor that knows only it: every turn is a fresh
-            # process, so nothing carries Chapter 1 into Chapter 3.
-            _cli(repo, args)
-
-        st = repo.state()
-        st["session"] = kind
-        _mark(st, node, agent, repo.root)
-        if kind == "homework":
-            # Only a set this repository actually has. A name from the
-            # request never reaches the filesystem.
-            every = {x["name"]: x for x in homework.sets(repo.root)}
-            chosen = every.get(want)
-            if want and not chosen:
-                return h.send_json({"ok": False, "error": "no such set"}, status=400)
-            if chosen:
-                if not chapter and st.get("hw") != chosen["rel"]:
-                    course = st.get("course") or config.read_config(repo.root)["name"] or ""
-                    # `--agent` goes through `open`, because this call REPLACES
-                    # the state `_mark` has just written: it re-reads from disk
-                    # below, so anything patched on above it is lost here.
-                    args = ["open", course, chosen["name"],
-                            "--homework", "--set", chosen["name"]]
-                    if agent:
-                        args += ["--agent", agent]
-                    _cli(repo, args)
-                    st = repo.state()
-                    st["session"] = kind
-                    _mark(st, node, agent, repo.root)
-                st["hw"] = chosen["rel"]
-                st["chapter"] = chosen["name"]
-        else:
-            st.pop("hw", None)
-        with open(repo.state_path, "w", encoding="utf-8") as fh:
-            json.dump(st, fh, indent=2)
-        if start:
-            _begin(h, repo)
-        h.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "session": kind, "hw": st.get("hw"),
-                            "begun": start})
+        return _session(h, repo)
 
     if path == "/text/save":
         # A typed answer in progress, kept per question so the panel can flip

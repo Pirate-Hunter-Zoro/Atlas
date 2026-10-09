@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""The plan was wrong, and saying so is one tap.
+"""What is left of a change of direction: `tutorboard/direction.py`.
 
-Three hours into an evening somebody realises the whole shape of the work is
-wrong. Until the button, saying so meant a terminal: edit the plan by hand,
-redraw the map, stop the assistant, start another one, and hope the one that
-came back had not kept the old idea in its own conversation.
-
-Four things have to happen for that tap to mean anything, and doing three of
-them is worse than doing none -- a direction written down that the assistant
-never reads is a direction the person believes is in force while nothing acts on
-it. This drives the real HTTP handler, because what is guarded is the whole round
-trip: the file, the archived lesson, the line the next turn is woken with, and
-the assistant being REPLACED rather than asked nicely.
+The module still writes, reads and labels DIRECTION.md, and its sentences
+still say what a woken turn does with one. The tap that drove it, `POST
+/direction`, went with the map layer (T50); T30c deletes the module.
 """
 
 import json
@@ -29,8 +21,7 @@ sys.path.insert(0, ROOT)
 
 from tutorboard import brief, direction, sense
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import archive, turns
-from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.server import handler, hub, tikz
 from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
@@ -145,64 +136,17 @@ def post(path, body):
         with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read().decode("utf-8"))
+        try:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            return exc.code, {}
 
 
 try:
-    # A lesson in progress, about the direction that is being replaced.
-    with open(os.path.join(repo.cards, "0001-lesson.md"), "w", encoding="utf-8") as fh:
-        fh.write("---\nkind: lesson\n---\nThe old direction's first card.\n")
-    with open(repo.state_path, "w", encoding="utf-8") as fh:
-        json.dump({"course": "Test Course", "session": "lecture",
-                   "chapter": "Ch 1 — the bake-off", "mode": "do"}, fh)
-
     status, body = post("/direction", {"text": SAID})
-    check("the board accepts a change of direction",
-          status == 200 and body.get("ok") is True)
-    check("it is written down", direction.read(tmp)[0] == SAID)
-    check("the sitting is renamed after it",
-          (repo.state().get("chapter") or "").startswith("New direction"))
-    check("and keeps the session's mode: who writes it",
-          repo.state().get("mode") == "do")
-    check("the lesson they were in is filed away, not thrown away",
-          len(archive.list_archive(repo)) == 1)
-    check("and the board in front of them is clear",
-          not [n for n in os.listdir(repo.cards) if n.endswith(".md")])
-
-    sent = turns.load_turns(repo)
-    check("their words are in the transcript as a turn of theirs",
-          len(sent) == 1 and sent[0].get("from") == "student"
-          and SAID in (sent[0].get("text") or ""))
-    check("and it is marked as what it is", sent[0].get("signal") == "direction")
-
-    with open(repo.messages_path, "r", encoding="utf-8") as fh:
-        lines = [json.loads(l) for l in fh if l.strip()]
-    line = lines[-1].get("text", "") if lines else ""
-    check("the inbox carries it, which is what the queued turn is handed", bool(lines))
-    check("the line says what happened", "[direction]" in line)
-    check("carries their own words, not a summary of them", SAID in line)
-    check("tells the turn to rewrite the plan", "REWRITE THE PLAN" in line)
-    check("and still says what kind of sitting this is",
-          "THE LESSON IS EXERCISES" in line or "lesson is" in line.lower())
-    check("it arrives unread, or nothing wakes on it",
-          lines[-1].get("read") is False)
-
-    # Every turn is a fresh process, so the one queued here has read the new
-    # direction and nothing else.
-    check("a turn is queued on it, and it is a fresh process like every turn",
-          len(replaced) == 1)
-
-    # The panel opens showing what it is about to replace, on a device that has
-    # been closed since it was set.
-    live = board.build()
-    check("the payload's direction is null; the tick reads the session only (D27)",
-          "direction" in live and live["direction"] is None)
-
-    status, body = post("/direction", {"text": "   "})
-    check("a direction with nothing in it is refused",
-          status == 400 and body.get("ok") is False)
-    check("and nothing was archived on the way",
-          len(archive.list_archive(repo)) == 1)
+    check("POST /direction is gone with the map layer (T50)",
+          status == 404 and not os.path.exists(os.path.join(tmp, "DIRECTION.md"))
+          and not replaced)
 finally:
     httpd.shutdown()
 

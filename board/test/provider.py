@@ -282,17 +282,6 @@ try:
           status == 200 and on_disk().get("provider") == "claude"
           and "default_agent" not in on_disk(), on_disk())
 
-    # ---- the thread sheet names the machine's choice for every kind ---------
-    from tutorboard.server.routes import lesson                # noqa: E402
-    os.remove(os.path.join(CTL, "limited-claude"))
-    assistants.forget()
-    sheet = lesson.kind_agents(os.path.join(atlas, "courses", "Demo"))
-    check("the sheet names who takes the next turn on every kind -- here the "
-          "fallback, claude's allowance still being gone -- and why, whatever "
-          "the subject's tutorboard.json says",
-          sheet and all(v["agent"] == "codex" and "allowance" in v["why"]
-                        for v in sheet.values()), sheet)
-
     js = open(os.path.join(BOARD, "web", "board.js"), encoding="utf-8").read()
     check("the board draws a card's by-line", "card-by" in js and "c.by" in js)
     who = open(os.path.join(BOARD, "web", "who.js"), encoding="utf-8").read()

@@ -6,8 +6,7 @@ the export is a button on an iPad now, not only a command in a terminal, and the
 server cannot import a script with no `.py` on the end of it.
 
 The second is the thing that button does. `board export` used to write out the
-tutor's cards and nothing else -- half a conversation, which is exactly what
-`board archive` refuses to keep and for the same reason. What comes out now is
+tutor's cards and nothing else -- half a conversation. What comes out now is
 the whole sitting in reading order: the question, the working that was handed in
 (every revision of it, as the picture that was actually sent), what the tutor
 said about it, and the next attempt underneath. That is the artefact somebody
@@ -772,8 +771,7 @@ def build(root, scope="lesson", make_pdf=True, which=""):
     sitting in reading order -- the question, every revision of the working as it
     was actually sent, what the tutor said, and the next attempt underneath.
     Adding a scope changes WHICH sittings are in the document and nothing else
-    about what a document is; half a conversation is what `board archive`
-    refuses to keep, for the same reason.
+    about what a document is.
 
     Returns a record the board can paint: what it is called, whether LaTeX
     agreed, and where it went.

@@ -31,7 +31,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard.course import plan, reading      # noqa: E402
-from tutorboard import atlas, fenced, machines, sense   # noqa: E402
+from tutorboard import fenced, machines, sense   # noqa: E402
 
 fails = []
 
@@ -139,7 +139,6 @@ Do not read %s.
     # out of a README is checked against is the REPOSITORY now, and the test
     # must not be checked against the one this machine really has.
     os.environ["TUTORBOARD_COURSES"] = home
-    atlas.forget()
     plan._cache.clear()
     reading._cache.clear()
 
@@ -419,7 +418,6 @@ finally:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = real_courses
-    atlas.forget()
     shutil.rmtree(home, ignore_errors=True)
     shutil.rmtree(outside, ignore_errors=True)
 

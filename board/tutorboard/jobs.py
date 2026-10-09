@@ -2063,14 +2063,14 @@ def request_leak(root, req):
     moment it is pushed, and its brief is free text a turn may have written:
     an absolute or home path (where lab storage gets named) is refused, and
     so is anything the lab's PHI policy matches."""
-    from . import atlas, leaving
+    from . import leaving, subjects
     brief = req.get("brief") if isinstance(req, dict) else None
     if isinstance(brief, str) and _BRIEF_PATH_RE.search(brief):
         return ("the brief names an absolute or home path, and a request is "
                 "public; say it relative to the workspace")
     try:
         top = _git_text(root, ["rev-parse", "--show-toplevel"])
-        names_phi = leaving.policy(top or atlas.root())
+        names_phi = leaving.policy(top or subjects.root())
     except Exception:                                        # noqa: BLE001
         names_phi = None
     if names_phi is not None:
@@ -2100,7 +2100,7 @@ def commit_alone(root, target, what, push=True):
     the tree rides along. The message is `<workspace>: <what>`. `push=False`
     commits and pushes nothing.
     """
-    from . import atlas, gitops
+    from . import gitops, subjects
     try:
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -2113,7 +2113,7 @@ def commit_alone(root, target, what, push=True):
     rel = os.path.relpath(
         os.path.join(os.path.realpath(os.path.dirname(target)),
                      os.path.basename(target)), os.path.realpath(top))
-    where = atlas.identify(root)
+    where = subjects.identify(root)
     msg = "%s: %s" % (where, what) if where else what
     if push:
         ok, said = gitops.save(top, [rel], msg)

@@ -6,8 +6,8 @@ What the checks are about:
   * A HOLD IS CHECKED WHOLE. Refused on something already held, one with no
     files, a closed workspace's hold with no check, an untracked check, and a
     file another hold has -- every problem at once.
-  * A HOLD NEEDS NO THREAD. Paths named, or the sitting's own homework file,
-    chapter or thread, in any workspace.
+  * A HOLD IS ITS FILES. Paths named, or the sitting's own homework file or
+    chapter, in any workspace.
   * WHILE IT LASTS, THE MAC DOES NOT WRITE THE FILES. `board push` refuses a
     commit touching one, and says which.
   * THE CLUSTER'S PULL LEAVES THE OWNER'S EDITS ALONE. Rebase with autostash
@@ -33,8 +33,8 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import atlas, fenced, holds, jobs                      # noqa: E402
-from tutorboard.course import config, threads                          # noqa: E402
+from tutorboard import fenced, holds, jobs, subjects            # noqa: E402
+from tutorboard.course import config                                   # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 GO = "/usr/local/go/bin/go"
@@ -66,71 +66,53 @@ def git(cwd, *args):
     return p.stdout.decode("utf-8", "replace")
 
 
-SPINE = {
-    "version": 1,
-    "deliverables": [{"id": "paper2", "title": "Paper 2", "doc": ""}],
-    "threads": [
-        {"id": "aipw", "deliverable": "paper2", "title": "The AIPW rung",
-         "files": ["src/aipw"], "check": "checks/aipw.sh"},
-        {"id": "other", "deliverable": "paper2", "title": "Other",
-         "files": ["src/aipw/shared.py", "src/other.py"]},
-        {"id": "bare", "deliverable": "paper2", "title": "Bare"},
-    ],
-}
-
-# --- the thread's check, and the validator ----------------------------------
-clean, problems = threads.validate(SPINE)
-check("a thread names its check, and one that names none has \"\"",
-      not problems and threads.thread(clean, "aipw")["check"] == "checks/aipw.sh"
-      and threads.thread(clean, "bare")["check"] == "")
-bad = json.loads(json.dumps(SPINE))
-bad["threads"][0]["check"] = "../outside.sh"
-check("a check outside the workspace is refused",
-      any("check" in p for p in threads.validate(bad)[1]))
-
+# --- the validator ---------------------------------------------------------
 tracked = {"checks/aipw.sh", "src/aipw/est.py"}
-rec, problems = holds.validate_hold(clean, "aipw", {}, tracked)
-check("a thread with files and a tracked check may be held",
-      not problems and rec["id"] == "aipw" and rec["thread"] == "aipw"
+AIPW = {"id": "aipw", "files": ["src/aipw"], "check": "checks/aipw.sh",
+        "label": "The AIPW rung"}
+rec, problems = holds.validate_hold(AIPW, {}, tracked)
+check("paths with a tracked check may be held",
+      not problems and rec["id"] == "aipw" and "thread" not in rec
       and rec["files"] == ["src/aipw"]
       and rec["check"] == {"script": "checks/aipw.sh"}
       and rec["label"] == "The AIPW rung")
-_, problems = holds.validate_hold(clean, "aipw", {"aipw": {"held": 0}}, set())
+_, problems = holds.validate_hold(AIPW, {"aipw": {"held": 0}}, set())
 check("held already AND an untracked check: both said at once",
       len(problems) == 2 and "already held" in problems[0]
       and "not tracked" in problems[1])
-_, problems = holds.validate_hold(clean, "bare", {}, tracked)
+_, problems = holds.validate_hold({"id": "bare", "files": []}, {}, tracked)
 check("no files and no check: both said",
       len(problems) == 2 and "no files" in problems[0] and "no check" in problems[1])
 _, problems = holds.validate_hold(
-    clean, "other", {"aipw": {"thread": "aipw", "files": ["src/aipw"]}}, tracked)
+    {"id": "other", "files": ["src/aipw/shared.py", "src/other.py"]},
+    {"aipw": {"files": ["src/aipw"]}}, tracked, open_=True)
 check("a file another hold covers is refused, by name",
-      any("src/aipw/shared.py is already held, by thread aipw" in p
+      any("src/aipw/shared.py is already held, by the hold aipw" in p
           for p in problems))
-check("an unknown thread is refused",
-      holds.validate_hold(clean, "nope", {}, tracked)[0] is None)
+check("a thread's name is no hold: threads are gone",
+      holds.validate_hold("aipw", {}, tracked)[0] is None)
 
-req = {"id": "check-aipw-1", "kind": "colibri", "thread": "aipw", "brief": "x"}
-_, problems = jobs.validate(req, clean, tracked, {}, (), True)
+req = {"id": "check-aipw-1", "kind": "colibri", "brief": "x"}
+_, problems = jobs.validate(req, None, tracked, {}, (), True)
 check("a request is refused an id a step's check report would share",
       any("check-" in p for p in problems) and holds.is_check(req["id"]))
 
-standing = {"aipw": {"thread": "aipw", "files": ["src/aipw"], "held": 0}}
+standing = {"aipw": {"files": ["src/aipw"], "held": 0}}
 said = holds.refused_writes(["src/aipw/est.py", "notes.md", "src/aipwx.py"],
-                            clean, standing)
+                            standing)
 check("a write under a held directory is refused, and only that one",
       len(said) == 1 and said[0].startswith("src/aipw/est.py belongs to "
-                                            "thread aipw"))
-grown = json.loads(json.dumps(SPINE))
-grown["threads"][0]["files"].append("src/new.py")
-check("a file added to the thread mid-hold is held too",
-      holds.refused_writes(["src/new.py"], threads.validate(grown)[0], standing))
-check("a hold written before ids existed still reads by its thread",
+                                            "the hold aipw"))
+old = {"aipw": {"thread": "aipw", "files": ["src/aipw"], "held": 0}}
+check("a hold written while threads existed still holds its own files",
+      holds.refused_writes(["src/aipw/est.py"], old)
+      and "thread aipw" in holds.refused_writes(["src/aipw/est.py"], old)[0])
+check("and a hold written before ids existed still reads by its thread",
       holds.check_of({"thread": "aipw", "check": "checks/aipw.sh"})
       == {"script": "checks/aipw.sh"}
       and holds.hold_id({"thread": "aipw"}) == "aipw")
 
-# --- a hold with no thread ------------------------------------------------------
+# --- a hold over a directory --------------------------------------------------
 GO_CHECK, cp = config.clean_check({"all": ["go", "test", "./..."],
                                    "one": ["go", "test", "./{dir}/..."],
                                    "path": ["/usr/local/go/bin"]})
@@ -156,14 +138,14 @@ check("a check reaching outside the workspace is refused, in either form",
 
 target = {"id": "coinchange", "files": ["leetcode/coinchange"],
           "dirs": ["leetcode/coinchange"]}
-rec, problems = holds.validate_hold(None, target, {}, set(), spec=GO_CHECK)
-check("a directory is held with no thread file, its check the workspace's",
+rec, problems = holds.validate_hold(target, {}, set(), spec=GO_CHECK)
+check("a directory is held, its check the workspace's",
       not problems and rec["id"] == "coinchange" and "thread" not in rec
       and rec["check"] == {"spec": "one",
                            "argv": ["go", "test", "./leetcode/coinchange/..."]})
 LEAN = {"all": ["bash", "scripts/build.sh"],
         "one": ["bash", "scripts/build.sh", "{module}"]}
-rec, _ = holds.validate_hold(None, {"id": "e01", "files": [
+rec, _ = holds.validate_hold({"id": "e01", "files": [
     "Exercises/Sets/E01.lean"]}, {}, set(), spec=LEAN)
 check("a Lean file's check builds its module",
       rec["check"]["argv"] == ["bash", "scripts/build.sh", "Exercises.Sets.E01"])
@@ -177,25 +159,22 @@ check("`{file}` asked of a directory falls back to `all`",
                        [("leetcode", True)])[0]["spec"] == "all")
 check("two held paths are checked by `all`",
       holds.check_spec(GO_CHECK, [("a", True), ("b", True)])[0]["spec"] == "all")
-_, problems = holds.validate_hold(None, {"id": "x", "files": ["a.go"]}, {}, set())
+_, problems = holds.validate_hold({"id": "x", "files": ["a.go"]}, {}, set())
 check("a closed workspace refuses a hold with no check",
       any("no check" in p and "closed" in p for p in problems))
-rec, problems = holds.validate_hold(None, {"id": "x", "files": ["a.go"]}, {},
+rec, problems = holds.validate_hold({"id": "x", "files": ["a.go"]}, {},
                                     set(), open_=True)
 check("an open one allows it, unchecked", not problems and rec["check"] is None)
-_, problems = holds.validate_hold(None, {"id": "check-x", "files": ["a"]}, {},
+_, problems = holds.validate_hold({"id": "check-x", "files": ["a"]}, {},
                                   set(), open_=True)
 check("a hold's id may not be a check report's", any("check-" in p for p in problems))
-_, problems = holds.validate_hold(clean, {"id": "aipw", "files": ["a"]}, {},
-                                  set(), open_=True)
-check("nor another thread's", any("id of a thread" in p for p in problems))
 mine = {"coinchange": {"id": "coinchange", "files": ["leetcode/coinchange"],
                        "held": 0}}
-_, problems = holds.validate_hold(None, {"id": "other", "files": [
+_, problems = holds.validate_hold({"id": "other", "files": [
     "leetcode/coinchange/coinchange.go"]}, mine, set(), open_=True)
 check("a file another hold owns is refused, naming the hold",
       any("is already held, by the hold coinchange" in p for p in problems))
-_, problems = holds.validate_hold(None, {"id": "all", "files": ["leetcode"]},
+_, problems = holds.validate_hold({"id": "all", "files": ["leetcode"]},
                                   mine, set(), open_=True)
 check("and so is a directory that would swallow one",
       any("leetcode holds leetcode/coinchange" in p for p in problems))
@@ -296,8 +275,7 @@ try:
     write(os.path.join(ws, "checks", "aipw.sh"),
           "#!/bin/bash\necho 'RELAY: n=120 ate=0.031'\necho 'row 17 is 0.9'\n"
           "echo 'to stderr' >&2\nexit 0\n")
-    write(threads.path(ws), json.dumps(SPINE))
-    # A practice workspace with no thread file: LeetCode in Go.
+    # A practice workspace: LeetCode in Go.
     algo = os.path.join(seed, "projects", "Algo")
     write(os.path.join(algo, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(algo, ".gitignore"), "live/\n")
@@ -362,7 +340,6 @@ try:
 
     # --- which workspaces are open ---------------------------------------------
     os.environ["TUTORBOARD_COURSES"] = cl_top
-    atlas.forget()
     fenced.forget()
     cl_algo = os.path.join(cl_top, "projects", "Algo")
     cl_course = os.path.join(cl_top, "courses", "Course")
@@ -440,9 +417,8 @@ try:
     check("a chapter sitting holds the chapter's directory, found on disk",
           not p and t["files"] == ["chapters/ch01-groups"]
           and t["dirs"] == ["chapters/ch01-groups"] and "chapter" in said)
-    t, said, p = holds.resolve_target(cl, [], {"thread": "aipw"})
-    check("a thread's sitting holds its thread", t == {
-        "thread": "aipw", "check": "", "source": "the sitting's thread"})
+    check("a sitting's thread holds nothing: threads are gone",
+          holds.resolve_target(cl, [], {"thread": "aipw"})[0] is None)
     check("a sitting with nothing to hold asks for the files",
           holds.resolve_target(cl_algo, [], {"session": "lecture"})[2]
           and "name the files" in holds.resolve_target(cl_algo, [], {})[2][0])
@@ -451,10 +427,10 @@ try:
     check("and so is one outside the workspace",
           holds.resolve_target(cl_algo, ["--", "../Course"], {})[2])
 
-    # --- the fenced round trip: projects/Proj, a thread, RELAY: only --------------
-    code, out = board(mac, on_mac, "hold", "aipw")
+    # --- the fenced round trip: projects/Proj, named paths, RELAY: only ----------
+    code, out = board(mac, on_mac, "hold", "--as", "aipw", "--check", "checks/aipw.sh", "--", "src/aipw")
     check("a hold is refused on the Mac", code == 1 and "no Slurm" in out)
-    code, out = board(cl, on_cluster, "hold", "aipw")
+    code, out = board(cl, on_cluster, "hold", "--as", "aipw", "--check", "checks/aipw.sh", "--", "src/aipw")
     check("`board hold` on the cluster holds and pushes",
           code == 0 and "held at the cluster" in out
           and "RELAY: lines only" in out
@@ -462,15 +438,15 @@ try:
     files = git(cl_top, "show", "--name-only", "--format=", "HEAD").split()
     check("in one commit carrying the hold and nothing else",
           files == ["projects/Proj/relay/holds/aipw.json"])
-    code, out = board(cl, on_cluster, "hold", "aipw")
-    check("a second hold on the same thread is refused",
+    code, out = board(cl, on_cluster, "hold", "--as", "aipw", "--check", "checks/aipw.sh", "--", "src/aipw")
+    check("a second hold on the same files is refused",
           code == 1 and "already held" in out)
 
     git(mac_top, "pull", "-q", "--ff-only")
     write(os.path.join(mac, "src", "aipw", "est.py"), "def est():\n    return 1\n")
     code, out = board(mac, on_mac, "push", "a turn's edit")
     check("on the Mac, `board push` refuses a commit touching a held file",
-          code == 1 and "src/aipw/est.py belongs to thread aipw" in out)
+          code == 1 and "src/aipw/est.py belongs to the hold aipw" in out)
     check("and nothing was committed",
           "est.py" in git(mac_top, "status", "--porcelain"))
     os.environ["TUTOR_SLURM"] = "0"
@@ -526,7 +502,7 @@ try:
     check("`board send` pushes the check's report",
           rep.get("kind") == "check" and rep.get("step") == 1
           and rep.get("exit") == 0 and rep.get("state") == "completed"
-          and rep.get("hold") == "aipw" and rep.get("thread") == "aipw")
+          and rep.get("hold") == "aipw" and "thread" not in rep)
     check("which carries the RELAY: line and nothing else the check printed",
           rep.get("relay") == ["n=120 ate=0.031"] and rep.get("open") is False
           and "output" not in rep
@@ -543,7 +519,7 @@ try:
     step_sha = git(origin, "rev-parse", "main~1").strip()[:12]
     check("the pull carrying the report wakes one [coach] turn",
           len(woke) == 1 and said["signal"] == "coach"
-          and said["text"].startswith("[coach] Step 1 of thread aipw"))
+          and said["text"].startswith("[coach] Step 1 of aipw (src/aipw)"))
     check("naming the step's commit, the check's exit and its RELAY: lines",
           "git show %s" % step_sha in said["text"]
           and "exit 0" in said["text"]
@@ -575,7 +551,7 @@ try:
           code == 0 and not git(origin, "show",
                                 "main:projects/Proj/relay/holds/aipw.json"))
 
-    # --- the open round trip: LeetCode in Go, no thread file -----------------------
+    # --- the open round trip: LeetCode in Go ---------------------------------------
     mac_algo = os.path.join(mac_top, "projects", "Algo")
     if not os.access(GO, os.X_OK):
         print("skip the Go round trip: no %s on this machine" % GO)
@@ -583,7 +559,7 @@ try:
         code, out = board(cl_algo, on_cluster, "hold", "--", "leetcode/coinchange")
         hrel = "projects/Algo/relay/holds/coinchange.json"
         held = json.loads(git(origin, "show", "main:" + hrel) or "{}")
-        check("a directory is held in a workspace with no thread file",
+        check("a directory is held, its check the workspace's",
               code == 0 and held.get("id") == "coinchange"
               and held.get("files") == ["leetcode/coinchange"]
               and "thread" not in held)
@@ -688,7 +664,6 @@ finally:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = saved_courses
-    atlas.forget()
     shutil.rmtree(tmp, ignore_errors=True)
 
 # --- the real repository ------------------------------------------------------------
@@ -711,10 +686,9 @@ for ws in ("projects/TRD-EHR", "projects/PSYCH-ASR", "projects/libr-local-llm"):
 OPEN = {"projects/Paper-Writer", "projects/Algo-Solutions",
         "projects/Lean-Theorem-Proving", "courses/Galois-Theory",
         "courses/Probability"}
-atlas.forget()
 policy = callable(holds._policy(REPO))
 found = {w["id"]: holds.output_open(w["root"])
-         for w in atlas.workspaces(REPO)}
+         for w in subjects.all(REPO)}
 check("the open subjects are exactly %s%s" % (
           ", ".join(sorted(OPEN)), "" if policy else " (none: no policy here)"),
       {w for w, o in found.items() if o} == (

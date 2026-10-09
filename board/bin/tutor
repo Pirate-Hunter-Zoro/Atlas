@@ -34,7 +34,7 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import atlas, gitops, jobs, keys, machine, processes, sessions
+from tutorboard import gitops, jobs, keys, machine, processes, sessions, subjects
 from tutorboard.agents import doctor, recipes, usage
 from tutorboard.runner import daemon, watch
 
@@ -217,7 +217,7 @@ def cmd_cost(cfg, args):
 
     The report is `usage.cost_report` and `usage.cost_all`.
     """
-    base = atlas.root()
+    base = subjects.root()
     rows = []
     for rec in sessions.all(base):
         where = sessions.path(rec.get("id"), base)
@@ -337,7 +337,7 @@ def main(argv):
             return refuse_launch_agent("pull --hear")
         # A plain fast-forward of Atlas. Only the cluster relay bumps vendor
         # pointers; the pull brings this machine's vendor checkouts along.
-        return 0 if gitops.pull(atlas.root(), quiet="--quiet" in argv) \
+        return 0 if gitops.pull(subjects.root(), quiet="--quiet" in argv) \
             is not False else 1
 
     if args and args[0] == "cost":

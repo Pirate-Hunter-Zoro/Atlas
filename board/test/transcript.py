@@ -7,8 +7,7 @@ a drawer, unconnected to the question they answered, and the next lesson wiped
 them. Half the conversation was unrecorded.
 
 So: a turn is anchored to the card it answers, frozen at the moment it is sent,
-versioned so a correction supersedes the original in place, and archived with
-the cards when the session ends. This drives the real server -- an in-process
+versioned so a correction supersedes the original in place. This drives the real server -- an in-process
 one on a temporary repository -- because the failure being guarded against is
 data quietly not being written, which no stub can show.
 """
@@ -26,7 +25,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import archive
 from tutorboard.lesson import turns
 
 fails = []
@@ -88,82 +86,18 @@ check("turns come back in the order they started",
       [t["id"] for t in sent] == ["t0001", "t0002"])
 check("a typed turn keeps its signal", sent[1].get("signal") == "help")
 
-# --- archiving --------------------------------------------------------------
-for name in ("t0001-r1", "t0001-r2"):
-    with open(os.path.join(repo.answers, name + ".png"), "wb") as fh:
-        fh.write(b"\x89PNG\r\n\x1a\n")
-    with open(os.path.join(repo.answers, name + ".json"), "w", encoding="utf-8") as fh:
-        json.dump({"strokes": []}, fh)
-
-with open(repo.state_path, "w", encoding="utf-8") as fh:
-    json.dump({"course": "Test Course", "chapter": "Chapter 7",
-               "session": "lecture", "opened": "2026-01-01 10:00"}, fh)
-
-# A MARK ON A CARD BELONGS TO THE SITTING THAT CARD WAS IN.
-#
-# Cards are numbered from 0001 inside a sitting and the annotation record is
-# named after that number, so a record left in `live/annotations` when a
-# section is filed is not stale, it is misfiled: the board reads the directory,
-# keys what it finds by the bare number, and lays last night's ink over
-# tonight's card 1. Reported from the device as old annotations showing up on
-# new tutoring text blocks.
-#
-# A mark on a page of a DOCUMENT is not part of any sitting -- it is anchored
-# to a document this workspace offers, and outlives every lesson in it. Those
-# carry a flattened, digest-carrying name and must be left exactly where they
-# are.
-with open(os.path.join(repo.notes, "0001.json"), "w", encoding="utf-8") as fh:
-    json.dump({"card": "0001", "strokes": [[[1, 2]]]}, fh)
-with open(os.path.join(repo.notes, "0001.png"), "wb") as fh:
-    fh.write(b"\x89PNG\r\n\x1a\n")
-with open(os.path.join(repo.notes, "doc-a-p1-deadbeef.json"), "w",
-          encoding="utf-8") as fh:
-    json.dump({"card": "doc/a/p1", "strokes": []}, fh)
-with open(os.path.join(repo.text, "0001.txt"), "w", encoding="utf-8") as fh:
-    fh.write("half a sentence")
-
-rc = os.system("cd %s && python3 %s archive >/dev/null 2>&1"
-               % (tmp, os.path.join(ROOT, "bin", "board")))
-check("archiving a session succeeds", rc == 0)
-left = os.listdir(repo.notes)
-check("no mark keyed by a card number is left behind",
-      not [n for n in left if n[0].isdigit()])
-check("but a mark on a document is not a lesson's to file",
-      "doc-a-p1-deadbeef.json" in left)
-check("nor is a typed draft left to reappear under the next card 1",
-      not os.listdir(repo.text))
-check("the live transcript is cleared for the next lesson",
-      not os.path.exists(repo.turns_path))
-check("no answer files are left behind", not os.listdir(repo.answers))
-check("no cards are left behind",
-      not [n for n in os.listdir(repo.cards) if n.endswith(".md")])
-
-sessions = archive.list_archive(repo)
-check("the finished lesson is listed", len(sessions) == 1)
-check("it is listed by chapter, not by folder name",
-      sessions[0]["chapter"] == "Chapter 7")
-check("it knows how much of it was the student's", sessions[0]["turns"] == 2)
-check("and how many cards it held", sessions[0]["cards"] == 2)
-
-past = archive.archived_session(repo, sessions[0]["id"])
-check("a past lesson still has its cards", len(past["cards"]) == 2)
-check("a past lesson still has the student's working", len(past["turns"]) == 2)
-check("the archived answer still shows the newest revision",
-      past["turns"][0]["rev"] == 2)
-check("its ink is reachable from inside the archive",
-      past["turns"][0]["png"].startswith("/archive/"))
-frozen = os.path.join(repo.archive, sessions[0]["id"], "answers", "t0001-r2.png")
-check("and the file it points at is really there", os.path.isfile(frozen))
-check("a past lesson still carries the marks made on its cards",
-      past["notes"].get("0001") == [[[1, 2]]])
-check("and they are read from the archive, not from the live lesson",
-      os.path.isfile(os.path.join(repo.archive, sessions[0]["id"],
-                                  "annotations", "0001.json")))
+# --- a filed lesson ------------------------------------------------------------
+# `board archive` is gone: a session keeps every card until the owner ends it.
+# A lesson filed before then had its transcript renamed away, which is what the
+# turn ids below must survive.
+os.makedirs(os.path.join(repo.archive, "20260101-100000-chapter-7"))
+os.rename(repo.turns_path,
+          os.path.join(repo.archive, "20260101-100000-chapter-7", "turns.jsonl"))
 
 # --- a turn id is unique for the life of the course, not of one lesson -------
 #
-# `board archive` renames turns.jsonl into the archive and leaves messages.jsonl
-# where it is, because the inbox is the assistant's mailbox and is never
+# Filing a lesson renamed turns.jsonl into the archive and left messages.jsonl
+# where it was, because the inbox is the assistant's mailbox and is never
 # rotated. So the id counter used to go back to t0001 the moment a chapter was
 # filed, while the inbox still held every id ever issued -- and the next answer
 # arrived in the inbox as a second, different `t0001 rev 1`. Two sent, one

@@ -138,6 +138,24 @@ def find(ident, base=None):
     return None
 
 
+def roots(base=None):
+    """Every subject's directory, in `walk` order."""
+    return [one[3] for one in walk(base)]
+
+
+def identify(path, base=None):
+    """`<parent>/<slug>` for a directory directly under `courses/` or
+    `projects/`, whether or not it still exists; else its bare name."""
+    real = os.path.realpath(path).rstrip(os.sep)
+    parent = os.path.dirname(real)
+    name = os.path.basename(real)
+    fam = os.path.basename(parent)
+    if fam in dict(DIRS) and paths.same_dir(os.path.dirname(parent),
+                                            _base(base)):
+        return "%s/%s" % (fam, name)
+    return name
+
+
 def kind_of(path, base=None):
     """`course` or `project` for a path inside a subject, else ""."""
     base = _base(base)

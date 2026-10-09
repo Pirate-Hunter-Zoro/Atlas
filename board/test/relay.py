@@ -45,7 +45,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
 from tutorboard import jobs, leaving, relay                            # noqa: E402
-from tutorboard.course import threads                                  # noqa: E402
 
 TUTOR = os.path.join(ROOT, "bin", "tutor")
 RELAY = os.path.join(ROOT, "bin", "relay")
@@ -339,7 +338,6 @@ try:
     check("and carries no trailer", "Co-Authored" not in git(
         cluster, "log", "-1", "--format=%B"))
     git(mac, "pull", "-q", "--rebase")
-    threads._cache.clear()
     view = jobs.view(mws)
     check("the Mac's merged registry reads it COMPLETED, exports and all",
           view["relay:r1"]["state"] == "COMPLETED"
@@ -713,7 +711,7 @@ try:
           and not relay.owned(cluster, "relay/other.json", where=[]))
 
     # --- a colibri request: a task, read-only, checked once it is done -------
-    from tutorboard import atlas as _atlas, colibri as coli
+    from tutorboard import colibri as coli
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "tutorboard.json"),
           json.dumps({"name": "Proj", "relay": {"colibri": True, "exports": [
@@ -725,7 +723,6 @@ try:
     queue = os.environ["COLI_QUEUE_ROOT"]
     os.environ["COLI_STATE_DIR"] = os.path.join(base, "coli-state")
     os.environ["TUTORBOARD_COURSES"] = cluster
-    _atlas.forget()
     real_start, real_jobs = coli.start_generation, coli._all_jobs
     coli.start_generation = lambda: ("", "no Slurm in this test")
     coli._all_jobs = lambda: []
@@ -838,7 +835,6 @@ try:
         shutil.rmtree(os.path.join(queue, "live"), ignore_errors=True)
         os.environ.pop("TUTORBOARD_COURSES", None)
         os.environ.pop("COLI_STATE_DIR", None)
-        _atlas.forget()
 
     # --- a hold: the owner's edit to a held file does not skip the pass -------
     git(mac, "pull", "-q", "--rebase")

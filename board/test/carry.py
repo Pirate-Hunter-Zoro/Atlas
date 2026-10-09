@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, machine, missions                # noqa: E402
+from tutorboard import machine, missions                # noqa: E402
 
 fails = []
 
@@ -153,7 +153,6 @@ try:
     psych = os.path.join(base, "projects", "PSYCH-ASR")
     write(os.path.join(psych, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
     os.makedirs(os.path.join(psych, "live", "cards"), exist_ok=True)
-    atlas.forget()
     os.environ["TUTORBOARD_COURSES"] = base
 
     # THE FIXTURE: a doing turn that wrote its first card seconds after dispatch
@@ -278,7 +277,6 @@ finally:
     os.environ.pop("TUTORBOARD_COURSES", None)
     if was_courses is not None:
         os.environ["TUTORBOARD_COURSES"] = was_courses
-    atlas.forget()
     shutil.rmtree(base, ignore_errors=True)
 
 

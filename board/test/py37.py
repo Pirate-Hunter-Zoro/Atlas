@@ -201,8 +201,8 @@ check("the walk reaches the entries and the relay modules",
        "tutorboard/paths.py", "tutorboard/worktree.py",
        "tutorboard/code.py", "tutorboard/gitops.py", "tutorboard/audit.py"}
       <= names)
-check("and follows their imports (relay imports atlas, which imports subjects)",
-      {"tutorboard/atlas.py", "tutorboard/subjects.py"} <= names)
+check("and follows their imports (relay imports subjects, holds exports)",
+      {"tutorboard/subjects.py", "tutorboard/exports.py"} <= names)
 for path in sorted(said):
     rel = os.path.relpath(path, ROOT)
     check("%s runs on 3.7%s" % (rel, "" if not said[path] else

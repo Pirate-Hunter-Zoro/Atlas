@@ -8,7 +8,6 @@ It used to be "the instant its file exists", and the difference cost an evening.
 See `has_body`.
 """
 
-import json
 import os
 import re
 import time
@@ -74,93 +73,6 @@ def extract_tikz(body, jobs, repo):
         return "\n\n@@FIGURE:%s:%s@@\n\n" % (digest, status)
 
     return TIKZ_BLOCK.sub(sub, body)
-
-
-# ---------------------------------------------------------------------------
-# a thread proposed on a card, accepted with one tap
-# ---------------------------------------------------------------------------
-# A rethink that finds a NEW question proposes it as a thread, in a fenced
-# `thread` block holding the JSON `board thread add` reads. The block is drawn
-# as the proposal and a control, `@@THREAD:<id>:<state>@@`; the tap posts the
-# card and the id, and the server reads the thread back off the card file
-# itself -- nothing the browser sends is made into the thread.
-THREAD_BLOCK = re.compile(
-    r"^[ \t]*```[ \t]*thread[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
-    re.DOTALL | re.MULTILINE,
-)
-
-
-def thread_blocks(body):
-    """Every thread proposed on a card body, parsed: `[(dict or None, raw)]`."""
-    out = []
-    for m in THREAD_BLOCK.finditer(body or ""):
-        try:
-            one = json.loads(m.group(1))
-        except ValueError:
-            one = None
-        out.append((one if isinstance(one, dict) else None, m.group(1)))
-    return out
-
-
-def extract_threads(body, root):
-    """Replace each `thread` block with the proposal in words and its control.
-
-    The state is read off the thread file every time, so a card proposing a
-    thread that has since been added says so: `new` (one tap adds it),
-    `there` (the file has that id) or `bad` (the file would refuse it, and the
-    first problem is said).
-    """
-    if "```" not in (body or "") or "thread" not in body:
-        return body
-    from ..course import threads                             # local: a cycle
-
-    def sub(match):
-        try:
-            one = json.loads(match.group(1))
-        except ValueError:
-            one = None
-        if not isinstance(one, dict):
-            return ("\n\n**A proposed thread** that is not valid JSON, so it "
-                    "cannot be added from here.\n\n@@THREAD::bad@@\n\n")
-        state, problems = threads.proposal(root, one)
-        tid = str(one.get("id") or "")
-        tasks = [t.get("text") if isinstance(t, dict) else t
-                 for t in (one.get("tasks") or [])]
-        lines = ["**Proposed thread** `%s`: %s" % (tid, one.get("title") or "")]
-        if one.get("question"):
-            lines.append(str(one["question"]))
-        if tasks and tasks[0]:
-            lines.append("First task: %s" % tasks[0])
-        if problems:
-            lines.append("It cannot be added as written: %s" % problems[0])
-        safe = tid if threads.ID_RE.match(tid) else ""
-        return ("\n\n" + "\n\n".join(lines)
-                + "\n\n@@THREAD:%s:%s@@\n\n" % (safe, state))
-
-    return THREAD_BLOCK.sub(sub, body)
-
-
-def proposed(cards_dir, card_id, tid):
-    """The thread `tid` as proposed on card `card_id`, read off its file, or None."""
-    if not re.match(r"^\d{4}$", str(card_id or "")):
-        return None
-    try:
-        names = os.listdir(cards_dir)
-    except OSError:
-        return None
-    for name in sorted(names):
-        m = CARD_RE.match(name)
-        if not m or m.group(1) != card_id or PART_RE.match(name):
-            continue
-        try:
-            with open(os.path.join(cards_dir, name), "r", encoding="utf-8") as fh:
-                _meta, body = parse_front_matter(fh.read())
-        except OSError:
-            return None
-        for one, _raw in thread_blocks(body):
-            if one and one.get("id") == tid:
-                return one
-    return None
 
 
 # Parsed cards, keyed by path, valid while (mtime, size) hold. The poll runs four
@@ -247,8 +159,7 @@ def _parse(repo, files, jobs, every=None):
             # diagram finishes -- so the body is re-scanned even on a hit. It is
             # a regex over a string already in memory, not a read and a parse.
             card = dict(hit[1])
-            card["body"] = extract_tikz(
-                extract_threads(hit[2], getattr(repo, "root", None)), jobs, repo)
+            card["body"] = extract_tikz(hit[2], jobs, repo)
             cards.append(card)
             continue
         try:
@@ -272,9 +183,7 @@ def _parse(repo, files, jobs, every=None):
         root = getattr(repo, "root", None)
         if root:
             rawbody = results.embed_ids(root, rawbody)
-        # A proposed thread is re-read on every poll, like a figure's status:
-        # whether it is still `new` is a fact about the thread file, not the card.
-        body = extract_tikz(extract_threads(rawbody, root), jobs, repo)
+        body = extract_tikz(rawbody, jobs, repo)
         cards.append({
             "id": ident,
             "slug": CARD_RE.match(name).group(2),
@@ -367,8 +276,7 @@ def stopped_body(changed, jobs=None, thread="", elsewhere=0):
 def write_stopped(path, changed, jobs=None, thread="", elsewhere=0):
     """Replace the placeholder at `path` with a `stopped` card. True if written.
 
-    The card names its `thread` in its front matter, which is how the map
-    badges that thread's box (`stopped_thread`). Same directory and
+    A `thread` given is named in its front matter (`stopped_thread`). Same directory and
     `os.replace`, as `board write` does, so a poll sees the old card or the new
     one and never an empty file.
     """

@@ -27,16 +27,14 @@ the whole of why.
 THE CLIENT NEVER NAMES A PATH. It names a KIND -- the lesson, or the written-up
 homework -- or an ID, and this resolves either to a file through what discovery
 already found: `live/export.json` and `live/hw.json` for the two the board
-builds, `reading.find` for a document the course points at, `shelf.find` for
-anything else in the workspace. A query parameter carrying a repo-relative path
+builds, `reading.find` for a document the course points at. A query parameter carrying a repo-relative path
 would be a directory traversal waiting to be written, and there is nothing it
 would buy -- the board knows where every one of these is.
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     session   under `/s/<id>/` only: GET /download/lesson  /download/homework
-              /download/shelf/<sid>  /view/lesson  /view/homework  /view/doc/<id>
-              /view/shelf/<sid>  /doc/<id>/<n>.png
+              /view/lesson  /view/homework  /view/doc/<id>  /doc/<id>/<n>.png
     both      GET /paper/<digest>-<n>.png: one page cache for every session
               and subject (`paths.PAGES`), so it is answered here under
               `/s/<id>/` and by the handler's `paper` class unprefixed
@@ -48,15 +46,7 @@ import re
 from . import NOT_MINE
 from ...course import paper
 from ...course import reading
-from ...course import shelf
 from ...lesson import notes
-
-
-# A SID IS AN ID AND NOTHING ELSE. The same alphabet `map.DOC_RE` insists on,
-# asked before the lookup rather than instead of it -- `shelf.find` compares
-# what arrived against the ids it handed out, and this only refuses the shapes
-# that were never going to be one.
-SID = re.compile(r"^[a-z0-9-]{1,40}$")
 
 
 # The download route's own helpers moved into `course/paper.py`, because the
@@ -83,18 +73,6 @@ def get(h, repo, path):
             return h.send_bytes(_nothing_yet(kind), "text/plain", status=404)
         return h.send_file(target, download=filename)
 
-    if path.startswith("/download/shelf/"):
-        # ANY document in the workspace, off the board and into Files. The two
-        # above are the two the board BUILDS; this is the rest of the shelf,
-        # and the only thing that differs is how the file was found. The name
-        # it leaves under is `paper.named`'s, so a chapter's write-up arrives
-        # in an inbox with the course in front of it.
-        target, stem = _shelf(repo, path[len("/download/shelf/"):])
-        if not target:
-            return h.send_bytes(b"This workspace has no document by that name.",
-                                "text/plain", status=404)
-        return h.send_file(target, download=paper.named(repo, stem) + ".pdf")
-
     if path in ("/view/lesson", "/view/homework"):
         # The pages, rendered here. It is a POST-shaped amount of work behind a
         # GET, and deliberately: the request is idempotent, the result is a
@@ -110,28 +88,6 @@ def get(h, repo, path):
         # was found, and `reading.find` is the whole of that check.
         ident = path[len("/view/doc/"):]
         return h.send_json(_inked(repo, reading.pages(repo, ident), ident))
-
-    if path.startswith("/view/shelf/"):
-        # A document off the MAP's drawer, read on the glass. Same rasteriser,
-        # same cache, same `/paper/<name>.png` page addresses.
-        #
-        # THE CACHE TAG IS `shelf` AND THE INK ANCHOR IS NOT. The tag keys the
-        # rendered pages, so it has to differ from `reading`'s or two ways of
-        # reaching one PDF would fight over one set of files. The marks are the
-        # opposite question: a document reachable from the drawer AND from the
-        # map is one document, and its ink is its ink, so the pages are
-        # anchored under `doc/<sid>/p<n>` -- the prefix `/view/doc/<id>` uses.
-        # `ident` carries the sid for the client to build that with.
-        sid = path[len("/view/shelf/"):]
-        target, stem = _shelf(repo, sid)
-        if not target:
-            return h.send_json(
-                {"ok": False, "why": "none", "ident": sid,
-                 "detail": "This workspace has no document by that name."})
-        got = paper.pages_of(repo, target, paper.named(repo, stem) + ".pdf",
-                             "shelf")
-        got["ident"] = sid.strip().lower()
-        return h.send_json(_inked(repo, got, got["ident"]))
 
     if path.startswith("/doc/"):
         # ONE PAGE, ADDRESSED BY WHAT IT IS RATHER THAN BY THIS RENDER OF IT.
@@ -174,18 +130,6 @@ def get(h, repo, path):
         return h.send_file(target, cache=True)
 
     return NOT_MINE
-
-
-def _shelf(repo, sid):
-    """One document off the shelf, as `(path, stem)`, or `(None, None)`.
-
-    The whole check, in one place, because two routes make it and a second
-    spelling of it is a second answer to *is this one of ours*.
-    """
-    want = str(sid or "").strip().lower()
-    if not SID.match(want):
-        return None, None
-    return shelf.find(repo.root, want)
 
 
 def _nothing_yet(kind):

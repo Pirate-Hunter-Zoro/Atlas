@@ -7,9 +7,6 @@ deck. What a note does is land beside the document it is about and wake a turn
 that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
-    GET  /shelf.json                the same inventory GROUPED BY THE BOX ON
-                                    THE MAP each document belongs to, which is
-                                    what the map's own drawer opens
     GET  /library/results.json      everything this workspace PRODUCED, grouped
                                     by the directory it came out of -- or a
                                     sentence saying why there is nothing
@@ -50,7 +47,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library/table/*  /library/view/*  /library/note/*
               /library/ledger/* (GET and POST)  /library/evidence/*
               /library/feedback  /doc/delete  /writeup
-    session   under `/s/<id>/` only: /shelf.json  /library/marked/*
+    session   under `/s/<id>/` only: /library/marked/*
               /writeup/seen
 
 AN ASK OF A TUTOR THAT IS NOT THIS SESSION'S -- feedback or a write-up from
@@ -99,33 +96,19 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from ...runner import service as runner
-from ... import (artifacts, atlas, briefs, fenced, leaving, machines, paths,
+from ... import (artifacts, briefs, fenced, leaving, machines, paths,
                  scopes, sense, subjects, writeups)
 from ...course import burn
 from ...course import config
 from ...course import ledger
 from ...course import library
 from ...course import results
-from ...course import shelf
 from ...lesson import turns
 
 
 def get(h, repo, path):
     if path == "/library.json":
         return h.send_json(library.status(repo))
-
-    # EVERY DOCUMENT, UNDER THE BOX IT BELONGS TO. The same inventory the page
-    # above draws, ordered the way the map orders its boxes, because it is read
-    # beside the picture. Fetched on a tap and never on the payload: the map's
-    # payload carries the COUNT per box, which is four bytes, and this is the
-    # list.
-    if path == "/shelf.json":
-        try:
-            return h.send_json(shelf.grouped(repo))
-        except Exception as exc:                             # noqa: BLE001
-            # The same reason `/library/stamp` catches: a 500 here paints "the
-            # board is not answering" over a fault that is a directory walk.
-            return h.send_json({"ok": False, "error": str(exc)})
 
     # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
     # somebody, so it is stats and nothing else -- no titles read out of
@@ -382,10 +365,9 @@ def _writeup(h, repo):
     the board paints in the strip and which survives a closed lid, and the reply
     carries its id.
 
-    THE SCOPE IS THE EVENING UNLESS THEY SAID OTHERWISE. A box tapped on the map
-    already opens a make sitting scoped to that box; the ask with no route at all
-    was *"write up the four things we just covered"*, so that is the default and
-    `sense.writeup_sense` says how to read the lesson back for it.
+    THE SCOPE IS THE EVENING UNLESS THEY SAID OTHERWISE: *"write up the four
+    things we just covered"* is the default, and `sense.writeup_sense` says how
+    to read the lesson back for it.
 
     AND IT CAN BE COMMISSIONED FROM THE FRONT DOOR, AGAINST A WORKSPACE NOBODY
     IS LOOKING AT. Asked for in these words: *"the ability to write a paper or a
@@ -429,7 +411,7 @@ def _writeup(h, repo):
     want = str(payload.get("repo") or "").strip()
     match = None
     if want and want not in (os.path.basename(os.path.realpath(repo.root)),
-                             atlas.identify(repo.root)):
+                             subjects.identify(repo.root)):
         for c in machines.workspaces(repo):
             if want in (c["repo"], c["id"]):
                 match = c

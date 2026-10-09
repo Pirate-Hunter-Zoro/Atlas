@@ -26,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard.course import walk            # noqa: E402
 from tutorboard.course import config          # noqa: E402
-from tutorboard import brief, sense           # noqa: E402
+from tutorboard import brief, sense, subjects # noqa: E402
 from tutorboard.course import repo as course_repo   # noqa: E402
 from tutorboard.lesson import archive         # noqa: E402
 from tutorboard.server import handler, hub, tikz    # noqa: E402
@@ -129,8 +129,7 @@ try:
 
     write(prose, "README.md", "# all narrative, no machinery\n" + BODY)
     check("a repository with no source says so rather than inventing something",
-          walk.units(prose) == [] and walk.status(prose, {}) is None
-          and walk.kind(prose) == "")
+          walk.units(prose) == [] and walk.kind(prose) == "")
 
     # --- a name from a request is checked, never trusted ----------------------
     # A person names machinery the way their language names it, and the last
@@ -170,18 +169,8 @@ try:
           len(walk.resolve(proj, ["psych_asr.evaluate.grade",
                                   "psych_asr.evaluate.grade.grade"])[0]) == 2)
 
-    # --- the scope is re-resolved on the way out, never echoed back -----------
-    state = {"walk": ["psych_asr/evaluate/grade.py::grade",
-                      "psych_asr/gone.py"]}
-    check("a scope naming something deleted since drops it",
-          [u["name"] for u in walk.scope(proj, state)]
-          == ["psych_asr/evaluate/grade.py::grade"])
-
-    check("a short scope is named in the sitting label",
-          walk.sitting_label(walk.resolve(proj, ["psych_asr.evaluate.grade.grade"])[0])
-          == "Walkthrough — grade")
-    check("and a long one is counted instead of listed",
-          walk.sitting_label([{"short": "a"}] * 5) == "Walkthrough — 5 files")
+    check("a walkthrough sitting is gone: no scope, label or status of its own",
+          not any(hasattr(walk, n) for n in ("scope", "sitting_label", "status")))
 finally:
     shutil.rmtree(prose, ignore_errors=True)
 
@@ -315,7 +304,6 @@ finally:
 # A name this subject does not have is looked for under the Atlas root. The
 # subject's own source comes first, the bare-filename shortcut stays the
 # subject's, and nothing private, hidden, ignored or fenced is reachable.
-from tutorboard import atlas                                # noqa: E402
 
 home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
 outside = tempfile.mkdtemp(prefix="tutor-walk-outside-")
@@ -348,13 +336,11 @@ try:
     walk._cache.clear()
     ws = os.path.join(home, "courses", "Topology")
 
-    check("a vendor tree is not a subject: the family is skipped",
-          [w["id"] for w in atlas.workspaces()]
+    check("a vendor tree is not a subject",
+          [w["id"] for w in subjects.all()]
           == ["courses/Topology", "projects/PSYCH-ASR"])
     check("and the vendor-tree machinery is gone",
-          not hasattr(atlas, "trees") and not hasattr(atlas, "find_tree")
-          and not hasattr(walk, "resolve_any")
-          and not hasattr(walk, "ELSEWHERE"))
+          not hasattr(walk, "resolve_any") and not hasattr(walk, "ELSEWHERE"))
 
     chosen, unknown = walk.resolve(ws, ["board/tutorboard/relay.py"])
     check("board/tutorboard/relay.py resolves from a course, read-only",
@@ -410,11 +396,6 @@ try:
     check("a differently-cased board/ path is still read-only",
           all(u["readonly"] for u in chosen))
 
-    st = {"walk": ["vendor/colibri/bin/coli-up::warm"]}
-    check("a scope in Atlas is re-resolved on the way out",
-          [u["name"] for u in walk.scope(ws, st)]
-          == ["vendor/colibri/bin/coli-up::warm"])
-
     line = sense.session_sense(course_repo.Repo(ws))
     check("the sense says any path in Atlas may be traced, board/ and vendor/ "
           "read-only",
@@ -443,7 +424,6 @@ finally:
 
 # --- the fence: no code walker looks inside a directory in fenced.NEVER -------
 from tutorboard import fenced                                # noqa: E402
-from tutorboard.course import symbols                        # noqa: E402
 
 fence = tempfile.mkdtemp(prefix="tutor-walk-fence-")
 try:
@@ -466,11 +446,6 @@ try:
     chosen, unknown = walk.resolve(fence, ["pkg/ok.py::f"])
     check("and still resolves the path beside it",
           [u["name"] for u in chosen] == ["pkg/ok.py::f"] and unknown == [])
-    check("symbols.of opens no fenced file, even when handed one",
-          symbols.of(fence, "phi/y.py")["defines"] == []
-          and symbols.of(fence, "stage1/run.py")["defines"] == []
-          and symbols.of(fence, "pkg/ok.py")["defines"] != []
-          and symbols.exact(fence, "raw/x.py") is False)
 finally:
     walk._cache.clear()
     shutil.rmtree(fence, ignore_errors=True)

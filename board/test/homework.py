@@ -212,12 +212,11 @@ try:
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
         return p.returncode, p.stdout.decode("utf-8", "replace")
 
-    code, out = run(prob, "open", "P", "Homework 4", "--homework")
-    check("opening a homework sitting binds it to a set", code == 0 and "hw04" in out)
+    code, out = run(prob, "hw", "use", "hw04")
+    check("`board hw use` binds the sitting to a set", code == 0 and "hw04" in out)
     with open(os.path.join(prob, "live", "state.json"), encoding="utf-8") as fh:
         state = json.load(fh)
     check("and records which one", state.get("hw") == "homework/hw04/hw04.tex")
-    check("and that it is homework", state.get("session") == "homework")
 
     code, out = run(prob, "hw")
     check("status reports the set and what is empty",
@@ -249,6 +248,28 @@ try:
 
     code, out = run(gal, "hw", "list")
     check("list works without a session being open", code == 0 and "ch07" in out)
+
+    # --- the book's chapters, read off the chapter directories ---------------
+    check("a course's chapters come off its chapter directories",
+          [(c["num"], c["title"]) for c in homework.chapters(gal)]
+          == [("7", "splitting fields")]
+          and homework.chapter_label(homework.opening(gal))
+          == "Ch 7 — splitting fields"
+          and homework.chapter_dir(gal, "Ch 7 — splitting fields")
+          == "chapters/ch07-splitting-fields"
+          and homework.chapters(prob) == [])
+    code, out = run(gal, "hw", "new", "ch07")
+    with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
+        pinned = json.load(fh).get("hw")
+    check("`board writeup new chNN` writes into that chapter's set",
+          code == 0 and pinned
+          == "chapters/ch07-splitting-fields/homework/ch07-homework.tex"
+          and not os.path.isdir(os.path.join(gal, "docs")))
+    code, out = run(gal, "brief")
+    check("and the brief lists the book's chapters",
+          code == 0 and "book: 1 chapter -- 7 splitting fields" in out)
+    code, out = run(prob, "brief")
+    check("a subject with no chapters has no book line", "\nbook: " not in out)
 
     # ---- a write-up for something that has none -----------------------------
     #
@@ -302,14 +323,16 @@ try:
     # A chapter's exercises get worked in sittings opened as lectures, and the
     # write-up is owed there exactly as it is in a homework sitting. The brief
     # used to print a homework line only when `state["hw"]` was set, which only
-    # `board hw use` and `--homework` write. So a lecture opened as "Ch 4" was
+    # `board hw use` and a homework sitting write. So a lecture opened as "Ch 4" was
     # never once told that a file existed and was empty; an evening of agreed
     # mathematics stayed in the cards, and what compiled was the scaffold.
     #
     # The counts are the point, not the name. "homework set: ch07" is a fact
     # about configuration and reads as already handled. "0 of 3 written up" is
     # a debt.
-    code, out = run(gal, "open", "G", "Ch 07 — splitting fields")
+    write(os.path.join(gal, "live", "state.json"), json.dumps(
+        {"course": "G", "chapter": "Ch 07 — splitting fields",
+         "session": "lecture"}))
     with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
         lecture = json.load(fh)
     check("a lecture pins nothing, which is what made this invisible",

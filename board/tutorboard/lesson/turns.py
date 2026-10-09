@@ -57,8 +57,8 @@ def load_turns(repo, path=None):
 # A turn id must be unique for the life of the course, and it was only unique
 # for the life of one lesson.
 #
-# `board archive` RENAMES turns.jsonl into the archive folder and leaves
-# messages.jsonl exactly where it is -- the inbox is the assistant's mailbox and
+# Filing a lesson renamed turns.jsonl into the archive folder and left
+# messages.jsonl exactly where it was -- the inbox is the assistant's mailbox and
 # is never rotated. So the moment a chapter was filed, the id counter went back
 # to t0001 while the inbox still held every id ever issued, and the next answer
 # was written into the inbox as a second, different `t0001 rev 1`. Two turns, one

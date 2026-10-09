@@ -9,12 +9,14 @@ workspace's `relay/`:
     relay/reports/check-<id>-<n>.json the cluster's: step n's check
     relay/coach/<id>.md              the Mac's: the coach's reply to the step
 
-A HOLD IS NAMED BY A THREAD OR BY ITS FILES. `board hold <thread>` holds a
-thread of `threads.json`; `board hold -- <path>...` holds those paths in any
-workspace; a bare `board hold` holds the current sitting's thread, homework
-file, chapter directory or map box (`resolve_target`). The record:
+A HOLD IS NAMED BY ITS FILES. `board hold -- <path>...` holds those paths in
+any workspace; a bare `board hold` holds the current sitting's homework file or
+chapter directory (`resolve_target`). The record:
 
-    {"id", "thread"?, "label", "files", "check", "held", "source"}
+    {"id", "label", "files", "check", "held", "source"}
+
+A record written while threads existed may also carry "thread"; it is read as
+a label only.
 
 where `check` is `{"script": rel}`, `{"spec": "one"|"all", "argv": [...]}`, or
 null (an unchecked hold, allowed only where output is open).
@@ -49,8 +51,8 @@ import re
 import subprocess
 import time
 
-from . import cluster, jobs
-from .course import threads as course_threads
+from . import cluster, jobs, subjects
+from .exports import rel as _rel
 # The check, and what of its output may leave, live in code.py; holds keeps
 # its names until T38c deletes it.
 from .code import (ANSI_RE, CHECK_SECONDS, CRASH_LINE, MAX_LINE,  # noqa: F401
@@ -131,8 +133,7 @@ def owned(root):
     exports and holds, and every held file. The relay's pass treats an edit or
     a commit under these as its own and anything else as a reason to skip."""
     out = [jobs.RELAY + "/reports", "exports", jobs.RELAY + "/" + HOLDS]
-    clean, _ = course_threads.read(root)
-    out.extend(sorted(held_files(clean, holds(root))))
+    out.extend(sorted(held_files(holds(root))))
     return out
 
 
@@ -148,18 +149,43 @@ def who(hid, rec):
 # ---------------------------------------------------------------------------
 # the validator: pure
 # ---------------------------------------------------------------------------
-def held_files(clean, standing):
-    """`{path: hold id}`: every path a standing hold covers. The hold's own
-    list, and for a thread's hold the thread's current one too, so a file
-    added to the thread mid-hold is held as well."""
+def held_files(standing):
+    """`{path: hold id}`: every path a standing hold covers."""
     out = {}
     for hid, rec in sorted((standing or {}).items()):
-        tid = (rec or {}).get("thread")
-        one = course_threads.thread(clean, tid) if (clean and tid) else None
-        for p in list(rec.get("files") or []) + list((one or {}).get("files") or []):
-            rel = course_threads._rel(p)
+        for p in list((rec or {}).get("files") or []):
+            rel = _rel(p)
             if rel:
                 out.setdefault(rel, hid)
+    return out
+
+
+def dirty_of(root):
+    """Workspace-relative paths git shows as changed or untracked."""
+    try:
+        prefix = subprocess.run(
+            ["git", "rev-parse", "--show-prefix"], cwd=root,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            universal_newlines=True, timeout=10).stdout.strip()
+        raw = subprocess.run(
+            ["git", "status", "--porcelain", "-z", "--untracked-files=all",
+             "--", "."], cwd=root, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, universal_newlines=True,
+            timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    out, fields, i = [], raw.split("\0"), 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        code, rel = entry[:2], entry[3:]
+        if code[0] in "RC":
+            i += 1                       # the original path follows a rename
+        if prefix and rel.startswith(prefix):
+            rel = rel[len(prefix):]
+        out.append(rel.rstrip("/"))
     return out
 
 
@@ -206,13 +232,12 @@ def check_of(rec):
     return None
 
 
-def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
+def validate_hold(target, standing, tracked, spec=None, open_=False):
     """`(hold, problems)`: may this be held at the cluster? PURE.
 
-        clean     the thread file, as `threads.validate` returns it, or None
-        target    a thread id, or `{"thread"?, "id"?, "files"?, "label"?,
-                  "check"?, "source"?, "dirs"?}`; `check` is a script path
-                  that overrides, `dirs` the held paths that are directories
+        target    `{"id", "files", "label"?, "check"?, "source"?, "dirs"?}`;
+                  `check` is a script path that overrides, `dirs` the held
+                  paths that are directories
         standing  `{id: hold}`, the holds already standing
         tracked   workspace-relative paths tracked and unchanged at HEAD
         spec      the workspace's `tutorboard.json` check, cleaned, or None
@@ -220,34 +245,22 @@ def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
 
     Refused whole, every problem at once.
     """
-    if isinstance(target, str):
-        target = {"thread": target}
-    target = dict(target or {})
+    if not isinstance(target, dict):
+        return None, ["%r names no files; threads are gone, so name the files: "
+                      "board hold -- <path>..." % (target,)]
+    target = dict(target)
     problems = []
-    tid = target.get("thread") or ""
-    one = None
-    if tid:
-        one = course_threads.thread(clean, tid) if clean else None
-        if not one:
-            return None, ["thread %r is not one this workspace's thread file "
-                          "declares" % (tid,)]
-    hid = target.get("id") or tid
-    if not tid:
-        if not hid or not jobs.REQUEST_ID_RE.match(hid):
-            problems.append("the hold's id %r must be 1-80 characters of a-z, "
-                            "0-9 and hyphen; name one with --as" % (hid,))
-        elif hid.startswith(CHECK_PREFIX):
-            problems.append("the hold's id %r starts `%s`, which a step's check "
-                            "report would share; name another with --as"
-                            % (hid, CHECK_PREFIX))
-        elif course_threads.thread(clean, hid) if clean else False:
-            problems.append("%s is the id of a thread; `board hold %s` holds "
-                            "the thread, or name this hold another with --as"
-                            % (hid, hid))
+    hid = target.get("id") or ""
+    if not hid or not jobs.REQUEST_ID_RE.match(hid):
+        problems.append("the hold's id %r must be 1-80 characters of a-z, "
+                        "0-9 and hyphen; name one with --as" % (hid,))
+    elif hid.startswith(CHECK_PREFIX):
+        problems.append("the hold's id %r starts `%s`, which a step's check "
+                        "report would share; name another with --as"
+                        % (hid, CHECK_PREFIX))
     files = []
-    for p in (target.get("files") if target.get("files") is not None
-              else (one or {}).get("files") or []):
-        rel = course_threads._rel(p)
+    for p in target.get("files") or []:
+        rel = _rel(p)
         if not rel:
             problems.append("%r is not a path inside this workspace" % (p,))
         elif rel not in files:
@@ -258,10 +271,10 @@ def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
                         % (who(hid, standing[hid]),
                            _when(standing[hid].get("held")), hid))
     if not files:
-        problems.append("%s has no files, so there is nothing for the cluster "
-                        "to hold" % ("thread " + tid if tid else "this hold"))
+        problems.append("this hold has no files, so there is nothing for the "
+                        "cluster to hold")
     others = dict((k, v) for k, v in (standing or {}).items() if k != hid)
-    covered = held_files(clean, others)
+    covered = held_files(others)
     for f in files:
         by = _covering(f, covered)
         if by:
@@ -271,7 +284,7 @@ def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
         if by:
             problems.append("%s holds %s, which is already held, by %s"
                             % (f, base, who(by, others[by])))
-    script = target.get("check") or (one or {}).get("check") or ""
+    script = target.get("check") or ""
     chk = None
     if script:
         if script not in set(tracked or ()):
@@ -288,33 +301,24 @@ def validate_hold(clean, target, standing, tracked, spec=None, open_=False):
                             "tracked and unchanged at HEAD" % chk["argv"][0])
     elif not open_:
         problems.append(
-            "%s has no check, and this workspace's output is closed, so a step "
-            "would come back with nothing. %s" % (
-                "thread " + tid if tid else "this hold",
-                "The tutor writes one and names it with `board thread check "
-                "%s <script>`" % tid if tid else
-                "Name a tracked script with --check, or declare `check` in "
-                "tutorboard.json"))
+            "this hold has no check, and this workspace's output is closed, so "
+            "a step would come back with nothing. Name a tracked script with "
+            "--check, or declare `check` in tutorboard.json")
     if problems:
         return None, problems
-    rec = {"id": hid, "files": files,
-           "label": target.get("label") or (one or {}).get("title") or hid,
-           "check": chk, "source": target.get("source") or (
-               "thread %s" % tid if tid else "named")}
-    if tid:
-        rec["thread"] = tid
-    return rec, []
+    return {"id": hid, "files": files, "label": target.get("label") or hid,
+            "check": chk, "source": target.get("source") or "named"}, []
 
 
-def refused_writes(paths, clean, standing):
+def refused_writes(paths, standing):
     """Every problem with a turn here writing `paths`, workspace-relative. PURE.
 
     A path under a hold's files is the cluster's until the release.
     """
-    covered = held_files(clean, standing)
+    covered = held_files(standing)
     out = []
     for p in sorted(set(paths or ())):
-        rel = course_threads._rel(p)
+        rel = _rel(p)
         hid = _covering(rel, covered) if rel else None
         if hid:
             out.append("%s belongs to %s, held at the cluster since %s. A turn "
@@ -344,8 +348,7 @@ def refusal(root, only=None):
     standing = holds(root)
     if not standing:
         return ""
-    clean, _ = course_threads.read(root)
-    dirty = course_threads.dirty_of(root)
+    dirty = dirty_of(root)
     if only:
         real = os.path.realpath(root)
         want = []
@@ -354,7 +357,7 @@ def refusal(root, only=None):
             want.append("" if r == os.curdir else r)
         dirty = [d for d in dirty
                  if any(not w or d == w or d.startswith(w + "/") for w in want)]
-    problems = refused_writes(dirty, clean, standing)
+    problems = refused_writes(dirty, standing)
     if not problems:
         return ""
     return "nothing was committed: " + "; ".join(problems)
@@ -366,23 +369,16 @@ def refusal(root, only=None):
 def resolve_target(root, words, state, cwd=None, as_id=None, script=None):
     """`(target, said, problems)` for `board hold`'s words.
 
-        board hold <thread>                  that thread
         board hold [--as <id>] [--check <s>] -- <path>...
         board hold                           the current sitting
 
     A path is workspace-relative, or relative to `cwd` and inside the
-    workspace, and it must exist. With no words the sitting in
-    `live/state.json` answers, in this order: its thread, its homework file,
-    its chapter's directory, its map box's files; otherwise "name the files".
-    `said` is where the answer came from, which the command prints, because
-    this machine's `state.json` is only as fresh as its last pull.
+    workspace, and it must exist. With no words the sitting's state answers,
+    in this order: its homework file, then its chapter's directory; otherwise
+    "name the files". `said` is where the answer came from, which the command
+    prints, because this machine's state is only as fresh as its last pull.
     """
     words = list(words or [])
-    clean, _ = course_threads.read(root)
-    if words and words[0] != "--" and len(words) == 1 and not as_id \
-            and course_threads.thread(clean, words[0]):
-        return ({"thread": words[0], "check": script or ""},
-                "thread %s, named" % words[0], [])
     if words and words[0] == "--":
         words = words[1:]
     if words:
@@ -395,41 +391,25 @@ def resolve_target(root, words, state, cwd=None, as_id=None, script=None):
                                                   else ""),
                  "source": "named"}, "the paths named", [])
     st = state or {}
-    tid = str(st.get("thread") or "")
-    if tid and course_threads.thread(clean, tid):
-        return ({"thread": tid, "check": script or "",
-                 "source": "the sitting's thread"},
-                "the sitting's thread, %s (live/state.json)" % tid, [])
     found, source, label = [], "", ""
     hw = str(st.get("hw") or "")
-    if hw and course_threads._rel(hw) and os.path.isfile(os.path.join(root, hw)):
-        found, source = [course_threads._rel(hw)], "the sitting's homework file"
+    if hw and _rel(hw) and os.path.isfile(os.path.join(root, hw)):
+        found, source = [_rel(hw)], "the sitting's homework file"
         label = st.get("chapter") or os.path.basename(hw)
     if not found and st.get("chapter"):
-        from .course import syllabus
-        d = syllabus.chapter_dir(root, st.get("chapter"))
+        from .course import homework
+        d = homework.chapter_dir(root, st.get("chapter"))
         if d:
             found, source, label = [d], "the sitting's chapter", st["chapter"]
-    if not found and st.get("node"):
-        try:
-            from .course import map as course_map
-            node = course_map.find(root, st["node"], st)
-        except Exception:                                    # noqa: BLE001
-            node = None
-        got = [course_threads._rel(f) for f in (node or {}).get("files") or []]
-        got = [f for f in got if f and os.path.exists(os.path.join(root, f))]
-        if got:
-            found, source = got, "the sitting's map box, %s" % st["node"]
-            label = (node or {}).get("name") or st["node"]
     if not found:
-        return None, "", ["this sitting has no thread, homework file, chapter "
-                          "directory or map box to hold, so name the files: "
+        return None, "", ["this sitting has no homework file or chapter "
+                          "directory to hold, so name the files: "
                           "board hold -- <path>..."]
     dirs = [f for f in found if os.path.isdir(os.path.join(root, f))]
     base = os.path.splitext(os.path.basename(found[0]))[0]
     return ({"id": as_id or slug(base), "files": found, "dirs": dirs,
              "check": script or "", "label": label, "source": source},
-            "%s: %s (live/state.json)" % (source, ", ".join(found)), [])
+            "%s: %s (state.json)" % (source, ", ".join(found)), [])
 
 
 def _paths(root, words, cwd=None):
@@ -442,10 +422,10 @@ def _paths(root, words, cwd=None):
             if os.path.exists(full):
                 cand = os.path.relpath(full, real)
                 break
-        rel = course_threads._rel(cand) if cand else None
+        rel = _rel(cand) if cand else None
         if not rel or rel.startswith("../") or rel == "..":
-            problems.append("%s is neither a thread of threads.json nor a "
-                            "file or directory inside this workspace" % w)
+            problems.append("%s is not a file or directory inside this "
+                            "workspace" % w)
             continue
         if rel not in files:
             files.append(rel)
@@ -634,13 +614,12 @@ def visible(root):
 # ---------------------------------------------------------------------------
 def hold(root, target, now=None, said=""):
     """Hold `target` at the cluster: write the hold, commit it alone, push it.
-    `(ok, lines)`. `target` is a thread id or `resolve_target`'s dict; `said`
-    is where it came from, printed first."""
+    `(ok, lines)`. `target` is `resolve_target`'s dict; `said` is where it
+    came from, printed first."""
     if not jobs.has_slurm():
         return False, ["a hold is made in the cluster checkout, where the owner "
                        "writes the code; this machine has no Slurm"]
-    from . import atlas
-    if "/" not in atlas.identify(root):
+    if "/" not in subjects.identify(root):
         # Only a workspace's own `relay/holds/` is read by the Mac's refusal
         # and its wake, so a hold made above one would hold nothing.
         return False, ["%s is not a workspace of a family, so nothing was held. "
@@ -655,15 +634,10 @@ def hold(root, target, now=None, said=""):
     ok, why = sync(top)
     if not ok:
         return False, ["nothing was held: " + why]
-    clean, problems = course_threads.read(root)
-    if isinstance(target, str):
-        target = {"thread": target}
-    if problems and target.get("thread"):
-        return False, problems
     from .course import config
     cfg = config.read_config(root)
     open_ = output_open(root, cfg=cfg)
-    rec, problems = validate_hold(clean, target, holds(root), _tracked(root),
+    rec, problems = validate_hold(target, holds(root), _tracked(root),
                                   spec=cfg.get("check"), open_=open_)
     if problems:
         return False, problems
@@ -708,9 +682,8 @@ def release(root, hid):
         return False, ["%s is not held%s" % (
             hid, "; held here: " + ", ".join(sorted(standing)) if standing
             else "")]
-    clean, _ = course_threads.read(root)
-    mine = held_files(clean, {hid: standing[hid]})
-    left = [d for d in course_threads.dirty_of(root) if _covering(d, mine)]
+    mine = held_files({hid: standing[hid]})
+    left = [d for d in dirty_of(root) if _covering(d, mine)]
     if left:
         return False, ["%s still %s uncommitted edits. `board send` them as a "
                        "step first, or commit them yourself; released, the Mac "
@@ -736,8 +709,7 @@ def release(root, hid):
 
 
 def _message(root, what):
-    from . import atlas
-    where = atlas.identify(root)
+    where = subjects.identify(root)
     return "%s: %s" % (where, what) if where else what
 
 
@@ -778,17 +750,10 @@ def send(root, hid=None, wait=WAIT_SECONDS, say=print, run=subprocess.run,
         return 1
     rec = standing[hid]
     tid = rec.get("thread") or ""
-    clean, problems = course_threads.read(root)
-    one = course_threads.thread(clean, tid) if (clean and tid) else None
-    if tid and (problems or not one):
-        say("board send: the thread file does not declare %s: %s"
-            % (tid, "; ".join(problems)))
-        return 1
     from .course import config
     cfg = config.read_config(root)
     open_ = output_open(root, cfg=cfg)
-    chk = check_of(rec) or (
-        {"script": one["check"]} if one and one.get("check") else None)
+    chk = check_of(rec)
     tracked = _tracked(root)
     if chk and chk.get("script") and chk["script"] not in tracked:
         say("board send: the check %s is not tracked and unchanged at HEAD. "
@@ -809,9 +774,8 @@ def send(root, hid=None, wait=WAIT_SECONDS, say=print, run=subprocess.run,
             say("board send: " + phi)
             return 1
 
-    mine = held_files(clean, {hid: rec})
-    changed = sorted(d for d in course_threads.dirty_of(root)
-                     if _covering(d, mine))
+    mine = held_files({hid: rec})
+    changed = sorted(d for d in dirty_of(root) if _covering(d, mine))
     if changed:
         ok, out = _commit(top, [_rel_top(top, root, c) for c in changed],
                           "%s: step" % hid)
@@ -993,13 +957,6 @@ def sense(root, rep):
     title = rep.get("label") or hid
     if tid:
         title = "thread %s" % tid
-        try:
-            clean, _ = course_threads.read(root)
-            one = course_threads.thread(clean, tid) if clean else None
-            if one:
-                title = "thread %s (%s)" % (tid, one["title"])
-        except Exception:                                    # noqa: BLE001
-            pass
     elif rep.get("label") and rep["label"] != hid:
         title = "%s (%s)" % (hid, rep["label"])
     open_ = bool(rep.get("open"))

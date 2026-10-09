@@ -13,7 +13,6 @@ import time
 
 from tutorboard import brief, handoff, jobs, limits, seeing
 from tutorboard.agents import recipes, usage
-from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
 from tutorboard.runner import daemon, prompts, turn
@@ -27,24 +26,6 @@ def unfinished_line(out, card):
     return ("[%s] [unfinished] The turn before this one exited with %s still "
             "the placeholder. Write the report over it.\n\nIt was answering:\n\n%s"
             % (time.strftime("%Y-%m-%d %H:%M:%S"), card, (out or "").strip()))
-
-
-def owed_thread(where):
-    """`(thread id, its paths)` for the sitting open here, or `("", [])`.
-
-    The paths are what the thread file says the thread is: its files, outputs
-    and write-up files. A sitting on no thread, or a workspace with no valid
-    thread file, has none, and the stopped card lists the whole workspace.
-    """
-    repo = turn.as_repo(where)
-    st = turn.state_of(repo)
-    tid = str(st.get("thread") or "").strip()
-    clean, problems = course_threads.read(repo.root)
-    t = course_threads.thread(clean, tid) if tid and clean and not problems else None
-    if not t:
-        return "", []
-    paths = list(t["files"]) + list(t["outputs"]) + [w["file"] for w in t["writes"]]
-    return tid, [p for p in dict.fromkeys(paths) if p]
 
 
 def jobs_since(root, since):
@@ -73,9 +54,8 @@ def report_owed(where, this_signal, out, log=None):
     `[unfinished]` turn that also left it pending, nothing more is woken: the
     card is replaced by a `stopped` one listing what is uncommitted under the
     work, so the board never shows a placeholder for a turn that has ended.
-    On a thread, the card lists that thread's paths (`owed_thread`) and badges
-    its box; it always names the jobs registered since the placeholder was
-    written, which is when the work began.
+    It always names the jobs registered since the placeholder was written,
+    which is when the work began.
     """
     repo = turn.as_repo(where)
     root = repo.root
@@ -88,16 +68,12 @@ def report_owed(where, this_signal, out, log=None):
             log.write("-- the turn exited with %s still pending; waking it once "
                       "more to report\n" % rel)
         return unfinished_line(out, rel)
-    tid, paths = owed_thread(repo)
-    everything = lesson_git.uncommitted(root) or []
-    changed = (lesson_git.uncommitted(root, paths) or []) if paths else everything
+    changed = lesson_git.uncommitted(root) or []
     try:
         since = os.path.getmtime(path)
     except OSError:
         since = 0.0
-    wrote = lesson_cards.write_stopped(
-        path, changed, jobs_since(root, since), thread=tid,
-        elsewhere=len(set(everything) - set(changed)))
+    wrote = lesson_cards.write_stopped(path, changed, jobs_since(root, since))
     if log:
         log.write("-- %s is still pending after [unfinished]; %s\n"
                   % (rel, "replaced it with what is on disk" if wrote

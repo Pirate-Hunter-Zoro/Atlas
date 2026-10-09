@@ -121,31 +121,8 @@ check("an unstamped handoff still applies, and a course with no chapters is "
       "unaffected by any of this",
       handoff.handoff_applies(root2, ""))
 
-# --- board open ---------------------------------------------------------------
-print("\n-- opening a chapter files the last one's handoff away --")
-
-root3 = course()
-write_handoff(root3, "# HANDOFF\n\nChapter 1, and 1.7 is unfinished.\n")
-code, out = board(root3, "open", "Galois Theory", "Ch 03 — Rings")
-check("the open succeeds", code == 0)
-check("the handoff of the chapter being left is parked",
-      not os.path.exists(os.path.join(root3, "HANDOFF.md"))
-      and os.path.exists(handoff.parked_handoff(root3, "Ch 01 — Groups")))
-check("and it says so, rather than the file merely vanishing",
-      "parked" in out)
-
-# Back to chapter 1: its own handoff comes with it.
-code, out = board(root3, "open", "Galois Theory", "Ch 01 — Groups")
-back = ""
-if os.path.exists(os.path.join(root3, "HANDOFF.md")):
-    with open(os.path.join(root3, "HANDOFF.md"), encoding="utf-8") as fh:
-        back = fh.read()
-check("reopening a chapter brings its own handoff back", "1.7 is unfinished" in back)
-
-# Opening the SAME chapter again is not a chapter change and must not disturb it.
-code, out = board(root3, "open", "Galois Theory", "Ch 01 — Groups")
-check("reopening the same chapter leaves the handoff exactly where it is",
-      os.path.exists(os.path.join(root3, "HANDOFF.md")))
+# `board open` is gone: a session is never filed away, so nothing parks a
+# handoff on a chapter change any more. The handoff module still reads its stamp.
 
 # --- what the tutor is told ---------------------------------------------------
 print("\n-- and the tutor is told there is none, rather than left to hunt --")

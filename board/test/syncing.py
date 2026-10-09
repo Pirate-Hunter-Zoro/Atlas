@@ -30,7 +30,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from tutorboard import atlas, fenced, jobs, leaving, relay             # noqa: E402
+from tutorboard import fenced, jobs, leaving, relay             # noqa: E402
 
 fails = []
 
@@ -142,7 +142,6 @@ try:
 
     def run_pass():
         os.environ["TUTOR_SLURM"] = "1"
-        atlas.forget()
         return relay.run_pass(cluster, run=slurm)
 
     def opt_in(on):

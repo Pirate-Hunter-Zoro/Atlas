@@ -34,7 +34,7 @@ import re
 import time
 
 from . import paper
-from .. import atlas, fenced, paths
+from .. import fenced, paths, subjects
 
 # Where a document worth showing is kept. `live/` is the board's own working
 # directory -- the exported transcript is in there and it is `paper.py`'s, not
@@ -171,7 +171,7 @@ def _pointed_at(root):
         return []
     root = os.path.realpath(root)
     parent = os.path.dirname(root)
-    base = atlas.root()
+    base = subjects.root()
 
     def keep(target):
         if not os.path.isfile(target) or not _ok(target) or not _ours(target):

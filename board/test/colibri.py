@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, colibri                        # noqa: E402
+from tutorboard import colibri                        # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
 from tutorboard.runner import daemon  # noqa: E402
@@ -484,7 +484,6 @@ check("beside whether this machine has it at all, because an assistant that "
       all("missing" in a for a in listed["agents"]))
 
 os.environ["TUTORBOARD_COURSES"] = tree
-atlas.forget()
 # The refusals below are about a colibri sitting, not about whether this machine
 # has the client: the cluster puts `coli-code` on the path and the Mac does not,
 # so a stub stands in for it and the binary check is passed on both.
@@ -506,7 +505,6 @@ check("a colibri sitting is refused like any other start: the server runs turns"
       and not os.path.exists(os.path.join(live, "agent.json")))
 shutil.rmtree(tree, ignore_errors=True)
 os.environ.pop("TUTORBOARD_COURSES", None)
-atlas.forget()
 
 # ---------------------------------------------------------------------------
 # 6. THE QUEUE IS colibri.py's, in the queue root's ignored relay/state/colibri/

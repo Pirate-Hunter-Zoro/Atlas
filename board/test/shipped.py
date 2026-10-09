@@ -49,7 +49,9 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-tmp = tempfile.mkdtemp(prefix="tutor-shipped-")
+top = tempfile.mkdtemp(prefix="tutor-shipped-")
+tmp = os.path.join(top, "courses")
+os.makedirs(tmp)
 conf = tempfile.mkdtemp(prefix="tutor-shipped-conf-")
 gitdir = tempfile.mkdtemp(prefix="tutor-shipped-git-")
 recipes.CONFIG_DIR = conf
@@ -173,7 +175,7 @@ try:
     # =======================================================================
     # 2. The beat
     # =======================================================================
-    cfg = {"courses_dir": tmp, "provider": "claude",
+    cfg = {"courses_dir": top, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
     tree = {"now": "T"}
@@ -661,7 +663,7 @@ finally:
         os.kill = real_kill
     except NameError:
         pass
-    for d in (tmp, conf, state, gitdir):
+    for d in (top, conf, state, gitdir):
         shutil.rmtree(d, ignore_errors=True)
 
 print("%d FAILURES" % len(fails) if fails

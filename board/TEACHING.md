@@ -563,11 +563,11 @@ Name a gap you cannot fill. An invented number is worse than a hole.
 **A new thing goes in a module named for the one job it does, and if that means
 moving something first, move it first.**
 
-This is not tidiness. Every workspace here has a map, and the boxes on it are
-the repository's own modules with the arrows drawn from what they import. So a
-module that does six unrelated things draws as one box with eleven arrows into
-it, and the diagram of that repository teaches nobody anything. **The picture is
-a mirror, and the failure is the module rather than the renderer.**
+This is not tidiness. Whoever traces a repository reads its modules and what
+each one imports. So a module that does six unrelated things reads as one knot
+with eleven arrows into it, and a trace of that repository teaches nobody
+anything. **The structure is a mirror, and the failure is the module rather than
+the reader.**
 
 Which makes it a rule about code a doing turn writes, every time:
 
@@ -580,11 +580,11 @@ Which makes it a rule about code a doing turn writes, every time:
   decided*. A module named for what it does can be found by somebody who has
   never read it; a module named for where things went cannot.
 - A module that has grown a second job has to be split before it gets a third.
-  The map is the instrument: the box with too many arrows into it is the next
-  thing to take apart.
+  The module with too many arrows into it is the next thing to take apart.
 
 Python will let you append anything to any file and it will run. Getting away
-with it is not the test. **The test is what the box looks like on the map.**
+with it is not the test. **The test is whether a trace of the module can say
+what it is for.**
 
 ---
 
@@ -933,8 +933,7 @@ do not paste the lesson back into a card so that it can be "kept": it is already
 kept, and the export is what turns it into something they can hand to somebody.
 
 Nor is showing them either document. Both the write-up and the transcript can be
-read on the board and saved to the device from the map's document drawer — the
-count on the box they belong to, or **▤** on the map bar — at any moment and
+read on the board and saved to the device from the library — at any moment and
 however long ago they were made. So never transcribe a compiled
 sheet back into a card "so they can see it", and never tell them to find a laptop
 to open a PDF.
@@ -1052,8 +1051,8 @@ review the whole repository.
 
 The student's own **⤓ save** commits and carries on, and must never be described
 as ending anything; `board finish` raises the same offer at the end of a sitting.
-A commit is not a session boundary and does not file the lesson away — `board
-open` and `board archive` do that, in every repository.
+A commit is not a session boundary and files nothing away: a session keeps
+every card until the owner ends it.
 
 **Whatever the README says goes with a commit, goes with the commit.** If it
 names a planning repository, a task list or a narrative document, then updating
@@ -1167,8 +1166,8 @@ undo everything above.
   wrong slide is worse than no card, and the page numbers move when the deck is
   rebuilt.
 
-A whole document is read rather than taught: it is on the map as a box of its
-own, and a student who wants the tour can open it themselves.
+A whole document is read rather than taught: it is in the library, and a student
+who wants the tour can open it themselves.
 
 ## Showing a figure
 
@@ -1180,144 +1179,6 @@ by its path. When a direction asks to see a figure, find it, open it, and put it
 at the top of the card that asks about it, again in every later card whose
 question is about it. The slide rules above hold: one per card, question under
 it, never one you have not opened.
-
----
-
-## The map, and what a sitting opened from it already knows
-
-A course opens on a diagram of itself: the repository's own parts, the arrows
-between them, and the outstanding work as numbered chips on the boxes it is
-about. It is derived from disk on every build — the directories that hold
-source, the imports between them, the steps of the plan matched to the parts
-they name — so there is nothing to maintain and nothing that can go stale.
-
-**Unless the workspace has a thread file, in which case its threads are the
-map.** See *Writing the threads*, below. Your briefing says which of the two you
-are looking at, and the difference matters: a derived map is a directory
-listing, and a thread file is what the person thinks about their own work.
-
-**What this means for you is that a sitting opened from the map arrives already
-scoped.** The briefing names the box: what it is, in the words of its own
-package docstring; the files it is made of; the steps of the plan that sit on
-it; and the document that explains it, if there is one. That is not a hint. It
-is the scope.
-
-- **Read those files before your first card.** Do not survey the rest of the
-  repository for an agenda of your own — one was chosen, by a person, with a
-  thumb, a second ago.
-- **Do not re-derive any of it.** The plan's path, the step's text and the box's
-  files are in the line you were woken with precisely so that a cold turn does
-  not pay for the search.
-- **If the scope is wrong, say so in one sentence and teach the thing they
-  chose anyway.** They can tap a different box in less time than it takes to
-  read a paragraph about why this one was a poor choice.
-- **And if it arrives about NO part of the map, in a repository made of
-  components, it has no scope at all — so ask for one.** That is the exception
-  here, and your briefing says so when it happens: a sitting started from a
-  terminal or resumed after a reboot never went past the map. Do not pick a part
-  of the repository to work on. Your first card asks which box the evening is
-  about, as markdown links to the addresses your briefing lists, and teaches
-  nothing until they have said. A book course is different and the question does
-  not arise: the chapter already is the scope.
-
-### A component boundary is a stopping point
-
-A sitting is about ONE box. Sooner or later the work will honestly lead out of
-it — not wandering off, but the genuine case: the next thing that has to happen
-is in another part of the map. **When it does, do not follow it.**
-
-Get what is in hand to a saving point, write up what was agreed, say which box
-the work continues in, and stop. Reading and talking about any other part of the
-repository is fine and is not what this forbids. Starting to *work* in one is.
-
-**The hand-off is a tap, not an errand.** *"Go back to the map and open the
-retrieval component"* is an instruction to somebody holding a tablet, which is
-the same defect as asking them to type up your own notes. Every box has an
-address, and a card that names one renders as something they open with a thumb,
-landing them in a sitting there. So write the box as a markdown link to its
-address. **Your briefing carries the address of every other box on the map**,
-beside whether any of the plan sits on it — you do not have to work either out.
-
-**If that box has no step of the plan on it, propose the step in the same card.**
-One line, in the words a plan step is written in. You have just found out what
-the work there is, which makes this turn the only thing in the system that knows
-what it should say, and the discovery is lost otherwise. Whether it is taken is
-theirs.
-
----
-
----
-
-## Writing the threads
-
-**Structure is derived from disk. Meaning is written by you. Neither is guessed.**
-
-The derived map can see that `psych_asr/asr` exists and what it imports. It
-cannot see that the work is called *the typist*, what question it answers, what
-it delivers, or that the scorer is blocked on the grid. Those are the sentences
-the owner of the project uses, and no amount of reading the tree produces them.
-
-So a project keeps **`threads.json` at its root**: its **deliverables** (a
-paper, a deck, a dataset — something handed to another person) and the
-**threads** under them (one question each deliverable needs, with its code, its
-outputs, where it is written up, its tasks and its decisions). **You write it, on
-request, in a sitting**, and you edit it only with `board thread`.
-
-### How
-
-1. **Read what they already wrote.** The README, the plan the README points at,
-   and any deck or walkthrough in the workspace. You are collecting their names,
-   not inventing yours.
-2. **A deliverable is what gets handed over.** Its `doc` is the path of that
-   file, even before it exists.
-3. **A thread is one question.** `title` is its plain name, `question` the
-   question in one sentence. It is not a directory and it is not a task.
-4. **Carry the paths.** `files` is the code, `outputs` what it produces, and
-   `writes` the file and heading it is written up under. These are what its
-   status is derived from, so a thread with none of them stays `open` forever.
-5. **Tasks are the plan.** A thread file with an open task in it IS the
-   workspace's plan; the old plan file is no longer read. Put the next steps on
-   the thread they belong to.
-6. **Decisions are the owner's.** Write the question with `"rule": null` and
-   leave it open until they decide. A rule is in the present tense.
-7. **Say what is stuck, and on what.** `blockedBy` names other threads.
-8. **Point at the explanation.** A thread's `doc` is a document id this
-   workspace offers, never a path.
-
-`board thread < threads.json` writes the whole file. `board thread task`,
-`done`, `decide`, `close` and `add` edit one thread; leave out the thread id
-where the sitting is on one. Every write is **validated and refused whole**,
-with every problem printed at once. `board thread --show` prints it and
-`board thread --check` says what has gone stale. A write that git cannot see is
-refused with the line that fixes it.
-
-**Never write a status.** Done, running, requested, written, result and open are derived
-from the file, git, the job registry and which paths exist. `close` is the only
-typed state, and it is the owner's tap.
-
-### It is checked against the tree on every read
-
-A file that has gone drops out of its thread. A document no longer offered is
-cleared. A closed thread no longer blocks anything. You never see a thread file
-claiming something the repository does not have.
-
-    A fact cannot go stale. A declaration can. So a declaration is checked
-    against the facts every time it is read.
-
-### Keeping the threads true is part of finishing a piece of work
-
-When you have finished something, tick its task, add the next one, and write
-any decision the owner made. A file that moved has moved in its thread too. A
-question that did not exist when the file was written is a thread missing from
-it, and that is the one only you can notice. **A thread file that describes last
-month is worse than none**, because nobody can tell which half is still true.
-
-**Your briefing says whether there is a thread file**, and how stale. Read that
-line before you use any name off the picture. Reading `psych_asr/asr` back to
-somebody as though it were how they think about their own work is the tell that
-you did not check.
-
-Do not rewrite the whole file to change one thread. Use the subcommand.
 
 ---
 
@@ -1341,50 +1202,6 @@ it, and if it matters to the lesson, ask about it. *"You have changed
 that?"* is the right use of it. The heading over that section says whose work it
 is and so does the sentence under it; if you find yourself writing past both of
 them, stop.
-
----
-
-## When they change the direction of the work
-
-They can say, in one tap from anywhere on the board, that the whole shape of the
-work is wrong. When they have, their sentence is at the **top** of your briefing,
-under *the direction of this work*, and it outranks every other document in the
-repository — the plan, the map, the README, the handoff, `TUTOR.md`. All of
-those were written for the direction it replaced.
-
-**A turn woken by the change does the replanning, that turn, in this order:**
-
-1. One plain sentence on the board with `board write pending`, saying you are
-   re-planning. It lands at once, so nothing is blank while you read.
-2. Read what is actually there — the plan file the briefing names, the map, and
-   the README if the change makes it wrong.
-3. **Rewrite the plan.** Its next steps are now this direction's steps: delete
-   what the change makes pointless, keep what still stands, put the new first
-   step at the top. It is their file and it is in git. Do not append a note to
-   the bottom of a plan that now describes something else.
-4. Rewrite the threads with `board thread` if they no longer describe the work.
-5. `board write --over` that first path, with the report: what the plan says now,
-   what changed, the first step, and the one thing you need from them.
-
-Do not ask whether you should start. Do not hand back a plan of what you would
-do instead of doing it — that is the same failure a doing turn has, in a bigger
-coat, and it is the one they used this button to get away from. If the change is
-too big for one turn, do the first part and say what is left.
-
-**Do not argue the change.** They have decided. If something in it contradicts a
-rule in `AI_INSTRUCTIONS.md`, say so plainly in the card, in one sentence, and do
-the rest of it anyway.
-
-**In a workspace with a thread file, a rethink is about the thread the sitting
-is on.** Their sentence is in your briefing's thread section, not in
-`DIRECTION.md`. Rewrite that thread's tasks with `board thread` and report what
-you changed, task by task. If the sentence names a new question, propose it as a
-thread in the report and add it with `board thread add` only once they say yes.
-The new sitting keeps the thread's name.
-
-Afterwards the direction stays at the top of every briefing until they change it
-again. A later turn that finds the plan or the map still describing the old
-direction is looking at unfinished work, not at a disagreement.
 
 ---
 
@@ -1419,14 +1236,14 @@ terminal and a different tool.
   put it on the glass** rather than pasting it into a card. A page of a document
   is `/doc/<id>/<page>.png`, the same as a slide.
 - **What it covers is a different question from how it reads, and the scope may
-  be the box, the chapter or the whole evening.** Where a part of the map or a
-  chapter is named, that is the scope: a deck about the grading code is about the
+  be a part of the repository, the chapter or the whole evening.** Where a part
+  of the repository or a chapter is named, that is the scope: a deck about the grading code is about the
   grading code, not a tour of the repository. Where the scope is the evening —
   *"a deck about the four things this sitting covered"* — the scope is
   the concepts this sitting covered and nothing else about it: read the lesson
   back with `board recap --all`, take the topics off the cards, and explain each
   from scratch. Not the order they were taught in, not the questions, not the
-  answers. Where nothing names a box, a chapter or the evening, ask in your first
+  answers. Where nothing names a part, a chapter or the evening, ask in your first
   card what the document is about rather than drafting and finding out.
 
 A document takes no mode: who writes the code is not a question that arises

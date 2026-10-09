@@ -310,12 +310,6 @@ DRIVE = {
     ("GET", "/archive", "lesson"): ("session", [("/archive", None, OK)]),
     ("GET", "/archive/", "lesson"): ("session", [("/archive/", None, OK),
                                                 ("/archive/nope", None, (404,))]),
-    ("GET", "/map/inside/", "lesson"): ("session", [("/map/inside/nope", None, (404,))]),
-    ("GET", "/map/thread/", "lesson"): ("session", [("/map/thread/nope", None, (404,))]),
-    ("POST", "/direction", "lesson"): ("session", [
-        ("/direction", {"text": "a new direction {mark}"}, None)]),
-    ("POST", "/thread/accept", "lesson"): ("session", [
-        ("/thread/accept", {"card": "0001", "thread": "t1"}, (404,))]),
     ("POST", "/mode", "lesson"): ("session", [("/mode", {"mode": "do"}, OK),
                                              ("/mode", {"mode": "nope"}, (400,))]),
     ("POST", "/handover", "lesson"): ("session", [("/handover", {"card": "0001"}, None)]),
@@ -358,7 +352,6 @@ DRIVE = {
         ("/doc/delete", {"id": "nope"}, (404,))]),
     ("POST", "/writeup", "library"): ("subject?", [
         ("/writeup", {"makes": "paper", "about": "{mark}"}, OK, OK, (404,))]),
-    ("GET", "/shelf.json", "library"): ("session", [("/shelf.json", None, OK)]),
     ("GET", "/library/marked/", "library"): ("session", [
         ("/library/marked/nope/x.pdf", None, (404,))]),
     ("POST", "/writeup/seen", "library"): ("session", [
@@ -396,12 +389,9 @@ DRIVE = {
     ("GET", "/download/lesson", "taking"): ("session", [("/download/lesson", None, None)]),
     ("GET", "/download/homework", "taking"): ("session", [
         ("/download/homework", None, None)]),
-    ("GET", "/download/shelf/", "taking"): ("session", [
-        ("/download/shelf/{doc}", None, None)]),
     ("GET", "/view/lesson", "taking"): ("session", [("/view/lesson", None, OK)]),
     ("GET", "/view/homework", "taking"): ("session", [("/view/homework", None, OK)]),
     ("GET", "/view/doc/", "taking"): ("session", [("/view/doc/{doc}", None, None)]),
-    ("GET", "/view/shelf/", "taking"): ("session", [("/view/shelf/{doc}", None, OK)]),
     ("GET", "/doc/", "taking"): ("session", [("/doc/{doc}/1.png", None, (404,))]),
     ("GET", "/paper/", "taking"): ("both", [("/paper/abcdef12-1.png", None, OK),
                                            ("/paper/nope.png", None, (404,))]),
@@ -577,8 +567,8 @@ for who in ("A", "B"):
     check("an upload in %s lands in its uploads/" % who,
           any(n.endswith("hand-in.txt") for n in os.listdir(os.path.join(sdir, "uploads"))))
     board = [c for c in CALLS if c["fn"] == "board" and c["session"] == sdir]
-    check("a board command a route in %s runs works on session %s" % (who, who),
-          board and all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
+    check("any board command a route in %s runs works on session %s" % (who, who),
+          all(c["cwd"] == os.path.join(atlas, SUBJECT[who]) for c in board))
 
 # One id, two subjects: the session, or ?subject=, decides whose file it is.
 for who in ("A", "B"):

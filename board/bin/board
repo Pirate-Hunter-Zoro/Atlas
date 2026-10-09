@@ -7,9 +7,6 @@ The assistant runs these. The student never does.
     board start [--port N] [--lan]     bring the board up (loopback unless --lan)
     board status                       is it up, and on what URLs
     board stop                         bring it down
-    board open "Galois Theory" "Ch 7 -- splitting fields" [--lecture|--homework]
-                                       archive the last lesson, label the new one
-    board open ... --thread <id>       a sitting on one thread, named after it
     board mode [teach|do]              who writes the code in this session; no
                                        word prints it. Only this, POST /mode,
                                        and the tutor obeying "do it" change it
@@ -46,12 +43,6 @@ The assistant runs these. The student never does.
     board handoff < handoff.md         write HANDOFF.md at session end, <=350 words,
                                        stamped with its chapter. The only writer.
     board handoff --show|--check       read it, or say how long it is
-    board thread < threads.json        write this project's deliverables and
-                                       threads. Replaces the derived picture;
-                                       re-checked on every read
-    board thread --show|--check        read it, or say what has gone stale in it
-    board thread task|done|decide|close [<thread>] ...
-                                       edit one thread; `board thread --help`
     board job [--label <slug>] [--session <id>] [--produces <p>]
               [--export <p>] [--fixes <id>] [--fresh] -- <recipe> [VAR=v ...]
                                        long work, reporting itself: with
@@ -62,12 +53,12 @@ The assistant runs these. The student never does.
     board diagnose [--label <slug>] --fixes <id> -- <recipe> [VAR=v ...]
                                        `board job` for a diagnostic: a recipe
                                        that prints RELAY: lines, no output
-    board hold|release <thread>        on the cluster: the thread's files are
-                                       written there, coached from the Mac
-    board send [<thread>]              on the cluster, after each step: commit
-                                       it, run the thread's check, push, and
+    board hold [--] <path>...          on the cluster: these files are written
+    board release <id>                 there, coached from the Mac, until release
+    board send [<id>]                  on the cluster, after each step: commit
+                                       it, run the hold's check, push, and
                                        print the coach's reply
-    board coach <thread> < reply.md    on the Mac: the coach's reply to a step
+    board coach <id> < reply.md        on the Mac: the coach's reply to a step
     board code <session> <path>...     on the cluster: hold these paths for a
                                        coding session; each pause is a step on
                                        code/<session>, checked and pushed.
@@ -100,7 +91,6 @@ The assistant runs these. The student never does.
                                        `check` from its root (with a path, its
                                        `one` form for that path)
     board slate [--all]                paths of the pages written on the iPad
-    board archive                      file the current lesson away
     board export [--all]               the whole conversation as a numbered PDF
     board session new|show|list|end|reopen|delete [id]
                                        the session store, sessions/<id>/: a new
@@ -165,7 +155,7 @@ sys.path.insert(0, TOOL)
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
-from tutorboard import (assistants, atlas, brief, direction, gitops,
+from tutorboard import (assistants, brief, direction, gitops,
                         handoff, holds, jobs, leaving, limits, machine, memo,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sessions, tex, worktree)
@@ -175,10 +165,7 @@ from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper
 from tutorboard.lesson import inbox
 from tutorboard.course import repo as course_repo
-# `map` is a builtin; the module keeps the name the board calls the thing and
-# the binding does not.
-from tutorboard.course import map as course_map
-from tutorboard.course import threads as course_threads
+from tutorboard.exports import rel as _workspace_path
 SERVE = os.path.join(TOOL, "serve.py")
 # `pending` is the placeholder a doing turn opens with and writes its report
 # over. A turn that exits leaving the newest card `pending` has not reported,
@@ -386,220 +373,6 @@ def cmd_status(live, args):
                              "  (finish offered)" if st.get("finished") else ""))
     print("cards:   %d" % len(live.card_names()))
     print("unread:  %d" % len(inbox.waiting(live)))
-    return 0
-
-
-def cmd_open(live, args):
-    """Start a sitting, and say what kind it is: a lecture or a homework set.
-
-    A lecture and a homework sitting are different jobs. In a lecture the user is
-    being taught and writes back to show they followed. In homework they are
-    producing work that has to end up typeset and compiled, and the write-up is
-    the assistant's to do once the mathematics is agreed. Who writes the code is
-    the session's mode, which opening a sitting never changes (`board mode`).
-    """
-    session = None
-    which = None
-    agent = None
-    node = None
-    thread = None
-    rest = []
-    skip_next = False
-    for i, a in enumerate(args):
-        if skip_next:
-            skip_next = False
-            continue
-        if a == "--lecture":
-            session = "lecture"
-        elif a == "--homework":
-            session = "homework"
-        elif a == "--agent":
-            # Recorded with the sitting and never consulted: who takes a turn
-            # is the machine's one provider setting (`recipes.resolve`).
-            agent = config.clean_agent(args[i + 1] if i + 1 < len(args) else "")
-            if agent is None:
-                print("  --agent takes an assistant's name; ignored",
-                      file=sys.stderr)
-            skip_next = True
-        elif a == "--node":
-            # Which box of the map this sitting is about. Checked against what
-            # the map actually holds, never carried through as typed.
-            node = (args[i + 1] if i + 1 < len(args) else "").strip()
-            skip_next = True
-        elif a == "--thread":
-            # Which thread of `threads.json` this sitting is on. Checked
-            # against the file, never carried through as typed.
-            thread = (args[i + 1] if i + 1 < len(args) else "").strip()
-            skip_next = True
-        elif a == "--set":
-            which = args[i + 1] if i + 1 < len(args) else None
-            skip_next = True
-        elif a.startswith("--"):
-            # --review, --walk, --make, --aim, --kind and --stance among them:
-            # the method is the tutor's to pick in teach mode, and who writes
-            # the code is `board mode`.
-            print("board open: no option %s (who writes the code is `board "
-                  "mode teach|do`)" % a, file=sys.stderr)
-            return 2
-        else:
-            rest.append(a)
-    course = rest[0] if len(rest) > 0 else None
-    chapter = rest[1] if len(rest) > 1 else None
-
-    # A chapter is its own thing, and its handoff goes with it.
-    #
-    # `HANDOFF.md` is the only continuity a session has, and it was continuity
-    # across the wrong boundary: opening Chapter 3 carried "left unfinished in
-    # Chapter 1" into it, and the new chapter's tutor read that and offered to go
-    # back for an exercise the student had closed. Reported in those words. So
-    # the handoff of the chapter being left is parked under its own name, and the
-    # one belonging to the chapter being opened -- if it has been taught before
-    # -- comes back.
-    was = live.state().get("chapter") or ""
-    if (chapter or "") != was:
-        parked = handoff.park_handoff(live.root, was)
-        if parked:
-            print("  handoff for %s parked at %s"
-                  % (was or "the last sitting", os.path.relpath(parked, live.root)))
-    cmd_archive(live, [])
-    if (chapter or "") != was and handoff.restore_handoff(live.root, chapter):
-        print("  handoff from the last sitting on this chapter is back")
-    # A BOX OF A THREAD FILE IS A THREAD. Its id is the thread's, so a map tap
-    # that names it opens a sitting on the thread, and `node` is kept only for
-    # a box of a derived map.
-    clean_threads, _bad = course_threads.read(live.root)
-    if node and not thread and course_threads.thread(clean_threads, node):
-        thread, node = node, None
-    on = None
-    if thread:
-        on = course_threads.thread(clean_threads, thread)
-        if not on:
-            print("  no thread called %r in threads.json; ignored" % thread,
-                  file=sys.stderr)
-            thread = None
-        else:
-            # Named after the thread, always: a sitting is its thread's.
-            chapter = chapter or on["title"]
-    if node:
-        found = course_map.find(live.root, node, live.state())
-        if not found:
-            print("  no part of the map called %r; ignored" % node, file=sys.stderr)
-            node = None
-        elif not chapter:
-            chapter = found["name"]
-    live.set_state(course=course, chapter=chapter, session=session or "lecture",
-                   finished=None, hw=None,
-                   # What this sitting is about, cleared by opening the next one.
-                   node=node, thread=thread,
-                   # A rethink's sentence belongs to the sitting it opened.
-                   rethink=None,
-                   # And which assistant, under the same rule.
-                   agent=agent,
-                   # Legacy sitting keys, cleared: the mode is the session's.
-                   kind=None, aim=None, stance=None, makes=None,
-                   review=None, walk=None,
-                   opened=time.strftime("%Y-%m-%d %H:%M"))
-    print("%s open: %s / %s" % (session or "lecture", course or "-", chapter or "-"))
-    if thread:
-        print("  thread: %s" % thread)
-    if agent:
-        print("  assistant: %s  (this sitting only)" % agent)
-    if session == "homework":
-        print("  you write the mathematics; the write-up and the compile are mine")
-        # Bind the sitting to a problem set now, so nothing later has to guess.
-        if which:
-            cmd_writeup(live, ["use", which])
-        else:
-            st = homework.status(live.root, live.state())
-            if st and st["name"]:
-                live.set_state(hw=st["rel"])
-                print("  set: %s  (%s)" % (st["name"], st["rel"]))
-            elif st and st["ambiguous"]:
-                print("  which set? board writeup use <name>, or reopen with --set")
-    return 0
-
-
-def cmd_archive(live, args):
-    """Close the current session and put the whole of it somewhere permanent.
-
-    The transcript goes with the cards. A lesson the student can reopen and
-    still see their own working in is the entire reason for keeping these; a
-    folder of the assistant's cards with the student's half missing is a
-    record of half a conversation.
-
-    A stored session (`sessions/<id>/`) is never archived: it persists until
-    the owner ends it, and only `board session end` does that.
-    """
-    if live.stored:
-        print("a session is never archived; it keeps every card until the owner "
-              "ends it (board session end <id>)", file=sys.stderr)
-        return 1
-    names = live.card_names()
-    slate = sorted(n for n in os.listdir(live.slate) if re.match(r"^page-\d+\.(json|png)$", n))
-    turns_path = live.path("turns.jsonl")
-    has_turns = os.path.exists(turns_path)
-    if not names and not slate and not has_turns:
-        print("nothing to archive")
-        return 0
-    st = live.state()
-    label = slugify(st.get("chapter") or st.get("course") or "lesson")
-    dest = os.path.join(live.archive, time.strftime("%Y%m%d-%H%M%S") + "-" + label)
-    os.makedirs(dest, exist_ok=True)
-    for n in names:
-        os.rename(os.path.join(live.cards, n), os.path.join(dest, n))
-    if slate:
-        sdest = os.path.join(dest, "slate")
-        os.makedirs(sdest, exist_ok=True)
-        for n in slate:
-            os.rename(os.path.join(live.slate, n), os.path.join(sdest, n))
-        print("archived %d slate pages" % len([n for n in slate if n.endswith(".png")]))
-    if has_turns:
-        os.rename(turns_path, os.path.join(dest, "turns.jsonl"))
-    frozen = sorted(os.listdir(live.answers)) if os.path.isdir(live.answers) else []
-    if frozen:
-        adest = os.path.join(dest, "answers")
-        os.makedirs(adest, exist_ok=True)
-        for n in frozen:
-            os.rename(os.path.join(live.answers, n), os.path.join(adest, n))
-        print("archived %d answer file(s)" % len(frozen))
-
-    # MARKS AND DRAFTS ARE KEYED BY CARD NUMBER, AND CARD NUMBERS START AGAIN
-    # AT 0001 IN EVERY SITTING.
-    #
-    # So a record left behind in `live/` is not merely stale, it is MISFILED:
-    # `notes.load_notes` reads every `NNNN.json` in the directory and hands it
-    # to the board keyed by that bare number, and the board lays it over
-    # whichever card now carries it. Reported from the device as old
-    # annotations showing up on new tutoring text blocks, which is exactly
-    # what it was -- last night's ink on card 1, drawn over tonight's card 1.
-    #
-    # Only the card-keyed ones. A mark on a page of a document is anchored to
-    # the document and not to the lesson, and `writing.ann_file` gives those a
-    # flattened, digest-carrying name for that reason -- they belong to the
-    # workspace and outlive every sitting in it.
-    card_key = re.compile(r"^\d{1,4}\.(json|png)$")
-    marks = sorted(n for n in os.listdir(live.notes)
-                   if card_key.match(n)) if os.path.isdir(live.notes) else []
-    if marks:
-        ndest = os.path.join(dest, "annotations")
-        os.makedirs(ndest, exist_ok=True)
-        for n in marks:
-            os.rename(os.path.join(live.notes, n), os.path.join(ndest, n))
-        print("archived %d annotation file(s)" % len(marks))
-    drafts = sorted(n for n in os.listdir(live.text)
-                    if re.match(r"^\d{1,4}\.txt$", n)) if os.path.isdir(live.text) else []
-    if drafts:
-        tdest = os.path.join(dest, "text")
-        os.makedirs(tdest, exist_ok=True)
-        for n in drafts:
-            os.rename(os.path.join(live.text, n), os.path.join(tdest, n))
-        print("archived %d typed draft(s)" % len(drafts))
-    try:
-        with open(os.path.join(dest, "state.json"), "w", encoding="utf-8") as fh:
-            json.dump(st, fh, indent=2)
-    except OSError:
-        pass
-    print("archived %d cards to %s" % (len(names), os.path.relpath(dest, live.root)))
     return 0
 
 
@@ -1364,9 +1137,8 @@ def cmd_finish(live, args):
 def cmd_push(live, args):
     """Commit and push. It does not end the session, in any repository.
 
-    A lesson is filed by `board archive` and by `board open`, and by nothing
-    else: the same tap has to mean the same thing in a `code` course and in a
-    maths one.
+    A session keeps every card until the owner ends it; a push files nothing
+    away.
 
     ONE PATH TO A COMMIT. `gitops.save` is what the save button runs through
     `lesson/git.py` too -- two doors onto one commit. The commit belongs to the
@@ -1375,10 +1147,8 @@ def cmd_push(live, args):
     It commits THIS WORKSPACE and nothing else, with the pathspec
     `lesson_git.save_pathspec` builds for the save button too: never the tool,
     another workspace or NFS litter. `board push "msg" -- <paths>` narrows it
-    to those paths, which is how a turn commits the work it did under a message
-    naming the thread; a path outside the workspace is refused. Where a thread
-    file exists, a `<word>: ` lead must be one of its threads, or nothing is
-    committed (`threads.commit_prefix`).
+    to those paths, which is how a turn commits the work it did; a path outside
+    the workspace is refused.
     """
     from tutorboard.lesson import git as lesson_git
     only = None
@@ -1390,23 +1160,6 @@ def cmd_push(live, args):
                   file=sys.stderr)
             return 1
     message = " ".join(a for a in args if not a.startswith("--")) or gitops.SAVE
-
-    # A SUBJECT THAT NAMES A THREAD NAMES A REAL ONE. `<thread>: msg` is how a
-    # turn files its work under the question it answers, and a typo there is a
-    # commit nobody finds by its thread again. Only where a valid thread file
-    # exists; a broken one is `board thread --check`'s to report, not a save's.
-    spine, broken = course_threads.read(live.root)
-    if spine and not broken:
-        _tid, wrong = course_threads.commit_prefix(
-            spine, message, atlas.identify(live.root))
-        if wrong:
-            detail = "nothing was committed: " + wrong
-            print(detail, file=sys.stderr)
-            with open(live.path("push.json"), "w", encoding="utf-8") as fh:
-                json.dump({"ok": False, "at": time.time(),
-                           "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-                           "detail": detail}, fh, indent=2)
-            return 1
 
     # Never into the middle of an operation somebody started in a terminal. This
     # runs unattended -- `board finish` raises the offer and the tutor may push
@@ -1501,7 +1254,7 @@ def cmd_push(live, args):
     # tree under a bare "lesson complete" is one nobody can find again, and the
     # two doors would otherwise write two different kinds of subject for the
     # same commit.
-    where = atlas.identify(live.root)
+    where = subjects.identify(live.root)
     if where and not message.startswith(where):
         message = "%s: %s" % (where, message)
 
@@ -1519,9 +1272,7 @@ def cmd_push(live, args):
         with open(live.path("state.json"), "w", encoding="utf-8") as fh:
             json.dump(st, fh, indent=2)
 
-    # A save is a save everywhere, and it files nothing away: `board archive`
-    # and `board open` are what file a lesson, and they are the only things
-    # that do.
+    # A save is a save everywhere, and it files nothing away.
     return 0 if ok else 1
 
 
@@ -1939,7 +1690,7 @@ def cmd_deckfig(live, args):
               "board deckfig <deck dir> <subject> <result id>", file=sys.stderr)
         return 1
     want_deck, want_ws, want_id = args
-    base = atlas.root() or live.root
+    base = subjects.root() or live.root
     deck = None
     for top in (live.root, base):
         here = os.path.realpath(os.path.join(top, want_deck))
@@ -2023,7 +1774,7 @@ def cmd_meeting(live, args):
                 return args[n + 1]
         return ""
 
-    base = atlas.root() or live.root
+    base = subjects.root() or live.root
     when, human = briefs.resolve_since(value("--since"), base)
     if when is None:
         print("board meeting: %s" % human, file=sys.stderr)
@@ -2050,289 +1801,6 @@ def cmd_meeting(live, args):
     print("the meeting deck is being written in session %s: %s" % (
         got.get("session") or "?", os.path.join(base, got["dir"], briefs.STEM + ".tex")))
     return 0
-
-
-def cmd_thread(live, args):
-    """The thread file: this project's deliverables, and the threads under them.
-
-        board thread < threads.json          write the whole file
-        board thread --show [<thread>]       print it, or one thread
-        board thread --check                 what it claims that the tree does not
-        board thread add < thread.json       add one thread
-        board thread add --deliverable < d.json
-                                             add one deliverable
-        board thread task [<thread>] "<text>"
-                                             add an open task
-        board thread done [<thread>] <task>  tick a task, by number or text
-        board thread decide [<thread>] <decision> ["<rule>"]
-                                             write a decision's rule, by number
-                                             or question; a new question with no
-                                             rule is an open decision
-        board thread close [<thread>]        the owner closed it
-        board thread reopen [<thread>]       undo a close
-        board thread export ...              retired: the owner approves an
-                                             export in tutorboard.json
-                                             `relay.exports`
-        board thread check [<thread>] <script>|--drop
-                                             the tracked script `board send`
-                                             runs on the cluster after each
-                                             step; it prints only RELAY: lines
-
-    `<thread>` may be left out where the sitting open now is on a thread.
-
-    **Every write is validated and refused whole**, with every problem printed
-    at once; nothing is half-applied. A turn edits threads only through this
-    command. The file is `threads.json` at the workspace root, tracked, and
-    re-checked against the tree on every read: a path that has gone drops out,
-    and `--check` says aloud what the file claims that the tree does not.
-
-    A thread's status is never written here. It is derived -- done, running,
-    requested, written, result, open -- from the file, git, the job registry
-    and which paths exist. `closed` is the only typed state.
-
-    **`aggregate` is the owner's word, never a turn's.** A turn runs `export`
-    bare, puts the printed question on its card, and runs `--aggregate` only
-    after the owner has answered yes on the board.
-    """
-    root = live.root
-    args = list(args)
-
-    if "--show" in args:
-        args.remove("--show")
-        clean, problems = course_threads.read(root)
-        if problems:
-            for line in problems:
-                print("  " + line, file=sys.stderr)
-            return 1
-        if not clean:
-            print("no thread file. `board thread < threads.json` writes one; "
-                  "until then the board derives a picture from the tree.")
-            return 0
-        if args:
-            one = course_threads.thread(clean, args[0])
-            if not one:
-                print("board thread: no thread called %r" % args[0],
-                      file=sys.stderr)
-                return 1
-            stage = course_threads.stages(root).get(one["id"]) or {}
-            json.dump(dict(one, stage=stage), sys.stdout, indent=2,
-                      ensure_ascii=False)
-        else:
-            json.dump(clean, sys.stdout, indent=2, ensure_ascii=False)
-        sys.stdout.write("\n")
-        return 0
-
-    if "--check" in args:
-        if not course_threads.has(root):
-            print("no thread file, so there is nothing to have gone stale.")
-            return 0
-        stale = course_threads.check(root)
-        if not stale:
-            print("the thread file is true: every file and document it names "
-                  "is still there.")
-        else:
-            print("%d thing(s) the thread file claims that the tree does not:"
-                  % len(stale))
-            for line in stale:
-                print("  " + line)
-        # Not a failure: staleness is news, and `&&` chains must still run.
-        return _thread_visible(root)
-
-    verb = args[0] if args else ""
-    if not verb:
-        body = sys.stdin.read()
-        if not body.strip():
-            print("board thread: nothing on stdin; the file was left alone",
-                  file=sys.stderr)
-            return 1
-        try:
-            raw = json.loads(body)
-        except ValueError as exc:
-            print("board thread: that is not valid JSON -- %s\nNothing was "
-                  "written." % exc, file=sys.stderr)
-            return 1
-        return _thread_store(root, raw, "written")
-
-    if verb not in ("add", "task", "done", "decide", "close", "reopen",
-                    "export", "check"):
-        print("board thread: %r is not a subcommand; `board thread --help` "
-              "lists them" % verb, file=sys.stderr)
-        return 1
-
-    clean, problems = course_threads.read(root)
-    if problems:
-        print("board thread: the file on disk is not valid, so nothing was "
-              "changed:", file=sys.stderr)
-        for line in problems:
-            print("  " + line, file=sys.stderr)
-        return 1
-    rest = args[1:]
-
-    if verb == "add":
-        try:
-            one = json.loads(sys.stdin.read() or "null")
-        except ValueError as exc:
-            print("board thread add: that is not valid JSON -- %s" % exc,
-                  file=sys.stderr)
-            return 1
-        raw = clean or {"version": course_threads.VERSION,
-                        "deliverables": [], "threads": []}
-        key = "deliverables" if "--deliverable" in rest else "threads"
-        if isinstance(one, dict) and any(
-                x["id"] == one.get("id") for x in raw[key]):
-            print("board thread add: %r is already there. Read it with `board "
-                  "thread --show`, change it, and write the whole file back."
-                  % one.get("id"), file=sys.stderr)
-            return 1
-        raw = dict(raw)
-        raw[key] = list(raw[key]) + [one]
-        return _thread_store(root, raw, "added %s" % (
-            "deliverable" if key == "deliverables" else "thread"))
-
-    if not clean:
-        print("board thread: no thread file here yet; write one first",
-              file=sys.stderr)
-        return 1
-
-    ids = set(t["id"] for t in clean["threads"])
-    if rest and rest[0] in ids:
-        tid, rest = rest[0], rest[1:]
-    else:
-        tid = str(live.state().get("thread") or "").strip()
-        if tid not in ids:
-            print("board thread %s: name the thread first -- %s"
-                  % (verb, ", ".join(sorted(ids)) or "there are none"),
-                  file=sys.stderr)
-            return 1
-    one = course_threads.thread(clean, tid)
-
-    def pick(items, want, field):
-        """An item by its 1-based number or its exact text, or None."""
-        want = (want or "").strip()
-        if want.isdigit() and 1 <= int(want) <= len(items):
-            return items[int(want) - 1]
-        for it in items:
-            if it[field] == want:
-                return it
-        return None
-
-    if verb == "task":
-        text = " ".join(rest).strip()
-        if not text:
-            print("board thread task: say what the task is", file=sys.stderr)
-            return 1
-        one["tasks"].append({"text": text, "done": False})
-        said = "task added to `%s`" % tid
-    elif verb == "done":
-        task = pick(one["tasks"], " ".join(rest), "text")
-        if not task:
-            print("board thread done: `%s` has no task %r. Its tasks:\n%s"
-                  % (tid, " ".join(rest), "\n".join(
-                      "  %d. %s%s" % (i + 1, t["text"],
-                                      " (done)" if t["done"] else "")
-                      for i, t in enumerate(one["tasks"]))), file=sys.stderr)
-            return 1
-        task["done"] = True
-        said = "ticked on `%s`: %s" % (tid, task["text"])
-    elif verb == "decide":
-        if not rest:
-            print("board thread decide: name the decision", file=sys.stderr)
-            return 1
-        found = pick(one["decisions"], rest[0], "q")
-        rule = " ".join(rest[1:]).strip() or None
-        if found:
-            found["rule"] = rule
-            said = "`%s`: %s -- %s" % (tid, found["q"],
-                                       rule or "open again")
-        else:
-            one["decisions"].append({"q": rest[0], "rule": rule})
-            said = "`%s`: a %s decision, %s" % (
-                tid, "decided" if rule else "new open", rest[0])
-    elif verb == "export":
-        # Export approval is the subject's tutorboard.json `relay.exports`,
-        # the owner's edit, which a turn cannot commit (tutorboard/exports.py).
-        print("board thread export is retired: a thread no longer approves an "
-              "export. The owner approves one in this subject's "
-              "tutorboard.json, `relay.exports`, as {\"glob\": \"results/...\"}"
-              " (a csv or json also needs \"aggregate\": true), and commits "
-              "it. Put the question on your card:\n\n  May %s be published? "
-              "The repository is public. Say yes only if every number in it "
-              "is an aggregate, with no row for a patient, participant or "
-              "recording.\n\nNothing was written."
-              % (" ".join(w for w in rest if not w.startswith("--"))
-                 or "<results/path>"), file=sys.stderr)
-        return 1
-    elif verb == "check":
-        if rest == ["--drop"]:
-            one["check"] = ""
-            said = "`%s` has no check" % tid
-        elif len(rest) == 1:
-            one["check"] = rest[0]
-            said = ("`%s`: its check is %s. Commit it before `board hold`: a "
-                    "hold refuses a check that is not tracked" % (tid, rest[0]))
-        else:
-            print("board thread check: name one script, or --drop",
-                  file=sys.stderr)
-            return 1
-    elif verb == "close":
-        one["closed"] = True
-        said = "`%s` is closed" % tid
-    else:
-        one["closed"] = False
-        said = "`%s` is open again" % tid
-    return _thread_store(root, clean, said)
-
-
-def _thread_store(root, raw, said):
-    """Validate and write the thread file, or print every problem and write nothing."""
-    problems, path = course_threads.write(root, raw)
-    if problems:
-        print("board thread: %d problem(s), and nothing was written."
-              % len(problems), file=sys.stderr)
-        for line in problems:
-            print("  " + line, file=sys.stderr)
-        return 1
-    clean, _ = course_threads.read(root)
-    n = len(clean["threads"])
-    print("%s: %s (%d deliverable%s, %d thread%s)"
-          % (said, path, len(clean["deliverables"]),
-             "" if len(clean["deliverables"]) == 1 else "s",
-             n, "" if n == 1 else "s"))
-    stale = course_threads.check(root, documents=False)
-    if stale:
-        print("%d of them do not match the tree; `board thread --check` says "
-              "which." % len(stale))
-    return _thread_visible(root)
-
-
-def _thread_visible(root):
-    """Refuse aloud if git cannot see the thread file, with the exact edit.
-
-    Asked of git rather than read out of `.gitignore`. A workspace that ignores
-    `*.json` hides `threads.json` too, and a thread file git cannot see is lost
-    on the next clone with nothing having said so.
-    """
-    if not _is_ignored(root, course_threads.NAME):
-        return 0
-    sys.stdout.flush()
-    print("\nBUT GIT CANNOT SEE IT. A rule in this workspace's .gitignore "
-          "hides threads.json,\nso it is local to this machine and the next "
-          "clone will not have it.\n\n"
-          "  Add this line to %s, after the rule that hides it:\n"
-          "      !threads.json" % os.path.join(root, ".gitignore"),
-          file=sys.stderr)
-    return 1
-
-
-def _is_ignored(root, rel):
-    """Would git ignore this path? Asked of git, never inferred from the file."""
-    try:
-        p = subprocess.run(["git", "check-ignore", "-q", rel],
-                           cwd=root, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL)
-    except OSError:
-        return False
-    return p.returncode == 0
 
 
 def cmd_job(live, args):
@@ -2425,7 +1893,7 @@ def cmd_job(live, args):
     for p in produces + export:
         # Workspace-relative, like a thread's `outputs`; an absolute path is
         # made so.
-        rel = course_threads._rel(os.path.relpath(p, root)
+        rel = _workspace_path(os.path.relpath(p, root)
                                   if os.path.isabs(p) else p)
         (rels if rel else bad).append(rel or p)
     if bad:
@@ -2550,7 +2018,7 @@ def _recipe_args(root, argv):
         cand = os.path.join(root, first)
     else:
         cand = os.path.join(os.getcwd(), first)
-    recipe = course_threads._rel(os.path.relpath(cand, root)) or first
+    recipe = _workspace_path(os.path.relpath(cand, root)) or first
     env, wrong = {}, []
     for word in argv[1:]:
         name, eq, value = word.partition("=")
@@ -2617,8 +2085,8 @@ def cmd_ask_cluster(live, args):
 
 
 def _held_id(live, words, who):
-    """The hold a command names: its one word, else the only hold standing,
-    else the sitting's thread where that is held. None, having said why."""
+    """The hold a command names: its one word, else the only hold standing.
+    None, having said why."""
     standing = holds.holds(live.root)
     if len(words) > 1:
         print("%s: name at most one hold" % who, file=sys.stderr)
@@ -2631,9 +2099,6 @@ def _held_id(live, words, who):
         return hid
     if len(standing) == 1:
         return sorted(standing)[0]
-    tid = str(live.state().get("thread") or "")
-    if tid in standing:
-        return tid
     print("%s: name the hold -- held here: %s"
           % (who, ", ".join(sorted(standing)) or "none"), file=sys.stderr)
     return None
@@ -2684,29 +2149,27 @@ def _workspace_rel(root, word):
         full = os.path.realpath(os.path.join(base, word))
         if os.path.exists(full):
             rel = os.path.relpath(full, os.path.realpath(root))
-            return course_threads._rel(rel) or word
+            return _workspace_path(rel) or word
     return word
 
 
 def cmd_hold(live, args):
     """Hold a sitting at the cluster, so the owner writes its code here.
 
-        board hold <thread>                         a thread of threads.json
-        board hold [--as <id>] [--check <script>] -- <path>...
+        board hold [--as <id>] [--check <script>] [--] <path>...
         board hold                                  the current sitting
 
     Typed in the cluster checkout, in any workspace. A path is a file or a
     directory, workspace-relative, and must exist; the id is `--as` or a slug
-    of the first path's name. A bare `board hold` holds the sitting in
-    `live/state.json`: its thread, its homework file, its chapter's directory,
-    or its map box's files, and says which.
+    of the first path's name. A bare `board hold` holds the sitting's homework
+    file or its chapter's directory, and says which.
 
     Records `relay/holds/<id>.json`, commits it alone and pushes it. Until
     `board release`, the held files are the cluster's: the Mac's turns refuse
     to write them, and the Mac polls every 20 seconds.
 
-    The check is `--check` (a tracked script), else the thread's `check`,
-    else the workspace's `check` in tutorboard.json. A workspace whose output
+    The check is `--check` (a tracked script), else the workspace's `check`
+    in tutorboard.json. A workspace whose output
     is closed (`holds.output_open`) refuses a hold with none.
     """
     target, said = _hold_target(live, args)
@@ -2914,8 +2377,7 @@ def cmd_export(live, args):
     What does not change with the scope is the property that makes an export
     worth having: it is the whole sitting in reading order -- the question,
     every revision of the working as it was actually sent, what the tutor said,
-    and the next attempt underneath. Half a conversation is what `board archive`
-    refuses to keep, for the same reason.
+    and the next attempt underneath.
 
     It used to be the cards alone, named with a timestamp, written into a
     directory git ignores -- which is a record of half a conversation that
@@ -3157,7 +2619,7 @@ def recorded_ports():
     """
     here, ports = this_node(), set()
     try:
-        every = atlas.workspaces()
+        every = subjects.roots()
     except Exception:
         # None, and not an empty set. This runs inside `board start`, and a
         # repository layout it cannot read is a reason to leave the address
@@ -3166,9 +2628,9 @@ def recorded_ports():
         # None says "cannot tell", and the caller then believes answering, which
         # is the rule this replaced and the cautious one to fall back to.
         return None
-    for ws in every:
+    for where in every:
         try:
-            with open(course_repo.session_path(ws["root"], ".board.json"),
+            with open(course_repo.session_path(where, ".board.json"),
                       "r", encoding="utf-8") as fh:
                 rec = json.load(fh)
         except (OSError, ValueError):
@@ -3177,7 +2639,7 @@ def recorded_ports():
             continue
         if rec.get("node") and rec["node"] != here:
             continue
-        if not processes.board_is_running(rec.get("pid"), rec.get("root") or ws["root"]):
+        if not processes.board_is_running(rec.get("pid"), rec.get("root") or where):
             continue
         try:
             ports.add(int(rec["port"]))
@@ -3896,8 +3358,8 @@ def cmd_code(live, args):
 # ---------------------------------------------------------------------------
 COMMANDS = {
     "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
-    "open": cmd_open, "next": cmd_next, "write": cmd_write,
-    "inbox": cmd_inbox, "archive": cmd_archive, "export": cmd_export,
+    "next": cmd_next, "write": cmd_write,
+    "inbox": cmd_inbox, "export": cmd_export,
     "doctor": cmd_doctor, "slate": cmd_slate, "check": cmd_check,
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
@@ -3906,7 +3368,7 @@ COMMANDS = {
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "memo": cmd_memo, "handoff": cmd_handoff,
     "step": cmd_step,
-    "thread": cmd_thread, "job": cmd_job, "diagnose": cmd_job,
+    "job": cmd_job, "diagnose": cmd_job,
     "ask-cluster": cmd_ask_cluster,
     "hold": cmd_hold, "release": cmd_release, "send": cmd_send,
     "coach": cmd_coach,

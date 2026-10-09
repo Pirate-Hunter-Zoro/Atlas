@@ -95,10 +95,10 @@ os.environ["USER"] = os.environ.get("USER") or "tester"
 
 # The workspaces a task names, without walking the real repository.
 _PLACES = {"projects/TRD-EHR": WS, "TRD-EHR": WS}
-colibri.atlas.find = lambda ident, base=None: (
+colibri.subjects.find = lambda ident, base=None: (
     {"root": _PLACES[ident], "id": "projects/TRD-EHR"} if ident in _PLACES
     else None)
-colibri.atlas.identify = lambda path: "projects/TRD-EHR"
+colibri.subjects.identify = lambda path, base=None: "projects/TRD-EHR"
 
 
 def slurm():

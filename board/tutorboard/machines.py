@@ -4,7 +4,7 @@ Which workspaces exist is a property of a MACHINE -- they are whatever is
 checked out in the repository on it -- so the list the hub draws is a directory
 listing, built when it is asked for and never written down anywhere.
 
-`atlas.py` owns the walk now. This module owns what the board needs to SAY
+`subjects.py` owns the walk. This module owns what the board needs to SAY
 about each thing that walk finds: is a board up on it, on which node, how many
 cards are in it, what it calls itself.
 """
@@ -14,10 +14,27 @@ import os
 import subprocess
 import time
 
-from . import atlas, choice, fenced, machine, missions, news, paths, ports
+from . import choice, fenced, machine, missions, news, paths, ports, subjects
 from .course import config
 from .lesson import cards
 from .course import repo as course_repo
+
+
+# The front door's regions, in the order it draws them. `vendor` marks
+# somebody else's trees, which hold no subject; `tool` the board's own source.
+# A region is a parent directory, so `subjects.DIRS` is the only list of the
+# ones that hold subjects.
+FAMILIES = (
+    {"id": "courses", "name": "Courses",
+     "blurb": "Graduate coursework, taught chapter by chapter."},
+    {"id": "projects", "name": "Projects",
+     "blurb": "Research, the infrastructure it runs on, and practice kept "
+              "sharp."},
+    {"id": "board", "name": "The board", "tool": True,
+     "blurb": "The tool that maps, teaches and writes up everything above."},
+    {"id": "vendor", "name": "Vendor", "vendor": True,
+     "blurb": "Pulled, not written. Tracked by pointer at a commit."},
+)
 
 
 _SLURM = {"at": 0.0, "nodes": None}
@@ -42,7 +59,7 @@ def workspaces(repo):
     This used to be `sibling_courses`, and it used to be one listing of
     `os.path.dirname(repo.root)`: a course was a directory sitting next to the
     board. Eleven repositories are one now, two levels deep, so the walk is
-    `atlas.workspaces()` and the family is part of what comes back.
+    `subjects.walk()` and the family is part of what comes back.
 
     What has NOT changed is that nothing is registered. A directory holding
     `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` is a workspace, found by
@@ -57,15 +74,15 @@ def workspaces(repo):
     `family/name`, which is what an address spells and what a choice records.
     """
     out = []
-    for w in atlas.workspaces():
-        root = w["root"]
+    names = dict((f["id"], f["name"]) for f in FAMILIES)
+    for parent, _kind, slug, root in subjects.walk():
         live = course_repo.session_dir(root)
         cfg = config.read_config(root)
         entry = {
-            "repo": w["dir"],
-            "id": w["id"],
-            "family": w["family"],
-            "family_name": w["family_name"],
+            "repo": slug,
+            "id": "%s/%s" % (parent, slug),
+            "family": parent,
+            "family_name": names.get(parent) or parent.title(),
             "root": root,
             # By the directory it is, not by the name this caller spells it
             # with: the same home is reachable under two paths here.
@@ -156,11 +173,11 @@ def chosen_target():
     # The root off the record, and failing that off discovery -- never
     # `dirname(paths.TOOL)` any more, which was only ever right while the
     # courses were siblings of the board. A record written before the move
-    # names a path that is no longer there, and `atlas.find` is what turns the
-    # name in it back into a place.
+    # names a path that is no longer there, and `subjects.find` is what turns
+    # the name in it back into a place.
     root = rec.get("root")
     if not root or not os.path.isdir(root):
-        found = atlas.find(choice.chosen_id(rec) or name)
+        found = subjects.find(choice.chosen_id(rec) or name)
         root = found["root"] if found else ""
     port = None
     try:
@@ -212,21 +229,8 @@ def chosen_target():
 _ATLAS = {"at": 0.0, "value": None}
 ATLAS_TTL = 30.0
 
-# The truncation the map's boxes already use, for the same reason: this is read
-# inside a card on a tablet.
+# Long enough to tell two apart, short enough to read inside a card on a tablet.
 NEXT_CHARS = 110
-
-
-def _next_thread_task(root):
-    """`(thread, task)` off a workspace's thread file, or `(None, None)`."""
-    from .course import threads                      # circular at module scope
-    try:
-        clean, problems = threads.read(root)
-        if not clean or problems:
-            return None, None
-        return threads.next_task(threads.resolve(root, clean))
-    except Exception:                                # noqa: BLE001
-        return None, None
 
 
 def _last_touched(root):
@@ -331,7 +335,7 @@ def atlas_payload(repo, holders=False):
     """Everything the front door draws, in family order.
 
     `families` carries the regions and their order, straight out of
-    `atlas.FAMILIES`; `workspaces` carries a card each. The vendor family has
+    `FAMILIES`; `workspaces` carries a card each. The vendor family has
     no workspaces, so the front door draws no door for it.
     """
     now = time.time()
@@ -346,9 +350,8 @@ def atlas_payload(repo, holders=False):
         _mark_holder(_ATLAS["value"]["workspaces"], holders)
         return _ATLAS["value"]
 
-    from .course import plan as course_plan          # circular at module scope
-    from .course import syllabus
-    from .course import map as course_map
+    from .course import homework                     # circular at module scope
+    from .course import plan as course_plan
 
     def clipped(said):
         said = (said or "").strip()
@@ -366,7 +369,7 @@ def atlas_payload(repo, holders=False):
         # do here" rather than "this one is a book".
         c["open"], c["next"], c["next_label"], c["kind"] = 0, "", "", "project"
         try:
-            chapters = syllabus.chapters(root)
+            chapters = homework.chapters(root)
         except Exception:                            # noqa: BLE001
             chapters = []
         if chapters:
@@ -374,7 +377,7 @@ def atlas_payload(repo, holders=False):
             here = (c.get("chapter") or "").strip()
             at = -1
             for i, ch in enumerate(chapters):
-                if here and (syllabus.label(ch) == here
+                if here and (homework.chapter_label(ch) == here
                              or str(ch.get("num")) in here
                              or (ch.get("title") or "") in here):
                     at = i
@@ -383,8 +386,8 @@ def atlas_payload(repo, holders=False):
                 None if at >= 0 else chapters[0])
             c["open"] = len(chapters) - (at + 1)
             if nxt:
-                c["next"] = clipped(syllabus.label(nxt))
-                c["next_label"] = syllabus.label(nxt)
+                c["next"] = clipped(homework.chapter_label(nxt))
+                c["next_label"] = homework.chapter_label(nxt)
             c["of"] = len(chapters)
         else:
             try:
@@ -395,34 +398,13 @@ def atlas_payload(repo, holders=False):
             # A page that throws is a blank screen where the app used to be, and
             # this one is the way back into a lesson.
             c["open"] = len(steps)
-            # A THREAD FILE ANSWERS FIRST: the first open task of the first
-            # thread that is not blocked, and it names the thread.
-            first, task = _next_thread_task(root)
-            if task:
-                c["next"] = clipped("%s: %s" % (first["title"], task["text"]))
-                c["next_label"] = "%s: %s" % (first["title"], task["text"])
-                c["next_thread"] = first["id"]
-            elif steps:
+            if steps:
                 c["next"] = clipped(steps[0].get("title") or steps[0].get("label"))
                 c["next_label"] = steps[0].get("label") or ''
         c["touched"] = _last_touched(root)
         st = course_repo.session_state(root)
         c["session"] = st.get("session") or ""
         c["mode"] = config.mode_of(st)
-        # THE ONE FIELD THE WRITTEN MAP LENDS THE FRONT DOOR, and it is one on
-        # purpose. A workspace somebody has drawn has a sentence for the whole
-        # of itself -- "Stage 1 -- audio to a graded transcript" -- which is a
-        # better label for a card than a directory name, and is the only thing
-        # on this page that could not have been derived. Everything else about
-        # the map stays behind the card: the atlas is a picture of the
-        # repository, not a picture of every picture in it.
-        c["drawn"] = ""
-        try:
-            drawn = course_map.written_status(root)
-            if drawn["has"] and not drawn["problems"]:
-                c["drawn"] = clipped(drawn["title"])
-        except Exception:                            # noqa: BLE001
-            c["drawn"] = ""
 
     # AND WHICH OF THEM ANSWERED WHILE NOBODY WAS LOOKING. Outside the cache
     # above and re-asked on every hit, for the same reason `current` is: a badge
@@ -437,9 +419,10 @@ def atlas_payload(repo, holders=False):
     # cache for the same reason again; see `_mark_holder`.
     _mark_holder(cards, holders)
 
-    out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards}
-    for f in out["families"]:
-        f.pop("dir", None)               # a filesystem path is not the page's
+    out = {"families": [{"id": f["id"], "name": f["name"], "blurb": f["blurb"],
+                         "vendor": bool(f.get("vendor")),
+                         "tool": bool(f.get("tool"))} for f in FAMILIES],
+           "workspaces": cards}
     _ATLAS["at"] = now
     _ATLAS["value"] = out
     return out

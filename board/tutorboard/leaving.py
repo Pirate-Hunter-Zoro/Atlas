@@ -56,7 +56,7 @@ import importlib.util
 import os
 import subprocess
 
-from . import atlas, fenced
+from . import fenced, subjects
 
 
 POLICY = os.path.join("ai-config", "policy", "phi.py")
@@ -80,7 +80,7 @@ def policy(root=None):
     the policy is deliberately not part of this tool. Cached per repository
     root, because this is asked on every push and the answer is a file on disk.
     """
-    base = root or atlas.root() or ""
+    base = root or subjects.root() or ""
     if _POLICY["root"] == base:
         return _POLICY["fn"]
     fn = None
@@ -104,9 +104,9 @@ def fenced_roots(base=None):
     """Every workspace in the repository that holds a fence, as absolute paths."""
     out = []
     try:
-        for w in atlas.workspaces(base):
-            if fenced.holds(w["root"]):
-                out.append(os.path.realpath(w["root"]))
+        for where in subjects.roots(base):
+            if fenced.holds(where):
+                out.append(os.path.realpath(where))
     except Exception:                                        # noqa: BLE001
         return []
     return out
@@ -214,7 +214,7 @@ def probe(rel, base=None):
     first two components; an absolute path is asked of the root), or None.
     The path need not exist and nothing on disk is listed or read.
     """
-    base = base or atlas.root() or ""
+    base = base or subjects.root() or ""
     rel = str(rel or "").replace("\\", "/")
     names_phi = policy(base)
     said = bool(names_phi(rel)) if names_phi else None

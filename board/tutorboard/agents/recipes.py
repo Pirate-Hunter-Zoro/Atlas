@@ -14,7 +14,7 @@ import shutil
 import sys
 import time
 
-from tutorboard import atlas, keys, limits, machine
+from tutorboard import keys, limits, machine, subjects
 
 CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")),
@@ -22,7 +22,7 @@ CONFIG_DIR = os.path.join(
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "courses_dir": atlas.root(),
+    "courses_dir": subjects.root(),
     "agents": {
         "claude": {
             "cmd": ["claude"], "prompt": "argv", "label": "Claude",
@@ -140,7 +140,7 @@ def load_config():
     if said:
         said = os.path.expanduser(said)
         if not os.path.isdir(os.path.join(said, "board", "tutorboard")):
-            cfg["courses_dir"] = atlas.root()
+            cfg["courses_dir"] = subjects.root()
     return cfg
 
 

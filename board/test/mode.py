@@ -274,12 +274,9 @@ try:
           code == 2 and sessions.get(rec["id"], base)["mode"] == "do", out)
     code, out = board(["status"], session=where)
     check("board status says the mode", code == 0 and "mode:    do" in out, out)
-    for gone_cmd in ("aim", "review", "walk"):
+    for gone_cmd in ("aim", "review", "walk", "open", "archive", "thread"):
         code, out = board([gone_cmd], session=where)
         check("board %s is gone" % gone_cmd, code != 0, out)
-    for flag in ("--review", "--walk", "--make", "--aim", "--kind", "--stance"):
-        code, out = board(["open", "Doer", "x", flag, "y"], session=where)
-        check("board open refuses %s" % flag, code == 2, out)
 
     # A tutor obeying "do it" runs the same command inside its turn.
     session_mode.set_mode(repo, "teach")
@@ -293,23 +290,13 @@ try:
           p.returncode == 0 and got[-1].get("from") == "tutor"
           and got[-1].get("text") == "Mode: do.", p.stdout)
 
-    # ---- a chapter still opens as a lecture; a hold is still on the brief ---
+    # ---- a hold is still on the brief ----------------------------------------
     os.environ.pop("TUTORBOARD_SESSION", None)
     course = os.path.join(base, "courses", "Course")
     write(os.path.join(course, "tutorboard.json"), json.dumps({"name": "Course"}))
     write(os.path.join(course, "chapters.tsv"), "01\t1\t9\tgroups\tGroups\n")
-    p = subprocess.run([sys.executable, BOARD, "open", "Course", "Ch 01 — Groups"],
-                       cwd=course, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, universal_newlines=True,
-                       env=dict(os.environ, TUTOR_SLURM="0", TUTOR_NO_SPAWN="1"),
-                       timeout=120)
-    with open(os.path.join(course, "live", "state.json"), encoding="utf-8") as fh:
-        st = json.load(fh)
-    check("a course's chapter opens as it always has: a lecture, labelled, "
-          "with no kind, aim or stance",
-          p.returncode == 0 and st.get("session") == "lecture"
-          and st.get("chapter") == "Ch 01 — Groups"
-          and not any(k in st for k in ("kind", "aim", "stance")), p.stdout)
+    write(os.path.join(course, "live", "state.json"), json.dumps(
+        {"course": "Course", "chapter": "Ch 01 — Groups", "session": "lecture"}))
     write(os.path.join(course, "relay", "holds", "groups.json"), json.dumps({
         "id": "groups", "label": "groups", "files": ["chapters"],
         "check": None, "held": 0}))

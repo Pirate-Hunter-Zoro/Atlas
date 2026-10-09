@@ -43,7 +43,9 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-tmp = tempfile.mkdtemp(prefix="tutor-watching-")
+top = tempfile.mkdtemp(prefix="tutor-watching-")
+tmp = os.path.join(top, "courses")
+os.makedirs(tmp)
 conf = tempfile.mkdtemp(prefix="tutor-watching-conf-")
 state = tempfile.mkdtemp(prefix="tutor-watching-state-")
 # Nothing here may write the real state directory: `watch.json` and the stop
@@ -169,7 +171,7 @@ try:
                                         "handover": "now", "agent": "claude",
                                         "last_seen": now})
 
-    cfg = {"courses_dir": tmp, "provider": "claude",
+    cfg = {"courses_dir": top, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
 
@@ -535,7 +537,7 @@ try:
     check("the watch loop cannot die of the thing it is watching",
           "A WATCHDOG MAY NOT DIE OF THE THING IT IS WATCHING" in src_tutor)
 finally:
-    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.rmtree(top, ignore_errors=True)
     shutil.rmtree(conf, ignore_errors=True)
     shutil.rmtree(state, ignore_errors=True)
 

@@ -8,7 +8,7 @@
 #    what is missing and moving nothing that is there (--no-upgrade). Elsewhere,
 #    uv is installed into ~/.local/bin if it is not on the PATH; nothing needs
 #    root. Lean's elan is the Lean workspace's own setup's to install.
-# 2. Every workspace, found the way the board finds them (`atlas.workspaces`),
+# 2. Every workspace, found the way the board finds them (`subjects.all`),
 #    never from a list. ai-config, the one private repository nested in Atlas,
 #    is reported when this machine has not cloned it. A workspace is built by
 #    what it holds:
@@ -63,10 +63,10 @@ if [ ! -e "$ROOT/ai-config/.git" ]; then
 fi
 
 workspaces="$(cd "$ROOT/board" && TUTORBOARD_COURSES="$ROOT" python3 -c '
-from tutorboard import atlas
-for w in atlas.workspaces():
+from tutorboard import subjects
+for w in subjects.all():
     print(w["id"])
-')" || { line "workspaces" "FAILED -- board/tutorboard/atlas.py did not answer"; exit 1; }
+')" || { line "workspaces" "FAILED -- board/tutorboard/subjects.py did not answer"; exit 1; }
 
 # Does this pyproject.toml declare the optional extra named $2?
 has_extra() {

@@ -236,8 +236,8 @@ try:
           status == 200 and not repo.state().get("hw"))
 
     # --- jumping to a chapter -------------------------------------------------
-    # Moving to a different chapter is starting a different lesson, so what is
-    # being left has to be filed whole rather than written over.
+    # A chapter labels the sitting. Nothing is filed away: a session keeps every
+    # card until the owner ends it.
     open(os.path.join(tmp, "chapters.tsv"), "w", encoding="utf-8").write(
         "01\t1\t9\tch01-a\tFirst chapter\n02\t10\t19\tch02-b\tSecond chapter\n")
     open(os.path.join(repo.cards, "0009-mid-lesson.md"), "w", encoding="utf-8").write(
@@ -247,10 +247,9 @@ try:
     check("a chapter can be opened from the board", status == 200 and body.get("ok"))
     check("and the sitting is labelled with it",
           repo.state().get("chapter") == "Ch 02 — Second chapter")
-    check("the lesson that was open is filed, not discarded",
-          len(archive.list_archive(repo)) >= 1)
-    check("and the board starts clean for the new chapter",
-          not [n for n in os.listdir(repo.cards) if n.endswith(".md")])
+    check("and the cards stay where they are",
+          "0009-mid-lesson.md" in os.listdir(repo.cards)
+          and not archive.list_archive(repo))
 
     status, _ = post("/session", {"session": "lecture", "chapter": "Ch 99 — Invented"})
     check("a chapter this course does not have is refused", status == 400)
@@ -262,8 +261,8 @@ try:
     cap = _io.StringIO()
     real_stderr, sys.stderr = sys.stderr, cap
     try:
-        post("/annotate/save", {"card": "0003", "strokes": strokes, "png": PNG})
-        post("/annotate/save", {"card": "0003", "strokes": strokes, "png": PNG,
+        post("/annotate/save", {"card": "0009", "strokes": strokes, "png": PNG})
+        post("/annotate/save", {"card": "0009", "strokes": strokes, "png": PNG,
                                 "send": True, "turn": t["id"]})
     finally:
         sys.stderr = real_stderr

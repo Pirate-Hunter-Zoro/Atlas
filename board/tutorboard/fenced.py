@@ -56,8 +56,8 @@ def in_fence(rel):
 
     Backslashes are normalised first, because a path that came out of a file
     somebody wrote is a path in whatever notation they wrote it in. The code
-    walkers (`course/walk.py`, `course/map.py`, `course/symbols.py`) ask this of
-    every directory they descend into and every path they are handed.
+    walker (`course/walk.py`) asks this of every directory it descends into and
+    every path it is handed.
     """
     parts = [x.lower() for x in str(rel or "").replace("\\", "/").split("/")]
     return any(x in NEVER for x in parts)

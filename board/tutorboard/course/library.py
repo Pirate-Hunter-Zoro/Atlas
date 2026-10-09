@@ -40,7 +40,7 @@ import subprocess
 import time
 
 from . import paper, reading
-from .. import artifacts, atlas, fenced, subjects
+from .. import artifacts, fenced, subjects
 
 # What a document can be written in, and what it can be built into. A stem with
 # neither a source nor a PDF is not a document, whatever else is beside it.
@@ -1369,6 +1369,6 @@ def status(repo):
         except Exception:                                    # noqa: BLE001
             doc["wiped"] = {}
     found_subject = subjects.find(root) if root else None
-    return {"workspace": atlas.identify(root), "documents": found,
+    return {"workspace": subjects.identify(root), "documents": found,
             "subject": (found_subject or {}).get("id") or "",
             "writeups": WRITEUPS}
