@@ -3,8 +3,8 @@
 `wake(subject, session, line)` is the one door: a job's ending (`jobs.drop`)
 and a held step's check (`holds.wake`) both come through it. It writes
 today's per-workspace inbox, `messages.jsonl` under the subject's session
-directory (`course/repo.py`), which `board wait` reads; `session` is carried on
-the line and does not yet choose where it goes.
+directory (`course/repo.py`), which the next turn takes; `session` is carried
+on the line and does not yet choose where it goes.
 
 `wake=False` writes the line already read: it is on the record and wakes no
 turn.

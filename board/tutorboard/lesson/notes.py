@@ -33,7 +33,7 @@ def load_messages(repo, limit=60):
 # to it was a strip that vanished after a hundred seconds and left a blank space,
 # which reads exactly like "nothing happened, send it again".
 #
-# `read` is set by `board inbox`, which is what consuming a message IS, so an
+# `read` is set when a turn takes a line (`lesson/inbox.py`), so an
 # unread line is by definition something no tutor has taken. Measured from the
 # message's own timestamp, so it survives a reload, a second device, and the
 # tutor being restarted underneath it -- none of which the browser's own clock
@@ -42,7 +42,9 @@ def waiting(repo, limit=400):
     """The oldest thing in the inbox nobody has picked up, and how many there are."""
     oldest, count, signal = None, 0, ""
     for rec in load_messages(repo, limit=limit):
-        if rec.get("read"):
+        # Read, or a line that wakes nothing (a bind, a mode change): nothing
+        # is waiting on either.
+        if rec.get("read") or rec.get("wake") is False:
             continue
         count += 1
         try:

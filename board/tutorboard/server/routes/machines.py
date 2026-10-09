@@ -35,7 +35,6 @@ from ... import choice
 from .. import spawn
 from ... import atlas
 from ... import colibri
-from ... import machine
 from ... import machines
 from ... import briefs
 from ... import missions
@@ -48,97 +47,8 @@ from ...course import config
 from ...course import paper
 from ...course import threads
 from ...course.repo import Repo
-from ...lesson import notes
 from ...lesson import state
 from ...course import repo as course_repo
-
-
-# HOW FRESH A `/seen` MARKER HAS TO BE TO MEAN SOMEBODY IS READING THAT BOARD.
-# A page posts one every 20 seconds while it is VISIBLE and stops the moment it
-# is hidden, so three beats is a window a backgrounded tab cannot hold open and
-# a sleeping iPad cannot either.
-LOOKING = 60.0
-
-
-def swap_blocked(match, holds):
-    """Why the assistant attached over there must not be stopped, or "".
-
-    A dispatch aims at a workspace nobody is looking at, so a stop there can
-    throw work away with nobody watching it go. Two kinds of reason refuse one.
-
-    THE STOP CANNOT LAND: the daemon is attached from another node, and a
-    signal reaches this machine's process table only.
-
-    THE STOP WOULD LAND AND TAKE SOMETHING CLAIMED: somebody's own sitting, a
-    board open on that workspace right now, a turn in flight, a running
-    mission, a handed-in message nothing has picked up. Two of those check
-    "nobody is looking", which is the assumption the whole dispatch rests on.
-
-    An idle listening daemon is neither, and that is the ordinary case: it
-    swaps with no tap anywhere else. A rule that refuses the ordinary case is
-    the feature not landing, which is why cards do not block -- every taught
-    workspace has them.
-    """
-    here = Repo(match["root"])
-    rec = state.load_agent(here) or {}
-    host = rec.get("host") or ""
-    if host and host != machine.node_name():
-        # A signal reaches the process table of THIS machine. The record is
-        # readable from here because the home directory is shared, which is not
-        # the same as the daemon being here, and `agent_stop` would find nothing
-        # to signal and say so.
-        return ("'%s' is attached to %s from %s, and a stop only reaches what "
-                "is running on this machine." % (holds, match["repo"], host))
-    if rec.get("mode") == "interactive":
-        # Somebody's own `tutor` session, whose pid is the terminal they are
-        # typing in. `supervise.tutor_verdict` already refuses to touch these.
-        return ("'%s' in %s is somebody's own sitting rather than a daemon, "
-                "and a tap here does not close a window somebody is working "
-                "in." % (holds, match["repo"]))
-    # "NOBODY IS LOOKING" IS THE DISPATCHER'S ASSUMPTION, AND THE BOARD CAN
-    # CHECK IT. `/seen` is posted on a beat by a page somebody can SEE -- a
-    # hidden tab and a sleeping iPad both stop posting -- so a marker inside
-    # `LOOKING` is another device with that lesson open on it. One tab is
-    # visible at a time, so it is never the tab this was tapped in: it is
-    # somebody else, mid-proof, whose tutor would go with no word reaching the
-    # glass they are reading.
-    seen = news.seen_at(match["root"]) or 0
-    if time.time() - seen < LOOKING and seen > missions.newest_card_at(
-            match["root"]):
-        # Newer than the newest card, because a marker EQUAL to it was written
-        # by `news.elsewhere` starting this workspace's notification clock
-        # rather than by a browser, and a card that landed a minute ago would
-        # otherwise read as somebody reading it.
-        return ("a board is open on %s right now, on another device, and '%s' "
-                "is the assistant whoever is reading it sends to."
-                % (match["repo"], holds))
-    if rec.get("state") != "listening":
-        # Mid-turn. The turn finishes either way -- SIGTERM ends the loop, not
-        # the turn -- so nothing is destroyed, but the answer would be written
-        # by a daemon that then disappears, and the wait for it is unbounded.
-        # `spawn.ship_missions` draws this same line for the same reason.
-        return ("'%s' in %s is %s rather than waiting, and that turn was asked "
-                "for by somebody. Ask again when it lands."
-                % (holds, match["repo"], rec.get("state") or "not listening"))
-    running = [m for m in missions.of(match["root"])
-               if m.get("state") == "running"]
-    if running:
-        # `missions.judge` fails a mission whose workspace has nothing attached
-        # to it any more. A dispatch that silently fails somebody else's
-        # dispatch is the worst outcome on this list.
-        return ("'%s' in %s is on a mission -- %s -- which stopping it would "
-                "fail under whoever sent it."
-                % (holds, match["repo"],
-                   str(running[0].get("task") or "")[:80]))
-    waiting = notes.waiting(here) or {}
-    if waiting.get("count"):
-        # `read` is set by `board inbox`, so an unread line is by construction
-        # work no tutor has taken. A new assistant's `board wait` returns it
-        # immediately and answers a question meant for someone else.
-        return ("%d message(s) handed in to %s have not been picked up yet, "
-                "and a new assistant there would answer work meant for '%s'."
-                % (waiting["count"], match["repo"], holds))
-    return ""
 
 
 def _repin_open_sittings(want, known):
@@ -595,18 +505,9 @@ def post(h, repo, path):
         # Asked for almost word for word: *"I want to be able to go into a
         # different section of a project, or a different project completely, and
         # put other agents to work on other things while the first one is
-        # working."* Three of the four pieces already existed --
-        # `machines.workspaces` is the list, `tutor agent start` is the start,
-        # and `news.elsewhere` is how you are told it landed -- so this is the
-        # seam between them.
-        #
-        # THE ASSISTANT IS NAMED ON THE COMMAND LINE AND NOT WRITTEN INTO THAT
-        # SITTING. Layer 1 of `resolve_agent` is "this once", which is exactly
-        # what this is; writing it into the other workspace's `state.json` would
-        # be changing a sitting nobody is watching, and an agent change does not
-        # carry the conversation the old one was holding. Naming an assistant
-        # where a DIFFERENT one is already listening stops that one and starts
-        # the named one -- the swap below.
+        # working."* `machines.workspaces` is the list, `runner_route` queues
+        # the turn in that subject's session, and `news.elsewhere` is how you
+        # are told it landed.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001
@@ -640,131 +541,11 @@ def post(h, repo, path):
                     {"ok": False, "error": "%s has no thread called %r"
                      % (match["repo"], thread)}, status=400)
 
-        # A NAMED ASSISTANT DISPLACES THE ONE THAT IS THERE, AND THAT IS WHAT
-        # THE TAP MEANS.
-        #
-        # `agent_start` returns 0 and "claude already listening in PSYCH-ASR"
-        # where something is attached -- correctly, because a start that found
-        # its work already done did not fail. But the assistant was NAMED here,
-        # and a no-op start means the task goes to whoever is there while the
-        # record says who was asked for. Two things then read as facts and are
-        # not: a mission stamped `colibri`, and a ceiling read off a serve job
-        # the assistant doing the work is not running in. Worse in the one case
-        # this route exists for -- colibrì is the only assistant allowed to read
-        # the fenced directory, so handing that task to a hosted tutor silently
-        # is the failure the fence is for.
-        #
-        # So the holder is STOPPED here rather than named in a refusal telling
-        # somebody to type `tutor agent stop`. This board exists so that the
-        # only reason to open a laptop is to type code a card told you to type,
-        # and a person holding an iPad cannot run a terminal command.
-        #
-        # Naming NOBODY is still "whoever is there", which is what the ask means
-        # when it names nobody: only a named assistant is a decision strong
-        # enough to displace one. And the SAME assistant is left where it is --
-        # stopping colibrì to hand colibrì a job throws away a warm prefix that
-        # costs hours to rebuild.
-        holds = missions.holder(match["root"])
-        # WHAT WAS THERE BEFORE THIS TAP, kept, because it is what decides
-        # whether the assistant this dispatch ends up with is the MISSION'S or
-        # somebody's. See the `brought` note further down.
-        was_holding = holds
+        # NOTHING IS STARTED OR STOPPED OVER THERE. The task is queued on the
+        # runner in the session `runner_route` picks, and the subject's provider
+        # writes it; a named assistant is kept on the mission record only.
         stopped = ""
-        if agent and holds and holds != agent:
-            keep = swap_blocked(match, holds)
-            if keep:
-                # Somebody, a turn, a mission or a handed-in message is
-                # depending on that daemon. Named, not commanded.
-                return h.send_json({"ok": False, "repo": match["repo"],
-                                    "agent": agent, "error": keep}, status=409)
-            # `--wait`, because `holder` stays non-empty for the whole wrap-up:
-            # SIGTERM ends the loop and the pid lives until the handoff turn is
-            # written, and a start against a daemon that is still going is the
-            # no-op this whole block is about. The launcher polls for 120s and
-            # then returns whatever happened, so the holder is read AGAIN rather
-            # than believed -- 180s here is that ceiling plus the process.
-            spawn.tutor_cli(["agent", "stop", match["repo"], "--wait"],
-                            timeout=180)
-            was = holds
-            holds = missions.holder(match["root"])
-            if holds and holds != agent:
-                # THE SLOW PATH, NOT AN ERROR. The handoff is a model call and
-                # is allowed ten minutes; nothing with an iPad waiting on it may
-                # hold a request open that long. The stop has landed, so the
-                # next tap finds the workspace empty and takes it.
-                return h.send_json(
-                    {"ok": False, "repo": match["repo"], "agent": agent,
-                     "error": ("'%s' is still wrapping up in %s -- it writes "
-                               "its handoff on the way out. Ask again in a "
-                               "minute and '%s' takes it."
-                               % (holds, match["repo"], agent))}, status=409)
-            stopped = was
-
-        # THE START IS ASKED FIRST, AND THE TASK IS WRITTEN ONLY IF IT IS
-        # ALLOWED. The other way round leaves a refused job sitting in another
-        # workspace's transcript with nothing that will ever read it -- and there
-        # are two refusals here that fire routinely: one colibri sitting at a
-        # time machine-wide, and cards that must not be committed. `/say` writes
-        # before it wakes, correctly, because there the work already exists and
-        # must not be lost; here the request is what creates it.
-        #
-        # Nothing is missed by writing second. `agent_start` forks and returns,
-        # so the daemon is not up yet -- and when it is, `board wait` blocks
-        # until something lands rather than reading the inbox once.
-        #
-        # `--respawn` says a machine decided this rather than a person. The
-        # board this was tapped on says "You stay here", and recording the
-        # target as the chosen course would move the one address, the next
-        # login and every other machine's idea of the course to a workspace
-        # nobody is looking at.
-        args = ["agent", "start", match["repo"], "--respawn"]
-        if agent:
-            args += ["--agent", agent]
-        code, out = spawn.tutor_cli(args, timeout=60)
-        said = out.strip()[-300:]
-        if code != 0:
-            # A refusal is an answer and has to reach the glass. Both of them
-            # name what to do about it -- which workspace is holding the one
-            # slot, or the one line that stops a card being tracked.
-            #
-            # AND WHATEVER WAS STOPPED TO MAKE ROOM GOES BACK. Neither refusal
-            # is reachable while something is attached -- `agent_start` returns
-            # "already listening" above both of them -- so they can only fire
-            # after this dispatch emptied the workspace. Leaving one nobody is
-            # looking at with no assistant at all is worse than the refusal that
-            # caused it. The replacement is cold and not amnesiac: the daemon
-            # wrote its handoff on the way out.
-            #
-            # AND WHETHER IT WENT BACK IS READ RATHER THAN ASSUMED. A put-back
-            # can be refused for the same reasons any start can, and a sentence
-            # claiming a workspace was restored when it is empty is the one
-            # thing worse than saying it is empty.
-            if stopped:
-                back, why = spawn.tutor_cli(
-                    ["agent", "start", match["repo"], "--respawn",
-                     "--agent", stopped], timeout=60)
-                said = (("%s -- '%s' is listening in %s again, the way this "
-                         "found it." % (said, stopped, match["repo"]))
-                        if back == 0 else
-                        ("%s -- and '%s' could not be put back in %s (%s), so "
-                         "that workspace has no assistant."
-                         % (said, stopped, match["repo"],
-                            (why or "").strip()[-160:] or "no reason given")))
-            return h.send_json({"ok": False, "repo": match["repo"],
-                                "agent": agent, "error": said}, status=409)
-
-        # AND THE HOLDER IS READ ONCE MORE, AFTER THE START. The swap above
-        # leaves this workspace empty or already the named assistant's, so
-        # somebody else holding it here arrived while the start was in flight
-        # -- and a task written now would be worked by them under a record
-        # naming somebody else.
-        holds = missions.holder(match["root"])
-        if agent and holds and holds != agent:
-            return h.send_json(
-                {"ok": False, "repo": match["repo"], "agent": agent,
-                 "error": ("'%s' took %s while this was starting '%s', and a "
-                           "start where one is attached is a no-op. Ask again."
-                           % (holds, match["repo"], agent))}, status=409)
+        said = ""
 
         # The task goes in as a turn of theirs, because that is what it is: they
         # asked for it, and a transcript over there that opens with the answer
@@ -801,20 +582,9 @@ def post(h, repo, path):
             left = (colibri.status() or {}).get("left")
             if left:
                 ceiling = time.time() + float(left)
-        # AND WHETHER THIS DISPATCH BROUGHT THE ASSISTANT WITH IT, which is the
-        # one fact about it that cannot be worked out afterwards: an assistant
-        # started FOR a mission is released when the mission ends, an assistant
-        # a person chose stays, and after the fact both are the same name in
-        # the same `agent.json`.
-        #
-        # Named, and not already there. Those two together are the whole of it.
-        # A mission that named nobody took whoever was listening and has
-        # nothing to give back; a mission that named the assistant already
-        # sitting there did not put it there, and somebody else's choice is not
-        # this mission's to undo. Whether the name is ALSO the one the
-        # workspace runs by default is asked at the release, off
-        # `resolve_agent`, because that is the moment the answer has to be true.
-        brought = agent if agent and was_holding != agent else ""
+        # A dispatch starts no assistant, so it brings none for the mission's
+        # end to release.
+        brought = ""
         made = {}
 
         def mission(target, tid):
@@ -829,7 +599,7 @@ def post(h, repo, path):
         # kind of turn this is comes out of `board brief`.
         try:
             got = registry.runner_route(match["id"], record, turn=True,
-                                        base=registry.base_of(repo), wake=False,
+                                        base=registry.base_of(repo),
                                         ask=task[:60], before=mission)
         except (LookupError, OSError) as exc:
             return h.send_json({"ok": False, "repo": match["repo"], "agent": agent,

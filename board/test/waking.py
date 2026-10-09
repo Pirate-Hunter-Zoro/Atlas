@@ -232,37 +232,15 @@ check("and past a hundred pages the order is still the order",
 
 # ------------------------------------------------- the launcher's own order
 print()
-print("-- and the launcher says so before it does anything slow --")
+print("-- and work handed in is queued, with nothing to start --")
 
-src = open(os.path.join(ROOT, "tutorboard", "runner", "daemon.py"),
-           encoding="utf-8").read()
-i = src.index("def agent_start(")
-start = src[i:src.index("def agent_stop(", i)]
-check("`agent_start` marks the course waking", "mark_waking(" in start)
-check("and it does so before it forks anything",
-      start.index("mark_waking(") < start.index("subprocess.Popen"))
-check("and the catch-up no longer happens inside the request that asked",
-      "pull(root, quiet=True)" not in start)
-
-src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
-           encoding="utf-8").read()
-j = src.index("def headless(")
-head = src[j:j + 4000]
-check("the daemon marks itself waking too, for a start nobody routed",
-      "mark_waking(" in head)
-check("before the board and the sitting, which are the slow part",
-      head.index("mark_waking(") < head.index('board(root, "start")'))
-check("and the catch-up moved here, where nobody is holding a request open",
-      "pull(root, quiet=True)" in head)
-
-# The other half of never hanging: work handed in with nothing reading the board
-# starts a tutor. It used to go into the inbox and stay there for ever, because
-# `board wait` only ever returns to a daemon that is already running.
+# The other half of never hanging: work handed in queues a turn on the board
+# server's runner, which is always there while the board is.
 for mod in ("writing", "lesson"):
     routes = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                                mod + ".py"), encoding="utf-8").read()
-    check("handing work in through %s.py wakes a tutor" % mod,
-          "spawn.wake_tutor(repo)" in routes)
+    check("handing work in through %s.py queues a turn" % mod,
+          "runner.wake(repo)" in routes)
 
 
 # ---------------------------------------------------------------------------
@@ -311,18 +289,6 @@ asked = {"host": HOST, "pid": 4321, "state": "stopped", "restarting": False,
          "stopped_at": NOW - (GRACE + 60)}
 check("while a person's own stop is still obeyed and never revived",
       supervise.tutor_verdict(asked, HOST, False, now=NOW) == "stopped")
-
-# AND THE DAEMON'S EXIT LEAVES THE FLAG ALONE. The two halves above can only
-# stay true if nothing on the way out overwrites the asker's note, and that line
-# lives in the daemon's loop. Read as source, because a drift here is silent
-# and costs a whole evening.
-src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
-           encoding="utf-8").read()
-exit_line = [l for l in src.splitlines()
-             if 'agent_state(live, state="stopped"' in l]
-check("the daemon writes exactly one exit record", len(exit_line) == 1)
-check("and it does not claim to know whether a restart was asked for",
-      bool(exit_line) and "restarting" not in exit_line[0])
 
 # AND THE OTHER FLAG THAT SAYS A DAEMON IS OWED: `handover`, which means the
 # machine went rather than a person leaving. `agent_state` MERGES, so a flag
@@ -391,9 +357,9 @@ check("and it waits far past anything measured before handing back to the "
 # there. If that ever stops being true, two daemons answer one inbox.
 starter = src[src.index("def agent_start("):]
 starter = starter[:starter.index("\ndef ", 1)]
-check("and a second start is refused rather than spawning a second daemon, "
-      "which is the whole of why the waiter and the watchdog cannot collide",
-      "already listening in" in starter and "already waking up in" in starter)
+check("and every start is refused, because the board server takes every turn, "
+      "so the waiter and the watchdog cannot start a second daemon",
+      "return 1, NO_DAEMON" in starter)
 
 print()
 print(("%d FAILURES" % len(fails)) if fails

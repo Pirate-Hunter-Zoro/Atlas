@@ -20,9 +20,8 @@ So it is a button, and what the button does is the whole of this file:
   The turn woken by the change is told to REDO them rather than to work around
   them, and told in the imperative, because a turn that asks permission to
   replan hands back a plan and does nothing.
-- **The assistant is replaced, not persuaded.** `spawn.fresh_tutor` stops the
-  one that is running and starts another, so what comes back has read the new
-  direction and nothing else. That is the half a prompt cannot do.
+- **The assistant is new by construction.** Every turn is a fresh process,
+  so the turn that answers has read the new direction and nothing else.
 
 ONE direction at a time, and it is the current one. There is no stack and no
 history here: what the direction used to be is in the archived lesson that was

@@ -531,15 +531,19 @@ def thousands(n):
     return "%.1fk" % (n / 1000.0) if n >= 1000 else str(n)
 
 
-def read_costs(root):
+def read_costs(where):
+    """The cost rows of `where`: a session directory holding `cost.jsonl`, or
+    a workspace root whose session holds one."""
+    path = os.path.join(where, COST_LOG)
+    if not os.path.isfile(path):
+        path = course_repo.session_path(where, COST_LOG)
     try:
-        with open(course_repo.session_path(root, COST_LOG), "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             return [json.loads(l) for l in fh if l.strip()]
     except (OSError, ValueError):
         out = []
         try:
-            with open(course_repo.session_path(root, COST_LOG), "r",
-                      encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8") as fh:
                 for l in fh:
                     l = l.strip()
                     if not l:
@@ -567,7 +571,8 @@ def _share(window):
 
 
 def cost_all(cfg, found):
-    """`tutor cost --all`: every workspace in `found` that billed, one line each."""
+    """`tutor cost`: every place in `found` that billed, one line each.
+    Each is `{dir, root}`, `root` a session directory or a workspace root."""
     share = _share(_window(cfg))
     rows = [(c, read_costs(c["root"])) for c in found]
     rows = [(c, r) for c, r in rows if r]
@@ -578,7 +583,7 @@ def cost_all(cfg, found):
               "`tutor --agents`.")
         return 0
     print("%-22s %6s %8s %11s %10s  %s" %
-          ("course", "turns", "trips/t", "tokens/t", "total", "who"))
+          ("where", "turns", "trips/t", "tokens/t", "total", "who"))
     for c, r in sorted(rows, key=lambda x: -sum(t.get("tokens", 0) for t in x[1])):
         n = len(r)
         print("%-22s %6d %8.1f %11s %9.2f  %s" %

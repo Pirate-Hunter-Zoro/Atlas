@@ -41,6 +41,7 @@ from tutorboard import sense
 from tutorboard.course import library
 from tutorboard.course.repo import Repo
 from tutorboard.server import spawn
+from tutorboard.runner import service as runner_service  # noqa: E402
 from tutorboard.server.routes import library as library_route
 
 from tutorboard.runner import prompts  # noqa: E402
@@ -67,25 +68,12 @@ check("a revision line is read as the signal it carries",
       runturn.turn_signal("[2026-09-16 18:02:11] [revise] the document is x")
       == "revise")
 
-for carried in (0, 1, 7, 40):
-    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "revise")
-    check("a revision runs fresh with %d turn(s) there to resume" % carried,
-          fresh is True and use == SPEC["headless_first"]
-          and template is prompts.HEADLESS_REVISE_PROMPT)
-
-use, template, fresh = runturn.turn_plan(SPEC, 3, 12)
-check("while an ordinary turn still resumes the lesson",
-      fresh is False and use == SPEC["headless"]
-      and template is prompts.HEADLESS_RESUME_PROMPT)
-
-# THE ONE THAT ONLY SHOWS UP A TURN LATER. The revision's session is now the
-# agent's current conversation, and `--continue` would put the next card of the
-# lesson inside it.
-check("the lesson does not resume into the revision's session",
-      runturn.carry_after("revise", True, 6) == 0)
-check("and an ordinary turn still carries what it carried",
-      runturn.carry_after("", False, 6) == 7
-      and runturn.carry_after("", True, 6) == 1)
+use, template = runturn.turn_plan(SPEC, "revise")
+check("a revision runs fresh with the revision's own prompt",
+      use == SPEC["headless_first"] and template is prompts.HEADLESS_REVISE_PROMPT)
+use, template = runturn.turn_plan(SPEC)
+check("and so does an ordinary turn: every turn is a fresh process",
+      use == SPEC["headless_first"] and template is prompts.HEADLESS_FIRST_PROMPT)
 
 # ---------------------------------------------------------------------------
 # what that turn is told
@@ -94,8 +82,8 @@ said = prompts.HEADLESS_REVISE_PROMPT
 check("it is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in said)
 check("and to write no card, in as many words", "Write no card" in said)
-for name in ("board write", "board open", "live/state.json", "live/cards/",
-             "HANDOFF.md", "board wait"):
+for name in ("board write", "board open", "the session's state", "its cards",
+             "HANDOFF.md"):
     check("and not to touch %s" % name, name in said)
 check("it is told to revise the source rather than write a new document",
       "REVISE THE DOCUMENT" in said and "Do not start it again" in said)
@@ -116,13 +104,9 @@ check("it is not sent to read the contract or the cards, none of which is about 
 check("an overhaul line is read as the signal it carries",
       runturn.turn_signal("[2026-09-17 20:10:00] [rework] the deck is for x")
       == "rework")
-for carried in (0, 1, 7, 40):
-    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "rework")
-    check("an overhaul runs fresh with %d turn(s) there to resume" % carried,
-          fresh is True and use == SPEC["headless_first"]
-          and template is prompts.HEADLESS_REWORK_PROMPT)
-check("and the lesson does not resume into the overhaul's session",
-      runturn.carry_after("rework", True, 6) == 0)
+use, template = runturn.turn_plan(SPEC, "rework")
+check("an overhaul runs fresh with its own prompt",
+      use == SPEC["headless_first"] and template is prompts.HEADLESS_REWORK_PROMPT)
 
 # A DOING TURN'S CLOCK, and a plain revision deliberately does not get one: a
 # correction changes what a note names and is over in a minute, while an
@@ -138,8 +122,8 @@ worked = prompts.HEADLESS_REWORK_PROMPT
 check("an overhaul is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in worked)
 check("and to write no card", "Write no card" in worked)
-for name in ("board write", "board open", "live/state.json", "live/cards/",
-             "HANDOFF.md", "board wait"):
+for name in ("board write", "board open", "the session's state", "its cards",
+             "HANDOFF.md"):
     check("and an overhaul is not to touch %s" % name, name in worked)
 check("THE DO-NOT-WIDEN SENTENCE IS NOT IN IT, which is the whole difference "
       "between the two asks",
@@ -173,7 +157,7 @@ check("and the purpose, so the board can say what is being written while the "
 check("and says outright that this is not a correction",
       "OVERHAUL" in line and "not a correction" in line)
 check("and that the lesson on the board is somebody else's",
-      "NOT PART OF THE LESSON" in line and "live/cards/" in line)
+      "NOT PART OF THE LESSON" in line and "its cards" in line)
 
 # ---------------------------------------------------------------------------
 # AND THE OTHER TURN OF THE SAME SHAPE: A MISSION SHIPPING ITSELF
@@ -188,20 +172,16 @@ check("and that the lesson on the board is somebody else's",
 check("a ship line is read as the signal it carries",
       runturn.turn_signal("[2026-09-17 21:40:02] [ship] a mission finished")
       == "ship")
-for carried in (0, 1, 7, 40):
-    use, template, fresh = runturn.turn_plan(SPEC, carried, 12, "ship")
-    check("a ship runs fresh with %d turn(s) there to resume" % carried,
-          fresh is True and use == SPEC["headless_first"]
-          and template is prompts.HEADLESS_SHIP_PROMPT)
-check("and the lesson does not resume into the ship's session either",
-      runturn.carry_after("ship", True, 6) == 0)
+use, template = runturn.turn_plan(SPEC, "ship")
+check("a ship runs fresh with its own prompt",
+      use == SPEC["headless_first"] and template is prompts.HEADLESS_SHIP_PROMPT)
 
 shipped = prompts.HEADLESS_SHIP_PROMPT
 check("a ship is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in shipped)
 check("and to write no card", "Write no card" in shipped)
-for name in ("board write", "board open", "live/state.json", "live/cards/",
-             "HANDOFF.md", "board wait"):
+for name in ("board write", "board open", "the session's state", "its cards",
+             "HANDOFF.md"):
     check("and a ship is not to touch %s" % name, name in shipped)
 check("it is told to READ the diff rather than trust it, because it is another "
       "assistant's work",
@@ -225,7 +205,7 @@ check("the line a ship is woken with names what the mission was asked to do",
 check("and who did the work, which is the whole reason it is not them pushing",
       "colibri" in said and "not the assistant that made them" in said)
 check("and says the lesson on the board is somebody else's",
-      "NOT PART OF THE LESSON" in said and "live/cards/" in said)
+      "NOT PART OF THE LESSON" in said and "its cards" in said)
 
 line = sense.revise_sense("writeups/serve/serve.tex",
                           "writeups/serve/feedback/2026-09-16-v1.md")
@@ -233,7 +213,7 @@ check("the line it is woken with names the document",
       "writeups/serve/serve.tex" in line)
 check("and the feedback file", "writeups/serve/feedback/2026-09-16-v1.md" in line)
 check("and says the lesson on the board is somebody else's",
-      "NOT PART OF THE LESSON" in line and "live/cards/" in line)
+      "NOT PART OF THE LESSON" in line and "its cards" in line)
 
 # ---------------------------------------------------------------------------
 # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT, and rebuilt by `board build`
@@ -279,22 +259,17 @@ class _H(object):
         pass
 
 
-spawn.wake_tutor = lambda r: True
+runner_service.wake = lambda r: True
 asked = library_route._revise(_H(), repo, doc, note["rel"],
                               ledger_rel=note.get("ledger") or "",
                               ids=note.get("ids") or [])
 check("the board takes the revision itself", asked.get("revise") == "board"
       and asked.get("asked") is True)
 
-import subprocess                                             # noqa: E402
-waited = subprocess.run(
-    [sys.executable, os.path.join(ROOT, "bin", "board"), "wait", "--timeout",
-     "10", "--force"], cwd=work, stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT, timeout=60)
-out = waited.stdout.decode("utf-8", "replace")
+from tutorboard.lesson import inbox                            # noqa: E402
+out, _taken = inbox.take(repo)
 signal, _ = runturn.woken_for(work, out)
-check("the inbox hands the turn a [revise] line", waited.returncode == 0
-      and signal == "revise")
+check("the inbox hands the turn a [revise] line", out and signal == "revise")
 
 seen = os.path.join(tmp, "prompt.txt")
 fake = os.path.join(tmp, "fake-provider")
@@ -303,14 +278,14 @@ with open(fake, "w", encoding="utf-8") as fh:
 os.chmod(fake, 0o755)
 spec = {"headless": [fake, "-p", "{prompt}", "--continue"],
         "headless_first": [fake, "-p", "{prompt}"]}
-use, template, fresh = runturn.turn_plan(spec, 3, 12, signal)
+use, template = runturn.turn_plan(spec, signal)
 prompt = template % {"inbox": out.strip(), "handoff": ""}
 with open(os.path.join(tmp, "turn.log"), "a") as log:
     rc, timed_out = runturn.run_turn(
         [a.replace("{prompt}", prompt) for a in use], work, log, 30)
 got = open(seen, encoding="utf-8").read() if os.path.isfile(seen) else ""
 check("the fake provider ran one fresh turn", rc == 0 and not timed_out
-      and fresh and use == spec["headless_first"])
+      and use == spec["headless_first"])
 check("and that turn is the revision, not the lesson",
       "[revise]" in got and "NOT PART OF THE LESSON" in got)
 check("and it is told to rebuild the manuscript with board build",

@@ -6,8 +6,8 @@ own -- `srun`, a language server, a shell -- leaves that child answering if
 only the direct child is killed, and the next turn is then a second client on
 the same work. So the turn runs in a group of its own and the group is killed.
 
-The daemon's own loop is not run here -- `headless` starts a board, binds a port
-and pushes a git branch -- so the wiring is read out of the file as source.
+The runner's own wiring is read out of `runner/loop.py` as source; test/runner.py
+runs it.
 """
 
 import os
@@ -86,15 +86,13 @@ finally:
 # ---------------------------------------------------------------------------
 SRC = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
            encoding="utf-8").read()
-# The daemon's own body, which hands each message to `take_turn`; `tutor
-# doctor` runs turns through `run_turn` too.
-DAEMON = SRC.split("\ndef take_turn(")[1].split("\ndef ")[0]
-check("the daemon runs every turn through `run_turn`, including the retry, or "
-      "one of the two paths leaves an orphan behind",
-      SRC.count("tutor.run_turn") == 0
-      and DAEMON.count("= turn.run_turn(") == 2
-      and "subprocess.run(cmd, cwd=root, stdout=log" not in
-      SRC.split("def headless")[-1].split("handoff ===")[0])
+# A turn and the wrap-up both run through `run_turn`; `tutor doctor` does too.
+TURN = SRC.split("\ndef take_turn(")[1].split("\ndef ")[0]
+WRAP = SRC.split("\ndef wrap_up(")[1].split("\ndef ")[0]
+check("every turn and the wrap-up run through `run_turn`, or one of them "
+      "leaves an orphan behind",
+      TURN.count("= turn.run_turn(") == 1 and WRAP.count("= turn.run_turn(") == 1
+      and "subprocess" not in SRC)
 check("and there is no hop, no pick-up and no chain-gap wait left in it",
       "reads_as_carry" not in SRC
       and "reads_as_wait" not in SRC and "mission_turn" not in SRC)

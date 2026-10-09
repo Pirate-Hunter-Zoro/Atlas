@@ -1,9 +1,10 @@
-"""The per-workspace tutor daemon on this Mac: its record, its start and its stop.
+"""A session's agent record, and what is left of the per-workspace daemon.
 
-`live/agent.json` is the record (`agent_state` merges into it); `agent_start`
-forks `tutor headless` detached, `agent_stop` signals it to write its handoff.
-`courses` is the walk over the workspaces on disk, and `board` runs the board
-CLI in one of them.
+`agent.json` in the session directory is the record (`agent_state` merges into
+it); the runner (`runner/service.py`) writes it around every turn. No daemon
+is started any more: turns run inside the board server, so `agent_start`
+refuses and says so. `courses` is the walk over the workspaces on disk, and
+`board` runs the board CLI in one of them.
 """
 
 import json
@@ -108,14 +109,20 @@ def agent_state(live, **kw):
     return st
 
 
-def owed_message(live):
-    """A student message a previous daemon failed on and never answered, or None.
+def agent_record_at(live):
+    """`<live>/agent.json` as a dict, or None."""
+    try:
+        with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return got if isinstance(got, dict) else None
 
-    The other half of `owe` in `headless`. Read once at the top of a daemon's
-    life, because the alternative -- an inbox line the board already marked read
-    -- hands the next daemon a `board wait` that blocks for ever over work that
-    was handed in.
-    """
+
+def owed_message(live):
+    """A message a turn took and never answered, or None: the other half of
+    `loop.owe`. The runner answers it before anything new in the inbox, since
+    the lines it came from are already marked read."""
     try:
         with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
             got = (json.load(fh) or {}).get("owed")
@@ -234,35 +241,6 @@ def not_this_agents_failure(live, agent_name):
         return {}
     return {"last_error": None, "failed_at": 0, "failed_agent": None}
 
-def headless_stop(cfg, args):
-    stopped = 0
-    for c in courses(cfg):
-        path = course_repo.session_path(c["root"], "agent.json")
-        try:
-            with open(path, "r", encoding="utf-8") as fh:
-                st = json.load(fh)
-        except (OSError, ValueError):
-            continue
-        pid = st.get("pid")
-        # An interactive assistant is somebody's terminal. `headless --stop` is
-        # for daemons, and killing a session a person is sitting in front of is
-        # not what anyone typing it meant.
-        if st.get("mode") == "interactive":
-            continue
-        if pid and st.get("host") == recipes.this_host():
-            try:
-                os.kill(pid, signal.SIGTERM)
-                print("  stopped %s (pid %d)" % (c["dir"], pid))
-                stopped += 1
-            except OSError:
-                pass
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-    print("stopped %d" % stopped if stopped else "nothing was listening")
-    return 0
-
 def agent_record(root):
     """What `live/agent.json` says, believed or not."""
     try:
@@ -283,136 +261,15 @@ def agent_live(root):
     return st if processes.agent_is_attached(st, recipes.this_host()) else None
 
 
-def agent_held_elsewhere(cfg, course, agent_name):
-    """Which OTHER workspace already has this agent listening, or None.
-
-    Asked only of an agent whose recipe says it is `exclusive`, and asked across
-    the whole MACHINE rather than this process: what is being protected is a
-    server with one slot in it, and the sitting that would evict it may be on
-    another node. The home directory is shared, so the record of a tutor over
-    there is readable from here -- which is exactly what has to be found -- and
-    the heartbeat is the only honest test of it, never the pid, because a pid
-    written on one node names a process table this one cannot read.
-    """
-    for c in courses(cfg):
-        if paths.same_dir(c["root"], course["root"]):
-            continue
-        rec = agent_record(c["root"])
-        if not rec or rec.get("agent") != agent_name:
-            continue
-        if rec.get("host") == recipes.this_host():
-            if agent_live(c["root"]):
-                return c["dir"]
-        elif processes.agent_attached_away(rec, rec.get("host")):
-            return c["dir"]
-    return None
-
-
-def cards_are_tracked(root):
-    """Would a card written in this workspace be committed?
-
-    `git check-ignore` rather than a list of workspaces: the answer is a property
-    of the repository and it is written down in the one place that decides it.
-    Exit 0 means ignored, 1 means it would be tracked, and anything else means
-    there is no git here to ask -- which is not a reason to refuse anybody.
-    """
-    probe = course_repo.session_path(root, "cards", "0001-probe.md")
-    try:
-        p = subprocess.run(["git", "check-ignore", "-q", probe], cwd=root,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return p.returncode == 1
+# NOTHING IS STARTED. Every turn runs inside the board server (`board/serve.py`,
+# the `tutor-board` LaunchAgent), queued by the session it is for.
+NO_DAEMON = ("there is no tutor daemon to start: turns run inside the board "
+             "server (board/serve.py, LaunchAgent tutor-board), one per message")
 
 
 def agent_start(cfg, course, agent_name, session=None):
-    """Put an assistant in this course's repository, detached.
-
-    Detached because the thing asking is usually an HTTP request from the iPad,
-    which must not wait on an agent, and because the daemon has to outlive the
-    request that started it.
-    """
-    root = course["root"]
-    live_dir = course_repo.session_dir(root)
-    st = agent_live(root)
-    if st:
-        # A start already in flight is not a reason to start a second one, and
-        # it is not "already listening" either -- saying so to whoever asked
-        # would be the same lie the board was telling.
-        if st.get("state") == "waking":
-            return 0, "%s is already waking up in %s" % (st.get("agent"),
-                                                         course["dir"])
-        return 0, "%s already listening in %s" % (st.get("agent"), course["dir"])
-    if not agent_name:
-        return 1, "no agent resolved for %s" % course["dir"]
-    spec = cfg["agents"].get(agent_name) or {}
-    if not spec.get("headless"):
-        return 1, "'%s' has no headless recipe; add one in %s" % (agent_name, recipes.CONFIG)
-    gone = recipes.missing_command(spec.get("headless"))
-    if gone:
-        return 1, ("'%s' needs `%s`, which is not on the path here; "
-                   "try: tutor --agents" % (agent_name, gone))
-    # REFUSED BY NAME, BEFORE `waking` IS WRITTEN. Both of these are properties
-    # of the recipe rather than of this file: the strings on the entry are the
-    # reasons, so the day either stops being true the line comes out of the
-    # table and nothing here has to be edited.
-    if spec.get("exclusive"):
-        held = agent_held_elsewhere(cfg, course, agent_name)
-        if held:
-            return 1, ("'%s' is already working in %s, and it runs one sitting "
-                       "at a time on this machine: %s. Stop that one first: "
-                       "tutor agent stop %s"
-                       % (agent_name, held, spec["exclusive"], held))
-    if spec.get("private") and cards_are_tracked(root):
-        return 1, ("'%s' will not open in %s, because a card written there is "
-                   "committed and %s. Add `live/*` to that workspace's "
-                   ".gitignore, or choose a workspace whose live/ is already "
-                   "ignored." % (agent_name, course["dir"], spec["private"]))
-
-    os.makedirs(live_dir, exist_ok=True)
-    # SAY THAT A TUTOR IS COMING, BEFORE ANYTHING SLOW HAPPENS.
-    #
-    # This is the first moment anything knows a start has been decided, and
-    # until now it was also the last moment before several seconds of silence:
-    # the board is already up and serving the iPad, and the only record on disk
-    # was the previous run's -- pid gone, which the board reads as "tutor
-    # stopped, nothing is reading the board". Reported from a relaunch: "the
-    # tutor was just marked as dead or not available... which put me in 'send
-    # again' mode leading to massive confusion."
-    #
-    # `waking` expires on its own (see `processes.WAKING_GRACE`), so a start
-    # that dies here does not leave the board claiming one is on the way.
-    mark_waking(live_dir, agent_name)
-
-    # The catch-up moved INTO the daemon. It is a `git pull` against a remote
-    # over a tailnet that may itself be coming back up, and it was being done
-    # here -- inside the request that asked for a tutor. `spawn.tutor_cli` gives
-    # this thirty seconds and `sync` alone allows sixty, so a slow remote did
-    # not make the start slow, it made the start get KILLED before it had
-    # spawned anything, and the board then sat on a record that never appeared.
-    # Nothing downstream needs the pull to have happened before the fork.
-    # `--respawn` says this daemon was started by machinery rather than by a
-    # person, and the only thing it changes is that the spawned process does NOT
-    # record a course choice. Every caller here is a machine deciding to put a
-    # tutor back where one already was -- a login hook, a periodic pull, a
-    # restart after a ship -- and none of them is somebody saying which lesson
-    # the address should open. The entry points that ARE somebody saying so
-    # record it themselves before they get here; see the hub tap in `serve.py`.
-    cmd = [sys.executable, TUTOR, "headless", course["dir"],
-           "--agent", agent_name, "--respawn"]
-    if session:
-        cmd.append("--" + session)
-    out = open(os.path.join(live_dir, "agent.log"), "a", buffering=1)
-    kw = {"cwd": root, "stdout": out, "stderr": subprocess.STDOUT,
-          "stdin": subprocess.DEVNULL}
-    if hasattr(os, "setsid"):
-        kw["preexec_fn"] = os.setsid      # survives the terminal that spawned it
-    try:
-        subprocess.Popen(cmd, **kw)
-    except OSError as exc:
-        return 1, str(exc)
-    return 0, "%s starting in %s" % (agent_name, course["dir"])
+    """Refused: see NO_DAEMON. `(1, why)`."""
+    return 1, NO_DAEMON
 
 
 def handed_off(cfg, course, agent_name):

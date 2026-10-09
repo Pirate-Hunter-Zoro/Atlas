@@ -1,8 +1,9 @@
 """The prompts a turn is given, one Markdown file each in `prompts/`.
 
 A file holds the prompt's exact text plus one final newline, which `_read`
-drops. `%(inbox)s` is filled by the loop. The first, resume and unfinished
-prompts end on `TURN_TAIL`, which is its own file.
+drops. `%(inbox)s` is filled by the loop. The first and unfinished prompts
+end on `TURN_TAIL`, which is its own file. Every turn is fresh, so there is no
+resume prompt.
 """
 
 import os
@@ -24,7 +25,6 @@ NO_HANDOFF_CLAUSE = _read("no-handoff-clause.md")
 TURN_TAIL = _read("turn-tail.md")
 
 HEADLESS_FIRST_PROMPT = _read("first.md") + TURN_TAIL
-HEADLESS_RESUME_PROMPT = _read("resume.md") + TURN_TAIL
 HEADLESS_UNFINISHED_PROMPT = _read("unfinished.md") + TURN_TAIL
 HEADLESS_REVISE_PROMPT = _read("revise.md")
 HEADLESS_REWORK_PROMPT = _read("rework.md")

@@ -452,6 +452,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(target, cache=True)
         if how == "health":
             out = {"ok": True, "atlas": registry.atlas, "serving": registry.loaded()}
+            from ..runner import service as runner
+            if runner.RUNNER is not None:
+                out["turns"] = runner.RUNNER.state()
             if "code" in query:
                 out["code"] = {"running": code_stamp.LOADED, "tree": code_stamp.tree()}
             return self.send_json(out)

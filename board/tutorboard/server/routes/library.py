@@ -98,7 +98,7 @@ from urllib.parse import unquote
 from . import NOT_MINE
 from . import writing
 from .. import registry
-from .. import spawn
+from ...runner import service as runner
 from ... import (artifacts, atlas, briefs, fenced, leaving, machines, paths,
                  scopes, sense, subjects, writeups)
 from ...course import burn
@@ -638,10 +638,8 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
     except OSError as exc:
         return None, ({"ok": False,
                        "error": "nothing could be asked: %s" % exc}, 500)
-    # A request that sits in an inbox beside a board with no tutor on it is a
-    # tap that did nothing for ever -- the same reason `/say` and `_revise`
-    # wake one.
-    woke = bool(spawn.wake_tutor(repo))
+    # Queued on the runner, the same as `/say` and `_revise`.
+    woke = bool(runner.wake(repo))
     return {"id": wid, "rec": made["rec"], "root": repo.root, "woke": woke}, None
 
 
@@ -886,11 +884,7 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     except OSError as exc:
         return {"revise": "board", "asked": False,
                 "detail": "the note is written but nothing could be asked: %s" % exc}
-    # A request that sits in an inbox beside a board with no tutor on it is a
-    # tap that did nothing for ever -- the same reason `/say` wakes one.
-    if spawn.wake_tutor(repo):
-        h.note("nothing was reading the board; starting a tutor for %s"
-               % ("an overhaul" if ask == "rework" else "a revision"))
+    runner.wake(repo)
     h.hub.worker.dirty.set()
     return {"revise": "board", "asked": True,
             "detail": ("The tutor has been asked to rework it, and an overhaul "

@@ -33,9 +33,10 @@ import threading                                              # noqa: E402
 from tutorboard import paths, sessions                        # noqa: E402
 from tutorboard.course import paper, repo as course_repo      # noqa: E402
 from tutorboard.server import app, spawn, tikz                # noqa: E402
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 paths.PAGES = os.path.join(tmp, "pages")
-spawn.wake_tutor = lambda repo: False
+runner_service.wake = lambda repo: False
 
 fails = []
 

@@ -82,6 +82,13 @@ class Registry(object):
             return entry
 
     def _make(self, sid, where):
+        from ..runner import service as runner
+        if runner.RUNNER is not None:
+            # This server's runner is the tutor on every session it serves.
+            try:
+                runner.RUNNER.attach(where)
+            except Exception:                                # noqa: BLE001
+                pass
         repo = course_repo.Repo(course_repo.stored_root(where), session=where)
         worker = TikzWorker(repo)
         hub = Hub(repo, worker)
@@ -192,8 +199,7 @@ def open_bound(atlas, subject, title):
 # the one way into another subject's tutor
 # ---------------------------------------------------------------------------
 def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake=True):
-    """Hand `line` to the tutor of `subject`. A STUB: T21 replaces it with
-    the runner's queue.
+    """Hand `line` to the tutor of `subject`, and queue a turn on the runner.
 
     Every route that asks a subject other than its own session's for work --
     a library [revise] or [rework], the meeting deck, a
@@ -207,13 +213,13 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake
     `before(repo, id)` runs once the session is chosen and before anything
     is written into it; whatever it raises propagates, and a dict it returns
     is merged into the record. `turn` also writes the record into the
-    session's transcript, as the student's. `wake` False leaves the tutor to
-    a caller that started one itself (`/elsewhere`).
+    session's transcript, as the student's. `wake` False writes the line
+    without queueing a turn.
 
     Returns {"session": id, "repo": Repo, "id": turn id, "record": record}.
     Raises LookupError when `subject` names no subject.
     """
-    from . import spawn                                  # local: spawn is heavy
+    from ..runner import service as runner
     base = os.path.abspath(base or subjects.root())
     found = subjects.find(subject, base) if subject else None
     if not found:
@@ -243,5 +249,5 @@ def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
     if wake:
-        spawn.wake_tutor(repo)
+        runner.wake(repo)
     return {"session": sid, "repo": repo, "id": tid, "record": record}

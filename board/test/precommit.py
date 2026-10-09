@@ -148,6 +148,25 @@ try:
     done, err = commit(["projects/O/RULES.md"])
     check("the owner, outside a turn, commits RULES.md", done, err)
 
+    # ---- a turn changes board/ only in a worktree -------------------------
+    put("board/tutorboard/turn-note.txt", "a turn's edit\n")
+    done, err = commit(["board/tutorboard/turn-note.txt"], turn=True)
+    check("a turn's commit touching board/ in the main checkout is refused, "
+          "naming the worktree to use",
+          not done and "board/tutorboard/turn-note.txt" in err and "Atlas-wt" in err,
+          err)
+    wt = os.path.join(tempfile.mkdtemp(prefix="tutor-precommit-wt-"), "wt")
+    git("worktree", "add", "-q", "-b", "turn-wt", wt)
+    with open(os.path.join(wt, "board", "tutorboard", "turn-note.txt"), "w") as fh:
+        fh.write("in a worktree\n")
+    git("add", "board/tutorboard/turn-note.txt", cwd=wt)
+    p = git("commit", "-q", "-m", "wt", cwd=wt, env=env(True))
+    check("the same commit from a linked worktree passes", p.returncode == 0, p.stderr)
+    git("worktree", "remove", "--force", wt)
+    done, err = commit(["board/tutorboard/turn-note.txt"])
+    check("and outside a turn the owner commits board/ in the main checkout",
+          done, err)
+
     # ---- under a second for ten files -------------------------------------
     for i in range(10):
         put("projects/O/src/f%d.py" % i, "x = %d\n" % i)

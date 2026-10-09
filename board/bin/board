@@ -94,8 +94,10 @@ The assistant runs these. The student never does.
                                        of the period, replaced each time.
                                        --print shows the brief
     board inbox [--all]                what the student sent; marks it read
+    board check [<path>]               run the bound subject's tutorboard.json
+                                       `check` from its root (with a path, its
+                                       `one` form for that path)
     board slate [--all]                paths of the pages written on the iPad
-    board wait [--timeout N]           block until the student sends something
     board archive                      file the current lesson away
     board export [--all]               the whole conversation as a numbered PDF
     board session new|show|list|end|reopen|delete [id]
@@ -169,6 +171,7 @@ from tutorboard import briefs, subjects
 from tutorboard import mode as session_mode
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper
+from tutorboard.lesson import inbox
 from tutorboard.course import repo as course_repo
 # `map` is a builtin; the module keeps the name the board calls the thing and
 # the binding does not.
@@ -253,26 +256,6 @@ def slugify(s):
 
 
 # ---------------------------------------------------------------------------
-def install_teaching(live):
-    """Put the teaching method where this course's assistant will read it.
-
-    It lives in Tutor-Board and is copied into `live/` on every start, so every
-    repository teaches the same way and none of them can drift -- the alternative
-    is the same document pasted into a dozen AI_INSTRUCTIONS.md files, going out
-    of step one repository at a time. `live/` is gitignored, so this is a
-    delivery, not an edit to the course.
-    """
-    src = os.path.join(TOOL, "TEACHING.md")
-    if not os.path.exists(src):
-        return None
-    dest = live.path("TEACHING.md")
-    try:
-        shutil.copyfile(src, dest)
-    except OSError:
-        return None
-    return dest
-
-
 # WHAT AN UNATTENDED TUTOR MAY DO IS NOT SET HERE, and it used to be.
 #
 # `install_permissions` wrote each course its own `.claude/settings.local.json`
@@ -307,8 +290,6 @@ def cmd_start(live, args):
             print("start one here anyway with: board start --force")
             if "--force" not in args:
                 return 1
-
-    install_teaching(live)
 
     port, port_error = free_port(live.root)
     lan = False
@@ -407,8 +388,7 @@ def cmd_status(live, args):
     print("session: %s%s" % (st.get("session", "lecture"),
                              "  (finish offered)" if st.get("finished") else ""))
     print("cards:   %d" % len(live.card_names()))
-    msgs = read_messages(live)
-    print("unread:  %d" % sum(1 for m in msgs if not m.get("read")))
+    print("unread:  %d" % len(inbox.waiting(live)))
     return 0
 
 
@@ -762,7 +742,7 @@ def cmd_write(live, args):
     # AND THE SHAPE THE PERSON ACTUALLY COMPLAINED ABOUT: a wall of text.
     #
     # "All tutor responses should be EASY to read. I never want to face a wall
-    # of text." `live/TEACHING.md` has asked for that since a card came back
+    # of text." `board/TEACHING.md` has asked for that since a card came back
     # correct and unreadable -- five headings, five hundred words -- and asking
     # is what `HANDOFF.md` was doing while it grew to eleven times its cap. A
     # prompt is a preference; this is a door. See `tutorboard/plain.py` for what
@@ -841,8 +821,74 @@ def cmd_write(live, args):
         except OSError:
             pass
         raise
+    poke(live)
     print(path)
     return 0
+
+
+def poke(live, timeout=1.0):
+    """Tell the board server a card landed, so it pushes it now rather than on
+    its next pass: `POST /s/<id>/poke` on `TUTORBOARD_PORT`, which the runner
+    sets for its turns. Nothing without one, and never an error: the server
+    sees the card within a second anyway."""
+    port = os.environ.get("TUTORBOARD_PORT")
+    if not (port and live.stored):
+        return False
+    import urllib.request
+    url = "http://127.0.0.1:%s/s/%s/poke" % (port, os.path.basename(live.live))
+    try:
+        req = urllib.request.Request(url, data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            r.read()
+        return True
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
+def cmd_check(live, args):
+    """Run the bound subject's check: its tutorboard.json `check`, read through
+    `config.clean_check`, from the subject's root. With a path (relative to
+    that root), the `one` form for that path where there is one. Prints what it
+    prints and exits with its code.
+
+    It exists so a turn runs the check as `board check`, which a tutor turn is
+    allowed to run, from the Atlas root it works in, rather than `cd`-ing into
+    the subject and calling the toolchain itself."""
+    root = live.root
+    if live.stored and os.path.realpath(root) == os.path.realpath(live.atlas):
+        print("board check: this session is bound to no subject; `board bind` "
+              "one first", file=sys.stderr)
+        return 2
+    cfg = read_config(root)
+    spec = config.read_config(root)
+    if spec.get("check_problems") and not spec.get("check"):
+        print("board check: %s's tutorboard.json check is refused: %s"
+              % (cfg["name"], "; ".join(spec["check_problems"])), file=sys.stderr)
+        return 2
+    if not spec.get("check"):
+        print("board check: %s's tutorboard.json names no `check`" % cfg["name"],
+              file=sys.stderr)
+        return 2
+    words = [a for a in args if not a.startswith("-")]
+    files = []
+    if words:
+        rel = os.path.relpath(os.path.abspath(os.path.join(root, words[0])), root)
+        if rel.startswith(".."):
+            print("board check: %s is outside %s" % (words[0], root), file=sys.stderr)
+            return 2
+        files = [(rel.replace(os.sep, "/"), os.path.isdir(os.path.join(root, rel)))]
+    chk, problems = holds.check_spec(spec["check"], files)
+    if not chk:
+        print("board check: %s" % "; ".join(problems), file=sys.stderr)
+        return 2
+    argv, env = holds._argv_env(root, chk, spec["check"].get("path"))
+    print("board check: %s  (in %s)" % (" ".join(argv), root), flush=True)
+    try:
+        return subprocess.call(argv, cwd=root, env=env, stdin=subprocess.DEVNULL)
+    except OSError as exc:
+        print("board check: could not run %s: %s" % (argv[0], exc), file=sys.stderr)
+        return 127
 
 
 def read_turns(live):
@@ -1294,24 +1340,15 @@ def read_messages(live):
 
 
 def cmd_inbox(live, args):
-    show_all = "--all" in args
-    msgs = read_messages(live)
-    pick = msgs if show_all else [m for m in msgs if not m.get("read")]
-    if not pick:
-        print("inbox empty")
-        return 0
-    for m in pick:
-        print("[%s] %s" % (m.get("iso", "?"), m.get("text", "")))
-        for f in m.get("files", []):
-            print("    file: %s" % os.path.join(live.uploads, f))
-        if m.get("slate"):
-            print("    slate: %s" % m["slate"])
-    if not show_all:
-        for m in msgs:
-            m["read"] = True
-        with open(os.path.join(live.inbox, "messages.jsonl"), "w", encoding="utf-8") as fh:
-            for m in msgs:
-                fh.write(json.dumps(m) + "\n")
+    """What was sent to this session, as a turn reads it. Without `--all`,
+    only the unread lines, and they are marked read: a turn's own prompt
+    already carries them, so a turn has no need of this."""
+    if "--all" in args:
+        msgs = read_messages(live)
+        text = inbox.render(msgs, live) if msgs else ""
+    else:
+        text, _taken = inbox.take(live)
+    print(text or "inbox empty")
     return 0
 
 
@@ -1633,7 +1670,7 @@ def cmd_recap(live, args):
         for f in t.get("files", []) or []:
             print("file: %s" % os.path.join(live.uploads, f))
 
-    unread = [m for m in read_messages(live) if not m.get("read")]
+    unread = inbox.unread(live)
     if unread:
         print("\n%d unread message(s) in the inbox — `board inbox` has them"
               % len(unread))
@@ -1675,6 +1712,24 @@ def cmd_brief(live, args):
     return 0
 
 
+def inside_a_turn(live):
+    """The session's agent record while one of its turns is in flight here,
+    else None: the runner writes `working` with this machine and its own pid
+    for exactly as long as a turn runs."""
+    try:
+        with open(live.path("agent.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        return None
+    if (st.get("state") or "") != "working":
+        return None
+    if st.get("host") and st["host"] != this_node():
+        return None
+    if not processes.agent_is_attached(st, this_node()):
+        return None
+    return st
+
+
 def _repairing(live):
     """The requests a `[repair]` turn in flight was woken for -- `[""]` where
     no inbox line says -- or None when this is no repair turn.
@@ -1687,7 +1742,7 @@ def _repairing(live):
     message counts; a record without it falls back to the signal and the
     newest `[repair]` line (`jobs.drop`).
     """
-    st = inside_a_daemon_turn(live)
+    st = inside_a_turn(live)
     if not st:
         return None
     rids = st.get("turn_repairs")
@@ -2512,7 +2567,7 @@ def cmd_job(live, args):
               "repairs an old one; name one. Nothing was filed.",
               file=sys.stderr)
         return 1
-    if fresh and inside_a_daemon_turn(live):
+    if fresh and inside_a_turn(live):
         print("board job: `--fresh` is the owner's, and this is a turn. A "
               "repair files its rerun with `--fixes`, inside the cap. Nothing "
               "was filed.", file=sys.stderr)
@@ -2943,99 +2998,6 @@ def cmd_colibri(live, args):
             print("  " + line, file=sys.stderr)
         return 1
     return _request_filed(root, ok)
-
-
-def inside_a_daemon_turn(live):
-    """Is a headless turn in flight on this machine right now?
-
-    If one is, then whoever is asking IS that turn, because a headless turn is
-    the only thing running inside it -- and a turn does not wait. The daemon
-    that started it does: it runs `board wait` itself between turns, and that is
-    the whole engine.
-
-    A turn that waits as well holds a full conversation open while the student
-    thinks, and then answers their next message inside the previous turn's
-    context. Measured in Galois Theory on 8 September 2026 as a single turn of
-    36 round trips and 5.05M cached input tokens -- four times what a turn
-    should cost, two cards deep before it let go.
-
-    Nothing in the prompt could stop it: the course contract documents `board
-    wait` as the way to be woken, which is true and correct for a person at a
-    terminal, and a headless tutor reading that contract in full did as it was
-    told. So the guard is here, where wording cannot reach it.
-    """
-    try:
-        with open(live.path("agent.json"), "r", encoding="utf-8") as fh:
-            st = json.load(fh) or {}
-    except (OSError, ValueError):
-        return None
-    if st.get("mode") == "interactive":
-        return None                      # somebody's terminal; their wait to run
-    if (st.get("state") or "") != "working":
-        return None                      # the daemon is between turns, or gone
-    if st.get("host") and st["host"] != this_node():
-        return None                      # another machine's daemon, another home
-    if not processes.agent_is_attached(st, this_node()):
-        return None
-    return st
-
-
-def cmd_wait(live, args):
-    """Block until the student sends something, then print it and exit.
-
-    This is the wake-up primitive. Any agent that can run a shell command can use
-    it: run it in the background and act when it exits, or call it in a loop with
-    a timeout. It polls a file mtime and costs nothing while it waits.
-
-    **Anything already unread wakes it immediately.** It used to take the unread
-    count as a baseline and return only when that count grew, which meant a
-    message sent while no tutor was attached was invisible for ever -- and that
-    is exactly the cold start the `begin` button exists for: the student taps
-    *ask the tutor to begin*, a tutor is attached a minute later, and it sits
-    waiting for a second tap on a board that is already asking. Marking read is
-    what consumes a message, so unread is the whole test and a baseline can only
-    lose one.
-
-    **`--timeout` IS BEST EFFORT AND CANNOT BE MADE OTHERWISE HERE. Whoever
-    needs a real bound puts it on the parent.** The deadline is checked between
-    polls, and a poll is an `open()` on a filer: an NFS open can block in the
-    kernel uninterruptibly, in state `D`, where no further line of this process
-    runs until the filer answers. The loop below is then never reached again and
-    the number on the command line means nothing -- measured at 71 minutes
-    against a `--timeout 300`. Do not try to repair that in here; a deadline
-    enforced by the thing that might hang is not a deadline. `WAIT_CEILING` in
-    `runner/loop.py` is where the daemon bounds it, and any other caller wanting one
-    does the same.
-    """
-    timeout = 900.0
-    if "--timeout" in args:
-        timeout = float(args[args.index("--timeout") + 1])
-
-    # A turn does not wait; the daemon that started it does. See
-    # `daemon_owns_the_wait` for what this cost before it was refused. It exits
-    # 0 and says what to do instead, deliberately: a non-zero exit reads to an
-    # agent as a broken command and gets retried, which is the same wait again.
-    if "--force" not in args and inside_a_daemon_turn(live):
-        print("A headless turn is in flight on this board, which means this IS "
-              "that turn -- and a turn does not wait.\n"
-              "End your turn instead. The daemon is already blocked on the next "
-              "message and will hand it to a fresh turn the moment it lands. "
-              "If the subject's state changed, keep TUTOR.md true with `board "
-              "memo <section>` first.")
-        return 0
-
-    start = time.time()
-    while True:
-        if [m for m in read_messages(live) if not m.get("read")]:
-            return cmd_inbox(live, [])
-        if time.time() - start >= timeout:
-            break
-        # A quarter second, not a whole one. This is dead time between the tap
-        # and the assistant learning about it, on every single turn, and it
-        # costs nothing to shorten: the loop is one small read of one file.
-        time.sleep(0.25)
-    print("nothing sent in %.0fs" % timeout)
-    return 2
 
 
 # ---------------------------------------------------------------------------
@@ -4093,7 +4055,7 @@ COMMANDS = {
     "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
     "open": cmd_open, "next": cmd_next, "write": cmd_write,
     "inbox": cmd_inbox, "archive": cmd_archive, "export": cmd_export,
-    "doctor": cmd_doctor, "slate": cmd_slate, "wait": cmd_wait,
+    "doctor": cmd_doctor, "slate": cmd_slate, "check": cmd_check,
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,

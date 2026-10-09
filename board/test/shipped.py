@@ -143,10 +143,6 @@ try:
           < open(os.path.join(ROOT, "serve.py"), encoding="utf-8").read().index(
               "from tutorboard.server.app import main")
           and stamp.__name__ == "tutorboard.stamp")
-    src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-    check("and the daemon's is read before the big import too",
-          src_tutor.index("stamp.mark_loaded()")
-          < src_tutor.index("from tutorboard.runner import"))
     check("a waking record drops the last daemon's stamp",
           "host=recipes.this_host(), code=None," in open(
               os.path.join(ROOT, "tutorboard", "runner", "daemon.py"),

@@ -49,6 +49,7 @@ import threading                                              # noqa: E402
 from tutorboard import sessions                               # noqa: E402
 from tutorboard.course import repo as course_repo             # noqa: E402
 from tutorboard.server import app, handler, registry, spawn   # noqa: E402
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
 
@@ -85,18 +86,13 @@ def _tutor(args, timeout=30):
     return 0, "ok"
 
 
-def _fresh(root, course):
-    CALLS.append({"fn": "fresh", "root": root, "course": course})
-
-
 from tutorboard.course import document as course_document   # noqa: E402
 from tutorboard.course import screenshot as course_shot       # noqa: E402
 from tutorboard.lesson import git as lesson_git               # noqa: E402
 
-spawn.wake_tutor = _wake
+runner_service.wake = _wake
 spawn.board_cli = _board
 spawn.tutor_cli = _tutor
-spawn.fresh_tutor = _fresh
 spawn.wake_colibri = lambda timeout=1800: (CALLS.append({"fn": "colibri"}) or (False, "fake"))
 
 
@@ -276,6 +272,9 @@ for p in ("/board", "/slate", "/library", "/meeting", "/slate/page-"):
 # Served only unprefixed, by the handler's own table; driven in part 3.
 UNPREFIXED_ONLY = {("GET", "/static/", "pages"), ("GET", "/sw.js", "pages"),
                    ("GET", "/manifest.webmanifest", "pages")}
+# Driven last, on its own: End ends the session it is asked of, and every ask
+# routed to a subject before it needs that session open.
+DRIVEN_LAST = {("POST", "/end", "lesson")}
 
 
 def multipart(name, data):
@@ -325,6 +324,7 @@ DRIVE = {
         ("/session", {"session": "lecture"}, None),
         ("/session", {"session": "nope"}, (400,))]),
     ("POST", "/say", "lesson"): ("session", [("/say", {"text": "said {mark}"}, OK)]),
+    ("POST", "/poke", "lesson"): ("session", [("/poke", {}, OK)]),
     ("POST", "/text/save", "lesson"): ("session", [
         ("/text/save", {"question": "1", "text": "typed {mark}"}, OK)]),
     # writing
@@ -497,7 +497,8 @@ def first_event(who):
 # ---------------------------------------------------------------------------
 # 1. every route, in its class
 # ---------------------------------------------------------------------------
-missing = sorted(EVERY - set(DRIVE) - UNPREFIXED_ONLY, key=lambda r: (r[2], r[1], r[0]))
+missing = sorted(EVERY - set(DRIVE) - UNPREFIXED_ONLY - DRIVEN_LAST,
+                 key=lambda r: (r[2], r[1], r[0]))
 check("every route the modules answer is driven in its class"
       + (": not %s" % ["%s %s (%s)" % m for m in missing] if missing else ""), not missing)
 gone = sorted(set(DRIVE) - EVERY)
@@ -780,6 +781,25 @@ kept = reg.sweep(now=time.monotonic() + registry.IDLE_SECONDS + 1)
 check("a session with a stream open is kept", SID["B"] not in kept
       and SID["B"] in reg.loaded())
 conn.close()
+
+# End, last.
+before = snapshot()
+status, reply = ask("POST", "/end")
+check("unprefixed POST /end is 404 and writes nothing",
+      status == 404 and not changed(before, snapshot()))
+status, reply = ask("POST", "/s/%s/end" % SID["A"])
+wrote = changed(before, snapshot())
+got = json.loads(reply.decode("utf-8")) if status == 200 else {}
+check("POST /s/A/end ends session A and no other, writing only into A",
+      status == 200 and (got.get("session") or {}).get("ended")
+      and sessions.get(SID["A"], atlas).get("ended")
+      and not sessions.get(SID["B"], atlas).get("ended")
+      and wrote and all(w.startswith(os.path.join("sessions", SID["A"]) + os.sep)
+                        for w in wrote))
+if not (status == 200 and wrote):
+    print("       %s %s %s" % (status, got, wrote))
+check("and with no runner in this server, no wrap-up is queued",
+      got.get("wrapup") is False)
 
 sessions.delete(SID["A"], base=atlas)
 check("a deleted session is 404 and leaves the registry",

@@ -186,18 +186,16 @@ def source(*parts):
         return fh.read()
 
 
-# The route asks for it; how it is done belongs with the other ways the board
-# runs its own commands.
-check("opening a chapter from the board starts a fresh assistant",
-      "spawn.fresh_tutor(repo.root, course)"
-      in source("tutorboard", "server", "routes", "lesson.py"))
-check("by stopping the old one and waiting for it, so the two never overlap",
-      '"agent", "stop", course, "--wait"'
-      in source("tutorboard", "server", "spawn.py"))
-check("and it happens off the request, because a wrap-up is a model call and "
-      "nobody taps a chapter to wait a minute for it",
-      "threading.Thread(target=run, daemon=True).start()"
-      in source("tutorboard", "server", "spawn.py"))
+# EVERY TURN IS A FRESH PROCESS, so nothing carries one chapter's conversation
+# into the next: there is no long-lived assistant to replace.
+check("a chapter's turns never resume a conversation",
+      all("--continue" not in " ".join(runturn.turn_plan(
+          {"headless_first": ["c", "-p", "{prompt}"],
+           "headless": ["c", "-p", "{prompt}", "--continue"]}, sig)[0])
+          for sig in ("", "unfinished", "writeup")))
+check("and opening a chapter replaces no tutor, because there is none to replace",
+      "fresh_tutor" not in source("tutorboard", "server", "routes", "lesson.py")
+      and "fresh_tutor" not in source("tutorboard", "server", "spawn.py"))
 
 print()
 if errors:

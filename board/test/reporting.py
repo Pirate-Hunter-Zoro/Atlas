@@ -94,10 +94,11 @@ try:
     check("and which names the placeholder", os.path.relpath(path, ws) in line)
     check("and keeps the message it was answering", "write the sweep" in line)
 
-    use, prompt, fresh = runturn.turn_plan({"headless": ["r"], "headless_first": ["f"]},
-                                         0, 1, "unfinished")
-    check("an unfinished turn resumes the session that did the work",
-          use == ["r"] and not fresh)
+    use, prompt = runturn.turn_plan({"headless": ["r"], "headless_first": ["f"]},
+                                    "unfinished")
+    check("an unfinished turn is a fresh process like every other, reading "
+          "what the work changed off disk",
+          use == ["f"])
     check("and is told to write the report over the card",
           prompt is prompts.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
           and "uncommitted" in prompt)
@@ -196,8 +197,6 @@ check("the loop asks report_owed where nothing else is owed",
       "if pending is None:\n        pending = report_owed(" in loop)
 check("before the debt is written down", loop.index("report_owed(") <
       loop.index("owe(ctx, pending)\n    return"))
-check("a failed resume of an unfinished turn retries with its own prompt",
-      "HEADLESS_UNFINISHED_PROMPT if this_signal == \"unfinished\"" in loop)
 check("the assistant is not swapped under an unfinished turn",
       'signal == "unfinished"' in src.split("def for_this_turn(")[1].split("\ndef ")[0])
 

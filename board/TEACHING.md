@@ -1,8 +1,8 @@
 # How to teach on this board
 
-This file ships with Tutor-Board and is copied into every course's `live/` when a
-board starts, so the method is the same in every repository and cannot drift out
-of step in one of them. The **course** owns its subject; this file owns the
+This file ships with the board as `board/TEACHING.md` and every turn reads it in
+place, from the Atlas root it runs in, so the method is the same in every
+subject and cannot drift out of step in one of them. The **course** owns its subject; this file owns the
 shape of a turn, because the shape is a property of the board — cards, one
 question at a time, answers written by hand, a skip that means skip.
 
@@ -10,9 +10,8 @@ It is written for the assistant, not the student. Read it before your first card
 
 ---
 
-> **Delivery note.** `board start` copies this file into each course's `live/`,
-> whole and byte for byte. There is one method, so every course gets every word
-> of it — including the sections about repositories that follow no book, because
+> **Delivery note.** There is one method, so every subject gets every word of
+> it — including the sections about repositories that follow no book, because
 > most repositories are one and the tutor cannot be told which after the fact.
 
 ## The rule everything else follows from
@@ -306,10 +305,10 @@ to you:
   `board memo <section>`, the section's whole new text on stdin. The whole file
   is capped at 800 words and the cap refuses. You never write `RULES.md`; the
   commit hook refuses a turn's commit that touches it.
-- **Do not wait.** `board wait` belongs to the daemon that started you, and it is
-  already blocked on the student's next message. A turn that waits as well holds
-  its whole conversation open while they think, and then answers them inside it —
-  one such turn took 36 round trips and cost $4.49, four times what a turn should.
+- **Do not wait.** End the turn when the card is written. Their next message
+  starts a fresh turn of its own; a turn that waits holds its whole
+  conversation open while they think — one such turn took 36 round trips and
+  cost $4.49, four times what a turn should.
 
 ## Write the card before you do anything else
 
@@ -336,7 +335,7 @@ error, correct the card — a correction keeps its place in the transcript.
 
 The student can write directly on any card you have written, and send those marks
 on their own. What arrives is the ink and the card it was made on — you wrote that
-card, so read the marks against its text in `live/cards/`, and answer the question
+card, so read the marks against its text in the session's cards, and answer the question
 they are actually asking about that passage.
 
 Treat it as the interruption it is: answer the marked point first, in its own
@@ -501,7 +500,7 @@ So:
    said, and what is left. Name every file you changed and left uncommitted.
    Plain words, under 200, no headings. One card in the transcript, and the
    truth in it. A turn that exits with the placeholder still up is woken once
-   more to write it; after that the daemon writes the card itself.
+   more to write it; after that the runner writes the card itself.
 4. **Then stop.** Ask something only if you are genuinely blocked. If you can
    pick a reasonable answer and say which you picked, do that instead — a
    question is not how a doing turn ends by default.
@@ -1442,7 +1441,7 @@ is one thing: **that turn writes no card.** A make sitting shows sections on the
 board because there the document is the evening; one asked for alongside a lesson
 must not push the lesson off the glass, so it writes the file, compiles it, and
 ends. The document appears in the library, which is where it will be read and
-where the corrections come from. Leave `live/state.json`, `live/cards/` and
+where the corrections come from. Leave the session's state, its cards and
 `HANDOFF.md` exactly as you found them: the sitting is somebody's evening and its
 mode has not changed.
 
@@ -1472,3 +1471,13 @@ Everything else about a turn is unchanged:
   asking for it is the end of the turn.
 - **say what you did not verify.** A card claiming a job ran when it was only
   submitted is worse than no card. If something is queued, say queued.
+
+Two rules about where the work happens:
+
+- **Run the subject's check as `board check`.** A turn works in the Atlas root,
+  and `board check` runs the subject's `tutorboard.json` check from the
+  subject's own root. `board check <path>` runs its `one` form for that path.
+- **Never edit `board/` in the main checkout.** It serves the iPad live. Make a
+  git worktree under `/Users/mikeyferguson/Developer/Atlas-wt/`, change and test
+  the board there, and merge it. A turn's commit touching `board/` in the main
+  checkout is refused by the pre-commit hook.

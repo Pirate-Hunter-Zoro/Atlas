@@ -235,9 +235,9 @@ unkeyed_cfg = {"default_agent": "ghost", "agents": {
 check("an unkeyed recipe cannot take a turn, in the same words a missing "
       "executable cannot",
       "NOT_A_KEY" in (recipes.agent_unavailable(unkeyed_cfg, "ghost") or ""))
-check("and the daemon refuses to start on one rather than listening and "
-      "failing every turn into a log",
-      "needs the key %s" in tutor_src)
+check("and no turn is spent on one: every turn asks who can take it, and an "
+      "unkeyed recipe is not offered",
+      "name, said = recipes.choose_agent(cfg, wanted)" in tutor_src)
 
 print("%d FAILURES" % len(fails) if fails
       else "a provider is a recipe plus a key, and neither is in the tree")

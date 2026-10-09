@@ -276,6 +276,7 @@ check("an untracked artifact leaves without a commit",
 # the payload, the route, and the strip
 # ---------------------------------------------------------------------------
 from tutorboard.server import handler, hub, spawn, tikz            # noqa: E402
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 repo = course_repo.Repo(root)
 real_stamp = library.stamp
@@ -315,7 +316,7 @@ try:
 finally:
     library.stamp = real_stamp
 
-spawn.wake_tutor = lambda r: True
+runner_service.wake = lambda r: True
 sock = socket.socket()
 sock.bind(("127.0.0.1", 0))
 port = sock.getsockname()[1]

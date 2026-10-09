@@ -248,7 +248,7 @@ def from_document(repo, doc, page=0, words="", pictured=None):
     came off.
     """
     from .course import library                        # local: avoids a cycle
-    from .server import spawn                          # local: avoids a cycle
+    from .runner import service as runner              # local: avoids a cycle
 
     try:
         page = int(page or 0)
@@ -328,7 +328,7 @@ def from_document(repo, doc, page=0, words="", pictured=None):
         library.strip_kind(repo, m["key"], "dir")
         stripped.append(m["key"])
     if not away:
-        spawn.wake_tutor(repo)
+        runner.wake(repo)
     sent = sorted(set(m["page"] for m in going)) if chosen else pages
     said = ("page %d" % sent[0]) if len(sent) == 1 \
         else "pages " + ", ".join(str(p) for p in sent)

@@ -195,11 +195,11 @@ check("an image routes through the switch's recipe when vision_agent and "
 
 # ---- a headless turn, built and run for opencode -----------------------------
 dspec = cfg["agents"]["deepseek"]
-use, template, fresh = runturn.turn_plan(dspec, 0, 1)
+use, template = runturn.turn_plan(dspec)
 cmd = usage.with_usage(dspec, [a.replace("{prompt}", "hello from the test")
                                for a in use])
-check("a fresh headless turn is opencode run with the model on the command line",
-      fresh and os.path.basename(cmd[0]) == "opencode" and "run" in cmd
+check("a headless turn is opencode run with the model on the command line",
+      "--continue" not in cmd and os.path.basename(cmd[0]) == "opencode" and "run" in cmd
       and cmd[cmd.index("-m") + 1] == "deepseek/deepseek-flash"
       and "hello from the test" in cmd)
 env = runturn.turn_environment(dspec)
@@ -216,9 +216,6 @@ check("with the key, the model, no ANTHROPIC_* and PWD at the workspace",
       ran and ran[0]["key"] == FAKE_KEY and not ran[0]["anthropic"]
       and "deepseek/deepseek-flash" in ran[0]["argv"]
       and os.path.realpath(ran[0]["pwd"]) == os.path.realpath(ws))
-use2, _, fresh2 = runturn.turn_plan(dspec, 1, 0)
-check("a resumed turn is the --continue form of the same harness",
-      not fresh2 and os.path.basename(use2[0]) == "opencode" and "--continue" in use2)
 
 # ---- the suites that touch agents, under the same environment ----------------
 SUITES = ["agents.py", "provider.py", "doctor.py", "seeing.py", "keys.py",

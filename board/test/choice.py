@@ -135,7 +135,7 @@ check("a corrupt record is nobody's choice rather than a crash",
 # recently used" is self-reinforcing. That protection was quietly lost, not by
 # changing the record, but by letting machinery write it.
 #
-# `agent_start` spawns `tutor headless <course>`, and that command recorded a
+# `agent_start` spawned `tutor headless <course>`, and that command recorded a
 # choice. Its callers are all timers -- a login hook, the periodic tool pull, a
 # restart after a ship -- and `cmd_restart` calls it in a LOOP over the courses
 # on the machine. So every tick handed the address to whichever course the loop
@@ -149,16 +149,6 @@ check("a corrupt record is nobody's choice rather than a crash",
 print()
 
 import subprocess                                            # noqa: E402
-
-src_tutor = open(os.path.join(ROOT, "tutorboard", "runner", "daemon.py"),
-                 encoding="utf-8").read()
-# The whole of `agent_start`, rather than a fixed number of characters from its
-# head: a window measured in bytes fails the moment somebody explains something
-# in the function, which is not a property worth asserting.
-i = src_tutor.index("def agent_start(")
-agent_start_src = src_tutor[i:src_tutor.index("def agent_stop(", i)]
-check("every daemon machinery starts is marked as a respawn",
-      '"--respawn"' in agent_start_src)
 
 home = tempfile.mkdtemp()
 courses_dir = os.path.join(home, "courses")
@@ -184,13 +174,6 @@ env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(home, "config"),
            BOARD_STATE_DIR=os.path.join(home, "state"))
 
 
-def run_headless(*extra):
-    subprocess.run([sys.executable, os.path.join(ROOT, "bin", "tutor"), "headless",
-                    "Probability", "--agent", "nosuchagent"] + list(extra),
-                   env=env, cwd=home, stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL, timeout=120)
-
-
 def recorded():
     try:
         with open(chosen, encoding="utf-8") as fh:
@@ -203,14 +186,6 @@ choice.remember_chosen.__doc__      # (the record under test is the file, not th
 with open(chosen, "w", encoding="utf-8") as fh:
     json.dump({"dir": "Galois-Theory", "root": os.path.join(courses_dir, "Galois-Theory"),
                "at": 1.0}, fh)
-
-run_headless("--respawn")
-check("a daemon put back by machinery does not touch the person's choice",
-      recorded() == "Galois-Theory")
-
-run_headless()
-check("and a person naming a course on the command line still records it",
-      recorded() == "Probability")
 
 check("the flag is a flag: the parser knows it, so it is never taken for a course",
       'elif a == "--respawn":' in open(os.path.join(ROOT, "bin", "tutor"),

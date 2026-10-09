@@ -204,12 +204,13 @@ def delete(sid, base=None, now=None):
 
 
 def _line(where, text, signal, now=None, **extra):
-    """Append a line to the session's inbox that wakes nothing: it is written
-    already read, so `board wait` never hands it to a turn, while `board inbox
-    --all` and the recap still show it."""
+    """Append a line to the session's inbox that wakes nothing: `"wake":
+    false`, so the runner queues no turn for it, and the next turn takes it
+    with the rest (`lesson/inbox.py`)."""
     now = time.time() if now is None else now
     rec = {"t": now, "iso": time.strftime(WHEN, time.localtime(now)),
-           "from": "board", "text": text, "signal": signal, "read": True}
+           "from": "board", "text": text, "signal": signal, "read": False,
+           "wake": False}
     rec.update(extra)
     inbox = os.path.join(where, "inbox")
     os.makedirs(inbox, exist_ok=True)

@@ -176,8 +176,8 @@ doc.getElementById('tutorbad').hidden
 
 // --------------------------------------------------------- a failed turn
 //
-// AND WITH NOTHING IN THE INBOX, WHICH IS THE REAL CASE. `board wait` marks a
-// message read the moment it hands it over, so by the time a turn fails the
+// AND WITH NOTHING IN THE INBOX, WHICH IS THE REAL CASE. The runner marks a
+// message read the moment a turn takes it, so by the time a turn fails the
 // message it failed on is read and the inbox is empty. A failure that could
 // only be reported alongside unclaimed work would therefore never be reported
 // at all -- which is exactly the hole the whole report is about.

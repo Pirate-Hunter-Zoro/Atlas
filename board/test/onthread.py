@@ -36,6 +36,7 @@ from tutorboard.course import map as mapping                         # noqa: E40
 from tutorboard.course import repo as course_repo                    # noqa: E402
 from tutorboard.lesson import archive                                # noqa: E402
 from tutorboard.server import handler, hub, spawn, tikz              # noqa: E402
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 fails = []
@@ -170,8 +171,7 @@ check("and the method sends no sitting to the README",
 # the board's own requests
 # ---------------------------------------------------------------------------
 replaced = []
-spawn.fresh_tutor = lambda root, course: replaced.append((root, course))
-spawn.wake_tutor = lambda repo: False
+runner_service.wake = lambda repo: replaced.append(repo) or True
 repo = course_repo.Repo(tmp)
 worker = tikz.TikzWorker(repo)
 worker.start()
@@ -239,7 +239,7 @@ try:
           and "board thread" in line and SAID in line)
     check("and to propose a new question as a thread rather than add it",
           "Propose it" in line and "board thread add" in line)
-    check("the lesson is still archived and the tutor still replaced",
+    check("the lesson is still archived and a turn is queued on it",
           len(replaced) >= 1)
     run(tmp, "open", "Proj", "--thread", "estimand")
     check("the rethink belongs to its sitting and is cleared by the next",

@@ -308,7 +308,8 @@ def _running(session_dir):
                     m = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(m, dict) and m.get("read") is False:
+                if (isinstance(m, dict) and m.get("read") is False
+                        and m.get("wake") is not False):
                     return True
     except OSError:
         pass

@@ -46,6 +46,7 @@ from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
 from tutorboard.lesson import notes as lesson_notes
 from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
 
@@ -453,8 +454,7 @@ check("a correction is still a correction in the same file",
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
 woken = []
-spawn.wake_tutor = lambda r: woken.append(r) or True
-spawn.fresh_tutor = lambda root, course: fails.append("a tutor was replaced")
+runner_service.wake = lambda r: woken.append(r) or True
 
 worker = tikz.TikzWorker(repo)
 worker.start()

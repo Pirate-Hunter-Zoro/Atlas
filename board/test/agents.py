@@ -178,11 +178,15 @@ check("a codex turn may write, or it is a tutor that produces nothing and "
       "says it succeeded",
       all("--dangerously-bypass-approvals-and-sandbox" in r
           for r in (codex["headless_first"], codex["headless"])))
-first, _t, fresh = runturn.turn_plan(codex, 0, 1, "")
-check("so a first turn uses the first-turn recipe",
-      fresh and first == codex["headless_first"])
-again, _t, fresh2 = runturn.turn_plan(codex, 1, 0, "")
-check("and a second resumes", not fresh2 and again == codex["headless"])
+first, _t = runturn.turn_plan(codex, "")
+check("so a turn uses the first-turn recipe",
+      first == codex["headless_first"])
+# EVERY TURN IS FRESH. Every session's turn runs in the Atlas root, so a
+# resume (`--continue`, `resume --last`) would pick up another session's.
+for sig in ("", "unfinished", "revise", "writeup", "repair"):
+    again, _t = runturn.turn_plan(claude, sig)
+    check("a %s turn never resumes" % (sig or "lesson"),
+          again == claude["headless_first"] and "--continue" not in again)
 
 # A TURN IS HANDED NOTHING ON STDIN, and the client that made this matter is
 # this one: `codex exec` reads stdin whenever it is not a terminal, appends it
@@ -459,8 +463,6 @@ check("an unfinished report is immune: it belongs to the session that did "
       "the work",
       'signal == "unfinished"' in src
       and "belongs to the session that did the work" in src)
-check("and so is a session that is genuinely carrying turns",
-      "this agent's own session is carrying" in src)
 check("the paragraph saying an assistant cannot be changed mid-way is gone, "
       "because it is no longer true",
       "chosen as a sitting OPENS and not mid-way" not in src)
@@ -535,44 +537,15 @@ write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
 check("and a recycled pid running something else is not either",
       daemon.agent_live(tmp) is None)
 
-# `headless --stop` is for daemons. Someone is sitting in front of an interactive
-# session, and killing it is not what anyone typing that meant. This one needs a
-# courses_dir of its own, because stopping walks every course it can find.
-box = tempfile.mkdtemp(prefix="tutor-courses-")
-boxed = os.path.join(box, "fake-course", "live")
-os.makedirs(boxed)
-with open(os.path.join(boxed, "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": host, "pid": os.getpid(), "agent": "claude",
-               "state": "attached", "mode": "interactive", "cmd": sys.executable,
-               "last_seen": time.time()}, fh)
-daemon.headless_stop({"courses_dir": box, "agents": {}}, [])
-check("headless --stop leaves an interactive session alone",
-      os.path.exists(os.path.join(boxed, "agent.json")))
-shutil.rmtree(box, ignore_errors=True)
-
 write_agent(host=host, pid=os.getpid(), agent="claude", state="listening")
 
 # --- starting ----------------------------------------------------------------
+# NOTHING STARTS A DAEMON: the board server's runner takes every turn.
 course = {"root": tmp, "dir": "fake-course", "name": "Fake"}
 code, msg = daemon.agent_start(CFG, course, "claude")
-check("starting is a no-op while one is already listening",
-      code == 0 and "already listening" in msg)
-
+check("a start is refused, and says the server takes the turns",
+      code == 1 and "board server" in msg)
 os.remove(os.path.join(live, "agent.json"))
-code, msg = daemon.agent_start(CFG, course, "claude")
-check("an agent with no headless recipe refuses rather than half-starting",
-      code == 1 and "headless recipe" in msg)
-
-code, msg = daemon.agent_start(CFG, course, None)
-check("an unresolved agent refuses", code == 1 and "no agent resolved" in msg)
-
-ghost = dict(CFG, agents=dict(CFG["agents"],
-                              ghost={"cmd": ["a-command-no-machine-has"],
-                                     "headless": ["a-command-no-machine-has", "{prompt}"]}))
-code, msg = daemon.agent_start(ghost, course, "ghost")
-check("an agent whose command this machine lacks refuses rather than "
-      "listening and failing every turn",
-      code == 1 and "not on the path" in msg)
 
 code, msg = daemon.agent_stop(course)
 check("stopping something that is not there is not an error",
@@ -721,21 +694,6 @@ from tutorboard.lesson import state as _state                # noqa: E402
 
 check("a restart says on disk that it is a restart",
       'agent_state(c["root"] + "/live", restarting=True' in tool_src)
-check("and a clean stop keeps the record rather than deleting it, so the board "
-      "can tell 'stopped' from 'never had one'",
-      'agent_state(live, state="stopped"' in tool_src
-      and "os.remove(os.path.join(live, \"agent.json\"))" not in tool_src)
-# AND THE EXIT DOES NOT SAY WHY, BECAUSE IT DOES NOT KNOW WHY. `restarting` is
-# written by the asker, before the signal; a daemon receiving a SIGTERM cannot
-# tell a bounce from a person leaving. Writing `restarting: False` on the way out
-# made every restart nobody finished identical to `tutor agent stop`, which the
-# watch loop obeys for ever -- measured as fifteen hours of a Galois Theory board
-# serving perfectly with nothing reading it. `test/waking.py` holds the other end
-# of that contract.
-check("and it does not overwrite the flag that says a restart asked for it",
-      'restarting' not in
-      [l for l in tool_src.splitlines()
-       if 'agent_state(live, state="stopped"' in l][0])
 check("a record left by a restart in flight reads as reattaching",
       _state._reattaching({"restarting": True, "stopped_at": _time.time()}))
 check("and one left by a restart that never finished does not, for ever",
@@ -950,7 +908,7 @@ check("a truncated result object that reports no failure is still the newest "
 # re-stamped LAST session's note with the chapter this one taught.
 check("the handoff believes the turn rather than the directory listing: the "
       "exit code, the result object and a file newer than the turn",
-      "done = subprocess.run(cmd, cwd=root, stdout=log," in tool_src
+      "rc, timed_out = turn.run_turn(" in tool_src.split("def wrap_up(")[1]
       and "wrote = not failed and os.path.getmtime(landing) > before" in tool_src)
 check("and a wrap-up that failed does not stamp a stale note with this "
       "session's chapter",

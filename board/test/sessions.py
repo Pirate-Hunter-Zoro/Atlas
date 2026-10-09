@@ -79,6 +79,7 @@ os.environ.pop("TUTORBOARD_SESSION", None)
 from tutorboard import briefs, gitops, paths, sessions   # noqa: E402
 from tutorboard.course import homework                              # noqa: E402
 from tutorboard.course import repo as course_repo                   # noqa: E402
+from tutorboard.lesson import inbox as inbox_mod                    # noqa: E402
 from tutorboard.lesson import state as lesson_state                 # noqa: E402
 from tutorboard.lesson import turns as lesson_turns                 # noqa: E402
 
@@ -333,12 +334,13 @@ try:
     check("bind sets subject, validated against subjects.all()",
           code == 0 and sessions.get(e["id"], base)["subject"] == "courses/Galois",
           out)
-    check("and appends one [bind] line that wakes nothing (written read)",
+    check("and appends one [bind] line that wakes nothing (wake: false)",
           len(lines) == 1 and lines[0]["text"] == "[bind] courses/Galois"
-          and lines[0]["read"] is True and lines[0]["signal"] == "bind", lines)
-    code, out = board(["inbox"], session=e_dir)
-    check("so board inbox, what a turn waits on, has nothing new",
-          code == 0 and "inbox empty" in out, out)
+          and lines[0]["wake"] is False and lines[0]["read"] is False
+          and lines[0]["signal"] == "bind", lines)
+    check("so nothing waits on it, while the next turn still reads it",
+          not inbox_mod.waiting(sessions.repo(e["id"], base))
+          and len(inbox_mod.unread(sessions.repo(e["id"], base))) == 1)
     check("and bind files nothing: the upload stays in uploads/",
           sorted(os.listdir(os.path.join(e_dir, "uploads"))) == up_before)
     check("a bound session's Repo works in the subject",
@@ -468,7 +470,7 @@ try:
           git("rev-parse", "HEAD").stdout.strip() == head)
     filed = [l for l in inbox(e_dir) if l.get("signal") == "filed"]
     check("and leaves a [filed] line that wakes nothing",
-          len(filed) == 1 and filed[0]["read"] is True
+          len(filed) == 1 and filed[0]["wake"] is False
           and "courses/Galois/materials/slides.pdf" in filed[0]["text"], filed)
 
     write(os.path.join(e_dir, "uploads", "scan.png"), b"\x89PNG scan")

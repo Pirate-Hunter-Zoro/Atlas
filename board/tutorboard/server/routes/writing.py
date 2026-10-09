@@ -26,7 +26,7 @@ import os
 
 from . import NOT_MINE
 from .. import multipart
-from .. import spawn
+from ...runner import service as runner
 from ..registry import is_sessionless
 from ...course import burn
 from ...course import repo as course_repo
@@ -392,10 +392,8 @@ def post(h, repo, path):
         msg["slate"] = os.path.join(repo.answers, base + ".png")
         with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(msg) + "\n")
-        # Handed in, so there had better be somebody to read it. See
-        # `spawn.wake_tutor`: a no-op unless the board really is unattended.
-        if spawn.wake_tutor(repo):
-            h.note("nothing was reading the board; starting a tutor")
+        # Handed in: the runner queues a turn to read it.
+        runner.wake(repo)
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "card": card, "turn": tid, "rev": rev})
 
@@ -465,8 +463,7 @@ def post(h, repo, path):
             msg["slate"] = os.path.join(repo.answers, base + ".png")
             with open(repo.messages_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(msg) + "\n")
-            if spawn.wake_tutor(repo):
-                h.note("nothing was reading the board; starting a tutor")
+            runner.wake(repo)
             h.hub.worker.dirty.set()
             h.note("slate page %d: %d strokes, SENT as %s rev %d answering %s"
                       % (n, len(strokes), tid, rev, record["answers"] or "-"))
@@ -509,8 +506,7 @@ def post(h, repo, path):
             }
             with open(repo.messages_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
-            if spawn.wake_tutor(repo):
-                h.note("nothing was reading the board; starting a tutor")
+            runner.wake(repo)
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "saved": saved})
     return NOT_MINE

@@ -3,8 +3,9 @@
 
 The same document pasted into a dozen `AI_INSTRUCTIONS.md` files goes out of step
 one repository at a time, and the one that drifts is the one you notice last. So
-`TEACHING.md` lives here and is copied into every course's `live/` on every
-`board start`, and every path that briefs an assistant points at it.
+`TEACHING.md` lives here, every turn runs in the Atlas root and reads it in
+place as `board/TEACHING.md`, and every path that briefs an assistant points at
+it.
 
 ONE document, delivered WHOLE. It used to be filtered: sections carried
 `<!-- mode: math -->` or `<!-- mode: code -->` and a repository was handed
@@ -32,6 +33,7 @@ loader = importlib.machinery.SourceFileLoader("boardcli", os.path.join(ROOT, "bi
 spec = importlib.util.spec_from_loader("boardcli", loader)
 boardcli = importlib.util.module_from_spec(spec)
 loader.exec_module(boardcli)
+from tutorboard import brief as brief_mod                     # noqa: E402
 
 fails = []
 
@@ -242,15 +244,11 @@ try:
     # It must make no difference to what is delivered.
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "T", "mode": "code"}, fh)
-    live = boardcli.course_repo.Repo(tmp)
-    dest = boardcli.install_teaching(live)
-    check("starting a board puts it in the course's live/", bool(dest) and os.path.isfile(dest))
-
-    delivered = open(dest, encoding="utf-8").read() if dest else ""
-    check("and what lands there is the whole document, byte for byte",
-          delivered == text)
-    check("a stale 'mode' in the course's own file changes nothing",
-          delivered == text)
+    # READ IN PLACE: every turn runs in the Atlas root and is pointed at
+    # board/TEACHING.md, so there is no per-workspace copy to go stale.
+    check("no per-workspace copy of the method is made",
+          not hasattr(boardcli, "install_teaching"))
+    delivered = text
 
     # There is no filter left to get wrong. `for_mode` selected sections by mode
     # and it is gone; the failure it used to risk -- a tutor teaching with half a
@@ -275,15 +273,6 @@ try:
     ]:
         check("every course is given " + why, section in delivered)
 
-    # It is a delivery, not an edit to the course: live/ is ignored by git.
-    check("it lands under live/, which no course commits",
-          bool(dest) and os.path.basename(os.path.dirname(dest)) == "live")
-
-    # Delivered again on the next start, so a stale copy cannot survive an edit.
-    open(dest, "w", encoding="utf-8").write("something older")
-    boardcli.install_teaching(live)
-    check("a stale copy is replaced on the next start",
-          open(dest, encoding="utf-8").read() == text)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
@@ -292,7 +281,8 @@ finally:
 _prompts = os.path.join(ROOT, "tutorboard", "runner", "prompts")
 tutor_src = "".join(open(os.path.join(_prompts, f), encoding="utf-8").read()
                     for f in sorted(os.listdir(_prompts)))
-check("the session brief points at it", "live/TEACHING.md" in tutor_src)
+check("the session brief points at it, where it is",
+      "board/TEACHING.md" in tutor_src and "live/TEACHING.md" not in tutor_src)
 check("the headless prompt points at it too",
       tutor_src.count("TEACHING.md") >= 3)
 
@@ -378,9 +368,8 @@ if serveapp:
 
 
 
-board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
-check("board start installs it rather than assuming it is there",
-      "install_teaching(live)" in board_src)
+check("the brief names it where it is, from the Atlas root a turn runs in",
+      brief_mod.METHOD == "board/TEACHING.md")
 
 
 # ---------------------------------------------------------------------------

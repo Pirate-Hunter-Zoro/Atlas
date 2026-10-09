@@ -1,6 +1,6 @@
 """A card that cannot be read on a tablet is not a card. The door that says so.
 
-`live/TEACHING.md` has asked for plain cards since the day a correct one came
+`board/TEACHING.md` has asked for plain cards since the day a correct one came
 back with five headings, five hundred words and the answer to *what did you just
 do* nowhere in the first paragraph. Asking is not enough, and this file exists
 because of what happened to the handoff: a prompt asked for 350 words for

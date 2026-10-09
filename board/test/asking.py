@@ -39,6 +39,7 @@ from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
 from tutorboard.runner import turn as runturn
 from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
 
@@ -269,9 +270,8 @@ repo = course_repo.Repo(tmp)
 # The two things that must not happen. What is checked is that neither is ASKED
 # for -- a test does not start a daemon, and it must not archive a lesson either.
 replaced = []
-spawn.fresh_tutor = lambda root, course_name: replaced.append((root, course_name))
 woken = []
-spawn.wake_tutor = lambda r: woken.append(r) or True
+runner_service.wake = lambda r: woken.append(r) or True
 
 worker = tikz.TikzWorker(repo)
 worker.start()

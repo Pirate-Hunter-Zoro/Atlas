@@ -6,7 +6,8 @@ So the rule is checked twice, by one function:
 
 - `.githooks/pre-commit` asks `check` of the STAGED paths, before anything is
   written. It also runs `leaving.refused`, the participant-code scan and, in a
-  tutor turn, the refusals for `phi`, `relay.exports` and RULES.md. See `main`.
+  tutor turn, the refusals for `phi`, `relay.exports` and RULES.md, and of a
+  commit touching board/ in the main worktree. See `main`.
 - `board/test/tracked.py` asks `check` of the whole index on every run of the
   suite, and asks `held` which directories git must be blind to.
 
@@ -404,6 +405,34 @@ def turn_refusals(top, entries):
     return out
 
 
+# Where a tutor turn changes the board's own code: a worktree, never the main
+# checkout, which serves the iPad live.
+WORKTREES = "/Users/mikeyferguson/Developer/Atlas-wt/"
+
+
+def main_worktree(top):
+    """Is `top` the main worktree of its repository, where `git rev-parse
+    --git-dir` is `--git-common-dir`? Yes when git cannot say (fail closed)."""
+    gd = _git(["rev-parse", "--git-dir"], top)
+    cd = _git(["rev-parse", "--git-common-dir"], top)
+    if gd is None or cd is None:
+        return True
+    gd = os.path.realpath(os.path.join(top, gd.decode("utf-8", "replace").strip()))
+    cd = os.path.realpath(os.path.join(top, cd.decode("utf-8", "replace").strip()))
+    return gd == cd
+
+
+def board_refusals(top, entries):
+    """A tutor turn's commit that touches `board/` in the main worktree."""
+    hit = [e[3] for e in entries if e[3] == "board" or e[3].startswith("board/")]
+    if not hit or not main_worktree(top):
+        return []
+    more = " (and %d more)" % (len(hit) - 1) if len(hit) > 1 else ""
+    return ["%s%s is the board's own code, and this is the main checkout, which "
+            "serves the iPad live. A tutor turn changes board/ in a git worktree "
+            "under %s and merges it from there." % (hit[0], more, WORKTREES)]
+
+
 def _common(path):
     said = _git(["rev-parse", "--git-common-dir"], path)
     if said is None:
@@ -435,6 +464,8 @@ def gate(top, home, turn):
             out.extend("%s reaches for session content, which is PHI and must "
                        "not go to a remote." % p for p in hit)
         out.extend(participant_codes(top, present))
+        if turn:
+            out.extend(board_refusals(top, entries))
     if turn:
         out.extend(turn_refusals(top, entries))
     return out

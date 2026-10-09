@@ -5,17 +5,21 @@
 One process serves every session at `/s/<id>/`, on config.json's `port`
 (default 8778) on loopback; `tailscale serve` publishes it, and nothing here
 re-points it. A session's Repo and Hub are made on first use and dropped when
-idle (`registry.py`).
+idle (`registry.py`). The runner (`runner/service.py`) takes every turn in this
+process: started here after `recover`, and on SIGTERM it kills the turns in
+flight, whose messages stay owed for the next start.
 """
 
 import os
 import shutil
+import signal
 import socketserver
 import sys
 import threading
 from http.server import ThreadingHTTPServer
 
 from .. import jobs, paths, subjects
+from ..runner import service
 from .handler import Handler
 from . import spawn
 from .registry import Registry
@@ -93,15 +97,24 @@ def main(argv):
         return 2
     atlas, port, host = parse(argv)
     httpd = make_server(atlas, port, host)
+    runner = service.install(service.Runner(atlas, port=httpd.server_port))
+    queued = runner.recover()
+    runner.start()
+
+    def stop(*_):
+        runner.shutdown()
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, stop)
     threading.Thread(target=httpd.registry.sweep_loop, daemon=True).start()
     # The mission sweep walks this machine's real workspaces, so a server on
     # a test tree (`--atlas`) leaves it off.
     if os.path.realpath(atlas) == os.path.realpath(subjects.root()):
         threading.Thread(target=spawn.sweep_missions, daemon=True).start()
-    sys.stderr.write("board listening on http://%s:%d/ for %s\n"
-                     % (host, httpd.server_port, atlas))
+    sys.stderr.write("board listening on http://%s:%d/ for %s; %d turn(s) at "
+                     "once%s\n" % (host, httpd.server_port, atlas, runner.concurrency,
+                                  "; recovered %s" % ", ".join(queued) if queued else ""))
     sys.stderr.flush()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        pass
+        runner.shutdown()

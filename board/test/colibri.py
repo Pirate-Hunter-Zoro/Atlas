@@ -526,73 +526,12 @@ os.makedirs(os.path.join(other, "live"))
 open(os.path.join(other, "AI_INSTRUCTIONS.md"), "w").close()
 RT = dict(R, courses_dir=tree)
 
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": recipes.this_host(), "agent": "colibri",
-               "state": "working", "pid": os.getpid(),
-               "last_seen": time.time()}, fh)
-check("a colibri sitting already running somewhere else is found",
-      daemon.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
+# NO SITTING STARTS A DAEMON ANY MORE, colibri's included: the board server's
+# runner takes every turn, and a start is refused before any recipe is read.
 code, msg = daemon.agent_start(RT, course, "colibri")
-check("and a second one is refused by name, saying which workspace holds it",
-      code == 1 and "Elsewhere" in msg)
-check("and saying why, in the recipe's own words", "KV slot" in msg)
-check("nothing was written on the way to refusing",
-      not os.path.exists(os.path.join(live, "agent.json")))
-
-# A hosted agent is not affected by any of it.
-code, msg = daemon.agent_start(RT, course, "claude")
-check("and the refusal is the recipe's, not the file's: a hosted agent opens "
-      "beside it",
-      code != 1 or "KV slot" not in msg)
-
-# The one on the other node is the case this has to catch: what is protected is
-# a server on one machine, and the sitting that would evict it may be anywhere.
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": "compute999", "agent": "colibri", "state": "working",
-               "pid": 4021421, "last_seen": time.time()}, fh)
-check("a colibri sitting listening on ANOTHER node is found too, off the "
-      "heartbeat, because the pid over there names a process table this "
-      "machine cannot read",
-      daemon.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": "compute999", "agent": "colibri", "state": "working",
-               "pid": 4021421, "last_seen": time.time() - 100000}, fh)
-check("and one that stopped beating over there is not holding anything",
-      daemon.agent_held_elsewhere(RT, course, "colibri") is None)
-os.remove(os.path.join(other, "live", "agent.json"))
-
-# And the cards. `git check-ignore` rather than a list of workspaces: the answer
-# is written down in the repository that decides it.
-git_tree = tempfile.mkdtemp(prefix="tutor-coli-git-")
-tracked = os.path.join(git_tree, "Course")
-os.makedirs(os.path.join(tracked, "live", "cards"))
-open(os.path.join(tracked, "AI_INSTRUCTIONS.md"), "w").close()
-subprocess.run(["git", "init", "-q", tracked], stdout=subprocess.DEVNULL)
-check("a workspace whose live/ is committed says so",
-      daemon.cards_are_tracked(tracked))
-with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("live/*\n!threads.json\n")
-check("and one that ignores live/ -- which is what the workspace holding `phi` "
-      "does -- says so too",
-      not daemon.cards_are_tracked(tracked))
-check("a directory that is not a repository at all refuses nobody",
-      not daemon.cards_are_tracked(git_tree + "-nothing"))
-
-with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("# nothing\n")
-GT = dict(R, courses_dir=git_tree)
-code, msg = daemon.agent_start(GT, {"root": tracked, "dir": "Course",
-                                   "name": "Course"}, "colibri")
-check("so a colibri sitting refuses to open where its card would be pushed",
-      code == 1 and "committed" in msg)
-check("and names the one line that changes it, rather than leaving it to be "
-      "guessed at",
-      ".gitignore" in msg)
-code, msg = daemon.agent_start(GT, {"root": tracked, "dir": "Course",
-                                   "name": "Course"}, "claude")
-check("while a hosted assistant opens there as it always has",
-      "committed" not in msg)
-shutil.rmtree(git_tree, ignore_errors=True)
+check("a colibri sitting is refused like any other start: the server runs turns",
+      code == 1 and "board server" in msg
+      and not os.path.exists(os.path.join(live, "agent.json")))
 shutil.rmtree(tree, ignore_errors=True)
 os.environ.pop("TUTORBOARD_COURSES", None)
 atlas.forget()

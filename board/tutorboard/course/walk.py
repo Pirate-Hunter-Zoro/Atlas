@@ -13,7 +13,7 @@ correction algorithm sitting in `transcript/corrections.py` explained to them.
 So the scope of a walkthrough is a piece of the repository's own source, and the
 lesson is reading it: predict what this returns, say which branch runs, trace
 this input through it by hand. That is not a new teaching method -- it is the
-hand-check ladder out of live/TEACHING.md pointed at a file instead of at a
+hand-check ladder out of board/TEACHING.md pointed at a file instead of at a
 definition, and TEACHING.md already describes it as a rung before a change. It
 is a sitting of its own now because in these repositories it is the whole of the
 work rather than the approach to it.

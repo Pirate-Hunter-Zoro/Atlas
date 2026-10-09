@@ -1,25 +1,22 @@
-"""The tutor daemon's loop: wait for a message, take a turn, settle what it owes.
+"""One turn, and the wrap-up: what the runner (`runner/service.py`) runs.
 
-`headless` is the daemon: it comes up, blocks on `board wait`, and hands each
-message to `take_turn`, which runs one turn and says whether the message is
-still owed. When the daemon is stopped it runs the wrap-up turn that writes
-HANDOFF.md.
+`take_turn(ctx, message)` runs one turn on a session and says whether the
+message is still owed; `wrap_up(ctx)` runs the End turn that writes the
+handoff. Both run a fresh provider process in the Atlas root. `ctx` is a `Ctx`
+the runner builds per turn: the session's Repo, the cwd, the log, the
+environment, and who takes the turn.
 """
 
 import os
-import signal
-import subprocess
-import sys
 import threading
 import time
 
-from tutorboard import gitops, handoff, jobs, keys, limits, seeing, stamp
+from tutorboard import handoff, jobs, limits, seeing
 from tutorboard.agents import recipes, usage
 from tutorboard.course import threads as course_threads
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
 from tutorboard.runner import daemon, prompts, turn
-from tutorboard.course import repo as course_repo
 
 def unfinished_line(out, card):
     """The inbox line that wakes a turn to write the report it left owed.
@@ -32,16 +29,17 @@ def unfinished_line(out, card):
             % (time.strftime("%Y-%m-%d %H:%M:%S"), card, (out or "").strip()))
 
 
-def owed_thread(root):
+def owed_thread(where):
     """`(thread id, its paths)` for the sitting open here, or `("", [])`.
 
     The paths are what the thread file says the thread is: its files, outputs
     and write-up files. A sitting on no thread, or a workspace with no valid
     thread file, has none, and the stopped card lists the whole workspace.
     """
-    st = course_repo.session_state(root)
+    repo = turn.as_repo(where)
+    st = turn.state_of(repo)
     tid = str(st.get("thread") or "").strip()
-    clean, problems = course_threads.read(root)
+    clean, problems = course_threads.read(repo.root)
     t = course_threads.thread(clean, tid) if tid and clean and not problems else None
     if not t:
         return "", []
@@ -68,7 +66,7 @@ def jobs_since(root, since):
     return out
 
 
-def report_owed(root, this_signal, out, log=None):
+def report_owed(where, this_signal, out, log=None):
     """What a turn owes once it exits with its newest card `pending`, or None.
 
     The first time, the `[unfinished]` line that wakes it once more. After an
@@ -79,7 +77,9 @@ def report_owed(root, this_signal, out, log=None):
     its box; it always names the jobs registered since the placeholder was
     written, which is when the work began.
     """
-    path, meta = lesson_cards.newest(course_repo.session_path(root, "cards"))
+    repo = turn.as_repo(where)
+    root = repo.root
+    path, meta = lesson_cards.newest(repo.cards)
     if not path or not lesson_cards.is_pending(meta):
         return None
     rel = os.path.relpath(path, root)
@@ -88,7 +88,7 @@ def report_owed(root, this_signal, out, log=None):
             log.write("-- the turn exited with %s still pending; waking it once "
                       "more to report\n" % rel)
         return unfinished_line(out, rel)
-    tid, paths = owed_thread(root)
+    tid, paths = owed_thread(repo)
     everything = lesson_git.uncommitted(root) or []
     changed = (lesson_git.uncommitted(root, paths) or []) if paths else everything
     try:
@@ -104,7 +104,7 @@ def report_owed(root, this_signal, out, log=None):
                      else "could not replace it"))
     return None
 
-def for_this_turn(cfg, course, running, carried, signal, log=None):
+def for_this_turn(cfg, course, running, signal, log=None):
     """Who writes the next card. `(cfg, agent_name, spec, why)`.
 
     THE ASSISTANT IS RE-RESOLVED EVERY TURN. This re-reads the config and the
@@ -113,16 +113,15 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     land on the next card. Where the answer has not changed -- which is nearly
     always -- nothing happens and nothing is paid.
 
-    What makes that cheap is `session_turns`, which is 1: a hosted turn holds no
+    What makes that cheap is that every turn is a fresh process: it holds no
     conversation worth protecting and reconstructs the evening off disk whoever
-    takes it.
+    takes it. There is no per-session choice: `course` is the subject's
+    tutorboard.json and the machine's config, and nothing else.
 
-    THREE GUARDS, AND THEY ARE THE WHOLE OF WHAT MUST NOT MOVE:
+    TWO GUARDS, AND THEY ARE THE WHOLE OF WHAT MUST NOT MOVE:
 
-      - not while `carried > 0`. That is the one case where the agent's own
-        session genuinely holds something, and swapping throws it away;
-      - not under an `[unfinished]`, whose report belongs to the session that
-        did the work -- `turn_plan`'s resume branch is the same test;
+      - not under an `[unfinished]`, whose report belongs to the agent that
+        did the work;
       - never into or out of a `private` recipe. It is the fence flag: the only
         assistant allowed to read `phi`, whose cards must not reach a remote. A
         swap in is a hosted model in a fenced workspace; a swap out is that
@@ -131,7 +130,9 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     cfg = recipes.load_config()
     fresh = dict(course)
     fresh.update(recipes.read_course(course["root"]))
-    fresh["root"] = course["root"]
+    # No "root": `resolve_agent` would read a sitting's choice off it, and a
+    # session carries none (one provider setting, no per-session override).
+    fresh.pop("root", None)
     switched = []
     wanted = recipes.resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m),
                                    why=switched)
@@ -171,8 +172,6 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
         # holds: the switch is a promise about which provider is called, and
         # the guards below protect a conversation, not a provider.
         pass
-    elif carried > 0:
-        why = "this agent's own session is carrying %d turn(s)" % carried
     elif signal == "unfinished":
         why = "an unfinished report belongs to the session that did the work"
     elif holding or taking:
@@ -188,34 +187,28 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     return cfg, running, cfg["agents"].get(running) or {}, None
 
 class Ctx(object):
-    """One daemon's state across its turns. `take_turn` reads and rebinds it.
+    """One turn's state, built by the runner. `take_turn` reads and rebinds it.
 
-    `cfg`, `agent_name`, `spec` and `recipe` are THIS turn's answer to who
-    writes, re-asked at the top of every turn by `for_this_turn`. `carried` is
-    how many turns the agent's own session holds, `turns` how many this daemon
-    has taken, `striking` the last failure and how often it repeated, and
-    `taught_chapter` the chapter the handoff is stamped with.
+    `repo` is the session's Repo and `root` its subject's root (the Atlas root
+    while unbound); `cwd` is where the provider runs, the Atlas root; `live`
+    the session directory; `env` the environment every turn gets before its
+    recipe's own; `on_start(process)` runs once the provider exists. `cfg`,
+    `agent_name` and `spec` are THIS turn's answer to who writes, re-asked by
+    `for_this_turn`. `turns` counts the session's turns, and `striking` is the
+    last failure and how often it repeated.
     """
 
     def __init__(self, **kw):
+        self.env = None
+        self.on_start = None
         self.__dict__.update(kw)
 
 
-# AN OWED MESSAGE LIVES ON DISK, NOT IN THIS PROCESS. `pending` is the
-# daemon's promise to re-answer a student message whose turn fell over, and
-# `board wait` has already rewritten `live/inbox/messages.jsonl` with
-# `read: true` before the turn ran -- so the inbox will not hand it over
-# again and this variable is the only copy. Measured on 23 September: a turn
-# failed at 17:43:05, the message was re-queued here, the daemon was
-# signalled three seconds later, and the student's work went with the
-# process. `live/cards/` stayed empty, the next daemon's `board wait` found
-# nothing unread, and nothing was answered until the person sent it again
-# two and a half hours later.
-#
-# So every assignment goes through `owe`, which writes it into `agent.json`
-# as well, and the loop starts by draining whatever the daemon before it
-# left owed. That covers a signal, a walltime handover, a `tutor restart`
-# and a lost node, which are four ways to lose the same thing.
+# AN OWED MESSAGE LIVES ON DISK, NOT IN THIS PROCESS. The runner writes it
+# into `agent.json` before it marks the inbox lines read, and every path out
+# of a turn rewrites it through `owe` with what is still owed. A server that
+# dies mid-turn therefore loses nothing: its successor reads `owed` back and
+# queues it (`service.Runner.recover`).
 def owe(ctx, msg):
     daemon.agent_state(ctx.live, owed=msg or None)
     return msg
@@ -225,48 +218,31 @@ def take_turn(ctx, message):
     """Run one turn on `message`. `{"owed": message or None, "error": ...}`.
 
     `owed` is the message the next turn must answer again -- this one, after a
-    failure the daemon repairs itself -- or the `[unfinished]` line that wakes
+    failure the runner repairs itself -- or the `[unfinished]` line that wakes
     the turn to write the report it left owed, or None. `error` is why the turn
     failed, or None.
     """
     out = message
     root, live, log, logpath = ctx.root, ctx.live, ctx.log, ctx.logpath
     pending = None
-    # A MESSAGE IS OWED FROM THE MOMENT IT IS TAKEN, NOT FROM THE MOMENT A
-    # TURN FAILS. `board wait` has already rewritten `live/inbox/messages.jsonl`
-    # with `read: true`, so from here until something answers it, this record
-    # is the only copy of it anywhere -- and a turn is minutes long. The
-    # failure paths below all re-owe it, which covered a turn that came back;
-    # it did not cover a daemon signalled, a node lost or a walltime handover
-    # WHILE the turn was running, and those land in the same three minutes.
-    # Written here rather than flushed from `bye`, because a signal handler
-    # that has to reach the filer to save a student's work is a promise made
-    # at the worst possible moment.
     owe(ctx, out)
     ctx.turns += 1
     this_signal, turn_repairs = turn.woken_for(root, out)
-    # `turn_started` is the daemon's clock, and the board needs it: its own
+    # `turn_started` is the runner's clock, and the board needs it: its own
     # measure of how long a turn has been going starts when it first SEES
     # the working state, which on a reload or a second device is nowhere
     # near when the turn began.
-    # AND THE LAST FAILURE STAYS ON THE RECORD WHILE THIS ONE RUNS. Clearing
-    # it here would retire a failure on the strength of a turn STARTING,
-    # which settles nothing: a daemon killed or a node lost mid-turn would
-    # leave `working`, no error and no card -- the empty record, one state
-    # along. A turn that GOES THROUGH clears it, below. What stops the board
-    # painting an old failure over a running turn is
-    # `lesson.state._failure`, which does not report one older than the turn
-    # in flight.
+    # AND THE LAST FAILURE STAYS ON THE RECORD WHILE THIS ONE RUNS. A turn that
+    # GOES THROUGH clears it, below. What stops the board painting an old
+    # failure over a running turn is `lesson.state._failure`, which does not
+    # report one older than the turn in flight.
     daemon.agent_state(live, state="working", turns=ctx.turns,
                        turn_started=time.time(), turn_signal=this_signal,
                        turn_repairs=turn_repairs)
     log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), ctx.turns, out))
 
-    # Keep saying so while the turn runs. The heartbeat used to be written
-    # only at these boundaries, so a turn that took longer than the board's
-    # two-minute window -- which a turn that reads a chapter and writes a
-    # card routinely does -- showed on the iPad as "assistant not
-    # responding" while the assistant was in the middle of teaching.
+    # Keep saying so while the turn runs: a turn that reads a chapter and
+    # writes a card routinely outlasts the board's two-minute window.
     beating = threading.Event()
 
     def beat():
@@ -276,82 +252,41 @@ def take_turn(ctx, message):
     ticker = threading.Thread(target=beat, daemon=True)
     ticker.start()
 
-    # The first turn of a session has no conversation to continue, and a
-    # resume flag against nothing is an immediate failure. After that the
-    # agent's own session is worth keeping: without it every turn pays for
-    # re-reading the contract, the method and the lesson before it can write
-    # a word, which is most of what a turn costs.
-    # A fresh session when there is nothing to resume, and again once the
-    # one we have has carried enough turns to be more expensive than
-    # starting over. Everything a fresh session needs is on disk: the
-    # contract, the method, and `board recap` for the lesson.
-    # WHO WRITES THIS ONE. Asked now rather than when the daemon started,
-    # so a tap on the front door lands on the next card rather than the next
-    # sitting, and so an allowance that ran out is climbed down from and
-    # later climbed back to. See `for_this_turn`.
+    # WHO WRITES THIS ONE, asked per turn, so an allowance that ran out is
+    # climbed down from and later climbed back to. See `for_this_turn`.
     ctx.cfg, next_agent, next_spec, moved = for_this_turn(
-        ctx.cfg, ctx.course, ctx.agent_name, ctx.carried, this_signal, log)
-    # The config was re-read, so everything taken off it is too.
-    ctx.recycle = int(ctx.cfg.get("session_turns", 12) or 0)
+        ctx.cfg, ctx.course, ctx.agent_name, this_signal, log)
     if moved:
         ctx.agent_name, ctx.spec = next_agent, next_spec
-        ctx.recipe = ctx.spec.get("headless")
     # WHO IS WRITING, AND WHY IF IT CHANGED, BEFORE THE TURN RATHER THAN
-    # AFTER IT. The strip paints both off this record, and `agent_why` is
-    # written on EVERY turn rather than only on a swap: written once it
-    # would outlive the swap it describes, and the board would go on
-    # explaining a climb-down that had long since climbed home.
-    # AND THE LAST FAILURE GOES WITH THE AGENT IT BELONGS TO. The board says
-    # "<agent>'s last turn failed -- <reason>" out of these two fields
-    # together, so a climb-down that left the old provider's reason behind
-    # would blame the new one for it. See `not_this_agents_failure`.
+    # AFTER IT. The strip paints both off this record, and a failure is
+    # dropped with the agent it belongs to (`not_this_agents_failure`).
     daemon.agent_state(live, agent=ctx.agent_name, agent_why=moved or None,
                        **daemon.not_this_agents_failure(live, ctx.agent_name))
-    first = ctx.spec.get("headless_first") or ctx.recipe
-    use, template, fresh = turn.turn_plan(ctx.spec, ctx.carried, ctx.recycle, this_signal)
-    if fresh and ctx.carried:
-        log.write("-- starting a fresh session after %d turn(s); the lesson "
-                  "is read back with `board recap`\n" % ctx.carried)
+    use, template = turn.turn_plan(ctx.spec, this_signal)
     # A script agent builds its own context, so it gets the raw inbox rather
-    # than the instruction prompt the interactive agents expect -- its whole
-    # state is on disk and it re-reads what it needs.
-    ctx.taught_chapter[0] = turn.chapter_now(root) or ctx.taught_chapter[0]
+    # than the instruction prompt the interactive agents expect.
     fill = {"inbox": out.strip(),
             # Only the chapter that is open. A handoff about another one is
             # parked as this is read, so a tutor is never handed the last
             # chapter's unfinished business as though it were this one's.
-            "handoff": turn.handoff_clause(root)}
+            "handoff": turn.handoff_clause(ctx.repo)}
     prompt = out.strip() if ctx.spec.get("raw_prompt") else template % fill
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use])
+    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use or []])
     # Where this turn's own words begin, so that if it fails we can read
     # back what it said rather than guess at why.
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
-    turn_env = turn.turn_environment(ctx.spec)
+    turn_env = turn.turn_environment(ctx.spec, base=ctx.env)
     timed_out = False
-    cap = turn.turn_timeout(ctx.cfg, root, ctx.spec,
+    cap = turn.turn_timeout(ctx.cfg, ctx.repo, ctx.spec,
                             jobs.REPAIR if turn_repairs else this_signal)
     try:
-        rc, timed_out = turn.run_turn(cmd, root, log, cap, env=turn_env)
+        if not use:
+            raise OSError("'%s' has no headless recipe" % ctx.agent_name)
+        rc, timed_out = turn.run_turn(cmd, ctx.cwd, log, cap, env=turn_env,
+                                      on_start=ctx.on_start)
         err = None if rc == 0 else ("timed out" if timed_out
                                     else "exit %d" % rc)
-        # A resume that finds nothing to resume is not a broken turn; it is a
-        # first turn wearing the wrong recipe. Try it once as one. Not where
-        # the cap cut it: that keeps the session, and retrying it fresh
-        # pays a whole preamble and eats the signal that says what happened.
-        if err and use is not first and not timed_out:
-            # A fresh session holds nothing, so the resume prompt -- which
-            # says "you already have the contract, the method and the lesson"
-            # -- would produce a card written against no contract at all.
-            # Retry as what it actually is: a first turn.
-            log.write("!! resume failed, retrying as a fresh turn\n")
-            cold = (prompts.HEADLESS_UNFINISHED_PROMPT if this_signal == "unfinished"
-                    else prompts.HEADLESS_FIRST_PROMPT)
-            cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", cold % fill)
-                                              for a in first])
-            rc, timed_out = turn.run_turn(cmd, root, log, cap, env=turn_env)
-            err = None if rc == 0 else ("timed out" if timed_out
-                                        else "exit %d" % rc)
-            fresh = True
     except OSError as exc:
         err = str(exc)
     finally:
@@ -397,7 +332,7 @@ def take_turn(ctx, message):
     # in the one place the money is counted. Nothing is written where the
     # turn said nothing: `read_turn_usage` returns {} and `record_cost`
     # stops there.
-    usage.record_cost(live, log, ctx.turns, ctx.agent_name, fresh,
+    usage.record_cost(live, log, ctx.turns, ctx.agent_name, True,
                       usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
 
     if err:
@@ -559,7 +494,6 @@ def take_turn(ctx, message):
                            failed_at=time.time(), failed_agent=ctx.agent_name,
                            retrying=pending is not None)
     else:
-        ctx.carried = turn.carry_after(this_signal, fresh, ctx.carried)
         # A turn that went through on this agent is proof of THIS agent's
         # allowance, whatever the record still says. The reset time a
         # provider hands out is a promise; this is a measurement. Per agent,
@@ -595,332 +529,75 @@ def take_turn(ctx, message):
     # with `[unfinished]`; after that, the card is replaced by what is on
     # disk. See `report_owed`.
     if pending is None:
-        pending = report_owed(root, this_signal, out, log)
+        pending = report_owed(ctx.repo, this_signal, out, log)
     owe(ctx, pending)
     return {"owed": pending, "error": err}
 
 
-def headless(cfg, course, agent_name, session):
-    spec = cfg["agents"].get(agent_name) or {}
-    recipe = spec.get("headless")
-    if not recipe:
-        print("'%s' has no headless recipe in %s.\n"
-              "Add one: a command that takes a prompt, does the work, and exits."
-              % (agent_name, recipes.CONFIG), file=sys.stderr)
-        return 1
-    gone = recipes.missing_command(recipe)
-    if gone:
-        print("'%s' needs `%s`, which is not on the path on %s.\n"
-              "Install it, or name another in %s -- `tutor --agents` lists what "
-              "this machine can actually run."
-              % (agent_name, gone, recipes.this_host(), recipes.CONFIG),
-              file=sys.stderr)
-        return 1
-    # AND THE SAME REFUSAL FOR A KEY, because the failure is the same failure.
-    # A daemon that starts unkeyed shows on the iPad as an assistant listening
-    # and then fails every turn into a log -- which is precisely the shape
-    # `missing_command` exists to prevent, one layer along. The file is named
-    # because nobody can guess it and putting the line in takes ten seconds.
-    need = keys.unkeyed(spec)
-    if need:
-        print("'%s' needs the key %s, which is not in %s.\n"
-              "Put `%s=...` in that file, one NAME=value a line.%s"
-              % (agent_name, need, keys.store(), need,
-                 ("\n" + keys.why_not()) if keys.why_not() else ""),
-              file=sys.stderr)
-        return 1
+def wrap_up(ctx):
+    """The End turn: the handoff, piped to `board handoff`. `(wrote, why)`.
 
-    # NO `git status` BEFORE A TURN'S FIRST WORD. Claude Code runs one at start
-    # to put a snapshot in its system prompt, synchronously, in the course --
-    # and an NFS open can hang it in state `D`, so the turn sits "writing" with
-    # no model call made until its cap. Measured 27 September 2026 in Galois
-    # Theory: seven minutes in `nfs_set_open_stateid_locked`. A turn has no use
-    # for the snapshot; this variable drops it. Every turn inherits it from here.
-    os.environ["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"] = "1"
-
-    root = course["root"]
-    live = course_repo.session_dir(root)
-    os.makedirs(live, exist_ok=True)
-    # Before the board, the sitting and the catch-up -- all of which
-    # take time the person holding the iPad is already watching. With a real pid
-    # this time, so a start that dies is noticed by the pid test rather than
-    # having to wait out the grace.
-    daemon.mark_waking(live, agent_name, pid=os.getpid())
-    # Moved here from `agent_start`, so the request that asks for a tutor does
-    # not wait on a remote. Every session still begins by catching up; it just
-    # does it where there is nobody watching the clock.
-    gitops.pull(root, quiet=True)
-    logpath = os.path.join(live, "agent.log")
-    log = open(logpath, "a", buffering=1)
-    host = recipes.this_host()
-    # WHICH ASSISTANT IS WRITING IS A PER-TURN QUESTION, and it is asked at the
-    # top of each one by `for_this_turn`: the config and the sitting's own
-    # `state.json` are re-read, the allowance is checked, and where the answer
-    # has moved the recipe is re-bound. `agent_name` and `spec` below are this
-    # turn's answer rather than the daemon's, and they change under the loop.
-
-    daemon.board(root, "start")
-    if session:
-        daemon.board(root, "open", course.get("name") or course["dir"], "session", "--" + session)
-
-    # AND WHETHER THE PROVIDER THIS SITTING NAMES ANSWERS FROM HERE AT ALL,
-    # ASKED BEFORE THE PERSON SENDS ANYTHING RATHER THAN AFTER. The probe costs
-    # 0.17 s -- 0.07 s for the reset from a filtered host, 0.10 s for the 401
-    # from one that answers -- and it replaces a first turn that spends about
-    # three minutes retrying and writes no card. Cached in `probe_before_turn`
-    # for `PROBE_TTL`, and skipped entirely for a recipe with no provider of its
-    # own, so an ordinary sitting pays nothing for it.
-    #
-    # The climb-down is then taken HERE rather than at the top of the first
-    # turn, so the board comes up saying who is actually teaching. A student
-    # watching a chip that says `deepseek` over a hostname this machine cannot
-    # open has been told nothing, and the whole of what the swap is worth is
-    # that somebody is told.
-    recipes.probe_before_turn(cfg, agent_name, log)
-    took, why_took = recipes.choose_agent(cfg, agent_name)
-    if took != agent_name:
-        log.write("-- %s\n" % (why_took or "'%s' is taking this sitting" % took))
-        agent_name = took
-        spec = cfg["agents"].get(took) or {}
-        recipe = spec.get("headless") or spec.get("headless_first")
-    # `last_error` and `failed_at` are not cleared here either: see
-    # `mark_waking`. Coming up is not evidence that the turn that fell over
-    # before it went well.
-    daemon.agent_state(live, host=host, agent=agent_name, pid=os.getpid(),
-                       started=time.time(), state="listening", turns=0, waking_at=0,
-                       agent_why=why_took or None, code=stamp.LOADED,
-                       **daemon.not_this_agents_failure(live, agent_name))
-    print("%s is listening in %s. Send from the board; nothing here needs a keyboard."
-          % (agent_name, course["dir"]))
-    print("stop with: tutor headless --stop\n")
-
-    running = {"go": True, "waiter": None}
-
-    def bye(*_):
-        running["go"] = False
-        # Kill the blocking `board wait` too, or shutting down takes as long as
-        # its timeout -- five minutes of a course that has already been left.
-        #
-        # THE WHOLE GROUP, AND SIGKILL. A waiter stuck on the filer cannot act
-        # on a polite signal, and a restart that walks away leaving one behind
-        # is a daemon nobody can replace: the record says a bounce is in flight,
-        # the old process holds the workspace, and the new one never starts.
-        w = running["waiter"]
-        if w and w.poll() is None:
-            turn.drop_waiter(w)
-    signal.signal(signal.SIGTERM, bye)
-    signal.signal(signal.SIGINT, bye)
-
-    # No job poll here. The cluster's relay polls every registered job on its
-    # five-minute pass (`tutor relay`), and an ending it drops in the inbox is
-    # picked up by the `board wait` below like any other line.
-
-    turns = 0
-    # Which chapter this daemon has actually been teaching, refreshed each turn.
-    # Not read at the end: by then the board may have opened the next one, and
-    # the handoff would be stamped with a chapter it says nothing about.
-    taught_chapter = [turn.chapter_now(root)]
-    carried = 0          # turns the agent's current session is carrying
-    # An inbox whose turn failed for a reason that has since been repaired. The
-    # student sent something and got nothing back; `board wait` will not hand it
-    # over twice, so it is carried here rather than waiting for them to give up
-    # and send again. See `owe`.
-    pending = daemon.owed_message(live)
-    if pending:
-        log.write("-- the daemon before this one owed an answer to a message; "
-                  "it is the first turn\n")
-    # THE SAME FAILURE TWICE IS A BROKEN RECIPE, NOT A BAD MINUTE. `(agent,
-    # reason, count)` for whatever the last turn failed of, so a provider that
-    # answers every turn with the same fault -- a model that has been renamed, a
-    # key the provider now rejects -- is stood down and the lesson climbs down to
-    # something that can teach it. Two, because one is a blip and the second
-    # identical one is a pattern; and the reason has to MATCH, so two unrelated
-    # faults do not add up to a verdict. In the process rather than on disk: it
-    # is about this run of turns, and the stand-down it buys is what persists.
-    striking = [None, None, 0]
-    recycle = int(cfg.get("session_turns", 12) or 0)
-    ctx = Ctx(cfg=cfg, course=course, root=root, live=live, log=log,
-              logpath=logpath, agent_name=agent_name, spec=spec,
-              recipe=recipe, carried=carried, turns=turns,
-              striking=striking, taught_chapter=taught_chapter,
-              recycle=recycle)
-    while running["go"]:
-        if pending is not None:
-            out, pending = pending, None
-            log.write("-- answering the message whose turn failed before\n")
-        else:
-            # `--force`, because `board wait` now refuses a caller that is
-            # inside a headless turn -- and this is the one caller that is not.
-            # The guard reads `agent.json`, which still says `working` from the
-            # turn that just finished at the moment this starts, so the daemon
-            # cannot be told apart from its own turn by state alone.
-            running["waiter"] = subprocess.Popen(
-                [sys.executable, daemon.BOARD, "wait",
-                 "--timeout", str(turn.WAIT_TIMEOUT), "--force"],
-                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                start_new_session=True)
-            try:
-                raw = running["waiter"].communicate(timeout=turn.WAIT_CEILING)[0]
-                code = running["waiter"].returncode
-            except subprocess.TimeoutExpired:
-                # It is past its own deadline and did not enforce it, so it is
-                # wedged rather than slow. See `drop_waiter`.
-                turn.drop_waiter(running["waiter"], log)
-                raw, code = b"", 2
-            out = raw.decode("utf-8", "replace")
-            running["waiter"] = None
-            if not running["go"]:
-                break
-            if code != 0:
-                daemon.agent_state(live, state="listening")     # timed out; still alive
-                continue
-        got = take_turn(ctx, out)
-        pending = got["owed"]
-
-    # The last turn, and the only one the student never sees.
-    #
-    # WHO WRITES IT IS RE-ASKED HERE, AND IT IS NOT AUTOMATICALLY WHOEVER JUST
-    # FAILED. `agent_name`, `spec` and `recipe` are the LOOP's, rebound only by
-    # `for_this_turn` at the top of a turn -- and a session whose last turn
-    # stood its own provider down never takes another turn, so the loop falls
-    # out of the bottom with the dead recipe still bound. Measured on 23
-    # September: the log said `-- the next turn goes to 'claude'` at 17:43:05,
-    # and the wrap-up three seconds later printed DeepSeek's own
-    # unrecognised-model line, ran on DeepSeek's `ANTHROPIC_BASE_URL`, died
-    # `ECONNRESET` after 179 seconds, was billed to DeepSeek, and wrote nothing.
-    # The one turn that must not be skipped was spent on the one recipe that
-    # could not take it.
-    #
-    # AND IT IS SKIPPED RATHER THAN SPENT WHEN NOTHING HERE CAN WRITE ONE.
-    # Three minutes of known-dead retries is worse than no handoff, because the
-    # `finish_restart` window is burned along with them and the next daemon is
-    # kept waiting behind a turn that was never going to answer.
-    stuck = None
-    if ctx.turns:
-        ctx.cfg = recipes.load_config()
-        took, why_took = recipes.choose_agent(ctx.cfg, ctx.agent_name)
-        if took != ctx.agent_name:
-            log.write("-- the handoff goes to '%s': %s\n"
-                      % (took, why_took or "it is what can write one here"))
-            ctx.agent_name = took
-            ctx.spec = ctx.cfg["agents"].get(took) or {}
-            ctx.recipe = ctx.spec.get("headless") or ctx.spec.get("headless_first")
-        stuck = recipes.agent_unavailable(ctx.cfg, ctx.agent_name)
-        if stuck:
-            log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s, "
-                      "and nothing else on this machine can write one. "
-                      "HANDOFF.md is whatever the last session left; the "
-                      "transcript is what the next one reads.\n"
-                      % (time.strftime("%H:%M:%S"), stuck))
-    if ctx.turns and not stuck:
-        daemon.agent_state(live, state="wrapping up")
-        log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
-        # The handoff is the one turn that must not be skipped -- it is the only
-        # continuity the next session has -- and a tutor stopped because its
-        # allowance ran out cannot write it. It is attempted anyway and the
-        # failure is logged like any other: a session that ends with no handoff
-        # is a session the next one has to reconstruct from the cards, which is
-        # worse than the transcript but is not nothing.
-        # A script agent may have its own way to write the handoff; default to the
-        # ordinary turn recipe otherwise.
-        wrap = ctx.spec.get("handoff") or ctx.recipe
-        cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompts.HANDOFF_PROMPT) for a in wrap])
-        mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
-        landing = os.path.join(root, "HANDOFF.md")
+    Only End queues it (`POST /s/<id>/end`); a server stopping, or a turn
+    recovered after one died, never does. Who writes it is asked again here,
+    so a provider the last turn stood down does not get the one turn that must
+    not be wasted; with nobody able to, it is skipped and says so.
+    """
+    log, logpath, root = ctx.log, ctx.logpath, ctx.root
+    ctx.cfg = recipes.load_config()
+    took, why_took = recipes.choose_agent(ctx.cfg, ctx.agent_name)
+    if took != ctx.agent_name:
+        log.write("-- the handoff goes to '%s': %s\n"
+                  % (took, why_took or "it is what can write one here"))
+        ctx.agent_name = took
+        ctx.spec = ctx.cfg["agents"].get(took) or {}
+    stuck = recipes.agent_unavailable(ctx.cfg, ctx.agent_name)
+    if stuck:
+        log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s, and "
+                  "nothing else on this machine can write one\n"
+                  % (time.strftime("%H:%M:%S"), stuck))
+        return False, stuck
+    daemon.agent_state(ctx.live, state="wrapping up")
+    log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
+    chapter = turn.chapter_now(ctx.repo)
+    wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
+    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompts.HANDOFF_PROMPT)
+                                      for a in wrap])
+    mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+    landing = os.path.join(root, "HANDOFF.md")
+    try:
+        before = os.path.getmtime(landing)
+    except OSError:
+        before = 0
+    why = None
+    try:
+        rc, timed_out = turn.run_turn(
+            cmd, ctx.cwd, log, ctx.cfg.get("handoff_timeout", 600),
+            env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
+        usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
+                          usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
+        # WHETHER THIS TURN WROTE ONE, which is not whether the file is there:
+        # the turn exited 0, did not report its own failure, and the file is
+        # newer than the turn. Only then is it stamped with its chapter.
+        said = usage.turn_output(logpath, mark)
+        failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
+                  or (usage.result_object_error(said)
+                      and "the agent reported a failure and exited 0"))
         try:
-            before = os.path.getmtime(landing)
+            wrote = not failed and os.path.getmtime(landing) > before
         except OSError:
-            before = 0
-        try:
-            # Nothing on stdin, for `run_turn`'s reason: `opencode run` reads a
-            # stdin that is not a terminal into the prompt and waits for it.
-            done = subprocess.run(cmd, cwd=root, stdout=log,
-                                  stderr=subprocess.STDOUT,
-                                  stdin=subprocess.DEVNULL,
-                                  env=turn.at_root(root, turn.turn_environment(ctx.spec)),
-                                  timeout=ctx.cfg.get("handoff_timeout", 600))
-            # The wrap-up is a turn and it is billed like one, so it is counted
-            # like one. It used to be the most expensive turn of the session --
-            # it re-read the cards, the contract and the old handoff before
-            # writing a word -- and nothing would have shown that.
-            usage.record_cost(live, log, ctx.turns + 1, ctx.agent_name, False,
-                              usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
-            # WHETHER THIS TURN WROTE ONE, WHICH IS NOT THE SAME QUESTION AS
-            # WHETHER THE FILE IS THERE. A handoff from a previous session is
-            # always there, so existence proved nothing: a wrap-up that died on
-            # the wire was logged as `handoff written` and then had LAST week's
-            # file re-stamped with the chapter this session taught -- a stale
-            # note claiming to be this evening's, which is the one lie the
-            # handoff must not tell, since it is all the next session gets.
-            # Three facts and all three have to hold: the turn exited 0, it did
-            # not report its own failure, and the file is newer than the turn.
-            said = usage.turn_output(logpath, mark)
-            failed = (done.returncode != 0 and ("exit %d" % done.returncode)) \
-                or (usage.result_object_error(said) and
-                    "the agent reported a failure and exited 0")
-            try:
-                wrote = not failed and os.path.getmtime(landing) > before
-            except OSError:
-                wrote = False
-            # Say which chapter it is about, now, while this is the only process
-            # that knows. The wrap-up is a model call and takes as long as it
-            # takes; by the time anybody reads the file the board may already
-            # have opened the next chapter, and an unstamped handoff would then
-            # be read as though it belonged to it.
-            if wrote:
-                handoff.stamp_handoff(root, ctx.taught_chapter[0])
-                log.write("handoff written\n")
-            elif failed:
-                log.write("!! the handoff turn failed (%s); HANDOFF.md is "
-                          "whatever the last session left, and is left saying "
-                          "so\n" % usage.failure_reason(said, failed))
-            else:
-                log.write("!! no HANDOFF.md was written\n")
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            log.write("!! handoff failed: %s\n" % exc)
-
-    # Keep the record and say what happened to it. Deleting it makes the board
-    # say "no tutor attached", which is the same thing it says when a course
-    # never had one -- and the two want different things from the person reading
-    # it. `state: stopped` reads on the board as "tutor stopped, nothing is
-    # reading the board", which is the truth and is actionable.
-    #
-    # AND IT DOES NOT SAY WHY, BECAUSE IT DOES NOT KNOW WHY.
-    #
-    # This wrote `restarting: False`, and `restarting` is the one field that
-    # says whether somebody asked for this daemon back. It is written by the
-    # ASKER -- `tutor restart --tutors`, before it signals -- precisely so that
-    # a bounce can be told from a death, and the daemon receiving the signal
-    # cannot tell the two apart. Erasing it on the way out turned every abandoned
-    # bounce into a record identical to a person's `tutor agent stop`, which
-    # `supervise.tutor_verdict` reads as "a person said no" and never revives.
-    #
-    # Measured, in Galois Theory: a ship's restart wrote the flag and signalled;
-    # the handoff turn took 97 seconds and the restart gives it 90, so it printed
-    # "still writing its handoff; run this again in a minute" and returned
-    # WITHOUT starting anything. The daemon then exited through this line, wiped
-    # the flag, and the watch loop revived that course's
-    # BOARD and refused its TUTOR -- fifteen hours of a board that served
-    # perfectly with nothing reading it, and a `turn_signal` still naming an
-    # answer that had been handed in. From the iPad: the app works and the tutor
-    # is down.
-    #
-    # Nothing clears the flag here because nothing here has earned the right to.
-    # `mark_waking` clears it, and it is written by both halves of a start, so
-    # the flag lives exactly as long as the restart it describes is unfinished --
-    # and a restart nobody finished is one the watchdog now finishes, after
-    # `REATTACH_GRACE`.
-    #
-    # AND IT IS WRITTEN ONLY WHERE THIS PROCESS IS STILL THE ONE ON THE RECORD.
-    # See `record_is_ours`: a bounce that has already brought the successor up
-    # leaves two daemons alive for a moment, and this line landing on the new
-    # one's record retires a tutor that is listening. Nothing is written at all
-    # in that case -- the successor's own `listening` is the truth, and the only
-    # thing this process has left to say about the file is nothing.
-    if daemon.record_is_ours(live):
-        daemon.agent_state(live, state="stopped", stopped_at=time.time())
-    else:
-        log.write("-- another daemon already holds this record; its state is "
-                  "left alone\n")
-    print("stopped after %d turn(s)" % ctx.turns)
-    return 0
+            wrote = False
+        if wrote:
+            handoff.stamp_handoff(root, chapter)
+            log.write("handoff written\n")
+        elif failed:
+            why = usage.failure_reason(said, failed)
+            log.write("!! the handoff turn failed (%s); HANDOFF.md is whatever "
+                      "the last session left\n" % why)
+        else:
+            why = "no HANDOFF.md was written"
+            log.write("!! %s\n" % why)
+    except OSError as exc:
+        wrote, why = False, str(exc)
+        log.write("!! handoff failed: %s\n" % exc)
+    daemon.agent_state(ctx.live, state="listening", turn_pid=None)
+    return wrote, why

@@ -266,7 +266,8 @@ check("asking about one provider is a different question from asking about the "
 tutor_src = "".join(
     open(os.path.join(ROOT, *p), encoding="utf-8").read()
     for p in (("tutorboard", "runner", "loop.py"), ("tutorboard", "agents", "recipes.py"),
-              ("tutorboard", "agents", "usage.py"), ("bin", "tutor")))
+              ("tutorboard", "agents", "usage.py"), ("bin", "tutor"),
+              ("tutorboard", "runner", "service.py")))
 check("the tutor asks whether the MACHINE can get out only after a turn has "
       "actually failed -- a round trip in front of every card is a round trip "
       "the student waits for",
@@ -286,7 +287,7 @@ check("and rotates when it is the network rather than the tutor",
       "egress.rotate_exit_node(" in tutor_src)
 check("and re-answers the message whose turn was lost, rather than waiting",
       "pending = owe(ctx, out)" in tutor_src
-      and "pending = daemon.owed_message(live)" in tutor_src)
+      and "owed = daemon.owed_message(repo.live)" in tutor_src)
 check("and says so on the record, because a board that reads `retrying` false "
       "tells the student to send again behind a turn the daemon is taking",
       'last_error="cannot reach %s" % host,' in tutor_src
@@ -411,14 +412,13 @@ egress.egress_ok = was_ok
 egress.clear_unreachable("deepseek")
 
 # --- and it is asked before the sitting's first turn, not only inside one ----
-check("the daemon asks it once as it comes up, so a dark provider is climbed "
-      "down from before the person sends anything rather than after they have "
-      "watched three minutes of nothing",
-      "probe_before_turn(cfg, agent_name, log)" in tutor_src
-      and tutor_src.index("probe_before_turn(cfg, agent_name, log)")
-      < tutor_src.index("running = {\"go\": True"))
+check("every turn asks it before the provider is spawned, so a dark provider "
+      "is climbed down from before a turn is spent on it",
+      "recipes.probe_before_turn(cfg, wanted, log)" in tutor_src
+      and tutor_src.index("recipes.probe_before_turn(cfg, wanted, log)")
+      < tutor_src.index("= turn.run_turn("))
 check("and the swap is on the record the board reads, rather than only in the "
-      "log", "agent_why=why_took or None," in tutor_src)
+      "log", "agent_why=moved or None," in tutor_src)
 
 # --- and it goes on saying it, which is a different claim -------------------
 #
@@ -436,7 +436,7 @@ recipes.load_config = lambda: CFG
 recipes.resolve_agent = lambda cfg, course, *a, **k: "deepseek"
 workspace = os.path.join(sandbox, "Galois-Theory")
 os.makedirs(workspace, exist_ok=True)
-_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
+_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", "")
 check("a sitting taught by somebody other than the provider it asks for says "
       "so on EVERY turn, not only on the turn that moved -- the student chose "
       "deepseek, claude is teaching, and a name that changed silently is a "
@@ -444,7 +444,7 @@ check("a sitting taught by somebody other than the provider it asks for says "
       took == "claude" and why and "deepseek" in why
       and "api.deepseek.test" in why)
 recipes.resolve_agent = lambda cfg, course, *a, **k: "claude"
-_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", 0, "")
+_, took, _, why = runloop.for_this_turn(CFG, {"root": workspace}, "claude", "")
 check("and it stops saying it when the sitting is getting what it asked for, "
       "because a board explaining a climb-down that climbed home is a board "
       "talking about the past", took == "claude" and why is None)
@@ -490,10 +490,6 @@ check("but a record naming somebody else is not, which is what stops an "
       "exiting daemon stamping `stopped` on the successor that replaced it -- "
       "`supervise.tutor_verdict` reads that as a person saying no and never "
       "revives it", not daemon.record_is_ours(own_live))
-check("and the exit write is the one guarded by it",
-      "if daemon.record_is_ours(live):" in tutor_src
-      and tutor_src.index("if daemon.record_is_ours(live):")
-      < tutor_src.index('agent_state(live, state="stopped", stopped_at='))
 
 # --- the wrap-up runs as whoever can write it -------------------------------
 #
@@ -507,9 +503,9 @@ check("the handoff re-asks who writes it instead of inheriting the recipe the "
       < tutor_src.index("wrap = ctx.spec.get(\"handoff\")"))
 check("and it rebinds the recipe, not just the name -- the environment is what "
       "pointed the binary at the dead host",
-      "spec = cfg[\"agents\"].get(took) or {}" in tutor_src)
+      "ctx.spec = ctx.cfg[\"agents\"].get(took) or {}" in tutor_src)
 check("and it is skipped rather than spent when nothing here can write one",
-      "if ctx.turns and not stuck:" in tutor_src
+      "    if stuck:\n" in tutor_src.split("def wrap_up(")[1]
       and "no handoff was attempted" in tutor_src)
 
 # --- what the board is given to say it with ---------------------------------

@@ -240,8 +240,10 @@ try:
     json.dump({"name": "PSYCH-ASR", "check": "uv run --extra test python -m pytest tests -q"},
               open(os.path.join(teach_repo, "tutorboard.json"), "w"))
     line = brief.briefing(rt, sense)
-    check("the briefing names the workspace's check, to run before a push",
-          "check: uv run --extra test python -m pytest tests -q" in line
+    check("the briefing names the workspace's check, run as `board check` "
+          "before a push",
+          "check: `board check`" in line
+          and "uv run --extra test python -m pytest tests -q" in line
           and "before a push" in line)
 finally:
     shutil.rmtree(teach_repo, ignore_errors=True)

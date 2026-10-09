@@ -33,8 +33,8 @@ TURN_SENSE = (
     "on disk (`board recap`), RULES.md and TUTOR.md. When this turn changes "
     "where things are, what is happening now, an open decision or what got "
     "done, rewrite that section with `board memo <section>` (its whole new text "
-    "on stdin; TUTOR.md is capped at %d words). Never write RULES.md. Do not run "
-    "`board wait`: the next message goes to a fresh turn." % memo.WORDS
+    "on stdin; TUTOR.md is capped at %d words). Never write RULES.md. Do not "
+    "wait: the next message starts a fresh turn of its own." % memo.WORDS
 )
 
 
@@ -235,11 +235,13 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     # Who writes the code: the session's mode, and only that.
     cfg = config.read_config(root)
     out.append("mode: %s" % config.mode_of(st))
-    # The subject's check, run before a push that changed code.
+    # The subject's check, run before a push that changed code. Always as
+    # `board check`, which runs it from the subject's root: a turn works in the
+    # Atlas root, and `board *` is what it may run.
     if cfg.get("check_line"):
-        out.append("check: %s  (from the workspace root, before a push that "
-                   "changed code; the report says whether it passed)"
-                   % cfg["check_line"])
+        out.append("check: `board check` (runs `%s` from the subject's root; "
+                   "before a push that changed code, and the report says "
+                   "whether it passed)" % cfg["check_line"])
     if repair:
         out.append("\n" + "\n".join(repair))
 

@@ -21,6 +21,9 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     POST /session             session   open a sitting on the subject
     POST /text/save           session   a typed answer's draft
     POST /say                 session   a typed turn, into the session's inbox
+    POST /poke                session   rebuild the payload now; queue a turn
+                                        when a line that wakes is waiting
+    POST /end                 session   End: `ended` set, and the wrap-up queued
 
 `board` commands a route runs work on the session through
 `TUTORBOARD_SESSION` (`_cli`), never on the subject's `live/`.
@@ -39,6 +42,7 @@ from ...course import homework
 from .. import hub
 from .. import multipart
 from .. import spawn
+from ... import sessions
 from ... import direction
 from ... import mode as session_mode
 from ... import sense
@@ -48,7 +52,9 @@ from ...course import map as mapping
 from ...course import threads
 from ...lesson import archive
 from ...lesson import cards
+from ...lesson import inbox
 from ...lesson import turns
+from ...runner import service as runner
 
 
 def _cli(repo, args, **kw):
@@ -201,10 +207,9 @@ def _begin(h, repo):
 
     The same three things `/say` does for a begin signal, in the same order and
     for the same reasons: a turn on the board so the transcript shows the ask, a
-    line in the inbox carrying `session_sense` -- which in a headless turn IS the
-    prompt, so a bare "[begin]" would tell it nothing -- and a tutor woken if
-    none is listening, because a request that sits in an inbox beside a board
-    saying "no tutor attached" is a tap that did nothing for ever.
+    line in the inbox carrying `session_sense` -- which in a turn IS the
+    prompt, so a bare "[begin]" would tell it nothing -- and a turn queued on
+    the runner.
 
     Called only AFTER the sitting is written, or the line would describe the
     sitting being left.
@@ -222,8 +227,7 @@ def _begin(h, repo):
         + sense.session_sense(repo)
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(dict(record, text=line)) + "\n")
-    if spawn.wake_tutor(repo):
-        h.note("nothing was reading the board; starting a tutor")
+    runner.wake(repo)
     return tid
 
 
@@ -236,6 +240,8 @@ def _direction(h, repo):
     power, minimum pain."* Three things have to happen for that to be true, and
     doing two of them is worse than doing none -- a direction written down that
     the assistant never reads is a direction the person believes is in force.
+    The tutor that reads it is new by construction: every turn is a fresh
+    process, so nothing holds the old direction in a conversation.
 
     1. **Write it down**, at the root, where it crosses machines and is read at
        the start of every turn from now on. `tutorboard.direction`.
@@ -244,9 +250,7 @@ def _direction(h, repo):
        it was about, and puts the new direction in the title bar. The lesson that
        was open was about the old direction; carrying it forward is the thing
        they just said to stop.
-    3. **Replace the assistant.** A running tutor holds the old direction in its
-       own conversation and no file on disk can contradict that. This is the half
-       a prompt cannot do, and it is the same `fresh_tutor` a chapter switch uses.
+    3. **Queue the turn** that answers it, on the runner.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -309,8 +313,8 @@ def _direction(h, repo):
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(dict(record, text=line)) + "\n")
 
-    spawn.fresh_tutor(repo.root, course)
-    h.note("the %s changed; the lesson is archived and the tutor replaced"
+    runner.wake(repo)
+    h.note("the %s changed; the lesson is archived"
            % ("thread `%s`" % on["id"] if on else "direction"))
     h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "chapter": label, "set": when,
@@ -368,8 +372,8 @@ def _handover(h, repo):
     2. **A line in the inbox** with a DOING turn's sense said outright, because
        the session still says teach, which is right about the session and wrong
        about this turn.
-    3. **A tutor woken if none is listening**, because the tap is the
-       instruction -- the same rule `_begin` follows.
+    3. **A turn queued**, because the tap is the instruction -- the same
+       rule `_begin` follows.
 
     The turn carries the card in `card`, not in `answers`: a step handed over
     is not an answer to it. Refused in do mode, where nothing is withheld.
@@ -403,8 +407,7 @@ def _handover(h, repo):
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(dict(record, text=line)) + "\n")
 
-    if spawn.wake_tutor(repo):
-        h.note("nothing was reading the board; starting a tutor")
+    runner.wake(repo)
     h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "card": card})
 
@@ -552,30 +555,11 @@ def post(h, repo, path):
                     "--lecture" if kind == "lecture" else "--homework"]
             if node:
                 args += ["--node", node["id"]]
-            # BEFORE `fresh_tutor` BELOW, WHICH IS WHY IT GOES THROUGH `open`
-            # RATHER THAN WAITING FOR `_mark`. A chapter change replaces the
-            # assistant on its own thread the moment the sitting is open, so a
-            # choice written after that call is a choice the incoming daemon
-            # never read.
             if agent:
                 args += ["--agent", agent]
+            # A chapter gets a tutor that knows only it: every turn is a fresh
+            # process, so nothing carries Chapter 1 into Chapter 3.
             _cli(repo, args)
-            # A chapter gets its own tutor.
-            #
-            # An assistant is long-lived on purpose -- one that survives being
-            # left still has the lesson in its head when you come back -- and
-            # across a chapter that is the wrong thing to have in its head.
-            # Reported an hour into Chapter 3: "the tutor is telling me that
-            # problems from chapter 1 are still incomplete. I don't like
-            # that." Its own conversation held the whole of Chapter 1, and no
-            # file on disk could have told it otherwise.
-            #
-            # On its own thread: stopping is a wrap-up TURN, which is a model
-            # call, and the person tapping a chapter is not waiting a minute
-            # to see the chapter change. The handoff that turn writes is
-            # stamped with the chapter it was teaching, so it is filed under
-            # that chapter rather than read as this one's.
-            spawn.fresh_tutor(repo.root, course)
 
         st = repo.state()
         st["session"] = kind
@@ -682,9 +666,8 @@ def post(h, repo, path):
                 os.remove(os.path.join(repo.text, str(a) + ".txt"))
             except OSError:
                 pass
-        # What lands in the inbox is what `board wait` prints, and in a
-        # headless session that string IS the prompt the assistant is woken
-        # with. A bare "[begin]" tells it nothing, so a signal sent without a
+        # What lands in the inbox is what the runner hands the turn, and
+        # that string IS the prompt the assistant is woken with. A bare "[begin]" tells it nothing, so a signal sent without a
         # sentence carries its own.
         line = ("[%s] " % signal if signal else "") + text
         if signal and not text:
@@ -698,13 +681,40 @@ def post(h, repo, path):
             line += " " + sense.session_sense(repo)
         with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(dict(record, text=line)) + "\n")
-        # Including "ask the tutor to begin", which is the one signal whose
-        # whole purpose is a board with nobody on it. It used to put a line in
-        # an inbox and hope: a tap on that button with no daemon running was a
-        # tap that did nothing for ever, and the board went on saying "no tutor
-        # attached" with the request sitting on disk beside it.
-        if spawn.wake_tutor(repo):
-            h.note("nothing was reading the board; starting a tutor")
+        # Queued on the runner, which answers it with a fresh turn.
+        runner.wake(repo)
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "turn": tid, "rev": rev})
+
+    if path == "/poke":
+        # `board write` says a card landed, so the payload is rebuilt now
+        # rather than on the next sentinel pass. A line that wakes and that
+        # nothing has queued (written by a command outside this server) is
+        # queued here.
+        h.hub.worker.dirty.set()
+        queued = bool(inbox.waiting(repo)) and runner.wake(repo)
+        return h.send_json({"ok": True, "queued": bool(queued)})
+
+    if path == "/end":
+        return _end(h, repo)
     return NOT_MINE
+
+
+def _end(h, repo):
+    """`POST /end`: End this session. `sessions.end` sets `ended` and commits
+    the subject's TUTOR.md and the session's artifacts; then the wrap-up turn
+    is queued, the only thing that ever runs it. A second End changes
+    nothing but retries the commit."""
+    if not repo.stored:
+        return h.send_json({"ok": False, "error": "not a session"}, status=404)
+    sid = os.path.basename(repo.live)
+    base = os.path.dirname(os.path.dirname(repo.live))
+    try:
+        rec, committed, said = sessions.end(sid, base=base)
+    except sessions.NoSession:
+        return h.send_json({"ok": False, "error": "no such session"}, status=404)
+    queued = bool(runner.RUNNER and runner.RUNNER.end(sid))
+    h.note("session %s ended (%s)" % (sid, said))
+    h.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "session": rec, "committed": bool(committed),
+                        "detail": said, "wrapup": queued})

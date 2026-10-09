@@ -10,8 +10,10 @@
 #     path at all when a fence exists and the PHI policy will not load;
 #   - a participant code (BL and three digits) in a staged filename or added
 #     line of a subject whose tutorboard.json says "phi": true;
-#   - when TUTORBOARD_TURN is set (every tutor turn): any RULES.md, and a change
-#     to an existing tutorboard.json's "phi" or "relay.exports".
+#   - when TUTORBOARD_TURN is set (every tutor turn): any RULES.md, a change
+#     to an existing tutorboard.json's "phi" or "relay.exports", and any path
+#     under board/ when the commit is in the main worktree (git-dir equals
+#     git-common-dir) rather than a worktree under Atlas-wt/.
 #
 # core.hooksPath points every clone at this directory, by absolute path;
 # board/bootstrap.sh sets it. A repository other than Atlas pointed here (the

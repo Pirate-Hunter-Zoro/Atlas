@@ -86,6 +86,7 @@ from tutorboard.course import repo as course_repo                    # noqa: E40
 from tutorboard.lesson import archive, turns                         # noqa: E402
 from tutorboard.runner import turn as runturn                        # noqa: E402
 from tutorboard.server import handler, hub, spawn, tikz              # noqa: E402
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 
 def board(args, session=None):
@@ -130,9 +131,8 @@ check("one TEACH paragraph and one DO paragraph",
               for w in ("lesson", "homework set", "walkthrough", "drill", "review")))
 
 replaced = []
-spawn.fresh_tutor = lambda root, course_name: replaced.append((root, course_name))
 woken = []
-spawn.wake_tutor = lambda r: woken.append(r) or True
+runner_service.wake = lambda r: woken.append(r) or True
 
 httpd = None
 try:
@@ -225,9 +225,10 @@ try:
           len(got) == turns_before + 1 and got[-1].get("signal") == "mode"
           and got[-1].get("text") == "Mode: do.")
     lines = [json.loads(x) for x in open(bound.messages_path, encoding="utf-8")]
-    check("one inbox line, written read so it wakes nothing",
+    check("one inbox line, written wake:false so it wakes nothing, and unread "
+          "so the next turn reads it",
           len(lines) == 1 and lines[0]["text"].startswith("[mode]")
-          and lines[0].get("read") is True)
+          and lines[0].get("wake") is False and lines[0].get("read") is False)
     said = briefed(sessions.repo(rec["id"], base))
     check("the next brief carries DO and the doing order",
           sense.DO_SENSE in said and sense.DOING_SENSE in said

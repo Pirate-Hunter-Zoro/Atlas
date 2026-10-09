@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-tutor -- the Mac's tutor daemons, and the cluster's relay.
+tutor -- the Mac's assistants, and the cluster's relay.
 
-    tutor headless galois       run the assistant as a daemon, driven from the iPad
-    tutor headless --stop       stop it
+Turns run inside the board server (board/serve.py), one fresh process per
+message; nothing here starts one.
+
     tutor agent status          which course has an assistant attached
-    tutor agent start galois    attach one there
+    tutor agent start galois    refused: the board server takes every turn
     tutor agent stop galois     ask it to write its handoff and go
     tutor agent only deepseek   run one assistant only on this machine (--off lifts it)
     tutor resume [course]       bring the board back on this Mac (a stub on the cluster)
-    tutor cost [galois]         what the turns on this machine actually cost
-    tutor cost --all            every course, one line each
+    tutor cost                  what every session's turns cost, one line each
+    tutor cost <session|subject> [--turns]
+                                one session, or every session on a subject
     tutor doctor [agent] [--keep]  prove a built-in recipe against its live provider
     tutor pull                  move vendor/colibri forward and commit the pointer
     tutor pull --hear [--status]  pull every 20 s; hear the cluster's reports
@@ -33,14 +35,9 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-# A DAEMON STAMPS THE CODE IT RUNS BEFORE IT IMPORTS IT. See `tutorboard/stamp.py`.
-from tutorboard import stamp
-if sys.argv[1:2] == ["headless"]:
-    stamp.mark_loaded()
-from tutorboard import atlas, gitops, jobs, keys, machine, processes
+from tutorboard import atlas, gitops, jobs, keys, machine, processes, sessions
 from tutorboard.agents import doctor, recipes, usage
-from tutorboard.runner import daemon, loop, watch
-from tutorboard.course import repo as course_repo
+from tutorboard.runner import daemon, watch
 
 RELAY = os.path.join(TOOL, "bin", "relay")
 
@@ -261,38 +258,53 @@ def cmd_resume(cfg, args):
 
 
 def cmd_cost(cfg, args):
-    """What the turns on this machine actually cost, per turn and in total.
+    """What the turns on this machine cost, read from every session's
+    `cost.jsonl` under the Atlas root's `sessions/`.
 
-        tutor cost              the course an assistant is attached to
-        tutor cost galois       a course by name
-        tutor cost --all        every course on this machine, one line each
-        tutor cost galois --turns   every turn, oldest first
+        tutor cost                     every session that billed, one line each
+        tutor cost <session id>        one session, in total
+        tutor cost <subject>           every session bound to it, one line each
+        tutor cost <directory>         one directory's own (`tutor doctor --keep`)
+        tutor cost <...> --turns       every turn, oldest first
 
-    Read straight out of `live/cost.jsonl`, which every headless turn appends
-    one line to. The report is `usage.cost_report` and `usage.cost_all`.
+    The report is `usage.cost_report` and `usage.cost_all`.
     """
-    found = daemon.courses(cfg)
+    base = atlas.root()
+    rows = []
+    for rec in sessions.all(base):
+        where = sessions.path(rec.get("id"), base)
+        if where:
+            rows.append({"dir": "%s %s" % (rec["id"], rec.get("subject") or "unbound"),
+                         "root": where, "id": rec["id"],
+                         "subject": rec.get("subject") or ""})
     rest = [a for a in args if not a.startswith("--")]
-    if "--all" in args:
-        return usage.cost_all(cfg, found)
-    if rest and os.path.isfile(course_repo.session_path(rest[0], usage.COST_LOG)):
-        # A directory that is not a course, such as `tutor doctor --keep`'s.
-        course = {"dir": os.path.basename(os.path.abspath(rest[0])),
-                  "root": os.path.abspath(rest[0])}
-    elif rest:
-        course = daemon.pick(found, rest[0])
-    else:
-        # The course an assistant is actually attached to, or the only one that
-        # has ever billed anything. Asking "which course?" when there is exactly
-        # one answer is the sort of question a tool should not need to ask.
-        course = next((c for c in found if daemon.agent_live(c["root"])), None)
-        if not course:
-            billed = [c for c in found if usage.read_costs(c["root"])]
-            course = billed[0] if len(billed) == 1 else None
-    if not course:
-        print("which course? try: tutor cost --all", file=sys.stderr)
+    turns = "--turns" in args
+    if not rest:
+        if turns:
+            for r in rows:
+                if usage.read_costs(r["root"]):
+                    usage.cost_report(cfg, r, per_turn=True)
+            return 0
+        return usage.cost_all(cfg, rows)
+    if os.path.isdir(rest[0]) and usage.read_costs(rest[0]):
+        # A directory of its own, such as `tutor doctor --keep`'s.
+        where = os.path.abspath(rest[0])
+        return usage.cost_report(cfg, {"dir": os.path.basename(where), "root": where},
+                                 per_turn=turns)
+    want = rest[0].strip("/")
+    pick = [r for r in rows if r["id"] == want]
+    if not pick:
+        pick = [r for r in rows if r["subject"] and (
+            r["subject"] == want or r["subject"].split("/")[-1].lower() == want.lower())]
+    if not pick:
+        print("tutor cost: no session or subject %r under %s" % (rest[0], base),
+              file=sys.stderr)
         return 1
-    return usage.cost_report(cfg, course, per_turn="--turns" in args)
+    if len(pick) == 1 or turns:
+        for r in pick:
+            usage.cost_report(cfg, r, per_turn=turns)
+        return 0
+    return usage.cost_all(cfg, pick)
 
 
 def cmd_relay(args):
@@ -440,8 +452,6 @@ def main(argv):
             flags["session"] = "lecture"
         elif a == "--respawn":
             flags["respawn"] = True
-        elif a == "--stop":
-            pass
         elif a == "--agent":
             i += 1
             flags["agent"] = argv[i]
@@ -500,28 +510,6 @@ def main(argv):
 
     if args and args[0] == "agent":
         return cmd_agent(cfg, argv[argv.index("agent") + 1:])
-
-    if args and args[0] == "headless":
-        rest = args[1:]
-        if "--stop" in argv:
-            return daemon.headless_stop(cfg, rest)
-        if not rest:
-            print("which course? try: tutor headless <name>", file=sys.stderr)
-            return 1
-        course = daemon.pick(daemon.courses(cfg), rest[0])
-        # Only when a person asked for this. `agent_start` spawns exactly this
-        # command with `--respawn`, and it is spawned in a LOOP over the courses
-        # on this machine -- so recording here handed the address to whichever
-        # course the loop finished on, every login, every periodic pull, every
-        # ship. That is the 28 August defect back through a different door, and
-        # it is worse than the original: because the record is what `tutor
-        # resume` reads to decide, the wrong course re-elected itself for ever,
-        # and a tap on the right one in the hub was overwritten by the next tick.
-        if not flags["respawn"]:
-            daemon.remember_course(course)
-        return loop.headless(
-            cfg, course, recipes.resolve_agent(cfg, course, flags["agent"]),
-            flags["session"])
 
     # There is no interactive launch: a session is started from the iPad.
     print(__doc__.strip(), file=sys.stderr)

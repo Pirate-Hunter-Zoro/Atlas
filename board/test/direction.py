@@ -31,6 +31,7 @@ from tutorboard import brief, direction, sense
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
 from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
 
@@ -112,10 +113,10 @@ check("a plan handed back instead of the work is named as the failure",
 direction.clear(tmp)
 repo = course_repo.Repo(tmp)
 
-# The one thing that must not actually happen in a test: starting a daemon. What
-# is checked is that it is ASKED for, which is the half no prompt can do.
+# The one thing that must not actually happen in a test: a turn. What is
+# checked is that one is QUEUED.
 replaced = []
-spawn.fresh_tutor = lambda root, course: replaced.append((root, course))
+runner_service.wake = lambda r: replaced.append(r) or True
 
 worker = tikz.TikzWorker(repo)
 worker.start()
@@ -186,9 +187,9 @@ try:
     check("it arrives unread, or nothing wakes on it",
           lines[-1].get("read") is False)
 
-    # THE HALF NO PROMPT CAN DO. A running tutor holds the old direction in its
-    # own conversation, and no file on disk can contradict that.
-    check("the assistant is replaced rather than asked to change its mind",
+    # Every turn is a fresh process, so the one queued here has read the new
+    # direction and nothing else.
+    check("a turn is queued on it, and it is a fresh process like every turn",
           len(replaced) == 1)
 
     # The panel opens showing what it is about to replace, on a device that has

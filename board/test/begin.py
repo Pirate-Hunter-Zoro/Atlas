@@ -9,8 +9,8 @@ signal, not a composer.
 
 This drives the real HTTP handler, because what is being guarded is the whole
 round trip -- the endpoint accepting the signal, the turn landing in the
-transcript, and the inbox line being something an assistant woken by `board wait`
-can actually act on. In a headless session that line IS the prompt.
+transcript, and the inbox line being something a turn woken on it can actually
+act on. That line IS the prompt.
 """
 
 import json
@@ -97,7 +97,7 @@ try:
 
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
         lines = [json.loads(l) for l in fh if l.strip()]
-    check("it reaches the inbox, which is what `board wait` watches", len(lines) == 1)
+    check("it reaches the inbox, which is what a turn is handed", len(lines) == 1)
     text = lines[0].get("text", "") if lines else ""
     # The failure this guards: the inbox line used to be the bare tag "[begin] ",
     # and a headless assistant woken with that string has been told nothing.
@@ -116,7 +116,7 @@ try:
           "TUTOR.md" in text and "manufacture a curriculum" in text
           and "README.md" not in text)
 
-    # An unread message is what wakes `board wait`.
+    # An unread message is what a turn takes.
     check("it arrives unread", lines and lines[0].get("read") is False)
 
     # The signal vocabulary is closed. A typo must not become a new kind of turn.
@@ -298,39 +298,19 @@ try:
     check("a sentence of their own is left alone",
           "the lattice makes no sense" in last and "they are stuck" not in last)
 
-    # `board wait` has to wake on what is ALREADY unread, not only on what
-    # arrives while it happens to be blocking. It used to take the unread count
-    # as a baseline and return when that count grew, so a begin signal sent
-    # before a tutor was attached -- which is the entire cold start this file is
-    # about -- left the daemon waiting for a second tap on a board that was
-    # already asking. The student tapped begin twice and got one card.
-    import subprocess  # noqa: E402
-    import time as _t   # noqa: E402
+    # A turn takes what is ALREADY unread, not only what arrives later: a begin
+    # signal sent before anything was ready to read it is the whole cold start
+    # this file is about. `inbox.take` is what the runner hands a turn.
+    from tutorboard.lesson import inbox  # noqa: E402
 
-    with open(repo.messages_path, "r", encoding="utf-8") as fh:
-        unread = [json.loads(l) for l in fh if l.strip()]
-    check("something is sitting unread before the wait starts",
-          any(not m.get("read") for m in unread))
-
-    began = _t.time()
-    p_wait = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
-                             "wait", "--timeout", "20"], cwd=tmp,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=60)
-    took = _t.time() - began
-    out = p_wait.stdout.decode("utf-8", "replace")
-    check("a message already unread wakes `board wait` at once",
-          p_wait.returncode == 0 and took < 5)
-    check("and it is handed the message, not an empty inbox",
-          "the lattice makes no sense" in out)
-
-    # Reading is what consumes a message, so the next wait must block again
-    # rather than deliver the same thing for ever.
-    p_wait = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
-                             "wait", "--timeout", "1"], cwd=tmp,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=60)
-    check("a read message does not wake it again", p_wait.returncode == 2)
+    check("something is sitting unread before the turn takes it",
+          inbox.waiting(repo))
+    text, _taken = inbox.take(repo)
+    check("and the turn is handed it, not an empty inbox",
+          "the lattice makes no sense" in text)
+    # Taking is what consumes a message, so the next turn is handed nothing.
+    check("a taken message is not handed over again",
+          inbox.take(repo)[0] == "" and not inbox.waiting(repo))
 
     # ---- a picture is a message too --------------------------------------
     #

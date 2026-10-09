@@ -5,8 +5,8 @@
 by running `board mode do`. Nothing infers `do`.
 
 A change appends one transcript turn and one inbox line and archives nothing.
-Both are written read, so neither wakes a turn: the next turn's brief carries
-the new mode.
+The line is written `"wake": false`, so it queues no turn: the next turn takes
+it with the rest, and its brief carries the new mode.
 """
 
 import json
@@ -52,5 +52,6 @@ def set_mode(repo, mode, by="student"):
     turns.write_turn(repo, record)
     os.makedirs(os.path.dirname(repo.messages_path), exist_ok=True)
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(dict(record, text=LINE[want])) + "\n")
+        fh.write(json.dumps(dict(record, text=LINE[want], read=False,
+                                 wake=False)) + "\n")
     return want, True

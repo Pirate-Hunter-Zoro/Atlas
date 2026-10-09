@@ -147,7 +147,7 @@ METHOD_SENSE = (
 
 # THE WRITE-UP HAPPENS IN THE TURN THAT AGREES THE ANSWER.
 #
-# `live/TEACHING.md` has said so since it was written -- "once an answer is
+# `board/TEACHING.md` has said so since it was written -- "once an answer is
 # agreed correct, not before, transcribe it into that file, in the same turn" --
 # and in a headless session that document is a file the tutor may or may not
 # open, while THIS string is the whole prompt. So the rule was in the place
@@ -200,6 +200,10 @@ TEACH_SENSE = (
     "\"just write it\" -- run `board mode do` first, then do it. "
 )
 
+# Where a turn that changes the board's own code works: a git worktree here,
+# never the main checkout (`.githooks/pre-commit` refuses that commit).
+WORKTREES = "/Users/mikeyferguson/Developer/Atlas-wt/"
+
 DO_SENSE = (
     "THIS SESSION IS IN DO MODE: you write the code yourself, run what needs "
     "running, and commit when it is right. Do not withhold an implementation "
@@ -208,7 +212,11 @@ DO_SENSE = (
     "back, and the one decision or check you need from them. Still one card, "
     "still short, and it still stops and waits. Say what you did NOT verify -- "
     "a card claiming a job ran when it was only submitted is worse than no "
-    "card. When they ask to be taught instead, run `board mode teach`. "
+    "card. Run the subject's check as `board check`, from where you are. NEVER "
+    "EDIT A FILE UNDER `board/` IN THE MAIN CHECKOUT, which serves the iPad "
+    "live: make a git worktree under %s, change and test it there, then merge "
+    "it (a commit touching board/ in the main checkout is refused). When they "
+    "ask to be taught instead, run `board mode teach`. " % WORKTREES
 )
 
 
@@ -236,7 +244,7 @@ def mode_sense(mode):
 # THE SHAPE OF A TURN THAT DOES THE WORK, and it is the opposite shape to a
 # teaching turn's.
 #
-# `live/TEACHING.md` says, three times and in capitals, that the card is written
+# `board/TEACHING.md` says, three times and in capitals, that the card is written
 # before anything else happens. That rule is right and it is a TEACHING turn's
 # rule: there the card IS the work, so writing it first fills the board while
 # everything else happens behind it.
@@ -776,7 +784,7 @@ REVISE_SENSE = (
     "named below, and otherwise at the bottom of that feedback file. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
     "exactly as you found them."
 )
 
@@ -900,7 +908,7 @@ REWORK_SENSE = (
     "order and its sections are yours to change. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
     "exactly as you found them."
 )
 
@@ -931,7 +939,7 @@ SHIP_SENSE = (
     "assistant that made them, and that is deliberate. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
     "exactly as you found them."
 )
 
@@ -980,7 +988,7 @@ DIRECTION_MARK_SENSE = (
     "3. End the turn.\n\n"
     "YOU ARE PROPOSING, NOT APPLYING. Do not write or edit DIRECTION.md, do not "
     "rewrite the plan, do not redraw the map, do not open or archive a sitting, "
-    "and do not touch live/state.json. The direction changes when they tap "
+    "and do not touch the session's state. The direction changes when they tap "
     "⟳ rethink on this board and not before -- say so in the card, and put "
     "the sentence you would set in it in a form they can use as it stands. If "
     "the marks are illegible or say nothing you can act on, the card says that "
@@ -1084,9 +1092,9 @@ WRITEUP_ASK_SENSE = (
     "about. You write no card at all, and what it is about is already named "
     "above. Everything else -- what the document IS, what it may cover, the "
     "directory it goes in -- holds exactly as written.\n\n"
-    "**Write no card.** Do not run `board write`, do not run `board open`, do "
-    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
-    "`board wait`. There is a lesson on this board, it belongs to somebody's "
+    "**Write no card.** Do not run `board write`, do not run `board open`, and "
+    "do not touch the session's state, its cards or `HANDOFF.md`. There is a "
+    "lesson on this board, it belongs to somebody's "
     "evening, and its mode has not changed: leave every part of it exactly "
     "as you found it. End the turn when the document is written and built.\n\n"
 )
@@ -1170,7 +1178,7 @@ def session_sense(repo, doing=None, mission=False):
 
     HOW IT READS comes first, because it governs every card this turn writes and
     a rule about writing is no use arriving after the thing to write about. WHAT
-    ORDER TO WORK IN comes last, because it overrides a rule `live/TEACHING.md`
+    ORDER TO WORK IN comes last, because it overrides a rule `board/TEACHING.md`
     states three times in capitals, and an override that arrives before the thing
     it overrides is an override nobody applies.
 

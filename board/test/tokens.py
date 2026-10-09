@@ -5,11 +5,10 @@ Not a speed test. A tutor billed by the token pays for every character it is
 told to read, and it pays again for every round trip inside a turn, because each
 one resends the whole conversation. Two things follow, and this file guards both:
 
-- **A resumed turn must not be told to re-read what it already holds.** The
+- **A turn is a fresh process and is told what to read in one call.** The
   single prompt this replaced told every turn to read AI_INSTRUCTIONS.md,
-  TEACHING.md, BRIEF.md, HANDOFF.md and every card in live/cards/ -- roughly
-  fourteen thousand tokens of documents the agent was already carrying, plus one
-  round trip per card.
+  TEACHING.md, BRIEF.md, HANDOFF.md and every card -- roughly fourteen thousand
+  tokens, plus one round trip per card.
 - **A lesson is read back in one call.** `board recap` is that call. Reading a
   twelve-card lesson card by card is twelve round trips for what fits in one.
 """
@@ -44,111 +43,68 @@ def check(name, cond):
 
 # --- the prompts ----------------------------------------------------------
 first = prompts.HEADLESS_FIRST_PROMPT
-resume = prompts.HEADLESS_RESUME_PROMPT
+EVERY_PROMPT = [v for k, v in vars(prompts).items()
+                if k.isupper() and isinstance(v, str)]
 
-check("a cold turn reads the standing rules in one call, not three documents",
+check("a turn reads the standing rules in one call, not three documents",
       "board brief" in first and "board recap" in first)
 check("and is told NOT to read the documents that call replaced",
       "Do not read" in first and "AI_INSTRUCTIONS.md" in first
-      and "live/TEACHING.md" in first and "live/BRIEF.md" in first)
+      and "board/TEACHING.md" in first)
 check("and not to read the lesson card by card",
-      "live/cards/ file by file" in first)
-check("a resumed turn is told NOT to re-read the contract",
-      "Do not re-read" in resume and "AI_INSTRUCTIONS.md" in resume)
-for doc in ("live/TEACHING.md", "live/BRIEF.md", "HANDOFF.md", "live/cards/"):
-    check("a resumed turn is told not to re-read %s" % doc,
-          doc in resume.split("Do not re-read", 1)[1].split("\n\n", 1)[0])
+      "cards file by file" in first)
+check("there is no resume prompt: every turn is a fresh process",
+      not hasattr(prompts, "HEADLESS_RESUME_PROMPT"))
+check("a turn is told not to touch HANDOFF.md", "Do not touch `HANDOFF.md`" in first)
+check("a turn is told to keep TUTOR.md true with `board memo`",
+      "board memo" in first and "800 words" in first)
+check("and no prompt names `board wait`, which is gone",
+      all("board wait" not in p for p in EVERY_PROMPT))
+check("and no prompt names a live/ path a session does not have",
+      all("live/cards" not in p and "live/state.json" not in p
+          and "live/TEACHING.md" not in p for p in EVERY_PROMPT))
 
-# --- the two things a turn must not do ------------------------------------
-# Both cost real money in a real session and neither could be fixed by asking
-# more firmly, so both are refused by the command as well as forbidden here.
-for name, p in (("cold", first), ("resumed", resume)):
-    check("a %s turn is told not to run `board wait`" % name,
-          "Do not run `board wait`" in p)
-    check("a %s turn is told not to touch HANDOFF.md" % name,
-          "Do not touch `HANDOFF.md`" in p)
-    check("a %s turn is told to keep TUTOR.md true with `board memo`" % name,
-          "board memo" in p and "800 words" in p)
-
-# The wait output IS the inbox, already marked read. Telling the agent to run
+# The prompt IS the inbox, already marked read. Telling the agent to run
 # `board inbox` as well bought an empty round trip on every single turn.
-for name, p in (("cold", first), ("resumed", resume)):
-    check("a %s turn is not sent to `board inbox` for what it already has" % name,
-          "do not run `board inbox`" in p.lower())
+check("a turn is not sent to `board inbox` for what it already has",
+      "do not run `board inbox`" in first.lower())
 
 check("the handoff is capped, because it is read on every future session",
       "350 words" in prompts.HANDOFF_PROMPT)
 check("and it is written through the one command that enforces the cap",
       "board handoff" in prompts.HANDOFF_PROMPT)
-check("the wrap-up reads the lesson back in one call, holding one turn only",
+check("the wrap-up reads the lesson back in one call",
       "board recap" in prompts.HANDOFF_PROMPT
       and "file by file" in prompts.HANDOFF_PROMPT)
-# It used to be told not to re-read the lesson at all, because it ran on a
-# session that had taught the whole of it. It does not any more -- a teaching
-# turn is its own session, so the wrap-up resumes onto the LAST turn and holds
-# one card. So the guarantee changed shape: it reads the lesson back, in one
-# call, and still reads none of the documents.
 check("the handoff turn reads no document to write itself",
       "do not read ai_instructions.md" in prompts.HANDOFF_PROMPT.lower()
-      and "live/TEACHING.md" in prompts.HANDOFF_PROMPT
+      and "board/TEACHING.md" in prompts.HANDOFF_PROMPT
       and "old HANDOFF.md" in prompts.HANDOFF_PROMPT)
 check("the handoff is not a documentation review either",
       "Do not review" in prompts.HANDOFF_PROMPT)
 
-# --- which session a turn runs in -----------------------------------------
+# --- every turn is a fresh process ----------------------------------------
+# Every session's turn runs in the Atlas root, so a resume would pick up
+# another session's conversation. What a turn holds never grows with the lesson.
 spec_claude = {"headless_first": ["claude", "-p", "{prompt}"],
                "headless": ["claude", "-p", "{prompt}", "--continue"]}
-
-use, template, fresh = runturn.turn_plan(spec_claude, 0, 12)
-check("with nothing to resume, a turn opens a session",
-      fresh and "--continue" not in use and template is first)
-
-use, template, fresh = runturn.turn_plan(spec_claude, 1, 12)
-check("with a session in hand it is resumed",
-      not fresh and "--continue" in use and template is resume)
-
-use, template, fresh = runturn.turn_plan(spec_claude, 11, 12)
-check("and stays resumed up to the limit", not fresh)
-
-use, template, fresh = runturn.turn_plan(spec_claude, 12, 12)
-check("at the limit it starts fresh rather than carry twelve turns of history",
-      fresh and "--continue" not in use and template is first)
-
-use, template, fresh = runturn.turn_plan(spec_claude, 99, 0)
-check("session_turns 0 resumes for ever, which is what a flat rate wants",
-      not fresh)
-
-# The default, and the whole point of the arrangement: every turn is its own
-# session, so what a turn holds does not grow with the lesson.
-check("the shipped default is one turn to a session",
-      recipes.DEFAULT_CONFIG["session_turns"] == 1)
-for carried in (1, 5, 40):
-    use, template, fresh = runturn.turn_plan(spec_claude, carried, 1)
-    check("with session_turns 1, turn %d is fresh and cold-prompted" % (carried + 1),
-          fresh and "--continue" not in use and template is first)
-
-# AN UNFINISHED REPORT RESUMES, WHATEVER THE COUNT SAYS: the turn that did the
-# work holds what it did. There is no `[carry]` any more -- a signal of that
-# name is an ordinary turn.
-spec_two = {"headless_first": ["x", "{prompt}"],
-            "headless": ["x", "--continue", "{prompt}"]}
-use, template, fresh = runturn.turn_plan(spec_two, 0, 1, "unfinished")
-check("an unfinished report continues the session that did the work",
-      not fresh and "--continue" in use
-      and template is prompts.HEADLESS_UNFINISHED_PROMPT)
-use, template, fresh = runturn.turn_plan(spec_two, 0, 1, "carry")
-check("and a `[carry]` is no longer special: it is a fresh, cold turn",
-      fresh and "--continue" not in use and template is first
+for sig in ("", "unfinished", "carry", "revise", "writeup", "repair"):
+    use, template = runturn.turn_plan(spec_claude, sig)
+    check("a %s turn opens a fresh conversation" % (sig or "lesson"),
+          "--continue" not in use)
+check("a lesson turn is cold-prompted",
+      runturn.turn_plan(spec_claude)[1] is first)
+check("an unfinished report reads what the work changed off disk",
+      runturn.turn_plan(spec_claude, "unfinished")[1]
+      is prompts.HEADLESS_UNFINISHED_PROMPT)
+check("and a `[carry]` is not special: it is an ordinary cold turn",
+      runturn.turn_plan(spec_claude, "carry")[1] is first
       and not hasattr(prompts, "HEADLESS_CARRY_PROMPT"))
+use, template = runturn.turn_plan({"headless": ["codex", "exec", "{prompt}"]})
+check("an agent with one recipe runs that, cold-prompted",
+      use == ["codex", "exec", "{prompt}"] and template is first)
 
-# An agent with no separate opening recipe must still work, and must not be
-# handed a resume prompt on a session it never opened.
-use, template, fresh = runturn.turn_plan({"headless": ["codex", "exec", "{prompt}"]}, 0, 12)
-check("an agent with one recipe still gets the cold prompt on its first turn",
-      fresh and template is first)
-
-check("the config carries a session length", "session_turns" in recipes.DEFAULT_CONFIG)
-check("and somewhere to say how big an allowance window is, without guessing",
+check("the config says how big an allowance window is, without guessing",
       "quota_tokens" in recipes.DEFAULT_CONFIG
       and recipes.DEFAULT_CONFIG["quota_tokens"] is None)
 
@@ -342,7 +298,7 @@ try:
     check("and the tutor's TUTOR.md, whole", "subgroups and orders" in out
           and "which book's notation" in out)
     check("it says how a turn works now",
-          "board memo" in out and "board wait" in out and "own session" in out)
+          "board memo" in out and "Do not wait" in out and "own session" in out)
     check("it names board/TEACHING.md for a rule that needs its detail",
           "board/TEACHING.md" in out)
     check("and reads none of the contract, the handoff or the README",
@@ -367,36 +323,14 @@ try:
     check("`--check` says how long it is",
           b"words, cap 350, ok" in board("handoff", "--check").stdout)
 
-    # --- board wait: a turn does not wait ---------------------------------
-    # The defect this refuses cost $4.49 in one turn: the agent ran `board wait`
-    # at the end of its own turn, held the conversation open while the student
-    # thought, and answered their next message inside it.
-    import time as _time
-    agent = os.path.join(live, "agent.json")
-
-    def record(**kw):
-        with open(agent, "w", encoding="utf-8") as fh:
-            json.dump(kw, fh)
-
-    from tutorboard import machine                            # noqa: E402
-    node = machine.node_name()
-    record(host=node, pid=os.getpid(), state="working", turns=3,
-           last_seen=_time.time())
+    # --- there is no `board wait`: a turn does not wait -------------------
+    # The defect this replaced cost $4.49 in one turn: the agent ran `board
+    # wait` at the end of its own turn, held the conversation open while the
+    # student thought, and answered their next message inside it. The runner
+    # starts a fresh turn per message, so nothing waits and the command is gone.
     p = board("wait", "--timeout", "1")
-    check("a `board wait` from inside a headless turn is refused",
-          p.returncode == 0 and b"does not wait" in p.stdout)
-    check("and it is told what to do instead", b"board memo" in p.stdout)
-    p = board("wait", "--timeout", "1", "--force")
-    check("the daemon's own waiter gets through with --force",
-          p.returncode == 2 and b"nothing sent" in p.stdout)
-    record(host=node, pid=os.getpid(), state="listening", last_seen=_time.time())
-    check("and a daemon between turns is not its own turn",
-          board("wait", "--timeout", "1").returncode == 2)
-    record(host=node, pid=os.getpid(), mode="interactive", state="attached",
-           cmd="python3", last_seen=_time.time())
-    check("a person at a terminal may still wait",
-          board("wait", "--timeout", "1").returncode == 2)
-    os.remove(agent)
+    check("`board wait` is no command at all",
+          p.returncode != 0 and b"unknown command" in p.stdout)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

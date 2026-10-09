@@ -203,7 +203,7 @@ check("and a turn going through clears it", limits.limited_until() == 0)
 
 # The daemon's loop, and the record it owes a message into.
 src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f), encoding="utf-8").read()
-              for f in ("loop.py", "daemon.py"))
+              for f in ("loop.py", "daemon.py", "service.py"))
 
 check("a limit is asked about before the network is blamed -- the turn itself "
       "answered that one, and a provider that could say so is a provider we "
@@ -217,9 +217,9 @@ check("the message whose turn was lost is carried, not dropped -- and to "
       "signalled next",
       "pending = owe(ctx, out)" in src and "def owe(ctx, msg):" in src
       and "agent_state(ctx.live, owed=msg or None)" in src)
-check("and the daemon that comes up after it drains what was owed, rather than "
-      "blocking for ever on an inbox line `board wait` has already marked read",
-      "pending = daemon.owed_message(live)" in src and "def owed_message(live):" in src)
+check("and the next turn answers what was owed first, since the inbox lines it "
+      "came from are already marked read",
+      "owed = daemon.owed_message(repo.live)" in src and "def owed_message(live):" in src)
 check("and the board is told the daemon is retrying, so it does not advise "
       "sending the same work again behind a turn already queued",
       "limited=until, retrying=True)" in src)
@@ -231,8 +231,9 @@ check("and where there is nobody to climb down to it says so and goes on "
       "nothing else here can take it" in src)
 check("a turn that goes through proves THAT agent's allowance, not the "
       "machine's", "limits.clear_limited(ctx.agent_name)" in src)
-check("the handoff is still attempted, because it is the only continuity there "
-      "is", "is a session the next one has to reconstruct" in src)
+check("the handoff is still attempted on End, by whoever can write it, because "
+      "it is the only continuity there is",
+      "def wrap_up(ctx):" in src and "the handoff goes to" in src)
 
 health = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                            "machines.py"), encoding="utf-8").read()

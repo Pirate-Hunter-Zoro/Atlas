@@ -1375,7 +1375,7 @@ def sense(root, rec):
 
 
 def drop(root, rec, now=None, text=None, signal="job"):
-    """Put the `[job]` line in the inbox, where `board wait` picks it up,
+    """Put the `[job]` line in the inbox, where the next turn takes it,
     through `cluster.wake`.
 
     `text` and `signal` put another machinery line the same way: a failure to
@@ -2123,7 +2123,7 @@ def commit_alone(root, target, what, push=True):
 # the Mac hears the cluster
 # ---------------------------------------------------------------------------
 # A REPORT A PULL BROUGHT TO AN END DROPS THE SAME `[job]` LINE A LOCAL ENDING
-# DOES, in the same inbox, so `board wait` wakes the same turn and
+# DOES, in the same inbox, so the same turn takes it and
 # `turn_signal` reads it as `job` -- or as `repair`, for a failure the Mac
 # repairs (`repairs`). Nothing else wakes a turn for the relay.
 #

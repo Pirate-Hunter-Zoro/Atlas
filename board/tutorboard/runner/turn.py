@@ -3,7 +3,9 @@
 `turn_plan` picks the recipe and the prompt for what the turn was woken for
 (`turn_signal`, `woken_for`), `turn_timeout` its cap (`doing_now`),
 `turn_environment` and `at_root` what it runs with, and `run_turn` runs it to
-completion or to the cap, killing its whole process group.
+completion or to the cap, killing its whole process group. The functions that
+read a session take its Repo (`as_repo` also accepts a workspace root, whose
+session is its `live/`).
 """
 
 import os
@@ -48,11 +50,27 @@ def turn_environment(spec, base=None):
     env["TUTORBOARD_TURN"] = "1"
     return env
 
-def chapter_now(root):
-    """Which chapter is open, according to the board's own state."""
-    return course_repo.session_state(root).get("chapter") or ""
+def as_repo(where):
+    """`where` as a Repo: a Repo is itself; a root is its own `live/` session.
 
-def doing_now(root, signal=""):
+    The runner passes the session's Repo, so nothing here goes through the
+    per-process binding `course_repo.resolve` makes for a CLI.
+    """
+    if hasattr(where, "state"):
+        return where
+    return course_repo.Repo(where, create=False)
+
+
+def state_of(where):
+    said = as_repo(where).state()
+    return said if isinstance(said, dict) else {}
+
+
+def chapter_now(where):
+    """Which chapter is open, according to the session's own state."""
+    return state_of(where).get("chapter") or ""
+
+def doing_now(where, signal=""):
     """Is this turn one whose product is a change, not a card?
 
     True when the session is in do mode (`config.mode_of`), and for the turns
@@ -66,12 +84,12 @@ def doing_now(root, signal=""):
                   "repair"):
         return True
     try:
-        return config.mode_of(course_repo.session_state(root)) == "do"
+        return config.mode_of(state_of(where)) == "do"
     except Exception:
         return False
 
 
-def turn_timeout(cfg, root, spec=None, signal=""):
+def turn_timeout(cfg, where, spec=None, signal=""):
     """How long this turn gets, by what kind of turn it is AND which agent runs it.
 
     The two numbers in the configuration are about the SITTING: a teaching turn
@@ -91,7 +109,7 @@ def turn_timeout(cfg, root, spec=None, signal=""):
     `doing_now`.
     """
     plain = int(cfg.get("headless_timeout", 900) or 900)
-    if doing_now(root, signal):
+    if doing_now(where, signal):
         plain = max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
     try:
         floor = int((spec or {}).get("timeout") or 0)
@@ -99,61 +117,11 @@ def turn_timeout(cfg, root, spec=None, signal=""):
         floor = 0
     return max(plain, floor)
 
-def handoff_clause(root):
+def handoff_clause(where):
     """What to tell a tutor about the handoff -- including that there is none."""
-    return (prompts.HANDOFF_CLAUSE if handoff.handoff_applies(root, chapter_now(root))
+    repo = as_repo(where)
+    return (prompts.HANDOFF_CLAUSE if handoff.handoff_applies(repo.root, chapter_now(repo))
             else prompts.NO_HANDOFF_CLAUSE)
-
-# HOW LONG THE DAEMON WAITS FOR A MESSAGE, AND HOW LONG IT WAITS FOR THE THING
-# THAT IS WAITING. Two numbers, and the second one exists because the first is a
-# promise `board wait` cannot always keep.
-#
-# `cmd_wait` polls a file every quarter second and checks its own deadline
-# between polls. A poll is an `open()` on a filer, and an NFS open can block in
-# the kernel UNINTERRUPTIBLY -- state `D`, where no Python of that process runs
-# again until the filer answers. Its deadline is therefore never reached, and
-# nothing inside that command can fix it: a timeout enforced by the thing that
-# might hang is not a timeout.
-#
-# Measured on 23 September 2026, in Probability: one waiter stuck 71 minutes in
-# `nfs_set_open_stateid_locked` with `--timeout 300` on its command line. The
-# daemon was healthy, its process alive, and it wrote no heartbeat and took no
-# turn for the whole of it -- so the board said the tutor had not picked the
-# message up, which was true and unactionable. A restart could not clear it
-# either: the daemon was inside `communicate()` with no bound, so the signal was
-# accepted and nothing acted on it.
-#
-# So the PARENT bounds the child. `WAIT_CEILING` is a margin over the deadline
-# the child was given rather than a number of its own: past it, the child is not
-# coming back, and a fresh one costs nothing. Both stay well inside
-# `processes.AWAY_SILENCE`, which is what decides whether a board calls this
-# daemon dead.
-WAIT_TIMEOUT = 300
-WAIT_CEILING = 420
-
-
-def drop_waiter(p, log=None):
-    """SIGKILL a `board wait` that is not coming back. Never blocks.
-
-    SIGKILL RATHER THAN SIGTERM, and that is the safety property rather than
-    impatience. A wedged waiter is inside a syscall; a signal to it is queued
-    and delivered when the filer answers, which may be an hour later. On SIGTERM
-    it would then run Python again -- and the next thing `cmd_wait` does on
-    finding a message is `cmd_inbox`, which MARKS IT READ and prints it down a
-    pipe nobody is holding any more. That is the student's message consumed and
-    lost. SIGKILL cannot be caught, so no further line of that process runs.
-
-    The group, because `start_new_session` put it in one, for the reason
-    `run_turn` does it. And it is not waited on: reaping a process in
-    uninterruptible sleep is the same hang one level up.
-    """
-    try:
-        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-    except OSError:
-        pass
-    if log:
-        log.write("!! the wait for a message did not come back in %d s and has "
-                  "been killed; asking again\n" % WAIT_CEILING)
 
 def at_root(root, env=None):
     """A turn's environment with `PWD` saying where the turn actually runs.
@@ -168,27 +136,26 @@ def at_root(root, env=None):
     return env
 
 
-def run_turn(cmd, root, log, timeout, env=None):
+def run_turn(cmd, cwd, log, timeout, env=None, on_start=None):
     """Run one turn to completion or to its cap. `(returncode, timed_out)`.
 
-    THE WHOLE PROCESS GROUP, because `coli-code` is a shell that runs `srun`,
-    and killing the shell alone orphans the step: the client goes on answering
-    on the serving node, and the next turn is a second client on one KV slot.
-    `start_new_session` puts the turn in a group of its own so there is a group
-    to signal, and SIGTERM is given fifteen seconds before SIGKILL so a client
-    that can close its transcript does.
+    `cwd` is where the turn runs: the Atlas root for every session. The turn
+    is a group of its own (`start_new_session`), so the cap -- and the runner's
+    recovery after a server that died mid-turn -- kills everything it started:
+    SIGTERM, fifteen seconds, then SIGKILL. `on_start(process)` runs once the
+    process exists, so its group can be recorded before the turn does anything.
+
+    Nothing on stdin: a client that reads a stdin that is not a terminal
+    appends it to the prompt and blocks until it closes (`codex exec`).
     """
-    # AND NOTHING ON STDIN. A client that reads stdin when it is not a terminal
-    # appends whatever it finds to the prompt and BLOCKS until the far end
-    # closes -- `codex exec` prints "Reading additional input from stdin..." and
-    # waits, which for a `tutor headless` started from a terminal is for ever.
-    # The turn then dies at its cap having said nothing, and on the board that
-    # is indistinguishable from a model thinking for fifteen minutes. The
-    # spawned daemon already passes DEVNULL to itself; this is the same answer
-    # one level down, where it covers every way a turn is started.
-    p = subprocess.Popen(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
                          stdin=subprocess.DEVNULL,
-                         start_new_session=True, env=at_root(root, env))
+                         start_new_session=True, env=at_root(cwd, env))
+    if on_start:
+        try:
+            on_start(p)
+        except Exception:                                    # noqa: BLE001
+            pass
     try:
         return p.wait(timeout), False
     except subprocess.TimeoutExpired:
@@ -205,70 +172,31 @@ def run_turn(cmd, root, log, timeout, env=None):
             continue
     return p.returncode, True
 
-def turn_plan(spec, carried, recycle, signal=""):
-    """Which recipe and which prompt this turn gets, and whether it is fresh.
 
-    `carried` is how many turns the agent's current session already holds; 0
-    means there is nothing to resume. `recycle` is `session_turns` from the
-    config -- 0 resumes for ever. `signal` is what the inbox line says this turn
-    is for, which matters for exactly one of them.
+def fresh_recipe(spec):
+    """The recipe that starts a new conversation: `headless_first`, else
+    `headless`. Every session shares the Atlas root as its cwd, so a turn
+    never resumes (`--continue` would pick up another session's)."""
+    return (spec or {}).get("headless_first") or (spec or {}).get("headless")
 
-    Resuming saves re-reading the contract, the method and the lesson. It is not
-    free: a resumed turn resends the whole conversation as input, so turn twenty
-    pays for nineteen turns of history. Past a point a fresh session that reads
-    the contract once and the lesson back through `board recap` is cheaper than
-    carrying everything, so this is where the two are traded off.
 
-    A REVISION IS ALWAYS FRESH, whatever is there to resume. It is not part of
-    the lesson -- see `HEADLESS_REVISE_PROMPT` -- and resuming one into a lesson
-    drags the lesson into the document and the document back into the lesson. A
-    SHIP is the same: it reads a diff and pushes it, and a lesson resumed into
-    that is a tutor that thinks the evening was about git.
+def turn_plan(spec, signal=""):
+    """`(recipe, prompt)` for a turn woken for `signal`. Every turn is a fresh
+    process with a fresh conversation, and reads the lesson back off disk.
+
+    The signal picks the prompt: a revision, a rework, a ship and a document
+    asked for mid-session are not part of the lesson and get their own; an
+    `[unfinished]` report gets the prompt that reads `git status` and the
+    placeholder card; everything else is a lesson turn.
     """
-    recipe = spec.get("headless")
-    first = spec.get("headless_first") or recipe
-    if signal == "revise":
-        return first, prompts.HEADLESS_REVISE_PROMPT, True
-    # An overhaul is a revision's louder twin and runs fresh for the same
-    # reason. What differs is only what it is allowed to do to the document.
-    if signal == "rework":
-        return first, prompts.HEADLESS_REWORK_PROMPT, True
-    # A ship is the same shape: its own session, nothing of the lesson in it,
-    # and nothing of it left in the lesson afterwards.
-    if signal == "ship":
-        return first, prompts.HEADLESS_SHIP_PROMPT, True
-    # And a document asked for mid-sitting. Fresh for the revision's reason
-    # rather than the ship's: the lesson resumed into it is exactly the narration
-    # a write-up must not be, and this is the one turn whose product is that
-    # document.
-    if signal == "writeup":
-        return first, prompts.HEADLESS_WRITEUP_PROMPT, True
-    # AN UNFINISHED REPORT RESUMES: the turn that did the work holds what
-    # it did, and the report is about exactly that. The prompt also works
-    # cold, off `git status` and the card, for a client that cannot resume.
-    if signal == "unfinished":
-        return recipe, prompts.HEADLESS_UNFINISHED_PROMPT, False
-    fresh = carried == 0 or bool(recycle) and carried >= recycle
-    return (first if fresh else recipe,
-            prompts.HEADLESS_FIRST_PROMPT if fresh else prompts.HEADLESS_RESUME_PROMPT,
-            fresh)
-
-
-def carry_after(signal, fresh, carried):
-    """How many turns the agent's session carries once this turn has finished.
-
-    Ordinarily: one if it started a new session, one more if it resumed. The
-    exceptions are a revision, an overhaul, a ship and a document asked for
-    mid-sitting, and they are the reason this is a function rather than an
-    expression. A revision runs FRESH, so the agent's current conversation is now
-    about a document -- and leaving the count at one would make the next turn of
-    the LESSON resume into it, which is exactly the drag the revision was made
-    fresh to avoid. Zero, so the next lesson turn starts its own session and
-    reads the lesson back with `board recap`.
-    """
-    if signal in ("revise", "rework", "ship", "writeup"):
-        return 0
-    return 1 if fresh else carried + 1
+    prompt = {
+        "revise": prompts.HEADLESS_REVISE_PROMPT,
+        "rework": prompts.HEADLESS_REWORK_PROMPT,
+        "ship": prompts.HEADLESS_SHIP_PROMPT,
+        "writeup": prompts.HEADLESS_WRITEUP_PROMPT,
+        "unfinished": prompts.HEADLESS_UNFINISHED_PROMPT,
+    }.get(signal, prompts.HEADLESS_FIRST_PROMPT)
+    return fresh_recipe(spec), prompt
 
 
 # WHAT A TURN WAS WOKEN FOR, so the board can say it while the turn runs.
