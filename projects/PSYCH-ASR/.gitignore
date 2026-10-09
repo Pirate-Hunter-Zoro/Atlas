@@ -76,6 +76,11 @@ slurm_jobs/**/logs/
 # the board's own config must survive the blanket *.json rule above
 !tutorboard.json
 
+# AN ARTIFACT'S RECORD IS TRACKED: `docs/doc.json` and `docs/<slug>/doc.json`
+# hold a document's title, its source file and the sessions that asked for it.
+!/docs/doc.json
+!/docs/*/doc.json
+
 # so must the markdown linter's, which is config and not data
 !.markdownlint.json
 

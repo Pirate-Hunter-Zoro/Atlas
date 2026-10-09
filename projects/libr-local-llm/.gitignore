@@ -21,6 +21,12 @@ slurm_jobs/logs/*
 !config/opencode-deepseek.json
 # The board's file for this workspace: its name and the check a turn runs.
 !/tutorboard.json
+
+# AN ARTIFACT'S RECORD IS TRACKED: `docs/doc.json` and `docs/<slug>/doc.json`
+# hold a document's title, its source file and the sessions that asked for it.
+!/docs/doc.json
+!/docs/*/doc.json
+
 *.jsonl
 
 # so must the markdown linter's, which is config and not data
