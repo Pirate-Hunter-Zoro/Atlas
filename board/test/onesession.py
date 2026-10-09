@@ -49,6 +49,7 @@ os.environ["TUTORBOARD_PAGES"] = os.path.join(tmp, ".pages")
 
 from tutorboard import sessions                               # noqa: E402
 from tutorboard.course import repo as course_repo             # noqa: E402
+from tutorboard.runner import service as runner_service      # noqa: E402
 from tutorboard.server import app, spawn                      # noqa: E402
 
 fails = []
@@ -61,10 +62,9 @@ def check(name, cond):
 
 
 CALLS = []
-spawn.wake_tutor = lambda repo: CALLS.append(("wake", repo.live)) or False
+runner_service.wake = lambda repo: CALLS.append(("wake", repo.live)) or False
 spawn.board_cli = lambda where, a, **kw: CALLS.append(("board", list(a))) or (0, "ok")
 spawn.tutor_cli = lambda a, **kw: CALLS.append(("tutor", list(a))) or (0, "ok")
-spawn.fresh_tutor = lambda root, course: CALLS.append(("fresh", root))
 
 
 def write(path, text):
