@@ -148,6 +148,18 @@ var els = {
   finishSub: document.getElementById("finish-sub"),
   save: document.getElementById("btn-save"),
   barmenu: document.getElementById("barmenu"),
+  subjectBtn: document.getElementById("btn-subject"),
+  modeBtn: document.getElementById("btn-mode"),
+  makeBtn: document.getElementById("btn-make"),
+  endBtn: document.getElementById("btn-end"),
+  makemenu: document.getElementById("makemenu"),
+  subjpick: document.getElementById("subjpick"),
+  subjpickList: document.getElementById("subjpick-list"),
+  subjpickForm: document.getElementById("subjpick-form"),
+  subjpickName: document.getElementById("subjpick-name"),
+  subjpickPhi: document.getElementById("subjpick-phi"),
+  subjpickSaid: document.getElementById("subjpick-said"),
+  endedbar: document.getElementById("endedbar"),
   chrome: document.getElementById("chrome"),
   drawbar: document.getElementById("drawbar"),
   home: document.getElementById("btn-home"),
@@ -994,7 +1006,7 @@ function render(data) {
   }
   sittingKey = sitting;
 
-  els.course.textContent = state.course || "board";
+  paintHeader(state);
   /* A review's label is "Test review — Ch 1, Ch 7", which the strip underneath
      already says in full and in the course's own words. Repeating it here costs
      the bar the width that the chapter line exists to have, and the bar is the
@@ -8353,6 +8365,7 @@ document.getElementById("btn-contents-close").onclick = function () {
    one. */
 document.getElementById("btn-more").onclick = function (e) {
   e.stopPropagation();
+  closeHeaderMenus();
   els.barmenu.hidden = !els.barmenu.hidden;
   if (!els.barmenu.hidden) placeMenu();
 };
@@ -8467,6 +8480,263 @@ Array.prototype.forEach.call(els.barmenu.querySelectorAll("button"), function (b
 document.addEventListener("click", function (e) {
   if (els.barmenu.hidden) return;
   if (!els.barmenu.contains(e.target)) els.barmenu.hidden = true;
+});
+
+
+/* ---------------------------------------------------- the session header
+   Four controls and no more (`test/link.js` counts `.sess-ctl`): the subject
+   chip, the teach/do toggle, Make and End. Each paints from the payload's
+   state, which is the session's session.json, and after a tap from the
+   server's answer, so a bind or a flip shows before the next payload does. */
+var headerState = {};
+/* What a bind just set, held over a payload built before it landed. */
+var boundTo = null;
+/* A flip on its way to the server: the payload does not paint over it. */
+var modeAsked = null;
+var endArmed = 0;
+/* Which kind of subject the picker's form is making, and its patient-data
+   answer: null until a project's is given. */
+var making = null;
+var makingPhi = null;
+
+/* A stored session's state always carries `subject`, null while unbound. A
+   workspace's state (the one-session test server) never does, and is named
+   by its course as before. */
+function isStoredState(state) {
+  return Object.prototype.hasOwnProperty.call(state || {}, "subject");
+}
+
+function paintHeader(state) {
+  var st = Object.assign({}, state || {});
+  if (boundTo) {
+    if (st.subject === boundTo.id || Date.now() - boundTo.at > 8000) boundTo = null;
+    else { st.subject = boundTo.id; st.course = boundTo.name; }
+  }
+  headerState = st;
+  var stored = isStoredState(st);
+  var bound = !stored || !!st.subject;
+  els.course.textContent = !stored ? (st.course || "board")
+    : bound ? (st.course || st.subject) : "unbound";
+  els.subjectBtn.dataset.bound = bound ? "1" : "0";
+  els.subjectBtn.title = bound
+    ? "this session is about " + els.course.textContent + " (tap to change)"
+    : "this session is not bound to a course or project yet (tap to bind it)";
+  paintMode(modeAsked || (st.mode === "do" ? "do" : "teach"));
+  var ended = !!st.ended;
+  if (ended) document.body.dataset.ended = "1";
+  else delete document.body.dataset.ended;
+  els.endedbar.hidden = !ended;
+  els.subjectBtn.disabled = ended;
+  els.modeBtn.disabled = ended;
+  els.makeBtn.disabled = ended;
+  if (ended) {
+    disarmEnd();
+    els.endBtn.disabled = true;
+    els.endBtn.textContent = "ended";
+    els.endBtn.title = "this session ended " + st.ended;
+  } else if (!endArmed && els.endBtn.textContent === "ended") {
+    els.endBtn.disabled = false;
+    els.endBtn.textContent = "end";
+    els.endBtn.title = "end this session (tap twice)";
+  }
+}
+
+function paintMode(mode) {
+  els.modeBtn.dataset.now = mode;
+  els.modeBtn.ariaPressed = mode === "do" ? "true" : "false";
+}
+
+function postJson(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  }).then(function (r) {
+    return r.json().catch(function () { return { ok: false, error: "HTTP " + r.status }; });
+  });
+}
+
+/* Header menus: one open at a time, hung under the chrome stack. */
+function closeHeaderMenus() {
+  els.makemenu.hidden = true;
+  els.subjpick.hidden = true;
+}
+
+function hangMenu(menu) {
+  var stack = els.chrome ? els.chrome.getBoundingClientRect().bottom : 0;
+  menu.style.top = Math.max(stack + 4, 4) + "px";
+}
+
+/* TEACH OR DO. The toggle flips session.json `mode` through `POST /mode`. */
+els.modeBtn.onclick = function () {
+  if (headerState.ended || modeAsked) return;
+  var was = els.modeBtn.dataset.now === "do" ? "do" : "teach";
+  var want = was === "do" ? "teach" : "do";
+  modeAsked = want;
+  paintMode(want);
+  postJson(BASE + "/mode", { mode: want }).then(function (got) {
+    modeAsked = null;
+    paintMode(got && got.ok ? got.mode : was);
+  }, function () {
+    modeAsked = null;
+    paintMode(was);
+  });
+};
+
+/* MAKE: a write-up, a deck or a paper. */
+els.makeBtn.onclick = function (e) {
+  e.stopPropagation();
+  var open = els.makemenu.hidden;
+  closeHeaderMenus();
+  els.barmenu.hidden = true;
+  if (open && !headerState.ended) {
+    els.makemenu.hidden = false;
+    hangMenu(els.makemenu);
+  }
+};
+
+/* END, after a second tap. The first arms it for four seconds. */
+function disarmEnd() {
+  if (endArmed) clearTimeout(endArmed);
+  endArmed = 0;
+  els.endBtn.classList.remove("armed");
+  if (els.endBtn.textContent !== "ended") els.endBtn.textContent = "end";
+}
+
+els.endBtn.onclick = function (e) {
+  e.stopPropagation();
+  if (headerState.ended || els.endBtn.disabled) return;
+  if (!endArmed) {
+    els.endBtn.classList.add("armed");
+    els.endBtn.textContent = "end? tap again";
+    endArmed = setTimeout(disarmEnd, 4000);
+    return;
+  }
+  disarmEnd();
+  els.endBtn.disabled = true;
+  els.endBtn.textContent = "ending…";
+  postJson(BASE + "/end", {}).then(function (got) {
+    if (got && got.ok) {
+      var rec = got.session || {};
+      paintHeader(Object.assign({}, headerState, { ended: rec.ended || "now" }));
+    } else {
+      els.endBtn.disabled = false;
+      els.endBtn.textContent = "end";
+      els.endBtn.title = "not ended: " + ((got && got.error) || "no answer");
+    }
+  }, function () {
+    els.endBtn.disabled = false;
+    els.endBtn.textContent = "end";
+    els.endBtn.title = "not ended: the server did not answer";
+  });
+};
+
+/* THE SUBJECT CHIP: pick a course or project, or make one, and bind. */
+function pickSaid(text) { els.subjpickSaid.textContent = text || ""; }
+
+els.subjectBtn.onclick = function (e) {
+  e.stopPropagation();
+  if (headerState.ended) return;
+  var open = els.subjpick.hidden;
+  closeHeaderMenus();
+  els.barmenu.hidden = true;
+  if (!open) return;
+  making = null;
+  makingPhi = null;
+  els.subjpickForm.hidden = true;
+  pickSaid("");
+  els.subjpickList.textContent = "";
+  els.subjpick.hidden = false;
+  hangMenu(els.subjpick);
+  fetch("/subjects.json").then(function (r) { return r.json(); }).then(function (got) {
+    paintSubjects((got && got.subjects) || []);
+  }, function () { pickSaid("The list of courses and projects did not come."); });
+};
+
+function paintSubjects(list) {
+  var host = els.subjpickList;
+  host.textContent = "";
+  [["course", "Courses"], ["project", "Projects"]].forEach(function (g) {
+    var some = list.filter(function (one) { return one.kind === g[0]; });
+    if (!some.length) return;
+    var head = document.createElement("div");
+    head.className = "subjpick-group";
+    head.textContent = g[1];
+    host.appendChild(head);
+    some.forEach(function (one) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = one.name || one.slug || one.id;
+      b.dataset.subject = one.id;
+      if (one.id === headerState.subject) b.className = "on";
+      b.onclick = function (ev) { ev.stopPropagation(); bindTo(one.id); };
+      host.appendChild(b);
+    });
+  });
+  if (!host.firstChild) pickSaid("No courses or projects yet: make one below.");
+}
+
+function bindTo(id) {
+  pickSaid("binding…");
+  return postJson(BASE + "/bind", { subject: id }).then(function (got) {
+    if (!got || !got.ok) { pickSaid((got && got.error) || "Not bound."); return; }
+    boundTo = { id: got.subject.id, name: got.subject.name, at: Date.now() };
+    paintHeader(Object.assign({}, headerState));
+    closeHeaderMenus();
+  }, function () { pickSaid("Not bound: the server did not answer."); });
+}
+
+function startMaking(kind) {
+  making = kind;
+  makingPhi = null;
+  els.subjpickForm.hidden = false;
+  els.subjpickPhi.hidden = kind !== "project";
+  Array.prototype.forEach.call(els.subjpickPhi.querySelectorAll("button"),
+                               function (b) { b.classList.remove("on"); });
+  els.subjpickName.placeholder = kind === "project" ? "the project's name" : "the course's name";
+  pickSaid("");
+  try { els.subjpickName.focus(); } catch (e) { /* not focusable here */ }
+}
+
+document.getElementById("subjpick-course").onclick = function (e) {
+  e.stopPropagation(); startMaking("course");
+};
+document.getElementById("subjpick-project").onclick = function (e) {
+  e.stopPropagation(); startMaking("project");
+};
+["no", "yes"].forEach(function (word) {
+  var b = document.getElementById("subjpick-phi-" + word);
+  b.onclick = function (e) {
+    e.stopPropagation();
+    makingPhi = word === "yes";
+    Array.prototype.forEach.call(els.subjpickPhi.querySelectorAll("button"),
+                                 function (x) { x.classList.toggle("on", x === b); });
+  };
+});
+document.getElementById("subjpick-go").onclick = function (e) {
+  e.stopPropagation();
+  var name = (els.subjpickName.value || "").trim();
+  if (!making) return;
+  if (!name) { pickSaid("Name it first."); return; }
+  if (making === "project" && makingPhi === null) {
+    pickSaid("Say whether it holds patient data."); return;
+  }
+  var body = { kind: making, name: name };
+  if (making === "project") body.phi = makingPhi;
+  pickSaid("making " + name + "…");
+  postJson("/subjects/new", body).then(function (got) {
+    if (!got || !got.ok) { pickSaid((got && got.error) || "Not made."); return; }
+    els.subjpickName.value = "";
+    bindTo(got.subject.id);
+  }, function () { pickSaid("Not made: the server did not answer."); });
+};
+
+[els.subjpick, els.makemenu].forEach(function (menu) {
+  menu.addEventListener("click", function (e) { e.stopPropagation(); });
+});
+document.addEventListener("click", function () {
+  closeHeaderMenus();
+  if (endArmed) disarmEnd();
 });
 
 

@@ -962,36 +962,23 @@ const at = (doc, id) => {
     w.__openMap() === false && doc.getElementById('map').hidden
       ? ok('and asking for it says no rather than showing a blank screen')
       : fail('the map opened anyway when there was nothing to draw');
-    doc.getElementById('btn-map').hidden
-      ? fail('the way to the map was taken away — a guarantee with a condition '
-             + 'on it is not a guarantee')
-      : ok('the way to the map is still there, and says there is nothing behind it');
     w.close();
   }
 
-  // -------------------------------------------- the map is not the drawer
+  // ---------------------------- retired: no way to the map from the bar
+  // The session header (T24) holds the subject chip, the toggle, Make and
+  // End; the map and the contents drawer's entry are retired until T51
+  // deletes them, and what is checked above is the code that stays till then.
   {
     const html = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
     const right = /<div class="bar-right">([\s\S]*?)<\/div>/.exec(html);
-    const controls = right ? (right[1].match(/<(?:button|a|label)\b/g) || []).length : 99;
-    controls <= 6
-      ? ok('the title bar still carries only what a lesson uses (' + controls + ')')
-      : fail('the bar is crowded again: ' + controls + ' controls');
-    /id="btn-map"/.test(right ? right[1] : '')
-      ? ok('and the way to the map is one of them')
-      : fail('the map has no control in the title bar');
-    // A glyph on its own is not a label. Asked for as "make that button that
-    // takes me back to the map more obvious as something that would take me
-    // back to the map".
-    /<button id="btn-map"[^>]*>[^<]*\bmap\b/.test(right ? right[1] : '')
-      ? ok('and it says what it is rather than being a bare glyph')
-      : fail('the map control carries no word');
-    (html.match(/class="to-map"[^>]*>[^<]*\bmap\b/g) || []).length >= 6
-      ? ok('every copy of it, in every drawer and on the document viewer, says so too')
-      : fail('some ways to the map are still unlabelled glyphs');
-    /id="barmenu"[\s\S]*id="btn-contents"/.test(html)
-      ? ok('the contents drawer kept every entry and moved one tap away')
-      : fail('the contents drawer was removed rather than moved');
+    !/id="btn-map"/.test(right ? right[1] : '')
+      && /<button id="btn-map"[^>]*data-retired/.test(html)
+      ? ok('the map has no control in the title bar')
+      : fail('the title bar still opens the retired map');
+    /<button id="btn-contents"[^>]*data-retired/.test(html)
+      ? ok('and the contents drawer\'s entry is retired with it')
+      : fail('the contents drawer is still offered');
   }
 
   // ------------------------------------- measured in the face it is painted in

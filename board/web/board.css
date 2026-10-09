@@ -1964,12 +1964,12 @@ body.reading .annbar-board { z-index: 96; }
   flex: 0 1 auto; flex-shrink: 2; min-width: 0;
   overflow: hidden; text-overflow: ellipsis;
 }
-/* ON A PHONE THE RIGHT GROUP KEEPS ITS GLYPHS AND DROPS ITS WORDS. Six labelled
-   controls are about three hundred and sixty pixels, which on a 390px glass left
-   the left group nothing -- not the course, not the badge. The glyph is the
-   control; the word is the first thing that can be spared, and the title says
-   it anyway. Except the map's: a bare ◈ was asked to say what it is. */
-@media (max-width: 600px) {
+/* BELOW A LANDSCAPE IPAD THE RIGHT GROUP KEEPS ITS GLYPHS AND DROPS ITS WORDS.
+   With the words, the writing tools beside Make and End leave the left group
+   too little for the subject chip and the teach/do toggle on an 820px glass.
+   The glyph is the control; the word is the first thing that can be spared,
+   and the title says it anyway. */
+@media (max-width: 1100px) {
   #bar .bar-word { display: none; }
 }
 #bar #session:hover { border-color: var(--ink-3); color: var(--ink); }
@@ -2897,3 +2897,67 @@ body.mapping { overflow: hidden; }
 body.reading #calc, body.viewing #calc { z-index: 96; }
 body.mapping #calc { z-index: 97; }
 @media print { #calc { display: none !important; } }
+
+/* ---------- the session header ---------- */
+/* RETIRED with the sitting kinds and the map: the badge, the kind chooser and
+   the review strip, the map and every way to it, the contents drawer's entry,
+   the shelf's and "elsewhere". Drawn nowhere; T51 deletes the code. */
+[data-retired], .to-map { display: none !important; }
+
+/* The session's four controls: the subject chip, the teach/do toggle, Make
+   and End. Chips with a rule round them, because nothing on glass hovers. */
+#bar .sess-ctl { border-color: var(--rule); }
+#bar .subject-chip {
+  display: inline-flex; align-items: center; gap: 0;
+  flex: 0 1 auto; min-width: 7.5em; max-width: 22rem; overflow: hidden;
+  font-weight: 650; color: var(--ink);
+}
+#bar .subject-chip[data-bound="0"] #course { font-style: italic; font-weight: 500; color: var(--ink-3); }
+#bar .caret { color: var(--ink-3); }
+#bar .mode-toggle { display: inline-flex; padding: 0; overflow: hidden; }
+#bar .mode-toggle span { padding: .4rem .55rem; color: var(--ink-3); }
+#bar .mode-toggle[data-now="teach"] .mode-teach,
+#bar .mode-toggle[data-now="do"] .mode-do {
+  background: var(--ink); color: var(--paper); font-weight: 650;
+}
+#bar #btn-end.armed {
+  color: var(--bad); border-color: var(--bad); font-weight: 650;
+}
+#bar .sess-ctl:disabled { cursor: default; opacity: .55; }
+#bar .sess-ctl:disabled:hover { background: transparent; color: var(--ink-2); }
+/* The tutor's chip gives way before the subject does: its dot carries it. */
+#bar .agent { flex-shrink: 4; }
+/* A phone is narrower than the writing tools and the session's controls
+   together: the session's go on a row of their own rather than off the glass. */
+@media (max-width: 600px) {
+  #bar { flex-wrap: wrap; row-gap: .35rem; }
+  #bar .bar-left { flex: 1 1 100%; }
+  #bar .bar-right { margin-left: auto; }
+}
+
+/* The chip's picker opens under the chip, on the left; Make's under Make. */
+.hdrmenu { min-width: 15rem; }
+#subjpick { left: max(.6rem, env(safe-area-inset-left)); right: auto; }
+.hdrmenu-note { margin: .3rem .4rem .1rem; font-size: .76rem; }
+.hdrmenu-note:empty { display: none; }
+.subjpick-group { margin: .35rem .4rem .1rem; font-size: .7rem; letter-spacing: .08em;
+                  text-transform: uppercase; color: var(--ink-3); }
+#subjpick-list button.on { font-weight: 650; color: var(--accent); }
+.subjpick-new { display: flex; gap: .3rem; border-top: 1px solid var(--rule);
+                margin-top: .3rem; padding-top: .3rem; }
+.subjpick-new button { flex: 1; }
+.subjpick-form { display: flex; flex-direction: column; gap: .35rem; padding: .3rem .2rem; }
+.subjpick-form input {
+  font: inherit; padding: .4rem .5rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.subjpick-phi { display: flex; align-items: center; gap: .35rem; }
+.subjpick-phi button.on { background: var(--ink); color: var(--paper); }
+
+/* An ended session reads; it does not write. */
+.endedbar { background: var(--paper-2); }
+body[data-ended] #writer, body[data-ended] #begin, body[data-ended] #reopen,
+body[data-ended] #btn-annotate, body[data-ended] #btn-slate, body[data-ended] #btn-clip,
+body[data-ended] #notesend, body[data-ended] #redirect, body[data-ended] #drop {
+  display: none !important;
+}

@@ -1779,59 +1779,50 @@ if (es) {
   else fail('the end-of-session offer lost its wording');
 }
 
-// The badge that names the sitting is the control that changes it. Switching was
-// terminal-only, so wanting help with a problem set meant finding a keyboard.
+// THE SESSION HEADER HOLDS FOUR SESSION CONTROLS: the subject chip, the
+// teach/do toggle, Make and End. The sitting badge and its kind chooser, the
+// review strip, the map and every way to it, the contents drawer's entry, the
+// shelf's and "elsewhere" are retired: drawn nowhere, until T51 deletes them.
 if (es) {
-  var badge = doc.getElementById('session');
-  var chooser2 = doc.getElementById('kind');
-  es.onmessage({ data: JSON.stringify({
-    state: { course: 'P', session: 'lecture', mode: 'math' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' }, sets: ['hw01', 'hw02'] }) });
-  if (!badge.hidden && badge.dataset.kind === 'lecture' && badge.textContent)
-    ok('the sitting is named on the board even in a lecture');
-  else fail('the sitting badge is hidden, so nothing can be tapped to change it');
+  var sessCtl = doc.querySelectorAll('#bar .sess-ctl');
+  sessCtl.length === 4
+    ? ok('the header shows four session controls (' + sessCtl.length + ')')
+    : fail('the header shows ' + sessCtl.length + ' session controls, not four');
+  ['btn-subject', 'btn-mode', 'btn-make', 'btn-end'].forEach(function (id) {
+    var el = doc.getElementById(id);
+    if (!el || !el.classList.contains('sess-ctl') || el.hidden || el.closest('[hidden]'))
+      fail(id + ' is not one of the visible session controls');
+  });
+  ok('they are the chip, the toggle, Make and End');
 
-  badge.onclick();
-  if (!chooser2.hidden) ok('and tapping it offers the choice');
-  else fail('the badge is not a control');
-
-  // A bare kind word read as a label on an iPad: it has to name the style and
-  // say that it opens, and the chip has to survive `#bar button`.
-  if (badge.textContent === 'teach \u25be')
-    ok('the badge names the style and says it opens: ' + badge.textContent);
-  else fail('the badge does not name the running style: ' + badge.textContent);
-  var aimRow = doc.getElementById('kind-aim-ways');
-  if (aimRow && aimRow.querySelector('button.on'))
-    ok('with no aim set anywhere, the running style is still marked in the for: row');
-  else fail('the for: row marks no style, which reads as none running');
-  if (/#bar #session\s*{[^}]*background:\s*var\(--paper-2\)[^}]*}/.test(css)
-      && /#bar #session\s*{[^}]*border:\s*1px solid var\(--rule\)/.test(css))
-    ok('the badge keeps a chip at a specificity #bar button cannot strip');
-  else fail('#bar button strips the badge to a bare word again');
-  es.onmessage({ data: JSON.stringify({
-    state: { course: 'T', session: 'lecture', mode: 'code', stance_now: 'do' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' } }) });
-  if (/build/.test(badge.textContent)) ok('a doing workspace with no aim reads as build');
-  else fail('a doing workspace with no aim does not say build: ' + badge.textContent);
-  var offered = doc.getElementById('kind-sets').textContent;
-  if (/hw01/.test(offered) && /hw02/.test(offered))
-    ok('offering the sets this course actually has');
-  else fail('the problem sets were not offered: ' + offered);
-  doc.getElementById('kind-cancel').onclick();
-  if (chooser2.hidden) ok('and it can be dismissed');
-  else fail('the sitting chooser cannot be dismissed');
+  /\[data-retired\][^{]*\.to-map\s*{\s*display:\s*none\s*!important/.test(css)
+    ? ok('a retired control and every way to the map are drawn nowhere')
+    : fail('board.css does not retire [data-retired] and .to-map');
+  ['session', 'kind', 'rvbar', 'btn-map', 'btn-contents', 'btn-work-elsewhere',
+   'map-docs'].forEach(function (id) {
+    var el = doc.getElementById(id);
+    if (el && !el.hasAttribute('data-retired')) fail(id + ' is still drawn');
+  });
+  ok('the badge, the kind strip, the map, contents, shelf and elsewhere are retired');
+  Array.prototype.some.call(doc.querySelectorAll('#bar button, #bar a, #bar label'),
+    function (el) {
+      return !el.closest('[hidden]') && !el.hasAttribute('data-retired')
+        && !el.classList.contains('to-map') && !el.classList.contains('sess-ctl')
+        && /map|contents|elsewhere|lecture|review/.test(el.title || '');
+    })
+    ? fail('a retired control is still in the bar')
+    : ok('and nothing else in the bar opens one of them');
 }
 
-// Thirteen controls in one row is a row that overlaps itself on a tablet.
+// Everything else in the bar is a writing tool or the overflow menu.
 if (es) {
   var menu = doc.getElementById('barmenu');
   var more = doc.getElementById('btn-more');
   var right = doc.querySelector('.bar-right');
-  var visible = right.querySelectorAll('button, a, label').length;
-  if (visible <= 6) ok('the title bar carries only what a lesson uses (' + visible + ')');
-  else fail('the title bar is still crowded: ' + visible + ' controls');
+  var tools = Array.prototype.filter.call(right.querySelectorAll('button, a, label'),
+    function (el) { return !el.classList.contains('sess-ctl'); }).length;
+  if (tools <= 5) ok('beside them the bar carries only what a lesson uses (' + tools + ')');
+  else fail('the title bar is crowded: ' + tools + ' tools beside the session controls');
 
   if (menu && menu.hidden) ok('and the rest is one tap away, not on screen');
   else fail('the overflow menu is missing or always open');
@@ -1871,8 +1862,10 @@ if (es) {
   };
   es.onmessage({ data: JSON.stringify(frame) });
 
-  if (opener && panel.hidden) ok('the contents opener is there and closed');
-  else fail('no way into the contents, or it is up unasked');
+  // Retired from the menu (T24); the drawer's code stands until T51.
+  if (opener && opener.hasAttribute('data-retired') && panel.hidden)
+    ok('the contents opener is retired and the drawer closed');
+  else fail('the contents opener is drawn, or the drawer is up unasked');
 
   opener.onclick();
   var text = doc.getElementById('contents-list').textContent;
@@ -2407,6 +2400,142 @@ async function latchFlow() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// THE HEADER, DRIVEN. Binding from the chip updates it without a reload, the
+// toggle flips `mode` through POST /mode, a new project asks "patient data?",
+// and End posts /end only after a second tap. The server is scripted here; the
+// routes themselves are `test/routing.py`'s and `test/sessions.py`'s.
+async function headerFlow() {
+  const real = window.fetch;
+  const asked = [];
+  const reply = (o, status) => Promise.resolve({ status: status || 200,
+                                                 json: () => Promise.resolve(o) });
+  const names = { 'courses/Linear-Algebra': 'Linear Algebra' };
+  window.fetch = (u, init) => {
+    const url = String(u);
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    asked.push({ url: url, method: (init && init.method) || 'GET', body: body });
+    if (url === '/subjects.json') return reply({ ok: true, subjects: [
+      { id: 'courses/Linear-Algebra', kind: 'course', slug: 'Linear-Algebra',
+        name: 'Linear Algebra' },
+      { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' }] });
+    if (url === '/bind') return reply({ ok: true, changed: true, subject: {
+      id: body.subject, name: names[body.subject] || body.subject, kind: '' } });
+    if (url === '/mode') return reply({ ok: true, mode: body.mode, changed: true });
+    if (url === '/subjects/new') {
+      const id = 'projects/' + body.name.replace(/[^A-Za-z0-9]+/g, '-');
+      names[id] = body.name;
+      return reply({ ok: true, subject: { id: id, kind: 'project', name: body.name } });
+    }
+    if (url === '/end') return reply({ ok: true, session: { ended: '2026-10-09 22:00' } });
+    return real(u, init);
+  };
+  const posts = (url) => asked.filter((a) => a.url === url && a.method === 'POST');
+  const frame = (st) => JSON.stringify({
+    state: Object.assign({ id: '20261009-210000', subject: null, mode: 'teach',
+                           ended: null, course: 'Atlas' }, st),
+    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
+    agent: { agent: 'claude', state: 'listening' } });
+  const chip = doc.getElementById('btn-subject');
+  const label = doc.getElementById('course');
+  const toggle = doc.getElementById('btn-mode');
+  const pick = doc.getElementById('subjpick');
+  const end = doc.getElementById('btn-end');
+  const href = window.location.href;
+
+  es.onmessage({ data: frame({}) });
+  label.textContent === 'unbound' && chip.dataset.bound === '0'
+    ? ok('a new session\'s chip says unbound')
+    : fail('an unbound session\'s chip says ' + label.textContent);
+  toggle.dataset.now === 'teach'
+    ? ok('and the toggle says teach') : fail('the toggle says ' + toggle.dataset.now);
+
+  // The toggle.
+  toggle.click();
+  await sleep(20);
+  const flip = posts('/mode');
+  flip.length === 1 && flip[0].body.mode === 'do' && toggle.dataset.now === 'do'
+    ? ok('the toggle posts mode do to /mode and shows it')
+    : fail('the toggle did not flip the mode: ' + JSON.stringify(flip));
+  es.onmessage({ data: frame({ mode: 'do' }) });
+  toggle.click();
+  await sleep(20);
+  posts('/mode').length === 2 && posts('/mode')[1].body.mode === 'teach'
+    && toggle.dataset.now === 'teach'
+    ? ok('and back to teach') : fail('the toggle does not flip back');
+  es.onmessage({ data: frame({ mode: 'teach' }) });
+
+  // The chip: pick a subject.
+  chip.click();
+  await sleep(20);
+  !pick.hidden && asked.some((a) => a.url === '/subjects.json')
+    ? ok('the chip opens a picker of every course and project')
+    : fail('the chip opened nothing');
+  const row = Array.prototype.filter.call(pick.querySelectorAll('#subjpick-list button'),
+    (b) => b.textContent === 'Linear Algebra')[0];
+  row ? ok('listing them by name') : fail('the picker lists ' + pick.textContent);
+  if (row) row.click();
+  await sleep(20);
+  const bound = posts('/bind');
+  bound.length === 1 && bound[0].body.subject === 'courses/Linear-Algebra'
+    ? ok('a tap binds the session through /bind')
+    : fail('no bind was posted: ' + JSON.stringify(bound));
+  label.textContent === 'Linear Algebra' && chip.dataset.bound === '1' && pick.hidden
+    ? ok('and the chip says so at once') : fail('the chip still says ' + label.textContent);
+  window.location.href === href
+    ? ok('without a reload') : fail('binding navigated to ' + window.location.href);
+  es.onmessage({ data: frame({}) });
+  label.textContent === 'Linear Algebra'
+    ? ok('a payload built before the bind does not paint unbound back over it')
+    : fail('a stale payload undid the chip: ' + label.textContent);
+  es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+
+  // The chip: make a project, which asks about patient data first.
+  chip.click();
+  await sleep(20);
+  doc.getElementById('subjpick-project').click();
+  const form = doc.getElementById('subjpick-form');
+  const phi = doc.getElementById('subjpick-phi');
+  !form.hidden && !phi.hidden
+    ? ok('+ new project asks "patient data?"') : fail('a new project is not asked about patient data');
+  doc.getElementById('subjpick-name').value = 'Grant Notes';
+  doc.getElementById('subjpick-go').click();
+  await sleep(20);
+  posts('/subjects/new').length === 0
+    ? ok('and makes nothing until it is answered') : fail('a project was made without the phi answer');
+  doc.getElementById('subjpick-phi-no').click();
+  doc.getElementById('subjpick-go').click();
+  await sleep(40);
+  const made = posts('/subjects/new');
+  made.length === 1 && made[0].body.kind === 'project' && made[0].body.phi === false
+    && made[0].body.name === 'Grant Notes'
+    ? ok('then posts /subjects/new with the answer')
+    : fail('the new project was posted as ' + JSON.stringify(made));
+  posts('/bind').slice(-1)[0].body.subject === 'projects/Grant-Notes'
+    && label.textContent === 'Grant Notes'
+    ? ok('and binds the session to it') : fail('the new project was not bound: ' + label.textContent);
+
+  // End, after a second tap.
+  end.click();
+  await sleep(20);
+  posts('/end').length === 0 && end.classList.contains('armed')
+    ? ok('one tap on End only arms it') : fail('a single tap ended the session');
+  end.click();
+  await sleep(20);
+  posts('/end').length === 1
+    ? ok('the second tap posts /end') : fail('End posted ' + posts('/end').length + ' times');
+  const endedbar = doc.getElementById('endedbar');
+  !endedbar.hidden && doc.body.dataset.ended === '1' && end.disabled && chip.disabled
+    && toggle.disabled
+    ? ok('an ended session says so and is read-only')
+    : fail('an ended session still offers its controls');
+  /body\[data-ended\][^{]*#writer/.test(css)
+    ? ok('and nothing on the page writes to it') : fail('the writer survives an ended session');
+
+  window.fetch = real;
+  es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+}
+
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
@@ -2416,6 +2545,7 @@ if (es) {
     await latchFlow();
     await sendingFlow();
     await reopenFlow();
+    await headerFlow();
     await sleep(900);
     var fin2 = doc.getElementById('finish');
     var lead2 = doc.getElementById('finish-lead');

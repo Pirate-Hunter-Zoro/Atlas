@@ -419,91 +419,25 @@ const press = (type, x, y) => btn.dispatchEvent(
     }
   }
 
-  // --- AND THE WAY TO THE MAP, SURFACE BY SURFACE --------------------------
+  // --- THE MAP IS RETIRED, AND EVERY WAY TO IT WITH IT ----------------------
   //
-  // A course opens on a picture of its working parts. That is only worth having
-  // if it can be got back to, and "there is a way back" as a single assertion is
-  // exactly the check that passes while one real state is stranded -- so there
-  // is one check per surface, named after the surface.
-  //
-  // The map itself is the one place the control is allowed to be absent, and
-  // that is not a condition on the guarantee: you are already there.
+  // A session starts generic and names its subject from the header's chip;
+  // there is no map to go back to. Every control that opened it is drawn
+  // nowhere -- the bar's, each drawer's, the reader's and the slate's -- until
+  // T51 deletes the map's code.
   {
-    const ways = doc.querySelectorAll('.to-map');
-    ways.length
-      ? ok('there is a control that opens the map (' + ways.length + ' of them)')
-      : fail('there is no way to the map anywhere on this page');
-
-    const inside = (sel) => {
-      const host = doc.querySelector(sel);
-      return !!(host && host.querySelector('.to-map'));
-    };
-
-    // The lesson, scrolled anywhere, zoomed to anything: the title bar. It is
-    // the same surface as an empty board, a board whose tutor is dead, and a
-    // board that has lost its connection -- none of them takes the bar away.
-    inside('#bar')
-      ? ok('from the lesson: the title bar carries it')
-      : fail('the lesson has no way to the map');
+    const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    /\[data-retired\][^{]*\.to-map\s*{\s*display:\s*none\s*!important/.test(css)
+      ? ok('every .to-map control is drawn nowhere')
+      : fail('a way to the retired map is still drawn');
     const bar = doc.getElementById('btn-map');
-    bar && !bar.hidden
-      ? ok('from an empty board, a dead tutor and a dropped link: the same control, '
-           + 'never hidden')
-      : fail('the bar control is conditional, so those three states are stranded');
-    {
-      const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
-      !/els\.mapBtn\.hidden\s*=|btn-map"\)\.hidden\s*=/.test(js)
-        ? ok('and nothing in the board ever takes it away')
-        : fail('something hides the map control; the guarantee is then conditional');
-    }
-
-    // The full-screen writing surface is a page of its own, so it carries its
-    // own link rather than the board's control.
-    {
-      const slate = fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8');
-      /id="tomap"[^>]*href="\/board\?map=1"/.test(slate)
-        ? ok('from the writing surface: /slate links straight to the map')
-        : fail('the full-screen writing surface has no way to the map');
-      const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
-      /map=1/.test(js)
-        ? ok('and the board honours that address when it arrives')
-        : fail('nothing on the board reads ?map=1, so the slate\'s link lands nowhere');
-    }
-
-    // The reader covers the whole glass, so the bar underneath it is not
-    // reachable and it needs one of its own.
-    inside('#reader')
-      ? ok('from the document viewer, mid-deck')
-      : fail('a document open over the lesson has no way to the map');
-
-    // A past lesson under ◷ is the same page with the bar still on it, and the
-    // drawer it was opened from covers the bar on a phone.
-    inside('#history')
-      ? ok('from a past lesson opened read-only under ◷')
-      : fail('the history drawer has no way to the map');
-
-    // Every drawer, sheet and picker. Each of these is a fixed panel that
-    // reaches 92% of the width of a phone.
-    [['#contents', 'the contents drawer'],
-     ['#review', 'the scope picker'],
-     ['#shelf', 'the documents drawer'],
-     ['#scratch', 'the scratch drawer']].forEach(([sel, what]) => {
-      inside(sel)
-        ? ok('from ' + what)
-        : fail(what + ' (' + sel + ') has no way to the map');
-    });
-
-    // The sheets are strips rather than panels -- they stand at the bottom of
-    // the glass and leave the bar alone. That is why they need no control of
-    // their own, and it is a property of the stylesheet rather than a hope.
-    {
-      const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-      const sheet = /\.sendwhat\s*\{([^}]*)\}/.exec(css);
-      sheet && /bottom:/.test(sheet[1]) && !/top:\s*0/.test(sheet[1])
-        ? ok('from inside a sheet: a sheet is a strip at the foot and leaves the bar')
-        : fail('a sheet now covers the top of the glass, so the bar control is '
-               + 'unreachable while one is open');
-    }
+    !bar || bar.hasAttribute('data-retired')
+      ? ok('the title bar carries no way to the map')
+      : fail('the title bar still opens the map');
+    const slate = fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8');
+    /<a id="tomap" hidden/.test(slate)
+      ? ok('nor does the writing surface')
+      : fail('/slate still links to the map');
   }
 
   // 8. THE MAP IS A PLANE, AND A PLANE CAN BE PANNED INTO NOTHING.

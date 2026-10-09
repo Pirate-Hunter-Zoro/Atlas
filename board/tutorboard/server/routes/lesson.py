@@ -12,6 +12,7 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     GET  /archive/<name>[/answers/<file>]
                               session   one of them, read only
     POST /mode                session   teach or do, from now on
+    POST /bind                session   bind the session to a subject, from its chip
     POST /handover            session   one step written for them
     POST /dismiss-finish      session   the end-of-session offer waved off
     POST /session             session   label the sitting: a lecture on a
@@ -34,6 +35,7 @@ from ...course import homework
 from .. import hub
 from .. import multipart
 from ... import sessions
+from ... import subjects
 from ... import mode as session_mode
 from ... import sense
 from ...course import config
@@ -140,6 +142,44 @@ def _mode(h, repo):
                            status=400)
     h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "mode": mode, "changed": changed})
+
+
+def _bind(h, repo):
+    """`POST /bind {subject}`: bind this session to a subject, from the
+    header's chip. `sessions.bind` matches `subject` against the subjects
+    that exist and appends a non-waking `[bind]` line; nothing moves.
+
+    The registry is asked for the session again at once, so the Hub's Repo
+    roots at the subject before the next payload is built, and the chip
+    and the course name change without a reload.
+    """
+    if not repo.stored:
+        return h.send_json({"ok": False, "error": "not a session"}, status=404)
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    sid = os.path.basename(repo.live)
+    base = repo.atlas
+    try:
+        rec, changed = sessions.bind(sid, str(payload.get("subject") or ""),
+                                     base=base)
+    except sessions.Refused as exc:
+        return h.send_json({"ok": False, "error": str(exc)}, status=400)
+    except sessions.NoSession:
+        return h.send_json({"ok": False, "error": "no such session"}, status=404)
+    found = subjects.find(rec["subject"], base) or {}
+    registry = getattr(h.server, "registry", None)
+    if registry is not None:
+        registry.get(sid)
+    if changed:
+        h.note("session %s bound to %s" % (sid, rec["subject"]))
+    h.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "changed": changed, "subject": {
+        "id": rec["subject"], "name": found.get("name") or rec["subject"],
+        "kind": found.get("kind") or ""}})
 
 
 def _card_here(repo, card):
@@ -261,6 +301,9 @@ def _session(h, repo):
 def post(h, repo, path):
     if path == "/mode":
         return _mode(h, repo)
+
+    if path == "/bind":
+        return _bind(h, repo)
 
     if path == "/handover":
         return _handover(h, repo)

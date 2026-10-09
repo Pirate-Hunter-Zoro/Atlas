@@ -32,37 +32,31 @@
   <div class="bar-left">
     <a id="btn-home" href="/" title="home">‹</a>
     <span id="dot" class="dot" title="connection"></span>
-    <span id="course">board</span>
+    <!-- THE SESSION'S FOUR CONTROLS, and only these four (test/link.js counts
+         `.sess-ctl`): the subject chip, the teach/do toggle, Make and End. The
+         chip names the course or project, or says "unbound", and is the way to
+         bind it; the course's name is its label. -->
+    <button id="btn-subject" class="sess-ctl subject-chip" type="button"
+            title="the course or project this session is about"><span id="course">unbound</span><span class="caret"> ▾</span></button>
+    <button id="btn-mode" class="sess-ctl mode-toggle" type="button"
+            title="teach: you write the code; do: the tutor writes it"><span class="mode-teach">teach</span><span class="mode-do">do</span></button>
     <span id="chapter" class="muted"></span>
-    <button id="session" class="session" type="button" hidden title="lecture, homework or test review"></button>
     <span id="agent" class="agent" hidden></span>
   </div>
-  <!-- Thirteen controls in one row is a row that overlaps itself on a tablet.
-       What stays out here is what a lesson actually uses; the rest is real but
-       occasional, and lives one tap away rather than fighting for width. -->
   <div class="bar-right">
-    <!-- THE WAY TO THE MAP, and the first control in the row.
-         A course opens on a picture of its working parts rather than on an
-         empty board, and getting back to that picture has to be one gesture
-         from anywhere -- so this glyph is repeated in the head of every drawer
-         and on the document viewer, and the slate carries a link of its own.
-         One glyph and not a word: the bar already holds the course, the
-         chapter, the sitting badge and three controls, and a label that gets
-         cut in half is a label whose second half was the useful one.
-
-         It took the contents drawer's place, and the drawer went one tap away
-         under the ⋯ with everything else that is real but occasional. The
-         drawer is a fine index and it keeps every entry it had; it is simply
-         not the front door any more. A list cannot say that one part of a
-         project depends on another, and that -- not finding a name -- was the
-         difficulty. Seven controls in this row is a row that overlaps itself
-         on a tablet, which `test/link.js` has held the line on since it did. -->
-    <button id="btn-map" class="to-map" title="the map of this course">◈ map</button>
+    <button id="btn-make" class="sess-ctl" type="button" title="a write-up, a deck or a paper from this session">make<span class="caret"> ▾</span></button>
+    <button id="btn-end" class="sess-ctl" type="button" title="end this session (tap twice)">end</button>
     <button id="btn-annotate" title="write on the lesson itself">✎<span class="bar-word"> annotate</span></button>
     <a id="btn-slate" href="/slate" title="write with the Apple Pencil">✎<span class="bar-word"> slate</span></a>
     <label id="btn-clip" for="file" title="attach a photo or a PDF">＋</label>
     <button id="btn-save" title="save this work and push it">⤓<span class="bar-word"> save</span></button>
     <button id="btn-more" title="everything else">⋯</button>
+  </div>
+  <!-- Retired with the sitting kinds and the map: drawn nowhere, kept until
+       T51 deletes the code behind them. -->
+  <div class="bar-retired" hidden>
+    <button id="session" class="session" type="button" data-retired title="lecture, homework or test review"></button>
+    <button id="btn-map" class="to-map" data-retired title="the map of this course">◈ map</button>
   </div>
 </header>
 
@@ -123,7 +117,7 @@
      sitting is not visible on an iPad unless the board says it. One strip for
      both, because they are the same fact about the sitting and the bar has room
      for one of them at a time. -->
-<div id="rvbar" class="rvbar" hidden>
+<div id="rvbar" class="rvbar" data-retired hidden>
   <span id="rv-lead">test review</span>
   <span id="rv-scope" class="muted"></span>
   <button id="rv-change" type="button">change</button>
@@ -131,6 +125,12 @@
 
 <!-- A lesson already on screen when the link drops stays readable, but it must
      stop looking current. A red dot the size of a full stop did not carry it. -->
+<!-- An ended session is read-only: this says so, and nothing on the page
+     writes to it. -->
+<div id="endedbar" class="linkbad endedbar" hidden>
+  <span>This session has ended. It is read-only.</span>
+</div>
+
 <div id="linkbad" class="linkbad" hidden>
   <span>Not connected — what is on the board may be out of date.</span>
   <button id="linkbad-retry" type="button">reconnect</button>
@@ -213,6 +213,35 @@
      Out here it is a layer over the lesson, which is what a menu is. `board.js`
      hangs it under the bar and caps it against the VISIBLE viewport, which is
      the one measurement that survives a keyboard coming up or a pinch. -->
+<!-- MAKE: a write-up, a deck or a paper from this session. Drawn here; each
+     is wired when the turn that writes it exists. -->
+<div id="makemenu" class="barmenu hdrmenu" hidden>
+  <button id="make-writeup" type="button" disabled>write-up</button>
+  <button id="make-deck" type="button" disabled>deck</button>
+  <button id="make-paper" type="button" disabled>paper</button>
+  <p class="hdrmenu-note muted">Not wired yet.</p>
+</div>
+
+<!-- THE SUBJECT CHIP'S PICKER: every course and project, and a new one. A
+     tap binds the session; a new one is made, committed, then bound. -->
+<div id="subjpick" class="barmenu hdrmenu" hidden>
+  <div id="subjpick-list"></div>
+  <div class="subjpick-new">
+    <button id="subjpick-course" type="button">+ new course</button>
+    <button id="subjpick-project" type="button">+ new project</button>
+  </div>
+  <div id="subjpick-form" class="subjpick-form" hidden>
+    <input id="subjpick-name" type="text" autocomplete="off" placeholder="name">
+    <div id="subjpick-phi" class="subjpick-phi" hidden>
+      <span>Patient data?</span>
+      <button id="subjpick-phi-no" type="button">no</button>
+      <button id="subjpick-phi-yes" type="button">yes</button>
+    </div>
+    <button id="subjpick-go" type="button" class="primary">make it and bind</button>
+  </div>
+  <p id="subjpick-said" class="hdrmenu-note muted"></p>
+</div>
+
 <div id="barmenu" class="barmenu" hidden>
   <!-- A calculator for the arithmetic a proof or a problem set leaves behind.
        Here and not in the bar: the bar holds six controls and test/link.js
@@ -223,7 +252,7 @@
   <button id="btn-bigger" title="larger type">A+  larger type</button>
   <button id="btn-face" title="typeface">Aa  reading face</button>
   <button id="btn-theme" title="light / dark / auto">◐  light / dark</button>
-  <button id="btn-contents" title="chapters, problem sets, steps and documents">☰  contents</button>
+  <button id="btn-contents" data-retired title="chapters, problem sets, steps and documents">☰  contents</button>
   <button id="btn-scratch" title="photos and PDFs">▤  photos and PDFs</button>
   <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
   <button id="btn-print" title="print or save as PDF">⎙  print</button>
@@ -253,7 +282,7 @@
        project, or a different fucking project completely, and put other agents
        to work on other things while the first one is working." The newsbar at
        the top is the other half of the same sentence — how it comes back. -->
-  <button id="btn-work-elsewhere" title="hand another workspace a job while this one runs">⇥  put an assistant to work elsewhere</button>
+  <button id="btn-work-elsewhere" data-retired title="hand another workspace a job while this one runs">⇥  put an assistant to work elsewhere</button>
   <!-- WHAT THE BOARD ACTUALLY DID, because a rendering fault cannot be reported
        in prose. Two of them have now been diagnosed from a sentence and one of
        those diagnoses was wrong: there was no way to see whether a card typed,
@@ -389,7 +418,7 @@
 <!-- Which kind of sitting this is, chosen here rather than in a terminal. A
      student who wants help with a problem set should not have to find a keyboard
      to say so. -->
-<div id="kind" class="sendwhat" hidden>
+<div id="kind" class="sendwhat" data-retired hidden>
   <span id="kind-lead">This sitting:</span>
   <button id="kind-lecture" type="button">lecture</button>
   <span id="kind-sets"></span>
@@ -683,7 +712,7 @@
          teaches somebody not to tap it. The number here is the sum of
          what the boxes carry; the drawer's own head says the true total
          once it has asked. -->
-    <button id="map-docs" type="button" hidden
+    <button id="map-docs" type="button" data-retired hidden
             title="every document in this workspace">▤ documents</button>
     <button id="map-fit" type="button" title="fit the whole map on the glass">⤢ fit</button>
     <button id="map-close" type="button" title="back to the lesson">✕</button>

@@ -312,6 +312,10 @@ DRIVE = {
                                                 ("/archive/nope", None, (404,))]),
     ("POST", "/mode", "lesson"): ("session", [("/mode", {"mode": "do"}, OK),
                                              ("/mode", {"mode": "nope"}, (400,))]),
+    ("POST", "/bind", "lesson"): ("session", [
+        ("/bind", lambda who: {"subject": SUBJECT[who]}, OK),
+        ("/bind", {"subject": "../x"}, REFUSED),
+        ("/bind", {"subject": "courses/Nowhere"}, REFUSED)]),
     ("POST", "/handover", "lesson"): ("session", [("/handover", {"card": "0001"}, None)]),
     ("POST", "/dismiss-finish", "lesson"): ("session", [("/dismiss-finish", {}, OK)]),
     ("POST", "/session", "lesson"): ("session", [

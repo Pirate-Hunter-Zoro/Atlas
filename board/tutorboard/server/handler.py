@@ -98,6 +98,14 @@ UNPREFIXED = (
     ("POST", "/annotate/save", "subject?"),
 )
 
+# AN ENDED SESSION IS READ-ONLY. What would talk to its tutor or change it is
+# refused with 409; End itself (a retried commit), /poke (the wrap-up turn's
+# `board write`), /seen and the reads still answer. A cluster report reopens
+# an ended session without any of these (`sessions.reopen`).
+ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
+                 "/mode", "/bind", "/upload", "/annotate/save", "/annotate/burn",
+                 "/writeup")
+
 # The route classes UNPREFIXED names. A cross-subject one is 404 under
 # `/s/<id>/`.
 SUBJECT_CLASSES = ("subject", "subject?")
@@ -402,6 +410,10 @@ class Handler(BaseHTTPRequestHandler):
                                "session, without /s/<id>" % path}, status=404)
 
     def session_post(self, repo, path):
+        if (path in ENDED_REFUSES and getattr(repo, "stored", False)
+                and repo.state().get("ended")):
+            return self.send_json({"ok": False, "error": "this session has ended "
+                                   "and is read-only"}, status=409)
         # Before anything writes. The directories were made when this process
         # started and a pull can have removed one since -- see `Repo.ensure_dirs`.
         # Ten stat calls against a route that is about to write a PNG.
