@@ -17,6 +17,8 @@ What the checks are about:
   * EVERY CONTRACT SAYS IT. A bare sbatch is work the board cannot see.
   * A REQUEST IS PINNED. It carries `commit`, HEAD when filed; a dirty
     subject files nothing, and HEAD lacking the commit refuses it.
+  * A BATCH IS ONE COMMIT. `board job --batch <file.json>` files many
+    requests in one commit and one push, and one bad entry files none.
 """
 import json
 import os
@@ -682,6 +684,97 @@ try:
                             colibri=True)[0]["commit"] == at)
 finally:
     shutil.rmtree(pin, ignore_errors=True)
+
+# --- `board job --batch`: many requests, one commit, one push -----------------
+bat = tempfile.mkdtemp(prefix="tutor-batch-")
+try:
+    origin = os.path.join(bat, "origin.git")
+    subprocess.run(["git", "init", "-q", "--bare", origin], check=True)
+    top = os.path.join(bat, "repo")
+    os.makedirs(top)
+    git(top, "init", "-q", "-b", "main")
+    git(top, "config", "user.email", "t@example.com")
+    git(top, "config", "user.name", "t")
+    subj = os.path.join(top, "projects", "P")
+    write(os.path.join(subj, ".gitignore"), "relay/state/\nresults/\n")
+    write(os.path.join(subj, "tutorboard.json"), json.dumps(
+        {"name": "P", "relay": {"exports": [{"glob": "results/*.png"}]}}))
+    write(os.path.join(subj, "slurm", "sweep.sbatch"),
+          "#!/bin/bash\n#SBATCH --job-name=sweep\n"
+          "#RELAY-VAR K [0-9]{1,3}\n\necho \"RELAY: done $K\"\n")
+    git(top, "add", "-A")
+    git(top, "commit", "-q", "-m", "start")
+    git(top, "remote", "add", "origin", origin)
+    git(top, "push", "-q", "-u", "origin", "main")
+    benv = dict(os.environ, TUTOR_SLURM="0",
+                TUTORBOARD_SESSION=os.path.join(bat, "sessions",
+                                                "20261009-120000"))
+
+    def bboard(*args, **extra):
+        p = subprocess.run([sys.executable, BOARD] + list(args), cwd=subj,
+                           env=dict(benv, **extra), stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, timeout=180)
+        return p.returncode, p.stdout.decode("utf-8", "replace")
+
+    def count():
+        return int(subprocess.run(["git", "rev-list", "--count", "HEAD"],
+                                  cwd=top, stdout=subprocess.PIPE,
+                                  universal_newlines=True).stdout.strip())
+
+    before, start_head = count(), jobs.head(subj)
+    spec = os.path.join(bat, "batch.json")
+    bad = [{"recipe": "slurm/sweep.sbatch", "env": {"K": str(k)},
+            "label": "sweep"} for k in range(4)]
+    bad.append({"recipe": "slurm/sweep.sbatch", "env": {"K": "x"},
+                "thread": "t"})
+    write(spec, json.dumps(bad))
+    code, out = bboard("job", "--batch", spec)
+    check("a batch with one bad entry files nothing, naming the entry and "
+          "what it may not say", code == 1 and "entry 5" in out
+          and "`thread`" in out and count() == before
+          and not os.path.isdir(os.path.join(subj, "relay", "requests")))
+    write(spec, json.dumps(bad[:4] + [{"recipe": "slurm/sweep.sbatch",
+                                       "env": {"K": "x"}}]))
+    code, out = bboard("job", "--batch", spec)
+    check("and so does an entry `board job` would refuse",
+          code == 1 and "entry 5" in out and "K" in out
+          and count() == before)
+    code, out = bboard("job", "--batch", spec, TUTOR_SLURM="1")
+    check("with Slurm a batch is refused: `board job` submits directly",
+          code == 1 and "Slurm" in out and count() == before)
+    good = bad[:4] + [{"recipe": "slurm/sweep.sbatch", "env": {"K": "9"},
+                       "label": "last", "export": ["results/k.png"],
+                       "produces": ["results/k.csv"]}]
+    write(spec, json.dumps(good))
+    code, out = bboard("job", "--batch", spec)
+    files = subprocess.run(["git", "show", "--name-only", "--format=",
+                            "HEAD"], cwd=top, stdout=subprocess.PIPE,
+                           universal_newlines=True).stdout.split()
+    filed = jobs.requests(subj)
+    check("a batch of 5 requests is one commit with 5 request files",
+          code == 0 and "5 requests filed" in out and count() == before + 1
+          and len(files) == 5 and all(
+              f.startswith("projects/P/relay/requests/") for f in files))
+    check("and one push: origin is at that commit",
+          jobs.head(subj) == subprocess.run(
+              ["git", "rev-parse", "main"], cwd=origin,
+              stdout=subprocess.PIPE, universal_newlines=True).stdout.strip())
+    check("each a recipe request pinned to HEAD before the batch, with its "
+          "own id, values and the session",
+          len(filed) == 5 and len(set(r["id"] for r in filed)) == 5
+          and all(r["commit"] == start_head for r in filed)
+          and sorted(r["env"]["K"] for r in filed)
+          == ["0", "1", "2", "3", "9"]
+          and all(r.get("session") == "20261009-120000" for r in filed)
+          and [r for r in filed if r.get("label") == "last"][0]["export"]
+          == ["results/k.png"]
+          and all(jobs.check(subj, r, mine=True)[1] == [] for r in filed))
+    code, out = bboard("job", "--batch", spec)
+    check("a second batch takes fresh ids rather than colliding",
+          code == 0 and len(jobs.requests(subj)) == 10
+          and count() == before + 2)
+finally:
+    shutil.rmtree(bat, ignore_errors=True)
 
 print()
 if fails:

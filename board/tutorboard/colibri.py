@@ -1000,7 +1000,7 @@ def kick(start=None):
 
     Once per task, not once per pass: only a task queued AFTER the last start
     asks for one. A generation that cannot load is otherwise a 68-minute job
-    submitted every five minutes for ever.
+    submitted every pass for ever.
     """
     root = queue_root()
     if not root:

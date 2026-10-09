@@ -1,4 +1,4 @@
-"""relay.py -- the cluster's half of the relay: one pass, every five minutes.
+"""relay.py -- the cluster's half of the relay: one pass, every two minutes.
 
 scrontab runs `board/scripts/relay-pass.sh`, which pulls in bash (so a pushed
 fix lands even when this file cannot import), re-execs itself once when the
@@ -81,7 +81,7 @@ READ_TAIL = 2 * 1024 * 1024
 MAX_NOTE = 2000
 
 # How often scrontab runs a pass, in minutes.
-PASS_MINUTES = 5
+PASS_MINUTES = 2
 # What the scrontab entry asks for. A pass is git and a few sbatch calls.
 SCRON_PARTITION = "c3_short"
 SCRON_TIME = "00:15:00"

@@ -40,6 +40,11 @@ The assistant runs these. The student never does.
                                        relay request for the cluster. Its
                                        ending wakes a turn; a failure wakes a
                                        [repair] turn. --show lists them
+    board job --batch <file.json> [--session <id>] [--fresh]
+                                       without Slurm: many requests, one
+                                       commit, one push. The file is a list of
+                                       {recipe, env, label, produces, export,
+                                       fixes}; one problem files none
     board diagnose [--label <slug>] --fixes <id> -- <recipe> [VAR=v ...]
                                        `board job` for a diagnostic: a recipe
                                        that prints RELAY: lines, no output
@@ -1815,9 +1820,14 @@ def cmd_job(live, args):
         board job [--label <slug>] -- sbatch <args>
                                 the raw form, on a machine with Slurm only
         board job --show        every job and request, folded to its last state
+        board job --batch <file.json> [--session <id>] [--fresh]
+                                many requests in one commit and one push, on a
+                                machine without Slurm (`_job_batch`)
     """
     root = live.root
     args = list(args)
+    if "--batch" in args:
+        return _job_batch(live, args)
     if args[:1] == ["--show"]:
         recs = jobs.view(root)
         if not recs:
@@ -1853,13 +1863,7 @@ def cmd_job(live, args):
     label, session = _job_label(words, "board job")
     if label is None:
         return 1
-    rels, bad = [], []
-    for p in produces + export:
-        # Workspace-relative, like a thread's `outputs`; an absolute path is
-        # made so.
-        rel = _workspace_path(os.path.relpath(p, root)
-                                  if os.path.isabs(p) else p)
-        (rels if rel else bad).append(rel or p)
+    rels, bad = _job_paths(root, produces + export)
     if bad:
         print("board job: --produces and --export name paths inside this "
               "workspace, and %s is not. Nothing was submitted."
@@ -1905,7 +1909,40 @@ def cmd_job(live, args):
         print("board job: %s. Nothing was %s." % (
             wrong, "submitted" if slurm else "filed"), file=sys.stderr)
         return 1
+    ok, problems = _recipe_request(root, label, session, recipe, env,
+                                   produces, export, fixes, fresh, slurm)
+    if problems:
+        print("board job: %d problem(s), and nothing was %s:" % (
+            len(problems), "submitted" if slurm else "filed"), file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
+    if slurm:
+        # Wrapped, so its exit code is written where the relay's poll reads
+        # it: sacct is refused on this cluster.
+        return _job_submitted(root, label, jobs.submit_recipe(
+            root, label, recipe, env=env, produces=produces, export=export))
+    return _request_filed(root, ok)
+
+
+def _job_paths(root, paths):
+    """`(rels, bad)`: `paths` made workspace-relative, like a thread's
+    `outputs`, an absolute one made so; `bad` the ones outside it."""
+    rels, bad = [], []
+    for p in paths:
+        rel = _workspace_path(os.path.relpath(p, root)
+                              if os.path.isabs(p) else p)
+        (rels if rel else bad).append(rel or p)
+    return rels, bad
+
+
+def _recipe_request(root, label, session, recipe, env, produces, export,
+                    fixes, fresh, slurm, pending=()):
+    """`(request, problems)`: the recipe request these words make, checked
+    (`jobs.check`). `pending` are requests checked to be filed with it, whose
+    ids it does not take."""
     taken = set(r["id"] for r in jobs.requests(root))
+    taken |= set(r["id"] for r in pending)
     req = {"id": jobs.new_id(label,
                              os.path.splitext(os.path.basename(recipe))[0],
                              taken),
@@ -1919,7 +1956,7 @@ def cmd_job(live, args):
         req["filed"] = round(time.time(), 3)
     if fixes is not None:
         req["fixes"] = fixes
-    ok, problems = jobs.check(root, req)
+    ok, problems = jobs.check(root, req, pending=pending)
     origin = "" if slurm or fresh or fixes is not None else jobs.open_fix(
         root, recipe, env)
     if origin:
@@ -1927,18 +1964,138 @@ def cmd_job(live, args):
             "%s failed and its repair is open, so its rerun names it: add "
             "`--fixes %s` (the owner starts over with `--fresh`)"
             % (origin, origin)]
+    return ok, problems
+
+
+# What one entry of a `board job --batch` file may say.
+BATCH_KEYS = ("recipe", "env", "label", "produces", "export", "fixes")
+
+
+def _job_batch(live, args):
+    """`board job --batch <file.json> [--session <id>] [--fresh]`: many
+    recipe requests in one commit and one push.
+
+    The file is a JSON list. Each entry is an object of `recipe` (required,
+    as `board job` names it), `env` ({NAME: value}), `label`, `produces`,
+    `export` (lists of paths) and `fixes`. `--session` and `--fresh` apply to
+    every entry. Each entry is checked as `board job` checks one, against the
+    requests filed and the entries before it, and every problem is printed
+    at once: one problem anywhere files nothing. Without Slurm only: on the
+    cluster `board job` submits directly, one job at a time.
+    """
+    root = live.root
+    args = list(args)
+    i = args.index("--batch")
+    if i + 1 >= len(args):
+        print("board job: --batch names a JSON file: board job --batch "
+              "<file.json> [--session <id>] [--fresh]", file=sys.stderr)
+        return 1
+    path, rest = args[i + 1], args[:i] + args[i + 2:]
+    fresh = "--fresh" in rest
+    rest = [w for w in rest if w != "--fresh"]
+    if "--label" in rest:
+        print("board job: in a batch each entry carries its own `label`. "
+              "Nothing was filed.", file=sys.stderr)
+        return 1
+    label, session = _job_label(rest, "board job")
+    if label is None:
+        return 1
+    if jobs.has_slurm():
+        print("board job: --batch files relay requests, and this machine has "
+              "Slurm: submit each with board job -- <recipe> [VAR=value]. "
+              "Nothing was submitted.", file=sys.stderr)
+        return 1
+    if fresh and inside_a_turn(live):
+        print("board job: `--fresh` is the owner's, and this is a turn. "
+              "Nothing was filed.", file=sys.stderr)
+        return 1
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            entries = json.load(fh)
+    except (OSError, ValueError) as exc:
+        print("board job: %s is not a JSON file I can read: %s. Nothing was "
+              "filed." % (path, exc), file=sys.stderr)
+        return 1
+    if not isinstance(entries, list) or not entries:
+        print("board job: %s must hold a non-empty JSON list of requests. "
+              "Nothing was filed." % path, file=sys.stderr)
+        return 1
+    reqs, problems = [], []
+    for n, entry in enumerate(entries, 1):
+        said = []
+        if not isinstance(entry, dict):
+            problems.append("entry %d: is a %s, not an object"
+                            % (n, type(entry).__name__))
+            continue
+        extra = sorted(k for k in entry if k not in BATCH_KEYS)
+        if extra:
+            said.append("has no %s; an entry says %s" % (
+                ", ".join("`%s`" % k for k in extra), ", ".join(BATCH_KEYS)))
+        recipe = entry.get("recipe")
+        env = entry.get("env", {})
+        lab = entry.get("label", "")
+        fixes = entry.get("fixes")
+        lists = []
+        for key in ("produces", "export"):
+            value = entry.get(key, [])
+            if not isinstance(value, list) or not all(
+                    isinstance(v, str) for v in value):
+                said.append("`%s` must be a list of paths" % key)
+                value = []
+            lists.append(value)
+        if not isinstance(recipe, str) or not recipe:
+            said.append("names no `recipe`")
+        if not isinstance(env, dict):
+            said.append("`env` must be an object of NAME: value")
+        if not isinstance(lab, str) or (lab and not jobs.LABEL_RE.match(lab)):
+            said.append("label %r must be 1-40 characters of a-z, 0-9 and "
+                        "hyphen" % (lab,))
+        if fixes is not None and fresh:
+            said.append("`fixes` repairs an old request and --fresh starts "
+                        "new ones; name one")
+        rels, bad = _job_paths(root, lists[0] + lists[1])
+        if bad:
+            said.append("produces and export name paths inside this "
+                        "workspace, and %s is not" % ", ".join(bad))
+        if said:
+            problems.extend("entry %d: %s" % (n, p) for p in said)
+            continue
+        recipe, _, _ = _recipe_args(root, [recipe])
+        produces, export = rels[:len(lists[0])], rels[len(lists[0]):]
+        ok, said = _recipe_request(root, lab, session, recipe, dict(env),
+                                   produces, export, fixes, fresh, False,
+                                   pending=reqs)
+        if said:
+            problems.extend("entry %d: %s" % (n, p) for p in said)
+            continue
+        reqs.append(ok)
     if problems:
-        print("board job: %d problem(s), and nothing was %s:" % (
-            len(problems), "submitted" if slurm else "filed"), file=sys.stderr)
+        print("board job: %d problem(s) in %s, and nothing was filed:"
+              % (len(problems), path), file=sys.stderr)
         for line in problems:
             print("  " + line, file=sys.stderr)
         return 1
-    if slurm:
-        # Wrapped, so its exit code is written where the relay's poll reads
-        # it: sacct is refused on this cluster.
-        return _job_submitted(root, label, jobs.submit_recipe(
-            root, label, recipe, env=env, produces=produces, export=export))
-    return _request_filed(root, ok)
+    hidden = jobs.request_visible(root)
+    if hidden:
+        print("board: %s Nothing was filed." % hidden, file=sys.stderr)
+        return 1
+    changed = jobs.dirty(root)
+    if changed:
+        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
+        return 1
+    paths, ok, said = jobs.file_requests(root, reqs)
+    if not ok:
+        written = all(os.path.exists(p) for p in paths)
+        print("board: the %d requests %s:\n%s" % (
+            len(reqs), "are written in %s but did not reach the cluster"
+            % os.path.relpath(jobs.requests_dir(root), root) if written
+            else "were not filed", said), file=sys.stderr)
+        return 1
+    print("%d requests filed in one commit and pushed: %s. The cluster's "
+          "relay picks them up on its next pass, and each report wakes %s."
+          % (len(reqs), ", ".join(r["id"] for r in reqs),
+             "session " + session if session else "this workspace's inbox"))
+    return 0
 
 
 def _job_label(words, who):

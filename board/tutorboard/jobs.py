@@ -24,7 +24,7 @@ is a request's report. One registry holds both kinds of job: a record carrying
 before (`live/jobs.jsonl`, `live/jobs.reported/`, `live/missions/`) are moved
 in by `migrate_state`, which every reader calls first.
 
-THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every five minutes).
+THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every two minutes).
 `sacct` is refused on this cluster, so a job's end is read from `squeue` and
 an exit-code file: `submit_recipe` wraps every recipe so its last act writes
 its exit code to `relay/state/<key>.exit`, which is ignored. A job that has
@@ -1844,22 +1844,26 @@ def relay_opts(root):
     return dict(_relay_of(os.path.join(root, "tutorboard.json")))
 
 
-def check(root, req, mine=False):
+def check(root, req, mine=False, pending=()):
     """`validate`, with this workspace's context. `(request, problems)`.
 
     `mine` is the cluster checking a request already filed, whose own id is
-    therefore taken by itself.
+    therefore taken by itself. `pending` are requests checked to be filed
+    with this one (`board job --batch`): their ids are taken, and their
+    `fixes` count against the cap as if they were filed.
     """
     if isinstance(req, dict):
         req = dict((k, v) for k, v in req.items() if k != FILE_KEY)
     recipe = req.get("recipe") if isinstance(req, dict) else None
     ctx = context(root, [recipe] if isinstance(recipe, str) else [])
-    taken = ctx["taken"]
+    pending = [r for r in pending or () if isinstance(r, dict)]
+    taken = ctx["taken"] | set(r.get("id") for r in pending)
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
     ok, problems = validate(req, ctx["allowed"], ctx["tracked"],
                             ctx["declared"], taken, ctx["colibri"])
-    extra = fix_problems(req, ctx["filed"], ctx["failed"], mine)
+    extra = fix_problems(req, list(ctx["filed"]) + pending, ctx["failed"],
+                         mine)
     extra += pin_problems(root, req)
     if extra:
         return None, problems + extra
@@ -2079,40 +2083,63 @@ def nested_git(root):
 
 def file_request(root, req, push=True):
     """Write `relay/requests/<id>.json` and commit that one file, then push.
+    `(path, ok, said)`: `file_requests` with one request."""
+    paths, ok, said = file_requests(root, [req], push=push)
+    return paths[0], ok, said
 
-    `(path, ok, said)`. `commit_alone` makes the commit. The request is
-    stamped with `commit`, HEAD as it stands before its own commit, which the
-    push carries with it. Refused, writing nothing, while a tracked file under
-    `root` differs from HEAD: that edit would not reach the cluster.
+
+def file_requests(root, reqs, push=True):
+    """Write `relay/requests/<id>.json` for every request in `reqs`, commit
+    those files and nothing else in one commit, then push once.
+
+    `(paths, ok, said)`. `commit_only` makes the commit. Each request is
+    stamped with `commit`, HEAD as it stands before their commit, which the
+    push carries with it. All or nothing: refused, writing nothing, while a
+    tracked file under `root` differs from HEAD (that edit would not reach the
+    cluster), or where any one request is already there or may not be
+    published.
     """
-    target = os.path.join(requests_dir(root), req["id"] + ".json")
-    if os.path.exists(target):
-        return target, False, "%s is already there" % target
+    reqs = list(reqs)
+    targets = [os.path.join(requests_dir(root), r["id"] + ".json")
+               for r in reqs]
+    if not reqs:
+        return targets, False, "no requests to file"
+    if len(set(targets)) != len(targets):
+        return targets, False, "two requests here share an id"
+    for target in targets:
+        if os.path.exists(target):
+            return targets, False, "%s is already there" % target
     nested = nested_git(root)
     if nested:
-        return target, False, ("%s holds its own .git, and the relay reads "
-                               "requests only from Atlas's tree" % nested)
-    leak = request_leak(root, req)
-    if leak:
-        return target, False, leak
+        return targets, False, ("%s holds its own .git, and the relay reads "
+                                "requests only from Atlas's tree" % nested)
+    for req in reqs:
+        leak = request_leak(root, req)
+        if leak:
+            return targets, False, "%s: %s" % (req["id"], leak) \
+                if len(reqs) > 1 else leak
     changed = dirty(root)
     if changed:
-        return target, False, dirty_said(root, changed)
+        return targets, False, dirty_said(root, changed)
     commit = head(root)
     if not COMMIT_RE.match(commit):
-        return target, False, ("%s has no commit to pin the request to"
-                               % root)
-    req = dict(req, commit=commit)
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    with open(target, "w", encoding="utf-8") as fh:
-        json.dump(req, fh, indent=2, sort_keys=True, ensure_ascii=False)
-        fh.write("\n")
-    # Before the commit, so the report to this request is a change `hear`
-    # sees, even when it arrives in the first pull after filing.
+        return targets, False, ("%s has no commit to pin the request to"
+                                % root)
+    os.makedirs(requests_dir(root), exist_ok=True)
+    for req, target in zip(reqs, targets):
+        with open(target, "w", encoding="utf-8") as fh:
+            json.dump(dict(req, commit=commit), fh, indent=2, sort_keys=True,
+                      ensure_ascii=False)
+            fh.write("\n")
+    # Before the commit, so the report to a request is a change `hear` sees,
+    # even when it arrives in the first pull after filing.
     _baseline(root)
-    ok, said = commit_alone(root, target, "relay request %s" % req["id"],
-                            push=push)
-    return target, ok, said
+    ids = [r["id"] for r in reqs]
+    what = ("relay request %s" % ids[0] if len(ids) == 1 else
+            "%d relay requests, %s" % (len(ids), ", ".join(ids) if len(ids) <= 5
+                                       else "%s to %s" % (ids[0], ids[-1])))
+    ok, said = commit_only(root, targets, what, push=push)
+    return targets, ok, said
 
 
 def request_leak(root, req):
@@ -2150,10 +2177,10 @@ _BRIEF_PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*"
                             r"[^\s/:'\",;)]+")
 
 
-def commit_alone(root, target, what, push=True):
-    """Commit the one file `target`, written or removed, then push. `(ok, said)`.
+def commit_only(root, targets, what, push=True):
+    """Commit the files `targets`, written or removed, then push. `(ok, said)`.
 
-    `gitops.commit` with that file as the whole pathspec, so nothing else in
+    `gitops.commit` with those files as the whole pathspec, so nothing else in
     the tree rides along. The message is `<workspace>: <what>`. `push=False`
     commits and pushes nothing.
     """
@@ -2167,15 +2194,16 @@ def commit_alone(root, target, what, push=True):
     if not top:
         return False, "%s is not in a git repository" % root
     # The directory resolved, not the file: a removed file has no realpath.
-    rel = os.path.relpath(
-        os.path.join(os.path.realpath(os.path.dirname(target)),
-                     os.path.basename(target)), os.path.realpath(top))
+    rels = [os.path.relpath(
+        os.path.join(os.path.realpath(os.path.dirname(t)),
+                     os.path.basename(t)), os.path.realpath(top))
+        for t in targets]
     where = subjects.identify(root)
     msg = "%s: %s" % (where, what) if where else what
     if push:
-        ok, said = gitops.save(top, [rel], msg)
+        ok, said = gitops.save(top, rels, msg)
     else:
-        ok, said = gitops.commit(top, [rel], msg)
+        ok, said = gitops.commit(top, rels, msg)
     return ok, said[-800:]
 
 

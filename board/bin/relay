@@ -37,8 +37,8 @@ def main(argv):
                   file=sys.stderr)
             return 1
         ok, said = relay.install()
-        print(said or ("scrontab entry installed: a pass every five minutes"
-                       if ok else "scrontab refused the entry"))
+        print(said or ("scrontab entry installed: a pass every %d minutes"
+                       % relay.PASS_MINUTES if ok else "scrontab refused the entry"))
         return 0 if ok else 1
     if "--status" in argv:
         print(relay.status())

@@ -1052,15 +1052,22 @@ echo "SESSION-9 is in this row"
     block = relay.scrontab_block("/usr/bin/python3",
                                  "/x/board/scripts/relay-pass.sh",
                                  "/x/relay.log")
-    check("the entry runs relay-pass.sh every five minutes on c3_short, on "
+    check("the entry runs relay-pass.sh every two minutes on c3_short, on "
           "the installing python",
-          "*/5 * * * * RELAY_PYTHON=/usr/bin/python3 bash "
+          "*/2 * * * * RELAY_PYTHON=/usr/bin/python3 bash "
           "/x/board/scripts/relay-pass.sh" in block
           and "#SCRON --partition=c3_short" in block
           and "#SCRON --output=/x/relay.log" in block)
     check("and by default it names board/scripts/relay-pass.sh",
           relay.scrontab_block().rstrip().splitlines()[-2].endswith(
               " bash " + os.path.join(ROOT, "scripts", "relay-pass.sh")))
+    default = relay.scrontab_block()
+    check("the default entry is every two minutes, through relay-pass.sh, "
+          "and nothing else runs: no watcher job, no poke file",
+          "\n*/2 * * * * " in default and "relay-pass.sh" in default
+          and len([x for x in default.splitlines()
+                   if x and not x.startswith("#")]) == 1
+          and "watch" not in default and "poke" not in default)
 
     # --- board/bin/relay: the entry, and the relay path only ----------------------
     def entry(*args, **kw):
@@ -1092,6 +1099,12 @@ echo "SESSION-9 is in this row"
                              "\n30 1 * * * echo after\n")
           and new.endswith(block)
           and relay.merged_crontab(new, block) == new)
+    five = relay.scrontab_block("a", "b", "c").replace("*/2 ", "*/5 ")
+    moved = relay.merged_crontab("# mine\n0 * * * * true\n" + five, default)
+    check("and an installed five-minute entry becomes the two-minute one, "
+          "the owner's lines kept",
+          moved == "# mine\n0 * * * * true\n" + default
+          and "*/5" not in moved)
 
     class Scron:
         def __init__(self):
