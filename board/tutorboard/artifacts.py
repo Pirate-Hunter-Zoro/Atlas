@@ -7,16 +7,14 @@
     status(dir)                            writing | done | failed, from mtimes
     delete(root, dir, ...)                 to the trash, its ink with it, one commit
 
-`source` is relative to the artifact's directory. `sessions` lists the session
-ids that asked for it. `asked_at` is local `YYYY-MM-DD HH:MM:SS`, or null for a
-document placed in a tree nobody asked anything of.
+`source` is relative to the artifact's directory; `sessions` lists the
+sessions that asked; `asked_at` is local time, or null for a document
+nobody asked for. Type comes from the source: beamer `.tex` is a deck, other
+`.tex` an article, `.md` a paper.
 
-Type comes from the source: a `.tex` whose class is beamer is a deck, any other
-`.tex` an article, a `.md` a paper.
-
-Ids. An artifact at `docs/<slug>/` has the id `<slug>`. One placed in place
-keeps the id the library's walk gives its source (`library._ident`), so ink
-keyed `doc/<id>/p<n>` on it still finds it.
+The constraint: ids are stable. `docs/<slug>/` has id `<slug>`; one placed
+in place keeps the id the library's walk gives its source, so ink keyed
+`doc/<id>/p<n>` still finds it.
 """
 
 import builtins
@@ -34,8 +32,7 @@ WHEN = "%Y-%m-%d %H:%M:%S"
 STAMP = "%Y%m%d-%H%M%S"
 EXTS = (".tex", ".md")
 
-# `writing.ANN_DOC` allows 40 characters in an id, so a slug longer than that
-# is a document nobody can write on.
+# `writing.ANN_DOC` allows 40 characters in an id.
 SLUG_MAX = 40
 SLUG_RE = re.compile(r"\A[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?\Z")
 
@@ -46,9 +43,8 @@ QUIET = 120
 # What built output sits beside a source, by the source's extension.
 OUTPUTS = {".tex": (".pdf",), ".md": (".docx", ".pdf")}
 
-# Directories the in-place walk never enters, beyond dot directories, the
-# fence and `library.IGNORE`: a subject's uploads, the sessions store and the
-# new artifacts, which are read directly.
+# Never entered by the in-place walk (besides dot dirs, the fence and
+# `library.IGNORE`): uploads, the sessions store, and new artifacts.
 SKIP = ("materials", "sessions", DOCS)
 MAX_DEPTH = 4
 

@@ -32,21 +32,17 @@ METHOD = "board/TEACHING.md"
 # What a fixture brief may cost, in characters (`test/tokens.py`).
 BUDGET = 14000
 
-# How many cards the recap names as lines. Every turn reads this, so it is the
-# one part of the recap that must not grow with the lesson. Wide enough to hold
-# a whole sitting's worth of shape, which is what a turn reasons about.
+# Cards the recap names as lines: bounded, since every turn reads it.
 LINES = 40
 
-# What a recap handed to a turn may cost, in characters. Past it the recap is
-# rendered compact (`recap(compact=True)`): the newest card whole and one line
-# per earlier card, without the student's earlier turns.
+# Past this many characters the recap is compact: the newest card whole and
+# one line per earlier card.
 RECAP_LIMIT = 12000
 
 # The most the book's chapter list may cost the brief, in characters.
 BOOK_CHARS = 1500
 
-# The mechanics of a turn. Here rather than in `tutorboard.sense` because a
-# turn is the only thing that reads the brief.
+# The mechanics of a turn; only a turn reads the brief.
 TURN_SENSE = (
     "This turn is its own session; nothing you hold survives it but the lesson "
     "on disk (handed to every turn as its recap), RULES.md and TUTOR.md. When this turn changes "
@@ -162,15 +158,8 @@ def _health(root):
 
 def beside_sense(repo):
     """What somebody did to this workspace that you have not been told about.
-
-    THE WORDING IS THE FEATURE. A turn reading this has to come away certain
-    that the work described is THE PERSON'S, done somewhere else, with no
-    involvement from it -- because the alternative is a turn that reports having
-    written code it has never seen, in a card, confidently, with nothing on the
-    board able to contradict it.
-
-    So whose work it is, is said in the heading, said again in the sentence, and
-    said a third time as an instruction about what to do with it.
+    The wording says three times that it is the owner's work done elsewhere,
+    because a turn claiming that work as its own is undetectable on the board.
     """
     try:
         rec = lesson_git.beside_the_lesson(repo)
@@ -218,18 +207,11 @@ def beside_sense(repo):
 
 
 def briefing(repo, sense, chapter=None, doing=None, repair=None):
-    """The whole cold briefing as one string.
-
-    `sense` is `tutorboard.sense`, passed in rather than imported, because it
-    reaches into the course package for the chapters and the homework sheet and
-    this module is imported by things that have already paid for that.
-
-    `doing` goes straight to `sense.session_sense`: a repair is a doing turn
-    even where the session's mode is teach. `None` leaves the session's mode
-    to answer.
-
-    `repair` is the section a `[repair]` turn reads (`jobs.repair_brief`). It
-    sits under the mode it overrides, and comes with `doing=True`.
+    """The whole cold briefing as one string. `sense` is passed in, not
+    imported (it reaches into the course package). `doing` goes to
+    `sense.session_sense` (a repair is a doing turn); `repair` is the
+    `[repair]` section (`jobs.repair_brief`), placed under the mode it
+    overrides.
     """
     root = repo.root
     st = repo.state()
@@ -238,16 +220,14 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
     head = " — ".join(x for x in (st.get("course"), st.get("session"),
                                   st.get("chapter")) if x)
     out.append(head or "no session open")
-    # A SESSION THAT IS ABOUT NOTHING YET. It starts unbound, and a turn that
-    # guesses its subject files the work in the wrong place; so it asks.
+    # An unbound session asks for its subject rather than guess.
     if getattr(repo, "stored", False) and not st.get("subject"):
         out.append("subject: none -- this session is not bound to a course or "
                    "project yet. Before any other work, ask the owner what this "
                    "session is for. Then `board bind courses/<Name>` or `board "
                    "bind projects/<Name>`; add `--create` for a new one (a "
                    "project also needs `--phi yes|no`).")
-    # THE WRITE-UP, on the brief, every turn. Counts and not just a name: "0 of
-    # 11 written up, next 04.1" is a debt, and a debt on the brief gets paid.
+    # The write-up's counts every turn: a debt on the brief gets paid.
     hw_set = homework.bound(root, st)
     if hw_set:
         try:
@@ -280,9 +260,7 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
     # Who writes the code: the session's mode, and only that.
     cfg = config.read_config(root)
     out.append("mode: %s" % config.mode_of(st))
-    # The subject's check, run before a push that changed code. Always as
-    # `board check`, which runs it from the subject's root: a turn works in the
-    # Atlas root, and `board *` is what it may run.
+    # The check, always as `board check`, which runs from the subject's root.
     if cfg.get("check_line"):
         out.append("check: `board check` (runs `%s` from the subject's root; "
                    "before a push that changed code, and the report says "
@@ -350,13 +328,9 @@ def read_turns(repo):
 
 
 def recap(repo, full=1, compact=False):
-    """The lesson so far, as one string.
-
-    One line per card (the newest `LINES` of them), the newest `full` cards in
-    full, the student's earlier turns one line each, and their latest turn with
-    its file paths. `compact` drops the earlier turns and keeps the latest one
-    short: what is left is the newest card whole and one line per earlier card.
-    """
+    """The lesson so far, as one string: the newest `LINES` cards as lines,
+    the newest `full` in full, earlier turns one line each, the latest turn
+    with its paths. `compact` drops the earlier turns."""
     names = repo.card_names()
     st = repo.state()
     out = []
@@ -367,8 +341,7 @@ def recap(repo, full=1, compact=False):
     if st.get("hw"):
         out.append("homework set: %s" % st["hw"])
 
-    # Newest revision per turn id: a correction supersedes in place, so an
-    # older revision is not part of the lesson.
+    # Newest revision per turn id.
     newest = {}
     for t in read_turns(repo):
         tid = t.get("id")
@@ -399,8 +372,8 @@ def recap(repo, full=1, compact=False):
     for n in names[len(names) - full:] if full else []:
         with open(os.path.join(repo.cards, n), "r", encoding="utf-8") as fh:
             raw = fh.read()
-        # Read back through the gate the board reads through: a tutor's own
-        # deliberation that ended up in a card is not the lesson so far.
+        # Read through the board's own gate, so leaked deliberation is not
+        # the lesson.
         _meta, body = card_meta(raw)
         clean = reasoning.card_body(body)
         if clean != body:
@@ -458,12 +431,8 @@ def guarded_recap(repo, limit=RECAP_LIMIT):
 # what a turn is handed
 # ---------------------------------------------------------------------------
 def turn_brief(repo, signal="", repairs=None):
-    """The brief a turn woken for `signal` reads: `board brief`'s, answered
-    from what the runner knows rather than from `agent.json`.
-
-    A `[repair]` batch briefs a doing turn, as `board brief` does inside one
-    (`_repairing` in bin/board).
-    """
+    """The brief a turn woken for `signal` reads, from what the runner knows;
+    a `[repair]` batch briefs a doing turn."""
     from . import sense            # reaches into the course package; see briefing
     fixing = None
     rids = [r for r in (repairs or []) if isinstance(r, str) and r]
@@ -477,13 +446,9 @@ def turn_brief(repo, signal="", repairs=None):
 
 
 def turn_context(repo, signal="", repairs=None, brief=True):
-    """The brief and the recap, as one block a turn reads before its prompt.
-
-    `brief=False` hands over the recap alone (an [unfinished] report). The
-    wrap-up gets both: it rewrites TUTOR.md, so it reads it. A part that fails
-    to render says so in its place and names the command that prints it, so a
-    turn is never told something is above that is not.
-    """
+    """The brief and the recap, as one block above the prompt. `brief=False`
+    gives the recap alone. A part that fails says so and names the command
+    that prints it."""
     parts = []
     if brief:
         try:

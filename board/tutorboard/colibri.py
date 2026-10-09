@@ -1,31 +1,17 @@
 """Colibri, the local model: its server's state, and its task queue.
 
-`coli-code` is the client a task runs, and it needs a server: a Slurm job on a
-compute node holding 429 GB of weights warm behind a loopback gateway. A
-generation starts when a task is filed and none is up (`file`, `_ensure`).
+A task runs `coli-code`, which needs a server: a Slurm job holding 429 GB of
+weights warm behind a loopback gateway. Filing a task starts a generation if
+none is up. On the cluster `observe` reads `squeue` and the serve log's two
+sentinels (`API listening on`, then `COLIBRI-SERVE READY` after a real
+generation, because Slurm cannot tell loading from warm); the relay publishes
+the public part in `relay/status.json`. On the Mac `status` reads only that
+file (D27), and `ask` files a task. States: off, queued, loading, warm, and
+unknown (Mac only). Of two generations in a chain, warm beats loading, then
+more walltime wins.
 
-ON THE CLUSTER `observe` reads the server's state off `squeue` and the serve
-job's two log sentinels. The relay pass asks once per pass and publishes the
-public part in `relay/status.json` (`relay_status`).
-
-ON THE MAC `status` reads only that file (D27): no `squeue`, no log, and no
-start control. The Mac files a task (`ask`, which `board colibri` and POST
-/colibri share), and the relay's next pass queues it here.
-
-    off      nothing is submitted; filing a task starts one
-    queued   the job exists and Slurm has not run it yet; the reason is Slurm's
-    loading  the job is running. 429 GB off the filer, then a warm-up generation
-    warm     it has answered a request, which is the only proof that it can
-    unknown  (the Mac only) the relay has not said
-
-THE CHAIN. A generation near its walltime submits the next, which loads on
-another node while this one answers, so `squeue` can list two generations. The
-one reported is the one that can ANSWER: warm beats loading, and between two
-warm ones the one with more walltime left wins.
-
-`loading` and `warm` cannot be told apart from Slurm: the gateway binds its port
-before it loads anything. The job prints `API listening on` when the engine is
-up and `COLIBRI-SERVE READY` once it has completed a real generation.
+The constraint: nothing a task touches leaves the cluster. The queue lives in
+ignored `relay/state/colibri/`, and the public block names no node or path.
 """
 
 import json
@@ -37,10 +23,8 @@ import time
 from . import jobs, machine, subjects
 
 
-# The job, the workspace it belongs to, and the two sentinels. All four match
-# `scripts/colibri-env.sh`, which is the one file in that project that answers
-# "where is colibri and what does it serve" -- so every one of them is read from
-# the environment first, exactly as that file does it.
+# The job, the workspace and the two sentinels, read from the environment
+# first exactly as `scripts/colibri-env.sh` does.
 JOB_NAME = os.environ.get("COLI_JOB_NAME") or "colibri_serve"
 WORKSPACE = "libr-local-llm"                   # a slug: `subjects.find`
 LISTENING = "API listening on"
@@ -51,24 +35,16 @@ FAILED = "COLIBRI-SERVE FAILED"
 # The states `relay/status.json` may carry; anything else reads as unknown.
 STATES = ("off", "queued", "loading", "warm")
 
-# A start this machine submitted, still missing from `squeue`, is "just
-# submitted" for this long (`_recent_start`): `sbatch` returns a job id in
-# about a second.
+# A start this machine submitted counts as "just submitted" this long.
 SUBMIT_GRACE = 45.0
 
-# A published walltime end that moved by less than this is kept as it was, so
-# `squeue`'s jitter makes no status commit.
+# A walltime end that moved less than this is kept, so jitter makes no commit.
 ENDS_SLACK = 180
 
 
 def log_dir():
-    """Where the serve job writes, or None if this machine has not got the tree.
-
-    `COLI_LOG_DIR` first, because that is what the project's own scripts honour.
-    Otherwise the workspace's own `slurm_jobs/logs`, found by the walk rather
-    than by counting directories: nothing registers a workspace, and a machine
-    with half the tree checked out has no colibri at all.
-    """
+    """Where the serve job writes (`COLI_LOG_DIR`, else the workspace's
+    `slurm_jobs/logs`), or None without the tree."""
     said = os.environ.get("COLI_LOG_DIR")
     if said:
         return said
@@ -80,11 +56,8 @@ def log_dir():
 
 
 def _run(args, timeout=10):
-    """A command's stdout, or None if it could not be asked at all.
-
-    One place, so a test can put a `squeue` in front of this module without a
-    cluster, and so "no Slurm here" is one answer rather than four.
-    """
+    """A command's stdout, or None if it could not be asked. One place, so a
+    test can stand in for `squeue`."""
     try:
         p = subprocess.run(args, stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, timeout=timeout)
@@ -96,14 +69,8 @@ def _run(args, timeout=10):
 
 
 def time_left(said):
-    """Slurm's `%L` as seconds, or None where it does not mean a number.
-
-    `UNLIMITED`, `INVALID` and a blank are all None, which is "nothing here
-    limits it" rather than zero -- and the difference matters, because a task
-    is failed by a ceiling that has passed and a zero is a ceiling that passed
-    the instant it was written. The spellings are Slurm's own: `d-hh:mm:ss`,
-    `hh:mm:ss`, `mm:ss`.
-    """
+    """Slurm's `%L` as seconds, or None for `UNLIMITED`, `INVALID` or blank:
+    "nothing limits it", not zero, which is a ceiling already passed."""
     said = (said or "").strip()
     if not said or not said[0].isdigit():
         return None
@@ -130,11 +97,9 @@ def time_left(said):
 
 
 def _jobs():
-    """Every generation of the chain Slurm knows about: id, state, node,
-    reason, time left and start. `[]` where `squeue` could not be asked.
-
-    A colibrì turn runs inside this allocation (`coli-code` steps into it with
-    `srun --overlap`), so the time left is the ceiling of THIS generation."""
+    """Every generation Slurm knows: id, state, node, reason, time left,
+    start. `[]` where `squeue` could not be asked. A task runs inside this
+    allocation, so the time left is its ceiling."""
     return [r for r in (_all_jobs() or []) if not standing_by(r)]
 
 
@@ -168,19 +133,15 @@ def _all_jobs():
 
 
 def standing_by(row):
-    """Is this a clone waiting on its parent's dependency? It is not a server
-    anybody can use, and it is not "a generation already queued"."""
+    """Is this a clone waiting on its parent's dependency? Not a usable or a
+    queued server."""
     return (row.get("state") == "PENDING"
             and row.get("reason", "").lstrip("(").startswith("Dependency"))
 
 
 def _serving(rows):
-    """Which generation to report, and which one is queued behind it.
-
-    Warm beats loading; between two warm ones, more walltime left wins, because
-    that is the one that is not handing over. A generation that has not warmed is
-    still better than nothing and is the fallback rather than a refusal.
-    """
+    """Which generation to report, and which is queued behind it: warm beats
+    loading, then more walltime left; an unwarmed one is the fallback."""
     running = [r for r in rows if r["state"] == "RUNNING"]
     warm = [r for r in running if _tail(_out(r["id"]), READY)]
     pick = None
@@ -193,14 +154,9 @@ def _serving(rows):
 
 
 def _out(job):
-    """The names this generation's stdout could be under, best first.
-
-    PER JOB, BECAUSE A CHAIN RUNS TWO OF THEM AT ONCE. One pair of files would
-    have an overlapping successor judged by the incumbent's `COLIBRI-SERVE READY`
-    -- a server reported warm while it is still reading off the filer. The fixed
-    name is still answered second, so a job submitted by an older copy of
-    `colibri_serve.sbatch` does not make the board go blind.
-    """
+    """The names this generation's stdout could be under, best first. Per
+    job, because a chain runs two at once; the fixed name comes second for
+    jobs from older sbatch files."""
     return ["colibri_serve_out-%s.txt" % job, "colibri_serve_out.txt"]
 
 
@@ -227,11 +183,7 @@ def _tail(names, needle, limit=200000):
 
 
 def _next_clause(nxt):
-    """What the generation behind this one is doing, as a clause or nothing.
-
-    This is the whole of what a chain adds to the glass, and it is what makes
-    "the server goes away in twenty minutes" sayable at all.
-    """
+    """The generation behind this one, as a clause or nothing."""
     if not nxt:
         return ""
     if nxt["state"] != "RUNNING":
@@ -251,7 +203,7 @@ def observe(rows=None):
         return None
     job, nxt = _serving([r for r in rows if not standing_by(r)])
     if not job:
-        # OFF IS THE NORMAL STATE: a generation runs while there is a task.
+        # Off is the normal state: a generation runs only while there is a task.
         return {"state": "off", "job": None, "node": "", "next": None,
                 "left": None, "reason": "",
                 "detail": "no server is running; filing a task starts one"}
@@ -259,8 +211,7 @@ def observe(rows=None):
     said = {"job": job["id"], "node": job["node"], "left": job["left"],
             "next": (nxt["id"] if nxt else None), "reason": ""}
     if job["state"] != "RUNNING":
-        # Slurm's own word for why, not a guess: a 950 GB ask can pend
-        # indefinitely behind a nearly-full node.
+        # Slurm's own reason: a 950 GB ask can pend behind a nearly-full node.
         said.update(state="queued", node="", reason=job["reason"],
                     detail=(job["reason"] or "waiting for an allocation") + tail)
         return said
@@ -284,13 +235,9 @@ def observe(rows=None):
 # ---------------------------------------------------------------------------
 # relay/status.json: what the cluster publishes, and what the Mac reads
 # ---------------------------------------------------------------------------
-# The public block is `{state, ends, queue, task, load_s, reason}`: the state,
-# when this generation's walltime ends (epoch seconds; the Mac subtracts now,
-# so it does not change every pass), how many tasks wait, the task running,
-# the last cold load the relay timed, and Slurm's one-word pending reason. No
-# node name and no path. `memo` is the relay's own record of what it saw
-# (`relay/state.json` `colibri`): the start of each generation it saw cold, so
-# the first pass that sees it warm times its load.
+# The public block is `{state, ends, queue, task, load_s, reason}`: `ends` is
+# epoch seconds, so it does not change every pass. No node name, no path.
+# `memo` (`relay/state.json` `colibri`) times each cold load.
 _REASON_RE = re.compile(r"^[A-Za-z]{1,40}$")
 
 
@@ -504,18 +451,12 @@ def tasks_on_mac(root, limit=20, running=None):
 # ---------------------------------------------------------------------------
 # on demand: the task queue, the generation that works it, and the relay hook
 # ---------------------------------------------------------------------------
-# COLIBRI IS NOT KEPT WARM. Filing a task starts a generation if none is queued
-# or running; the generation loads, works the queue one task at a time, and
-# exits cleanly once the queue has been empty for `COLI_IDLE_MIN` minutes. The
-# queue is task records (below) in libr-local-llm's ignored
-# `relay/state/colibri/`. Each generation submits its own clone at start
-# (`coli_submit_clone` in `scripts/colibri-env.sh`), so a death costs one cold
-# load and the clone resumes the task by name; three deaths fail it.
-#
-# `sacct` IS REFUSED ON THIS CLUSTER, so a clean exit is told from a death the
-# way the relay tells a job's end: the generation's last act writes its exit
-# code to `<state>/gen-<job>.exit`. Left `squeue` with a 0 there: on purpose.
-# Left without it: died.
+# Colibri is not kept warm: filing a task starts a generation, which works the
+# queue one task at a time and exits after `COLI_IDLE_MIN` idle minutes. Each
+# generation submits its own clone, so a death costs one cold load and the
+# clone resumes the task; three deaths fail it. `sacct` is refused, so the
+# generation's last act writes `<state>/gen-<job>.exit`: gone with 0 there is
+# a clean exit, gone without it a death.
 
 HOP = 75            # coli-code: the generation its step ran in ended under it
 NOTHING_YET = 76    # coli-code: no generation worth stepping into yet
@@ -526,14 +467,9 @@ POLL = 30.0
 # ---------------------------------------------------------------------------
 # the task queue: one record per task, in `<queue root>/relay/state/colibri/`
 # ---------------------------------------------------------------------------
-# The directory is ignored (`**/relay/state/`), because a task may name session
-# content. A task has a label, a brief, a state (`queue`), an attempt count, and
-# the conversation name (`session`) that `coli-code` resumes by. The generation
-# drives it, not a board: it claims the oldest queued task, runs it, and marks
-# it. A generation that dies leaves its task `running` with its job id in `gen`;
-# the clone that the death released finds it, and either resumes it or, on the
-# third death, fails it. `jobs.migrate_state` moves records filed before this
-# directory existed (`live/missions/`, `kind: "task"`) in.
+# Ignored, because a task may name session content. A generation claims the
+# oldest queued task, runs it and marks it; a dead one leaves it `running`
+# with its job in `gen` for the clone to resume or, on the third death, fail.
 
 TASK = "task"
 TASK_STATES = ("queued", "running", "done", "failed")
@@ -544,24 +480,17 @@ DEATH_CAP = 3
 # What `task` (the short form a list shows) is cut to; `brief` is whole.
 TASK_CHARS = 400
 
-# A resumed task whose client exits faster than this did nothing: any real
-# turn on this engine spends minutes in prefill before it can even fail. The
-# resume is then retried as a fresh conversation (`run_task`).
+# A resumed client exiting faster than this did nothing (prefill alone takes
+# minutes); the resume is retried fresh.
 RESUME_FLOOR = 120.0
 
-# A task id is the only name that reaches the filesystem. Matched, not
+# A task id is the only name that reaches the filesystem: matched, not
 # sanitised.
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 
-# What a task record stores. `brief` is the whole task, `workspace` the subject
-# it runs in, `queue` its state, `attempts` how many generations began it,
-# `deaths` how many of those died under it, `gen` the job running it, `turn_at`
-# when that began, and `request` the relay request that filed it. `baseline` is
-# what git already saw changed in that workspace when it was filed, `out` where
-# its client's output went (behind the fence), and `checked`, `changed` and
-# `relay` the relay's check once it was done: when, how many paths git could see
-# changed, and its public `RELAY:` lines. `thread` is read from records filed
-# before labels, and never written.
+# Task record fields. `baseline` is what git saw changed in the workspace at
+# filing; `checked`, `changed` and `relay` are the relay's check. `thread` is
+# read from old records and never written.
 FIELDS = ("id", "kind", "agent", "task", "brief", "label", "thread",
           "workspace", "request", "queue", "attempts", "deaths", "gen",
           "session", "at", "from", "host", "ended", "ended_at", "reason",
@@ -667,8 +596,8 @@ def next_task(root):
 
 
 def _current(root, rec):
-    """That task as it is on disk right now, or the one handed over: a task
-    runs for hours and other writers touch the same file while it does."""
+    """That task as it is on disk now, or the one handed over: other writers
+    touch it during the hours it runs."""
     try:
         with open(_task_path(root, str(rec.get("id") or "")), "r",
                   encoding="utf-8") as fh:
@@ -681,12 +610,8 @@ def _current(root, rec):
 
 
 def claim_task(root, rec, gen, now=None):
-    """Take a queued task for generation `gen`, once. The record, or None.
-
-    An exclusive create named for the attempt, so two generations overlapping
-    under the warm chain never both start it, and the state read back off disk
-    so a stale copy cannot claim a task that moved.
-    """
+    """Take a queued task for generation `gen`, once: an exclusive create per
+    attempt, against the state read back off disk. The record, or None."""
     now = float(now or time.time())
     tid = str(rec.get("id") or "")
     if not ID_RE.match(tid):
@@ -732,16 +657,14 @@ def requeue_task(root, rec, death=False, reason="", now=None):
 
 
 def task_verdict(rec, alive, ended_clean):
-    """What a running task's generation leaving means. PURE.
+    """What a running task's generation leaving means. Pure.
 
         alive        job ids Slurm still lists
-        ended_clean  job id -> did that generation end on purpose (its exit
-                     file says 0: an idle exit, or the warm chain's handover)
+        ended_clean  job id -> did that generation end on purpose (exit 0)
 
-    `"leave"` -- not running, or its generation is still there. `"requeue"` --
-    the generation ended on purpose with the task still running, which costs
-    the task nothing. `"death"` -- it died; resume it on the next generation.
-    `("failed", reason)` -- that was its third death, and it is not retried.
+    `"leave"` (not running, or its generation is there), `"requeue"` (ended on
+    purpose, costing the task nothing), `"death"` (resume on the next one), or
+    `("failed", reason)` on the third death.
     """
     if rec.get("queue") != "running":
         return "leave"
@@ -794,12 +717,8 @@ def idle_limit():
 
 
 def queue_root():
-    """The libr-local-llm workspace, whose `relay/state/colibri/` is the queue.
-
-    `COLI_QUEUE_ROOT` first, which is how a test says "this tree"; then
-    `LLM_REPO`, which `colibri-env.sh` exports inside a generation; then the
-    walk. None where this machine has not got that workspace.
-    """
+    """The libr-local-llm workspace holding the queue: `COLI_QUEUE_ROOT`, then
+    `LLM_REPO`, then the walk; None where this machine lacks it."""
     for key in ("COLI_QUEUE_ROOT", "LLM_REPO"):
         said = os.environ.get(key)
         if said and os.path.isdir(said):
@@ -854,11 +773,8 @@ def closing(job):
 
 
 class _Lock(object):
-    """`flock` on `<state>/queue.lock`: filing and an idle exit are one at a time.
-
-    Without it, a task filed in the second an idle generation decides to exit
-    sees that generation running, starts none, and waits for ever.
-    """
+    """`flock` on `<state>/queue.lock`, so filing and an idle exit never race
+    (a task filed as the generation exits would wait for ever)."""
 
     def __enter__(self):
         import fcntl
@@ -884,11 +800,8 @@ def live_generations(rows=None):
 
 
 def _recent_start():
-    """A job this machine submitted in the last `SUBMIT_GRACE` seconds, or "".
-
-    `sbatch` returns before `squeue` is certain to list the job, so a second
-    filer inside that window reads this rather than the queue.
-    """
+    """A job this machine submitted in the last `SUBMIT_GRACE` seconds, or "",
+    because `sbatch` returns before `squeue` lists the job."""
     try:
         with open(os.path.join(state_dir(), "started.json"), "r") as fh:
             got = json.load(fh)
@@ -932,11 +845,8 @@ def start_generation():
 
 def file(label, brief, workspace_root, request="", start=None, now=None):
     """Queue a task, and start a generation if none is queued or running.
-
     `(record, said)`; the record is None where nothing was queued. `label` is
-    an optional slug naming the work, checked by the caller (`board colibri`,
-    `jobs.validate`); nothing here reads a thread file.
-    """
+    checked by the caller."""
     brief = (brief or "").strip()
     if not brief:
         return None, "a task needs a brief"
@@ -953,9 +863,8 @@ def file(label, brief, workspace_root, request="", start=None, now=None):
 
 
 def _baseline(workspace_root):
-    """What git already sees changed in the workspace a task is filed for, so
-    the check when it finishes counts only the task's own (`relay.check_task`).
-    None where git cannot say, and then every change counts."""
+    """What git already sees changed in the task's workspace, so the finish
+    check counts only the task's own; None counts every change."""
     from . import relay
     try:
         return relay.workspace_changes(workspace_root)
@@ -972,11 +881,9 @@ def _started_at():
 
 
 def _ensure(start=None):
-    """Start a generation if none is queued or running. Under the queue lock.
-
-    Never guessed: where `squeue` cannot be asked, nothing is started, because
-    an unreachable controller looks exactly like an empty queue.
-    """
+    """Start a generation if none is queued or running, under the queue lock.
+    Nothing starts where `squeue` cannot be asked, because an unreachable
+    controller looks like an empty queue."""
     rows = _all_jobs()
     if rows is None:
         return "squeue could not be asked, so no generation was started"
@@ -995,13 +902,9 @@ def _ensure(start=None):
 
 
 def kick(start=None):
-    """Start a generation for a task filed when none could start. "" or what
-    happened.
-
-    Once per task, not once per pass: only a task queued AFTER the last start
-    asks for one. A generation that cannot load is otherwise a 68-minute job
-    submitted every pass for ever.
-    """
+    """Start a generation for a task filed when none could start; "" or what
+    happened. Only a task queued after the last start asks, so a generation
+    that cannot load is not resubmitted every pass."""
     root = queue_root()
     if not root:
         return ""
@@ -1014,12 +917,9 @@ def kick(start=None):
         return _ensure(start)
 
 
-# WHAT A TASK IS: read-only analysis. Colibri reads the fenced data and writes
-# what it makes -- a reconstructed transcript, a graded diarization -- under the
-# workspace's `phi/`, which git ignores and `ai-config/policy/phi.py` fences by
-# name. It never changes a tracked file, so nothing it does is ever committed,
-# and the relay fails a task that leaves a change git can see
-# (`relay.check_task`). What comes back is its `RELAY:` lines, made public.
+# A task is read-only analysis: outputs go under the workspace's ignored,
+# fenced `phi/`, it never changes a tracked file, and the relay fails one that
+# leaves a change git can see. Only its public `RELAY:` lines come back.
 FENCE = "phi/"
 
 _TASK_RULES = (
@@ -1056,11 +956,9 @@ TASK_RESUME_PROMPT = (
 
 
 def output_path(rec):
-    """Where a task's client output goes: `COLI_SESSION_ROOT/tasks/<id>.out`,
-    behind the fence, or None where that root is not a `phi/` directory.
-
-    It is the transcript's own fence, because the output can quote session
-    content; the relay reads only its `RELAY:` lines, through `relay.public`."""
+    """Where a task's client output goes, `COLI_SESSION_ROOT/tasks/<id>.out`
+    behind the fence, or None where that root is not a `phi/` directory: the
+    output can quote session content."""
     root = os.environ.get("COLI_SESSION_ROOT") or ""
     tid = str(rec.get("id") or "")
     if not root or "phi" not in os.path.normpath(root).split(os.sep):
@@ -1071,15 +969,10 @@ def output_path(rec):
 
 
 def run_task(rec, job):
-    """Run one task through `coli-code`, inside generation `job`. Its exit code.
-
-    The client's output may quote session content, and this process's own
-    output is the job log, which is counts-only, so it goes behind the fence
-    (`output_path`), or nowhere where there is none. Its path is kept on the
-    task for the relay's check. A task begun before resumes its conversation
-    by name, and falls back to a fresh one where the resume fails in seconds
-    -- the conversation was never written.
-    """
+    """Run one task through `coli-code` inside generation `job`; its exit code.
+    Output goes behind the fence (`output_path`), never to the counts-only job
+    log. A task begun before resumes by name, falling back to a fresh
+    conversation when the resume fails in seconds."""
     cmd = _tool("coli-code", "COLI_CODE")
     where = subjects.find(rec.get("workspace") or "")
     if not cmd or not where:
@@ -1132,9 +1025,9 @@ def _pid_alive(pid):
 
 
 def recover(job):
-    """Resume or fail what dead generations left running. Skipped, never
-    guessed, where `squeue` cannot be asked or does not list this job: an
-    unreachable controller would otherwise read as every generation dead."""
+    """Resume or fail what dead generations left running. Skipped where
+    `squeue` cannot be asked or omits this job, which would read as every
+    generation dead."""
     rows = _all_jobs()
     if rows is None:
         return []
@@ -1146,11 +1039,9 @@ def recover(job):
 
 def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
          clock=time.time, sleep=time.sleep, poll=POLL, say=None):
-    """The queue's worker, inside generation `job`. Returns the job's exit code.
-
-    0 is a clean idle exit; anything else is a death the clone repairs. With
-    `demand` False (the warm chain, `--stay`) it never exits on idle.
-    """
+    """The queue's worker inside generation `job`; returns its exit code: 0 is
+    a clean idle exit, anything else a death the clone repairs. `demand`
+    False (`--stay`) never exits on idle."""
 
     def tell(line):
         # Ids and states only. This goes to the job log, which is counts-only.
@@ -1213,14 +1104,11 @@ def work(job, demand=True, server_pid=None, idle=None, run=None, ready=None,
 
 
 # --------------------------------------------------------------- the relay
-# THE HOOK THE RELAY PASS CALLS. A `colibri` request (`jobs.validate`) is filed
-# here, and every pass asks `relay_pass` for the reports of the tasks requests
-# filed. Colibri may read PHI and its work is never tracked, so a finished task
-# is checked rather than reviewed: `check(workspace root, task)` is
-# `relay.check_task`, which counts the changes git can see there since the
-# task's baseline. None is done; any fails the task, nothing is committed, and
-# the changes stay on the cluster for the owner. A report carries state, counts
-# and the task's public `RELAY:` lines, never the brief and never a path.
+# The relay's hook. A `colibri` request is filed as a task, and each pass asks
+# `relay_pass` for reports. A finished task is checked (`relay.check_task`):
+# any change git sees since its baseline fails it and stays on the cluster.
+# Reports carry state, counts and public `RELAY:` lines, never the brief or a
+# path.
 
 def relay_report(rec):
     """A task as a relay report: state, counts and its public `RELAY:` lines,
@@ -1269,10 +1157,8 @@ def relay_file(ws_root, req, start=None, now=None):
 
 
 def settle(root, rec, got, now=None):
-    """Apply a check's verdict to a done task. The record.
-
-    `got` is `relay.check_task`'s: no change keeps it done, any fails it with
-    `relay.CHANGED`. Either way it is checked, and not checked again."""
+    """Apply a check's verdict to a done task: no change keeps it done, any
+    fails it with `relay.CHANGED`. Either way it is not checked again."""
     from . import relay
     changed = int(got.get("changed") or 0)
     rec = update_task(root, rec, checked=float(now or time.time()),
@@ -1284,14 +1170,10 @@ def settle(root, rec, got, now=None):
 
 
 def relay_pass(check=None, now=None, start=None):
-    """`[(workspace root, report)]` for every task a request filed. The hook.
-
-    `check(workspace root, task)` is the relay's `check_task`; where it
-    returns None, or there is none, a done task stays unchecked and is asked
-    about again next pass. A task filed by `board colibri` on the cluster is
-    checked the same way and has no report. A task filed when no generation
-    could start gets one here (`kick`).
-    """
+    """`[(workspace root, report)]` for every task a request filed. A done
+    task whose `check` returns None stays unchecked until next pass. Tasks
+    filed on the cluster by `board colibri` are checked the same way, with no
+    report. Tasks filed when nothing could start are `kick`ed here."""
     root = queue_root()
     if not root:
         return []

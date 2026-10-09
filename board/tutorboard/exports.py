@@ -12,15 +12,10 @@ matching entry carrying `"aggregate": true`, the owner's word that it holds
 none. The relay's other checks (the 5 MB cap, the extension list, the PHI
 policy on path and content) stay in `relay.export`, whatever this says.
 
-The list counts only where it is committed: `approvals` reads tutorboard.json
-at HEAD and on disk and keeps the entries both hold. A turn cannot commit a
-change to `relay.exports` (the pre-commit audit), so an approval is the
-owner's, and a revocation on disk takes effect before it is committed.
-
-The job-state words and the registry fold live here too, so the relay path
-reads them without the thread file.
-
-Runs on the cluster's python3, which may be 3.7. Standard library only.
+The constraint: an approval counts only where committed. `approvals` keeps
+the entries tutorboard.json holds both at HEAD and on disk; a turn cannot
+commit a `relay.exports` change, so approval is the owner's, and a removal on
+disk takes effect at once. Runs on the cluster's python3 (maybe 3.7).
 """
 
 import fnmatch
@@ -36,11 +31,8 @@ EXPORT_EXTS = (".png", ".pdf", ".svg", ".csv", ".json")
 # Of those, the ones that can carry rows: approved only with `aggregate`.
 ROW_EXTS = (".csv", ".json")
 
-# What sacct calls a job that has stopped. Anything else -- PENDING, RUNNING,
-# no state at all -- is a job still out. LOST is the board's own word, for a job
-# Slurm has no record of at all. REFUSED is the relay's, for a request the
-# cluster would not run. DIED and ENDED are `jobs.ending`'s, for a job that
-# left squeue without its exit file, wrapped and not.
+# Finished states: sacct's, plus LOST (no Slurm record), REFUSED (the relay
+# would not run it), DIED and ENDED (`jobs.ending`).
 TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
             "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST",
             "REFUSED", "DIED", "ENDED")
@@ -177,12 +169,8 @@ def exportable(t, path):
 # job states, and the registry fold
 # ---------------------------------------------------------------------------
 def merged(jobs):
-    """`{jobid: record}`, each job's records folded in file order.
-
-    A later record for the same job id overrides an earlier one, so the poll
-    that sees a job end appends one line carrying `state` rather than rewriting
-    the file.
-    """
+    """`{jobid: record}`, each job's records folded in file order: a later
+    record overrides, so state changes are appended, never rewritten."""
     last = {}
     for j in jobs or []:
         if not isinstance(j, dict):

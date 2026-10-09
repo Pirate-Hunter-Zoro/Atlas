@@ -1,29 +1,14 @@
 """The repository underneath a lesson, which somebody else may be working in.
 
-A course repository is not the board's private scratch space. The person being
-taught in it is the same person who opens a terminal in it and writes code --
-and the tutoring machinery runs UNATTENDED, on a ninety-second beat, with
-nobody watching what it does to git. Two rules come out of that, and this
-module is both of them.
+The owner also works in these repositories from a terminal, and the board
+writes git unattended, so: commit only against an explicit pathspec with
+`--only`, which leaves the rest of the index alone; and never write history
+into a repository mid-operation (rebase, merge, cherry-pick, revert, bisect,
+detached HEAD) but wait and say why. A killed git's stale `index.lock` is
+told from a live one and cleared.
 
-**Never commit what you were not asked to commit.** `git commit` commits the
-INDEX, all of it. So the transcript beat -- `git add -A live`, then commit --
-also committed whatever somebody had staged in the terminal a moment earlier,
-under the message "lesson transcript". Nothing in the beat wanted those files
-and nothing in it knew they were there. A commit is made against an explicit
-pathspec instead, with `--only`, which takes the named paths and leaves the rest
-of the index exactly where it was.
-
-**Never write history into a repository that is mid-operation.** A rebase, a
-merge, a cherry-pick, a revert, a bisect or a detached HEAD all mean somebody is
-part-way through something that has its own plan for the next commit, and a
-commit landing in the middle of it is at best confusing and at worst a lost
-branch. The answer is to do nothing this tick and say why: the transcript is
-append-only, nothing is lost by waiting, and the next tick is ninety seconds
-away.
-
-Standard library only, and no `git` calls: this is read off the files git itself
-keeps, so it costs nothing to ask on every beat and cannot hang on a lock.
+The constraint: no `git` calls here; everything is read off the files git
+keeps, so it is cheap on every beat and cannot hang on a lock.
 """
 
 import os
@@ -31,22 +16,12 @@ import time
 
 
 def git_dir(root):
-    """The `.git` of the repository this directory is IN, or None.
+    """The `.git` of the repository this directory is in, or None.
 
-    `.git` is a directory in an ordinary clone and a FILE holding `gitdir: ...`
-    in a linked worktree or a submodule. Reading only the directory case is how
-    a guard silently stops guarding for anybody working in a worktree.
-
-    It WALKS UP and returns the nearest enclosing repository. Every subject
-    is Atlas's own content, so the `.git` that decides whether a commit is safe
-    is several levels above the workspace. A guard that looked only in the
-    workspace would find nothing there and conclude there was nothing to
-    guard -- the most dangerous possible answer for a function whose whole job
-    is to say "somebody is part-way through a rebase, do not commit".
-
-    So a rebase outstanding anywhere in Atlas stops the transcript beat in
-    every workspace. That is correct: there is one index and one HEAD, and
-    they are what the rebase is holding.
+    Walks up to the nearest enclosing repository, because subjects live inside
+    Atlas and a guard looking only in the workspace would see nothing to
+    guard. Reads a `.git` file (`gitdir: ...`) as well as a directory, for
+    worktrees and submodules.
     """
     here = os.path.realpath(root)
     for _ in range(40):
@@ -72,9 +47,8 @@ def git_dir(root):
     return None
 
 
-# What git leaves on disk while an operation it started is unfinished. Each one
-# is a name inside the git directory and each one means the same thing here: a
-# person is part-way through something and the next commit is theirs.
+# Names git leaves in its directory while an operation is unfinished: the
+# next commit is a person's.
 BUSY_MARKERS = (
     ("rebase-merge", "a rebase is in progress"),
     ("rebase-apply", "a rebase or an `am` is in progress"),
@@ -86,21 +60,15 @@ BUSY_MARKERS = (
 
 
 def busy_reason(root):
-    """Why this repository must be left alone, or None if it is ordinary.
-
-    Called before anything automatic writes git history here. A `None` means
-    the repository is on a branch, with no operation outstanding -- which is the
-    only state in which an unattended commit is somebody's idea of normal.
-    """
+    """Why this repository must be left alone, or None: on a branch with no
+    operation outstanding, the only state for an unattended commit."""
     gd = git_dir(root)
     if not gd:
         return None                      # not a repository; nothing to protect
     for name, why in BUSY_MARKERS:
         if os.path.exists(os.path.join(gd, name)):
             return why
-    # A detached HEAD is not an error and not necessarily an operation, but it
-    # is never somewhere to append a lesson: the commit would be reachable from
-    # nothing and the next checkout would lose it without a word.
+    # A detached HEAD: a commit there would be reachable from nothing.
     try:
         with open(os.path.join(gd, "HEAD"), "r", encoding="utf-8") as fh:
             head = fh.read().strip()
@@ -114,35 +82,16 @@ def busy_reason(root):
 # ---------------------------------------------------------------------------
 # The lock a killed git leaves behind.
 #
-# `git add`, `git commit`, `git pull` and an ordinary `git status` all take
-# `.git/index.lock` before they touch the index, and release it by renaming it
-# over the index when they are done. A git that is KILLED part-way -- and
-# everything here runs git under a subprocess timeout, on a network filesystem,
-# in a repository whose slate pages are being rewritten every two seconds --
-# never gets to that rename. What it leaves is an empty lock file, and from that
-# moment every route to a commit in this repository is closed: the transcript
-# beat, the board's save button, `board push`, and the person's own terminal.
-#
-# Measured on Galois Theory, 10 September: a zero-byte `index.lock` at 15:16:32,
-# the last transcript commit at 15:14:59, and every save from the iPad after that
-# answered with git's own advice -- "remove the file manually to continue" --
-# which is not a thing anybody can do from an iPad in the middle of a proof.
-#
-# A lock is therefore not like a rebase. A rebase means a person is part-way
-# through something and the answer is to wait forever. A lock means either that
-# git is running RIGHT NOW, which is over in seconds, or that it is not, in which
-# case the file is rubbish and holding onto it costs somebody their afternoon.
-# Telling those apart is the whole of what follows.
+# A git killed mid-operation leaves an empty `index.lock` that closes every
+# route to a commit, and its own advice cannot be followed from an iPad. A
+# lock is either held by a running git (seconds) or rubbish; telling those
+# apart is what follows.
 # ---------------------------------------------------------------------------
 
-# How long a lock nobody can be shown to hold has to sit there before it is
-# rubbish. Every git call in this tool runs under a timeout well below this, so
-# a lock older than this cannot belong to one of ours that is still going.
+# Above every git timeout in this tool, so an older unheld lock is rubbish.
 LOCK_STALE_AFTER = 300.0
 
-# A lock is created and opened in the same breath, so a holder is findable the
-# moment it exists. This grace is for the gap between the two, and for a reader
-# that arrives in the middle of it.
+# Grace for the instant between creating a lock and opening it.
 LOCK_GRACE = 5.0
 
 
@@ -156,15 +105,9 @@ def index_lock(root):
 
 
 def _lock_holder(path):
-    """Whether a live process holds this file open: True, False, or None.
-
-    `None` means the question could not be asked, and the caller falls back to
-    age alone. Every open file descriptor on Linux is a symlink under
-    `/proc/<pid>/fd`, so this is a scan of those and no more; other people's
-    processes are unreadable and are skipped, which is correct here because a
-    git holding this lock is one of ours. A Mac has no `/proc`, so there the
-    same question goes to `lsof`, which the system ships.
-    """
+    """Whether a live process holds this file open: True, False, or None when
+    it cannot be asked (the caller then uses age). Scans `/proc/<pid>/fd` on
+    Linux, `lsof` on a Mac."""
     if not os.path.isdir("/proc"):
         return _lsof_holder(path)
     try:
@@ -208,17 +151,9 @@ def _lsof_holder(path):
 
 
 def lock_reason(root):
-    """What `.git/index.lock` means here, as (verdict, sentence).
-
-    Verdict is one of:
-
-      `None`   -- there is no lock; carry on.
-      `"held"` -- git is running in here this second. Say so and come back.
-      `"stale"`-- nobody holds it and nobody is coming for it. Clear it.
-
-    The sentence is for a person reading a board, not for a log: it says what is
-    happening in words somebody holding an iPad can act on.
-    """
+    """What `.git/index.lock` means here, as (verdict, sentence): `None` (no
+    lock), `"held"` (git is running now) or `"stale"` (clear it). The sentence
+    is for a person reading a board."""
     path = index_lock(root)
     if not path:
         return None, None
@@ -235,9 +170,8 @@ def lock_reason(root):
         return "stale", ("cleared a lock file a git command left behind when it "
                          "was interrupted %d seconds ago" % int(age))
     if holder is None and age > LOCK_STALE_AFTER:
-        # No `/proc` to ask, so age is the only evidence there is. The threshold
-        # is above every timeout in this tool, which is what makes it safe: a
-        # lock this old cannot belong to one of ours that is still running.
+        # Without `/proc`, age is the evidence; the threshold exceeds every
+        # timeout here.
         return "stale", ("cleared a lock file left behind %d minutes ago by a git "
                          "command that did not finish" % int(age / 60))
     if holder is None:
@@ -251,12 +185,8 @@ def lock_reason(root):
 
 
 def clear_stale_lock(root):
-    """Remove a lock nobody holds, and say what was done, or None if nothing was.
-
-    Called before anything that needs the index. It removes only a lock this
-    module has just decided is rubbish, so a git that is genuinely running is
-    never pulled out from under itself.
-    """
+    """Remove a lock this module judged rubbish, and say what was done, or
+    None. A running git is never pulled out from under itself."""
     verdict, sentence = lock_reason(root)
     if verdict != "stale":
         return None

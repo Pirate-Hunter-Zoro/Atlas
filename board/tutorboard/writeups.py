@@ -1,40 +1,15 @@
 """A document asked for from a sitting, and where the board says it got to.
 
-WHY THIS EXISTS, in the words it was asked in:
+A paper or deck is an action any session can ask for (`POST /artifact`, the
+Make menu), not a mode: it changes no mode and its turn writes no card, so
+this record is how the board says it is being written and that it landed.
+Records are the session's own (`writeups/` in its directory). An ask that
+made an artifact is judged by `artifacts.status` of its doc.json; one
+without is `writing` until frozen or `CEILING` passes. Three states, the
+three a person acts on: `writing`, `done`, `failed`.
 
-    "let's say I open up libr-local-llm and I want to learn how colibri works.
-     Can I have a tutoring session where I'm walked through simple lessons to
-     understand this and how we utilize the cluster hardware, and at any point
-     can I have a presentation or paper written up going through the things we
-     talked about in that tutoring session? Can I do that in ANY tutoring
-     session?"
-
-A DOCUMENT IS AN ACTION, NOT A MODE. A paper or a deck is a PRODUCT any
-session can be asked for. So it is its own act -- `POST /artifact`, the Make
-menu -- which changes no mode, archives nothing and replaces no tutor, and the
-turn it wakes writes no card. The document lands in the library, where
-correcting it is already a loop that exists.
-
-WHICH LEAVES ONE THING WITH NOWHERE TO BE SAID: that it is being written, and
-that it is there. A turn that writes no card is invisible on the board by
-construction, so "I asked for a deck and nothing happened" had nowhere to be
-answered. This module is the record.
-
-THE RECORD IS THE SESSION'S. A stored session keeps its asks in its own
-`writeups/`, so two sessions on one subject each see their own, and nothing is
-written into the subject's tree. A workspace keeps them in its `live/`.
-
-THE STATE IS THE ARTIFACT'S. An ask that made an artifact carries its
-directory (`dir`, relative to the root), and its state is `artifacts.status`
-of that doc.json: mtimes of the source and its build against `asked_at`. The
-meeting deck is one such artifact. An ask with no artifact is `writing` until
-somebody freezes it or `CEILING` passes.
-
-THREE STATES, BECAUSE THEY ARE THE THREE A PERSON ACTS ON. `writing` -- leave it.
-`done` -- go and read it. `failed` -- ask again. Anything finer is a state nobody
-does anything different about.
-
-Standard library only, like everything else.
+The constraint: an id is a turn id, matched, never sanitised; nothing else
+from a request reaches the filesystem.
 """
 
 import json
@@ -51,37 +26,25 @@ WRITEUPS = "writeups"
 # The two products. The Make menu's "deck" is recorded as `slides`.
 MAKES = ("paper", "slides")
 
-# What a subject is truncated to in the record. It is read on a tablet in a strip
-# two lines high; the whole of it is in the target's inbox, which is where the
-# turn reads it.
+# A subject's length in the record; the full text is in the target's inbox.
 ABOUT_CHARS = 400
 
-# How long an ask with nothing to show for it is still being written rather than
-# lost. A document is a doing turn -- `doing_timeout` is an hour -- and a paper
-# with a LaTeX build at the end of it on the local model is slower than that
-# again. Generous on purpose: `failed` is a sentence telling somebody to ask a
-# second time, and saying it while the first one is still working is worse than
-# saying nothing.
+# How long an empty-handed ask is still `writing`: generous, because "ask
+# again" while the first is still working is worse than silence.
 CEILING = 2 * 3600
 
-# How long a finished record stays on disk. Long enough that a week away still
-# says what happened; short enough that `live/writeups/` is not a log.
+# How long a finished record stays.
 KEEP = 7 * 24 * 3600
 
-# The list is rebuilt at most this often. The hub polls four times a second and
-# deriving a state walks the workspace for its documents, and the answer
-# changes on the scale of a turn.
+# Rebuilt at most this often; the hub polls far faster than turns change it.
 TTL = 5.0
 
 _CACHE = {}
 
-# An id is a turn id and nothing else ever reaches the filesystem from a request.
-# Matched rather than sanitised: a name that is not one of these is not an ask,
-# and joining it onto a path to find out is the mistake.
+# Turn ids only.
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 
-# Everything that is stored. A judged record carries `state` as well, and writing
-# that back would turn a reading into a fact.
+# Stored fields; `state` is judged on read and never written back.
 FIELDS = ("id", "makes", "about", "at", "agent", "dir", "ended", "ended_at",
           "doc", "seen", "session")
 
@@ -111,11 +74,8 @@ def _path(where, wid):
 
 
 def write(where, rec):
-    """Store one record. Atomically, and never raising.
-
-    Two boards on two nodes share this filesystem and a half-written record reads
-    as an ask that was never made.
-    """
+    """Store one record atomically, never raising: a half-written record
+    reads as an ask never made."""
     wid = str(rec.get("id") or "")
     if not ID_RE.match(wid):
         return False
@@ -172,12 +132,8 @@ def _every(where):
 
 def ask(where, wid, makes, about="", agent="", doc_dir=None, session=None):
     """Record that a document has been asked for. Returns the record.
-
-    `where` is the Repo whose session asked (or a workspace root).
-    `doc_dir` is the artifact the ask made, relative to its root, when it made
-    one; its doc.json is what the record is judged by. `session` is the id of
-    the stored session whose inbox holds the ask, where one does.
-    """
+    `doc_dir` is the artifact it made, relative to its root; `session` the
+    stored session whose inbox holds the ask."""
     rec = {
         "id": str(wid), "makes": clean_makes(makes) or "paper",
         "about": (about or "").strip()[:ABOUT_CHARS],
@@ -199,13 +155,9 @@ def _doc_of(rel):
 
 
 def _judge(where, rec):
-    """`writing`, `done` or `failed`.
-
-    With an artifact, its doc.json decides, every time: a failed one that
-    later builds is done. The first terminal answer stamps `ended_at`, which
-    is what `KEEP` prunes by. Without one, the first terminal answer is
-    frozen, and only `CEILING` or somebody else freezing it ends it.
-    """
+    """`writing`, `done` or `failed`. With an artifact, its doc.json decides
+    every time; the first terminal answer stamps `ended_at` for `KEEP`.
+    Without one, the first terminal answer is frozen."""
     rel = rec.get("dir") or ""
     root = _root(where)
     if rel:
@@ -227,13 +179,8 @@ def _judge(where, rec):
 
 
 def state(where, wid):
-    """`writing`, `done` or `failed` for one ask, or "" where there is no record.
-
-    `waiting` answers for the strip, which caps and hides; this answers for ONE
-    ask somebody is watching from somewhere else -- the front door's deck from
-    sittings, which knows its ask by id. The same judging, so the same freezing:
-    a record read here and in the strip cannot come to two answers.
-    """
+    """`writing`, `done` or `failed` for one ask, or "" with no record: the
+    same judging as `waiting`, for a caller watching one ask by id."""
     rec = read(where, wid)
     if not rec:
         return ""
@@ -241,13 +188,8 @@ def state(where, wid):
 
 
 def seen(where, wid):
-    """Mark one finished ask as looked at, so the strip stops saying it.
-
-    A `writing` one cannot be waved away: it is still being written, and that is
-    the fact being reported. Nothing else about the record changes, so a document
-    that has landed is still on disk, still in the library, and still correctable
-    from there.
-    """
+    """Mark one finished ask as looked at, so the strip stops saying it. A
+    `writing` one cannot be waved away; nothing else changes."""
     rec = read(where, wid)
     if not rec or not rec.get("ended"):
         return False
@@ -257,29 +199,22 @@ def seen(where, wid):
     return True
 
 
-# How many rows the board is ever given. Past this it is a list, and a list in
-# the chrome is a page somebody scrolls past to reach their own lesson.
+# The most rows the board is given.
 MOST = 3
 
 
 def waiting(repo):
-    """What the board paints: every document being written, and every one that
-    has landed and not been looked at.
-
-    Cheap when there is nothing to say, which is nearly always: an empty
-    `writeups/` in the session is one `listdir` that fails. Cached for `TTL`
-    once nothing is being written; judging reads doc.json files and stats,
-    never the library.
-    """
+    """What the board paints: every document being written, and every landed
+    one not yet looked at. Cached for `TTL` once nothing is being written;
+    judging reads doc.json files and stats, never the library."""
     key = os.path.realpath(_dir(repo))
     hit = _CACHE.get(key)
     if hit and time.time() - hit[0] < TTL:
         return hit[1]
     out = []
     for rec in _every(repo):
-        # JUDGED WHETHER OR NOT IT IS REPORTED. `MOST` caps what the strip is
-        # given, and capping the judging instead would leave a fourth ask never
-        # ending -- so never carrying `ended_at`, so never pruned.
+        # Judge every record, not only the reported ones, so each one ends
+        # and is pruned.
         state = _judge(repo, rec)
         if len(out) >= MOST or (state != "writing" and rec.get("seen")):
             continue
@@ -292,9 +227,7 @@ def waiting(repo):
             "state": state,
             "doc": rec.get("doc") or "",
         })
-    # NOT CACHED WHILE ONE IS BEING WRITTEN: the hub rebuilds when the turn's
-    # agent.json moves, and that rebuild must see the document land, not a
-    # `writing` judged a moment before the build finished.
+    # Not cached while writing, so the rebuild after the turn sees it land.
     if not any(r["state"] == "writing" for r in out):
         _CACHE[key] = (time.time(), out or None)
     return out or None

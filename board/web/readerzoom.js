@@ -504,7 +504,7 @@ function make(opts) {
     if (ev.touches.length === 1) arm(ev.touches[0]);
     if (pinch) {
       /* Anything landing on a live pinch is the pinch's: a third finger, a
-         palm. The Pencil ends it, and is still refused to the browser. */
+         palm. The Pencil ends it, and the browser still never gets it. */
       refuse(ev, "joins");
       tap = null;
       if (writing(ev)) end();

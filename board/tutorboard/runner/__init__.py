@@ -1,3 +1,3 @@
-"""The tutor daemon: one turn (`turn`), its prompts (`prompts`), the loop that
-takes turns (`loop`), the daemon's record and lifecycle (`daemon`), and the
-watchdog that keeps boards and tutors up (`watch`)."""
+"""The runner: one turn (`turn`), its prompts (`prompts`), the turn and the
+wrap-up (`loop`), the per-session queue inside the server (`service`), and a
+session's agent record (`daemon`)."""

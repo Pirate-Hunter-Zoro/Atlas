@@ -35,18 +35,7 @@ def post(h, repo, path):
         return h.send_json(record)
 
     if path == "/hw/build":
-        # THE WRITTEN-UP WORK IS A DOCUMENT TOO.
-        #
-        # A lesson had a button and a problem set did not, so the only way to
-        # compile the thing an evening was actually spent writing was a
-        # terminal -- which is the one thing the board exists to abolish, and it
-        # was asked for in those terms: "I want an option to export the written
-        # up homework as well as the lesson."
-        #
-        # `board writeup build` is the compile, unchanged: the same one the tutor
-        # runs, the same one a push runs before it commits a stale PDF, so
-        # there is one compiler and one record of what it said. This only
-        # presses the button.
+        # The write-up compile, the same one `board writeup build` runs.
         try:
             rec = git.run_hw_build(repo)
         except Exception as e:                       # noqa: BLE001
@@ -56,21 +45,10 @@ def post(h, repo, path):
         return h.send_json(rec)
 
     if path == "/export/shot":
-        # THE LESSON AS IT WAS ACTUALLY READ.
-        #
-        # Asked for from the iPad, about the export that already existed: "for
-        # the tutor session export, I don't want the latex dump it currently
-        # gives; I want it as if it were a screenshot of the entire iPad screen
-        # scrolled down over the whole tutoring session."
-        #
-        # The pixels come from the device because the device is the only thing
-        # that knows what the lesson looks like -- there is no headless browser
-        # on a compute node and there never will be. What stays here is what a
-        # client must not be trusted with: where it goes, what it is called,
-        # which version it is, and that it is staged for the next commit.
-        #
-        # It writes `export.json`, and that is not incidental: `/download/lesson`
-        # resolves the document through that record and nothing else.
+        # The lesson as the iPad drew it: the pixels come from the device,
+        # which alone knows how it looked; the server chooses where it goes,
+        # its name and version, and writes `export.json`, which
+        # `/download/lesson` resolves through.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                            # noqa: BLE001

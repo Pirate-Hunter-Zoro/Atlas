@@ -27,15 +27,11 @@ def mode_of(state):
 def read_config(root):
     """What a subject's `tutorboard.json` says: `name`, `phi`, `check`, `relay`.
 
-    Everything is optional. `stance`, `aim`, `subtitle` and `mode` left in a
-    file are ignored, and so is `agent`: who takes a turn is the machine's
-    one provider setting (`recipes.resolve`). `name` defaults
-    to the directory name with dashes as spaces. `phi` stays literal -- True or
-    False exactly as written, None for anything else -- because only a literal
-    False opens check output (`code.output_open`, which also wants False at
-    HEAD, no fence and the policy loaded). `relay` is the file's object, else
-    {}. `check` is validated by `clean_check`; `check_problems` and
-    `check_line` are derived from it.
+    All optional; other keys (`stance`, `aim`, `subtitle`, `mode`, `agent`)
+    are ignored. `name` defaults to the directory with dashes as spaces.
+    `phi` stays literal (True, False, else None), because only a literal False
+    opens check output (`code.output_open`). `check` goes through
+    `clean_check`.
     """
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
@@ -82,11 +78,8 @@ _HOLE_RE = re.compile(r"\{[^}]*\}")
 
 
 def check_program(word):
-    """Is this an allowed `argv[0]`: a named program, or a workspace script?
-
-    A script is a workspace path with a directory or an extension in it, so a
-    bare program name that is not one of `CHECK_PROGRAMS` is refused rather
-    than read as a file nobody wrote."""
+    """Is this an allowed `argv[0]`: a `CHECK_PROGRAMS` name, or a workspace
+    script (a path with a directory or extension)?"""
     word = str(word or "")
     if word in CHECK_PROGRAMS:
         return True
@@ -97,11 +90,8 @@ def check_program(word):
 
 
 def _leaves(word):
-    """Does this word of a check name a path outside the workspace? An
-    absolute or home path, or a `..` step, anywhere in it: after `--opt=`,
-    or inside a `bash -c` line. A check runs from the workspace root, and its
-    output is judged by that workspace's fence, so it may not reach into
-    another one."""
+    """Does this word of a check reach outside the workspace (absolute, home
+    or `..`, anywhere in it)? A check is judged by its own workspace's fence."""
     for part in _WORD_SPLIT.split(str(word).replace("\\", "/")):
         if part.startswith(("/", "~", "$")) or ".." in part.split("/"):
             return True

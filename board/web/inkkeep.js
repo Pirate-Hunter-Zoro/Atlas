@@ -28,8 +28,8 @@
         key (`opts.build`), and it rides on every save of freshly drawn ink,
         with anything else the reader stamps on it (`opts.stamp`).
      6. INK FOR A PAGE THAT IS GONE IS LET GO. A save the board answers with
-        `gone` was drawn on something that is no longer there, and retrying it
-        forever would write it onto whatever replaced it.
+        `gone` was drawn on something since replaced, and retrying it would
+        write it onto the replacement.
 
    `send` is NEVER set from here. Each reader decides what its ink becomes,
    and neither makes a turn per ring drawn.

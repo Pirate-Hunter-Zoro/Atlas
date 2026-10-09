@@ -1,9 +1,10 @@
 """Whether a turn can actually leave the building, and the exit node it leaves
 through.
 
-An exit node routes all of this machine's outbound traffic somewhere else.
-Tailnet traffic is untouched, so the iPad reaches the board either way -- what
-changes is whether the tutor can reach its model.
+An exit node routes this machine's outbound traffic elsewhere; the tailnet is
+untouched, so the iPad still reaches the board while a provider that blocks
+VPN egress fails every turn silently. Which endpoints to probe is config,
+because the board must not know which assistant drives it.
 """
 
 import json
@@ -20,43 +21,16 @@ from . import tailscale
 # ---------------------------------------------------------------------------
 # Exit nodes, and whether a turn can actually leave the building
 # ---------------------------------------------------------------------------
-# An exit node routes ALL of this machine's outbound traffic through somewhere
-# else. Tailnet traffic is untouched, so the iPad reaches the board exactly as
-# before and nothing about serving a lesson notices -- but every request the
-# tutor makes to its provider now egresses from another country, and commercial
-# VPN egress is precisely the sort of address a provider geo-blocks, rate-limits
-# or challenges. The failure is total and looks like nothing: turns fail, the
-# board shows a tutor listening, and the log fills with errors nobody reads.
-#
-# WHICH endpoints a turn needs is configuration, not code. The board is not
-# allowed to know which assistant is driving it -- that is the same rule that
-# makes a model a command recipe rather than a field -- so this is a list of URLs
-# in the config with a default that happens to suit the default agent. Point it
-# somewhere else and nothing here changes.
 DEFAULT_EGRESS_PROBE = ("https://api.anthropic.com/v1/messages",)
 
-# Exit nodes known to have carried a real turn. Tried first on a rotation,
-# because the only evidence that an exit node works is that it once did.
+# Exit nodes that once carried a real turn, tried first.
 EGRESS_KNOWN_GOOD = os.path.join(paths.STATE_DIR, "egress-ok.json")
 
 
 def egress_probe_urls(also=()):
-    """The endpoints whose reachability actually settles anything here.
-
-    `also` is each configured provider's own endpoints -- every recipe on this
-    machine that is installed and keyed names its `egress_probe`, and
-    `provider_probe_urls` in `agents/recipes.py` collects them -- appended after the
-    default's, once each. On the Mac every provider is an ordinary choice, so
-    "can a turn leave this machine" is asked of every host a turn here may open,
-    and a filter on one provider's name is not read as a machine with no way out.
-
-    `egress_probe` in the config wins, always -- the board is not allowed to know
-    which assistant is driving it, and a list of URLs is how that stays true.
-
-    With nothing in the config, it is the endpoint below, which is the one the
-    default agent opens a connection to. Point it somewhere else the moment the
-    tutor does: a probe asking after a host the tutor never talks to answers a
-    question about somebody else's server.
+    """The endpoints whose reachability settles anything here: config
+    `egress_probe` wins; else the default agent's endpoint plus each installed,
+    keyed provider's own (`also`, from `provider_probe_urls`), once each.
     """
     try:
         with open(paths.CONFIG, "r", encoding="utf-8") as fh:
@@ -74,19 +48,10 @@ def egress_probe_urls(also=()):
 
 
 def egress_ok(timeout=12, urls=None, also=()):
-    """Can a turn reach what it needs from here?
-
-    ANY http answer counts, including 401 and 405. We are asking whether the
-    packets arrive, not whether we are allowed in -- an unauthenticated probe
-    that gets a 401 has proved the whole path. Only a connection failure, a DNS
-    failure or a timeout means the egress is broken, which is exactly the shape a
-    bad exit node produces.
-
-    `urls` asks about ONE PROVIDER rather than about the machine, and the two
-    questions have different answers: a filter that drops one provider's
-    hostname leaves every other host on the internet reachable, so the
-    machine-wide probe says yes while the turn that just failed could not open a
-    socket. The recipe names its own endpoint; see `agent_probe_urls`.
+    """Can a turn reach what it needs from here? Any HTTP answer, 401 and 405
+    included, proves the path; only connection, DNS or timeout failures mean
+    broken egress. `urls` asks about one provider, whose host a filter may drop
+    while the rest of the internet answers (`agent_probe_urls`).
     """
     import urllib.error
     import urllib.request
@@ -107,32 +72,19 @@ def egress_ok(timeout=12, urls=None, also=()):
 # ---------------------------------------------------------------------------
 # A provider this machine cannot reach, and until when
 # ---------------------------------------------------------------------------
-# A blocked hostname is not a broken agent and not a broken machine. The
-# executable is here, the key is here, the allowance is intact, and every other
-# host on the internet answers -- one provider's name is dropped on the wire, so
-# every turn that recipe takes dies the same way and the board has no word for
-# it. That is the failure this records, in the same shape `limits` records an
-# exhausted allowance and for the same reasons: per AGENT, because one blocked
-# provider says nothing about the next; with an EXPIRY, because a filter that
-# was lifted must not demote a recipe for ever; and with the NODE, because the
-# home directory is shared between compute nodes and a block seen on the
-# allocation that ended yesterday is not this machine's news.
-#
-# Written by `board see` when a vision endpoint refuses a connection, and read
-# by `seeing.route` and the board. The turn resolver does not consult it.
+# A provider this machine cannot reach, recorded like `limits` records an
+# exhausted allowance: per agent, with an expiry (filters lift), and with the
+# node (the home directory is shared). Written by `board see` when a vision
+# endpoint refuses a connection; read by `seeing.route` and the board, never
+# by the turn resolver.
 UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
 
-# How long a block is believed for. One failed turn buys the finding, and one
-# more failed turn is what every expiry costs to rediscover.
+# How long a block is believed.
 UNREACHABLE_WINDOW = 3600
 
-# AND THE WINDOW DOUBLES EACH TIME THE SAME PROVIDER IS FOUND DARK AGAIN, up to
-# this. A fixed hour is right for a filter that lifts by itself and wrong for one
-# that does not: a firewall rule outlives every expiry, so the flat window costs
-# a dead turn an hour for ever, each one a student waiting three minutes for
-# nothing. The strike count is kept past the expiry -- that is the whole of what
-# makes the second finding cheaper than the first -- and only a turn that goes
-# through resets it, because that is the only evidence the host answers.
+# The window doubles on each repeat finding, up to this, because a firewall
+# rule outlives every expiry. Strikes outlive the expiry; only a turn that
+# goes through resets them.
 UNREACHABLE_MAX = 24 * 3600
 
 
@@ -152,12 +104,8 @@ def _unreachable_load():
 
 
 def _strikes(agent):
-    """How many times this provider has already been stood down here.
-
-    Read past the expiry on purpose: the count is what makes each rediscovery
-    cheaper than the last, and an entry whose window has run out is exactly the
-    one about to be written again.
-    """
+    """How many times this provider has been stood down here, read past the
+    expiry on purpose."""
     got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
     try:
         return int((got or {}).get("strikes") or 0)
@@ -166,12 +114,8 @@ def _strikes(agent):
 
 
 def _stand_down(agent, host, why, until=None, node=None):
-    """Write down that this AGENT cannot take a turn here, and until when.
-
-    Merged rather than replaced, for the reason `limits.mark_limited` is: a
-    second provider going dark must not erase the first one's expiry and send
-    the daemon climbing home to something that is still unreachable.
-    """
+    """Record that this agent cannot take a turn here, and until when. Merged,
+    so a second dark provider never erases the first's expiry."""
     from .. import machine
     node = node or machine.node_name()
     rec = _unreachable_load()
@@ -204,12 +148,8 @@ def mark_unreachable(agent, host, until=None, node=None):
 
 
 def stood_down(agent, now=None):
-    """`{host, why, until}` while this agent's host does not answer here, else None.
-
-    Written by `board see` when a vision endpoint refuses a connection; read by
-    `seeing.route` and painted by the board. Turns do not consult it: the
-    resolver's reasons are a missing binary, a missing key and a usage limit.
-    """
+    """`{host, why, until}` while this agent's host does not answer here, else
+    None."""
     got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
     if not isinstance(got, dict):
         return None
@@ -230,13 +170,8 @@ def unreachable(agent, now=None):
 
 
 def clear_unreachable(agent):
-    """A turn that went through is proof the provider answers, whatever this says.
-
-    A measurement beats a record: the expiry above is a guess about when a
-    filter might lift, and a card written through the provider settles it. The
-    strike count goes with it, so a provider that comes back starts its next bad
-    evening at one hour rather than at a day.
-    """
+    """A turn that went through proves the provider answers: drop the record
+    and its strikes."""
     rec = _unreachable_load()
     agents = dict(rec.get("agents") or {})
     if agents.pop(str(agent or ""), None) is None:
@@ -263,11 +198,8 @@ def exit_node(status=None):
 
 
 def exit_node_options(status=None):
-    """Every peer offering to be an exit node, as name and address.
-
-    The address is what matters: `tailscale set --exit-node` refuses a bare
-    hostname it does not recognise, and an IP is never ambiguous.
-    """
+    """Every peer offering to be an exit node, as name and address (`tailscale
+    set --exit-node` refuses unknown bare hostnames)."""
     st = status if status is not None else tailscale._ts_status()
     out = []
     for peer in (st.get("Peer") or {}).values():
@@ -282,14 +214,9 @@ def exit_node_options(status=None):
 
 
 def set_exit_node(ip):
-    """Point this machine's egress at one exit node. Never turns one off.
-
-    Disabling would be the obvious repair and it is the wrong one: somebody
-    running everything through an exit node is doing it on purpose, and silently
-    dropping back to the bare connection would expose the address they arranged
-    not to expose in order to fix a tutoring session. If nothing works, the
-    original is put back and the fault is reported.
-    """
+    """Point this machine's egress at one exit node. Never turns one off: an
+    exit node is somebody's deliberate choice, so on failure the original is
+    restored and the fault reported."""
     prefix, _ = tailscale.tailscale_cli()
     if not prefix or not ip:
         return False
@@ -328,19 +255,10 @@ def remember_good_exit_node(ip):
 
 
 def rotate_exit_node(tries=4, log=None, settle=4.0):
-    """Find an exit node a turn can actually get out through.
+    """Find an exit node a turn can actually get out through. `(ok, detail)`.
 
-    Returns (ok, detail). Only ever called when egress is already broken, so the
-    machine starts in a state nobody wants to keep.
-
-    Order: exit nodes that have carried a turn before, then the rest. Each one is
-    tried and then PROVED, because the only way to know whether a provider
-    answers from a given country is to ask from it. Bounded, because a rotation
-    that walks four hundred Mullvad endpoints is an outage of its own.
-
-    If nothing works the original is restored: a machine on a broken exit node
-    the person chose is a better place to leave them than a machine on a random
-    one they did not.
+    Known-good nodes first, then the rest, each proved by a probe; bounded to
+    `tries`. If none works the original is restored, since the owner chose it.
     """
     import time as _t
 

@@ -1,10 +1,7 @@
 """The HTTP handler: headers, bodies, the event stream, and a table of routes.
 
-What is NOT here is every route. That was nine hundred lines of `if path == ...`
-in two methods, and the cost of it was not length -- it was that finding out what
-one path did meant reading past all the others, and adding one meant editing the
-method everybody else was editing. The families live in `routes/`; this keeps the
-plumbing they all use and the order they are asked in.
+Routes live in `routes/` by family; this keeps the plumbing they share and
+the order they are asked in.
 """
 
 import sys
@@ -33,19 +30,12 @@ PING_SECONDS = 15.0
 SESSION_PREFIX = re.compile(r"\A/s/([^/]+)(/.*)?\Z")
 ICON = re.compile(r"\A/(apple-touch-icon|icon-\d+)\.png\Z")
 
-# EVERY ROUTE SERVED WITHOUT A `/s/<id>` PREFIX, and how. Anything else
-# unprefixed is 404 on a session server. A pattern ending in `*` is a prefix.
-# Each route module's own table says which class each of its routes is in.
-#
-#   subject   a subject's own routes. Unprefixed, `?subject=<id>` names the
-#             subject and a sessionless Repo over it serves; under
-#             `/s/<id>/` the session's own subject does.
-#   subject?  the same, and with no `?subject=` the Atlas root serves.
-#   atlas     cross-subject: unprefixed only, served by a sessionless Repo over
-#             the Atlas root, and 404 under `/s/<id>/`.
-#
-# The rest are the handler's own. An ask any of these makes of a subject's
-# tutor goes through `registry.runner_route`.
+# Every route served without a `/s/<id>` prefix, and how; anything else
+# unprefixed is 404. A trailing `*` is a prefix. `subject`: `?subject=<id>`
+# picks the subject (a sessionless Repo); under `/s/<id>/` the session's own.
+# `subject?`: no `?subject=` means the Atlas root. `atlas`: cross-subject,
+# unprefixed only. Asks of another subject's tutor go through
+# `registry.runner_route`.
 UNPREFIXED = (
     ("GET", "/", "home"),
     ("GET", "/index.html", "home"),
@@ -97,10 +87,9 @@ UNPREFIXED = (
     ("POST", "/annotate/save", "subject?"),
 )
 
-# AN ENDED SESSION IS READ-ONLY. What would talk to its tutor or change it is
-# refused with 409; End itself (a retried commit), /poke (the wrap-up turn's
-# `board write`), /seen and the reads still answer. A cluster report reopens
-# an ended session without any of these (`sessions.reopen`).
+# An ended session is read-only: anything that would talk to its tutor or
+# change it is 409; End (a retried commit), /poke, /seen and reads still
+# answer. A cluster report reopens it (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
                  "/mode", "/bind", "/upload", "/file", "/annotate/save",
                  "/annotate/burn", "/artifact")
@@ -146,18 +135,8 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
-    # A request log, deliberately narrow.
-    #
-    # `board.log` used to hold nothing but "listening", which made two very
-    # different failures the same observation: a send that never left the iPad
-    # and a send this server rejected both looked like silence. Diagnosing the
-    # first one cost a scratch server and a jsdom probe. Now the file says what
-    # arrived.
-    #
-    # The poll and the stream are left out on purpose. /board.json is asked for
-    # several times a second and /events never ends, so logging either buries
-    # the one line anybody actually wants -- but a failure is logged whatever
-    # the path, because a 500 on the poll is worth knowing about.
+    # A narrow request log: every failure, but not the poll or the stream,
+    # which would bury the one line anybody wants.
     QUIET_GET = re.compile(
         r"^/(events|board\.json|courses\.json|health|static/|figure/|"
         r"icon-\d+\.png|apple-touch-icon\.png|manifest\.webmanifest|sw\.js|"
@@ -192,10 +171,8 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     # -- helpers ---------------------------------------------------------
-    # Text assets go out gzipped when the client says it takes gzip: board.js
-    # alone is over half a megabyte, and the iPad fetches it over Tailscale.
-    # Each is compressed once per content, held by slot and stamp (a file's
-    # path and mtime), and replaced when the stamp moves.
+    # Text assets go gzipped when accepted (board.js is large over Tailscale),
+    # compressed once per (path, mtime).
     GZIP_TYPES = ("text/html", "text/css", "text/javascript", "application/javascript",
                   "application/x-javascript")
     _gzipped = {}
@@ -246,8 +223,7 @@ class Handler(BaseHTTPRequestHandler):
         if cache:
             self.send_header("Cache-Control", "public, max-age=86400")
         else:
-            # The shell must never be held by the browser: an installed app that
-            # cannot pick up a fix is an app nobody can repair.
+            # The shell is never held by the browser, so a fix always arrives.
             self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if getattr(self, "head_only", False):
@@ -260,22 +236,13 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, obj, status=200):
         self.send_bytes(json.dumps(obj).encode("utf-8"), "application/json", status=status)
 
-    # Types that are safe to hand back inline for a file somebody uploaded.
-    # Everything else is downloaded rather than rendered -- an uploaded .html or
-    # .svg would otherwise run script on this origin.
+    # Inline-safe types for uploads; anything else downloads, since uploaded
+    # .html or .svg would run script on this origin.
     INLINE_OK = {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
 
     def send_file(self, path, cache=False, untrusted=False, download=None):
-        """`download` is a filename, and it means SAVE THIS rather than show it.
-
-        A PDF is in `INLINE_OK`, so a browser handed one renders it in the tab --
-        which is the right default for looking at a figure and the wrong one for
-        a document somebody asked to keep. On an iPad an inline PDF is a preview
-        with no obvious route into Files; an attachment goes straight to the
-        share sheet, and from there to iCloud, a phone, or an email to a
-        professor. So the caller says which it wants, and the filename is the
-        name the file will have on the other side.
-        """
+        """`download` is a filename: save this rather than show it, so an iPad
+        gets the share sheet instead of an inline preview."""
         if not os.path.isfile(path):
             self.send_bytes(b"not found", "text/plain", status=404)
             return
@@ -342,11 +309,9 @@ class Handler(BaseHTTPRequestHandler):
         return buf
 
     # -- routing ---------------------------------------------------------
-    # A session server (`app.main`) has a `registry`: `/s/<id>/...` is served
-    # by that session's Repo and Hub with the prefix stripped, and an
-    # unprefixed request is answered only when UNPREFIXED lists it. A server
-    # a test builds with `repo` and `hub` and no registry serves one session,
-    # unprefixed, as before.
+    # With a `registry`, `/s/<id>/...` goes to that session's Repo and Hub with
+    # the prefix stripped, and unprefixed requests only where UNPREFIXED lists
+    # them. A test server with `repo` and `hub` serves one session unprefixed.
     def _scope(self):
         """`(path, query)` of this request, with `self.repo` and `self.hub`
         set to the session it is for. None after a 404 was sent."""
@@ -395,10 +360,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
         if path in ("/slate", "/slate/"):
             return self.send_file(os.path.join(WEB, "slate.html"))
-        # A PAGE OF ITS OWN, not a panel over the lesson. "View all papers and
-        # presentations related to a project very easily" means not opening a
-        # sitting to get there -- and feedback written from it must not touch the
-        # lesson somebody else is mid-proof in. `/slate` is the precedent.
+        # A page of its own, so feedback never touches the lesson.
         if path in ("/library", "/library/"):
             return self.send_file(os.path.join(WEB, "library.html"))
         if re.match(r"^/slate/page-\d+\.png$", path):
@@ -444,9 +406,8 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return self.send_json({"ok": False, "error": "this session has ended "
                                    "and is read-only"}, status=409)
-        # Before anything writes. The directories were made when this process
-        # started and a pull can have removed one since -- see `Repo.ensure_dirs`.
-        # Ten stat calls against a route that is about to write a PNG.
+        # A pull can remove a directory under a running server
+        # (`Repo.ensure_dirs`).
         repo.ensure_dirs()
         return self.post_routes(repo, path)
 

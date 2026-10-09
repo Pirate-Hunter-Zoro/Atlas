@@ -1,16 +1,13 @@
 """A workspace on disk, its session directory, and the paths inside it.
 
-Everything the board reads or writes during a lesson hangs off one of these,
-so a directory layout that changes changes here and nowhere else. Every Repo
-is handed its session directory; there is no default. `session_dir` and
-`session_path` answer the one a CLI process bound, for code that holds only a
-root, and None where it bound none.
+Every path the board reads or writes during a lesson hangs off a Repo, so a
+layout change happens here only. A Repo is always handed its session
+directory; a stored session (`sessions/<id>/` with session.json) has its
+state in session.json and its root at the bound subject, or the Atlas root
+while unbound.
 
-A session directory holding `session.json` is a stored session
-(`tutorboard/sessions.py`): its state is session.json, its uploads sit at its
-top, and its root is the bound subject's, or the Atlas root while unbound.
-
-Runs on the cluster's python3 (3.7) through jobs.py: no walrus, no `match`.
+The constraint: this runs on the cluster's python3 (3.7) through jobs.py,
+so no walrus and no `match`.
 """
 
 import json
@@ -18,8 +15,7 @@ import os
 import re
 
 
-# A CLI process runs on one session, bound by `resolve`. Code that holds only
-# the workspace root then reaches the same directory the Repo object does.
+# The session a CLI process bound (`resolve`), for code holding only a root.
 _BOUND = {}
 
 
@@ -111,10 +107,8 @@ def ink_dirs(repo):
 
 
 def ink_records(repo, suffix=".json"):
-    """`(dir, name)` of every ink file ending in `suffix`, where each one
-    belongs: a card's from the session, a document page's from `doc_ink`.
-    A record in the wrong directory for its kind is skipped by the reader,
-    which checks `ink_dir` of the key it carries."""
+    """`(dir, name)` of every ink file ending in `suffix`, from the session
+    for cards and `doc_ink` for document pages."""
     out = []
     for where in ink_dirs(repo):
         try:
@@ -129,13 +123,11 @@ def ink_records(repo, suffix=".json"):
 # which workspace a command runs in
 # ---------------------------------------------------------------------------
 class NoWorkspace(SystemExit):
-    """Raised instead of answering with the Atlas root, or with no session
-    where a command needs one: a CLI that lets it propagate exits 1 with the
-    message, having created nothing."""
+    """Raised instead of answering with the Atlas root or with no session
+    where one is needed; uncaught, the CLI exits 1 having created nothing."""
 
 
-# The session directory of a Repo with no session (`sessionless`): never
-# created, so nothing is written there.
+# A sessionless Repo's session directory: never created.
 NONE = ".none"
 
 
@@ -201,12 +193,9 @@ def _ancestors(d):
 def resolve(root=None, create=True, need_session=True):
     """The Repo a CLI command works on.
 
-    `TUTORBOARD_SESSION` names the session directory when set; the workspace
-    is then `root`, else the nearest one above the cwd, else the Atlas root,
-    and `session_dir` of that workspace answers the session for the rest of
-    the process. Without it, a command that needs a session raises
-    NoWorkspace, and one that does not gets `sessionless` over `root` or
-    `find_repo()`.
+    With `TUTORBOARD_SESSION`, that session over `root`, else the nearest
+    workspace above the cwd, else the Atlas root. Without it, a command
+    needing a session raises NoWorkspace; others get `sessionless`.
     """
     said = os.environ.get("TUTORBOARD_SESSION")
     if said:
@@ -229,9 +218,8 @@ def resolve(root=None, create=True, need_session=True):
 
 
 def sessionless(root, atlas=None):
-    """A Repo over `root` with no session: its session directory is
-    `<atlas>/sessions/.none`, which nothing creates, so a write into it fails
-    rather than leaving a stray directory."""
+    """A Repo over `root` with no session; its session directory
+    `<atlas>/sessions/.none` is never created, so writes fail loudly."""
     repo = Repo(root, os.path.join(atlas or ATLAS, "sessions", NONE),
                 create=False)
     repo.sessionless = True
@@ -265,62 +253,40 @@ class Repo:
             raise ValueError("a Repo needs its session directory")
         self.root = os.path.abspath(root)
         self.session = os.path.abspath(session)
-        # A stored session (`sessions/<id>/`), as against a workspace's live/.
+        # A stored session (`sessions/<id>/`) rather than a workspace's live/.
         self.stored = is_stored(self.session)
         # The Atlas root holding `sessions/`, for a stored session.
         self.atlas = (os.path.dirname(os.path.dirname(self.session))
                       if self.stored else None)
-        # The name every caller used before the session could live elsewhere.
+        # The legacy name for the session directory.
         self.live = self.session
         self.cards = os.path.join(self.live, "cards")
         self.inbox = os.path.join(self.live, "inbox")
         self.uploads = (os.path.join(self.live, "uploads") if self.stored
                         else os.path.join(self.inbox, "uploads"))
-        # Compiled TikZ: one cache beside every stored session, keyed by the
-        # source and the subject's macros (`server/tikz.py`).
+        # Compiled TikZ, keyed by source and subject macros (`server/tikz.py`).
         self.tikz = (os.path.join(os.path.dirname(self.session), ".tikz")
                      if self.stored else os.path.join(self.live, "tikzcache"))
         self.archive = os.path.join(self.live, "archive")
         self.slate = os.path.join(self.live, "slate")
-        # What the student actually handed in, frozen at the moment they sent
-        # it. The slate is a working surface and gets written over; a transcript
-        # cannot be built out of a surface that changes underneath it.
+        # What was handed in, frozen: the slate is written over.
         self.answers = os.path.join(self.live, "answers")
-        # Marks written on top of the tutor's own cards. Kept per card, because
-        # a card is the thing an annotation is about and the only anchor that
-        # survives the lesson reflowing at a different type size.
+        # Ink on cards, per card: the anchor that survives reflow.
         self.notes = os.path.join(self.live, "annotations")
-        # Typed answers, drafted per question the way the slate drafts per page,
-        # so switching from typing to writing and back does not lose the sentence.
+        # Typed answers drafted per question, kept across input switches.
         self.text = os.path.join(self.live, "text")
-        # Ink on a document page (`doc/<id>/p<n>`) of a stored session bound
-        # to a subject lives in the subject's ignored `.ink/`, so every session
-        # on that subject sees it. None elsewhere: it stays in `notes`.
+        # Document-page ink of a bound session lives in the subject's ignored
+        # `.ink/`, shared by its sessions; elsewhere it stays in `notes`.
         self.doc_ink = None
         if self.stored and os.path.realpath(self.root) != os.path.realpath(self.atlas):
             self.doc_ink = os.path.join(self.root, ".ink")
         if create:
             self.ensure_dirs()
 
-    # Every directory the board writes into, re-asserted. Not only at startup:
-    # a board is a long-lived process and these directories are inside a git
-    # repository that something else pulls. git removes a directory when it
-    # removes the last tracked file in it, and `live/text/` holds one file per
-    # question in progress -- so the transcript beat committing "the student
-    # sent it, the draft is gone" on the other machine, pulled here, takes the
-    # directory with it. The board went on holding the path it made when it
-    # started, and every keystroke in the answer box then arrived as a 500 with
-    # a FileNotFoundError behind it. On the iPad that is a typed answer that
-    # will not save, with nothing on screen saying why.
-    #
-    # It is every one of them, not just `text`: `answers`, `annotations`,
-    # `slate`, `inbox/uploads` and `cards` are all tracked, all routinely go
-    # empty, and all are written to by a request that arrives whenever the
-    # student happens to act.
-    #
-    # `cli=True` leaves out `annotations` and `text`: a board creates them when
-    # it starts, and a CLI command that only ever reads them should not leave
-    # one behind in a workspace nobody has opened a board in.
+    # Re-asserted on every call, not only at startup: a pull can remove an
+    # emptied tracked directory under a running board, and every write there
+    # would then 500. `cli=True` skips `annotations` and `text`, which only a
+    # board creates.
     def ensure_dirs(self, cli=False):
         dirs = [self.live, self.cards, self.inbox, self.uploads, self.tikz,
                 self.slate, self.answers]
@@ -344,12 +310,9 @@ class Repo:
             return None
 
     def set_state(self, **kw):
-        """Merge `kw` into the state file; a None value clears its key.
-
-        In a stored session, `hw` is written as `writeup` (the set's source,
-        relative to the Atlas root), and the keys session.json always carries
-        are cleared to null rather than dropped.
-        """
+        """Merge `kw` into the state file; a None value clears its key. In a
+        stored session `hw` is written as `writeup` (relative to the Atlas
+        root), and the always-present keys are nulled, not dropped."""
         if self.stored:
             return self._set_session(kw)
         s = self.state()
@@ -409,9 +372,8 @@ class Repo:
         return os.path.join(self.live, "turns.jsonl")
 
     def state(self):
-        """The session's state. A stored session's is its session.json, with
-        the legacy `hw` key added when `writeup` is a homework set or a
-        `docs/` write-up under the root, so `board writeup` finds it."""
+        """The session's state: a stored session's session.json, plus the
+        legacy `hw` key derived from `writeup` for `board writeup`."""
         if not self.stored:
             try:
                 with open(self.state_path, "r", encoding="utf-8") as fh:

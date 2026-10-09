@@ -1273,7 +1273,7 @@ function create(mathjs, opts) {
         var parsed = M.parse(d[k]);
         rewrite(parsed).compile().evaluate(scope);
         defs[k] = d[k];
-      } catch (e) { /* a definition that no longer parses is dropped */ }
+      } catch (e) { /* a definition that fails to parse is dropped */ }
     });
   }
 

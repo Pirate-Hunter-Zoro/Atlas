@@ -101,13 +101,9 @@ DEFAULT_CONFIG = {
 
 def load_config():
     """The defaults above, with this machine's config file laid over them.
-
-    `agents` merges one level deeper than everything else: a machine adjusting
-    one field of a built-in recipe writes `{"agents": {"claude": {...}}}` and
-    keeps the rest of the recipe. `"replace": true` on an entry replaces it
-    outright. A missing or unreadable file is the defaults; nothing is written.
-    `default_agent`, `only_agent` and `session_turns` are read by nothing:
-    `provider` alone chooses.
+    `agents` merges one level deeper (`"replace": true` replaces an entry).
+    A missing or unreadable file is the defaults; nothing is written.
+    `default_agent`, `only_agent` and `session_turns` are ignored.
     """
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     try:
@@ -146,12 +142,8 @@ def this_host():
     return machine.node_name()
 
 def missing_command(recipe):
-    """The recipe's own executable, when this machine has not got it.
-
-    A recipe whose command is missing would fail every turn into a log, so the
-    resolver hands its turns to the fallback. A script agent runs under this
-    interpreter, which is by definition present.
-    """
+    """The recipe's executable when this machine lacks it (the resolver then
+    hands its turns to the fallback); a script agent never lacks one."""
     exe = (recipe or [None])[0]
     if not exe or os.path.basename(exe) == os.path.basename(sys.executable):
         return None
@@ -163,14 +155,9 @@ def agent_label(cfg, name):
 
 
 def agent_probe_urls(spec):
-    """The endpoints THIS recipe's turns open, or None for the machine's own.
-
-    A recipe that points the binary somewhere else -- `ANTHROPIC_BASE_URL` at a
-    third party -- talks to a host the machine-wide probe never asks about, and
-    the two questions have different answers when one hostname is filtered and
-    the rest of the internet is not. None means the recipe adds nothing to the
-    default agent's, which is what `egress.egress_probe_urls` already returns.
-    """
+    """The endpoints this recipe's turns open (e.g. via `ANTHROPIC_BASE_URL`),
+    or None for the default agent's own, since a filter may drop one host
+    while the rest of the internet answers."""
     urls = (spec or {}).get("egress_probe")
     if isinstance(urls, str):
         urls = [urls]
@@ -178,12 +165,8 @@ def agent_probe_urls(spec):
 
 
 def provider_probe_urls(cfg):
-    """Every configured provider's own endpoints, for the machine-wide probe.
-
-    Configured means a recipe this machine could run: its command is here and
-    its key is in `keys.env`. A recipe with neither opens no connection from
-    here, so asking after its host would answer a question about nobody's turn.
-    """
+    """Every configured provider's endpoints for the machine-wide probe: only
+    recipes whose command and key are both here."""
     out = []
     for name in sorted(cfg.get("agents") or {}):
         spec = cfg["agents"][name] or {}
@@ -220,12 +203,9 @@ def fallback(cfg):
 
 
 def in_fence(cfg, name):
-    """The refusal for an in-fence recipe (`private`), else None.
-
-    Only an in-fence model reads phi, and it runs only as a relay task on the
-    cluster: a turn here is hosted, so it is never the provider, the fallback
-    or a vision route, whatever the config says.
-    """
+    """The refusal for an in-fence recipe (`private`), else None: only it
+    reads phi and it runs only as a cluster relay task, never as a hosted
+    turn, fallback or vision route here."""
     spec = ((cfg or {}).get("agents") or {}).get(name)
     if isinstance(spec, dict) and spec.get("private"):
         return ("'%s' is an in-fence model: only it reads phi, and it never "
@@ -234,12 +214,9 @@ def in_fence(cfg, name):
 
 
 def unavailable(cfg, name, now=None):
-    """Why `name` cannot take a turn on this machine right now, or None.
-
-    Facts read off disk, never a round trip: no such recipe, the in-fence
-    refusal, no headless recipe, the binary missing, the key missing, or an
-    allowance that has run out (`limits.mark_limited`).
-    """
+    """Why `name` cannot take a turn on this machine now, or None, from disk
+    alone: no recipe, in-fence, no headless recipe, missing binary or key, or
+    a spent allowance (`limits.mark_limited`)."""
     spec = ((cfg or {}).get("agents") or {}).get(name)
     if not isinstance(spec, dict):
         return "there is no recipe called '%s'" % name

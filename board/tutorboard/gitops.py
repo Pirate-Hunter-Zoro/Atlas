@@ -6,23 +6,15 @@
     save(root, paths, message)                  commit, then push
     adopt_private(base)                         clone ai-config where it is missing
 
-The Mac's timed pull is the board server's cluster thread (`cluster.Ear`).
+The Mac's timed pull is `cluster.Ear`; `save-and-push.sh` wraps `save`;
+relay.py and code.py keep their own cluster-side git. While a session has
+`code` set, `commit` on main refuses its held paths (`held_refusal`): they
+reach main only through `board code <id> --end`.
 
-`board/scripts/save-and-push.sh` is a thin CLI over `save`. relay.py and
-code.py keep their own cluster-side git.
-
-A PATH HELD AT THE CLUSTER IS THE CLUSTER'S. While a Mac session's
-`session.json` has `code` set (a coding session at the cluster, `code.py`),
-`commit` on main refuses any change to its held paths (`held_refusal`): those
-files reach main only through `board code <id> --end`, and the session's own
-`board push` goes to `code/<id>`. The store is `sessions/` under the root, which
-the cluster never has.
-
-Nothing here commits into an operation somebody started in a terminal: a
-rebase, a merge, a cherry-pick, a revert, a bisect or a detached HEAD all mean
-a person has their own plan for the next commit (`worktree.busy_reason`).
-
-Runs on the cluster's python3 too (relay path): no walrus, no `match`.
+The constraint: nothing here commits into an operation somebody started in
+a terminal (rebase, merge, cherry-pick, revert, bisect, detached HEAD;
+`worktree.busy_reason`). Runs on the cluster's python3: no walrus, no
+`match`.
 """
 
 import json
@@ -37,8 +29,7 @@ from tutorboard import worktree
 # commit saying only this is a save, not a piece of work.
 SAVE = "lesson complete"
 
-# A network step that waits longer than this is a credential prompt nobody can
-# see, or a remote that is down. Either way the answer is to stop and say so.
+# A longer network wait is an invisible credential prompt or a dead remote.
 NET_TIMEOUT = 120
 LOCAL_TIMEOUT = 60
 # A commit runs the hooks, and Atlas's pre-commit gate reads the staged diff.

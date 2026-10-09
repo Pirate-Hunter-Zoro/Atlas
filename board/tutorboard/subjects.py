@@ -1,19 +1,13 @@
 """Subjects: every directory directly under `courses/` or `projects/`.
 
-Two kinds, and the kind is the parent directory. There is no registry and no
-marker file: `mkdir projects/X` is a project, empty or not, because a file that
-must be edited when a directory is made is the registry this system refuses.
-Dot directories are skipped.
+The kind is the parent directory. `create(ident, phi)` makes the directory,
+tutorboard.json and a TUTOR.md skeleton (plus the PHI ignore stanza for a
+patient-data project) in one gitops commit; `delete` moves one to the trash.
 
-`research/` and `practice/` are the legacy parents, merged into `projects/`.
-No subject is listed there; `find` still resolves a legacy id to its slug.
-
-`create(ident, phi)` makes a subject: the directory, tutorboard.json and a
-TUTOR.md skeleton (plus the PHI ignore stanza for a patient-data project), in
-one gitops commit.
-
-Runs on the cluster's python3 (3.7): no walrus, no `match`, no builtin
-generics at runtime.
+The constraint: no registry and no marker file, so `mkdir projects/X` is a
+project; a file that must be edited when a directory is made is the registry
+this system refuses. Runs on the cluster's python3 (3.7): no walrus, no
+`match`, no builtin generics at runtime.
 """
 
 import json
@@ -46,10 +40,8 @@ class Refused(ValueError):
 
 
 def root():
-    """The Atlas root: the parent of `board/`, from this file's own path.
-
-    `TUTORBOARD_COURSES` overrides it; that is how a test says "this tree".
-    """
+    """The Atlas root, the parent of `board/`; `TUTORBOARD_COURSES` overrides
+    it for tests."""
     said = os.environ.get("TUTORBOARD_COURSES")
     if said:
         return os.path.realpath(os.path.expanduser(said))
@@ -72,10 +64,7 @@ def _name(where, slug):
 
 
 def walk(base=None):
-    """`(parent, kind, slug, root)` for every subject, without reading a file.
-
-    The cheap listing under `all()`, for callers polled often that need no name.
-    """
+    """`(parent, kind, slug, root)` for every subject, reading no file."""
     base = _base(base)
     out = []
     for parent, kind in DIRS:
@@ -108,12 +97,8 @@ def _record(parent, kind, slug, where):
 
 
 def find(ident, base=None):
-    """One subject by qualified id, slug or root, else None.
-
-    Matched only against `walk()`, the listing under `all()`; nothing is
-    built from `ident`. A qualified id names its parent too: `<parent>/<slug>`
-    under any other parent finds nothing.
-    """
+    """One subject by qualified id, slug or root, else None. Matched only
+    against `walk()`; `<parent>/<slug>` under any other parent finds nothing."""
     if not ident:
         return None
     ident = str(ident).strip().rstrip("/")
@@ -180,18 +165,13 @@ def _tutor_md(name):
 
 def create(ident, phi=None, base=None):
     """Make the subject `ident` (`courses/<name>` or `projects/<name>`) and
-    commit it. `(record, ok, said)`: `record` is the `all()` record.
+    commit it. `(record, ok, said)`, `record` as `all()` gives it.
 
-    The name is slugified into the directory. Refused (`Refused`): an
-    absolute path, a `..` or `.` component, anything but exactly
-    `<courses|projects>/<name>`, a slug some subject already has, a course
-    asked to hold patient data, and a project with no answer for `phi`.
-
-    tutorboard.json holds {name, phi}: `false` for a course; the owner's
-    answer for a project, whose `true` also writes a .gitignore with
-    `PHI_IGNORE`. TUTOR.md is the skeleton of `TUTOR_SECTIONS`. One gitops
-    commit holds all of it; a commit that fails takes the directory away
-    again, so asking twice is safe.
+    Refused: an absolute path, `.` or `..`, anything but exactly
+    `<courses|projects>/<name>`, a taken slug, a course holding patient data,
+    a project with no `phi` answer. tutorboard.json holds {name, phi}; `phi`
+    true also writes `PHI_IGNORE`. A failed commit removes the directory, so
+    asking twice is safe.
     """
     from . import gitops                                     # local: light here
     base = _base(base)
@@ -315,13 +295,10 @@ def delete_blocker(found, base=None):
 
 
 def delete(ident, typed, base=None, now=None):
-    """Delete the subject `ident` (matched against `all()`), from the iPad.
-
-    `typed` must equal its slug. Refused (`Busy`) by `delete_blocker`; a
-    name that is no subject, or a typed name that is not the slug, is
-    `Refused`. The whole directory, ignored residue and all, moves to the
-    trash; its tracked files leave in one gitops commit. A commit that fails
-    puts the directory back. `(trash path, said)`.
+    """Delete the subject `ident` from the iPad: `typed` must equal its slug,
+    and `delete_blocker` must allow it. The directory moves to the trash and
+    its tracked files leave in one commit; a failed commit puts it back.
+    `(trash path, said)`.
     """
     from . import gitops, sessions                           # local: a cycle
     base = _base(base)

@@ -1,17 +1,11 @@
 /* ==========================================================================
    viewpin.js -- a bar that stays on the glass while the page is pinched.
 
-   `position: fixed` is fixed to the LAYOUT viewport, and a pinch-zoom moves
-   only the VISUAL one. So a reader zoomed in on a slide had its top bar (the
-   pen switch, "say what is wrong", the way out) and its tool bar panned off the
-   glass, with no way to finish marking or send the marks. Reported as: "the
-   presentation is full screen, there is no done marking."
-
-   A pinned bar, while the page is zoomed, is placed over the visual viewport
-   and scaled down by the zoom, so it sits on the edge of what is visible at
-   its ordinary size. At no zoom its inline styles are cleared and the page's
-   own CSS places it as before. The same problem, for single buttons on the
-   board, is `recentre.js`.
+   `position: fixed` follows the layout viewport, and a pinch moves only the
+   visual one, so a zoomed reader would lose its bars (and every way to finish
+   marking or send). A pinned bar, while zoomed, is placed over the visual
+   viewport and scaled down by the zoom; at no zoom its inline styles are
+   cleared. The same problem for single buttons is `recentre.js`.
    ========================================================================== */
 
 (function () {

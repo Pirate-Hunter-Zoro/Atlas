@@ -1,46 +1,17 @@
 """jobs.py -- long work, labelled, and reporting itself.
 
-A Slurm job a turn submits with a bare `sbatch` is work the board cannot see:
-nobody hears when it ends. So a turn submits through `board job`, which runs
-the `sbatch` and appends one record to the workspace's job registry:
+`board job` runs `sbatch` and appends `{label, jobid, cmd, cwd, produces,
+log, submitted}` to the subject's registry, `relay/state/jobs.jsonl`
+(ignored). The relay polls it: `sacct` is refused on this cluster, so an end
+is read from `squeue` plus the exit file every wrapped recipe writes last;
+gone without the file is DIED, an unwrapped job ENDED with exit unknown. An
+ending is claimed once (`O_EXCL`) and drops a `[job]` line that wakes a
+turn. Without Slurm, `board job` files a relay request instead, and `view`
+merges local jobs, requests and reports.
 
-    {label, jobid, cmd, cwd, produces, log, submitted}
-
-`label` is an optional slug naming the work; nothing here reads the thread
-file. A request may also carry `session`, the Mac session it was filed from,
-which its report echoes so the ending wakes that session.
-
-THE REGISTRY IS APPEND-ONLY. The poll that sees a job change state appends a
-record carrying `state` (and, at the end, `exit` and `ended`) for the same job
-id, and a reader folds the records in file order -- `exports.merged`. Two
-writers never rewrite each other's lines.
-
-WHERE IT LIVES is `<subject>/relay/state/`, which git ignores (`**/relay/state/`
-in the root .gitignore): the registry `jobs.jsonl`, every claim in
-`reported/`, and the Colibri queue in `colibri/` (`tutorboard/colibri.py`).
-It is runtime state of the machine that runs the jobs; what crosses to the Mac
-is a request's report. One registry holds both kinds of job: a record carrying
-`request` is the relay's, and only the relay's poll reports it. Records from
-before (`live/jobs.jsonl`, `live/jobs.reported/`, `live/missions/`) are moved
-in by `migrate_state`, which every reader calls first.
-
-THE CLUSTER'S RELAY POLLS IT (`tutorboard/relay.py`, every two minutes).
-`sacct` is refused on this cluster, so a job's end is read from `squeue` and
-an exit-code file: `submit_recipe` wraps every recipe so its last act writes
-its exit code to `relay/state/<key>.exit`, which is ignored. A job that has
-left `squeue` with that file ended with that code; one that left without it
-DIED (timeout, node failure, a cancel). The wrapper also loads the failure
-fingerprint (board/cluster/lib, `wrapper`), so every wrapped recipe says what
-failed behind `RELAY:`. A raw `sbatch` has no wrapper, so its
-leaving is ENDED, exit unknown. An ending is claimed once (`O_EXCL`, so two
-passes never report the same job twice), appended, and a `[job]` line is
-dropped in the inbox. That line wakes a turn the way a message does.
-
-A MACHINE WITHOUT SLURM FILES A REQUEST INSTEAD (the relay section below), and
-`view` is the one registry a reader sees: local jobs, requests, and the
-cluster's reports on them, merged.
-
-Standard library only, like everything else.
+The constraint: the registry is append-only. State changes append records
+folded by job id in file order (`exports.merged`), so two writers never
+rewrite each other's lines.
 """
 
 import glob
@@ -56,17 +27,15 @@ from . import cluster, exports, fenced
 
 NAME = "jobs.jsonl"
 
-# A job missing from `squeue` this soon after submission, with no exit file,
-# is given one more pass before it is called DIED.
+# Grace before a fresh job missing from squeue without an exit file is DIED.
 GRACE = 60
 
-# A subject's runtime state: wrapped jobs' exit codes and wrappers, the job
-# registry, the claims and the Colibri queue. Ignored by the root .gitignore.
+# Runtime state (exit codes, registry, claims, Colibri queue); ignored.
 STATE = os.path.join("relay", "state")
 REPORTED = os.path.join(STATE, "reported")
 COLIBRI = os.path.join(STATE, "colibri")
 
-# Where the same records lived before, relative to a subject root.
+# Where those records lived before, relative to a subject root.
 OLD_LIVE = "live"
 OLD_RELAY_CLAIMS = os.path.join(STATE, "jobs.reported")
 
@@ -74,9 +43,8 @@ CMD_CHARS = 600
 
 
 def registry(root):
-    """The registry's path in this subject: `relay/state/jobs.jsonl`. Never
-    creates the file; `migrate_state` runs first, so records from the old
-    places are here."""
+    """`relay/state/jobs.jsonl` in this subject, after `migrate_state`. Never
+    creates the file."""
     migrate_state(root)
     return os.path.join(root, STATE, NAME)
 
@@ -90,8 +58,7 @@ def claims_dir(root):
 # moving runtime state out of live/
 # ---------------------------------------------------------------------------
 def _old_live(root, live=None):
-    """The old `live/` to empty: `<root>/live`, or the one a caller names
-    (the cutover's import, whose workspace is not yet at the subject's path)."""
+    """The old `live/`: `<root>/live`, or the one the cutover's import names."""
     return live or os.path.join(root, OLD_LIVE)
 
 
@@ -112,9 +79,9 @@ def _tracked(root, rel):
 
 
 def _old_registries(root, live=None):
-    """The old registries present here: `live/jobs.jsonl`, and `jobs.jsonl`
-    at the root where git does not track it (a tracked one is the owner's
-    to remove, and moving it would be a change the relay must not commit)."""
+    """The old registries present here: `live/jobs.jsonl`, and an untracked
+    root `jobs.jsonl` (a tracked one is the owner's, and the relay must not
+    commit its move)."""
     out = []
     inner = os.path.join(_old_live(root, live), NAME)
     if os.path.isfile(inner):
@@ -159,8 +126,8 @@ def _pending(root, live=None):
 
 
 def _move(src, dst):
-    """Rename `src` to `dst`, or drop `src` where `dst` is already there: a
-    claim held in both places is one claim. True if anything changed."""
+    """Rename `src` to `dst`, or drop `src` where `dst` exists (one claim in
+    two places is one claim). True if anything changed."""
     try:
         if os.path.lexists(dst):
             os.remove(src)
@@ -180,22 +147,13 @@ def _rmdir(path):
 
 
 def migrate_state(root, live=None):
-    """Move this subject's runtime state out of `live/` into `relay/state/`.
+    """Move this subject's runtime state out of `live/` into `relay/state/`:
+    registries are appended, claims land in `reported/`, Colibri task
+    records in `colibri/`. `live` names an old `live/` elsewhere (the cutover).
 
-    `live` names the old `live/` when it is not `<root>/live`: the cutover
-    imports a workspace from its pre-merge path into its post-merge subject.
-
-    `live/jobs.jsonl` (and an untracked `jobs.jsonl` at the root) join
-    `relay/state/jobs.jsonl`; every claim in `live/jobs.reported/`,
-    `relay/state/jobs.reported/` and `live/coach.woken/` lands in
-    `relay/state/reported/`; every Colibri task record in `live/missions/`,
-    with its claim flags, lands in `relay/state/colibri/`. Mission records
-    that are not tasks stay where they are.
-
-    Idempotent: a second run finds nothing old and changes nothing. A run
-    that finds nothing costs a few stats, so every reader calls it first.
-    Under a `flock` on `relay/state/.migrate.lock`, so two readers never
-    append the same old registry twice. The number of paths moved.
+    Idempotent and cheap when there is nothing to move, so every reader calls
+    it first. Under a `flock`, so two readers never append one registry
+    twice. Returns the number of paths moved.
     """
     if not root or not _pending(root, live):
         return 0
@@ -212,9 +170,7 @@ def migrate_state(root, live=None):
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         except (ImportError, OSError):
             pass
-        # The registry: renamed where there is none yet, else appended in
-        # file order. Records fold by job id, so the order across files does
-        # not matter, and nothing is lost.
+        # Renamed where there is none yet, else appended: records fold by id.
         target = os.path.join(state, NAME)
         for old in _old_registries(root, live):
             try:
@@ -308,9 +264,8 @@ def _lines(path):
 
 
 def records(root, relay=None):
-    """`{jobid: record}`, folded. `relay` True keeps only the jobs the relay
-    submitted for requests (a record carrying `request`), False only the
-    others, None all of them."""
+    """`{jobid: record}`, folded. `relay` True keeps the relay's jobs (records
+    carrying `request`), False the others, None all."""
     out = exports.merged(_lines(registry(root)))
     if relay is None:
         return out
@@ -327,12 +282,10 @@ def state_dir(root):
 # ---------------------------------------------------------------------------
 def submit(root, label, argv, produces=(), cwd=None, run=subprocess.run,
            now=None, export=(), env=None, extra=None):
-    """Run `sbatch`, and register the job under `label`. `(record, error)`.
+    """Run `sbatch` and register the job under `label`. `(record, error)`.
 
-    `argv` must start with `sbatch`. `--parsable` is added where it is missing,
-    so the id is read rather than scraped out of a sentence. `env` is the
-    environment sbatch runs in; `extra` the fields the record carries besides
-    (a `cmd` there overrides the argv's).
+    `argv` must start with `sbatch`; `--parsable` is added so the id is read,
+    not scraped. `extra` fields ride on the record (its `cmd` wins).
     """
     argv = list(argv or [])
     if not argv or os.path.basename(argv[0]) != "sbatch":
@@ -369,8 +322,7 @@ def submit(root, label, argv, produces=(), cwd=None, run=subprocess.run,
     if export:
         rec["export"] = list(export)
     rec.update(extra or {})
-    # The registry is ignored, so it may hold where the log really is,
-    # outside the workspace too: the `RELAY:` lines are read out of it.
+    # The registry is ignored, so it may name a log outside the workspace.
     rec["log_path"], rec["err_path"] = out, err
     append(root, rec)
     return rec, ""
@@ -392,9 +344,8 @@ _ARRAY_RE = re.compile(r"^#SBATCH\s+(?:--array[=\s]|-a\s*)\s*(\S+)")
 
 
 def array_tasks(header):
-    """How many tasks the header's `--array` asks for, None without one, or
-    0 where the spec cannot be read (every task file is then required, and
-    an unknown count reads as a death rather than a success). Pure."""
+    """Task count of the header's `--array`: None without one, 0 when
+    unreadable (every task file is then required). Pure."""
     spec = None
     for h in header or ():
         m = _ARRAY_RE.match(h.strip())
@@ -424,9 +375,8 @@ FINGERPRINT_LIB = os.path.join(
 
 
 def fingerprint(root, recipe):
-    """`{root, stage, config, lib}`: what `wrapper` exports so a recipe is
-    fingerprinted whether or not it sources `relay_trap.sh`. `config` is the
-    subject's tutorboard.json `relay.fingerprint`, as JSON."""
+    """`{root, stage, config, lib}` that `wrapper` exports, so a recipe is
+    fingerprinted whether or not it sources `relay_trap.sh`."""
     from .course import config
     said = config.read_config(root).get("relay", {}).get("fingerprint")
     return {"root": os.path.realpath(root), "stage": recipe,
@@ -436,17 +386,14 @@ def fingerprint(root, recipe):
 
 
 def wrapper(header, command, exitfile, name="", fp=None):
-    """A batch script: `header`, then `command`, then the exit code written to
+    """A batch script: `header`, `command`, then the exit code written to
     `exitfile` as its last act. Pure.
 
-    No trap: a job killed at its time limit must leave NO file, because that
-    absence is how a death is told from an ending. An array task writes
-    `<stem>_<task>.exit`.
-
-    With `fp` (`fingerprint`) it first exports RELAY_ROOT, RELAY_STAGE,
-    RELAY_CONFIG and RELAY_WRAPPED, and puts board/cluster/lib on PYTHONPATH,
-    so every Python the recipe starts reports its failure; on a non-zero exit
-    it prints `RELAY: recipe <recipe> failed: exit <n>, checkout <sha>`.
+    No trap, because a job killed at its limit must leave no file: that
+    absence tells a death from an ending. An array task writes
+    `<stem>_<task>.exit`. With `fp` it exports the fingerprint variables and
+    puts board/cluster/lib on PYTHONPATH, and prints a `RELAY:` line on a
+    non-zero exit.
     """
     lines = ["#!/bin/bash"] + list(header)
     if name and not any(re.match(r"#SBATCH\s+(--job-name|-J)\b", h)
@@ -495,12 +442,8 @@ def local_key(now=None):
 def submit_script(root, label, header, command, key, shown_as, produces=(),
                   export=(), env=None, run=subprocess.run, now=None,
                   sbatch_env=None, extra=None, fp=None):
-    """Write the wrapper for `command` at `relay/state/<key>.sbatch` and submit
-    it from the workspace root. `(record, error)`.
-
-    `env` is the `{NAME: value}` the job gets through `--export=ALL,...`,
-    checked by `validate` before it gets here.
-    """
+    """Write the wrapper at `relay/state/<key>.sbatch` and submit it from the
+    workspace root. `(record, error)`. `env` is already `validate`d."""
     env = dict(env or {})
     sdir = state_dir(root)
     os.makedirs(sdir, exist_ok=True)
@@ -534,13 +477,8 @@ def submit_script(root, label, header, command, key, shown_as, produces=(),
 def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
                   key=None, run=subprocess.run, now=None, sbatch_env=None,
                   extra=None):
-    """Submit a tracked recipe, wrapped so its ending can be read.
-
-    The recipe runs where it is, under `bash`, from the workspace root: its
-    `#SBATCH` lines, `$SLURM_SUBMIT_DIR` and log paths are what a bare sbatch
-    of it would give. The wrapper carries the failure fingerprint
-    (`fingerprint`).
-    """
+    """Submit a tracked recipe, wrapped, run under `bash` from the workspace
+    root as a bare sbatch of it would be."""
     full = os.path.join(root, recipe)
     try:
         with open(full, "r", encoding="utf-8", errors="replace") as fh:
@@ -555,11 +493,8 @@ def submit_recipe(root, label, recipe, env=None, produces=(), export=(),
 
 
 def _redacted(argv):
-    """The argv with every `--export` value reduced to its variable names.
-
-    The registry can be tracked in a public repository, and an exported value
-    is where a path to protected storage goes.
-    """
+    """The argv with every `--export` value reduced to its names, because an
+    exported value can be a protected storage path."""
     out, hide = [], False
     for a in argv:
         if hide:
@@ -581,9 +516,8 @@ def _names(spec):
 
 
 def _relative(root, path):
-    """A path inside the workspace as workspace-relative; anything else by its
-    file name alone, because the registry may be public and an outside path
-    names storage it has no business naming."""
+    """A workspace path made relative; any other path by file name alone,
+    because an outside path names storage."""
     if not path:
         return ""
     real = os.path.realpath(path)
@@ -596,14 +530,9 @@ def _relative(root, path):
 
 
 def logs_of(jobid, cwd, run=subprocess.run):
-    """`(stdout, stderr)`: where the job writes, as Slurm says, "" for unknown.
-
-    An array task's `%a` becomes `*`, because the id sbatch prints is the
-    array's and each task writes its own file: the path is a glob.
-
-    Asked once, at submission, while `scontrol` still knows the job: it forgets
-    a finished one within minutes, and the log is what a failure is reported
-    with.
+    """`(stdout, stderr)` log paths as Slurm says, "" for unknown; an array's
+    `%a` becomes `*`. Asked at submission, because `scontrol` forgets a
+    finished job within minutes.
     """
     try:
         p = run(["scontrol", "show", "job", "-o", str(jobid)], cwd=cwd,
@@ -633,12 +562,9 @@ def logs_of(jobid, cwd, run=subprocess.run):
 # polling
 # ---------------------------------------------------------------------------
 def squeue(run=subprocess.run, user=None):
-    """`{base jobid: state}` for this user's jobs Slurm still knows. None when
-    squeue could not be asked at all, which is not the same as knowing nothing.
-
-    `sacct` is refused on this cluster, so this is all Slurm says: a job is
-    PENDING, RUNNING, or gone. An array is under its base id while any of its
-    tasks is, RUNNING if any task is.
+    """`{base jobid: state}` for this user's jobs Slurm still knows, or None
+    when squeue could not be asked (not the same as knowing nothing). An
+    array is RUNNING if any task is.
     """
     import getpass
     try:
@@ -674,9 +600,8 @@ def exit_of(root, rec):
     if not rel:
         return None
     full = os.path.join(root, rel)
-    # Listing the directory first makes an NFS client revalidate it, so a
-    # file written on a compute node seconds ago is not missed on a cached
-    # negative lookup.
+    # Listing first makes NFS revalidate the directory, so a fresh file is not
+    # missed on a cached negative lookup.
     try:
         os.listdir(os.path.dirname(full))
     except OSError:
@@ -684,8 +609,7 @@ def exit_of(root, rec):
     tasks = rec.get("array_tasks")
     arrayed = _array_exits(full)
     if tasks is not None and not isinstance(tasks, bool):
-        # An array task killed at its limit writes no file of its own, so a
-        # task file missing is a death, whatever the others wrote.
+        # A task killed at its limit writes no file, so a missing one is a death.
         if not tasks or len(arrayed) < int(tasks):
             return None
     found = ([full] if os.path.isfile(full) else []) + arrayed
@@ -704,13 +628,9 @@ def exit_of(root, rec):
 
 
 def ending(root, rec, now):
-    """`(state, exit, ended)` for a job that has left `squeue`, or None while
-    it is too fresh to call.
-
-    With the wrapper's file: COMPLETED on 0, FAILED otherwise. Wrapped and
-    without it: DIED -- a time limit, a node failure or a cancel. Not wrapped
-    (a raw sbatch): ENDED, exit unknown.
-    """
+    """`(state, exit, ended)` for a job that left `squeue`, or None while too
+    fresh: COMPLETED or FAILED from the exit file, DIED when wrapped without
+    one, ENDED (exit unknown) when unwrapped."""
     got = exit_of(root, rec)
     if got is not None:
         code, when = got
@@ -724,14 +644,11 @@ def ending(root, rec, now):
     return "ENDED", "", stamp
 
 
-# A job gone from squeue with no exit file is called DIED only once it has
-# been gone this long, seen by at least two passes: the wrapper writes the
-# file on a compute node, and another node's NFS view can lag behind it.
+# Gone this long, over two passes, before DIED: another node's NFS view lags.
 GONE_GRACE = 60
 
 
-# A claim older than this on an ending still not marked reported is a reader
-# that died holding it, and the next pass takes it over.
+# A claim this old on an unreported ending belongs to a dead reader.
 CLAIM_STALE = 10 * 60
 
 
@@ -740,10 +657,8 @@ def _marker(root, key):
 
 
 def _adopt(root, key):
-    """The claim on `key` at its new place, taking it over from an old place
-    (`live/jobs.reported/`, `relay/state/jobs.reported/`) where it is still
-    there: a job submitted, or a report heard, before the move is claimed
-    once, wherever its claim was written. The new path."""
+    """The claim on `key` at its new place, adopted from an old place so a
+    job from before the move is still claimed once. The new path."""
     target = _marker(root, key)
     if os.path.lexists(target):
         return target
@@ -783,20 +698,16 @@ def _unclaim(root, jobid):
 
 
 def poll(root, run=subprocess.run, now=None, relay=False):
-    """Ask squeue about every unfinished job. Returns the ones that ended now.
+    """Ask squeue about every unfinished job; return the ones that ended now.
 
-    `relay` True polls the jobs the relay submitted for requests, which the
-    relay reports; False the others, whose endings `report` drops in the
-    inbox. One registry and one claim directory hold both, and each job is
-    polled by exactly one of the two. A state change short of the end
-    (PENDING to RUNNING) is appended too, so the board can say which.
-    Nothing is appended for a job whose state is unchanged.
+    `relay` True polls the relay's jobs, False the others (whose endings
+    `report` drops in the inbox); each job is polled by exactly one. State
+    changes short of the end are appended too; unchanged ones are not.
     """
     now = float(now or time.time())
     out = []
     every = records(root, relay=relay).values()
-    # An ending recorded but never reported -- its reader died, or its inbox
-    # line could not be written -- is offered again, without asking squeue.
+    # An ending recorded but never reported is offered again.
     for j in every:
         if (exports.finished(j) and not j.get("reported")
                 and _claim(root, j["jobid"], now)):
@@ -817,9 +728,7 @@ def poll(root, run=subprocess.run, now=None, relay=False):
                 append(root, {"jobid": j["jobid"], "label": j.get("label"),
                               "state": state, "seen": now, "gone_at": 0})
             continue
-        # Gone from squeue, or there in a terminal state it is about to leave
-        # by: either way the wrapper's file, written before the job left, says
-        # how it ended.
+        # Gone, or about to leave: the exit file says how it ended.
         got = ending(root, j, now)
         if got is None:
             continue
@@ -831,8 +740,7 @@ def poll(root, run=subprocess.run, now=None, relay=False):
                 continue
             if now - float(gone) < GONE_GRACE:
                 continue
-        # The ending is recorded before it is claimed, so a reader that dies
-        # between the two leaves a finished job, not a running one.
+        # Recorded before claimed, so a dying reader leaves a finished job.
         end_rec = {"jobid": j["jobid"], "label": j.get("label"),
                    "state": state, "exit": code, "ended": end}
         append(root, end_rec)
@@ -867,13 +775,9 @@ def _relay_said(value):
 
 
 def relay_sense(root, rec):
-    """The inbox line for a cluster report: `sense` for a request.
-
-    Everything the turn reports is in the report, because the log stays on the
-    cluster: the state, the exit, which `produces` paths now exist there, which
-    exports landed here, the `RELAY:` lines and the note, and a cut of the log
-    only where the subject's phi is false (`relay.log_excerpt`). A failure the Mac
-    repairs opens `[repair]` rather than `[job]` (`repairs`).
+    """The inbox line for a cluster report. Everything the turn reports is in
+    it, because the log stays on the cluster; a log cut appears only where
+    phi is false. A failure the Mac repairs opens `[repair]`.
     """
     state = str(rec.get("state") or "")
     repair = repairs(root, rec)
@@ -967,9 +871,9 @@ _TRAFFIC_RE = re.compile(r"(^|/)(relay/requests|relay/reports|exports)/"
 
 
 def ran_elsewhere(root, rec):
-    """"", or the sentence saying a report ran at other code than its request
-    was filed after: `ran_at`, the cluster's HEAD, is not `commit`, and the
-    two differ beyond relay traffic, or this checkout cannot tell."""
+    """"", or the sentence saying a report ran at code other than its
+    request's `commit` beyond relay traffic, or that this checkout cannot
+    tell."""
     commit, ran = str(rec.get("commit") or ""), str(rec.get("ran_at") or "")
     if not (COMMIT_RE.match(commit) and COMMIT_RE.match(ran)):
         return ""
@@ -995,26 +899,18 @@ def ran_elsewhere(root, rec):
 # ---------------------------------------------------------------------------
 # a failed relay job: repaired on the Mac
 # ---------------------------------------------------------------------------
-# A FAILED RECIPE WAKES A `[repair]` TURN ON THE MAC, a doing turn whatever the
-# workspace teaches under (`board brief`, `doing_now` in runner/turn.py). It reads
-# the report, the `RELAY:` lines the failure fingerprint printed
-# (board/cluster/lib, `wrapper`), and the failing code, and then either
-# fixes it here -- check, `board push`, rerun through `board job --fixes` --
-# or, where the report does not say enough, files a DIAGNOSTIC: a tracked
-# recipe that prints `RELAY:` lines and produces nothing (`board diagnose`).
-# A completed diagnostic wakes the same kind of turn to apply what it found.
-#
-# No model runs beside the data. `MAX_FIXES` automatic attempts per failure,
-# diagnostics and reruns alike, counted off `relay/requests/`, and then the
-# owner decides; `board job --fresh` is the owner's way to start again.
+# A failed recipe wakes a `[repair]` doing turn on the Mac. It reads the
+# report's `RELAY:` lines and the code, then fixes and reruns (`board job
+# --fixes`) or files a diagnostic recipe (`board diagnose`). No model runs
+# beside the data. `MAX_FIXES` attempts per failure, counted off
+# `relay/requests/`; then the owner decides (`--fresh`).
 
 # The signal a repair turn is woken with.
 REPAIR = "repair"
 
 
 def ended_failed(rec):
-    """Did this relayed record end, and not cleanly? A refused, pending or
-    running request has not failed."""
+    """Did this relayed record end, and not cleanly?"""
     state = str(rec.get("state") or "")
     return state == "FAILED" or (state == "COMPLETED" and failed(rec))
 
@@ -1037,8 +933,8 @@ def attempts(root, origin):
 
 
 def is_diagnostic(root, rec):
-    """Is this request, filed against a failure, a diagnostic rather than a
-    rerun? A rerun runs the failed request's own recipe; anything else asks."""
+    """Is this repair request a diagnostic rather than a rerun of the failed
+    recipe?"""
     origin = rec.get("fixes")
     if not origin:
         return False
@@ -1060,8 +956,8 @@ def _last_run(root, origin):
 
 
 def repairs(root, rec):
-    """Does this report wake a repair turn? A recipe that failed, and a
-    diagnostic that came back."""
+    """Does this report wake a repair turn: a failed recipe or a returned
+    diagnostic?"""
     if rec.get("kind") != "recipe":
         return False
     if ended_failed(rec):
@@ -1095,8 +991,7 @@ _STEP_LINE_RE = re.compile(r"\b(?:failed: exit \d+|stopped) after line (\d+)")
 
 def failure_sites(relay):
     """`(["file:line", ...], recipe line or "")` out of a report's RELAY
-    lines: where the Python failed, and the recipe line the shell stopped
-    after (board/cluster/lib: `relay_hook.py`, `relay_trap.sh`)."""
+    lines: where Python failed, and the recipe line the shell stopped after."""
     sites, step = [], ""
     for line in _relay_said(relay):
         body = line.split("RELAY:", 1)[-1].strip()
@@ -1117,8 +1012,7 @@ def report_path(rid):
 
 
 def _rerun_argv(origin, req):
-    """`board job` for the request `req`, as the rerun of `origin`. Its label
-    rides along where it has one."""
+    """`board job` argv rerunning `req` as a repair of `origin`."""
     req = req or {}
     argv = ["board", "job"]
     if isinstance(req.get("label"), str) and req["label"]:
@@ -1135,8 +1029,7 @@ def _rerun_argv(origin, req):
 
 
 def subject_check(root):
-    """The subject's own check, `check` in its tutorboard.json, as the line a
-    turn runs, or `""` where it declares none."""
+    """The subject's `check` line, or `""`."""
     from .course import config as course_config
     try:
         return str(course_config.read_config(root).get("check_line") or "")
@@ -1256,9 +1149,8 @@ def _refused_fix_said(rec):
 
 
 def repair_brief(root, rids):
-    """`board brief`'s section for a repair turn: for each request it was
-    woken for, the request, its recipe, where it failed, and the report to
-    read whole. `rids` is one id or a list of them."""
+    """`board brief`'s section for a repair turn, per request it was woken
+    for. `rids` is one id or a list."""
     if isinstance(rids, str) or rids is None:
         rids = [rids] if rids else []
     rids = [r for i, r in enumerate(rids) if r and r not in rids[:i]]
@@ -1314,9 +1206,8 @@ def _repair_lines(root, rid, rec, recs):
 
 
 def _messages(root, path=None):
-    """The inbox lines of the session this process bound for `root`
-    (`path`, where the caller holds its session's inbox: the server runs every
-    session at once); none where no session is bound."""
+    """The inbox lines of the session bound for `root`, or of the inbox at
+    `path` (the server runs every session at once)."""
     from .course import repo as course_repo
     path = path or course_repo.session_path(root, "inbox", "messages.jsonl")
     out = []
@@ -1340,11 +1231,9 @@ _STAMP_RE = re.compile(r"^(\[[^\]\n]*\]\s*)(?:\[carry\]\s*)?")
 
 
 def batch_repairs(root, out, path=None):
-    """The requests of every `[repair]` message in the batch `out`, the text
-    `board inbox` printed for one turn, in order. A message is in the batch
-    where its first printed line, `[<iso>] <text>`, is a line of `out`; a
-    `[carry]` tag after the stamp is read through. `path` is the session's
-    inbox, as for `_messages`."""
+    """The requests of every `[repair]` message in the batch `out` (what
+    `board inbox` printed for one turn), in order. `path` is the session's
+    inbox."""
     printed = set()
     for line in (out or "").splitlines():
         m = _STAMP_RE.match(line.strip())
@@ -1372,13 +1261,10 @@ def last_repair(root):
 
 
 def open_fix(root, recipe, env=None):
-    """`""`, or the request a plain `board job -- <recipe> [VAR=v]` would
-    rerun outside its repair: the newest request with this recipe, whatever
-    its label and values, where the newest run of the repair it belongs to
-    ended failed. Keyed on the recipe alone, so a repair capped at
-    `MAX_FIXES` cannot restart by changing a VAR or a label. Such a rerun
-    carries `--fixes`, so the cap counts it; `--fresh` is the owner's way
-    past. `env` is accepted and not read."""
+    """`""`, or the request a plain `board job -- <recipe>` would rerun
+    outside its open repair. Keyed on the recipe alone, so a capped repair
+    cannot restart by changing a VAR or label; such a rerun must carry
+    `--fixes`. `env` is accepted and not read."""
     recipe = exports.rel(recipe) or ""
     reqs = requests(root)
     by_id = dict((r.get("id"), r) for r in reqs)
@@ -1397,9 +1283,8 @@ def open_fix(root, recipe, env=None):
 
 
 def sense(root, rec):
-    """The `[job]` inbox line: what ended, what it was to produce, and what to
-    do. The log is named, never copied in -- the inbox is tracked in some
-    workspaces, and a job's output is not the inbox's to carry."""
+    """The `[job]` inbox line: what ended, what it was to produce, what to do.
+    The log is named, never copied, because some inboxes are tracked."""
     if rec.get("request") and str(rec.get("jobid", "")).startswith("relay:"):
         return relay_sense(root, rec)
     produced = []
@@ -1442,13 +1327,9 @@ def sense(root, rec):
 
 
 def drop(root, rec, now=None, text=None, signal="job"):
-    """Put the `[job]` line where `cluster.wake` routes it: the filing
-    session's inbox, which wakes a turn, else a home notice.
-
-    `text` and `signal` put another machinery line the same way: a failure to
-    repair is `[repair]`. A relay record's request id and session ride along,
-    so `board brief` can name the request.
-    """
+    """Put a machinery line where `cluster.wake` routes it: the filing
+    session's inbox (which wakes a turn), else a home notice. A relay record's
+    request id and session ride along for `board brief`."""
     rec = rec or {}
     return cluster.wake(root, rec.get("session"),
                         text if text is not None else sense(root, rec),
@@ -1458,10 +1339,7 @@ def drop(root, rec, now=None, text=None, signal="job"):
 
 def report(root, run=subprocess.run, now=None):
     """One pass: poll, and drop a `[job]` line for every job that ended.
-
-    On a machine without Slurm the endings are the cluster's, and `hear` drops
-    their lines: the same line, the same inbox, the same wake.
-    """
+    Without Slurm, `hear` drops the cluster's endings the same way."""
     heard = [] if has_slurm() else hear(root, now=now)
     ended, out = poll(root, run=run, now=now), heard
     for rec in ended:
@@ -1498,20 +1376,18 @@ def running(root):
 # ---------------------------------------------------------------------------
 # the relay: a request the Mac commits, a report the cluster commits
 # ---------------------------------------------------------------------------
-# A MACHINE WITHOUT SLURM NEVER SUBMITS. It writes `relay/requests/<id>.json`,
-# commits that one file and pushes it; the cluster's relay pulls it, checks it
-# again with the same `validate`, runs it and commits `relay/reports/<id>.json`.
-# One file per request, never edited after the commit that adds it, so two
-# machines never write the same file. The shapes are HANDOFF.md's "The relay".
+# Without Slurm nothing is submitted: the Mac commits and pushes
+# `relay/requests/<id>.json`, the cluster validates it again, runs it and
+# commits `relay/reports/<id>.json`. One file per request, never edited, so
+# two machines never write the same file.
 
 RELAY = "relay"
-# `turn` is a kind only so that `validate` can refuse it by name: no hosted
-# model runs on an institute machine (`NO_TURN`).
+# `turn` exists only so `validate` refuses it by name (`NO_TURN`): no hosted
+# model runs on an institute machine.
 KINDS = ("recipe", "turn", "colibri")
 REPORT_STATES = ("refused", "submitted", "running", "completed", "failed")
 
-# A report's state, as the registry's Slurm-shaped one. `REFUSED` is terminal;
-# a request with no report at all is `REQUESTED`, which is not.
+# Report states. `REFUSED` is terminal; `REQUESTED` (no report yet) is not.
 _AS_SLURM = {"refused": "REFUSED", "submitted": "PENDING",
              "running": "RUNNING", "completed": "COMPLETED",
              "failed": "FAILED"}
@@ -1521,15 +1397,13 @@ VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
 # `#RELAY-VAR NAME PATTERN` in a recipe's header, the way `#SBATCH` is: one
 # line per variable the recipe accepts, the value fully matching PATTERN.
 VAR_LINE_RE = re.compile(r"^#RELAY-VAR\s+(\S+)\s+(\S.*?)\s*$")
-# What no recipe may accept from a request, whatever it declares: each changes
-# what runs rather than what it runs on, and ALL and NONE are --export words.
-# Nor any RELAY_ name: those are the wrapper's fingerprint (`wrapper`).
+# Never accepted from a request: these change what runs. Nor any RELAY_
+# name, which is the wrapper's fingerprint.
 FORBIDDEN_VARS = ("ALL", "NONE", "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
                   "PYTHONPATH", "PYTHONSTARTUP", "BASH_ENV", "ENV", "HOME",
                   "SHELL", "IFS", "PROMPT_COMMAND")
-# `thread` is accepted and ignored: requests filed before labels carry it.
-# `commit` is the Mac's HEAD when it filed the request (`file_request`): the
-# cluster refuses a request whose commit its HEAD does not contain.
+# `thread` is accepted and ignored. `commit` is the Mac's HEAD at filing; the
+# cluster refuses a request whose commit its HEAD lacks.
 REQUEST_KEYS = {
     "recipe": ("id", "kind", "label", "session", "thread", "recipe", "env",
                "produces", "export", "filed", "fixes", "commit"),
@@ -1537,8 +1411,7 @@ REQUEST_KEYS = {
                 "commit"),
 }
 COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
-# A label is a slug naming the work; a session is the Mac session id it was
-# filed from (`sessions/<id>/`).
+# A label names the work; a session is the Mac session it was filed from.
 LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MAX_BRIEF = 2000
@@ -1547,16 +1420,13 @@ NO_TURN = ("a `turn` request asks for a hosted model on the cluster, and no "
            "hosted model call runs on an institute machine, for any vendor "
            "(projects/libr-local-llm/docs/deepseek-egress.md): file a recipe, "
            "or a `colibri` task where the workspace takes them")
-# A failed recipe request gets at most this many automatic attempts to repair
-# it, diagnostics and reruns alike. `fixes` on each names the request that
-# failed first, so the chain stays flat and the count is the requests on disk
-# whose `fixes` names it.
+# Automatic repair attempts per failed request. `fixes` always names the
+# first failure, so the count is the requests on disk naming it.
 MAX_FIXES = 3
 
 
 def has_slurm():
-    """Can this machine submit? `TUTOR_SLURM=0|1` decides where it is set,
-    so a test on the cluster can stand in for the Mac."""
+    """Can this machine submit? `TUTOR_SLURM=0|1` overrides, for tests."""
     forced = os.environ.get("TUTOR_SLURM", "").strip()
     if forced in ("0", "1"):
         return forced == "1"
@@ -1572,10 +1442,8 @@ def reports_dir(root):
 
 
 def declarations(text):
-    """`({NAME: pattern}, problems)` out of a recipe's header. Pure.
-
-    The header runs to the first line that is neither blank nor a comment.
-    """
+    """`({NAME: pattern}, problems)` out of a recipe's header (up to the
+    first line neither blank nor a comment). Pure."""
     declared, problems = {}, []
     for line in (text or "").splitlines():
         s = line.strip()
@@ -1610,19 +1478,17 @@ def _plain_list(value, field, problems):
 
 
 def validate(req, allowed, tracked, declared, taken=(), colibri=False):
-    """`(request, problems)`: may this request run? PURE, and both machines
-    call it -- the Mac before it commits, the cluster before it submits.
+    """`(request, problems)`: may this request run? Pure; the Mac calls it
+    before committing and the cluster before submitting.
 
         req       the request, as parsed JSON
         allowed   the subject's approved exports, `exports.approvals`
         tracked   workspace-relative paths tracked and unchanged at HEAD
         declared  `{recipe: (declared, problems)}`, `declarations` per recipe
         taken     request ids already filed
-        colibri   has this workspace opted in to `colibri` requests, which
-                  queue a Colibri task (`colibri.relay_file`)
+        colibri   has this workspace opted in to `colibri` requests
 
-    Refused whole, with every problem at once. Nothing here reads the
-    thread file: a `thread` key is accepted and dropped.
+    Refused whole, with every problem at once.
     """
     problems = []
     if not isinstance(req, dict):
@@ -1745,18 +1611,17 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
 
 
 def fix_problems(req, filed, failed_ids, mine=False):
-    """Every problem with this request's `fixes`, `[]` without one. PURE.
+    """Every problem with this request's `fixes`, `[]` without one. Pure.
 
         req         the request
         filed       the requests already filed, as `requests` reads them
-        failed_ids  the ids of the requests whose report says they failed
-                    (`ended_failed`)
-        mine        the cluster checking a request already filed: only the
-                    attempts filed before it count against the cap
+        failed_ids  ids of requests whose report says they failed
+        mine        the cluster checking a filed request: only earlier
+                    attempts count against the cap
 
-    `fixes` names a recipe request that is itself no fix and has failed: the one that failed first. An attempt past `MAX_FIXES`,
-    diagnostic or rerun, is refused on both machines, which is what stops a
-    job that keeps failing.
+    `fixes` must name a failed recipe request that is itself no fix. An
+    attempt past `MAX_FIXES` is refused on both machines, which is what stops
+    a job that keeps failing.
     """
     if not isinstance(req, dict) or req.get("fixes") is None:
         return []
@@ -1802,11 +1667,9 @@ def _git_lines(root, argv):
 
 
 def context(root, recipes=()):
-    """What `validate` is handed, read off this workspace. Impure.
-
-    A recipe is tracked only if it is unchanged at HEAD: an uncommitted edit is
-    one the cluster would never see.
-    """
+    """What `validate` is handed, read off this workspace. A recipe counts as
+    tracked only if unchanged at HEAD, because the cluster never sees an
+    uncommitted edit."""
     tracked = set(_git_lines(root, ["ls-files", "-z", "--", "."]))
     changed = set(_git_lines(root, ["diff", "--name-only", "-z", "--relative",
                                     "HEAD", "--", "."]))
@@ -1849,13 +1712,10 @@ def relay_opts(root):
 
 
 def check(root, req, mine=False, pending=()):
-    """`validate`, with this workspace's context. `(request, problems)`.
-
-    `mine` is the cluster checking a request already filed, whose own id is
-    therefore taken by itself. `pending` are requests checked to be filed
-    with this one (`board job --batch`): their ids are taken, and their
-    `fixes` count against the cap as if they were filed.
-    """
+    """`validate` with this workspace's context. `(request, problems)`.
+    `mine`: the cluster checking a filed request, whose id is its own.
+    `pending`: requests filed in the same batch, whose ids are taken and
+    whose `fixes` count against the cap."""
     if isinstance(req, dict):
         req = dict((k, v) for k, v in req.items() if k != FILE_KEY)
     recipe = req.get("recipe") if isinstance(req, dict) else None
@@ -1881,12 +1741,8 @@ def head(root, short=False):
 
 
 def pin_problems(root, req):
-    """`[]`, or why HEAD here lacks the commit the request was filed after.
-
-    `git merge-base --is-ancestor`: the cluster runs a request only where its
-    HEAD contains the Mac's HEAD at filing, so it never runs code older than
-    the push the request followed. A request with no `commit` is not pinned.
-    """
+    """`[]`, or why HEAD here lacks the commit the request was filed after,
+    so the cluster never runs code older than the push. No `commit`, no pin."""
     commit = req.get("commit") if isinstance(req, dict) else None
     if not isinstance(commit, str) or not COMMIT_RE.match(commit):
         return []                                   # `validate` says why
@@ -1899,9 +1755,8 @@ def pin_problems(root, req):
         code = -1
     if code == 0:
         return []
-    # A coding session open here (`board code`) pushes to code/<session>, not
-    # main: a request from that session may pin a commit on that ref, when
-    # the held paths here are what that commit has.
+    # An open coding session pushes to code/<session>: a request from it may
+    # pin a commit on that ref when the held paths here match it.
     session = req.get("session")
     if isinstance(session, str) and session:
         from . import code as coding
@@ -1985,18 +1840,14 @@ def reports(root):
 
 
 def _strings(value):
-    """A request's path list as strings, and `[]` for anything that is not a
-    list: `relayed` is read on every check on both machines, so one malformed
-    request file must not stop every check in the workspace."""
+    """A request's path list as strings, `[]` for a non-list, so one malformed
+    file cannot stop every check."""
     return [str(v) for v in value] if isinstance(value, list) else []
 
 
 def relayed(root):
-    """The requests, each folded with its report, as registry records.
-
-    `jobid` is `relay:<id>`, so it never collides with a Slurm id; `slurm` is
-    the id the cluster's report gives, where it has one.
-    """
+    """The requests folded with their reports, as registry records. `jobid`
+    is `relay:<id>`, never a Slurm id; `slurm` is the report's."""
     got = reports(root)
     out = []
     for req in requests(root):
@@ -2040,12 +1891,10 @@ def relayed(root):
 
 
 def view(root):
-    """THE REGISTRY, ONE VIEW OF THREE SOURCES: `{key: record}`.
+    """The registry, one view of three sources: `{key: record}`.
 
-    The local `jobs.jsonl`, the requests under `relay/requests/`, and the
-    cluster's reports under `relay/reports/`. A request whose report names a
-    Slurm job this machine registered itself (the cluster, submitting it) is
-    that job, once, carrying its request id.
+    `jobs.jsonl`, `relay/requests/` and `relay/reports/`. A request whose
+    report names a job this machine registered is that job, once.
     """
     out = records(root)
     for rec in relayed(root):
@@ -2069,12 +1918,9 @@ def request_visible(root):
 
 
 def nested_git(root):
-    """The first directory at or under `root` holding a `.git`, else "".
-
-    A subject is Atlas's own content; a nested repository inside one is
-    something Atlas cannot see, so no request is filed from it. The walk never
-    enters a dot directory, `live/`, `results/`, `node_modules/` or a fenced
-    name (`fenced.NEVER`): only whether `.git` exists is asked of each level.
+    """The first directory at or under `root` holding a `.git`, else "": no
+    request is filed from a nested repository Atlas cannot see. Dot dirs,
+    `live/`, `results/`, `node_modules/` and fenced names are not entered.
     """
     for here, dirs, files in os.walk(root):
         if ".git" in dirs or ".git" in files:
@@ -2093,15 +1939,12 @@ def file_request(root, req, push=True):
 
 
 def file_requests(root, reqs, push=True):
-    """Write `relay/requests/<id>.json` for every request in `reqs`, commit
-    those files and nothing else in one commit, then push once.
+    """Write and commit `relay/requests/<id>.json` for every request, alone in
+    one commit, then push once. `(paths, ok, said)`.
 
-    `(paths, ok, said)`. `commit_only` makes the commit. Each request is
-    stamped with `commit`, HEAD as it stands before their commit, which the
-    push carries with it. All or nothing: refused, writing nothing, while a
-    tracked file under `root` differs from HEAD (that edit would not reach the
-    cluster), or where any one request is already there or may not be
-    published.
+    Each is stamped with `commit`, HEAD before their commit. All or nothing:
+    refused while a tracked file under `root` differs from HEAD, or where a
+    request exists already or may not be published.
     """
     reqs = list(reqs)
     targets = [os.path.join(requests_dir(root), r["id"] + ".json")
@@ -2135,8 +1978,7 @@ def file_requests(root, reqs, push=True):
             json.dump(dict(req, commit=commit), fh, indent=2, sort_keys=True,
                       ensure_ascii=False)
             fh.write("\n")
-    # Before the commit, so the report to a request is a change `hear` sees,
-    # even when it arrives in the first pull after filing.
+    # Before the commit, so `hear` sees a report in the first pull after.
     _baseline(root)
     ids = [r["id"] for r in reqs]
     what = ("relay request %s" % ids[0] if len(ids) == 1 else
@@ -2147,10 +1989,9 @@ def file_requests(root, reqs, push=True):
 
 
 def request_leak(root, req):
-    """"" or why this request may not be published. A request is public the
-    moment it is pushed, and its brief is free text a turn may have written:
-    an absolute or home path (where lab storage gets named) is refused, and
-    so is anything the lab's PHI policy matches."""
+    """"" or why this request may not be published: it is public once pushed,
+    so absolute or home paths and anything the PHI policy matches are
+    refused."""
     from . import leaving, subjects
     brief = req.get("brief") if isinstance(req, dict) else None
     if isinstance(brief, str) and _BRIEF_PATH_RE.search(brief):
@@ -2182,12 +2023,8 @@ _BRIEF_PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*"
 
 
 def commit_only(root, targets, what, push=True):
-    """Commit the files `targets`, written or removed, then push. `(ok, said)`.
-
-    `gitops.commit` with those files as the whole pathspec, so nothing else in
-    the tree rides along. The message is `<workspace>: <what>`. `push=False`
-    commits and pushes nothing.
-    """
+    """Commit exactly `targets` (written or removed), then push. `(ok, said)`.
+    The message is `<workspace>: <what>`. `push=False` does neither."""
     from . import gitops, subjects
     try:
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
@@ -2214,19 +2051,12 @@ def commit_only(root, targets, what, push=True):
 # ---------------------------------------------------------------------------
 # the Mac hears the cluster
 # ---------------------------------------------------------------------------
-# A REPORT A PULL BROUGHT TO AN END DROPS THE SAME `[job]` LINE A LOCAL ENDING
-# DOES, through `cluster.wake`: into the filing session's inbox, or a home
-# notice where no session filed it. `turn_signal` reads it as `job` -- or as
-# `repair`, for a failure the Mac repairs (`repairs`). Nothing else wakes a
-# turn for the relay. The board server's cluster thread (`cluster.Ear`) calls
-# `hear` for every subject on every pass.
-#
-# "Brought by a pull" is read off git, not off the pull: whichever process
-# moved HEAD -- the cluster thread, a hand `git pull` -- the next
-# `hear` diffs `relay/reports/` from the commit it last heard to HEAD. A fresh
-# clone hears nothing of the reports it arrived with: the first `hear` records
-# HEAD and says nothing. Each ending is claimed once per (request, state), so
-# two hearers never drop it twice.
+# A report a pull brought to an end drops the same `[job]` (or `[repair]`)
+# line a local ending does, through `cluster.wake`. `cluster.Ear` calls `hear`
+# for every subject each pass. "Brought by a pull" is a diff of
+# `relay/reports/` from the last heard commit to HEAD, whoever moved HEAD; a
+# fresh clone records HEAD and hears nothing. Claimed once per (request,
+# state).
 
 ENDED_REPORTS = ("refused", "completed", "failed")
 HEARD = "relay.heard"
@@ -2339,9 +2169,8 @@ def _rel_path(root, path):
 
 
 def _baseline(root):
-    """Record HEAD as heard where nothing has been, and git ignores the ledger:
-    an untracked file here is a dirty tree to every guard that refuses to
-    commit over one."""
+    """Record HEAD as heard where nothing has been. The ledger is ignored,
+    because an untracked file is a dirty tree to every commit guard."""
     if os.path.exists(_heard_path(root)):
         return
     head = _git_text(root, ["rev-parse", "HEAD"])

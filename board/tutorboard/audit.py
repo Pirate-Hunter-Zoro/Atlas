@@ -1,26 +1,15 @@
 """What this public repository may not carry, asked of a list of paths.
 
-Every commit to Atlas is public, and a file that was public for an hour has
-been published: deleting it afterwards is not a fix, because git remembers.
-So the rule is checked twice, by one function:
+Every commit to Atlas is public and git remembers, so this is checked before
+anything is written: `.githooks/pre-commit` asks `check` of the staged paths
+(plus `leaving.refused`, the participant scan and a tutor turn's refusals;
+see `main`), and `board/test/tracked.py` asks it of the whole index and asks
+`held` which directories git must be blind to. Third-party material inside a
+course is `other_peoples_work`. Messages say what a path is, so the reader
+can judge the refusal.
 
-- `.githooks/pre-commit` asks `check` of the STAGED paths, before anything is
-  written. It also runs `leaving.refused`, the participant-code scan and, in a
-  tutor turn, the refusals for `phi`, `relay.exports` and RULES.md, and of a
-  commit touching board/ in the main worktree. See `main`.
-- `board/test/tracked.py` asks `check` of the whole index on every run of the
-  suite, and asks `held` which directories git must be blind to.
-
-A course is tracked content like any subject. What inside one belongs to
-somebody else -- the textbook, chapter readings, lecture decks, assignment
-sheets -- is refused by `other_peoples_work`.
-
-Each rule is here because what it refuses was found in one of the repositories
-Atlas was made from. The messages say what the path is, because the person
-reading one is deciding whether the refusal is right.
-
-Relay-path code: the hook runs on the cluster's python3, which may be 3.7.
-Standard library only.
+The constraint: the hook runs on the cluster's python3 (maybe 3.7), so
+relay-path rules apply. Standard library only.
 """
 
 import json
@@ -30,8 +19,7 @@ import subprocess
 import sys
 
 
-# GitHub refuses a file over 100 MB and warns above 50. This is far under both
-# on purpose: the limit that matters is the one that stops a habit.
+# Far below GitHub's limits on purpose: this stops a habit.
 MAX_BYTES = 25 * 1024 * 1024
 
 # PHI by the shape of the filename: session audio and its transcripts. The
@@ -43,10 +31,8 @@ PHI_SUFFIXES = (".m4a", ".wav", ".mp3", ".flac", ".mp4", ".mov",
 ARTIFACT_SUFFIXES = (".joblib", ".pkl", ".pickle", ".ckpt", ".pt", ".pth",
                      ".safetensors", ".gguf", ".h5", ".parquet")
 
-# The subject directories. A subject is a directory directly under one of
-# these. `research` and `practice` are the legacy parents merged into
-# `projects`: a machine that has not moved its residue still holds phi/ and
-# results/ there, so held-directory discovery keeps walking them.
+# Subject parents. `research` and `practice` are legacy: an unmigrated
+# machine may still hold phi/ and results/ there, so they are walked.
 SUBJECT_KINDS = ("courses", "projects", "research", "practice")
 
 # Directories that may sit inside a subject on disk and that git must never
@@ -194,12 +180,10 @@ def _dirs(path):
 
 
 def held(root):
-    """Every directory git must be blind to, as sorted `(rel, what)` pairs.
-
-    Each `phi` or `results` directory up to HELD_DEPTH levels under a subject.
-    The walk never enters a held directory or one fenced by name, so nothing
-    inside them is listed. Nor `exports/`: that is the tracked cluster channel,
-    and a `results/` inside it holds figures the relay exported on purpose.
+    """Every directory git must be blind to, as sorted `(rel, what)` pairs:
+    each `phi` or `results` up to HELD_DEPTH below a subject. Held and fenced
+    directories are never entered, nor `exports/`, whose `results/` the relay
+    exported on purpose.
     """
     from . import fenced
     stop = set(HELD_NAMES) | set(fenced.NEVER) | {".git", "exports"}
@@ -224,14 +208,9 @@ def held(root):
 
 
 def exposed(root, rel, what):
-    """Why git can see this held directory, or None when it cannot.
-
-    GIT IS ASKED. `git status --porcelain --untracked-files=all` lists every
-    file git would offer to add, so an empty answer is git saying it is blind
-    to the tree; `git ls-files` adds anything already tracked in there. Only
-    the count is reported: a filename in there may itself
-    carry a participant id.
-    """
+    """Why git can see this held directory, or None. Git is asked (porcelain
+    with all untracked files, plus `ls-files`); only a count is reported,
+    since a filename there may carry a participant id."""
     path = os.path.join(root, rel)
     if os.path.islink(path):
         return ("%s is a SYMLINK. A symlink is a tracked file standing in for "
@@ -441,13 +420,10 @@ def _common(path):
 
 
 def gate(top, home, turn):
-    """Every refusal for the commit staged in `top`, as sentences.
-
-    `home` is the repository the hook lives in. The audit, the PHI policy and
-    the participant scan are about Atlas, so they run only where `top` is a
-    checkout of that repository; another repository pointed at this hook (the
-    private ai-config) gets only the tutor-turn refusals.
-    """
+    """Every refusal for the commit staged in `top`, as sentences. The audit,
+    PHI policy and participant scan run only where `top` is a checkout of
+    `home` (the hook's repository); another repository using this hook
+    (ai-config) gets only the tutor-turn refusals."""
     from . import leaving
     entries = staged(top)
     if not entries:

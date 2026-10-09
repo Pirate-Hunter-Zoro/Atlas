@@ -23,21 +23,9 @@ def load_messages(repo, limit=60):
     return out[-limit:]
 
 
-# WHAT WAS HANDED IN THAT NOTHING HAS PICKED UP, AND FOR HOW LONG.
-#
-# The board could say "sending to the tutor" and it could say "the tutor is
-# writing", and between those two there is a third state it had no word for: the
-# work is in the inbox, on disk, and no tutor has taken it. That is what a start
-# still coming up looks like, what a daemon whose turn just failed looks like,
-# and what a course with no tutor at all looks like -- and the board's own answer
-# to it was a strip that vanished after a hundred seconds and left a blank space,
-# which reads exactly like "nothing happened, send it again".
-#
-# `read` is set when a turn takes a line (`lesson/inbox.py`), so an
-# unread line is by definition something no tutor has taken. Measured from the
-# message's own timestamp, so it survives a reload, a second device, and the
-# tutor being restarted underneath it -- none of which the browser's own clock
-# survives.
+# Work in the inbox that no turn has taken, and since when: an unread line
+# (`read` is set when a turn takes it), timed from the message's own stamp so
+# it survives reloads and restarts.
 def waiting(repo, limit=400):
     """The oldest thing in the inbox nobody has picked up, and how many there are."""
     oldest, count, signal = None, 0, ""
@@ -53,11 +41,7 @@ def waiting(repo, limit=400):
             continue
         if at and (oldest is None or at < oldest):
             oldest = at
-            # WHAT is waiting, not merely that something is. A direction change
-            # is the one send that replaces the tutor it was sent to, so the
-            # several minutes before anything picks it up are expected rather
-            # than wrong -- and a strip that cannot tell the two apart reports
-            # the expected one in the words of a stall.
+            # What is waiting, so an expected wait is not reported as a stall.
             signal = (rec.get("signal") or "")
     if not count:
         return None
@@ -65,10 +49,8 @@ def waiting(repo, limit=400):
 
 
 def stroke_sig(s):
-    """One stroke as a hashable value, for "is this the stroke that was taken
-    off". Every field but the `_` caches, numbers as floats: a stroke the
-    browser echoes back parses to the same floats it was written from, whatever
-    either side's JSON spelled them as."""
+    """One stroke as a hashable value: every field but the `_` caches, numbers
+    as floats, so a browser echo compares equal."""
     def freeze(x):
         if isinstance(x, bool):
             return x
@@ -104,12 +86,8 @@ def ink_records(repo):
 
 
 def load_notes_sent(repo):
-    """Which cards' marks have already been handed to the tutor.
-
-    Kept beside `load_notes` rather than folded into it because the shape of
-    `notes` is a contract with `Annotate.load`, and widening it there would mean
-    every mark on the board arriving in a new shape for the sake of one boolean.
-    """
+    """Which cards' marks have already been handed to the tutor; separate from
+    `load_notes`, whose shape is a contract with `Annotate.load`."""
     out = {}
     for rec in ink_records(repo):
         if rec.get("card"):
@@ -118,12 +96,8 @@ def load_notes_sent(repo):
 
 
 def load_notes_builds(repo):
-    """Which build of a document each page's marks were drawn on.
-
-    `{key: {digest, at, pages}}` for every record that carries one -- only a
-    mark made in the library reader does. Beside `load_notes` for the reason
-    `load_notes_sent` is.
-    """
+    """`{key: {digest, at, pages}}`: the build each library-drawn page's marks
+    were drawn on."""
     out = {}
     for rec in ink_records(repo):
         if rec.get("card") and isinstance(rec.get("build"), dict):
@@ -141,12 +115,7 @@ def load_notes(repo):
 
 
 def load_text_drafts(repo):
-    """Typed answers in progress, keyed by the question they answer.
-
-    The slate keeps a page per question so going back to an earlier one does not
-    lose the working on it. A typed answer needs the same: the sentence you were
-    half way through when the tutor asked something else is still yours.
-    """
+    """Typed answers in progress, keyed by the question they answer."""
     out = {}
     try:
         names = sorted(os.listdir(repo.text))
@@ -166,9 +135,7 @@ def load_text_drafts(repo):
     return out
 
 
-# Whether this repository has work that is not committed. Asked on every poll,
-# answered from a cache: `git status` on a network filesystem is not something to
-# run four times a second, and the answer does not change that fast.
+# Uncommitted-work badge, cached: `git status` is too slow to poll.
 
 
 # A card's ink file is named by the card's id (`writing.ann_file`).
@@ -177,11 +144,8 @@ DOC_KEY = "doc/"
 
 
 def card_ink(repo, ids):
-    """`(notes, sent)` as `load_notes` and `load_notes_sent` give them, for
-    the cards in `ids` and every other session key that is not a document
-    page's. Reads the session's own ink directory and, of the card files in
-    it, only those of `ids`: the board payload carries the ink of the cards
-    it carries, and a document's ink comes with its pages (`doc_ink`)."""
+    """`(notes, sent)` for the cards in `ids` and every non-document key, read
+    from the session's ink directory; document ink comes with its pages."""
     ids = set(int(i) for i in ids or () if str(i).isdigit())
     marks, sent = {}, {}
     try:

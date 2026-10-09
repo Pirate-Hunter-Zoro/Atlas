@@ -1,10 +1,9 @@
 """One turn, and the wrap-up: what the runner (`runner/service.py`) runs.
 
-`take_turn(ctx, message)` runs one turn on a session and says whether the
-message is still owed; `wrap_up(ctx)` runs the End turn that brings the
-subject's TUTOR.md up to date. Both run a fresh provider process in the Atlas root. `ctx` is a `Ctx`
-the runner builds per turn: the session's Repo, the cwd, the log, the
-environment, and who takes the turn.
+`take_turn(ctx, message)` runs one turn and says whether the message is still
+owed; `wrap_up(ctx)` runs the End turn that updates TUTOR.md. Each is a fresh
+provider process in the Atlas root. The owed message lives on disk
+(`agent.json`), so a server dying mid-turn loses nothing.
 """
 
 import os
@@ -48,15 +47,10 @@ def jobs_since(root, since):
 
 
 def report_owed(where, this_signal, out, log=None):
-    """What a turn owes once it exits with its newest card `pending`, or None.
-
-    The first time, the `[unfinished]` line that wakes it once more. After an
-    `[unfinished]` turn that also left it pending, nothing more is woken: the
-    card is replaced by a `stopped` one listing what is uncommitted under the
-    work, so the board never shows a placeholder for a turn that has ended.
-    It always names the jobs registered since the placeholder was written,
-    which is when the work began.
-    """
+    """What a turn owes once it exits with its newest card `pending`, or None:
+    first an `[unfinished]` line waking it once more; after that, a `stopped`
+    card listing what is uncommitted, so no placeholder outlives its turn.
+    Either names the jobs registered since the placeholder."""
     repo = turn.as_repo(where)
     root = repo.root
     path, meta = lesson_cards.newest(repo.cards)
@@ -81,14 +75,10 @@ def report_owed(where, this_signal, out, log=None):
     return None
 
 def for_this_turn(cfg, running, signal, log=None):
-    """Who writes the next card: `(cfg, name, spec, why)`.
-
-    The config is re-read every turn, so `/default-agent` lands on the next
-    card with nothing restarted. `recipes.resolve` decides: the provider, else
-    the fallback with `why` saying so, else nobody (`name` None). An
-    `[unfinished]` report stays with the recipe that did the work while that
-    one can still take a turn.
-    """
+    """Who writes the next card: `(cfg, name, spec, why)`. The config is
+    re-read every turn; `recipes.resolve` picks the provider, else the
+    fallback (with `why`), else nobody. An `[unfinished]` report stays with
+    the recipe that did the work while it can."""
     cfg = recipes.load_config()
     if (signal == "unfinished" and running
             and not recipes.unavailable(cfg, running)):
@@ -99,13 +89,9 @@ def for_this_turn(cfg, running, signal, log=None):
     return cfg, name, (cfg["agents"].get(name) or {}) if name else {}, why
 
 def handed(spec, prompt, context):
-    """`(prompt, extra argv)` with `context` handed to the provider.
-
-    A recipe with `system_args` (claude's `--append-system-prompt {system}`)
-    takes it as system prompt, so the prompt stays the turn's own; any other
-    provider reads it prepended to the prompt. Either way it comes first, and
-    the prompts say it is "above". The global CLAUDE.md still loads: this
-    appends to the system prompt rather than replacing it.
+    """`(prompt, extra argv)` with `context` handed to the provider: as an
+    appended system prompt where the recipe has `system_args` (the global
+    CLAUDE.md still loads), else prepended to the prompt.
     """
     if not context:
         return prompt, []
@@ -118,12 +104,10 @@ def handed(spec, prompt, context):
 class Ctx(object):
     """One turn's state, built by the runner. `take_turn` reads and rebinds it.
 
-    `repo` is the session's Repo and `root` its subject's root (the Atlas root
-    while unbound); `cwd` is where the provider runs, the Atlas root; `live`
-    the session directory; `env` the environment every turn gets before its
-    recipe's own; `on_start(process)` runs once the provider exists. `cfg`,
-    `agent_name` and `spec` are THIS turn's answer to who writes, re-asked by
-    `for_this_turn`. `turns` counts the session's turns.
+    `repo` is the session's Repo, `root` its subject's root (the Atlas root
+    while unbound), `cwd` the Atlas root, `live` the session directory, `env`
+    the base environment, `on_start(process)` a hook. `cfg`, `agent_name` and
+    `spec` are re-asked per turn by `for_this_turn`.
     """
 
     def __init__(self, **kw):
@@ -132,11 +116,8 @@ class Ctx(object):
         self.__dict__.update(kw)
 
 
-# AN OWED MESSAGE LIVES ON DISK, NOT IN THIS PROCESS. The runner writes it
-# into `agent.json` before it marks the inbox lines read, and every path out
-# of a turn rewrites it through `owe` with what is still owed. A server that
-# dies mid-turn therefore loses nothing: its successor reads `owed` back and
-# queues it (`service.Runner.recover`).
+# The owed message is rewritten into `agent.json` on every path out of a turn,
+# so a successor server re-queues it (`service.Runner.recover`).
 def owe(ctx, msg):
     daemon.agent_state(ctx.live, owed=msg or None)
     return msg
@@ -144,12 +125,8 @@ def owe(ctx, msg):
 
 def take_turn(ctx, message):
     """Run one turn on `message`. `{"owed": message or None, "error": ...}`.
-
-    `owed` is the message the next turn must answer again -- this one, after a
-    failure the runner repairs itself -- or the `[unfinished]` line that wakes
-    the turn to write the report it left owed, or None. `error` is why the turn
-    failed, or None.
-    """
+    `owed` is what the next turn must answer: this message after a failure
+    the runner repairs, or the `[unfinished]` line."""
     out = message
     root, live, log, logpath = ctx.root, ctx.live, ctx.log, ctx.logpath
     pending = None
@@ -157,21 +134,15 @@ def take_turn(ctx, message):
     ctx.turns += 1
     this_signal, turn_repairs = turn.woken_for(
         root, out, ctx.repo.messages_path if getattr(ctx, "repo", None) else None)
-    # `turn_started` is the runner's clock, and the board needs it: its own
-    # measure of how long a turn has been going starts when it first SEES
-    # the working state, which on a reload or a second device is nowhere
-    # near when the turn began.
-    # AND THE LAST FAILURE STAYS ON THE RECORD WHILE THIS ONE RUNS. A turn that
-    # GOES THROUGH clears it, below. What stops the board painting an old
-    # failure over a running turn is `lesson.state._failure`, which does not
-    # report one older than the turn in flight.
+    # `turn_started` is the runner's clock, which the board needs on reload.
+    # The last failure stays recorded; `lesson.state._failure` ignores one
+    # older than the turn in flight.
     daemon.agent_state(live, state="working", turns=ctx.turns,
                        turn_started=time.time(), turn_signal=this_signal,
                        turn_repairs=turn_repairs)
     log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), ctx.turns, out))
 
-    # Keep saying so while the turn runs: a turn that reads a chapter and
-    # writes a card routinely outlasts the board's two-minute window.
+    # Heartbeat: a turn routinely outlasts the board's two-minute window.
     beating = threading.Event()
 
     def beat():
@@ -185,8 +156,7 @@ def take_turn(ctx, message):
     ctx.cfg, name, spec, moved = for_this_turn(
         ctx.cfg, ctx.agent_name, this_signal, log)
     if not name:
-        # Nobody here can take it. The message stays owed for the next wake,
-        # and the board says why in the resolver's own sentence.
+        # Nobody can take it: the message stays owed and the board says why.
         beating.set()
         log.write("!! %s\n" % moved)
         daemon.agent_state(live, state="listening", last_error=moved,
@@ -194,18 +164,14 @@ def take_turn(ctx, message):
                            retrying=False)
         return {"owed": owe(ctx, out), "error": moved}
     ctx.agent_name, ctx.spec = name, spec
-    # WHO IS WRITING, AND WHY WHEN IT IS THE FALLBACK, before the turn. The
-    # strip paints both off this record, and `board write` stamps the card.
+    # Who writes, and why when it is the fallback, recorded before the turn.
     daemon.agent_state(live, agent=ctx.agent_name, agent_why=moved or None,
                        **daemon.not_this_agents_failure(live, ctx.agent_name))
     use, template = turn.turn_plan(ctx.spec, this_signal)
-    # A script agent builds its own context, so it gets the raw inbox rather
-    # than the instruction prompt the interactive agents expect.
+    # A script agent gets the raw inbox and builds its own context.
     fill = {"inbox": out.strip()}
     prompt = out.strip() if ctx.spec.get("raw_prompt") else template % fill
-    # THE BRIEF AND THE RECAP RIDE IN THE PROMPT, rendered here rather than
-    # fetched by the turn: two round trips fewer, each resending the whole
-    # conversation. A script agent builds its own context and gets neither.
+    # The brief and recap ride in the prompt, saving the turn two round trips.
     wants_brief, wants_recap = turn.context_plan(this_signal)
     context = ""
     if wants_recap and not ctx.spec.get("raw_prompt"):
@@ -218,8 +184,7 @@ def take_turn(ctx, message):
     prompt, extra = handed(ctx.spec, prompt, context)
     cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use or []]
                            + extra)
-    # Where this turn's own words begin, so that if it fails we can read
-    # back what it said rather than guess at why.
+    # Where this turn's words begin, to read back why it failed.
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     turn_env = turn.turn_environment(ctx.spec, base=ctx.env)
     # `board write` puts `by: <name>` on a card the fallback wrote.
@@ -241,33 +206,16 @@ def take_turn(ctx, message):
     finally:
         beating.set()
 
-    # WHAT THE TURN SAID, READ BEFORE THE EXIT CODE IS BELIEVED. An exit
-    # code is the agent summarising itself, and an agent that writes
-    # `is_error` into its own result object and then exits 0 has failed the
-    # turn whatever the number says: no card is written, and a board that
-    # took the number would go back to `listening` with nothing to show and
-    # nothing to say -- the one state this tool must never present as
-    # normal. The words win. See `result_object_error`.
+    # The turn's words beat its exit code: `is_error` in the result object
+    # with exit 0 is a failed turn (`result_object_error`).
     said = usage.turn_output(logpath, mark)
     if not err and usage.result_object_error(said):
         err = "the agent reported a failure and exited 0"
 
-    # AND THE PAGE THAT NEVER ARRIVED, WHICH EXITS 0 AND READS AS A LESSON.
-    # `board see` refuses an answer carrying one of these -- `blind_answer`
-    # in `tutorboard/seeing.py` -- but a tutor whose model can see is told by
-    # the turn prompt to open the PNG itself, so the slate goes through the
-    # binary's own Read tool and never passes that guard. An endpoint that
-    # cannot take the image block substitutes the placeholder INTO THE
-    # CONVERSATION and answers 200, so the model marks handwriting it was
-    # never shown, confidently, and the exit code agrees with it. That is
-    # the one failure on this board a person cannot catch by reading the
-    # card, because the card is fluent.
-    #
-    # The list is imported rather than repeated: a second copy of a
-    # provider's placeholder wording is a table that goes stale in the file
-    # nobody is looking at. Asked of everything the model said this turn,
-    # not of a card, because the substitution happens wherever the image
-    # was handed over -- and not of the tools' output, which quotes files.
+    # A provider's "image never arrived" placeholder anywhere in the model's
+    # words fails the turn, since the model then marks unseen handwriting
+    # fluently. Read from what the model said, not tool output, which quotes
+    # files; the wording list is `seeing`'s, not a copy.
     if not err:
         blind = seeing.blind_answer(usage.turn_text(said))
         if blind:
@@ -275,54 +223,31 @@ def take_turn(ctx, message):
                    "%s, so anything it said about the handwriting is "
                    "invented" % blind)
 
-    # WHAT IT COST, WHETHER OR NOT IT WORKED. A turn that died on its last
-    # round trip is billed for the ones before it, and a failure that is
-    # missing from `cost.jsonl` is a provider whose bad evening is invisible
-    # in the one place the money is counted. Nothing is written where the
-    # turn said nothing: `read_turn_usage` returns {} and `record_cost`
-    # stops there.
+    # Cost is recorded whether or not the turn worked.
     usage.record_cost(live, log, ctx.turns, ctx.agent_name, True,
                       usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
 
     if err:
         log.write("!! %s\n" % err)
-        # A failed turn has three very different causes wearing one symptom,
-        # and they need telling apart. The model refusing, or the agent
-        # falling over, is nothing this can fix. The machine being unable to
-        # reach the provider at all is. And the allowance having run out is
-        # neither: nothing is broken, and the same turn will succeed later
-        # with not one thing changed.
-        #
-        # The allowance is asked about first because it is the one the turn
-        # itself answers -- the agent said so in its output, and a provider
-        # that could say so is a provider we plainly reached, which settles
-        # the egress question at the same time and for free.
+        # Three causes, one symptom: the allowance ran out (asked first, and
+        # proof the provider was reached), the machine cannot reach the
+        # provider, or the agent failed.
         until = limits.reads_as_usage_limit(said)
         if until:
-            # THIS AGENT, NOT THIS MACHINE. Claude running out says nothing
-            # about DeepSeek, and a machine-wide mark would take the
-            # fallback out along with the thing it is falling back from.
+            # Per agent: one provider's limit says nothing of the fallback's.
             limits.mark_limited(until, agent=ctx.agent_name)
             log.write("!! '%s' is out of allowance here until %s\n"
                       % (ctx.agent_name,
                          time.strftime("%H:%M", time.localtime(until))))
-            # `retrying`, BECAUSE THE DAEMON IS. The strip reads exactly
-            # this field: without it the board says "send again to carry
-            # on", and a student who obeys queues a second copy of their
-            # work behind a turn this loop was about to take itself. The
-            # message is re-queued four lines down; that is what retrying
-            # means.
+            # `retrying` stops the board telling them to send again while this
+            # loop re-queues the message itself.
             daemon.agent_state(live, state="listening", last_error="out of allowance",
                                failed_at=time.time(), failed_agent=ctx.agent_name,
                                limited=until, retrying=True)
-            # The student sent something and got nothing. Whoever ends up
-            # answering it, it is the same message.
+            # The same message, whoever answers it.
             pending = owe(ctx, out)
 
-            # AND THE NEXT TURN GOES TO THE FALLBACK: `recipes.resolve`
-            # will not offer this one again until the expiry passes. With no
-            # fallback able to take it, the message stays owed and the board
-            # says why.
+            # The next turn goes to the fallback until the expiry passes.
             nxt, _ = recipes.resolve(recipes.load_config())
             if nxt and nxt != ctx.agent_name:
                 log.write("-- the next turn goes to '%s'\n" % nxt)
@@ -332,12 +257,8 @@ def take_turn(ctx, message):
                           "says when\n")
             return {"owed": pending, "error": err}
 
-        # AND WHETHER IT WAS THE MACHINE, kept, because the sentence below
-        # recomputes the reason from the turn's own words and would write
-        # `exit 1` over the top of it. `failWord` in `board.js` has a case
-        # for this one -- "this machine cannot reach the internet" -- and it
-        # never once fired, because by the time the board read the record
-        # the reason had been replaced by the exit code.
+        # Kept, because the reason below would overwrite "no egress" with the
+        # exit code (`failWord` in board.js has a case for it).
         dark_machine = False
         if not egress.egress_ok(also=recipes.provider_probe_urls(ctx.cfg)):
             dark_machine = True
@@ -349,28 +270,20 @@ def take_turn(ctx, message):
                 log=lambda m: log.write("   %s\n" % m))
             if fixed:
                 log.write("-- egress repaired via %s; retrying the turn\n" % detail)
-                # The student sent something and got nothing. Put the same
-                # inbox back so the next pass answers it rather than waiting
-                # for them to send again.
+                # Re-queue the same inbox so they need not send again.
                 pending = owe(ctx, out)
             else:
                 log.write("!! egress still broken (%s); turns will keep "
                           "failing until the network is fixed\n" % detail)
-        # Stamped, so the board can tell a failure that just happened from
-        # one an hour ago -- and can say so at all, which it could not. A
-        # student whose working was handed in and answered by nothing is the
-        # one state this tool must never present as normal.
-        # In words, not as an exit code. See `failure_reason`.
+        # Stamped, so the board tells a fresh failure from an old one; in
+        # words, not an exit code (`failure_reason`).
         why = "no egress" if dark_machine else usage.failure_reason(said, err)
         daemon.agent_state(live, state="listening", last_error=why,
                            failed_at=time.time(), failed_agent=ctx.agent_name,
                            retrying=pending is not None)
     else:
-        # A turn that went through on this agent is proof of THIS agent's
-        # allowance, whatever the record still says. The reset time a
-        # provider hands out is a promise; this is a measurement. Per agent,
-        # because clearing the lot would un-limit a provider nothing has
-        # heard from since it ran out.
+        # A turn that went through proves this agent's allowance; cleared per
+        # agent, never for all.
         if limits.limited_until(ctx.agent_name):
             log.write("-- a turn went through on '%s'; its allowance is "
                       "back\n" % ctx.agent_name)
@@ -378,20 +291,10 @@ def take_turn(ctx, message):
         daemon.agent_state(live, state="listening", last_error=None,
                            failed_at=0, failed_agent=None, retrying=False)
 
-    # AND THE DEBT IS SETTLED HERE, ONCE, BY WHAT THE TURN LEFT BEHIND.
-    # `pending` is this loop's own answer to "is the same message still
-    # owed": None where the turn went through, and None where it failed for
-    # something no retry repairs -- the model refused, the recipe is wrong --
-    # which is the case the board tells the student to send again for. The
-    # branches that DO re-queue it set `pending` and then `continue` past
-    # this, so nothing here can un-owe a message the daemon has promised to
-    # answer. Every path out of a turn therefore leaves the record saying the
-    # truth about it, rather than every path having to remember to.
-    #
-    # AND A TURN ENDS ON A REPORT. Where nothing else is owed and the newest
-    # card is still the `pending` placeholder, the turn is woken once more
-    # with `[unfinished]`; after that, the card is replaced by what is on
-    # disk. See `report_owed`.
+    # The debt is settled here, once: `pending` is None where the turn went
+    # through or failed beyond retry; re-queueing branches `continue` past
+    # this. A turn ending on the `pending` placeholder is woken once more with
+    # `[unfinished]` (`report_owed`).
     if pending is None:
         pending = report_owed(ctx.repo, this_signal, out, log)
     owe(ctx, pending)
@@ -400,12 +303,8 @@ def take_turn(ctx, message):
 
 def wrap_up(ctx):
     """The End turn: TUTOR.md brought up to date with `board memo`.
-    `(wrote, why)`.
-
-    Only End queues it (`POST /s/<id>/end`); a server stopping, or a turn
-    recovered after one died, never does. Who writes it is asked again here,
-    so a provider the last turn stood down does not get the one turn that must
-    not be wasted; with nobody able to, it is skipped and says so.
+    `(wrote, why)`. Only End queues it. Who writes it is asked again, so a
+    stood-down provider does not waste it; with nobody able, it is skipped.
     """
     log, logpath, root = ctx.log, ctx.logpath, ctx.root
     ctx.cfg = recipes.load_config()
@@ -420,8 +319,7 @@ def wrap_up(ctx):
     ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
     daemon.agent_state(ctx.live, state="wrapping up")
     log.write("\n=== %s wrap-up ===\n" % time.strftime("%H:%M:%S"))
-    # The recipe key and the timeout keep their old name, `handoff`, so an
-    # owner's config.json goes on working.
+    # The recipe key and timeout keep the name `handoff`, so configs still work.
     wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
     prompt, extra = handed(ctx.spec, prompts.WRAPUP_PROMPT,
                            brief.turn_context(ctx.repo))
@@ -440,9 +338,8 @@ def wrap_up(ctx):
             env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
         usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
                           usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
-        # WHETHER THIS TURN WROTE IT, which is not whether the file is there:
-        # the turn exited 0, did not report its own failure, and the file is
-        # newer than the turn.
+        # Wrote it: exit 0, no reported failure, and the file is newer than
+        # the turn.
         said = usage.turn_output(logpath, mark)
         failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
                   or (usage.result_object_error(said)
@@ -468,14 +365,9 @@ def wrap_up(ctx):
 
 
 def notes_up(ctx, pages, title, subject):
-    """The End turn of a notes canvas: one fresh turn that binds the session
-    where it is unbound, transcribes `pages` (the slate's page pictures) into
-    `docs/<slug>/notes.md` with `board writeup new --md`, and runs `board
-    build` on it. `(ok, why)`.
-
-    Who writes it is asked here, as for the wrap-up. There is no brief and no
-    recap: the session has no cards, and the pages are the whole of it.
-    """
+    """The End turn of a notes canvas: bind if unbound, transcribe `pages`
+    into `docs/<slug>/notes.md` (`board writeup new --md`), `board build` it.
+    `(ok, why)`. No brief or recap: the pages are the whole session."""
     log, logpath = ctx.log, ctx.logpath
     ctx.cfg = recipes.load_config()
     took, why_took = recipes.resolve(ctx.cfg)

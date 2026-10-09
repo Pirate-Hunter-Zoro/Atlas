@@ -1,44 +1,24 @@
 /* ==========================================================================
    shot.js -- the lesson as the pixels it was actually read as.
 
-   Asked for from the iPad, about the export that already existed: "for the
-   tutor session export, I don't want the latex dump it currently gives; I want
-   it as if it were a screenshot of the entire iPad screen scrolled down over
-   the whole tutoring session."
+   The export is a screenshot of the whole session as the iPad drew it, not a
+   typeset paraphrase. It is made here because only the page that drew the
+   lesson knows how it looks: the iPad rasterises, and the server owns the
+   name, version, repository copy and git staging, the parts a client must
+   not be trusted with.
 
-   What is on the glass is a dark column of cards in a dyslexia-friendly face
-   with handwriting sitting in it, and the person who spent the evening looking
-   at that is entitled to hand somebody THAT rather than a typeset paraphrase.
+   A DOM becomes pixels through an SVG `foreignObject` drawn into a canvas.
+   Two rules keep that honest:
 
-   WHY THIS IS ON THE CLIENT AND CANNOT BE ANYWHERE ELSE. A board runs on a
-   compute node with no package manager, so there is no headless browser to
-   render a page with and there never will be. The only thing in the system that
-   knows what the lesson looks like is the thing that drew it, which is this
-   page. So the iPad rasterises and the server does the rest -- it owns the
-   name, the version, the repository copy and the git staging, because those
-   are the parts a client must not be trusted with.
+     - An SVG loaded as an image cannot fetch anything, so fonts, stylesheets
+       (read from the CSSOM, every `url()` made a data URI) and pictures are
+       all inlined; one missed font sets the whole lesson in Times.
+     - A cloned `<canvas>` is blank, so every live surface and annotation
+       layer is replaced by an image of the original's pixels.
 
-   HOW A DOM BECOMES PIXELS WITHOUT A LIBRARY. An SVG carrying a `foreignObject`
-   is HTML the browser will lay out, and an SVG in an `<img>` can be drawn into
-   a canvas. Two things make that honest rather than nearly-right:
-
-     - An SVG loaded as an image is in secure static mode: it cannot fetch
-       ANYTHING. Not a font, not a stylesheet, not a picture. So every one of
-       those is inlined -- the page's own stylesheets read out of the CSSOM,
-       every `url()` in them fetched and turned into a data URI, and every
-       `<img>` in the clone likewise. A single missed font is not a subtle
-       degradation; it is the whole lesson in Times.
-     - A cloned `<canvas>` is a blank canvas. The dormant boards are pictures
-       already, but the live surface and every annotation layer are canvases,
-       and cloning them loses precisely the handwriting this document exists to
-       carry. Each one is replaced by an image of the ORIGINAL's pixels.
-
-   PAGINATION IS DECIDED HERE, and that is deliberate. The client is the only
-   side holding the pixels, so it is the only side that can cut a card that is
-   taller than a page without a JPEG decoder. It therefore hands the server
-   finished pages, all the same size, and the server wraps each in a PDF page
-   and nothing else. One rule about where a page breaks, in the one place that
-   can see it.
+   Pagination is decided here, because only the side holding the pixels can
+   cut a card taller than a page without a JPEG decoder. The server receives
+   finished, same-size pages and wraps each in a PDF page.
    ========================================================================== */
 
 (function (global) {
@@ -350,33 +330,13 @@
 
   /* ------------------------------------------------------------- pictures */
 
-  /* NO PICTURE EVER GOES THROUGH THE SVG. Measured in WebKit, which is the
-     engine that matters here, against every way there is to put one in:
-
-         <img> with a data URI ............ blank
-         <img> with a same-origin URL ..... blank
-         background-image on a div ........ blank
-         an SVG <image> element ........... blank
-         a cloned <canvas> ................ blank
-         a plain div with a background .... painted
-
-     An `<img>` inside a `foreignObject` inside an SVG loaded as an image does
-     not paint in WebKit. At all, in any form. Blink paints every one of them,
-     which is exactly how this reaches a device unnoticed: the export works
-     perfectly on the machine it was written on and arrives on the iPad with
-     every picture missing -- which on this page means every piece of
-     handwriting, which is the half of the document that is the student's.
-
-     So the pictures are composited DIRECTLY ONTO THE PAGE, with `drawImage`,
-     from the very elements the board is already displaying. They are
-     same-origin, they are already decoded, and a canvas drawing a canvas has no
-     opinion about any of this. What goes into the SVG is a HOLE the same size --
-     so the words wrap exactly as they do on the glass -- and the picture lands
-     in it afterwards.
-
-     It is also less work than what it replaces: nothing is fetched, nothing is
-     base64'd, and a live surface is no longer read back through `toDataURL` on
-     the device least able to afford it. */
+  /* No picture ever goes through the SVG. WebKit does not paint an `<img>`,
+     a background, an SVG `<image>` or a cloned canvas inside a `foreignObject`
+     of an SVG loaded as an image (Blink does, which is how it hides). So the
+     pictures are composited directly onto the page with `drawImage`, from the
+     elements the board already shows (same-origin, already decoded), and the
+     SVG carries a same-size hole so the words wrap as on the glass. Nothing is
+     fetched or base64'd. */
 
   function px(value) {
     var n = parseFloat(value);
@@ -426,10 +386,9 @@
     return out;                       /* fill: stretch, which is the default */
   }
 
-  /* An element that is not loaded yet cannot be drawn, and a `loading="lazy"`
-     picture below the fold is exactly that. Asked for as its own copy rather
-     than by making the live one load: the lesson on the glass is being read,
-     and an export must not reach into it. */
+  /* A `loading="lazy"` picture below the fold is not loaded and cannot be
+     drawn, so the export loads its own copy rather than touch the lesson
+     being read. */
   function drawable(node) {
     if (node.tagName === "CANVAS") {
       return Promise.resolve((node.width && node.height) ? node : null);
@@ -445,23 +404,12 @@
     });
   }
 
-  /* Every picture in the block, LEFT WHERE IT IS and remembered.
-
-     An earlier version cut each one out and put a box of the same size in its
-     place, and the boxes changed the layout. A student's turn is shrink-to-fit
-     and its width comes from its contents, so swapping a `width:100%` image for
-     a fixed-pixel stand-in re-sized the block that contained it -- and, being
-     right-aligned, moved it. Fifty pixels, invisible in any test that does not
-     render a page.
-
-     WebKit lays an `<img>` out perfectly inside the SVG. It only refuses to
-     PAINT it. So the element stays exactly as the board wrote it, the layout is
-     the layout, and the picture is drawn over the space the engine already left
-     for it. Two things are done to the clone and both are about a picture that
-     cannot load: `alt` is cleared, so nothing renders alt text where a picture
-     is about to go, and the natural size is written on as attributes, so an
-     image the SVG cannot fetch still knows how big it is. CSS beats an
-     attribute, so this changes nothing for a picture CSS already sizes. */
+  /* Every picture in the block, left where it is and remembered, because a
+     stand-in box changes a shrink-to-fit block's width. WebKit lays an `<img>`
+     out inside the SVG and only refuses to paint it, so the layout stays and
+     the picture is drawn over the space it left. On the clone `alt` is cleared
+     (no alt text where a picture will go) and the natural size is written as
+     attributes, so an unfetchable image still knows its size; CSS still wins. */
   function findPictures(original, clone) {
     var src = original.querySelectorAll ? original.querySelectorAll("img, canvas") : [];
     var dst = clone.querySelectorAll("img, canvas");
@@ -576,25 +524,11 @@
 
   /* ------------------------------------------------------ a block, as pixels */
 
-  /* THE CLONE IS SERIALISED AS XML, NOT AS HTML, and that is not tidiness.
-
-     An SVG is parsed as XML, and `outerHTML` produces HTML -- in which `<img>`
-     is a void element and comes out with no closing tag at all. XML has no void
-     elements, so `<img src="...">` is a parse error, and a parse error in an
-     SVG image is not a warning: the `<img>` holding it fires `onerror` and the
-     whole block rasterises to nothing.
-
-     Measured, in a real browser, before it could reach the device. Two of five
-     blocks came out missing from a test lesson and the two were exactly the two
-     with pictures in them -- the student's handwriting, and a card with an
-     annotation on it. Which is to say: the halves of the document that are the
-     student's. A card of the tutor's prose has no void element in it and came
-     out perfectly, so the export looked like it worked.
-
-     `XMLSerializer` closes them, declares the XHTML namespace on the root, and
-     escapes text properly. The escaping round-trips: a `>` in a selector is
-     written `&gt;` and parsed back to `>` by the SVG's own XML parser, so the
-     stylesheet the SVG sees is the stylesheet that went in. */
+  /* The clone is serialised as XML, not HTML: the SVG is parsed as XML, where
+     an unclosed `<img>` is a parse error that blanks the whole block (exactly
+     the blocks holding handwriting or annotations). `XMLSerializer` closes
+     void elements, declares the XHTML namespace and escapes text, and the
+     escaping round-trips through the SVG's own parser. */
   function serialize(node) {
     return new XMLSerializer().serializeToString(node);
   }
@@ -611,25 +545,10 @@
      So the SVG is `scale` times as big and its contents are scaled to match.
      The foreignObject keeps the CSS box, so the layout is identical; only the
      grid it is drawn on gets finer. The blit onto the page is then 1:1. */
-  /* CSS SIZE, AND `drawImage` DOES THE ENLARGING. Measured, because the obvious
-     worry is that a photograph would come out soft on a retina tablet.
-
-     It does not: WebKit re-rasterises an SVG image at the size it is being
-     DRAWN at, not at its intrinsic size. Counted on real output -- the share of
-     the ink that is a mid-tone edge, which is what softness is -- text went
-     52% at 1x to 27% at 2x to 22% at 3x, and a display formula 59% to 41% to
-     29%. Falling, which is re-rasterisation; a stretched bitmap holds its edge
-     fraction or worsens it.
-
-     And asking for the larger size directly is actively WRONG here. Both ways
-     of doing it -- a `transform="scale(2)"` on a wrapping group, and a viewBox
-     smaller than the width and height -- rasterise at the right size and lose
-     KaTeX: every display formula and every radical sign came out blank, while
-     the prose around them was perfect. Measured the same way, the surviving ink
-     in a formula fell to a quarter and then an eighth as the scale rose, which
-     is glyphs going and hairlines staying. Nothing else in the lesson showed
-     it, so this reaches the device as "the mathematics is missing" and nothing
-     else. */
+  /* CSS size, and `drawImage` does the enlarging: WebKit re-rasterises an SVG
+     image at the size it is drawn, so the result is sharp on a retina tablet.
+     Asking for the larger size inside the SVG (a scaling group, or a smaller
+     viewBox) loses KaTeX glyphs while the prose survives. */
   function svgFor(body, width, height) {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width
       + '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '">'
@@ -685,18 +604,9 @@
     return wrap;
   }
 
-  /* A DATA URL, AND NOT A BLOB URL, and the difference is the whole export.
-     Measured in a real browser rather than reasoned about: drawing an SVG
-     served from a `blob:` URL TAINTS the canvas, so the very next line --
-     `toDataURL` -- throws `Tainted canvases may not be exported`. A blob is the
-     obvious choice, it is the cheaper one, and it produces a document that
-     cannot be read back at all. A `data:` URL is same-origin by construction
-     and does not taint.
-
-     Percent-encoded rather than base64, because `btoa` throws on anything
-     outside Latin-1 and KaTeX emits U+2061 and friends in ordinary
-     mathematics. A lesson with a `\mathbb{Q}` in it would have failed and a
-     lesson without one would not, which is the worst shape a bug can have. */
+  /* A data URL, not a blob URL: a `blob:` SVG taints the canvas and
+     `toDataURL` then throws. Percent-encoded rather than base64, because
+     `btoa` throws outside Latin-1 and KaTeX emits U+2061 and friends. */
   function loadImage(svg) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
@@ -741,12 +651,9 @@
     });
   }
 
-  /* One block, as an image of itself at the column's width.
-
-     Measured by attaching the clone to this document at the column's width:
-     the SVG is told a height and honours it, so a height guessed wrong crops
-     the card or pads it, and the only thing that knows how tall a card is when
-     laid out is the engine that lays it out. */
+  /* One block, as an image of itself at the column's width. Its height is
+     measured by laying the clone out in this document, since the SVG honours
+     whatever height it is told. */
   /* What the page IS, as an element can carry it: every attribute of `html` and
      `body` merged onto one node, so `body.annotating` and `[data-face]` still
      decide. Read once -- it cannot change between two blocks of the same
@@ -769,15 +676,10 @@
     stripFurniture(clone);
     var pictures = findPictures(node, clone);
 
-    /* Measured WITHOUT the stylesheet, and attached to the live document so the
-       page's own CSS does the laying out. The bundle must not go in here: a
-       `<style>` inside `<body>` is global, so injecting the whole board's rules
-       -- rewritten, with `@media print` dropped -- would restyle the lesson the
-       student is reading while the export runs.
-
-       `visibility:hidden` rather than `display:none`, because the second takes
-       no part in layout and a height measured off it is zero, which is how an
-       export becomes a stack of blank pages. */
+    /* Measured without the bundled stylesheet, attached to the live document so
+       the page's own CSS lays it out: a `<style>` in `<body>` is global and
+       would restyle the lesson being read. `visibility:hidden`, not
+       `display:none`, which measures as zero height. */
     /* MEASURED THROUGH THE VERY WRAPPER THAT WILL BE RENDERED.
        Not a stand-in for it: the same element, the same scoped stylesheet, the
        same structure, attached to this document so the engine lays it out. A

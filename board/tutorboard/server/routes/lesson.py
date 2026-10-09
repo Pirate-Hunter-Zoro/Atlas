@@ -54,8 +54,7 @@ def get(h, repo, path):
         return h.send_bytes(h.hub.payload.encode("utf-8"), "application/json")
 
     if path == "/cards":
-        # OLDER CARDS, ON DEMAND. The payload carries the newest `hub.WINDOW`;
-        # the board asks for the ones below its oldest when they are wanted.
+        # Older cards on demand, below the payload's `hub.WINDOW`.
         want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
         try:
             before = int((want.get("before") or [""])[0])
@@ -69,9 +68,7 @@ def get(h, repo, path):
         return h.send_json(hub.subject_info(repo))
 
     if path.startswith("/archive/"):
-        # A past lesson, read only. The transcript is the point of keeping
-        # them: a student coming back to a chapter should see what they
-        # wrote at the time, not an empty board.
+        # A past lesson, read only.
         rel = path[len("/archive/"):].strip("/")
         if not rel:
             return h.send_json({"sessions": archive.list_archive(repo)})
@@ -92,20 +89,10 @@ def get(h, repo, path):
 
 
 def _begin(h, repo):
-    """Ask the tutor to start, without anybody tapping anything.
-
-    THE TAP WAS THE INSTRUCTION: a sitting opened with `begin` has said what
-    it wants, and a second button that says "ask the tutor to begin" is the
-    ceremony this whole tool exists to remove.
-
-    The same three things `/say` does for a begin signal, in the same order and
-    for the same reasons: a turn on the board so the transcript shows the ask, a
-    line in the inbox carrying `session_sense` -- which in a turn IS the
-    prompt, so a bare "[begin]" would tell it nothing -- and a turn queued on
-    the runner.
-
-    Called only AFTER the sitting is written, or the line would describe the
-    sitting being left.
+    """Ask the tutor to start: the tap was the instruction. Like `/say` for a
+    begin signal: a transcript turn, an inbox line carrying `session_sense`
+    (a bare "[begin]" tells a turn nothing), and a queued turn. Called only
+    after the sitting is written.
     """
     tid = turns.next_turn_id(repo)
     record = {
@@ -145,13 +132,10 @@ def _mode(h, repo):
 
 
 def _bind(h, repo):
-    """`POST /bind {subject}`: bind this session to a subject, from the
-    header's chip. `sessions.bind` matches `subject` against the subjects
-    that exist and appends a non-waking `[bind]` line; nothing moves.
-
-    The registry is asked for the session again at once, so the Hub's Repo
-    roots at the subject before the next payload is built, and the chip
-    and the course name change without a reload.
+    """`POST /bind {subject}`: bind this session from the header's chip.
+    `sessions.bind` matches `subject` against existing subjects and appends a
+    non-waking `[bind]` line. The registry is asked again at once, so the
+    next payload roots at the subject without a reload.
     """
     if not repo.stored:
         return h.send_json({"ok": False, "error": "not a session"}, status=404)
@@ -183,12 +167,8 @@ def _bind(h, repo):
 
 
 def _card_here(repo, card):
-    """Is `card` the id of a card on this board?
-
-    Nothing here builds a path out of what a browser sent: the id is matched
-    against the cards that exist, the same way `/session` looks a label up in
-    what discovery found. A miss is a miss.
-    """
+    """Is `card` the id of a card on this board? Matched against the cards
+    that exist, never made into a path."""
     if not re.match(r"^\d{4}$", str(card or "")):
         return False
     try:
@@ -203,21 +183,11 @@ def _card_here(repo, card):
 
 
 def _handover(h, repo):
-    """ONE STEP WRITTEN FOR THEM, AND THE SESSION STAYS IN TEACH.
+    """`POST /handover`: one step written for them; the session stays in teach.
 
-    **The want:** *"in coach coding mode, I still want to be able to have a
-    'fuck this, you do this step' option."* `POST /mode` changes every card
-    after it; this hands over one step. Nothing touches the session's state:
-
-    1. **Their tap in the transcript**, as a turn of theirs, naming the card.
-    2. **A line in the inbox** with a DOING turn's sense said outright, because
-       the session still says teach, which is right about the session and wrong
-       about this turn.
-    3. **A turn queued**, because the tap is the instruction -- the same
-       rule `_begin` follows.
-
-    The turn carries the card in `card`, not in `answers`: a step handed over
-    is not an answer to it. Refused in do mode, where nothing is withheld.
+    A transcript turn naming the card, an inbox line stating a doing turn's
+    sense (the session still says teach), and a queued turn. The card rides
+    in `card`, not `answers`. Refused in do mode.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -254,13 +224,9 @@ def _handover(h, repo):
 
 
 def _session(h, repo):
-    """`POST /session {session, chapter?, hw?, begin?}`: label the sitting.
-
-    A lecture, optionally on one of the book's chapters, or a homework set.
-    Both names are looked up in what the subject has (`homework.chapters`,
-    `homework.sets`), never carried through as typed. Nothing is filed away:
-    a session keeps every card until the owner ends it. The mode is not a
-    sitting's; only `POST /mode` changes it.
+    """`POST /session {session, chapter?, hw?, begin?}`: label the sitting, a
+    lecture (optionally on a chapter) or a homework set, both looked up in
+    what the subject has. Files nothing away and never changes the mode.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -320,8 +286,7 @@ def post(h, repo, path):
         return _session(h, repo)
 
     if path == "/text/save":
-        # A typed answer in progress, kept per question so the panel can flip
-        # between writing and typing without losing either.
+        # A typed draft per question, so writing and typing can alternate.
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:
@@ -348,19 +313,9 @@ def post(h, repo, path):
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         text = (payload.get("text") or "").strip()
-        # A signal carries meaning without a sentence, and two are still sent:
-        # "begin" and "skip". "begin" is the cold start -- an empty board owes
-        # no answer, so the slate never opens and there is nothing to type in,
-        # which left the iPad with no way to say the first thing of a session.
-        # "skip" declines a prompt.
-        #
-        # "done", "help" and "confused" were the three buttons a `code` course
-        # got instead of an answer, and both the buttons and the mode are gone.
-        # They are STILL ACCEPTED, because an installed app serves a cached
-        # shell: a device that has not picked up the new one yet still has the
-        # buttons on it, and a 400 in reply to a tap is a lesson that stops. The
-        # sentences behind them are unchanged, so such a tap still reaches the
-        # tutor and still means what it always meant.
+        # Signals without a sentence: "begin" (the cold start, when there is
+        # nothing to answer) and "skip". "done", "help" and "confused" are
+        # still accepted, because a cached app shell may still offer them.
         signal = (payload.get("signal") or "").strip().lower() or None
         if signal not in (None, "done", "help", "confused", "begin", "skip"):
             return h.send_json({"ok": False, "error": "bad signal"}, status=400)
@@ -380,26 +335,21 @@ def post(h, repo, path):
             "read": False,
         }
         turns.write_turn(repo, record)
-        # The typed draft for this question is now the answer itself; it has
-        # been said and should not come back to haunt the next prompt.
+        # The draft became the answer; it must not return to the next prompt.
         a = record.get("answers")
         if a:
             try:
                 os.remove(os.path.join(repo.text, str(a) + ".txt"))
             except OSError:
                 pass
-        # What lands in the inbox is what the runner hands the turn, and
-        # that string IS the prompt the assistant is woken with. A bare "[begin]" tells it nothing, so a signal sent without a
-        # sentence carries its own.
+        # The inbox line is the turn's prompt, so a bare signal carries a
+        # sentence.
         line = ("[%s] " % signal if signal else "") + text
         if signal and not text:
             line += (sense.skip_sense(repo) if signal == "skip"
                      else sense.SIGNAL_SENSE.get(signal, ""))
         if signal == "begin":
-            # Where to begin, not merely that they are waiting. Without this
-            # the assistant has a blank board, no handoff, and a signal that
-            # says nothing -- so it guesses, and the first guess opened a
-            # course at chapter four.
+            # Where to begin, so the turn does not guess a chapter.
             line += " " + sense.session_sense(repo)
         with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(dict(record, text=line)) + "\n")
@@ -409,10 +359,7 @@ def post(h, repo, path):
         return h.send_json({"ok": True, "turn": tid, "rev": rev})
 
     if path == "/poke":
-        # `board write` says a card landed, so the payload is rebuilt now
-        # rather than on the next sentinel pass. A line that wakes and that
-        # nothing has queued (written by a command outside this server) is
-        # queued here.
+        # Rebuild now; queue a waking line written outside this server.
         h.hub.worker.dirty.set()
         queued = bool(inbox.waiting(repo)) and runner.wake(repo)
         return h.send_json({"ok": True, "queued": bool(queued)})

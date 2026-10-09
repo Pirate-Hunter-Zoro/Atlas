@@ -15,23 +15,17 @@
                       open session, every move in a manifest; reverse_import
                       undoes it (the cutover, board/scripts/import-live.py)
 
-A session is Mac-only and ignored (`/sessions/` in .gitignore, and the audit
-refuses any path under it). It persists until the owner ends it: nothing but
-`end` sets `ended`. An id is matched against `ID_RE` and never joined onto a
-path unchecked.
+A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
+under it) and persists until `end`. session.json = {id, title, subject,
+mode, opened, ended, writeup, seen, code, view}; `subject` is a subject id
+or null, `writeup` a source path from the Atlas root or null, times local
+`YYYY-MM-DD HH:MM:SS`. `code` is the cluster coding session as the Mac last
+heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
+`gitops.commit` refuses the held paths on main and `board push` goes to the
+ref.
 
-session.json = {id, title, subject, mode, opened, ended, writeup, seen, code,
-view}. `view` is `board`, or `slate` for a notes canvas (VIEWS). `subject` is a subject id (`courses/X`, `projects/Y`) or null;
-`writeup` is a source path relative to the Atlas root, or null. Times are
-local `YYYY-MM-DD HH:MM:SS`.
-
-`code` is null, or the session's coding session at the cluster as the Mac
-last heard it (`cluster.Ear`): {ref, sha, paths, step, subject, prev, seen,
-at}. `ref` is `refs/heads/code/<id>`, `sha` its tip, `paths` the held paths
-(repository-relative), `prev` the tip before, and `seen` the commit whose held
-files this checkout's working tree has. While it is set, `gitops.commit`
-refuses commits to the held paths on main and `board push` from the session
-goes to the ref.
+The constraint: an id is matched against `ID_RE`, never joined onto a path
+unchecked.
 """
 
 import json
@@ -48,8 +42,7 @@ ID_RE = re.compile(r"^\d{8}-\d{6}(?:-\d+)?$")
 STAMP = "%Y%m%d-%H%M%S"
 WHEN = "%Y-%m-%d %H:%M:%S"
 
-# The directories every session has from the start (section 2's layout).
-# Files -- turns.jsonl, inbox/messages.jsonl, agent.json -- appear when written.
+# Directories every session starts with; files appear when written.
 LAYOUT = ("cards", "slate", "answers", "inbox", "uploads", "text", "annotations")
 
 
@@ -129,12 +122,9 @@ VIEWS = ("board", "slate")
 
 
 def new(title=None, base=None, now=None, view="board"):
-    """Create a session and return its session.json.
-
-    The id is the local time to the second; a clash takes `-2`, `-3`, ...
-    `os.mkdir` claims the name, so two callers in one second get two
-    sessions and neither touches the other. `view` is one of VIEWS.
-    """
+    """Create a session and return its session.json. The id is the local
+    second (`-2`, ... on a clash); `os.mkdir` claims it, so two callers never
+    share one. `view` is one of VIEWS."""
     if view not in VIEWS:
         raise Refused("a session's view is board or slate, not %r" % (view,))
     now = time.time() if now is None else now
@@ -169,12 +159,9 @@ def _artifacts(base, subject, sid):
 
 
 def end(sid, base=None, now=None):
-    """End session `sid`: set `ended`, then commit through gitops the bound
-    subject's TUTOR.md and every artifact whose doc.json lists the session.
-
-    `(record, ok, said)`. Ending an ended session keeps its time and retries
-    the commit, so a commit that failed once can be had again.
-    """
+    """End session `sid`: set `ended`, then commit the bound subject's
+    TUTOR.md and every artifact listing the session. `(record, ok, said)`.
+    Ending again keeps the time and retries the commit."""
     base = base or subjects.root()
     where = _need(sid, base)
     rec = get(sid, base)
@@ -279,13 +266,9 @@ def _line(where, text, signal, now=None, **extra):
 
 
 def bind(sid, subject, base=None, now=None):
-    """Bind session `sid` to `subject`, matched against `subjects.all()`.
-
-    `(record, changed)`. Sets `subject` to the subject's id and appends a
-    non-waking `[bind] <id>` line. Nothing is filed (D21) and nothing moves:
-    uploads stay in the session until `file` puts each one somewhere.
-    Binding to the subject already bound changes nothing and says nothing.
-    """
+    """Bind session `sid` to `subject` (matched against `subjects.all()`).
+    `(record, changed)`. Appends a non-waking `[bind] <id>` line; nothing is
+    filed or moved (D21). Rebinding the same subject is silent."""
     base = base or subjects.root()
     where = _need(sid, base)
     found = subjects.find(subject, base) if subject else None
@@ -331,12 +314,9 @@ INK_EXTS = (".dir.png", ".png", ".json", ".gone")
 
 
 def ink_ident(rel):
-    """The ink id of a file at `rel`, its path relative to where it is kept:
-    `uploads/<name>` in a session, `materials/<name>` (or any path) in a
-    subject. The library's id rule (`library._ident`), so the reader keys ink
-    on the id the library lists the file under: lower-case letters, digits and
-    dashes, at most 40, which `writing.ANN_DOC` takes. Where two files share
-    one, the library numbers the later; `file` asks it (`library.ident_map`)."""
+    """The ink id of a file at `rel` (relative to where it is kept), by the
+    library's id rule (`library._ident`), so ink keys match library ids;
+    `file` asks `library.ident_map` where two files collide."""
     from .course import library                        # local: a cycle
     rel = str(rel or "").replace(os.sep, "/").strip("/")
     where, name = os.path.split(rel)
@@ -414,19 +394,14 @@ def _dest(home, name, dest):
 
 def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     """Move `upload` from session `sid`'s `uploads/` into its bound subject:
-    `materials/` by default, or `dest`, a path inside the subject (a
-    directory, or the file's new name).
+    `materials/` by default, or `dest` inside the subject (a directory or a
+    new name). Its ink moves to `<subject>/.ink/`, re-keyed to the file's
+    new library id. Refused: unbound, not an upload, a destination outside
+    the subject, hidden, fenced or taken, or ink already under the new keys.
+    Nothing is committed (D1).
 
-    The upload's ink moves with it, from the session's `annotations/` or
-    `<subject>/.ink/` to `<subject>/.ink/`, re-keyed from the upload's ink id
-    to the id the library lists the file under in its new place. Refused: an unbound session, an upload not in `uploads/`,
-    a destination outside the subject, hidden or fenced, or already taken,
-    and ink already in `.ink/` under the new keys. Nothing is committed: a
-    filed upload is third-party or the owner's raw material (D1).
-
-    Returns {from, to, subject, keys, doc}: `to` is relative to the subject,
-    `keys` maps each old ink key to its new one, and `doc` is the file's ink
-    id where it is now.
+    Returns {from, to, subject, keys, doc}: `to` relative to the subject,
+    `keys` old ink key to new, `doc` the file's ink id now.
     """
     base = base or subjects.root()
     where = _need(sid, base)
@@ -447,16 +422,13 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
                 if u["name"] == name), "") or ink_ident("uploads/" + name)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     shutil.move(src, full)
-    # The id the library lists the file under in its new place, asked once it
-    # is there; a file the library offers no document for keeps the rule's.
+    # The library's id for the file where it now is, else the rule's.
     new = library.ident_map(found["root"]).get(os.path.realpath(full)) \
         or ink_ident(rel)
     moves = []
     try:
-        # Ink drawn while the session was bound is already in `.ink/` (the
-        # server routes document keys there); ink drawn before the bind is in
-        # the session's annotations. `.ink/` first, so it wins a key held in
-        # both.
+        # Ink drawn while bound is already in `.ink/`, earlier ink in the
+        # session; `.ink/` first, so it wins a key held in both.
         for folder in (ink, notes):
             for fname, key, ext in _ink_of(folder, old):
                 page = key.rsplit("/p", 1)[1]
@@ -528,13 +500,9 @@ def show(rec):
 
 
 def summary(rec, base=None):
-    """What the home screen shows of a session beyond session.json:
-    `{last_card: {id, title} or None, new_cards}`.
-
-    `new_cards` counts the cards written after `seen` (epoch seconds; the
-    board's POST /seen sets it). Only the newest card's file is opened, for
-    its title; the rest are a listdir and a stat each.
-    """
+    """What the home screen shows beyond session.json: `{last_card: {id,
+    title} or None, new_cards}`, `new_cards` counted after `seen`. Only the
+    newest card's file is opened."""
     from .lesson import cards as lesson_cards               # local: heavy
     out = {"last_card": None, "new_cards": 0}
     where = path(rec.get("id"), base)
@@ -994,8 +962,7 @@ def import_live(atlas, workspace, subject, manifest=None, dry_run=False,
 
     mv = _Mover(manifest, not dry_run)
     if mv.apply:
-        # Before any record: a manifest kept in `sessions/` must not be what
-        # makes `sessions/`, or a reverse could never remove it.
+        # Before any record, so a reverse can remove `sessions/` it made.
         os.makedirs(os.path.dirname(manifest), exist_ok=True)
     out = {"workspace": ws_id, "subject": subject, "session": None,
            "imported": [], "kept": [], "jobs": 0, "left": [],

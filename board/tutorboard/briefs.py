@@ -10,18 +10,13 @@
                                      `artifacts.status`
     check_sources, internal_names    what on a built deck no source supports
 
-WHERE IT LIVES. One deck, the artifact `projects/Meetings/docs/meeting/`, its
-source `meeting.tex`. Meetings is `"phi": true`, so the pre-commit audit reads
-the source before it can leave. The brief, the figures, the PDF and the
-sidecar are ignored by root rules. Asking again replaces the deck: git
-history keeps every `meeting.tex` there has been.
+One deck, the artifact `projects/Meetings/docs/meeting/` with source
+`meeting.tex`, replaced on each ask (git keeps every version). A brief holds,
+per subject: the period's commits that are its own work, how its TUTOR.md
+changed, the sessions that ended, and the period's figures plus a catalog.
 
-WHAT A BRIEF HOLDS, per subject: the commits in the period that are its own
-work, with their whole messages; how its TUTOR.md changed; the sessions bound
-to it that ended in the period; the period's figures, copied beside the deck,
-and a catalog of the rest (`board deckfig` copies one more).
-
-Standard library only, like everything else.
+The constraint: Meetings is `"phi": true`, so the pre-commit audit reads the
+source before it can leave; brief, figures, PDF and sidecar are ignored.
 """
 
 import json
@@ -225,9 +220,8 @@ def _log(top, rel, since_ts, until_ts=None):
 # the classifier
 # ---------------------------------------------------------------------------
 def owner_of(subject, ids):
-    """The subject id a commit subject's prefix names, or "". `board push`
-    leads with the slug (`TRD-EHR: `); older commits lead with the id
-    (`projects/TRD-EHR: `). Both name it."""
+    """The subject id a commit subject's prefix names, or "": the slug
+    (`TRD-EHR: `) or the full id (`projects/TRD-EHR: `)."""
     said = str(subject or "")
     if ":" not in said:
         return ""
@@ -248,12 +242,9 @@ def is_save(subject, ids=()):
 
 
 def classify(commit, rel, ids):
-    """`work`, `save` or `other` -- what `commit` is to the subject at `rel`.
-
-    Another subject's prefix is `other`. A save of any subject is `save`. A
-    commit whose only files here are TUTOR.md while it changed things
-    elsewhere is another subject's work that swept this memo in: `other`.
-    """
+    """`work`, `save` or `other`: what `commit` is to the subject at `rel`.
+    Another subject's prefix, or a TUTOR.md-only touch alongside work
+    elsewhere, is `other`."""
     owner = owner_of(commit["subject"], ids)
     if owner and owner != rel:
         return "other"
@@ -475,9 +466,8 @@ def read_brief(deck):
 
 
 def drawn_from(deck):
-    """The subjects a deck's brief says it was made from: what `board deckfig`
-    may copy a figure out of. An older brief names them `workspaces`, or as
-    the prefix of its ticked items' sittings."""
+    """The subjects a deck's brief was made from, which `board deckfig` may
+    copy from (older briefs: `workspaces`, or sitting prefixes)."""
     rec = read_brief(deck) or {}
     out = []
     for w in (rec.get("subjects") or []) + (rec.get("workspaces") or []):
@@ -1090,11 +1080,8 @@ def judge(base=None, now=None):
 
 def deck(base=None, now=None):
     """The deck as the front door and the Meetings library read it, or None.
-
-    `state` is `judge`'s. `ready` is true only for a READY deck with its PDF,
-    and only then are `pages` and `check` (what no source supports, from
-    `_provenance.json`) filled. `deck` is `deck_id`: a save of ink on it
-    names it, and a save naming another deck is refused."""
+    `state` is `judge`'s; `pages` and `check` are filled only when ready with
+    its PDF; `deck` is `deck_id`."""
     d = deck_dir(base)
     rec = artifacts.read(d) if d else None
     if not rec:

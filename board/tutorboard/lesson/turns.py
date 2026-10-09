@@ -1,7 +1,7 @@
 """A turn is the student's half of the conversation.
 
-Numbered, revisable, and written down: an answer that is corrected supersedes
-the one before it rather than appending to a pile.
+Numbered, revisable and append-only on disk; a corrected answer supersedes
+its earlier revision in place, and only the newest revision is shown.
 """
 
 import json
@@ -13,18 +13,6 @@ from . import cards, notes
 
 
 
-# ---------------------------------------------------------------------------
-# turns -- the student's half of the transcript
-# ---------------------------------------------------------------------------
-# A lesson is a conversation, and half of it was previously being thrown into a
-# drawer: sent slate pages appeared as thumbnails at the bottom of the page with
-# no connection to the question they answered, and nothing the student wrote
-# survived the next lesson.
-#
-# A turn is one contribution, anchored to the card it answers, and versioned:
-# sending again after feedback supersedes the previous revision in place rather
-# than adding another thumbnail to a pile. The file is append-only -- the whole
-# history is on disk -- and only the newest revision of each turn is shown.
 
 def load_turns(repo, path=None):
     """Newest revision of each turn, in the order the turns first appeared."""
@@ -54,19 +42,9 @@ def load_turns(repo, path=None):
     return [latest[t] for t in order]
 
 
-# A turn id must be unique for the life of the course, and it was only unique
-# for the life of one lesson.
-#
-# Filing a lesson renamed turns.jsonl into the archive folder and left
-# messages.jsonl exactly where it was -- the inbox is the assistant's mailbox and
-# is never rotated. So the moment a chapter was filed, the id counter went back
-# to t0001 while the inbox still held every id ever issued, and the next answer
-# was written into the inbox as a second, different `t0001 rev 1`. Two turns, one
-# name: anything joining an inbox line to a turn joined the wrong one, and
-# `turn_revision` reported rev 1 for a card that already had one.
-#
-# The high-water mark therefore comes from every place that can still name a
-# turn, and is remembered in a file the archive does not move.
+# A turn id is unique for the life of the course: the high-water mark comes
+# from every place that can name a turn (the inbox is never rotated) and is
+# kept in a file archiving does not move.
 TURN_SEQ = ".turnseq"
 TURN_ID_RE = re.compile(r"^t(\d+)")
 
@@ -90,8 +68,7 @@ def turn_hwm(repo):
     # The inbox, which is never rotated and is therefore the real history.
     for rec in notes.load_messages(repo, limit=10 ** 9):
         n = max(n, _turn_n(rec.get("id")))
-    # Frozen answers, named <turn>-r<rev>. Belt and braces: a file on disk that
-    # a new turn could overwrite is worth one listdir.
+    # Frozen answers, named <turn>-r<rev>.
     try:
         for name in os.listdir(repo.answers):
             n = max(n, _turn_n(name))
@@ -123,12 +100,8 @@ def next_turn_id(repo):
 
 
 def turn_revision(repo, tid):
-    """Which revision the next write of `tid` is.
-
-    Read from the transcript AND the inbox: after an archive the transcript no
-    longer has the turn, and answering "rev 1" for something already sent is how
-    a revision came to overwrite the thing it was revising.
-    """
+    """Which revision the next write of `tid` is, read from the transcript
+    and the inbox, which keeps turns the transcript archived."""
     rev = 0
     for rec in load_turns(repo):
         if rec.get("id") == tid:
@@ -139,8 +112,6 @@ def turn_revision(repo, tid):
     return rev + 1
 
 
-# A signal is a tap, not a sentence, so it has to carry its own meaning into the
-# inbox -- see /say. "begin" is the one that has to be unmistakable, because it
 def newest_question(repo):
     """The card a turn sent now is answering."""
     newest = None

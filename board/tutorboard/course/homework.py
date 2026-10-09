@@ -1,28 +1,14 @@
 """homework.py -- where a course keeps its problem sets, and how much of one is done.
 
-Both the server and the command line need this. The server needs it so the board
-can say "hw04, two of four written up" without anyone running a command; the
-command line needs it to compile the right file and to file handwriting beside
-it.
+Two layouts exist, `homework/hw04/hw04.tex` and
+`chapters/ch07-*/homework/ch07-homework.tex`, so sets are discovered, never
+assumed; a session settles which by its pin, session.json `writeup`. A
+session's write-up is the bound set written in place, else
+`docs/<slug>/writeup.tex` from `board/tex/writeup.tex.in`: `start` makes it,
+`add` writes an agreed answer, `build` compiles it for the banner.
 
-Two shapes exist in the wild and neither is more correct than the other:
-
-    homework/hw04/hw04.tex                  numbered by assignment  (Probability)
-    chapters/ch07-*/homework/ch07-homework.tex   numbered by chapter (Galois)
-
-So this discovers rather than assumes, exactly like course discovery itself. A
-session settles it by its pin, session.json `writeup`, which `board writeup
-use` writes and the first `board writeup add` writes when it makes one.
-
-THE WRITE-UP of any session is one of these: the bound set, written in place,
-or else `docs/<session-slug>/writeup.tex`, a new artifact from the one
-template, `board/tex/writeup.tex.in`. `start` makes it, `add` writes one agreed
-answer into it, and `build` compiles it and records the outcome for the board.
-
-The problem labels are opaque strings, not integers: one course numbers problems
-1, 2, 3 and the other numbers them 7.1, 7.2, 7.3.
-
-Standard library only, like everything else.
+The constraint: problem labels are opaque strings (`7.1`, `13`, `2(b)`),
+never integers.
 """
 
 import fnmatch
@@ -33,10 +19,8 @@ import re
 import shutil
 import time
 
-# The scaffold both courses' templates emit. The assistant fills the region; the
-# markers stay put, and they are how anything can tell written-up from not.
-# `%+` rather than `%`: a doubled comment marker is an ordinary thing to write
-# and the region it opens is no less real for it.
+# The region markers every template emits; they are how written-up is told
+# from not. `%+` as well as `%`, since a doubled marker is ordinary.
 SOLUTION_OPEN = re.compile(r"^\s*%+\s*=+\s*SOLUTION\s+(?P<label>\S+)\s*=+\s*$")
 SOLUTION_CLOSE = re.compile(r"^\s*%+\s*=+\s*END\s+SOLUTION\s+(?P<label>\S+)\s*=+\s*$")
 PROBLEM = re.compile(r"\\begin\{problem\}\{(?P<label>[^}]*)\}")
@@ -46,8 +30,8 @@ LAYOUTS = (
     os.path.join("chapters", "*", "homework", "*.tex"),
 )
 
-# A session's own write-up, an artifact at `docs/<slug>/writeup.tex`. It is no
-# problem set -- `sets` never lists it -- and is found only by the session's pin.
+# A session's own write-up: no problem set (`sets` never lists it), found
+# only by its pin.
 DOCS_LAYOUT = os.path.join("docs", "*", "*.tex")
 PINNABLE = LAYOUTS + (DOCS_LAYOUT,)
 WRITEUP_SOURCE = "writeup.tex"
@@ -64,10 +48,8 @@ RECORD = "hw.json"
 # ---------------------------------------------------------------------------
 # A course's chapters: how a course that follows a book orders itself
 # ---------------------------------------------------------------------------
-# A course says so on disk, in one of two places: `chapters.tsv` at its root
-# (columns num, from, to, slug, title), or a `chapters/chNN-slug/` directory per
-# chapter. Nothing is registered. A course with neither is not a book, and has
-# no chapter one.
+# A book-following course says so on disk: `chapters.tsv` (num, from, to,
+# slug, title) or `chapters/chNN-slug/` directories. Neither means no book.
 CHAPTERS_TSV = "chapters.tsv"
 
 
@@ -129,11 +111,8 @@ def chapter_label(chapter):
 
 
 def chapter_dir(root, name):
-    """`chapters/<dir>` of a chapter named by its label, slug or title, or "".
-
-    Looked up on disk, never built from the name: a table's slug is `rings`
-    and its directory `ch03-rings`.
-    """
+    """`chapters/<dir>` of a chapter named by label, slug or title, or "".
+    Looked up on disk: a slug `rings` lives in `ch03-rings`."""
     want = str(name or "").strip()
     if not want:
         return ""
@@ -157,12 +136,8 @@ def chapter_dir(root, name):
 
 
 def _name_for(root, tex):
-    """What to call this set: the folder that identifies it, not the file.
-
-    `homework/hw04/hw04.tex` is hw04. `chapters/ch07-splitting-fields/homework/
-    ch07-homework.tex` is ch07 -- the chapter is the identity there, and the long
-    slug is decoration.
-    """
+    """What to call this set: the folder that identifies it (`hw04`, `ch07`),
+    not the file."""
     rel = os.path.relpath(tex, root).split(os.sep)
     if rel[0] in ("homework", "docs") and len(rel) >= 3:
         return rel[1]
@@ -172,32 +147,11 @@ def _name_for(root, tex):
     return os.path.splitext(os.path.basename(tex))[0]
 
 
-# WHAT A SET IS CALLED, AND WHICH CHAPTER IT IS FOR.
-#
-# `ch04` and `worksheet-field-extensions` are directory names, and a directory
-# name is not a title. A person looking for "the two chapter 4 sets" is looking
-# for the book problems and the worksheet, and on a map labelled with slugs only
-# one of those two says chapter 4 anywhere.
-#
-# Both answers are derived, because a course that has to maintain a registry of
-# its own worksheets has been given a chore rather than a tool:
-#
-#   THE TITLE comes off the source, which already carries one. A template writes
-#   `% Worksheet --- Field Extensions and the Ring F[x]` into the banner and the
-#   scaffolder writes `\section*{...}`; either is what its author calls it out
-#   loud. A set named after its chapter is called after the chapter instead,
-#   because "Ch 04 homework" is what that is.
-#
-#   THE CHAPTER comes off the name where the course numbers its sets that way,
-#   off a declaration where the author wrote one, and off the slug otherwise:
-#   `worksheet-field-extensions` minus its prefix is `field-extensions`, which
-#   is chapter 4's own slug in `chapters.tsv`. A slug matching two chapters
-#   matches neither -- `worksheet-automorphisms-splitting-fields` names two, and
-#   a wrong chapter is worse than none.
-#
-# The declaration is the escape hatch and it is one line in the `.tex`, because
-# the alternative for a set whose slug says nothing is that nothing can ever
-# place it. It is read from a comment so it reaches no built document.
+# A set's title and chapter are derived, never registered. The title comes
+# from the source's banner comment or heading (a chapter-numbered set is named
+# after its chapter). The chapter comes from the course's numbering, a
+# declaration comment in the `.tex`, or the slug matched against
+# `chapters.tsv`; a slug matching two chapters matches neither.
 CHAPTER_DECLARED = re.compile(r"^\s*%+\s*chapter:\s*(\d+)\s*$", re.M)
 
 # The set name a course numbers by chapter: `ch04`, `ch7`, `chapter-12`.
@@ -206,9 +160,7 @@ CHAPTER_NAMED = re.compile(r"^(?:ch|chapter)[-_]?0*(\d+)$", re.I)
 # What a worksheet's directory is called before the part that names its topic.
 SET_PREFIXES = ("worksheet-", "worksheet_", "hw-", "homework-", "set-", "ps-")
 
-# A title in the source. The banner comment first, because both of this course's
-# templates put it there and it is the line an author edits; then the headings a
-# built document would show.
+# A title in the source: the banner comment first, then headings.
 _TITLE_LINES = (
     re.compile(r"^\s*%+\s{2,}(?P<t>[A-Z][^\n]{3,90}?)\s*$", re.M),
     re.compile(r"\\section\*?\{(?P<t>[^}]{3,90})\}"),
@@ -224,13 +176,11 @@ def _read(tex, limit=40000):
         return ""
 
 
-# A due date is not a title, and a scaffolder that wrote the name twice did not
-# mean it as one. Both of these appear verbatim in this machine's courses.
+# Due-date and duplicated-name lines are not titles.
 _DUE = re.compile(r"\s*[.;,]?\s*Due\b[^.]*\.?\s*$", re.I)
 _SAID_TWICE = re.compile(r"^(?P<one>.{3,40}?)\s+[—–-]+\s+(?P=one)\s*$")
 
-# How long a title may be before a drawer row stops being readable. Cut on a
-# word, because a title chopped mid-word reads as a rendering fault.
+# Max title length; cut on a word.
 TITLE_MAX = 70
 
 
@@ -255,20 +205,16 @@ def _title_in(text):
         found = pattern.search(text or "")
         if found:
             title = _tidy(found.group("t"))
-            # A banner rule of dashes matches the shape of a title and is not
-            # one; so does a row of equals signs closing the block.
+            # A rule of dashes or equals signs is not a title.
             if title and not set(title) <= set("-=_–— "):
                 return title
     return ""
 
 
 def _chapter_for(root, name, tex, text):
-    """Which chapter this set is for, as an int, or `None`.
-
-    Three routes, in order of how much they know: the course's own numbering,
-    the author's declaration, then the slug. The slug route refuses an ambiguous
-    match rather than guessing between two chapters.
-    """
+    """Which chapter this set is for, as an int, or None: the course's
+    numbering, then the author's declaration, then the slug (ambiguity
+    refused)."""
     found = CHAPTER_NAMED.match(name or "")
     if found:
         return int(found.group(1))
@@ -297,13 +243,8 @@ def _chapter_for(root, name, tex, text):
 
 
 def title_for(root, name, tex):
-    """What to call this set on a map or in a list of documents.
-
-    A set the course numbers by chapter is called after the number and nothing
-    else: the chapter box beside it already carries the chapter's own title, and
-    repeating it makes two long labels that differ by one word. Everything else
-    is called what its source calls it.
-    """
+    """What to call this set: a chapter-numbered set by its number alone
+    (its chapter box carries the title), anything else by its source."""
     found = CHAPTER_NAMED.match(name or "")
     if found:
         return "Ch %02d homework" % int(found.group(1))
@@ -311,12 +252,8 @@ def title_for(root, name, tex):
 
 
 def sets(root):
-    """Every problem set in this repository, newest last.
-
-    Each carries `title` and `chapter` beside the identity fields: what a person
-    calls it, and which chapter it belongs under, both derived from the source
-    rather than recorded anywhere.
-    """
+    """Every problem set in this repository, newest last, each with a derived
+    `title` and `chapter`."""
     found = {}
     for pattern in LAYOUTS:
         for tex in glob.glob(os.path.join(root, pattern)):
@@ -340,13 +277,8 @@ def sets(root):
 
 
 def assignment(set_dir):
-    """The sheet as it was handed out, if the set keeps one.
-
-    A homework sitting is not the assistant's to choose the problems for: they
-    are assigned, and the assignment is a document. `homework/hwNN/assignment/`
-    is where the courses put it, so point at what is actually there rather than
-    letting an assistant infer a problem list from a chapter.
-    """
+    """The sheet as handed out (`homework/hwNN/assignment/`), if kept, so the
+    problems are never inferred from a chapter."""
     out = []
     for pattern in ("assignment/*", "*.pdf"):
         for path in sorted(glob.glob(os.path.join(set_dir, pattern))):
@@ -358,11 +290,7 @@ def assignment(set_dir):
 
 
 def _hints(text):
-    """Set names a piece of prose could be naming.
-
-    A session is opened with a human label -- "Ch 7 -- splitting fields",
-    "Homework 4" -- and that is usually enough to say which set is meant.
-    """
+    """Set names a session's human label could be naming."""
     out = []
     if not text:
         return out
@@ -412,12 +340,9 @@ def _named(every, state):
 
 
 def find(root, state):
-    """The problem set this session is about, or None if it cannot be settled.
-
-    Pinned beats guessed, and an ambiguous guess is no answer at all -- compiling
-    or filing handwriting into the wrong set is worse than saying which ones
-    there are and stopping.
-    """
+    """The problem set this session is about, or None. Pinned beats guessed,
+    and an ambiguous guess is no answer: writing into the wrong set is worse
+    than stopping."""
     every = sets(root)
     found = _pinned(root, every, (state or {}).get("hw")) or _named(every, state)
     if found:
@@ -428,18 +353,9 @@ def find(root, state):
 
 
 def bound(root, state):
-    """The set this sitting is WRITING INTO, or None -- pinned or named, only.
-
-    Narrower than `find`, and deliberately: `find` also falls back to the lone
-    set in a course, which is the right answer for "compile the thing" and the
-    wrong one for "put a homework line in front of the assistant every turn".
-    A course with one set would then carry that line through a sitting about
-    something else entirely, and a line that is sometimes noise stops being read.
-
-    A session label naming a chapter IS a binding. `board writeup use` writes
-    the pin, but a lecture that opens as "Ch 4 -- field extensions" and works
-    the chapter's exercises is writing them up into ch04's file whether or not
-    anybody ran that command, and the write-up is owed either way.
+    """The set this sitting writes into, or None: pinned, or named by the
+    session label (a chapter label is a binding). Narrower than `find`, which
+    also falls back to a course's lone set: that line every turn would be noise.
     """
     every = sets(root)
     return _pinned(root, every, (state or {}).get("hw")) or _named(every, state)
@@ -456,12 +372,8 @@ def _region_written(lines):
 
 
 def problems(tex):
-    """Every problem in a set, in the order it appears, and how far along it is.
-
-    `stated` is whether the statement has been transcribed -- the templates ship
-    a \\todo placeholder -- and `written` is whether anything but comments sits
-    inside its solution region. The assistant fills both; this only reports.
-    """
+    """Every problem in a set, in order, with `stated` (the statement replaced
+    its `\\todo`) and `written` (anything but comments in its region)."""
     try:
         with open(tex, "r", encoding="utf-8", errors="replace") as fh:
             lines = fh.read().splitlines()
@@ -512,19 +424,9 @@ def problems(tex):
 
 
 def outstanding(probs):
-    """Every problem still without a written solution, in the file's own order.
-
-    Which is the order the assignment has them, because the skeleton is laid down
-    in one pass before any of it is filled: a `problem` environment per assigned
-    label with a placeholder statement and an empty solution region. That is what
-    makes "in order" a property of the document rather than a rule the assistant
-    has to keep in its head while the student jumps about.
-
-    It is the answer to two questions at once, and they used to have none. What is
-    left to do -- and, once a student has skipped something, what has to be come
-    back to. A skipped problem is not a finished one; it is an empty region with
-    the rest of the sheet done around it, and that is exactly what this returns.
-    """
+    """Every problem still without a written solution, in the file's order,
+    which is the assignment's, since the skeleton is laid down in one pass. A
+    skipped problem is one of these."""
     return [p["label"] for p in probs if not p["written"]]
 
 
@@ -549,19 +451,16 @@ def status(root, state):
         "total": len(probs),
         "written": sum(1 for p in probs if p["written"]),
         "stated": sum(1 for p in probs if p["stated"]),
-        # What is left, in order, and the one to return to. A student may work
-        # the sheet in any order they like; the document is written in the
-        # sheet's, and the first empty region is where the next agreed answer
-        # goes -- whether it was skipped an hour ago or has not been posed yet.
+        # The first empty region is where the next agreed answer goes, in
+        # sheet order whatever order they work in.
         "outstanding": outstanding(probs),
         "next": (outstanding(probs) or [None])[0],
     }
 
 
 def compiled_pdf(root, tex_path):
-    """The PDF built from this `.tex`, or None. `board build` writes it beside
-    the source under the source's own name, so that is the only place looked;
-    a PDF elsewhere is not this source's build. `root` is kept for callers."""
+    """The PDF `board build` wrote beside this `.tex` under its name, or None.
+    `root` is kept for callers."""
     if not tex_path:
         return None
     candidate = os.path.splitext(os.path.abspath(tex_path))[0] + ".pdf"
@@ -572,15 +471,14 @@ def compiled_pdf(root, tex_path):
 # ---------------------------------------------------------------------------
 # the write-up: start one, add an agreed answer, build it
 # ---------------------------------------------------------------------------
-# A label goes into `\begin{problem}{...}`, the region markers and a PNG name,
-# so it is matched rather than escaped: `7.1`, `13`, `2(b)`, `q-3`.
+# A label goes into environments, markers and a PNG name, so it is matched,
+# not escaped.
 LABEL_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._()-]{0,23}\Z")
 
 # The line on stdin between the statement and the argument.
 SPLIT = "---"
 
-# A fenced code block in a statement or an argument: set verbatim, which needs
-# no package and no shell-escape.
+# A fenced code block, set verbatim: no package, no shell-escape.
 FENCE = re.compile(r"^\s*(```|~~~)")
 
 _TEX_SPECIAL = re.compile(r"([\\&%$#_{}~^])")
@@ -650,13 +548,9 @@ def _claim(found, session):
 
 def start(root, state, session=None, title=None, author=""):
     """The write-up this session writes into, made when it has none.
-
-    `(record, made)`. A `title` naming one of this subject's sets (`ch08`,
-    `hw04`) is that set. Else the bound set (pinned or named) is written in
-    place, its doc.json listing the session. Else a new artifact,
-    `docs/<slug>/writeup.tex` from the template, `<slug>` from `title`, the
-    session's title, its chapter label, or its id. ValueError where `root`
-    cannot hold one.
+    `(record, made)`. A `title` naming a set is that set; else the bound set
+    in place; else `docs/<slug>/writeup.tex` from the template. ValueError
+    where `root` cannot hold one.
     """
     state = state or {}
     named = (title or "").strip()
@@ -715,14 +609,10 @@ def _markers(label):
 def add(tex, label, statement, argument):
     """Write one agreed answer into the write-up at `tex`.
 
-    The argument goes in the solution region for `label`, replacing what was
-    there. The statement goes in the problem environment when it still holds
-    the `\\todo` placeholder or nothing; a transcribed statement is kept. A
-    label the file does not have gets a problem and a region appended before
-    `\\end{document}`, so a course set is written in the sheet's order and a
-    session's write-up in the order answers were agreed.
-
-    `({label, statement, region}, None)`, or `(None, why)` with nothing written.
+    The argument replaces the solution region for `label`; the statement
+    fills a `\\todo` or empty problem, never a transcribed one. An unknown
+    label is appended before `\\end{document}`. `({label, statement,
+    region}, None)`, or `(None, why)` with nothing written.
     """
     label = str(label or "").strip()
     if not LABEL_RE.match(label):

@@ -796,7 +796,7 @@ function reconcile(host, wanted) {
     }
   }
 
-  /* Anything left in `have` is a node the payload no longer contains. */
+  /* Anything left in `have` is a node the payload has dropped. */
   for (key in have) {
     if (have[key].parentNode === host) host.removeChild(have[key]);
   }
@@ -1023,9 +1023,9 @@ function render(data) {
      payload that clears the send: asking `replyArriving()` here would ask
      whether anything is typing, and nothing is -- `typeOut` does not run until a
      hundred lines below this. */
-  /* A reply is a CARD. Anything of theirs arriving on top -- a signal tap, which
-     is a turn and is never a receipt -- means the answer the receipt was about
-     is no longer the newest thing they did, and nothing is landing. */
+  /* A reply is a card. Anything of theirs arriving on top (a signal tap is a
+     turn, never a receipt) means the receipt's answer is not their newest act,
+     and nothing is landing. */
   replyLanding = !awaitingReply && !!wasAwaiting && !(lastItem && lastItem.turn);
   if (awaitingReply) heldReply = awaitingReply;
   else if (replyLanding) heldReply = wasAwaiting;
@@ -1089,11 +1089,9 @@ function render(data) {
     var oneOf = (item.turn && item.turn.kind === "text" && item.turn.answers)
       ? (typedOn[item.turn.answers] || []) : [];
     var nth = oneOf.length > 1 ? oneOf.indexOf(item.turn.id) + 1 : 0;
-    /* Whether this card is the step on offer is part of its identity too, for
-       the same reason the verdict is part of a turn's: the aim can change under
-       a card nothing else touched, and a node kept because its key had not
-       moved would keep a button the sitting no longer offers -- or go on
-       lacking one it now does. */
+    /* Whether this card is the step on offer is part of its identity too: the
+       aim can change under an untouched card, and a node kept by an unmoved key
+       would keep (or lack) a button the sitting now offers differently. */
     var offer = !!item.card && coaching && item.card.id === thisStep;
     /* The card's own verdict and its place in a run, in its key for the reason
        the turn's verdict is in its: both are written by something that arrives
@@ -1610,12 +1608,9 @@ function paintWaiting(data) {
     els.begin.disabled = true;          /* asking again now writes a second card */
     return;
   }
-  /* A START IS IN FLIGHT, AND "ask again" IS THE WRONG THING TO OFFER.
-
-     Tapping begin on an unattended board now STARTS a tutor -- the request
-     used to go into an inbox nobody was reading and sit there. So the empty
-     board's own words have to follow the start, or the one button on the
-     screen goes on inviting the tap that produces a second opening card. */
+  /* A start is in flight, so "ask again" is the wrong thing to offer: begin
+     starts a tutor, and the empty board's words follow the start so the one
+     button does not invite a second opening card. */
   if (asked && lastLive && lastLive.agent
       && lastLive.agent.state === "waking") {
     els.emptyLead.textContent = "The tutor is starting up…";
@@ -1692,8 +1687,7 @@ function paintSession(state, push, agent, exported, hwBuilt) {
      dot, and waited on a session that did not exist. */
   els.agent.hidden = false;
   /* Only a record the server has judged stale means nobody is there. "Working"
-     is emphatically attached: a turn in progress is the tutor doing its job, and
-     a five-minute turn used to read on the iPad as a death. */
+     is attached: a long turn is the tutor doing its job, not a death. */
   /* "reattaching" counts as attached: a daemon being bounced onto new code is
      coming back in seconds, and telling somebody mid-lesson that nothing is
      reading the board is both wrong and alarming. */
@@ -2258,11 +2252,9 @@ function doExportHomework() {
       rec = rec || {};
       rec.kind = "hw";
       rec.at = Date.now() / 1000;
-      /* In the write-up's own slot, which is where its record belongs. It
-         used to arrive as `push`, and the next payload -- which carries a real
-         `push.json` and knows nothing about this -- painted straight over it.
-         The payload carries the same record from `live/hw.json` a moment later,
-         so this only fills the second before it arrives. */
+      /* In the write-up's own slot, where its record belongs, so the next
+         payload's `push.json` cannot paint over it. The payload carries the
+         same record from `live/hw.json` a moment later; this fills the gap. */
       paintBanner(null, null, rec);
     })
     .catch(function () {
@@ -2345,10 +2337,8 @@ els.finishYes.onclick = function () {
   if (go && done && done.then) done.then(goLeave, goLeave);
 };
 
-/* Saving must not depend on the tutor. Sessions end by being abandoned -- a lid
-   closes, an allocation expires, somebody puts the iPad down -- and until now
-   the only way to the push was a prompt that only `board finish` could raise.
-   Work that is not committed is one bad night's sleep from gone. */
+/* Saving must not depend on the tutor: sessions end by being abandoned, and
+   uncommitted work is one bad night from gone. */
 els.save.onclick = function () {
   els.finishLead.textContent = "Save this work?";
   els.finishSub.textContent = "Commit everything so far and push it to GitHub. "
@@ -2378,11 +2368,8 @@ function newestCardNode() {
   return all.length ? all[all.length - 1] : null;
 }
 
-/* Where the eye should land when a card arrives: the TOP of that card, tucked
-   under the bar. It used to be the bottom of the document, which is the bottom
-   of the writing surface -- so the reply that had just been waited for was
-   pushed off the top of the screen and what arrived instead was a blank slate.
-   The first line of the new feedback is the thing to read first. */
+/* Where the eye should land when a card arrives: the top of that card, tucked
+   under the bar, because the first line of new feedback is what to read. */
 function revealNewest(smooth) {
   revealCard(newestCardNode(), smooth);
 }
@@ -2783,9 +2770,8 @@ function paintSuperseded(set) {
   });
 }
 
-/* Photos and PDFs only. Sent pages used to land here too, which is why answers
-   appeared as a pile of thumbnails at the bottom of the screen with nothing to
-   say which question they belonged to. They are part of the lesson now. */
+/* Photos and PDFs only. Sent pages are part of the lesson, beside the question
+   they answer. */
 function renderScratch(uploads) {
   els.scratchList.innerHTML = "";
   if (!uploads.length) {
@@ -4204,11 +4190,9 @@ var replyLanding = false;
 var working = false;       /* and is it in the middle of a turn right now */
 var sentAt = 0;            /* when begin was last tapped, so its label survives a frame */
 
-/* An unreachable board used to be indistinguishable from an empty one: the shell
-   comes out of the service worker's cache, the payload never arrives, and the
-   page says "Nothing on the board yet" — which reads as "the tutor has not
-   written", not as "you are looking at nothing live". The only signal that the
-   link was down was a 0.55rem dot. So say it where the lesson would be. */
+/* An unreachable board must not look like an empty one (the shell comes from
+   the service worker's cache, so "Nothing on the board yet" would mislead):
+   say it where the lesson would be. */
 function paintLink(dead) {
   linkDead = dead;
   els.dot.className = dead ? "dot dead" : "dot live";
@@ -4442,10 +4426,8 @@ var loadedTurn = null;
 /* Which question the student asked for the surface back on, or null for "not
    asked". Empty string means "asked, on a lesson with no open question". */
 var reopenedFor = null;
-/* The newest question as of the last render. The button below used to walk the
-   card list itself and take the last question in payload order, while `render`
-   takes the newest by mtime -- two answers to one question, and the request
-   expiring the instant it was made if they ever disagreed. */
+/* The newest question as of the last render, so the button below and `render`
+   agree on which question is newest (by mtime). */
 var lastNewestQ = "";
 /* The newest card of any kind, for the same reason and read at the same moment. */
 var lastNewestCard = "";
@@ -4825,10 +4807,9 @@ function frozenFor(url) {
   return null;
 }
 
-/* A board whose sheet no longer holds what was handed in off it, given that
-   answer back on a page of its own, so the working does not vanish under the
-   pen. Once per board per lesson, and never over ink: `adoptInk` cuts a new
-   page. */
+/* A board whose sheet has lost what was handed in off it, given that answer
+   back on a page of its own, so the working does not vanish under the pen.
+   Once per board per lesson, and never over ink: `adoptInk` cuts a new page. */
 var reclaimed = {};
 /* What the sheet held when its answer was first ruled gone. See below. */
 var reclaimFrom = {};
@@ -5122,12 +5103,9 @@ function paintBoards(qids, liveKey, off) {
     }
 
     if (page === undefined) {
-      /* Never written on, so there is no picture to take -- but a blank board is
-         still a board. It says the question can be answered here, and touching it
-         cuts the page. It used to show nothing at all, which is fine exactly as
-         long as the live surface happens to be under that question, and is a
-         question posed with nowhere to answer it the moment anything parks the
-         surface somewhere else. Something did. */
+      /* Never written on, so there is no picture to take, but a blank board is
+         still a board: it says the question can be answered here, and touching
+         it cuts the page, wherever the live surface happens to be parked. */
       /* And it has to SAY it is blank. An empty board with the same caption as
          a full one reads as a board whose working has gone missing, which is
          how it was read the first evening it existed -- by someone whose ink
@@ -5167,19 +5145,12 @@ var SIGNAL_LABEL = { done: "ready to check", help: "needs help", confused: "conf
                      begin: "asked the tutor to begin", skip: "skipped this one",
                      handover: "handed this step over" };
 
-/* The answer block, in every course.
-
-   Two ways, because the question decides which is easier: write on the card
-   itself, which is how you answer *about a place* in it, or type, which is how
-   you answer in sentences. Both come back as an ordinary turn, and a sentence
-   saying what was just implemented is one of them -- there is no separate
-   channel for that and there is no longer a tap that stands in for it. */
-/* A card is a file, and the lesson shows nothing until that file exists. So the
-   minute a tutor spends writing one is a minute of a blank screen with no way to
-   tell it apart from a tutor that has died -- and the difference used to be a dot
-   in the title bar the size of a full stop. Say it where the card is going to
-   appear, and count, because a wait you can see the length of is a different
-   experience from one you cannot. */
+/* The answer block, in every course: write on the card itself (to answer
+   about a place in it) or type (to answer in sentences). Both come back as an
+   ordinary turn; there is no separate channel. */
+/* A card is a file, and the lesson shows nothing until that file exists, so
+   the wait is said where the card will appear, with a count: a wait whose
+   length you can see is unlike one you cannot. */
 var busySince = 0;
 var busyTurn = -1;
 /* The words a stall is being reported with, so the ticker does not overwrite
@@ -5294,13 +5265,10 @@ function stalledWord(st, waiting, unsaved) {
         since: Date.now() - (st.failure.at || 0) * 1000 }
     : null;
 
-  /* A PROVIDER STANDING ASIDE IS A STANDING FACT, NOT AN EVENT, and until now
-     it was written only into a log file and a hover tooltip. It is the sentence
-     that answers "why is nothing happening": which provider went quiet, what it
-     could not reach, when it will be asked again, and who is teaching instead.
-     `agent_why` is the daemon's own words for the swap and already carries the
-     host and the hour; `stood_down` is there for the case where nothing could
-     take the turn, so there was no swap to describe. */
+  /* A provider standing aside is a standing fact, not an event: which provider
+     went quiet, what it could not reach, when it is asked again, and who
+     teaches instead. `agent_why` is the server's own sentence for the swap;
+     `stood_down` covers the case where nothing could take the turn. */
   var aside = null;
   if (st && st.agent_why) {
     aside = { text: st.agent_why, since: 0 };
@@ -5423,10 +5391,8 @@ function paintBusy(data) {
       els.busySince.textContent = "";
       busySince = 0;
       busyTurn = -1;
-      /* AND THE CLOCK KEEPS RUNNING. This used to stop the ticker, so the only
-         thing that could ever clear a stuck "sending" was the next payload --
-         which is precisely what does not arrive when the send is the thing that
-         went wrong. `tickBusy` re-asks on its own now. */
+      /* The clock keeps running, so `tickBusy` can clear a stuck "sending"
+         even when the next payload never arrives. */
       if (!busyTimer) busyTimer = setInterval(tickBusy, 1000);
       return;
     }
@@ -5469,12 +5435,8 @@ function paintBusy(data) {
   busySignal = st.turn_signal || "";
   if (busyTurn !== turn || !busySince) {
     busyTurn = turn;
-    /* THE DAEMON'S CLOCK, NOT THIS PAGE'S.
-
-       This used to start counting when the browser first SAW the working state,
-       which on a reload, on a second device, or on a board opened halfway
-       through a turn is nowhere near when the turn began -- so a four-minute
-       turn read as "8s" to whoever had just picked the iPad up. */
+    /* The daemon's clock, not this page's, so a reload or a second device
+       shows how long the turn has really been running. */
     busySince = st.turn_started ? st.turn_started * 1000 : Date.now();
     busyFrom = newestCard(data);
   }
@@ -5882,8 +5844,8 @@ function makeWriter(then) {
         /* The working goes alone; a blank surface with marks opens the
            picker instead. */
         beforeSend: askWhatToSend,
-        /* The saved pages have arrived and the count can be believed. Everything
-           about which question sits on which page was deferred until now. */
+        /* The saved pages have arrived and the count can be believed; which
+           question sits on which page was waiting for this. */
         onPages: function () {
           restoreAnswer();
           if (lastLive) render(lastLive);
@@ -5920,7 +5882,7 @@ function restoreAnswer() {
   repairPages();
 
   /* Before anything decides which page goes under the pen: if this board's sheet
-     no longer holds the answer that came off it, the answer comes back first. */
+     has lost the answer that came off it, the answer comes back first. */
   /* And it is asked when a board is OPENED, not on every render of the board
      somebody is sitting on. See `reclaimOwed`. */
   if (liveSlot !== reclaimSeen) { reclaimSeen = liveSlot; reclaimOwed = liveSlot; }
@@ -6146,12 +6108,9 @@ function paintPanel() {
   else if (writer) requestAnimationFrame(writer.relayout);
 }
 
-/* Which typed answer the box is CORRECTING, as opposed to answering afresh.
-   Every typed answer used to overwrite the one before it because the send asked
-   `answering.latest` -- the newest turn on the question, of any kind -- and a
-   question stays open for an evening. Set in exactly two places: the tap on the
-   block above the box, and nowhere else that puts words into the box. Anything
-   typed into an empty box is a new answer, and new answers are kept. */
+/* Which typed answer the box is correcting, as opposed to answering afresh,
+   so a new answer never overwrites the last. Set only by the tap on the block
+   above the box; anything typed into an empty box is a new answer, kept. */
 var correctingTurn = null;
 
 /* ------------------------------------------ the rendered block above the box */

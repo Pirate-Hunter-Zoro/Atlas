@@ -1,48 +1,31 @@
 /* ==========================================================================
    library.js -- every document this workspace has written, on one surface.
 
-   The ⋯ menu's document panel offers the two documents the BOARD makes: the
-   exported lesson and the compiled write-up. The contents drawer offers what
-   `library.drawer` found, as things to put on a card. Neither is "every paper and
-   presentation in this project", neither was reachable without opening a lesson
-   first, and there was nowhere at all to say what was wrong with one.
-
-   Seven rules this page keeps, and each of them was paid for elsewhere first:
+   Seven rules this page keeps:
 
      1. AN ID, NEVER A PATH. What goes over the wire is the id `library.py`
         handed out, and the server looks it up in what it discovered. Nothing
         here builds a path, and a miss is a miss.
-     2. IT NEVER TOUCHES THE LESSON. No card, no sitting, no `state.json`.
-        Somebody mid-proof on an iPad is not interrupted by somebody correcting
-        a deck, which is the whole reason this is a page rather than a panel.
+     2. IT NEVER TOUCHES THE LESSON. No card, no sitting, no `state.json`, so
+        somebody mid-proof is never interrupted by a deck correction; that is
+        why this is a page rather than a panel.
      3. FEEDBACK IS NOT JUST FILED. One tap writes the note where the document
         is and asks for the revision.
-     4. A DOCUMENT THAT HAS BEEN MARKED UP HAS ALREADY SAID SOMETHING. Ink on
-        its pages goes into the note as the pages it is on and a picture of
-        each, so the send button is live with an empty textarea and says so.
-        Asking somebody to type out a ring they have already drawn round a
-        figure is the translation this whole surface exists to avoid.
-     5. NOTHING THE READER IS WAITING ON IS SILENT. A note dispatches the
-        revision in the same request, and the only thing that used to change on
-        the glass afterwards was a line saying the note was filed. So the page
-        holds a STAMP -- `GET /library/stamp`, stats only -- asks for it every
-        few seconds while it is in front of somebody, says the turn is running,
-        and re-draws the open document the moment its bytes move. Not the hub's
-        stream: that payload is the LESSON's, and this page opens no sitting on
-        purpose.
-     6. A RE-DRAW KEEPS THE READER'S PLACE, and the ink stays on. Throwing a
-        33-page deck back to page 1 after a one-line fix is its own defect. The
-        marks are kept rather than cleared, because a ring somebody drew is
-        theirs -- and where the page count moved, the page says out loud that
-        they were drawn on an older version rather than pretending page 7 is
-        still page 7.
-     7. AND THE RING IS DRAWN HERE. The pen is on the page being read, not on
-        a second surface: each page carries `data-ann="doc/<id>/p<n>"`, which
-        is the anchor `annotate.js` has taken since the board's own viewer
-        first drew a document, and the strokes go to `/annotate/save` the same
-        way a mark on a card does. `send` is never set from this page -- ink
-        made here is a complaint about a document, and it becomes a turn when
-        the note goes, not the moment the pen lifts.
+     4. INK IS FEEDBACK. Marked pages go into the note as the pages and a
+        picture of each, so the send button is live with an empty textarea
+        and says so.
+     5. NOTHING THE READER WAITS ON IS SILENT. The page polls a stats-only
+        STAMP (`GET /library/stamp`) every few seconds while visible, says the
+        turn is running, and redraws the open document when its bytes move.
+        Not the hub's stream: that payload is the lesson's, and this page opens
+        no sitting.
+     6. A REDRAW KEEPS THE READER'S PLACE AND THE INK. Marks are kept, and
+        where the page count moved the page says they were drawn on an older
+        version.
+     7. THE RING IS DRAWN HERE. Each page carries `data-ann="doc/<id>/p<n>"`,
+        `annotate.js`'s anchor, and strokes go to `/annotate/save` as a card's
+        do. `send` is never set from this page: ink here becomes a turn when
+        the note goes, not when the pen lifts.
    ========================================================================== */
 
 /* WHOSE LIBRARY THIS IS. Under `/s/<id>/library` it is that session's subject,
@@ -149,19 +132,10 @@ var els = {
   shownClose: document.getElementById("shown-close")
 };
 
-/* THE WAY BACK GOES WHERE YOU CAME FROM.
-
-   This page is reached from two places and used to lead back to one of them.
-   The board's own row into it is a lesson stepping sideways, so `/board` is
-   right there. The FRONT DOOR's *Papers & decks* is not: reading a document
-   nobody is teaching from has nothing to do with the lesson -- that is the
-   whole reason the button exists -- and landing somebody in a sitting they did
-   not open, to get back to the door they tapped from, is the front door's own
-   trapped-level defect wearing a different page.
-
-   So the caller says where it came from and this says so in the label. One
-   query parameter, not a stored flag: it survives a reload, a share and a
-   cached shell, and there is no second copy of it to go stale. */
+/* The way back goes where you came from: the board's row leads back to
+   `/board`, the front door's *Papers & decks* back to the front door, since
+   landing in a sitting nobody opened is a trap. The caller says which in one
+   query parameter, which survives a reload, a share and a cached shell. */
 var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
                           title: "back to everything" },
                   /* The board reopens on the map it was left on. */
@@ -405,11 +379,9 @@ function paintFlight() {
       && stamps[flight.id] !== flight.stamp) {
     remember(null);
   }
-  /* THE DOCUMENT IS GONE. An overhaul may rename the source it was written
-     from, and there is then nothing left to wait for -- an unlanded turn held
-     against a document that no longer exists would sit on the page for ever.
-     Only once a stamp has actually been read, or the very first pass clears
-     what a reload just restored. */
+  /* The document is gone (an overhaul may rename its source), so a turn held
+     against it would wait for ever. Only once a stamp has been read, or the
+     first pass clears what a reload just restored. */
   if (flight && stampAll && !stamps[flight.id]) remember(null);
   if (flight && !flight.stamp && stamps[flight.id]) {
     /* The send landed before the first stamp did. Take this one as the
@@ -452,10 +424,8 @@ function paintReaderSaid() {
   }
   if (drawnPages && openPages && drawnPages !== openPages
       && window.Annotate && window.Annotate.marked().length) {
-    /* KEPT, NOT CLEARED. A ring somebody drew is theirs, and a document that
-       reflowed is not a reason to throw it away -- but the mark on page 7 is
-       about something that may no longer be on page 7, and the page says so
-       rather than pretending otherwise. */
+    /* Kept, not cleared: a ring somebody drew is theirs. But the mark on page 7
+       may now be about a different page 7, and the page says so. */
     said.push("Your marks were drawn on a version with " + drawnPages
       + (drawnPages === 1 ? " page" : " pages")
       + "; this one has " + openPages
@@ -908,15 +878,14 @@ function inkSig(s) {
   return JSON.stringify(o);
 }
 
-/* THE SERVER'S INK FOR `doc`, put on the glass. SPENT INK GOES FROM IT TOO,
-   because `load` never takes a mark away -- this device's copy wins. A saved
-   page the server no longer has is dropped. A page the server still has keeps
-   this device's copy, because a view can be older than the last save, unless
-   the server says it changed it: `wiped`, the strokes a landed round's wipe
-   took off (`library.wiped`). A saved page showing any of those is dropped
-   and taken again. A page still owed a save keeps its new ink and loses just
-   those strokes (`Annotate.shed`), so its save cannot write them back. With
-   no `have` (the list's reply), every page sheds them. */
+/* The server's ink for `doc`, put on the glass, minus spent ink, because
+   `load` never takes a mark away (this device's copy wins). A saved page the
+   server lacks is dropped. A page the server still has keeps this device's
+   copy, since a view can be older than the last save, unless the server says
+   it changed it: `wiped`, the strokes a landed round took off
+   (`library.wiped`). A saved page showing any of those is dropped and taken
+   again; a page still owed a save sheds just those strokes (`Annotate.shed`)
+   so its save cannot write them back. With no `have`, every page sheds them. */
 function takeInk(doc, have, wiped) {
   if (!window.Annotate) return;
   var A = window.Annotate;
@@ -1060,9 +1029,8 @@ var annBar = window.AnnBar && window.Annotate
   ? window.AnnBar.mount({ onDone: function () { setPen(false); } })
   : null;
 
-/* AND BOTH BARS STAY ON THE GLASS WHILE A SLIDE IS PINCHED -- see `viewpin.js`.
-   Zoomed in, they used to pan off with the page, and with them every way to
-   finish marking or send it. */
+/* And both bars stay on the glass while a slide is pinched (`viewpin.js`), so
+   finishing and sending stay reachable when zoomed in. */
 if (window.ViewPin) {
   window.ViewPin.pin(document.getElementById("reader-bar"),
                      { edge: "top", spacer: document.getElementById("reader"), z: "5" });

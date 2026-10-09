@@ -6,29 +6,9 @@ import os
 import re
 
 
-# A PAGE IS ITS NUMBER, NOT ITS POSITION IN THIS LIST.
-#
-# This used to hand back the files that happen to exist, in name order, and the
-# surface took that list as its pages array -- so the page at index i was
-# addressed on the next save as `page-(i+1)`. That is the same page only for as
-# long as the numbers on disk are gapless, and they never are: a file is written
-# when a page is SAVED, so a page cut and never written on leaves no file. One
-# such gap and the whole list slides down by one.
-#
-# Measured on a Galois sitting: `page-01`, `-06`, `-08` and `-10` had never been
-# saved, so after a reload index 5 was `page-09` and the next stroke on it was
-# written to `page-06`. The fingerprint is all over that directory --
-# `page-13`/`page-14` byte-identical, `page-21`/`page-22`, `page-34`/`page-35`,
-# `page-41`/`-42`/`-43` -- each one a page written back out under its
-# neighbour's number. Nothing showed an error; the board simply came back with
-# every board pointing at somebody else's sheet, which from the iPad is
-# "none of the boards have my preserved written work on them".
-#
-# So the number is carried, and it comes from the FILENAME rather than from the
-# field inside the file: the field was written by whichever client saved it and
-# a client that had already slid is a client whose field is wrong too. The
-# filename is what the next save will address, which makes it the only thing
-# either side can agree on.
+# A page is its number, read from the filename, never its position in a
+# list: saved pages have gaps, and a positional index would write a stroke
+# onto a neighbour's page. The filename is what the next save addresses.
 _PAGE_RE = re.compile(r"^page-(\d+)\.json$")
 
 
@@ -38,13 +18,8 @@ def page_number(name):
 
 
 def read_slate_pages(repo):
-    """Full stroke data, so the slate resumes where it left off on any device.
-
-    Each page carries its own number. Ordered BY that number, not by name: the
-    format is `%02d` and pages run to 999, so `page-100` sorts before `page-99`
-    and a sitting that reached three figures came back with its last hundred
-    pages at the front.
-    """
+    """Full stroke data for every page, each with its number and ordered by
+    it (`page-100` sorts before `page-99` by name)."""
     pages = []
     try:
         names = [n for n in os.listdir(repo.slate) if _PAGE_RE.match(n)]
@@ -72,7 +47,7 @@ def load_slate(repo, limit=40):
                  if re.match(r"^page-\d+\.png$", n)]
     except OSError:
         names = []
-    # By number, for the same reason as above: `page-100` sorts before `page-99`.
+    # By number, not name.
     names.sort(key=lambda n: int(n[5:-4]))
     for name in names[-limit:]:
         path = os.path.join(repo.slate, name)

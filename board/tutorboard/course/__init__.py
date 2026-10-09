@@ -1,7 +1,2 @@
-"""A course on disk.
-
-What a repository IS, rather than what is happening on it right now: its own
-`tutorboard.json`, the directory layout a lesson reads and
-writes, the chapters a book is divided into, the problem sets it was set, and
-the documents that come out the other end.
-"""
+"""A subject on disk: its `tutorboard.json`, the session paths a lesson reads
+and writes, its chapters and problem sets, and the documents it makes."""

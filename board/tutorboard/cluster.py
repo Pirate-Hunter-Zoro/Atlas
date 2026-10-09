@@ -6,38 +6,22 @@ that hears it.
     atlas_of(subject)              the Atlas root holding a subject
     Ear(atlas)                     the server's cluster thread
 
-`wake` is how a job's ending (`jobs.drop`) reaches the Mac (D16):
+`wake` is how a job's ending reaches the Mac (D16): with a stored session,
+reopen it if ended, append to its inbox and queue a turn; with none, or a
+gone one, append to `sessions/.notices.jsonl` and start nothing. `wake=False`
+writes a non-waking line.
 
-  * `session` names a stored session: it is reopened if ended, the line is
-    appended to its inbox, and the server's runner queues a turn for it.
-  * no session, or one that no longer exists: the line is appended to
-    `sessions/.notices.jsonl` and no turn starts. `/notices.json` serves it.
+The ear runs in `serve.py` only with `TUTORBOARD_CLUSTER=1`: every `EVERY`
+seconds one `git ls-remote` for `main` and `refs/heads/code/*`, a pull
+(`gitops.pull`) only when origin's main is new here, failures recorded in
+`<state>/pull.json`, then `jobs.hear` for every subject. A moved code ref is
+fetched and recorded in session.json `code`; a step wakes the session with
+`[code] step N: ...` and brings unchanged held files to the new tip; a
+deleted ref releases them with a non-waking `[unheld]` line.
 
-`wake=False` writes the line `"wake": false`: it queues nothing, and the
-session's next turn takes it with the rest.
-
-THE EAR runs inside `serve.py` only with `TUTORBOARD_CLUSTER=1`. Every `EVERY`
-seconds it asks origin for `main` and `refs/heads/code/*` with one
-`git ls-remote` (no prompt, `LS_TIMEOUT` seconds). It pulls through
-`gitops.pull` only when origin's main is a commit HEAD does not contain, and
-records a failed ls-remote or pull in `<state>/pull.json`. Then it hears every
-subject with `jobs.hear`, which wakes through `wake`.
-
-A CODE REF (`refs/heads/code/<id>`, a coding session at the cluster, D17) is
-heard before the pull. A sha that differs from the session's `code.sha` is
-fetched to `origin/code/<id>` and recorded in session.json `code` = {ref, sha,
-paths, step, subject, prev, seen, at}. A step (its message says `Step N`)
-wakes the session with `[code] step N: <subject line>`, reopening it if ended;
-a commit that is not a step (the session's own `board push`) wakes nothing.
-Where this working tree's held files are as `seen` left them, they are brought
-to the new tip, so the Mac's tutor reads and edits what the cluster has. A
-deleted ref clears `code` and puts the held files back as HEAD has them, unless
-the Mac changed them since; a non-waking `[unheld]` line says so. A code ref
-for no session here is a notice, once.
-
-Runs on the cluster's python3 too (jobs imports it): no walrus, no
-`match`. The runner is reached through `sys.modules`, never imported, so the
-cluster never loads it.
+The constraint: this runs on the cluster's python3 too (jobs imports it), so
+no walrus or `match`, and the runner is reached through `sys.modules`, never
+imported.
 """
 
 import hashlib
@@ -136,14 +120,9 @@ def _queue(atlas, sid):
 
 def wake(subject, session, line, wake=True, signal="job", request=None,
          now=None):
-    """Deliver one machinery line about `subject` (its root). The line, with
-    `session` set where a session took it and `notice` where none did.
-
-    `line` is the text. `signal` is how `turn_signal` reads it (`job`,
-    `repair`); `request` is a relay request id, so `board brief`
-    can name it; `session` is the session id the request was filed from, or
-    None.
-    """
+    """Deliver one machinery line about `subject` (its root); returns the
+    line with `session` or `notice` set. `signal` is how `turn_signal` reads
+    it; `request` a relay request id for `board brief`."""
     from . import sessions
     from .lesson import turns
     now = float(now or time.time())
@@ -155,8 +134,7 @@ def wake(subject, session, line, wake=True, signal="job", request=None,
     target = sessions.repo(sid, atlas)
     os.makedirs(target.inbox, exist_ok=True)
     msg = {
-        # From the lesson's own id series, and NOT in `turns.jsonl`: the
-        # machinery is reporting, nobody said anything.
+        # From the lesson's id series, not in `turns.jsonl`: nobody spoke.
         "id": turns.next_turn_id(target), "rev": 0, "kind": "text",
         "answers": None, "t": now,
         "iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),

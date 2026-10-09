@@ -9,15 +9,12 @@ first use and dropped after IDLE_SECONDS without an SSE client.
     Registry(atlas).sweep()       drop idle entries; `sweep_loop` runs it
     runner_route(subject, line)   hand a line to the tutor of another subject
 
-A SESSIONLESS Repo has no session directory on disk: its `session` is
-`sessions/.none`, which `sessions.ID_RE` never matches. Document ink goes to
-its root's `.ink/`; a route that would write a card, a turn or an inbox line
-refuses it or goes through `runner_route`.
-
-An entry's Repo roots at the session's bound subject, or at the Atlas root
-while it is unbound. A bind changes session.json and nothing else, so `get`
-re-reads the root on every request and swaps in a new Repo when it moved;
-the Hub and its TikZ worker stay, so a stream open on the board survives.
+A sessionless Repo has no session directory (`sessions/.none`, never matched
+by `sessions.ID_RE`): document ink goes to its root's `.ink/`, and anything
+that would write a card, turn or inbox line refuses or uses `runner_route`.
+An entry's Repo roots at the bound subject (or the Atlas root); `get`
+re-reads it each request, so a bind swaps the Repo while the Hub and its
+stream survive.
 """
 
 import json
@@ -197,25 +194,15 @@ def open_bound(atlas, subject, title):
 # the one way into another subject's tutor
 # ---------------------------------------------------------------------------
 def runner_route(subject, line, base=None, ask="", turn=False, before=None, wake=True):
-    """Hand `line` to the tutor of `subject`, and queue a turn on the runner.
+    """Hand `line` to the tutor of `subject` and queue a turn: the only way a
+    route asks another subject for work. It goes to the newest open session
+    bound to `subject`, else a new one titled `<subject name>: <ask>`.
 
-    Every route that asks a subject other than its own session's for work --
-    a library [revise] or [rework], the meeting deck, a
-    write-up commissioned from the front door -- calls this and
-    nothing else. The line goes to the newest open session bound to
-    `subject`; with none, to a new session bound to it, titled
-    `<subject name>: <ask>`.
-
-    `line` is the inbox text, or a record whose `text`, `signal` and other
-    keys are kept. Its `id` is the session's next turn id unless it has one.
-    `before(repo, id)` runs once the session is chosen and before anything
-    is written into it; whatever it raises propagates, and a dict it returns
-    is merged into the record. `turn` also writes the record into the
-    session's transcript, as the student's. `wake` False writes the line
-    without queueing a turn.
-
-    Returns {"session": id, "repo": Repo, "id": turn id, "record": record}.
-    Raises LookupError when `subject` names no subject.
+    `line` is text or a record (`id` defaults to the next turn id).
+    `before(repo, id)` runs once the session is chosen, before any write;
+    a dict it returns merges into the record. `turn` also writes the record
+    into the transcript; `wake` False queues no turn. Returns {"session",
+    "repo", "id", "record"}; LookupError when `subject` names none.
     """
     from ..runner import service as runner
     base = os.path.abspath(base or subjects.root())

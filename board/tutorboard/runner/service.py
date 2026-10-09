@@ -10,19 +10,15 @@
     wake(repo)           the installed runner's wake for a stored session;
                          False where nothing is installed (a CLI, a test)
 
-One FIFO of jobs per session, and at most `concurrency` turns at once across
-every session (config.json `concurrency`, default 2). A job is a TURN or the
-WRAPUP. Two wakes of a session whose turn has not started are one turn: the
-turn takes every unread line when it starts. A line written `"wake": false`
-never queues anything; the next turn takes it with the rest.
+One FIFO per session, at most `concurrency` turns at once overall (default
+2). A job is a turn or the wrap-up; two wakes before a turn starts are one
+turn, and a `"wake": false` line queues nothing. A turn is a fresh provider
+process in the Atlas root with TUTORBOARD_SESSION, TUTORBOARD_TURN=1 and
+CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1, and this tree's `board` on PATH.
 
-A turn is one fresh provider process (`loop.take_turn`) in the Atlas root, with
-TUTORBOARD_SESSION, TUTORBOARD_TURN=1 and CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1,
-and `board` on PATH from this server's own tree. Its message is written into
-the session's agent.json as `owed` before the inbox lines are marked read, and
-its process group as `turn_pid` once it exists, so a server killed mid-turn
-loses nothing: `recover` kills the group and queues the owed message, unless
-the turn had already written its card. The wrap-up runs only on End.
+The constraint: the message is written to agent.json as `owed` before the
+inbox is marked read, and the process group as `turn_pid`, so a server killed
+mid-turn loses nothing: `recover` kills the group and re-queues the message.
 """
 
 import collections
@@ -110,8 +106,7 @@ class Runner(object):
     def __init__(self, atlas, concurrency=None, port=None):
         self.atlas = os.path.abspath(atlas)
         self.concurrency = concurrency or configured_concurrency()
-        # The port this server listens on, handed to turns so `board write`
-        # can poke the board the moment a card lands.
+        # Handed to turns so `board write` can poke the board.
         self.port = port
         self.queues = {}                       # sid -> deque of jobs
         self.ready = collections.deque()       # sids with a job, nothing running
@@ -292,9 +287,8 @@ class Runner(object):
                 return False
             if got.get("error") is None:
                 return True               # the [unfinished] report: now
-            # A failure the turn repaired itself (the fallback): answer it again
-            # now only where another agent would take it, or the same failure
-            # repeats for ever. Otherwise it stays owed for the next wake.
+            # After a fallback-repaired failure, answer again now only if
+            # another agent would take it, or the failure repeats for ever.
             nxt, _ = recipes.resolve(recipes.load_config())
             if nxt and nxt != ctx.agent_name:
                 return True

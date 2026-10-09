@@ -29,13 +29,9 @@ from ... import fenced, gitops, paths
 from ...course import library, walk
 
 
-# THE SERVICE WORKER'S VERSION IS A HASH OF ITS OWN SHELL.
-#
-# `web/sw.js` names its cache `VERSION`, and an installed app keeps serving the
-# shell it cached until that name moves. So the name is computed here, from the
-# bytes of every file its SHELL list names plus sw.js itself, and written over
-# the placeholder literal as the file is served. A process computes it once and
-# again only when one of those files' mtime or size changes.
+# The service worker's VERSION is a hash of its shell (every SHELL file plus
+# sw.js), written over the placeholder as served, so an installed app picks
+# up any change. Recomputed when a file's mtime or size moves.
 SW_PLACEHOLDER = '"board-shell-dev"'
 # The board and the slate are cached under their /static/ names: a session's
 # `/s/<id>/board` falls back to them (`web/sw.js`).
@@ -122,25 +118,15 @@ def get(h, repo, path):
         return h.send_file(os.path.join(repo.tikz, digest + ".svg"), cache=True)
 
     if path.startswith("/result/"):
-        # A FIGURE THE PIPELINE MADE, ADDRESSED BY AN ID RATHER THAN BY A PATH.
-        #
-        # `/figure/` above is TikZ the tutor wrote and this board compiled. This
-        # is somebody's own output, out of their workspace, and the difference
-        # that matters here is where the name came from: a digest this board
-        # produced can be joined onto a directory, and a name out of a browser
-        # cannot. So it is looked up in what discovery found -- `library.find_result`
-        # is the whole of the check, the same rule as `library.drawer_find` and
-        # `walk.resolve` -- and a miss is a miss.
+        # A pipeline's figure, by id: `library.find_result` is the whole check,
+        # since a browser's name is never joined onto a directory.
         ident = path[len("/result/"):]
         if not re.match(r"^[a-z0-9-]{1,80}$", ident):
             return h.send_bytes(b"not found", "text/plain", status=404)
         target, _name = library.find_result(repo.root, ident)
         if not target:
             return h.send_bytes(b"not found", "text/plain", status=404)
-        # NOT CACHED. The next job writes a new figure at the same name, and the
-        # id is derived from that name -- so a hard cache here serves last
-        # week's result under this week's label. `web/sw.js` keeps the same rule
-        # on its side.
+        # Not cached: jobs rewrite figures under the same name (sw.js agrees).
         return h.send_file(target)
 
     if path.startswith("/uploads/"):
@@ -156,14 +142,9 @@ def get(h, repo, path):
 # ---------------------------------------------------------------------------
 # GET /source/<path>?from=&to= -- the read-only source viewer
 # ---------------------------------------------------------------------------
-# An excerpt on a card carries `path#Lx-y` and its caption links here. The path
-# is a name out of a browser, so it is never joined onto a directory: it is
-# RESOLVED, by `walk.resolve`, the rule every walkthrough uses (this subject's
-# source first, then the Atlas root's; nothing hidden, ignored, private or
-# fenced). What comes back must still be outside the fence, outside the private
-# directories, and tracked by git in the tree it was found in: a file somebody
-# has not committed is not yet a thing to cite. Anything else is a 404 that says
-# nothing about why.
+# The read-only source viewer for `path#Lx-y` excerpts. The path is resolved
+# by `walk.resolve`, never joined, and must be outside the fence and private
+# directories and tracked by git; anything else is a bare 404.
 
 # Big enough for any source file worth reading on a tablet.
 SOURCE_MAX_BYTES = 2 * 1024 * 1024

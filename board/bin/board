@@ -134,9 +134,8 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-# `board code` runs on the cluster, on its python3, beside the data: it is
-# answered before anything below is imported, so it loads tutorboard/code.py
-# and what that needs, and no server, runner or model module.
+# `board code` runs on the cluster's python3: it is answered before any other
+# import, so it loads code.py and its needs and no server or model module.
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
@@ -151,9 +150,8 @@ from tutorboard.lesson import inbox
 from tutorboard.course import repo as course_repo
 from tutorboard.runner import daemon
 from tutorboard.exports import rel as _workspace_path
-# `pending` is the placeholder a doing turn opens with and writes its report
-# over. A turn that exits leaving the newest card `pending` has not reported,
-# and the daemon says so -- see `report_owed` in `tutorboard/runner/loop.py`.
+# `pending` is the placeholder a doing turn writes first and reports over;
+# `report_owed` in runner/loop.py flags a turn that left it.
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
          "pending")
 
@@ -161,13 +159,8 @@ KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
 
 # ---------------------------------------------------------------------------
 def this_node():
-    """What this machine calls itself. One place decides; see boardlib.
-
-    This used to be `socket.gethostname()` here and `os.uname()` in the launcher,
-    which can disagree on the same machine -- and both follow the network, which
-    renamed this one mid-session and orphaned a running board from every command
-    that wanted to restart it.
-    """
+    """What this machine calls itself; one place decides (`machine.node`),
+    because two hostname calls can disagree on one machine."""
     return machine.node_name()
 
 
@@ -176,11 +169,8 @@ def slugify(s):
     return (s or "card")[:48]
 
 
-# WHAT AN UNATTENDED TUTOR MAY DO IS NOT SET HERE. A turn has nobody to approve
-# a tool call, and its grants live in `ai-config/workspaces/tutors.allow`,
-# folded into that assistant's own settings by its installer; no workspace
-# carries a config directory. Adding a grant is a line in that file and
-# `bash ai-config/scripts/install.sh`.
+# A turn's tool grants live in `ai-config/workspaces/tutors.allow`, not here:
+# a turn has nobody to approve a tool call.
 
 
 def server_answers(port=None, timeout=3.0):
@@ -255,17 +245,9 @@ def cmd_next(live, args):
 def cmd_write(live, args):
     """Write a card. With `--over`, write over one that is already on the board.
 
-    `--over` exists for the shape a DOING turn has, and it is the opposite shape
-    to a teaching turn's. A teaching turn's card IS the work, so it is written
-    first and the board fills immediately. A doing turn's work is a change to the
-    repository, and a card written before that change can only describe an
-    intention -- which is exactly what happened the first time somebody tapped
-    "write the code for me" and got a plan and a question instead of a diff.
-
-    So a doing turn writes one plain sentence saying what it is about to do, which
-    lands at once and means the board is never blank, then does the work, then
-    writes the REPORT over the top of that sentence. One card in the transcript,
-    the truth in it, and nobody watching an empty screen.
+    A doing turn writes one sentence saying what it is about to do, does the
+    work, then writes the report `--over` that sentence, so the board is never
+    blank and the transcript holds one card.
     """
     if not args:
         print("usage: board write [--over <card>] <kind> [slug] < body.md",
@@ -285,18 +267,8 @@ def cmd_write(live, args):
             args = ["lesson"]
     kind = args[0] if args[0] in KINDS else "lesson"
     rest = args[1:] if args[0] in KINDS else args
-    # A TITLE IS A TITLE, AND A FLAG IS NOT PART OF IT.
-    #
-    # `board write lesson --title "Opening: verify the call path"` is the obvious
-    # thing to type and there was no such option, so the flag itself went into
-    # the title: the board showed a card called `--title Opening: verify the
-    # call path` and filed it under `0001-title-opening-verify-...`. The title is
-    # what the reader sees at the top of the card and what the transcript is
-    # indexed by, so a stray flag in it is visible and permanent.
-    #
-    # So the flag is accepted, and anything else that looks like one is dropped
-    # rather than spelled out in the lesson. An unknown option is a mistake; a
-    # mistake printed on the board is a worse one.
+    # `--title`/`--name`/`--slug` take the next word as title; any other flag
+    # is dropped, because a flag in a title is visible and permanent.
     words = []
     skip = False
     for i, a in enumerate(rest):
@@ -313,27 +285,17 @@ def cmd_write(live, args):
         words.append(a)
     title = " ".join(words).strip()
     body = sys.stdin.read()
-    # The last gate before a card becomes the lesson. A reasoning model that was
-    # given a card to write and handed back its own deliberation first -- "the
-    # student is asking about the Galois correspondence, let me recall..." -- is
-    # a leak with no undo: the card is written, pushed to every device, and
-    # committed to the transcript. The tutor is expected to have caught this on
-    # the wire; this catches the agent that is not ours, and it only strips a
-    # block the card OPENS with, because the body of a lesson is not ours to edit.
+    # Strip a reasoning block the card opens with, because a written card is
+    # pushed and committed with no undo. Only the opening block: the body of a
+    # lesson is not ours to edit.
     clean = reasoning.strip_reasoning(body, leading_only=True)
     if clean.strip():
         if clean != body:
             print("board write: dropped a block of model reasoning from the top "
                   "of this card", file=sys.stderr)
         body = clean
-    # And the shape no strip can help with: thinking with no tag on it, where the
-    # whole card is the thought. There is nothing to remove, so this refuses --
-    # a turn that writes no card is a wait; a monologue that becomes a card is
-    # the lesson, and there is no undo. Reported from a Galois sitting on
-    # 1 September 2026, eight hundred tokens of it, cut off mid-sentence.
-    #
-    # `--force` exists because the judgement is a heuristic and a lesson ABOUT
-    # how models reason is a real lesson somebody may one day want to write.
+    # A card that is wholly untagged thinking is refused, since there is
+    # nothing to strip. `--force` overrides, because the test is a heuristic.
     if "--force" not in args and reasoning.reads_as_reasoning(body):
         print("board write: this reads as deliberation rather than a card -- it "
               "talks about the student instead of to them, or narrates its own "
@@ -341,25 +303,16 @@ def cmd_write(live, args):
               "Write the card itself: the mathematics, addressed to the student. "
               "If you meant it, pass --force.", file=sys.stderr)
         return 1
-    # AND THE SHAPE THE PERSON ACTUALLY COMPLAINED ABOUT: a wall of text.
-    #
-    # "All tutor responses should be EASY to read. I never want to face a wall
-    # of text." `board/TEACHING.md` has asked for that since a card came back
-    # correct and unreadable -- five headings, five hundred words -- and asking
-    # is what the old handoff file was doing while it grew to eleven times its
-    # cap. A prompt is a preference; this is a door. See `tutorboard/plain.py` for what
-    # counts as a wall and what is not counted at all.
+    # A wall of text is refused: TEACHING.md asks for easy reading, and this
+    # enforces it. `plain.py` defines a wall.
     if "--force" not in args:
         bad = plain.wall(body)
         if bad:
             print(plain.says_why(*bad), file=sys.stderr)
             return 1
     if over:
-        # Only a card that is already on this board. A path out of an argument is
-        # a path somebody could have written anything into, and this one is
-        # opened for writing -- so it is resolved and checked against the cards
-        # directory rather than trusted, the same rule every other name from
-        # outside follows here.
+        # Only a card already on this board: the path is resolved and checked
+        # against the cards directory, because it is opened for writing.
         want = over if os.path.isabs(over) else os.path.join(live.cards, over)
         want = os.path.realpath(want)
         room = os.path.realpath(live.cards)
@@ -369,9 +322,8 @@ def cmd_write(live, args):
                   file=sys.stderr)
             return 1
         path = want
-        # The name carries the title, and a report is not called what the
-        # sentence it replaced was called. Renaming keeps the index, which is
-        # what fixes a card's place in the transcript.
+        # The name carries the title; renaming keeps the index, which fixes
+        # the card's place in the transcript.
         if title:
             renamed = os.path.join(live.cards, "%s-%s.md"
                                    % (os.path.basename(path)[:4],
@@ -393,26 +345,10 @@ def cmd_write(live, args):
     if by:
         head += "by: %s\n" % by
     head += "---\n"
-    # A CARD IS NEVER HALF ON THE BOARD.
-    #
-    # `open(path, "w")` TRUNCATES before it writes, so between those two moments
-    # the file exists and is empty -- and the hub rebuilds the moment it sees
-    # this directory change. A build that lands in that window puts a card on the glass
-    # with no body: nothing to type, so `typeOut` skips it, so no hold is taken,
-    # so the writing surface comes straight down and the NEXT BOARD APPEARS
-    # BEFORE THE RESPONSE. On this filer it is worse than a race, because the
-    # empty parse is then cached against `(mtime, size)` read through NFS
-    # attribute caching and survives until those attributes refresh.
-    #
-    # Measured in a Galois sitting: card 0041 rendered empty at 10:38:38 and its
-    # real body typed 36 seconds later. Reported as "I just submitted a written
-    # response and the next board showed up before the tutor response showed
-    # up", against a board whose own trace shows both cards typing correctly --
-    # because they did. The fault was upstream of the animation entirely.
-    #
-    # `os.replace` is atomic on POSIX within one directory, so a reader sees the
-    # card whole or does not see it at all. Same directory, because a rename
-    # across filesystems is a copy and is not atomic.
+    # A card is never half on the board: write a temp file in the same
+    # directory and `os.replace` it, because `open("w")` truncates first and
+    # the hub can rebuild on the empty file in between. Same directory,
+    # because a rename across filesystems is not atomic.
     tmp = os.path.join(os.path.dirname(path),
                        ".%s.%d.part" % (os.path.basename(path), os.getpid()))
     try:
@@ -433,10 +369,9 @@ def cmd_write(live, args):
 
 
 def poke(live, timeout=1.0):
-    """Tell the board server a card landed, so it pushes it now rather than on
-    its next pass: `POST /s/<id>/poke` on `TUTORBOARD_PORT`, which the runner
-    sets for its turns. Nothing without one, and never an error: the server
-    sees the card within a second anyway."""
+    """Tell the board server a card landed: `POST /s/<id>/poke` on
+    `TUTORBOARD_PORT`. Never an error; the server sees the card within a
+    second anyway."""
     port = os.environ.get("TUTORBOARD_PORT")
     if not (port and live.stored):
         return False
@@ -453,14 +388,11 @@ def poke(live, timeout=1.0):
 
 
 def cmd_check(live, args):
-    """Run the bound subject's check: its tutorboard.json `check`, read through
-    `config.clean_check`, from the subject's root. With a path (relative to
-    that root), the `one` form for that path where there is one. Prints what it
-    prints and exits with its code.
-
-    It exists so a turn runs the check as `board check`, which a tutor turn is
-    allowed to run, from the Atlas root it works in, rather than `cd`-ing into
-    the subject and calling the toolchain itself."""
+    """Run the bound subject's check: its tutorboard.json `check` (through
+    `config.clean_check`) from the subject's root. With a path relative to
+    that root, the `one` form for it. Prints what it prints and exits with
+    its code. A turn may run `board check`; it should not cd and call the
+    toolchain itself."""
     root = live.root
     if live.stored and os.path.realpath(root) == os.path.realpath(live.atlas):
         print("board check: this session is bound to no subject; `board bind` "
@@ -519,21 +451,14 @@ def read_turns(live):
 # homework: a problem set is a file in the course, and the board tracks it
 # ---------------------------------------------------------------------------
 def hw_build(live, st):
-    """Compile the session's write-up and record what happened in `hw.json`,
-    which the board's banner paints. `homework.build` does both; pushing
-    calls this too. A pushed `.pdf` older than the `.tex` beside it is a
-    finished-looking document missing the exercise the evening was spent on.
-    """
+    """Compile the session's write-up and record the result in `hw.json`,
+    which the banner paints."""
     return homework.build(live.root, live.live, st)
 
 
 def hw_stale(live):
-    """The sitting's problem set, if its PDF is missing or older than its source.
-
-    Returns the status dict to build from, or None if there is nothing to do --
-    no problem sets in this repository, none bound to this sitting, or a PDF that
-    is already newer than the `.tex`.
-    """
+    """The sitting's problem set if its PDF is missing or older than its
+    `.tex`, as the status dict to build from; else None."""
     try:
         st = homework.status(live.root, live.state())
     except Exception:                                   # noqa: BLE001
@@ -761,8 +686,7 @@ def _writeup_status(live, st):
             mark = "no solution region"
         print("  %-6s %s" % (p["label"], mark))
     print("  %d of %d written up" % (st["written"], st["total"]))
-    # A sheet can be worked in any order; the document is written in the
-    # sheet's. So say what is left, in order, and where the next answer goes.
+    # Sheets are worked in any order and written in the sheet's order.
     left = st.get("outstanding") or []
     if left:
         print("  still to write up, in order: %s" % ", ".join(left))
@@ -775,9 +699,8 @@ def _writeup_status(live, st):
 
 
 def _notes_new(live, state, words):
-    """`board writeup new --md [title]`: `docs/<slug>/notes.md` in the bound
-    subject, with its doc.json listing this session -- what a notes canvas's
-    End transcribes its pages into. Never written over: a slug already taken
+    """`board writeup new --md [title]`: `docs/<slug>/notes.md` and its
+    doc.json in the bound subject, for a notes canvas's End. A taken slug
     takes `-2`."""
     from tutorboard import artifacts
     title = " ".join(words).strip() or (state or {}).get("title") \
@@ -987,11 +910,7 @@ def cmd_inbox(live, args):
 
 
 def cmd_finish(live, args):
-    """Raise the end-of-session offer on the board.
-
-    The user is on an iPad, so the question has to be asked there rather than in
-    a terminal they are not looking at.
-    """
+    """Raise the end-of-session offer on the board, where the owner looks."""
     live.set_state(finished=time.strftime("%Y-%m-%d %H:%M"))
     print("the board is now offering to save and push this session's work")
     return 0
@@ -999,9 +918,8 @@ def cmd_finish(live, args):
 
 def push_code(live, held, message, only=None):
     """`board push` in a session coding at the cluster: the held files go to
-    `code/<id>` as one commit on its tip (`code.vibe`), for the cluster's loop
-    to apply. Nothing is committed to main. `--` paths outside the held ones
-    are refused. Writes push.json as every push does."""
+    `code/<id>` as one commit (`code.vibe`), never to main. Paths outside the
+    held ones are refused."""
     from tutorboard import code as coding
     from tutorboard import sessions as stored
     sid = os.path.basename(os.path.normpath(live.live))
@@ -1043,20 +961,12 @@ def push_code(live, held, message, only=None):
 
 
 def cmd_push(live, args):
-    """Commit and push. It does not end the session, in any repository.
+    """Commit and push this workspace. It does not end the session.
 
-    A session keeps every card until the owner ends it; a push files nothing
-    away.
-
-    ONE PATH TO A COMMIT. `gitops.save` is what the save button runs through
-    `lesson/git.py` too -- two doors onto one commit. The commit belongs to the
-    repository the workspace is in.
-
-    It commits THIS WORKSPACE and nothing else, with the pathspec
-    `lesson_git.save_pathspec` builds for the save button too: never the tool,
-    another workspace or NFS litter. `board push "msg" -- <paths>` narrows it
-    to those paths, which is how a turn commits the work it did; a path outside
-    the workspace is refused.
+    One path to a commit: `gitops.save` with `lesson_git.save_pathspec`, as the
+    save button uses, so the tool, other workspaces and NFS litter stay out.
+    `board push "msg" -- <paths>` narrows it; a path outside the workspace is
+    refused.
     """
     from tutorboard.lesson import git as lesson_git
     only = None
@@ -1069,10 +979,8 @@ def cmd_push(live, args):
             return 1
     message = " ".join(a for a in args if not a.startswith("--")) or gitops.SAVE
 
-    # Never into the middle of an operation somebody started in a terminal. This
-    # runs unattended -- `board finish` raises the offer and the tutor may push
-    # on its own -- and a repository part-way through a rebase has its own plan
-    # for the next commit. Say what is in the way and change nothing.
+    # Never commit into a rebase or merge somebody started: this runs
+    # unattended. Say what is in the way and change nothing.
     busy = worktree.busy_reason(live.root)
     if busy:
         detail = ("nothing was committed: %s in this repository, so a commit now "
@@ -1085,19 +993,9 @@ def cmd_push(live, args):
                        "detail": detail}, fh, indent=2)
         return 1
 
-    # AND NOTHING THAT REACHES FOR SESSION CONTENT, WHICH IS THE CHECK GIT
-    # CANNOT MAKE. A `.gitignore` keeps the fenced directory out of the index,
-    # so a diff cannot carry a phi FILE. It can carry phi CONTENT -- a fixture
-    # cut out of a transcript, an example hard-coded from one -- written by the
-    # one assistant allowed to read that directory and pushed by a turn that is
-    # not. `ai-config/policy/phi.py` is the lab's own rule and this is the first
-    # thing that calls it. See `tutorboard/leaving.py` for what it does and does
-    # not catch.
-    #
-    # `--anyway` is the override and it is deliberately a keyboard act: a tap
-    # that waves a PHI fence through from a tablet is the thing the fence is
-    # for. From the iPad the way past this is to tell the tutor, which is a
-    # person deciding and an assistant acting.
+    # PHI content scan (`leaving.py`, calling ai-config/policy/phi.py), because
+    # .gitignore keeps phi files out but not phi content. `--anyway` is a
+    # keyboard act only: a tap must not wave a PHI fence through.
     if "--anyway" not in args:
         phi = leaving.reason(live.root)
         if phi:
@@ -1108,24 +1006,13 @@ def cmd_push(live, args):
                            "detail": phi}, fh, indent=2)
             return 1
 
-    # A SESSION CODING AT THE CLUSTER PUSHES TO ITS REF, never to main (D17).
-    # Its held files reach main only through `board code <id> --end` there.
+    # A session coding at the cluster pushes to its ref, never to main (D17).
     coding_now = (live.state() or {}).get("code") if live.stored else None
     if isinstance(coding_now, dict) and coding_now.get("ref"):
         return push_code(live, coding_now, message, only)
 
-    # The write-up is part of the work, so it is part of the commit.
-    #
-    # An exercise is finished when it is typeset, not when it is agreed: the
-    # point of the hour is the piece of mathematics, and the `.tex` is where that
-    # lives. But compiling it was a step the tutor had to remember, in a turn
-    # that had already delivered its card -- and a session ends by being
-    # abandoned far more often than it ends tidily. What got pushed was then a
-    # `.tex` containing tonight's proof and a `.pdf` from last week that does
-    # not, which is worse than no PDF at all: it looks finished and is silently
-    # missing the exercise the evening was spent on.
-    #
-    # Only when it is actually out of date, so an ordinary save costs nothing.
+    # Rebuild an out-of-date write-up PDF into the commit, because a stale PDF
+    # beside a newer .tex looks finished and is not.
     if "--no-build" not in args:
         stale = hw_stale(live)
         if stale is not None:
@@ -1135,10 +1022,8 @@ def cmd_push(live, args):
             if code == 0:
                 print("  built %s" % (pdf or "the document"))
             else:
-                # Push anyway. The source is the record and losing it to a LaTeX
-                # error is the one outcome worse than a stale PDF -- but say so
-                # loudly, and the board says so too, because the person is not
-                # reading this terminal.
+                # Push anyway: the source is the record. Say so on the board,
+                # which is where the owner looks.
                 print("  BUILD FAILED — pushing the source anyway; the PDF will "
                       "be behind until it is fixed:")
                 print("  " + "\n  ".join(out.strip().splitlines()[-8:]))
@@ -1151,11 +1036,7 @@ def cmd_push(live, args):
               + ", ".join(refused), file=sys.stderr)
         return 1
 
-    # THE WORKSPACE LEADS THE MESSAGE, exactly as it does for the save button in
-    # `lesson/git.py`. One repository, one history: a commit carrying the whole
-    # tree under a bare "lesson complete" is one nobody can find again, and the
-    # two doors would otherwise write two different kinds of subject for the
-    # same commit.
+    # The workspace leads the message, as for the save button in lesson/git.py.
     where = subjects.identify(live.root)
     lead = subjects.prefix(live.root)
     if lead and not message.startswith(lead + ":"):
@@ -1163,8 +1044,7 @@ def cmd_push(live, args):
 
     ok, out = gitops.save(top, specs, message)
     print(out)
-    # THE SAME RECORD EITHER DOOR WROTE IT. `push.json` is what the board reads
-    # to draw the last outcome, shaped exactly as `lesson/git.py` shapes it.
+    # `push.json` is shaped exactly as lesson/git.py shapes it; the board reads it.
     record = {"ok": ok, "at": time.time(),
               "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
               "workspace": where, "detail": out[-1200:]}
@@ -1197,12 +1077,9 @@ def cmd_slate(live, args):
 
 
 def cmd_recap(live, args):
-    """The lesson so far, compactly, in ONE command: `brief.recap`.
-
-    Every turn is handed this already (`brief.turn_context`); the command is
-    for reading it by hand. One line per card, the newest card in full, and
-    the student's turns. `--cards N` widens the full window; `--all` prints
-    every card in full.
+    """The lesson so far, compactly: `brief.recap`. Every turn is handed it;
+    this prints it by hand. `--cards N` widens the full window; `--all`
+    prints every card in full.
     """
     full = 1
     if "--cards" in args:
@@ -1217,14 +1094,9 @@ def cmd_recap(live, args):
 
 
 def cmd_brief(live, args):
-    """Everything a cold turn is bound by, in ONE call.
-
-    The brief is the method, the subject's RULES.md at HEAD and its TUTOR.md,
-    with board/TEACHING.md named at the bottom for the rare rule that needs its
-    detail (`tutorboard.brief`). The runner hands it, and the recap, to every
-    lesson turn (`brief.turn_context`); this command is for reading it by hand.
-
-    A `[repair]` turn is briefed as a doing turn, whatever the mode.
+    """Everything a cold turn is bound by: the method, the subject's RULES.md
+    at HEAD and its TUTOR.md (`tutorboard.brief`). Every lesson turn is handed
+    it; this prints it by hand. A `[repair]` turn is briefed as a doing turn.
     """
     fixing = _repairing(live)
     sys.stdout.write(brief.briefing(
@@ -1235,9 +1107,8 @@ def cmd_brief(live, args):
 
 
 def inside_a_turn(live):
-    """The session's agent record while one of its turns is in flight here,
-    else None: the runner writes `working` with this machine and its own pid
-    for exactly as long as a turn runs."""
+    """The session's agent record while one of its turns runs on this
+    machine, else None."""
     try:
         with open(live.path("agent.json"), "r", encoding="utf-8") as fh:
             st = json.load(fh) or {}
@@ -1253,16 +1124,10 @@ def inside_a_turn(live):
 
 
 def _repairing(live):
-    """The requests a `[repair]` turn in flight was woken for -- `[""]` where
-    no inbox line says -- or None when this is no repair turn.
-
-    A FAILED CLUSTER JOB IS REPAIRED BY A DOING TURN, whatever the workspace
-    teaches under: a teaching workspace would otherwise
-    brief a broken job as a lesson about it. The daemon records every
-    `[repair]` request in the batch the turn was woken with (`turn_repairs` in
-    `live/agent.json`, `woken_for` in runner/turn.py), so one behind a student's
-    message counts; a record without it falls back to the signal and the
-    newest `[repair]` line (`jobs.drop`).
+    """The requests a `[repair]` turn in flight was woken for (`[""]` where no
+    inbox line says), or None when this is no repair turn. A failed job is
+    repaired by a doing turn whatever the mode; `turn_repairs` in agent.json
+    names every one in the batch, else the newest `[repair]` line counts.
     """
     st = inside_a_turn(live)
     if not st:
@@ -1284,11 +1149,9 @@ def cmd_memo(live, args):
         board memo --show                    print TUTOR.md
 
     The sections are "Where things are", "Now", "Open decisions" and "Done
-    recently"; a section name is matched without regard to case. A missing
-    TUTOR.md starts as their skeleton. The whole file is capped at 800 words
-    and the cap refuses rather than trims, naming the count: the brief carries
-    the file on every turn. Only TUTOR.md is ever written; RULES.md is the
-    owner's.
+    recently", matched without regard to case. A missing TUTOR.md starts as
+    their skeleton. Over 800 words is refused, not trimmed, because the brief
+    carries the file every turn. RULES.md is never written.
     """
     if live.stored and live.atlas and \
             os.path.realpath(live.root) == os.path.realpath(live.atlas):
@@ -1323,18 +1186,14 @@ def cmd_round(live, args):
                                         requests and print the ledger and ids
         board round <document> --print  the same, with every request in full
 
-    INK ON A DOCUMENT IS ANSWERED IN ITS LEDGER. Marks on a paper, deck or
-    write-up reach a turn by more than one road -- the library's note panel,
-    the board's document drawer, a sitting -- and only a round in the ledger
-    turns them into pairs the owner can tap through, and takes them off the
-    page once answered. So a turn asked to act on marks runs this first, then
-    answers every id in the `answers` of the ledger it prints. Write no record
-    of your own beside it: ink answered anywhere else stays on the page.
+    Ink on a document is answered in its ledger, because only a round there
+    becomes pairs the owner can tap through and clears the page once answered.
+    A turn asked to act on marks runs this, then answers every id in the
+    ledger's `answers`.
 
-    `<document>` is either name a document has: the library's id, or the one
-    in a mark's key (`doc/<name>/p<n>`). Nothing is woken. Where the newest
-    round has not been answered yet, that round is printed rather than the
-    same ink filed twice. With no ink and nothing reopened, nothing is filed.
+    `<document>` is the library's id or the name in a mark's key
+    (`doc/<name>/p<n>`). Nothing is woken. An unanswered newest round is
+    printed rather than filed twice; no ink files nothing.
     """
     from tutorboard.course import ledger, library
 
@@ -1399,13 +1258,9 @@ def cmd_deckfig(live, args):
     `figures/` as `<subject>--<id>.<ext>`, and the path to put in
     `\\includegraphics` is printed. Open the image before you put it on a slide.
 
-    AN ID, OR A WORD FROM ITS NAME: a word that picks out exactly one figure in
-    that subject is taken as it, and one that matches several lists them.
-
-    NAMES, NEVER PATHS. The subject is one the deck's brief was made from, and
-    the id is one that subject's results offer -- `results.find` resolves it and
-    asks the fence again before the file is opened. Anything else is refused,
-    in a sentence.
+    The id may be a word from the figure's name that picks out exactly one;
+    several matches are listed. Names, never paths: `results.find` resolves
+    the id and asks the fence again before the file is opened.
     """
     if len(args) != 3:
         print("board deckfig: say the deck, the subject and the result id -- "
@@ -1532,43 +1387,28 @@ def cmd_job(live, args):
             [--export <path>]... [--fixes <id>] -- <recipe> [VAR=value ...]
 
     `<recipe>` is a tracked `.sbatch` file in this workspace. `VAR=value` sets
-    a variable its header declares, one `#RELAY-VAR NAME PATTERN` line per
-    variable; anything undeclared is refused. `--produces` and `--export` are
-    workspace-relative; an `--export` path must be approved by the subject's
-    committed tutorboard.json `relay.exports` (`tutorboard/exports.py`).
-    `--label` is an optional slug naming the work, in the request id and every
-    line about it. `--session` is the Mac session filing it; it defaults to
-    the session `$TUTORBOARD_SESSION` names, and the report wakes that session.
-    No thread is named or read. `--fixes <id>` files it as an attempt to
-    repair a recipe request that failed -- its rerun, or a diagnostic --
-    naming the one that failed first; it is a relay request's word, so with
-    Slurm it is refused. Without Slurm, a rerun of a recipe whose repair is
-    open must carry it (`jobs.open_fix`), so the cap on automatic attempts
-    counts every one. `--fresh` files it as a new request all the same: the
-    owner's way to start again past the cap, refused inside a daemon turn.
+    a variable its header declares (`#RELAY-VAR NAME PATTERN`); anything
+    undeclared is refused. `--produces` and `--export` are workspace-relative;
+    an `--export` must be approved by the subject's committed `relay.exports`.
+    `--label` is a slug in the request id. `--session` is the Mac session the
+    report wakes, by default `$TUTORBOARD_SESSION`'s. `--fixes <id>` files a
+    repair of a failed request (refused with Slurm); without Slurm a rerun of
+    a recipe whose repair is open must carry it (`jobs.open_fix`), so the cap
+    on automatic attempts counts every one. `--fresh` starts again past the
+    cap, refused inside a turn.
 
-    `board diagnose` is this command under another name, for a diagnostic: a
-    tracked recipe that prints `RELAY:` lines and produces nothing. It
-    validates no differently.
+    `board diagnose` is this command for a recipe that prints `RELAY:` lines
+    and produces nothing.
 
-    ON A MACHINE WITH SLURM it submits the recipe wrapped so its exit code is
-    written to `relay/state/` (`jobs.submit_recipe`, `--export=ALL,...`), and
-    appends the job to this workspace's registry. When it ends, a `[job]`
-    line wakes a turn that reports it.
+    With Slurm it submits the recipe wrapped so its exit code lands in
+    `relay/state/` (`jobs.submit_recipe`); its end wakes a `[job]` turn.
+    Without Slurm (the Mac) it commits and pushes `relay/requests/<id>.json`,
+    pinned to HEAD, so an uncommitted tracked file under the subject refuses
+    it; the cluster refuses a HEAD lacking that commit. Every problem prints at
+    once and nothing is filed if there is any.
 
-    ON A MACHINE WITHOUT SLURM -- the Mac -- it writes
-    `relay/requests/<id>.json`, commits that one file and pushes it. The
-    cluster's relay runs it and commits a report, which wakes the session.
-    The request is pinned to this machine's HEAD (`commit`), so it is
-    refused while a tracked file under the subject is uncommitted: board
-    push first. The cluster refuses it where its HEAD lacks that commit, and
-    the report's `ran_at` is the HEAD it ran at.
-
-    Either way the request is checked first, every problem printed at once, and
-    nothing is filed or submitted if there is any.
-
-    **A turn that starts long work starts it through here.** A bare `sbatch`
-    is work the board cannot see, and on the Mac it is an error.
+    A turn starts long work through here: a bare `sbatch` is invisible to the
+    board, and on the Mac it is an error.
 
         board job [--label <slug>] -- sbatch <args>
                                 the raw form, on a machine with Slurm only
@@ -1671,16 +1511,15 @@ def cmd_job(live, args):
             print("  " + line, file=sys.stderr)
         return 1
     if slurm:
-        # Wrapped, so its exit code is written where the relay's poll reads
-        # it: sacct is refused on this cluster.
+        # Wrapped, so the exit code lands where the relay reads it: sacct is
+        # refused on this cluster.
         return _job_submitted(root, label, jobs.submit_recipe(
             root, label, recipe, env=env, produces=produces, export=export))
     return _request_filed(root, ok)
 
 
 def _job_paths(root, paths):
-    """`(rels, bad)`: `paths` made workspace-relative, like a thread's
-    `outputs`, an absolute one made so; `bad` the ones outside it."""
+    """`(rels, bad)`: `paths` made workspace-relative; `bad` the ones outside."""
     rels, bad = [], []
     for p in paths:
         rel = _workspace_path(os.path.relpath(p, root)
@@ -1728,13 +1567,11 @@ def _job_batch(live, args):
     """`board job --batch <file.json> [--session <id>] [--fresh]`: many
     recipe requests in one commit and one push.
 
-    The file is a JSON list. Each entry is an object of `recipe` (required,
-    as `board job` names it), `env` ({NAME: value}), `label`, `produces`,
-    `export` (lists of paths) and `fixes`. `--session` and `--fresh` apply to
-    every entry. Each entry is checked as `board job` checks one, against the
-    requests filed and the entries before it, and every problem is printed
-    at once: one problem anywhere files nothing. Without Slurm only: on the
-    cluster `board job` submits directly, one job at a time.
+    The file is a JSON list of objects: `recipe` (required), `env`
+    ({NAME: value}), `label`, `produces`, `export` (lists) and `fixes`.
+    `--session` and `--fresh` apply to every entry. Each entry is checked as
+    `board job` checks one, and one problem anywhere files nothing. Without
+    Slurm only.
     """
     root = live.root
     args = list(args)
@@ -1852,9 +1689,9 @@ def _job_batch(live, args):
 
 
 def _job_label(words, who):
-    """`(label, session)` out of `--label <slug>` and `--session <id>`, the
-    session defaulting to the one `$TUTORBOARD_SESSION` names. `label` is ""
-    where none was given, and None having said why the words are wrong."""
+    """`(label, session)` out of `--label` and `--session` (default
+    `$TUTORBOARD_SESSION`'s). `label` is "" when absent, None after printing
+    why the words are wrong."""
     label, session, i = "", "", 0
     while i < len(words):
         w = words[i]
@@ -1925,8 +1762,7 @@ def _request_filed(root, req):
     if hidden:
         print("board: %s Nothing was filed." % hidden, file=sys.stderr)
         return 1
-    # The request is pinned to HEAD (`commit`), so an edit not committed
-    # under the subject is code the cluster would not run.
+    # Pinned to HEAD, so uncommitted edits under the subject are refused.
     changed = jobs.dirty(root)
     if changed:
         print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
@@ -1964,23 +1800,20 @@ def cmd_colibri(live, args):
         board colibri [--label <slug>] [--session <id>] "<task>"
         board colibri --show            the queue, oldest first (on the cluster)
 
-    ON THE CLUSTER it writes the task into the queue -- libr-local-llm's
-    ignored `relay/state/colibri/` -- and starts an on-demand generation if none is
-    queued or running. The generation loads (about 68 minutes cold), works the
-    queue one task at a time in the workspace each task names, and exits once
-    the queue has been empty for 20 minutes. A generation that dies is replaced
-    by its clone, which resumes the task by name; three deaths fail it.
+    On the cluster it queues the task in libr-local-llm's ignored
+    `relay/state/colibri/` and starts an on-demand generation if none is up.
+    A generation works the queue one task at a time and exits after 20 idle
+    minutes; a dead one is replaced by its clone, and three deaths fail the
+    task.
 
-    ON THE MAC it files a `colibri` relay request instead (`colibri.ask`,
-    which the iPad's POST /colibri shares), committed and pushed like `board
-    job`'s, and says what the wait is (`colibri.estimate`). The workspace opts in with `relay.colibri: true` in its
-    tutorboard.json.
+    On the Mac it files a `colibri` relay request (`colibri.ask`, shared with
+    POST /colibri) and says the wait (`colibri.estimate`). The workspace opts
+    in with `relay.colibri: true`.
 
-    A task is read-only analysis: Colibri writes its outputs under the
-    workspace's ignored `phi/` and never changes a tracked file. When it is
-    done the relay checks the workspace; any change git can see fails the task
-    and stays on the cluster, uncommitted. A relay report carries only state,
-    counts and the task's public `RELAY:` lines.
+    A task is read-only analysis: outputs go under the workspace's ignored
+    `phi/`, and any change git can see fails the task, because nothing
+    Colibri writes may leave the cluster. A report carries only state, counts
+    and public `RELAY:` lines.
     """
     from tutorboard import colibri
     root = live.root
@@ -2054,9 +1887,7 @@ def ts_info():
     code, out = ts("status", "--json")
     if code != 0:
         return None, None
-    # `ts` folds stderr into stdout, and the CLI puts advisory warnings there --
-    # a client/daemon version skew is the common one -- so the output may open
-    # with prose before the JSON object. Start at the first brace.
+    # The CLI may print warnings before the JSON; start at the first brace.
     start = out.find("{")
     if start == -1:
         return None, None
@@ -2091,10 +1922,8 @@ def cmd_vpn(live, args):
 
 
 def read_config(root):
-    """What this repository calls itself: its `tutorboard.json`, with `name`
-    defaulted to the directory. A `mode` or `stance` left in the file is
-    ignored: who writes the code is the session's mode (`board mode`).
-    """
+    """`tutorboard.json`, with `name` defaulted to the directory. A `mode` or
+    `stance` in it is ignored: the mode is the session's."""
     cfg = {"name": None}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
@@ -2110,12 +1939,7 @@ def read_config(root):
 
 def cmd_init(live, args):
     """Name this repository, so the board does not have to use its directory.
-
-    There is nothing else to declare. `--math` and `--code` used to live here and
-    chose between two methods and two interfaces; both are gone, and a `mode`
-    left in an existing file is dropped on the way past rather than kept as a
-    key that means nothing.
-    """
+    Nothing else is declared; a leftover `mode` key is dropped."""
     name = " ".join(a for a in args if not a.startswith("--")) \
         or os.path.basename(live.root).replace("-", " ")
 
@@ -2251,13 +2075,9 @@ def cmd_textbook(live, args):
 
 
 def cmd_eyes(live, args):
-    """Settle, by experiment, whether the assistant driving this can see.
-
-    Model capabilities are a moving target and the harness matters as much as the
-    model: something vision-capable behind a tool that only ever sends text is
-    still blind here. Rather than trust anyone's recollection, render an image
-    with a value nobody could guess and ask.
-    """
+    """Settle by experiment whether the assistant driving this can see: render
+    an image carrying a value nobody could guess, and ask. The harness matters
+    as much as the model."""
     import random
     stamp = os.path.join(live.session, "eyes")
     os.makedirs(stamp, exist_ok=True)
@@ -2276,11 +2096,7 @@ def cmd_eyes(live, args):
     a, b = random.randint(2, 9), random.randint(2, 5)
     integral = "%s^%s/%s" % (a, b + 1, b + 1)
 
-    # `tex_path`, not `tex`: the module of that name is imported at the top of
-    # this file and a local of the same name shadows it, so the next line --
-    # `tex.tex_env()` -- died with "'str' object has no attribute 'tex_env'".
-    # This is the one command that answers "can the tutor read my handwriting",
-    # which is the question somebody asks on exactly the evening it is broken.
+    # `tex_path`, not `tex`: a local named `tex` shadows the module.
     tex_path = os.path.join(stamp, "eyes.tex")
     with open(tex_path, "w", encoding="utf-8") as fh:
         fh.write(EYES_DOC % {"token": token, "word": word, "a": a, "b": b})
@@ -2337,19 +2153,13 @@ def cmd_see(live, args):
         board see page.png --ask "just the numbers in the right-hand column"
         board see --route            where an image would go, and nothing else
 
-    FOR AN ASSISTANT WHOSE MODEL CANNOT SEE ONE. Every tutor here is told on its
-    first turn to open whatever the student sent -- handwriting is a PNG and a
-    problem sheet a PDF -- and a model without vision cannot. This is what it
-    calls instead. The answer comes back on stdout as text, so it is read the way
-    every other `board` command is read.
+    For an assistant whose model cannot see: the answer comes back as text on
+    stdout. The image goes to a recipe's `vision` block, resolved through the
+    running agent first and `vision_agent` second (`seeing.py`); `--route`
+    says which.
 
-    Where the image goes is a `vision` block on a recipe, resolved through the
-    running agent first and `vision_agent` second; `board see --route` says which
-    one answered. See `tutorboard/seeing.py`.
-
-    A PATH INSIDE A FENCE IS REFUSED BEFORE ANYTHING IS OPENED, because this
-    sends a file to a hosted provider and a board command does not go through
-    any assistant's pre-tool hook.
+    A path inside a fence is refused before anything is opened, because this
+    sends the file to a hosted provider and no pre-tool hook sees it.
     """
     rest = [a for a in args if not a.startswith("--")]
     page = None
@@ -2402,15 +2212,10 @@ def cmd_limit(live, args):
         board limit --clear      say the allowance is back, now
         board limit --set 3600   say it is gone for this many seconds
 
-    The record is per machine rather than per course, because an allowance
-    belongs to an account and every board here is equally unable to spend one.
-    It is written by a tutor whose turn failed saying so, it expires by itself,
-    and it is published in `/health`, because only the machine that hit the
-    limit can know about it.
-
-    `--clear` exists because a provider's reset time is a promise: an allowance
-    that came back early should not have to wait out a guess. A turn going
-    through clears it too, without anyone typing anything.
+    The record is per machine, because an allowance belongs to an account. A
+    failing turn writes it, it expires by itself, `/health` publishes it, and
+    a turn that goes through clears it. `--clear` exists because a provider's
+    reset time is only a promise.
     """
     rec = limits.limit_record()
     if "--set" in args:
@@ -2440,12 +2245,8 @@ def cmd_egress(live, args):
         board egress             report
         board egress --repair    rotate exit nodes until a turn can get out
 
-    An exit node is invisible to everything about serving a lesson -- tailnet
-    traffic does not go through it, so the iPad reaches the board exactly as
-    before. It is entirely visible to the tutor, whose every request leaves from
-    somewhere else, and a provider that geo-blocks or challenges commercial VPN
-    egress turns that into a tutor which listens, fails every turn, and says so
-    only in a log.
+    An exit node does not touch tailnet traffic, so the iPad still reaches the
+    board, but a provider that blocks VPN egress fails every turn.
     """
     node = egress.exit_node()
     print("exit node: %s" % (node["name"] if node else "none (direct)"))
@@ -2501,9 +2302,8 @@ def machine_check():
         ok = ok and bool(found)
     print("katex:    %s" % ("vendored" if os.path.exists(
         os.path.join(TOOL, "web", "katex", "katex.min.js")) else "MISSING"))
-    # Not fatal, and said plainly rather than left to be discovered from a panel
-    # that will not fill: without one of these the iPad can still SAVE a PDF, it
-    # just cannot READ one on the board -- `paper.renderer`.
+    # Not fatal: without a renderer the iPad can save a PDF but not read one
+    # on the board (`paper.renderer`).
     _rend = paper.renderer()
     print("pdf pages: %s" % (
         "%s  (a document can be read on the board)" % _rend[1] if _rend
@@ -2658,8 +2458,7 @@ COMMANDS = {
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
 }
 
-# Commands that are gone, and what replaced each. Refused by name, with no
-# traceback, so a habit or an old prompt gets a sentence rather than "unknown".
+# Retired commands, refused by name with what replaced each.
 GONE = {
     "hold": "replaced by `board code` (T38)",
     "send": "replaced by `board code` (T38)",
@@ -2669,13 +2468,11 @@ GONE = {
     "direction": "gone: the owner's standing rules are the subject's RULES.md",
 }
 
-# Commands about a directory or file they are given, not the workspace they run in:
-# no `live/` is made for them.
+# Commands about a path they are given: no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "code",
            "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
-# Commands that read or write only the subject: outside a session they run
-# on a sessionless Repo over the workspace. Every other command needs a
-# session, and refuses without one.
+# Commands that touch only the subject: outside a session they run on a
+# sessionless Repo. Every other command refuses without a session.
 SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "meeting",
                 "deckfig", "memo")
 
@@ -2709,20 +2506,9 @@ def main(argv):
     if not fn:
         print("unknown command: %s (try: board help)" % cmd, file=sys.stderr)
         return 1
-    # ASKING FOR HELP IS NOT AN ARGUMENT, and this one is worth the four lines.
-    #
-    # `board write --help` reached `cmd_write`, which drops anything that looks
-    # like an option, read an empty body off a terminal and wrote a BLANK CARD
-    # onto the lesson -- pushed to every device, in the transcript, with no undo.
-    # Somebody trying to find out what a command does should not be able to
-    # damage a sitting by asking.
-    #
-    # Only in the first position, which is where anybody types it. Further along
-    # it may be the value of an option, and guessing which is how `--title
-    # --help` becomes a help screen instead of a card.
-    #
-    # Answered BEFORE the repository is found, because "what does this do" is a
-    # question with an answer outside a course.
+    # Help in the first position is answered before anything else, because
+    # `board write --help` would otherwise write a blank card with no undo.
+    # Only the first position: later it may be an option's value.
     if rest and rest[0] in ("-h", "--help", "help"):
         return help_for(cmd, fn)
     if cmd in NO_LIVE:

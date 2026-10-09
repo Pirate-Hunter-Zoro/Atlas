@@ -1,31 +1,22 @@
 /* ==========================================================================
    plane-core.js -- what every surface that is a PLANE has to get right.
 
-   The writing surface is a plane. It answers two questions on every frame --
-   what is the hand doing, and where is the view allowed to be -- and the
-   answers are not obvious. Every
-   rule in this file was written after a gesture stopped working on somebody's
-   iPad in the middle of real work:
+   A plane answers two questions every frame: what is the hand doing, and
+   where may the view be. The rules:
 
      * A GESTURE IS DECIDED BY WHICH CONTACTS ARE LIVE, never by the size of a
-       map that may be holding a finger whose lift was never delivered. Two
-       entries and one real finger made one moving finger zoom; three entries
-       and two real fingers made a pinch do nothing at all. Reported in exactly
-       that shape: "one finger acts as if I'm zooming with two fingers! And two
-       fingers does nothing."
+       map that may hold a finger whose lift was never delivered, or one
+       finger zooms and a pinch does nothing.
      * EVERY REFUSAL EXPIRES. A latch that cannot time out is a surface that
        stops answering with nothing to see from the outside.
      * A PINCH IS BETWEEN THE TWO CONTACTS IT STARTED BETWEEN, while both are
-       still down -- not between whichever two the map happens to hold. A palm
-       landing beside two fingers already pinching used to end the gesture.
-     * THE VIEW IS CLAMPED TO THE CONTENT PLUS SLACK, not to a box. An
-       unclamped plane flung into empty space looks exactly like a crash, and a
-       hard edge a screen away is why the page stopped being a box.
+       down, so a palm landing beside it cannot end it.
+     * THE VIEW IS CLAMPED TO THE CONTENT PLUS SLACK, not to a box: an
+       unclamped plane flung into empty space looks like a crash, and a hard
+       edge is a box again.
 
-   This file owns that machinery and nothing else. It knows nothing about ink,
-   about nodes, or about what is being drawn -- it is arithmetic and
-   bookkeeping, so the two surfaces cannot drift apart on the half of the
-   problem that has already cost an evening.
+   This file is arithmetic and bookkeeping only, knowing nothing of ink or
+   nodes, so the two surfaces cannot drift apart on this half.
 
    Loaded before slate-core.js and board.js, which both read it.
    ========================================================================== */
@@ -105,8 +96,7 @@ function contacts(opts) {
 
   /* The two contacts a pinch is between: the two most recently heard from, so a
      palm that lands beside two fingers already pinching cannot take the gesture
-     over or stop it. Counting exactly two used to mean a third contact -- the
-     heel of a hand arriving late -- silently ended the pinch. */
+     over or stop it. */
   function pair(ids) {
     var l = ids || live();
     if (l.length < 2) return null;

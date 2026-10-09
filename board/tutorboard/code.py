@@ -10,50 +10,22 @@ tutor coaches from the Mac. One git ref carries it, `code/<session>`:
     board code <session> --abandon    drop the ref and the registration
     board code --list                 the sessions held on this machine
 
-A REGISTRATION, `~/.local/state/tutor-board/code/<session>.json`, is the
-session on this machine: {session, subject, paths, base, last, step, root}.
-`base` is HEAD when it started, `last` the tip of `code/<session>` as this
-loop last saw it (its own snapshot, or a commit it applied), `step` the number
-of snapshots pushed. The paths are repository-relative, inside one subject.
+A registration, `~/.local/state/tutor-board/code/<session>.json`, is the
+session on this machine: {session, subject, paths, base, last, step, root};
+paths are repository-relative inside one subject. Each step: after `QUIET`
+seconds without an mtime change the held paths are snapshot through a
+temporary index (`GIT_INDEX_FILE`), so HEAD, the real index and main never
+move; the commit-time gate (`audit.gate`) runs, then the subject's check,
+and the step is pushed fast-forward to `refs/heads/code/<session>`. A
+commit the loop did not make (a vibe push) is applied when the held paths
+are unchanged since the last snapshot, else "both sides changed" waits.
+`--end` takes the relay's `relay/.lock` and commits the held paths to main
+as one commit. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
+the check and its output rules live here too.
 
-EACH STEP. The loop polls the held paths' mtimes every `POLL` seconds. After
-`QUIET` seconds without a change it builds a snapshot through a temporary index
-(`GIT_INDEX_FILE`: `read-tree <last>`, `add -A -- <paths>`, `write-tree`,
-`commit-tree -p <last>`), so HEAD, the real index and main never move. The
-commit-time gate runs over what the snapshot changes against HEAD: the audit,
-`leaving.refused` and the participant scan (`audit.gate`). A refusal prints
-why and pushes nothing. Then the subject's check runs, and the message carries
-`Step N`, `check: pass|fail|none`, `ran_at`, the `RELAY:` lines, and the
-check's sanitized output only where `output_open` is true. The snapshot is
-pushed to `refs/heads/code/<session>`, fast-forward only.
-
-A COMMIT THE LOOP DID NOT MAKE -- a vibe push from the Mac -- arrives on the
-same ref. Every `FETCH_EVERY` seconds the loop asks origin for it, and applies
-it with `git checkout <sha> -- <paths>` (through a temporary index) when the
-held paths are unchanged since the last snapshot. Otherwise it prints "both
-sides changed" with the files, and waits.
-
-`--end` takes `relay/.lock`, the relay pass's own lock, commits the held paths
-to main as one `<subject>: <title>` commit through `gitops`, pushes main,
-deletes the remote ref and the registration. A held file that main changed
-too is refused, named. `--abandon` deletes the ref and the registration only.
-
-While a session is registered, the relay tolerates its paths (`held`): an
-edit there never skips a pass, and an upstream change to one stops the pull
-with "held path changed upstream" instead of overwriting it. A request filed
-from the session may pin a commit on `code/<session>` (`pin_ok`).
-
-THE MAC'S SIDE of the same ref lives here too, because it is the same
-machinery: `vibe` is `board push` from a session coding at the cluster (one
-commit of the Mac's held files on the ref's tip, gated, fast-forward only),
-`step_of` reads a step's message for the Mac's ear (`cluster.Ear.hear_code`),
-and `edited` names the held files a working tree changed since a commit.
-
-THE CHECK, and what of its output may leave, live here too: `check_spec`,
-`run_check`, `check_output`, `relay_lines`, `crash_type` and `output_open`.
-
-Relay-path code: it runs on the cluster's python3, which may be 3.7. No
-walrus, no `match`. Standard library only.
+The constraint: relay-path code on the cluster's python3 (maybe 3.7): no
+walrus, no `match`, standard library only. A check's output leaves only
+where `output_open` holds.
 """
 
 import fcntl
@@ -82,20 +54,18 @@ CHANNEL = ("relay", "exports")
 # Never walked by the mtime poll.
 SKIP_DIRS = (".git", "node_modules", "__pycache__", ".lake")
 
-# A check runs in the owner's terminal. Half an hour is a job, and a job goes
-# through `board job`.
+# Longer work goes through `board job`.
 CHECK_SECONDS = 30 * 60
 
 MAX_LINES = 40
 MAX_LINE = 300
-# An open subject's output: the first `OUT_HEAD` and last `OUT_TAIL` lines, at
-# most `OUT_BYTES` in all. The end of a test run is where the failure is.
+# An open subject's output: head and tail lines, bounded; failures are at
+# the end.
 OUT_HEAD = 40
 OUT_TAIL = 120
 OUT_BYTES = 16 * 1024
 RELAY_LINE = re.compile(r"^RELAY:\s?(.*)$")
-# The exception type of a crash, from a traceback's last line. Only the type:
-# the message after it can print a value.
+# Only the exception type: its message can print a value.
 CRASH_LINE = re.compile(r"^([A-Za-z_][\w.]*(?:Error|Exception|Interrupt|Exit))\b")
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
                      r"|\x1b[@-Z\\-_]")
@@ -270,14 +240,11 @@ def subject_of(rel):
 
 
 def resolve(top, words, cwd=None, others=None):
-    """`(paths, subject, problems)` for `board code`'s path words.
-
-    A word is relative to `cwd`, else to `top`, and must exist inside a
-    subject. Refused: no words, a fenced path, the subject itself, its
-    `relay/` or `exports/`, a path git ignores or the audit refuses, paths in
-    two subjects, and a path another session here holds (`others`, `{sid:
-    [paths]}`). Every problem at once.
-    """
+    """`(paths, subject, problems)` for `board code`'s path words, relative to
+    `cwd` else `top`, inside one subject. Refused: no words, fenced, the
+    subject itself, its `relay/` or `exports/`, ignored or audit-refused, two
+    subjects, or held by another session here (`others`). All problems at
+    once."""
     from . import audit
     real = os.path.realpath(top)
     found, problems = [], []
@@ -285,8 +252,7 @@ def resolve(top, words, cwd=None, others=None):
         return [], "", ["no paths: name what you will write, "
                         "`board code <session> <path>...`"]
     for w in words:
-        # Fenced by name, whether or not it is there: nothing is even
-        # looked up under a fence.
+        # Fenced by name: nothing under a fence is even looked up.
         if fenced.in_fence(w):
             problems.append("%s is fenced (%s): nothing there is held, "
                             "snapshotted or pushed"
@@ -517,14 +483,11 @@ def edited(top, since, held_paths):
 
 def vibe(top, sid, held_paths, since, message):
     """Push the working tree's held files to `code/<sid>` from the Mac (D17).
-    `(sha, said)`; sha is "" when nothing was pushed, and `said` why.
+    `(sha, said)`; sha "" when nothing was pushed.
 
-    `since` is the commit whose held files this working tree was brought to
-    (`session.json` `code.seen`, else HEAD). The new commit's parent is the
-    tip origin has; its tree is that tip's with the held files this tree
-    changed since `since`. A file the tip changed too, to something else, is
-    refused by name. The commit-time gate runs first, as on the cluster.
-    Fast-forward only: the cluster's loop applies it to its working tree.
+    The parent is origin's tip; the tree is that tip's plus the held files
+    changed since `since` (`code.seen`, else HEAD). A file the tip changed
+    differently is refused by name. Gated first; fast-forward only.
     """
     tip, err = remote_tip(top, sid)
     if err:
@@ -609,18 +572,10 @@ def step_of(top, sha):
 # is output open here: may a check's output leave this subject whole
 # ---------------------------------------------------------------------------
 def output_open(root, names_phi=None, cfg=None):
-    """True only when a check's full output may go back to the tutor.
-
-    It fails closed. All four must hold, and anything else closes it:
-
-      1. its `tutorboard.json` says `"phi": false` literally, on disk;
-      2. and at HEAD (`_head_phi`), so an uncommitted edit opens nothing;
-      3. the subject holds no fence (`fenced.holds`);
-      4. the lab's PHI policy loaded (`names_phi`), so a checkout without the
-         private `ai-config` is closed.
-
-    `names_phi` and `cfg` are for a caller that already has them; left None
-    they are read here.
+    """True only when a check's full output may go back to the tutor. Fails
+    closed: `"phi": false` literally on disk and at HEAD (`_head_phi`), no
+    fence (`fenced.holds`), and the PHI policy loaded. `names_phi` and `cfg`
+    are read here when None.
     """
     from .course import config
     try:
@@ -663,17 +618,10 @@ def _policy(root=None):
 # ---------------------------------------------------------------------------
 def check_spec(spec, files):
     """`(check, problems)`: the subject's declared check, made concrete for
-    these held paths. PURE.
-
-    `one` is used when it can be filled from exactly one held path, `all`
-    otherwise. Each placeholder value is a subject path, never an option:
-
-        {dir}     the held directory, or the held file's directory
-        {file}    the held file
-        {module}  the held path, dotted, its extension dropped:
-                  `Exercises/Sets/E01.lean` is `Exercises.Sets.E01`
-
-    `files` is `[(rel, is_dir)]`, relative to the subject.
+    these held paths. Pure. `one` when exactly one held path fills it, else
+    `all`. Placeholders are subject paths, never options: `{dir}`, `{file}`,
+    `{module}` (dotted, extension dropped: `Exercises.Sets.E01`). `files` is
+    `[(rel, is_dir)]`, relative to the subject.
     """
     if not spec:
         return None, []
@@ -740,13 +688,9 @@ def tracked(root):
 
 
 def relay_lines(text, names_phi=None):
-    """`(lines, withheld)`: what a message may carry out of a program's output.
-
-    Only lines behind `RELAY:`, prefix dropped, each through `relay.public`
-    (control characters gone, an absolute or home path made `<path>`, cut to
-    `MAX_LINE`), at most `MAX_LINES`. A line the lab's PHI policy flags is
-    withheld and counted.
-    """
+    """`(lines, withheld)`: the `RELAY:` lines of a program's output, prefix
+    dropped, each through `relay.public`, at most `MAX_LINES`; lines the PHI
+    policy flags are withheld and counted."""
     from . import relay
     out, withheld = [], 0
     for line in (text or "").splitlines():
@@ -765,16 +709,11 @@ def relay_lines(text, names_phi=None):
 
 
 def check_output(text, root, names_phi, top=None):
-    """`{output, output_total, output_cut, withheld}`: a check's whole output,
-    fit for a public commit. PURE. For an OPEN subject only.
-
-    1. ANSI codes and control characters go.
-    2. The subject's absolute path, its real path and the repository's top
-       become relative, so `leetcode/x/x_test.go:12` stays readable.
-    3. Each line goes through `relay.public`: any other absolute or home path
-       becomes `<path>`, and a line `names_phi` flags is withheld and counted.
-    4. The first `OUT_HEAD` and last `OUT_TAIL` lines are kept, each cut to
-       `MAX_LINE`, at most `OUT_BYTES` in all, and the cut is marked.
+    """`{output, output_total, output_cut, withheld}`: a check's output fit
+    for a public commit, for an open subject only. Pure. Control codes go;
+    subject and repository paths become relative, other paths `<path>`
+    (`relay.public`); flagged lines are withheld; head and tail lines are
+    kept within `OUT_BYTES`, the cut marked.
     """
     from . import relay
     prefixes = []
@@ -849,16 +788,10 @@ def _argv_env(root, chk, cfg_path=None):
 
 def run_check(root, chk, run=subprocess.run, timeout=CHECK_SECONDS,
               names_phi=None, open_=False, path=None):
-    """Run a check here, from the subject's root.
-
-    `{exit, relay, withheld, crash, seconds}`, and in an OPEN subject
-    (`output_open`) also `output`, `output_total` and `output_cut`: stdout and
-    stderr merged, through `check_output`. In a closed one nothing else of the
-    output is kept: a check prints `RELAY:` lines for the message and anything
-    else for the owner's own eyes, and that stays in this terminal.
-
-    `chk` is `{"spec", "argv"}` or `{"script"}`, or a bare script path.
-    `path` is the subject check's `path`, put in front of PATH.
+    """Run a check here, from the subject's root: `{exit, relay, withheld,
+    crash, seconds}`, plus `output`, `output_total`, `output_cut` in an open
+    subject (`check_output`). In a closed one the rest of the output stays in
+    the terminal. `chk` is `{"spec", "argv"}`, `{"script"}` or a script path.
     """
     if isinstance(chk, str):
         chk = {"script": chk}

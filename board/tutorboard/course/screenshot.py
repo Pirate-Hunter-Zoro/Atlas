@@ -1,28 +1,11 @@
 """screenshot.py -- the lesson as the pixels it was read as, wrapped in a PDF.
 
-The other half of `web/shot.js`. Asked for from the iPad, about the export that
-already existed: "for the tutor session export, I don't want the latex dump it
-currently gives; I want it as if it were a screenshot of the entire iPad screen
-scrolled down over the whole tutoring session."
-
-WHAT IS HERE AND WHAT IS DELIBERATELY NOT. The pixels come from the client,
-because the client is the only thing in the system that knows what the lesson
-looks like -- there is no headless browser to render a page with. What is here
-is everything a client must not be trusted with: where the document goes
-(`transcripts/`), what it is called, which version it is, and that it is staged
-for the next commit.
-
-THE PDF IS WRITTEN BY HAND, and that is smaller than it sounds. A page holding
-one JPEG needs a catalogue, a page tree, a page, a content stream of six
-numbers, and an image object -- and a JPEG goes into a PDF *verbatim*, as
-`/DCTDecode`, because PDF's image filters are the same ones the file already
-uses. There is nothing to encode, so there is nothing to depend on: standard
-library, like the rest of the board.
-
-The client sends pages that are already the right shape -- all one size, cut
-where a card allowed it to be cut. That is not an accident of convenience: it is
-the only side holding the pixels, so it is the only side that can split a proof
-taller than a page without a JPEG decoder. This writes what it is given.
+The server half of `web/shot.js`. The pixels come from the client, the only
+thing that knows how the lesson looked; the server decides what a client must
+not be trusted with: where it goes (`transcripts/`), its name, its version,
+and staging it for the next commit. The PDF is written by hand: a JPEG goes
+in verbatim as `/DCTDecode`. The client sends pages already cut to one size,
+since only it holds the pixels.
 """
 
 import base64
@@ -47,10 +30,8 @@ def slugify(s):
 
 
 def next_version(out_dir, stem):
-    """v1, v2, v3 -- and never a timestamp: "which one is the latest" should
-    not require reading a date. One more than the highest already there,
-    counting a `.tex` too, so an old typeset export's number is never reused.
-    """
+    """v1, v2, v3, never a timestamp: one more than the highest there, counting
+    a `.tex` too."""
     high = 0
     try:
         names = os.listdir(out_dir)
@@ -79,8 +60,7 @@ def author_name(root, state):
 
 
 def track(root, paths):
-    """Stage the export, so the next push carries it. Staged rather than
-    committed: a commit in the middle of a lesson is the person's decision."""
+    """Stage the export for the next push; committing is the person's call."""
     rel = [os.path.relpath(p, root) for p in paths if os.path.exists(p)]
     if not rel:
         return False
@@ -92,16 +72,10 @@ def track(root, paths):
         return False
 
 
-# A JPEG's own header says how big it is, and the PDF has to agree with it to
-# the pixel or the page is stretched. Trusting the client's arithmetic here
-# would be trusting a number over the wire against bytes on disk.
 def jpeg_size(data):
-    """Width and height out of a JPEG's frame header, or None if it is not one.
-
-    Also the validator: this is bytes off the network being written into a
-    repository, and "the client said it was a JPEG" is not a property that
-    survives. A file that has no SOF marker is not a photograph of anything.
-    """
+    """Width and height from a JPEG's frame header, or None if it is not one.
+    Also the validator: bytes off the network are not trusted to be a JPEG,
+    and the PDF must match the real pixel size."""
     if len(data) < 4 or data[0:2] != b"\xff\xd8":
         return None
     i = 2
@@ -136,12 +110,8 @@ def _esc(text):
 
 
 def write_pdf(path, pages, page_w, page_h, title="", author=""):
-    """One PDF, one JPEG per page, each filling its page.
-
-    Objects are laid out in a fixed order and their byte offsets recorded as
-    they are written, because that table is the only way a reader finds anything
-    in a PDF and an offset that is one byte out is a file no reader will open.
-    """
+    """One PDF, one JPEG per page, each filling its page. Byte offsets are
+    recorded as objects are written, because the xref table must be exact."""
     if not pages:
         raise ValueError("there are no pages to write")
 
@@ -168,8 +138,7 @@ def write_pdf(path, pages, page_w, page_h, title="", author=""):
                    "/ColorSpace /DeviceRGB /BitsPerComponent 8 "
                    "/Filter /DCTDecode /Length %d >>" % (width, height, len(data))
                    ).encode("utf-8") + b"\nstream\n" + data + b"\nendstream")
-        # Full bleed: the client already left the margin inside the picture, so
-        # the picture IS the page. Anything else would letterbox a screenshot.
+        # Full bleed: the client left the margin inside the picture.
         stream = ("q %.2f 0 0 %.2f 0 0 cm /Im Do Q"
                   % (page_w, page_h)).encode("ascii")
         content = add(("<< /Length %d >>" % len(stream)).encode("ascii")
@@ -211,9 +180,8 @@ def write_pdf(path, pages, page_w, page_h, title="", author=""):
     return path
 
 
-# A page from a tablet at ratio 2 is around 1500x2100; anything far outside that
-# is not a photograph of a board. The ceiling is what keeps a malformed or
-# malicious payload from becoming a gigabyte in somebody's repository.
+# Ceiling on page size: a tablet page is ~1500x2100, and this stops a
+# malformed payload becoming a gigabyte in the repository.
 MAX_PAGES = 400
 MAX_PAGE_BYTES = 8 * 1024 * 1024
 A4 = (595.28, 841.89)
@@ -258,14 +226,8 @@ def build(root, pages, page_w=None, page_h=None, state=None):
 
 
 def decode(payload):
-    """The page images out of a request body, or a reason there are none.
-
-    Base64 rather than multipart: there are a few dozen of these, they are
-    generated in one pass on the device, and a JSON body is the one shape both
-    ends already agree about. The padding is repaired rather than rejected --
-    a stripped `=` is the single most common way base64 arrives wrong and it
-    costs nothing to accept.
-    """
+    """The page images out of a request body (base64 in JSON), or a reason
+    there are none. Missing `=` padding is repaired."""
     raw = payload.get("pages")
     if not isinstance(raw, list) or not raw:
         return None, "no pages arrived"
@@ -283,12 +245,7 @@ def decode(payload):
 
 
 def page_box(payload):
-    """The paper the client asked for, clamped to something a printer knows.
-
-    A4 unless it says otherwise, and never a number that would make the document
-    unopenable -- a MediaBox of zero is a file every reader rejects, and it would
-    arrive from a device that had simply measured a hidden element.
-    """
+    """The paper asked for, clamped: A4 by default, never a zero MediaBox."""
     box = payload.get("page") or {}
     try:
         w = float(box.get("w") or A4[0])

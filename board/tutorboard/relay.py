@@ -1,53 +1,18 @@
 """relay.py -- the cluster's half of the relay: one pass, every two minutes.
 
-scrontab runs `board/scripts/relay-pass.sh`, which pulls in bash (so a pushed
-fix lands even when this file cannot import), re-execs itself once when the
-pull changed board/, then runs `board/bin/relay --once`, which is `run_pass`.
+scrontab runs `board/scripts/relay-pass.sh` (a bash pull, a re-exec when
+board/ changed), then `board/bin/relay --once`, which is `run_pass`. Under
+one `flock` (`relay/.lock`; a second pass skips): pull fast-forward and move
+`vendor/colibri`; validate and submit or refuse each new request; poll jobs
+(`squeue` plus exit files, since `sacct` is refused) and write reports and
+exports; queue and check Colibri tasks; commit only what this pass wrote,
+rebase under any edits, push. A coding session's held paths and a Colibri
+workspace are the owner's edits: the pull goes under them and the pass
+never commits them. No model runs here; a failed job prints `RELAY:` lines.
 
-The Mac commits `relay/requests/<id>.json`; this pulls it, checks it again with
-`jobs.check`, submits it through `jobs.submit_recipe`, polls it with
-`jobs.poll`, and commits `relay/reports/<id>.json` and `exports/`. GitHub is
-the only channel. HANDOFF.md's "The relay" is the contract.
-
-ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
-`flock`, so a second pass at once skips rather than waits):
-
-1. Pull, fast-forward only. A tree with edits or unpushed commits outside the
-   cluster's own paths is skipped, and `relay/state.json` says why. Then
-   `pull_vendor` moves `vendor/colibri`.
-2. Each request with no report is validated, then submitted or refused.
-3. Unfinished jobs are polled with `jobs.poll`: `squeue` plus the wrapper's
-   exit file, because `sacct` is refused here. An ended job's exports are
-   copied and checked, and its report written.
-4. A `colibri` request is queued as a task (`colibri.relay_file`), and
-   `colibri.relay_pass` reports each task. A Colibri task is read-only
-   analysis whose outputs go under the workspace's ignored `phi/`, so a
-   finished one is checked (`check_task`): any change git can see in its
-   workspace fails it, and nothing it wrote is committed. No model runs in
-   the pass: a failed job prints `RELAY:` lines (the wrapper's fingerprint,
-   board/cluster/lib), and the Mac repairs it.
-5. Only what this pass wrote under `relay/reports/` and `exports/` is
-   committed (`staged_paths`), with `relay/status.json` when it changed;
-   anything else there is named in `relay/state.json`. The pass rebases onto
-   origin under any edits (`pull_under`) and pushes. A rejected push is
-   retried by the next pass. Never force. The pass never commits the owner's
-   edits.
-
-A coding session's held paths (`board code`) and a Colibri task's workspace
-are the owner's edits, left uncommitted: neither skips the pass, and the pull
-goes under them. A
-task's changes stay so when the check fails it, for the owner to settle.
-A request's report is named for its id where that is valid, else for its
-file, so no payload names a path outside `relay/reports/`.
-
-A REPORT IS PUBLIC. It carries state, the Slurm id, times, the exit code, which
-`produces` paths exist, which exports landed, the lines the job printed behind
-`RELAY:`, and the exception type of a crash. A log excerpt only where the
-subject's phi is literally false (`log_excerpt`, `code.output_open`). Every
-string in it goes through `public` first: absolute paths become `<path>`, and
-the lab's `names_phi` policy withholds what it matches.
-
-Standard library only.
+The constraint: a report is public. Every string goes through `public`
+(paths become `<path>`, the PHI policy withholds what it matches), and a log
+excerpt appears only where the subject's phi is literally false.
 """
 
 import fcntl
@@ -73,8 +38,8 @@ STATUS = "relay/status.json"
 
 # An export is at most this big.
 CAP = 5 * 1024 * 1024
-# What of a job's log reaches a report: `RELAY:` lines only, this many, this
-# long, out of at most this much of the log's end.
+# `RELAY:` lines from a job's log reach a report: this many, this long, out
+# of at most this much of the log's end.
 MAX_LINES = 40
 MAX_LINE = 200
 READ_TAIL = 2 * 1024 * 1024
@@ -99,11 +64,8 @@ _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
 def public(text, names_phi=None, limit=MAX_LINE):
-    """`text` fit for a public report, or None where the PHI policy matches it.
-
-    Control characters go, an absolute or home path becomes `<path>` (a path
-    is where lab storage gets named), and it is cut to `limit`.
-    """
+    """`text` fit for a public report, or None where the PHI policy matches
+    it: control characters go, paths become `<path>`, cut to `limit`."""
     s = _CTRL_RE.sub("", str(text or "")).strip()
     s = _PATH_RE.sub("<path>", s)
     if names_phi is not None:
@@ -118,8 +80,8 @@ def public(text, names_phi=None, limit=MAX_LINE):
 
 
 def relay_lines(text, names_phi=None):
-    """The lines a job printed behind `RELAY:`, made public. The last
-    `MAX_LINES` of them, prefix dropped; nothing else of the log."""
+    """The last `MAX_LINES` lines a job printed behind `RELAY:`, made public;
+    nothing else of the log."""
     out = []
     for line in (text or "").splitlines():
         if not line.startswith("RELAY:"):
@@ -135,8 +97,8 @@ _EXC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
 
 
 def crash_type(text):
-    """The exception type of the last Python traceback in `text`, or "".
-    The type only: its message can print anything."""
+    """The exception type of the last traceback in `text`, or "". Never the
+    message, which can print anything."""
     lines = (text or "").splitlines()
     starts = [i for i, l in enumerate(lines)
               if l.startswith("Traceback (most recent call last)")]
@@ -197,14 +159,12 @@ def _rel(base, path):
 
 
 def spaces(base):
-    """`[(workspace root, its path relative to the repository)]`, for every
-    subject: each one is Atlas's own content."""
+    """`[(workspace root, its path relative to the repository)]` per subject."""
     return [(where, _rel(base, where)) for where in subjects.roots(base)]
 
 
 def coding(base):
-    """Repository-relative paths an open coding session (`board code`) holds
-    in this checkout. `[]` where none is registered or they cannot be read."""
+    """Repository-relative paths an open coding session holds, `[]` if none."""
     from . import code
     try:
         return code.held(base)
@@ -216,8 +176,8 @@ HELD_UPSTREAM = "held path changed upstream"
 
 
 def held_upstream(base, ref, held):
-    """Held paths `HEAD...ref` changes: a pull would overwrite the owner's
-    work in a coding session, so it does not happen. None where git fails."""
+    """Held paths `HEAD...ref` changes, which stop a pull; None where git
+    fails."""
     if not held:
         return []
     code, out = _git(base, "-c", "core.quotePath=false", "diff", "--name-only",
@@ -228,10 +188,8 @@ def held_upstream(base, ref, held):
 
 
 def colibri_busy(base):
-    """Repository-relative workspace paths a Colibri task owns: one queued or
-    running there, one finished and not yet checked (`check_task`), and one
-    the queue failed, whose changes stay for the owner. Edits there are not
-    the pass's to commit, and they do not skip it."""
+    """Repository-relative workspaces a Colibri task owns (queued, running,
+    unchecked or failed): their edits are not the pass's to commit."""
     from . import colibri
     out = []
     try:
@@ -255,10 +213,8 @@ def _under(rel, prefixes):
 
 
 def owned(base, rel, where=None, held=None):
-    """Is this repository-relative path one the cluster writes? A workspace's
-    `relay/reports/` and `exports/`, `relay/status.json`, the
-    `vendor/colibri` pointer the pass moves, and (`held`, from `coding`)
-    the paths an open coding session holds open."""
+    """Is this path one the cluster writes: reports, exports, status.json,
+    the `vendor/colibri` pointer, or a path a coding session holds?"""
     if rel in ("vendor/colibri", STATUS):
         return True
     for _, ws in where if where is not None else spaces(base):
@@ -340,12 +296,9 @@ def _stashes(base):
 def pull_under(base):
     """Bring the upstream in under the edits here. `(ok, said)`.
 
-    `git rebase --autostash` onto the upstream: the edits (a coding session's
-    held files, a Colibri task's workspace) are set aside, the local commits
-    replayed on origin, and the edits put back. That is safe only because
-    nothing upstream touches an edited path, so that is checked first: a path
-    both edited here and changed upstream stops the pull with nothing moved. A
-    rebase that fails anyway is aborted, which puts the tree back as it was."""
+    `git rebase --autostash`, safe only because no edited path changes
+    upstream, which is checked first. A failed rebase is aborted, restoring
+    the tree."""
     busy = worktree.busy_reason(base)
     if busy:
         return False, "%s, so nothing was pulled" % busy
@@ -384,9 +337,7 @@ def pull_under(base):
     if code != 0 or left:
         return False, ("the edits set aside did not go back cleanly; they are "
                        "kept in `git stash list`: %s" % left)
-    # The other way an autostash fails to go back: `stash apply` refuses (a
-    # file changed while the rebase ran), git still exits 0 and leaves no
-    # conflict, and the edits sit in the stash, gone from the tree.
+    # `stash apply` can refuse yet exit 0, leaving the edits in the stash.
     after = _stashes(base)
     if (stashed is None or after is None or after > stashed
             or "resulted in conflicts" in out):
@@ -428,9 +379,8 @@ def pull(base, where, pull_vendor=None):
         if code != 0 or theirs_not:
             return ("the branch has commits origin lacks, outside the "
                     "cluster's paths: %s" % ", ".join(theirs_not[:5])), error
-    # A coding session's paths are the owner's until `board code --end`:
-    # origin changing one stops the pull rather than overwrite what is being
-    # written. The pass still runs, at this HEAD, and says why.
+    # Origin changing a held path stops the pull rather than overwrite the
+    # owner's work; the pass runs at this HEAD and says why.
     if not error and _count(base, "HEAD..%s" % ref):
         clash = held_upstream(base, ref, held)
         if clash is None:
@@ -442,8 +392,7 @@ def pull(base, where, pull_vendor=None):
                      % (HELD_UPSTREAM, ", ".join(clash[:5])))
     if not error and _count(base, "HEAD..%s" % ref):
         if ahead or dirty:
-            # Commits of its own to replay, or the owner's edits (a coding
-            # session's, a Colibri task's) to keep.
+            # Local commits to replay, or the owner's edits to keep.
             ok, why = pull_under(base)
             if not ok:
                 return "", "pull onto %s failed: %s" % (ref, why)
@@ -460,50 +409,19 @@ def pull(base, where, pull_vendor=None):
     return "", error
 
 
-# What this pass wrote: every report and every landed export, absolute.
-# `publish` commits exactly these, so a file that reached `exports/` or
-# `relay/reports/` any other way (a task, a recipe writing there itself) is
-# never published unchecked.
+# What this pass wrote, absolute. `publish` commits exactly these, so a file
+# that reached `exports/` or `relay/reports/` another way is never published.
 _WRITTEN = set()
 
 
 def pull_vendor(quiet=False):
-    """Move `vendor/colibri` forward, and COMMIT THE POINTER ITSELF.
+    """Move `vendor/colibri` forward and commit the pointer.
 
-        "Regarding some kind of external repo like colibri, I want to have that
-         git pulled every time I salloc, just like tutoring becomes available
-         every time I salloc. I want it tracked in our repo too."
-
-    A submodule is exactly that: the repository tracks a POINTER to a commit in
-    somebody else's repository, and the pointer is a tracked file like anything
-    else. The relay's pass runs this on the cluster, the only machine that
-    bumps vendor pointers; the Mac's `gitops.pull` only checks out the
-    pointers it pulled. A timer is safe here only BECAUSE of the third
-    rule below: it commits nothing when anything else in the tree is dirty, so
-    it cannot sweep up an afternoon it arrived in the middle of.
-
-    The third rule is the one that bites. A bumped pointer is a change in the
-    working tree, so pulling colibri leaves the repository dirty every time
-    colibri moves -- and `git.repo_dirty` is on the board, which means the
-    person is shown "unsaved work" for something they did not do, on a file they
-    have never heard of. So the pull commits the bump, with a fixed message
-    naming the old commit and the new one.
-
-    **That is the only commit anything in this system makes on its own**, so it
-    is guarded three ways:
-
-    * only when `vendor/colibri` is the ONLY dirty path. Anything else in the
-      tree and this does nothing at all -- a commit that sweeps up somebody's
-      afternoon because a vendored library moved is the exact failure the
-      `--only` pathspec exists to prevent;
-    * never when a merge or a rebase is outstanding, because a terminal in here
-      has its own plan for the next commit;
-    * never on a detached HEAD, where a commit is reachable from nothing.
-
-    `vendor/colibri-build` is NOT pulled. It is the same upstream pinned at an
-    older commit because it is a BUILD TREE, and a build tree that moves
-    underneath a build is the failure it exists to avoid. Moving it forward is
-    the person's to do, by hand.
+    The only commit anything makes on its own, so it is guarded: only when
+    the pointer is the only dirty path, never during a merge or rebase, never
+    on a detached HEAD. Committed because a bumped pointer would otherwise
+    show as unsaved work. `vendor/colibri-build` is never moved: a build
+    tree moving under a build is the failure it exists to avoid.
     """
     base = subjects.root()
     sub = os.path.join(base, "vendor", "colibri")
@@ -594,11 +512,9 @@ def _changed(base, rels):
 
 
 def staged_paths(base, where):
-    """`(paths to commit, paths left unpublished)`, repository-relative.
-
-    The commit is what this pass wrote, plus a report for a request filed here
-    that a pass killed before its commit left behind. Anything else changed
-    under `exports/` or `relay/reports/` is left, and named."""
+    """`(paths to commit, paths left unpublished)`, repository-relative: what
+    this pass wrote, plus a report a killed pass left. Anything else under
+    `exports/` or `relay/reports/` is left and named."""
     written = set(_rel(base, p) for p in _WRITTEN)
     dirs = []
     for root, ws in where:
@@ -661,9 +577,8 @@ def publish(base, where, message, push=True):
 # reports
 # ---------------------------------------------------------------------------
 def request_id(req):
-    """The id a request's report is named and keyed by: its `id` where that
-    is a valid one, else its file's own name, which no payload can make a
-    path elsewhere."""
+    """The id a report is named by: the request's valid `id`, else its file
+    name, which no payload can turn into a path."""
     rid = req.get("id") if isinstance(req, dict) else None
     if isinstance(rid, str) and jobs.REQUEST_ID_RE.match(rid):
         return rid
@@ -675,9 +590,8 @@ _SAFE_STEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
 
 
 def write_report(ws, rid, rep):
-    """Write one report. Every report carries `ran_at`, the cluster's HEAD
-    short sha: the one its job was submitted at where the caller kept it,
-    else HEAD now."""
+    """Write one report, with `ran_at`: the HEAD its job was submitted at, else
+    HEAD now."""
     rid = str(rid)
     if not _SAFE_STEM.match(rid):
         raise ValueError("a report id names a file in relay/reports/")
@@ -700,9 +614,8 @@ def _field(value, names_phi):
 
 
 def _base_report(req, state, now, names_phi=None):
-    """A report's common fields. It echoes the request's `label` and
-    `session`, so the Mac wakes the session that filed it; a `thread` an
-    older request carries is not echoed."""
+    """A report's common fields; `label` and `session` are echoed so the Mac
+    wakes the filing session."""
     rep = {"id": request_id(req), "kind": _field(req.get("kind"), names_phi),
            "state": state, "updated": round(float(now), 3)}
     for key in ("label", "session"):
@@ -722,11 +635,9 @@ def refuse(ws, req, problems, now, names_phi=None):
 def export(ws, rec, allowed, names_phi=None):
     """Copy a finished job's exports into `exports/`. `(landed, refused)`.
 
-    Each path is checked again here, in code, whatever the request said: under
-    `results/`, an allowed extension, approved now by the subject's committed
-    tutorboard.json `relay.exports` (`allowed`, `exports.approvals`), a
-    regular file of at most 5 MB, a target git would track, and nothing the
-    PHI policy matches in its path or, for text, its content.
+    Each path is checked again here: under `results/`, an allowed extension,
+    approved now by `relay.exports`, a regular file of at most 5 MB, trackable,
+    and nothing the PHI policy matches in path or text content.
     """
     landed, refused = [], []
     for rel in rec.get("export") or []:
@@ -818,13 +729,9 @@ def finish(ws, rec, req, allowed, now, names_phi=None):
 
 
 def log_excerpt(ws, out, err, names_phi):
-    """`{output, output_total, output_cut}` of a job's log, or {}.
-
-    Only where `code.output_open` holds: the subject's tutorboard.json says
-    `"phi": false` literally, on disk and at HEAD, it holds no fence, and the
-    policy loaded. Then stdout and stderr go through `code.check_output`, as a
-    `board code` step's do: paths made subject-relative, any other absolute
-    path `<path>`, a line the policy flags withheld, the middle cut."""
+    """`{output, output_total, output_cut}` of a job's log, or {}: only where
+    `code.output_open` holds (phi literally false on disk and at HEAD, no
+    fence, policy loaded), filtered by `code.check_output`."""
     from . import code
     if names_phi is None or not code.output_open(ws, names_phi=names_phi):
         return {}
@@ -863,10 +770,8 @@ def recipe_note(rec, rep):
 # ---------------------------------------------------------------------------
 # Colibri tasks: read-only analysis, checked when they finish
 # ---------------------------------------------------------------------------
-# A Colibri task reads the fenced data and writes what it makes under the
-# workspace's ignored `phi/` (`colibri.TASK_PROMPT`). Its work is never
-# tracked, so nothing of it needs a reviewer or a ship: the pass looks at the
-# workspace once the task is done, and a change git can see there fails it.
+# A Colibri task writes only under the ignored `phi/`, so once it is done any
+# change git can see in its workspace fails it.
 CHANGED = ("a Colibri task changed tracked files; its work belongs in ignored "
            "locations")
 
@@ -881,13 +786,10 @@ def _stamp(full):
 
 
 def workspace_changes(ws):
-    """`{repository-relative path: _stamp}` for every change git can see under
-    workspace `ws` -- tracked edits and untracked files it does not ignore --
-    less what the cluster writes there: reports, and what this pass wrote. The job registry and the Colibri queue sit in the ignored
-    `relay/state/`, which git does not see. None where git cannot say.
-
-    `colibri.file` keeps this as a task's baseline, so the owner's edits from
-    before the task are not the task's."""
+    """`{repository-relative path: _stamp}` for every change git sees under
+    `ws`, less what the cluster writes there; None where git cannot say.
+    `colibri.file` keeps it as a task's baseline, so earlier owner edits are
+    not the task's."""
     code, top = _git(ws, "rev-parse", "--show-toplevel")
     if code != 0 or not top:
         return None
@@ -904,14 +806,9 @@ def workspace_changes(ws):
 
 
 def check_task(ws, rec, names_phi=None):
-    """Did this finished task leave its workspace as git sees it? None where
-    that cannot be read, so the task is checked again next pass; else
-    `{"changed": count, "relay": lines}`.
-
-    `changed` counts the paths changed since the task's baseline and never
-    names them: they may sit beside the data. A task with no baseline counts
-    every change. `relay` is the `RELAY:` lines of the client's output, made
-    public; without the policy, none."""
+    """Did this finished task leave its workspace as git sees it? None when
+    unreadable (checked again next pass), else `{"changed": count, "relay":
+    lines}`. Paths are counted, never named: they may sit beside the data."""
     now = workspace_changes(ws)
     if now is None:
         return None
@@ -929,21 +826,11 @@ def check_task(ws, rec, names_phi=None):
 # relay/status.json: the relay's public health
 # ---------------------------------------------------------------------------
 # `{"skipped", "last_error", "push_pending", "outstanding", "colibri", "at"}`,
-# every string through `public`. `outstanding` is `{subject: {request id:
-# state}}` for each request the cluster has not ended; `colibri` is
-# `colibri.relay_status`'s block, or null where this checkout has no queue.
-# Neither names a node or a path. Computed at the end of every pass; written
-# and committed only when a field other than `at` changed, so an idle relay
-# makes no commits and the file is never left edited in the tree. A pass that
-# runs commits it with its reports (`publish`). A skipped pass cannot touch the
-# branch, so it commits the file on top of origin's tip through a temporary
-# index and pushes that (`status_aside`): HEAD, the index and the tree stay as
-# they were, and the next pull brings it in.
-#
-# The cluster is its only writer. A status commit is made only on a base that
-# already holds every status commit origin has, so two never diverge and a
-# rebase never meets one: a running pass writes it only when HEAD is not
-# behind origin, and a skipped pass only when no unpushed commit carries it.
+# every string through `public`, naming no node or path. Committed only when a
+# field besides `at` changed, so an idle relay makes no commits: with the
+# reports by a running pass, or on origin's tip through a temporary index by a
+# skipped one (`status_aside`). The cluster is its only writer, and writes it
+# only on a base holding every status commit origin has, so two never diverge.
 WITHHELD = "(withheld by the PHI policy)"
 
 
@@ -969,8 +856,8 @@ def status_doc(skipped, error, push_pending, at, names_phi=None,
 
 
 def _colibri_status(block):
-    """`colibri.relay_status`'s block, each field checked for its type: the
-    status is public, so nothing but a state, numbers and a task id."""
+    """`colibri.relay_status`'s block, each field type-checked: the status is
+    public."""
     def num(v):
         return int(v) if isinstance(v, (int, float)) and not isinstance(
             v, bool) else None
@@ -1022,9 +909,8 @@ def outstanding(where):
 
 
 def colibri_block(base, st, now):
-    """Colibri's block for `relay/status.json`, or None where this checkout
-    has no queue. `st` is `relay/state.json`, whose `colibri` keeps what
-    timing a load needs. Where it fails, HEAD's block stands."""
+    """Colibri's block for `relay/status.json`, or None without a queue. On
+    failure HEAD's block stands."""
     from . import colibri
     prev = status_at(base).get("colibri")
     try:
@@ -1091,8 +977,8 @@ def status_dirty(base):
 
 
 def restore_status(base):
-    """Put `relay/status.json` back as HEAD has it, or remove it where HEAD
-    has none: a pass that wrote it and did not commit it leaves no edit."""
+    """Put `relay/status.json` back as HEAD has it, so an uncommitted write
+    leaves no edit."""
     if not status_dirty(base):
         return
     if _git(base, "cat-file", "-e", "HEAD:%s" % STATUS)[0] == 0:
@@ -1195,12 +1081,8 @@ def sbatch_env():
 
 def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
              push=True):
-    """One pass. Returns a summary dict; `relay/state.json` records it, and
-    `relay/status.json` says the public part of it when that changed.
-
-    `run` is how Slurm is asked (sbatch, scontrol, squeue), so a test can
-    answer from a table; git is always the real one.
-    """
+    """One pass; returns a summary that `relay/state.json` records. `run` asks
+    Slurm, so a test can answer from a table; git is always real."""
     base = os.path.realpath(base or subjects.root())
     lock = os.path.join(base, LOCK)
     os.makedirs(os.path.dirname(lock), exist_ok=True)
@@ -1242,8 +1124,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
             where = spaces(base)
             _work(base, where, run, t0, summary)
             errors.extend(summary.pop("errors", []))
-            # Waiting to be pushed: what an earlier pass committed and could
-            # not push. Written only where HEAD has all origin has.
+            # Committed by an earlier pass and not yet pushed.
             up = upstream(base)
             block = colibri_block(base, st, t0)
             if up and not _count(base, "HEAD..%s" % up[2]):
@@ -1256,8 +1137,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
             sha, err = publish(base, where, msg[:200], push=push)
             if err:
                 errors.append(err)
-            # Changed under exports/ or relay/reports/ and not written by a
-            # pass: never committed, and named here for the owner.
+            # Not written by a pass: never committed, named for the owner.
             st["unpublished"] = staged_paths(base, where)[1][:50]
             if sha:
                 st["last_pushed"] = sha
@@ -1296,8 +1176,7 @@ def _work(base, where, run, now, summary):
     env = sbatch_env()
     errors = summary.setdefault("errors", [])
     for ws, rel in where:
-        # One workspace's trouble is that workspace's: the others, the
-        # Colibri step and the publish still run.
+        # One workspace's trouble does not stop the others or the publish.
         try:
             _work_space(ws, run, now, summary, names_phi, env)
         except Exception as exc:                             # noqa: BLE001
@@ -1313,8 +1192,7 @@ def _work_space(ws, run, now, summary, names_phi, env):
     from . import colibri
     reqs = jobs.requests(ws)
     if not reqs:
-        # A workspace with no requests can still have jobs `board job`
-        # submitted here directly; their endings wake its inbox.
+        # Jobs submitted here directly still wake their inbox.
         jobs.report(ws, run=run, now=now)
         return
     reps = jobs.reports(ws)
@@ -1396,8 +1274,7 @@ def _colibri_public(rep, rid, names_phi, now, req=None):
         if key in out:
             out[key] = _field(str(out[key]), names_phi)
     if "relay" in out:
-        # Scrubbed when the task was checked, and again here: nothing in a
-        # report is trusted to have been made public somewhere else.
+        # Scrubbed again: nothing in a report is trusted to be public already.
         said = [public(l, names_phi) for l in out.get("relay") or []
                 if isinstance(l, str)] if names_phi is not None else []
         out["relay"] = [l for l in said if l][-MAX_LINES:]
@@ -1522,12 +1399,10 @@ def status(base=None, now=None):
 # ---------------------------------------------------------------------------
 # the Mac's view of the cluster: relay down, not synced, Colibri
 # ---------------------------------------------------------------------------
-# Read on the Mac from its own tree and `<state>/pull.json` only, never from
-# Slurm (D27). A request whose commit origin has, with no report
-# `DOWN_AFTER` seconds later, says the relay looks down: every pass reports
-# every request it can see. A failed pull or ls-remote in pull.json
-# (`cluster.Ear`) says "not synced". `health` is cached for `HEALTH_TTL`
-# seconds because the board's payload asks on every build.
+# Read on the Mac from its own tree and `pull.json` only, never from Slurm
+# (D27). A request on origin with no report `DOWN_AFTER` seconds later means
+# the relay looks down; a failed pull means "not synced". Cached for
+# `HEALTH_TTL`, because every payload build asks.
 DOWN_AFTER = 15 * 60
 HEALTH_TTL = 20.0
 _HEALTH = {}
@@ -1549,9 +1424,8 @@ def _filed_at(atlas, rel):
 
 
 def stale_requests(atlas, now=None, after=DOWN_AFTER):
-    """`[{subject, id, since}]`: each request with no report `after` seconds
-    past the commit that filed it. One not committed, or committed and not
-    on origin's main, is not the relay's to have seen."""
+    """`[{subject, id, since}]`: requests with no report `after` seconds past
+    their commit. Uncommitted or not on origin's main is not the relay's."""
     now = float(now or time.time())
     on_origin = _git(atlas, "rev-parse", "--verify", "--quiet",
                      "refs/remotes/origin/main")[0] == 0
@@ -1661,11 +1535,8 @@ def panel(atlas, now=None, state_dir=None):
 # the scrontab entry
 # ---------------------------------------------------------------------------
 def scrontab_block(python=None, entry=None, log=None):
-    """The entry, between markers so `install` can replace it.
-
-    It runs `bash <entry>`, `board/scripts/relay-pass.sh` by default, with
-    RELAY_PYTHON set to the interpreter that installed it: a scrontab job's
-    PATH may find an older python3 first."""
+    """The entry, between markers so `install` can replace it. RELAY_PYTHON is
+    the installing interpreter, because scrontab's PATH may find an older one."""
     python = python or sys.executable
     entry = entry or os.path.join(paths.TOOL, "scripts", "relay-pass.sh")
     log = log or os.path.join(paths.STATE_DIR, "relay-scron.log")

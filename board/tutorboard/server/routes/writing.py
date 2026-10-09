@@ -51,21 +51,10 @@ def get(h, repo, path):
 # ---------------------------------------------------------------------------
 # WHAT A MARK CAN BE ANCHORED TO
 # ---------------------------------------------------------------------------
-# A card, and now a page of a document. The key is the tail of a §2.1 address,
-# so the tutor can be told WHERE a mark is in the same words a link uses.
-#
-#     0007                  card 7 of the lesson
-#     doc/<ident>/p<n>      page n of a document this workspace offers
-#
-# A NAME FROM A BROWSER NEVER REACHES A FILESYSTEM, and this is the one place
-# in the annotation path where it could: the record used to be written to
-# `<notes>/<card>.json`, which was safe only because a card is four digits. A
-# key with a slash in it joined onto a path is the oldest hole there is, so the
-# key is VALIDATED against these shapes and then the filename is DERIVED from
-# it rather than being it.
-# `\Z`, NOT `$`. In Python `$` also matches just before a trailing newline, so
-# `"doc/a/p1\n"` passed a `$`-anchored check -- and that string then went into a
-# filename. A key arrives from a browser; it gets the strict end-of-string.
+# What a mark can be anchored to: a card (`0007`) or a document page
+# (`doc/<ident>/p<n>`), the tail of a §2.1 address. A browser's key never
+# reaches the filesystem: it is validated against these shapes (with `\Z`,
+# because `$` admits a trailing newline) and the filename is derived from it.
 ANN_CARD = re.compile(r"\A\d{1,4}\Z")
 ANN_DOC = re.compile(r"\Adoc/([a-z0-9-]{1,40})/p(\d{1,4})\Z")
 
@@ -75,26 +64,16 @@ def ann_ok(key):
 
 
 def ann_doc_page(key):
-    """`(ident, page)` for a mark on a page of a document, or None.
-
-    THE ONE PLACE THAT TAKES A KEY APART. Everything else that wants to know
-    which document a mark is on -- the sentence the tutor is told, the library
-    reading ink back as feedback -- asks here, because a second spelling of this
-    pattern is a second answer to "is this key one of ours", and that question
-    is the one this file exists to answer exactly once.
-    """
+    """`(ident, page)` for a mark on a document page, or None. The one place a
+    key is taken apart, so "is this key ours" has one answer."""
     found = ANN_DOC.match(str(key or ""))
     return (found.group(1), int(found.group(2))) if found else None
 
 
 def ann_file(key):
-    """The filename for one key's record, and it can never climb out.
-
-    A card keeps its own name, so every record already on disk is found exactly
-    where it was. Anything else is flattened -- there is no `/` left in it to be
-    a directory -- and carries a short digest of the key, because two different
-    addresses must never flatten onto one file.
-    """
+    """The filename for one key's record, which can never climb out: a card
+    keeps its own name; anything else is flattened and carries a digest of
+    the key, so two addresses never share a file."""
     if ANN_CARD.match(key):
         return key
     flat = re.sub(r"[^A-Za-z0-9-]+", "-", key).strip("-")[:60]
@@ -115,13 +94,9 @@ def png_path(repo, key):
     return ann_path(repo, key, ".png")
 
 
-# THE STROKES THE BOARD TOOK OFF A PAGE, kept until every reader has let them
-# go. A landed round's wipe deletes strokes on disk, but a reader still showing
-# them saves them back as new ink. So `library.strip` buries
-# what it takes in `<stem>.gone` (not `.json`, so no drawer read sees it), the
-# reader is told which (`library.wiped`), and `/annotate/save` refuses those
-# exact strokes on that page. A save carrying none of them means the reader has
-# caught up, and the record goes.
+# Strokes the board took off a page, buried in `<stem>.gone` until every
+# reader lets them go: `/annotate/save` refuses those exact strokes, and a
+# save carrying none of them retires the record.
 def gone_path(repo, key):
     return ann_path(repo, key, ".gone")
 
@@ -164,11 +139,7 @@ BUILD_DIGEST = re.compile(r"\A[0-9a-f]{6,40}\Z")
 
 def clean_build(build):
     """`{digest, at, pages}` for the rendering a mark was drawn on, or None.
-
-    The digest is `paper._digest`'s -- the name the page cache gives one exact
-    PDF -- so it says both which build this was and where its pages are drawn.
-    Anything else in it is dropped, and a digest that is not one is no build.
-    """
+    The digest is `paper._digest`'s; anything else is dropped."""
     if not isinstance(build, dict):
         return None
     digest = str(build.get("digest") or "")
@@ -193,11 +164,8 @@ def ann_says(key, answering_now):
                       "against that card's own text in live/cards/.")
     m = ann_doc_page(key)
     if m:
-        # INK ASKING FOR A CHANGE TO A DOCUMENT IS ANSWERED IN ITS LEDGER,
-        # whichever surface it was sent from: answered anywhere else, it stays
-        # drawn over the revision. A mark asking a question about the page --
-        # a sitting's "why is this true?" on its own write-up -- is the lesson's,
-        # and filing it as a round would spend a revision on a question.
+        # Ink asking for a document change is answered in its ledger, from
+        # any surface; a question on the page stays the lesson's.
         return ("they wrote on page %d of the document `%s`"
                 % (m[1], m[0]),
                 "Open the image to see the marks. The document itself is one "
@@ -212,18 +180,9 @@ def ann_says(key, answering_now):
 
 def post(h, repo, path):
     if path == "/annotate/burn":
-        # THE INK, MADE INTO A DOCUMENT. Marking up your own compiled write-up
-        # already worked; what it produced was a record in the board's drawer,
-        # which is not a thing anybody can hand over or read next year. This is
-        # the way out, and there are exactly three of them because there are
-        # three things "save" means: over the original, as a new file, or not at
-        # all. `none` writes nothing and is answered without drawing a page.
-        #
-        # Deliberately a POST that can overwrite a file the repository builds.
-        # That is the asked-for behaviour and it is safe for one reason worth
-        # stating where it happens: the strokes are not in the PDF. They are in
-        # the annotation record, so a compile that destroys the burned rendering
-        # destroys nothing that cannot be burned again.
+        # The ink made into a marked copy beside the PDF (`burn.burn`), or
+        # nothing (`none`). The strokes stay in the annotation record, so a
+        # copy can always be burned again.
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:
@@ -234,18 +193,13 @@ def post(h, repo, path):
         h.note("burn %s (%s): %s" % (kind, mode,
                                      got.get("detail") or got.get("why")))
         if got.get("ok") and got.get("mode") != "none":
-            # The PDF under the viewer just changed, so the payload has to go
-            # out again -- the page cache is keyed on modification time and the
-            # controls are drawn off `papers`.
+            # The viewer's PDF list changed: send the payload again.
             h.hub.worker.dirty.set()
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/annotate/save":
-        # Marks written over the tutor's own cards. Saving keeps them across
-        # a reload; sending makes them a turn. They are anchored to a card,
-        # in that card's own coordinates, so changing the type size or the
-        # reading face moves the ink with the words instead of leaving it
-        # stranded where the words used to be.
+        # Ink on the tutor's cards: saved across reloads, or sent as a turn.
+        # Stored in the card's own coordinates, so it moves with the words.
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:
@@ -254,15 +208,11 @@ def post(h, repo, path):
         if not ann_ok(card):
             return h.send_json({"ok": False, "error": "bad anchor"}, status=400)
         if is_sessionless(repo) and (not ANN_DOC.match(card) or payload.get("send")):
-            # Outside a session there is no card and no inbox: only a
-            # document page's ink is kept, and only saved.
+            # No session: only document ink, and only saved.
             return h.send_json({"ok": False, "error": "card ink and a send are a "
                                 "session's: /s/<id>/annotate/save"}, status=400)
-        # INK ON ANOTHER DECK IS NOT THIS ONE'S. A library left open on the
-        # meeting deck while a new deck was asked for still owes the old
-        # deck's marks, and keys are page numbers, so they would land on the
-        # new deck's slides. The save names its deck (`briefs.deck_id`, sent
-        # by library.js); `gone` tells the page to let it go.
+        # Ink saved against another deck (`briefs.deck_id`) is not this one's,
+        # because keys are page numbers; `gone` tells the page to drop it.
         if card.startswith("doc/meeting/") and payload.get("deck") is not None:
             from ... import briefs                     # local: avoids a cycle
             from ..registry import base_of
@@ -275,25 +225,17 @@ def post(h, repo, path):
         record_path = ann_path(repo, card)
         os.makedirs(os.path.dirname(record_path), exist_ok=True)
         strokes = payload.get("strokes") or []
-        # Whether these marks have been handed to the tutor, recorded next
-        # to them. Without it a reload cannot tell ink that was delivered
-        # from ink that was only ever autosaved, so yesterday's forgotten
-        # marks went on demanding a decision every time anything was sent.
-        # A plain save only ever arrives for a card that just changed, so
-        # "not a send" is exactly the right moment to clear the flag.
+        # Whether these marks were handed to the tutor, so a reload tells
+        # delivered ink from autosaved ink; a plain save clears it.
         sent = bool(payload.get("send"))
-        # UNLESS NOTHING CHANGED. The library re-saves a page only to attach
-        # its picture before a note goes, with the very strokes already on
-        # disk; clearing the flag there would send ink a round already
-        # delivered a second time.
+        # Unless nothing changed: a re-save to attach a picture must not
+        # resend delivered ink.
         try:
             with open(record_path, "r", encoding="utf-8") as fh:
                 was = json.load(fh)
         except (OSError, ValueError):
             was = {}
-        # INK THE BOARD TOOK OFF THIS PAGE DOES NOT COME BACK (`gone_path`): a
-        # reader that still had it on the glass sends it with whatever it drew
-        # next, and written here it would be new, unsent ink again.
+        # Ink the board took off this page (`gone_path`) is refused.
         gone = set(notes.stroke_sig(s) for s in gone_of(repo, card))
         if gone:
             kept = [s for s in strokes if notes.stroke_sig(s) not in gone]
@@ -304,11 +246,8 @@ def post(h, repo, path):
             sent = bool(was.get("sent")) and \
                 (was.get("strokes") or []) == strokes
         rec = {"card": card, "strokes": strokes, "sent": sent}
-        # WHICH BUILD THE INK WAS DRAWN ON, as the reader that drew it says.
-        # A document rebuilt overnight moves its text under the marks, and the
-        # page it was drawn on is only knowable here, at save. A save that
-        # names no build keeps the one on record while the strokes are the
-        # same ones.
+        # The build the ink was drawn on, knowable only at save; a save naming
+        # none keeps the recorded one while the strokes are unchanged.
         build = clean_build(payload.get("build"))
         if not build and was.get("strokes") == strokes:
             build = clean_build(was.get("build"))
@@ -346,10 +285,8 @@ def post(h, repo, path):
             json.dump({"card": card, "strokes": strokes}, fh)
         record = {
             "id": tid, "rev": rev, "kind": "annotation",
-            # WHICH CARD THIS SITS UNDER in the transcript -- and a mark on a
-            # page of a document sits under no card at all. Claiming one would
-            # file the turn beneath a card it has nothing to do with; empty
-            # lets it fall to where its time puts it, which is the truth.
+            # The card this sits under in the transcript; a document page
+            # sits under none.
             "answers": card if ANN_CARD.match(card) else "",
             "anchor": card,
             "t": time.time(),
@@ -363,13 +300,8 @@ def post(h, repo, path):
         }
         turns.write_turn(repo, record)
         msg = dict(record)
-        # The tutor wrote this card and can read it back off disk, so what it
-        # needs from here is which card was marked, roughly where, and the
-        # ink itself.
-        # Marks on the card that is currently asking are an answer, and the
-        # tutor has to be told that rather than left to infer it -- a card
-        # that asked the student to decide something gets marks back, and
-        # "they wrote on your card" reads like a passing note.
+        # Which card, roughly where, and the ink. Marks on the asking card
+        # are an answer, and the tutor is told so.
         answering_now = (card == turns.newest_question(repo))
         lead, how = ann_says(card, answering_now)
         msg["text"] = ("[annotation] %s%s. %s%s"
@@ -416,8 +348,7 @@ def post(h, repo, path):
             tid = payload.get("turn") or turns.next_turn_id(repo)
             rev = turns.turn_revision(repo, tid)
             base = "%s-r%d" % (tid, rev)
-            # Frozen, because the slate page it came from will be written
-            # over. What was handed in has to stay what was handed in.
+            # Frozen: the slate page will be written over.
             try:
                 shutil.copyfile(stem + ".png", os.path.join(repo.answers, base + ".png"))
             except OSError:
@@ -439,10 +370,7 @@ def post(h, repo, path):
             }
             turns.write_turn(repo, record)
             msg = dict(record)
-            # What arrived is a page, not a verdict. It may be an attempt,
-            # a question written in the margin, or "I don't know how to
-            # start" -- and reading it as a wrong answer when it is a
-            # question is the most discouraging thing this can do.
+            # A page is not a verdict: it may be an attempt or a question.
             msg["text"] = ("[slate] %s rev %d, %d strokes. Open the image and "
                            "read what is actually on it: if there is a question "
                            "anywhere on the page, answer that first, in its own "
@@ -470,10 +398,8 @@ def post(h, repo, path):
 
 
 def file_upload(h, repo):
-    """`POST /file {upload, dest?}`: `sessions.file`, from the page -- the
-    start screen's "Annotate a PDF" with a subject picked files the upload
-    straight into `<subject>/materials/`. 400 in `sessions.file`'s own words
-    for a refusal; nothing wakes."""
+    """`POST /file {upload, dest?}`: `sessions.file` from the page. 400 in
+    its own words on refusal; nothing wakes."""
     from ... import sessions                       # local: sessions imports this
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -518,11 +444,9 @@ def _free_name(folder, filename):
 
 
 def upload(h, repo):
-    """`POST /upload`: every file of a multipart form into the session's
-    `uploads/` (D21), streamed to disk (`multipart.save_parts`), at most
-    `multipart.MAX_UPLOAD`. Each one appends a non-waking `[uploaded] <name>
-    (<size>)` line: the next turn reads it, and none is started for it. The
-    tutor files it (`board file`)."""
+    """`POST /upload`: every multipart file into the session's `uploads/`
+    (D21), streamed, at most `multipart.MAX_UPLOAD`, each with a non-waking
+    `[uploaded] <name> (<size>)` line. The tutor files it (`board file`)."""
     def refuse(status, error):
         # The body may be unread: this connection carries nothing more.
         h.close_connection = True

@@ -1,21 +1,10 @@
-"""What a turn MEANS, in a sentence the assistant can act on.
+"""What a turn means, in a sentence the assistant can act on.
 
-In a headless session these strings are the whole prompt. The shape of a
-lesson is carried here rather than left to be inferred, because a model handed
-a chapter and told to teach writes a lecture every time.
-
-There is ONE shape, for every repository. There used to be two: a `mode` in
-`tutorboard.json` said `math` or `code`, and a code repository was handed a
-different method, a different first card and three tap-signals instead of an
-answer. It is gone. A repository whose subject is code is still taught by being
-asked to do things; what differs between courses is where the exercises come
-from -- a book has them at the end of a section, and a repository without one
-has them wherever it says its work is planned.
-
-A session's MODE says who writes the code: `TEACH_SENSE` or `DO_SENSE`, one
-paragraph each (`mode_sense`). In teach mode the tutor picks the method from
-the conversation, and board/TEACHING.md has a section for each: a lesson, a
-homework set, a test review, a walkthrough, coaching, or a document.
+In a headless session these strings are the whole prompt, so the shape of a
+lesson is stated here: a model handed a chapter and told to teach writes a
+lecture. One method for every subject; a subject decides only where the
+exercises come from (`where_sense`). The session's mode decides who writes
+the code (`mode_sense`).
 """
 
 import os
@@ -24,20 +13,16 @@ from . import fenced, plain
 from .course import config, homework, library, walk
 
 
-# arrives at a board with nothing on it and an assistant with no other context.
+# What a tap means, for a turn arriving at an empty board with no context.
 SIGNAL_SENSE = {
     "begin": "there is nothing on the board yet and they are waiting. "
              "Open the session and write the first card.",
-    # The lecture and test-review reading. A homework sitting means something
-    # different by the same tap and gets its own sentence -- see `skip_sense`.
+    # The lecture reading; a homework sitting gets `skip_sense`.
     "skip": "they are not writing this one out. Do not re-ask it and do not press "
             "them on it; carry on with the lesson. If it was a hand-check, treat "
             "that idea as known and go to the next one -- or, if it was the last "
             "one, straight to the exercise, restated in full.",
-    # ONE STEP HANDED OVER, AND THE SESSION STAYS IN TEACH. Asked for as *"in
-    # coach coding mode, I still want to be able to have a 'fuck this, you do
-    # this step' option."* `handover_sense` names the card and says what to
-    # write; this is what the tap meant.
+    # One step handed over; the session stays in teach (`handover_sense`).
     "handover": "they do not want to type this one. You write it -- this step "
                 "and no more -- and then carry on coaching. The mode has not "
                 "changed, nothing has been filed away, and you are not a new "
@@ -48,23 +33,8 @@ SIGNAL_SENSE = {
 }
 
 
-# The method in one paragraph. In a headless session these strings ARE the whole
-# prompt, and the shape is the half that goes wrong -- a model handed a chapter
-# and told to teach writes a lecture, every time, because that is what teaching
-# looks like in everything it was trained on. So the shape is said outright and
-# said first: a lesson is exercises, and explanation that is not something the
-# student does is not part of it.
-# HOW EVERY CARD READS, whatever the sitting is.
-#
-# Asked for after a card that was correct and nearly unreadable -- five headings,
-# five hundred words, and the answer to "what did you just do" nowhere in the
-# first paragraph: *"the tutor should ALWAYS give me easy to understand
-# responses."* Whatever is being done -- mathematics, code written for them,
-# code they are being coached through, a paper, a deck -- what lands on the
-# board is read on a tablet by somebody who has been doing something else.
-#
-# This is in every briefing rather than in one kind of sitting, because the
-# complaint was about all of them.
+# The method, said first because the shape is what goes wrong. Then how every
+# card reads, in every sitting: on a tablet, by somebody doing something else.
 PLAIN_SENSE = (
     "HOW TO WRITE, in every card, whatever this sitting is. Put the ANSWER in "
     "the first sentence -- what happened, what it is, what to do -- and the "
@@ -74,20 +44,13 @@ PLAIN_SENSE = (
     "in the same sentence, in a few plain words. No headings in a card under "
     "300 words, and no closing paragraph -- the last useful sentence ends it. "
     "If they would have to read a sentence twice, it is the wrong sentence.\n"
-    # THE GLASS TYPESETS. `board.js` hands every card to KaTeX with `$...$` and
-    # `$$...$$` as its delimiters, and has since the board was written -- so a
-    # turn that writes `sum_i w_i x trd_i` in prose has not avoided TeX, it has
-    # shipped the ugly half of it. Reported off a doing turn's card in TRD-EHR:
-    # "it should have rendered some things in LaTeX ... I just see some ugly
-    # latex-esque coded math things when it gets into the weighting."
+    # The board typesets `$...$` and `$$...$$` with KaTeX, so math in prose
+    # must be TeX or it ships as ugly pseudo-TeX.
     "MATHEMATICS IN A CARD IS TeX, NOT ASCII. The board typesets `$...$` and "
     "`$$...$$`. A Greek letter spelled out, a sum written `sum_i`, a product "
     "written as the letter `x`: it reaches the glass as ugly source.\n"
-    # Two of the rules above are a door rather than a request, for the reason
-    # the old handoff file reached eleven times its cap while a prompt asked
-    # nicely: see
-    # `tutorboard/plain.py`. A turn is told the numbers here so it writes the
-    # card once, rather than discovering them from a refusal.
+    # `plain.py` enforces two of these rules; the turn is told the numbers so
+    # it writes the card once rather than learning them from a refusal.
     "TWO OF THOSE ARE A DOOR, NOT A REQUEST: `board write` refuses a card over "
     "%d words, and one with a single paragraph over %d. A list of definitions is "
     "a list, one line each; fenced code and displayed mathematics are not "
@@ -96,19 +59,9 @@ PLAIN_SENSE = (
 ) % (plain.CARD_WORDS, plain.PARAGRAPH_WORDS)
 
 
-# THE WORK IS ALREADY SCORED, and a turn that does not look cannot say whether
-# it won -- nor can anybody reading its card. Most workspaces here keep a
-# measure: the check they run, the number their plan quotes.
-#
-# In every briefing rather than in one kind of sitting, for `PLAIN_SENSE`'s
-# reason: a lesson invents a number as readily as a change does.
-#
-# SCOPED, because plenty of sittings have no check to run. A chapter of group
-# theory is scored by nothing, and a rule with no referent is answered anyway --
-# a sentence of the card spent saying there is no measure.
-#
-# The verb is RUN. A number read off the plan is the number BEFORE, so a turn
-# that quotes it twice has measured nothing.
+# Where a subject keeps a measure (a check, a plan's number), the turn runs it
+# and reports before and after, because a quoted plan number measures nothing.
+# Scoped, because many sittings have no measure.
 MEASURE_SENSE = (
     "NAME THE MEASURE THIS WORK ALREADY HAS, where it has one -- the check the "
     "workspace runs, the number the plan quotes. RUN IT before and after, and "
@@ -144,22 +97,9 @@ METHOD_SENSE = (
 )
 
 
-# THE WRITE-UP HAPPENS IN THE TURN THAT AGREES THE ANSWER.
-#
-# `board/TEACHING.md` has said so since it was written -- "once an answer is
-# agreed correct, not before, transcribe it into that file, in the same turn" --
-# and in a headless session that document is a file the tutor may or may not
-# open, while THIS string is the whole prompt. So the rule was in the place
-# nobody reads on a turn that is going well, and what came back was a sitting
-# that worked five problems and compiled nothing.
-#
-# Reported plainly: "the math tutor hasn't been writing up and compiling the
-# solutions as we've been working through problems -- that should be automatic
-# problem by problem as we finish each one correctly."
-#
-# In every teach-mode session, whatever the method: a lesson, a homework set, a
-# walkthrough, coached code, a review. Every agreed answer to a question the
-# tutor posed goes in. `board writeup` makes the file the first time.
+# The write-up happens in the turn that agrees the answer, in every teach-mode
+# session: this string is the whole prompt, and TEACHING.md alone was not
+# read. `board writeup` makes the file the first time.
 WRITEUP_SENSE = (
     "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. The moment their "
     "answer to a question you posed is agreed correct -- not before, and before "
@@ -173,12 +113,8 @@ WRITEUP_SENSE = (
     "LaTeX error on the board rather than the word 'failed'. Never write a "
     "solution they have not produced, and never leave the write-up for the "
     "end: a session is abandoned far more often than it is finished tidily. "
-    # AND NEVER TELL THEM TO WRITE IT UP. A card in Galois Theory said "two
-    # words to add when you write it up", which is two failures in one clause:
-    # it hands over an errand that does not exist -- the document is the tutor's
-    # -- and it DEFERS A CORRECTION, because the missing word was a fact about
-    # the proof rather than a note for later. In headless this string is the
-    # whole prompt, so the rule has to be here and not only in the document.
+    # Never tell them to write it up: the document is the tutor's, and a
+    # missing word in a proof is a correction now, not a note for later.
     "NEVER TELL THEM TO WRITE IT UP: the document is yours, so report what the "
     "file NOW SAYS rather than handing them an errand. Where the missing words "
     "are a CORRECTION, make it in the write-up in this same turn and say on the "
@@ -186,9 +122,8 @@ WRITEUP_SENSE = (
 )
 
 
-# WHO WRITES THE CODE: the session's mode, one paragraph each. `session.json`
-# `mode` is the only answer, and it changes only by `board mode`, `POST /mode`,
-# or the tutor obeying "do it". Nothing infers `do`.
+# Who writes the code: `session.json` `mode`, changed only by `board mode`,
+# `POST /mode` or the tutor obeying "do it".
 TEACH_SENSE = (
     "THIS SESSION IS IN TEACH MODE. You do not write the code or the proof "
     "being learned; they do. Pick the method from the conversation; "
@@ -220,8 +155,8 @@ DO_SENSE = (
 )
 
 
-# WHERE THE TUTOR MAY READ, in every session and both modes. `walk.resolve`
-# falls back to the Atlas root, and `walk.READ_ONLY` is what it marks read-only.
+# Where the tutor may read: `walk.resolve` falls back to the Atlas root, and
+# `walk.READ_ONLY` marks what is read-only.
 TRACE_SENSE = (
     "YOU MAY TRACE ANY PATH IN ATLAS, not only this subject's: the board's own "
     "code, a vendor tree, another course or project. Read it where it is and "
@@ -241,24 +176,9 @@ def mode_sense(mode):
     return DO_SENSE if mode == "do" else TEACH_SENSE
 
 
-# THE SHAPE OF A TURN THAT DOES THE WORK, and it is the opposite shape to a
-# teaching turn's.
-#
-# `board/TEACHING.md` says that a teaching turn's card is written before
-# anything else happens. That rule is right and it is a TEACHING turn's
-# rule: there the card IS the work, so writing it first fills the board while
-# everything else happens behind it.
-#
-# In a doing turn the work is a change to the repository, and a card written
-# before that change can only describe an intention. That is not a hypothetical:
-# the first time somebody tapped "write the code for me", what came back was a
-# four-hundred-word plan, a list of what had not been done, and a question --
-# reported as *"I'm not sure any coding happened."* The card was written first,
-# the card was the turn, and the turn ended.
-#
-# So the order is inverted here, and the board is kept alive by the one thing
-# that costs nothing: a sentence, then the work, then the report over the top of
-# it. `board write --over` exists for precisely that.
+# A doing turn inverts the teaching order: one sentence, then the work, then
+# the report `--over` that sentence, because a card written first can only
+# describe an intention.
 DOING_SENSE = (
     "THIS IS A DOING TURN, AND ITS ORDER IS THE OPPOSITE OF A TEACHING TURN'S. "
     "board/TEACHING.md says to write the card before anything else; that is a "
@@ -295,15 +215,8 @@ DOING_SENSE = (
 )
 
 
-# WHAT A DOING TURN IS ALLOWED TO CHANGE, and it is the code rather than what
-# the code printed. A wrong artifact is a wrong rule with a file under it, so
-# the file is a symptom and hand-editing it treats the symptom: nobody can
-# reproduce the edit, nobody without the inputs can review it, and the next run
-# of the module puts the old answer back.
-#
-# Carried by every turn whose product is a change -- the code written for them,
-# a paper, a deck, a revision -- because each of them can be
-# finished by hand and each of them is worthless when it is.
+# A doing turn changes the code, never what the code printed: a hand-edited
+# artifact cannot be reproduced and the next run undoes it.
 RULE_SENSE = (
     "AND FIX THE RULE, NEVER ITS OUTPUT. Where a wrong thing was produced by "
     "code, the code is what is wrong: fix the module that produces it and run "
@@ -317,18 +230,9 @@ RULE_SENSE = (
 )
 
 
-# WHAT A HANDED-OVER STEP IS, and the one thing it must not come back as.
-#
-# Coaching is one step per card, named in English, typed by them. The tap that
-# reaches this hands over ONE of those steps and leaves the session in teach, so
-# the turn it wakes is a doing turn inside a teach session -- `DOING_SENSE`
-# carries the order, and this carries what is different about it.
-#
-# THE STEP IS NOT WRITTEN UP AS A COACH CARD AFTERWARDS. A card explaining how
-# the step was done is a lecture nobody asked for: they handed it over because
-# they did not want to type it, and their next act is the NEXT step. So the one
-# card is a short report with the next step posed under it, which is also what
-# keeps the lesson moving without a second tap.
+# A handed-over step is a doing turn inside a teach session. Its one card is
+# a short report with the next step posed under it, never a coach card
+# explaining how the step was done.
 HANDOVER_SENSE = (
     "THE STEP IS CARD %s, AND IT IS THE ONLY ONE YOU WRITE. Do what that card "
     "told them to do: write it, run what needs running, and leave the "
@@ -351,13 +255,9 @@ def handover_sense(card):
 
 
 def where_sense(book, root=None, st=None):
-    """Where the exercises come from, which is the only thing a subject decides.
-
-    A course that follows a book has them at the end of a section. A subject
-    that does not takes them from its TUTOR.md, whose "Now" and "Open
-    decisions" the brief carries. The subject's README.md is the owner's and
-    is never the agenda (D13).
-    """
+    """Where the exercises come from, the only thing a subject decides: a
+    book's sections, else TUTOR.md's "Now" and "Open decisions". The owner's
+    README.md is never the agenda (D13)."""
     if book:
         return ("Read the section's exercises before you teach anything and "
                 "choose a manageable few -- three to five -- saying which and "
@@ -373,13 +273,8 @@ def where_sense(book, root=None, st=None):
     )
 
 
-# WHAT THE TUTOR MAY PUT ON A CARD BESIDES ITS OWN WORDS.
-#
-# These repositories have documents in them that explain the machinery better
-# than a card can -- a 33-slide walkthrough of the reference pipeline, written
-# for exactly this purpose -- and until now the board could not show a page of
-# one. So it was read on a laptop beside a lesson on an iPad, which is the
-# split attention the board exists to remove.
+# Documents a card can show a page of, so nothing is read on a laptop beside
+# the iPad.
 def reading_sense(repo):
     """The documents this course can show, named, with how to put one on a card."""
     try:
@@ -402,13 +297,7 @@ def reading_sense(repo):
 
 
 def results_sense(repo):
-    """The figures this workspace made, named, with how to put one on a card.
-
-    `reading_sense`'s shape, for the other kind of picture. A tutor teaching the
-    overlap between two arms had to describe a histogram somebody was looking at
-    on a laptop; the figure exists, the pipeline wrote it, and there was no
-    address for it.
-    """
+    """The figures this workspace made, named, with how to put one on a card."""
     try:
         found = library.figures(repo.root)
     except Exception:                                        # noqa: BLE001
@@ -437,21 +326,11 @@ def results_sense(repo):
 
 
 def skip_sense(repo):
-    """What a skip means, which depends on what kind of sitting this is.
+    """What a skip means, by kind of sitting.
 
-    In a lecture it means *I have this already*: the concept check is pace
-    control, and re-asking a question somebody has waved away teaches nothing.
-    That reading was applied everywhere, and in a homework sitting it is wrong
-    and expensive -- the problems are not the assistant's to drop. A skipped
-    homework problem is a lost mark, and the student skipping it means *not now*,
-    not *never*. They are entitled to work the sheet in whatever order they like;
-    they are not entitled to have the assistant quietly agree the sheet is
-    shorter than it is.
-
-    So in homework the tap defers, and the sentence says what is still owed and
-    what to come back to. The list is read off the document rather than the
-    conversation, which is what makes it survive a restart, a new tutor, and the
-    two hours between the skip and the return.
+    In a lecture it means "I have this already". In homework it defers: the
+    problems are not the assistant's to drop, so the sentence says what is
+    still owed, read off the document so it survives a restart.
     """
     st = repo.state()
     if (st.get("session") or "lecture") != "homework":
@@ -467,11 +346,8 @@ def skip_sense(repo):
         st_hw = None
     left = (st_hw or {}).get("outstanding") or []
     if len(left) == 1:
-        # The degenerate case, and it is not a paradox: skipping the only thing
-        # left means it comes straight back, because there is nothing else to go
-        # on with and the sheet is not finished. Say so, or an assistant reading
-        # "come back to it once the others are done" concludes the others never
-        # will be and drops it.
+        # Skipping the only problem left brings it straight back; say so, or
+        # "come back once the others are done" reads as "drop it".
         line += ("It is also the ONLY problem left on the sheet, so there is "
                  "nothing else to carry on with: ask it again. That is not a "
                  "mistake and it is not pressing them -- the sheet is not done "
@@ -484,13 +360,9 @@ def skip_sense(repo):
     return line
 
 
-# HOW A DOCUMENT IS WRITTEN: the method a `[writeup]` turn is given for a deck
-# or a paper asked for from the Make menu. `writeup_sense` appends it.
-#
-# TWO QUESTIONS, NOT ONE. HOW it reads is fixed: the subject, explained, never
-# the session narrated -- stated as a refusal, because a preference in a prompt
-# is what produced the narration. WHAT it covers is not: "a deck about the four
-# things this session covered" is a legitimate ask.
+# The method a `[writeup]` turn gets for a deck or paper (`writeup_sense`
+# appends it). How it reads is fixed: the subject explained, never the session
+# narrated. What it covers is the ask's.
 MAKE_SENSE = (
     "THE PRODUCT IS A DOCUMENT, not an answer. "
     "HOW IT READS IS FIXED, AND IT IS NEVER A NARRATION OF THIS SITTING. The "
@@ -515,16 +387,9 @@ MAKE_SENSE = (
     "doc.json, and finds the document by that name and no other. ")
 
 
-# WHAT A REVISION TURN IS WOKEN WITH, and it names both files.
-#
-# The turn's own instructions are in `runner/prompts/` (`HEADLESS_REVISE_PROMPT`) and
-# they say to read "the feedback file the text above names" -- this is that text.
-# Two paths, both of them found by `course/library.py` in the workspace rather
-# than built out of anything a browser sent.
-#
-# It says outright that this is not the lesson. A turn that reads "here is some
-# feedback" on a board with a lesson on it writes a card about the feedback,
-# which is the one thing this route exists not to do.
+# A revision turn's line names both files, found by `course/library.py`, never
+# built from a browser's words. It says this is not the lesson, so the turn
+# writes no card.
 REVISE_SENSE = (
     "Feedback has been written on a document in this repository, from the "
     "LIBRARY rather than from the lesson. The document is `%s`. The feedback is "
@@ -543,21 +408,16 @@ REVISE_SENSE = (
 
 def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=(),
                  source=""):
-    """The inbox line for one round of feedback on one document.
-
-    `brief` is the deck's `_brief.md` where the document is a deck with a
-    brief beside it (the meeting deck), and "" for everything else. See `DECK_BRIEF_SENSE`. `ledger` and
-    `ids` are the round's requests; see `LEDGER_SENSE`. `source` is the `.tex`
-    or `.md` the document is built from; see `BUILD_SENSE`.
-    """
+    """The inbox line for one round of feedback on one document. `brief`: a
+    deck's `_brief.md`, else "" (`DECK_BRIEF_SENSE`). `ledger`, `ids`: the
+    round's requests (`LEDGER_SENSE`). `source`: what it is built from
+    (`BUILD_SENSE`)."""
     return (REVISE_SENSE % (document_rel, feedback_rel) + _build(source)
             + _deck_brief(brief) + _ledger(ledger, ids) + MEASURE_SENSE
             + RULE_SENSE)
 
 
-# HOW THE DOCUMENT IS REBUILT, named with its source. The PDF, and the `.docx`
-# of a `.md`, are built from the source, so an edit made anywhere else is lost
-# on the next build. One builder for every document: `board build`.
+# Built from the source by `board build`, so an edit anywhere else is lost.
 BUILD_SENSE = (
     " The source is `%s`: edit that file, then rebuild it with "
     "`board build %s`, which writes the built files beside it. "
@@ -571,15 +431,8 @@ def _build(source):
     return BUILD_SENSE % (source, source)
 
 
-# A ROUND IS A LIST OF REQUESTS, AND EVERY ONE OF THEM IS ANSWERED.
-#
-# The owner's words: *"I need some nifty way to keep track of what each edit
-# request was, and what was done to address it, so that I don't have to read
-# the whole fucking paper again."* So the round was split into requests when it
-# was filed (`course/ledger.py`), each has an id, and the turn answers each id
-# in the ledger beside the note. The line names the file and the ids, because
-# the ids are the contract: the board validates that every one was answered and
-# shows an unanswered one as exactly that.
+# A round is a list of requests (`course/ledger.py`); the turn answers every
+# id in the ledger, and the board shows an unanswered one as unanswered.
 LEDGER_SENSE = (
     " THIS ROUND IS %d REQUEST%s, BY ID: %s. They are listed in `%s`, the "
     "round's ledger, and under the same ids in the feedback file. Answer EVERY "
@@ -603,16 +456,9 @@ def _ledger(ledger, ids):
                            ", ".join(shown), ledger)
 
 
-# A DECK WITH A BRIEF IS CORRECTED WITH INK, AND THE INK MAY ASK FOR MORE.
-#
-# `HEADLESS_REVISE_PROMPT` says *do not widen it*, which is right for a paper
-# whose scope somebody chose and wrong for this: the brief chose what goes in,
-# the tutor planned the slides, and a ring with "add the ROC curve" beside it is
-# the correction. So the turn is told where the deck's scope is written down --
-# the brief the server wrote before the deck existed -- that an addition asked
-# for in ink is the feedback rather than a widening, how to fetch a figure the
-# brief only catalogues, and that a frame stays one page, because a mark finds
-# its slide by page number.
+# A deck with a brief: an addition asked for in ink is the correction, not a
+# widening. The brief holds the scope and the figure catalogue, and a frame
+# stays one page because marks find slides by page number.
 DECK_BRIEF_SENSE = (
     " THIS DECK WAS COMPOSED FROM A BRIEF, and what it covers is written down "
     "in `%s`: read it before changing anything. Ink or a note asking for "
@@ -636,18 +482,8 @@ def _deck_brief(brief):
     return DECK_BRIEF_SENSE % (brief, os.path.dirname(brief) or ".")
 
 
-# WHAT A REWORK TURN IS WOKEN WITH, and the difference from a revision is one
-# word in the ask and the whole of what the turn may do.
-#
-# `REVISE_SENSE` above is a correction. A rework is an overhaul -- "that
-# presentation needs an overhaul now that we plan to use colibri" -- and it
-# carries the sentence saying what the document is FOR now, because an overhaul
-# with no new purpose in it is a rewrite for its own sake.
-#
-# It names the purpose HERE as well as in the feedback file. The file is where
-# the turn reads it in full; the inbox line is what the board paints while the
-# turn runs, and "the tutor is doing something to a document" with no statement
-# of what is the silence this whole surface exists to remove.
+# A rework is an overhaul and carries what the document is now for, named
+# here as well as in the feedback file so the board can paint it.
 REWORK_SENSE = (
     "An OVERHAUL has been asked for on a document in this repository, from the "
     "LIBRARY rather than from the lesson. The document is `%s`. What was asked "
@@ -674,15 +510,8 @@ def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
             + MEASURE_SENSE + RULE_SENSE)
 
 
-# WHAT A DECK OR A PAPER ASKED FOR FROM A SESSION IS WOKEN WITH.
-#
-# The Make menu asks for one alongside a lesson, which must not be pushed off
-# the glass: this turn writes the document, builds it, and writes no card. The
-# strip says where it got to, and the library is where it is read and
-# corrected. The method is `MAKE_SENSE`, appended rather than restated.
-#
-# THE SCOPE IS THE SESSION UNLESS SOMETHING ELSE IS NAMED: "write up the four
-# things we just covered" -- read back with `board recap --all`.
+# A deck or paper asked for from the Make menu: written and built, no card, so
+# the lesson stays on the glass. The scope is the session unless named.
 WRITEUP_ASK_SENSE = (
     "A DOCUMENT HAS BEEN ASKED FOR FROM THIS SESSION, and THIS TURN IS NOT PART "
     "OF THE LESSON. Nobody is waiting at a board for a card. What they asked "
@@ -697,10 +526,7 @@ WRITEUP_ASK_SENSE = (
     "document is written and built.\n\n"
 )
 
-# What the scope sentence says when nobody named one. The topic list is the card
-# titles and `board recap` is the one call that reads them back -- see
-# `cmd_recap` in `bin/board`, which exists so that a turn does not read a lesson
-# one card at a time.
+# The default scope sentence: `board recap` reads the card titles back.
 WRITEUP_EVENING = (
     "THE CONCEPTS THIS SITTING COVERED, and nothing else about the sitting. "
     "Read the lesson back with `board recap --all` -- one call, not one per "
@@ -710,8 +536,7 @@ WRITEUP_EVENING = (
     "what wrong."
 )
 
-# WHAT EACH PRODUCT IS ON DISK. A deck is a beamer `.tex`; a paper is Markdown,
-# which `board build` turns into a .docx (and a PDF where an engine exists).
+# A deck is a beamer `.tex`; a paper is Markdown built to .docx (and PDF).
 FILE_SENSE = {
     "slides": ("THE FILE IS `%(source)s` (from the Atlas root, where this turn "
                "runs), that name exactly. A DECK IS A BEAMER `.tex`: "
@@ -727,11 +552,8 @@ DOC_BUILD_SENSE = ("When it is written, run `board build %(source)s`, and fix "
 
 def writeup_sense(makes, about="", source=None):
     """The inbox line for a paper or a deck asked for from any session.
-
-    `about` is what they said it was about, where they said anything. Where they
-    did not, the scope is this session. `source` is the file to write, from the
-    Atlas root; where it is given, the line names it and `board build`.
-    """
+    `about` is what they said it covers, else this session. `source` is the
+    file to write, from the Atlas root."""
     said = (about or "").strip()
     kind = "slides" if makes == "slides" else "paper"
     line = (WRITEUP_ASK_SENSE
@@ -743,15 +565,9 @@ def writeup_sense(makes, about="", source=None):
     return line + MEASURE_SENSE + RULE_SENSE
 
 
-# WHAT THE MEETING DECK IS ABOUT. Said in these words: *"actually generate a
-# professional coherent presentation on my most recent progress"* -- something
-# the owner puts in front of their mentors without rewriting it.
-# `briefs.write_brief` writes the period's commits, TUTOR.md diffs and ended
-# sessions into `_brief.md`; this is the `about` that points at it, and
-# `writeup_sense` wraps it in the document method.
-#
-# THE FILE NAME IS NOT THE WRITER'S TO CHOOSE: the deck is the artifact
-# projects/Meetings/docs/meeting/, judged by its doc.json's source.
+# The meeting deck: a professional presentation of recent progress, from
+# `_brief.md` (`briefs.write_brief`). The file name is fixed: the artifact is
+# projects/Meetings/docs/meeting/.
 MEETING_ABOUT = (
     "THE MEETING DECK: a progress presentation to the MENTORS who supervise "
     "these projects, over %(period)s. Everything it may say is in "
@@ -790,59 +606,37 @@ def meeting_about(deck_dir, period, full=None):
 
 
 def session_sense(repo, doing=None):
-    """What this sitting is, wrapped in the two rules that hold for all of them.
+    """What this sitting is, wrapped in the two rules that hold for all.
 
-    HOW IT READS comes first, because it governs every card this turn writes and
-    a rule about writing is no use arriving after the thing to write about. WHAT
-    ORDER TO WORK IN comes last, because it overrides the card-first rule of
-    `board/TEACHING.md`, and an override that arrives before the thing
-    it overrides is an override nobody applies.
-
-    Everything between them is `_session_sense`, which is the sitting itself.
-
-    `doing` is answered from the sitting unless a CALLER knows better: a
-    `[repair]` turn is a doing turn whatever the session teaches under, and
-    `board brief` passes it. Pass `True` or nothing: `False` would take the
-    order away from a session whose standing answer is to write the code.
+    How it reads comes first, because it governs every card. The work order
+    comes last, because it overrides TEACHING.md's card-first rule. `doing`
+    is the caller's override (`board brief` for a `[repair]`); pass True or
+    nothing.
     """
     st = repo.state()
     said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo)
-    # A turn whose product is a CHANGE rather than a card: a session in do mode.
+    # Product is a change rather than a card.
     if doing is None:
         doing = config.mode_of(st) == "do"
     return said + (DOING_SENSE + RULE_SENSE if doing else "")
 
 
 def _session_sense(repo):
-    """What this sitting is, in a sentence an assistant can act on.
-
-    `board open` takes a label -- "Ch 1 -- groups, fields and vector spaces" --
-    and it is the only thing on the board that says where a cold start should
-    start. If nobody set one, say that too, and say where to look instead: a
-    course orders itself somewhere, and guessing is how a course gets opened in
-    the middle.
-
-    One method, whatever is in the repository. What the repository decides is
-    where the exercises come from -- `where_sense`. Who writes the code is the
-    session's mode -- `mode_sense` -- and nothing else.
-    """
+    """What this sitting is, in a sentence an assistant can act on: its label
+    if set, else where to look; where exercises come from; the mode."""
     st = repo.state()
     kind = st.get("session") or "lecture"
     if kind not in ("lecture", "homework"):
-        # A legacy review, walk or make sitting: the method is the tutor's to
-        # pick in teach mode, so it reads as a lecture.
+        # A legacy review, walk or make sitting reads as a lecture.
         kind = "lecture"
     chapter = (st.get("chapter") or "").strip()
     doing = mode_sense(config.mode_of(st))
 
-    # Whether this repository follows a book, which is the ONLY question about a
-    # subject anything here still asks. A course with a syllabus has its
-    # exercises written for it; one without has to be told where to look, and
-    # being told is what stops it inventing chapters out of a README.
+    # Whether the subject follows a book, so it is not told to invent
+    # chapters out of a README.
     book = homework.opening(repo.root)
 
-    # In a headless session this line is the whole prompt, so it has to carry the
-    # pointer to the method as well as the pointer to the place.
+    # This line is the whole prompt: it carries the method and the place.
     how = (METHOD_SENSE if kind == "homework"
            else METHOD_SENSE + where_sense(book, repo.root, st))
     # An agreed answer is written up, in every teach-mode session.
@@ -868,9 +662,7 @@ def _session_sense(repo):
     if chapter:
         return (how + "This sitting is labelled %r and it is a %s. Start there."
                 % (chapter, kind))
-    # A course that follows a book says so on disk. Naming its actual first
-    # chapter beats telling an assistant to work it out, which is what produced
-    # a Galois course opened at field extensions -- chapter four.
+    # Name the book's actual first chapter rather than let the turn guess.
     if book:
         every = homework.chapters(repo.root)
         return (how + "This sitting is a %s and carries no chapter label. This course "

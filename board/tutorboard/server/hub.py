@@ -123,9 +123,8 @@ class Hub:
         self.ids = set(ids)
         board_state = repo.state()
         board_state.setdefault("course", config.read_config(repo.root)["name"])
-        # WHO WRITES THE CODE: the session's mode, teach unless session.json
-        # says do. `stance_now` carries the same word for the client's busy
-        # strip until T51 deletes the old sitting UI.
+            # The session's mode; `stance_now` repeats it for the old busy
+            # strip.
         board_state["mode"] = config.mode_of(board_state)
         board_state["stance_now"] = board_state["mode"]
         ink, ink_sent = notes.card_ink(repo, [c["id"] for c in on_board])
@@ -152,11 +151,9 @@ class Hub:
             # for from this session (`writeups.waiting`).
             "hw": _safe(state.load_hw, repo, board_state),
             "writeups": _safe(writeups.waiting, repo),
-            # THE MACROS THIS SUBJECT WRITES IN, so KaTeX takes the subject's
-            # definition first, as LaTeX does (`tutorboard/coursemacros.py`).
+            # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),
-            # THE CLUSTER'S HEALTH: relay down, not synced, the relay's own
-            # status (`relay.health`, cached). The same for every session.
+            # The cluster's health, the same for every session.
             "relay": _safe(relay.health, cluster.atlas_of(repo.root)),
         }
         for key in GONE:
@@ -187,14 +184,8 @@ class Hub:
             dirty.wait(SENTINEL_SECONDS)
 
     def tick(self):
-        """Build the payload, keep it whole for the next browser to connect,
-        and push what changed to the ones connected.
-
-        INK ALONE IS NOT A CHANGE WORTH PUSHING. Every autosave of a card's
-        marks rewrites `notes`; the page that drew the ink already has it, and
-        `Annotate.load` adopts only cards it has never seen. The whole payload
-        still carries it, and so does the next real delta.
-        """
+        """Build the payload, keep it whole for the next browser, and push
+        what changed. Ink alone is not pushed: the page that drew it has it."""
         data = self.build()
         window = dict((c["id"], _blob(c)) for c in data["cards"])
         keys = dict((k, _blob(v)) for k, v in data.items() if k != "cards")

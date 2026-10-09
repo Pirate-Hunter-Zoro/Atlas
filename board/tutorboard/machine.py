@@ -8,14 +8,8 @@ import os
 
 
 def slurm_nodes():
-    """Nodes where this user currently holds an allocation, or None if unknown.
-
-    Platform knowledge, so it lives here: `board` uses it to decide whether a
-    lock belongs to a job that has ended. Where
-    there is no `squeue` the answer is None -- unknown, not empty -- and every
-    caller must treat those differently, because "no allocations" and "not a
-    cluster" lead to opposite decisions.
-    """
+    """Nodes where this user holds an allocation, or None where there is no
+    `squeue`: unknown is not empty, and the two lead to opposite decisions."""
     import re
     import subprocess
     try:
@@ -41,19 +35,12 @@ def slurm_nodes():
 # ---------------------------------------------------------------------------
 # What this machine calls itself
 # ---------------------------------------------------------------------------
-# Every record that crosses `live/` carries this name, and every liveness check
-# compares it before trusting a pid, so there is one function and no caller asks
-# the system directly: `os.uname()` and `socket.gethostname()` can disagree on
-# one machine.
+# One function names this machine, because `os.uname()` and
+# `socket.gethostname()` can disagree; liveness checks compare it.
 
 
 def _normal_node(name):
-    """One form for one machine.
-
-    First label, lowercased: `board.tail0c6c62.ts.net` and `Compute304` and
-    `compute304` must not be three machines, because a record written under one
-    spelling has to be believed under another.
-    """
+    """One form for one machine: the first label, lowercased."""
     return (name or "").strip().split(".")[0].lower() or "unknown"
 
 
@@ -63,10 +50,7 @@ def system_node_name():
 
 
 def node_name():
-    """What this machine calls itself. The only place that decides.
-
-    The environment first (for a test, or a one-off), then the system.
-    """
+    """What this machine calls itself; the environment overrides the system."""
     env = os.environ.get("BOARD_NODE_NAME")
     if env and env.strip():
         return _normal_node(env)
@@ -74,15 +58,8 @@ def node_name():
 
 
 def machine_shape():
-    """What this machine is: a compute node, or a standalone machine.
-
-    Guessing this from the hostname is how it gets subtly wrong, so it is
-    decided from what is actually true: a compute node is where Slurm answers,
-    and everything else is a standalone machine. The difference is whether this
-    machine can be taken away -- an allocation ends and the node stops being
-    yours, which is why a board here is brought back by a login rather than by a
-    supervisor.
-    """
+    """A compute node (Slurm answers) or a standalone machine, decided from
+    what is true rather than the hostname."""
     if slurm_nodes() is not None:
         return "compute node"
     return "standalone"

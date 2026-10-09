@@ -12,10 +12,8 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
 
-`/meeting` asks the Meetings subject's tutor, through
-`library.ask_meeting`. The deck is read in the Meetings subject's
-library (`/library?subject=projects/Meetings&doc=meeting`), and its ink and
-feedback are that subject's.
+`/meeting` asks the Meetings subject's tutor (`library.ask_meeting`); the
+deck is read, inked and corrected in that subject's library.
 """
 
 import json
@@ -38,10 +36,8 @@ from ...lesson import state
 
 def get(h, repo, path):
     if path == "/relay.json":
-        # THE CLUSTER'S HEALTH, AS THE MAC SEES IT: relay down, not synced,
-        # the relay's own status, and Colibri with its panel's tasks
-        # (`relay.health`). Everything about the cluster comes from
-        # relay/status.json and this tree, never from Slurm (D27).
+        # The cluster's health from relay/status.json and this tree, never
+        # from Slurm (D27).
         return h.send_json(relay.panel(repo.root))
 
     if path == "/health":
@@ -50,16 +46,13 @@ def get(h, repo, path):
         agent = state.load_agent(repo) or {}
         out = {"ok": True, "root": repo.root,
                "dir": os.path.basename(repo.root),
-               # The qualified name too, so a caller can tell
-               # `courses/Probability` from a future
-               # `projects/Probability` without guessing.
+               # Qualified, so same-named subjects are told apart.
                "id": subjects.identify(repo.root),
                "host": tailscale.tailnet_self() or "",
                "tutor": agent.get("state") or None,
                "limited": limits.limited_until()}
-        # `code=1` IS ASKED FOR, NOT SENT: the hub and the board poll plain
-        # `/health`, and the tree's stamp is a git call. The trace panel asks,
-        # so a process older than the tree is visible from the glass.
+        # `code=1` is opt-in, because the stamp is a git call and the hub
+        # polls plain `/health`.
         want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
         if "code" in want:
             out["code"] = {"running": stamp.LOADED, "tree": stamp.tree(),
@@ -69,8 +62,7 @@ def get(h, repo, path):
 
 
 def post(h, repo, path):
-    # SOMEBODY IS LOOKING AT THIS SESSION, NOW. Only the page can say so: a
-    # request arriving proves a browser is open, not that anybody reads it.
+    # Only the page can say somebody is looking.
     if path == "/seen":
         # The session's own `seen`: the home screen's Continue row counts the
         # cards written after it as new.
@@ -80,11 +72,8 @@ def post(h, repo, path):
         return h.send_json({"ok": True})
 
     if path == "/meeting":
-        # THE MEETING DECK: `{since, items}`, `items` the subjects it covers
-        # (none is every subject that moved). The brief is written and a
-        # `[writeup]` turn asked in a session bound to projects/Meetings
-        # (`library.ask_meeting`); the front door then watches the Meetings
-        # library's record of it (`/library.json?subject=projects/Meetings`).
+        # The meeting deck: `{since, items}` (no items: every subject that
+        # moved), via `library.ask_meeting`.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001
@@ -107,13 +96,9 @@ def post(h, repo, path):
                                 "detail": str(exc)[-300:]}, status=500)
 
     if path == "/default-agent":
-        # THE ONE PROVIDER SETTING, SET FROM THE FRONT DOOR: `provider` in this
-        # machine's config, and nothing else in that file. Every turn re-reads
-        # the config (`loop.for_this_turn`), so the next turn of every session
-        # takes it with nothing restarted. Refused: an unknown name, one this
-        # machine cannot run (binary or key missing), and an in-fence model,
-        # because only it reads phi and it never takes a turn here. An
-        # allowance that has run out is not refused: the fallback covers it.
+        # The one provider setting: writes only `provider`, which the next
+        # turn re-reads. Refused: unknown, unrunnable here, or in-fence. A
+        # spent allowance is allowed; the fallback covers it.
         from ...agents import recipes
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -140,8 +125,7 @@ def post(h, repo, path):
             on_disk = {}
         on_disk["provider"] = want
         on_disk.pop("default_agent", None)
-        # Atomically: every turn reads this file, and a half-written one
-        # takes the tutor out.
+        # Atomic: every turn reads this file.
         os.makedirs(os.path.dirname(recipes.CONFIG), exist_ok=True)
         tmp = recipes.CONFIG + ".tmp"
         try:
@@ -160,10 +144,8 @@ def post(h, repo, path):
                             "assistants": table})
 
     if path == "/colibri":
-        # FILE A COLIBRI TASK: {brief, label?, session?}. The Mac starts no
-        # server; it files a `colibri` relay request in libr-local-llm, the
-        # way `board colibri` does (`colibri.ask`), and the relay's next pass
-        # queues it and starts a generation where none is up.
+        # A Colibri task, filed as a relay request (`colibri.ask`); the Mac
+        # starts no server.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001

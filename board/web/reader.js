@@ -139,9 +139,8 @@ function open(o) {
   r.current = h;
   if (!was || was.id !== h.id) showCopy(null);
   r.els.root.hidden = false;
-  /* THE PAGE BEHIND THE READER DOES NOT SCROLL. A finger on the bar would
-     otherwise pan what is under it, and a pan already under way makes the
-     second finger of a pinch one the page can no longer refuse. */
+  /* The page behind the reader does not scroll: a pan already under way would
+     stop the page refusing a pinch's second finger. */
   document.body.classList.add("reading");
   if (r.zoomer) { r.zoomer.live(true); r.zoomer.set(1); }
   r.els.pages.scrollTop = 0;

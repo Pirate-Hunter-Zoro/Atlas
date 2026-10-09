@@ -40,13 +40,9 @@ from .registry import Registry
 
 
 class BoardServer(ThreadingHTTPServer):
-    """`ThreadingHTTPServer` without the reverse lookup in `server_bind`.
-
-    `HTTPServer.server_bind` asks `socket.getfqdn` for the name of the address
-    it bound, and nothing here reads the answer. On the Mac that lookup goes out
-    through the tailnet's resolver and an exit node, and was measured taking
-    over thirty seconds for the tailnet address.
-    """
+    """`ThreadingHTTPServer` without the reverse lookup in `server_bind`,
+    which nothing reads and which can take thirty seconds through the
+    tailnet's resolver."""
 
     def server_bind(self):
         socketserver.TCPServer.server_bind(self)
@@ -60,9 +56,8 @@ def parse(argv):
     are for tests; the board itself runs with none."""
     atlas = subjects.root()
     port = paths.port()
-    # Loopback by default. There is no authentication of any kind here, so
-    # listening on every interface has to be a decision somebody made on purpose.
-    # `tailscale serve` reaches the board through 127.0.0.1.
+    # Loopback by default: there is no authentication here. `tailscale serve`
+    # reaches 127.0.0.1.
     host = "127.0.0.1"
     i = 0
     while i < len(argv):

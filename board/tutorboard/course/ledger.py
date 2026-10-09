@@ -1,46 +1,16 @@
 """ledger.py -- every round of feedback as numbered requests, and what was done.
 
-**The owner's words:** *"I need some nifty way to keep track of what each edit
-request was, and what was done to address it, so that I don't have to read the
-whole fucking paper again."* So a round is a list of ITEMS, each item gets an
-answer, and each answer is a pin on the new pages.
+A round is a list of requests; the turn answers each in
+`feedback/<day>-v<n>.ledger.json` (it edits `answers` and nothing else), and
+each answer is pinned on the new pages. The round's own directory
+`<day>-v<n>/`, written only by the board and never wiped, keeps the filed
+requests, crops, marked pages, the source `before` and `after`, states set
+from the glass, `unsent.json`, the answers' validation and per-build
+placements. Derived state stays out of the ledger, because the turn rewrites
+that file and the validation is keyed on its stat.
 
-WHAT IS ON DISK, beside the note `feedback/<day>-v<n>.md`:
-
-    <day>-v<n>.ledger.json   THE CONTRACT WITH THE TURN. The requests (`items`)
-                             and the turn's `answers`, one per id. The turn
-                             edits `answers` and nothing else.
-    <day>-v<n>/              THE ROUND'S OWN DIRECTORY, which only the board
-                             writes and nothing ever wipes:
-        items.json           the requests exactly as filed, so a turn that
-                             mangles the ledger cannot lose them
-        R3.1.svg             one crop per inked request: that region of the
-                             page with the ink over it
-        marked-p<n>.png      the reader's picture of a whole marked page
-        before.<ext>         the source as it stood when the round was filed
-        after.<ext>          the source once the round landed, taken ONCE and
-                             never again: the next round's `before` where there
-                             is one, the live source at the first look after
-                             the answers came back where there is not
-        states.json          accepted / reopened, per id, set from the glass
-        unsent.json          present when the revision could not be asked: the
-                             round is kept on disk and counted nowhere, and its
-                             requests go again, under new ids, with the retry
-        checked.json         the validation of the answers, keyed on the
-                             ledger's own stat so it runs once per change
-        placed-<digest>.json where each answer sits on one build of the PDF
-
-WHY THE DERIVED HALF IS NOT IN THE LEDGER. The turn rewrites that file, and a
-state set from the glass while it does is a state lost. And a placement written
-into it would move the stat the validation is keyed on, so the board would
-re-validate its own writes for ever.
-
-AN ID IS STORED, NOT RECOMPUTED. `R3.4` is round 3, item 4, fixed when it is
-filed: a reopened item rides every later round under the same id, and a round
-deleted later must not renumber a request somebody has already tapped.
-
-Standard library only, and poppler for the text layer and the crops -- the same
-tools `course/paper.py` already shells out to.
+The constraint: an id (`R3.4`, round 3 item 4) is stored, never recomputed,
+so a reopened request keeps its id and a deleted round renumbers nothing.
 """
 
 import base64
@@ -57,8 +27,7 @@ import unicodedata
 
 from . import paper
 
-# The four answers a request can get. Anything else from a turn is refused by
-# the validation and shows as NOT ANSWERED, never as a guess at what it meant.
+# The four answers. Anything else is refused and shows as not answered.
 DISPOSITIONS = ("done", "partly", "not done", "pushed back")
 # The two that changed text, and so owe the new wording of what they changed.
 WORDED = ("done", "partly")
@@ -70,10 +39,8 @@ _SAME = {"not_done": "not done", "not-done": "not done", "notdone": "not done",
 
 STATES = ("open", "accepted", "reopened")
 
-# HOW NEAR TWO STROKES ARE TO BE ONE REQUEST, in fractions of the page. A ring
-# and the arrow out of it are one complaint; two rings a third of a page apart
-# are two. Wide enough for handwriting beside a mark, narrow enough that two
-# paragraphs' worth of marks do not merge.
+# How near two strokes are to be one request, in page fractions: a ring and
+# its arrow are one, two rings a third of a page apart are two.
 GAP = 0.05
 # A crop shows a little of the page round the ink, so it can be recognised.
 PAD = 0.03
@@ -183,12 +150,9 @@ def _union(a, b):
 
 
 def clusters(strokes, gap=GAP):
-    """The ink on one page, as regions: `[{box, strokes}]`, top to bottom.
-
-    Single-link over each stroke's bounding box: two strokes within `gap` of
-    each other are one request, and so is anything within `gap` of either.
-    Points far outside the page (a slip of the nib off the edge) are ignored.
-    """
+    """The ink on one page as regions, `[{box, strokes}]`, top to bottom:
+    single-link over stroke boxes within `gap`. Points far off the page are
+    ignored."""
     boxes = []
     for s in strokes or []:
         pts = [(x, y) for x, y in _points(s) if -0.2 <= x <= 1.2 and -0.2 <= y <= 1.2]
@@ -228,11 +192,8 @@ def paragraphs(text):
 
 
 def _slim(stroke):
-    """A stroke as evidence: its colour, its width and at most 64 points.
-
-    Not the whole record -- `annotate.js` persists its screen caches with every
-    stroke, and a page of 299 strokes is 1.2 MB of them.
-    """
+    """A stroke as evidence: colour, width and at most 64 points, because
+    `annotate.js` stores screen caches with every stroke."""
     pts = _points(stroke)
     if len(pts) > POINTS_MAX:
         step = (len(pts) - 1) / float(POINTS_MAX - 1)
@@ -251,12 +212,9 @@ def _slim(stroke):
 
 
 def split(repo, found, text, page=0, merge=()):
-    """The requests one round would carry, unnumbered, in the order filed.
-
-    `found` is `library.carried`'s answer: the marked pages that go. Each page's
-    ink is clustered into regions, one request each -- unless its page is in
-    `merge`, which is the filing panel saying *these marks are one request*.
-    Then one request per typed paragraph, about `page` where there is one.
+    """The requests one round would carry, unnumbered, in filing order: each
+    marked page's ink (`library.carried`) clustered into regions, a page in
+    `merge` as one request, then one per typed paragraph.
     """
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
 
@@ -272,7 +230,7 @@ def split(repo, found, text, page=0, merge=()):
                 box = _union(box, r["box"])
             regions = [{"box": box, "strokes": [s for r in regions for s in r["strokes"]]}]
         if not regions:
-            # Ink the parser cannot read is still somebody's mark on this page.
+            # Unparseable ink is still a mark on this page.
             regions = [{"box": None, "strokes": strokes}]
         for r in regions:
             items.append({"kind": "ink", "page": mark["page"], "ann": mark["key"],
@@ -405,13 +363,9 @@ def _svg(box, aspect, strokes, image=None):
 
 
 def _crop(repo, pdf, current, builds, item, where):
-    """Write one inked request's crop into the round. Returns the file name.
-
-    Cut from the PDF itself where the ink was drawn on the build that is on
-    disk now, which is the ordinary case -- marked and sent in one sitting.
-    From the rendering of the build it WAS drawn on where that one is still in
-    the page cache. And ink alone, on white, where neither is: the marks still
-    say where the complaint was.
+    """Write one inked request's crop into the round; return its file name.
+    Cut from the PDF on disk when the ink was drawn on it, else from the
+    cached rendering of the build it was drawn on, else ink on white.
     """
     box = item.get("box")
     if not box:
@@ -473,18 +427,10 @@ def _git_head(root, src):
 def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
     """Write the round's own directory and its ledger. Returns the ledger.
 
-    THE CROPS AND PICTURES ARE COPIED HERE WHEN THE ROUND IS FILED, not when
-    the live marks are wiped: `live/annotations/<page>.png` is one picture per
-    page and the last save wins, so a copy taken later is a copy of whatever
-    was drawn since.
-
-    THE SOURCE IS SNAPSHOT, NOT COMMITTED. The board does not commit on
-    somebody's behalf -- `rework_refused` is the rule and its reason holds for a
-    correction too: a commit of a half-finished edit is a worse undo than none.
-    `before.<ext>` is the source exactly as the turn found it, and the commit is
-    recorded beside it where the source is clean at HEAD, so `git show` answers
-    the same. The directory sits in `feedback/`, which is tracked, so
-    `save-and-push.sh` carries it with the note and nothing else has to know.
+    Crops and pictures are copied at filing, because a page's live picture is
+    overwritten by the next save. The source is snapshot, not committed,
+    since a commit of a half-finished edit is a worse undo than none; the
+    commit is recorded beside it where the source is clean at HEAD.
     """
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
 
@@ -503,10 +449,8 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
         except OSError:
             item["crop"] = ""
         item["drawn_on"] = (builds.get(item.get("ann")) or {}).get("digest") or current
-        # THE WORDS UNDER THE INK, taken while the build they were drawn on is
-        # the one on disk. Every later build re-anchors the ink to them, so a
-        # pair follows its words through a recompile, not its page coordinates.
-        # A round filed on an older build has none, and nothing needs it.
+        # The words under the ink, taken while their build is on disk, so a
+        # pair follows its words through a recompile.
         if pdf and item["drawn_on"] == current and item.get("box"):
             try:
                 got = under(pdf, item["page"], item["box"])
@@ -584,8 +528,8 @@ def _for_turn(root, note_path, item):
 
 
 def _crop_path(note_path, item):
-    """Where an item's crop is -- in its own round, or the round it was
-    first filed in when it has been reopened into this one."""
+    """Where an item's crop is: its own round, or the round it was first
+    filed in."""
     crop = item.get("crop") or ""
     if not crop:
         return ""
@@ -598,10 +542,8 @@ def _crop_path(note_path, item):
 # ---------------------------------------------------------------------------
 def rounds(root, doc, every=False):
     """`[(note rec, note path)]` of every round with a ledger, oldest first.
-
-    A round whose revision was never asked (`unsent`) is left out unless
-    `every`: nothing is answering it, its requests went again with the retry,
-    and counting it would count them twice.
+    An `unsent` round is left out unless `every`, since its requests went
+    again with the retry.
     """
     from . import library                             # local: avoids a cycle
 
@@ -619,8 +561,8 @@ def unsent(note_path):
 
 
 def mark_unsent(note_path, why=""):
-    """The revision for this round could not be asked. The round stays on
-    disk as a record and is counted nowhere; the retry files a new one."""
+    """The revision for this round could not be asked: the round stays as a
+    record and counts nowhere; the retry files a new one."""
     where = round_dir(note_path)
     try:
         os.makedirs(where, exist_ok=True)
@@ -631,9 +573,8 @@ def mark_unsent(note_path, why=""):
 
 
 def next_round(root, doc):
-    """The next round's number: past every round there has been, the unsent
-    included. Never a count of the notes on disk, because a note deleted
-    would hand its number -- and its ids -- to the next round."""
+    """The next round's number, past every round there has been, never a
+    count of notes on disk (a deleted note would hand out its ids again)."""
     from . import library                             # local: avoids a cycle
 
     high = len(library.notes(root, doc))
@@ -671,8 +612,8 @@ def states_of(note_path):
 
 
 def reopened(root, doc):
-    """Every request reopened on a landed round and not yet carried into a
-    newer one, as items for the next round -- WITH THE ID IT ALREADY HAS."""
+    """Every request reopened on a landed round and not yet carried, as items
+    for the next round with the ids they already have."""
     out = []
     rs = rounds(root, doc)
     for n, (rec, path) in enumerate(rs):
@@ -680,8 +621,7 @@ def reopened(root, doc):
         if not any((v or {}).get("state") == "reopened" and not (v or {}).get("carried")
                    for v in states.values()):
             continue
-        # A request is reopened on a round that CAME BACK, never on one the
-        # revision is still working on: that one is not done yet, not undone.
+        # Reopened only on a round that came back.
         checked = check(root, doc, path, later=n < len(rs) - 1)
         if not checked.get("landed"):
             continue
@@ -697,8 +637,7 @@ def reopened(root, doc):
                 "was": item.get("was") or item.get("kind"),
                 "text": item.get("text") or "",
                 "box": item.get("box"), "crop": item.get("crop") or "",
-                # The ink rides with it, so the next round's pair still shows
-                # what was written and where.
+                # The ink rides along, so the pair still shows the mark.
                 "strokes": item.get("strokes") or [],
                 "drawn_on": item.get("drawn_on") or "",
                 "under": item.get("under"),
@@ -766,11 +705,8 @@ def set_state(root, doc, note_name, item_id, state, why=""):
 
 
 def summary(root, doc):
-    """What a document's row says: `{rounds, items, open, reopened}`.
-
-    Every request on the document, counted once: one reopened into a later
-    round is counted in the round it rides, not in the one it came from.
-    """
+    """What a document's row says: `{rounds, items, open, reopened}`, each
+    request counted once, in the round it rides."""
     out = {"rounds": 0, "items": 0, "open": 0, "reopened": 0}
     for _rec, path in rounds(root, doc):
         states = states_of(path)
@@ -807,12 +743,9 @@ def evidence(root, doc, note_name, file_name):
 
 
 def keep_evidence(repo, doc):
-    """Before the live marks go, every round keeps the pictures it points at.
-
-    `file_round` copies them when a round is filed, so this finds nothing to do
-    unless the copy failed then; it is the guard `wipe_delivered` runs first,
-    because a mark that was delivered must not be delivered twice, and a
-    request must not lose its picture for it.
+    """Before live marks go, every round keeps the pictures it points at.
+    `file_round` already copied them; this is the guard `wipe_delivered` runs
+    first in case that copy failed.
     """
     root = repo.root
     for _rec, path in rounds(root, doc):
@@ -882,19 +815,15 @@ def landed(root, doc, note_path, later=False):
     return bool(pdf) and _mtime(pdf) >= _mtime(note_path)
 
 
-# The shape of `checked.json`. A change to what an answer carries bumps it, so
-# a cache written before the change is validated again rather than read short.
+# `checked.json`'s shape version: bumping it revalidates old caches.
 CHECK_V = "v2:"
 
 
 def check(root, doc, note_path, later=False):
-    """The round's answers, validated against its requests. Cached in the
-    round's directory on the ledger's own stat, so it runs once per change.
-
-    `{key, landed, items: {id: {status, answer, problems}}, unknown}`,
-    where `status` is `answered`, `not answered`, or `waiting` for a round
-    whose turn has not come back yet. A turn that answers nothing leaves every
-    request NOT ANSWERED once the round lands; it is never a silent round.
+    """The round's answers validated against its requests, cached on the
+    ledger's stat: `{key, landed, items: {id: {status, answer, problems}},
+    unknown}`, `status` one of `answered`, `not answered`, `waiting`. A turn
+    that answers nothing leaves every request not answered once it lands.
     """
     where = round_dir(note_path)
     is_in = landed(root, doc, note_path, later)
@@ -943,8 +872,7 @@ def check(root, doc, note_path, later=False):
             "problems": problems}
     got = {"key": key, "landed": is_in, "items": out,
            "unknown": sorted(k for k in answers if k not in ids),
-           # A ledger the turn left as something other than JSON: every request
-           # is then unanswered, and the reader says why.
+           # A non-JSON ledger: every request unanswered, and the reader says why.
            "broken": led is None and os.path.isfile(ledger_path(note_path))}
     try:
         os.makedirs(where, exist_ok=True)
@@ -960,13 +888,9 @@ def check(root, doc, note_path, later=False):
 
 
 def _snapshots(root, doc, led, note_path, take_after):
-    """`(before, after)` source text.
-
-    THE AFTER-COPY IS TAKEN ONCE, and an existing one is never replaced: a
-    re-validation (a checkout, a clone, a touch moves the ledger's stat) must
-    not copy a later round's edits over this round's answer. Taken from the
-    next round's `before` where one was filed, which is the source as this
-    round left it; from the live source otherwise.
+    """`(before, after)` source text. The after-copy is taken once and never
+    replaced, so a later round's edits never overwrite this round's answer:
+    from the next round's `before` where there is one, else the live source.
     """
     where = round_dir(note_path)
     b = (led.get("before") or {}).get("file") or ""
@@ -1005,12 +929,8 @@ def _next_before(root, doc, note_path, src):
 
 
 def _pair_for(before, after, new):
-    """`(old, now)`: both sides of every line change touching `new`.
-
-    `now` is the after side of the same changes, so a word diff of the two
-    compares like with like -- whole changed lines -- rather than a paragraph
-    against the one sentence of it the turn quoted.
-    """
+    """`(old, now)`: both sides of every line change touching `new`, so a
+    word diff compares whole changed lines with whole changed lines."""
     if not (before and after and new):
         return "", ""
     at = after.find(new)
@@ -1039,9 +959,8 @@ def _pair_for(before, after, new):
         if not (j2 > first and j1 <= last or (j1 == j2 and first <= j1 <= last + 1)):
             continue
         if tag == "replace" and (i2 - i1 > 1 or j2 - j1 > 1):
-            # ONE BLOCK OF SEVERAL CHANGED PARAGRAPHS: each new line the wording
-            # spans is paired with the old line most like it, so two requests
-            # answered in neighbouring paragraphs do not share one diff.
+            # Several changed paragraphs: pair each new line with the most
+            # similar old one, so neighbouring answers get their own diffs.
             mine = [j for j in range(j1, j2) if first <= j <= last]
             took = []
             for j in mine:
@@ -1074,18 +993,13 @@ def _fuzzy_find(text, passage):
 
 
 def _summarise(root, note_path, led, items, got):
-    """`## What was changed` under the note, WRITTEN FROM THE LEDGER.
-
-    The note stays the human-readable record and the ledger is the contract,
-    so the prose is generated rather than written twice. Everything after the
-    marker is the board's and is rewritten each time the answers change.
-    """
+    """`## What was changed` under the note, generated from the ledger.
+    Everything after the marker is the board's, rewritten on each change."""
     text = _text(note_path)
     tail = ""
     if MARKER in text:
         head, rest = text.split(MARKER, 1)
-        # Anything written after the board's block -- a turn's own prose, say --
-        # is somebody else's and survives the block being rewritten.
+        # Text after the board's block is someone else's and survives.
         tail = rest.split(END_MARKER, 1)[1] if END_MARKER in rest else ""
         text = head.rstrip() + "\n"
     rows = got["items"]
@@ -1205,13 +1119,8 @@ def _math_words(m):
 
 def plain(source_text, tex=True, math=False):
     """Source wording as it reads on the page: LaTeX and Markdown taken off.
-
-    `%` starts a comment in LaTeX only. In Markdown it is a percent
-    sign, and `5% were excluded` is five words.
-    Math is dropped for matching against the PDF's words; with `math`, as a
-    diff shows it to the owner, it is kept as it reads (`k=300`, `α=1`), so
-    "near $k=300$" never reads as "near".
-    """
+    `%` is a comment in LaTeX only. Math is dropped for matching; with
+    `math` it is kept as it reads (`k=300`) for a diff."""
     t = source_text or ""
     if tex:
         t = re.sub(r"(?<!\\)%.*", " ", t)
@@ -1226,11 +1135,9 @@ def plain(source_text, tex=True, math=False):
 def place(pdf, wording, hint=0, tex=True):
     """Where `wording` is on the PDF: `{page, box, by, score}`, or None.
 
-    Scored rather than first-found: *considered* is on five pages of the deck
-    this was built against. The rarest of the passage's first few words anchors
-    every candidate, each candidate window is scored by how much of the passage
-    it holds in order, and a tie goes to the page nearest `hint`. The box is the
-    matched words on the page the match starts on, in fractions of that page.
+    Scored, not first-found: the rarest early word anchors candidates, each
+    scored by how much of the passage it holds in order, ties to the page
+    nearest `hint`. The box is in fractions of the page.
     """
     tokens = [t for t in (_norm(w) for w in plain(wording, tex).split()) if t][:40]
     if not tokens:
@@ -1284,27 +1191,19 @@ def place(pdf, wording, hint=0, tex=True):
             "score": round(score, 3)}
 
 
-# HOW MANY WORDS UNDER A MARK ARE KEPT. Enough to find the passage again on a
-# rebuilt PDF; a ring round a whole paragraph is still found by its first forty.
+# Words kept under a mark: enough to find the passage on a rebuilt PDF.
 UNDER_MAX = 40
-# How far past the ink a word may sit and still be under it: a ring is drawn
-# round a word, not on it.
+# Slack round the ink box: a ring is drawn round a word, not on it.
 UNDER_PAD = 0.006
-# The fewest words a half of them may be looked for by, when the whole run is
-# not on the page any more: fewer is a phrase found anywhere.
+# Fewest words a half-run is searched by; fewer matches anywhere.
 PART_MIN = 5
 
 
 def under(pdf, page, box):
     """The words of `pdf` under the ink box on `page`: `{page, box, text}`.
-
-    WHOLE LINES, not the words inside the box: a ring round half a line, or
-    a note in the margin beside it, is about that line, and the words of a
-    line are a run `place` can find again -- the scattered right halves of
-    three lines are not. The lines level with the box, a little padded, in
-    reading order; past `UNDER_MAX` words, the run of that many centred on
-    the word nearest the middle of the mark. As the folded words `place`
-    compares. None where the page has no words level with the ink.
+    Whole lines level with the box, because a line is a run `place` can find
+    again; past `UNDER_MAX` words, the run centred on the mark. None where no
+    words are level with the ink.
     """
     if not (pdf and box and page):
         return None
@@ -1332,13 +1231,9 @@ def under(pdf, page, box):
 
 
 def ink_where(pdf, digest, item):
-    """Where an inked request's words are on THIS build: `{by, page, box, dx, dy}`.
-
-    `same` where the ink was drawn on this very build, so it sits where it
-    was drawn. `text` where the words under it were found again, with the
-    shift from where they were. `gone` where they are not in the document any
-    more. None for a request with no ink.
-    """
+    """Where an inked request's words are on this build: `{by, page, box, dx,
+    dy}`, `by` one of `same`, `text` (found again, with the shift) or `gone`.
+    None without ink."""
     if not item.get("strokes") and not item.get("under"):
         return None
     page = int(item.get("page") or 0)
@@ -1346,9 +1241,7 @@ def ink_where(pdf, digest, item):
         return {"by": "same", "page": page, "box": item.get("box"), "dx": 0, "dy": 0}
     was = item.get("under") or {}
     if not was.get("text"):
-        # FILED OFF AN OLDER BUILD, so no words were kept to look for. That is
-        # not evidence the words went: the ink sits where it was drawn, as the
-        # live ink on a rebuilt page does.
+        # Filed off an older build with no words kept: the ink stays put.
         return {"by": "drawn", "page": page, "box": item.get("box"), "dx": 0, "dy": 0}
     found = place(pdf, was.get("text") or "", hint=page, tex=False) \
         if pdf and was.get("text") else None
@@ -1356,10 +1249,7 @@ def ink_where(pdf, digest, item):
         return {"by": "text", "page": found["page"], "box": found["box"],
                 "dx": round(found["box"][0] - was["box"][0], 4),
                 "dy": round(found["box"][1] - was["box"][1], 4)}
-    # THE WORDS WERE EDITED, NOT ALL OF THEM GONE. The revision usually
-    # rewrites the line the ink was about and leaves its neighbours, so the
-    # run's first words are looked for alone, then its last: the top of what
-    # is found against the top of what was, or bottom against bottom.
+    # Edited words: look for the run's first words alone, then its last.
     ws = (was.get("text") or "").split()
     if pdf and was.get("box") and len(ws) >= 2 * PART_MIN:
         half = max(PART_MIN, len(ws) // 2)
@@ -1372,18 +1262,12 @@ def ink_where(pdf, digest, item):
 
 
 def placements(repo, doc, note_path, pdf, digest, got, items):
-    """Every request of one round on ONE BUILD of the PDF, cached by digest.
-
-    `digest` is `paper._digest` -- the key `drawn_on` and the reader's own
-    `build` already use -- so the pins the server hands back are for exactly
-    the pages on the glass. Keyed as well on the validation, so an answer that
-    changes is placed again.
-    """
+    """Every request of one round on one build of the PDF, cached by
+    `paper._digest` (the key the reader uses) and on the validation."""
     return anchors(repo, doc, note_path, pdf, digest, got, items)[0]
 
 
-# The shape of a placement cache's `ink_at`: a change to how ink re-anchors
-# bumps it, so a cache written by the old rule is placed again.
+# `ink_at` shape version: bumping it re-places old caches.
 ANCHOR_V = 2
 
 
@@ -1468,12 +1352,9 @@ def _readable(text, tex):
 def word_diff(old, new, tex=True, focus=""):
     """Old wording against new, word by word: `[["=", t], ["-", t], ["+", t]]`.
 
-    Markup taken off first (`plain`), so the diff is of what the page reads.
-    `focus` is the passage the turn quoted, where `new` is the whole changed
-    paragraph round it: only the changes touching it are kept, so two
-    requests answered in one paragraph each show their own. An unchanged run
-    past `DIFF_KEEP` words keeps `DIFF_END` at each end it touches a change
-    on, and an ellipsis between. None where there is nothing to compare.
+    Markup is taken off first (`plain`). `focus`, the passage the turn
+    quoted, keeps only changes touching it. Long unchanged runs keep
+    `DIFF_END` words at each end. None where there is nothing to compare.
     """
     a = _readable(old, tex)
     b = _readable(new, tex)
@@ -1534,8 +1415,8 @@ def word_diff(old, new, tex=True, focus=""):
 # what the glass is handed
 # ---------------------------------------------------------------------------
 def settle(repo, doc):
-    """Validate every round that has changed. Run where the wipe runs, on the
-    same two GETs, because there is no hook after a turn outside the runner."""
+    """Validate every changed round, where the wipe runs: outside the runner
+    there is no hook after a turn."""
     rs = rounds(repo.root, doc)
     for n, (_rec, path) in enumerate(rs):
         check(repo.root, doc, path, later=n < len(rs) - 1)
@@ -1560,9 +1441,8 @@ def view(repo, doc):
         placed, inks = (anchors(repo, doc, path, pdf, digest, got, items)
                         if pdf and got.get("landed") else ({}, {}))
         if pdf and not got.get("landed"):
-            # A NOT-FIXED PAIR RIDING A ROUND STILL BEING REVISED: its live ink
-            # went when the last round landed, so the glass draws it back from
-            # the archive, and needs to know where its words are now.
+            # A not-fixed pair riding a round still under revision: its live
+            # ink is gone, so the glass redraws it from the archive.
             for item in items:
                 if item.get("kind") == "reopened" and item.get("strokes"):
                     got_ink = ink_where(pdf, digest, item)
@@ -1611,8 +1491,7 @@ def view(repo, doc):
                     "answered": sum(1 for x in rows if x["status"] == "answered"),
                     "open": open_,
                     "judged": sum(1 for x in rows if x["state"] != "open"),
-                    # EVERY PAIR SAID FINE (or carried into a later round): the
-                    # round collapses to one line on the glass.
+                    # Every pair fine or carried: the round collapses to a line.
                     "done": landed_ and bool(rows) and not open_,
                     "items": rows,
                     "unknown": got.get("unknown") or [],
@@ -1623,19 +1502,16 @@ def view(repo, doc):
 
 
 def _pair(item, answer, placed, ink_at, pages_now, tex):
-    """The half of a row that makes it a PAIR: what was written, and the
-    revision that answers it, and where both are on the build on the glass.
+    """The pair half of a row: what was written, the answer, and where both
+    sit on the build on the glass.
 
-        ink      `{page, box, strokes, drawn_on}`, the slimmed strokes as filed
-        ink_at   where the ink's words are on this build (`ink_where`), or
-                 where its answer is when they are gone (`by: "answer"`,
-                 shifted down the page only)
-        at       `{page, y, box, by}`: where the pip goes and what a tap
-                 brings onto the glass -- the answer's box, else the ink's
+        ink      `{page, box, strokes, drawn_on}` as filed
+        ink_at   where the ink's words are now (`ink_where`), or its answer's
+                 place when they are gone
+        at       `{page, y, box, by}`: the pip, and what a tap shows
         diff     word ops, old against new (`word_diff`)
         reply    the turn's sentence, where it answered without an edit
-        gone     the words it was written on are not in the document, and
-                 nothing else could be placed
+        gone     the words are gone and nothing could be placed
     """
     strokes = item.get("strokes") or []
     ink = ({"page": int(item.get("page") or 0), "box": item.get("box"),
@@ -1643,9 +1519,8 @@ def _pair(item, answer, placed, ink_at, pages_now, tex):
            if strokes else None)
     ink_at = dict(ink_at) if ink_at else None
     ref = (item.get("under") or {}).get("box") or item.get("box")
-    # Words gone but the answer on the same page: the ink follows the answer
-    # down the page. Never onto another page, where it would sit over words it
-    # was never written about.
+    # Words gone, answer on the same page: the ink follows it down, never to
+    # another page.
     if ink_at and ink_at.get("by") == "gone" and placed and placed.get("box") and ref \
             and placed.get("page") == int(item.get("page") or 0):
         ink_at = {"by": "answer", "page": placed["page"], "box": None,

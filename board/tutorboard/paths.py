@@ -1,8 +1,7 @@
 """Where this machine keeps what it knows about itself.
 
-One directory, a few files in it, and the rule for telling two spellings of
-one directory apart. Everything else reads its state through these names, so
-a test can move the lot by assigning to them.
+Everything reads its state through these names, so a test can move the lot by
+assigning to them; state a test can reach is state a test will corrupt.
 """
 
 import os
@@ -10,10 +9,8 @@ import os
 
 HOME = os.path.expanduser("~")
 
-# The tool itself: where web/, tex/ and the scripts live. Derived from this
-# file's location so it is right however the package was reached -- this home is
-# spelled two different ways depending on which mount you arrived by, and a
-# constant typed out anywhere else would eventually be the wrong one.
+# The tool itself, derived from this file so either spelling of the home
+# directory works.
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 WEB = os.path.join(TOOL, "web")
 
@@ -21,9 +18,7 @@ CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
     "tutor-board")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
-# The provider credentials, beside the config the launcher already reads and
-# never in the tree -- this repository is public. `NAME=value` a line; see
-# `tutorboard/keys.py`, which is the only thing that opens it.
+# Provider credentials, outside the public tree; only `keys.py` opens it.
 KEYS = os.path.join(CONFIG_DIR, "keys.env")
 
 # The one port the board listens on, unless config.json says `port`.
@@ -50,42 +45,27 @@ def port():
     return said if 0 < said < 65536 else PORT
 
 
-# Where a deleted session, subject, material or document goes: one
-# `<stamp>/` directory per delete, kept 30 days. `TUTORBOARD_TRASH` moves it,
-# which is how a test keeps its deletes out of the real one.
+# Deleted things, one `<stamp>/` per delete, kept 30 days.
+# `TUTORBOARD_TRASH` moves it for tests.
 TRASH = (os.environ.get("TUTORBOARD_TRASH")
          or os.path.join(HOME, ".local", "share", "tutor-board", "trash"))
 
-# PDF pages drawn to PNG, one `<digest>/` per document build, shared by every
-# session and subject (`course/paper.py`). A cache, outside the tree, so a
-# rendered page of a PHI document can never be committed. `TUTORBOARD_PAGES`
-# moves it; `test/run.py` gives each suite its own.
+# The shared PDF page cache (`course/paper.py`), outside the tree so a PHI
+# page can never be committed. `TUTORBOARD_PAGES` moves it.
 PAGES = (os.environ.get("TUTORBOARD_PAGES")
          or os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"),
                          "tutor-board", "pages"))
 
-# What the hub watches in a session directory, relative to it (`live/` today).
-# Stat'd once a second; a change here reaches the board at once. Everything
-# else in the payload arrives on a route's dirty mark or the 30 s rebuild. A
-# directory counts its entries too, because a file rewritten in place does not
-# change its directory's mtime.
+# What the hub stats each second in a session directory. A directory counts
+# its entries too, since rewriting a file in place leaves its mtime alone.
 SESSION_WATCHED = ("cards", "turns.jsonl", "inbox/messages.jsonl", "state.json",
                    "session.json", "agent.json", "annotations", "slate", "push.json",
                    "export.json", "hw.json")
 
 
 def same_dir(a, b):
-    """Are these two paths the same directory, whatever they are spelled like?
-
-    They are, far more often than anything here assumed. This home directory is
-    reachable as both `/home/<user>/…` and `/mnt/dell_storage/homefolders/<user>/…`,
-    and which one you get depends on how you arrived: a board records the path it
-    was started with, and a command run from the other spelling then compares
-    strings, finds no match, and concludes the board is not running. The hub
-    showed every course as idle while one was answering on its port, and
-    `board start` would happily have begun a second board for a course that
-    already had one.
-    """
+    """Are these two paths the same directory, however spelled? A home
+    directory can be reachable by two mount paths."""
     if not a or not b:
         return False
     try:
@@ -94,14 +74,8 @@ def same_dir(a, b):
         return os.path.abspath(a) == os.path.abspath(b)
 
 
-# Where this machine keeps what it has worked out about itself: its pinned name,
-# the exit node that was known to work, the record of a usage limit. Separate
-# from the config directory because none of it is anybody's to edit.
-#
-# BOARD_STATE_DIR exists so a test can run without writing the real thing. That
-# is not a convenience: a bootstrap test once set this machine's tailnet name to
-# another machine's, which silently moved the address the iPad app is installed
-# against. State a test can reach is state a test will eventually corrupt.
+# What this machine has worked out about itself (pinned name, known-good exit
+# node, usage limits): nobody's to edit. `BOARD_STATE_DIR` moves it for tests.
 STATE_DIR = os.environ.get("BOARD_STATE_DIR") or \
     os.path.join(HOME, ".local", "state", "tutor-board")
 
@@ -109,24 +83,11 @@ STATE_DIR = os.environ.get("BOARD_STATE_DIR") or \
 # ---------------------------------------------------------------------------
 # What lives OUTSIDE the repository, on purpose
 # ---------------------------------------------------------------------------
-# One rule made these two directories: if it cannot go into a public
-# repository, it does not live in the repository -- it lives outside the tree
-# and something inside the tree says where.
-#
-#   PHI        308 MB of identifiable therapy session audio. The filenames
-#              themselves carry participant IDs.
-#   ARTIFACTS  1.5 GB of job output: neighbour tables, model dumps, the figure
-#              cache. Regenerable, unread, and seven files of it are over
-#              GitHub's 50 MB warning.
-#
-# Neither is symlinked into the tree. A symlink is a TRACKED FILE pointing at
-# PHI, which hands the next reader of a public repository a map straight to it.
-# A pipeline takes a path; it is given the real one.
-#
-# They are named here rather than in the two modules that resolve paths,
-# because a README is allowed to point AT them -- that is the whole reason they
-# are worth naming -- and "which directories may a path out of a file reach"
-# must have exactly one answer.
+# Directories outside the tree on purpose, because they cannot go in a public
+# repository: PHI (identifiable session audio) and ARTIFACTS (large job
+# output). Never symlinked in, since a tracked symlink maps the way to PHI.
+# Named here so "which directories may a path from a file reach" has one
+# answer.
 PHI = os.environ.get("TUTORBOARD_PHI") or os.path.join(HOME, "phi")
 ARTIFACTS = os.environ.get("TUTORBOARD_ARTIFACTS") or os.path.join(HOME, "artifacts")
 
@@ -137,12 +98,8 @@ def outside_tree():
 
 
 def within(target, *roots):
-    """Is `target` inside one of `roots`? By realpath, and a root counts as itself.
-
-    The containment test every path-out-of-a-file check uses, in one place,
-    because getting it slightly different in two modules is how one of them
-    ends up accepting `/etc/../home/...`.
-    """
+    """Is `target` inside one of `roots`? By realpath; a root counts as
+    itself. The one containment test every path-from-a-file check uses."""
     try:
         target = os.path.realpath(target)
     except OSError:
@@ -159,9 +116,8 @@ def within(target, *roots):
     return False
 
 
-# A `results/` path the cluster exported is read from `exports/results/` where
-# `results/` lacks it, so a manuscript, a thread and the library name one path
-# on both machines. Nothing else falls back.
+# A `results/` path missing locally is read from `exports/results/`, so one
+# path works on both machines. Nothing else falls back.
 EXPORTS = "exports"
 
 
@@ -172,11 +128,8 @@ def exported(rel):
 
 
 def present(root, rel):
-    """Where `rel` really is in this workspace: itself, or its exported copy.
-
-    The absolute path, or "" where neither exists or either would leave the
-    workspace.
-    """
+    """Where `rel` really is in this workspace: itself or its exported copy,
+    absolute; "" where neither exists or either would leave the workspace."""
     if not rel:
         return ""
     for cand in (rel, exported(rel)):

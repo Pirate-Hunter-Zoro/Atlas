@@ -1,38 +1,13 @@
-"""The documents a board can hand over, and how to LOOK at one on the device.
+"""The documents a board can hand over, and how to look at one on the device.
 
-Two things live here and they answer two halves of the same report, from the
-iPad, about the write-up:
+Resolving and naming a built document serves the download route, the
+payload (whether a document exists, at any moment) and the viewer. Viewing
+rasterises PDF pages to PNGs here, because iOS shows a PDF in a frame as one
+unscrollable page; pages are cached against the PDF's mtime.
 
-    "I just tried to save a copy of my homework, and it's not working. It
-    compiles the homework, but it's not letting me view the compiled .pdf or
-    save it anywhere locally on the iPad."
-
-**Resolving and naming** is the saving half, and it was already written -- in
-`server/routes/taking.py`, private to the one route that downloads. It is here
-now because two other things need the same answer: the payload, which has to say
-whether a document exists at all so the controls for it can be offered at any
-moment rather than only in the banner of the build that made it, and the viewer
-below.
-
-**Rasterising** is the viewing half, and it did not exist. There was no way to
-look at the PDF from the board -- the only control was *save a copy*, which
-raises the share sheet, and a share sheet is not a document you can read. The
-obvious answer, handing the PDF to an `<iframe>`, is the one that does not work:
-iOS renders a PDF in a frame as a single unscrollable first page, and navigating
-to it in a standalone web app is the trap `web/board.js` was already written to
-avoid -- no chrome, no back button, nothing on the glass that returns to the
-lesson.
-
-So the pages are turned into PNGs HERE, by the machine that has the PDF, and the
-board shows them the way it already shows every other picture: in a viewer this
-page owns and can close. That works on any tablet, needs nothing of the browser,
-and costs one `pdftoppm` per document rather than per open, because the pages are
-cached against the PDF's own modification time.
-
-Nothing here is discarded when it fails. A machine with no rasteriser on it is a
-real machine -- a Mac started by launchd has a PATH of `/usr/bin:/bin` and
-nothing else -- and it says so, so the board can offer the copy instead of
-showing an empty panel.
+The constraint: a machine with no rasteriser (launchd's PATH is
+`/usr/bin:/bin`) says so rather than failing, so the board can offer the
+copy instead of an empty panel.
 """
 
 import glob
@@ -48,28 +23,18 @@ import time
 from .. import paths, tex
 
 
-# The two documents. A KIND is what the client names; a path is never one.
-# `export.json` is written by the export (the photograph of the glass) and
-# `hw.json` by `board writeup build`, so there is one record per document and
-# this is the whole of the mapping.
+# Kinds the client names (never a path), and the record that builds each.
 KINDS = ("lesson", "homework")
 _RECORD = {"lesson": "export.json", "homework": "hw.json"}
 
-# What a page comes out as. 1240px is a little over an iPad Pro's own width at
-# 2x for the reading column, which is the width the pages are actually looked
-# at; going wider costs bytes on a tailnet link and buys nothing legible.
+# A little over an iPad Pro's reading column at 2x; wider buys nothing.
 PAGE_WIDTH = 1240
 
-# A long lesson or a thesis can be a hundred pages and more. Rasterising every
-# one of them is tens of megabytes onto the disk and onto the tablet's, so it
-# stops and says how many it stopped at -- a truncated document that says so is readable; one that quietly
-# ends at page 40 is a document somebody hands to a professor.
+# A page cap that says where it stopped, rather than quietly ending.
 MAX_PAGES = 160
 
-# How many rendered page sets are kept. Every session and subject shares the
-# cache, a rebuilt write-up is a new set rather than an overwritten one, and a
-# marked copy needs the build its ink was drawn on, so this is "every document
-# in recent use and a couple of versions of each", least recently opened first out.
+# Page sets kept: shared by every session, and a marked copy needs the build
+# its ink was drawn on. Least recently opened goes first.
 CACHE_SETS = 24
 
 
@@ -92,13 +57,8 @@ def slug(text):
 
 
 def pdf_in(repo, rel):
-    """A repo-relative path from one of our own records, resolved and checked.
-
-    Checked even though it came from a file this board wrote: a record is on
-    disk, disk is editable, and "it was ours a moment ago" is not a property
-    that survives. It has to be a .pdf, it has to exist, and it has to be inside
-    the repository.
-    """
+    """A repo-relative path from one of our own records, checked anyway
+    (disk is editable): a .pdf that exists inside the repository."""
     if not rel or not str(rel).endswith(".pdf"):
         return None
     root = os.path.realpath(repo.root)
@@ -109,12 +69,8 @@ def pdf_in(repo, rel):
 
 
 def named(repo, stem):
-    """What the file should be called once it is off the board.
-
-    The course goes in front, because in a Files app or an inbox this sits
-    beside everything else a person owns and `ch07-homework.pdf` is not enough
-    to tell whose it is or what it is from.
-    """
+    """The download's file name, with the course in front so it is
+    recognisable in Files."""
     st = repo.state() or {}
     course = slug(st.get("course") or os.path.basename(repo.root))
     stem = slug(stem)
@@ -122,20 +78,14 @@ def named(repo, stem):
 
 
 def resolve(repo, kind):
-    """The PDF for one kind of document and the name it leaves under.
-
-    Returns `(path, filename)`, or `(None, None)` when there is no document --
-    which is a perfectly ordinary state and not an error: nobody has exported
-    this lesson yet, or the write-up has never compiled.
-    """
+    """`(path, filename)` for one kind of document, or `(None, None)` when
+    there is none yet, which is ordinary."""
     rec = record(repo, kind)
     target = pdf_in(repo, (rec or {}).get("pdf"))
     if not target:
         return None, None
     if kind == "homework":
-        # The SET's name rather than the file's: a course numbers its homework
-        # `ch07-homework.tex` in one place and `hw04.tex` in another, and the
-        # set is what a person calls it either way.
+        # The set's name, not the file's.
         stem = (rec or {}).get("set") or os.path.splitext(os.path.basename(target))[0]
     else:
         stem = os.path.splitext(os.path.basename(target))[0]
@@ -143,17 +93,9 @@ def resolve(repo, kind):
 
 
 def describe(repo):
-    """What can be taken off this board right now, keyed by kind.
-
-    This is why the module exists rather than the download route keeping its
-    helpers to itself. The controls for a document used to live in the banner of
-    the build that produced it, and that banner is replaced by the next payload
-    -- so the write-up somebody had just compiled became unreachable about a
-    second after it appeared. A document is not an event. It is a file, and
-    whether it is there is a question with an answer at every moment.
-
-    Four `stat` calls behind a payload the board already builds on every change.
-    """
+    """What can be taken off this board right now, keyed by kind: a document
+    is a file whose existence is always answerable, not a build event. Four
+    stats."""
     out = {}
     for kind in KINDS:
         target, filename = resolve(repo, kind)
@@ -186,15 +128,8 @@ def _size(path):
 # turning a PDF into something an iPad can read in place
 # ---------------------------------------------------------------------------
 def raster_env():
-    """The environment a page renderer is looked for in.
-
-    `tex.tex_env` already knows every place a TeX lives here. What it does not
-    cover is poppler, which is where `pdftoppm` comes from, and Ghostscript --
-    both of which a cluster node has in `/usr/bin` if it has them at all. A board
-    detached by `board start` has a PATH of `/usr/bin:/bin` and nothing more, so
-    neither can be assumed to be on it already, which is the same reason
-    `hw_build` stopped trusting PATH for `pdflatex`.
-    """
+    """The environment a page renderer is looked for in: `tex.tex_env` plus
+    poppler's and Ghostscript's places, since a launchd PATH has neither."""
     env = tex.tex_env()
     extra = [d for d in ("/usr/local/bin", "/usr/bin", "/bin")
              if os.path.isdir(d)]
@@ -203,14 +138,9 @@ def raster_env():
 
 
 def renderer(env=None):
-    """Which page renderer this machine has, as (name, path), or None.
-
-    Order is quality first and availability second. poppler's two renderers
-    scale to a width, which is what is wanted -- a fixed resolution makes A4 and
-    US Letter come out different sizes. Ghostscript cannot, so it gets a DPI
-    that lands close, and it is here because it is what a Mac with MacTeX on it
-    has when it has no poppler.
-    """
+    """Which page renderer this machine has, as (name, path), or None. poppler
+    first, because it scales to a width; Ghostscript (MacTeX without poppler)
+    gets a DPI that lands close."""
     env = env or raster_env()
     path = env.get("PATH", "")
     for name in ("pdftoppm", "pdftocairo", "gs"):
@@ -221,12 +151,8 @@ def renderer(env=None):
 
 
 def _digest(pdf_path, width):
-    """A name for this exact document at this exact width.
-
-    The modification time is in it, so a rebuilt write-up is a different page
-    set rather than a stale one served out of a cache -- which is the same
-    mistake as an iPad showing last week's PDF, made one layer down.
-    """
+    """A name for this exact document at this width; the mtime is in it, so a
+    rebuild is a new page set, never a stale one."""
     try:
         stamp = os.stat(pdf_path)
         key = "%s|%d|%d|%d" % (os.path.realpath(pdf_path), stamp.st_mtime_ns,
@@ -237,9 +163,8 @@ def _digest(pdf_path, width):
 
 
 def cache_dir():
-    """The page cache every session and subject shares: `paths.PAGES`, one
-    `<digest>/` directory per document build. Outside the tree, so nothing
-    rendered here can be committed, whatever the subject's `.gitignore` says."""
+    """The shared page cache, `paths.PAGES`, one `<digest>/` per build:
+    outside the tree, so nothing rendered can be committed."""
     d = paths.PAGES
     os.makedirs(d, exist_ok=True)
     return d
@@ -270,12 +195,8 @@ def _page_number(path):
 
 
 def pages(repo, kind, width=PAGE_WIDTH):
-    """Every page of one of the two BUILT documents, as PNGs.
-
-    Cached against the PDF's own modification time, so opening the same document
-    twice costs one directory listing. A rebuild changes the digest and renders
-    again.
-    """
+    """Every page of one of the two built documents, as PNGs, cached on the
+    PDF's mtime."""
     target, filename = resolve(repo, kind)
     if not target:
         return {"ok": False, "why": "none",
@@ -285,14 +206,8 @@ def pages(repo, kind, width=PAGE_WIDTH):
 
 
 def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
-    """Every page of ANY pdf this board is allowed to show, as PNGs.
-
-    Split out of `pages` when a third kind of document arrived: a slide deck
-    that was written months ago and is not built by anything here. The caching,
-    the lock, the renderer and the page cap are identical whatever produced the
-    PDF -- what differs is only how the file was found, which is the caller's
-    business. `library.drawer` finds the decks; this draws them.
-    """
+    """Every page of any PDF this board may show, as PNGs: the cache, lock,
+    renderer and page cap of `pages`, for a file the caller found."""
     width = max(400, min(2200, int(width or PAGE_WIDTH)))
     kind = tag
     digest = _digest(target, width)
@@ -301,10 +216,8 @@ def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
         _touch(digest)
         return _manifest(kind, filename, digest, have, target)
 
-    # One render per document at a time. A double-tap on `read it` is two
-    # requests, and this server is threaded -- two `pdftoppm` runs writing the
-    # same page files is a document read while it is being written under the
-    # reader. The second caller comes out of the cache the first one filled.
+    # One render per document at a time: the server is threaded, and a
+    # double-tap must not write the same page files twice.
     with _lock_for(digest):
         have = cached(digest)
         if have:
@@ -318,8 +231,7 @@ _LOCKS_GUARD = threading.Lock()
 
 def _lock_for(digest):
     with _LOCKS_GUARD:
-        # Bounded: a board that has looked at fifty versions of a document does
-        # not need fifty locks kept for the rest of its life.
+        # Bounded.
         if len(_LOCKS) > 32:
             _LOCKS.clear()
         return _LOCKS.setdefault(digest, threading.Lock())
@@ -341,10 +253,7 @@ def _draw(kind, target, filename, digest, width):
     try:
         code, out = _render(tool, target, prefix, width, env)
     except subprocess.TimeoutExpired:
-        # Five minutes on one document. Say so rather than letting it reach the
-        # handler as a 500: the board would then paint "the board did not
-        # answer", which points the reader at the network for a fault that is a
-        # document too large to draw.
+        # A timeout is reported, not a 500 that blames the network.
         _sweep(digest)
         return {"ok": False, "why": "failed", "name": filename,
                 "detail": ("%s took longer than five minutes on this document "
@@ -354,9 +263,7 @@ def _draw(kind, target, filename, digest, width):
         code, out = 1, str(exc)
     made = cached(digest)
     if not made:
-        # Leave nothing half-written behind: a partial set would be served as
-        # the whole document on the next open, and a document silently missing
-        # its last four pages is the worst of the failures available here.
+        # Never leave a partial set: it would be served as the whole document.
         _sweep(digest)
         return {"ok": False, "why": "failed", "name": filename,
                 "detail": ("%s could not draw the pages (exit %d). %s"
@@ -385,8 +292,7 @@ def _render(tool, pdf_path, prefix, width, env):
                "-scale-to-x", str(width), "-scale-to-y", "-1",
                "-f", "1", "-l", str(MAX_PAGES), pdf_path, prefix]
     else:
-        # Ghostscript names its own output and cannot scale to a width, so it
-        # gets a resolution that puts A4 within a few percent of the same place.
+        # Ghostscript cannot scale to a width: a resolution close to A4's.
         cmd = ["gs", "-q", "-dNOPAUSE", "-dBATCH", "-dSAFER",
                "-sDEVICE=png16m", "-r%d" % max(72, int(width / 8.27)),
                "-dTextAlphaBits=4", "-dGraphicsAlphaBits=4",
@@ -411,12 +317,8 @@ def _sweep(digest):
 
 
 def _prune(keep):
-    """Old page sets go. A cache that only grows is a disk that fills up.
-
-    By digest rather than by age, and several are kept: every session and
-    subject shares this directory, so "delete everything that is not the set
-    I just made" throws away the document beside it every time.
-    """
+    """Old page sets go, by least recent use, keeping several, since the
+    cache is shared by every session."""
     base = cache_dir()
     sets = []
     for name in os.listdir(base):
