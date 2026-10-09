@@ -30,7 +30,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import jobs, missions                                  # noqa: E402
+from tutorboard import cluster, jobs, missions                         # noqa: E402
 from tutorboard.course import threads                                  # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
@@ -198,12 +198,13 @@ check("its thread is no longer running",
       threads.stages(wholesale)["knn"]["status"] == "open"
       and jobs.running(wholesale) == [])
 
-inbox = os.path.join(wholesale, "live", "inbox", "messages.jsonl")
-with open(inbox, encoding="utf-8") as fh:
-    lines = [json.loads(x) for x in fh if x.strip()]
-check("exactly one [job] line is in the inbox, unread, signalled `job`",
+# No session filed it, so the line is a home notice (D16) and wakes no turn.
+lines = cluster.notices(wholesale)
+check("exactly one [job] line, signalled `job`, a notice since no session "
+      "filed the job",
       len(lines) == 1 and lines[0]["signal"] == "job"
-      and not lines[0]["read"] and lines[0]["text"].startswith("[job] "))
+      and lines[0]["text"].startswith("[job] ")
+      and not os.path.exists(os.path.join(wholesale, "live", "inbox")))
 said = lines[0]["text"]
 check("it names the label, the job, the exit and what it was to produce, "
       "and reads no thread file",
@@ -564,9 +565,7 @@ try:
     s4 = Slurm()
     got = jobs.report(old, run=s4, now=1000.0)
     again = jobs.report(old, run=s4, now=1100.0)
-    with open(os.path.join(old, "live", "inbox", "messages.jsonl"),
-              encoding="utf-8") as fh:
-        woke = [json.loads(x) for x in fh if x.strip()]
+    woke = cluster.notices(old)
     check("a job registered before the move is reported exactly once",
           [r["jobid"] for r in got] == ["4004"] and again == []
           and len(woke) == 1 and "4004" in woke[0]["text"])
@@ -627,12 +626,9 @@ else:
             return ws, base_sha
 
         def woken(ws):
-            try:
-                with open(os.path.join(ws, "live", "inbox", "messages.jsonl"),
-                          encoding="utf-8") as fh:
-                    return [x for x in fh if x.strip()]
-            except OSError:
-                return []
+            # Every line hearing dropped: none of these requests names a
+            # live session, so each is a notice under the copy's root.
+            return cluster.notices(cluster.atlas_of(ws), limit=0)
 
         ended = [n for n in os.listdir(os.path.join(REPO, trd_rel, "relay",
                                                     "reports"))

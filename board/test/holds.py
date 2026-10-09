@@ -352,8 +352,13 @@ try:
         return p.returncode, p.stdout.decode("utf-8", "replace")
 
     def inbox(where):
-        return [json.loads(x) for x in read(os.path.join(
-            where, "live", "inbox", "messages.jsonl")).splitlines() if x.strip()]
+        # No session filed a held step, so each [coach] line is a home
+        # notice (D16), oldest first here.
+        from tutorboard import cluster
+        top = cluster.atlas_of(where)
+        rel = os.path.relpath(where, top)
+        return [n for n in reversed(cluster.notices(top, limit=0))
+                if n.get("subject") == rel]
 
     # --- which workspaces are open ---------------------------------------------
     os.environ["TUTORBOARD_COURSES"] = cl_top

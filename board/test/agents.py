@@ -464,8 +464,8 @@ check("and only ones that are genuinely answering",
 ship = os.path.join(ROOT, "scripts", "ship.sh")
 check("there is one command that ships a change", os.path.isfile(ship))
 ship_src = open(ship, encoding="utf-8").read() if os.path.isfile(ship) else ""
-check("and it restarts the tutors as well as the boards",
-      "--tutors" in ship_src)
+check("and it restarts the one board server, which runs every turn",
+      'launchctl kickstart -k "$TARGET"' in ship_src)
 check("and restarts nothing when the push failed",
       "nothing has been restarted" in ship_src)
 check("a tutor mid-turn is not bounced out of the card it is writing",

@@ -4,7 +4,9 @@
     push(root)                                  fetch, merge, push; never forced
     pull(root)                                  fast-forward only, guarded
     save(root, paths, message)                  commit, then push
-    hear_pass()                                 the Mac's timed pull, then hearing
+    adopt_private(base)                         clone ai-config where it is missing
+
+The Mac's timed pull is the board server's cluster thread (`cluster.Ear`).
 
 `board/scripts/save-and-push.sh` is a thin CLI over `save`. relay.py and
 holds.py keep their own cluster-side git until T38c replaces them.
@@ -19,7 +21,6 @@ Runs on the cluster's python3 too (relay path): no walrus, no `match`.
 import os
 import subprocess
 import sys
-import time
 
 from tutorboard import worktree
 
@@ -287,16 +288,6 @@ def pull(root, quiet=False, timeout=60, say=None):
     return True
 
 
-# ---------------------------------------------------------------------------
-# the Mac's ear: the hear pull
-# ---------------------------------------------------------------------------
-# On a machine without Slurm the cluster's reports arrive by pull, every
-# `jobs.PULL_EVERY` seconds. The timer runs `tutor pull --hear` every twenty
-# seconds and `hear_pass` decides; every run then hears every workspace,
-# because a hand pull may have moved HEAD in between.
-HEAR_STAMP = os.path.join(os.path.expanduser("~"), ".local", "state",
-                          "tutor-pull.heard")
-
 # ai-config is the one private repository nested inside Atlas and ignored by
 # it. bootstrap.sh carries the same URL.
 AI_CONFIG = "ai-config"
@@ -321,58 +312,6 @@ def adopt_private(base, quiet=True, run=subprocess.run):
     if not quiet:
         print((p.stdout or "").rstrip())
     return True
-
-
-def hear_pass(base=None, stamp=None, now=None, force=False, quiet=True,
-              pull=None):
-    """Pull Atlas when due, then hear every workspace's reports.
-
-    `(pulled, interval, heard)`: `pulled` is None where the relay owns pulls
-    here (Slurm), True where the pull ran, False where it was not due or
-    failed. Never raises.
-    """
-    from tutorboard import atlas, holds, jobs
-    if jobs.has_slurm():
-        return None, 0, []
-    stamp = stamp or HEAR_STAMP
-    now = time.time() if now is None else float(now)
-    try:
-        base = base or atlas.root()
-        roots = [w["root"] for w in atlas.workspaces(base)]
-    except Exception:                                        # noqa: BLE001
-        return False, 0, []
-    interval = jobs.PULL_EVERY
-    try:
-        with open(stamp, "r", encoding="utf-8") as fh:
-            last = float(fh.read().strip() or 0)
-    except (OSError, ValueError):
-        last = 0
-    pulled = False
-    if force or jobs.pull_due(last, now, interval):
-        adopt_private(base, quiet=quiet)
-        try:
-            pulled = (pull or globals()["pull"])(base, quiet=quiet) is True
-        except Exception:                                    # noqa: BLE001
-            pulled = False
-        try:
-            os.makedirs(os.path.dirname(stamp), exist_ok=True)
-            with open(stamp, "w", encoding="utf-8") as fh:
-                fh.write("%f\n" % now)
-        except OSError:
-            pass
-    heard = []
-    for root in roots:
-        for rec in jobs.hear(root, now=now):
-            heard.append(dict(rec, workspace=atlas.identify(root) or root))
-        try:
-            woke = holds.wake(root, now=now)
-        except Exception:                                    # noqa: BLE001
-            woke = []
-        for rep in woke:
-            heard.append({"request": rep.get("id"), "state": "coach",
-                          "thread": rep.get("thread"),
-                          "workspace": atlas.identify(root) or root})
-    return pulled, interval, heard
 
 
 def main(argv=None):

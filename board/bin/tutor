@@ -13,12 +13,11 @@ message; nothing here starts one.
     tutor cost <session|subject> [--turns]
                                 one session, or every session on a subject
     tutor doctor [agent]        one real turn per provider: does it write a card?
-    tutor pull                  move vendor/colibri forward and commit the pointer
-    tutor pull --hear [--status]  pull every 20 s; hear the cluster's reports
+    tutor pull                  a fast-forward of Atlas, vendor checkouts along
     tutor relay ...             board/bin/relay: the cluster's relay (what scrontab runs)
-    tutor restart [--tutors] [--stale] [--wait] [--since T]
-                                restart every board here (and its tutor) on current code
-    tutor watch                 keep the boards and tutors here up, and repair what dies
+    tutor restart, tutor watch, tutor pull --hear
+                                refused: the LaunchAgent tutor-board keeps the one
+                                board server up, and the server hears the cluster
     tutor down [course]         stop serving here -- the boards, the tutors, the link
     tutor --list                the workspaces on disk
     tutor --agents [--json]     the provider, its fallback, and every recipe
@@ -40,6 +39,21 @@ from tutorboard.agents import doctor, recipes, usage
 from tutorboard.runner import daemon, watch
 
 RELAY = os.path.join(TOOL, "bin", "relay")
+
+# What `tutor restart`, `tutor watch` and `tutor pull --hear` say: one board
+# server, kept up by launchd, does what each of them did.
+LAUNCH_AGENT = (
+    "tutor %s is retired: one board server (board/serve.py) runs under the "
+    "LaunchAgent tutor-board, which starts it at login and again whenever it "
+    "exits. It restarts itself once committed board code changes and no turn "
+    "runs, and its cluster thread pulls and hears the cluster's reports. "
+    "To restart it now: launchctl kickstart -k gui/%d/tutor-board. "
+    "To install it: board/install.sh")
+
+
+def refuse_launch_agent(what):
+    print(LAUNCH_AGENT % (what, os.getuid()), file=sys.stderr)
+    return 2
 
 
 def cmd_agent(cfg, args):
@@ -306,45 +320,25 @@ def main(argv):
             args.append(a)
         i += 1
 
-    if args and args[0] in ("restart", "restart-boards"):
-        return watch.cmd_restart(cfg, args[1:])
-
-    # Spawned by `cmd_restart`, never typed. See `finish_restart`.
-    if args and args[0] == "finish-restart":
-        return watch.finish_restart(cfg, args[1:])
+    if args and args[0] in ("restart", "restart-boards", "finish-restart"):
+        return refuse_launch_agent(args[0])
 
     if args and args[0] == "relay":
         return cmd_relay(argv[argv.index("relay") + 1:])
 
     if args and args[0] == "watch":
-        return watch.cmd_watch(cfg, argv[argv.index("watch") + 1:])
+        return refuse_launch_agent("watch")
 
     if args and args[0] == "down":
         return watch.cmd_down(cfg, argv[argv.index("down") + 1:])
 
     if args and args[0] == "pull":
-        # What the daily timer runs. `resume` does this too, on login; this is
-        # the same routine with nothing else attached, so a timer never starts a
-        # board or hops to an allocation.
-        quiet = "--quiet" in argv
         if "--hear" in argv:
-            # The relay's half, which the timer runs every time it fires. On a
-            # machine with Slurm it does nothing: the relay pulls there.
-            pulled, interval, heard = gitops.hear_pass(
-                force="--force" in argv, quiet=quiet)
-            for rec in heard:
-                print("heard %s on %s: %s" % (rec.get("request"),
-                                              rec.get("workspace"),
-                                              str(rec.get("state")).lower()))
-            if "--status" in argv:
-                if pulled is None:
-                    print("this machine has Slurm; the relay pulls here")
-                else:
-                    print("pulls every %ds" % interval)
-            return 0
+            return refuse_launch_agent("pull --hear")
         # A plain fast-forward of Atlas. Only the cluster relay bumps vendor
         # pointers; the pull brings this machine's vendor checkouts along.
-        return 0 if gitops.pull(atlas.root(), quiet=quiet) is not False else 1
+        return 0 if gitops.pull(atlas.root(), quiet="--quiet" in argv) \
+            is not False else 1
 
     if args and args[0] == "cost":
         return cmd_cost(cfg, args[1:])

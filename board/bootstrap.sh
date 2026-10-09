@@ -35,7 +35,8 @@
 # `--no-clone` skips the submodules and the cloning; hooks are still set on
 # Atlas and on ai-config if it is already there.
 # `--private-only` runs the hook and ai-config steps and nothing else --
-# `tutor pull --hear` calls it so there is one copy of that logic.
+# the board server's cluster thread (`gitops.adopt_private`) calls it, so there
+# is one copy of that logic.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 

@@ -257,11 +257,13 @@ def turn_signal(out):
 REPAIR_KEEPS = ("unfinished", "handover", "rework", "revise", "ship", "writeup")
 
 
-def woken_for(root, out):
-    """`(signal, repair request ids)` for the batch `out`. Never raises."""
+def woken_for(root, out, inbox=None):
+    """`(signal, repair request ids)` for the batch `out`, read against the
+    session's inbox file `inbox` (else the one `root` resolves to). Never
+    raises."""
     signal = turn_signal(out)
     try:
-        repairs = jobs.batch_repairs(root, out)
+        repairs = jobs.batch_repairs(root, out, inbox)
     except Exception:                                        # noqa: BLE001
         repairs = []
     if repairs and signal not in REPAIR_KEEPS:

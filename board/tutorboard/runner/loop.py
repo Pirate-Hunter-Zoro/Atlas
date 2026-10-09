@@ -179,7 +179,8 @@ def take_turn(ctx, message):
     pending = None
     owe(ctx, out)
     ctx.turns += 1
-    this_signal, turn_repairs = turn.woken_for(root, out)
+    this_signal, turn_repairs = turn.woken_for(
+        root, out, ctx.repo.messages_path if getattr(ctx, "repo", None) else None)
     # `turn_started` is the runner's clock, and the board needs it: its own
     # measure of how long a turn has been going starts when it first SEES
     # the working state, which on a reload or a second device is nowhere

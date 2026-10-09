@@ -347,9 +347,10 @@ try:
 
     # --- the Mac pulls every twenty seconds --------------------------------------
     os.environ["TUTOR_SLURM"] = "0"
-    check("the Mac's pull is every twenty seconds in every state",
-          jobs.PULL_EVERY == 20 and not hasattr(jobs, "PULL_IDLE")
-          and not hasattr(jobs, "PULL_BUSY"))
+    from tutorboard import cluster as ear
+    check("the Mac's pull is the server's cluster thread, every twenty seconds",
+          ear.EVERY == 20 and not hasattr(jobs, "PULL_EVERY")
+          and not hasattr(jobs, "PULL_IDLE") and not hasattr(jobs, "PULL_BUSY"))
     src = read(os.path.join(ROOT, "tutorboard", "runner", "loop.py"))
     loop = src.split("\ndef take_turn(")[1].split("\ndef ")[0]
     check("the daemon's turn does not pull: the hear pass keeps the tree within "

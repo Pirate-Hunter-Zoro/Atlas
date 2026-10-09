@@ -5,6 +5,7 @@
     runner.end(sid)      End: queue the wrap-up turn
     runner.recover()     at startup: kill a turn that outlived its server, and
                          queue what each session is owed or has waiting
+    runner.quiesce()     stop taking jobs, only while none runs or waits
     runner.shutdown()    the server is stopping: kill the turns in flight
     wake(repo)           the installed runner's wake for a stored session;
                          False where nothing is installed (a CLI, a test)
@@ -374,6 +375,17 @@ class Runner(object):
         if lesson_cards.is_pending(meta):
             return loop.unfinished_line(owed, os.path.relpath(path, repo.root))
         return None
+
+    def quiesce(self):
+        """Stop taking jobs, but only while none runs or waits. True when
+        stopped: the server may then exit, and a line that lands after this
+        stays in its inbox for the next start's `recover`."""
+        with self.cv:
+            if self.running or any(self.queues.values()):
+                return False
+            self.stopping = True
+            self.cv.notify_all()
+            return True
 
     def shutdown(self):
         """The server is stopping: no further job starts, and every turn in

@@ -575,11 +575,11 @@ try:
     time.sleep = real_sleep
 
     ship_src = open(os.path.join(ROOT, "scripts", "ship.sh"), encoding="utf-8").read()
-    check("ship.sh waits on the stamps rather than reaching over ssh",
-          "tutor restart --tutors --stale --wait --since" in ship_src
-          and ship_src.index('SINCE="$(date +%s)"')
-          < ship_src.index("save-and-push.sh\" \"$MSG\"")
-          and "ssh" not in ship_src.split("tutor restart")[-1])
+    check("ship.sh restarts the LaunchAgent after the push, never over ssh",
+          'launchctl kickstart -k "$TARGET"' in ship_src
+          and ship_src.index("save-and-push.sh\" \"$MSG\"")
+          < ship_src.index('launchctl kickstart -k "$TARGET"')
+          and "ssh" not in ship_src)
     watch_src = open(os.path.join(ROOT, "tutorboard", "runner", "watch.py"),
                      encoding="utf-8").read()
     check("the beat runs inside the watch pass, before the address is checked",

@@ -36,7 +36,8 @@ sys.path.insert(0, ROOT)
 os.environ["TUTOR_SLURM"] = "0"
 box = tempfile.mkdtemp(prefix="tutor-repair-state-")
 os.environ["BOARD_STATE_DIR"] = box
-from tutorboard import jobs                                            # noqa: E402
+os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
+from tutorboard import jobs, sessions                                  # noqa: E402
 from tutorboard.course import threads                                  # noqa: E402
 
 TUTOR = os.path.join(ROOT, "bin", "tutor")
@@ -291,14 +292,19 @@ try:
     git(top, "config", "user.email", "t@example.com")
     git(top, "config", "user.name", "t")
     ws = os.path.join(top, "projects", "Proj")
+    write(os.path.join(top, ".gitignore"), "/sessions/\n")
     write(os.path.join(ws, ".gitignore"), "live/\nrelay/state/\n")
     write(threads.path(ws), json.dumps(SPINE))
     write(os.path.join(ws, "tutorboard.json"),
           json.dumps({"name": "Proj", "check": CHECK}))
     write(os.path.join(ws, "slurm", "sweep.sbatch"), SWEEP)
     write(os.path.join(ws, "slurm", "diagnose.sbatch"), DIAGNOSE)
+    # The session the request was filed from: the report wakes it (D16).
+    sid = sessions.new("repairs", base=top)["id"]
+    sessions.bind(sid, "projects/Proj", base=top)
+    where = sessions.path(sid, top)
     write(os.path.join(ws, "relay", "requests", ORIGIN + ".json"),
-          json.dumps(FIRST))
+          json.dumps(dict(FIRST, session=sid)))
     write(os.path.join(ws, "live", "state.json"),
           json.dumps({"course": "Proj", "session": "lecture"}))
     git(top, "add", "-A")
@@ -310,9 +316,15 @@ try:
     git(top, "add", "-A")
     git(top, "commit", "-q", "-m", "relay report")
     heard = jobs.hear(ws, now=500.0)
-    with open(os.path.join(ws, "live", "inbox", "messages.jsonl"),
-              encoding="utf-8") as fh:
-        msgs = [json.loads(l) for l in fh if l.strip()]
+    # This process reads the session the way a turn's `board` does: bound.
+    from tutorboard.course import repo as course_repo
+    os.environ["TUTORBOARD_SESSION"] = where
+    course_repo.resolve(ws)
+    del os.environ["TUTORBOARD_SESSION"]
+    inbox = os.path.join(where, "inbox", "messages.jsonl")
+    with open(inbox, encoding="utf-8") as fh:
+        msgs = [m for m in (json.loads(l) for l in fh if l.strip())
+                if m.get("signal") != "bind"]
     check("the pulled failure drops one [repair] line, signalled repair, "
           "carrying its request",
           [h["request"] for h in heard] == [ORIGIN] and len(msgs) == 1
@@ -331,14 +343,15 @@ try:
     def brief_now():
         p = subprocess.run([sys.executable, BOARD, "brief"], cwd=ws,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=120, env=dict(os.environ))
+                           timeout=120,
+                           env=dict(os.environ, TUTORBOARD_SESSION=where))
         return p.returncode, p.stdout.decode("utf-8", "replace")
 
     code, plain = brief_now()
     check("`board brief` outside a repair turn says nothing of it",
           code == 0 and "REPAIRS A FAILED" not in plain
           and "mode: teach" in plain)
-    write(os.path.join(ws, "live", "agent.json"), json.dumps(
+    write(os.path.join(where, "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "repair"}))
     code, out = brief_now()
@@ -357,25 +370,25 @@ try:
     taught = plain.split("--- the method", 1)[-1]
     check("and the sitting's sense is the doing one, not the lesson's",
           doing != taught)
-    write(os.path.join(ws, "live", "agent.json"), json.dumps(
+    write(os.path.join(where, "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "job"}))
     code, out = brief_now()
     check("a [job] turn in the same workspace is not briefed as a repair",
           code == 0 and "REPAIRS A FAILED" not in out)
-    os.remove(os.path.join(ws, "live", "agent.json"))
+    os.remove(os.path.join(where, "agent.json"))
 
     # --- a batch: any [repair] in it makes the turn a repair, naming each -----------
     SECOND = dict(FIRST, id="2026-10-02-tripod-sweep", thread="tripod",
-                  filed=150.0)
+                  filed=150.0, session=sid)
     write(os.path.join(ws, "relay", "requests", SECOND["id"] + ".json"),
           json.dumps(SECOND))
     write(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"),
           json.dumps(dict(FAILED, id=SECOND["id"])))
     threads._cache.clear()
-    inbox = os.path.join(ws, "live", "inbox", "messages.jsonl")
     with open(inbox, encoding="utf-8") as fh:
-        kept = [json.loads(l) for l in fh if l.strip()]
+        kept = [m for m in (json.loads(l) for l in fh if l.strip())
+                if m.get("signal") != "bind"]
     student = {"id": "s1", "rev": 0, "kind": "text", "answers": None,
                "t": 400.0, "iso": "2026-10-02 22:19:00", "from": "student",
                "text": "can you look at the knn figure?", "read": False}
@@ -387,7 +400,8 @@ try:
               signal=jobs.REPAIR)
     p = subprocess.run([sys.executable, BOARD, "inbox"], cwd=ws,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                       timeout=120)
+                       timeout=120,
+                       env=dict(os.environ, TUTORBOARD_SESSION=where))
     batch = p.stdout.decode("utf-8", "replace")
     signal, rids = runturn.woken_for(ws, batch)
     check("a batch whose first message is the student's, with two [repair] "
@@ -395,6 +409,13 @@ try:
           "repair and names both requests",
           runturn.turn_signal(batch) == "" and signal == "repair"
           and rids == [ORIGIN, SECOND["id"]])
+    saved = dict(course_repo._BOUND)
+    course_repo._BOUND.clear()
+    check("the server, which binds no session, reads the repairs off the "
+          "turn's own session inbox",
+          runturn.woken_for(ws, batch, inbox) == ("repair", rids)
+          and runturn.woken_for(ws, batch)[1] == [])
+    course_repo._BOUND.update(saved)
     check("a signal with machinery of its own is kept, the repairs still named",
           runturn.woken_for(ws, "[2026-10-02 22:18:00] [ship] a mission "
                              "finished\n" + batch) == ("ship", rids))
@@ -403,7 +424,7 @@ try:
                                         "deck\n" + batch) == ("revise", rids))
     check("a batch with no [repair] in it is what turn_signal says",
           runturn.woken_for(ws, "[2026-10-02 22:19:00] hello") == ("", []))
-    write(os.path.join(ws, "live", "agent.json"), json.dumps(
+    write(os.path.join(where, "agent.json"), json.dumps(
         {"state": "working", "mode": "headless", "pid": os.getpid(),
          "turn_signal": "ship", "turn_repairs": rids}))
     code, out = brief_now()
@@ -414,7 +435,7 @@ try:
           and "request  %s" % ORIGIN in out
           and "request  %s" % SECOND["id"] in out
           and "report   relay/reports/%s.json" % SECOND["id"] in out)
-    os.remove(os.path.join(ws, "live", "agent.json"))
+    os.remove(os.path.join(where, "agent.json"))
     os.remove(os.path.join(ws, "relay", "requests", SECOND["id"] + ".json"))
     os.remove(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"))
     threads._cache.clear()

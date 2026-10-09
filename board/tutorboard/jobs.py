@@ -1253,11 +1253,13 @@ def _repair_lines(root, rid, rec, recs):
     return out
 
 
-def _messages(root):
+def _messages(root, path=None):
+    """The inbox lines of the session at `root` (`path`, where the caller
+    holds its session's inbox: the server runs every session at once)."""
     from .course.repo import Repo
     out = []
     try:
-        with open(Repo(root).messages_path, "r", encoding="utf-8") as fh:
+        with open(path or Repo(root).messages_path, "r", encoding="utf-8") as fh:
             for line in fh:
                 try:
                     msg = json.loads(line)
@@ -1273,18 +1275,19 @@ def _messages(root):
 _STAMP_RE = re.compile(r"^(\[[^\]\n]*\]\s*)(?:\[carry\]\s*)?")
 
 
-def batch_repairs(root, out):
+def batch_repairs(root, out, path=None):
     """The requests of every `[repair]` message in the batch `out`, the text
     `board inbox` printed for one turn, in order. A message is in the batch
     where its first printed line, `[<iso>] <text>`, is a line of `out`; a
-    `[carry]` tag after the stamp is read through."""
+    `[carry]` tag after the stamp is read through. `path` is the session's
+    inbox, as for `_messages`."""
     printed = set()
     for line in (out or "").splitlines():
         m = _STAMP_RE.match(line.strip())
         if m:
             printed.add(m.group(1).strip() + " " + line.strip()[m.end():])
     rids = []
-    for msg in _messages(root):
+    for msg in _messages(root, path):
         if msg.get("signal") != REPAIR:
             continue
         text = str(msg.get("text") or "").splitlines()
@@ -1375,8 +1378,8 @@ def sense(root, rec):
 
 
 def drop(root, rec, now=None, text=None, signal="job"):
-    """Put the `[job]` line in the inbox, where the next turn takes it,
-    through `cluster.wake`.
+    """Put the `[job]` line where `cluster.wake` routes it: the filing
+    session's inbox, which wakes a turn, else a home notice.
 
     `text` and `signal` put another machinery line the same way: a failure to
     repair is `[repair]`. A relay record's request id and session ride along,
@@ -2123,12 +2126,14 @@ def commit_alone(root, target, what, push=True):
 # the Mac hears the cluster
 # ---------------------------------------------------------------------------
 # A REPORT A PULL BROUGHT TO AN END DROPS THE SAME `[job]` LINE A LOCAL ENDING
-# DOES, in the same inbox, so the same turn takes it and
-# `turn_signal` reads it as `job` -- or as `repair`, for a failure the Mac
-# repairs (`repairs`). Nothing else wakes a turn for the relay.
+# DOES, through `cluster.wake`: into the filing session's inbox, or a home
+# notice where no session filed it. `turn_signal` reads it as `job` -- or as
+# `repair`, for a failure the Mac repairs (`repairs`). Nothing else wakes a
+# turn for the relay. The board server's cluster thread (`cluster.Ear`) calls
+# `hear` for every subject on every pass.
 #
 # "Brought by a pull" is read off git, not off the pull: whichever process
-# moved HEAD -- the timer, a hand `git pull` -- the next
+# moved HEAD -- the cluster thread, a hand `git pull` -- the next
 # `hear` diffs `relay/reports/` from the commit it last heard to HEAD. A fresh
 # clone hears nothing of the reports it arrived with: the first `hear` records
 # HEAD and says nothing. Each ending is claimed once per (request, state), so
@@ -2136,12 +2141,6 @@ def commit_alone(root, target, what, push=True):
 
 ENDED_REPORTS = ("refused", "completed", "failed")
 HEARD = "relay.heard"
-
-# The pull's cadence on a machine without Slurm: every twenty seconds in every
-# state, so a turn never runs on a tree more than twenty seconds stale and a
-# cluster commit is here within one relay pass and one poll. The timer fires
-# every twenty seconds and `pull_due` decides.
-PULL_EVERY = 20
 
 
 def _named(rec, name):
@@ -2158,17 +2157,6 @@ def outstanding(root, tid=None):
            and not exports.finished(r)]
     out.sort(key=lambda r: float(r.get("submitted") or 0))
     return out
-
-
-# A timer's fire drifts by a few seconds; without the slack a two-minute
-# cadence on a two-minute timer would pull every four.
-PULL_SLACK = 15
-
-
-def pull_due(last, now, interval):
-    """Is a pull due? A stamp from the future (a clock moved) is due too."""
-    last, now = float(last or 0), float(now)
-    return last <= 0 or last > now or now - last >= interval - PULL_SLACK
 
 
 def _when(value):

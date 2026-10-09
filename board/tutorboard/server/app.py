@@ -8,6 +8,19 @@ re-points it. A session's Repo and Hub are made on first use and dropped when
 idle (`registry.py`). The runner (`runner/service.py`) takes every turn in this
 process: started here after `recover`, and on SIGTERM it kills the turns in
 flight, whose messages stay owed for the next start.
+
+Two more threads, each switched on by the LaunchAgent's environment
+(`scripts/launchd/tutor-board.plist`), so a server started by hand or by a
+test runs neither:
+
+  * `TUTORBOARD_CLUSTER=1`: the cluster thread (`cluster.Ear`), which pulls
+    when origin's main moves and hears every subject's reports.
+  * `TUTORBOARD_FRESH=1`: the freshness thread. Once committed board code
+    differs from what this process loaded (`stamp.moved`) and no turn runs
+    or waits, the server stops listening and exits 0; launchd (KeepAlive)
+    starts it again on the new code.
+
+The boot line names the code stamp this process loaded.
 """
 
 import os
@@ -16,9 +29,10 @@ import signal
 import socketserver
 import sys
 import threading
+import time
 from http.server import ThreadingHTTPServer
 
-from .. import jobs, paths, subjects
+from .. import cluster, jobs, paths, stamp, subjects
 from ..runner import service
 from .handler import Handler
 from . import spawn
@@ -90,6 +104,30 @@ def slurm_here():
     return jobs.has_slurm() or shutil.which("sbatch") is not None
 
 
+# How often the freshness thread asks git whether the committed code moved.
+FRESH_EVERY = 5.0
+
+
+def watch_fresh(httpd, runner, every=FRESH_EVERY, say=None):
+    """The freshness thread: once `stamp.moved()` says why and the runner
+    stops with nothing running or queued, stop the listener so `main`
+    returns 0. Returns the reason."""
+    say = say or (lambda msg: (sys.stderr.write(msg + "\n"), sys.stderr.flush()))
+    while True:
+        time.sleep(every)
+        try:
+            why = stamp.moved()
+        except Exception:                                    # noqa: BLE001
+            why = None
+        if not why or not runner.quiesce():
+            continue
+        say("board: %s and no turn runs; exiting 0 for launchd to start the "
+            "new code" % why)
+        httpd.fresh = why
+        httpd.shutdown()
+        return why
+
+
 def main(argv):
     if slurm_here():
         sys.stderr.write("serve.py: this is a Slurm host, and the board never runs "
@@ -97,6 +135,7 @@ def main(argv):
         return 2
     atlas, port, host = parse(argv)
     httpd = make_server(atlas, port, host)
+    httpd.fresh = None
     runner = service.install(service.Runner(atlas, port=httpd.server_port))
     queued = runner.recover()
     runner.start()
@@ -110,11 +149,25 @@ def main(argv):
     # a test tree (`--atlas`) leaves it off.
     if os.path.realpath(atlas) == os.path.realpath(subjects.root()):
         threading.Thread(target=spawn.sweep_missions, daemon=True).start()
-    sys.stderr.write("board listening on http://%s:%d/ for %s; %d turn(s) at "
-                     "once%s\n" % (host, httpd.server_port, atlas, runner.concurrency,
-                                  "; recovered %s" % ", ".join(queued) if queued else ""))
+    threads = []
+    if os.environ.get("TUTORBOARD_CLUSTER") == "1":
+        cluster.Ear(atlas).start()
+        threads.append("cluster")
+    if os.environ.get("TUTORBOARD_FRESH") == "1":
+        threading.Thread(target=watch_fresh, args=(httpd, runner),
+                         name="fresh", daemon=True).start()
+        threads.append("fresh")
+    sys.stderr.write("board listening on http://%s:%d/ for %s; code %s; pid %d; "
+                     "%d turn(s) at once%s%s\n" % (
+                         host, httpd.server_port, atlas, stamp.LOADED or "unknown",
+                         os.getpid(), runner.concurrency,
+                         "; threads: %s" % ", ".join(threads) if threads else "",
+                         "; recovered %s" % ", ".join(queued) if queued else ""))
     sys.stderr.flush()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         runner.shutdown()
+        return 0
+    runner.shutdown()
+    return 0

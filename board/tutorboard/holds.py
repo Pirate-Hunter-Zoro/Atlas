@@ -63,10 +63,6 @@ HOLDS = "holds"
 COACH = "coach"
 CHECK_PREFIX = "check-"
 
-# The Mac's pull cadence while any hold stands. A step's round trip is this,
-# a turn, and a push back: a minute or two.
-POLL_SECONDS = 20
-
 # How long `board send` waits for the coach's reply, and how often it looks.
 WAIT_SECONDS = 180
 WAIT_EVERY = 10
@@ -128,17 +124,6 @@ def checks(root, hid):
 def next_step(root, hid):
     done = checks(root, hid)
     return (int(done[-1].get("step") or 0) + 1) if done else 1
-
-
-def held_anywhere(roots):
-    """Does any of these workspaces have a hold standing? The Mac's pull runs
-    every `POLL_SECONDS` while one does."""
-    return any(holds(r) for r in roots or [])
-
-
-def poll_seconds(roots, usual):
-    """The Mac's pull cadence: `POLL_SECONDS` while a hold stands, else `usual`."""
-    return POLL_SECONDS if held_anywhere(roots) else usual
 
 
 def owned(root):
@@ -1071,8 +1056,9 @@ def wake(root, now=None):
     """Drop a `[coach]` line for each hold's newest step check that has not
     woken a turn and has no reply yet. The reports dropped for.
 
-    Item 4's pull calls this after every pull, beside its `[job]` wake. A
-    check report on a hold no longer standing wakes nothing.
+    The board server's cluster thread calls this on every pass, beside
+    `jobs.hear`; the line goes through `cluster.wake`. A check report on a
+    hold no longer standing wakes nothing.
     """
     out = []
     for hid in sorted(holds(root)):
