@@ -5,18 +5,17 @@ The owner could not find their own homework, and every part of why was
 measured. The menu's documents panel listed exactly two -- the last lesson
 exported and the last write-up compiled -- which is a record of the last thing
 BUILT rather than an inventory. The map of a book course drew no document boxes
-at all. And `library.documents` on a course with forty-four compiled PDFs
-reported three, because a course keeps its sources in `homework/` and `notes/`
-and its PDFs one directory away in `build/`, and `build` is in `reading.IGNORE`.
+at all. A source and the PDF `board build` writes beside it are one document;
+a PDF left in a `build/` directory is nobody's, and `build` is in
+`reading.IGNORE`.
 
 So this checks the three claims the drawer rests on, and they are claims about
 DERIVATION rather than about a record anybody keeps:
 
-  * THE SOURCE AND THE PDF IT BUILDS INTO ARE ONE DOCUMENT. The pairing adds no
+  * THE SOURCE AND THE PDF BESIDE IT ARE ONE DOCUMENT. Building adds no
     document and renames none: an id is what ink is anchored on, and a walk that
     starts handing out different ones puts last week's marks on a different
-    page. Taking `build` out of `IGNORE` is the answer that looks simpler and
-    does exactly that, which is why it is not the answer.
+    page. A PDF in a `build/` directory pairs with nothing.
   * WHICH BOX IS READ OFF THE PATH, EVERY TIME. Nothing is registered: no index
     file, no sidecar. A document that moves belongs to a different box on the
     next read and one that is deleted stops existing.
@@ -98,11 +97,12 @@ def book(root):
           "05\t21\t40\tgalois\tGalois groups\n")
 
     ch4 = os.path.join(root, "chapters", "ch04-field-extensions")
-    # The write-up and the PDF the course's own build script leaves one
-    # directory across from it. This is the pair the library could not see.
+    # The write-up and the PDF `board build` writes beside it.
     write(os.path.join(ch4, "homework", "ch04-homework.tex"),
           "\\title{Chapter 4 homework}\n")
-    pdf(os.path.join(ch4, "build", "ch04-homework.pdf"))
+    pdf(os.path.join(ch4, "homework", "ch04-homework.pdf"))
+    # A stale build of the notes left where an old build script put it.
+    pdf(os.path.join(ch4, "build", "ch04-notes.pdf"))
     # Written and never compiled.
     write(os.path.join(ch4, "notes", "ch04-notes.tex"),
           "\\title{Chapter 4 notes}\n")
@@ -113,13 +113,13 @@ def book(root):
     ch5 = os.path.join(root, "chapters", "ch005-galois-groups")
     write(os.path.join(ch5, "homework", "ch05-homework.tex"),
           "\\title{Chapter 5 homework}\n")
-    pdf(os.path.join(ch5, "build", "ch05-homework.pdf"))
+    pdf(os.path.join(ch5, "homework", "ch05-homework.pdf"))
     write(os.path.join(ch5, "notes", "ch05-notes.tex"),
           "\\title{Chapter 5 notes}\n")
 
     hw1 = os.path.join(root, "homework", "hw01")
     write(os.path.join(hw1, "hw01.tex"), "\\title{Set one}\n")
-    pdf(os.path.join(hw1, "build", "hw01.pdf"))
+    pdf(os.path.join(hw1, "hw01.pdf"))
     # The sheet the professor handed out, under the set's own directory.
     pdf(os.path.join(hw1, "assignment", "sheet.pdf"))
 
@@ -135,20 +135,20 @@ def book(root):
     write(os.path.join(ws1, "worksheet-fields.tex"),
           "%  Worksheet --- Field Extensions and the Ring F[x]\n"
           "\\title{Worksheet --- Field Extensions and the Ring F[x]}\n")
-    pdf(os.path.join(ws1, "build", "worksheet-fields.pdf"))
+    pdf(os.path.join(ws1, "worksheet-fields.pdf"))
     #   names two chapters' slugs and therefore neither -- a wrong chapter is
     #   worse than none, so this one stays on its own box.
     ws2 = os.path.join(root, "homework", "worksheet-fields-galois")
     write(os.path.join(ws2, "worksheet-fields-galois.tex"),
           "%  Worksheet --- Both At Once\n"
           "\\title{Worksheet --- Both At Once}\n")
-    pdf(os.path.join(ws2, "build", "worksheet-fields-galois.pdf"))
+    pdf(os.path.join(ws2, "worksheet-fields-galois.pdf"))
     #   says so itself, which is the escape hatch for a slug that says nothing.
     ws3 = os.path.join(root, "homework", "extra-problems")
     write(os.path.join(ws3, "extra-problems.tex"),
           "%  Extra Problems\n% chapter: 5\n"
           "\\title{Extra Problems}\n")
-    pdf(os.path.join(ws3, "build", "extra-problems.pdf"))
+    pdf(os.path.join(ws3, "extra-problems.pdf"))
 
     # In no box: the plan, and the book itself.
     write(os.path.join(root, "docs", "plan-of-attack.tex"), "\\title{The plan}\n")
@@ -175,20 +175,21 @@ try:
     os.makedirs(plain)
 
     # ---------------------------------------------------------------- 1
-    # THE SOURCE PAIRED WITH THE PDF ONE DIRECTORY AWAY, and the pairing costs
-    # no id. The tree is built twice: once with the `build/` output deleted, to
-    # take the ids the library hands out when it can see only sources, and then
-    # again with it there.
+    # THE SOURCE PAIRED WITH THE PDF BESIDE IT, and the pairing costs no id.
+    # The tree is read twice: once with the built PDFs deleted, to take the ids
+    # the library hands out when it can see only sources, and then again with
+    # them there.
     book(course)
-    builds = [os.path.join(course, "chapters", "ch04-field-extensions", "build"),
-              os.path.join(course, "chapters", "ch005-galois-groups", "build"),
-              os.path.join(course, "homework", "hw01", "build")]
+    builds = [os.path.join(course, "chapters", "ch04-field-extensions",
+                           "homework", "ch04-homework.pdf"),
+              os.path.join(course, "chapters", "ch005-galois-groups",
+                           "homework", "ch05-homework.pdf"),
+              os.path.join(course, "homework", "hw01", "hw01.pdf")]
     kept = {}
-    for d in builds:
-        for name in os.listdir(d):
-            with open(os.path.join(d, name), "rb") as fh:
-                kept[os.path.join(d, name)] = fh.read()
-        shutil.rmtree(d)
+    for f in builds:
+        with open(f, "rb") as fh:
+            kept[f] = fh.read()
+        os.remove(f)
 
     fresh()
     before = dict((r["id"], r["rel"]) for r in library.documents(course))
@@ -208,9 +209,9 @@ try:
               if r["source"] == "chapters/ch04-field-extensions/homework/"
                                 "ch04-homework.tex"][0]
 
-    check("a source in a unit's homework/ pairs with the PDF in its build/",
+    check("a source in a unit's homework/ pairs with the PDF beside it",
           ch04hw["pdf"] and ch04hw["rel"]
-          == "chapters/ch04-field-extensions/build/ch04-homework.pdf")
+          == "chapters/ch04-field-extensions/homework/ch04-homework.pdf")
     check("and the pairing adds no document and loses none (%d)" % len(after),
           set(before) == set(after))
     check("and changes no id: what the ink is anchored on does not move",
@@ -220,15 +221,14 @@ try:
           "source to the compiled PDF" % len(moved),
           sorted(moved) == sorted(i for i in unbuilt if got[i]["pdf"])
           and len(moved) == 3)
-    check("a source with no PDF anywhere is still a document, and says it has "
-          "none",
+    check("a source whose only PDF is in a build/ directory is still a "
+          "document, and says it has none",
           by_rel(course)["chapters/ch04-field-extensions/notes/ch04-notes.tex"]
           ["pdf"] is False)
-    check("and `/library/view` can reach a paired PDF, which it could not when "
-          "it built the path from the source's own directory",
+    check("and `/library/view` reaches the PDF beside the source",
           library.path_of(course, ch04hw, ".pdf")
           == os.path.join(course, "chapters", "ch04-field-extensions",
-                          "build", "ch04-homework.pdf"))
+                          "homework", "ch04-homework.pdf"))
 
     # ---------------------------------------------------------------- 2
     # WHICH BOX, READ OFF THE PATH.
@@ -237,7 +237,7 @@ try:
     shelved = by_rel(course)
 
     check("a set's compiled write-up lands on the set's own box",
-          shelved["chapters/ch04-field-extensions/build/ch04-homework.pdf"]
+          shelved["chapters/ch04-field-extensions/homework/ch04-homework.pdf"]
           ["node"] == "hw-ch04")
     check("and so does a sheet sitting inside the set's directory",
           shelved["homework/hw01/assignment/sheet.pdf"]["node"] == "hw-hw01")
@@ -353,7 +353,7 @@ try:
           shelved["homework/hw01/assignment/sheet.pdf"]["theirs"] is True)
     check("what this course wrote itself is not tagged",
           not any(shelved[r]["theirs"] for r in
-                  ["chapters/ch04-field-extensions/build/ch04-homework.pdf",
+                  ["chapters/ch04-field-extensions/homework/ch04-homework.pdf",
                    "docs/plan-of-attack.tex",
                    "textbook/a-course-in-galois-theory.pdf"]))
     check("and nothing was taken out of the shared lists to do it: `build` is "
@@ -389,13 +389,13 @@ try:
     target, stem = shelf.find(course, "ch04-homework")
     check("find() resolves a sid this module handed out to the file it names",
           target == os.path.join(course, "chapters", "ch04-field-extensions",
-                                 "build", "ch04-homework.pdf")
+                                 "homework", "ch04-homework.pdf")
           and stem == "ch04-homework")
     check("a sid that is not one of ours resolves to nothing",
           shelf.find(course, "not-a-document") == (None, None))
     check("and neither does a path, however it is spelled",
           shelf.find(course, "../../etc/passwd") == (None, None)
-          and shelf.find(course, "chapters/ch04-field-extensions/build/"
+          and shelf.find(course, "chapters/ch04-field-extensions/homework/"
                                  "ch04-homework.pdf") == (None, None)
           and shelf.find(course, "") == (None, None))
     check("a document with no compiled PDF refuses to be opened, rather than "

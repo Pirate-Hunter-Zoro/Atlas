@@ -47,6 +47,7 @@ build/
 *.fdb_latexmk
 *.synctex.gz
 *.vrb
+*.out
 # Built PDFs, where documents are built. A PDF already tracked stays tracked.
 /courses/**/*.pdf
 /projects/*/docs/**/*.pdf

@@ -305,13 +305,10 @@ def main():
     else:
         bad("Letter was not honoured")
 
-    # --- where a build actually puts the write-up ---------------------------
+    # --- where a build puts the write-up -------------------------------------
     #
-    # The layout that broke it, exactly as Galois-Theory has it: the source in
-    # `chapters/ch03-rings/homework/`, the PDF one level up in
-    # `chapters/ch03-rings/build/`, because `scripts/build.sh` walks to the
-    # nearest unit directory and compiles there. Every previous guess looked in
-    # `homework/build/`, which does not exist.
+    # `board build` writes the PDF beside its source under the source's name.
+    # A PDF anywhere else -- a chapter's old `build/` -- is not this source's.
     with tempfile.TemporaryDirectory() as tmp:
         root = os.path.join(tmp, "Galois-Theory")
         hw_dir = os.path.join(root, "chapters", "ch03-rings", "homework")
@@ -320,46 +317,23 @@ def main():
         os.makedirs(build_dir)
         tex_path = os.path.join(hw_dir, "ch03-homework.tex")
         open(tex_path, "w", encoding="utf-8").write("\\documentclass{article}\n")
-        # The reading for the same chapter, in the same folder, compiled first.
-        open(os.path.join(build_dir, "ch03-notes.pdf"), "wb").write(b"%PDF-1.4\n")
+        open(os.path.join(hw_dir, "ch03-notes.pdf"), "wb").write(b"%PDF-1.4\n")
+        open(os.path.join(build_dir, "ch03-homework.pdf"), "wb").write(b"%PDF-1.4\n")
 
         if homework.compiled_pdf(root, tex_path) is None:
-            ok("a write-up that has not been compiled has no PDF")
+            ok("a write-up not built beside its source has no PDF, whatever "
+               "sits in build/ or under another name")
         else:
             bad("something was offered as the write-up before it was built: %r"
                 % homework.compiled_pdf(root, tex_path))
 
-        want = os.path.join(build_dir, "ch03-homework.pdf")
+        want = os.path.join(hw_dir, "ch03-homework.pdf")
         open(want, "wb").write(b"%PDF-1.4\n")
         got = homework.compiled_pdf(root, tex_path)
         if got and os.path.samefile(got, want):
-            ok("and once it is built it is found in the chapter's build/, which "
-               "is where the build put it")
+            ok("and once it is built it is found beside its source")
         else:
-            bad("the write-up's PDF was not found (%r); this is the defect that "
-                "recorded pdf: null on a build that had just succeeded" % (got,))
-
-        # The chapter's reading is not the write-up. A glob returning whichever
-        # PDF came first hands somebody the notes for an evening they spent
-        # writing up exercises.
-        os.remove(want)
-        got = homework.compiled_pdf(root, tex_path)
-        if got is None:
-            ok("and the chapter's reading is never mistaken for the write-up")
-        else:
-            bad("with no write-up compiled it offered %r" % (got,))
-
-        # The other layout in the wild: the source and the PDF side by side.
-        flat = os.path.join(root, "homework", "hw04")
-        os.makedirs(flat)
-        flat_tex = os.path.join(flat, "hw04.tex")
-        open(flat_tex, "w", encoding="utf-8").write("\\documentclass{article}\n")
-        open(os.path.join(flat, "hw04.pdf"), "wb").write(b"%PDF-1.4\n")
-        got = homework.compiled_pdf(root, flat_tex)
-        if got and os.path.basename(got) == "hw04.pdf":
-            ok("and a course that compiles beside the source is found too")
-        else:
-            bad("the flat layout's PDF was not found: %r" % (got,))
+            bad("the write-up's PDF was not found beside its source: %r" % (got,))
 
     print()
     if fails:

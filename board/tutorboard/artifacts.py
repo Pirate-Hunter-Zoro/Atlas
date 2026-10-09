@@ -246,6 +246,11 @@ def list(root):                                              # noqa: A001
         rec = read(d)
         if rec:
             out.append(_entry(root, d, rec))
+    # A hand-made `docs/` holding its own documents is placed in place, with
+    # doc.json in `docs/` itself; the walk below never enters `docs/`.
+    rec = read(top)
+    if rec and rec.get("source"):
+        out.append(_entry(root, top, rec))
     for here, dirs, files in os.walk(root):
         rel = os.path.relpath(here, root)
         depth = 0 if rel == "." else rel.count(os.sep) + 1
