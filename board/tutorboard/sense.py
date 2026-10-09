@@ -84,7 +84,8 @@ PLAIN_SENSE = (
     "`$$...$$`. A Greek letter spelled out, a sum written `sum_i`, a product "
     "written as the letter `x`: it reaches the glass as ugly source.\n"
     # Two of the rules above are a door rather than a request, for the reason
-    # HANDOFF.md reached eleven times its cap while a prompt asked nicely: see
+    # the old handoff file reached eleven times its cap while a prompt asked
+    # nicely: see
     # `tutorboard/plain.py`. A turn is told the numbers here so it writes the
     # card once, rather than discovering them from a refusal.
     "TWO OF THOSE ARE A DOOR, NOT A REQUEST: `board write` refuses a card over "
@@ -535,8 +536,8 @@ REVISE_SENSE = (
     "bottom of that feedback file. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
-    "exactly as you found them."
+    "archive a sitting, and leave the session's state and its cards exactly as "
+    "you found them."
 )
 
 
@@ -659,8 +660,8 @@ REWORK_SENSE = (
     "order and its sections are yours to change. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
-    "archive a sitting, and leave the session's state, its cards and HANDOFF.md "
-    "exactly as you found them."
+    "archive a sitting, and leave the session's state and its cards exactly as "
+    "you found them."
 )
 
 
@@ -690,7 +691,7 @@ WRITEUP_ASK_SENSE = (
     "Write it, build it, and end the turn. It appears in the LIBRARY, which is "
     "where they will read it and say what is wrong with it.\n\n"
     "**Write no card.** Do not run `board write`, do not run `board open`, and "
-    "do not touch the session's state, its cards or `HANDOFF.md`. The lesson on "
+    "do not touch the session's state or its cards. The lesson on "
     "this board belongs to somebody's evening, and its mode has not changed: "
     "leave every part of it exactly as you found it. End the turn when the "
     "document is written and built.\n\n"

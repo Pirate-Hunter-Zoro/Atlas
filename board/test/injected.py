@@ -184,7 +184,7 @@ try:
           argv[-1].startswith("=== THE RECAP") and "=== THE BRIEF" not in argv[-1]
           and "The recap of the lesson is above" in argv[-1])
 
-    # --- the wrap-up reads the recap above its prompt ---------------------
+    # --- the wrap-up reads the brief and the recap above its prompt ---------
     configure("plain")
     ctx = ctx_for("plain")
     try:
@@ -192,10 +192,12 @@ try:
     finally:
         ctx.log.close()
     prompt = last_call()[-1]
-    check("the wrap-up is handed the recap and told not to fetch it",
-          prompt.startswith("=== THE RECAP") and "=== THE BRIEF" not in prompt
+    check("the wrap-up is handed the brief, with TUTOR.md, and the recap, and "
+          "told to fetch neither",
+          prompt.startswith("=== THE BRIEF") and "=== THE RECAP" in prompt
           and "This session is ending now" in prompt
-          and "Do not run `board recap`" in prompt
+          and "Do not run `board brief` or `board recap`" in prompt
+          and "`board memo <section>`" in prompt
           and "Run `board recap`" not in prompt)
 
     # --- the size guard ----------------------------------------------------

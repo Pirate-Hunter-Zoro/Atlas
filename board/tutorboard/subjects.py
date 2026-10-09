@@ -156,6 +156,12 @@ def identify(path, base=None):
     return name
 
 
+def prefix(path, base=None):
+    """What leads a commit message made from `path`: the subject's slug (the
+    directory's name) for a subject, else the bare name `identify` gives."""
+    return identify(path, base).split("/")[-1]
+
+
 def kind_of(path, base=None):
     """`course` or `project` for a path inside a subject, else ""."""
     base = _base(base)
@@ -419,7 +425,7 @@ def delete_material(root, name, idents=(), now=None):
         len(ink), "" if len(ink) == 1 else "s") if ink else "")
     if tracked:
         ok, out = gitops.commit(top, [os.path.relpath(full, top)],
-                                "%s: delete %s" % (identify(root, top), rel))
+                                "%s: delete %s" % (prefix(root, top), rel))
         said += "\n" + out
         if not ok:
             raise Refused(said)

@@ -30,9 +30,6 @@ The assistant runs these. The student never does.
                                        --append adds to it. Refuses a file over
                                        800 words. Never writes RULES.md
     board memo --show                  print TUTOR.md
-    board handoff < handoff.md         write HANDOFF.md at session end, <=350 words,
-                                       stamped with its chapter. The only writer.
-    board handoff --show|--check       read it, or say how long it is
     board job [--label <slug>] [--session <id>] [--produces <p>]
               [--export <p>] [--fixes <id>] [--fresh] -- <recipe> [VAR=v ...]
                                        long work, reporting itself: with
@@ -64,11 +61,6 @@ The assistant runs these. The student never does.
     board deckfig <deck dir> <subject> <id>
                                        copy one more figure into a deck whose
                                        brief lists it; prints the path to use
-    board direction --show             what this workspace is FOR, in their own
-                                       words, when they have changed it. It
-                                       outranks the plan, the map and the
-                                       handoff. `board brief` already has it
-    board direction < what.md          replace it -- their sentence, not yours
     board meeting --since 7d [--subject <id>]...
                                        THE meeting deck, projects/Meetings/
                                        docs/meeting/: a presentation to the
@@ -145,8 +137,8 @@ sys.path.insert(0, TOOL)
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
-from tutorboard import (assistants, brief, direction, gitops,
-                        handoff, jobs, leaving, limits, machine, memo,
+from tutorboard import (assistants, brief, gitops,
+                        jobs, leaving, limits, machine, memo,
                         paths, plain, ports, processes, reasoning, seeing, sense, sessions, tex, worktree)
 from tutorboard import briefs, subjects
 from tutorboard import mode as session_mode
@@ -500,8 +492,8 @@ def cmd_write(live, args):
     # "All tutor responses should be EASY to read. I never want to face a wall
     # of text." `board/TEACHING.md` has asked for that since a card came back
     # correct and unreadable -- five headings, five hundred words -- and asking
-    # is what `HANDOFF.md` was doing while it grew to eleven times its cap. A
-    # prompt is a preference; this is a door. See `tutorboard/plain.py` for what
+    # is what the old handoff file was doing while it grew to eleven times its
+    # cap. A prompt is a preference; this is a door. See `tutorboard/plain.py` for what
     # counts as a wall and what is not counted at all.
     if "--force" not in args:
         bad = plain.wall(body)
@@ -1312,8 +1304,9 @@ def cmd_push(live, args):
     # two doors would otherwise write two different kinds of subject for the
     # same commit.
     where = subjects.identify(live.root)
-    if where and not message.startswith(where):
-        message = "%s: %s" % (where, message)
+    lead = subjects.prefix(live.root)
+    if lead and not message.startswith(lead + ":"):
+        message = "%s: %s" % (lead, message)
 
     ok, out = gitops.save(top, specs, message)
     print(out)
@@ -1467,98 +1460,6 @@ def cmd_memo(live, args):
         print("board memo: %s" % why, file=sys.stderr)
         return 1
     print("%s (%d of %d words)" % (path, n, memo.WORDS))
-    return 0
-
-
-def cmd_handoff(live, args):
-    """Write HANDOFF.md, capped, stamped with its chapter. Body on stdin.
-
-        board handoff < handoff.md   replace it
-        board handoff --show         print what is there
-        board handoff --check        say how long it is
-
-    This is the ONLY thing that should write that file, and it is written ONCE,
-    by the wrap-up turn at the end of a session -- not edited during a teaching
-    turn. A turn that edits it pays to read 5k tokens of it first, adds a
-    paragraph, and hands the next turn a longer file; do that for a fortnight
-    and the cap in the prompt is a decoration. Keep TUTOR.md with `board memo`
-    instead.
-
-    The cap refuses rather than trims, because the useful half of a handoff is
-    at the bottom: what to teach next. Cutting the tail keeps the description
-    and throws away the instruction.
-    """
-    if "--show" in args:
-        text, about = handoff.read_handoff(live.root)
-        if not text.strip():
-            print("no handoff")
-            return 0
-        sys.stdout.write(text if text.endswith("\n") else text + "\n")
-        return 0
-    if "--check" in args:
-        n, over = handoff.handoff_length(live.root)
-        if not n:
-            print("no handoff")
-            return 0
-        print("%d words, cap %d%s"
-              % (n, handoff.HANDOFF_WORDS, (", OVER by %d" % over) if over else ", ok"))
-        return 1 if over else 0
-    body = sys.stdin.read()
-    kept, n, over = handoff.write_handoff(
-        live.root, body, chapter=live.state().get("chapter") or "")
-    if over:
-        print("board handoff: %d words, and the cap is %d. Nothing was written.\n"
-              "It is read at the start of every turn of every future session, so "
-              "length here is a cost paid over and over. Keep: where they got to "
-              "by topic, what they got wrong and what the misunderstanding was, "
-              "what they got right so it is not re-taught, and the one next thing."
-              % (n, handoff.HANDOFF_WORDS), file=sys.stderr)
-        return 1
-    if not kept:
-        print("board handoff: nothing on stdin; the handoff was left alone",
-              file=sys.stderr)
-        return 1
-    print("%s (%d words)" % (handoff.handoff_path(live.root), n))
-    return 0
-
-
-def cmd_direction(live, args):
-    """What this workspace is FOR, in their words. Body on stdin.
-
-        board direction --show          print what is in force
-        board direction < what.md       replace it (the person's words, not yours)
-        board direction --clear         back to what the repository's own
-                                        documents say
-
-    THIS IS THEIRS, NOT YOURS. It is set from the board, in one tap, at the
-    moment somebody realises the whole shape of the work is wrong -- and what it
-    says then outranks the plan, the map, the README and the handoff, all of
-    which were written for the direction it replaced. A turn does not need this
-    command to read it: `board brief` puts it at the top of every briefing.
-
-    Writing one from a turn is for the case where they said it in a message
-    rather than by tapping the button, and it is still their sentence that goes
-    in. Do not paraphrase it into your own plan; the plan is the file you then
-    rewrite to match.
-    """
-    if "--show" in args:
-        text, when = direction.read(live.root)
-        if not text:
-            print("no direction set; the repository's own documents stand")
-            return 0
-        print("set %s\n%s" % (when or "at some point", text))
-        return 0
-    if "--clear" in args:
-        direction.clear(live.root)
-        print("direction cleared")
-        return 0
-    body = sys.stdin.read()
-    kept, when = direction.write(live.root, body)
-    if not kept:
-        print("board direction: nothing on stdin; what is in force was left "
-              "alone", file=sys.stderr)
-        return 1
-    print("%s (set %s)" % (direction.path(live.root), when))
     return 0
 
 
@@ -3220,14 +3121,25 @@ COMMANDS = {
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "writeup": cmd_writeup, "hw": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
-    "brief": cmd_brief, "memo": cmd_memo, "handoff": cmd_handoff,
+    "brief": cmd_brief, "memo": cmd_memo,
     "job": cmd_job, "diagnose": cmd_job,
     "ask-cluster": cmd_ask_cluster,
     "colibri": cmd_colibri, "code": cmd_code,
     "meeting": cmd_meeting,
-    "direction": cmd_direction, "deckfig": cmd_deckfig,
+    "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
+}
+
+# Commands that are gone, and what replaced each. Refused by name, with no
+# traceback, so a habit or an old prompt gets a sentence rather than "unknown".
+GONE = {
+    "hold": "replaced by `board code` (T38)",
+    "send": "replaced by `board code` (T38)",
+    "release": "replaced by `board code` (T38)",
+    "coach": "replaced by `board code` (T38)",
+    "handoff": "replaced by `board memo <section>`: TUTOR.md is the continuity",
+    "direction": "gone: the owner's standing rules are the subject's RULES.md",
 }
 
 # Commands about a directory or file they are given, not the workspace they run in:
@@ -3258,6 +3170,9 @@ def main(argv):
         root = rest[n + 1]
         rest = rest[:n] + rest[n + 2:]
     fn = COMMANDS.get(cmd)
+    if not fn and cmd in GONE:
+        print("board %s: %s" % (cmd, GONE[cmd]), file=sys.stderr)
+        return 2
     if not fn:
         print("unknown command: %s (try: board help)" % cmd, file=sys.stderr)
         return 1

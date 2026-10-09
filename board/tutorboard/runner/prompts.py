@@ -17,13 +17,12 @@ def _read(name):
     return text[:-1] if text.endswith("\n") else text
 
 
-# The wrap-up turn, the only one the student never sees.
-HANDOFF_PROMPT = _read("handoff.md")
+# The wrap-up turn, the only one the student never sees: TUTOR.md brought up
+# to date with `board memo`.
+WRAPUP_PROMPT = _read("wrapup.md")
 # The End turn of a notes canvas (`view: slate`): its pages into notes.md.
 # Filled with %(pages)s, %(title)s and %(subject)s.
 NOTES_PROMPT = _read("notes.md")
-HANDOFF_CLAUSE = _read("handoff-clause.md")
-NO_HANDOFF_CLAUSE = _read("no-handoff-clause.md")
 # The line every teaching turn ends on.
 TURN_TAIL = _read("turn-tail.md")
 

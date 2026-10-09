@@ -91,7 +91,7 @@ MIN_PDF_BYTES = 20000
 # is not.
 FURNITURE = {"readme", "handoff", "license", "licence", "notice", "changelog",
              "contributing", "todo", "ai_instructions", "teaching", "claude",
-             "agents", "direction", "index"}
+             "agents", "direction", "index", "rules", "tutor"}
 
 # HOW LONG AN ID MAY BE: `writing.ANN_DOC` anchors a mark on a page of a
 # document to `doc/<ident>/p<n>` and allows forty characters.

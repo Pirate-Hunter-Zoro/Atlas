@@ -205,12 +205,11 @@ _saved = dict(os.environ)
 os.environ.pop("RELAY_CONFIG", None)
 os.environ.update(RELAY_ROOT=TRD)
 real = relay_hook.allowlist()
-spine = json.loads(read(os.path.join(TRD, "threads.json")))
-outputs = [o for t in spine["threads"] for o in t.get("outputs") or []]
 check("the real allowlist (%d names), read off tutorboard.json with no "
-      "RELAY_CONFIG, holds every segment of every thread output, the "
-      "request's produces and the recipes' results/ paths" % len(real),
-      outputs and all(seg in real for o in outputs for seg in o.split("/"))
+      "RELAY_CONFIG, holds the config's names, the request's produces and the "
+      "recipes' results/ paths" % len(real),
+      all(n in real for n in ("snri_vs_ssri", "effect_results.json",
+                              "leaderboard.csv", "cross_embedder_retrieval"))
       and "neighbor_count_sweep" in real and "parity" in real
       and "google_medgemma-27b-text-it" in real
       and relay_hook.config() == FP[TRD])
@@ -229,7 +228,7 @@ PY = sys.executable
 def workspace(src, name, whole=False, ignore=""):
     """An Atlas-shaped git checkout, board/cluster/lib and one subject under
     projects/, and the subject: `src`'s shim and tutorboard.json -- or,
-    `whole`, its recipes, thread file and requests too -- with data outside
+    `whole`, its recipes and requests too -- with data outside
     it."""
     top = os.path.join(base, name)
     shutil.copytree(LIBDIR, os.path.join(top, "board", "cluster", "lib"),
@@ -242,7 +241,6 @@ def workspace(src, name, whole=False, ignore=""):
         shutil.copytree(os.path.join(src, "slurm_jobs"),
                         os.path.join(ws, "slurm_jobs"),
                         ignore=shutil.ignore_patterns("logs", "__pycache__"))
-        shutil.copy(os.path.join(src, "threads.json"), ws)
         shutil.copytree(os.path.join(src, "relay", "requests"),
                         os.path.join(ws, "relay", "requests"))
     else:

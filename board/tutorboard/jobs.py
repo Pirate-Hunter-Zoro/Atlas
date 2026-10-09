@@ -34,7 +34,7 @@ fingerprint (board/cluster/lib, `wrapper`), so every wrapped recipe says what
 failed behind `RELAY:`. A raw `sbatch` has no wrapper, so its
 leaving is ENDED, exit unknown. An ending is claimed once (`O_EXCL`, so two
 passes never report the same job twice), appended, and a `[job]` line is
-dropped in the inbox. That line wakes a turn the way `[direction]` does.
+dropped in the inbox. That line wakes a turn the way a message does.
 
 A MACHINE WITHOUT SLURM FILES A REQUEST INSTEAD (the relay section below), and
 `view` is the one registry a reader sees: local jobs, requests, and the

@@ -1,6 +1,6 @@
 You are running headless: there is no terminal and nobody will read stdout. The student is on the board, and is writing code in a terminal on the cluster, beside the data. Every pause there is a step, committed to `code/<session>` with its check and pushed; this checkout has fetched it.
 
-The brief and the recap are above, already rendered for this turn. **Do not run `board brief` or `board recap`.** Do not read AI_INSTRUCTIONS.md, board/TEACHING.md, HANDOFF.md or the subject's README.md.
+The brief and the recap are above, already rendered for this turn. **Do not run `board brief` or `board recap`.** Do not read board/TEACHING.md or the subject's README.md.
 
 The cluster just pushed this:
 

@@ -45,16 +45,16 @@ def write(path, text):
         fh.write(text)
 
 
-# The provider: a card for a turn, HANDOFF.md for the wrap-up, and the result
+# The provider: a card for a turn, TUTOR.md for the wrap-up, and the result
 # object Claude Code prints under `--output-format json` either way.
 PROVIDER = os.path.join(BOX, "provider.py")
 write(PROVIDER, r'''import json, os, sys
 prompt = sys.argv[1]
 session = os.environ["TUTORBOARD_SESSION"]
 if "This session is ending now" in prompt:
-    with open(os.path.join("courses", "Fixture", "HANDOFF.md"), "w",
+    with open(os.path.join("courses", "Fixture", "TUTOR.md"), "w",
               encoding="utf-8") as fh:
-        fh.write("# Handoff\n\nThe student answered x^2 + 1.\n")
+        fh.write("# Fixture\n\n## Now\n\nThe student answered x^2 + 1.\n")
 else:
     with open(os.path.join(session, "cards", "0001-answer.md"), "w",
               encoding="utf-8") as fh:
@@ -128,7 +128,7 @@ try:
           and not rec.get("owed") and rec.get("state") == "listening"
           and rec.get("agent") == "fake", rec)
     log = open(os.path.join(LIVE, "agent.log"), encoding="utf-8").read()
-    check("no wrap-up ran without End", "handoff ===" not in log)
+    check("no wrap-up ran without End", "wrap-up ===" not in log)
     check("End queues the wrap-up", runner.end(SID))
     wait(lambda: settled(2))
     with open(os.path.join(LIVE, "cost.jsonl"), encoding="utf-8") as fh:
@@ -137,12 +137,12 @@ try:
           [c.get("turn") for c in costs] == [1, 2]
           and all(c.get("tokens") == 420 and c.get("agent") == "fake"
                   for c in costs))
-    handoff = os.path.join(WS, "HANDOFF.md")
-    check("and the wrap-up turn wrote the handoff",
-          os.path.exists(handoff)
-          and "x^2 + 1" in open(handoff, encoding="utf-8").read())
+    memo_file = os.path.join(WS, "TUTOR.md")
+    check("and the wrap-up turn brought TUTOR.md up to date",
+          os.path.exists(memo_file)
+          and "x^2 + 1" in open(memo_file, encoding="utf-8").read())
     log = open(os.path.join(LIVE, "agent.log"), encoding="utf-8").read()
-    check("the log says the handoff was written", "handoff written" in log)
+    check("the log says TUTOR.md was written", "TUTOR.md written" in log)
 finally:
     runner.shutdown()
     shutil.rmtree(BOX, ignore_errors=True)

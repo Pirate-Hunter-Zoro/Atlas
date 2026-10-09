@@ -79,8 +79,7 @@ said = prompts.HEADLESS_REVISE_PROMPT
 check("it is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in said)
 check("and to write no card, in as many words", "Write no card" in said)
-for name in ("board write", "board open", "the session's state", "its cards",
-             "HANDOFF.md"):
+for name in ("board write", "board open", "the session's state", "its cards"):
     check("and not to touch %s" % name, name in said)
 check("it is told to revise the source rather than write a new document",
       "REVISE THE DOCUMENT" in said and "Do not start it again" in said)
@@ -119,8 +118,7 @@ worked = prompts.HEADLESS_REWORK_PROMPT
 check("an overhaul is told this turn is not part of the lesson",
       "NOT PART OF THE LESSON" in worked)
 check("and to write no card", "Write no card" in worked)
-for name in ("board write", "board open", "the session's state", "its cards",
-             "HANDOFF.md"):
+for name in ("board write", "board open", "the session's state", "its cards"):
     check("and an overhaul is not to touch %s" % name, name in worked)
 check("THE DO-NOT-WIDEN SENTENCE IS NOT IN IT, which is the whole difference "
       "between the two asks",

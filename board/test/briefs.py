@@ -212,6 +212,47 @@ try:
     check("and says which subject holds a fence, without naming anything under it",
           "projects/PSY holds `phi/`" in md and "phi/session" not in md)
 
+    # ---- a period spanning the memory migration (T30b, T30c) ---------------
+    # Before it, a subject's continuity was HANDOFF.md and threads.json; the
+    # migration wrote TUTOR.md and RULES.md in one commit and deleted the old
+    # files in another. A gather across both still reports the subject's work.
+    mig_base = os.path.join(tmp, "Migrated")
+    MIG = os.path.join(mig_base, "projects", "Mig")
+    write(os.path.join(MIG, "tutorboard.json"), json.dumps({"name": "Mig", "phi": False}))
+    write(os.path.join(MIG, "HANDOFF.md"), "the sweep is half run\n")
+    write(os.path.join(MIG, "threads.json"), json.dumps({"threads": []}))
+    write(os.path.join(mig_base, "board", "x.py"), "x\n")
+    write(os.path.join(mig_base, ".gitignore"), "/sessions/\n")
+    git("init", "-q", "-b", "main", cwd=mig_base)
+
+    def mig_commit(message, when):
+        git("add", "-A", cwd=mig_base)
+        git("commit", "-q", "--no-verify", "-m", message, when=when, cwd=mig_base)
+    mig_commit("projects/Mig: the sweep runs", NOW - 20 * DAY)
+    write(os.path.join(MIG, "TUTOR.md"), "# Mig\n\n## Now\n\n- [ ] MIGRATED-SWEEP finish\n")
+    write(os.path.join(MIG, "RULES.md"), "# Rules\n\n- one\n")
+    write(os.path.join(mig_base, "board", "scripts", "m.py"), "m\n")
+    mig_commit("subjects: contracts become RULES.md and TUTOR.md (T30b)", NOW - 3 * DAY)
+    os.remove(os.path.join(MIG, "HANDOFF.md"))
+    os.remove(os.path.join(MIG, "threads.json"))
+    write(os.path.join(mig_base, "board", "x.py"), "y\n")
+    mig_commit("board: the old planning layer goes (T30c)", NOW - 2 * DAY)
+    write(os.path.join(MIG, "src", "sweep.py"), "k = 1\n")
+    mig_commit("Mig: the sweep finishes", NOW - DAY)
+    mblocks, _, _ = briefs.blocks_for(mig_base, None, since)
+    m = mblocks[0] if mblocks else {}
+    check("A GATHER SPANNING THE MIGRATION REPORTS PROGRESS: its TUTOR.md is new "
+          "in the period, and the slug-prefixed commit after it is the subject's",
+          m.get("id") == "projects/Mig" and "MIGRATED-SWEEP" in m.get("story", "")
+          and "Mig: the sweep finishes" in [c["subject"] for c in m.get("commits", [])],
+          m)
+    check("a slug prefix names its subject as the id prefix does",
+          briefs.owner_of("TRD: k", ids) == "projects/TRD"
+          and briefs.owner_of("projects/TRD: k", ids) == "projects/TRD"
+          and briefs.classify({"subject": "PW: methods",
+                               "files": ["projects/TRD/src/x.py"]},
+                              "projects/TRD", ids) == "other")
+
     # ---- the server ------------------------------------------------------------
     httpd = app.make_server(base, 0)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()

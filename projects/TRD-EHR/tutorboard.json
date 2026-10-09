@@ -241,7 +241,13 @@
         "neighbor_count_sweep",
         "best_k_panels",
         "cross_embedder_retrieval",
-        "review"
+        "review",
+        "snri_vs_ssri",
+        "bupropion_vs_ssri",
+        "bupropion_vs_snri",
+        "effect_results.json",
+        "validation_report.json",
+        "leaderboard.csv"
       ]
     }
   }

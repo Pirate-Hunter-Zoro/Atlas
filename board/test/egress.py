@@ -400,10 +400,10 @@ check("but a record naming somebody else is not, which is what stops an "
 # The one turn that must not be skipped was being spent on the one recipe that
 # could not take it: the loop's `spec` is rebound only at the top of a turn, and
 # a session whose last turn stood its provider down never takes another.
-check("the handoff re-asks who writes it instead of inheriting the recipe the "
+check("the wrap-up re-asks who writes it instead of inheriting the recipe the "
       "last turn failed on",
       "took, why_took = recipes.resolve(ctx.cfg)" in tutor_src
-      and tutor_src.index("the handoff goes to")
+      and tutor_src.index("the wrap-up goes to")
       < tutor_src.index("wrap = ctx.spec.get(\"handoff\")"))
 check("and it rebinds the recipe, not just the name -- the environment is what "
       "points the binary at its provider",
@@ -411,7 +411,7 @@ check("and it rebinds the recipe, not just the name -- the environment is what "
       in tutor_src)
 check("and it is skipped rather than spent when nothing here can write one",
       "    if not took:\n" in tutor_src.split("def wrap_up(")[1]
-      and "no handoff was attempted" in tutor_src)
+      and "no wrap-up was attempted" in tutor_src)
 
 # --- what the board is given to say it with ---------------------------------
 check("the chooser is told which providers cannot take a turn right now, so a "

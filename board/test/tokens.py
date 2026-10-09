@@ -174,7 +174,7 @@ try:
           "Card 70" in bigout and "Card 1\n" not in bigout
           and "earlier card(s) not listed" in bigout)
     check("and it says where the earlier ones went, and how to see them",
-          "HANDOFF.md" in bigout and "recap --all" in bigout)
+          "TUTOR.md" in bigout and "recap --all" in bigout)
     check("a seventy-card recap is no bigger than a twelve-card one was (%d vs %d)"
           % (len(bigout), len(out)), len(bigout) < len(out) * 3)
     for n in range(13, 71):
@@ -270,20 +270,19 @@ try:
           % (brief_mod.BUDGET, len(out)),
           brief_mod.BUDGET == 14000 and len(out) <= brief_mod.BUDGET)
 
-    # --- the handoff: capped at the door ----------------------------------
-    p = board("handoff", input=("word " * 400).encode())
-    check("a handoff over 350 words is REFUSED, not trimmed",
-          p.returncode == 1 and b"cap is 350" in p.stdout)
-    check("and nothing was written over the old one",
-          b"they got cosets" in board("handoff", "--show").stdout)
+    # --- the handoff is gone: TUTOR.md carries the subject ------------------
     p = board("handoff", input=b"# HANDOFF\n\nthey got quotient groups.\n")
-    check("a handoff inside the cap is written", p.returncode == 0)
-    with open(os.path.join(tmp, "HANDOFF.md"), "r", encoding="utf-8") as fh:
-        written = fh.read()
-    check("and is stamped with the chapter it is about, by the writer",
-          written.startswith("<!-- chapter: Ch 1 - Groups -->"))
-    check("`--check` says how long it is",
-          b"words, cap 350, ok" in board("handoff", "--check").stdout)
+    check("`board handoff` refuses by name, pointing at `board memo`, and writes "
+          "nothing", p.returncode == 2 and b"board memo" in p.stdout
+          and b"Traceback" not in p.stdout
+          and open(os.path.join(tmp, "HANDOFF.md"), encoding="utf-8").read() == hand)
+
+    for gone in ("hold", "send", "release", "coach"):
+        p = board(gone, "x")
+        check("`board %s` refuses, replaced by `board code`, with no traceback"
+              % gone, p.returncode == 2
+              and b"replaced by `board code` (T38)" in p.stdout
+              and b"Traceback" not in p.stdout)
 
     # --- there is no `board wait`: a turn does not wait -------------------
     # The defect this replaced cost $4.49 in one turn: the agent ran `board

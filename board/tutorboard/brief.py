@@ -383,8 +383,8 @@ def recap(repo, full=1, compact=False):
         out.append("%d card(s), %d student turn(s)\n" % (len(names), len(turns)))
         shown = names if full >= len(names) else names[-LINES:]
         if len(shown) < len(names):
-            out.append("  (%d earlier card(s) not listed — HANDOFF.md is what "
-                       "carries the chapter, `board recap --all` lists them)"
+            out.append("  (%d earlier card(s) not listed — TUTOR.md is what "
+                       "carries the subject, `board recap --all` lists them)"
                        % (len(names) - len(shown)))
         for n in shown:
             with open(os.path.join(repo.cards, n), "r", encoding="utf-8") as fh:
@@ -479,7 +479,8 @@ def turn_brief(repo, signal="", repairs=None):
 def turn_context(repo, signal="", repairs=None, brief=True):
     """The brief and the recap, as one block a turn reads before its prompt.
 
-    `brief=False` hands over the recap alone (the wrap-up). A part that fails
+    `brief=False` hands over the recap alone (an [unfinished] report). The
+    wrap-up gets both: it rewrites TUTOR.md, so it reads it. A part that fails
     to render says so in its place and names the command that prints it, so a
     turn is never told something is above that is not.
     """

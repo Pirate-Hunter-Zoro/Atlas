@@ -108,9 +108,9 @@ try:
     check("and the .nfs file is still on disk, ignored rather than tracked",
           os.path.exists(os.path.join(alpha, ".nfs0000000000abcd00000001"))
           and not git(repo, "ls-files", "projects/Alpha/.nfs*")[1])
-    check("the subject names the workspace",
-          git(repo, "log", "-1", "--format=%s")[1].endswith(
-              "Alpha: lesson complete"))
+    check("the subject leads with the subject's slug",
+          git(repo, "log", "-1", "--format=%s")[1].strip()
+          == "Alpha: lesson complete")
     check("and push.json says it saved, with no claim about other workspaces",
           json.load(open(os.path.join(alpha, "live", "push.json")))["ok"] is True
           and "also" not in rec)
@@ -129,9 +129,9 @@ try:
                       "--", "src/a.py")
     check("`board push msg -- <paths>` commits those paths", code == 0
           and committed(repo) == {"projects/Alpha/src/a.py"})
-    check("under a message naming the thread",
-          git(repo, "log", "-1", "--format=%s")[1].endswith(
-              "knn thread: weight by LR"))
+    check("under the slug and the message as given",
+          git(repo, "log", "-1", "--format=%s")[1].strip()
+          == "Alpha: knn thread: weight by LR")
     check("and leaves the rest of the workspace for its own commit",
           "projects/Alpha/src/b.py" in dirty(repo))
 

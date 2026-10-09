@@ -223,8 +223,8 @@ def chosen_target():
 # touched, and what it was last opened for. Each of those already existed as a
 # function somewhere; none of them had ever been asked for all nine at once.
 #
-# Cached hard. The home page polls every twenty seconds, `plan.steps` reads a
-# file per workspace and the commit date is a `git log` per workspace -- and the
+# Cached hard. The home page polls every twenty seconds, `memo.open_tasks`
+# reads a file per workspace and the commit date is a `git log` per workspace -- and the
 # answers change on the scale of minutes, not of polls.
 _ATLAS = {"at": 0.0, "value": None}
 ATLAS_TTL = 30.0
@@ -270,7 +270,7 @@ def atlas_payload(repo):
         return _ATLAS["value"]
 
     from .course import homework                     # circular at module scope
-    from .course import plan as course_plan
+    from . import memo
 
     def clipped(said):
         said = (said or "").strip()
@@ -282,8 +282,8 @@ def atlas_payload(repo):
         # "What is next" has TWO answers, because a workspace plans in one of
         # two ways and neither is a fallback for the other. A course that
         # follows a book is planned by `chapters.tsv` -- what is next is the
-        # chapter after the one it is in. A project is planned by a task list --
-        # what is next is the first open step. Asking only about steps left
+        # chapter after the one it is in. A project is planned in its TUTOR.md
+        # -- what is next is the first open `- [ ]` task there. Asking only about steps left
         # every course's card blank, which on a front door reads as "nothing to
         # do here" rather than "this one is a book".
         c["open"], c["next"], c["next_label"], c["kind"] = 0, "", "", "project"
@@ -310,16 +310,16 @@ def atlas_payload(repo):
             c["of"] = len(chapters)
         else:
             try:
-                steps = course_plan.steps(root)
+                steps = memo.open_tasks(root)
             except Exception:                        # noqa: BLE001
                 steps = []
-            # NEVER let one workspace's broken plan blank the whole front door.
-            # A page that throws is a blank screen where the app used to be, and
-            # this one is the way back into a lesson.
+            # NEVER let one workspace's broken TUTOR.md blank the whole front
+            # door. A page that throws is a blank screen where the app used to
+            # be, and this one is the way back into a lesson.
             c["open"] = len(steps)
             if steps:
-                c["next"] = clipped(steps[0].get("title") or steps[0].get("label"))
-                c["next_label"] = steps[0].get("label") or ''
+                c["next"] = clipped(steps[0])
+                c["next_label"] = steps[0]
         c["touched"] = _last_touched(root)
         st = course_repo.session_state(root)
         c["session"] = st.get("session") or ""

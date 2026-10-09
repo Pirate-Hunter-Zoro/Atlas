@@ -131,6 +131,16 @@ def write(root, section, body, append=False, words=WORDS):
     return path, n
 
 
+def open_tasks(root):
+    """The text of every open `- [ ]` line in TUTOR.md, in file order."""
+    out = []
+    for line in tutor(root).splitlines():
+        m = re.match(r"^\s*[-*]\s+\[ \]\s+(.*\S)\s*$", line)
+        if m:
+            out.append(m.group(1))
+    return out
+
+
 def tutor(root):
     """TUTOR.md's text, stripped, or ""."""
     return (_read(os.path.join(root, TUTOR)) or "").strip()

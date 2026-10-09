@@ -1,8 +1,8 @@
 """One turn, and the wrap-up: what the runner (`runner/service.py`) runs.
 
 `take_turn(ctx, message)` runs one turn on a session and says whether the
-message is still owed; `wrap_up(ctx)` runs the End turn that writes the
-handoff. Both run a fresh provider process in the Atlas root. `ctx` is a `Ctx`
+message is still owed; `wrap_up(ctx)` runs the End turn that brings the
+subject's TUTOR.md up to date. Both run a fresh provider process in the Atlas root. `ctx` is a `Ctx`
 the runner builds per turn: the session's Repo, the cwd, the log, the
 environment, and who takes the turn.
 """
@@ -11,7 +11,7 @@ import os
 import threading
 import time
 
-from tutorboard import brief, handoff, jobs, limits, seeing
+from tutorboard import brief, jobs, limits, seeing
 from tutorboard.agents import recipes, usage
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
@@ -201,11 +201,7 @@ def take_turn(ctx, message):
     use, template = turn.turn_plan(ctx.spec, this_signal)
     # A script agent builds its own context, so it gets the raw inbox rather
     # than the instruction prompt the interactive agents expect.
-    fill = {"inbox": out.strip(),
-            # Only the chapter that is open. A handoff about another one is
-            # parked as this is read, so a tutor is never handed the last
-            # chapter's unfinished business as though it were this one's.
-            "handoff": turn.handoff_clause(ctx.repo)}
+    fill = {"inbox": out.strip()}
     prompt = out.strip() if ctx.spec.get("raw_prompt") else template % fill
     # THE BRIEF AND THE RECAP RIDE IN THE PROMPT, rendered here rather than
     # fetched by the turn: two round trips fewer, each resending the whole
@@ -403,7 +399,8 @@ def take_turn(ctx, message):
 
 
 def wrap_up(ctx):
-    """The End turn: the handoff, piped to `board handoff`. `(wrote, why)`.
+    """The End turn: TUTOR.md brought up to date with `board memo`.
+    `(wrote, why)`.
 
     Only End queues it (`POST /s/<id>/end`); a server stopping, or a turn
     recovered after one died, never does. Who writes it is asked again here,
@@ -414,23 +411,24 @@ def wrap_up(ctx):
     ctx.cfg = recipes.load_config()
     took, why_took = recipes.resolve(ctx.cfg)
     if not took:
-        log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s\n"
+        log.write("\n=== %s wrap-up ===\n!! no wrap-up was attempted: %s\n"
                   % (time.strftime("%H:%M:%S"), why_took))
         return False, why_took
     if took != ctx.agent_name:
-        log.write("-- the handoff goes to '%s'%s\n"
+        log.write("-- the wrap-up goes to '%s'%s\n"
                   % (took, (": " + why_took) if why_took else ""))
     ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
     daemon.agent_state(ctx.live, state="wrapping up")
-    log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
-    chapter = turn.chapter_now(ctx.repo)
+    log.write("\n=== %s wrap-up ===\n" % time.strftime("%H:%M:%S"))
+    # The recipe key and the timeout keep their old name, `handoff`, so an
+    # owner's config.json goes on working.
     wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
-    prompt, extra = handed(ctx.spec, prompts.HANDOFF_PROMPT,
-                           brief.turn_context(ctx.repo, brief=False))
+    prompt, extra = handed(ctx.spec, prompts.WRAPUP_PROMPT,
+                           brief.turn_context(ctx.repo))
     cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in wrap]
                            + extra)
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
-    landing = os.path.join(root, "HANDOFF.md")
+    landing = os.path.join(root, "TUTOR.md")
     try:
         before = os.path.getmtime(landing)
     except OSError:
@@ -442,9 +440,9 @@ def wrap_up(ctx):
             env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
         usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
                           usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
-        # WHETHER THIS TURN WROTE ONE, which is not whether the file is there:
+        # WHETHER THIS TURN WROTE IT, which is not whether the file is there:
         # the turn exited 0, did not report its own failure, and the file is
-        # newer than the turn. Only then is it stamped with its chapter.
+        # newer than the turn.
         said = usage.turn_output(logpath, mark)
         failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
                   or (usage.result_object_error(said)
@@ -454,18 +452,17 @@ def wrap_up(ctx):
         except OSError:
             wrote = False
         if wrote:
-            handoff.stamp_handoff(root, chapter)
-            log.write("handoff written\n")
+            log.write("TUTOR.md written\n")
         elif failed:
             why = usage.failure_reason(said, failed)
-            log.write("!! the handoff turn failed (%s); HANDOFF.md is whatever "
-                      "the last session left\n" % why)
+            log.write("!! the wrap-up turn failed (%s); TUTOR.md is whatever "
+                      "the last turn left\n" % why)
         else:
-            why = "no HANDOFF.md was written"
+            why = "TUTOR.md was not touched"
             log.write("!! %s\n" % why)
     except OSError as exc:
         wrote, why = False, str(exc)
-        log.write("!! handoff failed: %s\n" % exc)
+        log.write("!! the wrap-up failed: %s\n" % exc)
     daemon.agent_state(ctx.live, state="listening", turn_pid=None)
     return wrote, why
 
@@ -476,7 +473,7 @@ def notes_up(ctx, pages, title, subject):
     `docs/<slug>/notes.md` with `board writeup new --md`, and runs `board
     build` on it. `(ok, why)`.
 
-    Who writes it is asked here, as for the handoff. There is no brief and no
+    Who writes it is asked here, as for the wrap-up. There is no brief and no
     recap: the session has no cards, and the pages are the whole of it.
     """
     log, logpath = ctx.log, ctx.logpath

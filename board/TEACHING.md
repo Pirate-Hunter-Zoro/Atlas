@@ -45,13 +45,12 @@ turn writes its card and ends, and nothing else survives it.
   is capped at 800 words and the cap refuses. When a turn changes where things
   are, what is happening now, an open decision or what got done, rewrite that
   section.
-- **A subject without `RULES.md` and `TUTOR.md`** still carries its older
-  `AI_INSTRUCTIONS.md`. The brief does not read that file and neither does a
-  turn. Start `TUTOR.md` with `board memo`, and ask the owner for a rule you
-  need.
+- **A subject without `RULES.md`** has no rules of the owner's beyond this
+  method; ask for one you need. Without `TUTOR.md`, start it with `board memo`.
 - **A subject's `README.md` is the owner's** and is never your agenda.
 - **Do not wait.** End the turn when the card is written.
-- **Do not touch `HANDOFF.md`.** Continuity is the recap and these two files.
+- **Continuity is the recap and these two files.** End runs one last turn
+  that brings `TUTOR.md` up to date.
 
 ## The session: subject, mode and uploads
 

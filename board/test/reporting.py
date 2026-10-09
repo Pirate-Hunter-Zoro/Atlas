@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import direction, sense                     # noqa: E402
+from tutorboard import sense                                # noqa: E402
 from tutorboard.lesson import cards, git as lesson_git      # noqa: E402
 
 from tutorboard.runner import prompts  # noqa: E402
@@ -167,7 +167,7 @@ finally:
 print("\n-- the loop settles a turn on its report --")
 src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
            encoding="utf-8").read()
-loop = src.split("def take_turn(")[-1].split("handoff ===")[0]
+loop = src.split("def take_turn(")[-1].split("wrap-up ===")[0]
 check("the loop asks report_owed where nothing else is owed",
       "if pending is None:\n        pending = report_owed(" in loop)
 check("before the debt is written down", loop.index("report_owed(") <
@@ -180,12 +180,6 @@ check("a doing turn opens with `board write pending`",
       "`board write pending`" in sense.DOING_SENSE)
 check("and its report names uncommitted files",
       "left uncommitted" in sense.DOING_SENSE)
-check("so does a re-planning turn",
-      "`board write pending`" in direction.CHANGED
-      and "left uncommitted" in direction.CHANGED)
-check("and a thread's rethink turn",
-      "`board write pending`" in direction.RETHINK
-      and "left uncommitted" in direction.RETHINK)
 
 print("\n-- the board does not read a placeholder as an answer --")
 js = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()

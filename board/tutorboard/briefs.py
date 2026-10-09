@@ -225,12 +225,17 @@ def _log(top, rel, since_ts, until_ts=None):
 # the classifier
 # ---------------------------------------------------------------------------
 def owner_of(subject, ids):
-    """The subject a commit subject's `<id>: ` prefix names, or ""."""
+    """The subject id a commit subject's prefix names, or "". `board push`
+    leads with the slug (`TRD-EHR: `); older commits lead with the id
+    (`projects/TRD-EHR: `). Both name it."""
     said = str(subject or "")
     if ":" not in said:
         return ""
     head = said.split(":", 1)[0].strip()
-    return head if head in ids else ""
+    if head in ids:
+        return head
+    named = [i for i in ids if i.split("/")[-1] == head]
+    return named[0] if len(named) == 1 else ""
 
 
 def is_save(subject, ids=()):

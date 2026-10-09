@@ -375,6 +375,15 @@ code, out = board(allowed, "job", "--show")
 check("`--show` lists what is registered", code == 0 and "4242" in out)
 
 # --- the real repository -----------------------------------------------------------
+# What T30c deleted from every subject; none comes back.
+RETIRED = ("AI_INSTRUCTIONS.md", "HANDOFF.md", "DIRECTION.md", "PLAN.md",
+           "PROGRESS.md", "threads.json", "planning/PSYCH-ASR_TODO.txt",
+           "planning/LOCAL-LLM_TODO.txt")
+with open(os.path.join(ROOT, "TEACHING.md"), encoding="utf-8") as fh:
+    method = fh.read()
+check("the method says long work goes to the cluster through `board job`, and "
+      "the check runs first", "`board job -- <recipe.sbatch>`" in method
+      and "`board check`" in method)
 for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Solutions",
            "projects/Lean-Theorem-Proving", "projects/PSYCH-ASR",
            "projects/libr-local-llm", "projects/TRD-EHR", "projects/Paper-Writer"):
@@ -385,17 +394,11 @@ for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Soluti
     where = os.path.join(jobs.STATE, jobs.NAME)
     check("%s: the registry it would write (%s) is ignored by git"
           % (ws, where), jobs.ignored(root, where))
-    with open(os.path.join(root, "AI_INSTRUCTIONS.md"), encoding="utf-8") as fh:
-        contract = fh.read()
-    check("%s: its contract says long work goes through `board job`" % ws,
-          "**Long work goes through `board job`.**" in contract
-          and "A bare `sbatch` is work the board cannot see." in contract)
-    check("%s: its contract says ink on a document is answered in its ledger" % ws,
-          "**Ink on a document is answered in its ledger.**" in contract
-          and "`board round <document>`" in contract)
-    check("%s: its contract says code is checked before it is pushed" % ws,
-          "**Code is checked before it is pushed.**" in contract
-          and "`check` in `tutorboard.json`" in contract)
+    # The per-subject contracts are gone (T30c): the method is
+    # board/TEACHING.md, the owner's rules RULES.md, the tutor's notes TUTOR.md.
+    left = [n for n in RETIRED if os.path.exists(os.path.join(root, n))]
+    check("%s: it keeps none of the retired planning files %s" % (ws, left or ""),
+          not left)
     # A workspace with code names its check, and one with a pyproject.toml has the
     # lockfile `scripts/setup.sh` builds from (`uv sync --locked`).
     has_code = [m for m in ("pyproject.toml", "lean-toolchain", "go.mod")

@@ -26,7 +26,8 @@ that still holds one of SOURCES.
             RULES.md that names `phi/`.
           - Neither file names a retired command or file (RETIRED).
 
-The sources are read only here; T30c deletes them. Stdlib only.
+The sources are read only here, and T30c deleted them; the check still
+reads the RULES.md and TUTOR.md that are there. Stdlib only.
 """
 
 import argparse
@@ -456,6 +457,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
     atlas = os.path.abspath(args.atlas)
     todo = holders(atlas) if args.all else args.subject
+    if args.all and not todo:
+        print("no subject holds any of the old files: nothing to migrate")
+        return 0
     if not todo:
         ap.error("name a subject, or --all")
     if args.draft:

@@ -39,8 +39,7 @@ import time
 # directories, which hold both. `inbox` is where something arrives before
 # anybody has decided what it is.
 #
-# `test/showing.py` fails the suite if a name here stops being refused, and
-# `test/plan.py` if it stops holding for a document.
+# `test/showing.py` fails the suite if a name here stops being refused.
 NEVER = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
 
 # Where a workspace keeps output worth showing or citing.

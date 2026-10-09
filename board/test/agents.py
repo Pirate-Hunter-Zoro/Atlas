@@ -733,17 +733,15 @@ check("a truncated result object that reports no failure is still the newest "
           '{"type":"result","is_error":true,"result":"an older failure"}\n'
           'ons":1}],"is_error":false,"result":"done","type":"result"}') is None)
 
-# THE WRAP-UP IS A TURN AND IS JUDGED LIKE ONE. The handoff used to be called
-# written whenever HANDOFF.md existed -- and one always does, from the session
-# before -- so a wrap-up that died on the wire logged `handoff written` and then
-# re-stamped LAST session's note with the chapter this one taught.
-check("the handoff believes the turn rather than the directory listing: the "
+# THE WRAP-UP IS A TURN AND IS JUDGED LIKE ONE. TUTOR.md always exists, from
+# the turns before, so a wrap-up that died on the wire must not be logged as
+# having written it.
+check("the wrap-up believes the turn rather than the directory listing: the "
       "exit code, the result object and a file newer than the turn",
       "rc, timed_out = turn.run_turn(" in tool_src.split("def wrap_up(")[1]
       and "wrote = not failed and os.path.getmtime(landing) > before" in tool_src)
-check("and a wrap-up that failed does not stamp a stale note with this "
-      "session's chapter",
-      "the handoff turn failed (%s); HANDOFF.md is " in tool_src)
+check("and a wrap-up that failed says TUTOR.md is what the last turn left",
+      "the wrap-up turn failed (%s); TUTOR.md is " in tool_src)
 
 # NO STRIKE STAND-DOWN: a recipe failing the same way twice is reported in the
 # provider's own words and is not stood down; the resolver's reasons are a

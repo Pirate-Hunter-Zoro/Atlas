@@ -291,8 +291,9 @@ def run_push(repo, message=None):
     # the workspace is in, carrying only `save_pathspec`.
     said = message or gitops.SAVE
     where = subjects.identify(repo.root)
-    if where and not said.startswith(where):
-        said = "%s: %s" % (where, said)
+    lead = subjects.prefix(repo.root)
+    if lead and not said.startswith(lead + ":"):
+        said = "%s: %s" % (lead, said)
 
     top = repo_top(repo.root)
     specs, _ = save_pathspec(repo.root, top)

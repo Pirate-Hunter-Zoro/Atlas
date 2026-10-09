@@ -25,8 +25,6 @@ looks like an id: per-patient trees name files and directories by patient id
 in every shape there is, so only a name the repository itself publishes is
 ever said. The allowlist is built here, from tracked files only:
 
-    threads.json         every segment of each thread's `outputs` and
-                         `exports` paths
     relay/requests/*     every segment of each request's `produces` and
                          `export` paths
     *.sbatch             every segment of each `results/...` path a recipe
@@ -184,22 +182,11 @@ def _segments_of(path):
 
 
 def published_paths(root=None):
-    """Every path the tracked sources publish: thread outputs and exports,
-    request produces and exports, and the `results/` paths recipes name."""
+    """Every path the tracked sources publish: request produces and exports,
+    and the `results/` paths recipes name."""
     root = root or _root()
     files, _ = tracked(root)
     paths = []
-    if "threads.json" in files:
-        spine = _read_json(os.path.join(root, "threads.json"))
-        threads = spine.get("threads") if isinstance(spine, dict) else None
-        for t in threads if isinstance(threads, list) else []:
-            if not isinstance(t, dict):
-                continue
-            paths += _strings(t.get("outputs"))
-            for e in t.get("exports") if isinstance(t.get("exports"),
-                                                    list) else []:
-                if isinstance(e, dict) and isinstance(e.get("path"), str):
-                    paths.append(e["path"])
     for rel in sorted(files):
         if rel.startswith("relay/requests/") and rel.endswith(".json"):
             req = _read_json(os.path.join(root, rel))

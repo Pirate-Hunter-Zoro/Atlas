@@ -231,9 +231,9 @@ check("and where there is nobody to climb down to it says so and goes on "
       "nothing else here can take it" in src)
 check("a turn that goes through proves THAT agent's allowance, not the "
       "machine's", "limits.clear_limited(ctx.agent_name)" in src)
-check("the handoff is still attempted on End, by whoever can write it, because "
-      "it is the only continuity there is",
-      "def wrap_up(ctx):" in src and "the handoff goes to" in src)
+check("the wrap-up is still attempted on End, by whoever can write it, because "
+      "TUTOR.md is the continuity there is",
+      "def wrap_up(ctx):" in src and "the wrap-up goes to" in src)
 
 health = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                            "machines.py"), encoding="utf-8").read()

@@ -13,7 +13,7 @@ import re
 import signal
 import subprocess
 
-from tutorboard import handoff, jobs, keys
+from tutorboard import jobs, keys
 from tutorboard.course import config
 from tutorboard.runner import prompts
 from tutorboard.course import repo as course_repo
@@ -66,10 +66,6 @@ def state_of(where):
     return said if isinstance(said, dict) else {}
 
 
-def chapter_now(where):
-    """Which chapter is open, according to the session's own state."""
-    return state_of(where).get("chapter") or ""
-
 def doing_now(where, signal=""):
     """Is this turn one whose product is a change, not a card?
 
@@ -115,12 +111,6 @@ def turn_timeout(cfg, where, spec=None, signal=""):
     except (TypeError, ValueError):
         floor = 0
     return max(plain, floor)
-
-def handoff_clause(where):
-    """What to tell a tutor about the handoff -- including that there is none."""
-    repo = as_repo(where)
-    return (prompts.HANDOFF_CLAUSE if handoff.handoff_applies(repo.root, chapter_now(repo))
-            else prompts.NO_HANDOFF_CLAUSE)
 
 def at_root(root, env=None):
     """A turn's environment with `PWD` saying where the turn actually runs.

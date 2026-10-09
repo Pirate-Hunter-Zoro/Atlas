@@ -8,7 +8,7 @@ server, and the wrap-up runs only on End.
 A fake provider (written below) stands in for claude: it reads its prompt and
 TUTORBOARD_SESSION, records what it was given, and does what a control file
 says -- write a card with `board write`, sleep first, run `board check`, or
-write the handoff. A real server (`serve.py --port 0`) runs on a temp Atlas
+write TUTOR.md. A real server (`serve.py --port 0`) runs on a temp Atlas
 with its own config directory. Nothing here touches a real session or port.
 """
 
@@ -94,10 +94,10 @@ def log(**kw):
     with open(%(calls)r, "a") as fh:
         fh.write(json.dumps(rec) + "\n")
 if "This session is ending now" in prompt:
-    p = subprocess.run(["board", "handoff"], input="They reached the end. Next: more.\n",
+    p = subprocess.run(["board", "memo", "Now"], input="They reached the end. Next: more.\n",
                        universal_newlines=True, stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT)
-    log(kind="handoff", rc=p.returncode, out=p.stdout)
+    log(kind="wrapup", rc=p.returncode, out=p.stdout)
     sys.exit(0)
 for word in mode.split(","):
     if word.startswith("sleep:"):
@@ -441,8 +441,8 @@ try:
     check("after a restart the owed message is answered once",
           len(cards(st_)) == 1 and len(calls(st_, "turn")) == 1, cards(st_))
     check("with nothing left owed", not agent(st_).get("owed"))
-    check("and no wrap-up turn ran", "handoff ===" not in agent_log(st_)
-          and not calls(st_, "handoff"))
+    check("and no wrap-up turn ran", "wrap-up ===" not in agent_log(st_)
+          and not calls(st_, "wrapup"))
 
     # A server KILLED mid-turn leaves the group running: the next start kills
     # it and answers the message once.
@@ -459,7 +459,7 @@ try:
     until(lambda: calls(sk, "turn"), 30)
     time.sleep(1.5)
     check("and answers its owed message once, with no wrap-up",
-          len(cards(sk)) == 1 and "handoff ===" not in agent_log(sk), cards(sk))
+          len(cards(sk)) == 1 and "wrap-up ===" not in agent_log(sk), cards(sk))
 
     # A turn cut AFTER its card is not answered twice.
     sc = new_session("courses/Demo", "cut")
@@ -480,17 +480,19 @@ try:
     got = server.post("/s/%s/end" % sa)
     check("End sets ended and queues the wrap-up",
           got.get("ok") and got["session"].get("ended") and got.get("wrapup"), got)
-    until(lambda: "handoff written" in agent_log(sa), 30)
-    check("the wrap-up turn writes the handoff", "handoff written" in agent_log(sa)
-          and os.path.isfile(os.path.join(atlas, "courses", "Demo", "HANDOFF.md")),
+    until(lambda: "TUTOR.md written" in agent_log(sa), 30)
+    check("the wrap-up turn brings TUTOR.md up to date with `board memo`",
+          "TUTOR.md written" in agent_log(sa)
+          and "They reached the end." in open(os.path.join(
+              atlas, "courses", "Demo", "TUTOR.md"), encoding="utf-8").read(),
           agent_log(sa)[-600:])
     su = new_session(None, "unbound")
     write(os.path.join(sessions.path(su, atlas), "cards", "0001-x.md"), "x\n")
     got = server.post("/s/%s/end" % su)
     time.sleep(1.5)
-    check("an unbound session ends with no wrap-up, so nothing writes the Atlas "
-          "root's HANDOFF.md", got.get("ok") and not calls(su)
-          and not os.path.exists(os.path.join(atlas, "HANDOFF.md")))
+    check("an unbound session ends with no wrap-up, so nothing writes a TUTOR.md "
+          "at the Atlas root", got.get("ok") and not calls(su)
+          and not os.path.exists(os.path.join(atlas, "TUTOR.md")))
 
     # -----------------------------------------------------------------------
     # runner_route: a subject with no open session gets one, and its turn
