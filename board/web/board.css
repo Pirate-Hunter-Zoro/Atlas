@@ -1583,7 +1583,7 @@ body.mapping #redirect, body.reading #redirect {
    picker. #contents used to carry a comment saying it borrowed this and an
    empty rule that borrowed nothing, so it laid out in the flow of the page
    under the lesson rather than over it. An ID selector is not inheritance. */
-#scratch, #contents, #review, #shelf, #elsewhere, #trace, #docnew {
+#scratch, #contents, #review, #shelf, #elsewhere, #trace {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
   width: min(24rem, 92vw);
   background: var(--paper); border-left: 1px solid var(--rule);
@@ -1640,21 +1640,6 @@ body.mapping #redirect, body.reading #redirect {
    96. A drawer behind the surface that opened it is a tap that does nothing.
    98 is `#steer`'s storey: over everything except the ⋯ menu at 99. */
 #shelf { z-index: 98; width: min(27rem, 94vw); }
-/* Opened from the map's documents region, so above the map for `#shelf`'s
-   reason. */
-#docnew { z-index: 98; bottom: auto; border-bottom: 1px solid var(--rule); }
-#docnew .scratch-foot { font-size: .85rem; display: flex; flex-direction: column;
-                        gap: .6rem; align-items: stretch; }
-.docnew-makes { display: flex; gap: .4rem; }
-.docnew-make {
-  flex: 1; font: 600 .82rem var(--ui); cursor: pointer;
-  padding: .5rem .8rem; border-radius: .45rem;
-  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
-}
-.docnew-make.on { border-color: var(--accent); color: var(--accent); }
-#docnew-about { font: inherit; padding: .5rem; border-radius: .4rem;
-                border: 1px solid var(--rule); background: var(--paper-2);
-                color: var(--ink); resize: vertical; }
 #shelf-title { min-width: 0; overflow: hidden; text-overflow: ellipsis;
                white-space: nowrap; }
 #shelf-list .group {
@@ -2940,6 +2925,9 @@ body.mapping #calc { z-index: 97; }
 #subjpick { left: max(.6rem, env(safe-area-inset-left)); right: auto; }
 .hdrmenu-note { margin: .3rem .4rem .1rem; font-size: .76rem; }
 .hdrmenu-note:empty { display: none; }
+#make-about { display: block; width: calc(100% - .4rem); margin: .2rem .2rem .35rem;
+              box-sizing: border-box; }
+#makemenu button:disabled { opacity: .5; }
 .subjpick-group { margin: .35rem .4rem .1rem; font-size: .7rem; letter-spacing: .08em;
                   text-transform: uppercase; color: var(--ink-3); }
 #subjpick-list button.on { font-weight: 650; color: var(--accent); }
@@ -2947,6 +2935,7 @@ body.mapping #calc { z-index: 97; }
                 margin-top: .3rem; padding-top: .3rem; }
 .subjpick-new button { flex: 1; }
 .subjpick-form { display: flex; flex-direction: column; gap: .35rem; padding: .3rem .2rem; }
+#make-about,
 .subjpick-form input {
   font: inherit; padding: .4rem .5rem; border-radius: .35rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);

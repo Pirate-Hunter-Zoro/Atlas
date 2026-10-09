@@ -4,9 +4,9 @@
   * A STEP HANDED OVER (`POST /handover`) is a doing turn inside a teach
     session: the session is unchanged, the turn is told it is doing, and it
     gets the doing clock. Refused in do mode.
-  * A PAPER OR A DECK (`POST /writeup`) is an action, not a mode: no card, no
-    transcript turn, the mode untouched; commissioned from the door against
-    another workspace it lands there.
+  * A DECK OR A PAPER (`POST /artifact`) is an action, not a mode: no card, no
+    transcript turn, the mode untouched. Asked for from a subject's row it
+    lands in a session on that subject (`test/making.py`).
   * NO SITTING IS ABOUT A BOX: the map is gone, and a MISSION replaces the
     sitting rather than wearing it.
 
@@ -265,10 +265,10 @@ try:
     before_state = dict(repo.state())
     turns_before = len(turns.load_turns(repo))
 
-    status, body = post("/writeup", {"makes": "essay"})
+    status, body = post("/artifact", {"make": "essay"})
     check("a product that is not one of the two is refused by name",
-          status == 400 and "paper or slides" in (body.get("error") or ""))
-    status, body = post("/writeup", {})
+          status == 400 and "deck or paper" in (body.get("error") or ""))
+    status, body = post("/artifact", {})
     check("and so is a request that does not say which",
           status == 400 and not body.get("ok"))
     check("neither of those asked for anything",
@@ -276,10 +276,11 @@ try:
           and not writeups.waiting(repo))
 
     woke_before = len(woken)
-    status, body = post("/writeup", {"makes": "slides"})
+    status, body = post("/artifact", {"make": "deck"})
     check("the board takes the ask",
           status == 200 and body.get("ok") is True
-          and body.get("makes") == "slides" and body.get("id"))
+          and body.get("make") == "deck" and body.get("id"))
+    asked = body
     check("THE SESSION'S STATE HAS NOT MOVED", repo.state() == before_state)
     check("the lesson is not filed away", not archive.list_archive(repo))
     check("the cards are all still on the board",
@@ -301,7 +302,7 @@ try:
           "Write no card" in line and "its mode has not changed" in line)
     check("it carries the method for a document rather than restating it",
           sense.MAKE_SENSE in line)
-    check("and the scope with nobody naming one is the evening",
+    check("and the scope with nobody naming one is the session",
           "THE CONCEPTS THIS SITTING COVERED" in line)
     check("it arrives unread, or nothing wakes on it",
           lines[-1].get("read") is False)
@@ -319,13 +320,13 @@ try:
     # AND WHEN IT IS THERE, which is derived from the artifact's doc.json and
     # mtimes rather than reported: nothing is alive to report it. The ask made
     # the artifact first, and the line names its exact source.
-    found = re.search(r"THE FILE FOR THIS ONE IS `(docs/([a-z0-9-]+)/[a-z0-9-]+\.tex)`",
-                      line)
+    source = asked.get("source") or ""
+    src = source if os.path.isabs(source) else os.path.join(fake, *source.split("/"))
     check("the ask made its artifact first, and the line names the source and "
-          "board build", found and os.path.isfile(os.path.join(
-              tmp, found.group(1).rsplit("/", 1)[0], "doc.json"))
-          and ("board build %s" % found.group(1)) in line)
-    src = os.path.join(tmp, *found.group(1).split("/"))
+          "board build", source.endswith(".tex")
+          and os.path.isfile(os.path.join(os.path.dirname(src), "doc.json"))
+          and ("THE FILE IS `%s`" % source) in line
+          and ("board build %s" % source) in line)
     later = time.time() + 5
     with open(src, "w", encoding="utf-8") as fh:
         fh.write("\\documentclass{beamer}\\title{How the harness works}\n")
@@ -338,7 +339,7 @@ try:
     said = board.build().get("writeups") or []
     check("and says when it is in the library, naming which document",
           len(said) == 1 and said[0]["state"] == "done"
-          and said[0]["doc"] == found.group(2))
+          and said[0]["doc"] == asked.get("doc"))
 
     status, body = post("/writeup/seen", {"id": said[0]["id"]})
     library.forget()
@@ -347,130 +348,12 @@ try:
           status == 200 and body.get("ok") is True
           and not board.build().get("writeups"))
 
-    # ------------------------------------------- and commissioned from the door
-    # A PAPER OR A DECK, ASKED FOR ABOUT A WORKSPACE NOBODY IS LOOKING AT.
-    #
-    # **The want, in the owner's words:** *"the ability to write a paper or a
-    # slide deck should just be an option on the homescreen, and from there I
-    # want to be able to specify which projects/course, and which
-    # sections/results."*
-    #
-    # The front door has no sitting behind it, so the second half of that
-    # sentence cannot come from a board. It comes from what discovery already
-    # found in the workspace being named -- `POST /writeup/scopes` -- and the
-    # key that comes back is resolved against that same list.
-    fields = workspace("courses", "Fields", {"name": "Fields"})
-    with open(os.path.join(fields, "chapters.tsv"), "w", encoding="utf-8") as fh:
-        fh.write("1\t1\t20\tch01-groups\tGroups\n"
-                 "2\t21\t44\tch02-rings\tRings\n")
-    os.makedirs(os.path.join(fields, "homework", "hw01"), exist_ok=True)
-    with open(os.path.join(fields, "homework", "hw01", "hw01.tex"), "w",
-              encoding="utf-8") as fh:
-        fh.write("\\begin{problem}{1}\\end{problem}\n")
-
-    status, body = post("/writeup/scopes", {"repo": "Fields"})
-    keys = [s["key"] for s in (body.get("scopes") or [])]
-    check("the front door can ask what a document in another workspace could "
-          "be about", status == 200 and body.get("ok") is True
-          and body.get("repo") == "Fields" and body.get("id") == "courses/Fields")
-    check("a course offers its own chapters, by the names the course gives them",
-          "chapter:ch01-groups" in keys and "chapter:ch02-rings" in keys
-          and any(s["label"] == "Ch 1 — Groups"
-                  for s in body["scopes"]))
-    check("and its problem sets", "set:hw01" in keys)
-    check("THE WHOLE WORKSPACE IS LAST, because it is the widest scope",
-          keys[-1] == "workspace")
-    check("every row says what the button reads and what is under it",
-          all(s.get("key") and s.get("label") and s.get("what")
-              for s in body["scopes"]))
-    # The sentence the assistant is given is not the browser's to hold: a page
-    # that has it is a page that can edit it, and then the key is decoration.
-    check("but not the sentence the assistant is handed",
-          all("about" not in s for s in body["scopes"]))
-
-    status, body = post("/writeup/scopes", {"repo": "Nowhere-At-All"})
-    check("a workspace this machine has not got is a miss, not a path",
-          status == 404 and (body.get("error") or "") == "unknown workspace")
-
-    # `tutor agent start` over there, which is what `/elsewhere` does and is
-    # what has to be ASKED FOR before anything is written.
-    ran = []
-    real_tutor_cli = spawn.tutor_cli
-    spawn.tutor_cli = lambda args, timeout=30: (
-        ran.append(list(args)) or (0, "claude starting in Fields"))
-    # WHAT IS IN THAT WORKSPACE BEFORE ANY OF THIS, and no `Repo` is built for
-    # it here: constructing one makes `live/` and its eight subdirectories, so
-    # a test that builds one first cannot see the route doing the same thing on
-    # a request it refused. The refusal must leave the directory as it found it.
-    before = sorted(os.listdir(fields))
-    try:
-        status, body = post("/writeup", {"makes": "paper", "repo": "Nope"})
-        check("and so is a workspace named on the ask itself",
-              status == 404 and (body.get("error") or "") == "unknown workspace")
-
-        status, body = post("/writeup", {"makes": "paper", "repo": "Fields",
-                                         "scope": "chapter:ch99-invented"})
-        check("a scope key that workspace does not offer is refused by name",
-              status == 400 and (body.get("error") or "") == "no such scope")
-        check("and NOTHING was written for it -- no record, no inbox line, no "
-              "start asked for", not ran and sorted(os.listdir(fields)) == before)
-
-        status, body = post("/writeup", {"makes": "slides", "repo": "Fields",
-                                         "scope": "chapter:ch02-rings",
-                                         "about": "whatever I typed instead"})
-        check("a deck can be commissioned against a workspace this board is "
-              "not serving", status == 200 and body.get("ok") is True)
-        check("the reply says WHERE it went, because that is not where it was "
-              "asked from",
-              body.get("repo") == "Fields" and body.get("where") == "Fields"
-              and "Fields" in (body.get("detail") or ""))
-        # NOT a start over there: the ask goes through `runner_route`, which
-        # opens a session bound to Fields (none was open) and writes it there.
-        rec = sessions.get(body.get("session") or "", fake) or {}
-        check("the ask lands in a session bound to that workspace, through "
-              "runner_route, and no tutor start is asked for",
-              rec.get("subject") == "courses/Fields" and not ran)
-        over = sessions.repo(rec.get("id"), fake)
-
-        with open(over.messages_path, encoding="utf-8") as fh:
-            lines = [json.loads(l) for l in fh if l.strip()]
-        line = lines[-1].get("text", "") if lines else ""
-        check("the inbox line is in THAT workspace, which is what a headless "
-              "turn there is woken with",
-              line.startswith("[writeup]") and lines[-1].get("read") is False)
-        check("and the scope it was picked from is what the turn is told it is "
-              "about", "Ch 2 — Rings" in line and "as this course covers it" in line)
-        check("A SCOPE PICKED OFF THE LIST BEATS FREE TEXT SOMEBODY TYPED",
-              "whatever I typed instead" not in line)
-        writeups.forget()
-        check("the record is over there too, so that board says it is being "
-              "written", (writeups.waiting(over) or [{}])[0].get("makes")
-              == "slides")
-        check("AND NOTHING LANDED IN THE WORKSPACE THIS BOARD IS SERVING",
-              not [l for l in open(repo.messages_path, encoding="utf-8")
-                   if "Ch 2 — Rings" in l])
-
-        # The board's own workspace answers to its own name, whether or not the
-        # walk can see it -- this one is a temporary directory in no family.
-        here_before = len(open(repo.messages_path, encoding="utf-8").readlines())
-        status, body = post("/writeup", {"makes": "paper",
-                                         "repo": os.path.basename(tmp)})
-        check("naming the workspace the board already serves is the ask it "
-              "always was", status == 200 and body.get("ok") is True
-              and body.get("repo") == os.path.basename(tmp))
-        check("and it lands here rather than anywhere else",
-              len(open(repo.messages_path, encoding="utf-8").readlines())
-              == here_before + 1)
-    finally:
-        spawn.tutor_cli = real_tutor_cli
-    writeups.forget()
-
     # In do mode as well: a document is not a mode.
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
                    "mode": "do"}, fh)
     was = dict(repo.state())
-    status, body = post("/writeup", {"makes": "paper"})
+    status, body = post("/artifact", {"make": "paper"})
     check("a paper can be asked for in do mode too",
           status == 200 and body.get("ok") is True)
     check("and the session is exactly as it was", repo.state() == was)

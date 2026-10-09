@@ -281,7 +281,7 @@ try:
           and any("k_sweep" in f or "k-sweep" in f
                   for f in (briefs.read_brief(DECK) or {}).get("figures", []))
           and not any("old" in f for f in (briefs.read_brief(DECK) or {}).get("figures", [])))
-    w = writeups.read(MEET, body.get("id"))
+    w = writeups.read(sessions.repo(sid, base), body.get("id"))
     check("the writeup record is judged by the artifact", (w or {}).get("dir") == "docs/meeting")
     got = deck_rec()
     check("it is being written while the ask is unread, said on the Meetings library",
@@ -328,7 +328,7 @@ try:
           "0.713" in nums and any(n["frame"] == 2 for n in prov["numbers"]))
     check("and the ones the sources give are not", "0.602" not in nums and "0.594" not in nums)
     check("a figure the board copied is not flagged", prov.get("figures") == [])
-    check("the writeup record says done", writeups.state(MEET, body.get("id")) == "done")
+    check("the writeup record says done", writeups.state(sessions.repo(sid, base), body.get("id")) == "done")
     docs = [d for d in library.documents(MEET) if d.get("artifact") == "docs/meeting"]
     check("the deck is a document in the Meetings library", len(docs) == 1)
 

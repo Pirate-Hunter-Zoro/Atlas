@@ -401,23 +401,11 @@ const plateOf = (doc, id) =>
 
     doc.querySelector('#map-sheet .region-new')
        .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-    const sheet = doc.getElementById('docnew');
-    !sheet.hidden && doc.getElementById('docnew-go').disabled
-      ? ok('"new paper or deck" opens its sheet, and it will not send an empty ask')
-      : fail('the new-document sheet hidden=' + sheet.hidden);
-    doc.getElementById('docnew-slides').dispatchEvent(new w.MouseEvent('click'));
-    const about = doc.getElementById('docnew-about');
-    about.value = 'the k sweep, for the lab meeting';
-    about.dispatchEvent(new w.Event('input'));
-    doc.getElementById('docnew-go').dispatchEvent(new w.MouseEvent('click'));
-    await sleep(10);
-    const sent = posts.filter((p) => p.url === '/writeup').pop();
-    sent && sent.body.makes === 'slides'
-      && sent.body.about === 'the k sweep, for the lab meeting'
-      ? ok('and sending it asks /writeup for that deck, about that line')
-      : fail('the sheet posted ' + JSON.stringify(sent));
-    doc.getElementById('docnew-close').dispatchEvent(new w.MouseEvent('click'));
-    sheet.hidden ? ok('and the sheet closes') : fail('the sheet will not close');
+    const menu = doc.getElementById('makemenu');
+    !menu.hidden && doc.getElementById('make-deck') && doc.getElementById('make-paper')
+      ? ok('"new paper or deck" opens the header\'s Make menu')
+      : fail('the region\'s new-document button did not open Make: hidden=' + menu.hidden);
+    menu.hidden = true;
   }
 
   // ------------------------------------------- a tap on the badge, scoped

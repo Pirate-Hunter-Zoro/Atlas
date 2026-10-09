@@ -12,9 +12,10 @@ that is not the lesson's.
                                     sentence saying why there is nothing
     GET  /library/table/<id>        one table, read back as rows or as text,
                                     because a page cannot open a file
-    POST /writeup                   a paper or a deck, asked for from a sitting
-                                    on this board or commissioned from the front
-                                    door against any workspace on the machine
+    POST /artifact                  a deck or a paper `{make, about?}`, from the
+                                    session's Make menu or a subject's row on
+                                    the start screen: the doc.json first, then
+                                    a `[writeup]` turn that writes and builds it
     POST /writeup/seen              one finished ask waved off the board's strip
     GET  /library/stamp             one hash of where every document is and
                                     when it last changed, cheap enough to ask
@@ -46,12 +47,12 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library.json  /library/stamp  /library/results.json
               /library/table/*  /library/view/*  /library/note/*
               /library/ledger/* (GET and POST)  /library/evidence/*
-              /library/feedback  /doc/delete  /writeup
+              /library/feedback  /doc/delete  /artifact
     session   under `/s/<id>/` only: /library/marked/*
               /writeup/seen
 
-AN ASK OF A TUTOR THAT IS NOT THIS SESSION'S -- feedback or a write-up from
-the library page, a write-up for another subject, the meeting deck -- goes
+AN ASK OF A TUTOR THAT IS NOT THIS SESSION'S -- feedback from the library
+page, a deck or a paper from a subject's row, the meeting deck -- goes
 through `registry.runner_route`, which picks the
 session. Only a session asking its own tutor writes its own inbox.
 
@@ -59,9 +60,8 @@ AN ID, NEVER A PATH. What arrives from the browser is compared against what
 discovery found -- `library.find` -- and a miss is a miss. `/result/` is the
 worked example. A NOTE'S NAME is the same rule one
 level down: matched against the names `library.notes` found beside that
-document, never joined onto a directory. A WORKSPACE and a SCOPE KEY on
-`/writeup` are the same rule again: `machines.workspaces` and `scopes.find` are
-the lists, and the root comes off the match.
+document, never joined onto a directory. `/artifact` takes no path at all: the
+server picks the slug and the directory.
 
 A DOCUMENT IS NOT THE ONLY THING A WORKSPACE MAKES, which is why the results
 are on this page rather than on a second one. A mission ends by naming what it
@@ -96,10 +96,9 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from ...runner import service as runner
-from ... import (artifacts, briefs, fenced, leaving, machines, paths,
-                 scopes, sense, subjects, writeups)
+from ... import (artifacts, briefs, fenced, leaving, paths, sense, subjects,
+                 writeups)
 from ...course import burn
-from ...course import config
 from ...course import ledger
 from ...course import library
 from ...lesson import turns
@@ -307,8 +306,8 @@ def post(h, repo, path):
         library.forget()
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
-    if path == "/writeup":
-        return _writeup(h, repo)
+    if path == "/artifact":
+        return _artifact(h, repo)
 
     if path == "/doc/delete":
         try:
@@ -330,143 +329,61 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         # A `writing` one cannot be waved away: it is still being written, and
         # that is the fact the strip is reporting. `writeups.seen` refuses it.
-        got = writeups.seen(repo.root, str(payload.get("id") or ""))
+        got = writeups.seen(repo, str(payload.get("id") or ""))
         h.hub.worker.dirty.set()
         return h.send_json({"ok": bool(got)})
 
     return NOT_MINE
 
 
-def _writeup(h, repo):
-    """A PAPER OR A DECK, ASKED FOR FROM ANY SITTING, WITHOUT CHANGING IT.
+# What the Make menu sends, and what each is called in a record.
+MAKES = {"deck": "slides", "paper": "paper"}
 
-    **The want, and it was asked as a question:** *"at any point can I have a
-    presentation or paper written up going through the things we talked about in
-    that tutoring session? Can I do that in ANY tutoring session?"* The answer
-    was no, twice over.
 
-    A DOCUMENT IS AN ACTION, NOT A MODE. A paper or a deck is a PRODUCT any
-    session can ask for: this changes no mode, archives nothing, replaces no
-    tutor, and is therefore available everywhere, like everything else on this
-    page.
+def _artifact(h, repo):
+    """`POST /artifact {make: "deck"|"paper", about?}`: a deck or a paper.
 
-    IT IS IN THIS FILE RATHER THAN BESIDE `/mode`, because every rule that makes
-    it safe is this file's: no card, no sitting, no `state.json`. The document
-    lands in the library and the library's own loop corrects it.
+    A DOCUMENT IS AN ACTION, NOT A MODE: this changes no mode, writes no card
+    and archives nothing. The server makes the artifact first --
+    `<subject>/docs/<slug>/doc.json`, the slug and path its own choice -- and
+    then queues a `[writeup]` turn whose line names that exact source, says
+    what kind of file it is, and says to run `board build`. The strip judges
+    the ask by the doc.json (`writeups.waiting`).
 
-    AND NOTHING GOES IN THE TRANSCRIPT, which is the one place this differs from
-    `/mode` and `/handover`. Both of those put the tap in as a turn of the
-    student's, because a card is coming back and a transcript that opens with the
-    answer reads as the tutor deciding something on its own. Here no card is
-    coming: a student turn with no reply is what sets `awaitingReply`, and the
-    board would sit waiting for a card that this turn is told not to write. So
-    what says it is happening is the RECORD -- `tutorboard/writeups.py` -- which
-    the board paints in the strip and which survives a closed lid, and the reply
-    carries its id.
-
-    THE SCOPE IS THE EVENING UNLESS THEY SAID OTHERWISE: *"write up the four
-    things we just covered"* is the default, and `sense.writeup_sense` says how
-    to read the lesson back for it.
-
-    AND IT CAN BE COMMISSIONED FROM THE FRONT DOOR, AGAINST A WORKSPACE NOBODY
-    IS LOOKING AT. Asked for in these words: *"the ability to write a paper or a
-    slide deck should just be an option on the homescreen, and from there I want
-    to be able to specify which projects/course, and which sections/results."*
-    So `repo` names the workspace and `scope` names what it is over -- a key
-    from `POST /writeup/scopes`, resolved through `tutorboard/scopes.py` against
-    the TARGET's root and never joined onto a path. A scope beats a free-text
-    `about`, because one of them was picked off a list of what is really there
-    and the other was typed.
-
-    THE DOCUMENT THEN LANDS IN THAT WORKSPACE'S LIBRARY, WHICH IS NOT THE BOARD
-    THAT COMMISSIONED IT. Nothing on this board changes and nothing appears in
-    its library: the record, the inbox line and the finished document are all
-    written over there, and the way back to them is that workspace's own
-    library page. The reply says which workspace it went to for exactly that
-    reason -- an ask whose product appears somewhere else has to say where.
+    THE DEFAULT SCOPE IS THIS SESSION. Under `/s/<id>/` the ask is the
+    session's own; an unbound session is refused, so the tutor binds first.
+    Unprefixed, `?subject=<id>` names a subject (a row on the start screen)
+    and `registry.runner_route` picks the session; there is no session to
+    default to, so `about` is required.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
     except Exception:
         return h.send_json({"ok": False, "error": "bad json"}, status=400)
-    makes = writeups.clean_makes(payload.get("makes"))
-    if not makes:
-        # Named rather than defaulted. Which of the two is known at the moment of
-        # tapping -- there are two controls for exactly that reason -- so a
-        # request that does not say has gone wrong somewhere worth hearing about.
-        return h.send_json({"ok": False, "error": "paper or slides"}, status=400)
-
-    # WHICH WORKSPACE THE DOCUMENT IS FOR, and it is this one unless the request
-    # says otherwise. `/elsewhere` and `/switch` resolve a name the same way:
-    # matched against what the walk already found, with the ROOT taken off the
-    # match rather than rebuilt out of the name, because the same name can sit
-    # under two families.
-    #
-    # THE BOARD'S OWN WORKSPACE ANSWERS TO ITS OWN NAME WHETHER OR NOT THE WALK
-    # CAN SEE IT, and it is answered for FIRST. A board serves exactly one root,
-    # it was handed the `Repo` for it, and building a second object for the
-    # directory it is already sitting in is two objects that can disagree about
-    # one lesson.
-    want = str(payload.get("repo") or "").strip()
-    match = None
-    if want and want not in (os.path.basename(os.path.realpath(repo.root)),
-                             subjects.identify(repo.root)):
-        for c in machines.workspaces(repo):
-            if want in (c["repo"], c["id"]):
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-    # THE ROOT NOW, THE `Repo` ONLY ONCE THE ASK IS ALLOWED. Constructing one
-    # is not a read: `Repo.__init__` calls `ensure_dirs`, which makes `live/`
-    # and its eight subdirectories, and it does that because a long-lived board
-    # has to put back what git removed under it. Here it would mean a REFUSED
-    # request -- an unknown scope, an assistant already busy -- leaving a live
-    # directory behind in a workspace that was never written in, which is the
-    # opposite of what the two comments below promise.
-    root = match["root"] if match else repo.root
-    where_dir = match["repo"] if match else os.path.basename(
-        os.path.realpath(repo.root))
-    where_name = ((match["course"] or match["repo"]) if match
-                  else (config.read_config(repo.root)["name"] or where_dir))
-
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    make = str(payload.get("make") or "").strip().lower()
+    if make not in MAKES:
+        return h.send_json({"ok": False, "error": "make is deck or paper"},
+                           status=400)
     about = str(payload.get("about") or "").strip()[:writeups.ABOUT_CHARS]
-    key = str(payload.get("scope") or "").strip()
-    if key:
-        # A KEY, LOOKED UP IN THE TARGET'S OWN LIST. Resolved against the
-        # workspace the document is FOR, not against this one: the chapters on
-        # offer are that course's chapters, and a key resolved here would answer
-        # with the wrong sentence or with none. Nothing is written before this
-        # answers -- a scope nobody recognises is a document about the wrong
-        # thing, which is worse than a refusal.
-        found = scopes.find(root, key)
-        if not found:
-            return h.send_json({"ok": False, "error": "no such scope"},
-                               status=400)
-        # AND IT BEATS FREE TEXT. One of the two was picked off a list of what
-        # that workspace really has and the other was typed; where both arrived,
-        # the request has two minds and the list is the one to trust. Clamped
-        # like the typed one: the record stores `about[:ABOUT_CHARS]` either
-        # way, and a sentence that goes to the assistant whole while the record
-        # and the strip carry it cut is one ask described two ways.
-        about = found["about"][:writeups.ABOUT_CHARS]
-
-    got = _dispatch_writeup(h, repo, match, makes, about)
+    if getattr(repo, "stored", False) and not (repo.state() or {}).get("subject"):
+        # Nothing to put it in: an unbound session's root is the Atlas root.
+        return h.send_json({"ok": False, "error": "this session is not bound to a "
+                            "course or project: bind it first"}, status=409)
+    sessionless = registry.is_sessionless(repo)
+    if sessionless and not about:
+        return h.send_json({"ok": False, "error": "say what it is about"},
+                           status=400)
+    got = _dispatch_writeup(h, repo, None, MAKES[make], about)
     if not isinstance(got, dict):
         return got
-    return h.send_json({"ok": True, "id": got["id"], "makes": makes,
-                        "about": got["rec"].get("about") or "", "state": "writing",
-                        "repo": where_dir, "where": where_name,
+    art = got.get("artifact") or {}
+    return h.send_json({"ok": True, "id": got["id"], "make": make,
+                        "about": about, "state": "writing",
+                        "doc": art.get("id") or "", "source": art.get("source") or "",
                         "session": got.get("session"),
-                        "detail": (("It is being written in %s and will appear "
-                                    "in THAT workspace's library rather than "
-                                    "this one. Nothing on this board changes."
-                                    % where_name) if match else
-                                   ("It is being written now and will appear in "
-                                    "the library. That turn is not part of the "
-                                    "lesson: it writes no card and leaves the "
-                                    "sitting on the board alone."))})
+                        "subject": art.get("subject") or ""})
 
 
 def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None,
@@ -474,7 +391,7 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None,
     """Ask for a document in the workspace `match` names -- or this one, where
     `match` is None -- and return `{id, rec, root}`, or the refusal already sent.
 
-    `/writeup`'s own body. `line` is the inbox line where the caller has its
+    `/artifact`'s own body. `line` is the inbox line where the caller has its
     own, and `prepare` is called with the target Repo and the ask's id once the
     ask is allowed and before it is recorded -- the meeting deck writes its
     brief there, so a refusal leaves nothing behind and a recorded ask always
@@ -519,7 +436,8 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
         doc_dir, text = None, line
         if line is None and prepare is None:
             # A PLAIN ASK MAKES ITS ARTIFACT FIRST, so the strip is judged by
-            # its doc.json and the turn is told the exact file.
+            # its doc.json and the turn is told the exact file -- from the
+            # Atlas root, which is where every turn runs.
             try:
                 art = artifacts.create(
                     target.root,
@@ -530,13 +448,17 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
                 raise _Refusal({"ok": False, "error": "no document could be made "
                                 "here: %s" % exc}, 409)
             doc_dir = art["rel"]
-            src = "%s/%s" % (art["rel"], art["source"])
-            text = ("[writeup] " + sense.writeup_sense(makes, about)
-                    + " THE FILE FOR THIS ONE IS `%s`, that name exactly, and it "
-                      "outranks `writeups/<slug>/` above: the board finds the "
-                      "document by it. %s Build it with `board build %s`."
-                    % (src, "It is a beamer `.tex`." if makes == "slides" else
-                       "It is Markdown.", src))
+            top = os.path.realpath(target.atlas or registry.base_of(repo))
+
+            def rel(p):
+                # From the Atlas root; a workspace outside it is named whole.
+                p = os.path.realpath(p)
+                said = os.path.relpath(p, top)
+                return p if said.startswith("..") else said.replace(os.sep, "/")
+            src = rel(art["path"])
+            made["artifact"] = {"id": art["id"], "source": src,
+                                "subject": rel(target.root)}
+            text = "[writeup] " + sense.writeup_sense(makes, about, source=src)
         if prepare:
             try:
                 got = prepare(target, wid)
@@ -545,7 +467,7 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
                                 "error": "nothing could be prepared: %s" % exc}, 500)
             if isinstance(got, dict) and got.get("doc_dir"):
                 doc_dir = got["doc_dir"]
-        made["rec"] = writeups.ask(target.root, wid, makes, about,
+        made["rec"] = writeups.ask(target, wid, makes, about,
                                    agent="",
                                    doc_dir=doc_dir,
                                    session=(os.path.basename(target.live)
@@ -561,14 +483,15 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
                 subject, record, base=registry.base_of(repo), before=ready,
                 ask=ask or ("a deck" if makes == "slides" else "a paper"))
         except LookupError:
-            return None, ({"ok": False, "error": "unknown workspace"}, 404)
+            return None, ({"ok": False, "error": "no such subject"}, 404)
         except _Refusal as no:
             return None, (no.payload, no.status)
         except OSError as exc:
             return None, ({"ok": False,
                            "error": "nothing could be asked: %s" % exc}, 500)
         return {"id": got["id"], "rec": made["rec"], "root": got["repo"].root,
-                "session": got["session"], "woke": False}, None
+                "session": got["session"], "woke": False,
+                "artifact": made.get("artifact")}, None
 
     # An id from the same series the lesson's turns use, so nothing in the
     # inbox has to be told apart by shape. NOT written into `turns.jsonl`; see
@@ -587,7 +510,9 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
                        "error": "nothing could be asked: %s" % exc}, 500)
     # Queued on the runner, the same as `/say` and `_revise`.
     woke = bool(runner.wake(repo))
-    return {"id": wid, "rec": made["rec"], "root": repo.root, "woke": woke}, None
+    return {"id": wid, "rec": made["rec"], "root": repo.root, "woke": woke,
+            "session": os.path.basename(repo.live) if repo.stored else None,
+            "artifact": made.get("artifact")}, None
 
 
 SUBJECT_ID = re.compile(r"\A(?:courses|projects|research|practice)/[A-Za-z0-9._-]+\Z")

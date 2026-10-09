@@ -449,7 +449,7 @@ await sleep(60);
 
    The only row in this strip that is about the board in front of you. It is in
    the chrome for the same reason the rest of it is: the turn writing a deck must
-   not push a proof off the glass, which is the whole design of `POST /writeup`.
+   not push a proof off the glass, which is the whole design of `POST /artifact`.
 
    IT EXISTS BECAUSE THAT TURN IS TOLD TO WRITE NO CARD, so nothing about it can
    appear on the board itself and "I asked for a deck and nothing happened" had
@@ -486,8 +486,9 @@ await sleep(60);
   /in the library/.test((papers()[0] || {}).textContent || '')
     ? ok('and says when it is in the library')
     : fail('a finished document reads as still being written');
-  papers()[0].tagName === 'A' && /\/library$/.test(papers()[0].getAttribute('href'))
-    ? ok('and the row is the way to it')
+  papers()[0].tagName === 'A'
+    && /\/library\?doc=writeups-harness$/.test(papers()[0].getAttribute('href'))
+    ? ok('and the row is the way to it, opened on that document')
     : fail('the finished row is not a link to the library');
   papers()[0].dispatchEvent(new window.Event('click'));
   await sleep(30);

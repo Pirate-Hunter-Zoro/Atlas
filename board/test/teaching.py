@@ -399,7 +399,7 @@ for phrase, why in [
     ("was not in the room", "written for somebody who was not there"),
     ("no first person", "with no first person"),
     ("narrate the hand-check", "and no narration of how it was taught"),
-    ("writeups/", "and kept where a document goes"),
+    ("docs/<slug>/", "and kept where a document goes"),
 ]:
     check("the make method says " + why, phrase in sense_mod.MAKE_SENSE)
 
@@ -411,7 +411,7 @@ for phrase, why in [
 #
 # What got banned alongside it is SCOPE: "AND ITS SCOPE IS THE BOX, NOT THE
 # EVENING". So *"a deck about the four things this sitting covered"* -- which is
-# the ask `POST /writeup` exists for -- had no phrasing anywhere that the rule
+# the ask `POST /artifact` exists for -- had no phrasing anywhere that the rule
 # did not refuse. The two are separated now, and BOTH halves have to hold in all
 # four places, because two of the four worded the old refusal differently and
 # that is exactly how a rule gets fixed in one and left in the other.
@@ -438,7 +438,7 @@ for phrase, why in [
     ("about the SUBJECT", "the contract says the same"),
     ("was not in the room", "for somebody who was not there"),
     ("refusal", "and says it is a refusal rather than a preference"),
-    ("writeups/", "and names where a new document goes"),
+    ("docs/<slug>/", "and names where a new document goes"),
     ("board recap --all", "and how the evening is read back"),
 ]:
     check("TEACHING.md: " + why, phrase in text)

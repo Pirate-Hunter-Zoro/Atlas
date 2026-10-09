@@ -151,6 +151,36 @@
   </div>
 </div>
 
+<!-- A deck or a paper about one subject, from its row: POST /artifact with
+     ?subject=, and the newest open session on that subject (else a new one
+     bound to it) writes it. The line is required: there is no session here
+     to default to. -->
+<div id="artmaker" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="artmaker-title">
+    <p class="eyebrow" id="artmaker-where">a document</p>
+    <h3 id="artmaker-title">A deck or a paper</h3>
+    <div id="artmaker-make" class="picks">
+      <button type="button" data-make="deck" aria-pressed="true">deck</button>
+      <button type="button" data-make="paper" aria-pressed="false">paper</button>
+    </div>
+    <input id="artmaker-about" type="text" autocomplete="off"
+           placeholder="what it is about, in one line">
+    <p class="sheet-line" id="artmaker-said" hidden></p>
+    <div class="sheet-actions">
+      <button id="artmaker-go" class="action primary" type="button" disabled>
+        <span class="action-name">Write it</span>
+        <span class="action-sub" id="artmaker-go-sub">say what it is about</span>
+      </button>
+      <button id="artmaker-close" class="action" type="button">
+        <span class="action-name">Close</span>
+      </button>
+    </div>
+    <a id="artmaker-open" class="action" hidden>
+      <span class="action-name">Open the session writing it</span>
+    </a>
+  </div>
+</div>
+
 <!-- The meeting deck: a period, and the subjects it covers; none chosen is
      every subject that moved. The deck is projects/Meetings/docs/meeting/, and
      making one replaces the one before. -->

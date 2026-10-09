@@ -10,15 +10,19 @@ WHY THIS EXISTS, in the words it was asked in:
      session?"
 
 A DOCUMENT IS AN ACTION, NOT A MODE. A paper or a deck is a PRODUCT any
-session can be asked for. So it is its own act -- `POST /writeup` -- which
-changes no mode, archives nothing and replaces no tutor, and the turn it wakes
-writes no card. The document lands in the library, where
+session can be asked for. So it is its own act -- `POST /artifact`, the Make
+menu -- which changes no mode, archives nothing and replaces no tutor, and the
+turn it wakes writes no card. The document lands in the library, where
 correcting it is already a loop that exists.
 
 WHICH LEAVES ONE THING WITH NOWHERE TO BE SAID: that it is being written, and
 that it is there. A turn that writes no card is invisible on the board by
 construction, and "I asked for a deck and nothing happened" is the same defect
 `missions.py` was built against one workspace over. This module is the record.
+
+THE RECORD IS THE SESSION'S. A stored session keeps its asks in its own
+`writeups/`, so two sessions on one subject each see their own, and nothing is
+written into the subject's tree. A workspace keeps them in its `live/`.
 
 THE STATE IS THE ARTIFACT'S. An ask that made an artifact carries its
 directory (`dir`, relative to the root), and its state is `artifacts.status`
@@ -44,7 +48,7 @@ from .course import repo as course_repo
 
 WRITEUPS = "writeups"
 
-# The two products.
+# The two products. The Make menu's "deck" is recorded as `slides`.
 MAKES = ("paper", "slides")
 
 # What a subject is truncated to in the record. It is read on a tablet in a strip
@@ -88,15 +92,25 @@ def clean_makes(makes):
     return makes if makes in MAKES else None
 
 
-def _dir(root):
-    return course_repo.session_path(root, WRITEUPS)
+def _root(where):
+    """The subject root of `where`: a Repo, or a root."""
+    return getattr(where, "root", where)
 
 
-def _path(root, wid):
-    return os.path.join(_dir(root), "%s.json" % wid)
+def _dir(where):
+    """Where the records are: a Repo's session directory, else the session
+    directory of the workspace at the root `where`."""
+    live = getattr(where, "live", None)
+    if live:
+        return os.path.join(live, WRITEUPS)
+    return course_repo.session_path(where, WRITEUPS)
 
 
-def write(root, rec):
+def _path(where, wid):
+    return os.path.join(_dir(where), "%s.json" % wid)
+
+
+def write(where, rec):
     """Store one record. Atomically, and never raising.
 
     Two boards on two nodes share this filesystem and a half-written record reads
@@ -105,7 +119,7 @@ def write(root, rec):
     wid = str(rec.get("id") or "")
     if not ID_RE.match(wid):
         return False
-    path = _path(root, wid)
+    path = _path(where, wid)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         keep = {k: rec[k] for k in FIELDS if k in rec}
@@ -118,36 +132,36 @@ def write(root, rec):
     return True
 
 
-def read(root, wid):
+def read(where, wid):
     """One record, or None."""
     if not ID_RE.match(str(wid or "")):
         return None
     try:
-        with open(_path(root, wid), "r", encoding="utf-8") as fh:
+        with open(_path(where, wid), "r", encoding="utf-8") as fh:
             got = json.load(fh)
     except (OSError, ValueError):
         return None
     return got if isinstance(got, dict) else None
 
 
-def _every(root):
+def _every(where):
     """Every record on disk, newest ask first, with the expired ones removed."""
     out = []
     try:
-        names = sorted(os.listdir(_dir(root)))
+        names = sorted(os.listdir(_dir(where)))
     except OSError:
         return out
     now = time.time()
     for name in names:
         if not name.endswith(".json"):
             continue
-        rec = read(root, name[:-5])
+        rec = read(where, name[:-5])
         if not rec:
             continue
         ended = rec.get("ended_at") or 0
         if ended and now - ended > KEEP:
             try:
-                os.remove(_path(root, rec.get("id") or name[:-5]))
+                os.remove(_path(where, rec.get("id") or name[:-5]))
             except OSError:
                 pass
             continue
@@ -156,10 +170,11 @@ def _every(root):
     return out
 
 
-def ask(root, wid, makes, about="", agent="", doc_dir=None, session=None):
+def ask(where, wid, makes, about="", agent="", doc_dir=None, session=None):
     """Record that a document has been asked for. Returns the record.
 
-    `doc_dir` is the artifact the ask made, relative to `root`, when it made
+    `where` is the Repo whose session asked (or a workspace root).
+    `doc_dir` is the artifact the ask made, relative to its root, when it made
     one; its doc.json is what the record is judged by. `session` is the id of
     the stored session whose inbox holds the ask, where one does.
     """
@@ -172,8 +187,8 @@ def ask(root, wid, makes, about="", agent="", doc_dir=None, session=None):
     }
     if session:
         rec["session"] = str(session)
-    write(root, rec)
-    _CACHE.pop(os.path.realpath(root), None)
+    write(where, rec)
+    _CACHE.pop(os.path.realpath(_dir(where)), None)
     return rec
 
 
@@ -183,7 +198,7 @@ def _doc_of(rel):
     return parts[1] if len(parts) == 2 and parts[0] == artifacts.DOCS else ""
 
 
-def _judge(root, rec):
+def _judge(where, rec):
     """`writing`, `done` or `failed`.
 
     With an artifact, its doc.json decides, every time: a failed one that
@@ -192,25 +207,26 @@ def _judge(root, rec):
     frozen, and only `CEILING` or somebody else freezing it ends it.
     """
     rel = rec.get("dir") or ""
+    root = _root(where)
     if rel:
         got = artifacts.status(os.path.join(root, *rel.split("/")),
-                               session_dir=course_repo.session_dir(root))
+                               session_dir=os.path.dirname(_dir(where)))
         got = got or "failed"          # the artifact is gone
         if got != "writing" and (rec.get("ended") != got or not rec.get("ended_at")):
             rec["ended"], rec["doc"] = got, _doc_of(rel) if got == "done" else ""
             rec["ended_at"] = rec.get("ended_at") or time.time()
-            write(root, rec)
+            write(where, rec)
         return got
     if rec.get("ended"):
         return rec["ended"]
     if time.time() - (rec.get("at") or 0) > CEILING:
         rec["ended"], rec["ended_at"] = "failed", time.time()
-        write(root, rec)
+        write(where, rec)
         return "failed"
     return "writing"
 
 
-def state(root, wid):
+def state(where, wid):
     """`writing`, `done` or `failed` for one ask, or "" where there is no record.
 
     `waiting` answers for the strip, which caps and hides; this answers for ONE
@@ -218,13 +234,13 @@ def state(root, wid):
     sittings, which knows its ask by id. The same judging, so the same freezing:
     a record read here and in the strip cannot come to two answers.
     """
-    rec = read(root, wid)
+    rec = read(where, wid)
     if not rec:
         return ""
-    return _judge(root, rec)
+    return _judge(where, rec)
 
 
-def seen(root, wid):
+def seen(where, wid):
     """Mark one finished ask as looked at, so the strip stops saying it.
 
     A `writing` one cannot be waved away: it is still being written, and that is
@@ -232,12 +248,12 @@ def seen(root, wid):
     that has landed is still on disk, still in the library, and still correctable
     from there.
     """
-    rec = read(root, wid)
+    rec = read(where, wid)
     if not rec or not rec.get("ended"):
         return False
     rec["seen"] = True
-    write(root, rec)
-    _CACHE.pop(os.path.realpath(root), None)
+    write(where, rec)
+    _CACHE.pop(os.path.realpath(_dir(where)), None)
     return True
 
 
@@ -252,19 +268,19 @@ def waiting(repo):
 
     Cheap when there is nothing to say, which is nearly always: an empty
     `writeups/` in the session is one `listdir` that fails. Cached for `TTL`
-    otherwise; judging reads doc.json files and stats, never the library.
+    once nothing is being written; judging reads doc.json files and stats,
+    never the library.
     """
-    root = getattr(repo, "root", repo)
-    key = os.path.realpath(root)
+    key = os.path.realpath(_dir(repo))
     hit = _CACHE.get(key)
     if hit and time.time() - hit[0] < TTL:
         return hit[1]
     out = []
-    for rec in _every(root):
+    for rec in _every(repo):
         # JUDGED WHETHER OR NOT IT IS REPORTED. `MOST` caps what the strip is
         # given, and capping the judging instead would leave a fourth ask never
         # ending -- so never carrying `ended_at`, so never pruned.
-        state = _judge(root, rec)
+        state = _judge(repo, rec)
         if len(out) >= MOST or (state != "writing" and rec.get("seen")):
             continue
         out.append({
@@ -276,9 +292,12 @@ def waiting(repo):
             "state": state,
             "doc": rec.get("doc") or "",
         })
-    out = out or None
-    _CACHE[key] = (time.time(), out)
-    return out
+    # NOT CACHED WHILE ONE IS BEING WRITTEN: the hub rebuilds when the turn's
+    # agent.json moves, and that rebuild must see the document land, not a
+    # `writing` judged a moment before the build finished.
+    if not any(r["state"] == "writing" for r in out):
+        _CACHE[key] = (time.time(), out or None)
+    return out or None
 
 
 def forget():

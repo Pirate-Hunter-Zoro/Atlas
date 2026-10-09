@@ -1539,8 +1539,8 @@ function paintResults(got) {
     ? [groups.length + (groups.length === 1 ? " directory" : " directories"),
        figs + (figs === 1 ? " figure" : " figures"),
        tabs + (tabs === 1 ? " table" : " tables"),
-       /* A CAP THAT SAYS NOTHING READS AS "this is all there is", which is
-          `scopes.offered`'s reason for carrying its count and is this one. */
+       /* A CAP THAT SAYS NOTHING READS AS "this is all there is", so the
+          count of what is not listed is said. */
        got.more ? got.more + " more directories are not listed" : ""
       ].filter(Boolean).join("  ·  ")
     : "";

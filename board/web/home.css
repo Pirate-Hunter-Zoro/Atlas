@@ -125,6 +125,17 @@ h2 {
 }
 .row-last { color: var(--ink-2); }
 .row.past { background: transparent; }
+/* A subject's row and its Make button, side by side. */
+.subj { display: flex; gap: .45rem; align-items: stretch; }
+.subj .row { flex: 1; min-width: 0; }
+.row-make {
+  flex: none; font: inherit; font-family: var(--ui); font-size: .8rem;
+  min-width: 2.75rem; padding: .3rem .7rem; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: .6rem;
+  background: var(--paper); color: var(--ink-2);
+}
+.row-make:hover { border-color: var(--ink-3); }
+#artmaker-open { margin-top: .6rem; display: block; text-decoration: none; }
 .badge {
   flex: none;
   font-family: var(--ui); font-size: .7rem; font-weight: 700;
@@ -266,7 +277,7 @@ button.action { font: inherit; cursor: pointer; }
 .sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
 @media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
 .sheet-actions .action { min-height: 3.4rem; text-align: left; }
-#maker-name {
+#maker-name, #artmaker-about {
   width: 100%; margin-top: .9rem;
   font: inherit; font-size: 1.05rem;
   padding: .7rem .8rem; border-radius: .5rem;

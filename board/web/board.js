@@ -153,6 +153,11 @@ var els = {
   makeBtn: document.getElementById("btn-make"),
   endBtn: document.getElementById("btn-end"),
   makemenu: document.getElementById("makemenu"),
+  makeAbout: document.getElementById("make-about"),
+  makeWriteup: document.getElementById("make-writeup"),
+  makeDeck: document.getElementById("make-deck"),
+  makePaper: document.getElementById("make-paper"),
+  makeSaid: document.getElementById("make-said"),
   subjpick: document.getElementById("subjpick"),
   subjpickList: document.getElementById("subjpick-list"),
   subjpickForm: document.getElementById("subjpick-form"),
@@ -173,13 +178,6 @@ var els = {
   pushedGet: document.getElementById("pushed-get"),
   pushedView: document.getElementById("pushed-view"),
   shelf: document.getElementById("shelf"),
-  docNew: document.getElementById("docnew"),
-  docNewPaper: document.getElementById("docnew-paper"),
-  docNewSlides: document.getElementById("docnew-slides"),
-  docNewAbout: document.getElementById("docnew-about"),
-  docNewSaid: document.getElementById("docnew-said"),
-  docNewGo: document.getElementById("docnew-go"),
-  docNewClose: document.getElementById("docnew-close"),
   shelfTitle: document.getElementById("shelf-title"),
   shelfList: document.getElementById("shelf-list"),
   shelfFoot: document.getElementById("shelf-foot"),
@@ -4783,7 +4781,7 @@ function paintAim() {
    written up going through the things we talked about in that tutoring session?
    Can I do that in ANY tutoring session?"*
 
-   `POST /writeup` changes no aim, archives nothing and replaces no tutor. The
+   `POST /artifact` changes no aim, archives nothing and replaces no tutor. The
    document is written alongside the lesson and lands in the LIBRARY, because a
    deck's slides arriving in a transcript somebody is mid-proof in is the
    interruption the library page exists to avoid.
@@ -4823,10 +4821,10 @@ function paintDoc() {
 function askWriteup(makes, button) {
   els.kind.hidden = true;
   if (button) button.disabled = true;
-  api("/writeup", {
+  api("/artifact", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ makes: makes })
+    body: JSON.stringify({ make: makes === "slides" ? "deck" : "paper" })
   }).catch(function () { /* the payload will say what actually happened */ })
     .then(function () { if (button) button.disabled = false; });
 }
@@ -6230,7 +6228,7 @@ function mapRegionDraw(r) {
   head.textContent = hd.title;
   g.appendChild(head);
 
-  /* MAKE A NEW ONE, from the region itself, without opening a sitting. Beside
+  /* MAKE A NEW ONE: the header's Make menu, opened from the region. Beside
      the title when the head measured room for both, under it when not. */
   var bw = hd.bw;
   var bx = hd.below ? r.x + MAP_PAD : r.x + r.w - MAP_PAD - bw;
@@ -6238,7 +6236,7 @@ function mapRegionDraw(r) {
   var make = mapTappable(mapEl("g", { "class": "region-new",
                                       "data-region-new": "1",
                                       "aria-label": "make a new paper or deck" }),
-                         openDocNew);
+                         openMakeMenu);
   make.appendChild(mapEl("rect", { x: bx, y: by, width: bw, height: 24, rx: 8 }));
   var mt = mapEl("text", { x: bx + bw / 2, y: by + 16, "text-anchor": "middle" });
   mt.textContent = hd.label;
@@ -6294,60 +6292,6 @@ function mapRegionDraw(r) {
     }
   });
   return g;
-}
-
-/* A NEW PAPER OR DECK, FROM THE REGION. Which of the two and one line of what
-   it is about, then the same `POST /writeup` a sitting's own ask makes -- so it
-   is written beside whatever sitting is open, writes no card, and the strip
-   says where it got to. */
-var docNewMakes = "paper";
-
-function docNewPaint() {
-  if (!els.docNew) return;
-  els.docNewPaper.classList.toggle("on", docNewMakes === "paper");
-  els.docNewSlides.classList.toggle("on", docNewMakes === "slides");
-  els.docNewGo.disabled = !els.docNewAbout.value.trim();
-}
-
-function openDocNew() {
-  if (!els.docNew) return;
-  els.docNew.hidden = false;
-  els.docNewSaid.textContent = "";
-  els.docNewGo.textContent = "write it";
-  docNewPaint();
-  try { els.docNewAbout.focus(); } catch (e) { /* not focusable yet */ }
-}
-
-function closeDocNew() { if (els.docNew) els.docNew.hidden = true; }
-
-function sendDocNew() {
-  var about = els.docNewAbout.value.trim();
-  if (!about) return;
-  els.docNewGo.disabled = true;
-  els.docNewSaid.textContent = "asking…";
-  api("/writeup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ makes: docNewMakes, about: about })
-  }).then(function (r) { return r.json(); }).then(function (res) {
-    if (!res || !res.ok) throw new Error((res && res.error) || "refused");
-    els.docNewAbout.value = "";
-    els.docNewSaid.textContent = "Being written. It appears in the region "
-      + "when it is done, and the strip at the top says where it got to.";
-    els.docNewGo.textContent = "asked";
-  }).catch(function (err) {
-    els.docNewSaid.textContent = "Not asked: " + ((err && err.message)
-                                                  || "the board did not answer");
-    docNewPaint();
-  });
-}
-
-if (els.docNew) {
-  els.docNewPaper.onclick = function () { docNewMakes = "paper"; docNewPaint(); };
-  els.docNewSlides.onclick = function () { docNewMakes = "slides"; docNewPaint(); };
-  els.docNewAbout.addEventListener("input", docNewPaint);
-  els.docNewGo.onclick = sendDocNew;
-  els.docNewClose.onclick = closeDocNew;
 }
 
 /* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, and a fix or an
@@ -8529,6 +8473,7 @@ function paintHeader(state) {
   els.subjectBtn.disabled = ended;
   els.modeBtn.disabled = ended;
   els.makeBtn.disabled = ended;
+  if (!els.makemenu.hidden) paintMake();
   if (ended) {
     disarmEnd();
     els.endBtn.disabled = true;
@@ -8583,16 +8528,78 @@ els.modeBtn.onclick = function () {
   });
 };
 
-/* MAKE: a write-up, a deck or a paper. */
-els.makeBtn.onclick = function (e) {
-  e.stopPropagation();
+/* MAKE: a write-up, a deck or a paper, from this session.
+
+   write-up builds the session's own write-up now (`POST /hw/build`; the
+   tutor adds to it as answers are agreed). deck and paper ask for a new
+   document (`POST /artifact`): the server makes its doc.json and queues a
+   `[writeup]` turn that writes and builds it, and the strip says when it is
+   done. The line above them says what it is about; empty, it is this
+   session. All three need a subject, so an unbound session says so. */
+function openMakeMenu(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
   var open = els.makemenu.hidden;
   closeHeaderMenus();
   els.barmenu.hidden = true;
   if (open && !headerState.ended) {
+    paintMake();
     els.makemenu.hidden = false;
     hangMenu(els.makemenu);
   }
+}
+els.makeBtn.onclick = openMakeMenu;
+
+var makeAsking = false;
+
+function makeSay(text) { els.makeSaid.textContent = text || ""; }
+
+function paintMake() {
+  var unbound = isStoredState(headerState) && !headerState.subject;
+  [els.makeWriteup, els.makeDeck, els.makePaper].forEach(function (b) {
+    b.disabled = makeAsking || unbound || !!headerState.ended;
+  });
+  if (unbound) makeSay("Bind this session to a course or project first: tap its chip.");
+  else if (!makeAsking && /^Bind this session/.test(els.makeSaid.textContent)) makeSay("");
+}
+
+function askArtifact(make) {
+  if (makeAsking) return;
+  makeAsking = true;
+  paintMake();
+  var about = (els.makeAbout.value || "").trim();
+  makeSay("asking for " + (make === "deck" ? "a deck" : "a paper") + "…");
+  postJson(BASE + "/artifact", { make: make, about: about }).then(function (got) {
+    makeAsking = false;
+    if (!got || !got.ok) { paintMake(); makeSay("Not asked: " + ((got && got.error) || "refused")); return; }
+    els.makeAbout.value = "";
+    paintMake();
+    makeSay((make === "deck" ? "A deck" : "A paper") + " is being written: "
+            + (got.source || "its file") + ". The strip says when it is done.");
+  }, function () {
+    makeAsking = false;
+    paintMake();
+    makeSay("Not asked: the server did not answer.");
+  });
+}
+
+els.makeDeck.onclick = function (e) { e.stopPropagation(); askArtifact("deck"); };
+els.makePaper.onclick = function (e) { e.stopPropagation(); askArtifact("paper"); };
+els.makeWriteup.onclick = function (e) {
+  e.stopPropagation();
+  if (makeAsking) return;
+  makeAsking = true;
+  paintMake();
+  makeSay("building the write-up…");
+  postJson(BASE + "/hw/build", {}).then(function (got) {
+    makeAsking = false;
+    paintMake();
+    makeSay(got && got.ok ? "The write-up is built" + (got.pdf ? ": " + got.pdf : ".")
+            : "Not built: " + ((got && (got.detail || got.error)) || "refused"));
+  }, function () {
+    makeAsking = false;
+    paintMake();
+    makeSay("Not built: the server did not answer.");
+  });
 };
 
 /* END, after a second tap. The first arms it for four seconds. */
@@ -10740,7 +10747,7 @@ function paintMissions(show) {
    in front of you — and it is in the chrome rather than on the glass for exactly
    the reason the rest of it is: the lesson underneath belongs to somebody's
    evening, and a deck being written must not push a proof off the screen. That
-   is the whole design of `POST /writeup`.
+   is the whole design of `POST /artifact`.
 
    IT EXISTS BECAUSE THE TURN IS TOLD TO WRITE NO CARD. A write-up turn is
    invisible on the board by construction, so "I asked for a deck and nothing
@@ -10789,7 +10796,7 @@ function paintWriteups(show) {
     row.className = "news-row mission-row";
     row.dataset.state = w.state || "";
     if (done) {
-      row.href = BASE + "/library";
+      row.href = BASE + "/library" + (w.doc ? "?doc=" + encodeURIComponent(w.doc) : "");
       /* Going there IS reading it, so the row is retired on the way out rather
          than left for a second tap. */
       row.onclick = function () { writeupSeen(w.id); };

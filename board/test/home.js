@@ -134,6 +134,10 @@ async function stubbed() {
       const body = init && init.body ? JSON.parse(init.body) : null;
       w.asked.push({ url, method, body });
       let got = answers[url.split('?')[0]];
+      if (method === 'POST' && url.split('?')[0] === '/artifact') {
+        got = { ok: true, id: 't0003', make: body.make, session: SID,
+                source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
+      }
       if (method === 'POST' && url === '/subjects/new') {
         got = { ok: true, subject: { id: 'projects/' + body.name, kind: 'project',
                                      slug: body.name, name: body.name } };
@@ -187,6 +191,32 @@ async function stubbed() {
   check('a subject row opens its page, the library for that subject',
         courses[0].getAttribute('href')
         === '/library?subject=courses%2FGalois-Theory&from=home');
+
+  // A deck or a paper from a subject's row: the sheet asks what it is about,
+  // then posts /artifact naming the subject, and offers the session writing it.
+  const makeBtn = d.querySelector('#course-list [data-make-for="courses/Galois-Theory"]');
+  if (makeBtn) makeBtn.click();
+  const art = d.getElementById('artmaker');
+  check('a subject row has a Make button that opens the deck-or-paper sheet',
+        makeBtn && !art.hidden && /Galois Theory/.test(d.getElementById('artmaker-where').textContent));
+  check('and it will not ask before it is told what the document is about',
+        d.getElementById('artmaker-go').disabled);
+  d.querySelector('#artmaker-make button[data-make="paper"]').click();
+  const artAbout = d.getElementById('artmaker-about');
+  artAbout.value = 'Galois groups of cubics';
+  artAbout.dispatchEvent(new w.Event('input'));
+  d.getElementById('artmaker-go').click();
+  await sleep(40);
+  const artAsk = w.asked.filter((r) => r.url.split('?')[0] === '/artifact');
+  check('it posts /artifact for that subject with the product and the line',
+        artAsk.length === 1
+        && artAsk[0].url === '/artifact?subject=courses%2FGalois-Theory'
+        && artAsk[0].body.make === 'paper' && artAsk[0].body.about === 'Galois groups of cubics');
+  const artOpen = d.getElementById('artmaker-open');
+  check('and offers the session the router chose, where it is being written',
+        !artOpen.hidden && artOpen.getAttribute('href') === '/s/' + SID + '/board'
+        && /docs\/x\/x\.md/.test(d.getElementById('artmaker-said').textContent));
+  d.getElementById('artmaker-close').click();
 
   const urls = () => w.asked.map((r) => r.url);
   check('the start screen asks nothing of /switch or /atlas.json',

@@ -7,7 +7,8 @@
    Everything it reads is unprefixed and one of these: GET /sessions.json,
    /subjects.json, /notices.json, /assistants.json and, for the meeting deck,
    /library.json?subject=projects/Meetings. Everything it writes is
-   one of: POST /sessions/new, /subjects/new, /meeting and /default-agent.
+   one of: POST /sessions/new, /subjects/new, /meeting, /default-agent and
+   /artifact?subject=<id> (a deck or a paper from a subject's row).
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
 
@@ -66,7 +67,16 @@ var els = {
   notesClose: $("notes-close"),
   notesSaid: $("notes-said"),
   notesRead: $("notes-read"),
-  notesReadSub: $("notes-read-sub")
+  notesReadSub: $("notes-read-sub"),
+  artmaker: $("artmaker"),
+  artmakerWhere: $("artmaker-where"),
+  artmakerMake: $("artmaker-make"),
+  artmakerAbout: $("artmaker-about"),
+  artmakerSaid: $("artmaker-said"),
+  artmakerGo: $("artmaker-go"),
+  artmakerGoSub: $("artmaker-go-sub"),
+  artmakerClose: $("artmaker-close"),
+  artmakerOpen: $("artmaker-open")
 };
 
 /* Every navigation goes through here, so there is one place it happens. */
@@ -178,6 +188,18 @@ function newSession() {
 var subjectsData = null;      /* the last /subjects.json */
 
 function subjectRow(s) {
+  var box = el("div", "subj");
+  box.appendChild(subjectLink(s));
+  var make = el("button", "row-make", "make");
+  make.type = "button";
+  make.title = "a deck or a paper about " + (s.name || s.id);
+  make.setAttribute("data-make-for", s.id);
+  make.onclick = function () { openArtmaker(s); };
+  box.appendChild(make);
+  return box;
+}
+
+function subjectLink(s) {
   var a = el("a", "row");
   a.href = "/library?subject=" + enc(s.id) + "&from=home";
   a.setAttribute("data-subject", s.id);
@@ -200,6 +222,76 @@ function paintSubjects(data) {
   els.projectList.innerHTML = "";
   projects.forEach(function (s) { els.projectList.appendChild(subjectRow(s)); });
   els.projectNone.hidden = projects.length > 0;
+}
+
+/* ------------------------------------- a deck or a paper, from a subject */
+/* `POST /artifact?subject=<id>`: the server makes the doc.json and the
+   newest open session on that subject (else a new one bound to it) writes
+   and builds it. The reply names the session, which is where it is seen
+   being written. */
+var artFor = null;
+var artMake = "deck";
+var artAsking = false;
+
+function openArtmaker(s) {
+  artFor = s;
+  artMake = "deck";
+  artAsking = false;
+  els.artmakerWhere.textContent = s.name || s.id;
+  els.artmakerAbout.value = "";
+  els.artmakerOpen.hidden = true;
+  artSay("");
+  paintArtmaker();
+  els.artmaker.hidden = false;
+  try { els.artmakerAbout.focus(); } catch (e) { /* a page without focus */ }
+}
+
+function closeArtmaker() { els.artmaker.hidden = true; }
+
+function artSay(text, bad) {
+  els.artmakerSaid.hidden = !text;
+  els.artmakerSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.artmakerSaid.textContent = text || "";
+}
+
+function paintArtmaker() {
+  Array.prototype.forEach.call(els.artmakerMake.querySelectorAll("button[data-make]"),
+    function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-make") === artMake ? "true" : "false");
+    });
+  var about = els.artmakerAbout.value.trim();
+  els.artmakerGo.disabled = artAsking || !about;
+  els.artmakerGoSub.textContent = artAsking ? "asking…"
+    : !about ? "say what it is about"
+    : artMake === "deck" ? "a beamer deck, built to PDF" : "a Markdown paper, built to .docx";
+}
+
+function askArtifact() {
+  var about = els.artmakerAbout.value.trim();
+  if (!artFor || !about || artAsking) return;
+  artAsking = true;
+  paintArtmaker();
+  postJSON("/artifact?subject=" + enc(artFor.id), { make: artMake, about: about })
+    .then(function (got) {
+      artAsking = false;
+      if (!got || !got.ok) {
+        paintArtmaker();
+        artSay((got && got.error) || "it was not asked for", true);
+        return;
+      }
+      els.artmakerAbout.value = "";
+      paintArtmaker();
+      artSay((artMake === "deck" ? "A deck" : "A paper") + " is being written: "
+             + (got.source || "its file") + ".");
+      if (got.session) {
+        els.artmakerOpen.href = "/s/" + enc(got.session) + "/board";
+        els.artmakerOpen.hidden = false;
+      }
+    }).catch(function () {
+      artAsking = false;
+      paintArtmaker();
+      artSay("the board did not answer", true);
+    });
 }
 
 /* ------------------------------------------------------- + new, the sheet */
@@ -632,6 +724,21 @@ els.makerClose.onclick = closeMaker;
 els.maker.addEventListener("click", function (ev) {
   if (ev.target === els.maker) closeMaker();
 });
+els.artmakerMake.addEventListener("click", function (ev) {
+  var b = ev.target.closest ? ev.target.closest("button[data-make]") : null;
+  if (!b) return;
+  artMake = b.getAttribute("data-make") === "paper" ? "paper" : "deck";
+  paintArtmaker();
+});
+els.artmakerAbout.addEventListener("input", function () { artSay(""); paintArtmaker(); });
+els.artmakerAbout.addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") askArtifact();
+});
+els.artmakerGo.onclick = askArtifact;
+els.artmakerClose.onclick = closeArtmaker;
+els.artmaker.addEventListener("click", function (ev) {
+  if (ev.target === els.artmaker) closeArtmaker();
+});
 els.actMeeting.onclick = openNotes;
 els.notesClose.onclick = closeNotes;
 els.notesMake.onclick = makeDeck;
@@ -653,6 +760,7 @@ document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.maker.hidden) closeMaker();
   if (!els.notes.hidden) closeNotes();
+  if (!els.artmaker.hidden) closeArtmaker();
 });
 paintTheme();
 document.addEventListener("DOMContentLoaded", paintTheme);

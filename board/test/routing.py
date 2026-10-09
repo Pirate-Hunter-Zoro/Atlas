@@ -354,8 +354,8 @@ DRIVE = {
         ("/library/feedback", {"document": "{doc}", "text": "fix {mark}"}, OK)]),
     ("POST", "/doc/delete", "library"): ("subject", [
         ("/doc/delete", {"id": "nope"}, (404,))]),
-    ("POST", "/writeup", "library"): ("subject?", [
-        ("/writeup", {"makes": "paper", "about": "{mark}"}, OK, OK, (404,))]),
+    ("POST", "/artifact", "library"): ("subject", [
+        ("/artifact", {"make": "paper", "about": "{mark}"}, OK)]),
     ("GET", "/library/marked/", "library"): ("session", [
         ("/library/marked/nope/x.pdf", None, (404,))]),
     ("POST", "/writeup/seen", "library"): ("session", [
@@ -370,8 +370,6 @@ DRIVE = {
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, OK)]),
-    ("POST", "/writeup/scopes", "machines"): ("atlas", [
-        ("/writeup/scopes", {"repo": "courses/Alpha"}, OK)]),
     ("POST", "/elsewhere", "machines"): ("atlas", [("/elsewhere", {"task": ""}, (400,))]),
     ("POST", "/switch", "machines"): ("atlas", [("/switch", {"repo": "nope"}, (404,))]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
@@ -664,17 +662,13 @@ status, reply, grew = landed("POST", "/elsewhere", {"task": "a mission for Beta"
 check("a mission sent elsewhere lands in that subject's session, as its turn",
       status == 200 and only(grew, DIR["B"], "a mission for Beta")
       and "a mission for Beta" in open(os.path.join(DIR["B"], "turns.jsonl")).read())
-status, _, grew = landed("POST", "/writeup", {"makes": "slides", "repo": SUBJECT["B"],
-                                              "about": "a deck from home"})
-check("a deck asked for from the front door lands in its subject's session",
-      status == 200 and only(grew, DIR["B"], "[writeup]"))
-status, _, grew = landed("POST", "/s/%s/writeup" % SID["A"],
-                         {"makes": "slides", "repo": SUBJECT["B"], "about": "for Beta"})
-check("a deck asked for in session A for Beta lands in Beta's session, not A's",
+status, _, grew = landed("POST", "/artifact?subject=" + SUBJECT["B"],
+                         {"make": "deck", "about": "a deck from home"})
+check("a deck asked for from a subject's row lands in its subject's session",
       status == 200 and only(grew, DIR["B"], "[writeup]"))
 had = set(r["id"] for r in sessions.all(atlas))
-status, _, grew = landed("POST", "/writeup?subject=" + LONE,
-                         {"makes": "paper", "about": "nobody is here"})
+status, _, grew = landed("POST", "/artifact?subject=" + LONE,
+                         {"make": "paper", "about": "nobody is here"})
 made = [r for r in sessions.all(atlas) if r["id"] not in had]
 check("an ask of a subject with no open session opens one bound to it, titled for it",
       status == 200 and len(made) == 1 and made[0]["subject"] == LONE

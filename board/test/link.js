@@ -2428,6 +2428,9 @@ async function headerFlow() {
       return reply({ ok: true, subject: { id: id, kind: 'project', name: body.name } });
     }
     if (url === '/end') return reply({ ok: true, session: { ended: '2026-10-09 22:00' } });
+    if (url === '/artifact') return reply({ ok: true, id: 't0009', make: body.make,
+      source: 'courses/Linear-Algebra/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') });
+    if (url === '/hw/build') return reply({ ok: false, detail: 'this session has no write-up yet' });
     return real(u, init);
   };
   const posts = (url) => asked.filter((a) => a.url === url && a.method === 'POST');
@@ -2465,6 +2468,18 @@ async function headerFlow() {
     ? ok('and back to teach') : fail('the toggle does not flip back');
   es.onmessage({ data: frame({ mode: 'teach' }) });
 
+  // Make, unbound: nothing can be made until the session has a subject.
+  const make = doc.getElementById('btn-make');
+  const menu = doc.getElementById('makemenu');
+  make.click();
+  await sleep(20);
+  !menu.hidden && doc.getElementById('make-deck').disabled
+    && /Bind this session/.test(doc.getElementById('make-said').textContent)
+    ? ok('Make on an unbound session says to bind it first, and makes nothing')
+    : fail('Make on an unbound session: hidden=' + menu.hidden + ' said='
+           + doc.getElementById('make-said').textContent);
+  make.click();
+
   // The chip: pick a subject.
   chip.click();
   await sleep(20);
@@ -2489,6 +2504,37 @@ async function headerFlow() {
     ? ok('a payload built before the bind does not paint unbound back over it')
     : fail('a stale payload undid the chip: ' + label.textContent);
   es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+
+  // Make, bound: a deck about the line above, a paper about this session, and
+  // the session's write-up built.
+  make.click();
+  await sleep(20);
+  const about = doc.getElementById('make-about');
+  about.value = 'the k sweep';
+  doc.getElementById('make-deck').click();
+  await sleep(30);
+  const asks = posts('/artifact');
+  asks.length === 1 && asks[0].body.make === 'deck' && asks[0].body.about === 'the k sweep'
+    ? ok('deck posts /artifact with make deck and what it is about')
+    : fail('the deck ask was ' + JSON.stringify(asks));
+  /being written: courses\/Linear-Algebra\/docs\/x\/x\.tex/.test(
+    doc.getElementById('make-said').textContent) && about.value === '' && !menu.hidden
+    ? ok('and the menu names the file being written')
+    : fail('the menu said ' + doc.getElementById('make-said').textContent);
+  doc.getElementById('make-paper').click();
+  await sleep(30);
+  posts('/artifact').length === 2 && posts('/artifact')[1].body.make === 'paper'
+    && posts('/artifact')[1].body.about === ''
+    ? ok('paper with an empty line asks about this session')
+    : fail('the paper ask was ' + JSON.stringify(posts('/artifact')[1]));
+  doc.getElementById('make-writeup').click();
+  await sleep(30);
+  posts('/hw/build').length === 1
+    && /no write-up yet/.test(doc.getElementById('make-said').textContent)
+    ? ok('write-up builds the session\'s write-up, and says why it could not')
+    : fail('write-up posted ' + posts('/hw/build').length + ', said '
+           + doc.getElementById('make-said').textContent);
+  make.click();
 
   // The chip: make a project, which asks about patient data first.
   chip.click();

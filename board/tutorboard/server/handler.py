@@ -76,7 +76,7 @@ UNPREFIXED = (
     ("POST", "/library/ledger/*", "subject"),
     ("POST", "/library/feedback", "subject"),
     ("POST", "/doc/delete", "subject"),
-    ("POST", "/writeup", "subject?"),
+    ("POST", "/artifact", "subject"),
     # pages
     ("GET", "/result/*", "subject"),
     ("GET", "/source/*", "subject?"),
@@ -89,7 +89,6 @@ UNPREFIXED = (
     ("POST", "/meeting", "atlas"),
     ("POST", "/default-agent", "atlas"),
     ("POST", "/colibri", "atlas"),
-    ("POST", "/writeup/scopes", "atlas"),
     ("POST", "/elsewhere", "atlas"),
     ("POST", "/switch", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
@@ -104,7 +103,7 @@ UNPREFIXED = (
 # an ended session without any of these (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
                  "/mode", "/bind", "/upload", "/annotate/save", "/annotate/burn",
-                 "/writeup")
+                 "/artifact")
 
 # The route classes UNPREFIXED names. A cross-subject one is 404 under
 # `/s/<id>/`.

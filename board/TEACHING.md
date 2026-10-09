@@ -1205,17 +1205,16 @@ them, stop.
 
 ---
 
-## A make sitting: the product is a document, not an answer
+## A deck or a paper, on demand
 
-Every other sitting on this board ends with the student having produced
-something — a proof, a problem written up, an answer set cold. A **make**
-sitting does not. Its product is a file: a write-up, or a deck. It exists
-because *"have you write up papers"* and *"build me a presentation about it"*
-were the two things the board could not do at all, and the answer to both was a
-terminal and a different tool.
+The Make menu in a session's header, or a subject's row on the start screen,
+asks for a document. The board makes `<subject>/docs/<slug>/doc.json` first and
+picks the slug; then a `[writeup]` turn writes the file its line names and runs
+`board build` on it. A **deck** is a beamer `.tex`, built to PDF. A **paper** is
+Markdown, built to .docx (and a PDF where an engine exists). The turn writes no
+card; the strip on the board says when the document is done, and the library is
+where it is read and corrected.
 
-- **Nothing here is an exercise and nothing is handed in.** You draft, they read,
-  they correct, you revise. Do not ask them to derive something first.
 - **The document is about the SUBJECT.** It is never a narration of this sitting.
   It is an explainer — *here is how this works, and here is the
   mathematics* — written for somebody who was not in the room. No first person,
@@ -1223,44 +1222,26 @@ terminal and a different tool.
   questions or the person answering them. A concept that was taught by
   hand-checking three examples is *explained*, with the examples shown; the
   hand-check is not narrated. **This is a refusal, not a preference:** a write-up
-  of the evening is the one thing a make sitting must not produce.
-- **Work in sections and show each one.** A whole document dropped in one card
-  is the word dump this board exists to replace — and it is unreadable on an
-  iPad, which is where it will be read. One section, on the board, then the
-  corrections, then the next.
-- **Keep it in `writeups/<slug>/`**, one directory per document: `<slug>.tex`
-  with its `figures/` and its `feedback/` beside it. Say where the file is in
-  every card so they can open it. A document that already lives somewhere else in
-  the repository stays there; this is where a new one goes.
-- **When a section is ready to be *read* rather than discussed, compile it and
-  put it on the glass** rather than pasting it into a card. A page of a document
-  is `/doc/<id>/<page>.png`, the same as a slide.
+  of the evening is the one thing such a document must not be.
+- **It lives in `docs/<slug>/`**, the directory the board made, with its
+  `figures/` beside it. Write the file the line names and no other: the board
+  finds the document by it. A document that already lives somewhere else in the
+  repository stays there.
 - **What it covers is a different question from how it reads, and the scope may
   be a part of the repository, the chapter or the whole evening.** Where a part
-  of the repository or a chapter is named, that is the scope: a deck about the grading code is about the
-  grading code, not a tour of the repository. Where the scope is the evening —
-  *"a deck about the four things this sitting covered"* — the scope is
-  the concepts this sitting covered and nothing else about it: read the lesson
-  back with `board recap --all`, take the topics off the cards, and explain each
-  from scratch. Not the order they were taught in, not the questions, not the
-  answers. Where nothing names a part, a chapter or the evening, ask in your first
-  card what the document is about rather than drafting and finding out.
+  of the repository or a chapter is named, that is the scope: a deck about the
+  grading code is about the grading code, not a tour of the repository. Where
+  nothing is named the scope is the session — the concepts this sitting covered
+  and nothing else about it: read the lesson back with `board recap --all`, take
+  the topics off the cards, and explain each from scratch. Not the order they
+  were taught in, not the questions, not the answers.
 
 A document takes no mode: who writes the code is not a question that arises
 when what is being written is prose.
 
-**A document can also be asked for from a sitting that is NOT a make sitting, and
-then everything above holds except where it goes.** *"At any point can I have a
-presentation or paper written up going through the things we talked about in that
-tutoring session?"* — so it is an act of its own rather than a mode change, and
-it is available in every session. What differs
-is one thing: **that turn writes no card.** A make sitting shows sections on the
-board because there the document is the evening; one asked for alongside a lesson
-must not push the lesson off the glass, so it writes the file, compiles it, and
-ends. The document appears in the library, which is where it will be read and
-where the corrections come from. Leave the session's state, its cards and
-`HANDOFF.md` exactly as you found them: the sitting is somebody's evening and its
-mode has not changed.
+**The turn that writes it is not part of the lesson.** Leave the session's
+state, its cards and `HANDOFF.md` exactly as you found them: the session is
+somebody's evening and its mode has not changed.
 
 **A manuscript is a Markdown document like any other.** Write the `.md` and build
 it with `board build <file>.md`, which writes the `.docx` beside it, and the PDF

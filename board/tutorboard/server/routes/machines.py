@@ -9,7 +9,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               the Atlas root; 404 under `/s/<id>/`:
               GET  /courses.json  /atlas.json  /news  /missions  /mission
               POST /meeting  /default-agent
-              POST /colibri  /writeup/scopes  /elsewhere  /switch
+              POST /colibri  /elsewhere  /switch
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
@@ -41,7 +41,6 @@ from ... import briefs
 from ... import missions
 from ... import news
 from ... import progress
-from ... import scopes
 from ... import stamp
 from ...course import config
 from ...lesson import state
@@ -290,51 +289,6 @@ def post(h, repo, path):
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True, "started": started, "detail": said,
                             "colibri": colibri.status(fresh=True)})
-
-    if path == "/writeup/scopes":
-        # WHAT A DOCUMENT IN ANOTHER WORKSPACE COULD BE ABOUT.
-        #
-        # Asked for in these words: *"the ability to write a paper or a slide
-        # deck should just be an option on the homescreen, and from there I want
-        # to be able to specify which projects/course, and which
-        # sections/results."* The front door is the one surface with no sitting
-        # behind it, so the second half of that sentence cannot be answered from
-        # a board -- it is answered from what discovery found in the workspace
-        # being named, which is `tutorboard/scopes.py`.
-        #
-        # IT IS IN THIS FILE BECAUSE IT READS A WORKSPACE THAT IS NOT THIS ONE,
-        # and that is exactly what this file is for. The resolution is
-        # `/elsewhere`'s and `/switch`'s, unchanged: matched against what the
-        # walk found, with the ROOT taken off the match rather than rebuilt out
-        # of the name, because the same name can sit under two families.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:                                    # noqa: BLE001
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        want = payload.get("repo") or ""
-        match = None
-        for c in machines.workspaces(repo):
-            if want in (c["repo"], c["id"]):
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-        # THE `about` SENTENCE IS NOT SENT. It is the instruction the assistant
-        # is given, and a browser that holds it is a browser that can edit it --
-        # at which point the key is decoration and the front door is a text box
-        # wearing buttons. What comes back is a key, and `POST /writeup`
-        # resolves it against this same list.
-        offered, more = scopes.offered(match["root"])
-        return h.send_json({
-            "ok": True, "repo": match["repo"], "id": match["id"],
-            "name": match["course"] or match["repo"],
-            # AND WHAT IS NOT ON THE LIST. A picker that stops at a cap and says
-            # nothing reads as *this is all there is*, and the one thing that
-            # cannot be asked for is then the one nobody knows to ask about.
-            "more": more,
-            "scopes": [{"key": s["key"], "label": s["label"], "what": s["what"]}
-                       for s in offered]})
 
     if path == "/elsewhere":
         # PUT AN ASSISTANT TO WORK IN A WORKSPACE YOU ARE NOT LOOKING AT.

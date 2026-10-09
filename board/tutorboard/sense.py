@@ -523,51 +523,35 @@ def skip_sense(repo):
     return line
 
 
+# HOW A DOCUMENT IS WRITTEN: the method a `[writeup]` turn is given for a deck
+# or a paper asked for from the Make menu. `writeup_sense` appends it.
+#
+# TWO QUESTIONS, NOT ONE. HOW it reads is fixed: the subject, explained, never
+# the session narrated -- stated as a refusal, because a preference in a prompt
+# is what produced the narration. WHAT it covers is not: "a deck about the four
+# things this session covered" is a legitimate ask.
 MAKE_SENSE = (
-    "THIS IS A MAKE SITTING: its product is a DOCUMENT, not an answer. "
-    "Nothing here is an exercise and nothing is handed in. You draft, they read "
-    "and correct, you revise. "
-    # WHAT THE DOCUMENT IS ABOUT, and it was the half nothing said. Everything
-    # else here is about HOW to work -- sections, show each one, take
-    # corrections -- and a tutor that has just spent three hours teaching, asked
-    # to write it up, writes up the three hours. Stated as a refusal, because a
-    # preference in a prompt is what produced the narration.
-    #
-    # TWO QUESTIONS, NOT ONE, and the refusal used to answer both with the same
-    # word. HOW it reads is fixed: the subject, explained, never the evening
-    # narrated. WHAT it covers is not: "a deck about the four things this
-    # sitting covered" is a legitimate ask and the old wording refused it along
-    # with the narration it was written against.
+    "THE PRODUCT IS A DOCUMENT, not an answer. "
     "HOW IT READS IS FIXED, AND IT IS NEVER A NARRATION OF THIS SITTING. The "
     "document is an EXPLAINER: here is how this works, and here is the "
     "mathematics, written for somebody who was not in the room. So: no first "
     "person, no 'we covered', no 'the student then', no 'as we saw above', and "
-    "no reference at all to this sitting, its cards, its questions, or the "
+    "no reference at all to this session, its cards, its questions, or the "
     "person answering them. If a concept was taught by hand-checking three "
     "examples, the document explains the concept and shows the examples -- it "
     "does not narrate the hand-check. A write-up of the evening is the one "
-    "thing this sitting must not produce. "
+    "thing this document must not be. "
     "WHAT IT COVERS IS A DIFFERENT QUESTION, and its scope may be A PART OF THE "
-    "REPOSITORY, THE CHAPTER, OR THE WHOLE EVENING. Where the ask names which "
-    "-- a part of the repository, or the chapter the sitting is labelled "
-    "with -- that is the scope, and not everything else that came up while you "
-    "were looking at it. WHERE THE SCOPE IS THE EVENING it is the concepts this "
+    "REPOSITORY, THE CHAPTER, OR THE WHOLE EVENING. Where the ask names which, "
+    "that is the scope, and not everything else that came up while you were "
+    "looking at it. WHERE THE SCOPE IS THE EVENING it is the concepts this "
     "sitting covered and nothing else about it: read the lesson back with "
     "`board recap --all`, take the list of topics off the cards, and explain "
     "each one from scratch. Not the order they were taught in, not the "
-    "questions, not the answers, not who got what wrong. If nothing names a "
-    "part, a chapter or the evening, ask in your first card what the document is "
-    "to be about rather than drafting something and finding out. "
-    "Work in sections: write one, put it on the board for them to read, take "
-    "the corrections, then write the next -- a whole document dropped at once "
-    "is the word dump this board exists to replace. "
-    "KEEP IT IN `writeups/<slug>/`, one directory per document: `<slug>.tex` "
-    "with its `figures/` and its `feedback/` beside it, `<slug>` being a short "
-    "name that says what the document is. Say in every card where that file is "
-    "so they can open it. A document already living somewhere else in this "
-    "repository stays where it is; this is where a NEW one goes. "
-    "When a section is ready to be READ rather than discussed, compile it and "
-    "let them read it on the glass rather than pasting it into a card. ")
+    "questions, not the answers, not who got what wrong. "
+    "THE FILE IS THE ONE THIS LINE NAMES, under the subject's `docs/<slug>/`, "
+    "with its `figures/` beside it: the board made that directory and its "
+    "doc.json, and finds the document by that name and no other. ")
 
 
 # WHAT A REVISION TURN IS WOKEN WITH, and it names both files.
@@ -757,48 +741,27 @@ def ship_sense(agent, task):
             + MEASURE_SENSE + RULE_SENSE)
 
 
-# WHAT A DOCUMENT ASKED FOR MID-SITTING IS WOKEN WITH, and the whole of the
-# difference from a make sitting is WHERE IT LANDS.
+# WHAT A DECK OR A PAPER ASKED FOR FROM A SESSION IS WOKEN WITH.
 #
-# A make sitting puts the sections on the board one at a time, because there the
-# document IS the evening. One asked for ALONGSIDE a lesson must not push the
-# lesson off the glass: somebody is mid-proof, and streaming a deck's slides into
-# their transcript is the interruption the whole library surface exists to avoid.
-# So this turn writes the document, compiles it, and says nothing on the board --
-# the library is where it appears, and correcting it is the library's own loop.
+# The Make menu asks for one alongside a lesson, which must not be pushed off
+# the glass: this turn writes the document, builds it, and writes no card. The
+# strip says where it got to, and the library is where it is read and
+# corrected. The method is `MAKE_SENSE`, appended rather than restated.
 #
-# IT TAKES THE MAKE METHOD WHOLE, because everything else about writing one is
-# unchanged: the subject rather than the sitting, sections rather than a dump,
-# `writeups/<slug>/`. `MAKE_SENSE` is that method and is appended by
-# `writeup_sense` rather than restated, or the two drift.
-#
-# THE SCOPE IS THE EVENING UNLESS SOMETHING ELSE IS NAMED: "write up the four
-# things we just covered" -- so the default is the concepts the cards covered,
-# read back with `board recap --all`.
+# THE SCOPE IS THE SESSION UNLESS SOMETHING ELSE IS NAMED: "write up the four
+# things we just covered" -- read back with `board recap --all`.
 WRITEUP_ASK_SENSE = (
-    "A DOCUMENT HAS BEEN ASKED FOR FROM THE SITTING ON THIS BOARD, and THIS "
-    "TURN IS NOT PART OF THE LESSON. Nobody is waiting at a board for a card. "
-    "What they asked for is %(what)s.\n\n"
+    "A DOCUMENT HAS BEEN ASKED FOR FROM THIS SESSION, and THIS TURN IS NOT PART "
+    "OF THE LESSON. Nobody is waiting at a board for a card. What they asked "
+    "for is %(what)s.\n\n"
     "WHAT IT IS ABOUT: %(about)s\n\n"
-    "Write it, compile it, and end the turn. It appears in the LIBRARY, which is "
-    "where they will read it and where they will say what is wrong with it -- so "
-    "there is nothing to put on the board and nothing to show them a section at "
-    "a time.\n\n"
-    "HOW TO WRITE ONE FOLLOWS, AND EVERY LINE OF IT ABOUT THE DOCUMENT HOLDS. "
-    "What follows is the method a make sitting is given, and it opens by calling "
-    "itself one -- read it as the method for this document rather than as a "
-    "statement about this sitting, which is unchanged and is not a make "
-    "sitting. THE LINES ABOUT CARDS ARE THE ONES THAT DO NOT APPLY, and they "
-    "are the only ones: showing it to them a section at a time, saying in every "
-    "card where the file is, and asking in your first card what it should be "
-    "about. You write no card at all, and what it is about is already named "
-    "above. Everything else -- what the document IS, what it may cover, the "
-    "directory it goes in -- holds exactly as written.\n\n"
+    "Write it, build it, and end the turn. It appears in the LIBRARY, which is "
+    "where they will read it and say what is wrong with it.\n\n"
     "**Write no card.** Do not run `board write`, do not run `board open`, and "
-    "do not touch the session's state, its cards or `HANDOFF.md`. There is a "
-    "lesson on this board, it belongs to somebody's "
-    "evening, and its mode has not changed: leave every part of it exactly "
-    "as you found it. End the turn when the document is written and built.\n\n"
+    "do not touch the session's state, its cards or `HANDOFF.md`. The lesson on "
+    "this board belongs to somebody's evening, and its mode has not changed: "
+    "leave every part of it exactly as you found it. End the turn when the "
+    "document is written and built.\n\n"
 )
 
 # What the scope sentence says when nobody named one. The topic list is the card
@@ -814,19 +777,37 @@ WRITEUP_EVENING = (
     "what wrong."
 )
 
+# WHAT EACH PRODUCT IS ON DISK. A deck is a beamer `.tex`; a paper is Markdown,
+# which `board build` turns into a .docx (and a PDF where an engine exists).
+FILE_SENSE = {
+    "slides": ("THE FILE IS `%(source)s` (from the Atlas root, where this turn "
+               "runs), that name exactly. A DECK IS A BEAMER `.tex`: "
+               "`\\documentclass{beamer}`, one page per frame, no \\pause and "
+               "no overlays. "),
+    "paper": ("THE FILE IS `%(source)s` (from the Atlas root, where this turn "
+              "runs), that name exactly. A PAPER IS MARKDOWN: a `# ` title, "
+              "sections, and maths in `$...$`; it is built to a .docx. "),
+}
+DOC_BUILD_SENSE = ("When it is written, run `board build %(source)s`, and fix "
+                   "whatever error it reports before the turn ends. ")
 
-def writeup_sense(makes, about=""):
-    """The inbox line for a paper or a deck asked for from any sitting.
+
+def writeup_sense(makes, about="", source=None):
+    """The inbox line for a paper or a deck asked for from any session.
 
     `about` is what they said it was about, where they said anything. Where they
-    did not, the scope is the evening -- which is the ask this route exists for
-    and is the one a make sitting cannot express.
+    did not, the scope is this session. `source` is the file to write, from the
+    Atlas root; where it is given, the line names it and `board build`.
     """
     said = (about or "").strip()
-    return (WRITEUP_ASK_SENSE
-            % {"what": ("a DECK of slides" if makes == "slides" else "a PAPER"),
+    kind = "slides" if makes == "slides" else "paper"
+    line = (WRITEUP_ASK_SENSE
+            % {"what": ("a DECK of slides" if kind == "slides" else "a PAPER"),
                "about": said or WRITEUP_EVENING}
-            + MAKE_SENSE + MEASURE_SENSE + RULE_SENSE)
+            + MAKE_SENSE)
+    if source:
+        line += (FILE_SENSE[kind] + DOC_BUILD_SENSE) % {"source": source}
+    return line + MEASURE_SENSE + RULE_SENSE
 
 
 # WHAT THE MEETING DECK IS ABOUT. Said in these words: *"actually generate a
@@ -861,8 +842,8 @@ MEETING_ABOUT = (
     "names; the board checks each one after the build and lists any it cannot "
     "find beside the deck. "
     "THE FILE IS `%(dir)s/meeting.tex` (`%(full)s/meeting.tex` from the Atlas "
-    "root), that name exactly and no other, and it outranks `writeups/<slug>/` "
-    "above. Write it whole: it replaces the deck before it. Build it with "
+    "root), that name exactly and no other, and it outranks any other file "
+    "named above. Write it whole: it replaces the deck before it. Build it with "
     "`board build` on that file. A LaTeX error is yours to fix before the turn "
     "ends."
 )

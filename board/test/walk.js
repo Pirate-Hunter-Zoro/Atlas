@@ -320,8 +320,8 @@ check('and the two are a paper and a deck, in the map sheet’s own words',
 posts.length = 0;
 registry['kind-doc-ways'].children[1].onclick();
 check('tapping one asks for it and says which product, without touching the aim',
-      posts.length === 1 && posts[0].url === '/writeup'
-      && posts[0].body.makes === 'slides'
+      posts.length === 1 && posts[0].url === '/artifact'
+      && posts[0].body.make === 'deck'
       && !('aim' in posts[0].body) && !('session' in posts[0].body));
 
 paint('lecture', {});

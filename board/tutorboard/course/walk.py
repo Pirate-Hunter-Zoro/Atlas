@@ -22,7 +22,7 @@ What this module owns: the list of what can be named, and the rule that a
 name arriving from the board is checked against that list before it reaches
 anything. Nothing is registered, nothing is declared, and nothing invented
 reaches the tutor's prompt. `parts` is the coarser list, a project's top-level
-pieces, which the Make menu offers as scopes.
+pieces.
 
 Standard library only, like everything else.
 """
