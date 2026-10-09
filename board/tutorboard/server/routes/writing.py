@@ -12,7 +12,9 @@ between those two is most of what these routes are about.
                                        or the Atlas root's `.ink/`: a card
                                        and a send need a session.
     POST /annotate/burn     session    the ink made into a marked copy
-    POST /upload            session    a file into the session's uploads/
+    POST /upload            session    files into the session's uploads/,
+                                       streamed, at most 1 GB; each a
+                                       non-waking `[uploaded]` line
 
 The classes are `handler.UNPREFIXED`'s.
 """
@@ -456,39 +458,75 @@ def post(h, repo, path):
         return h.send_json({"ok": True, "page": n})
 
     if path == "/upload":
-        ctype = h.headers.get("Content-Type", "")
-        m = re.search(r"boundary=([^;]+)", ctype)
-        if not m:
-            return h.send_json({"ok": False, "error": "no boundary"}, status=400)
-        boundary = m.group(1).strip('"').encode("utf-8")
-        parts = multipart.parse_multipart(h.read_body(), boundary)
-        saved = []
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        for i, part in enumerate(parts):
-            if not part["filename"]:
-                continue
-            name = "%s-%02d-%s" % (stamp, i, multipart.safe_filename(part["filename"]))
-            with open(os.path.join(repo.uploads, name), "wb") as fh:
-                fh.write(part["data"])
-            saved.append(name)
-        if saved:
-            record = {
-                "t": time.time(),
-                "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "from": "student",
-                # A picture has no sentence in it, so its inbox line has to
-                # carry its own meaning -- the same reason a `begin` signal
-                # spells itself out. A tutor woken by a bare filename has no
-                # reason to think opening it is the next thing to do.
-                "text": ("[uploaded] %s — the student handed this over for you "
-                         "to look at. Open the file below and answer what is "
-                         "in it." % ", ".join(saved)),
-                "files": saved,
-                "read": False,
-            }
-            with open(repo.messages_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record) + "\n")
-            runner.wake(repo)
-        h.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "saved": saved})
+        return upload(h, repo)
     return NOT_MINE
+
+
+def _size(n):
+    """`n` bytes as a person reads it: 812 B, 14 KB, 2.3 MB, 1.1 GB."""
+    for unit in ("B", "KB", "MB"):
+        if n < 1024:
+            return ("%d %s" if unit == "B" or n >= 10 else "%.1f %s") % (n, unit)
+        n /= 1024.0
+    return "%.1f GB" % n
+
+
+def _free_name(folder, filename):
+    """`folder/<safe name>`, with `-2`, `-3`, ... before the extension when
+    that name is taken."""
+    name = multipart.safe_filename(filename)
+    stem, ext = os.path.splitext(name)
+    out, n = name, 1
+    while os.path.lexists(os.path.join(folder, out)):
+        n += 1
+        out = "%s-%d%s" % (stem, n, ext)
+    return os.path.join(folder, out)
+
+
+def upload(h, repo):
+    """`POST /upload`: every file of a multipart form into the session's
+    `uploads/` (D21), streamed to disk (`multipart.save_parts`), at most
+    `multipart.MAX_UPLOAD`. Each one appends a non-waking `[uploaded] <name>
+    (<size>)` line: the next turn reads it, and none is started for it. The
+    tutor files it (`board file`)."""
+    def refuse(status, error):
+        # The body may be unread: this connection carries nothing more.
+        h.close_connection = True
+        return h.send_json({"ok": False, "error": error}, status=status)
+
+    if is_sessionless(repo):
+        return refuse(400, "an upload is a session's: /s/<id>/upload")
+    m = re.search(r"boundary=([^;]+)", h.headers.get("Content-Type", ""))
+    if not m:
+        return refuse(400, "no boundary")
+    try:
+        length = int(h.headers.get("Content-Length") or "")
+    except ValueError:
+        return refuse(411, "an upload says its length")
+    if length > multipart.MAX_UPLOAD:
+        return refuse(413, "%s is over the 1 GB an upload may be"
+                      % _size(length))
+    boundary = m.group(1).strip().strip('"').encode("utf-8")
+    os.makedirs(repo.uploads, exist_ok=True)
+    try:
+        got = multipart.save_parts(
+            h.rfile, length, boundary, repo.uploads,
+            lambda _i, filename: _free_name(repo.uploads, filename))
+    except multipart.Broken as exc:
+        h.note("upload refused: %s" % exc)
+        return refuse(400, "the upload did not arrive whole: %s" % exc)
+    except OSError as exc:
+        h.note("upload failed: %s" % exc)
+        return refuse(500, "the upload could not be written: %s" % exc)
+    from ... import sessions                       # local: sessions imports this
+    saved = []
+    for _filename, where, size in got:
+        name = os.path.basename(where)
+        saved.append({"name": name, "size": size})
+        sessions.quiet_line(repo.messages_path,
+                            "[uploaded] %s (%s)" % (name, _size(size)),
+                            "uploaded", files=[name])
+        h.note("upload %s: %d bytes" % (name, size))
+    h.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "saved": [s["name"] for s in saved],
+                        "files": saved})

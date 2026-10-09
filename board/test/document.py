@@ -342,6 +342,7 @@ def main():
 
         head_only = False
         INLINE_OK = Handler.INLINE_OK
+        STREAM_OVER = Handler.STREAM_OVER
         send_file = Handler.send_file
 
         def __init__(self):

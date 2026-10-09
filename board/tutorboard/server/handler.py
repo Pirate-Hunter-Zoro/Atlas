@@ -60,6 +60,8 @@ UNPREFIXED = (
     ("POST", "/sessions/new", "new"),
     ("GET", "/subjects.json", "subjects"),
     ("POST", "/subjects/new", "subject-new"),
+    ("POST", "/subject/delete", "subject-delete"),
+    ("POST", "/session/delete", "session-delete"),
     ("GET", "/notices.json", "notices"),
     ("GET", "/assistants.json", "assistants"),
     ("GET", "/library", "page"),
@@ -77,6 +79,8 @@ UNPREFIXED = (
     ("POST", "/library/feedback", "subject"),
     ("POST", "/doc/delete", "subject"),
     ("POST", "/artifact", "subject"),
+    ("GET", "/materials.json", "subject"),
+    ("POST", "/material/delete", "subject"),
     # pages
     ("GET", "/result/*", "subject"),
     ("GET", "/source/*", "subject?"),
@@ -291,12 +295,41 @@ class Handler(BaseHTTPRequestHandler):
             extra = ("Content-Disposition",
                      'attachment; filename="%s"' % os.path.basename(path))
         gzip_key = None
+        st = os.stat(path)
         if not untrusted and not download:
-            st = os.stat(path)
             gzip_key = (path, (st.st_mtime_ns, st.st_size))
+        if st.st_size > self.STREAM_OVER and gzip_key is None:
+            return self.stream_file(path, st.st_size, ctype, cache, untrusted, extra)
         with open(path, "rb") as fh:
             self.send_bytes(fh.read(), ctype, cache=cache, nosniff=untrusted, extra=extra,
                             gzip_key=gzip_key)
+
+    # A file bigger than this (an upload, a material) goes out a chunk at a
+    # time rather than read whole into memory.
+    STREAM_OVER = 8 * 1024 * 1024
+
+    def stream_file(self, path, size, ctype, cache, nosniff, extra):
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(size))
+        if nosniff:
+            self.send_header("X-Content-Type-Options", "nosniff")
+        if extra:
+            self.send_header(extra[0], extra[1])
+        self.send_header("Cache-Control", "public, max-age=86400" if cache
+                         else "no-store")
+        self.end_headers()
+        if getattr(self, "head_only", False):
+            return
+        try:
+            with open(path, "rb") as fh:
+                while True:
+                    chunk = fh.read(1 << 16)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     MAX_BODY = 64 * 1024 * 1024   # a slate page is ~200 KB; this is generous
 
@@ -411,6 +444,8 @@ class Handler(BaseHTTPRequestHandler):
     def session_post(self, repo, path):
         if (path in ENDED_REFUSES and getattr(repo, "stored", False)
                 and repo.state().get("ended")):
+            # The body is unread; this connection carries nothing more.
+            self.close_connection = True
             return self.send_json({"ok": False, "error": "this session has ended "
                                    "and is read-only"}, status=409)
         # Before anything writes. The directories were made when this process
@@ -425,6 +460,8 @@ class Handler(BaseHTTPRequestHandler):
             answered = mod.post(self, repo, path)
             if answered is not routes.NOT_MINE:
                 return answered
+        # The body is unread; this connection carries nothing more.
+        self.close_connection = True
         return self.send_bytes(b"not found", "text/plain", status=404)
 
     # -- unprefixed ------------------------------------------------------
@@ -433,6 +470,7 @@ class Handler(BaseHTTPRequestHandler):
         for anything else."""
         how = unprefixed_route(method, path)
         if how is None:
+            self.close_connection = True
             return self.send_json({"ok": False, "error": "not found"}, status=404)
         registry = self.server.registry
         if how == "home":
@@ -466,6 +504,10 @@ class Handler(BaseHTTPRequestHandler):
                 for one in subjects.all(registry.atlas)]})
         if how == "subject-new":
             return self.new_subject(registry)
+        if how == "subject-delete":
+            return self.delete_subject(registry)
+        if how == "session-delete":
+            return self.delete_session(registry)
         if how == "notices":
             # Cluster lines no session took (D16), newest first; no turn ran.
             return self.send_json({"ok": True,
@@ -566,6 +608,58 @@ class Handler(BaseHTTPRequestHandler):
         self.note("subject %s made" % made["id"])
         return self.send_json({"ok": True, "said": said, "subject": {
             k: made[k] for k in ("id", "kind", "slug", "name")}})
+
+    def _payload(self):
+        """The JSON object of a small POST body, or None after a 400."""
+        try:
+            body = self.read_body()
+            payload = json.loads(body.decode("utf-8")) if body.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            payload = None
+        if not isinstance(payload, dict):
+            self.send_json({"ok": False, "error": "bad json"}, status=400)
+            return None
+        return payload
+
+    def delete_subject(self, registry):
+        """POST /subject/delete {subject, typed}: `subjects.delete`. 400 for a
+        subject that is none or a typed name that is not its slug; 409, with
+        the reason, for D23 (`"phi": false` literally at HEAD) and for an open
+        session, a coding session or an outstanding request on it."""
+        payload = self._payload()
+        if payload is None:
+            return None
+        ident = str(payload.get("subject") or "").strip()
+        try:
+            _where, said = subjects.delete(ident, payload.get("typed"),
+                                           base=registry.atlas)
+        except subjects.Busy as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, status=409)
+        except subjects.Refused as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, status=400)
+        self.note("subject %s deleted" % ident)
+        return self.send_json({"ok": True, "subject": ident, "said": said})
+
+    def delete_session(self, registry):
+        """POST /session/delete {id}: the session to the trash
+        (`sessions.delete`), and out of the registry. 409 while a turn of it
+        runs or waits."""
+        payload = self._payload()
+        if payload is None:
+            return None
+        sid = str(payload.get("id") or "").strip()
+        if not sessions.path(sid, registry.atlas):
+            return self.send_json({"ok": False, "error": "no such session"},
+                                  status=404)
+        from ..runner import service as runner
+        if runner.RUNNER is not None and runner.RUNNER.busy(sid):
+            return self.send_json({"ok": False, "error": "a turn of this "
+                                   "session is running or waiting; delete it "
+                                   "once that is done"}, status=409)
+        sessions.delete(sid, base=registry.atlas)
+        registry.get(sid)            # drops its entry, the session being gone
+        self.note("session %s deleted" % sid)
+        return self.send_json({"ok": True, "id": sid})
 
     # -- server sent events ---------------------------------------------
     def sse(self, hub):

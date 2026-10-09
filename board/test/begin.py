@@ -312,14 +312,11 @@ try:
     check("a taken message is not handed over again",
           inbox.take(repo)[0] == "" and not inbox.waiting(repo))
 
-    # ---- a picture is a message too --------------------------------------
+    # ---- a picture rides with the next message ----------------------------
     #
-    # A screenshot of the next four exercises is the student saying "these are
-    # the ones I want to do", and in a mathematics course it is the ONLY way to
-    # say it: there is no text box, and the slate answers a question rather than
-    # starting a subject. So it has to reach the tutor, and it has to reach it
-    # meaning something -- a wake-up whose whole content is a filename has told
-    # the assistant nothing, exactly as the bare "[begin]" tag did.
+    # D21: an upload lands in the session's uploads/ with a line that wakes
+    # nothing. The next turn reads it with whatever the student says next, and
+    # the line names the file and its size, with the path under it.
     boundary = "----tutorboardtest"
     payload = (
         "--%s\r\n"
@@ -338,15 +335,16 @@ try:
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
         notes = [json.loads(l) for l in fh if l.strip()]
     shot = [m for m in notes if m.get("files")]
-    check("it reaches the inbox, which is what wakes the tutor", len(shot) == 1)
-    check("unread, so it wakes one that is already waiting",
-          shot and shot[0].get("read") is False)
+    check("it reaches the inbox", len(shot) == 1)
+    check("unread, and waking nothing by itself",
+          shot and shot[0].get("read") is False and shot[0].get("wake") is False
+          and not inbox.waiting(repo))
     shot_text = shot[0].get("text", "") if shot else ""
-    check("the line names the file", "exercises.png" in shot_text)
-    check("and says what to do with it, because a picture has no sentence in it",
-          "open the file" in shot_text.lower() and "look at" in shot_text.lower())
-    check("the line is not just a filename",
-          len(shot_text.strip()) > len("[uploaded] exercises.png") + 20)
+    check("the line names the file and its size",
+          shot_text == "[uploaded] exercises.png (8 B)")
+    text, _taken = inbox.take(repo)
+    check("the next turn is handed it, with the path to open",
+          "exercises.png" in text and os.path.join(repo.uploads, "exercises.png") in text)
 
     # And the tutor is TOLD that any of this happens.
     with open(os.path.join(ROOT, "TEACHING.md"), "r", encoding="utf-8") as fh:

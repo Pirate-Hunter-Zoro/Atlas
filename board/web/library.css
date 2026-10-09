@@ -58,6 +58,19 @@ body { font-family: var(--ui); color: var(--ink); }
 .lib-status[data-status="failed"] { color: var(--ink-2); }
 .lib-acts button.lib-delete.armed { color: var(--ask); border-color: var(--ask); }
 
+/* Delete this subject: at the foot of its page, the name typed first. */
+#lib-drop { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+#lib-drop h2 { font-size: .9rem; margin: 0 0 .4rem; }
+#lib-drop-name {
+  font: inherit; padding: .5rem .6rem; border-radius: .4rem; margin: .5rem .4rem 0 0;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+#lib-drop-go {
+  font: inherit; font-weight: 600; padding: .5rem .9rem; border-radius: .4rem;
+  border: 1px solid var(--ask); background: transparent; color: var(--ask); cursor: pointer;
+}
+#lib-drop-go:disabled { border-color: var(--rule); color: var(--ink-3); cursor: default; }
+
 .lib-row {
   display: flex; flex-direction: column; gap: .2rem;
   padding: .7rem .8rem;

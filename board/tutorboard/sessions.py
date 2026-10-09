@@ -4,6 +4,7 @@
     end(id)           set `ended`, and commit what the session leaves behind
     reopen(id)        clear `ended`
     delete(id)        move the directory to the trash
+    prune_trash()     drop trash entries older than 30 days (server start)
     bind(id, subject) set `subject`, with a non-waking `[bind]` line
     file(id, upload)  move an upload into the bound subject, ink and all
     all(), get(id), path(id), repo(id)
@@ -188,35 +189,76 @@ def reopen(sid, base=None):
     return rec
 
 
+def trash(name, now=None):
+    """A fresh `<trash>/<stamp>[-n]/` directory for one delete, and the path
+    `name` takes inside it (not yet made)."""
+    now = time.time() if now is None else now
+    stamp = time.strftime(STAMP, time.localtime(now))
+    dest = os.path.join(paths.TRASH, stamp, name)
+    n = 1
+    while os.path.lexists(dest):
+        n += 1
+        dest = os.path.join(paths.TRASH, "%s-%d" % (stamp, n), name)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    return dest
+
+
+# How long a delete stays in the trash before the server's startup prunes it.
+TRASH_DAYS = 30
+
+
+def prune_trash(now=None, days=TRASH_DAYS):
+    """Remove every `<trash>/<stamp>[-n]/` older than `days`, judged by the
+    stamp in its name. Anything else in the trash is left alone. Returns the
+    names removed."""
+    now = time.time() if now is None else now
+    try:
+        names = sorted(os.listdir(paths.TRASH))
+    except OSError:
+        return []
+    gone = []
+    for name in names:
+        m = re.match(r"\A(\d{8}-\d{6})(?:-\d+)?\Z", name)
+        if not m:
+            continue
+        try:
+            at = time.mktime(time.strptime(m.group(1), STAMP))
+        except (ValueError, OverflowError):
+            continue
+        if now - at < days * 86400:
+            continue
+        shutil.rmtree(os.path.join(paths.TRASH, name), ignore_errors=True)
+        gone.append(name)
+    return gone
+
+
 def delete(sid, base=None, now=None):
     """Move session `sid` to `<trash>/<stamp>/<id>` and return that path."""
     where = _need(sid, base)
-    now = time.time() if now is None else now
-    stamp = time.strftime(STAMP, time.localtime(now))
-    dest = os.path.join(paths.TRASH, stamp, os.path.basename(where))
-    n = 1
-    while os.path.exists(dest):
-        n += 1
-        dest = os.path.join(paths.TRASH, "%s-%d" % (stamp, n), os.path.basename(where))
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    dest = trash(os.path.basename(where), now)
     shutil.move(where, dest)
     return dest
 
 
-def _line(where, text, signal, now=None, **extra):
-    """Append a line to the session's inbox that wakes nothing: `"wake":
-    false`, so the runner queues no turn for it, and the next turn takes it
-    with the rest (`lesson/inbox.py`)."""
+def quiet_line(messages_path, text, signal, now=None, **extra):
+    """Append a line to an inbox that wakes nothing: `"wake": false`, so the
+    runner queues no turn for it, and the next turn takes it with the rest
+    (`lesson/inbox.py`)."""
     now = time.time() if now is None else now
     rec = {"t": now, "iso": time.strftime(WHEN, time.localtime(now)),
            "from": "board", "text": text, "signal": signal, "read": False,
            "wake": False}
     rec.update(extra)
-    inbox = os.path.join(where, "inbox")
-    os.makedirs(inbox, exist_ok=True)
-    with open(os.path.join(inbox, "messages.jsonl"), "a", encoding="utf-8") as fh:
+    os.makedirs(os.path.dirname(messages_path), exist_ok=True)
+    with open(messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec) + "\n")
     return rec
+
+
+def _line(where, text, signal, now=None, **extra):
+    """`quiet_line` into the inbox of the session at `where`."""
+    return quiet_line(os.path.join(where, "inbox", "messages.jsonl"), text,
+                      signal, now=now, **extra)
 
 
 def bind(sid, subject, base=None, now=None):

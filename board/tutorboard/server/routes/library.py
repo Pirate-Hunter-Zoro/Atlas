@@ -39,6 +39,9 @@ that is not the lesson's.
     POST /doc/delete                one artifact `{subject, id}`, after a
                                     second tap: to the trash with its ink, and
                                     its tracked files out in one commit
+    GET  /materials.json            the files under the subject's materials/
+    POST /material/delete           one material `{subject, name}`, after a
+                                    second tap: to the trash with its ink
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
@@ -48,6 +51,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library/table/*  /library/view/*  /library/note/*
               /library/ledger/* (GET and POST)  /library/evidence/*
               /library/feedback  /doc/delete  /artifact
+              /materials.json  /material/delete
     session   under `/s/<id>/` only: /library/marked/*
               /writeup/seen
 
@@ -107,6 +111,14 @@ from ...lesson import turns
 def get(h, repo, path):
     if path == "/library.json":
         return h.send_json(with_deck(library.status(repo), repo))
+
+    if path == "/materials.json":
+        found = subjects.find(repo.root, registry.base_of(repo))
+        if not found:
+            return h.send_json({"ok": False, "error": "this session is bound to "
+                                "no subject, so it has no materials"}, status=404)
+        return h.send_json({"ok": True, "subject": found["id"],
+                            "materials": subjects.materials(found["root"])})
 
     # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
     # somebody, so it is stats and nothing else -- no titles read out of
@@ -308,6 +320,19 @@ def post(h, repo, path):
 
     if path == "/artifact":
         return _artifact(h, repo)
+
+    if path == "/material/delete":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            payload = {}
+        got, code = delete_material(repo, str(payload.get("subject") or "").strip(),
+                                    str(payload.get("name") or ""))
+        if got.get("ok"):
+            h.hub.worker.dirty.set()
+        return h.send_json(got, status=code)
 
     if path == "/doc/delete":
         try:
@@ -561,6 +586,41 @@ def delete_doc(repo, subject, ident):
         return {"ok": False, "error": got["said"]}, 403
     got.pop("trash", None)
     return dict(got, id=doc["id"], title=doc["title"]), (200 if got["ok"] else 500)
+
+
+def delete_material(repo, subject, name):
+    """`POST /material/delete`: `(payload, status)`.
+
+    A SUBJECT ID AND A NAME, NEVER A PATH. The subject is this board's own or
+    one `subjects.find` matches; the name must be one `subjects.materials`
+    listed there. A fenced name is 403 before anything is looked up. The file
+    and its ink go to the trash; an ignored file makes no commit.
+    """
+    served = subjects.find(repo.root, registry.base_of(repo))
+    if fenced.refused(subject) or fenced.refused(name):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    if not subject or (served and subject == served["id"]):
+        found = served
+    elif SUBJECT_ID.match(subject):
+        found = subjects.find(subject, registry.base_of(repo))
+        if found and found["id"] != subject:
+            found = None
+    else:
+        found = None
+    if not found:
+        return {"ok": False, "error": "no such subject"}, 404
+    library.forget()
+    rel = "%s/%s" % (subjects.MATERIALS, name)
+    doc = next((d for d in library.documents(found["root"])
+                if d.get("group") == "material" and d.get("rel") == rel), None)
+    idents = library.mark_idents(found["root"], doc) if doc else []
+    try:
+        _where, said = subjects.delete_material(found["root"], name, idents)
+    except subjects.Refused as exc:
+        status = 404 if str(exc).startswith("no material") else 500
+        return {"ok": False, "error": str(exc)}, status
+    library.forget()
+    return {"ok": True, "subject": found["id"], "name": name, "said": said}, 200
 
 
 def _pages(got):

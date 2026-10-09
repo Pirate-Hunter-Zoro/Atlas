@@ -1678,6 +1678,36 @@ body.mapping #redirect, body.reading #redirect {
 #scratch-list a { display: block; margin-bottom: .7rem; color: var(--ink); text-decoration: none; }
 #scratch-list img { width: 100%; border-radius: .4rem; border: 1px solid var(--rule); }
 #scratch-list .name { font-size: .72rem; color: var(--ink-3); word-break: break-all; }
+/* The Materials drawer: uploads in flight, this session's uploads, and the
+   subject's materials, each deletable after a second tap. */
+#upload-state:empty { display: none; }
+#upload-state { padding: .5rem .9rem; border-bottom: 1px solid var(--rule); }
+.upload-line { display: flex; align-items: center; gap: .5rem; padding: .25rem 0;
+               font-size: .78rem; color: var(--ink-2); }
+.upload-line progress { flex: 0 0 5.5rem; height: .45rem; }
+.upload-words { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.upload-line.done { color: var(--ink-3); }
+.upload-line.bad { color: var(--bad); }
+.upload-dismiss { border: 0; background: none; cursor: pointer; color: var(--ink-3);
+                  font: inherit; }
+.mat-group {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  padding: .7rem .9rem 0;
+}
+#scratch #scratch-list { flex: 0 1 auto; min-height: 0; }
+#scratch .scratch-foot { margin-top: auto; }
+#materials { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#materials-list { padding: .3rem .9rem .6rem; }
+#materials-list .name { font-size: .72rem; color: var(--ink-3); }
+.mat-row { display: flex; align-items: center; justify-content: space-between;
+           gap: .5rem; padding: .35rem 0; border-bottom: 1px solid var(--rule); }
+.mat-row:last-child { border-bottom: 0; }
+.mat-name { min-width: 0; overflow-wrap: anywhere; font-size: .78rem; }
+.mat-delete { flex: none; font: 600 .72rem var(--ui); cursor: pointer;
+              padding: .2rem .5rem; border-radius: .35rem;
+              border: 1px solid var(--rule); background: transparent; color: var(--ink-2); }
+.mat-delete.armed { border-color: var(--bad); color: var(--bad); }
 
 /* ---------- drop target ---------- */
 .drop {

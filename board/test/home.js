@@ -138,6 +138,7 @@ async function stubbed() {
         got = { ok: true, id: 't0003', make: body.make, session: SID,
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
       }
+      if (method === 'POST' && url === '/session/delete') got = { ok: true, id: body.id };
       if (method === 'POST' && url === '/subjects/new') {
         got = { ok: true, subject: { id: 'projects/' + body.name, kind: 'project',
                                      slug: body.name, name: body.name } };
@@ -182,6 +183,21 @@ async function stubbed() {
   check('Past sessions lists the ended one, read only, and nothing open',
         past.length === 1 && /Old one/.test(past[0].textContent)
         && past[0].title === 'read only');
+
+  // A session is deleted from its row, on the second tap.
+  const pastDel = d.querySelector('#past-list .row-delete');
+  const deletes = () => w.asked.filter((r) => r.url === '/session/delete');
+  check('every session row, open or past, offers delete',
+        d.querySelectorAll('#open-list .row-delete').length === 3 && pastDel);
+  pastDel.click();
+  await sleep(10);
+  check('one tap only arms it', deletes().length === 0 && /again/.test(pastDel.textContent));
+  pastDel.click();
+  await sleep(30);
+  check('the second posts /session/delete with the id',
+        deletes().length === 1 && deletes()[0].body.id === '20260901-100000');
+  check('and the screen asks for the sessions again',
+        w.asked.filter((r) => r.url === '/sessions.json').length >= 2);
 
   const courses = Array.from(d.querySelectorAll('#course-list .row'));
   const projects = Array.from(d.querySelectorAll('#project-list .row'));

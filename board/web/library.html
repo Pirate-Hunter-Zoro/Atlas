@@ -92,6 +92,21 @@
     <div id="res-grid" hidden></div>
     <div id="res-list"></div>
   </section>
+
+  <!-- DELETE THIS SUBJECT: its name typed, then one tap. Shown only on a
+       subject's own page outside a session; the server refuses a subject
+       that may hold patient data or has anything open on it, and says why. -->
+  <section id="lib-drop" hidden>
+    <h2>Delete this subject</h2>
+    <p class="muted">Type <strong id="lib-drop-slug"></strong> to delete it. It
+      goes to the trash for 30 days, and its tracked files leave git in one
+      commit. A subject that may hold patient data is removed only on the
+      cluster.</p>
+    <input id="lib-drop-name" type="text" autocomplete="off" autocapitalize="off"
+           spellcheck="false" aria-label="the subject's name, typed">
+    <button id="lib-drop-go" type="button" disabled>delete</button>
+    <p id="lib-drop-said" class="lib-none" hidden></p>
+  </section>
 </main>
 
 <!-- ONE RESULT, ON THE GLASS. Not `#reader`: that draws the PAGES of a PDF,

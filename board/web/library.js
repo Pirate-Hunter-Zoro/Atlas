@@ -594,14 +594,22 @@ function row(doc) {
       say(doc, 0);
     }));
   }
-  /* DELETE TAKES A SECOND TAP, and only a document with a doc.json offers it:
-     what was already here is somebody's own tree. */
-  if (doc.artifact) acts.appendChild(deleteButton(doc));
+  /* DELETE TAKES A SECOND TAP, and only a document with a doc.json or a
+     material offers it: what was already here is somebody's own tree. A
+     material is named by its path below materials/, never a path of the
+     page's choosing; the server matches it against what it listed. */
+  if (doc.artifact) {
+    acts.appendChild(deleteButton(doc, "/doc/delete",
+                                  { subject: subject, id: doc.id }));
+  } else if (doc.group === "material" && /^materials\//.test(doc.rel || "")) {
+    acts.appendChild(deleteButton(doc, "/material/delete",
+      { subject: subject, name: doc.rel.slice("materials/".length) }));
+  }
   box.appendChild(acts);
   return box;
 }
 
-function deleteButton(doc) {
+function deleteButton(doc, route, body) {
   var armed = null;
   var b = act("delete", "quiet lib-delete", function () {
     if (!armed) {
@@ -618,10 +626,10 @@ function deleteButton(doc) {
     armed = null;
     b.disabled = true;
     b.textContent = "deleting";
-    libFetch("/doc/delete", {
+    libFetch(route, {
       method: "POST", credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject: subject, id: doc.id })
+      body: JSON.stringify(body)
     }).then(function (r) {
       return r.json().catch(function () { return {}; });
     }).then(function (got) {
@@ -641,6 +649,53 @@ function deleteButton(doc) {
   });
   return b;
 }
+
+/* DELETE THIS SUBJECT, from its own page outside any session. Its name must
+   be typed, and the server refuses (409, with the reason) unless
+   tutorboard.json at HEAD says "phi": false and nothing is open on it. The
+   directory goes to the trash for 30 days; its tracked files leave git in one
+   commit. */
+function paintDrop() {
+  var box = document.getElementById("lib-drop");
+  if (!box) return;
+  var slug = SUBJECT.split("/")[1] || "";
+  box.hidden = !!BASE || !slug || SUBJECT.split("/").length !== 2;
+  if (box.hidden) return;
+  var input = document.getElementById("lib-drop-name");
+  var go = document.getElementById("lib-drop-go");
+  var said = document.getElementById("lib-drop-said");
+  document.getElementById("lib-drop-slug").textContent = slug;
+  input.oninput = function () {
+    go.disabled = input.value !== slug;
+    said.hidden = true;
+  };
+  go.onclick = function () {
+    if (input.value !== slug) return;
+    go.disabled = true;
+    said.hidden = false;
+    said.textContent = "deleting " + SUBJECT + "…";
+    fetch("/subject/delete", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: SUBJECT, typed: input.value })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; });
+    }).then(function (got) {
+      if (got && got.ok) {
+        said.textContent = SUBJECT + " is in the trash.";
+        goHome();
+        return;
+      }
+      go.disabled = false;
+      said.textContent = (got && got.error) || "it was not deleted";
+    }).catch(function () {
+      go.disabled = false;
+      said.textContent = "the board did not answer; nothing was deleted";
+    });
+  };
+}
+
+function goHome() { window.location.href = "/"; }
 
 function act(label, cls, fn) {
   var b = document.createElement("button");
@@ -2456,6 +2511,7 @@ function onMouseUp() {
 }
 
 paintPen();
+paintDrop();
 load();
 loadResults();
 poll();

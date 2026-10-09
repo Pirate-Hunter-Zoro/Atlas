@@ -136,6 +136,18 @@ h2 {
 }
 .row-make:hover { border-color: var(--ink-3); }
 #artmaker-open { margin-top: .6rem; display: block; text-decoration: none; }
+/* A session row and its delete, side by side; the delete arms on the first
+   tap and goes on the second. */
+.row-wrap { display: flex; align-items: stretch; gap: .4rem; }
+.row-wrap > .row { flex: 1; min-width: 0; }
+.row-delete {
+  flex: none; align-self: center;
+  font: inherit; font-family: var(--ui); font-size: .74rem;
+  min-height: 2.75rem; min-width: 2.75rem; padding: .3rem .6rem;
+  border: 1px solid var(--rule); border-radius: .45rem;
+  background: transparent; color: var(--ink-3); cursor: pointer;
+}
+.row-delete.armed { border-color: var(--accent); color: var(--accent); }
 .badge {
   flex: none;
   font-family: var(--ui); font-size: .7rem; font-weight: 700;

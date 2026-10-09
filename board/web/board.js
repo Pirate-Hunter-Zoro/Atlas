@@ -3825,7 +3825,7 @@ function paintSuperseded(set) {
 function renderScratch(uploads) {
   els.scratchList.innerHTML = "";
   if (!uploads.length) {
-    els.scratchList.innerHTML = '<p class="name">nothing dropped yet. '
+    els.scratchList.innerHTML = '<p class="name">nothing uploaded yet. '
       + 'What you write goes into the lesson itself.</p>';
     return;
   }
@@ -3862,7 +3862,7 @@ function renderScratch(uploads) {
   }
 
   uploads.slice().reverse().forEach(function (u) {
-    tile(u.url, u.name);
+    tile(u.url, u.size ? u.name + "  ·  " + sizeWords(u.size) : u.name);
   });
 }
 
@@ -11756,11 +11756,166 @@ els.saybox.addEventListener("keydown", function (e) {
    arrives with the sentence that makes it useful; a tap that means "look at what
    I changed" is a tap that leaves the tutor to guess at what and why. */
 
+/* UPLOADS (D21): every file lands in this session's uploads/, with a line
+   that wakes no turn. One XHR per batch, because fetch says nothing about
+   progress and a 150 MB PDF over Tailscale takes long enough to need it. The
+   drawer opens to show it; a refusal or a dropped link is an error line that
+   stays until it is dismissed. The server takes at most 1 GB a body. */
+var UPLOAD_MAX = 1024 * 1024 * 1024;
+
+function sizeWords(n) {
+  if (n < 1024) return n + " B";
+  var units = ["KB", "MB", "GB"];
+  var i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < units.length - 1);
+  return (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10) + " " + units[i];
+}
+
+function uploadLine(cls) {
+  var line = document.createElement("div");
+  line.className = "upload-line " + cls;
+  var words = document.createElement("span");
+  words.className = "upload-words";
+  line.appendChild(words);
+  document.getElementById("upload-state").appendChild(line);
+  return line;
+}
+
+function uploadFailed(line, why) {
+  line.className = "upload-line bad";
+  line.querySelector(".upload-words").textContent = why;
+  var bar = line.querySelector("progress");
+  if (bar) bar.remove();
+  var x = document.createElement("button");
+  x.type = "button";
+  x.className = "upload-dismiss";
+  x.textContent = "✕";
+  x.title = "dismiss";
+  x.onclick = function () { line.remove(); };
+  line.appendChild(x);
+}
+
 function upload(files) {
   if (!files || !files.length) return;
+  var list = Array.prototype.slice.call(files);
+  var total = list.reduce(function (n, f) { return n + (f.size || 0); }, 0);
+  var label = list.length === 1 ? list[0].name : list.length + " files";
+  if (els.scratch.hidden) {
+    els.scratch.hidden = false;
+    loadMaterials();
+  }
+  var line = uploadLine("going");
+  var words = line.querySelector(".upload-words");
+  if (total > UPLOAD_MAX) {
+    uploadFailed(line, label + " is " + sizeWords(total)
+      + ": an upload may be at most 1 GB. Nothing was sent.");
+    return;
+  }
+  var bar = document.createElement("progress");
+  bar.max = 100;
+  bar.value = 0;
+  line.insertBefore(bar, words);
+  words.textContent = "uploading " + label + " (" + sizeWords(total) + ")";
   var form = new FormData();
-  for (var i = 0; i < files.length; i++) form.append("f" + i, files[i], files[i].name);
-  api("/upload", { method: "POST", body: form }).catch(function () {});
+  list.forEach(function (f, i) { form.append("f" + i, f, f.name); });
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", BASE + "/upload");
+  xhr.upload.onprogress = function (e) {
+    if (!e.lengthComputable || !e.total) return;
+    var pct = Math.floor(100 * e.loaded / e.total);
+    bar.value = pct;
+    words.textContent = "uploading " + label + ": " + pct + "% of "
+      + sizeWords(e.total);
+  };
+  xhr.onload = function () {
+    var got = {};
+    try { got = JSON.parse(xhr.responseText || "{}"); } catch (e) { got = {}; }
+    if (xhr.status === 200 && got.ok) {
+      bar.value = 100;
+      line.className = "upload-line done";
+      words.textContent = "uploaded " + (got.saved || []).join(", ")
+        + ". The tutor reads it with what you say next.";
+      setTimeout(function () { line.remove(); }, 6000);
+      return;
+    }
+    uploadFailed(line, "upload failed (" + xhr.status + "): "
+      + (got.error || xhr.statusText || "the board refused it"));
+  };
+  xhr.onerror = function () {
+    uploadFailed(line, "upload failed: the board did not answer. Nothing of "
+      + label + " was kept; send it again.");
+  };
+  xhr.onabort = xhr.onerror;
+  xhr.send(form);
+}
+
+/* THE SUBJECT'S MATERIALS, asked for each time the drawer opens. A delete
+   takes a second tap within 4 s; the file and its ink go to the trash. */
+function loadMaterials() {
+  var box = document.getElementById("materials");
+  var list = document.getElementById("materials-list");
+  api("/materials.json").then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (!got || !got.ok) { box.hidden = true; return; }
+    box.hidden = false;
+    document.getElementById("materials-head").textContent =
+      (got.subject || "the subject") + ": materials";
+    list.innerHTML = "";
+    if (!(got.materials || []).length) {
+      list.innerHTML = '<p class="name">none yet. The tutor files uploads here.</p>';
+      return;
+    }
+    got.materials.forEach(function (m) { list.appendChild(materialRow(m)); });
+  }).catch(function () { box.hidden = true; });
+}
+
+function materialRow(m) {
+  var row = document.createElement("div");
+  row.className = "mat-row";
+  row.dataset.name = m.name;
+  var name = document.createElement("span");
+  name.className = "mat-name";
+  name.textContent = m.name + "  ·  " + sizeWords(m.size || 0);
+  row.appendChild(name);
+  var del = document.createElement("button");
+  del.type = "button";
+  del.className = "mat-delete";
+  del.textContent = "delete";
+  var armed = null;
+  del.onclick = function () {
+    if (!armed) {
+      del.textContent = "tap again to delete";
+      del.classList.add("armed");
+      armed = setTimeout(function () {
+        armed = null;
+        del.textContent = "delete";
+        del.classList.remove("armed");
+      }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    del.disabled = true;
+    del.textContent = "deleting";
+    api("/material/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: m.name })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; });
+    }).then(function (got) {
+      if (got && got.ok) { row.remove(); loadMaterials(); return; }
+      del.disabled = false;
+      del.classList.remove("armed");
+      del.textContent = (got && got.error) || "could not delete";
+    }).catch(function () {
+      del.disabled = false;
+      del.classList.remove("armed");
+      del.textContent = "the board is not answering";
+    });
+  };
+  row.appendChild(del);
+  return row;
 }
 
 els.file.addEventListener("change", function () { upload(els.file.files); els.file.value = ""; });
@@ -12364,7 +12519,10 @@ if (els.addFile) {
   els.addFile.onclick = function () { els.file.click(); };
 }
 
-document.getElementById("btn-scratch").onclick = function () { els.scratch.hidden = !els.scratch.hidden; };
+document.getElementById("btn-scratch").onclick = function () {
+  els.scratch.hidden = !els.scratch.hidden;
+  if (!els.scratch.hidden) loadMaterials();
+};
 document.getElementById("btn-scratch-close").onclick = function () { els.scratch.hidden = true; };
 document.getElementById("btn-history").onclick = openHistory;
 document.getElementById("btn-history-close").onclick = function () {

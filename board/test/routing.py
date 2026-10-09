@@ -356,6 +356,10 @@ DRIVE = {
         ("/doc/delete", {"id": "nope"}, (404,))]),
     ("POST", "/artifact", "library"): ("subject", [
         ("/artifact", {"make": "paper", "about": "{mark}"}, OK)]),
+    ("GET", "/materials.json", "library"): ("subject", [("/materials.json", None, OK)]),
+    ("POST", "/material/delete", "library"): ("subject", [
+        ("/material/delete", {"name": "nope.pdf"}, (404,)),
+        ("/material/delete", {"name": "../TUTOR.md"}, (404,))]),
     ("GET", "/library/marked/", "library"): ("session", [
         ("/library/marked/nope/x.pdf", None, (404,))]),
     ("POST", "/writeup/seen", "library"): ("session", [

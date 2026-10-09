@@ -32,7 +32,7 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
-from .. import cluster, jobs, paths, stamp, subjects
+from .. import cluster, jobs, paths, sessions, stamp, subjects
 from ..runner import service
 from .handler import Handler
 from . import spawn
@@ -145,6 +145,11 @@ def main(argv):
         raise SystemExit(0)
     signal.signal(signal.SIGTERM, stop)
     threading.Thread(target=httpd.registry.sweep_loop, daemon=True).start()
+    # The trash keeps a delete 30 days; older entries go at startup.
+    try:
+        pruned = sessions.prune_trash()
+    except OSError:
+        pruned = []
     # The mission sweep walks this machine's real workspaces, so a server on
     # a test tree (`--atlas`) leaves it off.
     if os.path.realpath(atlas) == os.path.realpath(subjects.root()):
@@ -163,6 +168,9 @@ def main(argv):
                          os.getpid(), runner.concurrency,
                          "; threads: %s" % ", ".join(threads) if threads else "",
                          "; recovered %s" % ", ".join(queued) if queued else ""))
+    if pruned:
+        sys.stderr.write("board: pruned %d trash entr%s older than %d days\n" % (
+            len(pruned), "y" if len(pruned) == 1 else "ies", sessions.TRASH_DAYS))
     sys.stderr.flush()
     try:
         httpd.serve_forever()

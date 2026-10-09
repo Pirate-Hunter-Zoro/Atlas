@@ -228,8 +228,9 @@ _SIGNAL_TAG = re.compile(r"^\[[^\]\n]*\]\s*\[([a-z]+)\]")
 
 
 # Lines that wake nothing (`"wake": false`) and ride in front of the line that
-# did: a bind, a mode change, a filing. They say nothing about what the turn is.
-QUIET_SIGNALS = ("bind", "mode", "filed")
+# did: a bind, a mode change, an upload, a filing. They say nothing about what
+# the turn is.
+QUIET_SIGNALS = ("bind", "mode", "uploaded", "filed")
 
 
 def turn_signal(out):

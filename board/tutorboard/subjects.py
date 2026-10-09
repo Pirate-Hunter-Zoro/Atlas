@@ -263,3 +263,164 @@ def create(ident, phi=None, base=None):
         shutil.rmtree(where, ignore_errors=True)
         return None, False, said
     return _record(parts[0], kind, slug, where), True, said
+
+
+# ---------------------------------------------------------------------------
+# delete, from the iPad
+# ---------------------------------------------------------------------------
+class Busy(Refused):
+    """A delete refused for what the subject is or holds now (409, not 400)."""
+
+
+def head_phi(base, ident):
+    """`phi` as tutorboard.json says it at HEAD: True, False, None for a
+    file with no `phi` key, or "" when there is no such file at HEAD."""
+    from . import gitops                                     # local: light here
+    code, out = gitops._git(base, "show", "HEAD:%s/tutorboard.json" % ident)
+    if code != 0:
+        return ""
+    try:
+        said = json.loads(out)
+    except ValueError:
+        return None
+    return said.get("phi") if isinstance(said, dict) else None
+
+
+def delete_blocker(found, base=None):
+    """Why the subject `found` (an `all()` record) may not be deleted now, or
+    "". D23: tutorboard.json at HEAD must say `"phi": false` literally. And
+    no open session is bound to it, no session holds a coding session on it,
+    and no request under it waits for a terminal report."""
+    from . import sessions                                   # local: a cycle
+    base = _base(base)
+    ident = found["id"]
+    phi = head_phi(base, ident)
+    if phi is not False:
+        return ("%s: tutorboard.json at HEAD does not say \"phi\": false (%s), "
+                "so it is removed only through a cluster runbook"
+                % (ident, "no tutorboard.json at HEAD" if phi == ""
+                   else "no phi key" if phi is None else "phi is %s" % json.dumps(phi)))
+    for rec in sessions.all(base):
+        code = rec.get("code")
+        held = isinstance(code, dict) and code.get("subject") == ident
+        if rec.get("subject") == ident and not rec.get("ended"):
+            return "%s: session %s is open on it; end it first" % (ident, rec["id"])
+        if code and (held or rec.get("subject") == ident):
+            return ("%s: session %s holds a coding session on it; end that "
+                    "first (board code --end)" % (ident, rec["id"]))
+    from . import jobs                                       # local: heavy
+    try:
+        waiting = jobs.outstanding(found["root"])
+    except Exception as exc:                                 # noqa: BLE001
+        return "%s: its requests could not be read (%s)" % (ident, exc)
+    if waiting:
+        return ("%s: request %s has no terminal report yet"
+                % (ident, waiting[0].get("request") or "?"))
+    return ""
+
+
+def delete(ident, typed, base=None, now=None):
+    """Delete the subject `ident` (matched against `all()`), from the iPad.
+
+    `typed` must equal its slug. Refused (`Busy`) by `delete_blocker`; a
+    name that is no subject, or a typed name that is not the slug, is
+    `Refused`. The whole directory, ignored residue and all, moves to the
+    trash; its tracked files leave in one gitops commit. A commit that fails
+    puts the directory back. `(trash path, said)`.
+    """
+    from . import gitops, sessions                           # local: a cycle
+    base = _base(base)
+    raw = str(ident or "").strip()
+    found = None
+    for one in walk(base):
+        if "%s/%s" % (one[0], one[2]) == raw:
+            found = _record(*one)
+    if not found:
+        raise Refused("no subject %r: name it as courses/<name> or "
+                      "projects/<name>" % raw)
+    if str(typed or "") != found["slug"]:
+        raise Refused("type %s exactly to delete it" % found["slug"])
+    why = delete_blocker(found, base)
+    if why:
+        raise Busy(why)
+    rel = found["id"]
+    code, out = gitops._git(base, "ls-files", "--", rel)
+    tracked = code == 0 and bool(out.strip())
+    dest = sessions.trash(rel.replace("/", "-"), now)
+    shutil.move(found["root"], dest)
+    if not tracked:
+        return dest, "moved %s to the trash; nothing of it was tracked" % rel
+    ok, said = gitops.commit(base, [rel], "%s: deleted from the iPad" % rel)
+    if not ok:
+        gitops._git(base, "reset", "-q", "--", rel)
+        shutil.move(dest, found["root"])
+        raise Refused("not committed, so not deleted: %s" % said)
+    return dest, said
+
+
+# A material: any file under `<subject>/materials/` (ignored, D1).
+MATERIALS = "materials"
+
+
+def materials(root):
+    """`[{name, size, at}]` for every file under `<root>/materials/`, newest
+    first; `name` is its path below `materials/`. Dot files and anything
+    reached through a link that leaves the directory are not listed."""
+    top = os.path.join(root, MATERIALS)
+    real = os.path.realpath(top)
+    out = []
+    for here, dirs, files in os.walk(top):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        for f in files:
+            if f.startswith("."):
+                continue
+            p = os.path.join(here, f)
+            if not os.path.realpath(p).startswith(real + os.sep):
+                continue
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            out.append({"name": os.path.relpath(p, top).replace(os.sep, "/"),
+                        "size": st.st_size, "at": st.st_mtime})
+    out.sort(key=lambda m: (-m["at"], m["name"]))
+    return out
+
+
+def delete_material(root, name, idents=(), now=None):
+    """Move the material `name` (one of `materials(root)`'s names) and its
+    ink to the trash. Its ink is every `.ink/` file keyed on its ink id
+    (`sessions.ink_ident`) or on one of `idents`. Nothing is committed for an
+    ignored file; one tracked anyway leaves in one commit. `(trash path,
+    said)`, or `Refused` for a name that is not one."""
+    from . import gitops, sessions                           # local: a cycle
+    from .artifacts import ink_files                          # local: a cycle
+    name = str(name or "")
+    if name not in [m["name"] for m in materials(root)]:
+        raise Refused("no material %r here" % name)
+    rel = "%s/%s" % (MATERIALS, name)
+    full = os.path.join(root, *rel.split("/"))
+    dest = sessions.trash(os.path.basename(full), now)
+    keys = set(idents or ()) | {sessions.ink_ident(rel)}
+    ink = ink_files(os.path.join(root, sessions.INK), keys)
+    top = gitops._git(root, "rev-parse", "--show-toplevel")
+    top = os.path.realpath(top[1]) if top[0] == 0 and top[1] else ""
+    tracked = False
+    if top:
+        code, out = gitops._git(top, "ls-files", "--", os.path.relpath(full, top))
+        tracked = code == 0 and bool(out.strip())
+    shutil.move(full, dest)
+    if ink:
+        keep = os.path.join(os.path.dirname(dest), ".ink")
+        os.makedirs(keep, exist_ok=True)
+        for p in ink:
+            shutil.move(p, os.path.join(keep, os.path.basename(p)))
+    said = "moved %s to the trash%s" % (rel, " with %d ink file%s" % (
+        len(ink), "" if len(ink) == 1 else "s") if ink else "")
+    if tracked:
+        ok, out = gitops.commit(top, [os.path.relpath(full, top)],
+                                "%s: delete %s" % (identify(root, top), rel))
+        said += "\n" + out
+        if not ok:
+            raise Refused(said)
+    return dest, said

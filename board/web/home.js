@@ -155,15 +155,57 @@ function pastRow(rec) {
   return a;
 }
 
+/* A session row with its delete beside it: the first tap arms it for 4 s,
+   the second posts /session/delete and the session goes to the trash. */
+function withDelete(row, rec) {
+  var wrap = el("div", "row-wrap");
+  wrap.appendChild(row);
+  var b = el("button", "row-delete", "delete");
+  b.type = "button";
+  b.title = "delete this session";
+  b.setAttribute("data-delete", rec.id);
+  var armed = null;
+  b.onclick = function () {
+    if (!armed) {
+      b.textContent = "tap again";
+      b.classList.add("armed");
+      armed = setTimeout(function () {
+        armed = null;
+        b.textContent = "delete";
+        b.classList.remove("armed");
+      }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    b.disabled = true;
+    b.textContent = "deleting";
+    postJSON("/session/delete", { id: rec.id }).then(function (got) {
+      if (got && got.ok) { wrap.remove(); refresh(); return; }
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "delete";
+      say((got && got.error) || "the session was not deleted");
+    }).catch(function () {
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "delete";
+      say("the board did not answer; nothing was deleted");
+    });
+  };
+  wrap.appendChild(b);
+  return wrap;
+}
+
 function paintSessions(data) {
   var list = (data && data.sessions) || [];
   var open = list.filter(function (r) { return !r.ended; });
   var past = list.filter(function (r) { return !!r.ended; });
   els.openList.innerHTML = "";
-  open.forEach(function (r) { els.openList.appendChild(openRow(r)); });
+  open.forEach(function (r) { els.openList.appendChild(withDelete(openRow(r), r)); });
   els.openNone.hidden = open.length > 0;
   els.pastList.innerHTML = "";
-  past.forEach(function (r) { els.pastList.appendChild(pastRow(r)); });
+  past.forEach(function (r) { els.pastList.appendChild(withDelete(pastRow(r), r)); });
   els.pastNone.hidden = past.length > 0;
 }
 
