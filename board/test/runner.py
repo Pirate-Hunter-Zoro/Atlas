@@ -311,6 +311,9 @@ try:
           and list(r.ready) == ["A", "B"])
     check("concurrency defaults to config.json's, here 2",
           service.configured_concurrency() == 2)
+    check("a quiet line in front of the one that woke the turn does not name "
+          "the turn", turn.turn_signal("[a] [bind] courses/Demo\n[b] [begin] go") == "begin"
+          and turn.turn_signal("[a] [mode] now do\n[b] go on") == "")
     check("a turn never resumes: the recipe is headless_first",
           turn.turn_plan({"headless_first": ["c", "-p", "{prompt}"],
                           "headless": ["c", "-p", "{prompt}", "--continue"]})[0]

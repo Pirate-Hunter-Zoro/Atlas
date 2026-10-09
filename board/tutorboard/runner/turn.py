@@ -214,13 +214,21 @@ def turn_plan(spec, signal=""):
 _SIGNAL_TAG = re.compile(r"^\[[^\]\n]*\]\s*\[([a-z]+)\]")
 
 
+# Lines that wake nothing (`"wake": false`) and ride in front of the line that
+# did: a bind, a mode change, a filing. They say nothing about what the turn is.
+QUIET_SIGNALS = ("bind", "mode", "filed")
+
+
 def turn_signal(out):
-    """The signal the inbox message carries, or "". Never raises."""
+    """The signal the inbox message carries, or "": the first line's tag,
+    passing over the quiet lines in front of it. Never raises."""
     for line in (out or "").splitlines():
         line = line.strip()
         if not line:
             continue
         m = _SIGNAL_TAG.match(line)
+        if m and m.group(1) in QUIET_SIGNALS:
+            continue
         return m.group(1) if m else ""
     return ""
 

@@ -184,7 +184,22 @@ class Runner(object):
             t = threading.Thread(target=self._work, name="turn-%d" % n, daemon=True)
             t.start()
             self.threads.append(t)
+        threading.Thread(target=self._keep_warm, name="probe", daemon=True).start()
         return self
+
+    def _keep_warm(self):
+        """Ask whether the default provider's own host answers, off the path
+        of any turn: `probe_before_turn` caches for PROBE_TTL in this process,
+        so a turn finds the answer already there and spawns at once."""
+        while not self.stopping:
+            try:
+                cfg = recipes.load_config()
+                name = recipes.resolve_agent(cfg, None, say=lambda m: None)
+                if name:
+                    recipes.probe_before_turn(cfg, name)
+            except Exception:                                # noqa: BLE001
+                pass
+            time.sleep(recipes.PROBE_TTL / 2.0)
 
     def _work(self):
         while True:
