@@ -1,6 +1,7 @@
 """The session store: `sessions/<YYYYMMDD-HHMMSS>/` under the Atlas root.
 
-    new(title=None)   a fresh session, unbound, in teach mode
+    new(title=None, view="board")   a fresh session, unbound, in teach mode;
+                      `view` slate is a notes canvas
     end(id)           set `ended`, and commit what the session leaves behind
     reopen(id)        clear `ended`
     delete(id)        move the directory to the trash
@@ -20,7 +21,7 @@ refuses any path under it). It persists until the owner ends it: nothing but
 path unchecked.
 
 session.json = {id, title, subject, mode, opened, ended, writeup, seen, code,
-view}. `subject` is a subject id (`courses/X`, `projects/Y`) or null;
+view}. `view` is `board`, or `slate` for a notes canvas (VIEWS). `subject` is a subject id (`courses/X`, `projects/Y`) or null;
 `writeup` is a source path relative to the Atlas root, or null. Times are
 local `YYYY-MM-DD HH:MM:SS`.
 
@@ -33,7 +34,6 @@ refuses commits to the held paths on main and `board push` from the session
 goes to the ref.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -123,13 +123,20 @@ def _save(where, rec):
     course_repo._write_json(os.path.join(where, course_repo.SESSION_JSON), rec)
 
 
-def new(title=None, base=None, now=None):
+# How a session is shown: the board, or the full slate of a notes canvas,
+# whose End has the tutor transcribe its pages into notes.md.
+VIEWS = ("board", "slate")
+
+
+def new(title=None, base=None, now=None, view="board"):
     """Create a session and return its session.json.
 
     The id is the local time to the second; a clash takes `-2`, `-3`, ...
     `os.mkdir` claims the name, so two callers in one second get two
-    sessions and neither touches the other.
+    sessions and neither touches the other. `view` is one of VIEWS.
     """
+    if view not in VIEWS:
+        raise Refused("a session's view is board or slate, not %r" % (view,))
     now = time.time() if now is None else now
     top = store(base)
     os.makedirs(top, exist_ok=True)
@@ -145,7 +152,7 @@ def new(title=None, base=None, now=None):
     where = os.path.join(top, sid)
     rec = {"id": sid, "title": title or None, "subject": None, "mode": "teach",
            "opened": time.strftime(WHEN, time.localtime(now)), "ended": None,
-           "writeup": None, "seen": 0, "code": None, "view": "board"}
+           "writeup": None, "seen": 0, "code": None, "view": view}
     _save(where, rec)
     for d in LAYOUT:
         os.makedirs(os.path.join(where, d), exist_ok=True)
@@ -326,17 +333,14 @@ INK_EXTS = (".dir.png", ".png", ".json", ".gone")
 def ink_ident(rel):
     """The ink id of a file at `rel`, its path relative to where it is kept:
     `uploads/<name>` in a session, `materials/<name>` (or any path) in a
-    subject. Lower-case letters, digits and dashes, at most 40, so a key
-    `doc/<id>/p<n>` passes `writing.ANN_DOC`. A path too long for that keeps
-    31 characters and a digest of the whole path, so two paths never share
-    an id."""
+    subject. The library's id rule (`library._ident`), so the reader keys ink
+    on the id the library lists the file under: lower-case letters, digits and
+    dashes, at most 40, which `writing.ANN_DOC` takes. Where two files share
+    one, the library numbers the later; `file` asks it (`library.ident_map`)."""
+    from .course import library                        # local: a cycle
     rel = str(rel or "").replace(os.sep, "/").strip("/")
-    stem = os.path.splitext(rel)[0]
-    slug = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-") or "doc"
-    if len(slug) <= 40:
-        return slug
-    digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
-    return "%s-%s" % (slug[:31].rstrip("-"), digest)
+    where, name = os.path.split(rel)
+    return library._ident(where, os.path.splitext(name)[0], ())
 
 
 def _ink_of(folder, ident):
@@ -414,14 +418,15 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     directory, or the file's new name).
 
     The upload's ink moves with it, from the session's `annotations/` or
-    `<subject>/.ink/` to `<subject>/.ink/`, re-keyed from the upload's ink id to the new path's
-    (`ink_ident`). Refused: an unbound session, an upload not in `uploads/`,
+    `<subject>/.ink/` to `<subject>/.ink/`, re-keyed from the upload's ink id
+    to the id the library lists the file under in its new place. Refused: an unbound session, an upload not in `uploads/`,
     a destination outside the subject, hidden or fenced, or already taken,
     and ink already in `.ink/` under the new keys. Nothing is committed: a
     filed upload is third-party or the owner's raw material (D1).
 
-    Returns {from, to, subject, keys}: `to` is relative to the subject, and
-    `keys` maps each old ink key to its new one.
+    Returns {from, to, subject, keys, doc}: `to` is relative to the subject,
+    `keys` maps each old ink key to its new one, and `doc` is the file's ink
+    id where it is now.
     """
     base = base or subjects.root()
     where = _need(sid, base)
@@ -434,29 +439,39 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     name = os.path.basename(src)
     rel, full = _dest(found["root"], name, dest)
 
+    from .course import library                        # local: a cycle
+    from .server.routes import writing                 # local: avoids a cycle
     notes = os.path.join(where, "annotations")
     ink = os.path.join(found["root"], INK)
-    old, new = ink_ident("uploads/" + name), ink_ident(rel)
-    from .server.routes import writing                 # local: avoids a cycle
-    moves = []
-    # Ink drawn while the session was bound is already in `.ink/` (the server
-    # routes document keys there); ink drawn before the bind is in the
-    # session's annotations. `.ink/` first, so it wins a key held in both.
-    for folder in (ink, notes):
-        for fname, key, ext in _ink_of(folder, old):
-            page = key.rsplit("/p", 1)[1]
-            nkey = "doc/%s/p%s" % (new, page)
-            target = os.path.join(ink, writing.ann_file(nkey) + ext)
-            if any(m[1] == target for m in moves):
-                continue
-            if os.path.lexists(target):
-                raise Refused("%s already holds ink for %s; it belongs to no file "
-                              "there now -- delete it, or file under another name"
-                              % (target, nkey))
-            moves.append((os.path.join(folder, fname), target, key, nkey, ext))
-
+    old = next((u["id"] for u in library.uploads(repo(sid, base))
+                if u["name"] == name), "") or ink_ident("uploads/" + name)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     shutil.move(src, full)
+    # The id the library lists the file under in its new place, asked once it
+    # is there; a file the library offers no document for keeps the rule's.
+    new = library.ident_map(found["root"]).get(os.path.realpath(full)) \
+        or ink_ident(rel)
+    moves = []
+    try:
+        # Ink drawn while the session was bound is already in `.ink/` (the
+        # server routes document keys there); ink drawn before the bind is in
+        # the session's annotations. `.ink/` first, so it wins a key held in
+        # both.
+        for folder in (ink, notes):
+            for fname, key, ext in _ink_of(folder, old):
+                page = key.rsplit("/p", 1)[1]
+                nkey = "doc/%s/p%s" % (new, page)
+                target = os.path.join(ink, writing.ann_file(nkey) + ext)
+                if nkey == key or any(m[1] == target for m in moves):
+                    continue
+                if os.path.lexists(target):
+                    raise Refused("%s already holds ink for %s; it belongs to no "
+                                  "file there now -- delete it, or file under "
+                                  "another name" % (target, nkey))
+                moves.append((os.path.join(folder, fname), target, key, nkey, ext))
+    except Refused:
+        shutil.move(full, src)
+        raise
     keys = {}
     if moves:
         os.makedirs(ink, exist_ok=True)
@@ -472,8 +487,9 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     shown = "%s/%s" % (found["id"], rel)
     _line(where, "[filed] uploads/%s -> %s" % (name, shown), "filed", now=now,
           files=[shown])
+    library.forget()
     return {"from": "uploads/" + name, "to": rel, "subject": found["id"],
-            "keys": keys}
+            "keys": keys, "doc": new}
 
 
 def current():
@@ -482,6 +498,28 @@ def current():
     if said and course_repo.is_stored(said):
         return os.path.basename(os.path.normpath(said))
     return ""
+
+
+def url(rec):
+    """Where a session opens: its board, or the slate of a notes canvas."""
+    return "/s/%s/%s" % (rec.get("id"),
+                         "slate" if rec.get("view") == "slate" else "board")
+
+
+def slate_pages(sid, base=None):
+    """The page pictures of session `sid`'s slate with ink on them, in page
+    order: what a notes canvas's End has the tutor transcribe."""
+    from .lesson import slate as lesson_slate               # local: heavy
+    where = _need(sid, base)
+
+    class _At(object):
+        slate = os.path.join(where, "slate")
+    out = []
+    for page in lesson_slate.read_slate_pages(_At):
+        png = os.path.join(_At.slate, "page-%02d.png" % page["page"])
+        if page.get("strokes") and os.path.isfile(png):
+            out.append(png)
+    return out
 
 
 def show(rec):

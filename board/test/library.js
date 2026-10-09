@@ -1625,10 +1625,10 @@ async function inkIsKept() {
     }
     if (/annotate\/burn/.test(url)) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({
-        ok: true, mode: 'new', name: 'notes-annotated-2026-09-28.pdf',
-        url: '/library/marked/' + ID + '/notes-annotated-2026-09-28.pdf',
-        path: 'live/marked/' + ID + '/notes-annotated-2026-09-28.pdf', pages: 2,
-        detail: 'Kept as notes-annotated-2026-09-28.pdf. The ink stays on the '
+        ok: true, mode: 'new', name: 'notes-marked.pdf',
+        url: '/library/marked/' + ID + '/notes-marked.pdf',
+        path: 'writeups/notes/notes-marked.pdf', pages: 2,
+        detail: 'Kept as notes-marked.pdf. The ink stays on the '
           + 'page and still goes with the next note.' }) });
     }
     if (/library\/marked\//.test(url)) {
@@ -1857,11 +1857,11 @@ async function inkIsKept() {
     ? ok('and keeping a copy is not sending: no note, no turn')
     : fail('keeping a copy sent something: ' + after.map((r) => r.url).join(' '));
   const copyLine = p.byId('reader-copy');
-  !copyLine.hidden && /Kept as notes-annotated/.test(copyLine.textContent)
+  !copyLine.hidden && /Kept as notes-marked/.test(copyLine.textContent)
     && /next note/.test(copyLine.textContent)
     ? ok('the reader names the copy, and says the ink still goes with the next note')
     : fail('after keeping a copy the reader says: ' + copyLine.textContent);
-  after.some((r) => r.url === '/library/marked/' + ID + '/notes-annotated-2026-09-28.pdf')
+  after.some((r) => r.url === '/library/marked/' + ID + '/notes-marked.pdf')
     ? ok('and fetches it straight away, so the share sheet can open on the tap')
     : fail('the copy was never fetched');
   const saveBtn = p.byId('reader-copy-save');
@@ -1869,7 +1869,7 @@ async function inkIsKept() {
   p.click(saveBtn);
   await sleep(20);
   share.length === 1 && share[0].files
-    && share[0].files[0].name === 'notes-annotated-2026-09-28.pdf'
+    && share[0].files[0].name === 'notes-marked.pdf'
     ? ok('save a copy hands the file to the share sheet, so it can go to Files')
     : fail('the share sheet got: ' + JSON.stringify(share.map((s) => s.title)));
 

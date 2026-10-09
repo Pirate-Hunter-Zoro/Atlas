@@ -22,8 +22,8 @@ that is not the lesson's.
                                     every few seconds
     GET  /library/view/<id>         the pages of one, drawn by the renderer the
                                     board already has
-    GET  /library/marked/<id>/<name> a marked copy `POST /annotate/burn` made
-                                    of one, as an attachment
+    GET  /library/marked/<id>/<name> a marked copy `POST /annotate/burn` kept
+                                    beside one's PDF, as an attachment
     GET  /library/note/<id>/<name>  one round of feedback, read back -- which is
                                     where the turn wrote what it changed
     GET  /library/ledger/<id>       every round's requests, what was done about
@@ -51,9 +51,8 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               /library/table/*  /library/view/*  /library/note/*
               /library/ledger/* (GET and POST)  /library/evidence/*
               /library/feedback  /doc/delete  /artifact
-              /materials.json  /material/delete
-    session   under `/s/<id>/` only: /library/marked/*
-              /writeup/seen
+              /materials.json  /material/delete  /library/marked/*
+    session   under `/s/<id>/` only: /writeup/seen
 
 AN ASK OF A TUTOR THAT IS NOT THIS SESSION'S -- feedback from the library
 page, a deck or a paper from a subject's row, the meeting deck -- goes
@@ -117,8 +116,17 @@ def get(h, repo, path):
         if not found:
             return h.send_json({"ok": False, "error": "this session is bound to "
                                 "no subject, so it has no materials"}, status=404)
+        # A PDF the library offers carries its id, `doc`: the board's drawer
+        # opens it in the reader as `doc/<id>`.
+        ids = library.ident_map(found["root"])
+        listed = subjects.materials(found["root"])
+        for m in listed:
+            ident = ids.get(os.path.realpath(os.path.join(
+                found["root"], subjects.MATERIALS, *m["name"].split("/"))))
+            if ident and m["name"].lower().endswith(".pdf"):
+                m["doc"] = ident
         return h.send_json({"ok": True, "subject": found["id"],
-                            "materials": subjects.materials(found["root"])})
+                            "materials": listed})
 
     # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
     # somebody, so it is stats and nothing else -- no titles read out of
@@ -155,7 +163,7 @@ def get(h, repo, path):
         return h.send_json(got, status=200 if got.get("ok") else 404)
 
     # A MARKED COPY, handed over to be kept. An id and a name, both matched
-    # against what is on disk under `live/marked/<id>/` -- `burn.marked_file`
+    # against what is on disk beside that document's PDF -- `burn.marked_file`
     # -- and sent as an attachment, because it is asked for to go into Files.
     if path.startswith("/library/marked/"):
         rest = path[len("/library/marked/"):].split("/", 1)

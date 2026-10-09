@@ -35,6 +35,8 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     session   under `/s/<id>/` only: GET /download/lesson  /download/homework
               /view/lesson  /view/homework  /view/doc/<id>  /doc/<id>/<n>.png
+              /marked/<kind>/<name>, a marked copy `/annotate/burn` kept
+              beside the PDF of `homework`, `lesson` or `doc/<id>`
     both      GET /paper/<digest>-<n>.png: one page cache for every session
               and subject (`paths.PAGES`), so it is answered here under
               `/s/<id>/` and by the handler's `paper` class unprefixed
@@ -42,8 +44,10 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
 import os
 import re
+from urllib.parse import unquote
 
 from . import NOT_MINE
+from ...course import burn
 from ...course import paper
 from ...course import library
 from ...lesson import notes
@@ -81,11 +85,22 @@ def get(h, repo, path):
         kind = path.rsplit("/", 1)[1]
         return h.send_json(_inked(repo, paper.pages(repo, kind), kind))
 
+    if path.startswith("/marked/"):
+        # A MARKED COPY, handed over to be kept: the kind and the name, both
+        # matched against what is on disk beside that document's PDF
+        # (`burn.marked_of`), and sent as an attachment for Files.
+        kind, _slash, name = path[len("/marked/"):].rpartition("/")
+        found = burn.marked_of(repo, unquote(kind), unquote(name))
+        if not found:
+            return h.send_json({"ok": False, "error": "no such copy"}, status=404)
+        return h.send_file(found, download=os.path.basename(found))
+
     if path.startswith("/view/doc/"):
         # A document this course POINTS AT rather than one it built: a slide
-        # deck, a walkthrough, a set of lecture slides. Same rasteriser, same
-        # cache, same page route -- the only thing that differs is how the file
-        # was found, and `library.drawer_find` is the whole of that check.
+        # deck, a walkthrough, a set of lecture slides -- or a PDF handed to
+        # this session, or one of the subject's materials. Same rasteriser,
+        # same cache, same page route -- the only thing that differs is how the
+        # file was found, and `library.readable` is the whole of that check.
         ident = path[len("/view/doc/"):]
         return h.send_json(_inked(repo, library.drawer_pages(repo, ident), ident))
 

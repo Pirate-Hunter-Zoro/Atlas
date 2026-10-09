@@ -5,11 +5,9 @@ The pen over a page of a PDF already worked and the ink already survived a
 reload. What it could not do was leave: it lived in `live/annotations/`, which
 is the board's drawer, and a drawer is not something you hand to anybody.
 
-Three ways out, because there are three things "save" means, and the middle one
-is the only one that is obvious:
+Two answers to "keep it", and neither writes over the PDF:
 
-    same      over the PDF being viewed
-    new       a new file beside it
+    new       a marked copy beside it, `<stem>-marked.pdf`, then `-marked-2.pdf`
     none      no file at all, marks left in the drawer
 
 What is guarded here is the arithmetic, not the appearance. A burn that puts
@@ -115,9 +113,10 @@ def library_section(tmp):
     """A MARKED COPY OF A LIBRARY DOCUMENT, through the real routes.
 
     The owner's ask: *save my markups without overwriting the original paper*.
-    So `library/<id>` burns `new` and nothing else, into `live/marked/<id>/` --
-    which the library does not walk and git does not carry -- and keeping a copy
-    delivers nothing: the ink still goes with the next note.
+    So `library/<id>` burns `new` and nothing else, beside the PDF as
+    `<stem>-marked.pdf` -- which the library does not offer as a document and
+    git does not carry -- and keeping a copy delivers nothing: the ink still
+    goes with the next note.
     """
     import socket
     import threading
@@ -135,10 +134,12 @@ def library_section(tmp):
     os.makedirs(ws)
     with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
         fh.write('{"name": "W", "mode": "research"}')
-    # A repository with NO rule for `live/`, so the only thing keeping a copy
-    # out of git is the copy's own directory.
+    # A repository whose only rule is the Atlas root's for a marked copy.
     subprocess.run(["git", "init", "-q", ws], stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL)
+    rule = "*-marked.pdf\n*-marked-[0-9]*.pdf\n"
+    with open(os.path.join(ws, ".gitignore"), "w", encoding="utf-8") as fh:
+        fh.write(rule)
     lrepo = course_repo.Repo(ws)
     here = os.path.join(ws, "writeups", "notes")
     pdf = os.path.join(here, "notes.pdf")
@@ -249,8 +250,8 @@ def library_section(tmp):
         copy = os.path.join(ws, *(got.get("path") or "x").split("/"))
         check("POST /annotate/burn with a library id writes a new file",
               status == 200 and got.get("ok") and os.path.isfile(copy))
-        check("in live/marked/<id>/, never beside the document",
-              (got.get("path") or "").startswith("live/marked/%s/" % ident))
+        check("beside the document's PDF, as <stem>-marked.pdf",
+              got.get("path") == "writeups/notes/notes-marked.pdf")
         check("with every page of the document", got.get("pages") == 3)
         check("and the answer names it and where to fetch it",
               got.get("name") == os.path.basename(copy)
@@ -266,8 +267,7 @@ def library_section(tmp):
         check("the marked copy is not in library.documents afterwards",
               [d["id"] for d in after] == [ident]
               and not any("marked" in (d.get("rel") or "") for d in after))
-        check("and git would not carry it, in a repository with no rule for "
-              "live/", ignored(copy))
+        check("and git does not carry it", ignored(copy))
 
         status, raw, headers = call(got.get("url") or "/library/marked/x/y.pdf")
         check("the copy is handed over as an attachment, to go to Files",
@@ -277,18 +277,22 @@ def library_section(tmp):
                                 % ident)
         check("and a name that is not one of the copies is a miss", status == 404)
 
-        guard = os.path.join(lrepo.live, "marked", ".gitignore")
-        with open(guard, "r", encoding="utf-8") as fh:
-            kept = fh.read()
+        guard = os.path.join(ws, ".gitignore")
         with open(guard, "w", encoding="utf-8") as fh:
-            fh.write("!*\n")
+            fh.write("# nothing\n")
+        listed = sorted(os.listdir(os.path.dirname(copy)))
         status, got2 = js("/annotate/burn", {"kind": "library/" + ident,
                                              "mode": "new"})
         check("a copy git WOULD carry is refused, and nothing is written",
               status == 400 and got2.get("why") == "tracked"
-              and len(os.listdir(os.path.dirname(copy))) == 1)
+              and sorted(os.listdir(os.path.dirname(copy))) == listed)
         with open(guard, "w", encoding="utf-8") as fh:
-            fh.write(kept)
+            fh.write(rule)
+        status, got2 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        check("a second copy is a second file, never over the first",
+              status == 200 and got2.get("name") == "notes-marked-2.pdf"
+              and os.path.isfile(copy))
 
         # ---- INK KNOWS ITS BUILD -------------------------------------------
         old_digest = view["digest"]
@@ -371,7 +375,7 @@ def library_section(tmp):
         check("a document inside a fence is refused",
               got5.get("ok") is False and got5.get("why") == "fenced")
         check("and nothing is written for it",
-              not os.path.exists(os.path.join(lrepo.live, "marked", "phi-secret")))
+              not os.path.exists(os.path.join(ws, "phi")))
 
         # A FENCED WORKSPACE keeps its copies inside itself and out of git.
         os.makedirs(os.path.join(ws, "phi"), exist_ok=True)
@@ -516,8 +520,13 @@ try:
     fresh = os.path.join(os.path.dirname(pdf), got["name"])
     check("beside the original, which is untouched",
           os.path.isfile(fresh) and os.path.isfile(pdf))
-    check("named for the document, annotated, and dated",
-          got["name"].startswith("hw01-annotated-") and got["name"].endswith(".pdf"))
+    check("named for the document, marked",
+          got["name"] == "hw01-marked.pdf" and got["path"] == "homework/hw01/hw01-marked.pdf")
+    check("and fetched from beside it",
+          got.get("url") == "/marked/homework/hw01-marked.pdf"
+          and burn.marked_of(repo, "homework", got["name"]) == os.path.realpath(fresh)
+          and burn.marked_of(repo, "homework", "hw01.pdf") == ""
+          and burn.marked_of(repo, "homework", "../hw01-marked.pdf") == "")
     check("with every page of the original, not just the marked one",
           got["pages"] == 3)
 
@@ -525,7 +534,7 @@ try:
     # the whole reason somebody picked "a new file" over "over the original".
     second = burn.burn(repo, "homework", "new", dpi=120)
     check("a second new file does not overwrite the first",
-          second["ok"] and second["name"] != got["name"]
+          second["ok"] and second["name"] == "hw01-marked-2.pdf"
           and os.path.isfile(os.path.join(os.path.dirname(pdf), second["name"])))
 
     # ---- THE ORDER, which is what the first version got wrong ---------------
@@ -546,24 +555,14 @@ try:
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
-    # ---- over the original -------------------------------------------------
+    # ---- never over the original -------------------------------------------
     was = os.path.getsize(pdf)
     got = burn.burn(repo, "homework", "same", dpi=120)
-    check("the original can be written over", got["ok"] and got["mode"] == "same")
-    check("and it is the same path, changed",
-          os.path.isfile(pdf) and os.path.getsize(pdf) != was)
-    check("the write-up still has all three pages",
-          got["pages"] == 3)
-
-    # The point of it being safe: the strokes are NOT in the PDF. A compile that
-    # rewrites the file has not taken the writing with it, because the writing
-    # was never in the file.
-    check("the marks are still in the drawer after an overwrite",
+    check("the original is never written over",
+          got["ok"] is False and got["why"] == "no-overwrite"
+          and os.path.getsize(pdf) == was)
+    check("the marks are still in the drawer",
           burn.strokes_by_page(repo, "homework", 3))
-    make_pdf(pdf, ["ALPHA", "BETA", "GAMMA"])
-    again = burn.burn(repo, "homework", "same", dpi=120)
-    check("so a recompiled document can be written over again, unchanged",
-          again["ok"] and again["pages"] == 3)
 
     library_section(tmp)
 finally:

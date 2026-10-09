@@ -468,3 +468,55 @@ def wrap_up(ctx):
         log.write("!! handoff failed: %s\n" % exc)
     daemon.agent_state(ctx.live, state="listening", turn_pid=None)
     return wrote, why
+
+
+def notes_up(ctx, pages, title, subject):
+    """The End turn of a notes canvas: one fresh turn that binds the session
+    where it is unbound, transcribes `pages` (the slate's page pictures) into
+    `docs/<slug>/notes.md` with `board writeup new --md`, and runs `board
+    build` on it. `(ok, why)`.
+
+    Who writes it is asked here, as for the handoff. There is no brief and no
+    recap: the session has no cards, and the pages are the whole of it.
+    """
+    log, logpath = ctx.log, ctx.logpath
+    ctx.cfg = recipes.load_config()
+    took, why_took = recipes.resolve(ctx.cfg)
+    if not took:
+        log.write("\n=== %s notes ===\n!! no transcript was attempted: %s\n"
+                  % (time.strftime("%H:%M:%S"), why_took))
+        return False, why_took
+    ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
+    daemon.agent_state(ctx.live, state="wrapping up")
+    log.write("\n=== %s notes ===\n" % time.strftime("%H:%M:%S"))
+    prompt = prompts.NOTES_PROMPT % {
+        "pages": "\n".join("- page %d: %s" % (i, p)
+                           for i, p in enumerate(pages, start=1)),
+        "title": str(title or "Notes").replace('"', "'"),
+        "subject": subject or "no course or project yet"}
+    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt)
+                                      for a in turn.fresh_recipe(ctx.spec) or []])
+    mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+    why = None
+    try:
+        rc, timed_out = turn.run_turn(
+            cmd, ctx.cwd, log, ctx.cfg.get("doing_timeout", 3600),
+            env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
+        usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
+                          usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"),
+                                                ctx.spec))
+        said = usage.turn_output(logpath, mark)
+        failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
+                  or (usage.result_object_error(said)
+                      and "the agent reported a failure and exited 0"))
+        if failed:
+            why = usage.failure_reason(said, failed)
+            log.write("!! the notes turn failed (%s)\n" % why)
+        else:
+            log.write("notes transcribed\n")
+    except OSError as exc:
+        why = str(exc)
+        log.write("!! the notes turn failed: %s\n" % exc)
+    daemon.agent_state(ctx.live, state="listening", turn_pid=None)
+    return why is None, why
+

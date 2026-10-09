@@ -370,6 +370,19 @@ Filing is yours: `board file <upload> [materials|<relpath>]` moves it into the
 bound subject, `materials/` by default, and its ink moves with it. Nobody is
 asked where an upload goes.
 
+A PDF may be there to be written on. The owner opens it in the reader, marks it
+up, and may keep a marked copy, `<name>-marked.pdf` beside it, which git never
+carries. Ink on an upload is keyed on the upload; filing it re-keys the ink, so
+file it rather than copying it.
+
+## A notes canvas
+
+A session can be a blank canvas: its view is the full slate, and there is no
+lesson in it. You hear from it once, when it ends. Its End is a turn of its own:
+bind the session if it is unbound, start the transcript with
+`board writeup new --md "<title>"`, transcribe the pages into that notes.md, and
+`board build` it. The End commits it.
+
 ## Skipping
 
 The answer block carries **skip this one**. A prompt that cannot be declined is a

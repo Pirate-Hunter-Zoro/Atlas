@@ -10,6 +10,10 @@ THREE VIEWS, AND EACH IS A FILTER, NOT A WALK OF ITS OWN:
                 index by id, the library's results page, and the figures view
                 -- the newest `MAX_FIGURES` pictures of that index
 
+A session's `uploads/` PDFs are readable too (`uploads`), and `readable` is
+what the board's reader opens as `doc/<id>`: an upload, a drawer PDF, or any
+document with a PDF, a material among them.
+
 `documents` and `drawer` filter one walk of the subject, `_files`. Results are
 a second tree, walked by `_result_files`, because `IGNORE` prunes `results/`
 from the first and the allowlist is the only way into it.
@@ -248,6 +252,21 @@ def _files(root, skip=()):
             yield rel, name, path
 
 
+# A MARKED COPY sits beside the PDF it was burned from, `<stem>-marked.pdf`,
+# then `-marked-2.pdf`, ... (`burn.py`). It belongs to that document, so no
+# walk offers it as a document of its own.
+MARKED = "-marked"
+_MARKED_STEM = re.compile(r"\A(.+)-marked(?:-\d+)?\Z")
+
+
+def marked_copy(path):
+    """Is the file at `path` a marked copy of a PDF beside it?"""
+    stem, ext = os.path.splitext(os.path.basename(path))
+    m = _MARKED_STEM.match(stem)
+    return bool(m) and ext.lower() == ".pdf" and os.path.isfile(
+        os.path.join(os.path.dirname(path), m.group(1) + ".pdf"))
+
+
 def _walk(root, skip=()):
     """Every stem in this subject that has a document's formats beside it, as
     `((rel, stem), {ext: path})`, in walk order."""
@@ -258,7 +277,7 @@ def _walk(root, skip=()):
         stem, ext = os.path.splitext(name)
         if not stem or ext.lower() not in FORMATS:
             continue
-        if stem.lower() in FURNITURE:
+        if stem.lower() in FURNITURE or marked_copy(path):
             continue
         key = (rel, stem)
         if key not in found:
@@ -1455,7 +1474,7 @@ def _drawer_walked(root):
     """The walk's PDFs a card may show: shallow enough, big enough, ours."""
     return [path for rel, name, path in _files(root)
             if _depth(rel) <= DRAWER_DEPTH and name.lower().endswith(".pdf")
-            and _big(path) and _ours(path)]
+            and _big(path) and _ours(path) and not marked_copy(path)]
 
 
 def _pointed_at(root):
@@ -1577,9 +1596,87 @@ def drawer_find(root, ident_wanted):
     return None, None
 
 
+# ---------------------------------------------------------------------------
+# every PDF the board's reader opens as `doc/<id>`
+# ---------------------------------------------------------------------------
+# A SESSION'S UPLOADS ARE READABLE PDFS, and a subject's materials are already
+# documents of the library. An upload's id is the library's rule (`_ident`) on
+# `uploads/<name>` -- `uploads-slides` -- the id `sessions.ink_ident` keys its
+# ink on, so `board file` can re-key that ink to the id the library hands the
+# file in its new place (`ident_map`).
+UPLOADS = "uploads"
+
+
+def uploads(repo):
+    """The PDFs in the session's `uploads/`, by name: `[{id, name, path,
+    size, at}]`. Dot files and a part still arriving are not listed."""
+    where = getattr(repo, "uploads", None)
+    try:
+        names = sorted(os.listdir(where)) if where else []
+    except OSError:
+        names = []
+    taken, out = set(), []
+    for name in names:
+        path = os.path.join(where, name)
+        if name.startswith(".") or not name.lower().endswith(".pdf") \
+                or not os.path.isfile(path):
+            continue
+        ident = _ident(UPLOADS, os.path.splitext(name)[0], taken)
+        taken.add(ident)
+        out.append({"id": ident, "name": name, "path": path,
+                    "size": _size(path), "at": _mtime(path)})
+    return out
+
+
+def upload_find(repo, ident_wanted):
+    """The upload with this id, as a path, or ""."""
+    wanted = str(ident_wanted or "").strip().lower()
+    for up in uploads(repo) if wanted.startswith(UPLOADS + "-") else ():
+        if up["id"] == wanted:
+            return up["path"]
+    return ""
+
+
+def readable(repo, ident_wanted):
+    """`(path, name)` of the PDF the reader opens as `doc/<id>`, or `(None,
+    None)`: the session's upload of that id, else the drawer's PDF, else any
+    library document with a PDF -- a material among them. Matched against what
+    was found, never joined onto a path."""
+    wanted = str(ident_wanted or "").strip().lower()
+    if not wanted:
+        return None, None
+    up = upload_find(repo, wanted)
+    if up:
+        return up, _pretty(up)
+    target, name = drawer_find(repo.root, wanted)
+    if target:
+        return target, name
+    # The Atlas root, which an unbound session works in, is no subject: its
+    # walk would be every subject's at once.
+    if os.path.isfile(os.path.join(repo.root, "board", "bin", "board")):
+        return None, None
+    doc = find(repo.root, wanted)
+    pdf = path_of(repo.root, doc, ".pdf") if doc else ""
+    if pdf and _ours(pdf):
+        return pdf, _pretty(pdf)
+    return None, None
+
+
+def ident_map(root):
+    """`{real path: library id}` for every file of every document the library
+    lists, stats only (`_listing`): what `board file` re-keys ink to, and the
+    id a material's row opens in the reader."""
+    out = {}
+    for _group, ident, _rel, _stem, formats, _art in _listing(root):
+        for p in formats.values():
+            out.setdefault(os.path.realpath(p), ident)
+    return out
+
+
 def drawer_pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
-    """Every page of one drawer PDF, drawn and cached by `paper.pages_of`."""
-    target, name = drawer_find(repo.root, ident_wanted)
+    """Every page of one PDF the reader opens as `doc/<id>` (`readable`),
+    drawn and cached by `paper.pages_of`."""
+    target, name = readable(repo, ident_wanted)
     if not target:
         return {"ok": False, "why": "none",
                 "detail": "This course does not offer a document by that name."}

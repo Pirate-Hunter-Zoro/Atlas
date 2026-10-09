@@ -77,6 +77,8 @@ UNPREFIXED = (
     ("GET", "/library/evidence/*", "subject"),
     ("POST", "/library/ledger/*", "subject"),
     ("POST", "/library/feedback", "subject"),
+    ("GET", "/library/marked/*", "subject"),
+    ("POST", "/annotate/burn", "subject"),
     ("POST", "/doc/delete", "subject"),
     ("POST", "/artifact", "subject"),
     ("GET", "/materials.json", "subject"),
@@ -106,8 +108,8 @@ UNPREFIXED = (
 # `board write`), /seen and the reads still answer. A cluster report reopens
 # an ended session without any of these (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
-                 "/mode", "/bind", "/upload", "/annotate/save", "/annotate/burn",
-                 "/artifact")
+                 "/mode", "/bind", "/upload", "/file", "/annotate/save",
+                 "/annotate/burn", "/artifact")
 
 # The route classes UNPREFIXED names. A cross-subject one is 404 under
 # `/s/<id>/`.
@@ -541,31 +543,38 @@ class Handler(BaseHTTPRequestHandler):
         return self.session_get(repo, path)
 
     def new_session(self, registry):
-        """POST /sessions/new: an unbound session in teach, titled by the body's
-        optional `title`; its record and the URL of its board."""
+        """POST /sessions/new {title?, view?}: an unbound session in teach,
+        titled by the optional `title`; `view: "slate"` makes a notes canvas.
+        Its record and the URL it opens at: its board, or its slate."""
         try:
             body = self.read_body()
             payload = json.loads(body.decode("utf-8")) if body.strip() else {}
         except (ValueError, UnicodeDecodeError):
             return self.send_json({"ok": False, "error": "bad json"}, status=400)
-        title = payload.get("title") if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            payload = {}
+        title = payload.get("title")
         title = str(title).strip()[:200] if title else None
-        rec = sessions.new(title, base=registry.atlas)
+        try:
+            rec = sessions.new(title, base=registry.atlas,
+                               view=payload.get("view") or "board")
+        except sessions.Refused as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, status=400)
         self.note("session %s opened" % rec["id"])
         return self.send_json({"ok": True, "id": rec["id"], "session": rec,
-                               "url": "/s/%s/board" % rec["id"]})
+                               "url": sessions.url(rec)})
 
     @staticmethod
     def session_listing(registry):
-        """GET /sessions.json: every session, newest first, each with its
-        board's URL and its subject's name; an open one also with its newest
+        """GET /sessions.json: every session, newest first, each with the
+        URL it opens at (`sessions.url`) and its subject's name; an open one also with its newest
         card and the count of cards since `seen` (`sessions.summary`).
         `imported` maps an old workspace id to its imported session, for the
         home screen's redirect of old `#/w/` links (T55 deletes it)."""
         names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
         out = []
         for rec in sessions.all(registry.atlas):
-            one = dict(rec, url="/s/%s/board" % rec.get("id"),
+            one = dict(rec, url=sessions.url(rec),
                        subject_name=names.get(rec.get("subject")) or None)
             if not rec.get("ended"):
                 one.update(sessions.summary(rec, registry.atlas))

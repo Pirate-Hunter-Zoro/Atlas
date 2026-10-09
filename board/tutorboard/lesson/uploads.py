@@ -6,8 +6,12 @@ import urllib.parse
 
 
 def load_uploads(repo, limit=40):
-    """The newest `limit` uploads, oldest first: `[{name, size, url, mtime}]`.
-    A `.part-*` file still arriving, and any other dot file, is not one."""
+    """The newest `limit` uploads, oldest first: `[{name, size, url, mtime}]`,
+    and a PDF's `doc`, the id the board's reader opens it as
+    (`library.uploads`). A `.part-*` file still arriving, and any other dot
+    file, is not one."""
+    from ..course import library                       # local: heavy
+    docs = dict((u["name"], u["id"]) for u in library.uploads(repo))
     out = []
     try:
         names = os.listdir(repo.uploads)
@@ -24,5 +28,7 @@ def load_uploads(repo, limit=40):
             "url": "/uploads/" + urllib.parse.quote(name),
             "mtime": st.st_mtime,
         })
+        if docs.get(name):
+            out[-1]["doc"] = docs[name]
     out.sort(key=lambda u: (u["mtime"], u["name"]))
     return out[-limit:]

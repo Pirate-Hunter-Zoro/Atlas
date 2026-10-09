@@ -8,7 +8,9 @@
    /subjects.json, /notices.json, /assistants.json and, for the meeting deck,
    /library.json?subject=projects/Meetings. Everything it writes is
    one of: POST /sessions/new, /subjects/new, /meeting, /default-agent and
-   /artifact?subject=<id> (a deck or a paper from a subject's row).
+   /artifact?subject=<id> (a deck or a paper from a subject's row), and for
+   Annotate a PDF the new session's own /s/<id>/bind, /upload and /file.
+   Notes opens a new session at /s/<id>/slate, a notes canvas.
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
 
@@ -45,6 +47,17 @@ var els = {
   pastList: $("past-list"),
   pastNone: $("past-none"),
   actMeeting: $("act-meeting"),
+  actNotes: $("act-notes"),
+  actNotesSub: $("act-notes-sub"),
+  actAnnotate: $("act-annotate"),
+  annot: $("annot"),
+  annotFile: $("annot-file"),
+  annotSubject: $("annot-subject"),
+  annotBar: $("annot-bar"),
+  annotSaid: $("annot-said"),
+  annotGo: $("annot-go"),
+  annotGoSub: $("annot-go-sub"),
+  annotClose: $("annot-close"),
   themeBtn: $("btn-theme"),
   themeNow: $("theme-now"),
   reload: $("btn-reload"),
@@ -223,6 +236,150 @@ function newSession() {
     starting = false;
     els.newSession.disabled = false;
     els.newSessionSub.textContent = e.message || "the board did not answer";
+  });
+}
+
+/* ------------------------------------------------------------------- notes */
+/* A NOTES CANVAS is a session in full-slate view (`view: slate`), titled by
+   the day. Its End has the tutor transcribe the pages into notes.md. */
+function today() {
+  var d = new Date();
+  function two(n) { return (n < 10 ? "0" : "") + n; }
+  return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate());
+}
+
+function newNotes() {
+  if (starting) return;
+  starting = true;
+  els.actNotes.disabled = true;
+  els.actNotesSub.textContent = "opening…";
+  postJSON("/sessions/new", { view: "slate", title: "Notes " + today() })
+    .then(function (got) {
+      if (got && got.ok && got.url) { go(got.url); return; }
+      throw new Error((got && got.error) || "the canvas was not made");
+    }).catch(function (e) {
+      starting = false;
+      els.actNotes.disabled = false;
+      els.actNotesSub.textContent = e.message || "the board did not answer";
+    });
+}
+
+/* ---------------------------------------------------------- annotate a PDF */
+/* ONE PDF, INTO A NEW SESSION. It lands in the session's uploads/ with a line
+   that wakes nothing (D21); with a subject picked the session is bound to it
+   and the upload filed straight into its materials/, its ink id following.
+   The session's board then opens it in the reader, by its `doc` address. */
+var annotBusy = false;
+
+function annotSay(text, bad) {
+  els.annotSaid.hidden = !text;
+  els.annotSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.annotSaid.textContent = text || "";
+}
+
+function paintAnnot() {
+  var f = els.annotFile.files && els.annotFile.files[0];
+  els.annotGo.disabled = annotBusy || !f;
+  els.annotGoSub.textContent = annotBusy ? "uploading…"
+    : f ? (els.annotSubject.value ? "into " + els.annotSubject.value
+                                  : "into a new session")
+    : "choose a PDF";
+}
+
+function openAnnot() {
+  annotBusy = false;
+  annotSay("");
+  els.annotBar.hidden = true;
+  els.annotFile.value = "";
+  var keep = els.annotSubject.value;
+  els.annotSubject.innerHTML = "";
+  var none = el("option", "", "not yet: it stays in the session");
+  none.value = "";
+  els.annotSubject.appendChild(none);
+  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
+    var o = el("option", "", (s.kind === "course" ? "course: " : "project: ")
+                              + (s.name || s.id));
+    o.value = s.id;
+    els.annotSubject.appendChild(o);
+  });
+  els.annotSubject.value = keep;
+  if (els.annotSubject.value !== keep) els.annotSubject.value = "";
+  paintAnnot();
+  els.annot.hidden = false;
+}
+
+function closeAnnot() {
+  if (annotBusy) return;
+  els.annot.hidden = true;
+}
+
+/* One XHR, because fetch says nothing about progress. */
+function uploadTo(base, file) {
+  return new Promise(function (resolve, reject) {
+    var form = new FormData();
+    form.append("f0", file, file.name);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", base + "/upload");
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable || !e.total) return;
+      els.annotBar.value = Math.floor(100 * e.loaded / e.total);
+    };
+    xhr.onload = function () {
+      var got = {};
+      try { got = JSON.parse(xhr.responseText || "{}"); } catch (e) { got = {}; }
+      if (xhr.status === 200 && got.ok && (got.files || []).length) {
+        resolve(got.files[0]);
+        return;
+      }
+      reject(new Error("the upload failed (" + xhr.status + "): "
+                       + (got.error || "the board refused it")));
+    };
+    xhr.onerror = function () {
+      reject(new Error("the upload failed: the board did not answer"));
+    };
+    xhr.send(form);
+  });
+}
+
+function annotate() {
+  var file = els.annotFile.files && els.annotFile.files[0];
+  var subject = els.annotSubject.value;
+  if (!file || annotBusy) return;
+  if (!/\.pdf$/i.test(file.name || "")) {
+    annotSay("That is not a PDF.", true);
+    return;
+  }
+  annotBusy = true;
+  annotSay("");
+  els.annotBar.value = 0;
+  els.annotBar.hidden = false;
+  paintAnnot();
+  var sid = "", base = "";
+  postJSON("/sessions/new", { title: "Annotate " + file.name }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.error) || "the session was not made");
+    sid = got.id;
+    base = "/s/" + enc(sid);
+    if (!subject) return null;
+    return postJSON(base + "/bind", { subject: subject }).then(function (b) {
+      if (!b || !b.ok) throw new Error((b && b.error) || "the session was not bound");
+    });
+  }).then(function () {
+    return uploadTo(base, file);
+  }).then(function (up) {
+    if (!subject) return up.doc;
+    return postJSON(base + "/file", { upload: up.name }).then(function (f) {
+      if (!f || !f.ok) throw new Error((f && f.error) || "it was not filed");
+      return f.doc;
+    });
+  }).then(function (doc) {
+    if (!doc) throw new Error("the board cannot read that PDF");
+    go(base + "/board" + window.Address.format(
+      { session: sid, surface: "doc", doc: doc }));
+  }).catch(function (e) {
+    annotBusy = false;
+    els.annotBar.hidden = true;
+    annotSay((e && e.message) || "the board did not answer", true);
+    paintAnnot();
   });
 }
 
@@ -782,6 +939,15 @@ els.artmaker.addEventListener("click", function (ev) {
   if (ev.target === els.artmaker) closeArtmaker();
 });
 els.actMeeting.onclick = openNotes;
+els.actNotes.onclick = newNotes;
+els.actAnnotate.onclick = openAnnot;
+els.annotFile.addEventListener("change", function () { annotSay(""); paintAnnot(); });
+els.annotSubject.addEventListener("change", paintAnnot);
+els.annotGo.onclick = annotate;
+els.annotClose.onclick = closeAnnot;
+els.annot.addEventListener("click", function (ev) {
+  if (ev.target === els.annot) closeAnnot();
+});
 els.notesClose.onclick = closeNotes;
 els.notesMake.onclick = makeDeck;
 els.notes.addEventListener("click", function (ev) {
@@ -803,6 +969,7 @@ document.addEventListener("keydown", function (ev) {
   if (!els.maker.hidden) closeMaker();
   if (!els.notes.hidden) closeNotes();
   if (!els.artmaker.hidden) closeArtmaker();
+  if (!els.annot.hidden) closeAnnot();
 });
 paintTheme();
 document.addEventListener("DOMContentLoaded", paintTheme);

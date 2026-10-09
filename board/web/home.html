@@ -76,15 +76,16 @@
   </section>
 
   <section id="make" class="actions">
-    <!-- Notes and Annotate are wired in T40; until then they are drawn
-         disabled and call nothing. -->
-    <button id="act-notes" class="action" type="button" disabled>
+    <!-- Notes is a session in full-slate view; its End has the tutor
+         transcribe the pages into notes.md. Annotate a PDF uploads one into a
+         new session and opens it in the reader. -->
+    <button id="act-notes" class="action" type="button">
       <span class="action-name">Notes</span>
-      <span class="action-sub">a blank canvas, not wired yet</span>
+      <span class="action-sub" id="act-notes-sub">a blank canvas; End transcribes it</span>
     </button>
-    <button id="act-annotate" class="action" type="button" disabled>
+    <button id="act-annotate" class="action" type="button">
       <span class="action-name">Annotate a PDF</span>
-      <span class="action-sub">upload one and write on it, not wired yet</span>
+      <span class="action-sub">upload one and write on it</span>
     </button>
     <button id="act-meeting" class="action" type="button">
       <span class="action-name">Meeting deck</span>
@@ -178,6 +179,33 @@
     <a id="artmaker-open" class="action" hidden>
       <span class="action-name">Open the session writing it</span>
     </a>
+  </div>
+</div>
+
+<!-- Annotate a PDF: one PDF into a new session's uploads/ (D21), with no
+     turn woken; a subject picked files it straight into that subject's
+     materials/. The session's board then opens it in the reader. -->
+<div id="annot" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="annot-title">
+    <p class="eyebrow">annotate a PDF</p>
+    <h3 id="annot-title">A PDF to write on</h3>
+    <input id="annot-file" type="file" accept="application/pdf,.pdf">
+    <p class="sheet-line">Keep it in a course or project? The tutor can file
+      it later instead.</p>
+    <select id="annot-subject">
+      <option value="">not yet: it stays in the session</option>
+    </select>
+    <progress id="annot-bar" max="100" value="0" hidden></progress>
+    <p class="sheet-line" id="annot-said" hidden></p>
+    <div class="sheet-actions">
+      <button id="annot-go" class="action primary" type="button" disabled>
+        <span class="action-name">Open it</span>
+        <span class="action-sub" id="annot-go-sub">choose a PDF</span>
+      </button>
+      <button id="annot-close" class="action" type="button">
+        <span class="action-name">Close</span>
+      </button>
+    </div>
   </div>
 </div>
 

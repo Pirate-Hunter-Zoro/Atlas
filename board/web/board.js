@@ -2810,16 +2810,29 @@ function renderScratch(uploads) {
     return;
   }
 
-  function tile(url, label, bust) {
+  function tile(url, label, bust, doc) {
     url = atSession(url);
     var a = document.createElement("a");
     a.href = url;
+    /* A PDF OPENS IN THE READER, to be written on: its id is the library's
+       (`library.uploads`), and the ink is keyed on it until `board file`
+       re-keys it to where the tutor files it. */
+    if (doc) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        els.scratch.hidden = true;
+        openDoc(doc, label);
+      });
+      a.className = "is-doc";
+    }
     /* Never a new context. Installed to the home screen there is no browser
        chrome, so a raw image opened this way has no back button and no way out
        of it short of killing the app. Images open in a viewer this page owns
        and can close; anything else is left to the system. */
     var isImage = /\.(png|jpe?g|gif|webp|heic)(\?|$)/i.test(url);
-    if (isImage) {
+    if (doc) {
+      /* opened above */
+    } else if (isImage) {
       a.addEventListener("click", function (e) {
         e.preventDefault();
         openViewer(bust ? url + "?t=" + Math.round(bust) : url, label);
@@ -2842,7 +2855,8 @@ function renderScratch(uploads) {
   }
 
   uploads.slice().reverse().forEach(function (u) {
-    tile(u.url, u.size ? u.name + "  ·  " + sizeWords(u.size) : u.name);
+    tile(u.url, u.size ? u.name + "  ·  " + sizeWords(u.size) : u.name,
+         0, u.doc || "");
   });
 }
 
@@ -3613,6 +3627,7 @@ function addrSessionGo(a) {
   for (k in a) if (Object.prototype.hasOwnProperty.call(a, k)) here[k] = a[k];
   here.session = "";
   here.ws = boardId;
+  here.inSession = true;
   return addrGo(here);
 }
 
@@ -3697,6 +3712,15 @@ function addrGo(a) {
     ((readingInfo && readingInfo.documents) || []).forEach(function (d) {
       if (d.id === a.doc) known = d;
     });
+    /* IN A SESSION, a PDF handed to it or one of its subject's materials is
+       not in the drawer: the server finds it by its id (`library.readable`),
+       and a miss is said by `readKind` in its own sentence. */
+    if (!known && a.inSession) {
+      ((lastLive && lastLive.uploads) || []).forEach(function (u) {
+        if (!known && u.doc === a.doc) known = { id: u.doc, name: u.name };
+      });
+      if (!known) known = { id: a.doc, name: "" };
+    }
     if (!known) {
       return addrDead(a, "that document is not in this workspace any more");
     }
@@ -3705,7 +3729,7 @@ function addrGo(a) {
       if (!a.page) { addrArrived(a); return; }
       var pages = reader.els.pages.querySelectorAll(".lib-page img");
       if (a.page > pages.length) {
-        addrDead(a, known.name + " has "
+        addrDead(a, (known.name || "that document") + " has "
                  + (pages.length === 1 ? "one page" : pages.length + " pages")
                  + ", so there is no page " + a.page);
         return;
@@ -6848,7 +6872,9 @@ function uploadFailed(line, why) {
   line.appendChild(x);
 }
 
-function upload(files) {
+/* `then(got)` is handed the server's answer once every file is in: Annotate
+   a PDF opens the one it sent (`got.files[0].doc`) in the reader. */
+function upload(files, then) {
   if (!files || !files.length) return;
   var list = Array.prototype.slice.call(files);
   var total = list.reduce(function (n, f) { return n + (f.size || 0); }, 0);
@@ -6889,6 +6915,7 @@ function upload(files) {
       words.textContent = "uploaded " + (got.saved || []).join(", ")
         + ". The tutor reads it with what you say next.";
       setTimeout(function () { line.remove(); }, 6000);
+      if (then) then(got);
       return;
     }
     uploadFailed(line, "upload failed (" + xhr.status + "): "
@@ -6930,6 +6957,16 @@ function materialRow(m) {
   var name = document.createElement("span");
   name.className = "mat-name";
   name.textContent = m.name + "  ·  " + sizeWords(m.size || 0);
+  /* A PDF the library offers opens in the reader, its ink keyed on its id. */
+  if (m.doc) {
+    name.classList.add("is-doc");
+    name.setAttribute("role", "button");
+    name.title = "open it to read and write on";
+    name.onclick = function () {
+      els.scratch.hidden = true;
+      openDoc(m.doc, m.name);
+    };
+  }
   row.appendChild(name);
   var del = document.createElement("button");
   del.type = "button";
@@ -6972,6 +7009,29 @@ function materialRow(m) {
 }
 
 els.file.addEventListener("change", function () { upload(els.file.files); els.file.value = ""; });
+
+/* ANNOTATE A PDF: one PDF into this session's uploads/, like any upload, and
+   then the reader on it. */
+var pdfInput = document.getElementById("file-pdf");
+if (pdfInput) {
+  pdfInput.addEventListener("change", function () {
+    var files = pdfInput.files;
+    upload(files, function (got) {
+      var one = (got.files || []).filter(function (f) { return f.doc; })[0];
+      if (!one) return;
+      els.scratch.hidden = true;
+      openDoc(one.doc, one.name);
+    });
+    pdfInput.value = "";
+  });
+}
+var annotBtn = document.getElementById("btn-annot-pdf");
+if (annotBtn && pdfInput) {
+  annotBtn.onclick = function () {
+    els.barmenu.hidden = true;
+    pdfInput.click();
+  };
+}
 
 /* paste an image straight from the iPad clipboard */
 document.addEventListener("paste", function (e) {

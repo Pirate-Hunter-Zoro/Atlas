@@ -29,9 +29,61 @@ var writer = window.Slate.create({ root: document.getElementById("slate"),
                                    saveUrl: BASE + "/slate/save",
                                    fullUrl: BASE + "/slate" });
 
+/* A NOTES CANVAS is a session whose view is `slate`: this page is the whole
+   of it. Its title, and End after a second tap within four seconds, which
+   ends the session and queues the turn that transcribes these pages into
+   notes.md (`runner.service._notes`). What is owed to the disk goes first. */
+var endBtn = document.getElementById("notes-end");
+var endArmed = null;
+
+function paintNotes(state) {
+  var name = document.getElementById("notes-name");
+  name.textContent = state.title || "Notes";
+  name.hidden = false;
+  endBtn.hidden = false;
+  if (state.ended) {
+    endBtn.disabled = true;
+    endBtn.textContent = "ended";
+  }
+}
+
+function endNotes() {
+  if (!endArmed) {
+    endBtn.textContent = "tap again to end";
+    endBtn.classList.add("armed");
+    endArmed = setTimeout(function () {
+      endArmed = null;
+      endBtn.textContent = "End";
+      endBtn.classList.remove("armed");
+    }, 4000);
+    return;
+  }
+  clearTimeout(endArmed);
+  endArmed = null;
+  endBtn.classList.remove("armed");
+  endBtn.disabled = true;
+  endBtn.textContent = "ending…";
+  var settle = writer && writer.flush ? writer.flush() : null;
+  Promise.resolve(settle).catch(function () {}).then(function () {
+    return fetch(BASE + "/end", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.error) || "not ended");
+    endBtn.textContent = "ended: the tutor is transcribing it into notes.md";
+  }).catch(function (e) {
+    endBtn.disabled = false;
+    endBtn.textContent = "End (" + ((e && e.message) || "the board did not answer") + ")";
+  });
+}
+if (endBtn) endBtn.onclick = endNotes;
+
 /* Show which question is being answered, so the full-screen view is not
-   context-free. */
+   context-free. A notes canvas answers none: it shows its title and End. */
 fetch(BASE + "/board.json").then(function (r) { return r.json(); }).then(function (d) {
+  var state = d.state || {};
+  if (state.view === "slate") { paintNotes(state); return; }
   var cards = d.cards || [];
   for (var i = cards.length - 1; i >= 0; i--) {
     if (cards[i].kind === "question") {

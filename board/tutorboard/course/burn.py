@@ -8,24 +8,23 @@ no way to do was KEEP it as a document. The ink lived in `live/annotations/`,
 which is the board's own drawer: it comes back when you reopen the page, and it
 is not a thing you can hand to anybody, mail to yourself, or read next year.
 
-So: three ways to leave, and they are the three anybody means by "save".
+So: two answers to "keep it".
 
-    same      the PDF being viewed, overwritten in place
-    new       a new file beside it, named and dated, nothing touched
-    none      keep nothing; the strokes stay in the board's drawer
+    new       a marked copy beside the PDF, `<stem>-marked.pdf`, then
+              `<stem>-marked-2.pdf`, ...; the PDF itself is never written over
+    none      keep nothing; the strokes stay where they are
 
-A DOCUMENT IN THE LIBRARY HAS ONE WAY OUT, not three: `library/<id>` is burned
-`new` and nothing else, into `live/marked/<id>/` -- see `burn_library`. Its PDF
-is rebuilt by whatever made it, so writing over it is not offered, and a copy
-beside it would come back into the library as a document of its own.
+EVERY DOCUMENT HAS THE SAME WAY OUT: a lesson's built PDF, a library document
+(`library/<id>`), an upload or a material (`doc/<id>`, `library.readable`).
+The copy goes beside the PDF it was burned from, and only where git would not
+carry it -- the root `.gitignore` covers `*-marked.pdf` -- because a copy of
+fenced content that a commit could carry cannot be taken back. The library's
+walk does not offer a marked copy as a document of its own
+(`library.marked_copy`).
 
-**Overwriting a compiled write-up is a real overwrite, and it is meant.** The
-next `make homework CH=04` rewrites that file from the .tex and the burned ink
-goes with it. That is not a bug to be designed around, because the strokes are
-NOT in the PDF -- they are in the annotation record, keyed to the page, and they
-survive the compile that destroys their rendering. Burning again puts them back
-on the fresh pages. The PDF is a rendering of two things that are both still on
-disk, which is the only reason overwriting it is safe to offer.
+The strokes are NOT in the copy's source: they are in the annotation record,
+keyed to the page, so burning again after more ink is another copy with all of
+it.
 
 HOW THE PAGE SURVIVES, given no PDF library on this machine and none coming --
 `AI_INSTRUCTIONS.md` says a dependency pit is the thing to avoid, and the server
@@ -92,19 +91,15 @@ def on_page(s, aspect):
     p = [float(v) * (k if i % 2 else 1.0) for i, v in enumerate(s.get("p") or [])]
     return {"c": s.get("c"), "w": w, "p": p, "pr": list(s.get("pr") or []), "pg": 1}
 
-MODES = ("same", "new", "none")
+MODES = ("new", "none")
 
 # A DOCUMENT IN THE LIBRARY, as a viewer kind: `library/<id>`, the id
 # `library.py` handed out. Its ink is under `doc/<id>/p<n>` -- `writing.ANN_DOC`
 # -- and under the drawer's name for the same file, which is `mark_idents`.
 LIBRARY = "library/"
 
-# WHERE A MARKED COPY OF A LIBRARY DOCUMENT GOES: `live/marked/<id>/` in the
-# workspace serving it. `live/` is ignored by every workspace here and is never
-# walked by the library (`library.IGNORE`), so a copy is not offered back as a
-# document, not handed to a revision as its source, and never tracked -- which
-# is what keeps a marked copy of fenced content inside the disk it came from.
-MARKED = "marked"
+# WHAT A MARKED COPY IS CALLED, beside its PDF (`library.MARKED`).
+MARKED = library.MARKED
 
 
 # ---------------------------------------------------------------------------
@@ -115,9 +110,9 @@ def target_for(repo, kind):
     """The PDF behind a viewer `kind`, as `(path, stem)`, or `(None, None)`.
 
     The same three shapes the viewer opens -- `lesson`, `homework`, and
-    `doc/<ident>` for something the course points at rather than built. Nothing
-    here constructs a path out of the request: both branches go through the
-    resolver that already refuses anything outside the repository.
+    `doc/<ident>` for an upload, a material or something the course points at
+    (`library.readable`). Nothing here constructs a path out of the request:
+    both branches go through a resolver that matches against what was found.
     """
     kind = str(kind or "").strip()
     if kind in paper.KINDS:
@@ -129,7 +124,7 @@ def target_for(repo, kind):
         ident = kind[len("doc/"):]
         if not re.match(r"\A[a-z0-9-]{1,40}\Z", ident):
             return None, None
-        path, _name = library.drawer_find(repo.root, ident)
+        path, _name = library.readable(repo, ident)
         if not path:
             return None, None
         return path, os.path.splitext(os.path.basename(path))[0]
@@ -480,29 +475,29 @@ def _write_pdf(out_path, pages):
     return out_path
 
 
-def new_name(stem, when=None):
-    """What a `new` save is called: the document, annotated, and the day.
-
-    The date is in it because this is the option somebody picks when they want
-    to keep THIS pass over the page and go on marking. Two passes on one evening
-    collide, and a counter settles it -- silently overwriting the file chosen
-    precisely so that nothing would be overwritten is the one outcome this mode
-    exists to prevent.
-    """
-    day = (when or datetime.date.today()).strftime("%Y-%m-%d")
-    return "%s-annotated-%s.pdf" % (stem, day)
+def new_name(stem):
+    """What a marked copy is called: `<stem>-marked.pdf`."""
+    return "%s%s.pdf" % (stem, MARKED)
 
 
-def _free_name(directory, stem, when=None):
-    first = new_name(stem, when)
-    if not os.path.exists(os.path.join(directory, first)):
+def _free_name(directory, stem):
+    """`<stem>-marked.pdf`, or `-marked-2.pdf`, ... where that is taken: a
+    copy kept earlier is somebody's pass over the page, and a later one never
+    writes over it."""
+    first = new_name(stem)
+    if not os.path.lexists(os.path.join(directory, first)):
         return first
-    base = os.path.splitext(first)[0]
-    for n in range(2, 100):
-        cand = "%s-%d.pdf" % (base, n)
-        if not os.path.exists(os.path.join(directory, cand)):
+    for n in range(2, 1000):
+        cand = "%s%s-%d.pdf" % (stem, MARKED, n)
+        if not os.path.lexists(os.path.join(directory, cand)):
             return cand
-    return "%s-%d.pdf" % (base, os.getpid())
+    return "%s%s-%d.pdf" % (stem, MARKED, os.getpid())
+
+
+def _is_copy_name(stem, name):
+    """Is `name` a marked copy of the PDF `<stem>.pdf`'s name?"""
+    return bool(re.match(r"\A%s%s(?:-\d+)?\.pdf\Z" % (re.escape(stem), MARKED),
+                         str(name or "")))
 
 
 def _pages_from_pdf(target, marks, dpi, env):
@@ -576,37 +571,38 @@ def _ignored(root, path):
     return p.returncode != 1
 
 
-def marked_dir(repo, ident):
-    """`(directory, None)` for one document's marked copies, or `(None, why)`.
-
-    `live/marked/<id>/`, and the directory carries its own ignore rule: a
-    workspace whose `.gitignore` does not cover `live/` still does not commit a marked copy on the way out
-    of a lesson. It is then ASKED of git rather than assumed, because a copy
-    of fenced content that a commit could carry is the one outcome here that
-    cannot be taken back.
-    """
-    base = os.path.join(repo.live, MARKED)
-    out = os.path.join(base, ident)
-    try:
-        os.makedirs(out, exist_ok=True)
-        guard = os.path.join(base, ".gitignore")
-        if not os.path.exists(guard):
-            with open(guard, "w", encoding="utf-8") as fh:
-                fh.write("# marked copies: ink burned into a copy, never tracked\n*\n")
-    except OSError as exc:
-        return None, {"ok": False, "why": "unwritable",
-                      "detail": "The copy has nowhere to go: %s." % exc}
-    root = os.path.realpath(repo.root)
-    if not os.path.realpath(out).startswith(root + os.sep):
-        return None, {"ok": False, "why": "outside",
-                      "detail": "A marked copy stays inside the workspace it was "
-                                "drawn in, and this one would not."}
-    if not _ignored(repo.root, os.path.join(out, "copy.pdf")):
+def copy_path(target, stem):
+    """`(path, None)` of the marked copy to write beside `target`, or `(None,
+    why)`. ASKED OF GIT rather than assumed: a copy a commit could carry is
+    refused before anything is drawn."""
+    here = os.path.dirname(target)
+    out = os.path.join(here, _free_name(here, stem))
+    if not _ignored(here, out):
         return None, {"ok": False, "why": "tracked",
-                      "detail": "git would carry a marked copy written to "
-                                "live/marked/, and a copy is never tracked. "
-                                "Nothing was written."}
+                      "detail": "git would carry a marked copy written beside "
+                                "%s, and a copy is never tracked. Nothing was "
+                                "written." % os.path.basename(target)}
     return out, None
+
+
+def marked_beside(target, name):
+    """The marked copy `name` beside the PDF `target`, as a path, or "".
+
+    A NAME, NEVER A PATH: matched against what is in that directory and
+    against the copy's name rule, never joined on unchecked.
+    """
+    if not target:
+        return ""
+    here = os.path.dirname(target)
+    stem = os.path.splitext(os.path.basename(target))[0]
+    if not _is_copy_name(stem, name):
+        return ""
+    try:
+        names = os.listdir(here)
+    except OSError:
+        return ""
+    path = os.path.join(here, name)
+    return path if name in names and os.path.isfile(path) else ""
 
 
 def _fence_of(repo, doc, target):
@@ -624,23 +620,18 @@ def _fence_of(repo, doc, target):
 
 
 def marked_file(repo, ident, name):
-    """The marked copy `name` of document `ident`, as a path, or "".
-
-    A NAME, NEVER A PATH: matched against what is in that document's own
-    directory rather than joined onto it.
-    """
+    """The marked copy `name` of library document `ident`, as a path, or ""."""
     ident = str(ident or "").strip().lower()
-    if not IDENT.match(ident):
-        return ""
-    here = os.path.join(repo.live, MARKED, ident)
-    try:
-        names = os.listdir(here)
-    except OSError:
-        return ""
-    if name not in names or not name.lower().endswith(".pdf"):
-        return ""
-    path = os.path.join(here, name)
-    return path if os.path.isfile(path) else ""
+    doc = library.find(repo.root, ident) if IDENT.match(ident) else None
+    return marked_beside(library.path_of(repo.root, doc, ".pdf") if doc else "",
+                         name)
+
+
+def marked_of(repo, kind, name):
+    """The marked copy `name` of the viewer kind `kind` (`homework`,
+    `lesson`, `doc/<id>`), as a path, or ""."""
+    target, _stem = target_for(repo, kind)
+    return marked_beside(target, name)
 
 
 IDENT = re.compile(r"\A[a-z0-9-]{1,40}\Z")
@@ -651,9 +642,9 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
 
     The library's documents are rebuilt by whatever made them -- a revision
     round, a `board build`, a `parts/` re-cut -- and the owner's ask was a copy
-    *without overwriting*. So `new` is the only mode, and the copy goes to
-    `marked_dir`, never beside the document. Keeping a copy is not sending:
-    nothing is marked delivered, and the ink goes with the next note.
+    *without overwriting*. So `new` is the only mode, and the copy goes beside
+    the PDF (`copy_path`). Keeping a copy is not sending: nothing is marked
+    delivered, and the ink goes with the next note.
     """
     if mode != "new":
         return {"ok": False, "why": "no-overwrite",
@@ -687,7 +678,7 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
     if drawn["refuse"]:
         return {"ok": False, "why": "rebuilt", "detail": drawn["refuse"]}
 
-    out_dir, stop = marked_dir(repo, doc["id"])
+    out_path, stop = copy_path(target, doc["stem"])
     if stop:
         return stop
 
@@ -720,8 +711,7 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
                                  drawn["rebuilt"]["when"] if drawn["rebuilt"]
                                  else "current", len(built),
                                  "" if len(built) == 1 else "s")}
-        name = _free_name(out_dir, doc["stem"])
-        out_path = os.path.join(out_dir, name)
+        name = os.path.basename(out_path)
         try:
             _write_pdf(out_path, built)
         except (OSError, ValueError) as exc:
@@ -748,7 +738,8 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
                    older["when"] if older else "current", len(built),
                    "" if len(built) == 1 else "s"))
     return {"ok": True, "mode": "new",
-            "path": os.path.relpath(out_path, repo.root).replace(os.sep, "/"),
+            "path": os.path.relpath(os.path.realpath(out_path), os.path.realpath(
+                repo.root)).replace(os.sep, "/"),
             "name": name, "document": doc["id"],
             "url": "/library/marked/%s/%s" % (doc["id"], name),
             "pages": len(built), "marks": n_marks - lost,
@@ -769,11 +760,16 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
     somebody to a laptop to find out what this already knew.
 
     `library/<id>` is a document in the library and goes to `burn_library`,
-    which offers `new` alone.
+    which offers `new` alone. Every other copy goes beside its PDF too, as
+    `<stem>-marked.pdf`; nothing is ever written over the PDF itself.
     """
+    if mode == "same":
+        return {"ok": False, "why": "no-overwrite",
+                "detail": "A marked copy goes beside the PDF and never over it: "
+                          "the original stays as it is."}
     if mode not in MODES:
         return {"ok": False, "why": "bad-mode",
-                "detail": "Save it over the original, as a new file, or not at all."}
+                "detail": "Keep a marked copy, or keep nothing."}
 
     if str(kind or "").startswith(LIBRARY):
         return burn_library(repo, str(kind)[len(LIBRARY):], mode, dpi)
@@ -810,29 +806,28 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
                 "detail": "This machine has no pdftoppm and no Ghostscript, so "
                           "the pages cannot be drawn to write on."}
 
+    out_path, stop = copy_path(target, stem)
+    if stop:
+        return stop
     work = None
     try:
         built, work, stop = _pages_from_pdf(target, marks, dpi, env)
         if stop:
             return stop
-        if mode == "same":
-            out_path = target
-        else:
-            out_path = os.path.join(os.path.dirname(target),
-                                    _free_name(os.path.dirname(target), stem))
         _write_pdf(out_path, built)
     finally:
         if work:
             shutil.rmtree(work, ignore_errors=True)
 
     try:
-        rel = os.path.relpath(out_path, repo.root)
+        rel = os.path.relpath(os.path.realpath(out_path),
+                              os.path.realpath(repo.root)).replace(os.sep, "/")
     except ValueError:
         rel = out_path
-    return {"ok": True, "mode": mode, "path": rel,
-            "name": os.path.basename(out_path),
+    name = os.path.basename(out_path)
+    return {"ok": True, "mode": mode, "path": rel, "name": name,
+            "url": "/marked/%s/%s" % (kind, name),
             "pages": len(built), "marks": n_marks,
-            "detail": ("Written back over %s." % os.path.basename(out_path))
-                      if mode == "same"
-                      else ("Saved as %s." % os.path.basename(out_path))}
+            "detail": "Kept as %s, beside the original. The ink stays on the "
+                      "page." % name}
 

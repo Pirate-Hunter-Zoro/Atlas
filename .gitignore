@@ -52,6 +52,9 @@ build/
 /courses/**/*.pdf
 /projects/*/docs/**/*.pdf
 /projects/*/homework/**/*.pdf
+# A marked copy: ink burned into a copy of a PDF, beside it (`burn.py`).
+*-marked.pdf
+*-marked-[0-9]*.pdf
 
 # ---- the relay's own state, on the cluster ----
 # The pass's lock and `state.json` at the root; in each subject the wrapped

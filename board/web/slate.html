@@ -22,6 +22,12 @@
 <!-- The way off this page. -->
 <div id="away">
   <a id="back" href="/board" title="back to the board">‹ board</a>
+  <!-- A NOTES CANVAS (a session whose view is slate): its title, and End,
+       after a second tap, which has the tutor transcribe these pages into
+       notes.md and build it. -->
+  <span id="notes-name" hidden></span>
+  <button id="notes-end" type="button" hidden
+          title="end the notes: the tutor transcribes these pages into notes.md">End</button>
 </div>
 <div id="prompt" hidden><span class="kind"></span><span class="text"></span></div>
 <div id="slate"></div>

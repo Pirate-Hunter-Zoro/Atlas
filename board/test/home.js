@@ -294,8 +294,8 @@ async function stubbed() {
         && w.asked.some((r) => r.url === '/library.json?subject=projects%2FMeetings')
         && !w.asked.some((r) => /^\/meeting\//.test(r.url)));
   d.getElementById('notes-close').click();
-  check('Notes and Annotate a PDF are drawn and call nothing until T40',
-        d.getElementById('act-notes').disabled && d.getElementById('act-annotate').disabled);
+  check('Notes and Annotate a PDF are live',
+        !d.getElementById('act-notes').disabled && !d.getElementById('act-annotate').disabled);
 
   // Settings: theme cycles; the default assistant is drawn.
   const theme = d.body.dataset.mode;
@@ -318,6 +318,95 @@ async function stubbed() {
   await sleep(30);
   check('New session opens the new session\'s board',
         w.__went.indexOf('/s/20261009-120000/board') >= 0);
+
+  // NOTES: a session in full-slate view, titled by the day, opened at its slate.
+  {
+    const nw = load();
+    await sleep(60);
+    const NEW = '20261009-130000';
+    nw.fetch = ((orig) => (u, init) => (String(u) === '/sessions/new'
+      ? (nw.asked.push({ url: '/sessions/new', method: 'POST', body: JSON.parse(init.body) }),
+         Promise.resolve({ status: 200, json: () => Promise.resolve({
+           ok: true, id: NEW, url: '/s/' + NEW + '/slate' }) }))
+      : orig(u, init)))(nw.fetch);
+    nw.document.getElementById('act-notes').click();
+    await sleep(30);
+    const asked = nw.asked.filter((r) => r.url === '/sessions/new')[0];
+    check('Notes posts /sessions/new with view slate and a title of the day',
+          asked && asked.body.view === 'slate'
+          && /^Notes \d{4}-\d\d-\d\d$/.test(asked.body.title));
+    check('and opens the new session at its slate',
+          nw.__went.indexOf('/s/' + NEW + '/slate') >= 0);
+  }
+
+  // ANNOTATE A PDF: a new session, the upload, filed when a subject is
+  // picked, and the session's board opened on the document.
+  async function annotated(subject) {
+    const aw = load();
+    await sleep(60);
+    const ad = aw.document;
+    const NEW = '20261009-140000';
+    const xhrs = [];
+    aw.XMLHttpRequest = function () {
+      const x = this;
+      x.upload = {};
+      x.open = (m, u) => { x.method = m; x.url = u; };
+      x.send = (form) => {
+        xhrs.push({ url: x.url, file: form.get('f0') });
+        x.status = 200;
+        x.responseText = JSON.stringify({ ok: true, saved: ['slides.pdf'],
+          files: [{ name: 'slides.pdf', size: 4, doc: 'uploads-slides' }] });
+        setTimeout(() => x.onload(), 5);
+      };
+    };
+    aw.fetch = ((orig) => (u, init) => {
+      const url = String(u);
+      const body = init && init.body ? JSON.parse(init.body) : null;
+      let got = null;
+      if (url === '/sessions/new') got = { ok: true, id: NEW, url: '/s/' + NEW + '/board' };
+      if (url === '/s/' + NEW + '/bind') got = { ok: true };
+      if (url === '/s/' + NEW + '/file') got = { ok: true, doc: 'materials-slides' };
+      if (!got) return orig(u, init);
+      aw.asked.push({ url, method: 'POST', body });
+      return Promise.resolve({ status: 200, json: () => Promise.resolve(got) });
+    })(aw.fetch);
+    ad.getElementById('act-annotate').click();
+    const sheet = ad.getElementById('annot');
+    const opts = Array.from(ad.querySelectorAll('#annot-subject option')).map((o) => o.value);
+    const input = ad.getElementById('annot-file');
+    Object.defineProperty(input, 'files', {
+      value: [new aw.File(['%PDF-1.4'], 'slides.pdf', { type: 'application/pdf' })] });
+    input.dispatchEvent(new aw.Event('change'));
+    ad.getElementById('annot-subject').value = subject;
+    ad.getElementById('annot-subject').dispatchEvent(new aw.Event('change'));
+    const ready = !ad.getElementById('annot-go').disabled;
+    ad.getElementById('annot-go').click();
+    await sleep(80);
+    return { aw, sheet, opts, ready, xhrs, NEW };
+  }
+  {
+    const r1 = await annotated('');
+    check('Annotate a PDF opens its sheet, offering every subject or none',
+          !r1.sheet.hidden && r1.opts[0] === '' && r1.opts.length === 5);
+    check('a chosen PDF can be sent', r1.ready);
+    const made = r1.aw.asked.filter((r) => r.url === '/sessions/new')[0];
+    check('it makes a session titled for the file, and uploads into that session',
+          made && made.body.title === 'Annotate slides.pdf'
+          && r1.xhrs.length === 1 && r1.xhrs[0].url === '/s/' + r1.NEW + '/upload'
+          && r1.xhrs[0].file && r1.xhrs[0].file.name === 'slides.pdf');
+    check('with no subject nothing is bound or filed, and the reader opens the upload',
+          !r1.aw.asked.some((r) => /\/(bind|file)$/.test(r.url))
+          && r1.aw.__went[0] === '/s/' + r1.NEW + '/board#/s/' + r1.NEW + '/doc/uploads-slides');
+    const r2 = await annotated('courses/Galois-Theory');
+    const bind = r2.aw.asked.filter((r) => /\/bind$/.test(r.url))[0];
+    const filed = r2.aw.asked.filter((r) => /\/file$/.test(r.url))[0];
+    check('with a subject the session is bound to it and the upload filed into '
+          + 'its materials',
+          bind && bind.body.subject === 'courses/Galois-Theory'
+          && filed && filed.body.upload === 'slides.pdf');
+    check('and the reader opens the material, by the id it was filed under',
+          r2.aw.__went[0] === '/s/' + r2.NEW + '/board#/s/' + r2.NEW + '/doc/materials-slides');
+  }
 
   // Addresses.
   async function routed(hash) {

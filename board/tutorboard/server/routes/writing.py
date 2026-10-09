@@ -11,10 +11,15 @@ between those two is most of what these routes are about.
                                        document ink only, into the subject's
                                        or the Atlas root's `.ink/`: a card
                                        and a send need a session.
-    POST /annotate/burn     session    the ink made into a marked copy
+    POST /annotate/burn     subject    the ink made into a marked copy,
+                                       `<name>-marked.pdf` beside the PDF
     POST /upload            session    files into the session's uploads/,
                                        streamed, at most 1 GB; each a
-                                       non-waking `[uploaded]` line
+                                       non-waking `[uploaded]` line, and a
+                                       PDF's `doc`, the id the reader opens
+    POST /file              session    one upload `{upload, dest?}` filed into
+                                       the bound subject (`sessions.file`),
+                                       its ink re-keyed; `doc` is its new id
 
 The classes are `handler.UNPREFIXED`'s.
 """
@@ -459,7 +464,36 @@ def post(h, repo, path):
 
     if path == "/upload":
         return upload(h, repo)
+    if path == "/file":
+        return file_upload(h, repo)
     return NOT_MINE
+
+
+def file_upload(h, repo):
+    """`POST /file {upload, dest?}`: `sessions.file`, from the page -- the
+    start screen's "Annotate a PDF" with a subject picked files the upload
+    straight into `<subject>/materials/`. 400 in `sessions.file`'s own words
+    for a refusal; nothing wakes."""
+    from ... import sessions                       # local: sessions imports this
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        payload = None
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    if is_sessionless(repo) or not getattr(repo, "stored", False):
+        return h.send_json({"ok": False, "error": "an upload is a session's: "
+                            "/s/<id>/file"}, status=400)
+    sid = os.path.basename(repo.live)
+    base = os.path.dirname(os.path.dirname(repo.live))
+    try:
+        got = sessions.file(sid, payload.get("upload"), payload.get("dest") or None,
+                            base=base)
+    except (sessions.NoSession, sessions.Refused) as exc:
+        return h.send_json({"ok": False, "error": str(exc)}, status=400)
+    h.note("filed %s -> %s/%s" % (got["from"], got["subject"], got["to"]))
+    h.hub.worker.dirty.set()
+    return h.send_json(dict(got, ok=True))
 
 
 def _size(n):
@@ -519,10 +553,15 @@ def upload(h, repo):
         h.note("upload failed: %s" % exc)
         return refuse(500, "the upload could not be written: %s" % exc)
     from ... import sessions                       # local: sessions imports this
+    from ...course import library
+    ids = dict((u["name"], u["id"]) for u in library.uploads(repo))
     saved = []
     for _filename, where, size in got:
         name = os.path.basename(where)
-        saved.append({"name": name, "size": size})
+        one = {"name": name, "size": size}
+        if ids.get(name):
+            one["doc"] = ids[name]
+        saved.append(one)
         sessions.quiet_line(repo.messages_path,
                             "[uploaded] %s (%s)" % (name, _size(size)),
                             "uploaded", files=[name])

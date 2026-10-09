@@ -360,8 +360,9 @@ DRIVE = {
     ("POST", "/material/delete", "library"): ("subject", [
         ("/material/delete", {"name": "nope.pdf"}, (404,)),
         ("/material/delete", {"name": "../TUTOR.md"}, (404,))]),
-    ("GET", "/library/marked/", "library"): ("session", [
-        ("/library/marked/nope/x.pdf", None, (404,))]),
+    ("GET", "/library/marked/", "library"): ("subject", [
+        ("/library/marked/nope/x.pdf", None, (404,)),
+        ("/library/marked/{doc}/..%2Fnotes.pdf", None, (404,))]),
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
     # machines
@@ -408,10 +409,18 @@ DRIVE = {
                             "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK),
         ("/annotate/save", {"card": "doc/notes/p2", "send": True,
                             "strokes": [{"pts": [[3, 3]], "m": "{mark}"}]}, OK, REFUSED)]),
-    ("POST", "/annotate/burn", "writing"): ("session", [
+    ("POST", "/annotate/burn", "writing"): ("subject", [
+        ("/annotate/burn", {"kind": "library/{doc}", "mode": "same"}, REFUSED),
         ("/annotate/burn", {"kind": "homework", "mode": "none"}, None),
         ("/annotate/burn", {"kind": "lesson", "mode": "copy"}, None)]),
     ("POST", "/upload", "writing"): ("session", [("/upload", upload, OK)]),
+    ("POST", "/file", "writing"): ("session", [
+        ("/file", {"upload": "nope.pdf"}, REFUSED),
+        ("/file", {"upload": "../session.json"}, REFUSED)]),
+    # taking
+    ("GET", "/marked/", "taking"): ("session", [
+        ("/marked/homework/nope-marked.pdf", None, (404,)),
+        ("/marked/doc/{doc}/..%2F..%2Fsession.json", None, (404,))]),
 }
 
 

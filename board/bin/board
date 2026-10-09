@@ -102,6 +102,8 @@ The assistant runs these. The student never does.
                                        their argument; files the sent page and
                                        rebuilds the PDF
     board writeup new|build|status     start it, rebuild it, what is still empty
+    board writeup new --md [title]     a notes canvas's notes.md, in
+                                       docs/<slug>/ beside its doc.json
     board writeup use <name> | list    write into a course's set (hw04, ch07)
                                        (`board hw` is the same command)
     board build <file> [--format docx|pdf] [--strict] [--reference-doc F] [--keep-aux]
@@ -933,6 +935,27 @@ def _writeup_status(live, st):
         print("  last build: %s at %s" % ("ok" if rec["ok"] else "FAILED", rec["iso"]))
 
 
+def _notes_new(live, state, words):
+    """`board writeup new --md [title]`: `docs/<slug>/notes.md` in the bound
+    subject, with its doc.json listing this session -- what a notes canvas's
+    End transcribes its pages into. Never written over: a slug already taken
+    takes `-2`."""
+    from tutorboard import artifacts
+    title = " ".join(words).strip() or (state or {}).get("title") \
+        or "Notes %s" % time.strftime("%Y-%m-%d")
+    try:
+        art = artifacts.create(live.root, title, _sid(live), source="notes.md")
+    except ValueError as exc:
+        print("board writeup: %s" % exc, file=sys.stderr)
+        return 1
+    src = art["path"]
+    with open(src, "w", encoding="utf-8") as fh:
+        fh.write("# %s\n\n" % title)
+    print("started %s" % os.path.relpath(
+        os.path.realpath(src), os.path.realpath(subjects.root())))
+    return 0
+
+
 def cmd_writeup(live, args):
     """The session's write-up: every agreed answer, typeset and built.
 
@@ -943,6 +966,10 @@ def cmd_writeup(live, args):
         newest sent page (or turn tNN's) into handwritten/<set>-<label>.png, and
         rebuilds the PDF. Fenced ``` code blocks are set verbatim.
     board writeup new [title]    start it now rather than at the first add
+    board writeup new --md [title]
+        a notes canvas's transcript: docs/<slug>/notes.md and its doc.json,
+        <slug> from the title or the session's; prints the source's path from
+        the Atlas root, for `board build`. The session's write-up is untouched.
     board writeup build          rebuild the PDF; a failure reaches the banner
     board writeup status         which file, what is written, what is next
     board writeup use <name>     write into this course set (hw04, ch07)
@@ -987,6 +1014,9 @@ def cmd_writeup(live, args):
         for s in every:
             print("  %-8s %s" % (s["name"], s["rel"]))
         return 0
+
+    if sub == "new" and "--md" in rest:
+        return _notes_new(live, state, [a for a in rest if not a.startswith("--")])
 
     if sub in ("new", "add"):
         title = None

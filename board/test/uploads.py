@@ -176,8 +176,10 @@ check("one [uploaded] <name> (<size>) line",
       and got_lines[0].get("files") == ["Lecture-Notes.pdf"])
 check("and it wakes nothing", got_lines and got_lines[0].get("wake") is False
       and not inbox.waiting(repo))
-check("no per-upload question: the reply is the saved file and its size",
-      got.get("files") == [{"name": "Lecture-Notes.pdf", "size": big.size}])
+check("no per-upload question: the reply is the saved file, its size, and "
+      "for a PDF the id the reader opens it as",
+      got.get("files") == [{"name": "Lecture-Notes.pdf", "size": big.size,
+                            "doc": "uploads-lecture-notes"}])
 os.remove(path)
 
 # Two files and a plain field in one form, one name taken already.

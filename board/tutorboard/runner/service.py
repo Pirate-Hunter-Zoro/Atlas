@@ -305,7 +305,12 @@ class Runner(object):
 
     def _wrap(self, sid, repo):
         """The wrap-up: only for a session bound to a subject that has had
-        a turn. Then `sessions.end` once more, so what it wrote is committed."""
+        a turn. Then `sessions.end` once more, so what it wrote is committed.
+        A notes canvas (`view: slate`) with ink on its pages has its own,
+        bound or not: `_notes`."""
+        rec = sessions.get(sid, self.atlas) or {}
+        if rec.get("view") == "slate":
+            return self._notes(sid, repo, rec)
         if os.path.realpath(repo.root) == os.path.realpath(self.atlas):
             return False
         if not lesson_cards.newest(repo.cards)[0]:
@@ -315,6 +320,30 @@ class Runner(object):
             daemon.agent_state(repo.live, pid=os.getpid(),
                                host=recipes.this_host(), agent=ctx.agent_name)
             loop.wrap_up(ctx)
+            daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
+            try:
+                _rec, ok, said = sessions.end(sid, base=self.atlas)
+                ctx.log.write("-- %s\n" % said)
+            except (sessions.NoSession, OSError) as exc:
+                ctx.log.write("!! the session could not be ended again: %s\n" % exc)
+        finally:
+            ctx.log.close()
+        return False
+
+    def _notes(self, sid, repo, rec):
+        """A notes canvas's End: its pages transcribed into
+        `<subject>/docs/<slug>/notes.md` and built (`loop.notes_up`), the
+        tutor binding the session first where it is unbound. Nothing runs for
+        a canvas with no ink. Then `sessions.end` once more, which commits
+        notes.md: its doc.json lists this session."""
+        pages = sessions.slate_pages(sid, self.atlas)
+        if not pages:
+            return False
+        ctx = self._ctx(sid, repo)
+        try:
+            daemon.agent_state(repo.live, pid=os.getpid(),
+                               host=recipes.this_host(), agent=ctx.agent_name)
+            loop.notes_up(ctx, pages, rec.get("title"), rec.get("subject"))
             daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
             try:
                 _rec, ok, said = sessions.end(sid, base=self.atlas)

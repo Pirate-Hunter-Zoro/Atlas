@@ -1324,6 +1324,126 @@ const heelSwipe = (id, x, y, dx, dy) => {
              + 'edge stays in the map for ever');
   }
 
+  // ------------------------------------------------- A NOTES CANVAS (T40)
+  //
+  // A session whose view is `slate`: the full slate is the whole of it. Two
+  // pages written there survive a reload, and End, after a second tap, puts
+  // every page's picture on disk before it ends the session -- the wrap-up is
+  // transcribed from those pictures.
+  {
+    const check = (m, c, d) => (c ? ok(m) : fail(m + (d ? ': ' + d : '')));
+    const SID = '20261009-150000';
+    const B = '/s/' + SID;
+    const saved = {};
+    const posts = [];
+    function mount(urlState, expose) {
+      const d2 = new JSDOM(fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8'), {
+        runScripts: 'outside-only', pretendToBeVisual: true,
+        url: 'https://board.test' + B + '/slate',
+      });
+      const w2 = d2.window;
+      w2.HTMLCanvasElement.prototype.getContext = () =>
+        new Proxy({}, { get: () => () => {}, set: () => true });
+      w2.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,AAAA';
+      Object.defineProperty(w2.HTMLElement.prototype, 'clientWidth', { get: () => W });
+      Object.defineProperty(w2.HTMLElement.prototype, 'clientHeight', { get: () => H });
+      w2.HTMLElement.prototype.getBoundingClientRect = function () {
+        return { left: 0, top: 0, width: W, height: H, right: W, bottom: H, x: 0, y: 0 };
+      };
+      w2.Element.prototype.scrollIntoView = function () {};
+      w2.Element.prototype.setPointerCapture = function () {};
+      w2.Element.prototype.releasePointerCapture = function () {};
+      w2.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+      const reply = (v) => Promise.resolve({ ok: true, json: () => Promise.resolve(v) });
+      w2.fetch = (u, init) => {
+        const url = String(u);
+        if (init && init.method === 'POST') {
+          const body = JSON.parse(init.body || '{}');
+          posts.push({ url, body });
+          if (url === B + '/slate/save') {
+            saved[body.page] = { page: body.page, w: body.w, h: body.h,
+                                 strokes: body.strokes, png: body.png };
+            return reply({ ok: true, page: body.page });
+          }
+          if (url === B + '/end') return reply({ ok: true, wrapup: true });
+          return reply({ ok: false });
+        }
+        if (url === urlState) {
+          return reply({ pages: Object.keys(saved).sort().map((k) => saved[k]) });
+        }
+        if (url === B + '/board.json') {
+          return reply({ state: { id: SID, view: 'slate', title: 'Notes 2026-10-09',
+                                  ended: null }, cards: [] });
+        }
+        return new Promise(() => {});
+      };
+      w2.addEventListener('error', (e) => fail('notes canvas: uncaught: ' + e.message));
+      for (const f of ['typeface.js', 'ink-clip.js', 'plane-core.js', 'ink-core.js',
+                       'slate-core.js', 'slate.js']) {
+        let src = fs.readFileSync(path.join(WEB, f), 'utf8');
+        if (f === 'slate.js' && expose) {
+          src = src.replace('var writer = window.Slate.create(',
+                            'var writer = window.__writer = window.Slate.create(');
+        }
+        try { w2.eval(src); } catch (e) { fail('notes canvas: ' + f + ': ' + e.message); }
+      }
+      return w2;
+    }
+    const w2 = mount(B + '/slate/state', true);
+    await sleep(60);
+    const d2 = w2.document;
+    const sheet2 = d2.querySelector('canvas.sl-sheet');
+    const pen2 = (type, x, y) => {
+      const ev = new w2.Event(type, { bubbles: true, cancelable: true });
+      Object.assign(ev, { pointerId: 7, pointerType: 'pen', pressure: 0.6,
+                          clientX: x, clientY: y, isPrimary: true });
+      ev.getCoalescedEvents = () => [ev];
+      sheet2.dispatchEvent(ev);
+    };
+    const line = (y) => {
+      pen2('pointerdown', 100, y);
+      for (let i = 0; i < 12; i++) pen2('pointermove', 100 + i * 10, y + i);
+      pen2('pointerup', 220, y + 12);
+    };
+    check('a notes canvas shows its title and End, and no question',
+          !d2.getElementById('notes-end').hidden
+          && d2.getElementById('notes-name').textContent === 'Notes 2026-10-09'
+          && d2.getElementById('prompt').hidden);
+    line(120);
+    const add = Array.from(d2.querySelectorAll('button')).find((b) => b.title === 'new page');
+    if (add) add.onclick();
+    await sleep(30);
+    line(200);
+    await sleep(1600);
+    check('two pages written on a notes canvas are both saved, each under its own number',
+          saved[1] && saved[2] && saved[1].strokes.length === 1
+          && saved[2].strokes.length === 1 && w2.__writer.debug().pages === 2);
+
+    const w3 = mount(B + '/slate/state', true);
+    await sleep(120);
+    check('and both are there after a reload',
+          w3.__writer.debug().pages === 2 && w3.__writer.strokes() === 1);
+
+    const end = d2.getElementById('notes-end');
+    posts.length = 0;
+    end.click();
+    await sleep(20);
+    check('End asks for a second tap', !posts.some((p) => p.url === B + '/end')
+          && /again/.test(end.textContent));
+    end.click();
+    await sleep(200);
+    const ended = posts.findIndex((p) => p.url === B + '/end');
+    const pictures = posts.slice(0, ended < 0 ? posts.length : ended)
+      .filter((p) => p.url === B + '/slate/save' && p.body.png).map((p) => p.body.page)
+      .sort();
+    check('the second puts every page\'s picture on disk, then ends the session',
+          ended >= 0 && JSON.stringify(pictures) === '[1,2]', JSON.stringify(posts.map((p) => p.url)));
+    check('and says the transcript is being written', /notes\.md/.test(end.textContent)
+          && end.disabled);
+    w2.close();
+    w3.close();
+  }
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe surface is a plane, and a finger is not a pen');
   window.close();

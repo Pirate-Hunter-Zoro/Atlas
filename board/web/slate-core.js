@@ -2541,6 +2541,25 @@ function create(opts) {
     for (var b in pictureOwed) return true;
     return false;
   };
+  /* EVERY PAGE THAT OWES THE DISK ITS STROKES OR ITS PICTURE, saved now and
+     with its picture. A notes canvas's End is transcribed from the pictures
+     (`sessions.slate_pages`), and the last page of an evening is exactly the
+     one whose picture is still waiting for a gap. Resolves once nothing is
+     owed, or once a save is being retried, which keeps it owed. */
+  api.flush = function () {
+    var tries = 0;
+    function step() {
+      if (saving) return saving.then(step);
+      if (retry.at) return Promise.resolve(false);
+      var k = null, a;
+      for (a in pictureOwed) { k = Number(a); break; }
+      if (k === null) for (a in dirtyPages) { k = Number(a); break; }
+      if (k === null) return Promise.resolve(true);
+      if (++tries > 4 * (pages.length + 2)) return Promise.resolve(false);
+      return save(false, true, k, true).then(step);
+    }
+    return step();
+  };
   /* Which tool is in hand. Reading it is for the chrome; setting it is for
      tests, which otherwise have to reach into the toolbar and click a button to
      exercise the rubber. */

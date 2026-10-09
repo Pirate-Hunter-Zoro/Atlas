@@ -1543,6 +1543,7 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
            gap: .5rem; padding: .35rem 0; border-bottom: 1px solid var(--rule); }
 .mat-row:last-child { border-bottom: 0; }
 .mat-name { min-width: 0; overflow-wrap: anywhere; font-size: .78rem; }
+.mat-name.is-doc { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .mat-delete { flex: none; font: 600 .72rem var(--ui); cursor: pointer;
               padding: .2rem .5rem; border-radius: .35rem;
               border: 1px solid var(--rule); background: transparent; color: var(--ink-2); }
