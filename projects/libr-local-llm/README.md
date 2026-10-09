@@ -175,7 +175,7 @@ Nothing here required admin rights.
 | Pre-existing HF models | `/media/studies/ehr_study/analysis/mferguson/models/` | whisper, pyannote, embedders, and `google_medgemma-27b-text-it` (safetensors, for vllm) |
 | Fleet standard helper | `…/models/vllm/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit` | 18.1 GB. `cyankiwi/…`, compressed-tensors int4 at **group size 32**, 30B total / **3.3B active**, 128 experts top-8, 262144 native context. Staged 2026-09-09 in 167 s |
 | Fleet specialist | `…/models/colibri/glm52_i4` | **429 GB**, 149 files. `mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp` — the group-scaled container with the int8 MTP head, which is the one colibrì's own docs require |
-| colibrì upstream checkout | `vendor/colibri` | ~89 MB. A submodule of Atlas tracking `github.com/JustVugg/colibri`, moved forward by a daily user timer (§2.1). Never build in it — the pull commits nothing when the tree is dirty |
+| colibrì upstream checkout | `vendor/colibri` | ~89 MB. A submodule of Atlas tracking `github.com/JustVugg/colibri`, moved forward by every relay pass (§2.1). Never build in it — the pull commits nothing when the tree is dirty |
 | colibrì build | `vendor/colibri-build` | A second submodule, pinned at the commit that was measured, built from its `c` subdirectory. Built 2026-09-09 with `make -C c glm CUDA=1 CUDA_ARCH=sm_86 CUDA_HOME=$EBROOTCUDA ARCH=native` under `CUDA/13.1.0` + `GCC/13.3.0`; 44 s. `ARCH=native` is load-bearing and verified — it defines `__AVX512VNNI__`, which selects the faster int4 kernel. Both AVX-512 selftests pass |
 | vLLM | conda env `/media/studies/ehr_study/analysis/mferguson/venvs/vllm_env` | v0.29.0, torch 2.13.0+cu130, python 3.12. Selects the **Marlin** WNA16 MoE backend on these sm_86 cards |
 | Hugging Face downloader | venv `/media/studies/ehr_study/analysis/mferguson/venvs/hfdl` | `huggingface_hub` 1.8.0, for the `hf download` command only |
@@ -204,35 +204,20 @@ dependency and works.
 
 ### 2.1 Keeping the colibrì checkout current
 
-The upstream engine is `vendor/colibri`, a submodule of Atlas tracking `main`, so moving it
-forward is two operations — fast-forward the submodule, then commit the bumped pointer in the
-superproject — which is why the timer calls `tutor pull` rather than git. It runs **once a day,
-automatically**, and it shares nothing with any tutoring or serving process: its own script, its
-own log, its own timer.
+The upstream engine is `vendor/colibri`, a submodule of Atlas tracking `main`. Moving it forward
+is two operations: fast-forward the submodule, then commit the bumped pointer in the superproject.
+The relay pass does both on the cluster, every 2 minutes from scrontab (`pull_vendor` in
+`board/tutorboard/relay.py`). It commits the bump only when `vendor/colibri` is the only dirty
+path, never mid-merge or mid-rebase and never on a detached HEAD, because merging somebody else's
+repository is not a decision a timer gets to make. The Mac's pull only checks out the pointer it
+pulled.
 
-It is `board/scripts/tutor-pull`, linked into `~/.local/bin` by `board/install.sh`, which also
-copies its units and enables the timer. The same run moves the unprivileged Tailscale client
-forward, which is why the name is no longer colibrì's.
+### 2.2 Keeping the assistant fencing honest
 
-| Piece | Path |
-| --- | --- |
-| The script | `board/scripts/tutor-pull`, linked at `~/.local/bin/tutor-pull` |
-| Log (one line per run) | `~/.local/state/tutor-pull.log` |
-| Once-a-day guard | `~/.local/state/tutor-pull.stamp` |
-| Timer + service units | `board/scripts/systemd/tutor-pull.{timer,service}`, copied into `~/.config/systemd/user/` |
-
-The script is linked rather than copied, so editing it in the repository is what runs tomorrow.
-The units are copied, because systemd reads the unit directory at daemon-reload and a link into a
-repository that moves is a timer that silently stops firing.
-
-`colibri-pull` is fast-forward-only and never fatal: a dirty tree or a diverged branch is logged and
-left alone, because merging somebody else's repository is not a decision a timer gets to make.
-`colibri-pull --force` runs it by hand regardless of the day guard.
-
-**Why a systemd `--user` timer and not cron.** `crontab` is refused on this cluster — *"You
-(mferguson) are not allowed to access to (crontab) because of pam configuration"* — so cron was
-never available to us. The user timer is what is left, and it needs two deliberate settings to work
-on a machine like this:
+The permission audit runs **once a day, automatically**, from a systemd `--user` timer.
+`crontab` is refused on this cluster — *"You (mferguson) are not allowed to access to (crontab)
+because of pam configuration"* — so the user timer is what is left, and it needs two deliberate
+settings to work on a machine like this:
 
 - **`Persistent=true`, which is the load-bearing one.** The account has `Linger=no`, so the systemd
   user manager exists only while a session does, and a compute node's allocation takes it away
@@ -242,19 +227,10 @@ on a machine like this:
   overdue, and fires it at login. The node is disposable; the record is not.
 - **A small `RandomizedDelaySec` (2m).** The jitter's usual job — spreading load across many
   machines — buys one user with one repository nothing, and a delay longer than a short editor
-  session would let the day's pull be missed entirely.
+  session would let the day's run be missed entirely.
 
-Net effect: at most one pull per day, taken on the first login of the day on whatever node you land
-on, or at 00:00 if you happen to already be logged in. Verified 2026-08-30 by backdating the
-persistent record three days and cold-starting the timer: it fired at once, then re-armed for the
-following day.
-
-### 2.2 Keeping the assistant fencing honest
-
-The permission audit runs **once a day, automatically**, on the same machinery as §2.1 and for the
-same reason: crontab is refused by pam on this cluster, so a systemd `--user` timer with
-`Persistent=true` is what is left. See §2.1 for why that setting is load-bearing — the argument is
-identical and is not repeated here.
+Net effect: at most one run per day, taken on the first login of the day on whatever node you land
+on, or at 00:00 if you happen to already be logged in.
 
 **It lives in `Atlas/ai-config`, not here**, along with everything else that configures an AI
 assistant on this account. `ai-config/scripts/install.sh` installs the wrapper and the timer;
@@ -268,8 +244,7 @@ short version: it reports, it repairs file modes, and it never deletes.
 | Log (one line per run) | `~/.local/state/ai-config-audit.log` |
 | Timer + service units | `~/.config/systemd/user/ai-config-audit.{timer,service}` |
 
-**One deliberate difference from `colibri-pull`: this one is fatal on a real problem.** A failed
-pull is benign and is only logged. A missing PHI guard is not, so the wrapper exits non-zero and
+**It is fatal on a real problem.** A missing PHI guard is not a thing to log and move past, so the wrapper exits non-zero and
 the unit lands in `systemctl --user --failed`, which is the only passive way anybody finds out. A
 log nobody reads is not a notification.
 
@@ -546,7 +521,7 @@ cannot leave the building; use §4a for everything else.
 | --- | --- |
 | `coli-build [clean]` | Compiles the engine with `ARCH=native CUDA=1 CUDA_ARCH=sm_86`. |
 | `coli-up [-t hours] [-c cpus] [-M gb] [--warm\|--once] [--detach]` | Starts one **on-demand** generation, waits for the engine to load, then **warms it with one real generation** and only then reports success. `--warm` starts the chain instead; `--once` a single generation that ends at its walltime; `--detach` submits and returns at once. |
-| `board colibri <thread> "<task>"` | Queues a task and starts a generation if none is queued or running. `board colibri --show` lists the queue. |
+| `board colibri [--label <slug>] "<task>"` | Queues a task and starts a generation if none is queued or running. `board colibri --show` lists the queue. |
 | `coli-code [-d dir] [-a claude\|opencode] [--yes] [message…]` | Opens a coding agent in any directory, pointed at the served model. No message → the TUI; a message → one shot. |
 | `coli-ask [-f file] [-n tokens] [--think] "question"` | One question, no agent, no tools, no preamble. |
 | `coli-down` | Ends the chain: writes the stop flag, **then** cancels every generation. It holds most of a node — run it. |
@@ -575,9 +550,9 @@ it would look like a benchmark and not be one. `--no-warm` skips the wait and sa
 
 ### On demand: the default
 
-**Colibri runs while it has a task and stops when it has none.** `board colibri <thread>
-"<task>"` on the cluster, or a relay `colibri` request from the Mac, writes a task into this
-workspace's ignored `live/missions/` and runs `coli-up --detach` if no generation is queued or
+**Colibri runs while it has a task and stops when it has none.** `board colibri "<task>"` on
+the cluster, or a relay `colibri` request from the Mac, writes a task into this workspace's
+ignored `relay/state/colibri/` and runs `coli-up --detach` if no generation is queued or
 running. The generation loads (68 minutes cold), works the queue one task at a time through
 `coli-code` in the workspace each task names, and exits cleanly once the queue has been empty for
 `COLI_IDLE_MIN` (20) minutes. `board/README.md`, *Colibri runs on demand*, has the rules.
@@ -598,8 +573,8 @@ running. The generation loads (68 minutes cold), works the queue one task at a t
   and prints ids and states to the job log. The relay checks a finished task's workspace: no
   change git can see completes it, carrying its `RELAY:` lines through `names_phi`; any change
   fails it, and nothing is committed.
-- **A sitting that wants Colibri live uses `coli-up --warm`**, the chain below. The board's start
-  button does.
+- **Work that wants Colibri live uses `coli-up --warm`**, the chain below, run by hand on the
+  cluster. The Mac has no start control: it reads Colibri's state from `relay/status.json`.
 
 ### The chain: `coli-up --warm`, the server always up, moving node rather than going away
 
@@ -634,10 +609,9 @@ Three things follow from that and none of them is obvious:
   the turns the incumbent completed while the successor was loading: they are not in the prefix the
   successor read, so the first turn after a handover re-prefills them.
 
-Not `--dependency=afterany`, which is what the board's own self-cloning chain uses. A dependency
-means the successor starts when this job *stops*, and a load that begins at the handover is an hour
-with no server. The board's generations cost nothing to start and colibrì's cost 68 minutes; that
-one number is the whole difference between the two designs.
+Not `--dependency=afterany`. A dependency means the successor starts when this job *stops*, and
+a load that begins at the handover is an hour with no server, because colibrì's generations cost
+68 minutes to start.
 
 **A generation's walltime is a ceiling on the client, not on the chain.** `coli-code` steps into the
 serve job's allocation with `srun --overlap`, so the client is a *step* of that generation and dies
@@ -1047,7 +1021,7 @@ Do not re-learn these.
     running at 3am. Anything recurring must be written to *catch up when a session next exists*
     (`Persistent=true`, whose record lives on the shared home and therefore survives the node), and
     must be idempotent for the period, because two logins on two nodes in one day will otherwise run
-    it twice. §2.1 is the worked example.
+    it twice. §2.2 is the worked example.
 
 22. **`opencode up accel` does not fail — it opens a TUI in a directory called `up`.** (Added
     2026-09-03.) opencode has no `up` subcommand, and its argument parser treats an unrecognized
@@ -1275,17 +1249,17 @@ what makes declining to use it a choice.
 
 ## The live board
 
-Lessons are not read in the terminal. The assistant runs `board start` from this repository and
-tells you which address to open. This machine gets a `127.0.0.1` one; the iPad, which is not on
-the institute network, reaches the same board over **Tailscale**. All of them show the same page
-at the same time.
+Lessons are not read in the terminal. The board runs on the Mac mini, and no compute node
+serves one. Open a session from the board's home screen and bind it to
+`projects/libr-local-llm`. The iPad, which is not on the institute network, reaches the Mac over
+**Tailscale**. Every device holding the session shows the same page at the same time.
 
 On the iPad, open it once in Safari and use Share → **Add to Home Screen**. After that it is an
 app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
 
 Everything the assistant teaches appears there as typeset mathematics the moment it is written:
 real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
-answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
+answer in the box at the bottom of the board, or by hand: the ✎ button opens a
 slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
 your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
 *live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
@@ -1294,5 +1268,6 @@ too.
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
 
-You never run a board command. The tool is `board/` in Atlas, two levels up from this workspace;
-its README explains the rest.
+The tutor runs the board commands on the Mac. On the cluster you run only `board code` and
+`board colibri`. The tool is `board/` in Atlas, two levels up from this workspace; its README
+explains the rest.

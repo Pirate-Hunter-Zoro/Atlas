@@ -988,8 +988,8 @@ rebuild
 ```
 
 That is the loop, and one word is the point of it. `rebuild` is a shell function defined
-in `config/rebuild-alias.sh` and sourced from `~/.bashrc` or `~/.zshrc`, with your own
-checkout's path (`~/Atlas` on the cluster, `~/Developer/Atlas` on the Mac):
+in `config/rebuild-alias.sh` and sourced from `~/.zshrc` or `~/.bashrc` on the Mac, with the
+Mac checkout's path:
 
 ```bash
 if [ -r "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
@@ -1127,7 +1127,10 @@ whatever its alt text says.
 **Prerequisites**
 
 - Python 3.9 or newer.
-- The `claude` CLI, logged in. There is no API key anywhere in this project.
+- The Mac. Paper-Writer runs there and nowhere else: the author daemon calls a hosted
+  model, and no hosted model runs on an institute machine
+  (`projects/libr-local-llm/docs/deepseek-egress.md`). No compute node runs it.
+- The `claude` CLI, logged in on the Mac. There is no API key anywhere in this project.
 - `pandoc`, if you want a `.docx`. Check for it with `config.PANDOC_BIN` rather
   than `which pandoc` — see above.
 
@@ -1144,8 +1147,8 @@ cd projects/Paper-Writer
 cp service/paperwriter.env{,.local}        # optional: keep your machine's config apart
 $EDITOR service/paperwriter.env            # set PAPER_SOURCE_DIRS and PAPER_OUT_DIR
 
-# and, for the `rebuild` command, one guarded block in ~/.bashrc:
-# with the path of this checkout (~/Atlas on the cluster, ~/Developer/Atlas on the Mac):
+# and, for the `rebuild` command, one guarded block in ~/.zshrc,
+# with the Mac checkout's path:
 #   if [ -r "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
 #       . "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh"
 #   fi
@@ -1160,16 +1163,15 @@ python3 -m paperwriter.cost                # what a paper is projected to consum
 python3 -m unittest discover -s tests      # the suite: 200+ tests, stdlib only
 ```
 
-**Run it as a service (systemd, user units)**
+**Run it through the launcher, on the Mac**
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cp service/paperwriter-*.service service/paperwriter-builder.timer ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now paperwriter-author.service
-systemctl --user enable --now paperwriter-builder.timer
-journalctl --user -u paperwriter-author -f
+bash service/run.sh author       # the engine; fast-forwards the checkout first
+bash service/run.sh builder      # one build and delivery
 ```
+
+There is no service unit and nothing schedules it: it runs when somebody starts it on the
+Mac.
 
 **Submit a paper**
 
@@ -1514,13 +1516,11 @@ is the record to read when the question is "why does this section read like this
 
 ## Working in this repository
 
-`AI_INSTRUCTIONS.md` is the contract for how an assistant behaves here, and it is
-model-agnostic. Read it before touching anything.
+`RULES.md` holds the owner's standing rules for an assistant working here, and `TUTOR.md`
+the tutor's notes. Read both before touching anything.
 
-This repository is **tutor-compatible**: it declares itself in `tutorboard.json`, so
-[Tutor-Board](https://github.com/Pirate-Hunter-Zoro/Tutor-Board) can open it as a
-course and teach the work on a live typeset board rather than in a terminal. `live/` is
-that board's scratch space and is never tracked.
+Paper-Writer is the Atlas project `projects/Paper-Writer`, so a board session can bind to it
+and `tutorboard.json` names its check. Nothing in Paper-Writer imports the board.
 
 Commits carry no assistant attribution. `.githooks/commit-msg` strips the trailer, and
 `board/scripts/save-and-push.sh` enables the hook path on any clone that has not opted in, so
@@ -1549,7 +1549,7 @@ paperwriter/
   engine/    the nested project → paper → section state machine.
   daemons/   the two entry points. Thin: a lock, a loop, a call into engine/.
 prompts/     the committed base prompts. Load-bearing non-code artifacts.
-service/     systemd units, the launcher, and the deployed configuration.
+service/     the launcher (`run.sh`) and the deployed configuration.
 scripts/     what a person runs by hand: rebuild the .docx of a tree. Committing is
              `board/scripts/save-and-push.sh`, which is the tool's and the only copy.
 config/      shell profile fragments, sourced not run. `rebuild` lives here.

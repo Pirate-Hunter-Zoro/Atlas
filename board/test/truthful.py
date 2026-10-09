@@ -138,6 +138,104 @@ check("no config and no document carries a key the board drops on read",
       not carried, "\n".join(carried))
 
 
+# ---- 3. The core documents' links and anchors resolve ----------------------
+#
+# The three documents an assistant reads first. A relative link names a file
+# that exists, and a `#fragment` names a heading in it, spelled the way GitHub
+# slugs headings. Fenced blocks and inline code are not links. The subject
+# documents are left out: a manuscript links figures that live only on the
+# cluster, under its ignored `results/`.
+CORE = ("README.md", "board/README.md", "board/TEACHING.md")
+
+FENCE_RE = re.compile(r"^\s*(```|~~~)")
+LINK_RE = re.compile(r"\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\)")
+HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
+
+
+def prose_lines(text):
+    """The document's lines, with every fenced line blanked."""
+    out, fenced = [], False
+    for line in text.split("\n"):
+        if FENCE_RE.match(line):
+            fenced = not fenced
+            out.append("")
+            continue
+        out.append("" if fenced else line)
+    return out
+
+
+def slug(heading):
+    """The anchor GitHub gives a heading."""
+    heading = heading.replace("`", "").strip().lower()
+    return re.sub(r"[^\w\- ]", "", heading).replace(" ", "-")
+
+
+def anchors(path):
+    seen, out = {}, set()
+    with open(path, encoding="utf-8") as fh:
+        lines = prose_lines(fh.read())
+    for line in lines:
+        m = HEADING_RE.match(line)
+        if not m:
+            continue
+        s = slug(m.group(1))
+        n = seen.get(s, 0)
+        seen[s] = n + 1
+        out.add(s if n == 0 else "%s-%d" % (s, n))
+    return out
+
+
+def core_texts():
+    for rel in CORE:
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            yield rel, fh.read()
+
+
+broken, links = [], 0
+for rel, text in core_texts():
+    here = os.path.dirname(os.path.join(ROOT, rel))
+    for n, line in enumerate(prose_lines(text), 1):
+        for m in LINK_RE.finditer(re.sub(r"`[^`]*`", "", line)):
+            target = m.group(1)
+            if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
+                continue
+            links += 1
+            path, _, frag = target.partition("#")
+            dest = (os.path.normpath(os.path.join(here, path)) if path
+                    else os.path.join(ROOT, rel))
+            if not os.path.exists(dest):
+                broken.append("%s:%d  %s: no such file" % (rel, n, target))
+            elif frag and dest.endswith(".md") and frag.lower() not in anchors(dest):
+                broken.append("%s:%d  %s: no such heading" % (rel, n, target))
+
+check("every relative link and anchor in the core documents resolves (%d links)"
+      % links, links and not broken, "\n".join(broken))
+
+
+# ---- 4. Every `board` command the core documents name exists ---------------
+#
+# Read off `COMMANDS` in bin/board as text, so this suite imports no CLI. A
+# command in `GONE` is refused by the CLI, so naming it is as wrong as naming
+# one that never was.
+with open(os.path.join(TOOL, "bin", "board"), encoding="utf-8") as fh:
+    cli = fh.read()
+table = cli[cli.index("\nCOMMANDS = {"):]
+table = table[:table.index("\n}\n")]
+commands = set(re.findall(r'"([a-z][a-z-]*)":\s*cmd_', table))
+# `board help` is answered by `main` before the table is read.
+commands.add("help")
+
+unknown = []
+for rel, text in core_texts():
+    for n, line in enumerate(text.split("\n"), 1):
+        for name in re.findall(r"`board ([a-z][a-z-]*)", line):
+            if name not in commands:
+                unknown.append("%s:%d  board %s" % (rel, n, name))
+
+check("every `board` command the core documents name is in COMMANDS (%d commands)"
+      % len(commands), len(commands) >= 20 and not unknown, "\n".join(unknown))
+
+
 # ---- What is deliberately NOT checked here ---------------------------------
 #
 # Whether every source file a document names exists. It was written, it fired
