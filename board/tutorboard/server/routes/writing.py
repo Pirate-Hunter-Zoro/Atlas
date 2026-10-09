@@ -202,7 +202,7 @@ def ann_says(key, answering_now):
                 % (m[1], m[0]),
                 "Open the image to see the marks. The document itself is one "
                 "this workspace offers -- `board doctor` lists them -- and the "
-                "address of that page is #/w/<family>/<workspace>/%s. Where the "
+                "address of that page is #/s/<this session's id>/%s. Where the "
                 "marks ask for changes to the document, they are feedback on it, "
                 "not the lesson: run `board round %s` and answer every id in the "
                 "ledger it prints. Where they ask a question about the page, "

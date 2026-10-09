@@ -423,7 +423,8 @@ try:
     os.remove(os.path.join(ws, "relay", "reports", SECOND["id"] + ".json"))
 
     # --- the commands ------------------------------------------------------------------
-    env = dict(os.environ, TUTOR_SLURM="0")
+    env = dict(os.environ, TUTOR_SLURM="0",
+               TUTORBOARD_SESSION=os.path.join(ws, "live"))
 
     def board(*args, **extra):
         p = subprocess.run([sys.executable, BOARD] + list(args), cwd=ws,

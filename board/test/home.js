@@ -3,17 +3,16 @@
 //   1. With a stubbed server: the sections in order, a Continue row with its
 //      subject, last card and new count, notices that dismiss, + new project
 //      asking "patient data?", and the address grammar -- `#/s/` carried to
-//      the session's board, an old `#/w/` link redirected through
-//      `imported`, or to the subject's page, or said where nothing holds it.
+//      the session's board, and an old `#/w/` link followed nowhere.
 //   2. Against a real server on a temp Atlas whose Galois live/ was imported
 //      (45 cards, so card 0003 is older than the board's window of 40): `/`
 //      asks nothing of the old switch route or /atlas.json, New session opens an unbound
 //      session in teach, "Linear Algebra" made as a course is listed and
-//      committed, no visible control gets a 404, and
-//      `#/w/Courses/Galois-Theory/card/0003` lands on that card in the
-//      imported session's board.
+//      committed, no visible control gets a 404, and `#/s/<id>/card/0003`
+//      from the start screen lands on that card in the imported session's
+//      board.
 //   3. Where ~/Archive/atlas-migration/2026-10-07/live-dirs.tgz exists, the
-//      same old link on a copy of the real Galois live/.
+//      same link on a copy of the real Galois live/.
 //
 // jsdom is a development-only dependency; without it this skips.
 
@@ -83,7 +82,6 @@ async function stubbed() {
   const answers = {
     '/sessions.json': {
       ok: true,
-      imported: { 'courses/Galois-Theory': GAL },
       sessions: [
         { id: SID, title: 'Rings', subject: 'courses/Galois-Theory',
           subject_name: 'Galois Theory', mode: 'teach', ended: null,
@@ -470,17 +468,8 @@ async function stubbed() {
   check('#/s/<id>/card/NNNN goes to that session\'s board with the address whole',
         r.went[0] === '/s/20261008-201500/board#/s/20261008-201500/card/0007');
   r = await routed('#/w/Courses/Galois-Theory/card/0003');
-  check('an old #/w/ card link goes to the same card in the imported session',
-        r.went[0] === '/s/' + GAL + '/board#/s/' + GAL + '/card/0003');
-  r = await routed('#/w/courses/Galois-Theory');
-  check('an old workspace link goes to the imported session',
-        r.went[0] === '/s/' + GAL + '/board#/s/' + GAL);
-  r = await routed('#/w/Courses/Probability/card/0002');
-  check('with no imported session, it lands on the subject page, marked archived',
-        r.went[0] === '/library?subject=courses%2FProbability&from=archived');
-  r = await routed('#/w/Courses/Topology/card/0002');
-  check('and with no subject either, the start screen says so and goes nowhere',
-        !r.went.length && !r.said.hidden && /archived sitting of Topology/.test(r.said.textContent));
+  check('an old #/w/ link is no address: the start screen goes nowhere',
+        !r.went.length);
   r = await routed('#/s/../card/0001');
   check('a malformed address is not followed', !r.went.length);
 }
@@ -768,20 +757,20 @@ async function real() {
           w.__requests.some((r) => r.url === '/meeting' && r.method === 'POST')
           && w.__requests.some((r) => r.url === '/library.json?subject=projects%2FMeetings'));
 
-    await oldLink(base, srv.sid, 'the fixture', true);
+    await sessionLink(base, srv.sid, 'the fixture', true);
   } finally {
     srv.child.kill();
   }
 }
 
-// `#/w/Courses/Galois-Theory/card/0003` from the start screen, then the board
-// it went to, on that card.
-async function oldLink(base, sid, where, older) {
-  const w = await page(base + '/', { hash: '#/w/Courses/Galois-Theory/card/0003' });
+// `#/s/<id>/card/0003` from the start screen, then the board it went to, on
+// that card.
+async function sessionLink(base, sid, where, older) {
+  const w = await page(base + '/', { hash: '#/s/' + sid + '/card/0003' });
   await until(() => w.__went.length > 0, 8000);
   const want = '/s/' + sid + '/board#/s/' + sid + '/card/0003';
-  check(where + ': #/w/Courses/Galois-Theory/card/0003 goes to card 0003 of the '
-        + 'imported Galois session', w.__went[0] === want);
+  check(where + ': #/s/<id>/card/0003 goes to card 0003 of the imported Galois '
+        + 'session', w.__went[0] === want);
   const b = await page(base + want);
   const card = () => b.document.querySelector('[data-card="0003"]');
   const landed = await until(() => card() && b.__scrolled.indexOf('0003') >= 0, 15000);
@@ -810,7 +799,7 @@ async function rehearsal() {
   let srv;
   try { srv = await serve('galois'); } catch (e) { fail('the Galois copy: ' + e.message); return; }
   try {
-    await oldLink('http://127.0.0.1:' + srv.port, srv.sid, 'a copy of the real Galois live/');
+    await sessionLink('http://127.0.0.1:' + srv.port, srv.sid, 'a copy of the real Galois live/');
   } finally {
     srv.child.kill();
   }
@@ -821,7 +810,7 @@ async function rehearsal() {
   await real();
   await rehearsal();
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-    : '\nthe start screen opens every session, and every old link lands');
+    : '\nthe start screen opens every session, and every session link lands');
   process.exit(errors.length ? 1 : 0);
 })().catch((e) => {
   console.log('FAIL driver: ' + e.stack);

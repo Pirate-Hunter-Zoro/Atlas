@@ -49,7 +49,7 @@ def check(name, cond):
 
 tmp = tempfile.mkdtemp(prefix="tutor-ann-")
 json.dump({"name": "T", "mode": "math"}, open(os.path.join(tmp, "tutorboard.json"), "w"))
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 open(os.path.join(repo.cards, "0003-a-card.md"), "w", encoding="utf-8").write(
     "---\nkind: lesson\ntitle: A card\n---\n\nSomething to mark up.\n")
 

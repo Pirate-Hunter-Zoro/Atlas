@@ -180,7 +180,7 @@ check("every id is distinct, so two documents never answer to one name",
 # ---------------------------------------------------------------------------
 # A note is written against the REPO rather than the root: the marks on a
 # document's pages live in the board's own drawer, and a note carries them.
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 flat = one("TRD prediction from EHR text")
 put("writeups/serve-harness/serve-harness.tex",
     "\\documentclass{article}\n\\title{How the serve harness works}\n")
@@ -697,7 +697,7 @@ if _git("init", "-q") == 0:
     _git("config", "user.name", "Test")
     _git("add", "-A")
     _git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "the deck as it stands")
-    git_repo = course_repo.Repo(repo_tmp)
+    git_repo = course_repo.Repo(repo_tmp, os.path.join(repo_tmp, "live"))
     library.forget()
     deck = [d for d in library.documents(repo_tmp) if d["stem"] == "deck"][0]
     check("with the source committed as it stands, an overhaul is allowed",
@@ -777,7 +777,7 @@ with open(led_tex, "w", encoding="utf-8") as fh:
 with open(led_pdf, "wb") as fh:
     fh.write(pdf_lines([["The first page says hello."],
                         ["We found that the model was significant", "at the end."]]))
-lrepo = course_repo.Repo(led_tmp)
+lrepo = course_repo.Repo(led_tmp, os.path.join(led_tmp, "live"))
 library.forget()
 ldoc = [d for d in library.documents(led_tmp) if d["stem"] == "led"][0]
 digest0 = course_paper._digest(led_pdf, course_paper.PAGE_WIDTH)
@@ -1159,7 +1159,7 @@ with open(pr_tex, "w", encoding="utf-8") as fh:
 PAGE1 = ["Alpha bravo charlie delta.", "Echo foxtrot golf hotel."]
 with open(pr_pdf, "wb") as fh:
     fh.write(pdf_lines([PAGE1, ["India juliet kilo lima."]]))
-prepo = course_repo.Repo(pr_tmp)
+prepo = course_repo.Repo(pr_tmp, os.path.join(pr_tmp, "live"))
 library.forget()
 pdoc = [d for d in library.documents(pr_tmp) if d["stem"] == "pairs"][0]
 pdig0 = course_paper._digest(pr_pdf, course_paper.PAGE_WIDTH)
@@ -1194,6 +1194,7 @@ BOARD = os.path.join(ROOT, "bin", "board")
 
 def board_round(*args):
     p = subprocess.run([sys.executable, BOARD, "round"] + list(args) + ["--repo", pr_tmp],
+                       env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(pr_tmp, "live")),
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     return p.returncode, p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")
 

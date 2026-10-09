@@ -81,7 +81,8 @@ def post(h, repo, path):
         else:
             box = screenshot.page_box(payload)
             try:
-                rec = screenshot.build(repo.root, images, box[0], box[1])
+                rec = screenshot.build(repo.root, images, box[0], box[1],
+                                       state=repo.state())
             except Exception as e:                   # noqa: BLE001
                 rec = {"ok": False, "detail": "could not write it: %s" % e}
         rec["at"] = time.time()

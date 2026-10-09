@@ -137,7 +137,7 @@ os.makedirs(COURSE)
 with open(os.path.join(COURSE, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Galois Theory"}, fh)
 
-repo = course_repo.Repo(COURSE)
+repo = course_repo.Repo(COURSE, os.path.join(COURSE, "live"))
 with open(repo.state_path, "w", encoding="utf-8") as fh:
     json.dump({"course": "Galois Theory", "chapter": "Ch 7", "session": "homework"}, fh)
 

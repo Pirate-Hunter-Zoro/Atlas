@@ -146,8 +146,10 @@ os.makedirs(os.path.join(course, "live", "cards"), exist_ok=True)
 
 def write_card(text):
     p = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T"],
+        [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T",
+         "--repo", course],
         cwd=course, input=text.encode("utf-8"),
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(course, "live")),
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
     path = p.stdout.decode().strip().splitlines()[-1] if p.stdout.strip() else ""
     try:
@@ -160,8 +162,9 @@ def write_card(text):
 def write_card_forced(text):
     p = subprocess.run(
         [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T",
-         "--force"],
+         "--force", "--repo", course],
         cwd=course, input=text.encode("utf-8"),
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(course, "live")),
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
     path = p.stdout.decode().strip().splitlines()[-1] if p.stdout.strip() else ""
     try:

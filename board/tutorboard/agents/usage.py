@@ -533,10 +533,10 @@ def thousands(n):
 
 def read_costs(where):
     """The cost rows of `where`: a session directory holding `cost.jsonl`, or
-    a workspace root whose session holds one."""
+    a workspace root whose bound session holds one."""
     path = os.path.join(where, COST_LOG)
     if not os.path.isfile(path):
-        path = course_repo.session_path(where, COST_LOG)
+        path = course_repo.session_path(where, COST_LOG) or path
     try:
         with open(path, "r", encoding="utf-8") as fh:
             return [json.loads(l) for l in fh if l.strip()]

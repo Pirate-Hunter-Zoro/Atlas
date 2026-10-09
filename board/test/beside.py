@@ -145,7 +145,7 @@ try:
     _, before = git(saving, "rev-parse", "HEAD")
     open(os.path.join(saving, "src", "app.py"), "w").write("mid-edit\n")
 
-    rec = lesson_git.run_push(course_repo.Repo(saving), "lesson complete")
+    rec = lesson_git.run_push(course_repo.Repo(saving, os.path.join(saving, "live")), "lesson complete")
     check("a tap on save refuses rather than committing into a rebase",
           rec.get("ok") is False)
     check("and says what is in the way, on the board where the tap came from",
@@ -227,7 +227,7 @@ try:
     open(tap_lock, "w").close()
     os.utime(tap_lock, (0, 0))
     open(os.path.join(tapping, "src", "app.py"), "w").write("this evening\n")
-    rec = lesson_git.run_push(course_repo.Repo(tapping), "saved from the board")
+    rec = lesson_git.run_push(course_repo.Repo(tapping, os.path.join(tapping, "live")), "saved from the board")
     check("a tap on save gets past a lock a killed git left behind",
           rec.get("ok") is True)
     check("and the work is actually committed",
@@ -370,12 +370,12 @@ try:
     open(os.path.join(watching, "src", "app.py"), "w").write("changed\n")
     open(watch_lock, "w").close()
     lesson_git._DIRTY.update({"at": 0.0, "value": None})
-    n = lesson_git.repo_dirty(course_repo.Repo(watching))
+    n = lesson_git.repo_dirty(course_repo.Repo(watching, os.path.join(watching, "live")))
     check("the save badge still counts the work while the index is locked", n == 1)
     check("and it did not touch the lock", os.path.exists(watch_lock))
     os.remove(watch_lock)
     lesson_git._DIRTY.update({"at": 0.0, "value": None})
-    lesson_git.repo_dirty(course_repo.Repo(watching))
+    lesson_git.repo_dirty(course_repo.Repo(watching, os.path.join(watching, "live")))
     check("and a poll of its own leaves no lock behind",
           not os.path.exists(watch_lock))
 finally:

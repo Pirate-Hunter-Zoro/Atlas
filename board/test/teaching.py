@@ -177,18 +177,19 @@ try:
                   encoding="utf-8") as fh:
             json.dump(kw, fh)
 
+    _clock_repo = Repo(_clock, os.path.join(_clock, "live"), create=False)
     _sitting(session="lecture")
-    teach_for = runturn.turn_timeout(_cfg, _clock)
+    teach_for = runturn.turn_timeout(_cfg, _clock_repo)
     _sitting(session="lecture", mode="do")
-    build_for = runturn.turn_timeout(_cfg, _clock)
+    build_for = runturn.turn_timeout(_cfg, _clock_repo)
     _sitting(session="lecture")
-    make_for = runturn.turn_timeout(_cfg, _clock, signal="writeup")
+    make_for = runturn.turn_timeout(_cfg, _clock_repo, signal="writeup")
     check("a do-mode turn gets longer than a teaching turn, at least 40 minutes",
           build_for > teach_for and build_for >= 2400)
     check("a turn that writes a document gets the same", make_for == build_for)
     _sitting(session="make", makes="paper", aim="build", stance="do")
     check("a legacy session that says make, build or do is taught",
-          runturn.turn_timeout(_cfg, _clock) == teach_for == 900)
+          runturn.turn_timeout(_cfg, _clock_repo) == teach_for == 900)
 finally:
     shutil.rmtree(_clock, ignore_errors=True)
 
@@ -218,7 +219,7 @@ try:
     os.makedirs(root)
     with open(os.path.join(root, "tutorboard.json"), "w", encoding="utf-8") as fh:
         fh.write('{"name": "Course"}')
-    repo = Repo(root)
+    repo = Repo(root, os.path.join(root, "live"))
 
     def state(**kw):
         st = {"course": "Course", "session": "lecture"}
@@ -268,7 +269,7 @@ try:
     def _brief():
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            boardcli.cmd_brief(boardcli.course_repo.Repo(root), [])
+            boardcli.cmd_brief(boardcli.course_repo.Repo(root, os.path.join(root, "live")), [])
         return out.getvalue()
 
     missions = os.path.join(root, "live", "missions")
@@ -292,7 +293,7 @@ try:
         old_stdin, sys.stdin = sys.stdin, io.StringIO(body)
         try:
             with contextlib.redirect_stdout(out):
-                code = boardcli.cmd_write(boardcli.course_repo.Repo(root), args)
+                code = boardcli.cmd_write(boardcli.course_repo.Repo(root, os.path.join(root, "live")), args)
         finally:
             sys.stdin = old_stdin
         return code, out.getvalue().strip()

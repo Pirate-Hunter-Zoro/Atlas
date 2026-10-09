@@ -106,9 +106,8 @@ def load_config():
     one field of a built-in recipe writes `{"agents": {"claude": {...}}}` and
     keeps the rest of the recipe. `"replace": true` on an entry replaces it
     outright. A missing or unreadable file is the defaults; nothing is written.
-
-    A `default_agent` left from before the one provider setting is read as
-    `provider` where the file names no `provider` (a shim, removed by T55).
+    `default_agent`, `only_agent` and `session_turns` are read by nothing:
+    `provider` alone chooses.
     """
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     try:
@@ -118,8 +117,6 @@ def load_config():
         user = {}
     if not isinstance(user, dict):
         user = {}
-    if "provider" not in user and isinstance(user.get("default_agent"), str):
-        user = dict(user, provider=user["default_agent"])
     for k, v in user.items():
         if k == "agents" and isinstance(v, dict):
             for name, spec in v.items():

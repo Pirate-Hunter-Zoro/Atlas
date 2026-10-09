@@ -321,7 +321,7 @@ function inline(s) {
        being asked to go somewhere, and a second tab is a second board. */
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
       href = mdUrl(href);
-      return href.indexOf("#/w/") === 0 || href.indexOf("#/s/") === 0
+      return href.indexOf("#/") === 0
         ? '<a href="' + href + '">' + text + "</a>"
         : '<a href="' + href + '" target="_blank" rel="noopener">' + text + "</a>";
     })
@@ -1288,12 +1288,10 @@ function render(data) {
   seedTextDrafts(data);
   paintNotesSend();
   paintSent();
-  /* The save count, sets, results and jobs are the subject's, and arrive
-     from `/subject.json` rather than on this frame; a frame that still
-     carries one (a past lesson, a test) is honoured. */
+  /* The save count, results and jobs are the subject's, and arrive from
+     `/subject.json` rather than on this frame; a frame that still carries
+     one (a past lesson, a test) is honoured. */
   if (data.unsaved !== undefined) paintSave(data.unsaved);
-  if (data.sets) knownSets = data.sets;
-  readingInfo = data.reading || null;
   paintOlder();
   /* THE LESSON WAS FILED WHILE THIS PAGE WAS OPEN: `history` rose. Only when the
      field is there (a frame built by hand has none, and a missing field is not
@@ -3388,10 +3386,6 @@ els.finishLeave.onclick = goLeave;
 
 
 /* ------------------------------------------------- one step, written for them */
-/* The problem sets the subject has, by name, from `/subject.json`: what an
-   address to one problem is checked against. */
-var knownSets = [];
-
 /* The health strip under the bar: the worst line first, all of them in its
    tooltip. Hidden while the cluster is well. */
 function paintHealth(h) {
@@ -3432,13 +3426,9 @@ function remember() {
 }
 
 /* Once per load, once a payload is here: an address in the bar is followed,
-   against what the payload holds. Until `/health` has said which subject this
-   board is, a workspace address naming another one cannot be told apart from
-   one naming this one, so landing waits for it; `/health` answering runs this
-   by hand. A session address needs no `/health`: the session is in the path. */
+   against what the payload holds. */
 function land() {
   if (landed || !addrWanted || !lastLive) return;
-  if (!addrWanted.session && !boardIdKnown) return;
   landed = true;
   var asked = addrWanted;
   addrWanted = null;
@@ -3447,31 +3437,19 @@ function land() {
 
 /* ------------------------------------------------------------- addresses */
 /* ONE RESOLVER. `address.js` is the grammar and has no opinion about browsers;
-   this is the only thing anywhere that takes an address and puts the board on
-   the surface it names: a session address, `#/s/<id>/…`, and the workspace
-   grammar old links were written in, `#/w/<family>/<workspace>/…`.
+   this is the only thing anywhere that takes a session address, `#/s/<id>/…`,
+   and puts the board on the surface it names.
 
      1. A NAME FROM A BROWSER NEVER REACHES A FILESYSTEM. Every component is
         looked up in what this page was handed -- `lastLive.cards`,
-        `readingInfo.documents`, `knownSets`, `lastLive.slate`, and for a past
-        lesson the archive's own list. A miss is a miss, said plainly.
+        `lastLive.uploads`, `lastLive.slate` -- or by id on the server. A miss
+        is a miss, said plainly.
      2. A LINK THAT NO LONGER RESOLVES SAYS SO WHERE IT IS WRITTEN:
         `markAddresses` checks every address in the lesson against the same
         payload this resolver uses.
-     3. TWO SPELLINGS OF AN ADDRESS IS TWO BUGS. `spell` is the only builder.
-
-   The map and the walkthrough are gone, so a box (`node`) and a source file
-   (`code`) are places no more and say so. One problem of a set is finer than
-   the board paints: the address is checked against the set and said in one
-   line. */
-/* What the documents of this subject are, off the payload's `reading`. */
-var readingInfo = null;
-
-var boardId = "";              /* this board's own `family/workspace` */
-var boardIdKnown = false;      /* whether `/health` has answered at all */
+     3. TWO SPELLINGS OF AN ADDRESS IS TWO BUGS. `spell` is the only builder. */
 var addrWanted = null;         /* an address waiting for the first payload */
 var addrGoneSaid = Object.create(null);   /* address text -> why it is dead */
-var BOUNCED = "board.addr.bounced";
 
 function ADDR() { return window.Address || null; }
 
@@ -3482,11 +3460,11 @@ function addrParse(text) {
 }
 
 /* The one link speller on this page. Everything it is given is placed in THIS
-   workspace, because a board can only make an address for where it is. */
+   session, because a board can only make an address for where it is. */
 function spell(spec) {
   var g = ADDR();
-  if (!g || !boardId || boardId.indexOf("/") < 0) return "";
-  var out = { ws: boardId }, k;
+  if (!g || !SESSION) return "";
+  var out = { session: SESSION }, k;
   for (k in spec) {
     if (Object.prototype.hasOwnProperty.call(spec, k)) out[k] = spec[k];
   }
@@ -3503,16 +3481,14 @@ function addrShow(here) {
     want = spell({ surface: "doc",
                    doc: here.surface.slice("document:doc/".length) });
   } else {
-    /* THE LESSON, WITH NOTHING OVER IT -- and the bar may already name a card,
-       a past sitting, a problem or a page of handwriting. Every one of those IS
-       the lesson with something pointed out on it, none of them can be spelled
-       from `here`, and overwriting one with the bare workspace takes a link off
-       the glass a second after it was followed. Never downgrade. */
+    /* THE LESSON, WITH NOTHING OVER IT -- and the bar may already name a card
+       or a page of handwriting. Each IS the lesson with something pointed out
+       on it, neither can be spelled from `here`, and overwriting one with the
+       bare session takes a link off the glass a second after it was followed.
+       Never downgrade. */
     var now = addrParse(window.location.hash || "");
-    if (now && now.ws === boardId && now.surface !== "workspace") return;
-    /* A session address is never respelled in the workspace grammar. */
-    if (now && now.session) return;
-    want = spell({ surface: "workspace" });
+    if (now && now.session === SESSION && now.surface !== "session") return;
+    want = spell({ surface: "session" });
   }
   if (!want || want === window.location.hash) return;
   try {
@@ -3541,7 +3517,6 @@ function addrDead(a, why) {
 
 function addrArrived(a) {
   delete addrGoneSaid[a.text];
-  try { window.sessionStorage.removeItem(BOUNCED); } catch (e) {}
   markAddresses();
   return "ok";
 }
@@ -3569,55 +3544,14 @@ function addrToCard(id) {
   return true;
 }
 
-/* ANOTHER WORKSPACE IS ANOTHER BOARD ON ANOTHER PORT, and the one thing that
-   can move the single address between them is the front door. Hand it the whole
-   thing: it switches, then comes back to it.
-
-   Once, and recorded, because if the switch does not land this is still the
-   wrong board -- and sending it back would be a page bouncing between two
-   surfaces for as long as anybody watched it. */
-function addrElsewhere(a) {
-  var tried = "";
-  try { tried = window.sessionStorage.getItem(BOUNCED) || ""; } catch (e) {}
-  if (tried === a.text) {
-    return addrDead(a, "that is in " + a.ws
-                    + ", and this board could not be moved there");
-  }
-  try { window.sessionStorage.setItem(BOUNCED, a.text); } catch (e) {}
-  window.location.href = "/" + a.text;
-  return "elsewhere";
-}
-
-/* A SESSION ADDRESS, `#/s/<id>/...`. Another session's is that session's
-   board, with the address carried whole; this one's names a card, a document
-   or a page of the slate here. A card older than the cards held is fetched,
-   a window at a time, before it is called gone. */
-function addrSessionGo(a) {
-  if (a.session !== SESSION) {
-    window.location.href = "/s/" + encodeURIComponent(a.session) + "/board" + a.text;
-    return "elsewhere";
-  }
-  if (a.surface === "session") return addrArrived(a);
-  if (a.surface === "card") {
-    addrSessionCard(a);
-    return "ok";
-  }
-  /* A document or a page of the slate: the same lookups a workspace address
-     makes, in this session. */
-  var here = {}, k;
-  for (k in a) if (Object.prototype.hasOwnProperty.call(a, k)) here[k] = a[k];
-  here.session = "";
-  here.ws = boardId;
-  here.inSession = true;
-  return addrGo(here);
-}
-
 function addrHolds(card) {
   return ((lastLive && lastLive.cards) || []).some(function (c) {
     return c.id === card;
   });
 }
 
+/* A card of this session. One older than the cards held is fetched, a
+   window at a time, before it is called gone. */
 function addrSessionCard(a) {
   if (addrHolds(a.card)) {
     addrShut();
@@ -3639,72 +3573,33 @@ function addrSessionCard(a) {
   addrDead(a, "card " + a.card + " is not in this session");
 }
 
+/* Another session's address is that session's board, with the address
+   carried whole; this one's names the session, a card, a document or a page
+   of the slate here. */
 function addrGo(a) {
-  if (!a) return "bad";
-  if (a.session) return addrSessionGo(a);
-  if (boardId && a.ws !== boardId) return addrElsewhere(a);
-
-  addrShut();
-  /* A past lesson is left for every surface but one, because every other
-     surface is about the lesson that is open. */
-  if (reading && a.surface !== "archive") backToLesson();
-
-  var surface = a.surface;
-
-  /* The workspace is this board's lesson; a box on its map is no place now. */
-  if (surface === "workspace") return addrArrived(a);
-  if (surface === "node") {
-    return addrDead(a, "the map is gone, so that box is not a place any more");
+  if (!a || !a.session) return "bad";
+  if (a.session !== SESSION) {
+    window.location.href = "/s/" + encodeURIComponent(a.session) + "/board" + a.text;
+    return "elsewhere";
   }
-
-  if (surface === "card") {
-    var have = false;
-    ((lastLive && lastLive.cards) || []).forEach(function (c) {
-      if (c.id === a.card) have = true;
-    });
-    if (!have) {
-      return addrDead(a, "card " + a.card
-                      + " is not in the lesson that is open");
-    }
-    addrToCard(a.card);
-    return addrArrived(a);
-  }
-
-  if (surface === "archive") {
-    showSession(a.sitting, function (d) {
-      if (!d) {
-        addrDead(a, "that sitting is not in this workspace's history");
-        return;
-      }
-      var inIt = false;
-      (d.cards || []).forEach(function (c) { if (c.id === a.card) inIt = true; });
-      if (!inIt) {
-        addrDead(a, "card " + a.card + " is not in that sitting");
-        return;
-      }
-      addrToCard(a.card);
-      addrArrived(a);
-    });
+  if (a.surface === "session") return addrArrived(a);
+  if (a.surface === "card") {
+    addrSessionCard(a);
     return "ok";
   }
 
-  if (surface === "doc") {
+  addrShut();
+  if (reading) backToLesson();
+
+  if (a.surface === "doc") {
+    /* A PDF handed to the session, else any document of its subject, found
+       by the server by its id (`library.readable`); a miss is said by
+       `readKind` in its own sentence. */
     var known = null;
-    ((readingInfo && readingInfo.documents) || []).forEach(function (d) {
-      if (d.id === a.doc) known = d;
+    ((lastLive && lastLive.uploads) || []).forEach(function (u) {
+      if (!known && u.doc === a.doc) known = { id: u.doc, name: u.name };
     });
-    /* IN A SESSION, a PDF handed to it or one of its subject's materials is
-       not in the drawer: the server finds it by its id (`library.readable`),
-       and a miss is said by `readKind` in its own sentence. */
-    if (!known && a.inSession) {
-      ((lastLive && lastLive.uploads) || []).forEach(function (u) {
-        if (!known && u.doc === a.doc) known = { id: u.doc, name: u.name };
-      });
-      if (!known) known = { id: a.doc, name: "" };
-    }
-    if (!known) {
-      return addrDead(a, "that document is not in this workspace any more");
-    }
+    if (!known) known = { id: a.doc, name: "" };
     openDoc(known.id, known.name, function (got) {
       if (!got) return;              /* `readKind` has already said why */
       if (!a.page) { addrArrived(a); return; }
@@ -3723,31 +3618,7 @@ function addrGo(a) {
     return "ok";
   }
 
-  if (surface === "code") {
-    return addrDead(a, "walkthroughs are gone, so " + a.path
-                    + " is not a place on this board");
-  }
-
-  if (surface === "hw") {
-    if ((knownSets || []).indexOf(a.set) < 0) {
-      return addrDead(a, "there is no problem set called " + a.set + " here");
-    }
-    var hw = (lastLive && lastLive.hw) || null;
-    /* The problems of a set are only in the payload while that set is the
-       one being written up. Where they are, an address naming one that is not
-       there is dead; where they are not, the set is as far as this can check. */
-    if (hw && hw.name === a.set) {
-      var found = false;
-      (hw.problems || []).forEach(function (p) {
-        if (p.label === a.problem) found = true;
-      });
-      if (!found) return addrDead(a, a.set + " has no problem " + a.problem);
-    }
-    addrSaid("↳", "problem " + a.problem + " of " + a.set);
-    return addrArrived(a);
-  }
-
-  if (surface === "slate") {
+  if (a.surface === "slate") {
     var page = null;
     ((lastLive && lastLive.slate) || []).forEach(function (p) {
       if (p.page === a.page) page = p;
@@ -3761,54 +3632,24 @@ function addrGo(a) {
 }
 
 /* Whether an address can be resolved RIGHT NOW, without opening anything, and
-   why not. The same lookups `addrGo` makes, against the same payload, so the
-   mark on a link and what happens when it is tapped cannot disagree. A
-   workspace and a past sitting are not pre-checked: the first always resolves,
-   and the second is only answerable by asking the archive. */
+   why not. Only a card of this session is pre-checked: another session's is
+   that board's to answer, a card older than the window held is fetched on the
+   tap rather than called gone here, and a document is only answerable by
+   asking the server. */
 function addrMisses(a) {
-  var why = "";
-  if (a.session) {
-    /* Another session's is that board's to answer, and a card older than the
-       window held is fetched on the tap rather than called gone here. */
-    var first = ((model && model.cards) || [])[0];
-    if (a.session !== SESSION || a.surface !== "card"
-        || (first && a.card < first.id)) return "";
-    return addrHolds(a.card) ? "" : "card " + a.card + " is not in this session";
-  }
-  if (!boardId || a.ws !== boardId) return "";   /* another board's to answer */
-  if (a.surface === "node") {
-    why = "the map is gone, so that box is not a place any more";
-  } else if (a.surface === "card") {
-    why = "card " + a.card + " is not in the lesson that is open";
-    ((lastLive && lastLive.cards) || []).forEach(function (c) {
-      if (c.id === a.card) why = "";
-    });
-  } else if (a.surface === "doc") {
-    why = "that document is not in this workspace any more";
-    ((readingInfo && readingInfo.documents) || []).forEach(function (d) {
-      if (d.id === a.doc) why = "";
-    });
-  } else if (a.surface === "code") {
-    why = "walkthroughs are gone, so " + a.path + " is not a place on this board";
-  } else if (a.surface === "hw") {
-    if ((knownSets || []).indexOf(a.set) < 0) {
-      why = "there is no problem set called " + a.set + " here";
-    }
-  } else if (a.surface === "slate") {
-    why = "there is no page " + a.page + " on the slate";
-    ((lastLive && lastLive.slate) || []).forEach(function (p) {
-      if (p.page === a.page) why = "";
-    });
-  }
-  return why;
+  var first = ((model && model.cards) || [])[0];
+  if (a.session !== SESSION || a.surface !== "card"
+      || (first && a.card < first.id)) return "";
+  return addrHolds(a.card) ? "" : "card " + a.card + " is not in this session";
 }
 
 /* EVERY ADDRESS WRITTEN INTO THE LESSON, MARKED WHERE IT IS WRITTEN. A dead
    link reads as dead in its own sentence; it never quietly lands somewhere
-   near. Gibberish is a third thing again and says so. */
+   near. Gibberish -- an old `#/w/` link among it -- is a third thing again
+   and says so. */
 function markAddresses() {
   var links, i, el, a, why;
-  try { links = els.cards.querySelectorAll('a[href^="#/w/"], a[href^="#/s/"]'); }
+  try { links = els.cards.querySelectorAll('a[href^="#/"]'); }
   catch (e) { return; }
   for (i = 0; i < links.length; i++) {
     el = links[i];
@@ -3831,23 +3672,9 @@ function markAddresses() {
    the link said rather than where this board was last left. */
 addrWanted = addrParse((window.location && window.location.hash) || "");
 
-api("/health", { cache: "no-store" })
-  .then(function (r) { return r.json(); })
-  .then(function (h) { boardId = (h && h.id) || ""; })
-  .catch(function () {
-    /* Then this board cannot tell its own workspace from another's, and an
-       address is treated as its own rather than bouncing somebody out of a
-       lesson over a request that failed. */
-  })
-  .then(function () {
-    boardIdKnown = true;
-    land();
-  });
-
 window.addEventListener("hashchange", function () {
   var a = addrParse(window.location.hash || "");
   if (!a) return;               /* not an address; the bar is not ours to mind */
-  if (!boardIdKnown && !a.session) { addrWanted = a; return; }
   addrGo(a);
 });
 
@@ -4574,7 +4401,6 @@ function subjectSoon() {
 
 function takeSubject(got) {
   subjectInfo = got;
-  knownSets = (got.sets || []).map(function (x) { return x.name; });
   if (got.unsaved !== undefined) paintSave(got.unsaved);
   if (lastLive && !lastLive.archived) {
     try { paintBusy(lastLive); } catch (e) { /* and so does the strip */ }

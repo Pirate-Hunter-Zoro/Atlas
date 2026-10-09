@@ -270,16 +270,16 @@ try:
     check("a request naming nobody is refused rather than a crash", status == 400)
     check("and no refusal changed the file", on_disk().get("provider") == "deepseek")
 
-    # ---- the legacy key is read until T55 removes the shim ------------------
+    # ---- `default_agent` chooses nothing; a tap drops a leftover one ------
     legacy = dict(on_disk())
     legacy.pop("provider")
     legacy["default_agent"] = "codex"
     write(CONFIG, json.dumps(legacy))
-    check("a config still naming `default_agent` is read as the provider",
-          recipes.load_config()["provider"] == "codex")
-    status, got = server.post("/default-agent", {"agent": "claude"})
-    check("and the next tap writes `provider` and drops the legacy key",
-          status == 200 and on_disk().get("provider") == "claude"
+    check("a config naming only `default_agent` gets the built-in provider",
+          recipes.load_config()["provider"] == "claude")
+    status, got = server.post("/default-agent", {"agent": "deepseek"})
+    check("and the next tap writes `provider` and drops the leftover key",
+          status == 200 and on_disk().get("provider") == "deepseek"
           and "default_agent" not in on_disk(), on_disk())
 
     js = open(os.path.join(BOARD, "web", "board.js"), encoding="utf-8").read()

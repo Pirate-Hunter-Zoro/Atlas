@@ -92,7 +92,7 @@ try:
     write(os.path.join(beta, "y.py"), "y = 2\n")
     write(os.path.join(repo, "board", "x.py"), "x = 2\n")
 
-    rec = lesson_git.run_push(course_repo.Repo(alpha), "lesson complete")
+    rec = lesson_git.run_push(course_repo.Repo(alpha, os.path.join(alpha, "live")), "lesson complete")
     got = committed(repo)
     check("a save from one workspace commits and pushes", rec.get("ok") is True)
     check("its work and its transcript go in the commit",
@@ -121,6 +121,8 @@ try:
 
     def board(*args):
         p = subprocess.run([sys.executable, BOARD] + list(args), cwd=alpha,
+                           env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(
+                               alpha, "live")),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            timeout=120)
         return p.returncode, p.stdout.decode("utf-8", "replace")

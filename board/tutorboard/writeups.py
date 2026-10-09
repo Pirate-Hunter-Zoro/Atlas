@@ -99,11 +99,11 @@ def _root(where):
 
 def _dir(where):
     """Where the records are: a Repo's session directory, else the session
-    directory of the workspace at the root `where`."""
-    live = getattr(where, "live", None)
-    if live:
-        return os.path.join(live, WRITEUPS)
-    return course_repo.session_path(where, WRITEUPS)
+    this process bound for the root `where`."""
+    live = getattr(where, "live", None) or course_repo.session_dir(where)
+    if not live:
+        raise ValueError("no session holds the write-ups of %s" % where)
+    return os.path.join(live, WRITEUPS)
 
 
 def _path(where, wid):

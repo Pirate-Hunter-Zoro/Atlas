@@ -104,6 +104,7 @@ try:
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "Test Course", "mode": "math"}, fh)
     live = os.path.join(tmp, "live")
+    SESSION_ENV = dict(os.environ, TUTORBOARD_SESSION=live)
     cards = os.path.join(live, "cards")
     os.makedirs(cards)
     with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
@@ -134,7 +135,7 @@ try:
                              "answers": "0006", "kind": "text",
                              "text": "the two cosets are H and its complement"}) + "\n")
 
-    p = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    p = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     out = p.stdout.decode("utf-8", "replace")
     check("recap runs", p.returncode == 0)
@@ -166,7 +167,7 @@ try:
         with open(os.path.join(cards, "%04d-card-%d.md" % (n, n)), "w",
                   encoding="utf-8") as fh:
             fh.write("---\nkind: lesson\ntitle: Card %d\n---\n\n%s\n" % (n, body))
-    pbig = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    pbig = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     bigout = pbig.stdout.decode("utf-8", "replace")
     check("a long lesson still says how many cards it has", "70 card(s)" in bigout)
@@ -181,7 +182,7 @@ try:
         os.remove(os.path.join(cards, "%04d-card-%d.md" % (n, n)))
 
     # --all is there for the rare case, and is honestly bigger.
-    p2 = subprocess.run([sys.executable, BOARD, "recap", "--all"], cwd=tmp,
+    p2 = subprocess.run([sys.executable, BOARD, "recap", "--all"], cwd=tmp, env=SESSION_ENV,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     check("--all prints the lesson in full when that is genuinely wanted",
           len(p2.stdout) > total)
@@ -189,7 +190,7 @@ try:
     # An empty lesson says so rather than printing nothing.
     for n in os.listdir(cards):
         os.remove(os.path.join(cards, n))
-    p3 = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    p3 = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     check("an empty lesson says so", b"no cards yet" in p3.stdout)
 finally:
@@ -245,6 +246,7 @@ try:
 
     def board(*args, **kw):
         return subprocess.run([sys.executable, BOARD] + list(args), cwd=tmp,
+                              env=dict(os.environ, TUTORBOARD_SESSION=live),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=60, **kw)
 

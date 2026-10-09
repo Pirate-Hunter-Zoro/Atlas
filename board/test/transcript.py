@@ -41,7 +41,7 @@ def check(name, cond):
 tmp = tempfile.mkdtemp(prefix="tutor-transcript-")
 with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Test Course", "mode": "math"}, fh)
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 
 # One question card, the thing a turn will answer.
 with open(os.path.join(repo.cards, "0001-q.md"), "w", encoding="utf-8") as fh:

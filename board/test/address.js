@@ -48,32 +48,17 @@ const A = bare.window.Address;
 
 if (!A) { fail('address.js defined no Address'); process.exit(1); }
 
+const SID = '20261009-120000';
+const S = '#/s/' + SID;
+
 const FORMS = [
-  ['#/w/courses/Probability', 'workspace', {}],
-  ['#/w/research/PSYCH-ASR/node/typist', 'node', { node: 'typist' }],
-  ['#/w/courses/Galois-Theory/card/0007', 'card', { card: '0007' }],
-  ['#/w/courses/Galois-Theory/archive/20260912-183613-ch-03-rings/0003', 'archive',
-   { sitting: '20260912-183613-ch-03-rings', card: '0003' }],
-  ['#/w/research/PSYCH-ASR/doc/stage2-walkthrough', 'doc',
-   { doc: 'stage2-walkthrough', page: 0 }],
-  ['#/w/research/PSYCH-ASR/doc/stage2-walkthrough/p7', 'doc',
-   { doc: 'stage2-walkthrough', page: 7 }],
-  ['#/w/research/PSYCH-ASR/code/psych_asr/cli/run_asr.py', 'code',
-   { path: 'psych_asr/cli/run_asr.py', symbol: '' }],
-  ['#/w/research/PSYCH-ASR/code/psych_asr/evaluate/grade.py::grade', 'code',
-   { path: 'psych_asr/evaluate/grade.py', symbol: 'grade' }],
-  ['#/w/courses/Probability/hw/ch07/4.1', 'hw', { set: 'ch07', problem: '4.1' }],
-  ['#/w/courses/Probability/slate/0012', 'slate', { page: 12 }],
-  // A workspace directory with spaces in its name is a real one -- `To Turn In`
-  // -- and it is percent-encoded, never split.
-  ['#/w/courses/To%20Turn%20In', 'workspace', { workspace: 'To Turn In' }],
-  // A HAND-OFF CARD'S ADDRESS, spelled by `tutorboard/spell.py` on the other
-  // side of the wall: a component boundary is a stopping point, and the card
-  // that says so names the next box as a link rather than as an errand. The
-  // workspace name is percent-encoded there by the same rule as here, so the
-  // form that has to parse is this one and not the pretty one.
-  ['#/w/courses/To%20Turn%20In/node/grader', 'node',
-   { workspace: 'To Turn In', node: 'grader' }],
+  [S, 'session', { session: SID }],
+  [S + '/card/0007', 'card', { card: '0007' }],
+  [S + '/doc/stage2-walkthrough', 'doc', { doc: 'stage2-walkthrough', page: 0 }],
+  [S + '/doc/stage2-walkthrough/p7', 'doc', { doc: 'stage2-walkthrough', page: 7 }],
+  [S + '/slate/0012', 'slate', { page: 12 }],
+  // A clash suffix on the id is the same session grammar.
+  ['#/s/' + SID + '-2/card/0001', 'card', { session: SID + '-2', card: '0001' }],
 ];
 
 let formsOk = true;
@@ -93,8 +78,7 @@ for (const [text, surface, want] of FORMS) {
     }
   }
   // ONE SPELLING. What comes back out is what went in, and re-reading it gives
-  // the same address again -- so a link written today and a link written by a
-  // different caller tomorrow are the same string.
+  // the same address again.
   const again = A.format(a);
   if (again !== a.text || A.parse(again).text !== a.text) {
     fail(text + ' does not round-trip: ' + again);
@@ -103,31 +87,28 @@ for (const [text, surface, want] of FORMS) {
 }
 if (formsOk) ok('every form in the grammar parses, and round-trips to one spelling');
 
-// Malformed, and every one of them a thing somebody's string concatenation
-// actually produces. None may throw and none may resolve to something near.
+// THE WORKSPACE GRAMMAR IS NO ADDRESS. Every `#/w/...` form that once parsed,
+// and the session grammar's own malformed forms. None may throw and none may
+// resolve to something near.
 const BAD = [
-  '', '#', '/board', '#/board', 'https://board.test/#/w/courses/P',
-  '#/w/', '#/w/courses', '#/w/courses/', '#/w/courses//Probability',
-  '#/w/courses/Probability/',
-  '#/w/../etc/passwd', '#/w/courses/../../etc/passwd',
-  '#/w/courses/%2e%2e/x', '#/w/courses/Probability/code/../../etc/passwd',
-  '#/w/courses/Probability/%E0%A4%A',          // a broken escape
-  '#/w/courses/Probability/node/Typist',       // ids are lower case
-  '#/w/courses/Probability/node/' + 'x'.repeat(41),
-  '#/w/courses/Probability/card/7',            // one spelling: four digits
-  '#/w/courses/Probability/card/00007',
-  '#/w/courses/Probability/card/0007/extra',
-  '#/w/courses/Probability/archive/sitting',   // a sitting alone is not a form
-  '#/w/courses/Probability/doc/x/p0',
-  '#/w/courses/Probability/doc/x/9',
-  '#/w/courses/Probability/doc/x/p1/p2',
-  '#/w/courses/Probability/code/',
-  '#/w/courses/Probability/code/a.py::1bad',
-  '#/w/courses/Probability/hw/ch07',           // a set alone is not a form
-  '#/w/courses/Probability/slate/12',
-  '#/w/research/PSYCH-ASR/tree/vendor/colibri',  // no tree surface: walk.resolve traces Atlas
-  '#/w/courses/Probability/tree/../../etc',
-  '#/w/courses/Probability/nope/x',
+  '#/w/courses/Probability',
+  '#/w/courses/Galois-Theory/card/0007',
+  '#/w/courses/Galois-Theory/archive/20260912-183613-ch-03-rings/0003',
+  '#/w/research/PSYCH-ASR/doc/stage2-walkthrough/p7',
+  '#/w/courses/Probability/hw/ch07/4.1',
+  '#/w/courses/Probability/slate/0012',
+  '#/w/research/PSYCH-ASR/node/typist',
+  '', '#', '/board', '#/board', 'https://board.test/' + S,
+  '#/s/', '#/s', S + '/', '#/s//' + SID,
+  '#/s/2026-10-09', '#/s/../etc/passwd', '#/s/%2e%2e/card/0001',
+  S + '/%E0%A4%A',                  // a broken escape
+  S + '/card/7',                    // one spelling: four digits
+  S + '/card/00007',
+  S + '/card/0007/extra',
+  S + '/doc/x/p0', S + '/doc/x/9', S + '/doc/x/p1/p2', S + '/doc/X',
+  S + '/slate/12',
+  S + '/node/typist', S + '/hw/ch07/4.1', S + '/archive/x/0003',
+  S + '/code/a.py', S + '/nope/x',
 ];
 let badOk = true;
 for (const text of BAD) {
@@ -139,7 +120,7 @@ for (const text of BAD) {
     badOk = false;
   }
 }
-if (badOk) ok('every malformed form fails safely — no throw, no near miss');
+if (badOk) ok('#/w/... parses as no address, and every malformed form fails safely');
 
 if (A.parse(1) === null && A.parse(null) === null && A.parse(undefined) === null) {
   ok('a non-string is not an address either');
@@ -148,10 +129,12 @@ if (A.parse(1) === null && A.parse(null) === null && A.parse(undefined) === null
 // `format` refuses to spell what it could not then read back. A speller that
 // can emit what its own parser rejects is a dead-link factory.
 const UNSPELLABLE = [
-  { ws: 'courses/Probability', surface: 'node', node: 'Typist' },
-  { ws: 'courses/Probability', surface: 'nope' },
-  { surface: 'workspace' },
-  { ws: 'Probability', surface: 'workspace' },
+  { ws: 'courses/Probability', surface: 'workspace' },
+  { ws: 'courses/Probability', surface: 'card', card: 7 },
+  { session: SID, surface: 'node', node: 'typist' },
+  { session: SID, surface: 'nope' },
+  { session: 'not-an-id', surface: 'card', card: 7 },
+  { surface: 'session' },
 ];
 let spellOk = true;
 for (const spec of UNSPELLABLE) {
@@ -162,37 +145,26 @@ for (const spec of UNSPELLABLE) {
 }
 if (spellOk) ok('format refuses anything it could not read back');
 
-if (A.format({ ws: 'courses/To Turn In', surface: 'card', card: 7 })
-    === '#/w/courses/To%20Turn%20In/card/0007') {
-  ok('format encodes a space and pads a card to its one spelling');
+if (A.format({ session: SID, surface: 'card', card: 7 }) === S + '/card/0007') {
+  ok('format pads a card to its one spelling');
 } else fail('format got the canonical spelling wrong: '
-            + A.format({ ws: 'courses/To Turn In', surface: 'card', card: 7 }));
+            + A.format({ session: SID, surface: 'card', card: 7 }));
 
 // ---------------------------------------------------------------------------
 // 2. The resolver, in a real DOM, on the real board.
 // ---------------------------------------------------------------------------
-const HEALTH = { ok: true, id: 'courses/Galois-Theory', dir: 'Galois-Theory' };
-const SITTING = '20260912-183613-ch-03-rings';
-
-const PAST = {
-  state: { course: 'Galois Theory', chapter: 'Ch 3 — Rings' },
-  cards: [{ id: '0003', kind: 'lesson', title: 'Rings', body: 'old words' }],
-  turns: [],
-};
-
 const VIEW = {
   ok: true, name: 'The Stage 2 deck', n: 2,
   pages: ['/paper/a.png', '/paper/b.png'],
 };
 
 // Every address the lesson itself carries: one live, one dead, one gibberish,
-// and one to a box on the map, which is gone.
+// and one in the workspace grammar, which is no address.
 const BODY = [
-  'See [the deck](#/w/courses/Galois-Theory/doc/stage2-deck).',
-  'And [a card that has gone](#/w/courses/Galois-Theory/card/0099).',
-  'And [not an address at all](#/w/courses/Galois-Theory/card/99).',
-  'And [somewhere else](#/w/research/PSYCH-ASR/node/typist).',
-  'The grader is where this continues: [the grader](#/w/courses/Galois-Theory/node/grader).',
+  'See [the deck](' + S + '/doc/stage2-deck).',
+  'And [a card that has gone](' + S + '/card/0099).',
+  'And [not an address at all](' + S + '/card/99).',
+  'And [an old link](#/w/courses/Galois-Theory/card/0007).',
 ].join('\n\n');
 
 const LIVE = {
@@ -201,15 +173,12 @@ const LIVE = {
             mtime: Date.now() / 1000 }],
   turns: [], messages: [], uploads: [], notes: [], notes_sent: [],
   slate: [{ page: 12, name: 'page-12.png', url: '/slate/page-12.png' }],
-  push: null, agent: null, history: 1,
-  reading: { documents: [{ id: 'stage2-deck', name: 'The Stage 2 deck' }] },
-  sets: ['ch07'],
-  hw: { name: 'ch07', total: 1, written: 0, problems: [{ label: '4.1' }] },
+  push: null, agent: null,
 };
 
 // jsdom will not navigate, and says so loudly. That is the one thing this test
-// deliberately provokes -- an address for another workspace goes to the front
-// door -- so the noise is swallowed and the fact is asserted instead.
+// deliberately provokes -- an address for another session goes to that
+// session's board -- so the noise is swallowed and the fact is asserted instead.
 const vc = new VirtualConsole();
 vc.on('jsdomError', () => {});
 
@@ -217,7 +186,7 @@ const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
   runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc,
   // COLD, ON A LINK. The address is in the bar before a line of the board has
   // run, which is the case a person sending somebody a link actually creates.
-  url: 'https://board.test/board#/w/courses/Galois-Theory/card/0007',
+  url: 'https://board.test/s/' + SID + '/board' + S + '/card/0007',
 });
 const { window } = dom;
 const doc = window.document;
@@ -245,11 +214,10 @@ window.fetch = (u) => {
   const url = String(u);
   asked.push(url);
   if (/slate\/state/.test(url)) return json({ pages: [] });
-  if (url.indexOf('/health') === 0) return json(HEALTH);
-  if (url === '/archive') return json({ sessions: [{ id: SITTING, cards: 1, turns: 0 }] });
-  if (url === '/archive/' + SITTING) return json(PAST);
-  if (url.indexOf('/archive/') === 0) return json({ ok: false, error: 'no such session' });
-  if (url.indexOf('/view/') === 0) return json(VIEW);
+  if (url.indexOf('/s/' + SID + '/view/doc/stage2-deck') === 0) return json(VIEW);
+  if (url.indexOf('/s/' + SID + '/view/') === 0) {
+    return json({ ok: false, error: 'no such document' });
+  }
   return new Promise(() => {});          // everything else never answers
 };
 
@@ -272,7 +240,6 @@ try {
   src = src.replace('})();',
     'window.__addrGo = addrGo;\n'
     + 'window.__spell = spell;\n'
-    + 'window.__boardId = function () { return boardId; };\n'
     + '})();');
   window.eval(src);
   ok('loaded board.js with the grammar beside it');
@@ -286,161 +253,120 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   const es = window.__es;
   if (!es) { fail('board.js never opened a stream'); return done(); }
 
-  await tick();                       // `/health` answers
-  if (window.__boardId() === 'courses/Galois-Theory') {
-    ok('the board knows which workspace it is, from /health');
-  } else fail('the board never learned its own id: ' + window.__boardId());
-
   // -- the cold landing. The address was in the bar before board.js ran.
   es.onmessage({ data: JSON.stringify(LIVE) });
   await tick();
   const card = doc.querySelector('[data-card="0007"]');
   if (card && card.classList.contains('landed')) {
-    ok('a cold start on #/…/card/0007 lands on that card and marks it');
+    ok('a cold start on #/s/…/card/0007 lands on that card and marks it');
   } else fail('the address in the bar did not put the board on the card');
+  if (!asked.some((u) => /\/health/.test(u))) {
+    ok('landing asks the server nothing: the session is in the address');
+  } else fail('the board asked /health before landing: ' + asked.join(' '));
 
-  // -- rule 3, where it is written: three links in one card, three answers.
+  // -- rule 3, where it is written: four links in one card, three answers.
   const links = Array.from(card.querySelectorAll('a'));
   const live = links.find((a) => /doc\/stage2-deck/.test(a.getAttribute('href') || ''));
   const gone = links.find((a) => /card\/0099/.test(a.getAttribute('href') || ''));
   const junk = links.find((a) => /card\/99$/.test(a.getAttribute('href') || ''));
+  const old = links.find((a) => /^#\/w\//.test(a.getAttribute('href') || ''));
   if (live && !live.classList.contains('dead') && !live.classList.contains('bad')) {
     ok('a link that still resolves reads as an ordinary link');
   } else fail('a live address was marked dead');
-  if (gone && gone.classList.contains('dead') && /not in the lesson/.test(gone.title)) {
+  if (gone && gone.classList.contains('dead') && /not in this session/.test(gone.title)) {
     ok('a link to a card that has gone reads as dead where it is written');
   } else fail('a dead address was not marked in the sentence it is in');
   if (junk && junk.classList.contains('bad')) {
     ok('text that is not an address is a third thing, and says so');
   } else fail('gibberish was treated as an address');
+  if (old && old.classList.contains('bad') && !old.hasAttribute('target')) {
+    ok('an old #/w/ link is marked as no address, in place');
+  } else fail('an old #/w/ link was not marked bad: ' + (old && old.className));
   if (live && !live.hasAttribute('target')) {
     ok('an address opens in this board, not in a second tab');
   } else fail('an address link would open a second board');
 
   // -- every surface, reached and then left.
   const at = (frag) => window.__addrGo(A.parse(frag));
-  const W = '#/w/courses/Galois-Theory';
 
-  // THE MAP IS GONE. The workspace is its lesson, and a box is a place no
-  // more: an address to one is a miss, said plainly, where it is written and
-  // when it is followed.
-  if (at(W) === 'ok' && !el('map')) {
-    ok('the workspace address is the lesson, with no map to open');
-  } else fail('the workspace address did not land on the lesson');
-  const box = links.find((a) => /node\/grader/.test(a.getAttribute('href') || ''));
-  if (box && box.classList.contains('dead') && /map is gone/.test(box.title)) {
-    ok('a link to a box on the map reads as dead where it is written');
-  } else fail('a link to a box was not marked dead: ' + (box && box.title));
-  if (at(W + '/node/typist') === 'gone' && /map is gone/.test(said())) {
-    ok('and followed, it is a miss, said plainly');
-  } else fail('a node address was not reported: ' + said());
+  if (at(S) === 'ok') ok('the session address is the lesson');
+  else fail('the session address did not land on the lesson');
+  if (window.__addrGo(A.parse('#/w/courses/Galois-Theory')) === 'bad') {
+    ok('a workspace address goes nowhere: it is not an address');
+  } else fail('a workspace address was followed');
 
-  at(W + '/doc/stage2-deck');
+  at(S + '/doc/stage2-deck');
   await tick();
   if (!el('reader').hidden) {
     ok('a document address opens the viewer');
   } else fail('the document did not open');
-  if (window.location.hash === W + '/doc/stage2-deck') {
+  if (window.location.hash === S + '/doc/stage2-deck') {
     ok('and puts where it is in the bar, so an address can be copied off it');
   } else fail('the bar does not name the surface: ' + window.location.hash);
 
   scrolled = [];
-  at(W + '/doc/stage2-deck/p2');
+  at(S + '/doc/stage2-deck/p2');
   await tick();
   if (scrolled.some((n) => n.tagName === 'IMG')) {
     ok('a page address scrolls the viewer to that page');
   } else fail('a page address did not reach the page');
 
-  at(W + '/doc/stage2-deck/p9');
+  at(S + '/doc/stage2-deck/p9');
   await tick();
   if (/no page 9/.test(said())) ok('a page past the end of a document says so');
   else fail('a page that does not exist was not reported: ' + said());
 
-  if (at(W + '/doc/nothing-here') === 'gone'
-      && /not in this workspace/.test(said())) {
-    ok('a document that has moved is a miss, not an error');
-  } else fail('a missing document was not reported: ' + said());
-
-  if (at(W + '/code/psych_asr/asr.py::run') === 'gone'
-      && /walkthroughs are gone/.test(said())) {
-    ok('a code address is a miss: there is no walkthrough to open');
-  } else fail('a code address was not reported: ' + said());
-
-  if (at(W + '/hw/ch07/4.1') === 'ok' && /4\.1/.test(said())) {
-    ok('a homework address names the problem in the set it is in');
-  } else fail('a homework address did not land: ' + said());
-
-  if (at(W + '/hw/ch07/9.9') === 'gone' && /no problem 9\.9/.test(said())) {
-    ok('a problem that is not in the set is a miss');
-  } else fail('a missing problem was not reported: ' + said());
-
-  if (at(W + '/hw/ch99/1.1') === 'gone' && /no problem set/.test(said())) {
-    ok('a problem set that is not here is a miss');
-  } else fail('a missing set was not reported: ' + said());
-
-  at(W + '/slate/0012');
+  at(S + '/slate/0012');
   if (el('viewer') && !el('viewer').hidden) {
     ok('a slate address opens that page of handwriting');
   } else fail('a slate address did not open the page');
 
-  if (at(W + '/slate/0099') === 'gone' && /no page 99/.test(said())) {
+  if (at(S + '/slate/0099') === 'gone' && /no page 99/.test(said())) {
     ok('a page of handwriting that was never written is a miss');
   } else fail('a missing slate page was not reported: ' + said());
 
-  // -- a past sitting, which is the one lookup that has to ask the server.
-  scrolled = [];
-  at(W + '/archive/' + SITTING + '/0003');
+  at(S + '/card/0099');
   await tick(5);
-  const old = doc.querySelector('[data-card="0003"]');
-  if (old && old.classList.contains('landed') && !el('reading').hidden) {
-    ok('an archive address opens that sitting and lands on the card');
-  } else fail('an archive address did not reach the card in the past sitting');
+  if (/card 0099 is not in this session/.test(said())) {
+    ok('a card that is not in the session is a miss');
+  } else fail('a missing card was not reported: ' + said());
 
-  at(W + '/archive/nothing-was-filed-then/0003');
-  await tick(5);
-  if (/not in this workspace's history/.test(said())) {
-    ok('a sitting that is not in the history is a miss');
-  } else fail('a missing sitting was not reported: ' + said());
-
-  at(W + '/archive/' + SITTING + '/0009');
-  await tick(5);
-  if (/not in that sitting/.test(said())) {
-    ok('a card that is not in that sitting is a miss');
-  } else fail('a missing card in a sitting was not reported: ' + said());
-
-  // -- and left. Going back to the workspace takes down whatever was up.
-  at(W + '/doc/stage2-deck');
+  // -- and left. Going back to the card takes down whatever was up.
+  at(S + '/doc/stage2-deck');
   await tick();
-  at(W);
+  at(S + '/card/0007');
+  await tick(5);
   if (el('reader').hidden) {
     ok('every surface can be left: one address takes down what another put up');
   } else fail('a surface was left open over the one the address named');
 
-  // -- another workspace is another board, and only the front door moves it.
-  if (window.__addrGo(A.parse('#/w/research/PSYCH-ASR/node/typist')) === 'elsewhere') {
-    ok('an address for another workspace is handed to the front door');
-  } else fail('an address for another workspace was opened here');
+  // -- another session is another board, with the address carried whole.
+  if (window.__addrGo(A.parse('#/s/20261001-090000/card/0002')) === 'elsewhere') {
+    ok('an address for another session goes to that session\'s board');
+  } else fail('an address for another session was opened here');
 
   // -- the bar carries the address of wherever the board is, or a link is a
   //    thing nobody can obtain.
-  if (window.__spell({ surface: 'card', card: '0007' })
-      === '#/w/courses/Galois-Theory/card/0007') {
-    ok('the board spells addresses for its own workspace, one way');
+  if (window.__spell({ surface: 'card', card: '0007' }) === S + '/card/0007') {
+    ok('the board spells addresses for its own session, one way');
   } else fail('the board spelled a wrong address: '
               + window.__spell({ surface: 'card', card: '0007' }));
 
   // -- the wiring. The hash IS the way in: a tap on a link in a card changes
   //    it and nothing else happens, so if the resolver is not listening there
   //    the link does nothing at all. And the address has to SURVIVE the
-  //    landing -- a bar that reverts to the workspace a second after a card
-  //    link was followed is a link nobody can copy off the glass.
+  //    landing.
   doc.querySelector('[data-card="0007"]').classList.remove('landed');
-  window.location.hash = W + '/card/0007';
+  window.location.hash = S + '/card/0007';
+  await tick(5);
+  window.location.hash = S + '/slate/0012';
+  await tick(5);
+  window.location.hash = S + '/card/0007';
   await tick(5);
   if (doc.querySelector('[data-card="0007"]').classList.contains('landed')) {
     ok('changing the hash resolves: a tap on a link in a card is the way in');
   } else fail('a hash change never reached the resolver');
-  if (window.location.hash === W + '/card/0007') {
+  if (window.location.hash === S + '/card/0007') {
     ok('and the address it landed on stays in the bar');
   } else fail('the bar was overwritten after landing: ' + window.location.hash);
 

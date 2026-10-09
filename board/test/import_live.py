@@ -15,7 +15,7 @@ Atlas, then reversed; nothing here touches a real live/ or the real sessions/.
     ink in `<subject>/.ink/`, marked/ into materials/, job state into
     `<subject>/relay/state/`, agent.json idle with `owed` kept, archive/ left,
     the rest under imported/. `next_turn_id` continues.
-  * `board hw status` in an imported course session resolves its set.
+  * `board writeup status` in an imported course session resolves its set.
   * A live/ with no cards, turns or messages makes no session.
   * --reverse restores every byte, the subject's registry included.
   * Where ~/Archive/atlas-migration/2026-10-07/live-dirs.tgz exists, the same
@@ -285,7 +285,7 @@ p2 = run(SCRIPT, "--atlas", atlas, "--workspace", ws, "--subject", "projects/Dem
 check("a second import of the same workspace is refused",
       p2.returncode == 1 and "already imported" in p2.stdout, p2.stdout)
 
-# --- a course: board hw status resolves the set ----------------------------------
+# --- a course: board writeup status resolves the set ----------------------------------
 p = run(SCRIPT, "--atlas", atlas, "--workspace", course, "--subject",
         "courses/Calc", "--manifest", manifest)
 calc = course_repo._read_json(os.path.join(atlas, "sessions", ".imported.json")).get(
@@ -294,8 +294,8 @@ crec = sessions.get(calc, atlas) or {}
 check("a set named by `hw` becomes writeup",
       crec.get("writeup") == "courses/Calc/chapters/ch01-limits/homework/ch01-homework.tex"
       and crec.get("title") == "Calculus: ch01", crec)
-p = run(BOARD, "hw", "status", TUTORBOARD_SESSION=sessions.path(calc, atlas) or "")
-check("`board hw status` in the imported session resolves ch01",
+p = run(BOARD, "writeup", "status", TUTORBOARD_SESSION=sessions.path(calc, atlas) or "")
+check("`board writeup status` in the imported session resolves ch01",
       p.returncode == 0 and p.stdout.startswith("ch01 "), p.stdout)
 
 # --- an empty live/ ---------------------------------------------------------------
@@ -386,9 +386,9 @@ else:
     check("Probability's handoffs/ lands in the 'Carried over' card",
           last[0].endswith("-carried-over.md")
           and "From handoffs/hw03.md" in read(os.path.join(prob, last[0])))
-    p = run(BOARD, "hw", "status", TUTORBOARD_SESSION=sessions.path(
+    p = run(BOARD, "writeup", "status", TUTORBOARD_SESSION=sessions.path(
         mapping.get("courses/Galois-Theory"), atlas) or "")
-    check("`board hw status` in the Galois session resolves ch07",
+    check("`board writeup status` in the Galois session resolves ch07",
           p.returncode == 0 and p.stdout.startswith("ch07 "), p.stdout[:300])
     p = run(SCRIPT, "--reverse", manifest)
     check("--reverse restores the copy exactly", p.returncode == 0

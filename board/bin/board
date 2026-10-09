@@ -94,7 +94,6 @@ The assistant runs these. The student never does.
     board writeup new --md [title]     a notes canvas's notes.md, in
                                        docs/<slug>/ beside its doc.json
     board writeup use <name> | list    write into a course's set (hw04, ch07)
-                                       (`board hw` is the same command)
     board build <file> [--format docx|pdf] [--strict] [--reference-doc F] [--keep-aux]
                                        build a document beside its source: a .tex
                                        with pdflatex (deck or article), a .md with
@@ -819,8 +818,7 @@ def cmd_writeup(live, args):
     The first add or new makes the write-up: the bound homework set, in place,
     when the session is on one (`use`, or a title naming it), else
     docs/<session-slug>/writeup.tex from board/tex/writeup.tex.in. A session
-    bound to no subject refuses: `board bind` first. `board hw` is the same
-    command under its old name.
+    bound to no subject refuses: `board bind` first.
     """
     sub = args[0] if args else "status"
     rest = args[1:]
@@ -2648,7 +2646,7 @@ COMMANDS = {
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
-    "writeup": cmd_writeup, "hw": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
+    "writeup": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "memo": cmd_memo,
     "job": cmd_job, "diagnose": cmd_job,
@@ -2674,7 +2672,12 @@ GONE = {
 # Commands about a directory or file they are given, not the workspace they run in:
 # no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "code",
-           "pull", "cost", "doctor")
+           "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
+# Commands that read or write only the subject: outside a session they run
+# on a sessionless Repo over the workspace. Every other command needs a
+# session, and refuses without one.
+SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "meeting",
+                "deckfig", "memo")
 
 
 def help_for(cmd, fn):
@@ -2724,8 +2727,10 @@ def main(argv):
         return help_for(cmd, fn)
     if cmd in NO_LIVE:
         return fn(None, rest)
-    live = course_repo.resolve(root, create=False)
-    live.ensure_dirs(cli=True)
+    live = course_repo.resolve(root, create=False,
+                               need_session=cmd not in SUBJECT_ONLY)
+    if not live.sessionless:
+        live.ensure_dirs(cli=True)
     return fn(live, rest)
 
 

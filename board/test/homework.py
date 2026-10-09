@@ -209,25 +209,31 @@ try:
 
     def run(cwd, *args):
         p = subprocess.run([sys.executable, board] + list(args), cwd=cwd,
+                           env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(
+                               cwd, "live")),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
         return p.returncode, p.stdout.decode("utf-8", "replace")
 
-    code, out = run(prob, "hw", "use", "hw04")
-    check("`board hw use` binds the sitting to a set", code == 0 and "hw04" in out)
+    code, out = run(prob, "hw", "status")
+    check("`board hw` is an unknown command: `board writeup` is the only name",
+          code == 1 and "unknown command: hw" in out)
+
+    code, out = run(prob, "writeup", "use", "hw04")
+    check("`board writeup use` binds the sitting to a set", code == 0 and "hw04" in out)
     with open(os.path.join(prob, "live", "state.json"), encoding="utf-8") as fh:
         state = json.load(fh)
     check("and records which one", state.get("hw") == "homework/hw04/hw04.tex")
 
-    code, out = run(prob, "hw")
+    code, out = run(prob, "writeup")
     check("status reports the set and what is empty",
           code == 0 and "hw04" in out and "EMPTY" in out and "1 of 3" in out)
 
-    code, out = run(prob, "hw", "use", "hw05")
+    code, out = run(prob, "writeup", "use", "hw05")
     check("a set can be pinned by name", code == 0)
-    code, out = run(prob, "hw")
+    code, out = run(prob, "writeup")
     check("and the pin takes effect", "hw05" in out)
 
-    code, out = run(prob, "hw", "use", "hw99")
+    code, out = run(prob, "writeup", "use", "hw99")
     check("pinning a set that does not exist fails loudly", code != 0)
 
     # Filing handwriting: the frozen answer, never the live slate page.
@@ -237,16 +243,16 @@ try:
     with open(os.path.join(prob, "live", "turns.jsonl"), "w", encoding="utf-8") as fh:
         json.dump({"id": "t0001", "rev": 1, "kind": "ink", "answers": "0001",
                    "t": 1.0, "png": "/answers/t0001-r1.png"}, fh)
-    code, out = run(prob, "hw", "file", "2")
+    code, out = run(prob, "writeup", "file", "2")
     filed = os.path.join(prob, "homework", "hw05", "handwritten", "hw05-2.png")
     check("a sent page files into the set it belongs to",
           code == 0 and os.path.isfile(filed))
 
-    code, out = run(prob, "hw", "file", "../../etc/passwd")
+    code, out = run(prob, "writeup", "file", "../../etc/passwd")
     check("a label cannot escape the handwritten directory",
           not os.path.exists(os.path.join(tmp, "passwd")))
 
-    code, out = run(gal, "hw", "list")
+    code, out = run(gal, "writeup", "list")
     check("list works without a session being open", code == 0 and "ch07" in out)
 
     # --- the book's chapters, read off the chapter directories ---------------
@@ -258,7 +264,7 @@ try:
           and homework.chapter_dir(gal, "Ch 7 — splitting fields")
           == "chapters/ch07-splitting-fields"
           and homework.chapters(prob) == [])
-    code, out = run(gal, "hw", "new", "ch07")
+    code, out = run(gal, "writeup", "new", "ch07")
     with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
         pinned = json.load(fh).get("hw")
     check("`board writeup new chNN` writes into that chapter's set",
@@ -323,7 +329,7 @@ try:
     # A chapter's exercises get worked in sittings opened as lectures, and the
     # write-up is owed there exactly as it is in a homework sitting. The brief
     # used to print a homework line only when `state["hw"]` was set, which only
-    # `board hw use` and a homework sitting write. So a lecture opened as "Ch 4" was
+    # `board writeup use` and a homework sitting write. So a lecture opened as "Ch 4" was
     # never once told that a file existed and was empty; an evening of agreed
     # mathematics stayed in the cards, and what compiled was the scaffold.
     #
@@ -438,7 +444,7 @@ try:
 
     # ---- the compiler has to be findable, wherever it is installed --------
     #
-    # `board hw build` goes through `board build`, which finds TeX wherever
+    # `board writeup build` goes through `board build`, which finds TeX wherever
     # this machine installed it and puts the board's macros on TEXINPUTS. A
     # board started by a login agent has a PATH of /usr/bin:/bin.
     from tutorboard import build
@@ -451,7 +457,7 @@ try:
     # "FAILED" on its own is what sends somebody to a laptop to discover that
     # nothing was wrong with their mathematics. The board has to carry the
     # reason: the LaTeX error, or that this machine has no LaTeX.
-    code, out = run(prob, "hw", "build")
+    code, out = run(prob, "writeup", "build")
     check("a build that fails is given a reason",
           code != 0 and ("Undefined control sequence" in out
                          or (not HAVE_TEX and "No LaTeX" in out)))
@@ -461,7 +467,7 @@ try:
 
     with open(tex_path, "w", encoding="utf-8") as fh:
         fh.write(good)
-    code, out = run(prob, "hw", "build")
+    code, out = run(prob, "writeup", "build")
     check("and once it is fixed, hw build compiles it beside the source",
           not HAVE_TEX or (code == 0 and os.path.exists(pdf)
                            and not os.path.exists(os.path.splitext(tex_path)[0] + ".aux")))

@@ -180,7 +180,7 @@ finally:
 try:
     json.dump({"name": "PSYCH-ASR"},
               open(os.path.join(proj, "tutorboard.json"), "w"))
-    r = course_repo.Repo(proj)
+    r = course_repo.Repo(proj, os.path.join(proj, "live"))
     st = r.state()
     st.update({"session": "walk",
                "walk": ["psych_asr/evaluate/grade.py::grade"]})
@@ -203,7 +203,7 @@ try:
     write(teach_repo, "psych_asr/grid.py", "def sweep():\n" + BODY + "\n")
     write(do_repo, "pipeline/confound.py", "def overlap():\n" + BODY + "\n")
 
-    rd = course_repo.Repo(do_repo)
+    rd = course_repo.Repo(do_repo, os.path.join(do_repo, "live"))
     st = rd.state()
     st.update({"session": "lecture", "chapter": "the propensity model"})
     json.dump(st, open(rd.state_path, "w"))
@@ -211,7 +211,7 @@ try:
     check("a tutorboard.json stance of do is ignored: the session teaches",
           "IN TEACH MODE" in line and "IN DO MODE" not in line)
 
-    rt = course_repo.Repo(teach_repo)
+    rt = course_repo.Repo(teach_repo, os.path.join(teach_repo, "live"))
     st = rt.state()
     st.update({"session": "lecture", "chapter": "the grid sweep", "mode": "do"})
     json.dump(st, open(rt.state_path, "w"))
@@ -248,7 +248,7 @@ try:
     write(tmp, "psych_asr/transcript/corrections.py",
           "def apply_corrections(turns, log):\n" + BODY + "\n")
     walk._cache.clear()
-    repo = course_repo.Repo(tmp)
+    repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
     open(os.path.join(repo.cards, "0001-mid-lesson.md"), "w",
          encoding="utf-8").write("---\nkind: lesson\ntitle: A card\n---\n\nx\n")
 
@@ -396,7 +396,7 @@ try:
     check("a differently-cased board/ path is still read-only",
           all(u["readonly"] for u in chosen))
 
-    line = sense.session_sense(course_repo.Repo(ws))
+    line = sense.session_sense(course_repo.Repo(ws, os.path.join(ws, "live")))
     check("the sense says any path in Atlas may be traced, board/ and vendor/ "
           "read-only",
           "TRACE ANY PATH IN ATLAS" in line

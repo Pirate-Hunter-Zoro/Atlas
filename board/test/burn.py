@@ -140,7 +140,7 @@ def library_section(tmp):
     rule = "*-marked.pdf\n*-marked-[0-9]*.pdf\n"
     with open(os.path.join(ws, ".gitignore"), "w", encoding="utf-8") as fh:
         fh.write(rule)
-    lrepo = course_repo.Repo(ws)
+    lrepo = course_repo.Repo(ws, os.path.join(ws, "live"))
     here = os.path.join(ws, "writeups", "notes")
     pdf = os.path.join(here, "notes.pdf")
     if not make_pdf(pdf, ["ONE", "TWO", "THREE"]):

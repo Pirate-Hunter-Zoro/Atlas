@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Subjects: every directory under courses/ or projects/, with no registry.
 
-A fixture tree, never the real one: `all`, `find` (with the fallback from a
-moved qualified id to its slug), `kind_of`, `identify`, `roots`, `root`,
+A fixture tree, never the real one: `all`, `find` (a qualified id under a
+merged-away parent finds nothing), `kind_of`, `identify`, `roots`, `root`,
 `read_config` and lookups by slug (`colibri.WORKSPACE`, a project by its
 bare name). atlas.py is gone.
 """
@@ -115,17 +115,15 @@ try:
           and subjects.kind_of(os.path.join(tmp, "courses")) == ""
           and subjects.kind_of("/") == "")
 
-    # The fallback: an id under a legacy parent finds the merged subject.
-    hit = subjects.find("research/PSYCH-ASR")
-    check("a legacy qualified id resolves the merged subject by its slug",
-          hit is not None and hit["id"] == "projects/PSYCH-ASR"
-          and hit["root"] == psych
-          and (subjects.find("practice/Algo-Solutions") or {}).get("id")
-          == "projects/Algo-Solutions")
-    check("but residue under a legacy parent is never a subject",
+    # No fallback: an id under a merged-away parent is not a subject's id.
+    check("find('research/PSYCH-ASR') returns nothing, though PSYCH-ASR exists",
+          subjects.find("research/PSYCH-ASR") is None
+          and subjects.find("practice/Algo-Solutions") is None
+          and subjects.find("PSYCH-ASR")["id"] == "projects/PSYCH-ASR")
+    check("and residue under such a parent is never a subject",
           subjects.find("research/Leftover") is None
           and subjects.find("Leftover") is None)
-    check("the fallback is only for a qualified id, not a stray path",
+    check("nor is a stray path ending in a subject's name",
           subjects.find(os.path.join(tmp, "elsewhere", "PSYCH-ASR")) is None
           and subjects.find("vendor/PSYCH-ASR") is None)
 

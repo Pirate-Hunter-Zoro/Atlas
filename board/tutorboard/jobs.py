@@ -1314,12 +1314,16 @@ def _repair_lines(root, rid, rec, recs):
 
 
 def _messages(root, path=None):
-    """The inbox lines of the session at `root` (`path`, where the caller
-    holds its session's inbox: the server runs every session at once)."""
-    from .course.repo import Repo
+    """The inbox lines of the session this process bound for `root`
+    (`path`, where the caller holds its session's inbox: the server runs every
+    session at once); none where no session is bound."""
+    from .course import repo as course_repo
+    path = path or course_repo.session_path(root, "inbox", "messages.jsonl")
     out = []
+    if not path:
+        return out
     try:
-        with open(path or Repo(root).messages_path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             for line in fh:
                 try:
                     msg = json.loads(line)

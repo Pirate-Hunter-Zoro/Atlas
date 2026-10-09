@@ -2,8 +2,10 @@
 """One resolver: which workspace and session a CLI command runs on.
 
 1. `TUTORBOARD_SESSION`, when set, is the session directory.
-2. Otherwise the session is `find_repo()` plus `live/`.
-3. `find_repo` never answers with the Atlas root: `board status` there exits
+2. Otherwise a command that needs a session refuses, creating nothing, and one
+   that reads only the subject gets a sessionless Repo over `find_repo()`.
+3. `Repo` requires a session directory: a workspace has no default `live/`.
+4. `find_repo` never answers with the Atlas root: `board status` there exits
    non-zero and creates nothing.
 """
 
@@ -57,15 +59,41 @@ try:
     with open(os.path.join(ws, "tutorboard.json"), "w") as fh:
         fh.write('{"name": "ws"}')
 
-    check("session paths hang off the workspace's live/",
-          course_repo.session_path(ws, "cards") == os.path.join(ws, "live", "cards"))
+    check("with no session bound, a root has no session paths",
+          course_repo.session_dir(ws) is None
+          and course_repo.session_path(ws, "cards") is None)
+    try:
+        course_repo.Repo(ws)
+        got = "made"
+    except TypeError:
+        got = "refused"
+    check("Repo requires a session directory", got == "refused")
+    try:
+        course_repo.Repo(ws, "")
+        got = "made"
+    except ValueError:
+        got = "refused"
+    check("and an empty one is no session directory", got == "refused")
     check("find_repo walks up to the nearest workspace",
           course_repo.find_repo(os.path.join(ws, "notes")) == ws)
 
-    r = course_repo.resolve(ws, create=False)
-    check("without the variable the session is <root>/live",
-          r.root == ws and r.session == os.path.join(ws, "live") and r.live == r.session)
-    check("and create=False makes nothing", not os.path.exists(r.session))
+    try:
+        course_repo.resolve(ws, create=False)
+        got = "resolved"
+    except course_repo.NoWorkspace as exc:
+        got = exc.code
+    check("without the variable a session command is refused",
+          isinstance(got, str) and "TUTORBOARD_SESSION" in got)
+    r = course_repo.resolve(ws, create=False, need_session=False)
+    check("and a subject command gets a sessionless Repo over the workspace",
+          r.root == ws and r.sessionless
+          and os.path.basename(r.session) == course_repo.NONE)
+    check("which makes nothing", not os.path.exists(r.session)
+          and not os.path.exists(os.path.join(ws, "live")))
+    code, out = run(["status"], ws)
+    check("`board status` in a workspace with no session exits non-zero, "
+          "creating nothing", code != 0 and "TUTORBOARD_SESSION" in out
+          and not os.path.exists(os.path.join(ws, "live")))
 
     sess = os.path.join(base, "sessions", "20261008-120000")
     os.environ["TUTORBOARD_SESSION"] = sess
@@ -92,7 +120,7 @@ try:
     before = listing(ATLAS)
     code, out = run(["status"], ATLAS)
     check("`board status` at the Atlas root exits non-zero",
-          code != 0 and "not a workspace" in out)
+          code != 0 and ("not a workspace" in out or "TUTORBOARD_SESSION" in out))
     check("and creates nothing", listing(ATLAS) == before)
 
     proc = subprocess.run([sys.executable, BOARD, "write", "note", "probe"],

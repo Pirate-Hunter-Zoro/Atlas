@@ -571,17 +571,11 @@ def summary(rec, base=None):
     return out
 
 
-def imported(base=None):
-    """`sessions/.imported.json`, `{old workspace id: session id}`, for the
-    home screen's redirect of old `#/w/...` links. T55 deletes it."""
-    found = course_repo._read_json(os.path.join(store(base), IMPORTED))
-    return {str(k): str(v) for k, v in found.items() if ID_RE.match(str(v))}
-
-
 # ---------------------------------------------------------------------------
 # import_live: a workspace's live/ becomes one open session (the cutover)
 # ---------------------------------------------------------------------------
-# `{old workspace id: session id}`, for the link redirect of old addresses.
+# `{old workspace id: session id}`: which workspaces were imported, and as
+# what, so a second import of one is refused.
 IMPORTED = ".imported.json"
 # The default manifest of every move an import made, JSON lines.
 MANIFEST = ".import-manifest.jsonl"

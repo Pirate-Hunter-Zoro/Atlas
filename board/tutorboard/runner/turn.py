@@ -51,14 +51,17 @@ def turn_environment(spec, base=None):
     return env
 
 def as_repo(where):
-    """`where` as a Repo: a Repo is itself; a root is its own `live/` session.
+    """`where` as a Repo: a Repo is itself; a root is the session a CLI
+    process bound for it (`course_repo.resolve`), else sessionless.
 
-    The runner passes the session's Repo, so nothing here goes through the
-    per-process binding `course_repo.resolve` makes for a CLI.
+    The runner passes the session's Repo.
     """
     if hasattr(where, "state"):
         return where
-    return course_repo.Repo(where, create=False)
+    bound = course_repo.session_dir(where)
+    if bound:
+        return course_repo.Repo(where, bound, create=False)
+    return course_repo.sessionless(where)
 
 
 def state_of(where):

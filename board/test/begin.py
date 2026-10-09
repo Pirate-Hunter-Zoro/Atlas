@@ -49,7 +49,7 @@ def check(name, cond):
 tmp = tempfile.mkdtemp(prefix="tutor-begin-")
 with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Test Course"}, fh)
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 
 worker = tikz.TikzWorker(repo)
 worker.start()

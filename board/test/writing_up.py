@@ -12,7 +12,7 @@ repository and a temp trash. Nothing touches the real `sessions/`.
     filed into handwritten/, and a fenced code block is set verbatim.
   * A Galois copy whose session names chapter 7 writes into
     `chapters/ch07-.../homework/ch07-homework.tex` in place, region by region,
-    with doc.json written beside it; `board hw status` works through the alias,
+    with doc.json written beside it; `board writeup status` reports it,
     and End commits the set.
   * A build failure is in the payload the board's banner paints, LaTeX error
     and all.
@@ -270,8 +270,8 @@ try:
           len(listed) == 1 and not listed[0]["own"], listed)
     check("the page is filed beside the set",
           os.path.isfile(os.path.join(hw_dir, "handwritten", "ch07-14.png")))
-    code, out = board(["hw", "status"], d2)
-    check("board hw status works through the alias",
+    code, out = board(["writeup", "status"], d2)
+    check("board writeup status reports the set",
           code == 0 and "ch07" in out and "14     written up" in out, out)
     rec, ok, said = sessions.end(s2["id"], base=base)
     shown = git("show", "--stat", "--format=%s", "HEAD")

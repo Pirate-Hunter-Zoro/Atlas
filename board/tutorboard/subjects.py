@@ -34,10 +34,6 @@ KINDS = ("course", "project")
 # Where `create` makes a subject.
 CREATE = DIRS
 
-# The parents merged into `projects/`. A qualified id under one of them
-# (`research/PSYCH-ASR`) still finds its subject by slug (shim; T55 removes it).
-LEGACY = ("research", "practice")
-
 # TUTOR.md's sections, in order. `board memo <section>` writes one of them.
 TUTOR_SECTIONS = ("Where things are", "Now", "Open decisions", "Done recently")
 
@@ -115,9 +111,8 @@ def find(ident, base=None):
     """One subject by qualified id, slug or root, else None.
 
     Matched only against `walk()`, the listing under `all()`; nothing is
-    built from `ident`. A qualified id (`<parent>/<slug>`, parent one of
-    `DIRS` or `LEGACY`) that does not exist falls back to its slug, so
-    `research/PSYCH-ASR` finds `projects/PSYCH-ASR` (shim; T55 removes it).
+    built from `ident`. A qualified id names its parent too: `<parent>/<slug>`
+    under any other parent finds nothing.
     """
     if not ident:
         return None
@@ -129,12 +124,6 @@ def find(ident, base=None):
     for one in every:
         if one[2] == ident or paths.same_dir(one[3], ident):
             return _record(*one)
-    parts = ident.split("/")
-    if len(parts) == 2 and parts[1] and (parts[0] in dict(DIRS)
-                                         or parts[0] in LEGACY):
-        for one in every:
-            if one[2] == parts[1]:
-                return _record(*one)
     return None
 
 

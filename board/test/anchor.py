@@ -72,8 +72,8 @@ check("and a mark on the open question is called an answer",
 lead, how = writing.ann_says("doc/stage2-deck/p3", False)
 check("a page is described as a page of a named document",
       "page 3" in lead and "stage2-deck" in lead)
-check("and the tutor is given the address of that page, in §2.1 terms",
-      "#/w/" in how and "doc/stage2-deck/p3" in how)
+check("and the tutor is given the session address of that page",
+      "#/s/" in how and "#/w/" not in how and "doc/stage2-deck/p3" in how)
 
 # --- the client half --------------------------------------------------------
 js = open(os.path.join(ROOT, "web", "annotate.js"), encoding="utf-8").read()

@@ -562,9 +562,7 @@ class Handler(BaseHTTPRequestHandler):
     def session_listing(registry):
         """GET /sessions.json: every session, newest first, each with the
         URL it opens at (`sessions.url`) and its subject's name; an open one also with its newest
-        card and the count of cards since `seen` (`sessions.summary`).
-        `imported` maps an old workspace id to its imported session, for the
-        home screen's redirect of old `#/w/` links (T55 deletes it)."""
+        card and the count of cards since `seen` (`sessions.summary`)."""
         names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
         out = []
         for rec in sessions.all(registry.atlas):
@@ -573,8 +571,7 @@ class Handler(BaseHTTPRequestHandler):
             if not rec.get("ended"):
                 one.update(sessions.summary(rec, registry.atlas))
             out.append(one)
-        return {"ok": True, "sessions": out,
-                "imported": sessions.imported(registry.atlas)}
+        return {"ok": True, "sessions": out}
 
     def new_subject(self, registry):
         """POST /subjects/new {kind: course|project, name, phi}: make the

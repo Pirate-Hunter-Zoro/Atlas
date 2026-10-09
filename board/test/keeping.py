@@ -81,7 +81,7 @@ os.makedirs(COURSE)
 with open(os.path.join(COURSE, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Galois Theory"}, fh)
 
-repo = course_repo.Repo(COURSE)
+repo = course_repo.Repo(COURSE, os.path.join(COURSE, "live"))
 worker = TikzWorker(repo)
 hub = Hub(repo, worker)
 hub.payload = json.dumps({})

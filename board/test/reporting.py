@@ -53,6 +53,7 @@ def git(cwd, *args):
 
 def board_write(ws, body, *args):
     p = subprocess.run(BOARD + ["write"] + list(args) + ["--repo", ws],
+                       env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(ws, "live")),
                        input=body.encode("utf-8"), stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, timeout=60)
     return p.returncode, p.stdout.decode("utf-8", "replace").strip()
@@ -74,6 +75,11 @@ try:
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "start")
     room = os.path.join(ws, "live", "cards")
+    # This process reads the session the way a turn's `board` does: bound.
+    from tutorboard.course import repo as course_repo        # noqa: E402
+    os.environ["TUTORBOARD_SESSION"] = os.path.join(ws, "live")
+    course_repo.resolve(ws, create=False)
+    del os.environ["TUTORBOARD_SESSION"]
 
     # -- the placeholder at the door ---------------------------------------
     print("\n-- the placeholder is written `pending` --")

@@ -97,6 +97,7 @@ BOARD = [sys.executable, os.path.join(ROOT, "bin", "board")]
 
 def write(body, *args):
     p = subprocess.run(BOARD + ["write", "lesson"] + list(args) + ["--repo", tmp],
+                       env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(tmp, "live")),
                        input=body.encode("utf-8"), stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, timeout=60)
     return p.returncode, (p.stdout + p.stderr).decode("utf-8", "replace")

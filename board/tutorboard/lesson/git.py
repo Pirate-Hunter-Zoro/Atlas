@@ -442,7 +442,7 @@ def beside_the_lesson(repo):
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-        theirs = uncommitted(repo.root)
+        theirs = uncommitted(repo.root, session=repo.session)
         if theirs is not None:
             # COUNTED AFTER THE FILTER, so the number and the list are about
             # the same thing. "2 files are uncommitted" over a list of one is
@@ -454,12 +454,14 @@ def beside_the_lesson(repo):
     return value
 
 
-def uncommitted(root, paths=None):
+def uncommitted(root, paths=None, session=None):
     """Uncommitted paths under `paths` (default: the workspace), relative to `root`.
 
-    None where git cannot be asked. `live/` is left out: it is the board's own
-    scratch -- cards, ink, state -- and listing it as changed work would make
-    every answer open with what the board itself just did.
+    None where git cannot be asked. The session directory -- `session`, else
+    the one this process bound for `root` -- is left out where it lies inside
+    the root: it is the board's own scratch -- cards, ink, state -- and
+    listing it as changed work would make every answer open with what the
+    board itself just did.
     """
     try:
         # `git status --porcelain` prints paths relative to the GIT ROOT, not
@@ -503,6 +505,9 @@ def uncommitted(root, paths=None):
         except ValueError:
             here = rel
         names.append(here)
-    scratch = os.path.relpath(course_repo.session_dir(root), root)
+    bound = session or course_repo.session_dir(root)
+    if not bound:
+        return names
+    scratch = os.path.relpath(bound, root)
     return [n for n in names
             if not n.startswith(scratch + os.sep) and n != scratch]

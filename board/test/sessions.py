@@ -12,8 +12,8 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
   * A card, a slate page and a turn in one session survive a second `new`,
     and `next_turn_id` continues in the first. Only `end` sets `ended`.
   * A Repo serves a session: the Atlas root while unbound, the subject's root
-    when bound; `hw` appears when `writeup` is a homework set, so `board hw`
-    works on it.
+    when bound; `hw` appears when `writeup` is a homework set, so
+    `board writeup` works on it.
   * `end` commits the subject's TUTOR.md and the artifacts listing the session,
     and nothing else; `delete` moves the directory to the trash.
   * `/sessions/` is ignored, and the pre-commit hook refuses
@@ -194,7 +194,7 @@ try:
           and sessions.path("20261008-120000/../x", base) is None
           and sessions.get("nope", base) is None)
 
-    # ---- a bound session, its writeup and `board hw` ------------------------
+    # ---- a bound session, its writeup and `board writeup` -------------------
     c = sessions.new("Ch 7", base=base, now=now + 5)
     c_dir = sessions.path(c["id"], base)
     rc = sessions.repo(c["id"], base)
@@ -204,15 +204,15 @@ try:
           rc.root == galois and rc.session == c_dir)
     st = rc.state()
     check("with no writeup, there is no hw", "hw" not in st and st["writeup"] is None)
-    code, out = board(["hw", "use", "ch07"], session=c_dir)
+    code, out = board(["writeup", "use", "ch07"], session=c_dir)
     rec = json.load(open(os.path.join(c_dir, "session.json")))
-    check("board hw use writes the set as the session's writeup",
+    check("board writeup use writes the set as the session's writeup",
           code == 0 and rec["writeup"] == "courses/Galois/" + hw_rel
           and "hw" not in rec, (code, out, rec))
     check("and state() exposes it as the legacy hw key",
           sessions.repo(c["id"], base).state().get("hw") == hw_rel)
-    code, out = board(["hw", "status"], session=c_dir)
-    check("board hw status in the session resolves ch07",
+    code, out = board(["writeup", "status"], session=c_dir)
+    check("board writeup status in the session resolves ch07",
           code == 0 and out.startswith("ch07") and "7.1" in out, out)
     load = lesson_state.load_hw(sessions.repo(c["id"], base))
     check("and the board's payload finds the same set",
@@ -226,8 +226,8 @@ try:
           "writeup" in rec and rec["writeup"] is None)
     check("homework.find answers on a session state with no chapter",
           homework.find(galois, sessions.repo(c["id"], base).state()) is not None)
-    code, out = board(["hw", "status"], session=b_dir)
-    check("board hw in an unbound session says to bind first",
+    code, out = board(["writeup", "status"], session=b_dir)
+    check("board writeup in an unbound session says to bind first",
           code == 1 and "bind" in out, out)
 
     # ---- end, reopen ---------------------------------------------------------

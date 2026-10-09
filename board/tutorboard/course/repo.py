@@ -1,9 +1,10 @@
 """A workspace on disk, its session directory, and the paths inside it.
 
 Everything the board reads or writes during a lesson hangs off one of these,
-so a directory layout that changes changes here and nowhere else. The session
-directory is `<root>/live` unless a caller names another one; `session_dir`
-and `session_path` are the same answer for code that holds only a root.
+so a directory layout that changes changes here and nowhere else. Every Repo
+is handed its session directory; there is no default. `session_dir` and
+`session_path` answer the one a CLI process bound, for code that holds only a
+root, and None where it bound none.
 
 A session directory holding `session.json` is a stored session
 (`tutorboard/sessions.py`): its state is session.json, its uploads sit at its
@@ -22,20 +23,17 @@ import re
 _BOUND = {}
 
 
-# The one place that knows a workspace keeps its session in `live/`.
 def session_dir(root):
-    """The session directory of the workspace at `root`: the one `resolve`
-    bound for it in this process, else `<root>/live`."""
-    if _BOUND:
-        said = _BOUND.get(os.path.realpath(root))
-        if said:
-            return said
-    return os.path.join(root, "live")
+    """The session directory `resolve` bound for the workspace at `root` in
+    this process, else None."""
+    return _BOUND.get(os.path.realpath(root))
 
 
 def session_path(root, *parts):
-    """A path inside the session directory of the workspace at `root`."""
-    return os.path.join(session_dir(root), *parts)
+    """A path inside the session directory bound for the workspace at
+    `root`, else None."""
+    said = session_dir(root)
+    return os.path.join(said, *parts) if said else None
 
 
 SESSION_JSON = "session.json"
@@ -53,8 +51,11 @@ def is_stored(session):
 
 def session_state(root):
     """The state of the session bound to `root`: what `Repo.state()` says,
-    and always a dict."""
-    said = Repo(root, create=False).state()
+    and always a dict; {} where no session is bound."""
+    where = session_dir(root)
+    if not where:
+        return {}
+    said = Repo(root, where, create=False).state()
     return said if isinstance(said, dict) else {}
 
 
@@ -128,8 +129,14 @@ def ink_records(repo, suffix=".json"):
 # which workspace a command runs in
 # ---------------------------------------------------------------------------
 class NoWorkspace(SystemExit):
-    """Raised instead of answering with the Atlas root: a CLI that lets it
-    propagate exits 1 with the message, having created nothing."""
+    """Raised instead of answering with the Atlas root, or with no session
+    where a command needs one: a CLI that lets it propagate exits 1 with the
+    message, having created nothing."""
+
+
+# The session directory of a Repo with no session (`sessionless`): never
+# created, so nothing is written there.
+NONE = ".none"
 
 
 # This checkout's root: the parent of `board/`, from this file's own path.
@@ -191,14 +198,15 @@ def _ancestors(d):
         d = parent
 
 
-def resolve(root=None, create=True):
-    """The Repo a CLI command works on. One resolver for both CLIs.
+def resolve(root=None, create=True, need_session=True):
+    """The Repo a CLI command works on.
 
     `TUTORBOARD_SESSION` names the session directory when set; the workspace
-    is then `root`, else the nearest one above the cwd, else the Atlas root.
-    Without it, the workspace is `root` or `find_repo()`, and the session is
-    its `live/`. With it, `session_dir` of that workspace answers the session
-    for the rest of the process.
+    is then `root`, else the nearest one above the cwd, else the Atlas root,
+    and `session_dir` of that workspace answers the session for the rest of
+    the process. Without it, a command that needs a session raises
+    NoWorkspace, and one that does not gets `sessionless` over `root` or
+    `find_repo()`.
     """
     said = os.environ.get("TUTORBOARD_SESSION")
     if said:
@@ -212,7 +220,22 @@ def resolve(root=None, create=True):
         _BOUND.clear()
         _BOUND[os.path.realpath(where)] = session
         return Repo(where, session=session, create=create)
-    return Repo(find_repo(root), create=create)
+    if need_session:
+        raise NoWorkspace(
+            "this command works on a session, and none is named: it runs "
+            "inside a tutor turn, or with TUTORBOARD_SESSION set to "
+            "sessions/<id>")
+    return sessionless(find_repo(root))
+
+
+def sessionless(root, atlas=None):
+    """A Repo over `root` with no session: its session directory is
+    `<atlas>/sessions/.none`, which nothing creates, so a write into it fails
+    rather than leaving a stray directory."""
+    repo = Repo(root, os.path.join(atlas or ATLAS, "sessions", NONE),
+                create=False)
+    repo.sessionless = True
+    return repo
 
 
 def stored_root(session):
@@ -235,9 +258,13 @@ class Repo:
     """`create` makes every directory the board writes into; False makes none,
     and `ensure_dirs(cli=True)` makes the set a CLI command writes into."""
 
-    def __init__(self, root, session=None, create=True):
+    sessionless = False
+
+    def __init__(self, root, session, create=True):
+        if not session:
+            raise ValueError("a Repo needs its session directory")
         self.root = os.path.abspath(root)
-        self.session = os.path.abspath(session) if session else session_dir(self.root)
+        self.session = os.path.abspath(session)
         # A stored session (`sessions/<id>/`), as against a workspace's live/.
         self.stored = is_stored(self.session)
         # The Atlas root holding `sessions/`, for a stored session.

@@ -192,7 +192,7 @@ doc = [d for d in library.documents(work) if d["stem"] == "manuscript"][0]
 check("TRD-EHR's manuscript is a library document with its Markdown as source",
       doc["source"] == "paper1-trd-prediction/manuscript.md")
 
-repo = Repo(work)
+repo = Repo(work, os.path.join(work, "live"))
 note = library.write_note(repo, doc["id"], "Section 3 reports the wrong split.",
                           hand_over=False)
 check("the note is filed beside the manuscript", note.get("ok") is True

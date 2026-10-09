@@ -17,11 +17,7 @@
    /library?subject=<id>.
 
    AN ADDRESS IN THE BAR IS FOLLOWED. `#/s/<id>/...` goes to that session's
-   board with the address carried whole. An old `#/w/<family>/<ws>/...` link
-   is read through `imported` in /sessions.json (sessions/.imported.json):
-   the session that workspace's live/ became, and the same card in it. With
-   no match it lands on the subject's page with a note that the link was to
-   an archived sitting. T55 deletes that shim.
+   board with the address carried whole. Nothing else is an address.
 
    Nothing in the paint may throw: this page is the way into every lesson.
    ========================================================================== */
@@ -746,55 +742,13 @@ function say(text) {
   els.said.textContent = text || "";
 }
 
-/* The session an old workspace's live/ became, matched without regard to
-   case: links spelled the family `Courses` where the id says `courses`. */
-function importedSession(a) {
-  var map = (sessionsData && sessionsData.imported) || {};
-  var want = (a.family + "/" + a.workspace).toLowerCase();
-  var keys = Object.keys(map);
-  for (var i = 0; i < keys.length; i++) {
-    if (keys[i].toLowerCase() === want) return map[keys[i]];
-  }
-  return "";
-}
-
-/* A subject by its directory name, for an old link with no session. */
-function subjectFor(a) {
-  var want = String(a.workspace || "").toLowerCase();
-  var found = null;
-  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
-    if (!found && String(s.slug || "").toLowerCase() === want) found = s;
-  });
-  return found;
-}
-
-/* Where an address in the bar goes, or "" when it goes nowhere. */
-function destination(a) {
-  if (!a) return "";
-  if (a.session) return "/s/" + enc(a.session) + "/board" + a.text;
-  var sid = importedSession(a);
-  if (sid) {
-    var spec = { session: sid, surface: "session" };
-    if (a.surface === "card") { spec.surface = "card"; spec.card = a.card; }
-    return "/s/" + enc(sid) + "/board" + window.Address.format(spec);
-  }
-  var s = subjectFor(a);
-  if (s) return "/library?subject=" + enc(s.id) + "&from=archived";
-  return "";
-}
-
 function route() {
   if (!window.Address) return;
   var a = null;
   try { a = window.Address.parse(window.location.hash || ""); } catch (e) { a = null; }
   if (!a || a.text === routed) return;
-  /* An old link needs the sessions and the subjects to be read. */
-  if (!a.session && (!sessionsData || !subjectsData)) return;
   routed = a.text;
-  var to = destination(a);
-  if (to) { go(to); return; }
-  say("That link is to an archived sitting of " + a.workspace
-      + ", and nothing here holds it now.");
+  go("/s/" + enc(a.session) + "/board" + a.text);
 }
 
 window.addEventListener("hashchange", route);

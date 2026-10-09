@@ -44,7 +44,7 @@ ws = os.path.join(tmp, "ws")
 os.makedirs(ws)
 with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Rebuild Course"}, fh)
-repo = course_repo.Repo(ws)
+repo = course_repo.Repo(ws, os.path.join(ws, "live"))
 
 worker = tikz.TikzWorker(repo)
 worker.start()
@@ -116,6 +116,7 @@ try:
     p = subprocess.run(
         [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "lesson",
          "Sentinel card", "--repo", ws],
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(ws, "live")),
         input="The derivative of x squared is 2x.\n",
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         universal_newlines=True, timeout=60)

@@ -65,12 +65,11 @@ CODE_PREFIX = "refs/heads/code/"
 
 def atlas_of(subject):
     """The Atlas root holding `subject`: the parent of its `courses/` or
-    `projects/` (or a legacy parent), else `subject` itself -- the Atlas root
-    an unbound session's Repo names, or a tree that stands alone."""
+    `projects/`, else `subject` itself -- the Atlas root an unbound
+    session's Repo names, or a tree that stands alone."""
     subject = os.path.abspath(subject)
     parent = os.path.dirname(subject)
-    known = [d for d, _ in subjects.DIRS] + list(subjects.LEGACY)
-    if os.path.basename(parent) in known:
+    if os.path.basename(parent) in dict(subjects.DIRS):
         return os.path.dirname(parent)
     return subject
 

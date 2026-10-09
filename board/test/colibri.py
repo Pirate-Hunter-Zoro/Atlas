@@ -140,6 +140,10 @@ for where, st in ((teach, {"session": "lecture", "aim": "teach"}),
     os.makedirs(os.path.join(where, "live"), exist_ok=True)
     with open(os.path.join(where, "live", "state.json"), "w", encoding="utf-8") as fh:
         json.dump(st, fh)
+# A turn's clock reads the session's state, through the session's Repo.
+from tutorboard.course import repo as course_repo  # noqa: E402
+teach, doing = [course_repo.Repo(w, os.path.join(w, "live"), create=False)
+                for w in (teach, doing)]
 
 check("a teaching turn's clock is unchanged for a hosted agent",
       runturn.turn_timeout(CFG, teach, CFG["agents"]["claude"]) == 900)
@@ -153,8 +157,8 @@ check("and the recipe is a FLOOR, so a longer sitting still wins",
       runturn.turn_timeout(dict(CFG, doing_timeout=99999), doing, spec) == 99999)
 check("a recipe with nonsense in the field does not break the clock",
       runturn.turn_timeout(CFG, teach, {"timeout": "soon"}) == 900)
-shutil.rmtree(teach, ignore_errors=True)
-shutil.rmtree(doing, ignore_errors=True)
+shutil.rmtree(teach.root, ignore_errors=True)
+shutil.rmtree(doing.root, ignore_errors=True)
 
 # ---------------------------------------------------------------------------
 # 3. the four states, off squeue, with no cluster in the room

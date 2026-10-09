@@ -68,7 +68,7 @@ def report_owed(where, this_signal, out, log=None):
             log.write("-- the turn exited with %s still pending; waking it once "
                       "more to report\n" % rel)
         return unfinished_line(out, rel)
-    changed = lesson_git.uncommitted(root) or []
+    changed = lesson_git.uncommitted(root, session=repo.session) or []
     try:
         since = os.path.getmtime(path)
     except OSError:

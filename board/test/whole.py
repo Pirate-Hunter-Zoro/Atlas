@@ -150,10 +150,10 @@ check("into the same directory, because a rename across filesystems is a copy "
       "os.path.dirname(path)" in write_fn)
 
 lesson = tempfile.mkdtemp(prefix="board-whole-live-")
-env = dict(os.environ)
+env = dict(os.environ, TUTORBOARD_SESSION=os.path.join(lesson, "live"))
 proc = subprocess.run(
     [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "lesson",
-     "a written card"],
+     "a written card", "--repo", lesson],
     input="The kernel is normal.\n\nHere is why, in one line.\n",
     text=True, capture_output=True, cwd=lesson, env=env, timeout=120)
 if proc.returncode == 0 and proc.stdout.strip():

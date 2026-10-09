@@ -278,7 +278,7 @@ check("an untracked artifact leaves without a commit",
 from tutorboard.server import handler, hub, tikz            # noqa: E402
 from tutorboard.runner import service as runner_service  # noqa: E402
 
-repo = course_repo.Repo(root)
+repo = course_repo.Repo(root, os.path.join(root, "live"))
 real_stamp = library.stamp
 
 
@@ -295,7 +295,7 @@ try:
           status["documents"] and status["subject"] == "courses/Topo")
     wid = "t0042"
     shown_art = artifacts.create(root, "A strip row", ext="md", base=base)
-    writeups.ask(root, wid, "paper", "a strip row", doc_dir=shown_art["rel"])
+    writeups.ask(repo, wid, "paper", "a strip row", doc_dir=shown_art["rel"])
     worker = tikz.TikzWorker(repo)
     board = hub.Hub(repo, worker)
     rows = board.build().get("writeups") or []

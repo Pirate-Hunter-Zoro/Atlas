@@ -135,7 +135,7 @@ write(os.path.join(WS, "results", "spacer.png"), b"\x89PNG\r\n\x1a\ntiny")
 write(os.path.join(WS, "results", "summary.csv"), b"a,b\n1,2\n")
 write(os.path.join(WS, "results", "deep", "a", "b", "c", "buried.png"), BIG)
 
-repo = course_repo.Repo(WS)
+repo = course_repo.Repo(WS, os.path.join(WS, "live"))
 with open(repo.state_path, "w", encoding="utf-8") as fh:
     json.dump({"course": "TRD-EHR"}, fh)
 

@@ -105,13 +105,13 @@ for where, text in (
         fh.write(text + PAD)
 
 sitting(made, session="lecture")
-said = sense.session_sense(course_repo.Repo(made))
+said = sense.session_sense(course_repo.Repo(made, os.path.join(made, "live")))
 check("a sitting in a project made of parts is told nothing about boxes",
       "PART OF THE MAP" not in said and "COMPONENT BOUNDARY" not in said
       and "#/w/" not in said)
 sitting(made, session="lecture", node="typist", chapter="typist")
 check("and a legacy state naming a box changes nothing",
-      "COMPONENT BOUNDARY" not in sense.session_sense(course_repo.Repo(made)))
+      "COMPONENT BOUNDARY" not in sense.session_sense(course_repo.Repo(made, os.path.join(made, "live"))))
 sitting(made, session="lecture")
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ sitting(made, session="lecture")
 tmp = tempfile.mkdtemp(prefix="tutor-asking-")
 with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Test Course"}, fh)
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 
 # The two things that must not happen. What is checked is that neither is ASKED
 # for -- a test does not start a daemon, and it must not archive a lesson either.

@@ -148,17 +148,15 @@ class Registry(object):
 
 # The session directory of a sessionless Repo. Never created by a write: a
 # route handed one refuses card ink, turns and inbox lines.
-NONE = ".none"
+NONE = course_repo.NONE
 
 
 def sessionless(root, atlas):
-    repo = course_repo.Repo(root, session=os.path.join(sessions.store(atlas), NONE),
-                            create=False)
+    repo = course_repo.sessionless(root, atlas)
     repo.doc_ink = os.path.join(repo.root, sessions.INK)
     # The one TikZ cache every session shares (`server/tikz.py`).
     repo.tikz = os.path.join(sessions.store(atlas), ".tikz")
     repo.atlas = os.path.abspath(atlas)
-    repo.sessionless = True
     return repo
 
 

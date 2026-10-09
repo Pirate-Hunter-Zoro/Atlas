@@ -157,9 +157,6 @@ function strays(asked, prefix) {
   board.asked.length && board.asked.some((r) => r.url === '/s/A/slate/state')
     ? ok('the slate under the lesson reads /s/A/slate/state')
     : fail('the slate read ' + board.asked.map((r) => r.url).join(' '));
-  board.asked.some((r) => /^\/s\/A\/health/.test(r.url))
-    ? ok('the board asks /s/A/health about itself')
-    : fail('the board did not ask its own health');
 
   const stray = strays(board.asked, '/s/A/');
   stray.length === 0

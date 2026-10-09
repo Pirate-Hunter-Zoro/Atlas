@@ -219,9 +219,10 @@ MAX_PAGE_BYTES = 8 * 1024 * 1024
 A4 = (595.28, 841.89)
 
 
-def build(root, pages, page_w=None, page_h=None):
+def build(root, pages, page_w=None, page_h=None, state=None):
     """The pixels, into the repository, named and numbered: v1, v2, v3 of
-    the same lesson, through `next_version`."""
+    the same lesson, through `next_version`. `state` is the session's, which
+    names the file; else the session this process bound for `root`."""
     if not pages:
         return {"ok": False, "detail": "the lesson came back with no pages in it"}
     if len(pages) > MAX_PAGES:
@@ -233,7 +234,8 @@ def build(root, pages, page_w=None, page_h=None):
         if not jpeg_size(data):
             return {"ok": False, "detail": "a page arrived that is not a JPEG"}
 
-    state = course_repo.session_state(root)
+    if state is None:
+        state = course_repo.session_state(root)
     title = state.get("chapter") or state.get("course") or "Lesson"
     stem = slugify(title)
     out_dir = os.path.join(root, OUT_DIR)

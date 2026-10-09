@@ -164,10 +164,6 @@ var els = {
    cached shell, and there is no second copy of it to go stale. */
 var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
                           title: "back to everything" },
-                  /* An old `#/w/` link the home screen could not follow
-                     into a session lands here (home.js, T55 deletes it). */
-                  archived: { href: "/", text: "\u2039 Everything",
-                              title: "back to everything" },
                   /* The board reopens on the map it was left on. */
                   map: { href: BASE + "/board", text: "\u2039 Map",
                          title: "back to the map" } };
@@ -184,15 +180,6 @@ var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
   var from = "";
   try { from = new URLSearchParams(location.search).get("from") || ""; }
   catch (e) { from = ""; }
-  if (from === "archived") {
-    var note = document.createElement("p");
-    note.id = "lib-archived";
-    note.className = "lib-none";
-    note.textContent = "That link was to a card in an archived sitting, so "
-      + "it opens this subject's page instead.";
-    var host = document.getElementById("library");
-    if (host) host.insertBefore(note, host.firstChild);
-  }
   var want = CAME_FROM[from] || (!BASE && SUBJECT ? CAME_FROM.home : null);
   if (!want) return;
   el.href = want.href;

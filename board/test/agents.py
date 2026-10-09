@@ -138,8 +138,8 @@ check("a workspace's `agent` key and the sitting's are read by nothing",
       and not hasattr(recipes, "read_course"))
 check("and the strike stand-down is gone", not hasattr(_egress, "mark_failing"))
 
-# The machine's own file: `provider`, with a `default_agent` read where it
-# names none (the shim T55 removes), and nothing written when it is missing.
+# The machine's own file: `provider` alone chooses, a `default_agent` is read
+# by nothing, and nothing is written when the file is missing.
 _cfg_box = tempfile.mkdtemp(prefix="tutor-cfg-")
 _was_config = recipes.CONFIG
 recipes.CONFIG = os.path.join(_cfg_box, "config.json")
@@ -149,14 +149,14 @@ check("a missing config is the defaults, and nothing is written",
 with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"default_agent": "deepseek", "only_agent": "deepseek"}, fh)
 _loaded = recipes.load_config()
-check("a legacy default_agent is read as the provider, and only_agent is "
-      "ignored", _loaded["provider"] == "deepseek"
+check("a default_agent or only_agent chooses nothing: the provider is the "
+      "default's", _loaded["provider"] == "claude"
       and "only_agent" not in _loaded and "default_agent" not in _loaded)
 with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"provider": "codex", "default_agent": "deepseek",
                "agents": {"claude": {"label": "Mine"}}}, fh)
 _loaded = recipes.load_config()
-check("`provider` wins over a legacy default_agent",
+check("`provider` is read beside a leftover default_agent",
       _loaded["provider"] == "codex")
 check("and a recipe field merges into the built-in one rather than replacing it",
       _loaded["agents"]["claude"]["label"] == "Mine"
