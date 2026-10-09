@@ -491,10 +491,16 @@ def next_task(resolved):
 
 
 def _doc_found(root, ident):
+    """Does the reader offer `ident`, or is it an artifact's id? An artifact
+    (`docs/<slug>/doc.json`) is the document whether or not its PDF is built,
+    and a built PDF is ignored, so a fresh checkout has none."""
     try:
         from . import reading                                # local: a cycle
         found, _name = reading.find(root, ident)
-        return bool(found)
+        if found:
+            return True
+        from .. import artifacts
+        return artifacts.get(root, ident) is not None
     except Exception:                                        # noqa: BLE001
         return False
 
