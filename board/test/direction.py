@@ -27,7 +27,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import brief, carry, direction, sense
+from tutorboard import brief, direction, sense
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
 from tutorboard.server import handler, hub, spawn, tikz
@@ -89,11 +89,10 @@ check("and that bringing them true is the work rather than a separate job",
 check("and that the change is not to be argued with",
       "Do not argue" in said)
 
+# The brief reads RULES.md and TUTOR.md only (T30a); the direction reaches the
+# woken turn through the inbox line, and T30c deletes DIRECTION.md.
 text = brief.briefing(course_repo.Repo(tmp), sense)
-check("every briefing carries it", SAID in text)
-# ABOVE THE METHOD, THE CONTRACT AND THE HANDOFF. Order is the feature here.
-check("and carries it above everything it outranks",
-      text.index(SAID) < text.index("the method, and what this sitting is"))
+check("the brief no longer reads DIRECTION.md", SAID not in text)
 
 check("the turn woken by the change is told to rewrite the plan, not to ask",
       "REWRITE THE PLAN" in direction.CHANGED
@@ -149,11 +148,9 @@ def post(path, body):
 
 
 try:
-    # A lesson in progress, and a note from the turn before -- both of which are
-    # about the direction that is being replaced.
+    # A lesson in progress, about the direction that is being replaced.
     with open(os.path.join(repo.cards, "0001-lesson.md"), "w", encoding="utf-8") as fh:
         fh.write("---\nkind: lesson\n---\nThe old direction's first card.\n")
-    carry.write_note(tmp, "They are halfway through the bake-off grid.")
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
                    "chapter": "Ch 1 — the bake-off", "mode": "do"}, fh)
@@ -170,10 +167,6 @@ try:
           len(archive.list_archive(repo)) == 1)
     check("and the board in front of them is clear",
           not [n for n in os.listdir(repo.cards) if n.endswith(".md")])
-    # The note is one turn's word to the next about a lesson that no longer
-    # exists. Left in place it is the first thing the new tutor reads.
-    check("what the last turn was aiming at is forgotten",
-          carry.read_note(tmp) == "")
 
     sent = turns.load_turns(repo)
     check("their words are in the transcript as a turn of theirs",

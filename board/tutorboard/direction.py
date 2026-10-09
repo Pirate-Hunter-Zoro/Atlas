@@ -111,7 +111,7 @@ def standing(root):
         "\n--- THE DIRECTION OF THIS WORK, in their own words%s ---\n%s\n\n"
         "This is what the workspace is for NOW, and it outranks every other "
         "document here. Where the plan, the map, the README, HANDOFF.md or "
-        "NEXT.md still describe the old direction, they are out of date rather "
+        "TUTOR.md still describe the old direction, they are out of date rather "
         "than right, and bringing them true is part of the work rather than a "
         "separate job. Do not argue the change; they have decided. Say plainly "
         "in a card if something they asked for contradicts a rule in "

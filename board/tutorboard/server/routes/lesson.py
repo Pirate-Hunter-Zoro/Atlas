@@ -35,7 +35,6 @@ from ...course import plan
 from ...course import homework
 from .. import multipart
 from .. import spawn
-from ... import carry
 from ... import direction
 from ... import mode as session_mode
 from ... import sense
@@ -215,8 +214,8 @@ def _direction(h, repo):
     THE POINT OF THE BUTTON IS THAT IT IS ONE TAP, FROM ANYWHERE, MID-EVENING.
     Asked for in these words: *"we may be balls deep in a project and I might
     realize we need a massive direction change and overhaul... I want maximum
-    power, minimum pain."* Four things have to happen for that to be true, and
-    doing three of them is worse than doing none -- a direction written down that
+    power, minimum pain."* Three things have to happen for that to be true, and
+    doing two of them is worse than doing none -- a direction written down that
     the assistant never reads is a direction the person believes is in force.
 
     1. **Write it down**, at the root, where it crosses machines and is read at
@@ -226,9 +225,7 @@ def _direction(h, repo):
        it was about, and puts the new direction in the title bar. The lesson that
        was open was about the old direction; carrying it forward is the thing
        they just said to stop.
-    3. **Forget what the last turn was aiming at.** `live/NEXT.md` is one turn's
-       note to the next about a lesson that no longer exists.
-    4. **Replace the assistant.** A running tutor holds the old direction in its
+    3. **Replace the assistant.** A running tutor holds the old direction in its
        own conversation and no file on disk can contradict that. This is the half
        a prompt cannot do, and it is the same `fresh_tutor` a chapter switch uses.
     """
@@ -266,7 +263,6 @@ def _direction(h, repo):
         if was.get(key):
             opening += [flag, str(was[key])]
     _cli(repo, opening)
-    carry.clear_note(repo.root)
     if on:
         st = repo.state()
         st["rethink"] = kept

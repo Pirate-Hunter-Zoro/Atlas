@@ -76,7 +76,7 @@ try:
     check("and the workspace's own live/ is left alone",
           not os.path.exists(os.path.join(ws, "live")))
     check("code holding only the root reaches the same session",
-          course_repo.session_path(ws, "NEXT.md") == os.path.join(sess, "NEXT.md"))
+          course_repo.session_path(ws, "turns.jsonl") == os.path.join(sess, "turns.jsonl"))
     os.environ.pop("TUTORBOARD_SESSION")
     course_repo._BOUND.clear()
 
@@ -95,13 +95,14 @@ try:
           code != 0 and "not a workspace" in out)
     check("and creates nothing", listing(ATLAS) == before)
 
-    proc = subprocess.run([sys.executable, BOARD, "note"], cwd=ATLAS,
-                          input=b"what the next turn needs\n",
+    proc = subprocess.run([sys.executable, BOARD, "write", "note", "probe"],
+                          cwd=ATLAS, input=b"what the next turn needs\n",
                           env=dict(os.environ, TUTORBOARD_SESSION=sess),
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           timeout=120)
     check("with TUTORBOARD_SESSION a write at the Atlas root lands in the session",
-          proc.returncode == 0 and os.path.isfile(os.path.join(sess, "NEXT.md")))
+          proc.returncode == 0 and any(
+              n.endswith("probe.md") for n in os.listdir(os.path.join(sess, "cards"))))
     check("and still creates nothing there", listing(ATLAS) == before)
 finally:
     os.environ.pop("TUTORBOARD_SESSION", None)

@@ -170,28 +170,13 @@ check("and a tutor whose chapter DOES have one is told to read it",
       runturn.handoff_clause(root4) == prompts.HANDOFF_CLAUSE)
 
 
-# A headless turn no longer carries the clause in its prompt: it reads `board
-# brief`, and the chapter test is applied there. Same guarantee, one indirection
-# further out -- so it is checked where it now lives, through the command the
-# turn actually runs.
+# The brief reads RULES.md and TUTOR.md, never HANDOFF.md (T30a): a headless
+# turn's continuity is the recap and TUTOR.md.
 code, out = board(root4, "brief")
-check("a headless turn's briefing carries the handoff its chapter owns",
-      code == 0 and "Chapter 1 leftovers" in out)
+check("a headless turn's briefing no longer carries HANDOFF.md",
+      code == 0 and "Chapter 1 leftovers" not in out)
 check("and the prompt sends the turn to that briefing",
       "board brief" in prompts.HEADLESS_FIRST_PROMPT)
-
-root5 = course(chapter="Ch 03 — Rings")
-write_handoff(root5, "# HANDOFF\n\nChapter 1 leftovers.\n")
-handoff.stamp_handoff(root5, "Ch 01 — Groups")
-code, out = board(root5, "brief")
-check("a chapter with no handoff of its own is told so in the briefing",
-      code == 0 and "no handoff for this chapter" in out
-      and "Chapter 1 leftovers" not in out)
-check("and told not to go looking for the last chapter's",
-      "live/handoffs/" in out and "live/archive/" in out)
-check("and the stale one is parked as a side effect of the reading",
-      os.path.exists(handoff.parked_handoff(root5, "Ch 01 — Groups"))
-      and not os.path.exists(os.path.join(root5, "HANDOFF.md")))
 
 # --- a new tutor for the new chapter ------------------------------------------
 print("\n-- a chapter gets its own tutor --")

@@ -45,7 +45,7 @@ from .. import paths as toolpaths
 
 # What a plan is called, when nothing names one. Ordered: a repository with both
 # a ROADMAP and a TODO means the TODO, because the TODO is the one that changes.
-COMMON = ("TODO.md", "TODO.txt", "TASKS.md", "PLAN.md", "ROADMAP.md", "NEXT.md")
+COMMON = ("TODO.md", "TODO.txt", "TASKS.md", "PLAN.md", "ROADMAP.md")
 
 # A path-shaped token in a README that looks like a plan. Deliberately narrow:
 # it must END in one of the plan words plus an extension, so `planning/` alone

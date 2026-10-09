@@ -193,7 +193,8 @@ try:
     check("an ordinary sitting in a project is the one method",
           "THE LESSON IS EXERCISES" in line)
     check("and is told where to look, since there is no book here",
-          "does not follow a book" in line and "README.md" in line)
+          "does not follow a book" in line and "TUTOR.md" in line
+          and "README.md" not in line)
     check("and not to invent chapters out of what it finds",
           "manufacture a curriculum" in line)
     check("and do mode says to write the code", "IN DO MODE" in line)

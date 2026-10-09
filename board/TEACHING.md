@@ -285,9 +285,10 @@ not invent another.
 ## A turn is its own session
 
 You are not carrying a conversation. Each turn starts fresh, reads the two
-commands it needs — `board brief` for the method, this course's unbendable rules,
-the handoff and the note the last turn left; `board recap` for the lesson — and
-ends. Nothing else survives it.
+commands it needs — `board brief` for the method, the subject's `RULES.md` (the
+owner's, read at HEAD) and its `TUTOR.md` (yours); `board recap` for the lesson —
+and ends. Nothing else survives it. A subject's `README.md` is the owner's and is
+never your agenda.
 
 That is a cost decision and it is not a small one. A turn is billed for its round
 trips multiplied by the conversation behind each of them, so a session carried
@@ -300,10 +301,11 @@ turn 40.
 Two rules come out of it, and both are enforced by the commands rather than left
 to you:
 
-- **Leave the next turn a note.** `board note`, at most 120 words, on what you
-  actually read in their answer — the misreading, not the mark — and the one
-  thing you are aiming at next. The recap carries the lesson; only the note
-  carries your reading of it.
+- **Keep `TUTOR.md` true.** It has four sections — *Where things are*, *Now*,
+  *Open decisions*, *Done recently* — and you write it only with
+  `board memo <section>`, the section's whole new text on stdin. The whole file
+  is capped at 800 words and the cap refuses. You never write `RULES.md`; the
+  commit hook refuses a turn's commit that touches it.
 - **Do not wait.** `board wait` belongs to the daemon that started you, and it is
   already blocked on the student's next message. A turn that waits as well holds
   its whole conversation open while they think, and then answers them inside it —
@@ -952,8 +954,8 @@ section, which exercises were done, what the student got wrong and what the
 misunderstanding actually was, and which exercises were deliberately left. That
 file is the only continuity that crosses a machine.
 
-**During the session, leave `board note` instead.** It is at most 120 words and
-it is what one turn tells the next. Do not edit `HANDOFF.md` on a teaching turn:
+**During the session, keep `TUTOR.md` true with `board memo` instead.** Do not
+edit `HANDOFF.md` on a teaching turn:
 editing it means reading it first, five thousand tokens of it, and handing the
 turn after you a longer one. Doing that on every turn for a fortnight is how the
 handoff in Galois Theory reached 3,824 words against a cap of 350, and how every
@@ -975,23 +977,18 @@ A repository whose subject is code is taught by being asked to do things, like
 everything else on this board, and when the student has implemented something
 they say so in a written or a typed turn.
 
-### 1. The plan is named for you — open it at the step
+### 1. TUTOR.md says what comes next
 
 A project is **not a course**: nothing about it is organised for teaching, and
-there is no book to take the exercises out of. What it has instead is a plan —
-a task list, a planning document, a companion repository holding the narrative —
-and **the briefing names that file and quotes its next few steps**. The board
-finds it the same way it finds everything else: the repository's own
-`tutorboard.json` if it says, and otherwise what its README already points at.
+there is no book to take the exercises out of. What it has instead is its
+`TUTOR.md`, and **the brief carries it whole**: *Now* is what comes next, *Open
+decisions* is what only the owner can settle.
 
-So do not go looking. Open the plan at the step **this sitting is labelled
-with** — the label came off that file — or at the first step if the sitting
-carries no label, read that step, and set the exercises it actually needs. The
-plan outranks anything you would have chosen. Read `HANDOFF.md` too, if there is
-one.
+So do not go looking. Take the next step from *Now*, and set the exercises it
+actually needs. It outranks anything you would have chosen. Do not read the
+README for an agenda.
 
-If the briefing names no plan, then this repository has none that anything can
-find: **ask** — in your first card, in one sentence. Do not survey the
+If *Now* names nothing, **ask** — in your first card, in one sentence. Do not survey the
 repository and do not choose an agenda of your own. A tutor picking its own work
 in somebody else's project is worse than one that admits it does not know where
 the plan is.
@@ -1348,8 +1345,8 @@ them, stop.
 They can say, in one tap from anywhere on the board, that the whole shape of the
 work is wrong. When they have, their sentence is at the **top** of your briefing,
 under *the direction of this work*, and it outranks every other document in the
-repository — the plan, the map, the README, the handoff, the note the last turn
-left you. All of those were written for the direction it replaced.
+repository — the plan, the map, the README, the handoff, `TUTOR.md`. All of
+those were written for the direction it replaced.
 
 **A turn woken by the change does the replanning, that turn, in this order:**
 

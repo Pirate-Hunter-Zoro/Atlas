@@ -392,19 +392,12 @@ and `stage2_reference_walkthrough.pdf` is in the same directory.
     plan._cache.clear()
     reading._cache.clear()
 
+    # The plan reaches a turn through TUTOR.md now, never through the README
+    # or a planning file the board finds (T30a); `where_sense` says so.
     line = sense.where_sense(None, proj)
-    check("a project's tutor is told where the plan is, by name",
-          "~/projects/Research-Journey/planning/PSYCH-ASR_TODO.txt" in line)
-    # The round trips this removes: a 1,500-line README, a pointer out of it,
-    # and a 1,300-line task list, paid for on every cold turn.
-    check("and handed the steps rather than sent to find them",
-          "THE TYPIST BAKE-OFF" in line and "THE GRID" in line)
-    check("and told the plan outranks anything it would have chosen",
-          "OUTRANKS ANYTHING YOU WOULD HAVE CHOSEN" in line)
-    check("and told to open the step this sitting is labelled with",
-          "the step this sitting is labelled with" in line)
-    check("a project with no plan is still told to read what the README points at",
-          "follow what it points at" in sense.where_sense(None, book))
+    check("a project's tutor is sent to TUTOR.md, not to the README's plan",
+          "TUTOR.md" in line and "PSYCH-ASR_TODO.txt" not in line
+          and "README.md at the root" not in line)
 
     class FakeRepo(object):
         root = proj

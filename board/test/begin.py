@@ -111,11 +111,10 @@ try:
           "carries no label of its own" in text and "Do not guess" in text)
     check("a course that is not a book is not given a fictional chapter one",
           "follows a book" not in text)
-    # And it is told where to look instead. This repository has no syllabus, so
-    # the only thing that can say what comes next is what it points at -- which
-    # is the whole of what the old `code` mode was for.
-    check("and is pointed at the README rather than left to survey",
-          "README.md" in text and "manufacture a curriculum" in text)
+    # And it is told where to look instead: TUTOR.md's "Now", never the README.
+    check("and is pointed at TUTOR.md rather than left to survey",
+          "TUTOR.md" in text and "manufacture a curriculum" in text
+          and "README.md" not in text)
 
     # An unread message is what wakes `board wait`.
     check("it arrives unread", lines and lines[0].get("read") is False)

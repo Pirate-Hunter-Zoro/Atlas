@@ -7,8 +7,8 @@ What the checks are about:
     a map tap or `board open --thread` writes `thread`, not `node`, and the
     sitting is named after the thread. It carries no kind: who writes the code
     is the session's mode (test/mode.py).
-  * THE BRIEFING OPENS WITH THE THREAD: its question, open tasks and
-    decisions, outputs, and what the last sitting on it reported.
+  * THE BRIEFING NO LONGER READS threads.json (T30a): it carries RULES.md and
+    TUTOR.md. The last sitting on a thread is still found by thread id.
   * A RETHINK IS ABOUT THE CURRENT THREAD. It does not write DIRECTION.md, the
     woken turn is told to rewrite that thread's tasks, and the new sitting keeps
     the thread's name.
@@ -159,29 +159,12 @@ check("the archive lists say which thread each sitting was on",
 
 fresh()
 text = brief.briefing(repo, sense)
-lines = text.splitlines()
-check("the briefing opens with the thread, right under the title",
-      len(lines) > 2 and "the thread this sitting is on: Weighted neighbours"
-      in lines[2] and not lines[1].strip())
-check("it carries the question",
-      "Does weighting beat cosine on every embedder?" in text)
-check("the open tasks, numbered as `board thread done` counts them",
-      "  2. Draw the scatter" in text and "Run the sweep" not in text)
-check("the open decisions, and not the decided ones",
-      "How to count dimensions" in text and "Which k" not in text.split(
-          "the method, and what this sitting is")[0])
-check("the outputs, and which exist",
-      "results/knn.csv (there)" in text and "results/missing.csv (not yet)" in text)
-check("and the last sitting's report", "peaks at k=64" in text)
-check("and that the thread is the scope, not the README",
-      "Do not read the project's README or plan" in text)
-check("the thread comes before the method",
-      text.index("the thread this sitting is on")
-      < text.index("the method, and what this sitting is"))
-check("the method itself sends a thread sitting to the thread, not the plan",
-      "the thread is the scope" in sense.where_sense(None, tmp, {"thread": "knn"})
-      and "README.md at the root" not in sense.where_sense(
-          None, tmp, {"thread": "knn"}))
+# `sense.node_sense` still names the sitting's map box until T50.
+check("the briefing carries no thread section from threads.json",
+      "the thread this sitting is on" not in text
+      and "Open tasks" not in text and "THREADS WRITTEN" not in text)
+check("and the method sends no sitting to the README",
+      "README.md at the root" not in sense.where_sense(None, tmp, {"thread": "knn"}))
 
 # ---------------------------------------------------------------------------
 # the board's own requests
@@ -258,10 +241,6 @@ try:
           "Propose it" in line and "board thread add" in line)
     check("the lesson is still archived and the tutor still replaced",
           len(replaced) >= 1)
-    fresh()
-    text = brief.briefing(repo, sense)
-    check("the briefing carries the rethink in the thread's section",
-          SAID in text.split("the method, and what this sitting is")[0])
     run(tmp, "open", "Proj", "--thread", "estimand")
     check("the rethink belongs to its sitting and is cleared by the next",
           "rethink" not in state(tmp))
@@ -327,4 +306,4 @@ print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a sitting belongs to a thread, and its briefing opens with it")
+print("a sitting belongs to a thread")

@@ -21,7 +21,7 @@ drill or a review.
 import os
 
 from . import fenced, plain, spell
-from .course import config, homework, plan, reading, results, syllabus, walk
+from .course import config, homework, reading, results, syllabus, walk
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from .course import map as mapping
 
@@ -119,7 +119,7 @@ MEASURE_SENSE = (
 
 
 METHOD_SENSE = (
-    "Follow live/TEACHING.md, and the rule it all follows from: THE LESSON IS "
+    "Follow board/TEACHING.md, and the rule it all follows from: THE LESSON IS "
     "EXERCISES, not explanation. Never write a card that teaches for four "
     "paragraphs and asks at the bottom. Instead: state the exercise in full so "
     "they can see what it is for, then hand them ONE tiny thing to work "
@@ -162,39 +162,28 @@ METHOD_SENSE = (
 # walkthrough, coached code, a review. Every agreed answer to a question the
 # tutor posed goes in. `board writeup` makes the file the first time.
 WRITEUP_SENSE = (
-    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER, not part of the end "
-    "of the session. The moment their answer to a question you posed is agreed "
-    "correct -- not before, and before you pose the next one -- run "
-    "`board writeup add <label>` with the STATEMENT, then a line `---`, then "
-    "THEIR agreed argument on stdin (a quoted heredoc). That one command writes "
-    "both into the session's write-up, files their newest sent page into its "
-    "handwritten/ directory (`--turn tNNNN` for another page), and rebuilds the "
-    "PDF. The first add makes the write-up: the bound homework set, written in "
-    "place in the sheet's own order (`board writeup use <chNN>` binds one, "
-    "`board writeup list` shows them), else `docs/<session>/writeup.tex`. A "
-    "session bound to no subject is refused, so bind it first. Code and "
-    "pseudocode go in fenced ``` blocks and are set verbatim. `board writeup "
-    "status` says what is written and what is next. "
+    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. The moment their "
+    "answer to a question you posed is agreed correct -- not before, and before "
+    "you pose the next one -- run `board writeup add <label>` with the "
+    "STATEMENT, a line `---`, then THEIR agreed argument on stdin (a quoted "
+    "heredoc). It writes both into the session's write-up (the bound homework "
+    "set, else `docs/<session>/writeup.tex`), files their newest sent page into "
+    "handwritten/ (`--turn tNNNN` for another), and rebuilds the PDF. A session "
+    "bound to no subject is refused. Code goes in fenced ``` blocks. "
     "COMPILING IS YOURS, not theirs -- if the build fails, fix it, and put the "
-    "LaTeX error it printed on the board rather than the word 'failed'. Never "
-    "write a solution they have not produced, and never leave the write-up for "
-    "the end: a session is abandoned far more often than it is finished "
-    "tidily, so an answer agreed at half past is typeset by twenty-five to. "
+    "LaTeX error on the board rather than the word 'failed'. Never write a "
+    "solution they have not produced, and never leave the write-up for the "
+    "end: a session is abandoned far more often than it is finished tidily. "
     # AND NEVER TELL THEM TO WRITE IT UP. A card in Galois Theory said "two
     # words to add when you write it up", which is two failures in one clause:
     # it hands over an errand that does not exist -- the document is the tutor's
     # -- and it DEFERS A CORRECTION, because the missing word was a fact about
-    # the proof rather than a note for later. Reported as "I'M not fucking
-    # writing anything up... It should put phrases in like that - that makes me
-    # uneasy." In headless this string is the whole prompt, so the rule has to
-    # be here and not only in the document.
-    "NEVER TELL THEM TO WRITE IT UP. No card says 'when you write it up', 'add "
-    "this to your write-up' or 'two words to add' -- the document is yours, so "
-    "report what the file NOW SAYS rather than handing them an errand. And where "
-    "the missing words are a CORRECTION, make it in the write-up in this same "
-    "turn and say on the card what was wrong and that the file now says it "
-    "right: a fix made conditional on something they were never going to do "
-    "leaves the proof wrong in a document you have told them is finished. "
+    # the proof rather than a note for later. In headless this string is the
+    # whole prompt, so the rule has to be here and not only in the document.
+    "NEVER TELL THEM TO WRITE IT UP: the document is yours, so report what the "
+    "file NOW SAYS rather than handing them an errand. Where the missing words "
+    "are a CORRECTION, make it in the write-up in this same turn and say on the "
+    "card what was wrong. "
 )
 
 
@@ -204,7 +193,7 @@ WRITEUP_SENSE = (
 TEACH_SENSE = (
     "THIS SESSION IS IN TEACH MODE. You do not write the code or the proof "
     "being learned; they do. Pick the method from the conversation and "
-    "live/TEACHING.md: a lesson, a homework set, a walkthrough of code that "
+    "board/TEACHING.md: a lesson, a homework set, a walkthrough of code that "
     "already exists, a drill, or a review over a scope they name. You still "
     "write the plumbing yourself: figures, reshaping, serialization, "
     "scaffolding. When they tell you to do the work -- \"do it\", "
@@ -264,7 +253,7 @@ def mode_sense(mode):
 # it. `board write --over` exists for precisely that.
 DOING_SENSE = (
     "THIS IS A DOING TURN, AND ITS ORDER IS THE OPPOSITE OF A TEACHING TURN'S. "
-    "live/TEACHING.md says to write the card before anything else; that is a "
+    "board/TEACHING.md says to write the card before anything else; that is a "
     "teaching turn's rule, where the card is the work. Here the work is the "
     "change, and a card written before it can only describe an intention. Do it "
     "in this order, and do not stop before the end:\n"
@@ -293,7 +282,7 @@ DOING_SENSE = (
     "than the renderer. `helpers`, `utils`, `common` and `misc` are four "
     "spellings of nobody decided. Python will let you append anything to any "
     "file and it will run; getting away with it is not the test, and the test "
-    "is what the box looks like on the map. live/TEACHING.md says the same "
+    "is what the box looks like on the map. board/TEACHING.md says the same "
     "under `Where a new thing goes`. "
 )
 
@@ -398,70 +387,23 @@ def handover_sense(card):
 def where_sense(book, root=None, st=None):
     """Where the exercises come from, which is the only thing a subject decides.
 
-    A course that follows a book has them at the end of a section. A repository
-    that does not is not thereby a different kind of sitting -- it is the same
-    lesson whose exercises come from wherever the repository says its work is
-    planned. This used to be a whole second method, `code_sense`, and it carried
-    a whole second interface with it.
-
-    WHAT CHANGED: the plan is now NAMED, and where possible its next steps are
-    quoted. The old text told a tutor to read the README and follow what it
-    points at, which is honest and expensive -- in PSYCH-ASR it is a 1,500-line
-    README, a pointer out of it, and a 1,300-line task list, paid for on every
-    cold turn before a word is taught. `plan.py` already found the file and read
-    the steps for the drawer; handing the same answer to the tutor costs nothing
-    and removes the two round trips and the guess between them.
+    A course that follows a book has them at the end of a section. A subject
+    that does not takes them from its TUTOR.md, whose "Now" and "Open
+    decisions" the brief carries. The subject's README.md is the owner's and
+    is never the agenda (D13).
     """
     if book:
         return ("Read the section's exercises before you teach anything and "
                 "choose a manageable few -- three to five -- saying which and "
                 "why in your first card. ")
-
-    # A SITTING ON A THREAD HAS ITS SCOPE ALREADY. The thread's open tasks are
-    # its steps and the briefing opens with them, so the README and the plan
-    # are not read for an agenda.
-    tid = str((st or {}).get("thread") or "").strip()
-    if tid:
-        return (
-            "This sitting is on the thread `%s`, and the thread is the scope. "
-            "Its question, open tasks, open decisions and outputs open your "
-            "briefing (`board brief`); work from its FIRST OPEN TASK. Do not "
-            "read the project's README or plan for an agenda, and do not "
-            "survey the repository. A decision on the thread with no rule is "
-            "the owner's: ask for it rather than choosing. " % tid)
-
-    where = plan.where(root) if root else ""
-    steps = plan.steps(root) if root else []
-    if steps:
-        listed = "; ".join("%s. %s" % (x["num"], x["title"]) for x in steps[:6])
-        return (
-            "This repository does not follow a book: no chapters, no sections, "
-            "and no exercises at the end of anything. That changes where the "
-            "exercises come from and NOTHING else -- the lesson is still "
-            "exercises and they are still answered on the board. "
-            "ITS WORK IS PLANNED IN %s, AND THAT FILE OUTRANKS ANYTHING YOU "
-            "WOULD HAVE CHOSEN. Its next steps, in its own order: %s. Do not "
-            "re-derive this from the README and do not survey the repository "
-            "for an agenda of your own -- open the plan at the step this "
-            "sitting is labelled with, or at the first one if it carries no "
-            "label, and read THAT step before your first card. Then set the "
-            "exercises that step actually needs, three to five of them, saying "
-            "which and why in your first card. If the step is one you cannot "
-            "set work from because it needs a decision from them, ask for the "
-            "decision instead. " % (where, listed))
     return (
-        "This repository does not follow a book: no chapters, no sections, and "
-        "no exercises at the end of anything. That changes where the exercises "
-        "come from and NOTHING else -- the lesson is still exercises and they "
-        "are still answered on the board. Read README.md at the root first, and "
-        "follow what it points at -- a task list, a planning document, a "
-        "companion repository -- because that is what says what comes next and "
-        "it outranks anything you would have chosen. Read HANDOFF.md too if "
-        "there is one. Do NOT manufacture a curriculum out of the README's "
-        "headings: they describe how the thing is built, not an order to learn "
-        "it in. Then set the exercises the work actually needs, three to five of "
-        "them, saying which and why in your first card. If nothing names what "
-        "comes next, ask in that card rather than picking an agenda of your own. "
+        "This subject does not follow a book, which changes only where the "
+        "exercises come from. What comes next is TUTOR.md's \"Now\", in this "
+        "brief; it outranks anything you would choose. Do not manufacture a "
+        "curriculum out of the README or a survey of the repository. Set the "
+        "three to five exercises that work needs, saying which and why in your "
+        "first card; if \"Now\" names nothing, or the step needs their decision, "
+        "ask in that card. "
     )
 
 
@@ -1375,7 +1317,7 @@ def _session_sense(repo, mission=False):
         every = syllabus.chapters(repo.root)
         return (how + "This sitting is a %s and carries no chapter label. This course "
                 "follows a book and orders itself in %d chapters; the first is "
-                "%s. Open there unless HANDOFF.md says otherwise, and name the "
+                "%s. Open there unless TUTOR.md says otherwise, and name the "
                 "chapter you are opening in your first card. Do not start from "
                 "whatever you consider the foundation of the subject -- start "
                 "where the book starts."

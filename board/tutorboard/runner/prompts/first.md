@@ -1,10 +1,10 @@
 You are running headless: there is no terminal and nobody will read stdout. The student is on the board.
 
 Run these two commands first, and read nothing else before them:
-- `board brief` -- the method, this course's rules that do not bend, the handoff from the last session, and the note the turn before this one left you.
+- `board brief` -- the method, the subject's RULES.md (the owner's rules) and its TUTOR.md (your own notes on where things are and what comes next).
 - `board recap` -- the lesson: every card as a line, the newest in full, the student's own turns, and which question is still open.
 
-**Do not read AI_INSTRUCTIONS.md, live/TEACHING.md, live/BRIEF.md or HANDOFF.md, and do not read live/cards/ file by file.** Those two commands are what a turn needs; the documents are on disk and the brief names their sections for the rare rule that needs its detail. Every round trip you take is charged for the whole conversation behind it, so a document read here is paid for again by everything you do afterwards.
+**Do not read AI_INSTRUCTIONS.md, live/TEACHING.md, live/BRIEF.md, HANDOFF.md or the subject's README.md, and do not read live/cards/ file by file.** Those two commands are what a turn needs; the brief names board/TEACHING.md for the rare rule that needs its detail. Every round trip you take is charged for the whole conversation behind it, so a document read here is paid for again by everything you do afterwards.
 
 They just sent this:
 

@@ -21,13 +21,16 @@ The assistant runs these. The student never does.
     board write pending <slug>         the placeholder a doing turn writes first;
                                        the report goes --over it
     board brief                        what a turn is BOUND by, in ONE call: the
-                                       method, this course's unbendable rules, the
-                                       handoff, the last turn's note
+                                       method, the subject's RULES.md at HEAD,
+                                       and its TUTOR.md
     board recap [--cards N|--all]      the lesson so far in ONE call: every card as
                                        a line, the newest in full, their turns
-    board note < note.md               <=120 words for the next turn: what you read
-                                       in their answer and what you are aiming at
-    board note --show|--clear          read it, or forget it
+    board memo <section> < text        replace one section of the bound subject's
+                                       TUTOR.md: "Where things are", "Now",
+                                       "Open decisions" or "Done recently".
+                                       --append adds to it. Refuses a file over
+                                       800 words. Never writes RULES.md
+    board memo --show                  print TUTOR.md
     board step "ran the suite: 89 green"
                                        one line for a MISSION, saying what you
                                        have just finished. It lands at once and
@@ -156,8 +159,8 @@ sys.path.insert(0, TOOL)
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
-from tutorboard import (assistants, atlas, brief, carry, direction, gitops,
-                        handoff, holds, jobs, keys, leaving, limits, machine, meeting,
+from tutorboard import (assistants, atlas, brief, direction, gitops,
+                        handoff, holds, jobs, keys, leaving, limits, machine, meeting, memo,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sessions, sittings, tex, worktree)
 from tutorboard import mode as session_mode
@@ -1637,12 +1640,10 @@ def cmd_recap(live, args):
 def cmd_brief(live, args):
     """Everything a cold turn is bound by, in ONE call.
 
-    Every turn is its own session now, so every turn is a cold turn, and what a
-    cold start costs is what the course costs. It used to be three documents in
-    three round trips -- the contract, the method, the handoff -- 24k tokens in
-    Galois Theory before a word of teaching was written. This is the tenth of
-    that which a turn actually acts on, and the full documents are named at the
-    bottom for the rare rule that needs its detail.
+    Every turn is its own session, so every turn is a cold turn. The brief is
+    the method, the subject's RULES.md at HEAD and its TUTOR.md, with
+    board/TEACHING.md named at the bottom for the rare rule that needs its
+    detail (`tutorboard.brief`).
 
     Pair it with `board recap`, which is the other half: this is the standing
     rules, that is the lesson so far. Two calls, and a turn needs nothing else
@@ -1694,45 +1695,44 @@ def _repairing(live):
     return [jobs.last_repair(live.root)]
 
 
-def cmd_note(live, args):
-    """The one thing a turn tells the next turn. Body on stdin.
+def cmd_memo(live, args):
+    """Write one section of the bound subject's TUTOR.md. Body on stdin.
 
-        board note < note.md        replace it
-        board note --show           print what is there
-        board note --clear          forget it
+        board memo Now < now.md              replace the "Now" section
+        board memo "Open decisions" --append < more.md
+                                             add to the end of a section
+        board memo --show                    print TUTOR.md
 
-    A turn is its own session, so nothing the tutor was thinking survives it
-    unless it is written down -- and `board recap` cannot carry that part. The
-    recap says what was asked and what came back; it does not say that the
-    student is reading a ∃ as a ∀, that this is the third attempt at the same
-    line, or that the ladder is aimed at the witness rather than the algebra.
-
-    Capped at 120 words, and the cap refuses rather than trims: this is read at
-    the start of every turn, and a long one is a cost paid over and over. That
-    is exactly how HANDOFF.md reached 3,824 words against a 350-word cap that
-    was only ever a request in a prompt.
+    The sections are "Where things are", "Now", "Open decisions" and "Done
+    recently"; a section name is matched without regard to case. A missing
+    TUTOR.md starts as their skeleton. The whole file is capped at 800 words
+    and the cap refuses rather than trims, naming the count: the brief carries
+    the file on every turn. Only TUTOR.md is ever written; RULES.md is the
+    owner's.
     """
-    if "--show" in args:
-        text = carry.read_note(live.root)
-        print(text if text else "no note")
-        return 0
-    if "--clear" in args:
-        carry.clear_note(live.root)
-        print("note cleared")
-        return 0
-    body = sys.stdin.read()
-    kept, n, over = carry.write_note(live.root, body)
-    if over:
-        print("board note: %d words, and the cap is %d. Nothing was written.\n"
-              "This is read at the start of every turn, so length here is paid "
-              "over and over. Write the misreading and the plan, not the lesson "
-              "-- the lesson is in `board recap`."
-              % (n, carry.NOTE_WORDS), file=sys.stderr)
+    if live.stored and live.atlas and \
+            os.path.realpath(live.root) == os.path.realpath(live.atlas):
+        print("board memo: this session is bound to no subject, so there is no "
+              "TUTOR.md. `board bind courses/<Name>` or `board bind "
+              "projects/<Name>` first.", file=sys.stderr)
         return 1
-    if not kept:
-        print("note cleared")
+    if "--show" in args:
+        text = memo.tutor(live.root)
+        print(text if text else "no TUTOR.md")
         return 0
-    print("%s (%d words)" % (carry.note_path(live.root), n))
+    append = "--append" in args
+    words = [a for a in args if not a.startswith("--")]
+    if not words:
+        print("board memo: name the section: %s"
+              % ", ".join('"%s"' % x for x in memo.SECTIONS), file=sys.stderr)
+        return 1
+    body = sys.stdin.read()
+    try:
+        path, n = memo.write(live.root, " ".join(words), body, append=append)
+    except memo.Refused as why:
+        print("board memo: %s" % why, file=sys.stderr)
+        return 1
+    print("%s (%d of %d words)" % (path, n, memo.WORDS))
     return 0
 
 
@@ -1792,11 +1792,11 @@ def cmd_step(live, args):
               "is nobody waiting on a progress line. Write a card instead.",
               file=sys.stderr)
         return 1
-    # TRUNCATED RATHER THAN REFUSED, which is the opposite of `board note` and
-    # is the right way round for this one. A note is read at the start of every
-    # turn for ever, so length there is paid over and over and the cap is a
-    # door. A step is read once by a person watching, and a refused step is a
-    # step that never happened -- which is the defect this command exists for.
+    # TRUNCATED RATHER THAN REFUSED, which is the opposite of `board memo` and
+    # is the right way round for this one. TUTOR.md is read at the start of
+    # every turn, so length there is paid over and over and the cap is a door.
+    # A step is read once by a person watching, and a refused step is a step
+    # that never happened -- which is the defect this command exists for.
     hit = 0
     for mid in open_now:
         if progress.add(live.root, mid, said):
@@ -1823,7 +1823,8 @@ def cmd_handoff(live, args):
     by the wrap-up turn at the end of a session -- not edited during a teaching
     turn. A turn that edits it pays to read 5k tokens of it first, adds a
     paragraph, and hands the next turn a longer file; do that for a fortnight
-    and the cap in the prompt is a decoration. Leave a `board note` instead.
+    and the cap in the prompt is a decoration. Keep TUTOR.md with `board memo`
+    instead.
 
     The cap refuses rather than trims, because the useful half of a handoff is
     at the bottom: what to teach next. Cutting the tail keeps the description
@@ -2094,9 +2095,8 @@ def cmd_notes(live, args):
     replaces the one before it. `/meeting` reads it once it is built.
     """
     if "--meeting" not in args:
-        print("board notes: say what kind. `board notes --meeting --since 7d`.\n"
-              "(If you meant the one-line note for the next turn, that is "
-              "`board note`, singular.)", file=sys.stderr)
+        print("board notes: say what kind. `board notes --meeting --since 7d`.",
+              file=sys.stderr)
         return 1
 
     def value(flag):
@@ -3077,8 +3077,8 @@ def cmd_wait(live, args):
               "that turn -- and a turn does not wait.\n"
               "End your turn instead. The daemon is already blocked on the next "
               "message and will hand it to a fresh turn the moment it lands. "
-              "Leave `board note` for that turn if it needs to know what you were "
-              "thinking.")
+              "If the subject's state changed, keep TUTOR.md true with `board "
+              "memo <section>` first.")
         return 0
 
     start = time.time()
@@ -4156,7 +4156,7 @@ COMMANDS = {
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "writeup": cmd_writeup, "hw": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
-    "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
+    "brief": cmd_brief, "memo": cmd_memo, "handoff": cmd_handoff,
     "step": cmd_step,
     "thread": cmd_thread, "job": cmd_job, "diagnose": cmd_job,
     "ask-cluster": cmd_ask_cluster,

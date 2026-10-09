@@ -67,8 +67,8 @@ for name, p in (("cold", first), ("resumed", resume)):
           "Do not run `board wait`" in p)
     check("a %s turn is told not to touch HANDOFF.md" % name,
           "Do not touch `HANDOFF.md`" in p)
-    check("a %s turn is told to leave the next one a note" % name,
-          "board note" in p and "120 words" in p)
+    check("a %s turn is told to keep TUTOR.md true with `board memo`" % name,
+          "board memo" in p and "800 words" in p)
 
 # The wait output IS the inbox, already marked read. Telling the agent to run
 # `board inbox` as well bought an empty round trip on every single turn.
@@ -274,48 +274,62 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
-# --- board brief: the cold read, in one call ------------------------------
+# --- board brief: a size budget -------------------------------------------
 # The other half of what a turn reads. `recap` above is the lesson; this is the
-# standing rules, and it replaced three whole documents read in three round
-# trips. What is guarded here is that it says the things a turn acts on AND
-# that it is a small fraction of what it replaced -- either one alone is not
-# the point.
-RULES = """### The rules that do not bend
+# method, the owner's RULES.md at HEAD and the tutor's TUTOR.md, read on every
+# cold turn. A fixture with RULES.md at its 300-word size and TUTOR.md at its
+# 800-word cap, beside a contract, a method and a handoff that are padded and
+# must not be read, briefs in at most `brief.BUDGET` (14,000) characters.
+from tutorboard import brief as brief_mod                     # noqa: E402
 
-- **You never make the user transcribe what they already wrote.** Open the PNG.
-- **The user never runs a board command.**
-
-## 14. Something after the rules
-
-This paragraph is not part of the rules and must not be printed as though it were.
-"""
+RULES = ("# Rules\n\n- **You never make the user transcribe what they already "
+         "wrote.** Open the PNG.\n- **The user never runs a board command.**\n"
+         + "".join("- rule %d: %s\n" % (i, "keep the data fenced " * 3)
+                   for i in range(18)))
+TUTOR = ("# Test Course\n\n## Where things are\n\n"
+         + "chapters/ch01 holds the notes and homework. " * 20
+         + "\n\n## Now\n\n" + "Cosets, then Lagrange, then quotients. " * 80
+         + "\n\n## Open decisions\n\n" + "- which book's notation\n" * 25
+         + "\n## Done recently\n\n" + "- subgroups and orders\n" * 37)
 
 tmp = tempfile.mkdtemp(prefix="tutor-brief-")
 try:
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "Test Course"}, fh)
     contract = ("# AI_INSTRUCTIONS.md\n\n## 0. Who you are working for\n\n"
-                + ("padding that a turn has no reason to pay for. " * 900)
-                + "\n\n## 13. The live board\n\n" + RULES)
+                + ("padding that a turn has no reason to pay for. " * 900))
     with open(os.path.join(tmp, "AI_INSTRUCTIONS.md"), "w", encoding="utf-8") as fh:
         fh.write(contract)
+    with open(os.path.join(tmp, "RULES.md"), "w", encoding="utf-8") as fh:
+        fh.write(RULES)
+    with open(os.path.join(tmp, "TUTOR.md"), "w", encoding="utf-8") as fh:
+        fh.write(TUTOR)
+    with open(os.path.join(tmp, "README.md"), "w", encoding="utf-8") as fh:
+        fh.write("# Test Course\n\n" + "the owner's README, never briefed. " * 400)
     live = os.path.join(tmp, "live")
     os.makedirs(os.path.join(live, "cards"))
-    method = "# TEACHING.md\n\n" + ("the method, at length. " * 1500)
-    with open(os.path.join(live, "TEACHING.md"), "w", encoding="utf-8") as fh:
-        fh.write(method)
+    with open(os.path.join(tmp, ".gitignore"), "w", encoding="utf-8") as fh:
+        fh.write("/live/\n")
     with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
                    "chapter": "Ch 1 - Groups"}, fh)
     hand = "<!-- chapter: Ch 1 - Groups -->\n# HANDOFF\n\nthey got cosets.\n"
     with open(os.path.join(tmp, "HANDOFF.md"), "w", encoding="utf-8") as fh:
         fh.write(hand)
+    for argv in (["init", "-q"], ["add", "-A"],
+                 ["-c", "user.email=t@example.com", "-c", "user.name=t",
+                  "commit", "-q", "-m", "fixture"]):
+        subprocess.run(["git", "-C", tmp] + argv, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=True)
 
     def board(*args, **kw):
         return subprocess.run([sys.executable, BOARD] + list(args), cwd=tmp,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=60, **kw)
 
+    check("the fixture's RULES.md is at its 300-word size and TUTOR.md at its "
+          "800-word cap", 280 <= len(RULES.split()) <= 300
+          and 760 <= len(TUTOR.split()) <= 800)
     p = board("brief")
     out = p.stdout.decode("utf-8", "replace")
     check("brief runs", p.returncode == 0)
@@ -324,32 +338,19 @@ try:
           "THE LESSON IS EXERCISES" in out)
     check("and the measure the work already has, which every sitting is asked for",
           "NAME THE MEASURE THIS WORK ALREADY HAS" in out)
-    check("it carries this course's rules that do not bend",
-          "never make the user transcribe" in out)
-    check("and stops at the end of them",
-          "must not be printed as though it were" not in out)
-    check("it carries the handoff", "they got cosets" in out)
+    check("it carries the owner's RULES.md", "never make the user transcribe" in out)
+    check("and the tutor's TUTOR.md, whole", "subgroups and orders" in out
+          and "which book's notation" in out)
     check("it says how a turn works now",
-          "board note" in out and "board wait" in out and "own session" in out)
-    check("it names the documents it replaced, for a rule that needs its detail",
-          "AI_INSTRUCTIONS.md" in out and "live/TEACHING.md" in out
-          and "13. The live board" in out)
-    documents = len(contract) + len(method) + len(hand)
-    check("brief is a fraction of the documents it replaced (%d vs %d bytes)"
-          % (len(out), documents), len(out) < documents / 8.0)
-
-    # --- the note: what one turn tells the next ---------------------------
-    p = board("note", input=b"they read the exists as a for-all. Ask only for the witness.")
-    check("a note is written", p.returncode == 0 and b"NEXT.md" in p.stdout)
-    check("and comes back in the brief",
-          "read the exists as a for-all" in board("brief").stdout.decode())
-    p = board("note", input=("word " * 200).encode())
-    check("a note over its cap is REFUSED, not trimmed",
-          p.returncode == 1 and b"cap is 120" in p.stdout)
-    check("and the note that was there is untouched",
-          b"witness" in board("note", "--show").stdout)
-    check("a note can be cleared", board("note", "--clear").returncode == 0
-          and b"no note" in board("note", "--show").stdout)
+          "board memo" in out and "board wait" in out and "own session" in out)
+    check("it names board/TEACHING.md for a rule that needs its detail",
+          "board/TEACHING.md" in out)
+    check("and reads none of the contract, the handoff or the README",
+          "padding that a turn" not in out and "they got cosets" not in out
+          and "never briefed" not in out)
+    check("THE BUDGET: a fixture brief is at most %d characters (%d)"
+          % (brief_mod.BUDGET, len(out)),
+          brief_mod.BUDGET == 14000 and len(out) <= brief_mod.BUDGET)
 
     # --- the handoff: capped at the door ----------------------------------
     p = board("handoff", input=("word " * 400).encode())
@@ -384,7 +385,7 @@ try:
     p = board("wait", "--timeout", "1")
     check("a `board wait` from inside a headless turn is refused",
           p.returncode == 0 and b"does not wait" in p.stdout)
-    check("and it is told what to do instead", b"board note" in p.stdout)
+    check("and it is told what to do instead", b"board memo" in p.stdout)
     p = board("wait", "--timeout", "1", "--force")
     check("the daemon's own waiter gets through with --force",
           p.returncode == 2 and b"nothing sent" in p.stdout)
