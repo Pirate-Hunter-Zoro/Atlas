@@ -11,18 +11,22 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               `?subject=<id>` (the library page): GET /result/<id>
     session   under `/s/<id>/` only: GET /figure/<digest>.svg  /uploads/<name>
               /answers/<name>
+    subject?  under `/s/<id>/`, or unprefixed with `?subject=<id>` or over the
+              Atlas root: GET /source/<path>?from=&to=
 """
 
 import hashlib
+import html
 import json
 import os
 import re
 import threading
+import urllib.parse
 
 from . import NOT_MINE
 from .. import multipart
-from ... import paths
-from ...course import results
+from ... import fenced, gitops, paths
+from ...course import results, walk
 
 
 # THE SERVICE WORKER'S VERSION IS A HASH OF ITS OWN SHELL.
@@ -105,7 +109,13 @@ def get(h, repo, path):
         if not target.startswith(paths.WEB):
             return h.send_bytes(b"nope", "text/plain", status=403)
         return h.send_file(
-            target, cache=rel.startswith("katex/") or rel.startswith("fonts/"))
+            target, cache=rel.startswith(("katex/", "fonts/", "vendor/")))
+
+    if path.startswith("/source/"):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
+        status, body = source_page(repo, path[len("/source/"):], query)
+        return h.send_bytes(body, "text/html; charset=utf-8" if status == 200
+                            else "text/plain", status=status)
 
     if path.startswith("/figure/"):
         digest = multipart.safe_filename(path[len("/figure/"):]).replace(".svg", "")
@@ -141,3 +151,116 @@ def get(h, repo, path):
         name = multipart.safe_filename(path[len("/answers/"):])
         return h.send_file(os.path.join(repo.answers, name))
     return NOT_MINE
+
+
+# ---------------------------------------------------------------------------
+# GET /source/<path>?from=&to= -- the read-only source viewer
+# ---------------------------------------------------------------------------
+# An excerpt on a card carries `path#Lx-y` and its caption links here. The path
+# is a name out of a browser, so it is never joined onto a directory: it is
+# RESOLVED, by `walk.resolve`, the rule every walkthrough uses (this subject's
+# source first, then the Atlas root's; nothing hidden, ignored, private or
+# fenced). What comes back must still be outside the fence, outside the private
+# directories, and tracked by git in the tree it was found in: a file somebody
+# has not committed is not yet a thing to cite. Anything else is a 404 that says
+# nothing about why.
+
+# Big enough for any source file worth reading on a tablet.
+SOURCE_MAX_BYTES = 2 * 1024 * 1024
+
+# highlight.js's name for an extension. The page is numbered and marked without
+# it; `web/codeview.js` only colours it.
+SOURCE_LANG = {".py": "python", ".go": "go", ".sh": "bash", ".bash": "bash",
+               ".lean": "lean", ".r": "r", ".sql": "sql"}
+
+NOT_FOUND = (404, b"not found")
+
+
+def _line(query, key):
+    try:
+        n = int((query.get(key) or [""])[0])
+    except ValueError:
+        return 0
+    return n if n > 0 else 0
+
+
+def source_file(repo, raw):
+    """`(full path, label)` of the tracked file `/source/<raw>` names, or None."""
+    raw = str(raw or "")
+    parts = raw.replace("\\", "/").split("/")
+    if (not raw or raw.startswith("/") or ":" in raw or "\0" in raw
+            or any(not x or x == ".." or x.startswith(".") for x in parts)
+            or fenced.in_fence(raw)):
+        return None
+    try:
+        from ..registry import base_of
+        base = os.path.realpath(base_of(repo))
+        chosen, _unknown = walk.resolve(repo.root, [raw], base=base)
+    except Exception:
+        return None
+    if len(chosen) != 1:
+        return None
+    unit = chosen[0]
+    root, rel = unit["root"], unit["path"]
+    atlas_rel = walk._atlas_rel(base, root, rel)
+    if (fenced.in_fence(rel) or not atlas_rel or fenced.in_fence(atlas_rel)
+            or atlas_rel.split("/", 1)[0].lower() in walk.PRIVATE):
+        return None
+    full = os.path.realpath(os.path.join(root, rel))
+    if not full.startswith(os.path.realpath(root) + os.sep) or not os.path.isfile(full):
+        return None
+    code, _out = gitops._git(root, "ls-files", "--error-unmatch", "--", rel, timeout=10)
+    if code != 0:
+        return None
+    return full, rel
+
+
+def source_page(repo, raw, query):
+    """`(status, body)` of the source viewer for `raw`, lines `from`..`to` marked."""
+    found = source_file(repo, raw)
+    if not found:
+        return NOT_FOUND
+    full, rel = found
+    try:
+        if os.path.getsize(full) > SOURCE_MAX_BYTES:
+            return NOT_FOUND
+        with open(full, "rb") as fh:
+            text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return NOT_FOUND
+    lines = text.replace("\r\n", "\n").split("\n")
+    if len(lines) > 1 and lines[-1] == "":
+        lines.pop()
+    first, last = _line(query, "from"), _line(query, "to")
+    if first and not last:
+        last = first
+    if first and last < first:
+        first, last = last, first
+    if first:
+        first, last = min(first, len(lines)), min(last, len(lines))
+    out = []
+    for n, line in enumerate(lines, 1):
+        cls = "line mark" if first and first <= n <= last else "line"
+        out.append('<span class="%s" data-n="%d" id="L%d">%s%s</span>' % (
+            cls, n, n, html.escape(line, quote=False),
+            "\n" if n < len(lines) else ""))
+    lang = SOURCE_LANG.get(os.path.splitext(rel)[1].lower(), "")
+    where = ("lines %d&ndash;%d" % (first, last) if first and last > first
+             else "line %d" % first if first else "%d lines" % len(lines))
+    page = (
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '<title>%(title)s</title>\n'
+        '<link rel="stylesheet" href="/static/typeface.css">\n'
+        '<link rel="stylesheet" href="/static/board.css">\n'
+        '</head>\n<body class="source-page" data-mode="auto">\n'
+        '<header class="source-head"><span class="source-path">%(title)s</span> '
+        '<span class="muted">%(where)s, read-only</span></header>\n'
+        '<pre class="code numbered"><code data-source="1" data-lang="%(lang)s" '
+        'data-from="%(first)d" data-to="%(last)d">%(body)s</code></pre>\n'
+        '<script src="/static/vendor/highlight/highlight.min.js"></script>\n'
+        '<script src="/static/codeview.js"></script>\n'
+        '</body>\n</html>\n') % {
+            "title": html.escape(rel), "where": where, "lang": lang,
+            "first": first, "last": last, "body": "".join(out)}
+    return 200, page.encode("utf-8")

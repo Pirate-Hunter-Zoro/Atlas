@@ -39,6 +39,11 @@ global.setTimeout = setTimeout;
 // pans and pinches. See web/plane-core.js.
 eval(fs.readFileSync(path.replace('board.js', 'plane-core.js'), 'utf8'));
 
+// Code fences are highlighted by the vendored highlight.js through codeview.js,
+// both loaded by board.html before board.js. Indirect eval: each defines a global.
+(0, eval)(fs.readFileSync(path.replace('board.js', 'vendor/highlight/highlight.min.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.replace('board.js', 'codeview.js'), 'utf8'));
+
 let src = fs.readFileSync(path, 'utf8');
 // expose the internals for testing
 src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore, typeset, katexTrust };\n})();');
@@ -70,6 +75,47 @@ check('underscore in math not escaped',
   ['$\\alpha_1$', '<em>real</em>']);
 check('inline code', 'run `make split` now', ['<code>make split</code>']);
 check('fenced code', 'a\n\n```\nx = 1\n```\n\nb', ['<pre><code>x = 1</code></pre>']);
+// A FENCE KEEPS ITS INFO STRING. A language highlights; `path#Lx-y` numbers
+// from x and adds a caption linking the source viewer; math stays plain.
+{
+  const holds = fs.readFileSync(path.replace('web/board.js', 'tutorboard/holds.py'), 'utf8')
+    .split('\n').slice(39, 58).join('\n');
+  const out = R('See\n\n```py board/tutorboard/holds.py#L40-58\n' + holds + '\n```\n\ndone.');
+  const nums = (out.match(/<span class="line" data-n="(\d+)">/g) || [])
+    .map(s => +/data-n="(\d+)"/.exec(s)[1]);
+  const ok = out.indexOf('<figure class="code-fence">') !== -1
+    && out.indexOf('<a class="code-ref" href="/source/board/tutorboard/holds.py?from=40&amp;to=58"') !== -1
+    && out.indexOf('<code>board/tutorboard/holds.py#L40-58</code>') !== -1
+    && out.indexOf('class="hljs language-py"') !== -1
+    && /<span class="hljs-(keyword|string|comment|title)/.test(out)
+    && JSON.stringify(nums) === JSON.stringify(Array.from({ length: 19 }, (_, i) => 40 + i))
+    && out.indexOf('<p>done.</p>') !== -1;
+  ok ? console.log('ok   a py fence over holds.py#L40-58 is highlighted, numbered 40 to 58, with a caption link')
+     : (fails++, console.log('FAIL holds.py fence\n   got: ' + out.slice(0, 600)));
+}
+{
+  const code = fs.readFileSync(path.replace('web/board.js', 'tutorboard/code.py'), 'utf8')
+    .split('\n').slice(9, 12).join('\n');
+  const out = R('```board/tutorboard/code.py#L10-12\n' + code + '\n```');
+  /href="\/source\/board\/tutorboard\/code\.py\?from=10&amp;to=12"/.test(out)
+    && /language-python/.test(out) && /data-n="10"/.test(out) && /data-n="12"/.test(out)
+    && !/data-n="13"/.test(out)
+    ? console.log('ok   a path with no language takes python from .py')
+    : (fails++, console.log('FAIL code.py fence\n   got: ' + out.slice(0, 400)));
+}
+check('a language alone highlights without numbers or a caption',
+  '```bash\necho "hi" # done\n```',
+  ['<pre class="code"><code class="hljs language-bash">', 'hljs-'], ['data-n=', 'figcaption']);
+['go', 'lean', 'r', 'sql', 'python'].forEach(l => {
+  const known = window.CodeView.language(l);
+  known ? console.log('ok   highlight.js has ' + l)
+        : (fails++, console.log('FAIL highlight.js lacks ' + l));
+});
+check('a math fence is untouched', '```math\nx^2 < y\n```',
+  ['<pre><code>x^2 &lt; y</code></pre>'], ['hljs', 'data-n=']);
+check('a caption path is escaped, and html in code is text',
+  '```py a/"b<x>.py#L1\nprint("<script>")\n```',
+  [], ['<script>', '"b<x>']);
 check('bullet list', '- alpha\n- beta\n', ['<ul>', '<li>alpha</li>', '<li>beta</li>', '</ul>']);
 check('ordered list', '1. first\n2. second\n', ['<ol>', '<li>first</li>']);
 check('nested list', '- outer\n  - inner\n', ['<ul>', '<li>outer<ul><li>inner</li></ul></li>']);
@@ -175,6 +221,24 @@ check('starred command not italic', 'use $x^*y^*z$ here', ['$x^*y^*z$'], ['<em>'
     verdict('\\htmlId, \\htmlClass, \\htmlStyle and \\htmlData are refused',
       !el.querySelector('#pwn') && !el.querySelector('.pwn')
       && !el.querySelector('[style*="red"]') && !el.querySelector('[data-pwn]'), el);
+    // The source page: the server's numbered, marked lines, coloured in place.
+    {
+      const d = new JSDOM('<!doctype html><body class="source-page"><pre class="code numbered">'
+        + '<code data-source="1" data-lang="python" data-from="2" data-to="3">'
+        + '<span class="line" data-n="1" id="L1">s = """a\n</span>'
+        + '<span class="line mark" data-n="2" id="L2">b"""\n</span>'
+        + '<span class="line mark" data-n="3" id="L3">def f(x):\n</span>'
+        + '<span class="line" data-n="4" id="L4">    return x &lt; 1</span></code></pre></body>').window.document;
+      const before = d.querySelector('code').textContent;
+      window.CodeView.upgrade(d);
+      const code = d.querySelector('code');
+      const lines = Array.from(code.querySelectorAll('.line'));
+      verdict('the source page keeps its numbers and marks once highlighted, a string across lines included',
+        code.textContent === before && lines.length === 4
+        && lines.map(l => l.getAttribute('data-n')).join() === '1,2,3,4'
+        && lines.filter(l => l.classList.contains('mark')).map(l => l.getAttribute('data-n')).join() === '2,3'
+        && !!lines[1].querySelector('.hljs-string') && !!lines[2].querySelector('.hljs-keyword'), code);
+    }
     const t = window.__test.katexTrust;
     verdict('the trust function refuses a command it does not know',
       t({ command: '\\htmlClass', class: 'x' }) === false

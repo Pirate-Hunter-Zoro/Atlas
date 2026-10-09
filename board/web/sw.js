@@ -60,6 +60,8 @@ var SHELL = [
   "/static/calc-core.js",
   "/static/calc.js",
   "/static/slate.js",
+  "/static/codeview.js",
+  "/static/vendor/highlight/highlight.min.js",
   "/static/katex/katex.min.css",
   "/static/katex/katex.min.js",
   "/static/katex/auto-render.min.js",

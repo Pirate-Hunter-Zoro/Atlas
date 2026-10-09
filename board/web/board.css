@@ -874,6 +874,45 @@ body[data-mode="auto"].sys-dark .card {
 }
 .body pre code { background: none; padding: 0; font-size: inherit; }
 
+/* CODE: a fence with a language is highlighted (`codeview.js`), and one with
+   `path#Lx-y` is numbered from x under a caption linking /source/. The same
+   rules draw the source page, which has no `.body`. Colours are the board's
+   own, so dark mode needs nothing extra. */
+.code-fence { margin: 1rem 0; }
+.code-fence figcaption { font-size: .78rem; margin: 0 0 .25rem; }
+.code-fence .code-ref { color: var(--note); text-decoration: none; }
+.code-fence .code-ref code { background: none; padding: 0; }
+.code-fence pre { margin: 0; }
+pre.code, pre.code code { font-family: var(--mono); }
+pre.code.numbered .line { display: block; padding-right: .5rem; }
+pre.code.numbered .line::before {
+  content: attr(data-n); display: inline-block; min-width: 2.6em;
+  margin-right: 1em; text-align: right; color: var(--ink-3);
+  -webkit-user-select: none; user-select: none;
+}
+pre.code .line.mark { background: color-mix(in srgb, var(--ask) 15%, transparent); }
+.hljs-comment, .hljs-quote, .hljs-doctag { color: var(--ink-3); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: var(--accent); }
+.hljs-string, .hljs-regexp, .hljs-char, .hljs-subst { color: var(--good); }
+.hljs-number, .hljs-literal, .hljs-symbol { color: var(--ask); }
+.hljs-title, .hljs-section, .hljs-type { color: var(--note); }
+.hljs-variable, .hljs-params, .hljs-attr, .hljs-property { color: var(--ink); }
+.hljs-meta { color: var(--ink-2); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+body.source-page { padding: 0 1rem 3rem; }
+.source-head {
+  position: sticky; top: 0; padding: .7rem 0 .5rem; background: var(--paper);
+  font: 400 .85rem var(--mono); color: var(--ink-2);
+  border-bottom: 1px solid var(--rule); margin-bottom: .6rem;
+}
+.source-head .source-path { color: var(--ink); }
+body.source-page pre.code {
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: .45rem;
+  padding: .8rem 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.5;
+}
+
 .body table {
   border-collapse: collapse; margin: 1rem 0;
   font-size: .95em;

@@ -1114,7 +1114,12 @@ one thing you do up front and it is not a card. Then:
    the question is about — a handful of lines, never the file, never a whole
    function if half of it is beside the point — the state of the instance before
    that step in a table, and one question: what does this return, which branch
-   runs, what is in this variable now, what breaks if this line goes.
+   runs, what is in this variable now, what breaks if this line goes. The
+   excerpt is a fence whose info string is the language and the Atlas-relative
+   address, `py board/tutorboard/holds.py#L40-58`, and the lines are the file's
+   own, unedited. The board highlights it, numbers it from 40, and captions it
+   with a link to the read-only source viewer at that range, which serves only
+   tracked files.
 
 5. **When they are wrong**, find the break in their reasoning and re-ask the
    same step on a fresh instance. An explanation they read is not a step they

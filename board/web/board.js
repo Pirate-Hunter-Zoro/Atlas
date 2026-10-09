@@ -39,7 +39,7 @@ function atSession(url) {
 
 /* What markdown may link to inside the session: the rest is the web, or a
    static asset, and stays as written. */
-var SESSION_URL = /^\/(result|doc|figure|answers|slate)\//;
+var SESSION_URL = /^\/(result|doc|figure|answers|slate|source)\//;
 function mdUrl(url) { return BASE && SESSION_URL.test(url) ? BASE + url : url; }
 
 /* The page's own links to the session's other surfaces. */
@@ -334,14 +334,48 @@ function restore(html, store) {
     var item = store[+n];
     if (!item) return "";
     if (item.kind === "code") return "<code>" + escapeHtml(item.text) + "</code>";
-    if (item.kind === "fence") {
-      var body = item.text.replace(/^```[^\n]*\n?/, "").replace(/\n?```\s*$/, "");
-      return "<pre><code>" + escapeHtml(body) + "</code></pre>";
-    }
+    if (item.kind === "fence") return renderFence(item.text);
     /* math: escaped text, KaTeX walks the text node and replaces it */
     var span = item.display ? "div" : "span";
     return "<" + span + ' class="math-raw">' + escapeHtml(item.text) + "</" + span + ">";
   });
+}
+
+/* A CODE FENCE KEEPS ITS INFO STRING. "```py board/x.py#L40-58" is Python,
+   highlighted (`codeview.js`, highlight.js in web/vendor/highlight/), numbered
+   from 40, under a caption linking the read-only source viewer at that range.
+   A path with no language takes one from its extension. Math and TikZ fences
+   are left as they were: TikZ never gets here (the server compiles it), and a
+   math fence is plain preformatted text. */
+var PLAIN_FENCE = /^(math|tikz|tikzcd|latex)$/i;
+
+function renderFence(text) {
+  var info = (/^```([^\n]*)/.exec(text) || ["", ""])[1].trim();
+  var body = text.replace(/^```[^\n]*\n?/, "").replace(/\n?```\s*$/, "");
+  var words = info ? info.split(/\s+/) : [];
+  var CV = window.CodeView;
+  if (!words.length || PLAIN_FENCE.test(words[0]) || !CV) {
+    return "<pre><code>" + escapeHtml(body) + "</code></pre>";
+  }
+  var lang = "", at = null;
+  words.forEach(function (w, n) {
+    var r = CV.ref(w);
+    if (r && !at) at = r;
+    else if (!r && n === 0) lang = w;
+  });
+  lang = CV.language(lang) || CV.language(at ? CV.fromPath(at.path) : "");
+  var cls = lang ? ' class="hljs language-' + CV.esc(lang) + '"' : "";
+  if (!at) {
+    return '<pre class="code"><code' + cls + ">" + CV.body(body, lang) + "</code></pre>";
+  }
+  var label = at.path + (at.from ? "#L" + at.from + (at.to > at.from ? "-" + at.to : "") : "");
+  var href = BASE + "/source/" + at.path.split("/").map(encodeURIComponent).join("/")
+    + (at.from ? "?from=" + at.from + "&to=" + at.to : "");
+  return '<figure class="code-fence"><figcaption><a class="code-ref" href="'
+    + CV.esc(href) + '" target="_blank" rel="noopener"><code>' + CV.esc(label)
+    + "</code></a></figcaption>"
+    + '<pre class="code numbered"><code' + cls + ">"
+    + CV.body(body, lang, at.from || 1) + "</code></pre></figure>";
 }
 
 function inline(s) {

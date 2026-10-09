@@ -144,6 +144,9 @@ for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
         write(os.path.join(atlas, rel, "figures", "plot.png"),
               "\x89PNG" + MARK[who] * 100)
         write(os.path.join(atlas, rel, "figures", "t.csv"), "a,b\n1,%s\n" % MARK[who])
+        # One tracked source file at the same path in each, for /source/.
+        write(os.path.join(atlas, rel, "src", "tool.py"),
+              "# %s\n" % MARK[who] + "def tool(x):\n    return x\n" * 12)
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
 subprocess.run(["git", "init", "-q", atlas], check=True)
@@ -394,6 +397,9 @@ DRIVE = {
     ("GET", "/figure/", "pages"): ("session", [("/figure/abc123.svg", None, OK)]),
     ("GET", "/result/", "pages"): ("subject", [("/result/{fig}", None, OK),
                                               ("/result/nope", None, (404,))]),
+    # The Atlas root has no `src/tool.py` of its own, so with no subject it is 404.
+    ("GET", "/source/", "pages"): ("subject?", [("/source/src/tool.py", None, OK, OK, (404,)),
+                                               ("/source/nope.py", None, (404,))]),
     # taking
     ("GET", "/download/lesson", "taking"): ("session", [("/download/lesson", None, None)]),
     ("GET", "/download/homework", "taking"): ("session", [
