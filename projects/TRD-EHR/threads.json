@@ -26,8 +26,8 @@
         "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
         "scripts/pipeline/predictions/best_k_panels.py",
         "slurm_jobs/quick_runs/plot_cross_embedder_retrieval.sbatch",
-        "homework/knn-ksweep",
-        "writeups/deck-260925-0942"
+        "docs/knn-ksweep",
+        "docs/deck-260925-0942"
       ],
       "outputs": [
         "results/cross_embedder_retrieval/cross_embedder_retrieval.csv",
@@ -280,7 +280,7 @@
         "paper1-trd-prediction/reserve",
         "paper1-trd-prediction/tripod_ai_checklist.md",
         "scripts/pipeline/review",
-        "homework/retrieval-and-subgroups"
+        "docs/retrieval-and-subgroups"
       ],
       "outputs": [],
       "exports": [],
