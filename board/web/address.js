@@ -7,6 +7,15 @@
    a name for a place, and a name is only worth having if exactly one spelling
    of it exists.
 
+       #/s/<session>                           a session, on its board
+       #/s/…/card/<nnnn>                       one card in that session
+       #/s/…/doc/<ident>[/p<n>]                a document, optionally one page
+       #/s/…/slate/<nnnn>                      one page of its handwriting
+
+   and the workspace grammar every link written before sessions used, which
+   still parses (the home screen turns one into a session address through
+   `sessions/.imported.json`; T55 deletes it):
+
        #/w/<family>/<workspace>                the workspace, on its map
        #/w/…/node/<id>                         one box on that map
        #/w/…/card/<nnnn>                       one card in the current lesson
@@ -42,6 +51,11 @@
 "use strict";
 
 var PREFIX = "/w/";
+var SESSION_PREFIX = "/s/";
+/* `sessions.ID_RE`: the local time to the second, and `-2`... on a clash. */
+var SESSION = /^[0-9]{8}-[0-9]{6}(?:-[0-9]{1,4})?$/;
+/* What a session address may name after its id. */
+var SESSION_SURFACES = ["session", "card", "doc", "slate"];
 
 /* A family or a workspace is a DIRECTORY NAME, and one of them is `To Turn In`,
    so spaces are in and are percent-encoded on the way out. Backslashes, control
@@ -91,9 +105,10 @@ function parse(text) {
   if (typeof text !== "string") return null;
   var s = text;
   if (s.charAt(0) === "#") s = s.slice(1);
-  if (s.indexOf(PREFIX) !== 0) return null;
+  var inSession = s.indexOf(SESSION_PREFIX) === 0;
+  if (!inSession && s.indexOf(PREFIX) !== 0) return null;
 
-  var raw = s.slice(PREFIX.length).split("/");
+  var raw = s.slice((inSession ? SESSION_PREFIX : PREFIX).length).split("/");
   var parts = [];
   for (var i = 0; i < raw.length; i++) {
     /* An empty component is `//` or a trailing slash. Both are somebody's
@@ -103,88 +118,106 @@ function parse(text) {
     if (one === null) return null;
     parts.push(one);
   }
-  if (parts.length < 2) return null;
-  if (!PLACE.test(parts[0]) || !PLACE.test(parts[1])) return null;
 
   var a = {
-    ws: parts[0] + "/" + parts[1],
-    family: parts[0],
-    workspace: parts[1],
+    session: "",
+    ws: "", family: "", workspace: "",
     surface: "workspace",
     node: "", card: "", sitting: "", doc: "", page: 0,
     path: "", symbol: "", set: "", problem: ""
   };
-
-  var rest = parts.slice(2);
-  if (rest.length) {
-    var what = rest[0];
-    var arg = rest.slice(1);
-    var m, j;
-    if (what === "node") {
-      if (arg.length !== 1 || !NODE.test(arg[0])) return null;
-      a.surface = "node";
-      a.node = arg[0];
-    } else if (what === "card") {
-      if (arg.length !== 1 || !NNNN.test(arg[0])) return null;
-      a.surface = "card";
-      a.card = arg[0];
-    } else if (what === "archive") {
-      if (arg.length !== 2 || !SITTING.test(arg[0]) || !NNNN.test(arg[1])) {
-        return null;
-      }
-      a.surface = "archive";
-      a.sitting = arg[0];
-      a.card = arg[1];
-    } else if (what === "doc") {
-      if (!arg.length || arg.length > 2 || !IDENT.test(arg[0])) return null;
-      a.surface = "doc";
-      a.doc = arg[0];
-      if (arg.length === 2) {
-        m = PAGE.exec(arg[1]);
-        if (!m || Number(m[1]) < 1) return null;
-        a.page = Number(m[1]);
-      }
-    } else if (what === "code") {
-      if (!arg.length) return null;
-      /* The path keeps its slashes -- it IS a path, relative to the workspace,
-         and it is the one component that spans several. A symbol rides on the
-         last segment after `::`, which is the spelling `walk.label` already
-         uses everywhere else: in `state.json`, on the strip, and in the
-         tutor's prompt. One spelling there and here. */
-      var last = arg[arg.length - 1];
-      var cut = last.indexOf("::");
-      if (cut >= 0) {
-        a.symbol = last.slice(cut + 2);
-        last = last.slice(0, cut);
-        if (!SYMBOL.test(a.symbol)) return null;
-      }
-      arg = arg.slice(0, arg.length - 1).concat([last]);
-      for (j = 0; j < arg.length; j++) {
-        if (!SEG.test(arg[j])) return null;
-      }
-      a.surface = "code";
-      a.path = arg.join("/");
-    } else if (what === "hw") {
-      if (arg.length !== 2 || !SET.test(arg[0]) || !PROBLEM.test(arg[1])) {
-        return null;
-      }
-      a.surface = "hw";
-      a.set = arg[0];
-      a.problem = arg[1];
-    } else if (what === "slate") {
-      if (arg.length !== 1 || !NNNN.test(arg[0])) return null;
-      a.surface = "slate";
-      a.page = Number(arg[0]);
-    } else {
-      return null;
-    }
+  var rest;
+  if (inSession) {
+    /* A SESSION, by its id and nothing else: the id is the directory name
+       `sessions.ID_RE` allows, and the server looks it up rather than
+       building a path from it. */
+    if (!parts.length || !SESSION.test(parts[0])) return null;
+    a.session = parts[0];
+    a.surface = "session";
+    rest = parts.slice(1);
+  } else {
+    if (parts.length < 2) return null;
+    if (!PLACE.test(parts[0]) || !PLACE.test(parts[1])) return null;
+    a.ws = parts[0] + "/" + parts[1];
+    a.family = parts[0];
+    a.workspace = parts[1];
+    rest = parts.slice(2);
   }
+  if (rest.length && !readSurface(a, rest)) return null;
+  if (inSession && SESSION_SURFACES.indexOf(a.surface) < 0) return null;
 
   /* Its own canonical spelling, carried with it. Everything that echoes an
      address back at a person -- "that is not here any more" most of all --
      prints this rather than whatever was typed. */
   a.text = spell(a);
   return a.text ? a : null;
+}
+
+/* What follows the place: `rest[0]` names the surface and the rest are its
+   arguments. Fills `a` and says whether it was well formed. */
+function readSurface(a, rest) {
+  var what = rest[0];
+  var arg = rest.slice(1);
+  var m, j;
+  if (what === "node") {
+    if (arg.length !== 1 || !NODE.test(arg[0])) return false;
+    a.surface = "node";
+    a.node = arg[0];
+  } else if (what === "card") {
+    if (arg.length !== 1 || !NNNN.test(arg[0])) return false;
+    a.surface = "card";
+    a.card = arg[0];
+  } else if (what === "archive") {
+    if (arg.length !== 2 || !SITTING.test(arg[0]) || !NNNN.test(arg[1])) {
+      return false;
+    }
+    a.surface = "archive";
+    a.sitting = arg[0];
+    a.card = arg[1];
+  } else if (what === "doc") {
+    if (!arg.length || arg.length > 2 || !IDENT.test(arg[0])) return false;
+    a.surface = "doc";
+    a.doc = arg[0];
+    if (arg.length === 2) {
+      m = PAGE.exec(arg[1]);
+      if (!m || Number(m[1]) < 1) return false;
+      a.page = Number(m[1]);
+    }
+  } else if (what === "code") {
+    if (!arg.length) return false;
+    /* The path keeps its slashes -- it IS a path, relative to the workspace,
+       and it is the one component that spans several. A symbol rides on the
+       last segment after `::`, which is the spelling `walk.label` already
+       uses everywhere else: in `state.json`, on the strip, and in the
+       tutor's prompt. One spelling there and here. */
+    var last = arg[arg.length - 1];
+    var cut = last.indexOf("::");
+    if (cut >= 0) {
+      a.symbol = last.slice(cut + 2);
+      last = last.slice(0, cut);
+      if (!SYMBOL.test(a.symbol)) return false;
+    }
+    arg = arg.slice(0, arg.length - 1).concat([last]);
+    for (j = 0; j < arg.length; j++) {
+      if (!SEG.test(arg[j])) return false;
+    }
+    a.surface = "code";
+    a.path = arg.join("/");
+  } else if (what === "hw") {
+    if (arg.length !== 2 || !SET.test(arg[0]) || !PROBLEM.test(arg[1])) {
+      return false;
+    }
+    a.surface = "hw";
+    a.set = arg[0];
+    a.problem = arg[1];
+  } else if (what === "slate") {
+    if (arg.length !== 1 || !NNNN.test(arg[0])) return false;
+    a.surface = "slate";
+    a.page = Number(arg[0]);
+  } else {
+    return false;
+  }
+  return true;
 }
 
 /* ------------------------------------------------------------------- format */
@@ -208,6 +241,7 @@ function pad4(n) {
 /* The unchecked half of `format`, shared with `parse` so that an address and
    its canonical text are built by one piece of code. */
 function spell(spec) {
+  if (spec.session) return spellSession(spec);
   var ws = spec.ws || "";
   var family = spec.family || ws.split("/")[0] || "";
   var workspace = spec.workspace || ws.split("/").slice(1).join("/") || "";
@@ -246,10 +280,34 @@ function spell(spec) {
   return "#" + PREFIX + bits.join("/");
 }
 
+/* A session address. Only the surfaces a session has; anything else is not
+   spelled at all. */
+function spellSession(spec) {
+  var sid = String(spec.session || "");
+  if (!SESSION.test(sid)) return "";
+  var bits = [sid];
+  var surface = spec.surface || "session";
+  if (surface === "session") {
+    /* nothing more */
+  } else if (surface === "card") {
+    bits.push("card", pad4(spec.card || ""));
+  } else if (surface === "doc") {
+    bits.push("doc", encodeURIComponent(spec.doc || ""));
+    if (spec.page) bits.push("p" + Number(spec.page));
+  } else if (surface === "slate") {
+    bits.push("slate", pad4(spec.page || ""));
+  } else {
+    return "";
+  }
+  return "#" + SESSION_PREFIX + bits.join("/");
+}
+
 /* Two addresses in the same workspace. The one comparison anything outside
    this file needs to make by hand, so it is made here once. */
 function same(a, b) {
-  return !!a && !!b && a.ws === b.ws;
+  if (!a || !b) return false;
+  if (a.session || b.session) return a.session === b.session;
+  return a.ws === b.ws;
 }
 
 /* What a workspace is called on the wire. `atlas.identify` spells it
@@ -260,7 +318,9 @@ function idOf(a) { return a ? a.ws : ""; }
 
 host.Address = {
   PREFIX: PREFIX,
+  SESSION_PREFIX: SESSION_PREFIX,
   SURFACES: SURFACES,
+  SESSION_SURFACES: SESSION_SURFACES,
   parse: parse,
   format: format,
   same: same,

@@ -382,7 +382,7 @@ function inline(s) {
        being asked to go somewhere, and a second tab is a second board. */
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
       href = mdUrl(href);
-      return href.indexOf("#/w/") === 0
+      return href.indexOf("#/w/") === 0 || href.indexOf("#/s/") === 0
         ? '<a href="' + href + '">' + text + "</a>"
         : '<a href="' + href + '" target="_blank" rel="noopener">' + text + "</a>";
     })
@@ -1689,6 +1689,15 @@ function render(data) {
   if (typeof data.history === "number" && !data.archived) {
     if (pastCount !== null && data.history > pastCount) lessonWasFiled();
     pastCount = data.history;
+  }
+  /* A SESSION ADDRESS needs no `/health` to tell this board from another:
+     the session is in the path. It is taken on the first payload, and the
+     map does not open over it. */
+  if (addrWanted && addrWanted.session && !mapLanded) {
+    var wantedHere = addrWanted;
+    addrWanted = null;
+    mapLanded = true;
+    addrGo(wantedHere);
   }
   /* Once per load, and only now: where a course opens depends on what its
      documents are, and this is the first payload that says. */
@@ -7728,6 +7737,8 @@ function addrShow(here) {
        the glass a second after it was followed. Never downgrade. */
     var now = addrParse(window.location.hash || "");
     if (now && now.ws === boardId && now.surface !== "workspace") return;
+    /* A session address is never respelled in the workspace grammar. */
+    if (now && now.session) return;
     want = spell({ surface: "workspace" });
   }
   if (!want || want === window.location.hash) return;
@@ -7839,8 +7850,59 @@ function addrElsewhere(a) {
   return "elsewhere";
 }
 
+/* A SESSION ADDRESS, `#/s/<id>/...`. Another session's is that session's
+   board, with the address carried whole; this one's names a card, a document
+   or a page of the slate here. A card older than the cards held is fetched,
+   a window at a time, before it is called gone. */
+function addrSessionGo(a) {
+  if (a.session !== SESSION) {
+    window.location.href = "/s/" + encodeURIComponent(a.session) + "/board" + a.text;
+    return "elsewhere";
+  }
+  if (a.surface === "session") return addrArrived(a);
+  if (a.surface === "card") {
+    addrSessionCard(a);
+    return "ok";
+  }
+  /* A document or a page of the slate: the same lookups a workspace address
+     makes, in this session. */
+  var here = {}, k;
+  for (k in a) if (Object.prototype.hasOwnProperty.call(a, k)) here[k] = a[k];
+  here.session = "";
+  here.ws = boardId;
+  return addrGo(here);
+}
+
+function addrHolds(card) {
+  return ((lastLive && lastLive.cards) || []).some(function (c) {
+    return c.id === card;
+  });
+}
+
+function addrSessionCard(a) {
+  if (addrHolds(a.card)) {
+    addrShut();
+    if (reading) backToLesson();
+    window.setTimeout(function () {
+      if (addrToCard(a.card)) addrArrived(a);
+      else addrDead(a, "card " + a.card + " is not in this session");
+    }, 0);
+    return;
+  }
+  var first = ((model && model.cards) || [])[0];
+  if (olderLeft && first && parseInt(a.card, 10) < parseInt(first.id, 10)) {
+    fetchOlder(function (more) {
+      if (more) addrSessionCard(a);
+      else addrDead(a, "card " + a.card + " is not in this session");
+    });
+    return;
+  }
+  addrDead(a, "card " + a.card + " is not in this session");
+}
+
 function addrGo(a) {
   if (!a) return "bad";
+  if (a.session) return addrSessionGo(a);
   if (boardId && a.ws !== boardId) return addrElsewhere(a);
 
   addrShut();
@@ -8008,6 +8070,14 @@ function addrGo(a) {
    and the second is only answerable by asking the archive. */
 function addrMisses(a) {
   var why = "";
+  if (a.session) {
+    /* Another session's is that board's to answer, and a card older than the
+       window held is fetched on the tap rather than called gone here. */
+    var first = ((model && model.cards) || [])[0];
+    if (a.session !== SESSION || a.surface !== "card"
+        || (first && a.card < first.id)) return "";
+    return addrHolds(a.card) ? "" : "card " + a.card + " is not in this session";
+  }
   if (!boardId || a.ws !== boardId) return "";   /* another board's to answer */
   if (a.surface === "node") {
     why = "that box is not on this map any more";
@@ -8047,7 +8117,7 @@ function addrMisses(a) {
    near. Gibberish is a third thing again and says so. */
 function markAddresses() {
   var links, i, el, a, why;
-  try { links = els.cards.querySelectorAll('a[href^="#/w/"]'); }
+  try { links = els.cards.querySelectorAll('a[href^="#/w/"], a[href^="#/s/"]'); }
   catch (e) { return; }
   for (i = 0; i < links.length; i++) {
     el = links[i];
@@ -8086,7 +8156,7 @@ api("/health", { cache: "no-store" })
 window.addEventListener("hashchange", function () {
   var a = addrParse(window.location.hash || "");
   if (!a) return;               /* not an address; the bar is not ours to mind */
-  if (!boardIdKnown) { addrWanted = a; return; }
+  if (!boardIdKnown && !a.session) { addrWanted = a; return; }
   addrGo(a);
 });
 
@@ -8605,18 +8675,20 @@ function paintOlder() {
     : n + (n === 1 ? " earlier card" : " earlier cards");
 }
 
-function fetchOlder() {
-  if (!model || olderBusy || !olderLeft) return;
+/* `then(more)`, when given, is told whether any earlier card arrived. */
+function fetchOlder(then) {
+  var told = typeof then === "function" ? then : function () {};
+  if (!model || olderBusy || !olderLeft) { told(false); return; }
   var first = (model.cards || [])[0];
   var before = first ? parseInt(first.id, 10) : 10000;
-  if (!(before > 0)) return;
+  if (!(before > 0)) { told(false); return; }
   olderBusy = true;
   paintOlder();
   api("/cards?before=" + before, { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
       olderBusy = false;
-      if (!got || !got.ok || !model) { paintOlder(); return; }
+      if (!got || !got.ok || !model) { paintOlder(); told(false); return; }
       var byId = Object.create(null);
       (model.cards || []).forEach(function (c) { byId[c.id] = c; });
       (got.cards || []).forEach(function (c) { if (!byId[c.id]) byId[c.id] = c; });
@@ -8631,9 +8703,10 @@ function fetchOlder() {
         model.notes_sent[k] = got.notes_sent[k];
       });
       renderOrHold(frame());
-    }, function () { olderBusy = false; paintOlder(); });
+      told((got.cards || []).length > 0);
+    }, function () { olderBusy = false; paintOlder(); told(false); });
 }
-if (els.older) els.older.onclick = fetchOlder;
+if (els.older) els.older.onclick = function () { fetchOlder(); };
 
 /* WHAT THE SUBJECT HOLDS, ASKED FOR RATHER THAN STREAMED. When the board
    opens, when the drawer does, when the page comes back into view, and on a
