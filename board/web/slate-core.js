@@ -38,17 +38,17 @@ var PICTURE_MS = 4000;
 var LIVE_IDLE_MS = 3000;
 var LIVE_MIN_GAP_MS = 15000;
 var UNDO_DEPTH = 60;
-var SMOOTH = 0.30;          /* how much of each new sample to trust, at rest */
-/* ...and how fast the pen has to be moving, in logical units per sample, before
-   it is trusted completely. Smoothing buys steadiness by lagging the nib, and a
-   fixed amount of it is wrong at both ends: at a crawl the hand's tremor is the
-   whole signal and wants heavy averaging, while in a quick stroke the samples
-   are far apart, carry little relative jitter, and the lag is the only thing you
-   notice -- the ink visibly trails the pen. So the trust slides with speed. */
-var TRACK = 8;
-var RESAMPLE = 0.8;         /* logical units between rendered points */
-var MIN_STEP = 0.5;         /* how far the pen must travel to record a point */
-var POLISH = 2;             /* smoothing passes over a finished stroke */
+/* The geometry of a line -- smoothing, the curve, its resampling and the polish
+   on lift -- is `ink-core.js`, read here and by `annotate.js`. Loaded first. */
+var InkCore = window.InkCore;
+if (!InkCore) throw new Error("slate-core.js: ink-core.js is not loaded");
+var RESAMPLE = InkCore.RESAMPLE;
+var MIN_STEP = InkCore.MIN_STEP;
+var POLISH = InkCore.POLISH;
+var catmullRom = InkCore.catmullRom;
+var densify = InkCore.densify;
+var trust = InkCore.trust;
+var polish = InkCore.polish;
 
 /* The page is a window onto a plane, not the plane itself.
 
@@ -136,67 +136,6 @@ function el(tag, cls, html) {
   if (cls) e.className = cls;
   if (html !== undefined) e.innerHTML = html;
   return e;
-}
-
-/* ---------------------------------------------------------------- geometry */
-function catmullRom(p0, p1, p2, p3, t) {
-  var t2 = t * t, t3 = t2 * t;
-  return [
-    0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t +
-           (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
-           (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
-    0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t +
-           (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
-           (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3),
-    p1[2] + (p2[2] - p1[2]) * t,
-  ];
-}
-
-/* A dense, evenly spaced path through the samples. Density is what removes the
-   faceting: once consecutive points are about a pixel apart, the round joins
-   between them read as one continuous edge. */
-function densify(pts) {
-  if (pts.length < 3) return pts.slice();
-  var out = [pts[0]];
-  for (var i = 0; i < pts.length - 1; i++) {
-    var p0 = pts[i - 1] || pts[i];
-    var p1 = pts[i], p2 = pts[i + 1];
-    var p3 = pts[i + 2] || p2;
-    var dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-    var steps = Math.max(1, Math.min(24, Math.ceil(dist / RESAMPLE)));
-    for (var s = 1; s <= steps; s++) out.push(catmullRom(p0, p1, p2, p3, s / steps));
-  }
-  return out;
-}
-
-/* One-euro-style smoothing while the pen moves cannot remove tremor without
-   adding lag you can feel. So the live path stays responsive and the stroke is
-   polished once, on lift: a weighted three-point average over the interior,
-   which pulls out hand tremor while leaving the endpoints and the overall shape
-   exactly where they were put. Pressure is averaged with it, so the width stops
-   flickering along a line that was drawn at a steady weight. */
-/* How much of a new sample to believe, given how far it is from where the line
-   has got to. */
-function trust(dist) {
-  if (dist >= TRACK) return 1;
-  return SMOOTH + (1 - SMOOTH) * (dist / TRACK);
-}
-
-function polish(pts, passes) {
-  if (pts.length < 4) return pts;
-  var cur = pts;
-  for (var pass = 0; pass < passes; pass++) {
-    var out = [cur[0]];
-    for (var i = 1; i < cur.length - 1; i++) {
-      var a = cur[i - 1], b = cur[i], c = cur[i + 1];
-      out.push([Math.round((a[0] + 2 * b[0] + c[0]) / 4 * 10) / 10,
-                Math.round((a[1] + 2 * b[1] + c[1]) / 4 * 10) / 10,
-                Math.round((a[2] + 2 * b[2] + c[2]) / 4 * 100) / 100]);
-    }
-    out.push(cur[cur.length - 1]);
-    cur = out;
-  }
-  return cur;
 }
 
 /* Light ink on dark paper is right on a screen at night and wrong in a file
@@ -2920,14 +2859,7 @@ function create(opts) {
 
 /* forPaper is exposed so the export rule can be asserted. There is no canvas
    backend in the test environment, so the only way to prove the PNG is legible
-   is to prove the colour mapping is.
-
-   `ink` is exposed for the annotation layer over the lesson. That layer had its
-   own line drawing -- raw pointer samples joined by straight segments -- and it
-   looked exactly as bad as this file's opening comment says it would: faceted,
-   granular, and jagged wherever the hand moved quickly. Ink quality is one
-   problem and it should have one implementation, so the geometry lives here and
-   both surfaces use it. */
+   is to prove the colour mapping is. */
 window.Slate = {
   create: create,
   forPaper: forPaper,
@@ -2938,17 +2870,6 @@ window.Slate = {
   /* One question, one answer, both surfaces. The lesson's annotation layer had
      its own copy of the old pen-seen latch, so a finger drew on a card even
      after the slate had been told not to let it. */
-  fingerWrites: function () { return remembered(STORE_KEY, "scroll") === "write"; },
-  ink: {
-    densify: densify,
-    polish: polish,
-    catmullRom: catmullRom,
-    SMOOTH: SMOOTH,
-    TRACK: TRACK,
-    trust: trust,
-    RESAMPLE: RESAMPLE,
-    MIN_STEP: MIN_STEP,
-    POLISH: POLISH,
-  },
+  fingerWrites: function () { return remembered(STORE_KEY, "scroll") === "write"; }
 };
 })();

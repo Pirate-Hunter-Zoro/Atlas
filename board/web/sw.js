@@ -50,6 +50,7 @@ var SHELL = [
   "/static/plane-core.js",
   "/static/slate-core.js",
   "/static/ink-clip.js",
+  "/static/ink-core.js",
   "/static/annotate.js",
   "/static/annbar.js",
   "/static/viewpin.js",

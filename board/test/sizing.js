@@ -18,6 +18,7 @@ catch (e) { console.log('skip  jsdom is not installed'); process.exit(0); }
 
 const WEB = path.join(__dirname, '..', 'web');
 const PLANE = fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8');
+const INK = fs.readFileSync(path.join(WEB, 'ink-core.js'), 'utf8');
 const SRC = fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8');
 let fails = 0;
 
@@ -34,6 +35,7 @@ function zoomAt(W, H) {
   w.fetch = () => new Promise(() => {});
   w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
   w.eval(PLANE);
+  w.eval(INK);
   w.eval(SRC);
   const api = w.Slate.create({ root: w.document.getElementById('slate'),
                                bar: w.document.getElementById('bar'), compact: true });
@@ -70,6 +72,7 @@ function zoomAt(W, H) {
   w.fetch = () => new Promise(() => {});
   w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
   w.eval(PLANE);
+  w.eval(INK);
   w.eval(SRC);
   const api = w.Slate.create({ root: w.document.getElementById('slate'),
                                bar: w.document.getElementById('bar'), compact: true });

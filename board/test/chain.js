@@ -143,7 +143,7 @@ const PAGES_KEY = 'board.pages.n:Galois Theory:-:' + OPENED;
 const DEAD = { '0091#0': { p: 1, a: '0091' }, '0092#0': { p: 4, a: '0092' } };
 window.localStorage.setItem(PAGES_KEY, JSON.stringify(DEAD));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }

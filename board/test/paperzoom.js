@@ -328,9 +328,9 @@ function gesture(target, name) {
     const spreadOut = touch(box, 'touchmove', [[60, 250], [220, 250]], 2.7);
     touch(box, 'touchend', []);
     touch(pages, 'touchstart', [[100, 300]]);
-    const half = touch(el('annbar'), 'touchstart', [[100, 300], [400, 300]]);
-    const halfMove = touch(el('annbar'), 'touchmove', [[150, 300], [350, 300]], 0.5);
-    touch(el('annbar'), 'touchend', []);
+    const half = touch(doc.querySelector('.annbar-board'), 'touchstart', [[100, 300], [400, 300]]);
+    const halfMove = touch(doc.querySelector('.annbar-board'), 'touchmove', [[150, 300], [350, 300]], 0.5);
+    touch(doc.querySelector('.annbar-board'), 'touchend', []);
     !s.defaultPrevented && !pan.defaultPrevented && !built && spreadOut.defaultPrevented
       && !half.defaultPrevented && halfMove.defaultPrevented && zoom() === '1'
       ? ok('two fingers on an overlay scroll it and pinch nothing under it, and Safari zooms nothing')

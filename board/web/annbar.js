@@ -1,18 +1,19 @@
 /* ==========================================================================
-   annbar.js -- the annotation tool bar, for a page that is not the board.
+   annbar.js -- the annotation tool bar, the only one.
 
-   The library and the meeting deck draw on a document with the board's own
-   `annotate.js`, and had nothing but a pen switch: one colour, one nib, no
-   eraser, no loop, no clipboard, no undo. Marking up a slide is the same act
-   as marking up a card, so it gets the same tools -- the board's bar, built
-   here in the same markup and classes so `board.css` dresses both alike, plus
-   the slate's nibs and its any-colour well, because a white page wants a
-   darker ink than a dark card does and nobody should need a second surface to
-   get one.
+   The board, the library and the meeting deck all draw with `annotate.js`, and
+   marking up a slide is the same act as marking up a card, so every page mounts
+   this one bar: pen, eraser, loop, the slate's nibs, the stock inks and an
+   any-colour well (a white page wants a darker ink than a dark card does),
+   the clipboard, undo, clear and done.
 
    The page keeps its own pen switch and its own save. It calls `show` when the
    switch flips and `paint` from its `Annotate.onChange`, which holds exactly
    one listener and is the page's.
+
+   Options: `onDone`, what "done" does; `where`, the word for what is written
+   on ("page" by default, "card" on the board); `kind`, a class naming the
+   page's bar (`annbar-doc` by default, `annbar-board` on the board).
    ========================================================================== */
 
 (function () {
@@ -44,7 +45,8 @@ function mount(opts) {
   var A = window.Annotate;
   if (!A) return { show: function () {}, paint: function () {} };
 
-  var bar = el("div", "annbar annbar-doc");
+  var where = opts.where || "page";
+  var bar = el("div", "annbar " + (opts.kind || "annbar-doc"));
   bar.hidden = true;
 
   var bPen = button(bar, "anntool on", "Pen");
@@ -80,7 +82,7 @@ function mount(opts) {
   bar.appendChild(clip);
   var bCopy = button(clip, "", "Copy", "copy what is looped");
   var bCut = button(clip, "", "Cut", "cut what is looped");
-  var bPaste = button(clip, "", "Paste", "paste onto this page");
+  var bPaste = button(clip, "", "Paste", "paste onto this " + where);
   var bDel = button(clip, "danger", "Delete", "delete what is looped");
 
   var sayBox = el("span", "ann-say");
@@ -163,7 +165,7 @@ function mount(opts) {
 
   bCopy.onclick = function () {
     var n = A.copy();
-    say(n ? n + " copied — paste it on a page or on your own board" : whyNot());
+    say(n ? n + " copied — paste it on a " + where + " or on your own board" : whyNot());
     paint();
   };
   bCut.onclick = function () { var n = A.cut(); say(n ? n + " cut" : whyNot()); paint(); };

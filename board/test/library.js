@@ -2253,9 +2253,24 @@ async function lazyPagesArePictured() {
   };
   const r1 = fig(1).getBoundingClientRect();
   const cv1 = layer(1);
+  /* THE LIBRARY'S INK IS THE SLATE'S INK. The page loads ink-core.js, and the
+     live stroke is a Catmull-Rom curve resampled to about a pixel, not the ten
+     pointer samples joined by straight lines. */
+  const curve = w.InkCore && w.InkCore.catmullRom;
+  let curved = 0;
+  if (curve) w.InkCore.catmullRom = function () { curved += 1; return curve.apply(this, arguments); };
   pointer('pointerdown', cv1, r1.left + 200, r1.top + 400);
   for (let x = 220; x <= 400; x += 20) pointer('pointermove', cv1, r1.left + x, r1.top + 400);
+  await sleep(30);
   pointer('pointerup', w, r1.left + 400, r1.top + 400);
+  if (curve) w.InkCore.catmullRom = curve;
+  LIB_SCRIPTS.indexOf('ink-core.js') >= 0
+    && LIB_SCRIPTS.indexOf('ink-core.js') < LIB_SCRIPTS.indexOf('annotate.js')
+    && curved > 10 * 10
+    ? ok('a library stroke comes out densified: ' + curved + ' curve points for 10 samples')
+    : fail('a library stroke is not densified: ink-core.js at '
+           + LIB_SCRIPTS.indexOf('ink-core.js') + ', annotate.js at '
+           + LIB_SCRIPTS.indexOf('annotate.js') + ', ' + curved + ' curve points');
   await sleep(1300);
   const savedTwo = kinds(key(1)) === '{"fix":2,"dir":0}' && A.unsaved().indexOf(key(1)) < 0;
   net.view = { [key(1)]: [FIX], [key(4)]: [DIR] };

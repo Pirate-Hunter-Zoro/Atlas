@@ -49,7 +49,7 @@ const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const FILES = ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-               'slate-core.js', 'annotate.js', 'board.js'];
+               'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js'];
 
 // A board with a question owed, a surface open on it, and the wire stubbed. The
 // canvas is given a real size, because a canvas that was never sized reports the

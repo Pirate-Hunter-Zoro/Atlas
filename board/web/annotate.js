@@ -250,25 +250,19 @@ function padsOf(card, r) {
   return p;
 }
 
-/* The slate's ink geometry, shared rather than reimplemented: smooth the samples
-   as they arrive, run a Catmull-Rom curve through them, resample it to about a
-   pixel, and vary the width along it. Without this the layer drew raw pointer
-   samples joined by straight lines, which is the faceted, jagged line the slate
-   exists not to have. */
-var ink = (window.Slate && window.Slate.ink) || null;
-var SMOOTH = ink ? ink.SMOOTH : 0.3;
-var trust = (ink && ink.trust) || function () { return SMOOTH; };
-var MIN_STEP = ink ? ink.MIN_STEP : 0.5;
-var RESAMPLE = ink ? ink.RESAMPLE : 0.8;
-var POLISH = ink ? ink.POLISH : 2;
-
-function densify(pts) {
-  return ink ? ink.densify(pts) : pts;
-}
-
-function polish(pts, passes) {
-  return ink ? ink.polish(pts, passes) : pts;
-}
+/* The slate's ink geometry, shared rather than reimplemented (`ink-core.js`):
+   smooth the samples as they arrive, run a Catmull-Rom curve through them,
+   resample it to about a pixel, and vary the width along it. There is no
+   fallback to raw samples joined by straight lines, the faceted line this
+   exists not to draw: a page that forgot to load ink-core.js fails here. */
+var ink = window.InkCore;
+if (!ink) throw new Error("annotate.js: ink-core.js is not loaded");
+var trust = ink.trust;
+var MIN_STEP = ink.MIN_STEP;
+var RESAMPLE = ink.RESAMPLE;
+var POLISH = ink.POLISH;
+var densify = ink.densify;
+var polish = ink.polish;
 var store = Object.create(null);      /* card id -> [stroke, ...] */
 var dirty = Object.create(null);      /* card ids with unsaved changes */
 /* Which cards' marks have been handed to the tutor. Separate from `dirty`,
@@ -1211,7 +1205,6 @@ function feed(ev, d) {
    stroke on every frame. */
 function extend(d) {
   var pts = d.raw;
-  if (!ink) { d.dense = pts.slice(); d.built = pts.length; return; }
   while (d.built + 2 < pts.length) {
     var i = d.built;
     var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;

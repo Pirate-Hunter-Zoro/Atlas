@@ -87,7 +87,7 @@ window.EventSource = function () {
 };
 
 for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                 'slate-core.js', 'annotate.js', 'board.js']) {
+                 'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -274,7 +274,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   w2.EventSource = function () { w2.__es = this; this.readyState = 1;
     this.close = function () {}; this.addEventListener = function () {}; };
   for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                   'slate-core.js', 'annotate.js', 'board.js']) {
+                   'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
   }
   const es2 = w2.__es;
@@ -629,7 +629,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
          + 'by the thing that typesets the lesson')
     : fail('KaTeX did not load — the assertions below would prove nothing');
   for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                   'slate-core.js', 'annotate.js', 'board.js']) {
+                   'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     w3.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
   }
   const es3 = w3.__es;

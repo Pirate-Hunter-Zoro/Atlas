@@ -98,7 +98,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'who.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -499,12 +499,34 @@ if (es) {
 // surface, not on the lesson. So pen, erase, undo and redo did nothing at all
 // while annotating, which reads as broken rather than as out of scope.
 if (es && window.Annotate) {
-  var annbar = doc.getElementById('annbar');
+  // One bar, `annbar.js`, mounted by board.js: board.html carries no markup of
+  // its own for it.
+  var annbar = doc.querySelector('.annbar-board');
   var btnA = doc.getElementById('btn-annotate');
 
+  if (!/id="annbar"/.test(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'))
+      && doc.querySelectorAll('.annbar').length === 1 && annbar)
+    ok('the board\'s annotation tools are annbar.js\'s bar, and only that one');
+  else fail('board.html still carries a tool bar of its own, or annbar.js mounted none');
+
   btnA.onclick();
-  if (!annbar.hidden) ok('turning annotation on brings its own tools with it');
+  if (annbar && !annbar.hidden) ok('turning annotation on brings its own tools with it');
   else fail('annotate mode has no tools of its own');
+
+  var nibs = annbar ? annbar.querySelectorAll('.ann-nib') : [];
+  var well = annbar && annbar.querySelector('.ann-custom input[type="color"]');
+  if (nibs.length === 3 && well) ok('the board\'s bar has the nib sizes and the colour well');
+  else fail('the board\'s bar has ' + nibs.length + ' nibs and '
+            + (well ? 'a' : 'no') + ' colour well');
+  if (nibs.length === 3) {
+    nibs[2].onclick();
+    var broad = +nibs[2].dataset.w;
+    if (nibs[2].classList.contains('on')) ok('a nib tapped on the board is the one shown chosen');
+    else fail('the broad nib does not show as chosen after a tap');
+    nibs[1].onclick();
+    if (broad > +nibs[1].dataset.w) ok('and the nibs are of different sizes');
+    else fail('the nibs are all one size');
+  }
 
   window.Annotate.setOn(true);
   window.Annotate.load({});
@@ -574,16 +596,14 @@ if (es && window.Annotate) {
     }
     ink('pointerup', 100, 10, 0.4);
 
-    // Ink quality is one problem and it has one implementation. If the layer
-    // ever stops finding the slate's geometry it falls back to joining raw
-    // samples with straight lines -- which is the jagged line, back again, and
-    // silently.
-    if (window.Slate && window.Slate.ink
-        && typeof window.Slate.ink.densify === 'function'
-        && typeof window.Slate.ink.polish === 'function')
-      ok('the annotation layer shares the slate\'s ink pipeline');
-    else fail('the slate no longer exposes its ink geometry; the annotation '
-              + 'layer is drawing raw samples again');
+    // Ink quality is one problem and it has one implementation, ink-core.js,
+    // which both the slate and the annotation layer read.
+    if (window.InkCore
+        && typeof window.InkCore.densify === 'function'
+        && typeof window.InkCore.polish === 'function'
+        && !(window.Slate && window.Slate.ink))
+      ok('the annotation layer and the slate share ink-core.js');
+    else fail('the ink geometry is not ink-core.js\'s alone');
 
     var marks = window.Annotate.payload('0003').strokes;
     var last = marks[marks.length - 1];
@@ -1299,7 +1319,7 @@ if (es && window.Annotate) {
 
 
   // The mode has an exit that is not the title bar.
-  doc.getElementById('ann-done').onclick();
+  annbar.querySelector('button.primary').onclick();
   if (annbar.hidden && !doc.body.classList.contains('annotating'))
     ok('and the mode has a way out from where the hand already is');
   else fail('annotate mode can only be left from the title bar');
