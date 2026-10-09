@@ -173,7 +173,7 @@ try:
     # =======================================================================
     # 2. The beat
     # =======================================================================
-    cfg = {"courses_dir": tmp, "default_agent": "claude",
+    cfg = {"courses_dir": tmp, "provider": "claude",
            "agents": {"claude": {"cmd": ["claude"], "prompt": "argv",
                                  "headless": ["claude", "-p", "{prompt}"]}}}
     tree = {"now": "T"}
@@ -610,6 +610,10 @@ try:
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     stamp.LOADED = "aaaaaaaaaaaa"
     stamp.tree = lambda tool=None: "bbbbbbbbbbbb"
+    # The tailnet name is the `tailscale` CLI, which can take 20 s to give up
+    # when tailscaled is not answering; /health is asked about the stamp here.
+    from tutorboard.net import tailscale as _tailscale
+    _tailscale.tailnet_self = lambda status=None: ""
 
     def get(path):
         with urllib.request.urlopen("http://127.0.0.1:%d%s" % (port, path),

@@ -51,6 +51,11 @@ from tutorboard import sessions                               # noqa: E402
 from tutorboard.course import repo as course_repo             # noqa: E402
 from tutorboard.runner import service as runner_service      # noqa: E402
 from tutorboard.server import app, spawn                      # noqa: E402
+from tutorboard.net import tailscale                         # noqa: E402
+
+# No tailnet here: `tailscale status` can take 20 s to give up when tailscaled
+# is not answering, and /health asks for this machine's tailnet name.
+tailscale._ts_status = lambda: {}
 
 fails = []
 
