@@ -6,10 +6,10 @@
 #   1. cd to the Atlas root; take a lock, or exit 0 when another pass holds it.
 #   2. Pull only on a branch named main with no rebase, merge, cherry-pick,
 #      revert or bisect outstanding. Otherwise the pass still runs, and its
-#      own sync reports why.
+#      own pull reports why.
 #   3. git fetch origin main, then a fast-forward-only merge, each under
 #      `timeout 60` where that exists. A failed fast-forward still runs the
-#      pass: Python's sync rebases what it may and reports the rest.
+#      pass: Python's pull rebases what it may and reports the rest.
 #   4. When the pull changed board/, re-exec this script once, so the new
 #      launcher and the new Python run.
 #   5. Exec board/bin/relay --once --quiet, on $RELAY_PYTHON (the scrontab

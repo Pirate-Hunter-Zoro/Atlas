@@ -143,19 +143,6 @@ def relay_sense(root):
     return "\n".join(out)
 
 
-def sitting_sense(repo, st=None):
-    """Any hold standing in the workspace, or ""."""
-    out = []
-    try:
-        from . import holds
-        out.extend(holds.standing_sense(repo.root))
-    except Exception:                                        # noqa: BLE001
-        pass
-    if not out:
-        return ""
-    return "\n--- what this sitting is ---\n" + "\n".join(out)
-
-
 def beside_sense(repo):
     """What somebody did to this workspace that you have not been told about.
 
@@ -246,9 +233,6 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
                    "session is for. Then `board bind courses/<Name>` or `board "
                    "bind projects/<Name>`; add `--create` for a new one (a "
                    "project also needs `--phi yes|no`).")
-    held = sitting_sense(repo, st)
-    if held:
-        out.append(held)
     # THE WRITE-UP, on the brief, every turn. Counts and not just a name: "0 of
     # 11 written up, next 04.1" is a debt, and a debt on the brief gets paid.
     hw_set = homework.bound(root, st)

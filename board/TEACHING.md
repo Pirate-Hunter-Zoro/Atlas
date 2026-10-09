@@ -607,8 +607,8 @@ labour gives them: an estimator, a solver and its test table, a proof.
   them in the same turn and report what landed. Never hand them back as a step.
 - **You read their diff and run the check yourself.** When they say a step is
   done, read what they changed with git and run the smallest check that
-  proves it. Never assign a check, a command or a print. A sitting held at the
-  cluster is the exception: its check runs there.
+  proves it. Never assign a check, a command or a print. A session coding at
+  the cluster is the exception: its check runs there.
 - **You write no code for an estimator or a validation design**, nor any of
   the rest of their half. Estimators, resampling, folds, train/test splits,
   thresholds, the solver's algorithm, the proof's steps, and any choice with a
@@ -617,40 +617,30 @@ labour gives them: an estimator, a solver and its test table, a proof.
 
 ---
 
-## A sitting held at the cluster
+## A session coding at the cluster
 
 Sometimes the owner writes the code on the cluster while you coach from here.
-`board brief` says **HELD AT THE CLUSTER** and names the hold's files.
+They run `board code <session> <paths>` there. The session header shows that
+command to copy. Every pause is a step: the held paths are committed to
+`code/<session>`, the subject's check runs beside the data, and the step is
+pushed. The Mac hears it and wakes your turn with a `[code] step N` line.
+`board code <session> --end` makes one commit on main and deletes the ref.
+An `[unheld]` line says the ref is gone. Never ask them to paste code or push
+by hand.
 
-**This is the one way a coached step comes back from the cluster.** The owner
-runs `board hold`, writes the step, and types `board send`. The step is
-committed as `<id>: step`, its check runs beside the data, and the Mac's pull
-hears it within twenty seconds as a `[coach]` line. That wakes your turn. When
-they ask how to say "I coded what you said" from the cluster, the answer is
-`board hold`, then `board send`. A commit the relay's sync pushes wakes
-nothing, so never coach off one. Never ask them to paste code or push by hand.
-
-- **The held files are the cluster's.** Do not edit them. `board push` refuses
-  a commit that touches them. Plumbing for this sitting waits for the release,
-  or goes in files outside the hold.
-- **The hold is named by a thread, or by the files and id in the `[coach]`
-  line.** Use that id in every command below.
-- **Each step arrives as a `[coach]` line.** The owner typed `board send`: the
-  step is committed as `<id>: step`, and the check has run on the cluster. The
-  line carries the commit, the check's exit code and what it may: in an open
-  workspace, the check's own output, cut to fit; in a fenced one, its `RELAY:`
-  lines only. Read the diff with `git show`. Read the failing case from the
-  output. Do not run the check here.
-- **A hold with no check** sends the diff alone. Read it and judge the step.
-- **Write the next card, then send it to their terminal.** `board write` as
-  usual, then the same text into `board coach <id> --step <n>` on stdin.
-  `board send` prints it on the cluster.
-- **Both are public.** Talk about the code and the check's result. In a fenced
-  workspace that means its aggregate numbers: never a row, an identifier or a
+- **Each step arrives as a `[code] step N` line.** It names the `git diff` to
+  read. `git log -1` on the step carries its check: pass or fail, the exit, the
+  `RELAY:` lines, and the output only where the subject's output is open. Do
+  not run the check here.
+- **The held files are the cluster's while the session codes.** A commit to
+  them on main is refused. In do mode, edit them here and `board push`: that
+  goes to `code/<session>`, and the cluster applies it.
+- **Your card is public.** Talk about the code and the check's result. In a
+  fenced subject that means aggregate numbers: never a row, an identifier or a
   path to lab storage.
-- **The check is yours to write only where the workspace declares none**, as a
-  tracked script, before the hold. In a fenced workspace it prints only
-  `RELAY:` lines, each an aggregate.
+- **The check is yours to write only where the subject declares none**, as a
+  tracked script. In a fenced subject it prints only `RELAY:` lines, each an
+  aggregate.
 
 ---
 
@@ -1118,7 +1108,7 @@ one thing you do up front and it is not a card. Then:
    that step in a table, and one question: what does this return, which branch
    runs, what is in this variable now, what breaks if this line goes. The
    excerpt is a fence whose info string is the language and the Atlas-relative
-   address, `py board/tutorboard/holds.py#L40-58`, and the lines are the file's
+   address, `py board/tutorboard/code.py#L40-58`, and the lines are the file's
    own, unedited. The board highlights it, numbers it from 40, and captions it
    with a link to the read-only source viewer at that range, which serves only
    tracked files.

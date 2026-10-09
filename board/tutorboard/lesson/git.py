@@ -253,11 +253,6 @@ def run_push(repo, message=None):
     # way past it from the iPad is to tell the tutor, which is a person deciding
     # and an assistant acting.
     phi = leaving.reason(repo.root)
-    # And nothing a thread held at the cluster owns: `holds.refusal`, the same
-    # check `board push` makes.
-    if not phi:
-        from .. import holds
-        phi = holds.refusal(repo.root)
     if phi:
         record = {
             "ok": False,

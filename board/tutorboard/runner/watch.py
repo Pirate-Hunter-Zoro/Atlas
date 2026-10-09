@@ -109,7 +109,7 @@ def cmd_restart(cfg, args, only=None):
     `--since EPOCH` is when the ship began: another node's watch may restart a
     board before this command starts, and that is still this ship's restart.
     `only` is the watch beat's own entry: those boards and no others, under the
-    lock the beat already holds.
+    lock the beat has already taken.
     """
     host = recipes.this_host()
     stale = "--stale" in args

@@ -584,7 +584,7 @@ def logs_of(jobid, cwd, run=subprocess.run):
 # polling
 # ---------------------------------------------------------------------------
 def squeue(run=subprocess.run, user=None):
-    """`{base jobid: state}` for this user's jobs Slurm still holds. None when
+    """`{base jobid: state}` for this user's jobs Slurm still knows. None when
     squeue could not be asked at all, which is not the same as knowing nothing.
 
     `sacct` is refused on this cluster, so this is all Slurm says: a job is
@@ -1577,11 +1577,6 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
                         % (rid,))
     elif rid in set(taken or ()):
         problems.append("id %s is already filed; an id names one request" % rid)
-    elif rid.startswith("check-"):
-        # `relay/reports/check-<thread>-<n>.json` is a held step's check
-        # (`holds.is_check`), so a request named so would share its report.
-        problems.append("id %s starts with `check-`, which names a held "
-                        "step's check report" % rid)
     filed = req.get("filed")
     if filed is not None and (isinstance(filed, bool)
                               or not isinstance(filed, (int, float))):
@@ -1782,9 +1777,8 @@ def _relay_of(path):
 
 
 def relay_opts(root):
-    """This workspace's relay opt-ins, `colibri` and `sync`, from its own
-    `tutorboard.json` alone. There is no machine-wide default: nothing opts a
-    workspace into sync but its own file (the sync code goes in T38c)."""
+    """This workspace's relay opt-in, `colibri`, from its own
+    `tutorboard.json` alone. There is no machine-wide default."""
     return dict(_relay_of(os.path.join(root, "tutorboard.json")))
 
 
@@ -2262,7 +2256,7 @@ def _baseline(root):
 
 def _claim_once(root, key):
     """True for the one hearer that may drop this ending. Never taken over.
-    A claim written in an old place before the move still holds."""
+    A claim written in an old place before the move still counts."""
     target = _adopt(root, key)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -2300,13 +2294,9 @@ def hear(root, now=None):
         by_id = dict((r["request"], r) for r in relayed(root))
         got = reports(root)
         out, missed = [], False
-        from . import holds
         for rel in sorted(changed):
             rid = os.path.basename(rel)[:-len(".json")] if rel.endswith(
                 ".json") else ""
-            if holds.is_check(rid):
-                # A held step's check: `holds.wake` drops its `[coach]` line.
-                continue
             rep = got.get(rid)
             if not rep:
                 continue

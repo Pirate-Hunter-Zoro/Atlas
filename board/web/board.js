@@ -8975,7 +8975,7 @@ function absorb(msg) {
   (msg.cards_changed || []).forEach(function (c) { if (c && c.id) byId[c.id] = c; });
   model.cards = sortCards(Object.keys(byId).map(function (k) { return byId[k]; }));
   /* Fewer cards below the window means some were deleted; more means the
-     window slid over cards this page still holds. */
+     window slid over cards this page still has. */
   if (typeof msg.cards_older === "number" && msg.cards_older < (model.cards_older || 0)) {
     olderLeft = Math.max(0, olderLeft - ((model.cards_older || 0) - msg.cards_older));
   }
@@ -10775,7 +10775,7 @@ function paintMissions(show) {
     }
     /* WHAT IT HAS DONE, and it is two things on the row rather than one. The
        last step it reported is the line that says the work is moving; the
-       control beside it opens the whole trail and every fact the record holds.
+       control beside it opens the whole trail and every fact the record carries.
        A mission that has reported nothing still has the second one, which is
        the case the panel exists for. */
     var more = document.createElement("span");
@@ -12265,10 +12265,10 @@ function paintElsewhere() {
          decides what the second choice COSTS. Naming a different one stops
          this one, and the stop is a model call. */
       if (w.holder) {
-        var holds = document.createElement("span");
-        holds.className = "holds";
-        holds.textContent = w.holder + " listening";
-        b.appendChild(holds);
+        var holder = document.createElement("span");
+        holder.className = "holds";
+        holder.textContent = w.holder + " listening";
+        b.appendChild(holder);
       }
       /* And whether it holds a fence, ON THE ROW, because the choice of
          workspace is made before the choice of assistant and this is what

@@ -201,7 +201,7 @@ check("the walk reaches the entries and the relay modules",
        "tutorboard/paths.py", "tutorboard/worktree.py",
        "tutorboard/code.py", "tutorboard/gitops.py", "tutorboard/audit.py"}
       <= names)
-check("and follows their imports (relay imports subjects, holds exports)",
+check("and follows their imports (relay imports subjects and exports)",
       {"tutorboard/subjects.py", "tutorboard/exports.py"} <= names)
 for path in sorted(said):
     rel = os.path.relpath(path, ROOT)

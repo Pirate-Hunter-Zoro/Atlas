@@ -44,7 +44,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import jobs, leaving, relay                            # noqa: E402
+from tutorboard import code as coding, jobs, leaving, relay            # noqa: E402
 
 TUTOR = os.path.join(ROOT, "bin", "tutor")
 RELAY = os.path.join(ROOT, "bin", "relay")
@@ -836,15 +836,18 @@ try:
         os.environ.pop("TUTORBOARD_COURSES", None)
         os.environ.pop("COLI_STATE_DIR", None)
 
-    # --- a hold: the owner's edit to a held file does not skip the pass -------
+    # --- a coding session: the owner's edit to a held file does not skip ------
     git(mac, "pull", "-q", "--rebase")
-    write(os.path.join(mws, "relay", "holds", "knn.json"), json.dumps(
-        {"thread": "knn", "files": ["src/knn.py"], "at": time.time()}))
     write(os.path.join(mws, "src", "knn.py"), "x = 1\n")
     git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "knn: hold")
+    git(mac, "commit", "-q", "-m", "knn: the file")
     git(mac, "push", "-q")
     run_pass()
+    state_was = os.environ.get("BOARD_STATE_DIR")
+    os.environ["BOARD_STATE_DIR"] = os.path.join(base, "code-state")
+    _, probs = coding.start(cluster, "knn", ["projects/Proj/src/knn.py"],
+                            cwd=cluster)
+    check("a coding session holds src/knn.py at the cluster", not probs)
     write(os.path.join(cws, "src", "knn.py"), "x = 2  # the owner, mid-step\n")
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "notes.md"), "the Mac pushes elsewhere\n", "a")
@@ -862,6 +865,10 @@ try:
           and "the Mac pushes elsewhere" in open(
               os.path.join(cws, "notes.md")).read())
     git(cluster, "checkout", "--", "projects/Proj/src/knn.py")
+    coding.forget("knn")
+    os.environ.pop("BOARD_STATE_DIR", None)
+    if state_was is not None:
+        os.environ["BOARD_STATE_DIR"] = state_was
 
     # --- the command, status and where ------------------------------------------
     bin_dir = os.path.join(base, "bin")

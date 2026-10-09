@@ -13,10 +13,8 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
 `flock`, so a second pass at once skips rather than waits):
 
 1. Pull, fast-forward only. A tree with edits or unpushed commits outside the
-   cluster's own paths is skipped, and `relay/state.json` says why, except
-   the owner's edits inside one workspace that opts in with
-   `"relay": {"sync": true}`: those step 5 commits. Then `pull_vendor` moves
-   `vendor/colibri`.
+   cluster's own paths is skipped, and `relay/state.json` says why. Then
+   `pull_vendor` moves `vendor/colibri`.
 2. Each request with no report is validated, then submitted or refused.
 3. Unfinished jobs are polled with `jobs.poll`: `squeue` plus the wrapper's
    exit file, because `sacct` is refused here. An ended job's exports are
@@ -30,15 +28,14 @@ ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
    (`slurm_jobs/lib/relay_trap.sh`), and the Mac repairs it.
 5. Only what this pass wrote under `relay/reports/` and `exports/` is
    committed (`staged_paths`), with `relay/status.json` when it changed;
-   anything else there is named in `relay/state.json`. Then a synced workspace's edits, one commit each
-   (`sync_commit`), past the PHI check `board push` uses; what it refuses is
-   left uncommitted and named. The pass rebases onto origin with `holds.sync`
-   and pushes. A rejected push is retried by the next pass; a sync commit
-   behind a stopped rebase or a refused push is undone into edits again
-   (`_unwind`). Never force.
+   anything else there is named in `relay/state.json`. The pass rebases onto
+   origin under any edits (`pull_under`) and pushes. A rejected push is
+   retried by the next pass. Never force. The pass never commits the owner's
+   edits.
 
-A held thread's files and a Colibri task's workspace are the owner's edits,
-left uncommitted: neither skips the pass, and the pull goes under them. A
+A coding session's held paths (`board code`) and a Colibri task's workspace
+are the owner's edits, left uncommitted: neither skips the pass, and the pull
+goes under them. A
 task's changes stay so when the check fails it, for the owner to settle.
 A request's report is named for its id where that is valid, else for its
 file, so no payload names a path outside `relay/reports/`.
@@ -202,26 +199,6 @@ def spaces(base):
     return [(where, _rel(base, where)) for where in subjects.roots(base)]
 
 
-def held_paths(where, base=None):
-    """Repository-relative paths a standing hold covers, workspace by
-    workspace: `holds.owned`, which is the hold files, the reports and
-    exports, and every held thread's files; and, given `base`, every path an
-    open coding session holds (`coding`). The owner edits these at the
-    cluster, so neither an edit nor an unpushed commit under them is a reason
-    to skip."""
-    from . import holds
-    out = []
-    for root, ws in where:
-        try:
-            mine = holds.owned(root)
-        except Exception:                                    # noqa: BLE001
-            continue
-        out.extend(ws + "/" + p.strip("/") for p in mine if p)
-    if base:
-        out.extend(coding(base))
-    return out
-
-
 def coding(base):
     """Repository-relative paths an open coding session (`board code`) holds
     in this checkout. `[]` where none is registered or they cannot be read."""
@@ -277,8 +254,8 @@ def _under(rel, prefixes):
 def owned(base, rel, where=None, held=None):
     """Is this repository-relative path one the cluster writes? A workspace's
     `relay/reports/` and `exports/`, `relay/status.json`, the
-    `vendor/colibri` pointer the pass moves, and (`held`, from `held_paths`)
-    what a standing hold covers."""
+    `vendor/colibri` pointer the pass moves, and (`held`, from `coding`)
+    the paths an open coding session holds open."""
     if rel in ("vendor/colibri", STATUS):
         return True
     for _, ws in where if where is not None else spaces(base):
@@ -325,54 +302,8 @@ def _count(base, spec):
 
 
 # ---------------------------------------------------------------------------
-# the owner's edits, where a workspace opts in
+# step 1: the pull
 # ---------------------------------------------------------------------------
-# `"relay": {"sync": true}` in a workspace's `tutorboard.json` lets the pass
-# commit and push the owner's own edits there, one commit per workspace, after
-# the PHI check `board push` uses. Without it an edit there skips the pass.
-SYNC_MESSAGE = "%s: cluster sync"
-_SYNC_RE = re.compile(r"^(.+): cluster sync$")
-NO_POLICY_SYNC = ("the PHI guard's policy (ai-config/policy/phi.py) is not "
-                  "installed in this checkout, so nothing is synced")
-
-
-def sync_spaces(where):
-    """Repository-relative workspaces whose `jobs.relay_opts` says `sync`.
-
-    FAIL CLOSED. A workspace's holds and the Colibri queue are what tell the
-    owner's edits from a hold's or a task's, so a pass that cannot read either
-    syncs nothing. A task the queue gave up on (`failed`) still owns its
-    workspace until somebody settles it."""
-    asked = [(root, ws) for root, ws in where
-             if jobs.relay_opts(root).get("sync") is True]
-    if not asked:
-        return []
-    from . import colibri, holds
-    try:
-        for root, _ in asked:
-            holds.owned(root)
-        given_up = []
-        queue = colibri.queue_root()
-        if queue:
-            given_up = [str(rec.get("workspace") or "").strip()
-                        for rec in colibri.tasks(queue)
-                        if rec.get("queue") == "failed"]
-    except Exception:                                        # noqa: BLE001
-        return []
-
-    def taken(root, ws):
-        # The spellings `subjects.find` accepts: parent/slug, bare slug, root.
-        return any(g and (g.strip("/") in (ws, os.path.basename(ws))
-                          or paths.same_dir(root, g)) for g in given_up)
-    return [ws for root, ws in asked if not taken(root, ws)]
-
-
-def _space_of(rel, where):
-    """The one workspace this repository-relative path is inside, or None."""
-    hits = [ws for _, ws in where if rel.startswith(ws + "/")]
-    return hits[0] if len(hits) == 1 else None
-
-
 def _status(base, rel, strict=False):
     """Repository-relative paths under `rel` git sees as changed or new:
     tracked edits, both sides of a rename, untracked files not ignored.
@@ -395,159 +326,75 @@ def _status(base, rel, strict=False):
     return got
 
 
-def _sync_log(base, ref):
-    """`[(sha, parents, subject, files)]` for `ref..HEAD`, newest first."""
-    code, out = _git(base, "-c", "core.quotePath=false", "log",
-                     "--format=%x01%H%x09%P%x09%s", "--name-only",
-                     "%s..HEAD" % ref)
+def _stashes(base):
+    """How many entries `git stash list` holds, or None if git would not say."""
+    code, out = _git(base, "stash", "list", timeout=20)
     if code != 0:
-        return []
-    got = []
-    for block in out.split("\x01")[1:]:
-        lines = block.splitlines()
-        head = (lines[0] if lines else "").split("\t", 2)
-        if len(head) < 3:
-            continue
-        got.append((head[0], head[1].split(), head[2],
-                    [l for l in lines[1:] if l.strip()]))
-    return got
+        return None
+    return len([l for l in out.splitlines() if l.strip()])
 
 
-def _sync_ws(subject, opted):
-    m = _SYNC_RE.match(subject)
-    return m.group(1) if m and m.group(1) in opted else None
+def pull_under(base):
+    """Bring the upstream in under the edits here. `(ok, said)`.
 
-
-def _synced(base, ref, opted):
-    """Paths in `ref..HEAD` that only sync commits changed: a sync a killed
-    pass left unpushed does not skip the next pass, which pushes it."""
-    if not opted:
-        return set()
-    mine, other = set(), set()
-    for _, _, subject, files in _sync_log(base, ref):
-        ws = _sync_ws(subject, opted)
-        for f in files:
-            (mine if ws and f.startswith(ws + "/") else other).add(f)
-    return mine - other
-
-
-def _unwind(base, ref, opted):
-    """Undo the sync commits on top of HEAD that origin lacks, keeping their
-    changes in the tree, unstaged. The paths they carried, or `[]`.
-
-    A sync commit is never left behind a rebase that stopped or a push that
-    was refused: the owner's edits go back to being edits, and the next pass
-    tries again."""
-    if not opted:
-        return []
-    target = None
-    for _, parents, subject, _ in _sync_log(base, ref):
-        if not _sync_ws(subject, opted) or len(parents) != 1:
-            break
-        target = parents[0]
-    if not target:
-        return []
-    code, out = _git(base, "-c", "core.quotePath=false", "diff",
-                     "--name-only", target, "HEAD")
-    files = [l for l in out.splitlines() if l] if code == 0 else []
-    code, _ = _git(base, "reset", "-q", "--soft", target)
+    `git rebase --autostash` onto the upstream: the edits (a coding session's
+    held files, a Colibri task's workspace) are set aside, the local commits
+    replayed on origin, and the edits put back. That is safe only because
+    nothing upstream touches an edited path, so that is checked first: a path
+    both edited here and changed upstream stops the pull with nothing moved. A
+    rebase that fails anyway is aborted, which puts the tree back as it was."""
+    busy = worktree.busy_reason(base)
+    if busy:
+        return False, "%s, so nothing was pulled" % busy
+    code, up = _git(base, "rev-parse", "--abbrev-ref", "@{upstream}", timeout=10)
     if code != 0:
-        return []
-    if files:
-        _git(base, "reset", "-q", "--", *files)
-    return files
+        return True, "no upstream to pull from"
+    remote = up.strip().split("/", 1)[0]
+    code, out = _git(base, "fetch", "--quiet", remote)
+    if code != 0:
+        return False, "could not fetch %s: %s" % (remote, out[-300:])
+    if not _count(base, "HEAD..@{upstream}"):
+        return True, "already current"
+    code, out = _git(base, "diff", "--name-only", "-z", "HEAD...@{upstream}",
+                     raw=True)
+    if code != 0:
+        return False, ("could not read what origin changes, so nothing was "
+                       "pulled")
+    incoming = set(x for x in out.split("\0") if x)
+    dirty = _status(base, ".", strict=True)
+    if dirty is None:
+        return False, "git status failed, so nothing was pulled"
+    clash = sorted(p for p in dirty if p in incoming)
+    if clash:
+        return False, ("origin changes %s, which %s uncommitted edits here, so "
+                       "nothing was pulled"
+                       % (", ".join(clash[:6]),
+                          "has" if len(clash) == 1 else "have"))
+    stashed = _stashes(base)
+    code, out = _git(base, "rebase", "--autostash", "--quiet", "@{upstream}",
+                     timeout=300)
+    if code != 0:
+        _git(base, "rebase", "--abort")
+        return False, ("the rebase onto origin stopped, so it was undone and "
+                       "the tree is as it was: %s" % out[-300:])
+    code, left = _git(base, "diff", "--name-only", "--diff-filter=U")
+    if code != 0 or left:
+        return False, ("the edits set aside did not go back cleanly; they are "
+                       "kept in `git stash list`: %s" % left)
+    # The other way an autostash fails to go back: `stash apply` refuses (a
+    # file changed while the rebase ran), git still exits 0 and leaves no
+    # conflict, and the edits sit in the stash, gone from the tree.
+    after = _stashes(base)
+    if (stashed is None or after is None or after > stashed
+            or "resulted in conflicts" in out):
+        return False, ("the edits set aside did not go back; they are kept in "
+                       "`git stash list` (stash@{0}), so put them back with "
+                       "`git stash pop` before the next pull")
+    return True, "pulled origin under the edits here"
 
 
-# A NEW FILE SYNCS ONLY AS SOURCE OR PROSE. The `board push` check reads a
-# file's contents only in a fenced workspace, and the cluster is where patient
-# rows are; a stray table, record, notebook or dump written beside the code
-# stays on the cluster for the owner to commit by hand. A file git already
-# tracks passed the ship check once and syncs whatever its extension.
-SYNC_NEW = (".py", ".sh", ".sbatch", ".md", ".tex", ".bib", ".toml", ".yaml",
-            ".yml", ".cfg", ".ini", ".lean", ".go", ".js", ".css", ".html")
-
-
-def _tracked(base, rel):
-    code, _ = _git(base, "ls-files", "--error-unmatch", "--", rel)
-    return code == 0
-
-
-def _sync_refusal(base, rel, names_phi, incoming, flagged):
-    """Why the pass leaves this owner's edit uncommitted, or ""."""
-    if names_phi is None:
-        return NO_POLICY_SYNC
-    if rel in incoming:
-        return ("origin changes it too, so the owner merges it; nothing is "
-                "forced")
-    try:
-        if names_phi(rel):
-            return "its path is one the PHI policy names"
-    except Exception:                                        # noqa: BLE001
-        return "the PHI policy failed on its path"
-    if rel in flagged:
-        return "the PHI check `board push` uses refuses it"
-    full = os.path.join(base, rel)
-    if os.path.islink(full):
-        return "it is a symlink, which the owner commits by hand"
-    if (os.path.exists(full) and not rel.lower().endswith(SYNC_NEW)
-            and not _tracked(base, rel)):
-        return ("a new file of this kind may hold data, so the owner commits "
-                "it by hand")
-    try:
-        if os.path.isfile(full) and os.path.getsize(full) > CAP:
-            return "it is over the 5 MB cap"
-    except OSError:
-        pass
-    return ""
-
-
-def sync_commit(base, sync):
-    """Commit the owner's edits `sync` names (`{workspace: [paths]}`), one
-    commit per workspace, `<workspace>: cluster sync`. `(committed, left)`:
-    `left` is `[{"path", "why"}]`, each still uncommitted in the tree."""
-    from . import holds
-    names_phi = leaving.policy(base)
-    every = sorted(p for ps in sync.values() for p in ps)
-    incoming = set()
-    up = upstream(base)
-    if up:
-        code, out = _git(base, "-c", "core.quotePath=false", "diff",
-                         "--name-only", "HEAD...%s" % up[2])
-        if code == 0:
-            incoming = set(l for l in out.splitlines() if l)
-    flagged = leaving.refused(base, every, base) if names_phi else []
-    # A string is a refusal of the whole set: the check itself could not run.
-    flagged = set(every) if isinstance(flagged, str) else set(flagged)
-    done, left = [], []
-    for ws in sorted(sync):
-        take = []
-        for p in sorted(set(sync[ws])):
-            why = _sync_refusal(base, p, names_phi, incoming, flagged)
-            if why:
-                left.append({"path": p, "why": why})
-            else:
-                take.append(p)
-        if not take:
-            continue
-        ok, out = holds._commit(base, take, SYNC_MESSAGE % ws)
-        if ok:
-            done.extend(take)
-        else:
-            said = (out.splitlines() or [""])[-1][:200]
-            left.extend({"path": p, "why": "the commit failed: %s" % said}
-                        for p in take)
-    return done, left
-
-
-def sync(base, where, pull_vendor=None, said=None):
-    """Step 1. `(skip reason or "", error or "")`.
-
-    `said`, a dict, gets `sync`: the owner's edits `publish` commits
-    (`{workspace: [paths]}`), and `sync_left`: any a stopped pull unwound."""
-    from . import worktree
-    said = said if said is not None else {}
-    said.setdefault("sync", {})
-    said.setdefault("sync_left", [])
+def pull(base, where, pull_vendor=None):
+    """Step 1. `(skip reason or "", error or "")`."""
     busy = worktree.busy_reason(base)
     if busy:
         return "%s in the repository" % busy, ""
@@ -559,46 +406,30 @@ def sync(base, where, pull_vendor=None, said=None):
     dirty = _dirty(base)
     if dirty is None:
         return "git status failed", ""
-    held = held_paths(where, base)
-    coded = coding(base)
+    held = coding(base)
     busy_ws = colibri_busy(base)
-
-    def cluster_s(p):
-        return owned(base, p, where, held) or _under(p, busy_ws)
-    stray = [p for p in dirty if not cluster_s(p)]
-    # The owner's edits inside one opted-in workspace are the pass's to
-    # commit; anything else stray still skips it, as before.
-    opted = sync_spaces(where)
-    mine = {}
-    for ws in opted:
-        for p in _status(base, ws):
-            if not cluster_s(p) and _space_of(p, where) == ws:
-                mine.setdefault(ws, []).append(p)
-    taken = set(p for ps in mine.values() for p in ps)
-    stray = [p for p in stray if p not in taken]
+    stray = [p for p in dirty
+             if not owned(base, p, where, held) and not _under(p, busy_ws)]
     if stray:
         return ("the tree has edits outside the cluster's paths: %s"
                 % ", ".join(stray[:5]) + (" and %d more" % (len(stray) - 5)
                                           if len(stray) > 5 else "")), ""
-    said["sync"] = dict((ws, sorted(ps)) for ws, ps in mine.items())
     code, out = _git(base, "fetch", "--quiet", remote, theirs)
     error = "" if code == 0 else "fetch from %s failed: %s" % (
         remote, out.splitlines()[-1] if out else "no output")
     ahead = _count(base, "%s..HEAD" % ref)
     if ahead:
         code, out = _git(base, "diff", "--name-only", "%s...HEAD" % ref)
-        excused = _synced(base, ref, opted)
         theirs_not = [p for p in out.splitlines() if p
-                      and not owned(base, p, where, held) and p not in excused]
+                      and not owned(base, p, where, held)]
         if code != 0 or theirs_not:
             return ("the branch has commits origin lacks, outside the "
                     "cluster's paths: %s" % ", ".join(theirs_not[:5])), error
     # A coding session's paths are the owner's until `board code --end`:
     # origin changing one stops the pull rather than overwrite what is being
     # written. The pass still runs, at this HEAD, and says why.
-    clash = []
     if not error and _count(base, "HEAD..%s" % ref):
-        clash = held_upstream(base, ref, coded)
+        clash = held_upstream(base, ref, held)
         if clash is None:
             error = ("could not tell whether origin changes a coding "
                      "session's held paths, so nothing was pulled")
@@ -607,22 +438,10 @@ def sync(base, where, pull_vendor=None, said=None):
                      "refuses the same files until they are merged by hand"
                      % (HELD_UPSTREAM, ", ".join(clash[:5])))
     if not error and _count(base, "HEAD..%s" % ref):
-        if ahead or mine or dirty:
-            # Commits of its own to replay, or the owner's edits (a held
-            # thread, a Colibri task's, a synced workspace's) to keep:
-            # `holds.sync` checks origin leaves every edited path alone,
-            # rebases under an autostash, and says so when the edits did not
-            # go back.
-            from . import holds
-            ok, why = holds.sync(base)
-            if not ok:
-                back = _unwind(base, ref, opted)
-                if back:
-                    said["sync_left"].extend(
-                        {"path": p, "why": "the pull onto origin stopped, so "
-                         "it is uncommitted again and tried next pass"}
-                        for p in back)
-                    ok, why = holds.sync(base)
+        if ahead or dirty:
+            # Commits of its own to replay, or the owner's edits (a coding
+            # session's, a Colibri task's) to keep.
+            ok, why = pull_under(base)
             if not ok:
                 return "", "pull onto %s failed: %s" % (ref, why)
         else:
@@ -796,13 +615,8 @@ def staged_paths(base, where):
     return sorted(take), sorted(left)
 
 
-def publish(base, where, message, push=True, sync=None, said=None):
-    """Step 5. Commit the cluster's paths, then the owner's edits `sync`
-    names (`sync_commit`), rebase, push. `(sha, error)`. `said`, a dict, gets
-    `synced` (paths pushed in a sync commit) and `sync_left`."""
-    said = said if said is not None else {}
-    said.setdefault("synced", [])
-    said.setdefault("sync_left", [])
+def publish(base, where, message, push=True):
+    """Step 5. Commit the cluster's paths, rebase, push. `(sha, error)`."""
     mine, _ = staged_paths(base, where)
     if status_dirty(base):
         mine.append(STATUS)
@@ -816,21 +630,10 @@ def publish(base, where, message, push=True, sync=None, said=None):
                          *mine)
         if code != 0:
             return "", "commit failed: %s" % (out.splitlines() or [""])[-1]
-    if sync:
-        done, left = sync_commit(base, sync)
-        said["synced"].extend(done)
-        said["sync_left"].extend(left)
     up = upstream(base)
     if not up or not push:
         return "", ""
     remote, theirs, ref = up
-    opted = sync_spaces(where)
-
-    def unwound(why):
-        back = _unwind(base, ref, opted)
-        said["synced"][:] = [p for p in said["synced"] if p not in back]
-        said["sync_left"].extend({"path": p, "why": why} for p in back)
-        return back
     if not _count(base, "%s..HEAD" % ref):
         return "", ""
     _git(base, "fetch", "--quiet", remote, theirs)
@@ -838,24 +641,13 @@ def publish(base, where, message, push=True, sync=None, said=None):
     if clash:
         return "", "%s: %s; nothing was pushed" % (HELD_UPSTREAM,
                                                     ", ".join(clash[:5]))
-    from . import holds
-    ok, why = holds.sync(base)
-    if not ok and unwound("the rebase onto origin stopped, so it is "
-                          "uncommitted again and tried next pass"):
-        ok, why = holds.sync(base)
+    ok, why = pull_under(base)
     if not ok:
         return "", "rebase before the push failed: %s" % why
     if not _count(base, "%s..HEAD" % ref):
         return "", ""
     code, out = _git(base, "push", "--quiet", remote, "HEAD:%s" % theirs,
                      timeout=180)
-    if code != 0 and unwound("the push was refused, so it is uncommitted "
-                             "again and tried next pass"):
-        if not _count(base, "%s..HEAD" % ref):
-            return "", "the sync commit's push was refused: %s" % (
-                out.splitlines() or [""])[-1]
-        code, out = _git(base, "push", "--quiet", remote, "HEAD:%s" % theirs,
-                         timeout=180)
     if code != 0:
         return "", "push rejected, retried next pass: %s" % (
             out.splitlines() or [""])[-1]
@@ -1068,8 +860,7 @@ def _stamp(full):
 def workspace_changes(ws):
     """`{repository-relative path: _stamp}` for every change git can see under
     workspace `ws` -- tracked edits and untracked files it does not ignore --
-    less what the cluster writes there: reports, holds, and what this pass
-    wrote. The job registry and the Colibri queue sit in the ignored
+    less what the cluster writes there: reports, and what this pass wrote. The job registry and the Colibri queue sit in the ignored
     `relay/state/`, which git does not see. None where git cannot say.
 
     `colibri.file` keeps this as a task's baseline, so the owner's edits from
@@ -1082,10 +873,8 @@ def workspace_changes(ws):
     got = _status(base, rel, strict=True)
     if got is None:
         return None
-    from . import holds
     prefix = "" if rel == "." else rel + "/"
-    mine = [prefix + jobs.RELAY + "/reports", prefix + jobs.RELAY + "/"
-            + holds.HOLDS]
+    mine = [prefix + jobs.RELAY + "/reports"]
     written = set(_rel(base, p) for p in _WRITTEN)
     return dict((p, _stamp(os.path.join(base, p))) for p in got
                 if not _under(p, mine) and p not in written)
@@ -1323,14 +1112,13 @@ def _locked_pass(base, run, now, pull_vendor, push):
     t0 = float(now or time.time())
     st = read_state(base)
     summary = {"submitted": [], "refused": [], "ended": [], "skipped": "",
-               "error": "", "synced": []}
+               "error": ""}
     errors = []
-    said = {}
     wrote = False
     _WRITTEN.clear()
     try:
         where = spaces(base)
-        skip, err = sync(base, where, pull_vendor, said)
+        skip, err = pull(base, where, pull_vendor)
         if err:
             errors.append(err)
         if skip:
@@ -1356,11 +1144,9 @@ def _locked_pass(base, run, now, pull_vendor, push):
             ids = summary["submitted"] + summary["refused"] + summary["ended"]
             msg = ("relay: %d report(s) -- %s" % (len(ids), ", ".join(ids[:6]))
                    if ids else "relay: reports")
-            sha, err = publish(base, where, msg[:200], push=push,
-                               sync=said.get("sync"), said=said)
+            sha, err = publish(base, where, msg[:200], push=push)
             if err:
                 errors.append(err)
-            summary["synced"] = list(said.get("synced") or [])
             # Changed under exports/ or relay/reports/ and not written by a
             # pass: never committed, and named here for the owner.
             st["unpublished"] = staged_paths(base, where)[1][:50]
@@ -1376,11 +1162,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
                "skipped": summary["skipped"],
                "push_pending": any("push rejected" in e for e in errors),
                "counts": dict((k, len(summary[k])) for k in
-                              ("submitted", "refused", "ended")),
-               # The owner's edits a synced workspace pushed this pass, and
-               # those left uncommitted, each with why.
-               "synced": summary["synced"][:50],
-               "sync_left": list(said.get("sync_left") or [])[:50]})
+                              ("submitted", "refused", "ended"))})
     if errors:
         st["last_error"] = summary["error"]
         st["error_at"] = t0
@@ -1389,7 +1171,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
 
 
 def _num(value):
-    """A sortable number out of a request's `filed`, whatever it holds."""
+    """A sortable number out of a request's `filed`, whatever it contains."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0.0
     return float(value)

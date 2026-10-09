@@ -9,7 +9,7 @@
 The Mac's timed pull is the board server's cluster thread (`cluster.Ear`).
 
 `board/scripts/save-and-push.sh` is a thin CLI over `save`. relay.py and
-holds.py keep their own cluster-side git until T38c replaces them.
+code.py keep their own cluster-side git.
 
 A PATH HELD AT THE CLUSTER IS THE CLUSTER'S. While a Mac session's
 `session.json` has `code` set (a coding session at the cluster, `code.py`),

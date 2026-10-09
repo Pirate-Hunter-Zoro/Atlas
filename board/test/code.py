@@ -350,7 +350,7 @@ try:
     check("and imports no server or runner module (%s)" % ", ".join(ours),
           "tutorboard.code" in ours and not any(
               m.startswith(("tutorboard.server", "tutorboard.runner",
-                            "tutorboard.holds", "tutorboard.agents"))
+                            "tutorboard.agents"))
               for m in ours))
 finally:
     os.environ.clear()

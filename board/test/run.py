@@ -4,7 +4,7 @@
     python3 board/test/run.py              every suite, four at a time
     python3 board/test/run.py -j 1         one at a time
     python3 board/test/run.py --guards     the PHI and relay guards only
-    python3 board/test/run.py relay holds  only the suites named
+    python3 board/test/run.py relay code   only the suites named
 
 A suite is any `*.py` or `*.js` file in this directory except those in
 HELPERS. Discovery, not a list: a suite added here runs without anyone
@@ -47,8 +47,8 @@ SERIAL = []
 
 # The guards: what keeps PHI out of git and the relay honest, and the relay
 # path runnable on the cluster's python 3.7.
-GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "holds.py",
-          "code.py", "py37.py", "exporting.py", "phi_probe.py"]
+GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "code.py",
+          "py37.py", "exporting.py", "phi_probe.py"]
 
 # Started first, because they are the longest; the rest follow by name.
 FIRST = ["link.js", "plane.js", "factory", "seam.js", "relay.py"]

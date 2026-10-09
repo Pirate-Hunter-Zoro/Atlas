@@ -49,9 +49,9 @@ def write(rel, text):
         fh.write(text)
 
 
-# The fixture: the board's own holds.py and code.py, a subject with its own
+# The fixture: the board's own jobs.py and code.py, a subject with its own
 # source, and the files that must never be served.
-for name in ("holds.py", "code.py"):
+for name in ("jobs.py", "code.py"):
     os.makedirs(os.path.join(atlas, "board", "tutorboard"), exist_ok=True)
     shutil.copy(os.path.join(ROOT, "tutorboard", name),
                 os.path.join(atlas, "board", "tutorboard", name))
@@ -96,9 +96,9 @@ def get(path):
 
 
 try:
-    # holds.py, unprefixed over the Atlas root, lines 40 to 58.
-    status, ctype, page = get("/source/board/tutorboard/holds.py?from=40&to=58")
-    held = open(os.path.join(ROOT, "tutorboard", "holds.py"), encoding="utf-8").read()
+    # jobs.py, unprefixed over the Atlas root, lines 40 to 58.
+    status, ctype, page = get("/source/board/tutorboard/jobs.py?from=40&to=58")
+    held = open(os.path.join(ROOT, "tutorboard", "jobs.py"), encoding="utf-8").read()
     n = len(held.rstrip("\n").split("\n"))
     check("a tracked file the Atlas root resolves is served as html",
           status == 200 and ctype.startswith("text/html"))
@@ -120,7 +120,7 @@ try:
     check("in a session, the subject's own tracked source is served, escaped",
           status == 200 and "beta-own-model" in page and "&lt;b&gt;" in page
           and "<b>" not in page)
-    status, _, page = get("/s/%s/source/board/tutorboard/holds.py" % SID)
+    status, _, page = get("/s/%s/source/board/tutorboard/jobs.py" % SID)
     check("and a path under the Atlas root as well", status == 200)
     status, _, page = get("/source/src/model.py?subject=projects/Beta")
     check("unprefixed, ?subject= names the subject", status == 200
@@ -138,7 +138,7 @@ try:
         "/source/ai-config/policy/x.py",
         "/source/../elsewhere/far.py",
         "/source/projects/Beta/../../../elsewhere/far.py",
-        "/source/board/tutorboard/../tutorboard/holds.py",
+        "/source/board/tutorboard/../tutorboard/jobs.py",
         "/s/%s/source/../../../elsewhere/far.py" % SID,
         "/source/%2e%2e/elsewhere/far.py",
         "/source//etc/passwd",

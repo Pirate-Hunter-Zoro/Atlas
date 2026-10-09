@@ -20,8 +20,7 @@ the real `sessions/`.
     and `open --review/--walk/--make/--aim/--kind/--stance` are gone.
   * /session takes a lecture or a homework sitting only, and /handover is
     refused in do mode.
-  * A chapter still opens as a labelled lecture, and a hold standing in the
-    workspace is still on the brief.
+  * A chapter still opens as a labelled lecture.
 
 test/asking.py keeps the handover, writeup and map-box checks, and
 test/onthread.py the thread checks, that once sat beside the aim's.
@@ -290,21 +289,6 @@ try:
           p.returncode == 0 and got[-1].get("from") == "tutor"
           and got[-1].get("text") == "Mode: do.", p.stdout)
 
-    # ---- a hold is still on the brief ----------------------------------------
-    os.environ.pop("TUTORBOARD_SESSION", None)
-    course = os.path.join(base, "courses", "Course")
-    write(os.path.join(course, "tutorboard.json"), json.dumps({"name": "Course"}))
-    write(os.path.join(course, "chapters.tsv"), "01\t1\t9\tgroups\tGroups\n")
-    write(os.path.join(course, "live", "state.json"), json.dumps(
-        {"course": "Course", "chapter": "Ch 01 — Groups", "session": "lecture"}))
-    write(os.path.join(course, "relay", "holds", "groups.json"), json.dumps({
-        "id": "groups", "label": "groups", "files": ["chapters"],
-        "check": None, "held": 0}))
-    crepo = course_repo.Repo(course, create=False)
-    check("a hold standing in the workspace is on the brief, files named",
-          "HELD AT THE CLUSTER: groups (`groups`)"
-          in brief.sitting_sense(crepo, crepo.state())
-          and "HELD AT THE CLUSTER" in briefed(crepo))
 finally:
     os.environ.pop("TUTORBOARD_SESSION", None)
     if httpd is not None:

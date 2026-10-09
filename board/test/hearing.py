@@ -59,7 +59,7 @@ os.environ["BOARD_NO_TAILNET"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
              "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
-from tutorboard import cluster, gitops, holds, jobs, paths, sessions, stamp  # noqa: E402
+from tutorboard import cluster, gitops, jobs, paths, sessions, stamp  # noqa: E402
 from tutorboard.course import library                                  # noqa: E402
 from tutorboard.runner import service                                  # noqa: E402
 from tutorboard.runner import turn as runturn                          # noqa: E402
@@ -393,24 +393,6 @@ try:
           served.get("ok") and sorted(n["request"] for n in served.get("notices", []))
           == sorted([req4["id"], req3["id"]])
           and served["notices"][0]["t"] >= served["notices"][-1]["t"], served)
-
-    # --- a held step's check: one [coach] line, never a [job] one -----------------
-    cluster_commit("projects/Proj/relay/holds/knn.json", json.dumps(
-        {"thread": "knn", "files": ["src/knn.py"], "at": 1900.0}), "knn: hold")
-    before = len(notices())
-    cluster_reports({"id": "check-knn-1", "thread": "knn", "step": 1,
-                     "state": "completed", "check": "src/knn.py", "exit": 0,
-                     "relay": ["n=120 mean=0.42"]})
-    ear.once()
-    new = notices()[:len(notices()) - before]
-    check("a pulled check report drops exactly one [coach] line, no [job] line",
-          len(new) == 1 and new[0]["signal"] == "coach"
-          and new[0]["text"].startswith("[coach] Step 1 of thread knn")
-          and not any(m["text"].startswith("[job]") for m in new), new)
-    ear.once()
-    check("and the next pass drops nothing more", len(notices()) == before + 1)
-    check("holds keeps no cadence of its own",
-          not hasattr(holds, "POLL_SECONDS") and not hasattr(holds, "poll_seconds"))
 
     # --- the pass clones nothing but ai-config ---------------------------------
     # A fake `git` and `gh` on PATH log every call (git delegates the rest to

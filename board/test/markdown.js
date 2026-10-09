@@ -78,20 +78,20 @@ check('fenced code', 'a\n\n```\nx = 1\n```\n\nb', ['<pre><code>x = 1</code></pre
 // A FENCE KEEPS ITS INFO STRING. A language highlights; `path#Lx-y` numbers
 // from x and adds a caption linking the source viewer; math stays plain.
 {
-  const holds = fs.readFileSync(path.replace('web/board.js', 'tutorboard/holds.py'), 'utf8')
+  const src = fs.readFileSync(path.replace('web/board.js', 'tutorboard/code.py'), 'utf8')
     .split('\n').slice(39, 58).join('\n');
-  const out = R('See\n\n```py board/tutorboard/holds.py#L40-58\n' + holds + '\n```\n\ndone.');
+  const out = R('See\n\n```py board/tutorboard/code.py#L40-58\n' + src + '\n```\n\ndone.');
   const nums = (out.match(/<span class="line" data-n="(\d+)">/g) || [])
     .map(s => +/data-n="(\d+)"/.exec(s)[1]);
   const ok = out.indexOf('<figure class="code-fence">') !== -1
-    && out.indexOf('<a class="code-ref" href="/source/board/tutorboard/holds.py?from=40&amp;to=58"') !== -1
-    && out.indexOf('<code>board/tutorboard/holds.py#L40-58</code>') !== -1
+    && out.indexOf('<a class="code-ref" href="/source/board/tutorboard/code.py?from=40&amp;to=58"') !== -1
+    && out.indexOf('<code>board/tutorboard/code.py#L40-58</code>') !== -1
     && out.indexOf('class="hljs language-py"') !== -1
     && /<span class="hljs-(keyword|string|comment|title)/.test(out)
     && JSON.stringify(nums) === JSON.stringify(Array.from({ length: 19 }, (_, i) => 40 + i))
     && out.indexOf('<p>done.</p>') !== -1;
-  ok ? console.log('ok   a py fence over holds.py#L40-58 is highlighted, numbered 40 to 58, with a caption link')
-     : (fails++, console.log('FAIL holds.py fence\n   got: ' + out.slice(0, 600)));
+  ok ? console.log('ok   a py fence over code.py#L40-58 is highlighted, numbered 40 to 58, with a caption link')
+     : (fails++, console.log('FAIL code.py fence\n   got: ' + out.slice(0, 600)));
 }
 {
   const code = fs.readFileSync(path.replace('web/board.js', 'tutorboard/code.py'), 'utf8')

@@ -228,7 +228,7 @@ def refused(root, paths, base=None):
     """Which of these repository-relative paths the check refuses.
 
     The one rule `reason` applies, over the paths a caller is about to commit:
-    the relay's sync asks it of the owner's edits it would push. `[]` where no
+    the audit and `board code` ask it of what they would commit. `[]` where no
     workspace holds a fence. Where one does and the policy is missing or will
     not load, the refusal STRING from `no_policy` instead of a list. Never
     raises.

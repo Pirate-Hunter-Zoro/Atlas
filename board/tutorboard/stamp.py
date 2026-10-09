@@ -1,4 +1,4 @@
-"""Which code a long-lived process is running, and which code the tree holds.
+"""Which code a long-lived process is running, and which code the tree has.
 
 The board server reads its code once, when it starts. What tells a stale
 process from a fresh one is a stamp: a short hash of the git trees the process

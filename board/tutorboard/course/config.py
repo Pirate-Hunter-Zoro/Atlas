@@ -32,7 +32,7 @@ def read_config(root):
     one provider setting (`recipes.resolve`). `name` defaults
     to the directory name with dashes as spaces. `phi` stays literal -- True or
     False exactly as written, None for anything else -- because only a literal
-    False opens check output (`holds.output_open`, which also wants False at
+    False opens check output (`code.output_open`, which also wants False at
     HEAD, no fence and the policy loaded). `relay` is the file's object, else
     {}. `check` is validated by `clean_check`; `check_problems` and
     `check_line` are derived from it.
@@ -58,7 +58,7 @@ def read_config(root):
 
 
 # ---------------------------------------------------------------------------
-# a workspace's CHECK: what `board send` runs on a held step
+# a workspace's CHECK: what `board check` and each `board code` step run
 # ---------------------------------------------------------------------------
 #
 #     "check": "uv run --extra test python -m pytest tests -q"
@@ -72,8 +72,8 @@ def read_config(root):
 #               "path": ["/usr/local/go/bin"]}
 #
 # `all` checks the whole workspace and `one` checks the held paths, through the
-# placeholders `{dir}`, `{file}` and `{module}` (`holds.check_spec` fills them).
-# `argv[0]` is one of `CHECK_PROGRAMS` or a workspace script, which the hold
+# placeholders `{dir}`, `{file}` and `{module}` (`code.check_spec` fills them).
+# `argv[0]` is one of `CHECK_PROGRAMS` or a workspace script, which the check
 # requires tracked and unchanged at HEAD. It runs without a shell, with `path`
 # put in front of PATH.
 CHECK_PROGRAMS = ("go", "lake", "uv", "python3", "bash", "make")

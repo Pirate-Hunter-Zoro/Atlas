@@ -1628,7 +1628,7 @@ MAX_FIGURES = 24
 # bupropion_vs_ssri/propensity_by_arm.png` is three; deeper is an intermediate.
 RESULT_DEPTH = 3
 
-# A stop on the walk itself, whatever the tree holds.
+# A stop on the walk itself, whatever the tree contains.
 MAX_SEEN = 5000
 
 # What a table is. Read, never executed: `.json` is loaded to be re-printed.

@@ -28,7 +28,7 @@ local `YYYY-MM-DD HH:MM:SS`.
 last heard it (`cluster.Ear`): {ref, sha, paths, step, subject, prev, seen,
 at}. `ref` is `refs/heads/code/<id>`, `sha` its tip, `paths` the held paths
 (repository-relative), `prev` the tip before, and `seen` the commit whose held
-files this checkout's working tree holds. While it is set, `gitops.commit`
+files this checkout's working tree has. While it is set, `gitops.commit`
 refuses commits to the held paths on main and `board push` from the session
 goes to the ref.
 """

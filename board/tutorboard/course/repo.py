@@ -113,7 +113,7 @@ def ink_records(repo, suffix=".json"):
     """`(dir, name)` of every ink file ending in `suffix`, where each one
     belongs: a card's from the session, a document page's from `doc_ink`.
     A record in the wrong directory for its kind is skipped by the reader,
-    which checks `ink_dir` of the key it holds."""
+    which checks `ink_dir` of the key it carries."""
     out = []
     for where in ink_dirs(repo):
         try:

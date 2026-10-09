@@ -587,7 +587,7 @@ check("every briefing carries the rule about how a card reads",
 #
 # Two places, for the same reason as *one module, one job*: `TEACHING.md` is
 # what a tutor with the document open reads, and `PLAIN_SENSE` is the whole of
-# what a woken turn holds. The delimiters are checked against `board.js` rather
+# what a woken turn is handed. The delimiters are checked against `board.js` rather
 # than quoted, because a rule naming a delimiter the renderer does not honour is
 # worse than no rule.
 _PLAIN_FLAT = _flat(sense_mod.PLAIN_SENSE)
@@ -685,7 +685,7 @@ try:
     # misses is the one where a hand-written artifact looks like the whole job.
     # So it is asserted where it is COMPOSED -- the five functions that build a
     # doing turn's line -- and then end to end on the whole string a woken turn
-    # actually holds.
+    # is actually handed.
     #
     # COUNTED RATHER THAN LOOKED FOR. Twice is its own failure: these blocks
     # ride in a preamble a colibrì mission prefills at a couple of tokens a

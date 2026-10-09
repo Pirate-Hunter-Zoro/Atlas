@@ -6,8 +6,7 @@ that hears it.
     atlas_of(subject)              the Atlas root holding a subject
     Ear(atlas)                     the server's cluster thread
 
-`wake` is how a job's ending (`jobs.drop`) and a held step's check
-(`holds.wake`) reach the Mac (D16):
+`wake` is how a job's ending (`jobs.drop`) reaches the Mac (D16):
 
   * `session` names a stored session: it is reopened if ended, the line is
     appended to its inbox, and the server's runner queues a turn for it.
@@ -22,7 +21,7 @@ seconds it asks origin for `main` and `refs/heads/code/*` with one
 `git ls-remote` (no prompt, `LS_TIMEOUT` seconds). It pulls through
 `gitops.pull` only when origin's main is a commit HEAD does not contain, and
 records a failed ls-remote or pull in `<state>/pull.json`. Then it hears every
-subject: `jobs.hear` and `holds.wake`, each of which wakes through `wake`.
+subject with `jobs.hear`, which wakes through `wake`.
 
 A CODE REF (`refs/heads/code/<id>`, a coding session at the cluster, D17) is
 heard before the pull. A sha that differs from the session's `code.sha` is
@@ -36,7 +35,7 @@ deleted ref clears `code` and puts the held files back as HEAD has them, unless
 the Mac changed them since; a non-waking `[unheld]` line says so. A code ref
 for no session here is a notice, once.
 
-Runs on the cluster's python3 too (jobs and holds import it): no walrus, no
+Runs on the cluster's python3 too (jobs imports it): no walrus, no
 `match`. The runner is reached through `sys.modules`, never imported, so the
 cluster never loads it.
 """
@@ -142,7 +141,7 @@ def wake(subject, session, line, wake=True, signal="job", request=None,
     `session` set where a session took it and `notice` where none did.
 
     `line` is the text. `signal` is how `turn_signal` reads it (`job`,
-    `repair`, `coach`); `request` is a relay request id, so `board brief`
+    `repair`); `request` is a relay request id, so `board brief`
     can name it; `session` is the session id the request was filed from, or
     None.
     """
@@ -432,16 +431,12 @@ class Ear(object):
                 "text": text}
 
     def hear(self):
-        """Every subject's ended reports and held steps, each woken through
-        `wake`. The records heard."""
-        from . import holds, jobs
+        """Every subject's ended reports, each woken through `wake`. The
+        records heard."""
+        from . import jobs
         out = []
         for _parent, _kind, _slug, root in subjects.walk(self.atlas):
             out.extend(jobs.hear(root))
-            try:
-                out.extend(holds.wake(root))
-            except Exception:                                # noqa: BLE001
-                continue
         return out
 
     # -- the thread --------------------------------------------------------
@@ -454,7 +449,7 @@ class Ear(object):
                         rec.get("request") or rec.get("session")
                         or rec.get("id") or "?",
                         str(rec.get("state") or rec.get("signal")
-                            or "coach").lower()))
+                            or "?").lower()))
             except Exception as exc:                         # noqa: BLE001
                 self.say("cluster: a pass failed: %r" % (exc,))
             self._stop.wait(self.every)
