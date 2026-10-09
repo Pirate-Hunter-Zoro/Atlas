@@ -181,3 +181,52 @@ def load_text_drafts(repo):
 # Whether this repository has work that is not committed. Asked on every poll,
 # answered from a cache: `git status` on a network filesystem is not something to
 # run four times a second, and the answer does not change that fast.
+
+
+# A card's ink file is named by the card's id (`writing.ann_file`).
+CARD_INK = re.compile(r"\A\d{1,4}\Z")
+DOC_KEY = "doc/"
+
+
+def card_ink(repo, ids):
+    """`(notes, sent)` as `load_notes` and `load_notes_sent` give them, for
+    the cards in `ids` and every other session key that is not a document
+    page's. Reads the session's own ink directory and, of the card files in
+    it, only those of `ids`: the board payload carries the ink of the cards
+    it carries, and a document's ink comes with its pages (`doc_ink`)."""
+    ids = set(int(i) for i in ids or () if str(i).isdigit())
+    marks, sent = {}, {}
+    try:
+        names = sorted(os.listdir(repo.notes))
+    except OSError:
+        return marks, sent
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        stem = name[:-5]
+        if CARD_INK.match(stem) and int(stem) not in ids:
+            continue
+        try:
+            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        key = rec.get("card") if isinstance(rec, dict) else None
+        if not key or str(key).startswith(DOC_KEY):
+            continue
+        marks[key] = rec.get("strokes") or []
+        sent[key] = bool(rec.get("sent"))
+    return marks, sent
+
+
+def doc_ink(repo, ident):
+    """`(notes, sent)` for the pages of one document, keyed `doc/<ident>/p<n>`,
+    from wherever `repo` keeps document ink."""
+    want = DOC_KEY + str(ident or "") + "/"
+    marks, sent = {}, {}
+    for rec in ink_records(repo):
+        key = str(rec.get("card") or "")
+        if key.startswith(want):
+            marks[key] = rec.get("strokes") or []
+            sent[key] = bool(rec.get("sent"))
+    return marks, sent

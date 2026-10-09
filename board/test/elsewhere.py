@@ -205,8 +205,8 @@ try:
     board = hub.Hub(here, worker)
     news.forget()
     payload = board.build()
-    check("the payload a board pushes carries what landed elsewhere",
-          [n["id"] for n in payload["news"]] == ["projects/PSYCH-ASR"])
+    check("the payload a board pushes carries no news: its key is null (D27)",
+          "news" in payload and payload["news"] is None)
 
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))

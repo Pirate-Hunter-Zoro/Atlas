@@ -158,10 +158,8 @@ def post(path, body):
 
 try:
     payload = board.build()
-    check("the board is told what can be reviewed before any review exists",
-          payload.get("review") and len(payload["review"]["units"]) == 3)
-    check("and that nothing is being reviewed yet",
-          payload["review"]["scope"] == [])
+    check("the tick carries no review picker: it is the session's only",
+          "review" not in payload)
 
     # A review is a method the tutor picks in teach mode, not a sitting kind.
     status, _ = post("/session", {

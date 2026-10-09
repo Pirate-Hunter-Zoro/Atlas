@@ -326,6 +326,9 @@
 <div id="drawbar" hidden></div>
 
 <main id="board">
+  <!-- The payload carries the newest cards; the rest come on a tap. Outside
+       #cards, which is reconciled and steps over anything without a key. -->
+  <button id="older" type="button" hidden>earlier cards</button>
   <div id="cards"></div>
   <!-- A card is a file, and nothing appears until the file exists -- so a minute
        of the tutor writing looks exactly like a minute of nothing happening. The

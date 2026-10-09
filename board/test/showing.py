@@ -286,8 +286,11 @@ check("and an id naming a figure inside the fence is refused too", status == 404
 # ---------------------------------------------------------------------------
 print("\n-- what the board is told, and what the tutor is told --")
 
-built = hub.build()
-check("the board's payload carries the figures", bool(built.get("results"))
+from tutorboard.server import hub as hub_module                  # noqa: E402
+check("the tick leaves the figures out; they are the subject's",
+      "results" not in hub.build())
+built = hub_module.subject_info(repo)
+check("and /subject.json carries them", bool(built.get("results"))
       and len(built["results"]["figures"]) == len(results.figures(WS)))
 check("each with a name, a place and a date the drawer can show",
       all(f.get("name") and f.get("iso") is not None

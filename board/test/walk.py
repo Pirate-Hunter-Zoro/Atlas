@@ -289,10 +289,8 @@ try:
 
     try:
         payload = board.build()
-        check("the board is told what can be walked through before any walkthrough exists",
-              payload.get("walk") and len(payload["walk"]["units"]) == 2)
-        check("and that nothing is being walked through yet",
-              payload["walk"]["scope"] == [])
+        check("the tick carries no walkthrough picker: it is the session's only",
+              "walk" not in payload)
 
         status, _ = post("/session", {
             "session": "walk", "over": ["psych_asr.evaluate.grade.grade"]})

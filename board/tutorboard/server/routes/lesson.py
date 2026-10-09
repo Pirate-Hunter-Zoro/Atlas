@@ -6,6 +6,8 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
 
     GET  /events              session   the payload stream
     GET  /board.json          session   the payload, once
+    GET  /cards?before=<n>    session   the 40 cards below card n, and their ink
+    GET  /subject.json        session   the subject's sets, results, jobs, Colibri
     GET  /archive             session   the session's filed lessons
     GET  /archive/<name>[/answers/<file>]
                               session   one of them, read only
@@ -28,11 +30,13 @@ import re
 import time
 import json
 import os
+import urllib.parse
 
 from . import NOT_MINE
 from ...course import syllabus
 from ...course import plan
 from ...course import homework
+from .. import hub
 from .. import multipart
 from .. import spawn
 from ... import direction
@@ -60,6 +64,21 @@ def get(h, repo, path):
 
     if path == "/board.json":
         return h.send_bytes(h.hub.payload.encode("utf-8"), "application/json")
+
+    if path == "/cards":
+        # OLDER CARDS, ON DEMAND. The payload carries the newest `hub.WINDOW`;
+        # the board asks for the ones below its oldest when they are wanted.
+        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
+        try:
+            before = int((want.get("before") or [""])[0])
+        except ValueError:
+            return h.send_json({"ok": False, "error": "before=<card number>"},
+                               status=400)
+        return h.send_json(hub.older_cards(repo, getattr(h.hub, "worker", None),
+                                           max(0, before)))
+
+    if path == "/subject.json":
+        return h.send_json(hub.subject_info(repo))
 
     if path.startswith("/archive/"):
         # A past lesson, read only. The transcript is the point of keeping

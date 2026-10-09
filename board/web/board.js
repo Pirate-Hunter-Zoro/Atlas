@@ -1,8 +1,9 @@
 /* ==========================================================================
    board.js -- client for the live tutoring board.
 
-   Holds one Server-Sent Events connection open. Every time the tutor writes a
-   card file, the server pushes the whole board and this re-renders it: markdown
+   Holds one Server-Sent Events connection open. It opens on the whole board,
+   and every time the tutor writes a card file the server pushes what changed;
+   this applies it (`absorb`) and re-renders the whole: markdown
    to HTML, KaTeX for the mathematics, compiled SVG for anything TikZ. Sending
    text or dropping a file posts back the other way.
    ========================================================================== */
@@ -49,6 +50,7 @@ if (BASE) {
 }
 
 var els = {
+  older: document.getElementById("older"),
   bar: document.getElementById("bar"),
   dot: document.getElementById("dot"),
   course: document.getElementById("course"),
@@ -1638,12 +1640,16 @@ function render(data) {
   seedTextDrafts(data);
   paintNotesSend();
   paintSent();
-  paintSave(data.unsaved);
+  /* The save count, sets, results and jobs are the subject's, and arrive
+     from `/subject.json` rather than on this frame; a frame that still
+     carries one (a past lesson, a test) is honoured. */
+  if (data.unsaved !== undefined) paintSave(data.unsaved);
   if (data.sets) knownSets = data.sets;
   if (data.contents) contents = data.contents;
   planInfo = data.plan || null;
   readingInfo = data.reading || null;
-  resultsInfo = data.results || null;
+  if (data.results !== undefined) resultsInfo = data.results || null;
+  paintOlder();
   /* THE SITTING WAS FILED WHILE THIS PAGE WAS OPEN. `history` counts archived
      sittings and rises by one exactly when `board archive` runs, which makes it
      the epoch this needs -- no new field, and it is on every live payload.
@@ -2973,6 +2979,12 @@ function openPaper(kind, label, then) {
       if (window.Annotate && lastLive) {
         window.Annotate.load(lastLive.notes);
         window.Annotate.loadSent(lastLive.notes_sent);
+      }
+      /* A document's own ink comes with its pages; the payload carries the
+         cards' only. */
+      if (window.Annotate && got.ink) {
+        window.Annotate.load(got.ink);
+        window.Annotate.loadSent(got.ink_sent || {});
       }
       /* Marks restored means there may be something to keep, and the offer is
          drawn off the store rather than off this session's strokes -- ink put on
@@ -8361,8 +8373,12 @@ function openContents() {
   els.contents.hidden = false;
 }
 
+/* The drawer fills on open: drawn at once from what is known, and again
+   when `/subject.json` answers with the subject as it is now. */
 document.getElementById("btn-contents").onclick = function () {
-  if (els.contents.hidden) openContents(); else els.contents.hidden = true;
+  if (!els.contents.hidden) { els.contents.hidden = true; return; }
+  openContents();
+  fetchSubject(function () { if (!els.contents.hidden) openContents(); });
 };
 document.getElementById("btn-contents-close").onclick = function () {
   els.contents.hidden = true;
@@ -8617,6 +8633,161 @@ function renderOrHold(data) {
   if (!heldTimer) heldTimer = setInterval(drawHeld, 120);
 }
 
+/* ------------------------------------------------ the payload, kept whole */
+/* THE SERVER SENDS THE WHOLE BOARD ONCE, THEN WHAT CHANGED.
+
+   A stream opens on the whole payload: the session, the newest forty cards
+   and their ink. Every push after it is a delta -- `cards_changed`,
+   `cards_removed` and the top-level keys that moved -- and is applied here to
+   `model`, which is the board as this page knows it. `render` is still handed
+   a whole frame every time, a copy of the model, so nothing downstream knows
+   there was a delta at all.
+
+   A card that slides out of the server's window is not removed: only
+   `cards_removed` removes, and it names files that are gone. Cards older than
+   the window come on a tap (`fetchOlder`), and what the subject holds -- its
+   problem sets, results, jobs, Colibri, the save count -- comes from
+   `/subject.json` (`fetchSubject`), not the stream. */
+var model = null;
+var olderLeft = 0;         /* cards older than the oldest one held */
+var olderBusy = false;
+
+function absorb(msg) {
+  if (!msg || typeof msg !== "object") return null;
+  if (!msg.delta) {
+    model = msg;
+    model.cards = sortCards(msg.cards || []);
+    olderLeft = msg.cards_older || 0;
+    return model;
+  }
+  /* A delta before any whole payload has nothing to apply to; the whole one
+     is on its way. One the whole payload already holds changes nothing. */
+  if (!model) return null;
+  if (typeof msg.seq === "number" && typeof model.seq === "number"
+      && msg.seq <= model.seq) return null;
+  var byId = Object.create(null);
+  (model.cards || []).forEach(function (c) { byId[c.id] = c; });
+  (msg.cards_removed || []).forEach(function (id) { delete byId[id]; });
+  (msg.cards_changed || []).forEach(function (c) { if (c && c.id) byId[c.id] = c; });
+  model.cards = sortCards(Object.keys(byId).map(function (k) { return byId[k]; }));
+  /* Fewer cards below the window means some were deleted; more means the
+     window slid over cards this page still holds. */
+  if (typeof msg.cards_older === "number" && msg.cards_older < (model.cards_older || 0)) {
+    olderLeft = Math.max(0, olderLeft - ((model.cards_older || 0) - msg.cards_older));
+  }
+  Object.keys(msg).forEach(function (k) {
+    if (k === "delta" || k === "cards_changed" || k === "cards_removed") return;
+    model[k] = msg[k];
+  });
+  return model;
+}
+
+function sortCards(list) {
+  return list.slice().sort(function (a, b) {
+    return (a.id || "").localeCompare(b.id || "");
+  });
+}
+
+function shallow(o) {
+  var out = {};
+  for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[k] = o[k];
+  return out;
+}
+
+/* A whole frame for `render`, which annotates the turns it is given: a copy,
+   so the model stays what the server said. */
+function frame() {
+  var out = shallow(model);
+  out.cards = (model.cards || []).map(shallow);
+  out.turns = (model.turns || []).map(shallow);
+  return out;
+}
+
+function paintOlder() {
+  if (!els.older) return;
+  var n = (model && !reading) ? olderLeft : 0;
+  els.older.hidden = !n;
+  els.older.disabled = olderBusy;
+  els.older.textContent = olderBusy ? "fetching earlier cards…"
+    : n + (n === 1 ? " earlier card" : " earlier cards");
+}
+
+function fetchOlder() {
+  if (!model || olderBusy || !olderLeft) return;
+  var first = (model.cards || [])[0];
+  var before = first ? parseInt(first.id, 10) : 10000;
+  if (!(before > 0)) return;
+  olderBusy = true;
+  paintOlder();
+  api("/cards?before=" + before, { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      olderBusy = false;
+      if (!got || !got.ok || !model) { paintOlder(); return; }
+      var byId = Object.create(null);
+      (model.cards || []).forEach(function (c) { byId[c.id] = c; });
+      (got.cards || []).forEach(function (c) { if (!byId[c.id]) byId[c.id] = c; });
+      model.cards = sortCards(Object.keys(byId).map(function (k) { return byId[k]; }));
+      olderLeft = got.older || 0;
+      /* Their ink rides with them; the next delta's `notes` is the window's
+         only, and `Annotate.load` keeps what it has already adopted. */
+      model.notes = shallow(model.notes || {});
+      model.notes_sent = shallow(model.notes_sent || {});
+      Object.keys(got.notes || {}).forEach(function (k) { model.notes[k] = got.notes[k]; });
+      Object.keys(got.notes_sent || {}).forEach(function (k) {
+        model.notes_sent[k] = got.notes_sent[k];
+      });
+      renderOrHold(frame());
+    }, function () { olderBusy = false; paintOlder(); });
+}
+if (els.older) els.older.onclick = fetchOlder;
+
+/* WHAT THE SUBJECT HOLDS, ASKED FOR RATHER THAN STREAMED. When the board
+   opens, when the drawer does, when the page comes back into view, and on a
+   push at least SUBJECT_EVERY ms after the last ask. No timer of its own: a
+   board nothing is pushed to has nothing new to ask about, and the tick
+   reads nothing outside the session. */
+var subjectInfo = null;
+var subjectAt = 0;
+var subjectBusy = false;
+var SUBJECT_EVERY = 30000;
+
+function fetchSubject(then) {
+  if (subjectBusy) return;
+  subjectBusy = true;
+  subjectAt = Date.now();
+  api("/subject.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      subjectBusy = false;
+      if (got && got.ok) takeSubject(got);
+      if (then) then();
+    }, function () { subjectBusy = false; if (then) then(); });
+}
+
+function subjectSoon() {
+  if (!subjectBusy && Date.now() - subjectAt >= SUBJECT_EVERY) fetchSubject();
+}
+
+function takeSubject(got) {
+  subjectInfo = got;
+  knownSets = (got.sets || []).map(function (x) { return x.name; });
+  contents = { chapters: contents.chapters || [], sets: got.sets || [] };
+  resultsInfo = got.results || null;
+  if (got.colibri !== undefined) colibriNow = got.colibri;
+  if (got.assistants !== undefined) assistants = got.assistants;
+  if (got.fenced !== undefined) fencedHere = got.fenced || [];
+  if (got.unsaved !== undefined) paintSave(got.unsaved);
+  try { paintKindChooser(); } catch (e) { /* the chooser paints on the next frame */ }
+  if (lastLive && !lastLive.archived) {
+    try { paintBusy(lastLive); } catch (e) { /* and so does the strip */ }
+  }
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden && model) subjectSoon();
+});
+
 function connect() {
   if (source) source.close();
   source = new EventSource(BASE + "/events");
@@ -8626,7 +8797,11 @@ function connect() {
     if (!ev.data) return;
     everGotData = true;
     paintLink(false);
-    try { renderOrHold(JSON.parse(ev.data)); } catch (e) { /* ignore a torn frame */ }
+    var data = null;
+    try { data = absorb(JSON.parse(ev.data)); } catch (e) { /* a torn frame */ }
+    if (!data) return;
+    try { renderOrHold(frame()); } catch (e) { /* ignore a torn frame */ }
+    subjectSoon();
   };
 }
 
@@ -9922,7 +10097,7 @@ function paintBusy(data) {
     /* No turn, no turn's words. The ticker fires without a payload. */
     busySignal = "";
     var stalled = data.archived ? null
-      : stalledWord(st, data.waiting, data.unsaved || 0);
+      : stalledWord(st, data.waiting, unsaved || 0);
     if (stalled) {
       els.busy.hidden = false;
       els.busy.classList.toggle("busy-bad", !!stalled.bad);
@@ -9970,9 +10145,10 @@ function paintBusy(data) {
     /* A SLURM JOB REGISTERED HERE IS STILL OUT. No turn is running, and the
        work is: the strip says so, on the job's own clock, until the daemon's
        poll sees it end and a turn reports it. */
-    var job = !data.archived && (data.jobs || [])[0];
+    var running = data.jobs || (subjectInfo && subjectInfo.jobs) || [];
+    var job = !data.archived && running[0];
     if (job) {
-      var more = data.jobs.length > 1 ? " (+" + (data.jobs.length - 1) + " more)" : "";
+      var more = running.length > 1 ? " (+" + (running.length - 1) + " more)" : "";
       var asked = String(job.state).toUpperCase() === "REQUESTED";
       var word = asked
         ? "waiting for the cluster — " + (job.title || job.thread || "a request")

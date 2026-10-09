@@ -88,7 +88,7 @@ class Registry(object):
         if self.start:
             worker.start()
             try:
-                hub.payload = json.dumps(hub.build())
+                hub.tick()
             except Exception:                                # noqa: BLE001
                 hub.payload = "{}"
             threading.Thread(target=hub.poll_loop, daemon=True).start()

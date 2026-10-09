@@ -194,8 +194,8 @@ try:
     # The panel opens showing what it is about to replace, on a device that has
     # been closed since it was set.
     live = board.build()
-    check("the board is told what is in force",
-          (live.get("direction") or {}).get("text") == SAID)
+    check("the payload's direction is null; the tick reads the session only (D27)",
+          "direction" in live and live["direction"] is None)
 
     status, body = post("/direction", {"text": "   "})
     check("a direction with nothing in it is refused",

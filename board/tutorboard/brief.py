@@ -194,6 +194,14 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False,
     head = " — ".join(x for x in (st.get("course"), st.get("session"),
                                   st.get("chapter")) if x)
     out.append(head or "no session open")
+    # A SESSION THAT IS ABOUT NOTHING YET. It starts unbound, and a turn that
+    # guesses its subject files the work in the wrong place; so it asks.
+    if getattr(repo, "stored", False) and not st.get("subject"):
+        out.append("subject: none -- this session is not bound to a course or "
+                   "project yet. Before any other work, ask the owner what this "
+                   "session is for. Then `board bind courses/<Name>` or `board "
+                   "bind projects/<Name>`; add `--create` for a new one (a "
+                   "project also needs `--phi yes|no`).")
     held = sitting_sense(repo, st)
     if held:
         out.append(held)

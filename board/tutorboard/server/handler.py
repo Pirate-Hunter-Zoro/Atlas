@@ -519,6 +519,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
+        # Subscribed before the whole payload is read, so no delta falls
+        # between the two; one that is already in it applies again unchanged.
         q, cv = hub.subscribe()
         try:
             self.wfile.write(b"retry: 1000\n\n")
@@ -531,7 +533,8 @@ class Handler(BaseHTTPRequestHandler):
                     pending = q[:]
                     del q[:]
                 if pending:
-                    for payload in pending[-1:]:
+                    # Every one, in order: each is a delta on the one before.
+                    for payload in pending:
                         self.wfile.write(("data: " + payload + "\n\n").encode("utf-8"))
                 else:
                     self.wfile.write(b": ping\n\n")

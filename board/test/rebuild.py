@@ -125,7 +125,8 @@ try:
 
     def landed():
         for at, data in events[pushed:]:
-            if any("Sentinel card" in json.dumps(c) for c in data.get("cards") or []):
+            if any("Sentinel card" in json.dumps(c)
+                   for c in data.get("cards_changed") or data.get("cards") or []):
                 return at
         return None
 

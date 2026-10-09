@@ -196,21 +196,46 @@ def has_body(body):
     return bool((body or "").strip())
 
 
-def load_cards(repo, jobs):
-    cards = []
+def card_files(repo):
+    """`[(id, name)]` of every card file in the session, in card order."""
     try:
         names = sorted(os.listdir(repo.cards))
     except OSError:
-        names = []
-    seen = set()
+        return []
+    out = []
     for name in names:
         if PART_RE.match(name):
             continue
         m = CARD_RE.match(name)
-        if not m:
-            continue
+        if m:
+            out.append((m.group(1), name))
+    return out
+
+
+def load_cards(repo, jobs):
+    """Every card on the board, in order."""
+    return _parse(repo, card_files(repo), jobs)
+
+
+def window(repo, jobs, limit, before=None):
+    """`(cards, older, ids)`: the newest `limit` cards numbered below `before`
+    (every card when None), how many card files are older still, and the id
+    of every card file on disk. Only the cards in the window are read."""
+    files = card_files(repo)
+    pool = files
+    if before is not None:
+        pool = [f for f in files if f[0] < before]
+    pick = pool[-limit:] if limit else pool
+    return _parse(repo, pick, jobs, every=files), len(pool) - len(pick), \
+        [f[0] for f in files]
+
+
+def _parse(repo, files, jobs, every=None):
+    """The cards of `files` (`card_files` entries), each parsed once per
+    (mtime, size). `every` is the whole listing, for pruning the cache."""
+    cards = []
+    for ident, name in files:
         path = os.path.join(repo.cards, name)
-        seen.add(path)
         try:
             st = os.stat(path)
         except OSError:
@@ -251,8 +276,8 @@ def load_cards(repo, jobs):
         # whether it is still `new` is a fact about the thread file, not the card.
         body = extract_tikz(extract_threads(rawbody, root), jobs, repo)
         cards.append({
-            "id": m.group(1),
-            "slug": m.group(2),
+            "id": ident,
+            "slug": CARD_RE.match(name).group(2),
             "kind": (meta.get("kind") or "lesson").lower(),
             "title": meta.get("title", ""),
             "tag": meta.get("tag", ""),
@@ -260,7 +285,10 @@ def load_cards(repo, jobs):
             "mtime": st.st_mtime,
         })
         _CARD_CACHE[path] = (stamp, dict(cards[-1]), rawbody)
-    for gone in [k for k in _CARD_CACHE if k not in seen and k.startswith(repo.cards)]:
+    listed = set(os.path.join(repo.cards, n) for _i, n in (
+        files if every is None else every))
+    for gone in [k for k in _CARD_CACHE
+                 if k not in listed and os.path.dirname(k) == repo.cards]:
         del _CARD_CACHE[gone]
     return cards
 

@@ -194,29 +194,44 @@ def _reattaching(st):
     return 0 <= since <= REATTACH_GRACE
 
 
-def load_hw(repo):
-    """This sitting's problem set, and how much of it is written up.
+def load_hw(repo, st=None):
+    """The session's write-up, and how much of it is written: the set or
+    `docs/` write-up session.json pins (`Repo.state`'s `hw`), parsed from its
+    .tex, with the last compile's outcome from the session's `hw.json`.
 
-    Parsed from the .tex on every build so the board tells the truth as the
-    assistant fills it in, with the last compile's outcome bolted on from
-    `live/hw.json` -- a failed compile has to reach the person holding the iPad
-    the same way a failed push does.
+    None when nothing is pinned. Nothing here lists or globs the subject:
+    the payload reads one file, the one the session is writing into.
     """
+    st = repo.state() if st is None else st
+    rel = str((st or {}).get("hw") or "")
+    if not rel.endswith(".tex"):
+        return None
+    tex = os.path.abspath(os.path.join(repo.root, rel))
+    inside = os.path.relpath(tex, os.path.abspath(repo.root))
+    if inside.startswith("..") or not os.path.isfile(tex):
+        return None
     try:
-        st = homework.status(repo.root, repo.state())
-    except Exception:
+        probs = homework.problems(tex)
+    except Exception:                                        # noqa: BLE001
         return None
-    if not st:
-        return None
-    st["ambiguous"] = st.get("ambiguous", [])[:8]
-    st["sets"] = [x["name"] for x in homework.sets(repo.root)][:40]
-    st.pop("dir", None)          # an absolute path on this machine is no use to a browser
+    left = homework.outstanding(probs)
+    out = {
+        "name": homework._name_for(repo.root, tex),
+        "rel": inside.replace(os.sep, "/"),
+        "ambiguous": [],
+        "problems": probs,
+        "total": len(probs),
+        "written": sum(1 for p in probs if p["written"]),
+        "stated": sum(1 for p in probs if p["stated"]),
+        "outstanding": left,
+        "next": (left or [None])[0],
+    }
     try:
         with open(os.path.join(repo.live, "hw.json"), "r", encoding="utf-8") as fh:
-            st["build"] = json.load(fh)
+            out["build"] = json.load(fh)
     except (OSError, ValueError):
-        st["build"] = None
-    return st
+        out["build"] = None
+    return out
 
 
 def load_review(repo):

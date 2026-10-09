@@ -299,6 +299,9 @@ DRIVE = {
     # lesson
     ("GET", "/board.json", "lesson"): ("session", [("/board.json", None, OK)]),
     ("GET", "/events", "lesson"): ("stream", []),
+    ("GET", "/cards", "lesson"): ("session", [("/cards?before=9999", None, OK),
+                                             ("/cards?before=x", None, REFUSED)]),
+    ("GET", "/subject.json", "lesson"): ("session", [("/subject.json", None, OK)]),
     ("GET", "/archive", "lesson"): ("session", [("/archive", None, OK)]),
     ("GET", "/archive/", "lesson"): ("session", [("/archive/", None, OK),
                                                 ("/archive/nope", None, (404,))]),
@@ -610,8 +613,12 @@ SECOND = sessions.path(rec["id"], atlas)
 course_repo.Repo(atlas, session=SECOND, create=False).set_state(subject=SUBJECT["A"])
 status, reply = ask("GET", "/s/%s/board.json" % rec["id"])
 notes = json.loads(reply.decode("utf-8")).get("notes") or {}
-check("a second session on one subject reads that subject's document ink",
-      status == 200 and "doc/notes/p1" in notes and "0001" not in notes)
+check("a second session on one subject carries none of the first's card ink",
+      status == 200 and "0001" not in notes and "doc/notes/p1" not in notes)
+from tutorboard.lesson import notes as lesson_notes           # noqa: E402
+check("and reads that subject's document ink, which comes with the pages",
+      "doc/notes/p1" in lesson_notes.doc_ink(sessions.repo(rec["id"], atlas),
+                                             "notes")[0])
 
 # ---------------------------------------------------------------------------
 # 2b. an ask of a subject's tutor lands in that subject's newest open session

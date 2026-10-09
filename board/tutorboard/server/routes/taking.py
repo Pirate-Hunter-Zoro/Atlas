@@ -49,6 +49,7 @@ from . import NOT_MINE
 from ...course import paper
 from ...course import reading
 from ...course import shelf
+from ...lesson import notes
 
 
 # A SID IS AN ID AND NOTHING ELSE. The same alphabet `map.DOC_RE` insists on,
@@ -65,6 +66,14 @@ SID = re.compile(r"^[a-z0-9-]{1,40}$")
 _pdf_in = paper.pdf_in
 _named = paper.named
 
+
+
+def _inked(repo, got, ident):
+    """A page manifest with the document's ink beside it, `doc/<ident>/p<n>`:
+    the board payload carries card ink only, so a document brings its own."""
+    if isinstance(got, dict) and got.get("ok"):
+        got["ink"], got["ink_sent"] = notes.doc_ink(repo, ident)
+    return got
 
 def get(h, repo, path):
     if path in ("/download/lesson", "/download/homework"):
@@ -92,14 +101,15 @@ def get(h, repo, path):
         # cache keyed on the PDF's own modification time, and a second open of
         # the same document is a directory listing.
         kind = path.rsplit("/", 1)[1]
-        return h.send_json(paper.pages(repo, kind))
+        return h.send_json(_inked(repo, paper.pages(repo, kind), kind))
 
     if path.startswith("/view/doc/"):
         # A document this course POINTS AT rather than one it built: a slide
         # deck, a walkthrough, a set of lecture slides. Same rasteriser, same
         # cache, same page route -- the only thing that differs is how the file
         # was found, and `reading.find` is the whole of that check.
-        return h.send_json(reading.pages(repo, path[len("/view/doc/"):]))
+        ident = path[len("/view/doc/"):]
+        return h.send_json(_inked(repo, reading.pages(repo, ident), ident))
 
     if path.startswith("/view/shelf/"):
         # A document off the MAP's drawer, read on the glass. Same rasteriser,
@@ -121,7 +131,7 @@ def get(h, repo, path):
         got = paper.pages_of(repo, target, paper.named(repo, stem) + ".pdf",
                              "shelf")
         got["ident"] = sid.strip().lower()
-        return h.send_json(got)
+        return h.send_json(_inked(repo, got, got["ident"]))
 
     if path.startswith("/doc/"):
         # ONE PAGE, ADDRESSED BY WHAT IT IS RATHER THAN BY THIS RENDER OF IT.
