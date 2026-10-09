@@ -6,21 +6,17 @@
    it as if it were a screenshot of the entire iPad screen scrolled down over
    the whole tutoring session."
 
-   The old export is a LaTeX transcript -- a title page, an `article`, the
-   tutor's prose reset in Computer Modern. It is a good document and it is not
-   this one. What is on the glass is a dark column of cards in a dyslexia-
-   friendly face with handwriting sitting in it, and the person who spent the
-   evening looking at that is entitled to hand somebody THAT rather than a
-   typeset paraphrase of it.
+   What is on the glass is a dark column of cards in a dyslexia-friendly face
+   with handwriting sitting in it, and the person who spent the evening looking
+   at that is entitled to hand somebody THAT rather than a typeset paraphrase.
 
    WHY THIS IS ON THE CLIENT AND CANNOT BE ANYWHERE ELSE. A board runs on a
    compute node with no package manager, so there is no headless browser to
    render a page with and there never will be. The only thing in the system that
    knows what the lesson looks like is the thing that drew it, which is this
    page. So the iPad rasterises and the server does the rest -- it owns the
-   name, the version, the repository copy and the git staging, exactly as it
-   does for the LaTeX export, because those are the parts a client must not be
-   trusted with and the parts that must not differ between the two.
+   name, the version, the repository copy and the git staging, because those
+   are the parts a client must not be trusted with.
 
    HOW A DOM BECOMES PIXELS WITHOUT A LIBRARY. An SVG carrying a `foreignObject`
    is HTML the browser will lay out, and an SVG in an `<img>` can be drawn into

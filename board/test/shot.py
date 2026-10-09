@@ -17,9 +17,9 @@ side of the wire, and it is the half that can lose an evening:
     written into somebody's repository. A page that is not a JPEG, a page the
     size of a film, four hundred of them -- each is refused with a reason rather
     than written.
-  - THE SERIES IS SHARED. A photograph and a typeset transcript of the same
-    lesson are v3 and v4, not two v3s, because "which one is the latest" is the
-    only question anybody asks of that folder.
+  - THE SERIES IS NUMBERED. A photograph after v1 and an old typeset v2 of
+    the same lesson is v3, not a second v2, because "which one is the latest"
+    is the only question anybody asks of that folder.
   - AND THE WRITE-UP'S PDF HAS TO BE FINDABLE. Three separate places guessed
     where a course's build puts it and all three guessed wrong, so `hw.json`
     recorded `"pdf": null` on a build that had just succeeded and the download
@@ -38,7 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
 sys.path.insert(0, TOOL)
 
-from tutorboard.course import document, homework, screenshot   # noqa: E402
+from tutorboard.course import homework, screenshot   # noqa: E402
 
 fails = []
 
@@ -208,7 +208,7 @@ def main():
             else:
                 bad("%s was written into the repository" % why)
 
-        out_dir = os.path.join(root, document.OUT_DIR)
+        out_dir = os.path.join(root, screenshot.OUT_DIR)
 
         # --- and what is accepted ------------------------------------------
         rec = screenshot.build(root, [jpeg(1472, 2082), jpeg(1472, 2082)])
@@ -222,10 +222,10 @@ def main():
         else:
             bad("the record points at %r, which is not there" % (rec.get("pdf"),))
 
-        if rec.get("pdf", "").startswith(document.OUT_DIR + os.sep):
-            ok("in the same folder the typeset export uses")
+        if rec.get("pdf", "").startswith(screenshot.OUT_DIR + os.sep):
+            ok("in %s/" % screenshot.OUT_DIR)
         else:
-            bad("it went to %r rather than %s/" % (rec.get("pdf"), document.OUT_DIR))
+            bad("it went to %r rather than %s/" % (rec.get("pdf"), screenshot.OUT_DIR))
 
         # Staged, not committed: an export happens in the middle of a lesson and
         # a commit in the middle of a lesson is a decision a person makes.
@@ -236,18 +236,16 @@ def main():
         else:
             bad("the document was not staged, so a push would leave it behind")
 
-        # ONE SERIES, both exports. Photograph, then typeset, then photograph:
-        # v1, v2, v3 of the same lesson. Two independent counters would produce
-        # two v1s and no way to tell which of them is the latest -- which is the
-        # entire question the numbering exists to answer.
+        # ONE SERIES. A photograph, then an old typeset export's .tex at v2,
+        # then a photograph: v3, so an old number is never reused.
         first = rec.get("name")
         with open(os.path.join(out_dir, first.replace("-v1", "-v2") + ".tex"),
                   "w", encoding="utf-8") as fh:
-            fh.write("%% a typeset export that got as far as its source\n")
+            fh.write("%% an old typeset export\n")
         again = screenshot.build(root, [jpeg(1472, 2082)])
         if again.get("name", "").endswith("-v3"):
-            ok("the photograph and the typeset transcript share one series (%s "
-               "after %s)" % (again.get("name"), first))
+            ok("an old typeset export's number is not reused (%s after %s)"
+               % (again.get("name"), first))
         else:
             bad("%r followed %r and a .tex at v2, so the series forked"
                 % (again.get("name"), first))

@@ -7,14 +7,10 @@ scrolled down over the whole tutoring session."
 
 WHAT IS HERE AND WHAT IS DELIBERATELY NOT. The pixels come from the client,
 because the client is the only thing in the system that knows what the lesson
-looks like -- a board runs on a compute node with no package manager, so there
-is no headless browser to render a page with and there never will be. What is
-here is everything a client must not be trusted with and everything that must
-not differ between the two exports: where the document goes, what it is called,
-which version it is, and that it is staged for the next commit. `document.py`
-decides all four for the typeset export and this defers to it rather than
-having an opinion of its own, so `transcripts/` holds one numbered series and
-not two.
+looks like -- there is no headless browser to render a page with. What is here
+is everything a client must not be trusted with: where the document goes
+(`transcripts/`), what it is called, which version it is, and that it is staged
+for the next commit.
 
 THE PDF IS WRITTEN BY HAND, and that is smaller than it sounds. A page holding
 one JPEG needs a catalogue, a page tree, a page, a content stream of six
@@ -33,10 +29,67 @@ import base64
 import os
 import re
 import struct
+import subprocess
 import time
 
-from . import document
 from . import repo as course_repo
+
+
+# ---------------------------------------------------------------------------
+# where it goes, and what it is called
+# ---------------------------------------------------------------------------
+OUT_DIR = "transcripts"
+
+
+def slugify(s):
+    s = re.sub(r"[^A-Za-z0-9]+", "-", (s or "").strip().lower()).strip("-")
+    return (s or "lesson")[:48]
+
+
+def next_version(out_dir, stem):
+    """v1, v2, v3 -- and never a timestamp: "which one is the latest" should
+    not require reading a date. One more than the highest already there,
+    counting a `.tex` too, so an old typeset export's number is never reused.
+    """
+    high = 0
+    try:
+        names = os.listdir(out_dir)
+    except OSError:
+        return 1
+    pat = re.compile(re.escape(stem) + r"-v(\d+)\.(pdf|tex)$")
+    for n in names:
+        m = pat.match(n)
+        if m:
+            high = max(high, int(m.group(1)))
+    return high + 1
+
+
+def author_name(root, state):
+    """Whose name goes on it: state.json, then git, then nobody."""
+    if state.get("author"):
+        return state["author"]
+    try:
+        p = subprocess.run(["git", "config", "user.name"], cwd=root,
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
+        if p.returncode == 0:
+            return p.stdout.decode("utf-8", "replace").strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return ""
+
+
+def track(root, paths):
+    """Stage the export, so the next push carries it. Staged rather than
+    committed: a commit in the middle of a lesson is the person's decision."""
+    rel = [os.path.relpath(p, root) for p in paths if os.path.exists(p)]
+    if not rel:
+        return False
+    try:
+        p = subprocess.run(["git", "add", "--"] + rel, cwd=root,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+        return p.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 # A JPEG's own header says how big it is, and the PDF has to agree with it to
@@ -167,14 +220,8 @@ A4 = (595.28, 841.89)
 
 
 def build(root, pages, page_w=None, page_h=None):
-    """The pixels, into the repository, named and numbered like every export.
-
-    Numbered through `document.next_version` against the same stem, so the
-    photograph and the typeset transcript share one series: exporting a lesson
-    one way and then the other gives v3 and v4 of the same lesson rather than
-    two different v3s, which is exactly the "which one is the latest" question
-    the numbering exists to answer.
-    """
+    """The pixels, into the repository, named and numbered: v1, v2, v3 of
+    the same lesson, through `next_version`."""
     if not pages:
         return {"ok": False, "detail": "the lesson came back with no pages in it"}
     if len(pages) > MAX_PAGES:
@@ -188,24 +235,24 @@ def build(root, pages, page_w=None, page_h=None):
 
     state = course_repo.session_state(root)
     title = state.get("chapter") or state.get("course") or "Lesson"
-    stem = document.slugify(title)
-    out_dir = os.path.join(root, document.OUT_DIR)
+    stem = slugify(title)
+    out_dir = os.path.join(root, OUT_DIR)
     os.makedirs(out_dir, exist_ok=True)
-    version = document.next_version(out_dir, stem)
+    version = next_version(out_dir, stem)
     name = "%s-v%d" % (stem, version)
     pdf_path = os.path.join(out_dir, name + ".pdf")
 
     try:
         write_pdf(pdf_path, pages,
                   page_w or A4[0], page_h or A4[1],
-                  title=title, author=document.author_name(root, state))
+                  title=title, author=author_name(root, state))
     except (OSError, ValueError) as exc:
         return {"ok": False, "detail": "could not write the document: %s" % exc}
 
     return {"ok": True, "name": name, "version": version, "scope": "shot",
             "kind": "shot", "pages": len(pages), "tex": None,
             "pdf": os.path.relpath(pdf_path, root), "detail": "",
-            "tracked": document.track(root, [pdf_path])}
+            "tracked": track(root, [pdf_path])}
 
 
 def decode(payload):

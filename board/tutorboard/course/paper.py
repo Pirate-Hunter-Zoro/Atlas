@@ -49,9 +49,9 @@ from .. import paths, tex
 
 
 # The two documents. A KIND is what the client names; a path is never one.
-# `export.json` is written by both exports -- the typeset transcript and the
-# photograph of the glass -- and `hw.json` by `board writeup build`, so there is one
-# record per document and this is the whole of the mapping.
+# `export.json` is written by the export (the photograph of the glass) and
+# `hw.json` by `board writeup build`, so there is one record per document and
+# this is the whole of the mapping.
 KINDS = ("lesson", "homework")
 _RECORD = {"lesson": "export.json", "homework": "hw.json"}
 
@@ -60,10 +60,9 @@ _RECORD = {"lesson": "export.json", "homework": "hw.json"}
 # at; going wider costs bytes on a tailnet link and buys nothing legible.
 PAGE_WIDTH = 1240
 
-# A whole-course transcript can be a hundred pages and a `--all` export of a
-# long course more. Rasterising every one of them is tens of megabytes onto a
-# compute node's disk and onto the tablet's, so it stops and says how many it
-# stopped at -- a truncated document that says so is readable; one that quietly
+# A long lesson or a thesis can be a hundred pages and more. Rasterising every
+# one of them is tens of megabytes onto the disk and onto the tablet's, so it
+# stops and says how many it stopped at -- a truncated document that says so is readable; one that quietly
 # ends at page 40 is a document somebody hands to a professor.
 MAX_PAGES = 160
 

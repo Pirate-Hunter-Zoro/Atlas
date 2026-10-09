@@ -507,8 +507,8 @@ in the same turn**, and the card says the file now has it.
 anything. `board finish` raises the same offer on the board. Sessions are
 abandoned more often than they end tidily, so nothing waits for the end. A
 session keeps every card until End, so never hurry an exercise: leave it for
-later and put it in `TUTOR.md`. The board exports the transcript and the library
-shows every PDF, so never paste a lesson or a compiled sheet into a card.
+later and put it in `TUTOR.md`. The board's export photographs the lesson and the
+library shows every PDF, so never paste a lesson or a compiled sheet into a card.
 
 ## Do mode: the work is yours
 

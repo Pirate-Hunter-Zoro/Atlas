@@ -179,7 +179,7 @@ if [ -z "$missing" ]; then
   good "latex, pdflatex, dvisvgm, latexmk"
 else
   warn "missing:$missing"
-  say  "        TeX is only needed to compile diagrams and to export a lesson."
+  say  "        TeX is only needed to compile diagrams and documents."
   say  "        A small installation is enough:"
   say  "          https://yihui.org/tinytex/   then:"
   say  "          tlmgr install dvisvgm standalone varwidth preview needspace"

@@ -6,7 +6,6 @@ session's Repo (`handler.UNPREFIXED` lists none of them):
     POST /push          session   commit and push the session's subject
     POST /hw/build      session   build the session's write-up
     POST /export/shot   session   the lesson as the iPad drew it
-    POST /export        session   the lesson as one typeset document
 """
 
 import time
@@ -14,7 +13,7 @@ import json
 import os
 
 from . import NOT_MINE
-from ...course import document, screenshot
+from ...course import screenshot
 from ...lesson import git
 
 
@@ -67,14 +66,11 @@ def post(h, repo, path):
         # The pixels come from the device because the device is the only thing
         # that knows what the lesson looks like -- there is no headless browser
         # on a compute node and there never will be. What stays here is what a
-        # client must not be trusted with and what must not differ between the
-        # two exports: where it goes, what it is called, which version it is,
-        # and that it is staged for the next commit.
+        # client must not be trusted with: where it goes, what it is called,
+        # which version it is, and that it is staged for the next commit.
         #
-        # It writes `export.json` like the typeset export does, and that is not
-        # incidental: `/download/lesson` resolves the document through that
-        # record and nothing else, so a photograph that did not write it would
-        # be a PDF in the repository with no way to get it off the device.
+        # It writes `export.json`, and that is not incidental: `/download/lesson`
+        # resolves the document through that record and nothing else.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                            # noqa: BLE001
@@ -97,32 +93,4 @@ def post(h, repo, path):
         h.hub.worker.dirty.set()
         return h.send_json(rec)
 
-    if path == "/export":
-        # The whole conversation as one document. It can take a minute of
-        # LaTeX, so the board is told what happened rather than left to
-        # guess -- and the record it gets back is the same one the CLI
-        # prints, because there is one exporter and it lives in document.py.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            payload = {}
-        # THE SCOPE IS MATCHED, NEVER TRUSTED: anything this server does not
-        # recognise is the ordinary one. `which` is a chapter label or a filed
-        # sitting's id, and `document.lessons` looks it up in what the archive
-        # actually holds rather than joining it onto a path.
-        scope = payload.get("scope")
-        if scope not in document.SCOPES:
-            scope = "lesson"
-        which = str(payload.get("which") or "")[:120]
-        try:
-            rec = document.build(repo.root, scope=scope, which=which)
-        except Exception as e:                       # noqa: BLE001
-            rec = {"ok": False, "detail": "export failed: %s" % e}
-        rec["at"] = time.time()
-        rec["iso"] = time.strftime("%Y-%m-%d %H:%M:%S")
-        with open(os.path.join(repo.live, "export.json"), "w", encoding="utf-8") as fh:
-            json.dump(rec, fh, indent=2)
-        git._DIRTY["value"] = None      # the new file is uncommitted; say so
-        h.hub.worker.dirty.set()
-        return h.send_json(rec)
     return NOT_MINE

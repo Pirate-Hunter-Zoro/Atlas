@@ -1799,7 +1799,7 @@ function paintBanner(push, exported, hwBuilt) {
         + ", saved in the repository and staged for the next save"
       : " — saved in the repository, and staged for the next save";
     els.pushedText.textContent = last.ok
-      ? (last.pdf || last.tex) + howMany
+      ? (last.pdf || "the lesson") + howMany
       : "Export failed — "
         + ((last.detail || "no detail").split("\n")[0] || "no detail");
   } else if (last === hwBuilt || last.kind === "hw") {
@@ -2185,7 +2185,7 @@ function paperFailed(kind, got) {
                         "pushed-get", function () {
       closeReader();
       if (kind === "homework") doExportHomework();
-      else doExport("lesson");
+      else doExport();
     }));
     return;
   }
@@ -2274,58 +2274,41 @@ function doExportHomework() {
     });
 }
 
-/* THIS LESSON, AS IT WAS READ. AND THE WHOLE COURSE, TYPESET. `lesson` is the
-   board's own pixels, photographed here (`shot.js` says why it cannot be
-   anywhere else); `all` is the typeset transcript, because a past lesson is not
-   on the glass. The server owns the name, the version and the repository copy.
-   It says which card it is on: this can take twenty seconds. */
-function doExport(scope, which) {
+/* THIS LESSON, AS IT WAS READ: the board's own pixels, photographed here
+   (`shot.js` says why it cannot be anywhere else). The server owns the name,
+   the version and the repository copy. It says which card it is on: this can
+   take twenty seconds. */
+function doExport() {
   els.pushed.hidden = false;
   els.pushed.className = "pushed";
   els.pushedIcon.textContent = "…";
   offerDocument(null);           /* not the last document's buttons, while this builds */
 
-  /* THE PHOTOGRAPH IS OF WHAT IS ON THE GLASS, so it is only ever the lesson
-     that is open. A chapter or a filed sitting is not on the glass; asking the
-     camera for one would photograph this evening and label it last Tuesday. */
-  if ((!scope || scope === "lesson") && global_TutorShot()) {
-    els.pushedText.textContent = "photographing the lesson…";
-    return global_TutorShot().send(function (done, total) {
-      els.pushedText.textContent = "photographing the lesson — card "
-        + done + " of " + total + "…";
-    }).then(function (rec) {
-      paintBanner(null, rec || { ok: false, detail: "no answer" }, null);
-    }).catch(function (err) {
-      els.pushed.className = "pushed bad";
-      els.pushedIcon.textContent = "✕";
-      els.pushedText.textContent = "Could not photograph the lesson — "
-        + ((err && err.message) || "the browser refused");
-    });
+  var shot = global_TutorShot();
+  if (!shot) {
+    /* `shot.js` is a separate, deferred script; a board that got here from a
+       cache without it says so rather than throw. */
+    els.pushed.className = "pushed bad";
+    els.pushedIcon.textContent = "✕";
+    els.pushedText.textContent = "Could not photograph the lesson — "
+      + "reload the board and try again";
+    return Promise.resolve(null);
   }
-
-  els.pushedText.textContent = scope === "all"
-    ? "building the whole course — LaTeX takes a moment…"
-    : scope === "chapter"
-      ? "building this chapter — every sitting on it, in order…"
-      : scope === "sitting"
-        ? "building that sitting as a PDF…"
-        : "building this lesson as a PDF…";
-  return api("/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scope: scope || "lesson", which: which || "" })
-  }).then(function (r) { return r.json(); })
-    .then(function (rec) { paintBanner(null, rec, null); })
-    .catch(function () {
-      els.pushed.className = "pushed bad";
-      els.pushedIcon.textContent = "✕";
-      els.pushedText.textContent = "Export failed — could not reach the board";
-    });
+  els.pushedText.textContent = "photographing the lesson…";
+  return shot.send(function (done, total) {
+    els.pushedText.textContent = "photographing the lesson — card "
+      + done + " of " + total + "…";
+  }).then(function (rec) {
+    paintBanner(null, rec || { ok: false, detail: "no answer" }, null);
+  }).catch(function (err) {
+    els.pushed.className = "pushed bad";
+    els.pushedIcon.textContent = "✕";
+    els.pushedText.textContent = "Could not photograph the lesson — "
+      + ((err && err.message) || "the browser refused");
+  });
 }
 
-/* Asked for rather than captured at load: `shot.js` is a separate file and a
-   deferred script, so a board that got here from a cache without it must fall
-   back to the typeset export rather than throw. */
+/* Asked for rather than captured at load: `shot.js` is a deferred script. */
 function global_TutorShot() {
   return (typeof window !== "undefined" && window.TutorShot) || null;
 }
@@ -2902,24 +2885,6 @@ function openHistory() {
          s.turns + " of yours"].filter(Boolean).join(" · ");
       b.addEventListener("click", function () { showSession(s.id); });
       row.appendChild(b);
-
-      /* TAKE IT AWAY, from the one place a person is already looking at the
-         sitting they want. A filed lesson could only be got out of here by
-         exporting the whole course, which is the wrong document by two orders
-         of magnitude when what is wanted is one evening's work. `sitting` is a
-         scope, not a second exporter -- the numbering, the reading order and
-         the whole-conversation rule are the ones every other document gets. */
-      var keep = document.createElement("button");
-      keep.type = "button";
-      keep.className = "session-keep pushed-get";
-      keep.textContent = "PDF";
-      keep.title = "this sitting as a document";
-      keep.addEventListener("click", function (ev) {
-        ev.stopPropagation();          /* not also "open it to read" */
-        document.getElementById("history").hidden = true;
-        doExport("sitting", s.id);
-      });
-      row.appendChild(keep);
 
       list.appendChild(row);
     });
@@ -6881,8 +6846,7 @@ document.getElementById("btn-library").onclick = function () {
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && paperOpen) closeReader();
 });
-document.getElementById("btn-export").onclick = function () { doExport("lesson"); };
-document.getElementById("btn-export-all").onclick = function () { doExport("all"); };
+document.getElementById("btn-export").onclick = function () { doExport(); };
 document.getElementById("btn-export-hw").onclick = doExportHomework;
 /* WHAT JUST HAPPENED, read on the device that saw it. Built only when it is
    opened: the whole design of the buffer is that it costs nothing until then. */

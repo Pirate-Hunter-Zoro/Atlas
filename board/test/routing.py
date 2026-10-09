@@ -86,7 +86,6 @@ def _tutor(args, timeout=30):
     return 0, "ok"
 
 
-from tutorboard.course import document as course_document   # noqa: E402
 from tutorboard.course import screenshot as course_shot       # noqa: E402
 from tutorboard.lesson import git as lesson_git               # noqa: E402
 
@@ -107,7 +106,6 @@ def recorder(name, answer):
 
 lesson_git.run_push = recorder("push", {"ok": True, "detail": "pushed"})
 lesson_git.run_hw_build = recorder("hw", {"ok": True, "detail": "built"})
-course_document.build = recorder("export", {"ok": True, "detail": "exported"})
 course_shot.build = recorder("shot", {"ok": True, "detail": "shot"})
 
 # ---------------------------------------------------------------------------
@@ -329,8 +327,7 @@ DRIVE = {
     # saving
     ("POST", "/push", "saving"): ("session", [("/push", {"message": "{mark}"}, OK)]),
     ("POST", "/hw/build", "saving"): ("session", [("/hw/build", {}, OK)]),
-    ("POST", "/export/shot", "saving"): ("session", [("/export/shot", {}, OK)]),
-    ("POST", "/export", "saving"): ("session", [("/export", {"scope": "lesson"}, OK)]),
+    ("POST", "/export/shot", "saving"): ("session", [("/export/shot", {"pages": ["AA=="]}, OK)]),
     # library
     ("GET", "/library.json", "library"): ("subject", [("/library.json", None, OK)]),
     ("GET", "/library/stamp", "library"): ("subject", [("/library/stamp", None, OK)]),
@@ -604,10 +601,10 @@ check("unprefixed document ink lands in the named subject's .ink/, or the Atlas 
       and wrote[1].startswith(os.path.join(SUBJECT["B"], ".ink", "doc-beta-notes-p3-")))
 
 for who in ("A", "B"):
-    done = [c for c in CALLS if c["fn"] in ("push", "hw", "export")
+    done = [c for c in CALLS if c["fn"] in ("push", "hw", "shot")
             and (DIR[who] in c["args"] or os.path.join(atlas, SUBJECT[who]) in c["args"])]
     check("a push, a build and an export in %s each ran on %s's session or subject"
-          % (who, who), sorted(set(c["fn"] for c in done)) == ["export", "hw", "push"])
+          % (who, who), sorted(set(c["fn"] for c in done)) == ["hw", "push", "shot"])
 
 # A second session on Alpha sees Alpha's document ink, and none of its cards'.
 rec = sessions.new("second on Alpha", base=atlas, now=1.7e9 + 5)

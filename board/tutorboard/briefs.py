@@ -298,9 +298,9 @@ def _session_at(said):
 
 
 def _count_cards(folder):
-    from .course import document                       # local: a heavy import
+    from .lesson import cards                          # local: a heavy import
     try:
-        return len([n for n in os.listdir(folder) if document.CARD_RE.match(n)])
+        return len([n for n in os.listdir(folder) if cards.CARD_RE.match(n)])
     except OSError:
         return 0
 

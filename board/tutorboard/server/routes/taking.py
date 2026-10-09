@@ -53,15 +53,6 @@ from ...course import library
 from ...lesson import notes
 
 
-# The download route's own helpers moved into `course/paper.py`, because the
-# payload and the viewer need the same answers. These names are kept because
-# they are what `test/document.py` asserts against, and because a caller here
-# reads better for them.
-_pdf_in = paper.pdf_in
-_named = paper.named
-
-
-
 def _inked(repo, got, ident):
     """A page manifest with the document's ink beside it, `doc/<ident>/p<n>`:
     the board payload carries card ink only, so a document brings its own."""

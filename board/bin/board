@@ -80,7 +80,6 @@ The assistant runs these. The student never does.
                                        `check` from its root (with a path, its
                                        `one` form for that path)
     board slate [--all]                paths of the pages written on the iPad
-    board export [--all]               the whole conversation as a numbered PDF
     board session new|show|list|end|reopen|delete [id]
                                        the session store, sessions/<id>/: a new
                                        session, its session.json, End (the only
@@ -152,7 +151,7 @@ from tutorboard import (assistants, brief, direction, gitops,
 from tutorboard import briefs, subjects
 from tutorboard import mode as session_mode
 from tutorboard.net import egress, tailscale
-from tutorboard.course import config, document, homework, paper
+from tutorboard.course import config, homework, paper
 from tutorboard.lesson import inbox
 from tutorboard.course import repo as course_repo
 from tutorboard.exports import rel as _workspace_path
@@ -2277,83 +2276,6 @@ def cmd_colibri(live, args):
 
 
 # ---------------------------------------------------------------------------
-# export: the conversation -> one .tex, so a lesson becomes a permanent document
-#
-# The markdown-to-LaTeX converter and the transcript builder both live in
-# `document.py` now, because the board serves this from a button and cannot
-# import a script with no `.py` on the end of it.
-# ---------------------------------------------------------------------------
-TEX_HEAD = document.TEX_HEAD
-KIND_HEAD = document.KIND_HEAD
-md_to_tex = document.md_to_tex
-inline_tex = document.inline_tex
-tex_escape = document.tex_escape
-
-
-def cmd_export(live, args):
-    """The whole sitting as one document: the tutor's cards and the student's own
-    working, in the order they happened.
-
-        board export                    this lesson, built, numbered, staged
-        board export --chapter          every sitting on the chapter that is open
-        board export --chapter "Ch 7"   every sitting on that one
-        board export --sitting <id>     one finished sitting, by its archive id
-        board export --all              every filed lesson and this one, as one
-        board export --no-build         write the .tex and stop
-
-    SCOPES, NOT EXPORTERS. All four go through one `document.build`, get the
-    same numbering and produce the same shape -- because the moment there are
-    two exporters there are two answers to "what is in a document" and one of
-    them is out of date.
-
-    What does not change with the scope is the property that makes an export
-    worth having: it is the whole sitting in reading order -- the question,
-    every revision of the working as it was actually sent, what the tutor said,
-    and the next attempt underneath.
-
-    It used to be the cards alone, named with a timestamp, written into a
-    directory git ignores -- which is a record of half a conversation that
-    nobody can find and nothing keeps.
-    """
-    def after(flag):
-        if flag in args:
-            n = args.index(flag)
-            if n + 1 < len(args) and not args[n + 1].startswith("--"):
-                return args[n + 1]
-        return ""
-
-    scope, which = "lesson", ""
-    if "--all" in args:
-        scope = "all"
-    elif "--sitting" in args:
-        scope, which = "sitting", after("--sitting")
-        if not which:
-            print("board export --sitting needs the id of a filed sitting. "
-                  "`board history` lists them.", file=sys.stderr)
-            return 1
-    elif "--chapter" in args:
-        # No name means the chapter that is open, which is what somebody at a
-        # terminal in the middle of one means by "this chapter".
-        scope, which = "chapter", after("--chapter")
-
-    rec = document.build(live.root, scope=scope, which=which,
-                         make_pdf="--no-build" not in args)
-    if not rec.get("ok") and not rec.get("tex"):
-        print(rec.get("detail") or "nothing to export", file=sys.stderr)
-        return 1
-    print(rec["tex"])
-    if rec.get("sittings", 1) > 1:
-        print("%d sittings, in the order they happened" % rec["sittings"])
-    if rec.get("pdf"):
-        print(rec["pdf"])
-    elif rec.get("detail"):
-        print("FAILED to compile\n" + rec["detail"], file=sys.stderr)
-    if rec.get("tracked"):
-        print("staged for the next push")
-    return 0 if rec.get("ok") else 1
-
-
-# ---------------------------------------------------------------------------
 # Tailscale, in userspace mode so it needs no root and no TUN device.
 #
 # The compute node is on the institute network and the iPad is not, so there is
@@ -3291,7 +3213,7 @@ def cmd_code(live, args):
 COMMANDS = {
     "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
     "next": cmd_next, "write": cmd_write,
-    "inbox": cmd_inbox, "export": cmd_export,
+    "inbox": cmd_inbox,
     "doctor": cmd_doctor, "slate": cmd_slate, "check": cmd_check,
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
     "see": cmd_see,
