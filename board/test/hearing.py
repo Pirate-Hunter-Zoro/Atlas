@@ -582,8 +582,9 @@ check("install.sh boots out tutor-board.tutor-watch and tutor-board.tutor-pull, 
       and 'launchctl bootout "$DOMAIN/$old"' in inst
       and 'LABEL="tutor-board"' in inst and "scripts/launchd/*.plist" not in inst)
 ship = open(os.path.join(ROOT, "scripts", "ship.sh"), encoding="utf-8").read()
-check("ship.sh restarts with launchctl kickstart -k gui/$(id -u)/tutor-board",
-      'TARGET="gui/$(id -u)/tutor-board"' in ship
+check("ship.sh restarts with launchctl kickstart -k gui/$(id -u)/tutor-board "
+      "(TUTORBOARD_LABEL names a rehearsal's own)",
+      'TARGET="gui/$(id -u)/${TUTORBOARD_LABEL:-tutor-board}"' in ship
       and 'launchctl kickstart -k "$TARGET"' in ship
       and "tutor restart" not in ship and "ssh" not in ship)
 TUTOR = os.path.join(ROOT, "bin", "tutor")
