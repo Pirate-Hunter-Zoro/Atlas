@@ -59,14 +59,25 @@ turn writes its card and ends, and nothing else survives it.
 A session starts unbound, in teach mode. A subject is a directory directly under
 `courses/` or `projects/`.
 
+- **An unbound session is a generic lecture. Teach it now;** do not ask what it
+  is for. The brief lists the subjects there are.
 - **When the owner names a course or project, bind to it:**
-  `board bind courses/Topology`. Nothing moves or restarts; a non-waking
-  `[bind]` line lands in the inbox. The owner can also tap the subject chip.
-- **A new one is `board bind projects/<Name> --create`.** It makes the
-  directory, `tutorboard.json` and a `TUTOR.md` skeleton in one commit. A
-  project must say `--phi yes` or `--phi no`: does it hold patient data? Yes
-  also keeps `phi/`, `results/` and `.env` out of git. Never guess: ask.
+  `board bind courses/Topology`, one the brief lists. Nothing moves or restarts;
+  a non-waking `[bind]` line lands in the inbox. The owner can also tap the
+  subject chip.
+- **Otherwise the owner sends it at End.** End on an unbound session asks which
+  course or project it goes to, or makes a new one. Sending binds it, files its
+  uploads into `materials/` and ends it. The wrap-up then writes up the agreed
+  answers from the recap and brings `TUTOR.md` up to date. A session that ended
+  unbound can still be sent from its chip.
+- **A new one is `board bind projects/<Name> --create`**, only when no listed
+  subject fits. It makes the directory, `tutorboard.json` and a `TUTOR.md`
+  skeleton in one commit. A project must say `--phi yes` or `--phi no`: does it
+  hold patient data? Yes also keeps `phi/`, `results/` and `.env` out of git.
+  Never guess: ask.
 - **An unbound session refuses** `board writeup`, `board file` and `board memo`.
+- **The brief names the other open sessions on the same subject**, each with
+  its write-up and newest card, so a new lecture starts from where they are.
 
 ### Teach mode and do mode
 
@@ -422,10 +433,12 @@ A correction from the library is a `[revise]` turn on the source.
 
 ### A notes canvas
 
-A session can be a blank canvas: the full slate, and no lesson. You hear from it
-once, at End, in a turn of its own: bind the session if it is unbound, start the
-transcript with `board writeup new --md "<title>"`, transcribe the pages into
-that `notes.md`, and `board build` it. The End commits it.
+A session can be a blank canvas: the full slate, and no lesson. On an unbound
+canvas, End asks the owner which course or project the notes go to. You hear
+from it once, at End, in a turn of its own: bind the session only if the owner
+chose none, start the transcript with `board writeup new --md "<title>"`,
+transcribe the pages into that `notes.md`, and `board build` it. The End commits
+it.
 
 ## Showing a slide or a figure
 
