@@ -20,7 +20,7 @@
 # The server is IT's VM, not our node, and Open WebUI keeps a copy of every
 # chat. So a directory behind the PHI fence is refused, by asking ai-config's
 # policy exactly as ds-code does. It is a gate on the launch directory, not a
-# fence: do not reach for this inside research/PSYCH-ASR at all.
+# fence: do not reach for this inside a fenced project at all.
 set -euo pipefail
 
 _self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
@@ -135,8 +135,10 @@ fi
 
 # opencode answers an unreachable host with a cursor and nothing else, so ask
 # first. Any HTTP status means the firewall let us through; 401 means the key.
-if ! _code="$(curl -sS -o /dev/null -m 8 -w '%{http_code}' \
-        -H "Authorization: Bearer $(<"$KEY_FILE")" "$HOST/api/models" 2>&1)"; then
+# The header goes to curl on stdin (printf is a builtin), so the key is never
+# in curl's argv, where any user on the node could read it.
+if ! _code="$(printf 'header = "Authorization: Bearer %s"\n' "$(<"$KEY_FILE")" \
+        | curl -sS -K - -o /dev/null -m 8 -w '%{http_code}' "$HOST/api/models" 2>&1)"; then
     cat >&2 <<EOF
 coder: ${HOST} does not answer from this node (${HOSTNAME:-unknown}).
 
