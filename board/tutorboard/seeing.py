@@ -4,7 +4,8 @@
 a subcommand every agent already has, so no tool protocol is needed. Where
 the image goes is a recipe's `vision` block (an endpoint, or a command
 running a sighted assistant already installed): the running agent's first,
-then `vision_agent`. Every request carries a code drawn only in the image,
+then `vision_agent`, then every other sighted recipe, each tried when the one
+before it refused. Every request carries a code drawn only in the image,
 and an answer that cannot say it back is refused, because a confident
 paragraph about an unseen page is the failure that must not happen.
 
@@ -75,12 +76,13 @@ def registry():
         return {}
 
 
-def route(agent=None, table=None):
+def route(agent=None, table=None, exclude=()):
     """Where an image goes, as `(settings, why-there-is-none)`.
 
     The running agent's own recipe first, then `vision_agent`, then every
     other recipe, so `board see` reports the route that really answers and no
-    one provider's eyes are load-bearing. A stood-down host is skipped: an
+    one provider's eyes are load-bearing. A recipe in `exclude` (one whose
+    route already refused) is passed over. A stood-down host is skipped: an
     endpoint route when the stand-down names its host or none, never a
     command route by name alone, since commands scrub `ROUTING`. An in-fence
     recipe is never a route (only it reads phi), nor one marked `sighted:
@@ -95,6 +97,8 @@ def route(agent=None, table=None):
         if not name or name in tried:
             continue
         tried.append(name)
+        if name in exclude:
+            continue
         if (agents.get(name) or {}).get("private"):
             dark.append("'%s' is an in-fence model and never a vision route"
                         % name)
@@ -121,6 +125,18 @@ def route(agent=None, table=None):
     return None, ("no assistant on this machine names a vision route. Put a "
                   "`vision` block -- an endpoint or a command, and a model -- "
                   "on a recipe in the config, or name one in `vision_agent`.")
+
+
+def routes(agent=None, table=None):
+    """Every route an image may take, in the order `describe` tries them:
+    `route`'s answer, then its answer with that one passed over, and so on."""
+    table = registry() if table is None else table
+    out = []
+    while True:
+        got, _ = route(agent, table, exclude=[r["agent"] for r in out])
+        if not got:
+            return out
+        out.append(got)
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +478,9 @@ def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
         raise Refused(why)
     images, box = pages(path, page)
     try:
-        # On failure, re-ask the route once: the failed attempt wrote the
-        # stand-down the next choice depends on. Only onto a different route;
-        # the same one back means the first refusal stands.
+        # A route that refused -- a blind answer, no witness code, an HTTP
+        # error, an unreachable host -- is passed over and the next sighted
+        # recipe is asked, until one reads the page or none is left.
         tried, said = [], []
         while True:
             try:
@@ -472,7 +488,7 @@ def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
             except Refused as gone:
                 tried.append(settings.get("agent"))
                 said.append("%s: %s" % (settings.get("agent") or "the route", gone))
-                settings, _ = route(agent, table)
+                settings, _ = route(agent, table, exclude=tried)
                 if not settings or settings.get("agent") in tried:
                     raise Refused(" -- and then ".join(said)) if len(said) > 1 \
                         else gone
