@@ -261,37 +261,88 @@ def head_phi(base, ident):
     return said.get("phi") if isinstance(said, dict) else None
 
 
-def delete_blocker(found, base=None):
-    """Why the subject `found` (an `all()` record) may not be deleted now, or
-    "". D23: tutorboard.json at HEAD must say `"phi": false` literally. And
-    no open session is bound to it, no session holds a coding session on it,
-    and no request under it waits for a terminal report."""
+def _plural(items, one, many):
+    """`one` or `many`, with the items named and joined in English."""
+    names = list(items)
+    said = names[0] if len(names) == 1 else "%s and %s" % (
+        ", ".join(names[:-1]), names[-1])
+    return (one if len(names) == 1 else many) % said
+
+
+def delete_check(found, base=None):
+    """Whether the subject `found` (an `all()` record) may be deleted now:
+    `{phi, why, blocker, sessions}`, read-only.
+
+    `phi` is `head_phi`'s answer, None for no file at HEAD. `why` names the
+    first thing in the way: "phi" (D23: tutorboard.json at HEAD must say
+    `"phi": false` literally), "open-session", "coding" or "request" (one
+    under it waits for a terminal report, or its requests cannot be read),
+    else "". `blocker` is one sentence naming every one of them, else "".
+    `sessions` the open sessions bound to it.
+    """
     from . import sessions                                   # local: a cycle
     base = _base(base)
     ident = found["id"]
     phi = head_phi(base, ident)
+    kinds, parts = [], []
     if phi is not False:
-        return ("%s: tutorboard.json at HEAD does not say \"phi\": false (%s), "
-                "so it is removed only through a cluster runbook"
-                % (ident, "no tutorboard.json at HEAD" if phi == ""
-                   else "no phi key" if phi is None else "phi is %s" % json.dumps(phi)))
+        kinds.append("phi")
+        parts.append("tutorboard.json at HEAD does not say \"phi\": false (%s), "
+                     "so it is removed only through a cluster runbook"
+                     % ("no tutorboard.json at HEAD" if phi == ""
+                        else "no phi key" if phi is None
+                        else "phi is %s" % json.dumps(phi)))
+    open_ids, coding_ids = [], []
     for rec in sessions.all(base):
         code = rec.get("code")
         held = isinstance(code, dict) and code.get("subject") == ident
         if rec.get("subject") == ident and not rec.get("ended"):
-            return "%s: session %s is open on it; end it first" % (ident, rec["id"])
-        if code and (held or rec.get("subject") == ident):
-            return ("%s: session %s holds a coding session on it; end that "
-                    "first (board code --end)" % (ident, rec["id"]))
+            open_ids.append(rec["id"])
+        elif code and (held or rec.get("subject") == ident):
+            coding_ids.append(rec["id"])
+    if open_ids:
+        kinds.append("open-session")
+        parts.append(_plural(open_ids, "session %s is open on it; end it first",
+                             "sessions %s are open on it; end them first"))
+    if coding_ids:
+        kinds.append("coding")
+        parts.append(_plural(coding_ids, "session %s holds a coding session on "
+                             "it; end that first (board code --end)",
+                             "sessions %s hold coding sessions on it; end "
+                             "those first (board code --end)"))
     from . import jobs                                       # local: heavy
     try:
         waiting = jobs.outstanding(found["root"])
     except Exception as exc:                                 # noqa: BLE001
-        return "%s: its requests could not be read (%s)" % (ident, exc)
-    if waiting:
-        return ("%s: request %s has no terminal report yet"
-                % (ident, waiting[0].get("request") or "?"))
-    return ""
+        kinds.append("request")
+        parts.append("its requests could not be read (%s)" % exc)
+    else:
+        if waiting:
+            kinds.append("request")
+            parts.append(_plural([w.get("request") or "?" for w in waiting],
+                                 "request %s has no terminal report yet",
+                                 "requests %s have no terminal report yet"))
+    return {"phi": None if phi == "" else phi,
+            "why": kinds[0] if kinds else "",
+            "blocker": "%s: %s" % (ident, "; ".join(parts)) if parts else "",
+            "sessions": open_ids}
+
+
+def delete_blocker(found, base=None):
+    """Why the subject `found` may not be deleted now, every reason in one
+    sentence, or "" (`delete_check`)."""
+    return delete_check(found, base)["blocker"]
+
+
+def deletable(ident, base=None):
+    """The subject `ident`, matched exactly as `<parent>/<slug>` against
+    `walk()`, else None. Delete names a subject by nothing looser."""
+    raw = str(ident or "").strip()
+    found = None
+    for one in walk(_base(base)):
+        if "%s/%s" % (one[0], one[2]) == raw:
+            found = _record(*one)
+    return found
 
 
 def delete(ident, typed, base=None, now=None):
@@ -303,10 +354,7 @@ def delete(ident, typed, base=None, now=None):
     from . import gitops, sessions                           # local: a cycle
     base = _base(base)
     raw = str(ident or "").strip()
-    found = None
-    for one in walk(base):
-        if "%s/%s" % (one[0], one[2]) == raw:
-            found = _record(*one)
+    found = deletable(raw, base)
     if not found:
         raise Refused("no subject %r: name it as courses/<name> or "
                       "projects/<name>" % raw)

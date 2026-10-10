@@ -122,7 +122,10 @@ no marker file.
 - **Delete** from the iPad needs the name typed. It is refused unless `tutorboard.json` at HEAD
   sets `phi` to `false` literally, no open session is bound to it, no coding session holds it,
   and no request waits for a report. A PHI subject is removed only through a cluster runbook.
-  Tracked files leave by `git rm` in one commit; the directory goes to the trash.
+  `GET /subject/delete?subject=<id>` answers the same question read-only: `phi` at HEAD, `why`
+  (`phi`, `open-session`, `coding`, `request` or empty), one `blocker` sentence naming every
+  reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit, as
+  End's commit is local; the directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
 
 ## Artifacts and documents
