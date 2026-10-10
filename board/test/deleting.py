@@ -78,6 +78,7 @@ put("courses/Gone/hw/set1.tex", "\\documentclass{article}\n")
 put("courses/Gone/materials/book.pdf", "%PDF-1.4 not really\n")      # ignored residue
 put("projects/Secret/tutorboard.json", json.dumps({"name": "Secret", "phi": True}))
 put("projects/NoKey/tutorboard.json", json.dumps({"name": "NoKey"}))
+put("projects/Worded/tutorboard.json", json.dumps({"name": "Worded", "phi": "no"}))
 put("projects/Flipped/tutorboard.json", json.dumps({"name": "Flipped", "phi": True}))
 put("courses/Pending/relay/requests/r1.json", json.dumps({"id": "r1", "kind": "job"}))
 put("courses/Many/relay/requests/m1.json", json.dumps({"id": "m1", "kind": "job"}))
@@ -168,6 +169,8 @@ phis = dict((one["id"], one.get("phi", "absent")) for one in got.get("subjects",
 check("/subjects.json carries phi per subject, as the working tree says it",
       phis.get("projects/Secret") is True and phis.get("projects/NoKey") is None
       and phis.get("projects/Flipped") is False and phis.get("courses/Keep") is False)
+check("a phi that is not true or false is null there, never the word itself",
+      phis.get("projects/Worded") is None)
 check("and meetings is null where there is no Meetings subject",
       status == 200 and "meetings" in got and got["meetings"] is None)
 
@@ -187,6 +190,10 @@ status, got = asked("projects/NoKey")
 check("no phi key is phi null, why phi",
       status == 200 and got.get("phi") is None and got.get("why") == "phi"
       and "no phi key" in got.get("blocker", ""))
+status, got = asked("projects/Worded")
+check('"phi": "no" is phi null in the check, why phi, the word in the sentence',
+      status == 200 and got.get("phi") is None and got.get("why") == "phi"
+      and '"no"' in got.get("blocker", ""))
 status, got = asked("projects/Flipped")
 check('phi false in the working tree only is phi true at HEAD, why phi',
       status == 200 and got.get("phi") is True and got.get("why") == "phi")

@@ -68,9 +68,10 @@ def phi(where):
     False, else None. For display; a delete reads HEAD (`head_phi`)."""
     from .course import config                               # local: a cycle
     try:
-        return config.read_config(where).get("phi")
+        said = config.read_config(where).get("phi")
     except Exception:                                        # noqa: BLE001
         return None
+    return said if isinstance(said, bool) else None
 
 
 def walk(base=None):
@@ -283,7 +284,7 @@ def delete_check(found, base=None):
     """Whether the subject `found` (an `all()` record) may be deleted now:
     `{phi, why, blocker, sessions}`, read-only.
 
-    `phi` is `head_phi`'s answer, None for no file at HEAD. `why` names the
+    `phi` is `head_phi`'s answer when it is true or false, else None. `why` names the
     first thing in the way: "phi" (D23: tutorboard.json at HEAD must say
     `"phi": false` literally), "open-session", "coding" or "request" (one
     under it waits for a terminal report, or its requests cannot be read),
@@ -332,7 +333,7 @@ def delete_check(found, base=None):
             parts.append(_plural([w.get("request") or "?" for w in waiting],
                                  "request %s has no terminal report yet",
                                  "requests %s have no terminal report yet"))
-    return {"phi": None if phi == "" else phi,
+    return {"phi": phi if isinstance(phi, bool) else None,
             "why": kinds[0] if kinds else "",
             "blocker": "%s: %s" % (ident, "; ".join(parts)) if parts else "",
             "sessions": open_ids}

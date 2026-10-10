@@ -483,6 +483,12 @@ try:
           and "They reached the end." in open(os.path.join(
               atlas, "courses", "Demo", "TUTOR.md"), encoding="utf-8").read(),
           agent_log(sa)[-600:])
+    demo_dirty = lambda: git("status", "--porcelain", "--", "courses/Demo/TUTOR.md",
+                             cwd=atlas).stdout.strip()
+    until(lambda: not demo_dirty(), 30)
+    check("and the edit is committed once the wrap-up is done, by End run again",
+          not demo_dirty() and "They reached the end." in git(
+              "show", "HEAD:courses/Demo/TUTOR.md", cwd=atlas).stdout, demo_dirty())
     su = new_session(None, "unbound")
     write(os.path.join(sessions.path(su, atlas), "cards", "0001-x.md"), "x\n")
     got = server.post("/s/%s/end" % su)

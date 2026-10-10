@@ -642,6 +642,12 @@ function paintDropCheck(got) {
     });
     els.dropperWhy.appendChild(document.createTextNode(
       ". End or delete " + (held.length === 1 ? "it" : "them") + " first."));
+    /* An open session is only the first thing in the way; the board's
+       sentence names every one, so it follows the links. */
+    if (blocker) {
+      els.dropperWhy.appendChild(el("br", ""));
+      els.dropperWhy.appendChild(document.createTextNode(blocker));
+    }
   } else if (why || blocker) {
     els.dropperWhy.textContent = blocker || why;
   } else {
@@ -777,8 +783,11 @@ function sendTo(subject, name) {
     }
     closeSender();
     var filed = got.filed && typeof got.filed === "object" ? got.filed.length : got.filed;
+    var left = (got.refused || []).map(function (r) { return r.upload; });
     say(sessionTitle(rec) + " went to " + ((got.sent && got.sent.name) || name)
-        + (filed ? ", with " + plural(filed, "upload", "uploads") + " filed" : "") + ".");
+        + (filed ? ", with " + plural(filed, "upload", "uploads") + " filed" : "") + "."
+        + (left.length ? " " + left.join(", ") + " stayed in the session: a file of "
+           + "that name is already in its materials." : ""));
     return refresh();
   }).catch(function () {
     sending = false;

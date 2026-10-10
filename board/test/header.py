@@ -216,13 +216,20 @@ def upload_into(sid, name):
         fh.write(b"%PDF-1.4 lecture\n")
 
 
+def refused_then(status):
+    """A refusal is answered before its handler returns: give the handler
+    time to run on, so state it wrongly changed after replying is seen."""
+    time.sleep(0.3)
+    return status
+
+
 LA = os.path.join(atlas, "courses", "Linear-Algebra")
 status, made = ask("POST", "/sessions/new", {})
 U1 = made.get("id")
 upload_into(U1, "lecture.pdf")
 status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Nowhere"})
 check("End naming no subject is refused (%d), and the session stays open and unbound"
-      % status, status == 400 and not record(U1).get("ended")
+      % status, refused_then(status) == 400 and not record(U1).get("ended")
       and record(U1).get("subject") is None)
 status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Linear-Algebra"})
 check("End with a subject sends it there and ends it (%d)" % status,
@@ -237,7 +244,7 @@ check("the hub serves the subject's root at once",
       os.path.realpath(httpd.registry.get(U1).hub.repo.root) == os.path.realpath(LA))
 status, got = ask("POST", "/s/%s/end" % U1, {"subject": "projects/Beta"})
 check("an ended session cannot be ended into another subject (%d)" % status,
-      status == 409 and "courses/Linear-Algebra" in (got.get("error") or "")
+      refused_then(status) == 409 and "courses/Linear-Algebra" in (got.get("error") or "")
       and record(U1).get("subject") == "courses/Linear-Algebra")
 status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Linear-Algebra"})
 check("the same subject again is a plain End retry", status == 200 and got.get("ok"))
@@ -261,7 +268,7 @@ check("it stays ended, and with no runner in this server no wrap-up is queued",
       record(U2).get("ended") and got.get("wrapup") is False)
 status, got = ask("POST", "/s/%s/send" % U2, {"subject": "courses/Linear-Algebra"})
 check("sent once it has ended, it cannot be sent elsewhere (%d)" % status,
-      status == 409 and record(U2).get("subject") == "projects/Beta")
+      refused_then(status) == 409 and record(U2).get("subject") == "projects/Beta")
 status, got = ask("POST", "/s/%s/bind" % U2, {"subject": "courses/Linear-Algebra"})
 check("and /bind on it is still read-only (%d)" % status, status == 409)
 status, made = ask("POST", "/sessions/new", {})
@@ -272,7 +279,7 @@ check("an open session answers /send by binding it, and stays open (%d)" % statu
       and not record(U3).get("ended"))
 status, got = ask("POST", "/s/%s/send" % U3, {"subject": "courses/Nowhere"})
 check("a /send to no subject is refused (%d)" % status,
-      status == 400 and record(U3).get("subject") == "courses/Linear-Algebra")
+      refused_then(status) == 400 and record(U3).get("subject") == "courses/Linear-Algebra")
 
 httpd.shutdown()
 if fails:

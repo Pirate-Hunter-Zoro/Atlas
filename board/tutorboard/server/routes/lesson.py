@@ -387,15 +387,16 @@ def _body(h):
 
 def _sent(h, sid, base, subject):
     """Send session `sid` to `subject` (`sessions.send`), and ask the
-    registry again so the hub roots at the subject. `(reply keys, None)`, or
-    `(None, refusal reply)` with nothing changed."""
+    registry again so the hub roots at the subject. The reply keys, or None
+    once the refusal is answered, with nothing changed."""
     try:
         rec, filed, refused = sessions.send(sid, subject, base=base)
     except sessions.Refused as exc:
-        return None, h.send_json({"ok": False, "error": str(exc)}, status=400)
+        h.send_json({"ok": False, "error": str(exc)}, status=400)
+        return None
     except sessions.NoSession:
-        return None, h.send_json({"ok": False, "error": "no such session"},
-                                 status=404)
+        h.send_json({"ok": False, "error": "no such session"}, status=404)
+        return None
     found = subjects.find(rec["subject"], base) or {}
     registry = getattr(h.server, "registry", None)
     if registry is not None:
@@ -405,20 +406,21 @@ def _sent(h, sid, base, subject):
     return {"sent": {"id": rec["subject"],
                      "name": found.get("name") or rec["subject"],
                      "kind": found.get("kind") or ""},
-            "filed": filed, "refused": refused}, None
+            "filed": filed, "refused": refused}
 
 
 def _elsewhere(h, rec, base, subject):
-    """An ended session bound to a subject other than `subject`: the 409
-    that says where it went, else None."""
+    """An ended session bound to a subject other than `subject`: True once
+    the 409 that says where it went is answered, else False."""
     was = rec.get("subject")
     if not rec.get("ended") or not was:
-        return None
+        return False
     found = subjects.find(subject, base) if subject else None
     if found and found["id"] == was:
-        return None
-    return h.send_json({"ok": False, "error": "this session has ended and was "
-                        "sent to %s" % was}, status=409)
+        return False
+    h.send_json({"ok": False, "error": "this session has ended and was "
+                 "sent to %s" % was}, status=409)
+    return True
 
 
 def _send(h, repo):
@@ -437,13 +439,12 @@ def _send(h, repo):
     base = repo.atlas
     subject = str(payload.get("subject") or "")
     rec = sessions.get(sid, base) or {}
-    refused = _elsewhere(h, rec, base, subject)
-    if refused is not None:
-        return refused
+    if _elsewhere(h, rec, base, subject):
+        return None
     late = bool(rec.get("ended")) and not rec.get("subject")
-    out, refused = _sent(h, sid, base, subject)
-    if refused is not None:
-        return refused
+    out = _sent(h, sid, base, subject)
+    if out is None:
+        return None
     queued = late and bool(runner.RUNNER and runner.RUNNER.end(sid))
     h.hub.worker.dirty.set()
     out.update(ok=True, session=sessions.get(sid, base), wrapup=queued)
@@ -468,12 +469,11 @@ def _end(h, repo):
     sent = {}
     if subject:
         rec = sessions.get(sid, base) or {}
-        refused = _elsewhere(h, rec, base, subject)
-        if refused is not None:
-            return refused
-        sent, refused = _sent(h, sid, base, subject)
-        if refused is not None:
-            return refused
+        if _elsewhere(h, rec, base, subject):
+            return None
+        sent = _sent(h, sid, base, subject)
+        if sent is None:
+            return None
     try:
         rec, committed, said = sessions.end(sid, base=base)
     except sessions.NoSession:

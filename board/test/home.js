@@ -106,7 +106,8 @@ async function stubbed() {
     'projects/Meetings': { why: 'phi', phi: true, sessions: [],
       blocker: 'projects/Meetings may hold patient data, so it is removed only through a cluster runbook' },
     'courses/Galois-Theory': { why: 'open-session', phi: false, sessions: [SID, GAL],
-      blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it' },
+      blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it; end them first; '
+        + 'request 2026-10-09-gal has no terminal report yet' },
     'projects/TRD-EHR': { why: 'request', phi: false, sessions: [],
       blocker: 'request 2026-10-09-knn is outstanding on it; wait for its report' },
   };
@@ -593,6 +594,8 @@ async function stubbed() {
         && held.join('|') === '/s/' + SID + '/board|/s/' + GAL + '/board'
         && /Rings/.test(dropWhy().textContent)
         && /End or delete them first/.test(dropWhy().textContent));
+  check('and the board\'s sentence follows, naming what else is in the way',
+        /request 2026-10-09-gal has no terminal report yet/.test(dropWhy().textContent));
   dropper.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   check('a tap on the backdrop closes it', dropper.hidden);
   await openDrop('projects/TRD-EHR');
@@ -658,6 +661,15 @@ async function stubbed() {
   openSend();
   sender.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   check('and so does its backdrop', sender.hidden);
+  w.sendReply = { ok: true, sent: { id: 'courses/Probability', kind: 'course', name: 'Probability' },
+                  filed: [], refused: [{ upload: 'uploads/notes.pdf', error: 'taken' }] };
+  openSend();
+  d.querySelector('#sender-list button[data-id="courses/Probability"]').click();
+  await sleep(40);
+  check('an upload the board could not file is named where it went',
+        d.getElementById('said').textContent === 'Lecture 4 went to Probability. uploads/notes.pdf '
+        + 'stayed in the session: a file of that name is already in its materials.');
+  w.sendReply = null;
 
   // NO MEETINGS SUBJECT, and a Colibri project the list does not name.
   {
