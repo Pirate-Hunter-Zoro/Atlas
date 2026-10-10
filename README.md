@@ -145,7 +145,8 @@ needs a hosted model's login.
 Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
 config, its PHI hook, and how to install, update and run it. The scripts that act on the
 descriptors name no vendor, so adding an assistant is one file, and none is required.
-Both setup scripts run these two, which a second run leaves unchanged:
+Both setup scripts fast-forward `ai-config` first, since Atlas's pull never moves it. Then
+they run these two, which a second run leaves unchanged:
 
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each PHI hook and
   settings file, the daily audit and update timers, and one marked block in `~/.bashrc` that

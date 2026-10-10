@@ -77,6 +77,10 @@ echo "== 5. assistant CLIs"
 # ai-config links each one's contract, PHI hook and settings and the shell
 # block; install-clis puts in any its descriptors know how to install.
 if [ -f ai-config/scripts/install.sh ]; then
+  # ai-config is its own repository and Atlas's pull never moves it.
+  GIT_TERMINAL_PROMPT=0 git -C ai-config pull -q --ff-only origin main 2>"$LOGS/ai-config-pull.log" \
+    && good "ai-config at $(git -C ai-config log -1 --format=%h)" \
+    || warn "ai-config would not fast-forward (local commits or edits); see $LOGS/ai-config-pull.log"
   bash ai-config/scripts/install.sh >"$LOGS/ai-config-install.log" 2>&1 \
     && good "ai-config linked (contract, PHI hook, settings, shell)" \
     || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
