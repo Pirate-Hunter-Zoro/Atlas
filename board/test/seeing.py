@@ -319,6 +319,13 @@ class Mock(BaseHTTPRequestHandler):
         n = int(self.headers.get("content-length") or 0)
         seen["body"] = json.loads(self.rfile.read(n))
         seen["auth"] = self.headers.get("Authorization")
+        # `/text-only` is a model that refuses an image outright, and `/blind`
+        # one that answers 200 with the placeholder for an image it dropped.
+        if self.path.endswith("/text-only"):
+            return self.answer(400, b'{"error": {"message": "image_url is not supported"}}')
+        if self.path.endswith("/blind"):
+            return self.answer(200, json.dumps({"choices": [{"message": {
+                "content": "[Unsupported Image] I see no image."}}]}).encode())
         # It answers with the code because the test pinned it, which is the
         # one thing a socket on 127.0.0.1 cannot read off a PNG. Everything
         # else about the witness is exercised against a real command above.
@@ -326,6 +333,13 @@ class Mock(BaseHTTPRequestHandler):
             {"message": {"content": "CODE: %s\n a page of handwriting "
                                     % CODE}}]}).encode()
         self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+    def answer(self, status, out):
+        self.send_response(status)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(out)))
         self.end_headers()
@@ -412,6 +426,47 @@ try:
           "looping over the only one there is",
           "could not be reached" in said and said.count("could not be reached") == 1)
     egress.clear_unreachable("deepseek")
+
+    # ---- A ROUTE THAT ANSWERED WITHOUT LOOKING IS PASSED OVER, TOO ---------
+    #
+    # A text-only model behind a sighted recipe answers 400, or 200 with a
+    # placeholder, and stands nothing down. The next sighted recipe is asked
+    # rather than the same one again, so a provider that cannot see never
+    # blocks handwriting outright.
+    base = "http://127.0.0.1:%d/v1" % srv.server_address[1]
+    SIGHTED = {"name": "claude", "vision": {"cmd": ["sh", "-c",
+               "echo \"CODE: %s\"; echo \"read it\"" % CODE], "model": "its own"}}
+    for label, first in (
+            ("an HTTP 400", {"endpoint": base + "/text-only", "model": "m",
+                             "needs_key": "A_KEY"}),
+            ("a blind answer", {"endpoint": base + "/blind", "model": "m",
+                                "needs_key": "A_KEY"}),
+            ("an answer without the witness code",
+             {"cmd": ["sh", "-c", "echo 'a page of handwriting'"]})):
+        BLIND = {"default": "claude", "vision_agent": "deepseek", "agents": [
+            {"name": "deepseek", "vision": first}, SIGHTED]}
+        try:
+            said, settings = seeing.describe(page, table=BLIND, root=box,
+                                             agent="deepseek")
+        except seeing.Refused as exc:
+            said, settings = str(exc), {}
+        check("%s from the first route falls through to the next sighted one"
+              % label, said == "read it" and settings["agent"] == "claude")
+        check("and stands nothing down", not egress.stood_down("deepseek"))
+    ALL_BLIND = {"default": "claude", "vision_agent": "deepseek", "agents": [
+        {"name": "deepseek", "vision": {"endpoint": base + "/text-only",
+                                        "model": "m", "needs_key": "A_KEY"}},
+        {"name": "claude", "vision": {"cmd": ["sh", "-c", "echo 'no code here'"]}},
+        {"name": "codex", "vision": {"endpoint": base + "/blind", "model": "m",
+                                     "needs_key": "A_KEY"}}]}
+    said = refusal(path=page, table=ALL_BLIND, root=box, agent="deepseek")
+    check("with every route blind, each is asked once and every refusal is said",
+          said.count("deepseek:") == 1 and said.count("claude:") == 1
+          and said.count("codex:") == 1 and "400" in said
+          and "Unsupported Image" in said)
+    check("and the route chain lists every sighted recipe in the order tried",
+          [r["agent"] for r in seeing.routes("deepseek", ALL_BLIND)]
+          == ["deepseek", "claude", "codex"])
 finally:
     srv.shutdown()
 

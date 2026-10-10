@@ -1,8 +1,11 @@
-"""`board doctor`'s turns: one real turn per provider, the way the runner sends it.
+"""`board doctor`'s turns: one real turn per provider, the way the runner sends it,
+and one look through the vision route.
 
-    board doctor              every provider, in the order a turn tries them
-    board doctor codex ...    the recipes named instead
-    board doctor --dry        no turn: whether each could take one, and its argv
+    board doctor              every provider, in the order a turn tries them,
+                              then one witness-strip probe of the vision route
+    board doctor codex ...    the recipes named instead, and no probe
+    board doctor --dry        no turn and no probe: whether each could take a
+                              turn, its argv, and the vision route chain
 
 Each recipe gets one fresh turn in a scratch directory: its `headless_first`
 argv with the usage flags, its own environment (`turn_environment`), nothing on
@@ -11,6 +14,12 @@ in the prompt and nowhere else, so an answer that says it back came from the
 model. One line per recipe; exit 1 when any of them could not take a turn or
 did not answer. Nothing outside the scratch directory is written: no limit
 mark, no cost line in a session.
+
+The vision probe sends `seeing.ask` the witness strip alone to the first route
+`board see` would take (`seeing.routes`): one small call, which passes only
+when the six digits drawn in the strip come back, so a text-only model behind
+a sighted recipe fails here rather than in a lesson. Like `board see`, it may
+stand down a host that does not answer.
 """
 
 import os
@@ -79,11 +88,49 @@ def dry_line(cfg, name):
     return True, "dry  %-9s would run: %s" % (name, " ".join(argv[:1]))
 
 
+VISION_PROMPT = (
+    "This is a one-image check of the vision route, run by `board doctor`. "
+    "There is no other image and no question.")
+
+
+def _route_name(got):
+    """A route as a person reads it: the agent, and the host and model it
+    opens or the command it runs."""
+    from tutorboard import seeing
+    how = (seeing.route_host(got) + (" " + got["model"] if got.get("model") else "")
+           if got.get("endpoint") else "command " + (got.get("cmd") or ["?"])[0])
+    return "%s (%s)" % (got.get("agent"), how)
+
+
+def vision(cfg, dry=False):
+    """`(ok, line)` for reading an image: with `dry`, the route chain `board
+    see` would walk; else one witness-strip probe of its first route."""
+    from tutorboard import seeing
+    table = recipes.listing(cfg)
+    chain = seeing.routes(None, table)
+    if not chain:
+        return False, "FAIL %-9s %s" % ("vision", seeing.route(None, table)[1])
+    names = ", then ".join(_route_name(r) for r in chain)
+    if dry:
+        return True, "dry  %-9s would try %s" % ("vision", names)
+    first = chain[0]
+    try:
+        seeing.ask(first, [], VISION_PROMPT)
+    except seeing.Refused as exc:
+        rest = ", then ".join(_route_name(r) for r in chain[1:])
+        return False, ("FAIL %-9s %s cannot see: %s%s" % (
+            "vision", _route_name(first), " ".join(str(exc).split())[:300],
+            "; `board see` goes on to %s" % rest if rest else ""))
+    return True, "ok   %-9s %s read the witness strip" % ("vision", _route_name(first))
+
+
 def cmd_doctor(cfg, args, dry=False):
-    """A smoke turn per provider (`dry`: none, only whether each could take
-    one). Exit 0 or 1."""
+    """A smoke turn per provider and one look through the vision route
+    (`dry`: neither, only whether each could take a turn and the route
+    chain). Named recipes are asked alone, with no vision line. Exit 0 or 1."""
     cfg = cfg or recipes.load_config()
     names = [a for a in args if not a.startswith("-")]
+    named = bool(names)
     if not names:
         names = recipes.chain(cfg)
     if not names:
@@ -92,6 +139,10 @@ def cmd_doctor(cfg, args, dry=False):
     ok = True
     for name in dict.fromkeys(names):
         good, line = dry_line(cfg, name) if dry else smoke(cfg, name)
+        print(line)
+        ok = ok and good
+    if not named:
+        good, line = vision(cfg, dry=dry)
         print(line)
         ok = ok and good
     return 0 if ok else 1

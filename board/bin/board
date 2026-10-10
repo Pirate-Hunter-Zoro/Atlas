@@ -115,7 +115,8 @@ The assistant runs these. The student never does.
     board vpn [status]                 what tailscale says, and where HTTPS points
     board init [name]                  write tutorboard.json for this repository
     board doctor [--dry] [name ...]    what the machine has, then one real turn
-                                       each on the provider and its fallback;
+                                       each on the provider and its fallback,
+                                       and one look through the vision route;
                                        --dry spends none
     board egress [--repair]            can a turn get out, and through which exit node
     board limit [--clear|--set S]      has the tutor's allowance here run out
@@ -2327,8 +2328,10 @@ def cmd_doctor(live, args):
     What this machine has (TeX, KaTeX, a PDF renderer, the tailnet, the
     server), then one real turn each on the provider and its fallback, or on
     the recipes named (`agents/doctor.py`): a code word in the prompt has to
-    come back. `--dry` spends no turn: it says, per recipe, whether it can take
-    one here and what would run. Inside a turn it is always dry, since a turn
+    come back. Unnamed, it also sends the vision route one witness strip, whose
+    digits have to come back. `--dry` spends no turn: it says, per recipe,
+    whether it can take one here and what would run, and names the vision
+    route chain. Inside a turn it is always dry, since a turn
     starting a turn is a bill nobody asked for. Exit 1 when anything failed.
     """
     from tutorboard.agents import doctor as smoke

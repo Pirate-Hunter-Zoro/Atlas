@@ -18,6 +18,8 @@ import re
 import subprocess
 import sys
 
+from . import paths
+
 
 # Far below GitHub's limits on purpose: this stops a habit.
 MAX_BYTES = 25 * 1024 * 1024
@@ -386,7 +388,7 @@ def turn_refusals(top, entries):
 
 # Where a tutor turn changes the board's own code: a worktree, never the main
 # checkout, which serves the iPad live.
-WORKTREES = "/Users/mikeyferguson/Developer/Atlas-wt/"
+WORKTREES = paths.WORKTREES
 
 
 def main_worktree(top):

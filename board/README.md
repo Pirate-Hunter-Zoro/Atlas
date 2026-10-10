@@ -17,7 +17,9 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   `serve.py` on port 8778, loopback only. `tailscale serve` publishes it over HTTPS once.
 - **`serve.py`** serves every session at `/s/<id>/`, plus the unprefixed home, library and
   subject routes. `tutorboard/server/app.py` is the start. A session's Repo and Hub are made on
-  first use and dropped after 10 idle minutes (`server/registry.py`).
+  first use and dropped after 10 idle minutes (`server/registry.py`). Its listen backlog is
+  at least 128, because Tailscale's proxy opens over 40 connections at once for a
+  service-worker install and the kernel resets every one past the backlog into a 502.
 - **The hub** (`server/hub.py`) builds one payload per viewed session and pushes it over
   server-sent events: in full on connect, then as deltas. It reacts to file changes in the
   session directory and to routes marking it dirty.
@@ -120,7 +122,10 @@ no marker file.
 - **Delete** from the iPad needs the name typed. It is refused unless `tutorboard.json` at HEAD
   sets `phi` to `false` literally, no open session is bound to it, no coding session holds it,
   and no request waits for a report. A PHI subject is removed only through a cluster runbook.
-  Tracked files leave by `git rm` in one commit; the directory goes to the trash.
+  `GET /subject/delete?subject=<id>` answers the same question read-only: `phi` at HEAD, `why`
+  (`phi`, `open-session`, `coding`, `request` or empty), one `blocker` sentence naming every
+  reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit, as
+  End's commit is local; the directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
 
 ## Artifacts and documents
@@ -166,8 +171,12 @@ tree gets a `doc.json` written in place, so its ids hold.
 - **Addresses** (`web/address.js`) have one grammar: `#/s/<session>`, then `/card/<nnnn>`,
   `/doc/<ident>[/p<n>]` or `/slate/<nnnn>`. Nothing else parses as an address.
 - **`sw.js`** caches an allowlist of shell files, fonts and KaTeX, and nothing else, because
-  a cached lesson is a stale one. The server writes its `VERSION` as a hash of the shell
-  files, so a shell edit installs a new worker by itself.
+  a cached lesson is a stale one. A 5xx counts as a failed fetch, so a cached shell file
+  answers instead. The install asks for 4 files at a time. The server writes its `VERSION` as
+  a hash of the shell files, so a shell edit installs a new worker by itself.
+- **`POST /client-error`** `{page, what, src, msg, stack, ua}` writes one `client:` line to
+  the server's log, each field cut to 300 characters and at most 20 a minute. A request the
+  proxy dropped never shows as a request line, so the page reports it.
 
 ## The relay
 
@@ -251,8 +260,10 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 - `agents/recipes.py` holds the built-in recipes (`claude`, `deepseek`, `codex`), and
   `~/.config/tutor-board/config.json` is laid over them. It names the `provider` tried first and
-  a `vision_agent`. `fallback` is one name or a list; with none, every other recipe backs the
-  provider up, in the table's order (`recipes.chain`). Nothing else chooses.
+  a `vision_agent`; the built-in table names neither. With no `provider`, the first recipe in
+  table order that can take a turn here is it (`recipes.provider`). `fallback` is one name or a
+  list; with none, every other recipe backs the provider up, in the table's order
+  (`recipes.chain`). Nothing else chooses.
 - **Adding a provider** is one entry under `agents` in config.json: `cmd`, `headless_first`
   with `{prompt}`, and `needs_key` plus `env` when it takes a key. **Removing one** is deleting
   its entry, or naming the chain in `fallback`.
@@ -262,7 +273,9 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 - Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
   because argv shows in `ps`. A usage limit marks a provider unavailable until it expires, and
   the next in the chain takes its turns (`limits.py`). `board doctor` spends one real turn per
-  provider in the chain; `--dry` spends none. `board cost` adds up every session's `cost.jsonl`.
+  provider in the chain and sends the vision route one witness strip; `--dry` spends none and
+  names the vision route chain. `board see` passes over a route that answered without looking
+  and asks the next sighted recipe. `board cost` adds up every session's `cost.jsonl`.
 
 ## Invariants
 

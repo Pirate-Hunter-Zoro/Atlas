@@ -9,7 +9,7 @@ the code (`mode_sense`).
 
 import os
 
-from . import fenced, plain
+from . import fenced, paths, plain
 from .course import config, homework, library, walk
 
 
@@ -137,7 +137,7 @@ TEACH_SENSE = (
 
 # Where a turn that changes the board's own code works: a git worktree here,
 # never the main checkout (`.githooks/pre-commit` refuses that commit).
-WORKTREES = "/Users/mikeyferguson/Developer/Atlas-wt/"
+WORKTREES = paths.WORKTREES
 
 DO_SENSE = (
     "THIS SESSION IS IN DO MODE: you write the code yourself, run what needs "

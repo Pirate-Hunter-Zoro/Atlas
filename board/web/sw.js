@@ -16,6 +16,10 @@
    cannot answer gets the cached page (or the unreachable one). No session id
    is ever a cache key.
 
+   A 5XX IS A FAILED FETCH. Tailscale's proxy answers 502 for a connection the
+   board never accepted; the cached copy of a shell file or page is better than
+   that empty answer, so it is served instead when there is one.
+
    VERSION IS WRITTEN BY THE SERVER. `routes/pages.py` serves this file with
    the literal below replaced by a hash of every SHELL file, so any edit to the
    shell installs a new worker and a new cache by itself.
@@ -88,14 +92,31 @@ function sessionShell(pathname) {
 var IN_SHELL = {};
 SHELL.forEach(function (u) { IN_SHELL[u] = true; });
 
+/* How many SHELL files the install asks for at once. All of them at once is
+   over forty connections in one burst, which the proxy in front of the board
+   answers in part with 502s. */
+var INSTALL_BATCH = 4;
+
+/* Every SHELL file into cache `c`, INSTALL_BATCH at a time, in order. One
+   failure must not abort the whole install: a file that fails is fetched on
+   its first use instead. */
+function addShell(c) {
+  var at = 0;
+  function next() {
+    if (at >= SHELL.length) return Promise.resolve();
+    var batch = SHELL.slice(at, at + INSTALL_BATCH);
+    at += INSTALL_BATCH;
+    return Promise.all(batch.map(function (u) {
+      return c.add(new Request(u, { cache: "reload" })).catch(function () {});
+    })).then(next);
+  }
+  return next();
+}
+
 self.addEventListener("install", function (e) {
   e.waitUntil(
-    caches.open(VERSION).then(function (c) {
-      /* One failure must not abort the whole install. */
-      return Promise.all(SHELL.map(function (u) {
-        return c.add(new Request(u, { cache: "reload" })).catch(function () {});
-      }));
-    }).then(function () { return self.skipWaiting(); })
+    caches.open(VERSION).then(addShell)
+      .then(function () { return self.skipWaiting(); })
   );
 });
 
@@ -131,11 +152,15 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  /* A session's page: the network's while it answers, else the shell. */
+  /* A session's page: the network's while it answers, else the shell. A 5xx
+     is no answer. */
   var shellPage = sessionShell(url.pathname);
   if (shellPage && isPage(req)) {
     e.respondWith(
-      fetch(req).catch(function () {
+      fetch(req).then(function (res) {
+        if (!res || res.status < 500) return res;
+        return caches.match(shellPage).then(function (hit) { return hit || res; });
+      }).catch(function () {
         return caches.match(shellPage).then(function (hit) {
           return hit || unreachablePage();
         });
@@ -148,14 +173,19 @@ self.addEventListener("fetch", function (e) {
   if (!IN_SHELL[url.pathname]) return;
 
   /* Shell: network first so a redeployed board is picked up on the next open,
-     cache as the fallback when the node is unreachable. */
+     cache as the fallback when the node is unreachable or answers 5xx. */
   e.respondWith(
     fetch(req).then(function (res) {
       if (res && res.status === 200) {
         var copy = res.clone();
         caches.open(VERSION).then(function (c) { c.put(req, copy); });
       }
-      return res;
+      if (!res || res.status < 500) return res;
+      /* A 5xx: the cached copy, else the answer itself, which is a failure
+         the page can see. */
+      return caches.match(req, { ignoreSearch: true }).then(function (hit) {
+        return hit || res;
+      });
     }).catch(function () {
       /* Unreachable. `ignoreSearch`, because a home-screen icon can carry a
          query string and an exact match would miss the very page it cached. */

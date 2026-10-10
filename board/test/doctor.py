@@ -16,6 +16,9 @@ nothing on stdin, in a scratch directory with `PWD` saying so.
     and no process is started for it.
   - ONE FAILURE IS EXIT 1, and nothing is written outside the scratch
     directory: no limit mark, no cost line.
+  - THEN ONE LOOK THROUGH THE VISION ROUTE: the witness strip alone, whose
+    digits must come back; a route that answers without them fails and names
+    the route `board see` goes on to. Named recipes get no probe.
   - `--dry` SPENDS NO TURN, and neither does a doctor run inside a turn.
     `board doctor --dry` runs on a fixture config, from the command line.
 """
@@ -93,8 +96,14 @@ def fake(mode, **kw):
     return s
 
 
+# The vision probe's witness code, pinned so a command route can say it back.
+from tutorboard import seeing                                   # noqa: E402
+seeing._code = lambda: "424-242"
+EYES = {"cmd": ["sh", "-c", "echo 'CODE: 424-242'; echo 'a strip'"], "sighted": True}
+BLIND = {"cmd": ["sh", "-c", "echo 'I see no image'"], "sighted": True}
+
 CFG = {"provider": "good", "fallback": "mute", "agents": {
-    "good": fake("good"), "mute": fake("mute"), "limited": fake("limited"),
+    "good": fake("good", vision=EYES), "mute": fake("mute"), "limited": fake("limited"),
     "hang": fake("hang"),
     "gone": fake("good", cmd=["a-command-no-machine-has"]),
     "colibri": fake("good", private="it reads phi")}}
@@ -117,9 +126,12 @@ def run(args, cfg=CFG, dry=False):
 try:
     code, out = run([])
     lines = out.strip().splitlines()
-    check("by default it asks the provider and the fallback, one line each",
-          len(lines) == 2 and lines[0].split()[1] == "good"
-          and lines[1].split()[1] == "mute", out)
+    check("by default it asks the provider and the fallback, one line each, "
+          "then the vision route",
+          len(lines) == 3 and lines[0].split()[1] == "good"
+          and lines[1].split()[1] == "mute" and lines[2].split()[1] == "vision", out)
+    check("the vision route that reads the witness strip back passes",
+          lines[2].startswith("ok   vision") and "good (command sh)" in lines[2], out)
     check("the provider that says the code word back passes",
           lines[0].startswith("ok   good") and "answered in" in lines[0], out)
     check("one that exits 0 without it fails, and says what it said instead",
@@ -137,8 +149,21 @@ try:
           re.search(r"code word doctor-\d{6}", " ".join(first["argv"])) is not None)
 
     code, out = run(["good"])
-    check("a named recipe is the only one asked, and a pass is exit 0",
+    check("a named recipe is the only one asked, with no vision probe, and a "
+          "pass is exit 0",
           code == 0 and out.startswith("ok   good") and len(out.splitlines()) == 1, out)
+
+    SEEN_ONLY = dict(CFG, fallback=None)
+    code, out = run([], cfg=dict(SEEN_ONLY, agents=dict(
+        CFG["agents"], good=fake("good", vision=BLIND), mute=fake("mute", vision=EYES))))
+    vline = out.strip().splitlines()[-1]
+    check("a vision route that answers without the strip's digits fails, "
+          "naming the route `board see` goes on to",
+          code == 1 and vline.startswith("FAIL vision") and "good (command sh)" in vline
+          and "cannot see" in vline and "goes on to mute" in vline, out)
+    code, out = run([], cfg=dict(SEEN_ONLY, agents=dict(CFG["agents"], good=fake("good"))))
+    check("and with no vision route at all it fails, saying so",
+          code == 1 and "FAIL vision" in out and "vision route" in out, out)
 
     code, out = run(["limited"])
     check("a provider out of allowance fails in its own words",
@@ -165,6 +190,8 @@ try:
     check("--dry names each recipe and what would run, and starts nothing",
           code == 0 and "dry  good" in out and "dry  mute" in out
           and FAKE in out and len(seen()) == before, out)
+    check("and names the vision route chain without asking it",
+          "dry  vision    would try good (command sh)" in out, out)
     code, out = run(["gone"], dry=True)
     check("and a recipe that cannot take a turn still fails it, with the reason",
           code == 1 and "FAIL gone" in out and "not on the path" in out, out)
@@ -205,15 +232,17 @@ try:
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        universal_newlines=True, timeout=180)
     check("`board doctor --dry` runs on a fixture config: the machine, then a "
-          "dry line each for its provider and fallback, and no turn",
+          "dry line each for its provider and fallback, the vision route chain, "
+          "and no turn",
           "python:" in p.stdout and "dry  good" in p.stdout
-          and "dry  mute" in p.stdout and len(seen()) == before, p.stdout[-800:])
+          and "dry  mute" in p.stdout and "dry  vision" in p.stdout
+          and len(seen()) == before, p.stdout[-800:])
     help_out = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
                                "help"], stdout=subprocess.PIPE,
                               universal_newlines=True, timeout=60).stdout
     check("`board doctor` is documented as the smoke test, with --dry",
           "board doctor [--dry] [name ...]" in help_out
-          and "one real turn" in help_out)
+          and "one real turn" in help_out and "vision route" in help_out)
 finally:
     shutil.rmtree(box, ignore_errors=True)
 

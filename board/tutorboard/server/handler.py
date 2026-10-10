@@ -46,10 +46,13 @@ UNPREFIXED = (
     ("GET", "/apple-touch-icon.png", "icon"),
     ("GET", "/icon-*", "icon"),
     ("GET", "/health", "health"),
+    # A page's error report, into the log (`machines.client_error`).
+    ("POST", "/client-error", "client-error"),
     ("GET", "/sessions.json", "sessions"),
     ("POST", "/sessions/new", "new"),
     ("GET", "/subjects.json", "subjects"),
     ("POST", "/subjects/new", "subject-new"),
+    ("GET", "/subject/delete", "subject-delete-check"),
     ("POST", "/subject/delete", "subject-delete"),
     ("POST", "/session/delete", "session-delete"),
     ("GET", "/notices.json", "notices"),
@@ -152,6 +155,9 @@ class Handler(BaseHTTPRequestHandler):
         inner = SESSION_PREFIX.match(path)
         inner = (inner.group(2) or "/") if inner else path
         if self.command == "GET" and status < 400 and self.QUIET_GET.match(inner):
+            return
+        # An error report writes its own `client:` line, rate-limited.
+        if inner == "/client-error" and status < 400:
             return
         length = ""
         try:
@@ -451,16 +457,27 @@ class Handler(BaseHTTPRequestHandler):
             if "code" in query:
                 out["code"] = {"running": code_stamp.LOADED, "tree": code_stamp.tree()}
             return self.send_json(out)
+        if how == "client-error":
+            return routes.machines.client_error(self)
         if how == "sessions":
             return self.send_json(self.session_listing(registry))
         if how == "new":
             return self.new_session(registry)
         if how == "subjects":
-            return self.send_json({"ok": True, "subjects": [
-                {k: one[k] for k in ("id", "kind", "slug", "name")}
-                for one in subjects.all(registry.atlas)]})
+            # `meetings`: the Meetings subject's id when this tree has it,
+            # else null. `phi` per subject is the working tree's, for display.
+            from .. import briefs
+            every = subjects.all(registry.atlas)
+            return self.send_json({
+                "ok": True,
+                "meetings": briefs.MEETINGS if any(
+                    one["id"] == briefs.MEETINGS for one in every) else None,
+                "subjects": [dict({k: one[k] for k in ("id", "kind", "slug", "name")},
+                                  phi=subjects.phi(one["root"])) for one in every]})
         if how == "subject-new":
             return self.new_subject(registry)
+        if how == "subject-delete-check":
+            return self.delete_check(registry, query)
         if how == "subject-delete":
             return self.delete_subject(registry)
         if how == "session-delete":
@@ -545,7 +562,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "bad json"}, status=400)
         if not isinstance(payload, dict):
             return self.send_json({"ok": False, "error": "bad json"}, status=400)
-        parent = {"course": "courses", "project": "projects"}.get(payload.get("kind"))
+        parent = dict((kind, parent) for parent, kind in subjects.DIRS).get(
+            payload.get("kind"))
         name = str(payload.get("name") or "").strip()
         if not parent:
             return self.send_json({"ok": False,
@@ -582,24 +600,42 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return payload
 
+    def delete_check(self, registry, query):
+        """GET /subject/delete?subject=<id>: may it be deleted now, read-only
+        (`subjects.delete_check`). `{ok, subject, slug, kind, name, phi, why,
+        blocker, sessions}`; 404 for an id that is not exactly a subject's."""
+        ident = (query.get("subject") or [""])[0].strip()
+        found = subjects.deletable(ident, registry.atlas)
+        if not found:
+            return self.send_json({"ok": False, "error": "no such subject"},
+                                  status=404)
+        said = subjects.delete_check(found, registry.atlas)
+        out = {"ok": True, "subject": found["id"]}
+        out.update((k, found[k]) for k in ("slug", "kind", "name"))
+        out.update(said)
+        return self.send_json(out)
+
     def delete_subject(self, registry):
         """POST /subject/delete {subject, typed}: `subjects.delete`. 400 for a
         subject that is none or a typed name that is not its slug; 409, with
-        the reason, for D23 (`"phi": false` literally at HEAD) and for an open
-        session, a coding session or an outstanding request on it."""
+        every reason, for D23 (`"phi": false` literally at HEAD) and for an
+        open session, a coding session or an outstanding request on it. The
+        reply names the trash directory it went to. The commit is local, as
+        End's is."""
         payload = self._payload()
         if payload is None:
             return None
         ident = str(payload.get("subject") or "").strip()
         try:
-            _where, said = subjects.delete(ident, payload.get("typed"),
+            where, said = subjects.delete(ident, payload.get("typed"),
                                            base=registry.atlas)
         except subjects.Busy as exc:
             return self.send_json({"ok": False, "error": str(exc)}, status=409)
         except subjects.Refused as exc:
             return self.send_json({"ok": False, "error": str(exc)}, status=400)
         self.note("subject %s deleted" % ident)
-        return self.send_json({"ok": True, "subject": ident, "said": said})
+        return self.send_json({"ok": True, "subject": ident, "said": said,
+                               "trash": where})
 
     def delete_session(self, registry):
         """POST /session/delete {id}: the session to the trash

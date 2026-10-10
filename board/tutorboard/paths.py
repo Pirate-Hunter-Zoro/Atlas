@@ -13,6 +13,31 @@ HOME = os.path.expanduser("~")
 # directory works.
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 WEB = os.path.join(TOOL, "web")
+# The Atlas checkout this code sits in.
+ATLAS = os.path.dirname(TOOL)
+
+
+def main_checkout(top=ATLAS):
+    """The main checkout of the repository at `top`: `top` itself, or, for a
+    linked worktree, whose `.git` is a file naming
+    `<main>/.git/worktrees/<name>`, that `<main>`. Read from the file, so no
+    git runs at import."""
+    try:
+        with open(os.path.join(top, ".git"), "r", encoding="utf-8") as fh:
+            said = fh.read().strip()
+    except OSError:                       # a directory: this is the main one
+        return top
+    if not said.startswith("gitdir:"):
+        return top
+    gitdir = said[len("gitdir:"):].strip()
+    gitdir = os.path.normpath(os.path.join(top, gitdir))
+    mark = os.sep + os.path.join(".git", "worktrees") + os.sep
+    return gitdir.split(mark)[0] if mark in gitdir else top
+
+
+# Where a change to the board's own code is made: git worktrees in
+# `<main checkout>-wt/`, beside the main checkout, which serves the iPad live.
+WORKTREES = main_checkout().rstrip(os.sep) + "-wt" + os.sep
 
 CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
