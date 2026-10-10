@@ -142,6 +142,10 @@ def fixture(name, conflict=False):
     write(os.path.join(live, "archive", "old", "0001.md"), "archived\n")
     write(os.path.join(G, "practice", "Y", "live", "state.json"), '{"stance": "teach"}\n')
     write(os.path.join(C, "live", "cards", "0001-c.md"), "---\nkind: lesson\n---\nC.\n")
+    write(os.path.join(C, "live", "agent.json"), json.dumps(
+        {"state": "listening", "owed": "an old report, still owed", "agent": "claude"}))
+    write(os.path.join(C, "live", "inbox", "messages.jsonl"),
+          '{"text": "a bind", "t": 1, "wake": false}\n')
     write(os.path.join(G, "research", "X", ".venv", "pyvenv.cfg"), "home = /usr/bin\n")
     write(os.path.join(G, "research", "X", ".env"),
           "X_DATA=%s/research/X/data\nOTHER=/elsewhere\n" % G)
@@ -194,6 +198,30 @@ try:
     check("a config that serves only 8778 passes; the old one and an empty one do not",
           cutover.ts_only(only, 8778) == [] and len(cutover.ts_only(status, 8778)) == 4
           and cutover.ts_only({}, 8778) == ["nothing is published"])
+    fakebin = os.path.join(box, "fakebin")
+    cutover.write_exec(os.path.join(fakebin, "tailscale"),
+                       "#!/bin/sh\necho 'Warning: client version \"1.104.1\" != tailscaled "
+                       "server version \"1.102.4\"' >&2\n"
+                       "echo '%s'\n" % json.dumps(only))
+    path_was = os.environ["PATH"]
+    os.environ["PATH"] = fakebin + os.pathsep + path_was
+    try:
+        got, why = cutover.ts_status()
+        rc, merged = cutover.run(["tailscale", "serve", "status", "--json"])
+        cutover.write_exec(os.path.join(fakebin, "tailscale"), "#!/bin/sh\necho not json\n")
+        bad, bad_why = cutover.ts_status()
+        cutover.write_exec(os.path.join(fakebin, "tailscale"),
+                           "#!/bin/sh\necho 'no daemon' >&2\nexit 1\n")
+        down, down_why = cutover.ts_status()
+    finally:
+        os.environ["PATH"] = path_was
+    check("`tailscale serve status --json` is parsed from stdout alone: a version "
+          "warning on stderr does not break it",
+          why is None and got == only and cutover.ts_only(got, 8778) == []
+          and "Warning" in merged, (why, got, merged))
+    check("and a status that is not JSON, or that fails, is a reason, never a capture",
+          bad is None and "no JSON" in bad_why and down is None
+          and "rc 1" in down_why and "no daemon" in down_why, (bad_why, down_why))
     check("a workspace's post-merge subject",
           [cutover.post_merge(r) for r in ("courses/C", "research/X", "practice/Y",
                                            "projects/Z")]
@@ -310,6 +338,23 @@ try:
     check("step 5 imports each live/ into a session bound to its post-merge subject",
           sorted(r["subject"] for r in m["imports"])
           == ["courses/C", "projects/X", "projects/Y"] and all(sessions), m["imports"])
+    marked = m.get("marked_read") or []
+    sid_of = dict((r["subject"], r["session"]) for r in m["imports"])
+    check("step 5 marks the line that would wake a turn read, and clears the owed "
+          "message, with no turn; a quiet line stays for the next turn",
+          sorted((r["session"], r["what"], r["text"]) for r in marked)
+          == sorted([(sid_of["projects/X"], "line", "hi"),
+                     (sid_of["courses/C"], "owed", "an old report, still owed")]), marked)
+    rd = {}
+    for subj, sid in sid_of.items():
+        rd[subj] = [json.loads(l) for l in open(os.path.join(
+            G, "sessions", sid, "inbox", "messages.jsonl")) if l.strip()] if os.path.isfile(
+            os.path.join(G, "sessions", sid, "inbox", "messages.jsonl")) else []
+    check("so nothing in the imported sessions waits for a turn",
+          [x.get("read") for x in rd["projects/X"]] == [True]
+          and [x.get("read") for x in rd["courses/C"]] == [None]
+          and cutover.read_json(os.path.join(G, "sessions", sid_of["courses/C"],
+                                             "agent.json")).get("owed") is None, rd)
     check("and no live/ is left, the stray one included",
           not cutover.workspaces(G) and not os.path.isdir(os.path.join(G, "live")))
     check("the tracked practice/Y/live the import moved was restored for the merge, "
@@ -406,9 +451,53 @@ try:
                         "--plan", "--atlas", G2], stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT, universal_newlines=True, timeout=120)
     steps = [l.split(".")[0] for l in p.stdout.splitlines() if l[:2].rstrip(".").isdigit()]
-    check("--plan lists steps 1 to 11 in order and changes nothing",
-          p.returncode == 0 and steps == [str(i) for i in range(1, 12)]
+    check("--plan lists steps 1 to 12 in order and changes nothing",
+          p.returncode == 0 and steps == [str(i) for i in range(1, 13)]
           and git(G2, "status", "--porcelain", "--ignored") == before, p.stdout[-2000:])
+
+    # =======================================================================
+    # --run starts only from Terminal, in a clean worktree at the ref
+    # =======================================================================
+    G3 = os.path.join(box, "three", "Atlas")
+    os.makedirs(G3)
+    git(G3, "init", "-q", "-b", "main")
+    write(os.path.join(G3, "a.txt"), "a\n")
+    git(G3, "add", "-A")
+    git(G3, "commit", "-qm", "main")
+    git(G3, "branch", "overhaul")
+    wt = os.path.join(box, "three", "wt")
+    git(G3, "worktree", "add", "-q", "--detach", wt, "overhaul")
+    wt = os.path.realpath(wt)
+    here = os.path.join(wt, "board", "scripts")
+    os.makedirs(here)
+    ok_env = {"PATH": fakebin}
+    G3 = os.path.realpath(G3)
+
+    def refusal(**kw):
+        args = dict(here=here, cwd=wt, environ=ok_env, tty=True)
+        args.update(kw)
+        return cutover.run_refusal(G3, "overhaul", **args)
+    check("--run starts from the top of a clean worktree at overhaul, from a terminal",
+          refusal() is None, refusal())
+    check("--run refuses the main checkout itself",
+          "the checkout the cutover changes" in (refusal(here=G3, cwd=G3) or ""), refusal(here=G3, cwd=G3))
+    check("--run refuses another directory as the cwd",
+          "cd there first" in (refusal(cwd=box) or ""), refusal(cwd=box))
+    check("--run refuses without a terminal, and inside a tutor turn",
+          "not a terminal" in (refusal(tty=False) or "")
+          and "tutor turn" in (refusal(environ=dict(ok_env, TUTORBOARD_TURN="1")) or ""))
+    check("--run refuses without tailscale on PATH",
+          "no tailscale" in (refusal(environ={"PATH": "/nonexistent"}) or ""))
+    write(os.path.join(wt, "a.txt"), "changed\n")
+    dirty = refusal()
+    git(wt, "checkout", "-q", "--", "a.txt")
+    write(os.path.join(G3, "b.txt"), "b\n")
+    git(G3, "add", "b.txt")
+    git(G3, "commit", "-qm", "b")
+    git(G3, "branch", "-f", "overhaul", "main")
+    behind = refusal()
+    check("--run refuses a worktree with changes, or one not at the ref's tip",
+          "uncommitted" in (dirty or "") and "not overhaul" in (behind or ""), (dirty, behind))
 finally:
     for proc in cutover.matching(r".", box):
         cutover.kill_group(proc, signal.SIGKILL)

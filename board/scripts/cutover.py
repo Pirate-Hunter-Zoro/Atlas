@@ -4,7 +4,8 @@ main, the one LaunchAgent on, and the way back.
 
     cutover.sh --plan                     what --run would do here; changes nothing
     cutover.sh --rehearse <scratch>       steps 1-10 on a copy, then --rollback
-    cutover.sh --run                      steps 1-11 on this Mac
+    cutover.sh --run                      steps 1-12 on this Mac, from Terminal,
+                                          in a worktree at `overhaul`
     cutover.sh --rollback <manifest>      undo a run that has not pushed
 
 Options: --atlas <dir> (default: the main checkout of the repository this
@@ -12,11 +13,14 @@ script sits in), --ref <rev> (default `overhaul`), --keep (rehearse: keep
 the scratch directory after a pass).
 
 The steps, in order (HANDOFF T26): 1 preflight, 2 stop the old system,
-3 snapshot, 4 info/exclude, 5 import every live/, 6 course repositories,
-7 merge, 8 residue, 9 install, 10 start and prove, 11 push. Every change is
+3 snapshot, 4 info/exclude, 5 import every live/ (what would wake a turn is
+marked read), 6 course repositories, 7 merge, 8 residue, 9 install, 10 start
+and prove with the one real /say, 11 push, 12 the guards and the Lean build
+on main. The last line --run prints is `CUTOVER OK <sha>` or `CUTOVER ROLLED
+BACK: <reason>`. Every change is
 recorded first in `<archive>/cutover-manifest.json` (the archive is
 `~/Archive/atlas-migration/<date>/`), so `--rollback` can undo exactly what
-happened. `--run` rolls back by itself when a step fails before the push.
+happened. `--run` rolls back by itself when a step or the push fails.
 
 The rehearsal runs the same code against a copy: a clone of the Atlas with a
 bare clone as origin, copies of every live/ and course directory, dummy
@@ -52,7 +56,9 @@ PORT = 8778
 REHEARSE_PORT = 8779
 REF = "overhaul"
 MERGE_MSG = "overhaul: one server, sessions, courses and projects"
-CHECK_SAY = "cutover check: reply with one short card"
+CHECK_SAY = ("cutover check: the new board is live. Reply with exactly one short card "
+             "saying so, and nothing else")
+LEFT_UNREAD = "rehearsal: a line left unread before the cutover"
 ARCHIVE_ROOT = os.path.expanduser("~/Archive/atlas-migration")
 MANIFEST = "cutover-manifest.json"
 EXCLUDE_LINES = ("/sessions/", ".ink/")
@@ -62,7 +68,9 @@ WORKSPACE_PARENTS = ("courses", "research", "practice", "projects")
 MIN_FREE = 5 * 1024 ** 3
 DAEMON_WAIT = 600          # a tutor mid-turn gets ten minutes to finish it
 BOARD_TERM_WAIT = 10       # SIGTERM, then SIGKILL
-ANSWER_WAIT = 300          # the cutover check's card
+ANSWER_WAIT = 300          # the cutover check's card, from the rehearsal's fake
+REAL_ANSWER_WAIT = 900     # the same, from a real provider's cold first turn
+LEAN_CAP = 900             # the Lean build after the push
 OLD_NAMES = re.compile(r"serve\.py|tutor headless|board wait|tutor-pull|tutor watch")
 # Never moved, listed or swept by a rollback: tutorboard/fenced.py NEVER.
 FENCED = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
@@ -91,6 +99,39 @@ def run(argv, cwd=None, env=None, timeout=None, stdin=None):
         if isinstance(out, bytes):
             out = out.decode("utf-8", "replace")
         return 124, out + "\n(timed out after %ss)" % timeout
+
+
+def run_split(argv, timeout=None):
+    """`(rc, stdout, stderr)`, kept apart. tailscale warns on stderr when its
+    client and daemon versions differ, and a merged stream is then not JSON."""
+    try:
+        p = subprocess.run(argv, timeout=timeout, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, universal_newlines=True)
+        return p.returncode, p.stdout, p.stderr
+    except FileNotFoundError as exc:
+        return 127, "", str(exc)
+    except subprocess.TimeoutExpired:
+        return 124, "", "(timed out after %ss)" % timeout
+
+
+def run_capped(argv, cwd=None, env=None, timeout=None):
+    """`(rc, combined output, timed out)`. On the cap the whole process group
+    goes, so a build's children do not outlive it."""
+    p = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, universal_newlines=True,
+                         start_new_session=True)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+        return p.returncode, out, False
+    except subprocess.TimeoutExpired:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(p.pid, sig)
+            except OSError:
+                pass
+            time.sleep(3)
+        out, _ = p.communicate()
+        return 124, out or "", True
 
 
 def git(root, *args, **kw):
@@ -290,6 +331,22 @@ def launchctl_count(needle):
 # ---------------------------------------------------------------------------
 # tailscale: the capture, the plan, the check
 # ---------------------------------------------------------------------------
+def ts_status():
+    """`(serve config, None)`, or `(None, why)`: `tailscale serve status
+    --json`, its stdout alone parsed."""
+    rc, out, err = run_split(["tailscale", "serve", "status", "--json"], timeout=45)
+    if rc != 0:
+        return None, "tailscale serve status failed (rc %d): %s" % (
+            rc, (err.strip() or out.strip())[-300:])
+    try:
+        got = json.loads(out) if out.strip() else {}
+    except ValueError:
+        return None, "tailscale serve status --json printed no JSON: %s" % out[:300]
+    if not isinstance(got, dict):
+        return None, "tailscale serve status --json printed %r" % out[:300]
+    return got, None
+
+
 def ts_targets(status):
     """Every `(kind, listen port, target)` a `serve status --json` holds."""
     out = []
@@ -567,7 +624,10 @@ class Ctx(object):
 
     def say(self, *parts):
         line = " ".join(str(p) for p in parts)
-        print(line, flush=True)
+        try:
+            print(line, flush=True)
+        except (OSError, ValueError):
+            pass                         # the Terminal closed; the log still gets it
         try:
             with open(self.log_path, "a", encoding="utf-8") as fh:
                 fh.write("%s %s\n" % (time.strftime("%H:%M:%S"), line))
@@ -663,6 +723,23 @@ def step_preflight(ctx):
     if free < MIN_FREE:
         raise Abort("%.1f GB free; the cutover wants 5" % (free / 1024.0 ** 3))
     ctx.say("  %.0f GB free" % (free / 1024.0 ** 3))
+    # The push at the end must not meet a main that moved on GitHub.
+    if git(G, "remote", "get-url", "origin")[0] == 0:
+        rc, out = git(G, "fetch", "-q", "origin", "main", env=ctx.environ(), timeout=180)
+        if rc != 0:
+            raise Abort("git fetch origin main failed:\n%s" % out.strip()[-800:])
+        if git(G, "merge-base", "--is-ancestor", "origin/main", "HEAD")[0] != 0:
+            raise Abort("origin/main has commits this main lacks; pull them first")
+        ctx.say("  origin/main is already in main")
+    elif ctx.mode == "run":
+        raise Abort("%s has no origin to push to" % G)
+    # Read here, before anything stops: a capture that does not parse at
+    # step 3 would leave the old system down for nothing.
+    if ctx.tailscale == "real":
+        now, why = ts_status()
+        if why:
+            raise Abort(why)
+        ctx.say("  tailscale serve status reads: %d mapping(s)" % len(ts_targets(now)))
 
 
 # ---------------------------------------------------------------------------
@@ -781,13 +858,9 @@ def bundle(ctx, repo, dest):
 def step_snapshot(ctx):
     G, A = ctx.atlas, ctx.archive
     if ctx.tailscale == "real":
-        rc, out = run(["tailscale", "serve", "status", "--json"], timeout=45)
-        if rc != 0:
-            raise Abort("tailscale serve status failed (rc %d): %s" % (rc, out.strip()[-300:]))
-        try:
-            capture = json.loads(out) if out.strip() else {}
-        except ValueError:
-            raise Abort("tailscale serve status --json printed no JSON: %s" % out[:300])
+        capture, why = ts_status()
+        if why:
+            raise Abort(why)
     else:
         capture = ctx.fake_capture or {}
     write_json(os.path.join(A, "tailscale-serve.json"), capture)
@@ -900,6 +973,7 @@ def step_import(ctx):
     # turns), and a rollback reverses the import from this copy.
     if os.path.isdir(os.path.join(G, "sessions")):
         tar_dir(ctx, os.path.join(G, "sessions"), os.path.join(ctx.archive, "sessions-imported.tar"))
+    mark_read(ctx)
     # What the import moved out of the tracked tree comes back, so the tree
     # is clean for the merge; the merge then deletes it.
     gone = [p for c, p in status_entries(G, "--untracked-files=no") if "D" in c]
@@ -911,6 +985,58 @@ def step_import(ctx):
     left = git_ok(G, "status", "--porcelain", "--untracked-files=no").strip()
     if left:
         raise Abort("tracked changes after the import:\n%s" % left[:2000])
+
+
+MARK_READ = r"""
+import json, os, sys, fcntl
+sys.path.insert(0, sys.argv[1])
+from tutorboard.lesson import inbox
+from tutorboard.runner import daemon
+out = []
+for where in sys.argv[2:]:
+    sid = os.path.basename(where)
+    path = os.path.join(where, "inbox", "messages.jsonl")
+    if os.path.isfile(path):
+        with open(path, "r+b") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            picked = [(pos, raw, m) for pos, raw, m in inbox._lines(path) if inbox.wakes(m)]
+            if picked:
+                inbox._mark_read(fh, path, picked)
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        for _, _, m in picked:
+            out.append({"session": sid, "what": "line", "iso": m.get("iso"),
+                        "text": (m.get("text") or "")[:100]})
+    owed = daemon.owed_message(where)
+    if owed:
+        daemon.agent_state(where, owed=None)
+        out.append({"session": sid, "what": "owed", "iso": None, "text": owed[:100]})
+print(json.dumps(out))
+"""
+
+
+def mark_read(ctx):
+    """Every imported line that would wake a turn, and every message an
+    agent.json still owes, marked answered with no turn: the cutover's own
+    /say is then the one real turn. The copy tarred just before keeps them
+    unread, so a rollback hands them back to the old system as they were."""
+    sids = [r["session"] for r in ctx.m["imports"] if r.get("session")]
+    if not sids:
+        return
+    where = [os.path.join(ctx.atlas, "sessions", s) for s in sids]
+    rc, out = run([ctx.python, "-c", MARK_READ, ctx.tools()] + where, cwd=ctx.atlas,
+                  env=ctx.environ(TUTORBOARD_COURSES=ctx.atlas))
+    try:
+        got = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise Abort("could not mark the imported inboxes read: %s" % out[-800:])
+    if rc != 0:
+        raise Abort("marking the imported inboxes read failed: %s" % out[-800:])
+    ctx.put("marked_read", got)
+    for rec in got:
+        ctx.say("  marked read, no turn: %s, %s%s: %s" % (
+            rec["session"], "an inbox line" if rec["what"] == "line" else "the owed message",
+            " of %s" % rec["iso"] if rec.get("iso") else "",
+            rec["text"].replace("\n", " ")[:80]))
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1214,12 @@ def baseline(ctx):
 def step_install(ctx):
     G = ctx.atlas
     baseline(ctx)
+    # bin/tutor is gone with the merge; its launcher would point at nothing.
+    link = os.path.join(ctx.bin_dir, "tutor")
+    if os.path.islink(link) and not os.path.exists(link):
+        ctx.put("removed_link", {"link": os.readlink(link), "to": link})
+        os.remove(link)
+        ctx.say("  removed the dangling %s" % link)
     if ctx.mode == "run":
         ctx.put("installed", os.path.join(ctx.agents_dir, ctx.label + ".plist"))
         rc, out = run(["bash", os.path.join(G, "board", "install.sh")], cwd=G,
@@ -1105,13 +1237,9 @@ def step_install(ctx):
     ctx.put("tailscale_changed", True)
     ts_apply(ctx, ts_publish(ctx.port), "publish")
     if ctx.tailscale == "real":
-        rc, out = run(["tailscale", "serve", "status", "--json"], timeout=45)
-        try:
-            now = json.loads(out) if out.strip() else {}
-        except ValueError:
-            now = None
-        wrong = ts_only(now, ctx.port) if now is not None else ["no JSON: %s" % out[:200]]
-        if rc != 0 or wrong:
+        now, why = ts_status()
+        wrong = ts_only(now, ctx.port) if why is None else [why]
+        if wrong:
             raise Abort("tailscale serve does not list only %d: %s" % (ctx.port, wrong))
         ctx.say("  tailscale serves only %d" % ctx.port)
 
@@ -1191,22 +1319,26 @@ def step_prove(ctx):
     before = dict((s, base[s]["cards"]) for s in want)
     owed = [s for s in want if base[s]["waiting"]]
     if owed:
-        targets = owed
-        ctx.say("  waiting for the unread message(s) in %s" % ", ".join(owed))
-    else:
-        prob = [r["session"] for r in ctx.m["imports"]
-                if r.get("session") and r["subject"] == "courses/Probability"]
-        targets = prob[:1] or want[:1]
-        if not targets:
-            raise Abort("no imported session to send the cutover check to")
-        before[targets[0]] = len(cards_of(ctx, targets[0]))
-        status, got = http(ctx.port, "/s/%s/say" % targets[0], {"text": CHECK_SAY})
-        if status != 200:
-            raise Abort("/say to %s answered %s %s" % (targets[0], status, got))
-        ctx.say("  asked %s: %r" % (targets[0], CHECK_SAY))
+        # Step 5 marked them read; one left would be a second real turn.
+        raise Abort("still owed a turn after the import: %s" % ", ".join(owed))
+    # The one real turn: the cutover's /say into a migrated course session.
+    course = [r["session"] for r in ctx.m["imports"]
+              if r.get("session") and r["subject"].startswith("courses/")]
+    prob = [r["session"] for r in ctx.m["imports"]
+            if r.get("session") and r["subject"] == "courses/Probability"]
+    targets = prob[:1] or course[:1] or want[:1]
+    if not targets:
+        raise Abort("no imported session to send the cutover check to")
+    before[targets[0]] = len(cards_of(ctx, targets[0]))
+    status, got = http(ctx.port, "/s/%s/say" % targets[0], {"text": CHECK_SAY})
+    if status != 200:
+        raise Abort("/say to %s answered %s %s" % (targets[0], status, got))
+    ctx.put("said", {"session": targets[0], "text": CHECK_SAY, "at": time.time()})
+    wait = ANSWER_WAIT if ctx.mode != "run" else REAL_ANSWER_WAIT
+    ctx.say("  asked %s: %r; waiting up to %d s for the card" % (targets[0], CHECK_SAY, wait))
     for sid in targets:
-        if not until(lambda: len(cards_of(ctx, sid)) > before[sid], ANSWER_WAIT, 2):
-            raise Abort("no new card in %s within %d s" % (sid, ANSWER_WAIT))
+        if not until(lambda: len(cards_of(ctx, sid)) > before[sid], wait, 2):
+            raise Abort("no new card in %s within %d s" % (sid, wait))
     time.sleep(8)
     for sid in want:
         grew = len(cards_of(ctx, sid)) - before[sid]
@@ -1258,7 +1390,7 @@ def cutover(ctx):
             ctx.step(n, name, "failed")
             ctx.put("failure", "%d. %s: %s" % (n, name, exc))
             return "step %d (%s): %s" % (n, name, exc)
-        except Exception as exc:                         # noqa: BLE001
+        except (Exception, KeyboardInterrupt) as exc:     # noqa: BLE001
             ctx.step(n, name, "failed")
             ctx.put("failure", "%d. %s: %r" % (n, name, exc))
             return "step %d (%s) raised %r" % (n, name, exc)
@@ -1491,6 +1623,9 @@ def rollback(ctx):
     for rec in m.get("saved_agents") or []:
         if not os.path.isfile(rec["to"]):
             shutil.copy2(rec["from"], rec["to"])
+    gone = m.get("removed_link")
+    if gone and not os.path.lexists(gone["to"]):
+        os.symlink(gone["link"], gone["to"])
     pull = m.get("saved_pull")
     if pull and not os.path.lexists(pull["to"]):
         if pull.get("link"):
@@ -1560,6 +1695,8 @@ def plan(ctx):
         say("     %s/live -> session bound to %s" % (rel, post_merge(rel)))
     if os.path.isdir(os.path.join(G, "live")):
         say("     the stray live/ is removed")
+    say("     every imported line that would wake a turn, and every owed message, is "
+        "marked read with no turn")
     say("6. courses/*/.git -> %s/courses-git/; transcripts/ removed" % ctx.archive)
     say("7. git merge --no-ff -m %r %s" % (MERGE_MSG, ctx.ref))
     say("8. residue: untracked courses/ leftovers -> pre-fold/; move-residue.sh for %s; "
@@ -1569,9 +1706,12 @@ def plan(ctx):
                      for n in sorted(os.listdir(os.path.join(G, p)))) or "-",
            ", ".join(UV_PROJECTS)))
     say("9. install.sh; tailscale: %s" % "; ".join(" ".join(c) for c in ts_publish(ctx.port)))
-    say("10. %s up; /health on %d; one serve.py; every imported session listed; the "
-        "cutover check answered once; --guards" % (ctx.label, ctx.port))
-    say("11. push main with gitops, never forced")
+    say("10. %s up; /health on %d; one serve.py; every imported session listed; one "
+        "/say into a course session, answered with one card (the one real turn); --guards"
+        % (ctx.label, ctx.port))
+    say("11. push main with gitops, never forced; a failed push rolls back")
+    say("12. on main: board/test/run.py --guards; the Lean build, at most %d min; "
+        "then CUTOVER OK <sha>" % (LEAN_CAP // 60))
     say("rollback: --rollback %s" % ctx.manifest_path)
     return 0
 
@@ -1905,8 +2045,9 @@ class Rehearsal(object):
                     rec.update({"pid": proc.pid, "state": "listening", "owed": None})
                     write_json(agent, rec)
         until(lambda: len(matching(r"board wait", self.scratch)) == len(self.boards), 20, 0.5)
-        # The owner's unread /say in the Probability copy: the old tutor is at
-        # rest with it unanswered, and the new server must answer it.
+        # An unread line left in the Probability copy, as one is left in
+        # libr-local-llm's live/ on this Mac: the import marks it read, and
+        # no turn ever answers it.
         inbox = os.path.join(A, "courses", "Probability", "live", "inbox", "messages.jsonl")
         if os.path.isdir(os.path.dirname(inbox)):
             now = time.time()
@@ -1914,7 +2055,7 @@ class Rehearsal(object):
                 fh.write(json.dumps({"id": "t9999", "rev": 0, "kind": "text", "answers": None,
                                      "t": now, "iso": time.strftime("%Y-%m-%d %H:%M:%S",
                                                                     time.localtime(now)),
-                                     "from": "student", "text": CHECK_SAY,
+                                     "from": "student", "text": LEFT_UNREAD,
                                      "signal": None}) + "\n")
         clone_copy(self.atlas, self.pristine)
         print("   %d live/ copied, %d course(s), %d fake board(s) and daemon(s)"
@@ -1958,16 +2099,25 @@ class Rehearsal(object):
         turns = [c for c in self.provider_calls() if c.get("kind") == "turn"
                  and prob and c.get("sid") == prob[0]]
         grew = (len(cards_of(ctx, prob[0])) - ctx.m["baseline"][prob[0]]["cards"]) if prob else 0
-        self.check("the unread /say queued in the Probability copy is answered by the fake "
+        self.check("the cutover's /say into the Probability session is answered by the fake "
                    "provider, once, with one card",
-                   len(turns) == 1 and turns[0].get("rc") == 0
+                   (ctx.m.get("said") or {}).get("session") == (prob[:1] or [None])[0]
+                   and len(turns) == 1 and turns[0].get("rc") == 0
                    and CHECK_SAY in turns[0].get("prompt", "") and grew == 1,
                    (grew, [dict(c, prompt=c.get("prompt", "")[-300:]) for c in turns]))
+        marked = ctx.m.get("marked_read") or []
+        self.check("the lines left unread were marked read at the import, and no turn saw them",
+                   any(r["text"].startswith(LEFT_UNREAD[:40]) for r in marked)
+                   and not any(LEFT_UNREAD in c.get("prompt", "") for c in turns),
+                   marked)
         others = [c for c in self.provider_calls() if c.get("kind") == "turn"
                   and c.get("sid") not in prob]
-        waiting = [s for s, b in ctx.m["baseline"].items() if b["waiting"] and s not in prob]
-        self.check("every other session with an unread line got one turn, no more",
-                   sorted(c["sid"] for c in others) == sorted(waiting), (others, waiting))
+        self.check("that /say is the only turn: no other session got one",
+                   not others and not [s for s, b in ctx.m["baseline"].items() if b["waiting"]],
+                   (others, ctx.m["baseline"]))
+        now, why = ts_status()
+        self.check("this Mac's `tailscale serve status --json` parses, read only "
+                   "(%d mapping(s))" % len(ts_targets(now)), why is None, why)
         status, got = http(ctx.port, "/meeting", {"since": "30d", "items": []}, timeout=120)
         self.check("POST /meeting asks for the deck", status == 200 and got.get("ok"), got)
 
@@ -2048,6 +2198,9 @@ def rehearse(real, scratch, ref, keep=False):
         r.check("steps 1-10 pass on the copy", failure is None, failure)
         if failure is None:
             r.extras(ctx)
+            notes = after_push(ctx, lean=False)
+            r.check("the checks after the push pass on the copy (the Lean build is the "
+                    "real run's only)", not notes, notes)
         problems = rollback(ctx)
         r.check("--rollback reports no problem", not problems, problems)
         r.compare(ctx)
@@ -2100,29 +2253,159 @@ def main(argv=None):
             print("cutover: %s" % exc, file=sys.stderr)
             return 1
         return 1 if problems else 0
-    # --run
+    return run_for_real(atlas, archive, args.ref)
+
+
+# ---------------------------------------------------------------------------
+# --run: the owner's one command
+# ---------------------------------------------------------------------------
+def run_refusal(atlas, ref, here=HERE, cwd=None, environ=None, tty=None):
+    """Why --run must not start from here, or None. It runs from Terminal,
+    from the top of a clean worktree of this Atlas checked out at `ref`, and
+    never inside a tutor turn."""
+    environ = os.environ if environ is None else environ
     if os.uname()[0] != "Darwin":
-        print("cutover: --run is for the Mac", file=sys.stderr)
+        return "the cutover is the Mac's; this is %s" % os.uname()[0]
+    if environ.get("TUTORBOARD_TURN") or environ.get("TUTORBOARD_SESSION"):
+        return "this is a tutor turn; the owner runs the cutover from Terminal"
+    if not (sys.stdin.isatty() if tty is None else tty):
+        return "stdin is not a terminal; run it from Terminal"
+    top = os.path.realpath(git(here, "rev-parse", "--show-toplevel")[1].strip() or here)
+    if top == atlas:
+        return ("%s is the checkout the cutover changes; run it from the worktree of %s"
+                % (atlas, ref))
+    rc, common = git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if rc != 0 or os.path.realpath(os.path.dirname(common.strip().rstrip("/"))) != atlas:
+        return "%s is not a worktree of %s" % (top, atlas)
+    want = git(atlas, "rev-parse", "--verify", "-q", ref + "^{commit}")[1].strip()
+    head = git(top, "rev-parse", "HEAD")[1].strip()
+    if not want or head != want:
+        return "%s is at %s, not %s (%s)" % (top, head[:12], ref, want[:12] or "missing")
+    if git(top, "status", "--porcelain", "--untracked-files=no")[1].strip():
+        return "%s has uncommitted changes" % top
+    if os.path.realpath(cwd or os.getcwd()) != top:
+        return "run it from %s (cd there first)" % top
+    if not shutil.which("tailscale", path=environ.get("PATH")):
+        return "no tailscale on PATH"
+    return None
+
+
+def after_push(ctx, lean=True):
+    """The checks that follow the push, on main: the guards, then the Lean
+    build, capped. A failure here is reported, never rolled back: main is
+    on GitHub."""
+    G = ctx.atlas
+    notes = []
+    ctx.say("== 12. after the push")
+    rc, out = run([ctx.python, os.path.join(G, "board", "test", "run.py"), "--guards"],
+                  cwd=G, env=ctx.environ(), timeout=1800)
+    with open(os.path.join(ctx.archive, "guards-after-push.log"), "w") as fh:
+        fh.write(out)
+    if rc == 0:
+        ctx.say("  guards on main: %s" % (out.strip().splitlines() or ["passed"])[-1])
+    else:
+        notes.append("the guards failed on main; see %s"
+                     % os.path.join(ctx.archive, "guards-after-push.log"))
+    build = os.path.join(G, "projects", "Lean-Theorem-Proving", "scripts", "build.sh")
+    if not lean:
+        ctx.say("  Lean build: skipped here")
+    elif not os.path.isfile(build):
+        notes.append("no %s to build" % ctx.rel(build))
+    else:
+        ctx.say("  Lean build, at most %d min ..." % (LEAN_CAP // 60))
+        t0 = time.time()
+        rc, out, capped = run_capped(["bash", build], cwd=os.path.dirname(os.path.dirname(build)),
+                                     env=ctx.environ(), timeout=LEAN_CAP)
+        log = os.path.join(ctx.archive, "lean-build.log")
+        with open(log, "w") as fh:
+            fh.write(out)
+        if capped:
+            notes.append("the Lean build was stopped after %d min; see %s" % (LEAN_CAP // 60, log))
+        elif rc != 0:
+            notes.append("the Lean build failed (rc %d); see %s" % (rc, log))
+        else:
+            ctx.say("  Lean build passed in %d s" % (time.time() - t0))
+    state = git(G, "status", "--porcelain")[1].strip()
+    if state:
+        notes.append("git status on main is not empty:\n%s" % state[:800])
+    if git(G, "rev-parse", "HEAD")[1] != git(G, "rev-parse", "origin/main")[1]:
+        notes.append("main is not origin/main")
+    return notes
+
+
+def pushed_anyway(ctx):
+    """Did origin take main although the push said no?"""
+    rc, out = git(ctx.atlas, "ls-remote", "origin", "refs/heads/main", env=ctx.environ(),
+                  timeout=120)
+    head = git(ctx.atlas, "rev-parse", "HEAD")[1].strip()
+    return rc == 0 and bool(head) and out.split()[:1] == [head]
+
+
+def run_for_real(atlas, archive, ref):
+    def final(line):
+        try:
+            print(line, flush=True)
+        except (OSError, ValueError):
+            pass
+        try:
+            with open(os.path.join(archive, "cutover.log"), "a") as fh:
+                fh.write("%s %s\n" % (time.strftime("%H:%M:%S"), line))
+        except OSError:
+            pass
+
+    why = run_refusal(atlas, ref)
+    if why:
+        print("cutover: refused: %s" % why, file=sys.stderr)
+        print("CUTOVER ROLLED BACK: refused before any change -- %s" % why)
         return 2
-    ctx = Ctx(mode="run", atlas=atlas, archive=archive, ref=args.ref)
+    # Closing the Terminal must not kill a cutover halfway, nor may sleep.
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    if os.path.exists("/usr/bin/caffeinate"):
+        subprocess.Popen(["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    ctx = Ctx(mode="run", atlas=atlas, archive=archive, ref=ref)
     try:
         ctx.begin()
     except Abort as exc:
         print("cutover: %s" % exc, file=sys.stderr)
-        return 1
+        print("CUTOVER ROLLED BACK: refused before any change -- %s" % exc)
+        return 2
+    ctx.say("cutover of %s, merging %s; manifest %s" % (atlas, ref, ctx.manifest_path))
     failure = cutover(ctx)
+    if not failure:
+        ctx.say("== 11. push")
+        try:
+            if not step_push(ctx):
+                if pushed_anyway(ctx):
+                    ctx.put("pushed", True)
+                else:
+                    failure = "step 11 (push): the push failed, and nothing reached GitHub"
+        except (Exception, KeyboardInterrupt) as exc:      # noqa: BLE001
+            if pushed_anyway(ctx):
+                ctx.put("pushed", True)
+            else:
+                failure = "step 11 (push) raised %r" % exc
     if failure:
         ctx.say("FAILED at %s; rolling back" % failure)
-        problems = rollback(ctx)
-        ctx.say("rolled back%s; manifest %s" % (
-            " with %d problem(s)" % len(problems) if problems else "", ctx.manifest_path))
+        try:
+            problems = rollback(ctx)
+        except (Exception, KeyboardInterrupt) as exc:      # noqa: BLE001
+            problems = ["the rollback raised %r; finish it with --rollback %s"
+                        % (exc, ctx.manifest_path)]
+        tail = ("; %d rollback problem(s), listed above and in %s"
+                % (len(problems), ctx.manifest_path)) if problems else ""
+        final("CUTOVER ROLLED BACK: %s%s" % (failure.splitlines()[0][:300], tail))
         return 1
-    ctx.say("== 11. push")
-    if not step_push(ctx):
-        ctx.say("the push failed. The cutover stands and nothing reached GitHub; push "
-                "main again, or roll back with --rollback %s" % ctx.manifest_path)
-        return 1
-    ctx.say("cutover done; manifest %s" % ctx.manifest_path)
+    sha = git(atlas, "rev-parse", "HEAD")[1].strip()
+    try:
+        notes = after_push(ctx)
+    except (Exception, KeyboardInterrupt) as exc:          # noqa: BLE001
+        notes = ["the checks after the push stopped: %r" % exc]
+    for n in notes:
+        ctx.say("NOTE: %s" % n)
+    ctx.say("manifest %s" % ctx.manifest_path)
+    final("CUTOVER OK %s" % sha)
     return 0
 
 
