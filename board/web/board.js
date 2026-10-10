@@ -4237,12 +4237,28 @@ function filterSubjects() {
 }
 els.subjpickFilter.addEventListener("input", filterSubjects);
 
-/* A tap on a subject, made or listed, in the picker's mode. */
+/* A tap on a subject, made or listed, in the picker's mode. One at a time:
+   while one is asked, the rows and "end without sending" are disabled and a
+   second tap does nothing, so a double tap never sends twice. */
+var pickBusy = false;
+function pickHold(on) {
+  pickBusy = on;
+  Array.prototype.forEach.call(els.subjpickList.querySelectorAll("button"),
+                               function (b) { b.disabled = on; });
+  els.subjpickSkip.disabled = on;
+}
+
 function pickRow(id) {
-  if (picking === "send") return endInto(id);
-  if (picking === "late") return sendTo(id);
-  var then = picking === "make" ? pickThen : null;
-  return bindTo(id).then(function (bound) { if (bound && then) then(); });
+  if (pickBusy) return Promise.resolve(false);
+  var mode = picking;
+  var then = mode === "make" ? pickThen : null;
+  pickHold(true);
+  var asked = mode === "send" ? endInto(id) : mode === "late" ? sendTo(id) : bindTo(id);
+  return asked.then(function (bound) {
+    pickHold(false);
+    if (bound && then) then();
+    return bound;
+  });
 }
 
 function bindTo(id) {
@@ -4296,8 +4312,11 @@ function sendTo(id) {
 
 els.subjpickSkip.onclick = function (e) {
   e.stopPropagation();
+  if (pickBusy) return;
   pickSaid("ending…");
+  pickHold(true);
   postEnd({}).then(function (got) {
+    pickHold(false);
     if (got && got.ok) closeHeaderMenus();
     else pickSaid("Not ended: " + ((got && got.error) || "the server did not answer."));
   });

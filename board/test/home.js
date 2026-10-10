@@ -275,6 +275,18 @@ async function stubbed() {
         && w.__mounted.buttons[0].el === d.getElementById('panic'));
   check('and placed down the right edge below the bar, off the dot and the wordmark',
         panicAt && parseFloat(panicAt[2]) >= 60 && parseFloat(panicAt[1]) > 500);
+  check('and shown, once mounted', !d.getElementById('panic').hidden);
+  {
+    const bare = load('', { skip: ['recentre.js'] });
+    const broke = load('', { skip: ['home.js'] });
+    await sleep(60);
+    check('without recentre.js or home.js the pill stays hidden, not unplaced over the bar',
+          bare.document.getElementById('panic').hidden
+          && !bare.document.getElementById('panic').style.transform
+          && broke.document.getElementById('panic').hidden);
+    bare.close();
+    broke.close();
+  }
   check('the page told the boot check it is running, and nothing was beaconed',
         w.HomeBooted === true && beacons(w).length === 0);
 
@@ -587,6 +599,17 @@ async function stubbed() {
         && /cluster/.test(dropWhy().textContent) && /git rm/.test(dropWhy().textContent));
   d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
   check('Escape closes it', dropper.hidden);
+  const saidPhi = CHECKS['projects/Meetings'];
+  CHECKS['projects/Meetings'] = { why: 'phi', phi: null, sessions: [],
+    blocker: 'projects/Meetings: tutorboard.json at HEAD does not say "phi": false '
+      + '(no tutorboard.json at HEAD), so it is removed only through a cluster runbook' };
+  await openDrop('projects/Meetings');
+  check('one whose HEAD says nothing of patient data shows the board\'s sentence, '
+        + 'naming what is missing, not the patient-data one',
+        d.getElementById('dropper-ask').hidden && dropGo.hidden
+        && dropWhy().textContent === CHECKS['projects/Meetings'].blocker);
+  CHECKS['projects/Meetings'] = saidPhi;
+  d.getElementById('dropper-close').click();
   await openDrop('courses/Galois-Theory');
   const held = Array.from(dropWhy().querySelectorAll('a')).map((a) => a.getAttribute('href'));
   check('a subject with open sessions links each to its board, and says to end or delete them',
@@ -658,6 +681,16 @@ async function stubbed() {
   openSend();
   d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
   check('Escape closes the send sheet', sender.hidden);
+  {
+    const listing = JSON.parse(JSON.stringify(answers['/sessions.json']));
+    listing.sessions.forEach((r) => { if (r.id === LECT) r.wrapping = true; });
+    const ww = load('', { over: { '/sessions.json': listing } });
+    await sleep(80);
+    const b = ww.document.querySelector('[data-send-for="' + LECT + '"]');
+    check('a past session whose wrap-up is running has "send to…" disabled, saying why',
+          b && b.disabled && /wrap-up is running/.test(b.title));
+    ww.close();
+  }
   openSend();
   sender.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   check('and so does its backdrop', sender.hidden);

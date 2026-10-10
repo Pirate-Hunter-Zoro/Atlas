@@ -1474,9 +1474,12 @@ const heelSwipe = (id, x, y, dx, dy) => {
           && rows4.map((b) => b.textContent).join(',') === 'Galois Theory,Meetings',
           rows4.map((b) => b.textContent).join(','));
     rows4[0].click();
+    rows4[0].click();
+    rows4[1].click();
     await sleep(200);
     const sentEnd = posts.filter((p) => p.url === B + '/end');
-    check('a tap ends it into that subject', sentEnd.length === 1
+    check('a tap ends it into that subject, and taps while it is asked post nothing',
+          sentEnd.length === 1
           && sentEnd[0].body.subject === 'courses/Galois-Theory' && panel.hidden
           && /notes\.md in Galois Theory/.test(d4.getElementById('notes-end').textContent),
           JSON.stringify(sentEnd));

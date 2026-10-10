@@ -155,8 +155,10 @@
   </section>
 
 <!-- The way back from a pinched page: placed against the visual viewport by
-     `recentre.js`. A tap re-centres; a press and hold moves it. -->
-<button id="panic" type="button"
+     `recentre.js`. A tap re-centres; a press and hold moves it. Hidden until
+     home.js has mounted it, so a page missing either script never shows it
+     unplaced, over the bar. -->
+<button id="panic" type="button" hidden
         title="tap to put the zoom back &middot; press and hold to move this button">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
        stroke-linecap="round" aria-hidden="true">

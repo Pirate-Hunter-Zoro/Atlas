@@ -262,7 +262,8 @@ function pastRow(rec) {
 /* A session row with its delete beside it: the first tap arms it for 4 s,
    the second posts /session/delete and the session goes to the trash. A past
    session bound to nothing also has "send to…", the sheet that gives it a
-   course or project. */
+   course or project, disabled while its wrap-up is running (`wrapping`):
+   that wrap-up may be choosing a subject itself. */
 function withDelete(row, rec) {
   var wrap = el("div", "row-wrap");
   wrap.appendChild(row);
@@ -272,6 +273,10 @@ function withDelete(row, rec) {
     send.title = "send this session to a course or project";
     send.setAttribute("data-send-for", rec.id);
     send.onclick = function () { openSender(rec); };
+    if (rec.wrapping) {
+      send.disabled = true;
+      send.title = "its wrap-up is running; send it once that is done";
+    }
     wrap.appendChild(send);
   }
   var b = el("button", "row-delete", "delete");
@@ -630,7 +635,10 @@ function paintDropCheck(got) {
   els.dropperWhy.innerHTML = "";
   if (got.ok === false && !why) {
     els.dropperWhy.textContent = got.error || "The board would not say whether it can go.";
-  } else if (why === "phi") {
+  } else if (why === "phi" && got.phi === true) {
+    /* Patient data said at HEAD. Not said at all (`phi` null: no
+       tutorboard.json there, or no phi key) falls to the board's sentence,
+       which names what is missing. */
     els.dropperWhy.textContent = PHI_WHY;
   } else if (why === "open-session" && held.length) {
     els.dropperWhy.appendChild(document.createTextNode("Open on it: "));
@@ -1540,8 +1548,10 @@ document.addEventListener("DOMContentLoaded", paintTheme);
 
 /* THE WAY BACK from a pinched page, placed by `recentre.js` as on the board,
    under its own key so where it is put is kept; it starts down the right
-   edge, below the bar, so the dot and the wordmark are never under it. */
+   edge, below the bar, so the dot and the wordmark are never under it.
+   Shown only here: unplaced, it would sit at the bar's top-left. */
 if (els.panic && window.Recentre) {
+  els.panic.hidden = false;
   window.Recentre.mount({ key: "home.panic", at: { x: .975, y: .16 },
                           buttons: [{ el: els.panic }] });
 }

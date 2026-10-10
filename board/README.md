@@ -84,10 +84,13 @@ and the audit refuses any path under it.
   Make binds it through the chip's picker before it makes anything.
 - **Send.** End on an unbound session opens the picker to send it: every course and project,
   the recent ones first, a filter, `+ new`, and "end without sending". `POST /end {subject}`
-  runs `sessions.send` (bind, then file every upload into `materials/`) and ends it; the
-  wrap-up then writes up the agreed answers (`prompts/wrapup-sent.md`). `POST /send` sends
-  a session that ended unbound, and runs that wrap-up late. A session that has left files,
-  artifacts or a write-up in one subject is not sent to another.
+  runs `sessions.send` (bind, then file every upload into `materials/`) and ends it, one
+  request at a time per session (`sessions.held`). Sending an unbound session sets its
+  `sent_late`, so the wrap-up writes up the agreed answers (`prompts/wrapup-sent.md`) and
+  then clears it. `POST /send` sends a session that ended unbound, and runs that wrap-up
+  late; while a wrap-up is queued or running it is 409, and `/sessions.json` marks the
+  session `wrapping`. A session that has left files, artifacts or a write-up in one
+  subject is not sent to another.
 - **Mode.** `board mode teach|do`, `POST /mode`, or the tutor obeying "do it". Nothing infers
   do mode. A change is a non-waking line, so the next turn reads it.
 - **Persist.** A session stays open until the owner taps End, twice when it is bound. End sets

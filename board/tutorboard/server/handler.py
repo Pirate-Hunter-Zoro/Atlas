@@ -541,7 +541,10 @@ class Handler(BaseHTTPRequestHandler):
     def session_listing(registry):
         """GET /sessions.json: every session, newest first, each with the
         URL it opens at (`sessions.url`) and its subject's name; an open one also with its newest
-        card and the count of cards since `seen` (`sessions.summary`)."""
+        card and the count of cards since `seen` (`sessions.summary`); an
+        ended one whose wrap-up is queued or running with `wrapping`, since
+        it cannot be sent until that is done."""
+        from ..runner import service as runner
         names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
         out = []
         for rec in sessions.all(registry.atlas):
@@ -549,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
                        subject_name=names.get(rec.get("subject")) or None)
             if not rec.get("ended"):
                 one.update(sessions.summary(rec, registry.atlas))
+            elif runner.RUNNER is not None and runner.RUNNER.busy(rec.get("id")):
+                one["wrapping"] = True
             out.append(one)
         return {"ok": True, "sessions": out}
 

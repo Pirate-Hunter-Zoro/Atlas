@@ -74,8 +74,12 @@ function endNotes() {
 }
 
 /* POST /end with `body`, once the pages are on disk. Refused, the canvas
-   stays open and says why. */
+   stays open and says why. One at a time: a second tap while one is asked
+   (a row tapped twice, or another row) does nothing. */
+var ending = false;
 function finishEnd(body) {
+  if (ending) return;
+  ending = true;
   endBtn.disabled = true;
   endBtn.textContent = "ending…";
   var settle = writer && writer.flush ? writer.flush() : null;
@@ -91,6 +95,7 @@ function finishEnd(body) {
       + (got.sent ? " in " + got.sent.name : "");
   }).catch(function (e) {
     var why = (e && e.message) || "the board did not answer";
+    ending = false;
     endBtn.disabled = false;
     endBtn.textContent = "End (" + why + ")";
     if (sendPanel && !sendPanel.hidden) sendSaid("Not ended: " + why);

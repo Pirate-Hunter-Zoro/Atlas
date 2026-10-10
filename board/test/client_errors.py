@@ -7,7 +7,8 @@ shows it; the page that missed a script says so itself.
   - ONE LINE, `client: <page> <what> <src> <msg>`, through the handler's
     `note`, unprefixed and under `/s/<id>/` alike; the reply is {ok: true}.
   - EACH FIELD ON ONE LINE AND CUT to 300 characters, the stack and the
-    user agent after the four.
+    user agent after the four; a character that does not print (an escape,
+    NUL, a bidi override) is a space.
   - A BODY OVER 8 KB IS 413 and unread; one that is not a JSON object is 400.
   - RATE-LIMITED per process: past 20 a minute a report is counted, not
     written, and the next minute's first line says how many went unlogged.
@@ -101,6 +102,13 @@ ask("/client-error", {"page": "home", "what": "error", "src": "x" * 2000, "msg":
 line = (reports() or [""])[0]
 check("a long field is cut to 300 characters, and an empty one is -",
       line == "client: home error %s -" % ("x" * machines.CLIENT_FIELD), line[:120])
+
+del NOTES[:]
+ask("/client-error", {"page": "home", "what": "error", "src": "x",
+                      "msg": "\x1b[1A\x1b[2Kfake\x00line\x07 \u202eevil\u2028end"})
+line = (reports() or [""])[0]
+check("an escape, NUL, BEL or bidi override does not reach the log",
+      line == "client: home error x [1A [2Kfake line evil end", repr(line))
 
 del NOTES[:]
 status, _ = ask("/client-error", None, raw=b"{" + b" " * (machines.CLIENT_BODY + 10) + b"}")

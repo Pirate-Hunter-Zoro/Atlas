@@ -2318,6 +2318,7 @@ async function latchFlow() {
 async function headerFlow() {
   const real = window.fetch;
   const asked = [];
+  let endGate = null;
   const reply = (o, status) => Promise.resolve({ status: status || 200,
                                                  json: () => Promise.resolve(o) });
   const names = { 'courses/Linear-Algebra': 'Linear Algebra' };
@@ -2350,6 +2351,8 @@ async function headerFlow() {
         Object.assign(ended, { sent: { id: body.subject, name: names[body.subject] || body.subject,
                                        kind: '' }, filed: [], refused: [] });
       }
+      // Held: answered only when the test calls the release left in `endGate`.
+      if (endGate === 'hold') return new Promise((r) => { endGate = () => r(reply(ended)); });
       return reply(ended);
     }
     if (url === '/send') return reply({ ok: true, wrapup: true,
@@ -2584,7 +2587,16 @@ async function headerFlow() {
     && !end.disabled && doc.body.dataset.ended !== '1'
     ? ok('a refused send says why, and the session stays open')
     : fail('a refused send: ' + doc.getElementById('subjpick-said').textContent);
+  endGate = 'hold';
   named('Linear Algebra').click();
+  await sleep(20);
+  named('Linear Algebra').click();
+  await sleep(20);
+  posts('/end').length === ends + 2 && named('Linear Algebra').disabled && skip.disabled
+    ? ok('while a send is asked, a second tap posts nothing and the rows are disabled')
+    : fail('a double tap posted /end ' + (posts('/end').length - ends - 1) + ' times');
+  endGate();
+  endGate = null;
   await sleep(40);
   const sent = posts('/end').slice(-1)[0];
   sent.body.subject === 'courses/Linear-Algebra' && posts('/bind').length === binds

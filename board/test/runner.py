@@ -21,6 +21,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -532,9 +533,39 @@ try:
     check("which writes it up as sent at End",
           "sent to courses/Demo only at its End"
           in (calls(s_after, "wrapup") or [{}])[0].get("prompt", ""))
-    check("sent_late reads the unread [bind] line no card followed",
-          service.sent_late(sessions.repo(s_after, atlas))
-          and not service.sent_late(sessions.repo(sa, atlas)))
+    check("sent_late is cleared once that wrap-up has run, and never set on a "
+          "session bound while it ran",
+          until(lambda: "sent_late" not in sessions.get(s_after, atlas), 30)
+          and "sent_late" not in sessions.get(sa, atlas),
+          sessions.get(s_after, atlas))
+
+    # Sent at End while a turn is still running: the turn's card lands after
+    # the bind, and the wrap-up still writes the lecture up.
+    s_mid = new_session(None, "ended mid-turn")
+    write(os.path.join(sessions.path(s_mid, atlas), "cards", "0001-q.md"), lecture)
+    ctl(s_mid, "sleep:4")
+    server.post("/s/%s/say" % s_mid, {"text": "my last answer"})
+    until(lambda: s_mid in server.get("/health")["turns"]["running"], 10)
+    got = server.post("/s/%s/end" % s_mid, {"subject": "courses/Demo"})
+    check("End with a subject during a running turn sends and ends it",
+          got.get("ok") and got.get("wrapup")
+          and sessions.get(s_mid, atlas).get("sent_late") == "courses/Demo", got)
+    try:
+        got = server.post("/s/%s/send" % s_mid, {"subject": "courses/Demo"})
+    except urllib.error.HTTPError as exc:
+        got = dict(json.loads(exc.read().decode()), status=exc.code)
+    check("a send while its wrap-up is queued is 409",
+          got.get("status") == 409 and "wrap-up is running" in got.get("error", ""),
+          got)
+    row = [r for r in server.get("/sessions.json")["sessions"] if r["id"] == s_mid]
+    check("and /sessions.json marks it wrapping, so home does not offer the send",
+          row and row[0].get("wrapping") is True, row)
+    until(lambda: calls(s_mid, "wrapup"), 30)
+    check("whose wrap-up runs after that turn's card and still writes it up",
+          len(calls(s_mid, "turn")) == 1
+          and "sent to courses/Demo only at its End"
+          in (calls(s_mid, "wrapup") or [{}])[0].get("prompt", ""),
+          (calls(s_mid), agent_log(s_mid)[-800:]))
 
     # -----------------------------------------------------------------------
     # runner_route: a subject with no open session gets one, and its turn

@@ -13,6 +13,7 @@ so no walrus and no `match`.
 import json
 import os
 import re
+import threading
 
 
 # The session a CLI process bound (`resolve`), for code holding only a root.
@@ -66,7 +67,7 @@ def _read_json(path):
 
 def _write_json(path, data):
     """Whole or not at all: a reader never sees half a file."""
-    tmp = "%s.tmp-%d" % (path, os.getpid())
+    tmp = "%s.tmp-%d-%d" % (path, os.getpid(), threading.get_ident())
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)
         fh.write("\n")

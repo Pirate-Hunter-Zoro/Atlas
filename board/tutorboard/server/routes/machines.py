@@ -76,10 +76,15 @@ _client_lock = threading.Lock()
 
 
 def _client_field(payload, name):
-    """One field of a report, on one line and cut to CLIENT_FIELD; "-" for none."""
+    """One field of a report, on one line and cut to CLIENT_FIELD; "-" for none.
+    Every character that does not print (a control, an escape, a bidi
+    override) is a space first, so a report cannot repaint the log's
+    terminal."""
     said = payload.get(name)
-    said = " ".join(str(said).split()) if said is not None else ""
-    return said[:CLIENT_FIELD] or "-"
+    if said is None:
+        return "-"
+    said = "".join(c if c.isprintable() else " " for c in str(said))
+    return " ".join(said.split())[:CLIENT_FIELD] or "-"
 
 
 def client_error(h, now=None):

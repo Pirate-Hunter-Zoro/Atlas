@@ -26,7 +26,8 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
     `<subject>/.ink/`, re-keyed: the old keys are gone and the new ones load.
   * `send` binds, then files every upload left, a clash refused without
     stopping the rest; a session that already left something in another
-    subject is refused, naming it.
+    subject is refused, naming it. Two sends at once run one after the
+    other, and a late one records `sent_late` until `wrote_late` clears it.
 """
 
 import json
@@ -35,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -575,6 +577,57 @@ try:
     check("and one whose write-up is there is refused, naming it",
           "courses/Test/docs/x/writeup.tex" in said
           and sessions.get(s3["id"], base)["subject"] == "courses/Test", said)
+
+    # Two sends at once (a double tap, or a changed mind) run one after the
+    # other: the first binds and files everything, the second finds the
+    # session already sent and is refused or files nothing.
+    def race(first, second, stamp):
+        sid = sessions.new("Raced", base=base, now=stamp)["id"]
+        where = sessions.path(sid, base)
+        for n in range(6):
+            write(os.path.join(where, "uploads", "race-%s-%d.pdf" % (sid, n)),
+                  b"%PDF race\n")
+        got, errs = [None, None], []
+
+        def one(n, subject):
+            try:
+                got[n] = sessions.send(sid, subject, base=base, late=True)
+            except sessions.Refused as exc:
+                got[n] = exc
+            except Exception as exc:                         # noqa: BLE001
+                errs.append(exc)
+        ts = [threading.Thread(target=one, args=x)
+              for x in enumerate((first, second))]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        return sid, got, errs
+
+    sid, got, errs = race("courses/Test", "courses/Test", now + 160)
+    filed = [f["to"] for g in got if isinstance(g, tuple) for f in g[1]]
+    check("two sends to one subject at once file each upload once, and neither "
+          "raises", not errs and len(filed) == 6 and len(set(filed)) == 6
+          and not os.listdir(os.path.join(sessions.path(sid, base), "uploads")),
+          (errs, filed))
+    check("and the late send records where it went, once",
+          sessions.get(sid, base).get("sent_late") == "courses/Test"
+          and [l.get("signal") for l in inbox(sessions.path(sid, base))].count("bind") == 1)
+    sid, got, errs = race("courses/Test", "projects/Proj", now + 170)
+    rec = sessions.get(sid, base)
+    won = rec["subject"]
+    lost = "projects/Proj" if won == "courses/Test" else "courses/Test"
+    lost_got = got[1] if won == "courses/Test" else got[0]
+    check("two sends to two subjects at once: the one that ran first has the "
+          "session and every upload, the other is refused",
+          not errs and isinstance(lost_got, sessions.Refused)
+          and len(os.listdir(os.path.join(base, won, "materials"))) >= 6
+          and not [n for n in os.listdir(os.path.join(base, lost, "materials"))
+                   if n.startswith("race-%s" % sid)]
+          and rec.get("sent_late") == won, (errs, got, rec))
+    check("sent_late is cleared by wrote_late",
+          "sent_late" not in sessions.wrote_late(sid, base=base)
+          and "sent_late" not in sessions.get(sid, base))
 
     # ---- the ignore rule and the commit-time gate -----------------------------
     shutil.copytree(os.path.join(ATLAS, ".githooks"), os.path.join(scratch, ".githooks"))

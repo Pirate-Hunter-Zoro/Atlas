@@ -102,25 +102,6 @@ def kill_group(pgid, needle=None, grace=KILL_GRACE):
     return True
 
 
-def sent_late(repo):
-    """Was the session `repo` serves bound only at End, or after it? Its
-    newest `[bind]` line is still unread and no card is newer than it, so no
-    turn ran in the subject: the session was taught bound to nothing and
-    written up nowhere."""
-    binds = [m for m in inbox.unread(repo) if m.get("signal") == "bind"]
-    if not binds:
-        return False
-    try:
-        at = float(binds[-1].get("t") or 0)
-    except (TypeError, ValueError):
-        return False
-    path = lesson_cards.newest(repo.cards)[0]
-    try:
-        return not path or os.path.getmtime(path) <= at
-    except OSError:
-        return True
-
-
 class Runner(object):
     def __init__(self, atlas, concurrency=None, port=None):
         self.atlas = os.path.abspath(atlas)
@@ -318,10 +299,11 @@ class Runner(object):
 
     def _wrap(self, sid, repo):
         """The wrap-up: only for a session bound to a subject that has had
-        a turn. A session sent there at End (`sent_late`) has its agreed
-        answers written up in it too. Then `sessions.end` once more, so what
-        it wrote is committed. A notes canvas (`view: slate`) with ink on its
-        pages has its own, bound or not: `_notes`."""
+        a turn. A session sent there at or after End (its `sent_late`) has
+        its agreed answers written up in it too, and `sent_late` cleared.
+        Then `sessions.end` once more, so what it wrote is committed. A
+        notes canvas (`view: slate`) with ink on its pages has its own,
+        bound or not: `_notes`."""
         rec = sessions.get(sid, self.atlas) or {}
         if rec.get("view") == "slate":
             return self._notes(sid, repo, rec)
@@ -333,8 +315,11 @@ class Runner(object):
         try:
             daemon.agent_state(repo.live, pid=os.getpid(),
                                host=recipes.this_host(), agent=ctx.agent_name)
-            loop.wrap_up(ctx, sent=rec.get("subject") if sent_late(repo) else None)
+            late = rec.get("subject") if rec.get("sent_late") else None
+            loop.wrap_up(ctx, sent=late)
             daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
+            if late:
+                sessions.wrote_late(sid, base=self.atlas)
             try:
                 _rec, ok, said = sessions.end(sid, base=self.atlas)
                 ctx.log.write("-- %s\n" % said)

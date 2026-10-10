@@ -385,12 +385,12 @@ def _body(h):
     return payload if isinstance(payload, dict) else None
 
 
-def _sent(h, sid, base, subject):
-    """Send session `sid` to `subject` (`sessions.send`), and ask the
-    registry again so the hub roots at the subject. The reply keys, or None
-    once the refusal is answered, with nothing changed."""
+def _sent(h, sid, base, subject, late):
+    """Send session `sid` to `subject` (`sessions.send`, `late` as there),
+    and ask the registry again so the hub roots at the subject. The reply
+    keys, or None once the refusal is answered, with nothing changed."""
     try:
-        rec, filed, refused = sessions.send(sid, subject, base=base)
+        rec, filed, refused = sessions.send(sid, subject, base=base, late=late)
     except sessions.Refused as exc:
         h.send_json({"ok": False, "error": str(exc)}, status=400)
         return None
@@ -429,7 +429,9 @@ def _send(h, repo):
     stays open. Ended while bound to nothing, the wrap-up is queued late, so
     the session is written up there and `sessions.end` commits it. Filing,
     not talking to the tutor, so an ended session answers it
-    (`handler.ENDED_REFUSES`); an ended one already sent elsewhere is 409."""
+    (`handler.ENDED_REFUSES`); an ended one already sent elsewhere, or whose
+    wrap-up is still queued or running (it may be choosing the subject
+    itself), is 409."""
     if not repo.stored:
         return h.send_json({"ok": False, "error": "not a session"}, status=404)
     payload = _body(h)
@@ -438,14 +440,20 @@ def _send(h, repo):
     sid = os.path.basename(repo.live)
     base = repo.atlas
     subject = str(payload.get("subject") or "")
-    rec = sessions.get(sid, base) or {}
-    if _elsewhere(h, rec, base, subject):
-        return None
-    late = bool(rec.get("ended")) and not rec.get("subject")
-    out = _sent(h, sid, base, subject)
-    if out is None:
-        return None
-    queued = late and bool(runner.RUNNER and runner.RUNNER.end(sid))
+    with sessions.held(sid, base):
+        rec = sessions.get(sid, base) or {}
+        if _elsewhere(h, rec, base, subject):
+            return None
+        ended = bool(rec.get("ended"))
+        if ended and runner.RUNNER and runner.RUNNER.busy(sid):
+            return h.send_json({"ok": False, "error": "this session's wrap-up "
+                                "is running; send it once that is done"},
+                               status=409)
+        late = ended and not rec.get("subject")
+        out = _sent(h, sid, base, subject, ended)
+        if out is None:
+            return None
+        queued = late and bool(runner.RUNNER and runner.RUNNER.end(sid))
     h.hub.worker.dirty.set()
     out.update(ok=True, session=sessions.get(sid, base), wrapup=queued)
     return h.send_json(out)
@@ -467,18 +475,20 @@ def _end(h, repo):
     base = os.path.dirname(os.path.dirname(repo.live))
     subject = str(payload.get("subject") or "")
     sent = {}
-    if subject:
-        rec = sessions.get(sid, base) or {}
-        if _elsewhere(h, rec, base, subject):
-            return None
-        sent = _sent(h, sid, base, subject)
-        if sent is None:
-            return None
-    try:
-        rec, committed, said = sessions.end(sid, base=base)
-    except sessions.NoSession:
-        return h.send_json({"ok": False, "error": "no such session"}, status=404)
-    queued = bool(runner.RUNNER and runner.RUNNER.end(sid))
+    with sessions.held(sid, base):
+        if subject:
+            rec = sessions.get(sid, base) or {}
+            if _elsewhere(h, rec, base, subject):
+                return None
+            sent = _sent(h, sid, base, subject, True)
+            if sent is None:
+                return None
+        try:
+            rec, committed, said = sessions.end(sid, base=base)
+        except sessions.NoSession:
+            return h.send_json({"ok": False, "error": "no such session"},
+                               status=404)
+        queued = bool(runner.RUNNER and runner.RUNNER.end(sid))
     h.note("session %s ended (%s)" % (sid, said))
     h.hub.worker.dirty.set()
     out = {"ok": True, "session": rec, "committed": bool(committed),

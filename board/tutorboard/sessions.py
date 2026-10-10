@@ -8,6 +8,8 @@
     prune_trash()     drop trash entries older than 30 days (server start)
     bind(id, subject) set `subject`, with a non-waking `[bind]` line
     send(id, subject) bind, then file every upload left into `materials/`
+    held(id)          the lock that serialises sending and ending one session
+    wrote_late(id)    clear `sent_late` once the wrap-up has written it up
     set_code(id, code) record or clear the session's cluster coding session
     coding()          {id: code} for every session with `code` set
     file(id, upload)  move an upload into the bound subject, ink and all
@@ -15,9 +17,11 @@
 
 A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
 under it) and persists until `end`. session.json = {id, title, subject,
-mode, opened, ended, writeup, seen, code, view}; `subject` is a subject id
-or null, `writeup` a source path from the Atlas root or null, times local
-`YYYY-MM-DD HH:MM:SS`. `code` is the cluster coding session as the Mac last
+mode, opened, ended, writeup, seen, code, view, sent_late?}; `subject` is a
+subject id or null, `writeup` a source path from the Atlas root or null,
+times local `YYYY-MM-DD HH:MM:SS`. `sent_late`, the subject id, is set when
+a session taught bound to nothing is sent at or after its End, and cleared
+once its wrap-up has written it up there. `code` is the cluster coding session as the Mac last
 heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
 `gitops.commit` refuses the held paths on main and `board push` goes to the
 ref.
@@ -30,6 +34,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import time
 
 from . import fenced, gitops, paths, subjects
@@ -70,6 +75,20 @@ def path(sid, base=None):
         return None
     where = os.path.join(store(base), sid)
     return where if course_repo.is_stored(where) else None
+
+
+# One re-entrant lock per session directory: a send, and an End that sends,
+# run whole, so two taps never bind and file the same uploads at once.
+_LOCKS = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def held(sid, base=None):
+    """The lock that serialises sending and ending session `sid` in this
+    process. Re-entrant: an End holds it across the send it makes."""
+    key = os.path.abspath(os.path.join(store(base), str(sid or "")))
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.RLock())
 
 
 def _need(sid, base):
@@ -310,12 +329,15 @@ def _left_in(where, base, subject, rec):
     return out
 
 
-def send(sid, subject, base=None, now=None):
+def send(sid, subject, base=None, now=None, late=False):
     """Send session `sid` to `subject`: bind it (`bind`), then file every
     upload left in its `uploads/` into the subject's `materials/` (`file`).
     `(record, filed, refused)`: `filed` holds `file`'s results, `refused`
     `{upload, error}` for each upload that could not go (its name already
-    taken there), which stops none of the rest.
+    taken there, or gone from under it), which stops none of the rest.
+    `late` (an End, or a send after it): a session bound to nothing until
+    now has `sent_late` set, so its wrap-up writes it up there. Runs whole
+    under `held`.
 
     Refused, with nothing changed, when `subject` is no subject, or when the
     session is bound to another subject that already holds something of it
@@ -323,6 +345,11 @@ def send(sid, subject, base=None, now=None):
     they are. The same subject again, or a session bound to nothing: fine.
     """
     base = base or subjects.root()
+    with held(sid, base):
+        return _send(sid, subject, base, now, late)
+
+
+def _send(sid, subject, base, now, late):
     where = _need(sid, base)
     found = subjects.find(subject, base) if subject else None
     if not found:
@@ -337,6 +364,9 @@ def send(sid, subject, base=None, now=None):
                           "%s there, which would stay behind; it cannot be "
                           "sent to %s" % (was, ", ".join(left), found["id"]))
     rec, _changed = bind(sid, found["id"], base=base, now=now)
+    if late and not was:
+        rec["sent_late"] = found["id"]
+        _save(where, rec)
     filed, refused = [], []
     folder = os.path.join(where, "uploads")
     try:
@@ -348,9 +378,20 @@ def send(sid, subject, base=None, now=None):
             continue
         try:
             filed.append(file(sid, name, base=base, now=now))
-        except Refused as exc:
+        except (Refused, OSError) as exc:
             refused.append({"upload": "uploads/" + name, "error": str(exc)})
     return rec, filed, refused
+
+
+def wrote_late(sid, base=None):
+    """The wrap-up has written session `sid` up where it was sent late:
+    clear `sent_late`. The record."""
+    with held(sid, base):
+        where = _need(sid, base)
+        rec = get(sid, base)
+        if rec.pop("sent_late", None) is not None:
+            _save(where, rec)
+        return rec
 
 
 def set_code(sid, code, base=None):
