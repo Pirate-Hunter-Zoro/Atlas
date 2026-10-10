@@ -27,6 +27,7 @@ The boot line names the code stamp this process loaded.
 import os
 import shutil
 import signal
+import socket
 import socketserver
 import sys
 import threading
@@ -42,7 +43,13 @@ from .registry import Registry
 class BoardServer(ThreadingHTTPServer):
     """`ThreadingHTTPServer` without the reverse lookup in `server_bind`,
     which nothing reads and which can take thirty seconds through the
-    tailnet's resolver."""
+    tailnet's resolver, and with a listen backlog that holds a burst."""
+
+    # socketserver's backlog is 5. Tailscale's proxy opens about 8
+    # connections at once for one page load and over 40 for a service-worker
+    # install; the kernel resets every one past the backlog, the proxy answers
+    # those 502, and this process never sees them to log.
+    request_queue_size = max(socket.SOMAXCONN, 128)
 
     def server_bind(self):
         socketserver.TCPServer.server_bind(self)
