@@ -60,8 +60,6 @@ reports it built once it is.
 - **Subject READMEs and course `.tex` headers** link `AI_INSTRUCTIONS.md`, `HANDOFF.md` and
   `PROGRESS.md`, which do not exist. `RULES.md` and `TUTOR.md` hold their content. These are the
   owner's files, so the owner edits them.
-- **Decide: when the wrap-up's TUTOR.md edit is committed.** End commits TUTOR.md, then queues the
-  wrap-up turn. The wrap-up's edit therefore waits for the next commit or a second End.
 
 ## 3. Loose ends in the code
 
