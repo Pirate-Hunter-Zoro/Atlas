@@ -151,12 +151,25 @@ try:
     # ---- a turn changes board/ only in a worktree -------------------------
     put("board/tutorboard/turn-note.txt", "a turn's edit\n")
     done, err = commit(["board/tutorboard/turn-note.txt"], turn=True)
+    # The worktrees' home is beside the main checkout, `<main>-wt/`, derived
+    # from where the code sits rather than named.
     check("a turn's commit touching board/ in the main checkout is refused, "
           "naming the worktree to use",
-          not done and "board/tutorboard/turn-note.txt" in err and "Atlas-wt" in err,
-          err)
+          not done and "board/tutorboard/turn-note.txt" in err
+          and os.path.realpath(box) + "-wt" + os.sep in err, err)
     wt = os.path.join(tempfile.mkdtemp(prefix="tutor-precommit-wt-"), "wt")
     git("worktree", "add", "-q", "-b", "turn-wt", wt)
+    sys.path.insert(0, BOARD)
+    from tutorboard import paths                          # noqa: E402
+    check("a linked worktree's main checkout is read from its .git file, "
+          "and the main checkout is its own",
+          os.path.realpath(paths.main_checkout(wt)) == os.path.realpath(box)
+          and paths.main_checkout(box) == box)
+    check("and this tree's worktrees are named by no literal home directory",
+          paths.WORKTREES == paths.main_checkout().rstrip(os.sep) + "-wt" + os.sep
+          and not any("/Users/" in open(os.path.join(BOARD, "tutorboard", f),
+                                         encoding="utf-8").read()
+                      for f in ("audit.py", "sense.py")))
     with open(os.path.join(wt, "board", "tutorboard", "turn-note.txt"), "w") as fh:
         fh.write("in a worktree\n")
     git("add", "board/tutorboard/turn-note.txt", cwd=wt)

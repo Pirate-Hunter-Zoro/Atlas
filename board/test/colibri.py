@@ -553,6 +553,20 @@ for name in ("colibri.py", "relay.py"):
         src = fh.read()
     check("no `missions.` call remains in %s" % name, "missions." not in src)
 
+# The workspace Colibri tasks are filed in: COLI_WORKSPACE, else libr-local-llm.
+said = {}
+for named in ("", "Other-LLM"):
+    env = dict(os.environ)
+    env.pop("COLI_WORKSPACE", None)
+    if named:
+        env["COLI_WORKSPACE"] = named
+    said[named] = subprocess.run(
+        [sys.executable, "-c", "from tutorboard import colibri; print(colibri.WORKSPACE)"],
+        cwd=ROOT, env=env, stdout=subprocess.PIPE, universal_newlines=True,
+        timeout=60).stdout.strip()
+check("the workspace is COLI_WORKSPACE when set, else libr-local-llm",
+      said == {"": "libr-local-llm", "Other-LLM": "Other-LLM"})
+
 print("%d FAILURES" % len(fails) if fails
       else "Colibri is read off squeue on the cluster and off status.json on the Mac")
 sys.exit(1 if fails else 0)

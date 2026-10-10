@@ -28,14 +28,11 @@ import zipfile
 
 from pathlib import Path
 
-from . import paths, tex
+from . import paths, subjects, tex
 
 # ---------------------------------------------------------------------------
 # Where a document lives
 # ---------------------------------------------------------------------------
-
-# A subject is a directory directly under one of these.
-SUBJECT_PARENTS = ("courses", "projects")
 
 
 def repo_top(path):
@@ -60,7 +57,8 @@ def subject_of(path):
         parent = os.path.dirname(d)
         if parent == d:
             break
-        if os.path.basename(parent) in SUBJECT_PARENTS:
+        # A subject is a directory directly under one of `subjects.DIRS`.
+        if os.path.basename(parent) in dict(subjects.DIRS):
             return d
         d = parent
     d = here

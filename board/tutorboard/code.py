@@ -37,7 +37,7 @@ import subprocess
 import tempfile
 import time
 
-from . import exports, fenced, paths
+from . import exports, fenced, paths, subjects
 
 POLL = 2.0
 QUIET = 10.0
@@ -48,7 +48,6 @@ LOCK_WAIT = 300
 LOCK = os.path.join("relay", ".lock")
 
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-SUBJECT_DIRS = ("courses", "projects")
 # Under a subject: the cluster channel, which the relay writes.
 CHANNEL = ("relay", "exports")
 # Never walked by the mtime poll.
@@ -233,7 +232,7 @@ def _under(rel, base):
 def subject_of(rel):
     """`courses/X` or `projects/X` for a repository-relative path, or ""."""
     parts = rel.split("/")
-    if len(parts) >= 2 and parts[0] in SUBJECT_DIRS and parts[1] \
+    if len(parts) >= 2 and parts[0] in dict(subjects.DIRS) and parts[1] \
             and not parts[1].startswith("."):
         return parts[0] + "/" + parts[1]
     return ""

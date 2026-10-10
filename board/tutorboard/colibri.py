@@ -23,10 +23,11 @@ import time
 from . import jobs, machine, subjects
 
 
-# The job, the workspace and the two sentinels, read from the environment
-# first exactly as `scripts/colibri-env.sh` does.
+# The job and the workspace, from the environment first (`COLI_JOB_NAME` as
+# `scripts/colibri-env.sh` spells it; `COLI_WORKSPACE` the slug of the subject
+# Colibri tasks are filed in), and the sentinels.
 JOB_NAME = os.environ.get("COLI_JOB_NAME") or "colibri_serve"
-WORKSPACE = "libr-local-llm"                   # a slug: `subjects.find`
+WORKSPACE = os.environ.get("COLI_WORKSPACE") or "libr-local-llm"   # `subjects.find`
 LISTENING = "API listening on"
 LOADED = "COLIBRI-SERVE LOADED"
 READY = "COLIBRI-SERVE READY"
