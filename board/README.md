@@ -273,7 +273,9 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 - Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
   because argv shows in `ps`. A usage limit marks a provider unavailable until it expires, and
   the next in the chain takes its turns (`limits.py`). `board doctor` spends one real turn per
-  provider in the chain; `--dry` spends none. `board cost` adds up every session's `cost.jsonl`.
+  provider in the chain and sends the vision route one witness strip; `--dry` spends none and
+  names the vision route chain. `board see` passes over a route that answered without looking
+  and asks the next sighted recipe. `board cost` adds up every session's `cost.jsonl`.
 
 ## Invariants
 
