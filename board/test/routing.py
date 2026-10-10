@@ -357,6 +357,10 @@ DRIVE = {
     ("GET", "/relay.json", "machines"): ("atlas", [("/relay.json", None, OK)]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
+    ("POST", "/client-error", "machines"): ("both", [
+        ("/client-error", {"page": "board", "what": "script", "src": "/static/x.js",
+                           "msg": "{mark}"}, OK),
+        ("/client-error", [1], REFUSED)]),
     # pages
     ("GET", "/answers/", "pages"): ("session", [("/answers/own.png", None, OK)]),
     ("GET", "/uploads/", "pages"): ("session", [("/uploads/own.png", None, OK)]),
@@ -682,6 +686,13 @@ for path in ("/", "/sw.js", "/manifest.webmanifest", "/static/board.js", "/healt
              if not (named and w.startswith(named))]
     check("unprefixed GET %s answers and writes no other subject and no session%s"
           % (path, " (stray: %s)" % stray if stray else ""), status == 200 and not stray)
+
+before = snapshot()
+status, reply = ask("POST", "/client-error", {"page": "home", "what": "resource",
+                                             "src": "/static/home.js", "msg": "502"})
+check("unprefixed POST /client-error answers ok and writes nothing",
+      status == 200 and json.loads(reply.decode("utf-8")).get("ok")
+      and not changed(before, snapshot()))
 
 status, reply = ask("GET", "/sessions.json")
 listed = [r["id"] for r in json.loads(reply.decode("utf-8"))["sessions"]]

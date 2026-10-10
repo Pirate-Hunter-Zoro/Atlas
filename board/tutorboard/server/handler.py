@@ -46,6 +46,8 @@ UNPREFIXED = (
     ("GET", "/apple-touch-icon.png", "icon"),
     ("GET", "/icon-*", "icon"),
     ("GET", "/health", "health"),
+    # A page's error report, into the log (`machines.client_error`).
+    ("POST", "/client-error", "client-error"),
     ("GET", "/sessions.json", "sessions"),
     ("POST", "/sessions/new", "new"),
     ("GET", "/subjects.json", "subjects"),
@@ -152,6 +154,9 @@ class Handler(BaseHTTPRequestHandler):
         inner = SESSION_PREFIX.match(path)
         inner = (inner.group(2) or "/") if inner else path
         if self.command == "GET" and status < 400 and self.QUIET_GET.match(inner):
+            return
+        # An error report writes its own `client:` line, rate-limited.
+        if inner == "/client-error" and status < 400:
             return
         length = ""
         try:
@@ -451,6 +456,8 @@ class Handler(BaseHTTPRequestHandler):
             if "code" in query:
                 out["code"] = {"running": code_stamp.LOADED, "tree": code_stamp.tree()}
             return self.send_json(out)
+        if how == "client-error":
+            return routes.machines.client_error(self)
         if how == "sessions":
             return self.send_json(self.session_listing(registry))
         if how == "new":

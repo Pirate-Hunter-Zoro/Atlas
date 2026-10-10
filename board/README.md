@@ -17,7 +17,9 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   `serve.py` on port 8778, loopback only. `tailscale serve` publishes it over HTTPS once.
 - **`serve.py`** serves every session at `/s/<id>/`, plus the unprefixed home, library and
   subject routes. `tutorboard/server/app.py` is the start. A session's Repo and Hub are made on
-  first use and dropped after 10 idle minutes (`server/registry.py`).
+  first use and dropped after 10 idle minutes (`server/registry.py`). Its listen backlog is
+  at least 128, because Tailscale's proxy opens over 40 connections at once for a
+  service-worker install and the kernel resets every one past the backlog into a 502.
 - **The hub** (`server/hub.py`) builds one payload per viewed session and pushes it over
   server-sent events: in full on connect, then as deltas. It reacts to file changes in the
   session directory and to routes marking it dirty.
@@ -166,8 +168,12 @@ tree gets a `doc.json` written in place, so its ids hold.
 - **Addresses** (`web/address.js`) have one grammar: `#/s/<session>`, then `/card/<nnnn>`,
   `/doc/<ident>[/p<n>]` or `/slate/<nnnn>`. Nothing else parses as an address.
 - **`sw.js`** caches an allowlist of shell files, fonts and KaTeX, and nothing else, because
-  a cached lesson is a stale one. The server writes its `VERSION` as a hash of the shell
-  files, so a shell edit installs a new worker by itself.
+  a cached lesson is a stale one. A 5xx counts as a failed fetch, so a cached shell file
+  answers instead. The install asks for 4 files at a time. The server writes its `VERSION` as
+  a hash of the shell files, so a shell edit installs a new worker by itself.
+- **`POST /client-error`** `{page, what, src, msg, stack, ua}` writes one `client:` line to
+  the server's log, each field cut to 300 characters and at most 20 a minute. A request the
+  proxy dropped never shows as a request line, so the page reports it.
 
 ## The relay
 

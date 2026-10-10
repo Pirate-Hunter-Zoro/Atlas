@@ -1,5 +1,5 @@
 """The server's own routes: health, the relay panel, the meeting deck, the
-provider setting, Colibri tasks and `/seen`.
+provider setting, Colibri tasks, `/seen` and a page's error report.
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
@@ -11,6 +11,8 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
+              POST /client-error: one line in the server's log, the same
+              under `/s/<id>/` and unprefixed
 
 `/meeting` asks the Meetings subject's tutor (`library.ask_meeting`); the
 deck is read, inked and corrected in that subject's library.
@@ -18,6 +20,7 @@ deck is read, inked and corrected in that subject's library.
 
 import json
 import os
+import threading
 import time
 import urllib.parse
 
@@ -61,7 +64,71 @@ def get(h, repo, path):
     return NOT_MINE
 
 
+# A page's error report: each field cut to this, the body refused over
+# CLIENT_BODY, and at most CLIENT_PER_MINUTE lines a minute from this process,
+# so a page failing in a loop cannot fill the log.
+CLIENT_FIELD = 300
+CLIENT_BODY = 8 * 1024
+CLIENT_PER_MINUTE = 20
+CLIENT_FIELDS = ("page", "what", "src", "msg", "stack", "ua")
+_client = {"window": 0.0, "count": 0, "dropped": 0}
+_client_lock = threading.Lock()
+
+
+def _client_field(payload, name):
+    """One field of a report, on one line and cut to CLIENT_FIELD; "-" for none."""
+    said = payload.get(name)
+    said = " ".join(str(said).split()) if said is not None else ""
+    return said[:CLIENT_FIELD] or "-"
+
+
+def client_error(h, now=None):
+    """POST /client-error {page, what, src, msg, stack, ua}: what a page could
+    not load or run, which no request line shows when a proxy dropped the
+    request, written as one `client:` line through `h.note`. `{ok: true}` for
+    any JSON object; past the rate the line is counted, not written."""
+    try:
+        length = int(h.headers.get("Content-Length") or 0)
+    except (TypeError, ValueError):
+        length = 0
+    if length > CLIENT_BODY:
+        # The body is unread; this connection carries nothing more.
+        h.close_connection = True
+        return h.send_json({"ok": False, "error": "a report is at most %d bytes"
+                            % CLIENT_BODY}, status=413)
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        payload = None
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    got = dict((k, _client_field(payload, k)) for k in CLIENT_FIELDS)
+    line = "client: %(page)s %(what)s %(src)s %(msg)s" % got
+    for extra in ("stack", "ua"):
+        if got[extra] != "-":
+            line += " | %s %s" % (extra, got[extra])
+    now = time.time() if now is None else now
+    with _client_lock:
+        dropped = 0
+        if now - _client["window"] >= 60:
+            dropped = _client["dropped"]
+            _client.update(window=now, count=0, dropped=0)
+        _client["count"] += 1
+        logged = _client["count"] <= CLIENT_PER_MINUTE
+        if not logged:
+            _client["dropped"] += 1
+    if dropped:
+        h.note("client: %d more report%s in the minute before this one went "
+               "unlogged" % (dropped, "" if dropped == 1 else "s"))
+    if logged:
+        h.note(line)
+    return h.send_json({"ok": True})
+
+
 def post(h, repo, path):
+    if path == "/client-error":
+        return client_error(h)
+
     # Only the page can say somebody is looking.
     if path == "/seen":
         # The session's own `seen`: the home screen's Continue row counts the
