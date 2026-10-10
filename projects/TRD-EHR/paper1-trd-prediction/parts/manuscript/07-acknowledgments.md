@@ -9,4 +9,4 @@ Section heading: Acknowledgments
 
 # Acknowledgments
 
-ChatGPT (OpenAI) assisted with language editing and organization of the manuscript and supplement. The authors are responsible for the final content.
+ChatGPT (OpenAI) and Claude (Anthropic) assisted with language editing and organization of the manuscript and Multimedia Appendix 1. Claude also assisted with software development: it guided the first author through implementing the analysis and wrote parts of the code, including figure generation and data-handling routines. The authors reviewed and verified all code and analyses and are responsible for the final content.

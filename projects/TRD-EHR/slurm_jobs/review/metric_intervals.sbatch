@@ -13,7 +13,7 @@
 # one: AUPRC, Brier, WCE and the binned calibration slope and intercept for the
 # 8 primary classifiers (Table 2, Tables S1, S3, S4), embedded logistic-
 # regression AUPRC for all 4 encoders (Table S2), and the cohort descriptives of
-# Figure 1 and Supplement S7, plus Figure S10D.
+# Figure 1 and Supplement S7, plus Figure S12D.
 #
 # Refits nothing. The three non-primary encoders are rescored from their saved
 # logistic regression and their own embeddings.db, and every recomputed ROC AUC

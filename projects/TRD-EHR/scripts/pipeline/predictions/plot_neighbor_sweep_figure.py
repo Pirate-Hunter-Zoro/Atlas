@@ -16,11 +16,10 @@ draws that figure from the sweep's own outputs and refits nothing:
     point, where a label lands on whichever curve passes it;
   * horizontal lines at the two leading trained classifiers, each with its 95% band.
 
-It runs once per encoder, on that encoder's RESULTS_DIR. The primary encoder's PNG is
-Figure 4, placed at 6in. Figure 5 is not these PNGs: it is one composite of the other
-three encoders' panels sharing one legend row, drawn after every sweep by
-plot_cross_embedder_retrieval with draw_curves below, so the composite and each
-encoder's own PNG draw the same lines from the same files.
+It runs once per encoder, on that encoder's RESULTS_DIR. The manuscript does not place
+these PNGs: Figure 4 is one composite of all four encoders' panels sharing one legend
+row, drawn after every sweep by plot_cross_embedder_retrieval with draw_curves below,
+so the composite and each encoder's own PNG draw the same curves from the same files.
 
 WHERE EACH CLASSIFIER LINE COMES FROM. Where a classifier's per-patient test
 predictions (test_predictions_{EMBEDDED,FEATURE}.parquet) sit in RESULTS_DIR, its line
@@ -79,7 +78,7 @@ METRIC_DISPLAY = {
 METRIC_COLOR = {"weighted": "#2a78d6", "plain": "#eb6834", "random": "#1baf7a"}
 
 # Type sizes in points on a FIGURE_SIZE canvas. The saved PNG is about 7.5in wide with
-# its legend, so at Figure 4's 6in placement every size shrinks by about 0.8.
+# its legend, so placed at 6in every size shrinks by about 0.8.
 FIGURE_SIZE = (7.0, 6.6)
 # The plot over the legend's own row: three two-line arm entries and two reference lines.
 LEGEND_ROW_RATIOS = (3.2, 1.9)
@@ -347,10 +346,10 @@ def reference_legend_label(label: str, auc: float, low: float, high: float) -> s
 
 def draw_curves(axis, curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
                 random_curve: pd.DataFrame = None, arm_label=arm_legend_label,
-                reference_label=reference_legend_label) -> dict:
+                reference_label=reference_legend_label, best_marker: dict = None) -> dict:
     """Every curve, band, best-k point and classifier line of one encoder, on one axis.
 
-    Both the single-encoder figure (build) and Figure 5's composite draw through this,
+    Both the single-encoder figure (build) and Figure 4's composite draw through this,
     so the two cannot disagree on what is drawn. Only the legend labels differ, and they
     are passed in.
 
@@ -365,6 +364,10 @@ def draw_curves(axis, curve: pd.DataFrame, intervals: pd.DataFrame, reference_au
         arm_label (callable): (metric, best, low, high) to the arm's legend label.
         reference_label (callable): (label, auc, low, high) to the line's legend label;
             a label starting with an underscore keeps the line out of the legend.
+        best_marker (dict, optional): Marker style for the best-k point. When given, the
+            point is its own artist carrying arm_label and the curve is left out of the
+            legend, so a legend can show the arm as a line and its best k as a marker.
+            When None, the point is a marker on the curve and the curve carries arm_label.
 
     Returns:
         dict: Arm to (best, ci_low, ci_high), as arm_best.
@@ -376,6 +379,11 @@ def draw_curves(axis, curve: pd.DataFrame, intervals: pd.DataFrame, reference_au
         axis.fill_between(band.n_neighbors, band.ci_low, band.ci_high,
                           color=color, alpha=0.15, linewidth=0)
         best, low, high = bests[metric] = arm_best(line, band)
+        if best_marker is not None:
+            axis.plot(line.n_neighbors, line.roc_auc, color=color, linewidth=2, label=f"_{metric}")
+            axis.plot([best.n_neighbors], [best.roc_auc], color=color, linestyle="none", zorder=5,
+                      label=arm_label(metric, best, low, high), **best_marker)
+            continue
         # The point sits on the curve and its numbers live in a legend: a label beside
         # the point lands on whichever curve or band passes through that corner.
         best_index = int(np.flatnonzero(line.n_neighbors.to_numpy() == best.n_neighbors)[0])

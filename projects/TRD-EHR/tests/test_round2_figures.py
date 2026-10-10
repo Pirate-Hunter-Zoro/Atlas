@@ -1,8 +1,9 @@
 """Guards on the figure text the 2026-10-06 pre-circulation review asked to change.
 
-(a) Figure 4/5: no best-k label sits on the plot; each arm's best k, value and interval
-    are in its legend entry. Figure 5 is one PNG, panels A-C over one shared legend row,
-    that fits a page with its caption at 6in wide.
+(a) Figure 4: no best-k label sits on the plot; each arm's best k, value and interval
+    are in a legend entry. Figure 4 is one PNG, all four encoders as panels A-D over one
+    shared legend row, that fits a page with its caption at 6in wide; each panel names
+    its embedding width, and a best k is a marker, never the line an arm is drawn as.
 (b) Figure 3: 300 dpi, the paper's encoder names, panel B called concept permutation and
     its axis permuted minus baseline.
 (c) Every confusion-matrix panel prints "F score", never the variable name, and the
@@ -68,7 +69,7 @@ def labelled_predictions(n=600, seed=0):
 
 
 # ---------------------------------------------------------------------------
-# (a) Figures 4 and 5
+# (a) Figure 4
 # ---------------------------------------------------------------------------
 def sweep_inputs():
     ks = np.arange(1, 3001)
@@ -109,27 +110,29 @@ def test_sweep_figure_is_written_at_300_dpi(tmp_path):
     assert round(dpi[0]) == 300
 
 
-def write_panel_sweep(directory: Path, embedded_auc: tuple) -> None:
-    """The files Figure 5 reads for one encoder, from sweep_inputs."""
+def write_panel_sweep(directory: Path, embedded_auc: tuple, width: int = 4096) -> None:
+    """The files Figure 4 reads for one encoder, from sweep_inputs."""
     curve, intervals, _, random_curve = sweep_inputs()
     sweep = directory / sweep_figure.SWEEP_DIR_NAME
     sweep.mkdir(parents=True)
     curve.to_csv(sweep / "sweep_curve.csv", index=False)
     intervals.to_csv(sweep / "sweep_intervals.csv", index=False)
     random_curve.to_csv(sweep / sweep_figure.RANDOM_CURVE, index=False)
+    (sweep / "sweep_summary.json").write_text(json.dumps({"dimension_importance": {"n_dimensions": width}}))
     (directory / "classical_ml_results_EMBEDDED.json").write_text(json.dumps({"logistic_regression": dict(
         zip(("roc_score", "roc_score_ci_low", "roc_score_ci_high"), embedded_auc))}))
 
 
-def test_figure_5_is_one_png_that_fits_a_page(tmp_path, monkeypatch, saved_text):
+def test_figure_4_is_one_png_that_fits_a_page(tmp_path, monkeypatch, saved_text):
     embedded = {"bge-small-en-v1.5": (0.645, 0.629, 0.660), "bge-en-icl": (0.655, 0.641, 0.670),
-                "Qwen-Qwen3-Embedding-4B": (0.656, 0.642, 0.671)}
+                "Qwen-Qwen3-Embedding-4B": (0.656, 0.642, 0.671),
+                "Qwen-Qwen3-Embedding-8B": (0.657, 0.643, 0.672)}
+    widths = {"bge-small-en-v1.5": 384, "bge-en-icl": 4096, "Qwen-Qwen3-Embedding-4B": 2560,
+              "Qwen-Qwen3-Embedding-8B": 4096}
     for name, auc in embedded.items():
-        write_panel_sweep(tmp_path / name, auc)
-    primary = tmp_path / cross_retrieval.PRIMARY_EMBEDDER
-    primary.mkdir()
-    (primary / "classical_ml_results_FEATURE.json").write_text(json.dumps({"xgboost": dict(
-        roc_score=0.649, roc_score_ci_low=0.634, roc_score_ci_high=0.664)}))
+        write_panel_sweep(tmp_path / name, auc, widths[name])
+    (tmp_path / cross_retrieval.PRIMARY_EMBEDDER / "classical_ml_results_FEATURE.json").write_text(
+        json.dumps({"xgboost": dict(roc_score=0.649, roc_score_ci_low=0.634, roc_score_ci_high=0.664)}))
     monkeypatch.setattr(cross_retrieval, "results_dir", lambda name: tmp_path / name)
     monkeypatch.setattr(cross_retrieval, "OUT_DIR", tmp_path)
 
@@ -138,30 +141,53 @@ def test_figure_5_is_one_png_that_fits_a_page(tmp_path, monkeypatch, saved_text)
     assert cross_retrieval.placed_height(path) <= 7.5
     assert round(Image.open(path).info["dpi"][0]) == 300
     text = saved_text[path.name]
-    titles = [t for t in text if re.match(r"^[ABC]   ", t)]
-    assert titles == ["A   bge-small-en-v1.5", "B   bge-en-icl", "C   Qwen3-Embedding-4B"]
-    # Each panel carries its own numbers; the shared line is named once, in the legend row.
-    assert sum("best k 3,000: 0.614 (0.604\u20130.624)" == t for t in text) == 3
+    titles = [t for t in text if re.match(r"^[ABCD]   ", t)]
+    assert titles == ["A   bge-small-en-v1.5", "B   bge-en-icl", "C   Qwen3-Embedding-4B",
+                      "D   Qwen3-Embedding-8B"]
+    for width in ("384", "4,096", "2,560"):
+        assert f"{width} embedding dimensions" in text
+    # Each panel carries its own nearest-arm numbers; the random arm and the shared line
+    # are named once, in the legend row.
+    assert sum("best k = 3,000: 0.614 (0.604\u20130.624)" == t for t in text) == 4
     for auc, low, high in embedded.values():
         assert f"{auc:.3f} ({low:.3f}\u2013{high:.3f})" in text
-    assert sum("FEATURE XGBoost" in t for t in text) == 1
-    assert "0.649 (95% CI 0.634\u20130.664)" in [t for t in text if "FEATURE XGBoost" in t][0]
+    assert sum("Feature-vector XGBoost" in t for t in text) == 1
+    assert "0.649 (95% CI 0.634\u20130.664)" in [t for t in text if "Feature-vector XGBoost" in t][0]
     random_entries = [t for t in text if t.startswith("Random neighbors")]
     assert len(random_entries) == 1 and "percentile of draws" in random_entries[0]
 
 
-def test_figure_5_draws_what_each_encoders_own_figure_draws():
-    """The composite and the single-encoder figure plot identical lines from the same inputs."""
+def test_figure_4_draws_a_best_k_differently_from_an_arm():
+    """In the legends an arm is a line with no marker and a best k is a marker with no line."""
+    curve, intervals, references, random_curve = sweep_inputs()
+    inputs = {"curve": curve, "intervals": intervals, "random_curve": random_curve,
+              "reference_aucs": references, "n_dimensions": 4096}
+    figure, axes = cross_retrieval.build_panels([("bge-en-icl", inputs)] * 4, references["FEATURE XGBoost"])
+    legends = [a.get_legend() for a in figure.axes if a.get_legend() is not None]
+    arms, bests = [], []
+    for legend in legends:
+        for handle, text in zip(legend.legend_handles, legend.get_texts()):
+            if handle.get_color() not in sweep_figure.METRIC_COLOR.values() and "Best k" not in text.get_text():
+                continue
+            (bests if handle.get_marker() not in (None, "None", "") else arms).append(handle)
+    assert arms and bests
+    assert all(h.get_linestyle() != "None" and h.get_marker() in (None, "None", "") for h in arms)
+    assert all(h.get_linestyle() == "None" and h.get_marker() == "D" for h in bests)
+    plt.close(figure)
+
+
+def test_figure_4_draws_what_each_encoders_own_figure_draws():
+    """The composite and the single-encoder figure plot identical curves from the same inputs."""
     curve, intervals, references, random_curve = sweep_inputs()
     single, single_axis = sweep_figure.build(curve, intervals, references, random_curve)
     inputs = {"curve": curve, "intervals": intervals, "random_curve": random_curve,
-              "reference_aucs": references}
-    panels, axes = cross_retrieval.build_panels([("bge-en-icl", inputs)] * 3, references["FEATURE XGBoost"])
-    def lines(axis):
+              "reference_aucs": references, "n_dimensions": 4096}
+    panels, axes = cross_retrieval.build_panels([("bge-en-icl", inputs)] * 4, references["FEATURE XGBoost"])
+    def curves(axis):
         return [(tuple(line.get_xdata()), tuple(line.get_ydata()), line.get_color(), line.get_linestyle())
-                for line in axis.get_lines()]
+                for line in axis.get_lines() if len(line.get_xdata()) > 1 and line.get_linestyle() == "-"]
     for axis in axes:
-        assert lines(axis) == lines(single_axis)
+        assert curves(axis) == curves(single_axis)
         assert axis.get_ylim() == single_axis.get_ylim()
     plt.close(single)
     plt.close(panels)

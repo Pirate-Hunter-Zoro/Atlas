@@ -11,7 +11,7 @@ Section heading: Title page
 
 **Title.** Feature Vectors and Narrative Embeddings for Predicting a Treatment Switching Proxy for Treatment Resistant Depression: Retrospective Cohort Study
 
-Mikey Ferguson, BS¹; Martin Paulus, MD¹; Rayus Kuplicki, PhD¹; Katherine L. Forthman, MS¹; Dale Peasley, MS¹; Sandip Sen, PhD²
+Mikey Ferguson, BS¹; Martin Paulus, MD¹; Katherine L. Forthman, MS¹; Rayus Kuplicki, PhD¹; Dale Peasley, MS¹; Sandip Sen, PhD²
 
 ¹ Laureate Institute for Brain Research, Tulsa, Oklahoma, United States\
 ² The University of Tulsa, Tulsa, Oklahoma, United States
@@ -30,9 +30,9 @@ Mikey Ferguson 0009-0005-1365-5609
 
 Martin Paulus 0000-0002-0825-3606
 
-Rayus Kuplicki 0000-0003-2954-6421
-
 Katherine L. Forthman 0000-0002-8695-8388
+
+Rayus Kuplicki 0000-0003-2954-6421
 
 Dale Peasley 0009-0003-7696-595X
 

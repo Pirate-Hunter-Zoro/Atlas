@@ -35,7 +35,7 @@ ABLATION_SPECS = ["permute_psych_history", "permute_med_burden"]
 ABLATION_NAMES = [next(a['display'] for a in ABLATIONS if a['id'] == spec) for spec in ABLATION_SPECS]
 
 EMBEDDERS = ["bge-small-en-v1.5", "bge-en-icl", "Qwen-Qwen3-Embedding-4B", "Qwen-Qwen3-Embedding-8B"]
-# Short annotations for plot_cross_embedder_retrieval (Figure 6). Figure 3 prints the
+# Short annotations for plot_cross_embedder_retrieval (Supplementary Figures S10-S11). Figure 3 prints the
 # full names, encoder_display.
 SHORT_NAME_EMBS = ["bge-small", "bge-en-icl", "Qwen3-4B", "Qwen3-8B"]
 

@@ -378,6 +378,10 @@ numbers, so a run that could overwrite one would make the comparison unfalsifiab
     apply. Each contrast also carries a two-sided bootstrap p-value taken from the same
     draws, BH-adjusted across every contrast reported, since the multiplicity that matters
     is the number of comparisons a reader is shown.
+  * **One model per arm in the tables and forest plots** (`PRIMARY_BY_ARM`): each arm's
+    leading model, embedded logistic regression, feature-vector XGBoost and
+    logistic-regression-weighted retrieval. Every model is scored and contrasted either
+    way, so changing a representative is a `--replot`, not a rerun.
   * **Calibration slope** is the coefficient of a logistic regression of the outcome on
     the logit of predicted risk, not `compute_metrics`' binned fit, which at a few thousand
     rows describes the bin grid more than the model.
@@ -390,6 +394,10 @@ numbers, so a run that could overwrite one would make the comparison unfalsifiab
     `N_BOOTSTRAP` resamples and scoring an AUC per draw. `SUBGROUP_JOBS` fans both loops
     over cores with joblib; every unit re-seeds from `SEED`, so results do not depend on
     how the work was split.
+  * **`subgroup_surviving_contrasts.png`** is manuscript Figure 5: every contrast that
+    survives BH, every model rather than one per arm, clinical families above
+    sociodemographic ones, each contrast headed by its group size and events.
+    `--replot` redraws it, with every other table and figure, from the saved CSVs.
 
 ### 5d. Importance-Weighted KNN & Neighborhood-Size Sweep (`scripts/pipeline/predictions`)
 
@@ -462,7 +470,8 @@ are untouched.
     into `results/`. CPU only: about 7 minutes for the cosine arms and 10-15 more for the random
     draws on 32 CPUs.
 
-* **`plot_neighbor_sweep_figure.py`**: Figure 4. The two cosine arms at alpha 1 with bootstrap
+* **`plot_neighbor_sweep_figure.py`**: one encoder's sweep figure, and `draw_curves`, which
+  Figure 4 draws every panel through. The two cosine arms at alpha 1 with bootstrap
   bands, the random arm's mean inside its across-draw band, a point and interval at each arm's
   best k, and the two leading classifiers as horizontal bands. No line at k = 50. Also writes
   `retrieval_paired_deltas.json`: best retrieval minus each classifier and weighted minus plain,
@@ -477,6 +486,24 @@ are untouched.
   carries a bootstrap 95% CI, collected in `best_k_panels.json`; the confusion matrix holds its
   threshold fixed across resamples. A redrawn AUC that disagrees with `sweep_summary.json` is an
   error.
+
+* **`plot_cross_embedder_retrieval.py`**: reads all four encoders' sweeps and fitted embedded
+  logistic regressions and refits nothing. Writes, into `ARTIFACTS_DIR/cross_embedder_retrieval/`:
+  * `neighbor_count_sweep_panels.png`, manuscript Figure 4: the four encoders as panels A-D in
+    a two-by-two grid. Each title gives the encoder's embedding width. An arm is a coloured
+    line and its best k a black-edged diamond, so the legend never draws the two alike. Each
+    panel's best-k numbers sit under it; the random arm, identical in every panel, and the
+    shared feature-vector XGBoost line are named once in the legend row. Refuses to write a
+    PNG taller than 7.5in at 6in wide.
+  * `lr_dimensions_vs_best_k.png` (Supplementary Figure S10): the fewest dimensions holding 90%
+    of the logistic regression's absolute coefficient mass, against each metric's best k.
+  * `lr_dimension_share_vs_best_k.png` (Supplementary Figure S11): the same count divided by
+    the encoder's width. The share tracks the penalty the grid search chose: about 65% for
+    the two L2 fits, about 6% for the two elastic-net fits.
+  * `embedding_dimensions_vs_lr_dimensions.png` (not placed) and `cross_embedder_retrieval.csv`,
+    every number the figures draw.
+  * Submit `slurm_jobs/quick_runs/plot_cross_embedder_retrieval.sbatch` after all four sweeps;
+    it mirrors the folder into `results/cross_embedder_retrieval/`.
 
 ### 6. Models (`scripts/models`)
 

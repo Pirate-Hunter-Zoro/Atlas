@@ -25,9 +25,12 @@ arm does not use the embedding, so it is drawn once.
 
 EVERY NUMBER CARRIES AN INTERVAL. Classifier AUPRC, Brier, WCE and binned
 calibration intervals (Tables S1-S4), the encoder AUPRCs (Table S2), and the S7
-correlations and proportions with Figure S10D come from
+correlations and proportions with Figure S12D come from
 scripts/pipeline/review/metric_intervals.py, in results/review/metric_intervals/.
-S9's calibration intervals are in results/review/subgroups/subgroup_performance.csv. Figures S4C-E, S5C-E, S8 and S9 are drawn at each arm's
+S9's calibration intervals are in results/review/subgroups/subgroup_performance.csv. Figures S10-S11 (S6, LR dimensions against best k, the count and the
+count as a share of the encoder's width) are drawn by
+scripts/pipeline/predictions/plot_cross_embedder_retrieval.py into
+results/cross_embedder_retrieval/. Figures S4C-E, S5C-E, S8 and S9 are drawn at each arm's
 best k by scripts/pipeline/predictions/best_k_panels.py, run per encoder by
 slurm_jobs/quick_runs/neighbor_count_sweep.sbatch into
 results/<encoder>/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/.
@@ -234,7 +237,7 @@ Permutation does not establish equitable labeling or performance. Correlated dia
 
 # M12 Evaluation Coverage
 
-Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. All 4 encoders received both similarity metrics, random retrieval, and the neighborhood-size sweep under the same rules, each weighted by its own embedded logistic regression (manuscript, Nearest-Neighbor Retrieval Across Encoders; Figures 4--6). ROC curves and confusion matrices at best k are reported for all 4 encoders (section S6). Paired contrasts, the precision--recall and calibration panels at best k (sections S2--S3), and the subgroup analyses describe the primary encoder only.
+Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. All 4 encoders received both similarity metrics, random retrieval, and the neighborhood-size sweep under the same rules, each weighted by its own embedded logistic regression (manuscript, Nearest-Neighbor Retrieval Across Encoders; manuscript Figure 4; section S6). ROC curves and confusion matrices at best k are reported for all 4 encoders (section S6). Paired contrasts, the precision--recall and calibration panels at best k (sections S2--S3), and the subgroup analyses describe the primary encoder only.
 
 # M13 Performance Metrics and Uncertainty
 
@@ -474,7 +477,7 @@ Table S6. Nested k-means results within each parent cluster. Token proportions d
   A: no "episode" token (14,438)   recurrent + severity (11,425) / unspecified (3,013)   recurrent           0.98 / 0.00                        0.69                                      Stronger
   B: single-episode (28,141)       sparse record (6,594) / populated record (21,547)     missing             0.88 / 0.02                        0.21                                      Weaker
 
-These findings show sensitivity of the smallest encoder's geometry to diagnostic wording and missing-value tokens. They may help explain its retrieval behavior, but do not establish why its discrimination was lower (Table S15). Primary analyses used Qwen3-Embedding-8B.
+These findings show sensitivity of the smallest encoder's geometry to diagnostic wording and missing-value tokens. They may help explain its retrieval behavior, but do not establish why its discrimination was lower (section S12.3). Primary analyses used Qwen3-Embedding-8B.
 
 # S5 Example Patient Narratives
 
@@ -568,7 +571,7 @@ TRD-negative example.
 
 Retrieval over the embedding carried outcome information but did not reach the trained classifiers at any k. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at every k from 1 to 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
 
-Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4). From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the logistic-regression-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
+Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4D). From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the logistic-regression-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
 
 The best retrieval result over every k and exponent was logistic-regression-weighted retrieval with $\alpha$ = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It remained below feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and below embedded logistic regression by 0.032 (95% CI 0.022--0.043), from paired bootstrap resampling of the 8,516 test patients.
 
@@ -660,11 +663,25 @@ I Qwen3-Embedding-4B, plain-cosine nearest retrieval, k = 493
 
 Figure S9. Confusion matrices for the 9 panels of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold; the panels' F score is F1. These operating points were selected and evaluated in the same patients and are descriptive.
 
+Each encoder's logistic regression relied on a similar number of embedding dimensions for 3 of the 4 encoders. The fewest dimensions holding 90% of the absolute coefficient mass were 253 for bge-small-en-v1.5, 271 for bge-en-icl, 1,626 for Qwen3-Embedding-4B, and 236 for Qwen3-Embedding-8B. These counts describe each fitted model and carry no sampling interval. Best k did not follow them. Qwen3-Embedding-4B used the most dimensions, yet its best k, 684 and 493 for the 2 metrics, lay inside the range of the other encoders (Figure S10).
+
+Dividing each count by the encoder's number of dimensions gives the share the model relied on: 65.9% for bge-small-en-v1.5 (253 of 384), 6.6% for bge-en-icl (271 of 4,096), 63.5% for Qwen3-Embedding-4B (1,626 of 2,560), and 5.8% for Qwen3-Embedding-8B (236 of 4,096). The share split the encoders by penalty, not by size. The grid search chose an L2 penalty for the 2 encoders near 65%, which keeps every coefficient, and an elastic-net penalty for the 2 near 6%, which sets most coefficients to zero. Best k did not follow the share either (Figure S11). The 2 encoders near 6% had both the highest and the lowest logistic-regression-weighted best k, 1,519 and 295.
+
+These counts describe a fitted model in its own coordinates. They do not measure how many independent risk factors the records hold, and they need not match the number of neighbors that predicts best. With 4 encoders, both figures describe a relation and do not test one.
+
+![](../results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png){width=5.6in}
+
+Figure S10. Logistic-regression dimensions against best k for the 4 encoders. The horizontal axis is the fewest embedding dimensions holding 90% of the absolute coefficient mass of each encoder's embedded logistic regression. The vertical axis is the best k of logistic-regression-weighted (filled markers) and plain cosine retrieval (open markers), chosen on the test patients and therefore optimistic. Both axes are logarithmic. In-plot labels abbreviate bge-small-en-v1.5, Qwen3-Embedding-4B, and Qwen3-Embedding-8B.
+
+![](../results/cross_embedder_retrieval/lr_dimension_share_vs_best_k.png){width=5.6in}
+
+Figure S11. Share of embedding dimensions against best k for the 4 encoders. The horizontal axis is the count in Figure S10 divided by the encoder's number of embedding dimensions; each label gives the count and the total. The vertical axis is as in Figure S10 and is logarithmic. The 2 encoders near 65% were fitted with an L2 penalty and the 2 near 6% with an elastic-net penalty.
+
 # S7 Record Length and Prediction
 
 We examined record volume descriptively by correlating the outcome with history length, encounter count, and the diagnosis-to-index interval, then assessed neighbor-prediction discrimination across history-length quintiles.
 
-Using the full recorded history, outcome correlations were small: Spearman ρ=−0.073 (95% CI −0.082 to −0.064) for pre-index history length, −0.064 (95% CI −0.073 to −0.054) for encounter count, and −0.029 (95% CI −0.038 to −0.020) for diagnosis-to-index interval. Prescribing on the day of diagnosis or the next day occurred in 27,906 patients, with outcome frequency 18.4% (95% CI 17.9--18.8), compared with 14,673 patients and 15.9% (95% CI 15.3--16.5) for later prescribing. These weak marginal relationships do not rule out care-process contributions to prediction.
+Using the full recorded history, outcome correlations were small: Spearman ρ=−0.073 (95% CI −0.082 to −0.064) for pre-index history length, −0.064 (95% CI −0.073 to −0.054) for encounter count, and −0.029 (95% CI −0.038 to −0.020) for diagnosis-to-index interval. Prescribing on the day of diagnosis or the next day occurred in 27,906 patients, with outcome frequency 18.4% (95% CI 17.9--18.8), compared with 14,673 patients and 15.9% (95% CI 15.3--16.5) for later prescribing (Figure S12). These weak marginal relationships do not rule out care-process contributions to prediction.
 
 A Pre-index history length
 
@@ -682,9 +699,9 @@ D Outcome frequency by prescription timing
 
 ![](../results/review/metric_intervals/trd_rate_by_prescription_timing.png){width=5.7in}
 
-Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
+Figure S12. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled. D compares prescribing within 1 day of diagnosis (the day of diagnosis or the next day) with prescribing 2 or more days later. Bars carry Wilson 95% CIs, and each bar is labeled with its outcome frequency and counts. The dashed line is the cohort outcome frequency, 17.5%, with its 95% CI (17.2--17.9) shaded.
 
-The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6. The best k was chosen on all test patients, so these values are optimistic in the same way.
+The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6 (Table S8). The best k was chosen on all test patients, so these values are optimistic in the same way.
 
 Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (embedded representation, held-out test set, $\alpha$ = 1), with bootstrap 95% CIs within each quintile. Days are the quintile's bounds of pre-index history. Weighted: logistic-regression-weighted cosine; plain: plain cosine. Random retrieval uses uniform weights and the draw whose AUC at its best k is closest to the mean of 1,000 draws.
 
@@ -769,124 +786,126 @@ The individual-level calibration slope was estimated by logistic regression of o
 
 ## S9.2 Sociodemographic strata
 
-Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
+Table S10 gives discrimination and calibration within each sociodemographic stratum, and Figure S13 plots the discrimination.
+
+Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
 
 | **Group** | **n** | **Events** | **Arm** | **ROC AUC (95% CI)** | **Brier (95% CI)** | **Logistic slope (95% CI)** | **Mean risk difference (95% CI)** |
 | -------------------- | ---------: | -----------: | -------- | ---------------- | ---------------- | -------------- | ------------------ |
 | All held-out patients | 8,516 | 1,491 | E LR | 0.657 (0.643--0.672) | 0.137 (0.132--0.142) | 0.97 (0.88--1.06) | +0.000 (−0.007 to +0.008) |
-| All held-out patients | 8,516 | 1,491 | F LR | 0.629 (0.613--0.644) | 0.139 (0.134--0.144) | 0.95 (0.84--1.05) | −0.000 (−0.008 to +0.008) |
+| All held-out patients | 8,516 | 1,491 | F XGB | 0.649 (0.634--0.664) | 0.138 (0.132--0.143) | 1.25 (1.13--1.37) | +0.000 (−0.008 to +0.008) |
 | All held-out patients | 8,516 | 1,491 | N WTD | 0.625 (0.610--0.641) | 0.140 (0.134--0.145) | 1.15 (1.01--1.29) | −0.004 (−0.012 to +0.005) |
 | Male | 2,347 | 386 | E LR | 0.653 (0.622--0.682) | 0.131 (0.121--0.140) | 0.94 (0.76--1.13) | −0.003 (−0.017 to +0.012) |
-| Male | 2,347 | 386 | F LR | 0.626 (0.595--0.655) | 0.133 (0.123--0.143) | 0.86 (0.65--1.07) | −0.003 (−0.017 to +0.012) |
+| Male | 2,347 | 386 | F XGB | 0.654 (0.624--0.683) | 0.131 (0.122--0.140) | 1.18 (0.96--1.42) | +0.006 (−0.007 to +0.021) |
 | Male | 2,347 | 386 | N WTD | 0.625 (0.595--0.653) | 0.133 (0.124--0.142) | 1.04 (0.78--1.28) | −0.001 (−0.014 to +0.013) |
 | Female | 6,168 | 1,105 | E LR | 0.658 (0.641--0.675) | 0.139 (0.134--0.145) | 0.98 (0.87--1.09) | +0.002 (−0.007 to +0.011) |
-| Female | 6,168 | 1,105 | F LR | 0.630 (0.612--0.648) | 0.141 (0.136--0.147) | 0.99 (0.86--1.12) | +0.001 (−0.008 to +0.010) |
+| Female | 6,168 | 1,105 | F XGB | 0.647 (0.630--0.664) | 0.140 (0.134--0.146) | 1.27 (1.14--1.42) | −0.002 (−0.011 to +0.007) |
 | Female | 6,168 | 1,105 | N WTD | 0.624 (0.607--0.642) | 0.142 (0.136--0.148) | 1.20 (1.04--1.37) | −0.005 (−0.013 to +0.004) |
 | White/Caucasian | 6,835 | 1,181 | E LR | 0.657 (0.640--0.674) | 0.136 (0.130--0.141) | 0.97 (0.87--1.08) | +0.002 (−0.007 to +0.010) |
-| White/Caucasian | 6,835 | 1,181 | F LR | 0.633 (0.615--0.652) | 0.137 (0.132--0.143) | 0.98 (0.84--1.11) | +0.001 (−0.008 to +0.009) |
+| White/Caucasian | 6,835 | 1,181 | F XGB | 0.656 (0.639--0.673) | 0.136 (0.130--0.141) | 1.28 (1.14--1.44) | −0.000 (−0.009 to +0.008) |
 | White/Caucasian | 6,835 | 1,181 | N WTD | 0.633 (0.615--0.650) | 0.138 (0.132--0.143) | 1.22 (1.06--1.38) | −0.004 (−0.013 to +0.005) |
 | Non-White (recorded) | 1,631 | 302 | E LR | 0.652 (0.620--0.684) | 0.144 (0.133--0.155) | 0.95 (0.74--1.16) | −0.004 (−0.023 to +0.013) |
-| Non-White (recorded) | 1,631 | 302 | F LR | 0.608 (0.573--0.643) | 0.147 (0.136--0.160) | 0.79 (0.56--1.02) | −0.004 (−0.024 to +0.013) |
+| Non-White (recorded) | 1,631 | 302 | F XGB | 0.616 (0.579--0.650) | 0.146 (0.136--0.158) | 1.07 (0.75--1.36) | +0.000 (−0.019 to +0.017) |
 | Non-White (recorded) | 1,631 | 302 | N WTD | 0.587 (0.553--0.620) | 0.148 (0.138--0.161) | 0.85 (0.53--1.15) | −0.004 (−0.024 to +0.013) |
 | Race not recorded | 50 | 8 | E LR | not estimable | — | — | — |
-| Race not recorded | 50 | 8 | F LR | not estimable | — | — | — |
+| Race not recorded | 50 | 8 | F XGB | not estimable | — | — | — |
 | Race not recorded | 50 | 8 | N WTD | not estimable | — | — | — |
 | Age band: 18-29 | 1,085 | 218 | E LR | 0.611 (0.568--0.654) | 0.156 (0.142--0.171) | 0.78 (0.49--1.07) | +0.003 (−0.022 to +0.026) |
-| Age band: 18-29 | 1,085 | 218 | F LR | 0.570 (0.524--0.615) | 0.160 (0.146--0.174) | 0.60 (0.22--0.92) | +0.012 (−0.014 to +0.036) |
+| Age band: 18-29 | 1,085 | 218 | F XGB | 0.588 (0.544--0.628) | 0.157 (0.144--0.172) | 0.96 (0.50--1.39) | +0.001 (−0.025 to +0.024) |
 | Age band: 18-29 | 1,085 | 218 | N WTD | 0.578 (0.535--0.620) | 0.158 (0.144--0.174) | 0.81 (0.40--1.24) | −0.007 (−0.033 to +0.016) |
 | Age band: 30-44 | 1,827 | 372 | E LR | 0.653 (0.621--0.682) | 0.154 (0.144--0.165) | 0.95 (0.76--1.14) | −0.002 (−0.021 to +0.016) |
-| Age band: 30-44 | 1,827 | 372 | F LR | 0.636 (0.605--0.667) | 0.155 (0.145--0.167) | 1.00 (0.78--1.24) | −0.002 (−0.020 to +0.016) |
+| Age band: 30-44 | 1,827 | 372 | F XGB | 0.649 (0.617--0.681) | 0.154 (0.144--0.166) | 1.35 (1.08--1.66) | −0.004 (−0.023 to +0.014) |
 | Age band: 30-44 | 1,827 | 372 | N WTD | 0.610 (0.578--0.642) | 0.158 (0.147--0.170) | 1.08 (0.78--1.36) | −0.015 (−0.035 to +0.002) |
 | Age band: 45-64 | 2,636 | 473 | E LR | 0.652 (0.623--0.679) | 0.140 (0.130--0.148) | 0.98 (0.81--1.15) | +0.007 (−0.006 to +0.022) |
-| Age band: 45-64 | 2,636 | 473 | F LR | 0.607 (0.580--0.636) | 0.143 (0.133--0.151) | 0.88 (0.68--1.10) | −0.001 (−0.014 to +0.014) |
+| Age band: 45-64 | 2,636 | 473 | F XGB | 0.642 (0.614--0.671) | 0.140 (0.131--0.149) | 1.24 (1.01--1.48) | +0.005 (−0.008 to +0.020) |
 | Age band: 45-64 | 2,636 | 473 | N WTD | 0.624 (0.594--0.651) | 0.142 (0.133--0.151) | 1.16 (0.91--1.42) | −0.002 (−0.015 to +0.013) |
 | Age band: 65+ | 2,968 | 428 | E LR | 0.658 (0.630--0.682) | 0.117 (0.108--0.126) | 1.10 (0.92--1.28) | −0.005 (−0.017 to +0.008) |
-| Age band: 65+ | 2,968 | 428 | F LR | 0.641 (0.614--0.669) | 0.119 (0.110--0.127) | 1.18 (0.95--1.43) | −0.003 (−0.016 to +0.010) |
+| Age band: 65+ | 2,968 | 428 | F XGB | 0.660 (0.631--0.687) | 0.118 (0.109--0.126) | 1.42 (1.19--1.66) | −0.002 (−0.015 to +0.011) |
 | Age band: 65+ | 2,968 | 428 | N WTD | 0.624 (0.595--0.651) | 0.119 (0.111--0.128) | 1.28 (1.02--1.54) | +0.003 (−0.010 to +0.016) |
 | Marital status: Divorced | 882 | 211 | E LR | 0.640 (0.593--0.681) | 0.173 (0.156--0.191) | 0.90 (0.64--1.14) | −0.046 (−0.074 to −0.018) |
-| Marital status: Divorced | 882 | 211 | F LR | 0.607 (0.563--0.649) | 0.177 (0.159--0.194) | 0.85 (0.52--1.16) | −0.049 (−0.077 to −0.021) |
+| Marital status: Divorced | 882 | 211 | F XGB | 0.633 (0.590--0.673) | 0.175 (0.158--0.193) | 1.12 (0.79--1.45) | −0.053 (−0.082 to −0.026) |
 | Marital status: Divorced | 882 | 211 | N WTD | 0.607 (0.561--0.646) | 0.179 (0.161--0.197) | 1.07 (0.69--1.42) | −0.061 (−0.089 to −0.034) |
 | Marital status: Never Married | 2,364 | 438 | E LR | 0.634 (0.609--0.661) | 0.145 (0.137--0.155) | 0.85 (0.69--1.02) | +0.013 (−0.003 to +0.028) |
-| Marital status: Never Married | 2,364 | 438 | F LR | 0.598 (0.569--0.627) | 0.149 (0.140--0.159) | 0.72 (0.52--0.93) | +0.016 (+0.000 to +0.031) |
+| Marital status: Never Married | 2,364 | 438 | F XGB | 0.620 (0.595--0.649) | 0.146 (0.137--0.156) | 1.12 (0.88--1.37) | +0.011 (−0.005 to +0.026) |
 | Marital status: Never Married | 2,364 | 438 | N WTD | 0.590 (0.562--0.619) | 0.149 (0.139--0.159) | 0.85 (0.61--1.12) | +0.002 (−0.014 to +0.016) |
 | Marital status: Now Married | 4,251 | 694 | E LR | 0.670 (0.650--0.690) | 0.129 (0.122--0.136) | 1.05 (0.92--1.19) | −0.001 (−0.012 to +0.009) |
-| Marital status: Now Married | 4,251 | 694 | F LR | 0.644 (0.623--0.666) | 0.131 (0.124--0.138) | 1.10 (0.93--1.28) | −0.002 (−0.013 to +0.008) |
+| Marital status: Now Married | 4,251 | 694 | F XGB | 0.660 (0.639--0.681) | 0.130 (0.123--0.136) | 1.35 (1.17--1.54) | +0.002 (−0.009 to +0.012) |
 | Marital status: Now Married | 4,251 | 694 | N WTD | 0.640 (0.619--0.663) | 0.131 (0.125--0.138) | 1.31 (1.12--1.52) | +0.002 (−0.009 to +0.013) |
 | Marital status: Separated | 99 | 21 | E LR | 0.518 (0.364--0.673) | 0.171 (0.123--0.224) | 0.08 (−1.14 to 1.24) | +0.001 (−0.088 to +0.082) |
-| Marital status: Separated | 99 | 21 | F LR | 0.518 (0.357--0.687) | 0.169 (0.117--0.220) | 0.30 (−1.07 to 1.63) | −0.003 (−0.090 to +0.078) |
+| Marital status: Separated | 99 | 21 | F XGB | 0.609 (0.442--0.764) | 0.164 (0.115--0.214) | 0.72 (−0.56 to 2.60) | −0.006 (−0.094 to +0.071) |
 | Marital status: Separated | 99 | 21 | N WTD | 0.581 (0.418--0.741) | 0.162 (0.112--0.215) | 0.73 (−0.74 to 2.45) | −0.018 (−0.103 to +0.060) |
 | Marital status: Widowed | 891 | 120 | E LR | 0.654 (0.597--0.708) | 0.111 (0.097--0.125) | 1.09 (0.73--1.45) | +0.022 (+0.000 to +0.043) |
-| Marital status: Widowed | 891 | 120 | F LR | 0.625 (0.572--0.678) | 0.112 (0.097--0.127) | 1.17 (0.76--1.61) | +0.017 (−0.005 to +0.039) |
+| Marital status: Widowed | 891 | 120 | F XGB | 0.643 (0.587--0.693) | 0.112 (0.097--0.127) | 1.31 (0.87--1.74) | +0.017 (−0.004 to +0.039) |
 | Marital status: Widowed | 891 | 120 | N WTD | 0.623 (0.565--0.678) | 0.113 (0.098--0.128) | 1.22 (0.70--1.76) | +0.015 (−0.007 to +0.038) |
 | Smoking status: Current Smoker | 1,126 | 243 | E LR | 0.667 (0.631--0.706) | 0.158 (0.144--0.172) | 1.01 (0.80--1.27) | −0.009 (−0.032 to +0.014) |
-| Smoking status: Current Smoker | 1,126 | 243 | F LR | 0.617 (0.575--0.660) | 0.162 (0.148--0.176) | 0.87 (0.61--1.15) | −0.011 (−0.034 to +0.013) |
+| Smoking status: Current Smoker | 1,126 | 243 | F XGB | 0.658 (0.620--0.698) | 0.161 (0.146--0.174) | 1.25 (0.95--1.58) | −0.014 (−0.037 to +0.010) |
 | Smoking status: Current Smoker | 1,126 | 243 | N WTD | 0.609 (0.569--0.649) | 0.163 (0.149--0.177) | 1.12 (0.79--1.49) | −0.020 (−0.043 to +0.004) |
 | Smoking status: Former Smoker | 2,532 | 443 | E LR | 0.663 (0.636--0.690) | 0.137 (0.128--0.146) | 0.98 (0.82--1.15) | +0.003 (−0.012 to +0.017) |
-| Smoking status: Former Smoker | 2,532 | 443 | F LR | 0.633 (0.603--0.660) | 0.140 (0.130--0.150) | 0.89 (0.69--1.10) | +0.001 (−0.014 to +0.015) |
+| Smoking status: Former Smoker | 2,532 | 443 | F XGB | 0.654 (0.627--0.683) | 0.138 (0.128--0.147) | 1.22 (1.00--1.44) | −0.003 (−0.018 to +0.011) |
 | Smoking status: Former Smoker | 2,532 | 443 | N WTD | 0.632 (0.603--0.659) | 0.139 (0.130--0.149) | 1.16 (0.92--1.39) | −0.005 (−0.020 to +0.009) |
 | Smoking status: Never Smoker | 4,788 | 793 | E LR | 0.646 (0.623--0.665) | 0.132 (0.126--0.139) | 0.93 (0.80--1.05) | +0.001 (−0.009 to +0.011) |
-| Smoking status: Never Smoker | 4,788 | 793 | F LR | 0.625 (0.603--0.645) | 0.133 (0.127--0.140) | 0.99 (0.82--1.13) | +0.002 (−0.008 to +0.012) |
+| Smoking status: Never Smoker | 4,788 | 793 | F XGB | 0.639 (0.616--0.660) | 0.132 (0.126--0.139) | 1.26 (1.06--1.44) | +0.005 (−0.005 to +0.015) |
 | Smoking status: Never Smoker | 4,788 | 793 | N WTD | 0.618 (0.596--0.638) | 0.134 (0.128--0.141) | 1.13 (0.92--1.30) | +0.001 (−0.009 to +0.011) |
 | Religion: Catholic | 608 | 93 | E LR | 0.695 (0.634--0.754) | 0.120 (0.104--0.139) | 1.29 (0.88--1.77) | +0.009 (−0.018 to +0.034) |
-| Religion: Catholic | 608 | 93 | F LR | 0.648 (0.587--0.710) | 0.124 (0.106--0.143) | 1.06 (0.63--1.54) | +0.002 (−0.027 to +0.028) |
+| Religion: Catholic | 608 | 93 | F XGB | 0.681 (0.619--0.737) | 0.122 (0.105--0.140) | 1.52 (1.02--2.07) | +0.011 (−0.018 to +0.036) |
 | Religion: Catholic | 608 | 93 | N WTD | 0.658 (0.598--0.713) | 0.124 (0.107--0.143) | 1.52 (0.98--2.08) | +0.011 (−0.017 to +0.037) |
 | Religion: Non-Christian | 50 | 16 | E LR | not estimable | — | — | — |
-| Religion: Non-Christian | 50 | 16 | F LR | not estimable | — | — | — |
+| Religion: Non-Christian | 50 | 16 | F XGB | not estimable | — | — | — |
 | Religion: Non-Christian | 50 | 16 | N WTD | not estimable | — | — | — |
 | Religion: Orthodox | 9 | 3 | E LR | not estimable | — | — | — |
-| Religion: Orthodox | 9 | 3 | F LR | not estimable | — | — | — |
+| Religion: Orthodox | 9 | 3 | F XGB | not estimable | — | — | — |
 | Religion: Orthodox | 9 | 3 | N WTD | not estimable | — | — | — |
 | Religion: Other/Unknown | 759 | 145 | E LR | 0.615 (0.565--0.664) | 0.151 (0.135--0.169) | 0.72 (0.42--1.04) | −0.013 (−0.041 to +0.013) |
-| Religion: Other/Unknown | 759 | 145 | F LR | 0.589 (0.537--0.642) | 0.153 (0.136--0.170) | 0.66 (0.30--1.00) | −0.010 (−0.038 to +0.016) |
+| Religion: Other/Unknown | 759 | 145 | F XGB | 0.607 (0.556--0.659) | 0.151 (0.135--0.169) | 0.92 (0.50--1.35) | −0.011 (−0.038 to +0.015) |
 | Religion: Other/Unknown | 759 | 145 | N WTD | 0.594 (0.543--0.643) | 0.151 (0.135--0.168) | 0.93 (0.49--1.40) | −0.014 (−0.042 to +0.012) |
 | Religion: Protestant | 4,654 | 793 | E LR | 0.665 (0.644--0.685) | 0.134 (0.127--0.140) | 1.00 (0.87--1.13) | +0.003 (−0.007 to +0.013) |
-| Religion: Protestant | 4,654 | 793 | F LR | 0.642 (0.620--0.662) | 0.135 (0.128--0.142) | 1.05 (0.88--1.19) | +0.002 (−0.007 to +0.013) |
+| Religion: Protestant | 4,654 | 793 | F XGB | 0.662 (0.641--0.682) | 0.134 (0.127--0.141) | 1.33 (1.16--1.51) | −0.001 (−0.010 to +0.009) |
 | Religion: Protestant | 4,654 | 793 | N WTD | 0.632 (0.609--0.653) | 0.136 (0.130--0.143) | 1.19 (0.99--1.40) | −0.003 (−0.012 to +0.007) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F XGB: feature-vector XGBoost; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
 ## S9.3 Clinical strata
 
-Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm.
+Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder.
 
 | **Group** | **n** | **Events** | **Arm** | **ROC AUC (95% CI)** | **Brier (95% CI)** | **Logistic slope (95% CI)** | **Mean risk difference (95% CI)** |
 | -------------------- | ---------: | -----------: | -------- | ---------------- | ---------------- | -------------- | ------------------ |
 | MDD severity: Mild | 633 | 105 | E LR | 0.683 (0.624--0.742) | 0.130 (0.111--0.149) | 1.39 (0.96--1.88) | −0.020 (−0.049 to +0.007) |
-| MDD severity: Mild | 633 | 105 | F LR | 0.607 (0.547--0.667) | 0.135 (0.117--0.154) | 0.86 (0.30--1.40) | −0.018 (−0.047 to +0.010) |
+| MDD severity: Mild | 633 | 105 | F XGB | 0.640 (0.581--0.702) | 0.133 (0.115--0.152) | 1.34 (0.73--1.97) | −0.007 (−0.036 to +0.020) |
 | MDD severity: Mild | 633 | 105 | N WTD | 0.607 (0.547--0.668) | 0.137 (0.117--0.157) | 1.30 (0.54--2.12) | −0.020 (−0.049 to +0.008) |
 | MDD severity: Moderate | 1,426 | 255 | E LR | 0.652 (0.618--0.687) | 0.142 (0.131--0.155) | 0.98 (0.74--1.24) | +0.003 (−0.018 to +0.021) |
-| MDD severity: Moderate | 1,426 | 255 | F LR | 0.634 (0.599--0.670) | 0.142 (0.131--0.155) | 1.06 (0.75--1.38) | +0.001 (−0.020 to +0.018) |
+| MDD severity: Moderate | 1,426 | 255 | F XGB | 0.655 (0.620--0.691) | 0.141 (0.129--0.154) | 1.45 (1.10--1.84) | −0.007 (−0.028 to +0.011) |
 | MDD severity: Moderate | 1,426 | 255 | N WTD | 0.631 (0.593--0.666) | 0.143 (0.132--0.157) | 1.58 (1.10--2.09) | −0.005 (−0.026 to +0.013) |
 | MDD severity: Psychotic | 18 | 8 | E LR | not estimable | — | — | — |
-| MDD severity: Psychotic | 18 | 8 | F LR | not estimable | — | — | — |
+| MDD severity: Psychotic | 18 | 8 | F XGB | not estimable | — | — | — |
 | MDD severity: Psychotic | 18 | 8 | N WTD | not estimable | — | — | — |
 | MDD severity: Remission | 143 | 19 | E LR | not estimable | — | — | — |
-| MDD severity: Remission | 143 | 19 | F LR | not estimable | — | — | — |
+| MDD severity: Remission | 143 | 19 | F XGB | not estimable | — | — | — |
 | MDD severity: Remission | 143 | 19 | N WTD | not estimable | — | — | — |
 | MDD severity: Severe | 468 | 137 | E LR | 0.700 (0.648--0.749) | 0.187 (0.171--0.201) | 1.21 (0.88--1.56) | +0.029 (−0.007 to +0.070) |
-| MDD severity: Severe | 468 | 137 | F LR | 0.636 (0.578--0.690) | 0.197 (0.181--0.212) | 0.88 (0.54--1.25) | +0.029 (−0.008 to +0.071) |
+| MDD severity: Severe | 468 | 137 | F XGB | 0.682 (0.621--0.734) | 0.188 (0.172--0.204) | 1.41 (0.97--1.93) | +0.007 (−0.028 to +0.049) |
 | MDD severity: Severe | 468 | 137 | N WTD | 0.678 (0.622--0.730) | 0.193 (0.178--0.208) | 1.86 (1.27--2.50) | +0.014 (−0.021 to +0.055) |
 | MDD severity: Unspecified | 5,828 | 967 | E LR | 0.641 (0.621--0.660) | 0.133 (0.127--0.139) | 0.94 (0.81--1.07) | −0.000 (−0.010 to +0.009) |
-| MDD severity: Unspecified | 5,828 | 967 | F LR | 0.615 (0.595--0.634) | 0.134 (0.128--0.141) | 0.98 (0.83--1.15) | −0.001 (−0.011 to +0.009) |
+| MDD severity: Unspecified | 5,828 | 967 | F XGB | 0.635 (0.617--0.654) | 0.134 (0.127--0.140) | 1.27 (1.10--1.43) | +0.002 (−0.008 to +0.011) |
 | MDD severity: Unspecified | 5,828 | 967 | N WTD | 0.609 (0.590--0.628) | 0.135 (0.129--0.142) | 1.14 (0.94--1.35) | −0.003 (−0.013 to +0.006) |
 | MDD recurrence: Unspecified | 32 | 7 | E LR | not estimable | — | — | — |
-| MDD recurrence: Unspecified | 32 | 7 | F LR | not estimable | — | — | — |
+| MDD recurrence: Unspecified | 32 | 7 | F XGB | not estimable | — | — | — |
 | MDD recurrence: Unspecified | 32 | 7 | N WTD | not estimable | — | — | — |
 | MDD recurrence: Dysthymia | 584 | 97 | E LR | 0.690 (0.638--0.748) | 0.130 (0.113--0.149) | 1.33 (0.92--1.86) | +0.008 (−0.022 to +0.037) |
-| MDD recurrence: Dysthymia | 584 | 97 | F LR | 0.627 (0.565--0.687) | 0.134 (0.116--0.153) | 1.13 (0.59--1.75) | +0.010 (−0.020 to +0.038) |
+| MDD recurrence: Dysthymia | 584 | 97 | F XGB | 0.650 (0.593--0.707) | 0.134 (0.116--0.153) | 1.39 (0.82--2.01) | +0.012 (−0.019 to +0.040) |
 | MDD recurrence: Dysthymia | 584 | 97 | N WTD | 0.628 (0.567--0.688) | 0.135 (0.116--0.156) | 2.22 (1.18--3.50) | +0.003 (−0.028 to +0.032) |
 | MDD recurrence: Recurrent | 2,177 | 433 | E LR | 0.698 (0.671--0.726) | 0.146 (0.136--0.156) | 1.09 (0.94--1.26) | −0.000 (−0.017 to +0.015) |
-| MDD recurrence: Recurrent | 2,177 | 433 | F LR | 0.676 (0.648--0.703) | 0.148 (0.139--0.158) | 1.07 (0.90--1.26) | −0.002 (−0.018 to +0.014) |
+| MDD recurrence: Recurrent | 2,177 | 433 | F XGB | 0.693 (0.665--0.720) | 0.146 (0.137--0.156) | 1.38 (1.18--1.59) | −0.006 (−0.022 to +0.009) |
 | MDD recurrence: Recurrent | 2,177 | 433 | N WTD | 0.666 (0.639--0.693) | 0.150 (0.140--0.160) | 1.26 (1.07--1.48) | −0.005 (−0.021 to +0.011) |
 | MDD recurrence: Single Episode | 5,723 | 954 | E LR | 0.633 (0.612--0.652) | 0.134 (0.128--0.141) | 0.86 (0.73--0.99) | +0.000 (−0.010 to +0.010) |
-| MDD recurrence: Single Episode | 5,723 | 954 | F LR | 0.605 (0.584--0.626) | 0.136 (0.130--0.143) | 0.83 (0.67--0.99) | −0.000 (−0.011 to +0.009) |
+| MDD recurrence: Single Episode | 5,723 | 954 | F XGB | 0.627 (0.607--0.647) | 0.135 (0.129--0.141) | 1.14 (0.97--1.31) | +0.001 (−0.009 to +0.011) |
 | MDD recurrence: Single Episode | 5,723 | 954 | N WTD | 0.603 (0.584--0.623) | 0.136 (0.130--0.143) | 1.03 (0.83--1.22) | −0.004 (−0.014 to +0.006) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency. MDD recurrence: Unspecified is the 32 test patients with no recurrence code recorded; every one of them is also coded Unspecified severity.
+E LR: embedded logistic regression; F XGB: feature-vector XGBoost; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency. MDD recurrence: Unspecified is the 32 test patients with no recurrence code recorded; every one of them is also coded Unspecified severity.
 
 ## S9.4 Adjusted Subgroup Comparisons
 
-Of 240 contrasts, 58 had unadjusted CIs excluding zero and 23 survived Benjamini--Hochberg adjustment (Table S12).
+Of 240 contrasts, 58 had unadjusted CIs excluding zero and 23 survived Benjamini--Hochberg adjustment (Table S12; each surviving model is drawn in manuscript Figure 5).
 
 Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 reported comparisons, grouped by contrast and arm. "Models surviving" counts how many of that arm's contrasted models cleared the threshold.
 
@@ -906,7 +925,7 @@ Ranges run from the smallest to the largest surviving point estimate, each with 
 
 All 10 male-minus-female AUC contrasts included zero; the largest absolute difference was +0.012 (95% CI −0.021 to +0.046), for FEATURE gradient boosting. This does not establish equivalent performance.
 
-All 10 White-minus-non-White AUC contrasts were positive, from +0.005 (95% CI −0.031 to +0.042) to +0.046 (95% CI +0.006 to +0.087); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories.
+All 10 White-minus-non-White AUC contrasts were positive, from +0.005 (95% CI −0.031 to +0.042) to +0.046 (95% CI +0.006 to +0.087); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For the 2 leading models, calibration slopes in White patients and in patients with other recorded racial categories were 0.97 (95% CI 0.87--1.08) and 0.95 (95% CI 0.74--1.16) for embedded logistic regression, and 1.28 (95% CI 1.14--1.44) and 1.07 (95% CI 0.75--1.36) for feature-vector XGBoost.
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
@@ -916,7 +935,7 @@ The remaining 4 adjusted contrasts indicated lower discrimination among never-ma
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 
-Figure S11. Subgroup discrimination across sociodemographic strata, one representative model per arm, with 95% bootstrap confidence intervals. The dotted line marks chance. Strata declared not estimable are omitted.
+Figure S13. Subgroup discrimination across sociodemographic strata, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder, with 95% bootstrap confidence intervals. The dotted line marks chance. Strata declared not estimable are omitted.
 
 # S10 Representation Field Crosswalk
 
@@ -1017,7 +1036,7 @@ Table S14. Expanded cohort characteristics by TRD proxy status. Values are media
 
 ## S12.1 Primary ROC Curves and Descriptive Operating Points
 
-The primary ROC curves are shown in Figure S12. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F1 scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S13). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
+The primary ROC curves are shown in Figure S14. At test-selected Youden J thresholds of 0.165 and 0.173, embedded logistic regression and feature-vector XGBoost had sensitivity 0.647 (95% CI 0.623--0.670) and 0.615 (95% CI 0.591--0.638) and specificity 0.583 (95% CI 0.570--0.594) and 0.606 (95% CI 0.594--0.618). Their F1 scores were 0.36 (95% CI 0.34--0.37) and 0.35 (95% CI 0.34--0.37), positive likelihood ratios 1.55 (95% CI 1.48--1.62) and 1.56 (95% CI 1.48--1.63), and negative likelihood ratios 0.61 (95% CI 0.56--0.65) and 0.64 (95% CI 0.60--0.68). They identified 964 and 917 of 1,491 positive patients, missing 527 and 574, with 2,932 and 2,768 false positives and 4,093 and 4,257 true negatives among 7,025 negative patients, respectively (Figure S15). These thresholds were chosen and evaluated in the same test patients; the estimates are optimistic descriptions and are not deployment thresholds.
 
 A Embedded logistic regression
 
@@ -1027,7 +1046,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_xgboost_FEATURE.png){width=5.8in}
 
-Figure S12. Primary ROC curves for embedded logistic regression (A) and feature-vector XGBoost (B). Shaded bands are bootstrap 95% CIs. ROC AUCs are reported in main-text Table 2.
+Figure S14. Primary ROC curves for embedded logistic regression (A) and feature-vector XGBoost (B). Shaded bands are bootstrap 95% CIs. ROC AUCs are reported in main-text Table 2.
 
 A Embedded logistic regression
 
@@ -1037,11 +1056,11 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_xgboost_FEATURE.png){width=5.8in}
 
-Figure S13. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
+Figure S15. Confusion matrices at test-selected Youden J thresholds for embedded logistic regression (A) and feature-vector XGBoost (B); the panels' F score is F1. TRD refers to the treatment-switching proxy.
 
 ## S12.2 Structured Feature Importance
 
-Positive logistic-regression coefficients included severe depression coding, suicidality, insomnia, obsessive-compulsive disorder, opioid use disorder, posttraumatic stress disorder, and anxiety. Negative coefficients included missing smoking status, hyperlipidemia, longer pre-index history, and male sex. Tree importance rankings varied and also emphasized record length, age, utilization, and psychiatric burden (Figure S14). For trees, plotted colors derive from univariate correlations and do not give the direction of the fitted model's conditional effect. None of these rankings supports causal interpretation.
+Positive logistic-regression coefficients included severe depression coding, suicidality, insomnia, obsessive-compulsive disorder, opioid use disorder, posttraumatic stress disorder, and anxiety. Negative coefficients included missing smoking status, hyperlipidemia, longer pre-index history, and male sex. Tree importance rankings varied and also emphasized record length, age, utilization, and psychiatric burden (Figure S16). For trees, plotted colors derive from univariate correlations and do not give the direction of the fitted model's conditional effect. None of these rankings supports causal interpretation.
 
 A Logistic regression
 
@@ -1059,15 +1078,15 @@ D XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/feature_importance/feature_importance_xgboost.png){width=5.7in}
 
-Figure S14. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show coefficient magnitude, with color giving the coefficient's sign. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
+Figure S16. Structured feature importance for logistic regression (A), random forest (B), gradient boosting (C), and XGBoost (D). Logistic-regression bars show coefficient magnitude, with color giving the coefficient's sign. Tree bars show native importance; colors reflect univariate associations, not conditional model effects or causal directions.
 
 ## S12.3 Concept Permutation and Encoder Comparison
 
-In the primary encoder, psychiatric-history permutation reduced AUC by 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; all paired CIs excluded zero. Medication burden reduced AUC by 0.003 (95% CI −0.004 to 0.011) to 0.027 (95% CI 0.018--0.037), with CIs excluding zero for 3 classifiers. Prior treatment reduced embedded logistic-regression AUC by 0.019 (95% CI 0.011--0.027) and the other models by 0.000 (95% CI −0.009 to 0.008) to 0.011 (95% CI 0.003--0.020), with CIs excluding zero for logistic regression and XGBoost. Among the remaining concepts, only the XGBoost contraindication contrast excluded zero (−0.005; 95% CI −0.008 to −0.001). Main-text Table 3 gives every difference with its paired CI; Figure S15 gives each model's absolute AUC.
+In the primary encoder, psychiatric-history permutation reduced AUC by 0.024 (95% CI 0.010--0.036) to 0.028 (95% CI 0.017--0.039) across classifiers; all paired CIs excluded zero. Medication burden reduced AUC by 0.003 (95% CI −0.004 to 0.011) to 0.027 (95% CI 0.018--0.037), with CIs excluding zero for 3 classifiers. Prior treatment reduced embedded logistic-regression AUC by 0.019 (95% CI 0.011--0.027) and the other models by 0.000 (95% CI −0.009 to 0.008) to 0.011 (95% CI 0.003--0.020), with CIs excluding zero for logistic regression and XGBoost. Among the remaining concepts, only the XGBoost contraindication contrast excluded zero (−0.005; 95% CI −0.008 to −0.001). Main-text Table 3 gives every difference with its paired CI; Figure S17 gives each model's absolute AUC.
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/ablation_roc_ci_EMBEDDED.png){width=6in}
 
-Figure S15. Absolute ROC AUC after concept permutation for each primary embedded classifier. Each panel includes the unperturbed baseline and 6 permutations. Bars are each run's bootstrap 95% CIs, rather than paired CIs for the differences. SDOH: social determinants of health.
+Figure S17. Absolute ROC AUC after concept permutation for each primary embedded classifier. Each panel includes the unperturbed baseline and 6 permutations. Bars are each run's bootstrap 95% CIs, rather than paired CIs for the differences. SDOH: social determinants of health.
 
 Embedded logistic regression had the highest AUC for every encoder. Across encoders, psychiatric-history permutation reduced its AUC by 0.027 (95% CI 0.017--0.036) to 0.030 (95% CI 0.019--0.041) and medication-burden permutation by 0.022 (95% CI 0.013--0.032) to 0.034 (95% CI 0.023--0.044), with all paired CIs excluding zero. Medication burden exceeded psychiatric history in bge-en-icl (−0.034, 95% CI −0.044 to −0.023, versus −0.027, 95% CI −0.036 to −0.017); psychiatric history had the larger effect in the other 3 encoders. The ordering applies to these tested concepts and does not establish unique or causal contributions.
 
@@ -1096,7 +1115,7 @@ Table S15. Embedded logistic-regression discrimination by encoder. EPV is 5,964 
 
 7\. Sheu YH, Magdamo C, Miller M, Das S, Blacker D, Smoller JW. AI-assisted prediction of differential response to antidepressant classes using electronic health records. npj Digit Med. 2023;6:73. doi:10.1038/s41746-023-00817-8.
 
-8\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2214-0366(15)00471-X.
+8\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2215-0366(15)00471-X.
 
 9\. Hegselmann S, Shen SZ, Gierse F, Agrawal M, Sontag D, Jiang X. A data-centric approach to generate faithful and high quality patient summaries with large language models. Proc Mach Learn Res. 2024;248:339-379.
 

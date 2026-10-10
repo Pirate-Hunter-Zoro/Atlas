@@ -2,7 +2,7 @@
 
 Usage:
     python -m scripts.pipeline.review.metric_intervals            # everything
-    python -m scripts.pipeline.review.metric_intervals --replot   # Figure S10D only
+    python -m scripts.pipeline.review.metric_intervals --replot   # Figure S12D only
 
 The pipeline records a bootstrap CI for ROC AUC only. The paper also prints AUPRC,
 Brier score, weighted calibration error (WCE) and the binned calibration slope and
@@ -27,13 +27,13 @@ Three blocks:
                share (Figure 1), the Spearman correlations of the outcome with record
                length, encounter count and diagnosis-to-index interval, and the outcome
                frequency by prescription timing (Supplement S7). Proportions carry Wilson
-               intervals; correlations a percentile bootstrap. Also draws Figure S10D.
+               intervals; correlations a percentile bootstrap. Also draws Figure S12D.
 
 Artifacts, in ARTIFACTS_DIR/review/metric_intervals/:
   classifier_intervals.csv    one row per (representation, classifier, metric)
   encoder_intervals.csv       one row per (encoder, metric), embedded logistic regression
   cohort_intervals.json       the cohort block
-  trd_rate_by_prescription_timing.png   Figure S10D
+  trd_rate_by_prescription_timing.png   Figure S12D
 """
 
 import json
@@ -73,7 +73,7 @@ ENCODERS = ("bge-small-en-v1.5", "bge-en-icl", "Qwen-Qwen3-Embedding-4B",
 # stores float64, so anything larger means different patients or different resamples.
 ROUNDTRIP_TOLERANCE = 1e-9
 
-# Figure S10D splits prescribing at this many days after the first depression diagnosis:
+# Figure S12D splits prescribing at this many days after the first depression diagnosis:
 # 0 or 1 day is "within 1 day", the grouping the supplement reports.
 WITHIN_DAYS = 1
 RECORD_COLUMNS = ("pre_anchor_history_days", "num_encounters", "mdd_to_anchor_days")
@@ -276,7 +276,7 @@ def cohort_intervals(table: pd.DataFrame) -> dict:
 
 
 def plot_timing(cohort: dict, save_path: Path) -> Path:
-    """Figure S10D: outcome frequency by prescription timing, with Wilson 95% CIs.
+    """Figure S12D: outcome frequency by prescription timing, with Wilson 95% CIs.
 
     Args:
         cohort (dict): Output of cohort_intervals.
@@ -337,7 +337,7 @@ def load_cohort() -> pd.DataFrame:
 
 
 def replot():
-    """Redraw Figure S10D from the saved cohort_intervals.json, recomputing nothing."""
+    """Redraw Figure S12D from the saved cohort_intervals.json, recomputing nothing."""
     save_dir = review_output_dir(ANALYSIS_NAME)
     cohort = json.loads((save_dir / "cohort_intervals.json").read_text())
     print(f"Wrote {plot_timing(cohort, save_dir / 'trd_rate_by_prescription_timing.png')}")

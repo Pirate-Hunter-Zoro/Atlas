@@ -13,7 +13,7 @@ Section heading: References
 
 2\. Rush AJ, Trivedi MH, Wisniewski SR, Nierenberg AA, Stewart JW, Warden D, et al. Acute and longer-term outcomes in depressed outpatients requiring one or several treatment steps: a STAR\*D report. Am J Psychiatry. 2006;163(11):1905-1917. doi:10.1176/ajp.2006.163.11.1905.
 
-3\. Al-Harbi KS. Treatment-resistant depression: therapeutic trends, challenges, and future directions. Patient Prefer Adherence. 2012;6:369-388. doi:10.2147/PPA.S29715.
+3\. Al-Harbi KS. Treatment-resistant depression: therapeutic trends, challenges, and future directions. Patient Prefer Adherence. 2012;6:369-388. doi:10.2147/PPA.S29716.
 
 4\. Perlis RH. A clinical risk stratification tool for predicting treatment resistance in major depressive disorder. Biol Psychiatry. 2013;74(1):7-14. doi:10.1016/j.biopsych.2012.12.007.
 
@@ -21,7 +21,7 @@ Section heading: References
 
 6\. Sheu YH, Magdamo C, Miller M, Das S, Blacker D, Smoller JW. AI-assisted prediction of differential response to antidepressant classes using electronic health records. npj Digit Med. 2023;6:73. doi:10.1038/s41746-023-00817-8.
 
-7\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2214-0366(15)00471-X.
+7\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2215-0366(15)00471-X.
 
 8\. Chekroud AM, Bondar J, Delgadillo J, Doherty G, Wasil A, Fokkema M, et al. The promise of machine learning in predicting treatment outcomes in psychiatry. World Psychiatry. 2021;20(2):154-170. doi:10.1002/wps.20882.
 
@@ -41,7 +41,7 @@ Section heading: References
 
 16\. Hegselmann S, von Arnim G, Rheude T, Kronenberg N, Sontag D, Hindricks G, et al. Large language models are powerful electronic health record encoders. arXiv:2502.17403. 2025.
 
-17\. Shmatko A, Jung AW, Gaurav K, Brunak S, Mortensen LH, Birney E, et al. Learning the natural history of human disease with generative transformers. Nature. 2025;647(8082):248-256. doi:10.1038/s41586-025-09529-3.
+17\. Shmatko A, Jung AW, Gaurav K, Brunak S, Mortensen LH, Birney E, et al. Learning the natural history of human disease with generative transformers. Nature. 2025;647(8088):248-256. doi:10.1038/s41586-025-09529-3.
 
 18\. Waxler S, Blazek P, White D, Sneider D, Chung K, Nagarathnam M, et al. Generative medical event models improve with scale. arXiv. 2025;arXiv:2508.12104. doi:10.48550/arXiv.2508.12104.
 
@@ -66,3 +66,7 @@ Section heading: References
 28\. González HM, Vega WA, Williams DR, Tarraf W, West BT, Neighbors HW. Depression care in the United States: too little for too few. Arch Gen Psychiatry. 2010;67(1):37-46. doi:10.1001/archgenpsychiatry.2009.168.
 
 29\. Alegría M, Chatterji P, Wells K, Cao Z, Chen CN, Takeuchi D, et al. Disparity in depression treatment among racial and ethnic minority populations in the United States. Psychiatr Serv. 2008;59(11):1264-1272. doi:10.1176/ps.2008.59.11.1264.
+
+30\. Goldberger J, Roweis S, Hinton G, Salakhutdinov R. Neighbourhood components analysis. In: Saul LK, Weiss Y, Bottou L, editors. Advances in Neural Information Processing Systems 17 (NIPS 2004). Cambridge (MA): MIT Press; 2005. URL: https://proceedings.neurips.cc/paper/2004/hash/42fe880812925e520249e808937738d2-Abstract.html
+
+31\. Cawley GC, Talbot NLC. On over-fitting in model selection and subsequent selection bias in performance evaluation. J Mach Learn Res. 2010;11:2079-2107.

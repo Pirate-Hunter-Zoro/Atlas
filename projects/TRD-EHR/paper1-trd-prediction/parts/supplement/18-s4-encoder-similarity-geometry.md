@@ -78,4 +78,4 @@ Table S6. Nested k-means results within each parent cluster. Token proportions d
   A: no "episode" token (14,438)   recurrent + severity (11,425) / unspecified (3,013)   recurrent           0.98 / 0.00                        0.69                                      Stronger
   B: single-episode (28,141)       sparse record (6,594) / populated record (21,547)     missing             0.88 / 0.02                        0.21                                      Weaker
 
-These findings show sensitivity of the smallest encoder's geometry to diagnostic wording and missing-value tokens. They may help explain its retrieval behavior, but do not establish why its discrimination was lower (Table S15). Primary analyses used Qwen3-Embedding-8B.
+These findings show sensitivity of the smallest encoder's geometry to diagnostic wording and missing-value tokens. They may help explain its retrieval behavior, but do not establish why its discrimination was lower (section S12.3). Primary analyses used Qwen3-Embedding-8B.

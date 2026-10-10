@@ -8,7 +8,8 @@
 #SBATCH -o slurm_jobs/review/logs/subgroup_replot_%j_out.txt
 #SBATCH -e slurm_jobs/review/logs/subgroup_replot_%j_err.txt
 
-# Supplement Figure S11 and the subgroup tables, redrawn from the saved
+# Manuscript Figure 5 (subgroup_surviving_contrasts.png), Supplement Figure S13
+# (subgroup_forest.png) and the subgroup tables, redrawn from the saved
 # subgroup_performance.csv and subgroup_contrasts.csv (run_subgroups --replot). No
 # bootstrap and no prediction is read: this is a labelling change, the retrieval arm's
 # legend entry now "logistic-regression-weighted". Mirrors the folder into results/.

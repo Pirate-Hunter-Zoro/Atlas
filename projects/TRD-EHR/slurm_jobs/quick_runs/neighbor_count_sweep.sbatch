@@ -12,8 +12,8 @@
 
 # Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
 # pool: logistic-regression-weighted cosine, plain cosine, and random neighbours with
-# uniform weights (1,000 seeded draws). Then that encoder's Figure-4-style plot (Figure 4
-# for the primary encoder; Figure 5 is one composite of the other three, drawn by
+# uniform weights (1,000 seeded draws). Then that encoder's own sweep plot, which the
+# manuscript does not place (Figure 4 is the four-encoder composite, drawn by
 # plot_cross_embedder_retrieval.sbatch after all four sweeps), and the ROC / PR /
 # calibration / decision / ESS / confusion-matrix panels at each arm's best k (Figures
 # S8-S9). No GPU and no vLLM server: the
@@ -31,7 +31,7 @@
 #
 # REDRAW=1 skips the sweep and redraws the figures and panels from the CSVs already on
 # disk; the panels need best-k CSVs with an ess column, which only a sweep from this
-# version writes. Either way the manuscript figure (Figure 4) and the best-k panels are
+# version writes. Either way the encoder's sweep plot and the best-k panels are
 # drawn and the folder is mirrored into results/, because the manuscript links the
 # mirror, not RESULTS_DIR.
 #

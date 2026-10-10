@@ -21,6 +21,9 @@
         "glob": "results/cross_embedder_retrieval/lr_dimensions_vs_best_k.png"
       },
       {
+        "glob": "results/cross_embedder_retrieval/lr_dimension_share_vs_best_k.png"
+      },
+      {
         "glob": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png"
       },
       {
@@ -151,6 +154,9 @@
       },
       {
         "glob": "results/review/subgroups/subgroup_forest.png"
+      },
+      {
+        "glob": "results/review/subgroups/subgroup_surviving_contrasts.png"
       },
       {
         "glob": "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_logistic_regression_EMBEDDED.png"

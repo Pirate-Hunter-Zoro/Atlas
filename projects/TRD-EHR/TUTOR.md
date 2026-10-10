@@ -9,17 +9,17 @@
 
 ## Now
 
-Paper 1's KNN section, as of 2026-10-06:
-- The neighbour-count sweep ran on all four encoders. Every redrawn sweep figure is in exports/, stamped 2026-10-06 02:05-02:15. No report carried RELAY: lines.
-- Best k: bge-en-icl 1,519 weighted, 413 plain cosine; Qwen3-4B 684 and 493; Qwen3-8B 295, 757 and 32,720 random; bge-small 579 weighted. All match manuscript lines 293-295 and the S8-S9 panel paths, so the text does not move.
-- Next: the rebuild, once the twelve best-k panels and lr_dimensions_vs_best_k.png are confirmed on the Mac. Then the dimension counts, which come from session notes, not the evidence ledger.
+Paper 1, as of 2026-10-10 (done on the cluster, at the owner's word, once):
+- Figure 4: all four encoders in one 2x2, width in each title, best k a diamond. The dimension scatters are S6's Figures S10-S11 (count; share of width); old S10-S15 are S12-S17.
+- Results: Nearest-Neighbor Retrieval, Across Encoders, then Subgroup Performance with Figure 5, every contrast surviving Benjamini-Hochberg. Subgroup text is discrimination only.
+- The feature arm's subgroup stand-in is XGBoost (Tables S10-S11, Figure S13).
+- Discussion: Interpreting Nearest-Neighbor Retrieval, from Martin's note, citing [30] NCA and [31] Cawley. References checked against Crossref and arXiv.
+- Forthman is third author; Acknowledgments name Claude beside ChatGPT. Packet and parts rebuilt; exports/ holds the new figures.
 
 The owner steers by inking the PDF; marks carry no text, so open every PNG. Cluster reports come three at a time, one card per batch. Check export timestamps yourself: a report does not prove the copy reached the Mac.
 
 Paper 1:
 - [ ] Learn: why ROC AUC against k has its shape: the random arm at 1/2, k = 1, the climb in log k, the right edge, why every best k is optimistic. Its one unworked concept; teach it when the owner returns to learning.
-- [ ] Bring the new figures to the Mac or build on the cluster, then rebuild parts/ and run scripts/rebuild-packet.sh --strict. Every .docx and .pdf predates the 2026-10-05 text.
-- [ ] Once cross_embedder_retrieval.csv crosses, confirm the dimension counts (253, 271, 1,626, 236) and best k against it.
 - [ ] Ask Martin: the corresponding author (2026-09-29 ink round, item 1); the title, which now names retrieval; whether Limitations stays; whether the similarity judge stays in reserve; the Discussion's take-home; the sparsity sentence (385 of 4,096 dimensions); whether S12.1 quotes the bootstrap intervals (job 2120643).
 - [ ] Martin accepts or reverts items 2-14 of that round.
 - [ ] Then: deterministic to algorithmic in 18 places; patient to participant (about 261 places), never in title or quotations; trained classifier to machine learning model where generic.
@@ -45,7 +45,7 @@ Paper 2 (causal forest, preference instrument and switch framing deferred):
 
 ## Open decisions
 
-- The dimensions-vs-best-k scatter: the 2026-10-07 handoff holds it out of the write-up until discussed (four points; Qwen3-4B's 1,626 sits far off); threads.json says Figure 6. Ask.
+- The abstract's "rule-based" narratives (3 places) breaks RULES.md, but it is Martin's prose: ask him.
 - Owed: the CSV question (card 0006) and the S7 re-run (card 0007), in the imported session.
 - Where the sensitivity-label decline's reason goes: Limitations or the covering note.
 - suicidality_flag: a window parameter or a stated precondition.

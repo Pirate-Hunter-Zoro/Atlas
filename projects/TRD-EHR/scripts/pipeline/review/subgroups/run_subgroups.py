@@ -32,6 +32,8 @@ Artifacts, in ARTIFACTS_DIR/review/subgroups/:
   subgroup_forest_clinical.png  the same for the clinical families (MDD severity, recurrence)
   subgroup_contrasts_forest.png           each contrast's ΔAUC, primary models, fairness families
   subgroup_contrasts_forest_clinical.png  the same for the clinical families
+  subgroup_surviving_contrasts.png  manuscript Figure 5: every contrast that survives BH,
+                              every model, clinical and sociodemographic families together
 """
 
 import json
@@ -70,17 +72,19 @@ from scripts.pipeline.review.subgroups.core import (
 PRIMARY_KNN_MODEL = "NEAREST_WEIGHTED"
 ARMS = (ARM_EMBEDDED, ARM_FEATURE, ARM_KNN)
 
-# One representative model per arm for the primary tables and the forest plot. The full
-# grid stays in the CSVs; a table showing 24 models against 30 groups would be unreadable
-# and would bury the comparison it exists to make.
+# One representative model per arm for the primary tables and the forest plot: each
+# representation's leading model in the paper, embedded logistic regression and
+# feature-vector XGBoost. The full grid stays in the CSVs; a table showing 24 models
+# against 30 groups would be unreadable and would bury the comparison it exists to make.
+PRIMARY_FEATURE_MODEL = "xgboost"
 PRIMARY_BY_ARM = {
     ARM_EMBEDDED: PRIMARY_MODEL,
-    ARM_FEATURE: PRIMARY_MODEL,
+    ARM_FEATURE: PRIMARY_FEATURE_MODEL,
     ARM_KNN: PRIMARY_KNN_MODEL,
 }
 ARM_LABELS = {
     ARM_EMBEDDED: "Embedded (logistic regression)",
-    ARM_FEATURE: "Feature vector (logistic regression)",
+    ARM_FEATURE: "Feature vector (XGBoost)",
     ARM_KNN: "Nearest neighbors (logistic-regression-weighted)",
 }
 
@@ -353,8 +357,124 @@ def plot_contrasts(contrasts: pd.DataFrame, save_dir, families=FAIRNESS_FAMILIES
     return save_path
 
 
+# Figure 5's model names. The retrieval arms carry their best k, which is the k their
+# held-out predictions were scored at (core.BEST_K_PREDICTIONS).
+SURVIVOR_MODEL_LABELS = {
+    "logistic_regression": "logistic regression",
+    "random_forest": "random forest",
+    "gradient_boosting": "gradient boosting",
+    "xgboost": "XGBoost",
+    "NEAREST_COSINE": "plain cosine (k = 757)",
+    "NEAREST_WEIGHTED": "LR-weighted (k = 295)",
+}
+SURVIVOR_ARM_LABELS = {ARM_EMBEDDED: "Embedded", ARM_FEATURE: "Feature vector",
+                       ARM_KNN: "Nearest neighbors"}
+SURVIVOR_ARM_ORDER = (ARM_EMBEDDED, ARM_FEATURE, ARM_KNN)
+SURVIVOR_MODEL_ORDER = tuple(SURVIVOR_MODEL_LABELS)
+SURVIVOR_FIGURE_NAME = "subgroup_surviving_contrasts.png"
+ARM_COLOURS = {ARM_EMBEDDED: '#1f77b4', ARM_FEATURE: '#d62728', ARM_KNN: '#2ca02c'}
+
+
+def surviving_rows(contrasts: pd.DataFrame) -> list[tuple]:
+    """Figure 5's rows, top to bottom: a heading per family kind and per contrast, then
+    one row per surviving model.
+
+    Clinical families come first, then the sociodemographic ones; within each, contrasts
+    keep the order score_contrasts wrote them in, and models run arm by arm.
+
+    Args:
+        contrasts (pd.DataFrame): Output of score_contrasts with BH columns attached.
+
+    Returns:
+        list[tuple]: (kind, label, row) with kind 'section', 'contrast' or 'model'; row is
+            the contrast row for 'model' and None otherwise.
+    """
+    surviving = contrasts[contrasts['survives_bh']]
+    rows = []
+    for section, families in (("Clinical", CLINICAL_FAMILIES),
+                              ("Sociodemographic", FAIRNESS_FAMILIES)):
+        subset = surviving[surviving['family'].isin(families)]
+        if subset.empty:
+            continue
+        rows.append(('section', section, None))
+        for contrast in dict.fromkeys(subset['contrast']):
+            group = subset[subset['contrast'] == contrast]
+            first = group.iloc[0]
+            rows.append(('contrast', f"{contrast_label(contrast)} "
+                         f"(n = {int(first['n_a']):,}, {int(first['events_a']):,} events)", None))
+            group = group.assign(
+                arm_order=group['representation'].map(SURVIVOR_ARM_ORDER.index),
+                model_order=group['model'].map(SURVIVOR_MODEL_ORDER.index),
+            ).sort_values(['arm_order', 'model_order'])
+            for _, row in group.iterrows():
+                rows.append(('model', f"{SURVIVOR_ARM_LABELS[row['representation']]}, "
+                             f"{SURVIVOR_MODEL_LABELS[row['model']]}", row))
+    return rows
+
+
+def plot_surviving_contrasts(contrasts: pd.DataFrame, save_dir,
+                             file_name=SURVIVOR_FIGURE_NAME):
+    """Manuscript Figure 5: the ΔROC AUC, group minus rest, of every surviving contrast.
+    Writes nothing and returns None when no contrast survives.
+
+    Every model whose contrast survived is drawn, not one representative per arm,
+    because which models survived is part of the result. Clinical and sociodemographic
+    families share the figure under their own headings.
+
+    Args:
+        contrasts (pd.DataFrame): Output of score_contrasts with BH columns attached.
+        save_dir (Path): Where to write the PNG.
+        file_name (str): PNG name inside save_dir.
+
+    Returns:
+        Path | None: The written figure, or None when no contrast survives.
+    """
+    rows = surviving_rows(contrasts)
+    if not rows:
+        # Nothing survived: no figure, rather than an empty axis.
+        return None
+    figure, ax = plt.subplots(figsize=(6.0, 0.2 * len(rows) + 1.0))
+    top = len(rows) - 1
+    for i, (kind, _, row) in enumerate(rows):
+        if kind != 'model':
+            continue
+        colour = ARM_COLOURS[row['representation']]
+        ax.errorbar(row['delta_roc'], top - i,
+                    xerr=[[row['delta_roc'] - row['delta_ci_low']],
+                          [row['delta_ci_high'] - row['delta_roc']]],
+                    fmt='o', markersize=4.0, capsize=2.0, linewidth=1.0, color=colour)
+    ax.axvline(0.0, color='grey', linewidth=0.8, linestyle=':')
+    ax.set_yticks([top - i for i in range(len(rows))])
+    ax.set_yticklabels([label for _, label, _ in rows], fontsize=7)
+    for tick, (kind, _, _) in zip(ax.get_yticklabels(), rows):
+        if kind == 'section':
+            tick.set_fontweight('bold')
+            tick.set_fontsize(8)
+        elif kind == 'contrast':
+            tick.set_fontstyle('italic')
+    ax.tick_params(axis='y', length=0)
+    ax.set_ylim(-0.7, top + 0.7)
+    ax.set_xlabel("ΔROC AUC, group minus rest (95% CI)", fontsize=8)
+    ax.tick_params(axis='x', labelsize=7)
+    ax.grid(True, axis='x', color='#e6e6e6', linewidth=0.6)
+    ax.set_axisbelow(True)
+    for side in ('top', 'right'):
+        ax.spines[side].set_visible(False)
+    handles = [plt.Line2D([], [], color=ARM_COLOURS[arm], marker='o', markersize=4.0,
+                          linewidth=1.0, label=SURVIVOR_ARM_LABELS[arm])
+               for arm in SURVIVOR_ARM_ORDER]
+    ax.legend(handles=handles, fontsize=7, loc='upper center', ncol=3, frameon=False,
+              bbox_to_anchor=(0.5, -0.55 / (0.2 * len(rows))))
+    figure.tight_layout()
+    save_path = save_dir / file_name
+    figure.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close(figure)
+    return save_path
+
+
 def present(performance: pd.DataFrame, contrasts: pd.DataFrame, save_dir):
-    """Write the three Markdown tables and the forest plot from scored frames.
+    """Write the three Markdown tables and every subgroup figure, including manuscript
+    Figure 5, from scored frames.
 
     Args:
         performance (pd.DataFrame): Concatenated output of score_groups.
@@ -367,6 +487,7 @@ def present(performance: pd.DataFrame, contrasts: pd.DataFrame, save_dir):
     plot_forest(performance, save_dir, CLINICAL_FAMILIES, "subgroup_forest_clinical.png",
                 "Discrimination by MDD severity and recurrence, one model per arm")
     plot_contrasts(contrasts, save_dir)
+    plot_surviving_contrasts(contrasts, save_dir)
     plot_contrasts(contrasts, save_dir, CLINICAL_FAMILIES,
                    "subgroup_contrasts_forest_clinical.png",
                    "Contrasts by MDD severity and recurrence, one model per arm")
@@ -393,7 +514,8 @@ def replot():
     summary = json.loads(summary_path.read_text())
     summary['primary_model_by_arm'] = PRIMARY_BY_ARM
     summary_path.write_text(json.dumps(summary, indent=4, default=float))
-    print(f"Redrew {figure_path} and the three tables from the saved CSVs", flush=True)
+    print(f"Redrew {figure_path}, the other subgroup figures (manuscript Figure 5 among them) "
+          "and the three tables from the saved CSVs", flush=True)
 
 
 def main():
