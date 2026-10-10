@@ -14,12 +14,14 @@
 #   3  every subject's environment (scripts/setup.sh): uv, Go from conda-forge,
 #      elan and the Lean toolchain
 #   4  the PHI guards: ai-config's tests, phi-probe, board/test/tracked.py
-#   5  Mathlib, as a Slurm job when it is not built and no build is queued
-#   6  the colibri build, reported (it needs CUDA; the README's command)
-#   7  one relay pass, and relay/status.json has no error
+#   5  the assistant CLIs: ai-config linked, and every CLI its descriptors know
+#      how to install, installed when missing (none is required)
+#   6  Mathlib, as a Slurm job when it is not built and no build is queued
+#   7  the colibri build, reported (it needs CUDA; the README's command)
+#   8  one relay pass, and relay/status.json has no error
 #
-# Nothing here needs a hosted model's login. `claude` or `codex` may be
-# installed for the owner's own use; the system never calls them here.
+# Nothing here needs a hosted model's login. The CLIs are for the owner's own
+# use; the system never calls them here, and logging in is by hand, once.
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -70,7 +72,21 @@ bash board/scripts/phi-probe.sh projects/PSYCH-ASR/phi/x >/dev/null 2>&1 \
 python3 board/test/tracked.py >"$LOGS/tracked.log" 2>&1 \
   && good "tracked.py: git can see nothing it must not" || warn "tracked.py fails; see $LOGS/tracked.log"
 
-echo "== 5. Mathlib"
+echo "== 5. assistant CLIs"
+# None is load-bearing: a CLI that will not install is reported, never a stop.
+# ai-config links each one's contract, PHI hook and settings and the shell
+# block; install-clis puts in any its descriptors know how to install.
+if [ -f ai-config/scripts/install.sh ]; then
+  bash ai-config/scripts/install.sh >"$LOGS/ai-config-install.log" 2>&1 \
+    && good "ai-config linked (contract, PHI hook, settings, shell)" \
+    || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
+  bash ai-config/scripts/install-clis.sh 2>&1 | sed 's/^/  /'
+  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "an assistant CLI did not install; the line above says how by hand"
+else
+  warn "no ai-config here; bootstrap clones it, then rerun"
+fi
+
+echo "== 6. Mathlib"
 LEAN="$ROOT/projects/Lean-Theorem-Proving"
 if [ ! -f "$LEAN/lean-toolchain" ]; then
   good "no Lean project here"
@@ -84,14 +100,14 @@ else
   warn "sbatch of the Mathlib build failed; see $LOGS/mathlib-sbatch.log"
 fi
 
-echo "== 6. colibri"
+echo "== 7. colibri"
 if [ -x vendor/colibri-build/c/colibri ]; then
   good "vendor/colibri-build/c/colibri is built"
 else
   warn "vendor/colibri-build is not built; projects/libr-local-llm/README.md has the make line (CUDA, GCC modules)"
 fi
 
-echo "== 7. one relay pass"
+echo "== 8. one relay pass"
 if bash board/scripts/relay-pass.sh >"$LOGS/relay-pass.log" 2>&1; then
   err="$(python3 -c 'import json; print(json.load(open("relay/status.json")).get("last_error") or "")' 2>/dev/null)"
   if [ -n "$err" ]; then warn "relay/status.json last_error: $err"; else good "relay pass ran; relay/status.json has no error"; fi

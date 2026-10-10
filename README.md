@@ -112,6 +112,8 @@ board, and checks that the board answers. Its header lists each step.
   `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
   Both stay off the tree.
 - `board doctor --dry` reports what the machine has without spending a turn.
+- Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
+  each one you use, once.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 
@@ -129,12 +131,41 @@ submits `projects/Lean-Theorem-Proving/slurm_jobs/build_mathlib.sbatch` when Mat
 and runs one relay pass. No board and no LaunchAgent is installed there, and nothing in setup
 needs a hosted model's login.
 
+- Step 5 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
+  each one you use, once; nothing in setup or the relay needs a login.
 - The relay's scrontab entry runs `board/scripts/relay-pass.sh` every 2 minutes.
 - The cluster blocks `dl.google.com` and Mathlib's cache host. So Go comes from conda-forge into
   `~/.local/goenv` with `GOPROXY=direct`, and Mathlib is compiled by the job above.
 - `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
 - The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
   `board/test/py37.py` enforces it.
+
+## Assistant CLIs
+
+Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
+config, its PHI hook, and how to install, update and run it. The scripts that act on the
+descriptors name no vendor, so adding an assistant is one file, and none is required.
+Both setup scripts run these two, which a second run leaves unchanged:
+
+- `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each PHI hook and
+  settings file, the daily audit and update timers, and one marked block in `~/.bashrc` that
+  sources `ai-config/scripts/shell.sh`.
+- `ai-config/scripts/install-clis.sh` runs the vendor's own installer for any CLI that is
+  missing, under `$HOME`, with no prompt and no login. It prints each login command. A failed
+  install is reported and the rest go on.
+
+`ai-tools-update`, on a daily timer, updates each CLI the way that machine installed it: npm
+for a copy in `node_modules`, the CLI's own `update` otherwise.
+
+**On the cluster** the home is NFS with institute-wide group ACLs, and `chmod` cannot change
+them. `shell.sh` sees the network home and wraps any CLI whose descriptor asks. Codex runs with
+`--no-daemon`, because its background server refuses a socket in a folder other users can
+write to. Its temp folder points at node-local `/tmp`, because files it holds open cannot be
+deleted over NFS. A function already defined in `~/.bashrc` is left alone. On the Mac,
+`shell.sh` does nothing.
+
+The same group ACLs cover each CLI's login token in the home folder, so anyone in
+`domain users` can read it. Log out on the cluster when that matters.
 
 ## Working in here
 
