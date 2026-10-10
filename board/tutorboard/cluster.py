@@ -14,7 +14,9 @@ writes a non-waking line.
 The ear runs in `serve.py` only with `TUTORBOARD_CLUSTER=1`: every `EVERY`
 seconds one `git ls-remote` for `main` and `refs/heads/code/*`, a pull
 (`gitops.pull`) only when origin's main is new here, failures recorded in
-`<state>/pull.json`, then `jobs.hear` for every subject. A moved code ref is
+`<state>/pull.json`, then `jobs.hear` for every subject. ai-config, its own
+repository, is fast-forwarded every few minutes and relinked when it moved
+(`gitops.sync_private`). A moved code ref is
 fetched and recorded in session.json `code`; a step wakes the session with
 `[code] step N: ...` and brings unchanged held files to the new tip; a
 deleted ref releases them with a non-waking `[unheld]` line.
@@ -249,8 +251,15 @@ class Ear(object):
                 heard_code = self.hear_code(refs)
             except Exception as exc:                         # noqa: BLE001
                 self.say("cluster: hearing the code refs failed: %r" % (exc,))
-            # ai-config is ignored by Atlas, so a pull never brings it back.
+            # ai-config is ignored by Atlas, so a pull never brings it back,
+            # and never moves it forward either: that is sync_private's, on
+            # its own slower clock.
             gitops.adopt_private(self.atlas)
+            try:
+                gitops.sync_private(self.atlas, os.path.dirname(self.state),
+                                    say=self.say)
+            except Exception as exc:                         # noqa: BLE001
+                self.say("cluster: moving ai-config forward failed: %r" % (exc,))
             if main and not self.contains(main):
                 said = []
                 ok = gitops.pull(self.atlas, quiet=True, timeout=PULL_TIMEOUT,

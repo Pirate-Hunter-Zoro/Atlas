@@ -365,6 +365,77 @@ def pull(root, quiet=False, timeout=60, say=None):
 AI_CONFIG = "ai-config"
 AI_CONFIG_URL = "https://github.com/Pirate-Hunter-Zoro/ai-config.git"
 
+# How often the ear moves an existing ai-config forward. Atlas's pull never
+# does, because Atlas ignores it, and a fetch every 20 s pass is one more round
+# trip for a repository that changes a few times a week.
+PRIVATE_EVERY = 300
+PRIVATE_STAMP = "ai-config-pull.json"
+# install.sh's own bound: it links files and copies a few units.
+PRIVATE_LINK_TIMEOUT = 180
+
+
+def sync_private(base, state_dir, now=None, every=PRIVATE_EVERY, say=None,
+                 run=subprocess.run, timeout=60):
+    """Fast-forward `base`'s ai-config when it is due, then relink it if it moved.
+
+    None when there is no ai-config repository or the last try was under
+    `every` seconds ago. Otherwise `{"pulled": bool, "moved": bool, "linked":
+    True|False|None, "why": str}`: `pulled` from `pull` (the same refusals --
+    a merge in progress, a detached HEAD, local edits git will not carry);
+    `linked` None when nothing moved, else whether `scripts/install.sh` ran
+    clean, which is what puts a new file or link in place. The time of each try
+    is kept in `state_dir/PRIVATE_STAMP`, so a restarted server waits out the
+    same interval. `say` hears a pull that moved and a failure, nothing else.
+    Never raises on git or the script.
+    """
+    import time
+    repo = os.path.join(base, AI_CONFIG)
+    if not os.path.exists(os.path.join(repo, ".git")):
+        return None
+    now = time.time() if now is None else now
+    stamp = os.path.join(state_dir, PRIVATE_STAMP)
+    try:
+        with open(stamp, encoding="utf-8") as fh:
+            last = float(json.load(fh).get("at") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        last = 0.0
+    if now - last < every:
+        return None
+
+    _, before = _git(repo, "rev-parse", "HEAD")
+    said = []
+    ok = pull(repo, quiet=True, timeout=timeout, say=said.append)
+    _, after = _git(repo, "rev-parse", "HEAD")
+    moved = ok is True and before != after
+    rec = {"pulled": ok is True, "moved": moved, "linked": None,
+           "why": "" if ok is True else (said[-1] if said else "pull refused")}
+    if moved:
+        script = os.path.join(repo, "scripts", "install.sh")
+        try:
+            p = run(["bash", script], cwd=repo, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, universal_newlines=True,
+                    timeout=PRIVATE_LINK_TIMEOUT,
+                    env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+            rec["linked"] = p.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            rec["linked"] = False
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        tmp = stamp + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(dict(rec, at=now, head=after), fh)
+        os.replace(tmp, stamp)
+    except OSError:
+        pass
+    if say is not None:
+        if moved:
+            say("ai-config: moved to %s%s" % (
+                after[:12], "" if rec["linked"] else
+                ", but scripts/install.sh failed; run it by hand"))
+        elif ok is False:
+            say("ai-config: not moved forward: %s" % rec["why"])
+    return rec
+
 
 def adopt_private(base, quiet=True, run=subprocess.run):
     """Clone or adopt ai-config when this checkout lacks its repository,

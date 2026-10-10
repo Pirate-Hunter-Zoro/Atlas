@@ -28,7 +28,9 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   and re-queued at startup, so a restart loses no message.
 - **The cluster thread** (`cluster.Ear`, only with `TUTORBOARD_CLUSTER=1`). Every 20 s one
   `git ls-remote origin` asks for `main` and `refs/heads/code/*`. When main moved: a
-  fast-forward pull, a vendor checkout, then every subject's reports are heard.
+  fast-forward pull, a vendor checkout, then every subject's reports are heard. Every 5 min
+  it also fast-forwards `ai-config`, which Atlas's pull never moves, and reruns its
+  `scripts/install.sh` when that moved it (`gitops.sync_private`).
 - **The freshness thread** (only with `TUTORBOARD_FRESH=1`). Once committed board code differs
   from what the process loaded (`stamp.py`) and no turn runs or waits, the server exits 0 and
   launchd starts it on the new code.

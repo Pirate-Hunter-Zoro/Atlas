@@ -6,6 +6,7 @@ runs against real repositories in a temp dir: a bare origin standing in for
 GitHub, a second clone standing in for the cluster, and a vendor submodule
 whose pointer only the cluster moves.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -179,6 +180,73 @@ try:
     ok, said = gitops.commit(hooked, ["."], "first")
     check("a repository with .githooks/ has them turned on at its first commit",
           ok and git(hooked, "config", "core.hooksPath") == ".githooks")
+
+    # ai-config is its own repository: the ear moves it forward on its own
+    # clock, relinks it when it moved, and leaves a diverged copy alone.
+    pbase = os.path.join(work, "private-base")
+    pstate = os.path.join(work, "private-state")
+    os.makedirs(pbase)
+    check("no ai-config is nothing to do",
+          gitops.sync_private(pbase, pstate, now=1000) is None)
+    porigin = os.path.join(work, "ai-config.git")
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", porigin], check=True)
+    pseed = os.path.join(work, "ai-config-seed")
+    subprocess.run(["git", "init", "-q", "-b", "main", pseed], check=True)
+    ident(pseed)
+    write(os.path.join(pseed, "scripts", "install.sh"),
+          'touch "$PWD/linked.marker"\n')
+    git(pseed, "add", "-A")
+    git(pseed, "commit", "-qm", "p1")
+    git(pseed, "remote", "add", "origin", porigin)
+    git(pseed, "push", "-q", "origin", "main")
+    prepo = os.path.join(pbase, gitops.AI_CONFIG)
+    subprocess.run(["git", "clone", "-q", porigin, prepo], check=True)
+    ident(prepo)
+    heard = []
+    got = gitops.sync_private(pbase, pstate, now=1000, say=heard.append)
+    check("with nothing new it pulls, moves nothing and relinks nothing",
+          got == {"pulled": True, "moved": False, "linked": None, "why": ""}
+          and not os.path.exists(os.path.join(prepo, "linked.marker"))
+          and not heard)
+    check("and a second try inside the interval does not run",
+          gitops.sync_private(pbase, pstate, now=1000 + gitops.PRIVATE_EVERY - 1)
+          is None)
+    write(os.path.join(pseed, "INSTRUCTIONS.md"), "new rule\n")
+    git(pseed, "add", "-A")
+    git(pseed, "commit", "-qm", "p2")
+    git(pseed, "push", "-q", "origin", "main")
+    got = gitops.sync_private(pbase, pstate, now=1000 + gitops.PRIVATE_EVERY,
+                              say=heard.append)
+    check("a new commit is pulled, and install.sh relinks it",
+          got["moved"] and got["linked"] is True
+          and os.path.exists(os.path.join(prepo, "INSTRUCTIONS.md"))
+          and os.path.exists(os.path.join(prepo, "linked.marker"))
+          and heard and heard[-1].startswith("ai-config: moved to"))
+    with open(os.path.join(pstate, gitops.PRIVATE_STAMP), encoding="utf-8") as fh:
+        stamped = json.load(fh)
+    check("the try is stamped, with the head it left",
+          stamped["head"] == git(prepo, "rev-parse", "HEAD"))
+    write(os.path.join(pseed, "scripts", "install.sh"), "exit 3\n")
+    git(pseed, "commit", "-qam", "p3")
+    git(pseed, "push", "-q", "origin", "main")
+    got = gitops.sync_private(pbase, pstate, now=1000 + 2 * gitops.PRIVATE_EVERY,
+                              say=heard.append)
+    check("an install.sh that fails is said, not hidden",
+          got["moved"] and got["linked"] is False and "install.sh failed" in heard[-1])
+    write(os.path.join(prepo, "local.md"), "mine\n")
+    git(prepo, "add", "-A")
+    git(prepo, "commit", "-qm", "local")
+    write(os.path.join(pseed, "other.md"), "theirs\n")
+    git(pseed, "add", "-A")
+    git(pseed, "commit", "-qm", "p4")
+    git(pseed, "push", "-q", "origin", "main")
+    mine = git(prepo, "rev-parse", "HEAD")
+    got = gitops.sync_private(pbase, pstate, now=1000 + 3 * gitops.PRIVATE_EVERY,
+                              say=heard.append)
+    check("a copy with its own commits is refused and left exactly as it was",
+          got["pulled"] is False and not got["moved"] and got["linked"] is None
+          and git(prepo, "rev-parse", "HEAD") == mine
+          and heard[-1].startswith("ai-config: not moved forward"))
 finally:
     shutil.rmtree(work, ignore_errors=True)
 
@@ -186,4 +254,4 @@ print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a save pushes, and a pull leaves vendor clean")
+print("a save pushes, a pull leaves vendor clean, and ai-config moves forward on its own")
