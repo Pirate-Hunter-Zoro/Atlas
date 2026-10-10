@@ -1,5 +1,5 @@
 {
-  "at": 1791646694,
+  "at": 1791657144,
   "colibri": {
     "ends": null,
     "load_s": null,
@@ -8,7 +8,7 @@
     "state": "off",
     "task": null
   },
-  "last_error": "",
+  "last_error": "fetch from origin failed: fatal: unable to access 'https://github.com/Pirate-Hunter-Zoro/Atlas.git/': Could not resolve host: github.com",
   "outstanding": {},
   "push_pending": false,
   "skipped": ""
