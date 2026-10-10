@@ -230,6 +230,64 @@ function ask(handlers, url, init) {
     ? ok('a KaTeX font is answered from the cache')
     : fail('a cached KaTeX font was not used');
 
+  // 9. A 5XX IS A FAILED FETCH. Tailscale's proxy answers 502, empty, for a
+  //    connection the board never took; the page that gets it never runs.
+  const bad = () => Promise.resolve(new Response('', { status: 502 }));
+  let s5;
+  ({ handlers, ctx: s5 } = scope({ '/static/home.js': new Response('the home script') }));
+  s5.fetch = bad;
+  res = await ask(handlers, base + '/static/home.js');
+  res && res.status === 200 && /the home script/.test(await res.text())
+    ? ok('a shell file the proxy answers 502 comes from the cache')
+    : fail('a 502 on a cached shell file reached the page');
+  ({ handlers, ctx: s5 } = scope({}));
+  s5.fetch = bad;
+  res = await ask(handlers, base + '/static/home.js');
+  res && res.status === 502
+    ? ok('and with nothing cached the 502 itself is passed on, a failure the page sees')
+    : fail('an uncached shell file answered 502 became ' + (res && res.status));
+  ({ handlers, ctx: s5 } = scope({ '/static/board.html': new Response('<html>the board</html>') }));
+  s5.fetch = () => Promise.resolve(new Response('', { status: 503 }));
+  res = await ask(handlers, base + '/s/X/board', { navigate: true });
+  /the board/.test(res ? await res.text() : '')
+    ? ok('a session page answered 503 shows the cached board')
+    : fail('a session page answered 503 did not show the cached board');
+  ({ handlers, ctx: s5 } = scope({ '/static/home.js': new Response('stale') }));
+  s5.fetch = () => Promise.resolve(new Response('missing', { status: 404 }));
+  res = await ask(handlers, base + '/static/home.js');
+  res && res.status === 404
+    ? ok('while a 4xx is the network\'s answer, not replaced by the cache')
+    : fail('a 404 was replaced by the cache');
+
+  // 10. THE INSTALL ASKS A FEW AT A TIME. The whole SHELL in one burst is over
+  //     forty connections, which the proxy answers in part with 502s.
+  let inFlight = 0, most = 0;
+  const added = [];
+  let si;
+  ({ handlers, ctx: si } = scope({}));
+  // A worker resolves a relative URL against its own origin; node has none.
+  si.Request = function (u, init) { return new Request(new URL(u, base), init); };
+  si.caches.open = () => Promise.resolve({
+    put() {},
+    add: (r) => {
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      added.push(new URL(r.url).pathname);
+      return new Promise((done) => setTimeout(() => { inFlight -= 1; done(); }, 2))
+        .then(() => (added.length % 7 ? undefined : Promise.reject(new Error('502'))));
+    },
+  });
+  let waited;
+  handlers.install({ waitUntil: (p) => { waited = p; } });
+  await waited;
+  const shellCount = (SRC.match(/^ {2}"\//gm) || []).length;
+  added.length === shellCount && shellCount > 30
+    ? ok('the install asks for every SHELL file (' + shellCount + '), a failure aborting nothing')
+    : fail('the install asked for ' + added.length + ' of ' + shellCount);
+  most <= 4 && most >= 2
+    ? ok('and never more than 4 at once (at most ' + most + ')')
+    : fail('the install had ' + most + ' requests in flight at once');
+
   // VERSION is the server's to write; the source holds the placeholder it replaces.
   /var VERSION = "board-shell-dev";/.test(SRC)
     ? ok('VERSION is a placeholder the server fills with a hash of the shell')
