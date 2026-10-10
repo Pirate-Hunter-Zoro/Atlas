@@ -78,8 +78,9 @@ def registry():
 def route(agent=None, table=None):
     """Where an image goes, as `(settings, why-there-is-none)`.
 
-    The running agent's own recipe first, then `vision_agent`, so `board see`
-    reports the route that really answers. A stood-down host is skipped: an
+    The running agent's own recipe first, then `vision_agent`, then every
+    other recipe, so `board see` reports the route that really answers and no
+    one provider's eyes are load-bearing. A stood-down host is skipped: an
     endpoint route when the stand-down names its host or none, never a
     command route by name alone, since commands scrub `ROUTING`. An in-fence
     recipe is never a route (only it reads phi), nor one marked `sighted:
@@ -89,7 +90,8 @@ def route(agent=None, table=None):
     table = registry() if table is None else table
     agents = {a.get("name"): a for a in (table.get("agents") or [])}
     tried, dark, blind = [], [], []
-    for name in (agent, table.get("vision_agent"), table.get("default")):
+    every = [a.get("name") for a in (table.get("agents") or [])]
+    for name in [agent, table.get("vision_agent"), table.get("default")] + every:
         if not name or name in tried:
             continue
         tried.append(name)

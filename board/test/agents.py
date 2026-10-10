@@ -72,10 +72,13 @@ check("the provider takes the turn when nothing is wrong",
       recipes.resolve(ONE) == ("one", None))
 check("an unset provider is claude and an unset fallback is none",
       recipes.provider({}) == "claude" and recipes.fallback({}) is None)
-check("the built-in setting is claude, falling back to codex, claude's eyes",
+check("the built-in setting names a provider and claude's eyes, and no "
+      "fallback, so every other recipe backs it up",
       recipes.DEFAULT_CONFIG["provider"] == "claude"
-      and recipes.DEFAULT_CONFIG["fallback"] == "codex"
-      and recipes.DEFAULT_CONFIG["vision_agent"] == "claude")
+      and "fallback" not in recipes.DEFAULT_CONFIG
+      and recipes.DEFAULT_CONFIG["vision_agent"] == "claude"
+      and recipes.fallbacks(recipes.DEFAULT_CONFIG)
+      == [n for n in recipes.DEFAULT_CONFIG["agents"] if n != "claude"])
 check("nothing else chooses: no default_agent, only_agent, per-session or "
       "per-workspace key is in the table",
       not any(k in recipes.DEFAULT_CONFIG for k in
@@ -105,9 +108,24 @@ check("so does one whose key is missing",
       and "A-KEY-NO-MACHINE-HAS" in recipes.resolve(dict(ONE, provider="unkeyed"))[1])
 check("an unknown provider falls back rather than resolving to a wrong one",
       recipes.resolve(dict(ONE, provider="nonesuch"))[0] == "two")
-check("there is one fallback, never a walk over every recipe",
+check("a named fallback is the only one, and null names none",
       recipes.resolve(dict(ONE, provider="ghost", fallback="unkeyed"))[0] is None
       and recipes.resolve(dict(ONE, provider="ghost", fallback=None))[0] is None)
+check("a list of fallbacks is walked in order, past the ones that cannot",
+      recipes.resolve(dict(ONE, provider="ghost",
+                           fallback=["unkeyed", "three", "two"]))[0] == "three")
+_all = dict((k, v) for k, v in ONE.items() if k != "fallback")
+check("with no fallback set, every other recipe is walked in the table's "
+      "order, so any one provider can die",
+      recipes.chain(_all) == ["one", "two", "three", "fenced", "ghost",
+                              "unkeyed"]
+      and recipes.resolve(dict(_all, provider="ghost"))[0] == "one")
+limits.mark_limited(time.time() + 900, agent="one")
+limits.mark_limited(time.time() + 900, agent="two")
+check("and past every one that is out, to the next that can answer",
+      recipes.resolve(_all)[0] == "three"
+      and "'one'" in recipes.resolve(_all)[1])
+limits.clear_limited()
 check("a fallback that is the provider is no fallback",
       recipes.resolve(dict(ONE, provider="ghost", fallback="ghost"))[0] is None)
 
@@ -118,13 +136,15 @@ check("an in-fence provider is refused, in words, and the fallback takes it",
       and recipes.resolve(dict(ONE, provider="fenced"))[0] == "two"
       and "phi" in recipes.resolve(dict(ONE, provider="fenced"))[1])
 check("and an in-fence fallback is never fallen into",
-      recipes.resolve(dict(ONE, provider="ghost", fallback="fenced"))[0] is None)
+      recipes.resolve(dict(ONE, provider="ghost", fallback="fenced"))[0] is None
+      and recipes.resolve(dict(_all, provider="ghost",
+                               fallback=["fenced", "two"]))[0] == "two")
 check("a hosted recipe is not in the fence", recipes.in_fence(ONE, "one") is None)
 
 import inspect                                                 # noqa: E402
 _resolver = sum(len(inspect.getsourcelines(f)[0]) for f in (
-    recipes.provider, recipes.fallback, recipes.in_fence, recipes.unavailable,
-    recipes.resolve))
+    recipes.provider, recipes.fallbacks, recipes.fallback, recipes.chain,
+    recipes.in_fence, recipes.unavailable, recipes.resolve))
 check("the resolver is under 80 lines (%d)" % _resolver, _resolver < 80)
 check("and the old choosers are gone",
       not any(hasattr(recipes, n) for n in (
@@ -541,5 +561,5 @@ check("a repeated failure stands nothing down",
 shutil.rmtree(silent, ignore_errors=True)
 
 
-print("%d FAILURES" % len(fails) if fails else "one provider, one fallback, and nothing else chooses")
+print("%d FAILURES" % len(fails) if fails else "a provider, every other one behind it, and nothing else chooses")
 sys.exit(1 if fails else 0)

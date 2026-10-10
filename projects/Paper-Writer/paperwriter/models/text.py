@@ -12,8 +12,8 @@ things moved out of the stages and into here or the role table:
     EXACTLY one path, and (for a one-shot role) to read nothing on the way there.
     That is the kind of detail a stage should never carry.
 
-Every call goes to the same place: Claude, at `config.MODEL`, through the logged-in
-CLI. The propose/dispose spine is unchanged and non-negotiable — after `produce`
+Every call goes to Atlas's providers, in order (`providers/chain.py`): Claude at
+`config.MODEL` when it can, any other provider when it cannot. The propose/dispose spine is unchanged and non-negotiable — after `produce`
 returns, the artifact is a file at `out_path` that deterministic code reads,
 validates, and disposes of.
 """
@@ -44,14 +44,14 @@ def compose(base, facts, out_path, artifact="your result", shape=None, tail="",
 
 
 def run(prompt, out_path, role, log_fn=None):
-    """Hand an already-composed prompt to Claude."""
+    """Hand an already-composed prompt to the providers."""
     return providers.text().produce(prompt, out_path, providers.role(role),
                                     log_fn=log_fn)
 
 
 def produce(base, facts, out_path, role, artifact="your result", shape=None, tail="",
             log_fn=None):
-    """Have Claude produce an artifact at `out_path`.
+    """Have a model produce an artifact at `out_path`.
 
     * base     — the committed base prompt (from `prompts.template`), or "".
     * facts    — the THIS JOB block: a list of "Label: value" lines, or a string.

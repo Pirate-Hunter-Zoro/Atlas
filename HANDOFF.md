@@ -57,9 +57,6 @@ reports it built once it is.
   is trimmed.
 - **The dimension-count versus best-k scatter.** Decide in a session whether it enters the k-sweep
   write-up. It stays out until then.
-- **The provider.** `~/.config/tutor-board/config.json` sets `provider` deepseek and no
-  `fallback`, so a limited provider has nowhere to fall back to. Set `fallback` if that is not
-  intended. Its `default_agent` key is ignored.
 - **Subject READMEs and course `.tex` headers** link `AI_INSTRUCTIONS.md`, `HANDOFF.md` and
   `PROGRESS.md`, which do not exist. `RULES.md` and `TUTOR.md` hold their content. These are the
   owner's files, so the owner edits them.

@@ -58,6 +58,10 @@ The assistant runs these. The student never does.
                                        starts a generation if none is up; on
                                        the Mac it files a `colibri` request.
                                        --show lists the queue
+    board libr-ai [--label <slug>] [--model <m>] "<task>"
+                                       ask IT's model server (gpt-oss), from a
+                                       subject whose phi is false; the answer
+                                       comes back as the request's report
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
@@ -1862,6 +1866,57 @@ def cmd_colibri(live, args):
     return 0
 
 
+def cmd_libr_ai(live, args):
+    """Ask IT's model server, from a subject whose phi is false.
+
+        board libr-ai [--label <slug>] [--session <id>] [--model <m>] "<task>"
+
+    Files a `libr-ai` relay request (`libr_ai.ask`). The relay submits it as a
+    Slurm job that runs opencode once, read-only, in the subject on the
+    cluster, against ai.laureateinstitute.org; the model's answer is the job's
+    log, and the report brings it back and wakes the session. The model is
+    `gpt-oss:120b` unless `--model` names another the server lists.
+
+    IT's server keeps every chat, so a subject with PHI is refused; it uses
+    Colibri. On the cluster itself, `coder` is the direct route.
+    """
+    from tutorboard import libr_ai
+    words = list(args)
+    model = ""
+    if "--model" in words:
+        i = words.index("--model")
+        if i + 1 >= len(words) - 1:
+            print("board libr-ai: --model needs a model name before the task",
+                  file=sys.stderr)
+            return 1
+        model = words[i + 1].strip()
+        del words[i:i + 2]
+    if not words or not words[-1].strip():
+        print("board libr-ai: say what the task is", file=sys.stderr)
+        return 1
+    brief = words[-1].strip()
+    label, session = _job_label(words[:-1], "board libr-ai")
+    if label is None:
+        return 1
+    if len(brief) > jobs.MAX_BRIEF:
+        print("board libr-ai: the task is %d characters and the cap is %d"
+              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
+        return 1
+    if jobs.has_slurm():
+        print("board libr-ai: this is the cluster, where `coder` reaches IT's "
+              "server directly. Nothing was filed.", file=sys.stderr)
+        return 1
+    got = libr_ai.ask(live.root, brief, label, session, model)
+    if not got["ok"]:
+        print("board libr-ai: %d problem(s), and nothing was filed:"
+              % len(got["problems"]), file=sys.stderr)
+        for line in got["problems"]:
+            print("  " + line, file=sys.stderr)
+        return 1
+    print("%s." % got["said"])
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Tailscale: `tailscale serve` publishes HTTPS to 127.0.0.1 on the board's port
 # once (install.sh), and nothing here re-points it.
@@ -2451,7 +2506,7 @@ COMMANDS = {
     "brief": cmd_brief, "memo": cmd_memo,
     "job": cmd_job, "diagnose": cmd_job,
     "ask-cluster": cmd_ask_cluster,
-    "colibri": cmd_colibri, "code": cmd_code,
+    "colibri": cmd_colibri, "libr-ai": cmd_libr_ai, "code": cmd_code,
     "meeting": cmd_meeting,
     "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
@@ -2473,7 +2528,7 @@ NO_LIVE = ("textbook", "build", "session", "bind", "file", "code",
            "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.
-SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "meeting",
+SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "libr-ai", "meeting",
                 "deckfig", "memo")
 
 

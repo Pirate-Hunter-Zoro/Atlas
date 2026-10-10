@@ -1128,9 +1128,11 @@ whatever its alt text says.
 
 - Python 3.9 or newer.
 - The Mac. Paper-Writer runs there and nowhere else: the author daemon calls a hosted
-  model, and no hosted model runs on an institute machine
-  (`projects/libr-local-llm/docs/deepseek-egress.md`). No compute node runs it.
-- The `claude` CLI, logged in on the Mac. There is no API key anywhere in this project.
+  model, and the system never runs one at the cluster. No compute node runs it.
+- At least one of Atlas's AI providers working on the Mac (`board doctor --dry` lists them).
+  Text goes to them in order (`paperwriter/providers/chain.py`): Claude through its CLI at
+  `PAPER_MODEL` when it can take the call, any other provider when it cannot.
+  `PAPER_PROVIDERS` (a comma list of recipe names) pins the order for this project.
 - `pandoc`, if you want a `.docx`. Check for it with `config.PANDOC_BIN` rather
   than `which pandoc` — see above.
 
@@ -1243,8 +1245,8 @@ somebody has to re-check by hand.
 
 ### Gating a section by hand
 
-The daemon shells out to `claude`, so a Claude session driving it end to end would be a
-session calling itself. The honest arrangement is to split the spine: **the model's half
+The daemon shells out to an AI provider's CLI, so an assistant session driving it end to
+end would be a session calling itself. The honest arrangement is to split the spine: **the model's half
 is done directly and the harness does the deterministic half.** Propose/dispose, with a
 person or a session as the proposer.
 
@@ -1470,7 +1472,8 @@ is overridable with a `PAPER_`-prefixed environment variable. The ones worth kno
 | `PAPER_SOURCE_DIRS` | — | Colon-separated read-only trees the gathering stage may mine. |
 | `PAPER_OUT_DIR` | `../Manuscripts` | Where the drop folder lives and finished papers land. Not where the asking workspace gets its copy — that is `## Delivery` in the job, because one harness serves many workspaces. |
 | `PAPER_STATE_DIR` | `state/` | The whole runtime tree. Redirect it and everything moves. |
-| `PAPER_MODEL` | `claude-opus-5` | Every text call. There are no tiers. |
+| `PAPER_MODEL` | `claude-opus-5` | Every text call Claude takes. There are no tiers. |
+| `PAPER_PROVIDERS` | Atlas's chain | The providers tried, in order, as recipe names. |
 | `PAPER_SENTENCE_MEAN_MAX` | `22` | Mean words per sentence, ceiling. |
 | `PAPER_SENTENCE_LONG_SHARE_MAX` | `0.08` | Share of sentences allowed past 35 words. |
 | `PAPER_SENTENCE_MID_SHARE_MAX` | `0.15` | Share of a whole document's sentences allowed past 25 words. Document scope, not section. |

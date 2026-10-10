@@ -651,8 +651,8 @@ echo "SESSION-9 is in this row"
     t1 = load(os.path.join(cws, "relay", "reports", "t1.json"))
     check("a turn request is refused on the Mac, in one sentence naming the "
           "policy", ok is None and problems == [jobs.NO_TURN]
-          and "institute machine" in jobs.NO_TURN
-          and "deepseek-egress.md" in jobs.NO_TURN)
+          and "never runs one there" in jobs.NO_TURN
+          and "libr-ai" in jobs.NO_TURN)
     check("and by the cluster, which runs nothing for it",
           "t1" in got["refused"] and t1["state"] == "refused"
           and t1["problems"] == [jobs.NO_TURN] and len(slurm.scripts) == n)

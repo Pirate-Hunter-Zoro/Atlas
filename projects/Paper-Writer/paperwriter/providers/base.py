@@ -1,21 +1,19 @@
 """What a provider is, and the one delivery contract text calls are written against.
 
-One service: Claude, for text. This module holds the declarations around it — what a
-provider can do, what a failure means, and the contract every call is written against.
+This module holds the declarations every text provider shares: what a provider can
+do, what a failure means, and the contract every call is written against.
 No I/O, so it can be read on its own.
 
 ## The delivery contract
 
 The project's spine is *the model proposes to a file; deterministic code disposes*.
-Every stage names an output path and reads that file afterwards, and Claude — which
-holds the tools — writes it itself. The closing instruction that says so is generated
+Every stage names an output path and reads that file afterwards, and the model, which
+holds the tools, writes it itself. The closing instruction that says so is generated
 here rather than baked into each prompt template, so the one-shot discipline below is
 applied uniformly instead of being remembered eleven times.
 
-This used to be two contracts, because a completion endpoint has no filesystem and
-had to be told to *reply* with the artifact instead. Those providers are gone (see
-`providers/__init__.py`), and with them the class of bug where the wrong contract was
-handed to a provider and every call it made failed the same way.
+Every provider is an agentic CLI with a filesystem, so there is one contract. A
+completion endpoint with no tools cannot be a provider here.
 """
 
 from .. import config
@@ -57,7 +55,7 @@ def is_quota(detail):
 
 
 def file_contract(out_path, artifact, shape=None, oneshot=False):
-    """The closing instruction telling Claude where to put its artifact.
+    """The closing instruction telling the model where to put its artifact.
 
     `oneshot` is the token-discipline half of the contract, and it is worth more than
     any model choice. An agentic CLI re-sends the entire conversation — system prompt,

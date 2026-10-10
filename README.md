@@ -14,9 +14,14 @@ sessions, the relay and the invariants. How a tutor turn teaches is
 - **No PHI in git.** Patient data lives only on the cluster, in ignored `phi/` and `results/`
   directories. Anchored ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each
   refuse it on their own, because any one guard can be deleted by accident.
-- **No hosted model runs on an institute machine**, for any vendor, through any proxy.
-  `projects/libr-local-llm/docs/deepseek-egress.md` is the citation. The one model beside the
-  data is Colibri, which is local and runs only as a relay task.
+- **No AI provider is load-bearing.** Every AI use in Atlas reads one provider table and walks
+  it in order, so any provider can be added, removed, or go away. DeepSeek on the Mac mini alone
+  runs all of it. The README in `board/` says how to add one.
+- **No hosted model reads PHI**, and the system never runs one at the cluster: the relay refuses
+  a `turn` request. `claude` or `codex` may be installed there for the owner's own use. The one
+  model beside the data is Colibri, which is local; IT's model server takes work only from
+  subjects with no PHI. DeepSeek is blocked from the compute nodes
+  (`projects/libr-local-llm/docs/deepseek-egress.md`), and nothing works around that.
 - **The Mac is the only brain.** Every model turn, compile and deck runs on the Mac mini.
   The cluster runs Slurm jobs and the relay, nothing else.
 - **Commits are authored by the owner.** `.githooks/commit-msg` strips assistant trailers.
@@ -73,7 +78,7 @@ The two machines never talk directly. GitHub is the only channel: `main`, plus o
 | | Mac mini (home) | Cluster (institute) |
 | --- | --- | --- |
 | Runs | the board server, every model turn, every build | Slurm jobs, and the relay every 2 minutes from scrontab |
-| Models | `claude` by default, `codex` as fallback, DeepSeek through `opencode` | Colibri only, as a relay task |
+| Models | every provider in the table, in order: DeepSeek through `opencode`, `claude`, `codex` | Colibri and IT's model server, each as a relay task |
 | Holds | Atlas, sessions, materials, ink | Atlas, `phi/`, `results/`, model weights |
 
 - The Mac pushes a request under `<subject>/relay/requests/`. The relay pulls it, checks it,
@@ -103,8 +108,9 @@ board, and checks that the board answers. Its header lists each step.
 - `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
   environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
 - Turn on automatic login, so the LaunchAgent comes back after a reboot.
-- The provider is set in `~/.config/tutor-board/config.json` (`provider`, `fallback`,
-  `vision_agent`); keys sit in `~/.config/tutor-board/keys.env`. Both stay off the tree.
+- The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
+  `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
+  Both stay off the tree.
 - `board doctor --dry` reports what the machine has without spending a turn.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
@@ -120,15 +126,13 @@ Run it on a compute node (`salloc`, then ssh to the node), never on `submit0`. I
 cluster is brought up to date. It pulls main, runs `board/scripts/setup-cluster.sh` (bootstrap,
 ai-config, the relay's scrontab entry, origin), runs `scripts/setup.sh`, checks the PHI guards,
 submits `projects/Lean-Theorem-Proving/slurm_jobs/build_mathlib.sbatch` when Mathlib is not built,
-checks that no hosted model's credential is here, and runs one relay pass. No board, no
-LaunchAgent and no model is ever installed there.
+and runs one relay pass. No board and no LaunchAgent is installed there, and nothing in setup
+needs a hosted model's login.
 
 - The relay's scrontab entry runs `board/scripts/relay-pass.sh` every 2 minutes.
 - The cluster blocks `dl.google.com` and Mathlib's cache host. So Go comes from conda-forge into
   `~/.local/goenv` with `GOPROXY=direct`, and Mathlib is compiled by the job above.
 - `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
-- No hosted model's credential lives on the cluster, and step 7 flags any it finds. Remove the
-  file, or the whole shell function that uses the key, never single lines out of a function.
 - The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
   `board/test/py37.py` enforces it.
 

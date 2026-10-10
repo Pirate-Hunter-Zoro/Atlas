@@ -150,11 +150,11 @@ check("each named: the id, the label, the recipe, the key, the produces path",
 
 turn = {"id": "2026-10-03-knn-turn", "kind": "turn", "thread": "knn",
         "brief": "Read dimension_importance.json and say whether L1 took."}
-check("a turn request is refused, in one sentence naming the policy: no "
-      "hosted model call on an institute machine",
+check("a turn request is refused, in one sentence naming the policy: the "
+      "system never runs a hosted model at the cluster",
       vc(turn) == (None, [jobs.NO_TURN])
-      and "institute machine" in jobs.NO_TURN
-      and "projects/libr-local-llm/docs/deepseek-egress.md" in jobs.NO_TURN)
+      and "never runs one there" in jobs.NO_TURN
+      and "every model turn runs on the Mac" in jobs.NO_TURN)
 check("whatever the workspace's tutorboard.json says",
       vc(turn, colibri=True) == (None, [jobs.NO_TURN]))
 

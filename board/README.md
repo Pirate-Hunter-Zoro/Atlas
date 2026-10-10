@@ -178,7 +178,7 @@ channel.
    `board job --batch <file.json>` files many in one commit; one problem files none.
 2. **Validate**, on both machines (`jobs.validate`). The recipe is tracked and unchanged at
    HEAD, HEAD contains the pinned commit, every variable matches its `#RELAY-VAR` pattern, and
-   a `turn` request is refused, because no hosted model runs on an institute machine.
+   a `turn` request is refused, because the system never runs a hosted model at the cluster.
 3. **Submit** through the exit-file wrapper, which sources `cluster/lib/`'s fingerprint. A
    job's end is read from `squeue` plus its exit file, because `sacct` is refused there.
 4. **Report.** `relay/reports/<id>.json` carries state, Slurm id, times, exit code, `RELAY:`
@@ -210,6 +210,18 @@ A task writes only under the subject's ignored `phi/`, so any change git can see
 nothing it wrote is committed. Its `RELAY:` lines are what come back. The Mac reads Colibri's
 state only from `relay/status.json`, and has no start control.
 
+### IT's model server
+
+`board libr-ai [--model <m>] "<task>"` files a `libr-ai` request (`libr_ai.py`) for IT's Open
+WebUI server at ai.laureateinstitute.org, which only the compute nodes resolve. The model is
+`gpt-oss:120b` unless `--model` names another the server lists. The relay submits the request
+as a Slurm job running `scripts/libr-ai-task.sh`: opencode once, in the subject, under
+`scripts/libr-ai-task.json`, which denies the shell, edits, the web and every path outside the
+subject. The job's log is the model's answer, and the report carries it back and wakes the
+session. IT's server keeps every chat, so the Mac, the relay and the task script each refuse a
+subject whose tutorboard.json does not say `"phi": false`; a PHI subject uses Colibri. The key
+is `~/.config/libr-ai/key` on the cluster.
+
 ## Coding at the cluster
 
 One git ref per coding session, `code/<session-id>` (`code.py`).
@@ -233,25 +245,35 @@ server, runner or model module.
 
 ## Providers
 
-`agents/recipes.py` holds the recipe table. `~/.config/tutor-board/config.json` names one
-`provider` (default `claude`), one `fallback` (`codex`) and a `vision_agent`. Nothing else
-chooses: no session, subject or flag overrides it. The DeepSeek recipe runs through `opencode`.
-Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
-because argv shows in `ps`. A usage limit marks the provider unavailable until it expires, and the fallback takes its
-turns (`limits.py`). `board doctor` spends one real turn per provider; `--dry` spends none.
-`board cost` adds up every session's `cost.jsonl`.
+No AI provider is load-bearing: every AI use in Atlas reads one table and walks it in order.
+
+- `agents/recipes.py` holds the built-in recipes (`claude`, `deepseek`, `codex`), and
+  `~/.config/tutor-board/config.json` is laid over them. It names the `provider` tried first and
+  a `vision_agent`. `fallback` is one name or a list; with none, every other recipe backs the
+  provider up, in the table's order (`recipes.chain`). Nothing else chooses.
+- **Adding a provider** is one entry under `agents` in config.json: `cmd`, `headless_first`
+  with `{prompt}`, and `needs_key` plus `env` when it takes a key. **Removing one** is deleting
+  its entry, or naming the chain in `fallback`.
+- Who uses the table: every board turn (`resolve`), image reading (`seeing.route`, every
+  sighted recipe in turn), `board doctor`, and anything outside the board through
+  `agents/oneshot.py`, which Paper-Writer's daemon uses.
+- Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
+  because argv shows in `ps`. A usage limit marks a provider unavailable until it expires, and
+  the next in the chain takes its turns (`limits.py`). `board doctor` spends one real turn per
+  provider in the chain; `--dry` spends none. `board cost` adds up every session's `cost.jsonl`.
 
 ## Invariants
 
 - **Standard library only; add no runtime dependency.** The relay runs on a compute node with
   no `sudo`, and every dependency is one more thing to install there.
 - **Relay-path code runs on Python 3.7**: `bin/relay`, `board code`, and the modules relay,
-  jobs, colibri, exports, cluster, code, fenced, leaving, paths, worktree, gitops, audit and what
+  jobs, colibri, libr_ai, exports, cluster, code, fenced, leaving, paths, worktree, gitops, audit and what
   they import. No walrus, no `match`, no `removeprefix`, no `functools.cache`, no `dict | dict`,
   no runtime builtin generics. `test/py37.py` enforces it, because the cluster's python3 may be
   3.7. Cluster bash stays bash 3.2 safe, and guards `flock` and `timeout` with `command -v`.
-- **No hosted model on an institute machine.** `jobs.NO_TURN` refuses a `turn` request; the
-  relay runs no model; Colibri is the only model beside the data.
+- **The system never runs a hosted model at the cluster.** `jobs.NO_TURN` refuses a `turn`
+  request; the relay runs no model itself. Colibri, which is local, may read beside the data.
+  IT's model server (`libr_ai.py`) takes work only from a subject whose phi is false.
 - **Never read, list or copy anything under `phi/`, `results/`, or a directory named in
   `tutorboard/fenced.py` `NEVER`.** They hold identifiable patient data; existence checks only.
 - **Never weaken the PHI guards:** `test/tracked.py`, `ai-config/policy/phi.py` fencing by

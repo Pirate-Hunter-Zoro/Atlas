@@ -95,9 +95,9 @@ try:
     rec = lesson_git.run_push(course_repo.Repo(alpha, os.path.join(alpha, "live")), "lesson complete")
     got = committed(repo)
     check("a save from one workspace commits and pushes", rec.get("ok") is True)
-    check("its work and its transcript go in the commit",
-          {"projects/Alpha/notes.md",
-           "projects/Alpha/live/slate/page-02.json"} <= got)
+    check("its work goes in the commit, and a subject's old live/ does not",
+          "projects/Alpha/notes.md" in got
+          and not any("/live/" in f for f in got))
     check("board/ does not", not any(f.startswith("board/") for f in got))
     check("another workspace does not",
           not any(f.startswith("projects/Beta/") for f in got))

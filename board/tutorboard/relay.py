@@ -1231,6 +1231,9 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         summary["refused" if got.get("state") == "refused"
                 else "submitted"].append(rid)
         return
+    if ok["kind"] == "libr-ai":
+        _libr_ai(ws, ok, req, rid, run, now, summary, names_phi, env)
+        return
     if ok["kind"] != "recipe":
         refuse(ws, req, ["the relay has no way to run a %s request"
                          % ok["kind"]], now, names_phi)
@@ -1242,6 +1245,31 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         produces=ok["produces"], export=ok["export"], key=rid,
         run=run, now=now, sbatch_env=env,
         extra={"request": rid, "kind": "recipe", "ran_at": ran_at})
+    if not rec:
+        refuse(ws, req, [why], now, names_phi)
+        summary["refused"].append(rid)
+        return
+    rep = _base_report(req, "submitted", now, names_phi)
+    rep.update({"jobid": rec["jobid"], "submitted": rec["submitted"],
+                "ran_at": ran_at})
+    write_report(ws, rid, rep)
+    summary["submitted"].append(rid)
+
+
+def _libr_ai(ws, ok, req, rid, run, now, summary, names_phi, env):
+    """A `libr-ai` request: submitted as a job running the task script, whose
+    log is the answer. Refused unless that log may be published, because its
+    report is the only way the answer comes back."""
+    from . import code, libr_ai
+    if not code.output_open(ws, names_phi=names_phi):
+        refuse(ws, req, ["this subject's output may not be published (its "
+                         "phi is not false at HEAD, or it holds a fence), so "
+                         "IT's model server takes no work from it"],
+               now, names_phi)
+        summary["refused"].append(rid)
+        return
+    ran_at = jobs.head(ws, short=True) or "unknown"
+    rec, why = libr_ai.submit(ws, ok, run, now, env, ran_at)
     if not rec:
         refuse(ws, req, [why], now, names_phi)
         summary["refused"].append(rid)

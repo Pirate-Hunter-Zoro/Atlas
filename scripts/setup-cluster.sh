@@ -16,8 +16,10 @@
 #   4  the PHI guards: ai-config's tests, phi-probe, board/test/tracked.py
 #   5  Mathlib, as a Slurm job when it is not built and no build is queued
 #   6  the colibri build, reported (it needs CUDA; the README's command)
-#   7  no hosted model's credential is readable here
-#   8  one relay pass, and relay/status.json has no error
+#   7  one relay pass, and relay/status.json has no error
+#
+# Nothing here needs a hosted model's login. `claude` or `codex` may be
+# installed for the owner's own use; the system never calls them here.
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -89,19 +91,7 @@ else
   warn "vendor/colibri-build is not built; projects/libr-local-llm/README.md has the make line (CUDA, GCC modules)"
 fi
 
-echo "== 7. no hosted model's credential here"
-for f in "$HOME/.claude/.credentials.json" "$HOME/.local/share/opencode/auth.json"; do
-  [ ! -e "$f" ] || warn "$f exists; no hosted model runs here, so remove it"
-done
-grep -qsE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=[^[:space:]#]' "$HOME/.config/tutor-board/keys.env" \
-  && warn "~/.config/tutor-board/keys.env sets a key; remove it"
-grep -qsE '_API_KEY|ANTHROPIC_AUTH_TOKEN' "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile" \
-  && warn "a login profile names an API key or ANTHROPIC_AUTH_TOKEN; remove it"
-env | grep -qE '^[A-Za-z0-9_]*_API_KEY=.|^ANTHROPIC_AUTH_TOKEN=.' \
-  && warn "this shell has an API key set"
-good "credential checks done"
-
-echo "== 8. one relay pass"
+echo "== 7. one relay pass"
 if bash board/scripts/relay-pass.sh >"$LOGS/relay-pass.log" 2>&1; then
   err="$(python3 -c 'import json; print(json.load(open("relay/status.json")).get("last_error") or "")' 2>/dev/null)"
   if [ -n "$err" ]; then warn "relay/status.json last_error: $err"; else good "relay pass ran; relay/status.json has no error"; fi

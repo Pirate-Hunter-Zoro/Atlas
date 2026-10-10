@@ -1,6 +1,6 @@
 """`board doctor`'s turns: one real turn per provider, the way the runner sends it.
 
-    board doctor              the configured `provider` and its `fallback`
+    board doctor              every provider, in the order a turn tries them
     board doctor codex ...    the recipes named instead
     board doctor --dry        no turn: whether each could take one, and its argv
 
@@ -85,7 +85,7 @@ def cmd_doctor(cfg, args, dry=False):
     cfg = cfg or recipes.load_config()
     names = [a for a in args if not a.startswith("-")]
     if not names:
-        names = [n for n in (recipes.provider(cfg), recipes.fallback(cfg)) if n]
+        names = recipes.chain(cfg)
     if not names:
         print("FAIL nobody: no provider or fallback is configured")
         return 1

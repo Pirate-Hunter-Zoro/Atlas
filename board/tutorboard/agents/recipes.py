@@ -1,11 +1,15 @@
 """Which assistant takes a turn: the recipes, this machine's config, and the choice.
 
 A provider is a recipe plus a key. `DEFAULT_CONFIG` is the built-in table;
-`load_config` lays this machine's `config.json` over it. The config names one
-`provider`, one `fallback` and a `vision_agent`, and nothing else chooses: no
-session, subject or command line overrides it. `resolve` says who takes the
-next turn, `unavailable` why a recipe cannot, and `listing` is what the board
-draws.
+`load_config` lays this machine's `config.json` over it. Adding a provider is
+one `agents` entry in that file; removing one is `"replace": true` with no
+recipe, or deleting its entry. No vendor is load-bearing: the config names a
+`provider` and, optionally, `fallback` (one name or a list), and with no
+`fallback` every other recipe in the table is tried in its order, so any one
+provider can die and the rest still answer. `vision_agent` is the first eye
+tried. Nothing else chooses: no session, subject or command line overrides it.
+`resolve` says who takes the next turn, `chain` the order they are tried in,
+`unavailable` why a recipe cannot, and `listing` is what the board draws.
 """
 
 import json
@@ -87,11 +91,10 @@ DEFAULT_CONFIG = {
             "env": {},
         },
     },
-    # THE ONE PROVIDER SETTING: who takes every turn, who takes it when that
-    # one cannot (missing binary, missing key, usage limit), and who reads an
+    # THE ONE PROVIDER SETTING: who takes every turn first, and who reads an
     # image for a recipe with no eyes. `/default-agent` writes `provider`.
+    # There is no `fallback` here, so every other recipe backs it up.
     "provider": "claude",
-    "fallback": "codex",
     "vision_agent": "claude",
     "headless_timeout": 900,
     "doing_timeout": 3600,
@@ -196,10 +199,31 @@ def provider(cfg):
     return said.strip() if isinstance(said, str) and said.strip() else "claude"
 
 
+def fallbacks(cfg):
+    """Who takes a turn the provider cannot, in order. `fallback` is one name
+    or a list; null or [] is nobody; absent, it is every other recipe."""
+    cfg = cfg or {}
+    said = cfg.get("fallback") if "fallback" in cfg else list(
+        cfg.get("agents") or {})
+    if isinstance(said, str):
+        said = [said]
+    want, out = provider(cfg), []
+    for n in said if isinstance(said, list) else []:
+        n = n.strip() if isinstance(n, str) else ""
+        if n and n != want and n not in out:
+            out.append(n)
+    return out
+
+
 def fallback(cfg):
-    """The one recipe that takes a turn the provider cannot, or None."""
-    said = (cfg or {}).get("fallback")
-    return said.strip() if isinstance(said, str) and said.strip() else None
+    """The first fallback, or None."""
+    return (fallbacks(cfg) or [None])[0]
+
+
+def chain(cfg):
+    """Every recipe in the order a turn tries them: the provider, then each
+    fallback."""
+    return [provider(cfg)] + fallbacks(cfg)
 
 
 def in_fence(cfg, name):
@@ -241,20 +265,24 @@ def unavailable(cfg, name, now=None):
 def resolve(cfg, now=None):
     """Who takes the next turn: `(name, why)`.
 
-    The provider when it can. Else the fallback, with `why` the sentence the
-    board paints. Else `(None, why)`: nobody here can, and the turn is not run.
+    The provider when it can. Else the first fallback that can, with `why` the
+    sentence the board paints. Else `(None, why)`: nobody here can, and the
+    turn is not run.
     """
     want = provider(cfg)
     why = unavailable(cfg, want, now)
     if not why:
         return want, None
-    alt = fallback(cfg)
-    if alt and alt != want and not unavailable(cfg, alt, now):
-        return alt, ("'%s' cannot take this turn -- %s; '%s' is taking it"
-                     % (want, why, alt))
+    nots = []
+    for alt in fallbacks(cfg):
+        alt_why = unavailable(cfg, alt, now)
+        if not alt_why:
+            return alt, ("'%s' cannot take this turn -- %s; '%s' is taking it"
+                         % (want, why, alt))
+        nots.append("'%s' (%s)" % (alt, alt_why))
     return None, ("'%s' cannot take this turn -- %s, and %s" % (
-        want, why, ("there is no fallback" if not alt or alt == want else
-                    "neither can '%s' (%s)" % (alt, unavailable(cfg, alt, now)))))
+        want, why, "neither can " + ", ".join(nots) if nots
+        else "there is no fallback"))
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +300,7 @@ def listing(cfg=None):
     return {
         "default": provider(cfg),
         "fallback": fallback(cfg),
+        "fallbacks": fallbacks(cfg),
         "machine": took,
         "why": why,
         "vision_agent": cfg.get("vision_agent") or None,

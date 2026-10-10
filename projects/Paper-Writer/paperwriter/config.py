@@ -99,8 +99,8 @@ SOURCE_DIRS = tuple(Path(p).expanduser() for p in _SOURCES_RAW.split(":") if p.s
 #
 # Prose quality is the entire product. There is no volume argument that beats it.
 
-# Which binary drives Claude. Headless, on a logged-in session — the harness holds no
-# API key and never has.
+# Which binary drives Claude, when Claude is the provider taking a call. Headless, on a
+# logged-in session. The other providers are Atlas's recipes (`providers/chain.py`).
 CLI_BIN = os.environ.get("PAPER_CLI_BIN", "claude")
 
 # The model. One line, and it is the most consequential line in this file.

@@ -849,6 +849,10 @@ def relay_sense(root, rec):
                      "stay on the cluster, uncommitted, for the owner to "
                      "settle, and the report names none of them."
                      % int(rec["changed"]))
+    elif rec.get("kind") == "libr-ai" and not failed(rec) and excerpt:
+        lines.append("This was a task for IT's model server "
+                     "(`libr-ai`): its log above is the model's answer. Check it "
+                     "against the files before the card repeats any of it.")
     elif failed(rec) and excerpt:
         lines.append("It did NOT end cleanly. Its RELAY: lines and its log, "
                      "above, are what it says.")
@@ -1383,8 +1387,9 @@ def running(root):
 
 RELAY = "relay"
 # `turn` exists only so `validate` refuses it by name (`NO_TURN`): no hosted
-# model runs on an institute machine.
-KINDS = ("recipe", "turn", "colibri")
+# model runs on an institute machine. `libr-ai` is IT's own model server
+# (`libr_ai.py`), for subjects whose phi is false.
+KINDS = ("recipe", "turn", "colibri", "libr-ai")
 REPORT_STATES = ("refused", "submitted", "running", "completed", "failed")
 
 # Report states. `REFUSED` is terminal; `REQUESTED` (no report yet) is not.
@@ -1409,17 +1414,21 @@ REQUEST_KEYS = {
                "produces", "export", "filed", "fixes", "commit"),
     "colibri": ("id", "kind", "label", "session", "thread", "brief", "filed",
                 "commit"),
+    "libr-ai": ("id", "kind", "label", "session", "thread", "brief", "model",
+                "filed", "commit"),
 }
+# A model on IT's server, as Open WebUI names it: `gpt-oss:120b`.
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
 # A label names the work; a session is the Mac session it was filed from.
 LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MAX_BRIEF = 2000
 MAX_VALUE = 200
-NO_TURN = ("a `turn` request asks for a hosted model on the cluster, and no "
-           "hosted model call runs on an institute machine, for any vendor "
-           "(projects/libr-local-llm/docs/deepseek-egress.md): file a recipe, "
-           "or a `colibri` task where the workspace takes them")
+NO_TURN = ("a `turn` request asks for a hosted model on the cluster, and the "
+           "system never runs one there: every model turn runs on the Mac. "
+           "File a recipe, a `colibri` task where the workspace takes them, or "
+           "a `libr-ai` task from a subject whose phi is false")
 # Automatic repair attempts per failed request. `fixes` always names the
 # first failure, so the count is the requests on disk naming it.
 MAX_FIXES = 3
@@ -1477,7 +1486,8 @@ def _plain_list(value, field, problems):
     return value
 
 
-def validate(req, allowed, tracked, declared, taken=(), colibri=False):
+def validate(req, allowed, tracked, declared, taken=(), colibri=False,
+             phi_false=False):
     """`(request, problems)`: may this request run? Pure; the Mac calls it
     before committing and the cluster before submitting.
 
@@ -1487,6 +1497,8 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
         declared  `{recipe: (declared, problems)}`, `declarations` per recipe
         taken     request ids already filed
         colibri   has this workspace opted in to `colibri` requests
+        phi_false does its tutorboard.json say `"phi": false`, which a
+                  `libr-ai` request needs
 
     Refused whole, with every problem at once.
     """
@@ -1541,7 +1553,7 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
     if isinstance(commit, str) and COMMIT_RE.match(commit):
         out["commit"] = commit
 
-    if kind == "colibri":
+    if kind in ("colibri", "libr-ai"):
         brief = req.get("brief")
         if not isinstance(brief, str) or not brief.strip():
             problems.append("a %s request needs a `brief`" % kind)
@@ -1549,9 +1561,20 @@ def validate(req, allowed, tracked, declared, taken=(), colibri=False):
             problems.append("the brief is %d characters and the cap is %d"
                             % (len(brief), MAX_BRIEF))
         # Colibri reads PHI, unattended, so a workspace opts in to it.
-        if not colibri:
+        if kind == "colibri" and not colibri:
             problems.append("this workspace has not opted in to Colibri tasks: "
                             "`relay.colibri: true` in its tutorboard.json")
+        # IT's server keeps every chat, so only a subject with no PHI uses it.
+        if kind == "libr-ai" and not phi_false:
+            problems.append("IT's model server keeps every chat, so it takes "
+                            "work only from a subject whose tutorboard.json "
+                            "says `\"phi\": false`; a PHI subject uses Colibri")
+        if kind == "libr-ai" and "model" in req:
+            model = req.get("model")
+            if not isinstance(model, str) or not MODEL_RE.match(model):
+                problems.append("model %r is not a model name" % (model,))
+            else:
+                out["model"] = model
         out["brief"] = brief.strip() if isinstance(brief, str) else ""
         return (None, problems) if problems else (out, [])
 
@@ -1691,6 +1714,7 @@ def context(root, recipes=()):
     failed_ids = set(r["request"] for r in relayed(root) if ended_failed(r))
     return {"allowed": exports.approvals(root), "tracked": tracked, "declared": declared,
             "taken": taken, "colibri": relay.get("colibri") is True,
+            "phi_false": phi_false(root),
             "filed": filed,
             "failed": failed_ids}
 
@@ -1703,6 +1727,18 @@ def _relay_of(path):
     except (OSError, ValueError, AttributeError):
         return {}
     return relay if isinstance(relay, dict) else {}
+
+
+def phi_false(root):
+    """Does this workspace's own `tutorboard.json` say `"phi": false`,
+    literally? Anything else, a missing file included, is no."""
+    try:
+        with open(os.path.join(root, "tutorboard.json"), "r",
+                  encoding="utf-8") as fh:
+            said = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return isinstance(said, dict) and said.get("phi") is False
 
 
 def relay_opts(root):
@@ -1725,7 +1761,8 @@ def check(root, req, mine=False, pending=()):
     if mine and isinstance(req, dict):
         taken = taken - set([req.get("id")])
     ok, problems = validate(req, ctx["allowed"], ctx["tracked"],
-                            ctx["declared"], taken, ctx["colibri"])
+                            ctx["declared"], taken, ctx["colibri"],
+                            ctx["phi_false"])
     extra = fix_problems(req, list(ctx["filed"]) + pending, ctx["failed"],
                          mine)
     extra += pin_problems(root, req)
@@ -1855,7 +1892,7 @@ def relayed(root):
         rep = got.get(rid) or {}
         state = _AS_SLURM.get(str(rep.get("state") or "").lower(),
                               exports.REQUESTED)
-        if req.get("kind") in ("turn", "colibri"):
+        if req.get("kind") in ("turn", "colibri", "libr-ai"):
             cmd = "%s: %s" % (req["kind"], str(req.get("brief") or "")[:120])
         else:
             env = req.get("env")
