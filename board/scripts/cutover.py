@@ -2197,10 +2197,16 @@ def rehearse(real, scratch, ref, keep=False):
         failure = cutover(ctx)
         r.check("steps 1-10 pass on the copy", failure is None, failure)
         if failure is None:
-            r.extras(ctx)
+            # Step 11 and 12 as --run has them, against the copy's own bare
+            # origin. That push reaches nothing real, so the rollback after
+            # the extras stays valid.
+            pushed = step_push(ctx)
+            ctx.put("pushed", False)
             notes = after_push(ctx, lean=False)
-            r.check("the checks after the push pass on the copy (the Lean build is the "
-                    "real run's only)", not notes, notes)
+            r.check("the push to the copy's origin, then the checks after it, pass "
+                    "(the Lean build is the real run's only)", pushed and not notes,
+                    (pushed, notes))
+            r.extras(ctx)
         problems = rollback(ctx)
         r.check("--rollback reports no problem", not problems, problems)
         r.compare(ctx)
