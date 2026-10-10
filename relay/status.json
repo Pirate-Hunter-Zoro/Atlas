@@ -1,0 +1,15 @@
+{
+  "at": 1791639821,
+  "colibri": {
+    "ends": null,
+    "load_s": null,
+    "queue": 0,
+    "reason": "",
+    "state": "off",
+    "task": null
+  },
+  "last_error": "",
+  "outstanding": {},
+  "push_pending": false,
+  "skipped": ""
+}
