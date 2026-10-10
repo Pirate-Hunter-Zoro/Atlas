@@ -1,5 +1,5 @@
 {
-  "at": 1791643454,
+  "at": 1791646566,
   "colibri": {
     "ends": null,
     "load_s": null,
@@ -11,5 +11,5 @@
   "last_error": "",
   "outstanding": {},
   "push_pending": false,
-  "skipped": ""
+  "skipped": "the tree has edits outside the cluster's paths: scripts/setup-cluster.sh, scripts/setup-mac.sh"
 }
