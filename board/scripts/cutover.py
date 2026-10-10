@@ -733,6 +733,7 @@ def step_preflight(ctx):
         ctx.say("  origin/main is already in main")
     elif ctx.mode == "run":
         raise Abort("%s has no origin to push to" % G)
+    launchd_ready(ctx)
     # Read here, before anything stops: a capture that does not parse at
     # step 3 would leave the old system down for nothing.
     if ctx.tailscale == "real":
@@ -740,6 +741,25 @@ def step_preflight(ctx):
         if why:
             raise Abort(why)
         ctx.say("  tailscale serve status reads: %d mapping(s)" % len(ts_targets(now)))
+
+
+def launchd_ready(ctx):
+    """launchd as the old system has it: the rollback brings the old boards
+    back by loading the old agents again, and the new label needs its name
+    and its port free."""
+    for label in ctx.old_labels:
+        plist = os.path.join(ctx.agents_dir, label + ".plist")
+        if os.path.isfile(plist) and not loaded(label):
+            raise Abort("%s is not loaded, so a rollback could not bring the old boards "
+                        "back; load it first: launchctl bootstrap %s %s"
+                        % (label, domain(), plist))
+    if loaded(ctx.label):
+        rc, out = run(["launchctl", "print", "%s/%s" % (domain(), ctx.label)], timeout=30)
+        m = re.search(r"^\s*path = (.*)$", out, re.M)
+        raise Abort("a %s label is already loaded (%s); boot it out first: launchctl "
+                    "bootout %s/%s" % (ctx.label, m.group(1) if m else "?", domain(), ctx.label))
+    if not port_free(ctx.port):
+        raise Abort("port %d is taken; the new server needs it" % ctx.port)
 
 
 # ---------------------------------------------------------------------------

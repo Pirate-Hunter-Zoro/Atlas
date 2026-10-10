@@ -28,6 +28,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -454,6 +455,42 @@ try:
     check("--plan lists steps 1 to 12 in order and changes nothing",
           p.returncode == 0 and steps == [str(i) for i in range(1, 13)]
           and git(G2, "status", "--porcelain", "--ignored") == before, p.stdout[-2000:])
+
+    # =======================================================================
+    # the preflight's launchd checks (read only: launchctl print)
+    # =======================================================================
+    lctx = cutover.Ctx(mode="rehearse", atlas=G2, archive=os.path.join(box, "l", "archive"),
+                       label="tutor-board-cutover-test-new-%d" % os.getpid(),
+                       old_labels=["tutor-board-cutover-test-old-%d" % os.getpid()],
+                       port=cutover.free_port(), agents_dir=os.path.join(box, "l", "agents"))
+    try:
+        cutover.launchd_ready(lctx)
+        fine = True
+    except cutover.Abort as exc:
+        fine = str(exc)
+    write(os.path.join(lctx.agents_dir, lctx.old_labels[0] + ".plist"), "<plist/>\n")
+    try:
+        cutover.launchd_ready(lctx)
+        unloaded = None
+    except cutover.Abort as exc:
+        unloaded = str(exc)
+    os.remove(os.path.join(lctx.agents_dir, lctx.old_labels[0] + ".plist"))
+    held = socket.socket()
+    held.bind(("127.0.0.1", 0))
+    held.listen(1)
+    lctx.port = held.getsockname()[1]
+    try:
+        cutover.launchd_ready(lctx)
+        taken = None
+    except cutover.Abort as exc:
+        taken = str(exc)
+    held.close()
+    check("the preflight passes when the old agents are as installed and the port is free",
+          fine is True, fine)
+    check("and refuses an old agent whose plist is there but which is not loaded, "
+          "naming the command that loads it",
+          unloaded and "launchctl bootstrap" in unloaded, unloaded)
+    check("and refuses a taken port", taken and "is taken" in taken, taken)
 
     # =======================================================================
     # --run starts only from Terminal, in a clean worktree at the ref
