@@ -1,5 +1,5 @@
 {
-  "at": 1791639821,
+  "at": 1791641413,
   "colibri": {
     "ends": null,
     "load_s": null,
@@ -11,5 +11,5 @@
   "last_error": "",
   "outstanding": {},
   "push_pending": false,
-  "skipped": ""
+  "skipped": "the tree has edits outside the cluster's paths: projects/libr-local-llm/README.md"
 }
