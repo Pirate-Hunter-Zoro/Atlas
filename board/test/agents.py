@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Which assistant takes a turn: one provider setting.
 
-The machine's config names `provider` (claude by default), one `fallback`
-(codex by default) and `vision_agent`. The provider takes every turn; the
-fallback takes one the provider cannot (missing binary, missing key, usage
-limit); nothing else chooses. An in-fence recipe never takes a turn here.
+The machine's config names `provider` (unset, the first recipe in the table
+that can take a turn here), `fallback` (unset, every other recipe) and
+`vision_agent`. The provider takes every turn; the fallback takes one the
+provider cannot (missing binary, missing key, usage limit); nothing else
+chooses. An in-fence recipe never takes a turn here.
 
 Also guards the shared-filesystem rule. `live/agent.json` is visible from every
 node, so a record left by a node whose allocation has ended will otherwise look
@@ -70,15 +71,32 @@ ONE = {"provider": "one", "fallback": "two", "agents": {
 
 check("the provider takes the turn when nothing is wrong",
       recipes.resolve(ONE) == ("one", None))
-check("an unset provider is claude and an unset fallback is none",
-      recipes.provider({}) == "claude" and recipes.fallback({}) is None)
-check("the built-in setting names a provider and claude's eyes, and no "
-      "fallback, so every other recipe backs it up",
-      recipes.DEFAULT_CONFIG["provider"] == "claude"
+UNSET = dict(ONE, provider=None, fallback=None, agents=dict(
+    [("ghost", ONE["agents"]["ghost"]), ("fenced", ONE["agents"]["fenced"]),
+     ("unkeyed", ONE["agents"]["unkeyed"]), ("two", dict(SH)), ("one", dict(SH))]))
+check("an unset provider is the first recipe in table order that can take a "
+      "turn here, passing over a missing binary, an in-fence model and a "
+      "missing key", recipes.provider(UNSET) == "two"
+      and recipes.resolve(UNSET) == ("two", None))
+limits.mark_limited(time.time() + 900, agent="two")
+check("and a spent allowance too",
+      recipes.provider(UNSET) == "one" and recipes.resolve(UNSET) == ("one", None))
+limits.clear_limited()
+check("with none that can, it is the table's first, so the resolver says why "
+      "of each", recipes.provider(dict(UNSET, agents={"ghost": ONE["agents"]["ghost"]}))
+      == "ghost" and recipes.resolve(dict(UNSET, agents={
+          "ghost": ONE["agents"]["ghost"]}))[0] is None)
+check("an empty table names nobody, and its chain is empty",
+      recipes.provider({}) == "" and recipes.fallback({}) is None
+      and recipes.chain({}) == [])
+check("the built-in setting names no provider, no eyes and no fallback, so "
+      "no vendor is load-bearing and every other recipe backs the provider up",
+      recipes.DEFAULT_CONFIG["provider"] is None
       and "fallback" not in recipes.DEFAULT_CONFIG
-      and recipes.DEFAULT_CONFIG["vision_agent"] == "claude"
+      and recipes.DEFAULT_CONFIG["vision_agent"] is None
       and recipes.fallbacks(recipes.DEFAULT_CONFIG)
-      == [n for n in recipes.DEFAULT_CONFIG["agents"] if n != "claude"])
+      == [n for n in recipes.DEFAULT_CONFIG["agents"]
+          if n != recipes.provider(recipes.DEFAULT_CONFIG)])
 check("nothing else chooses: no default_agent, only_agent, per-session or "
       "per-workspace key is in the table",
       not any(k in recipes.DEFAULT_CONFIG for k in
@@ -164,13 +182,13 @@ _cfg_box = tempfile.mkdtemp(prefix="tutor-cfg-")
 _was_config = recipes.CONFIG
 recipes.CONFIG = os.path.join(_cfg_box, "config.json")
 check("a missing config is the defaults, and nothing is written",
-      recipes.load_config()["provider"] == "claude"
+      recipes.load_config()["provider"] is None
       and not os.path.exists(recipes.CONFIG))
 with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"default_agent": "deepseek", "only_agent": "deepseek"}, fh)
 _loaded = recipes.load_config()
 check("a default_agent or only_agent chooses nothing: the provider is the "
-      "default's", _loaded["provider"] == "claude"
+      "default's", _loaded["provider"] is None
       and "only_agent" not in _loaded and "default_agent" not in _loaded)
 with open(recipes.CONFIG, "w", encoding="utf-8") as fh:
     json.dump({"provider": "codex", "default_agent": "deepseek",

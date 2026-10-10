@@ -260,8 +260,10 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 - `agents/recipes.py` holds the built-in recipes (`claude`, `deepseek`, `codex`), and
   `~/.config/tutor-board/config.json` is laid over them. It names the `provider` tried first and
-  a `vision_agent`. `fallback` is one name or a list; with none, every other recipe backs the
-  provider up, in the table's order (`recipes.chain`). Nothing else chooses.
+  a `vision_agent`; the built-in table names neither. With no `provider`, the first recipe in
+  table order that can take a turn here is it (`recipes.provider`). `fallback` is one name or a
+  list; with none, every other recipe backs the provider up, in the table's order
+  (`recipes.chain`). Nothing else chooses.
 - **Adding a provider** is one entry under `agents` in config.json: `cmd`, `headless_first`
   with `{prompt}`, and `needs_key` plus `env` when it takes a key. **Removing one** is deleting
   its entry, or naming the chain in `fallback`.

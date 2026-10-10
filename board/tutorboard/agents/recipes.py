@@ -4,7 +4,8 @@ A provider is a recipe plus a key. `DEFAULT_CONFIG` is the built-in table;
 `load_config` lays this machine's `config.json` over it. Adding a provider is
 one `agents` entry in that file; removing one is `"replace": true` with no
 recipe, or deleting its entry. No vendor is load-bearing: the config names a
-`provider` and, optionally, `fallback` (one name or a list), and with no
+`provider` (none named, the first recipe in table order that can take a turn
+here) and, optionally, `fallback` (one name or a list), and with no
 `fallback` every other recipe in the table is tried in its order, so any one
 provider can die and the rest still answer. `vision_agent` is the first eye
 tried. Nothing else chooses: no session, subject or command line overrides it.
@@ -93,9 +94,12 @@ DEFAULT_CONFIG = {
     },
     # THE ONE PROVIDER SETTING: who takes every turn first, and who reads an
     # image for a recipe with no eyes. `/default-agent` writes `provider`.
-    # There is no `fallback` here, so every other recipe backs it up.
-    "provider": "claude",
-    "vision_agent": "claude",
+    # Unset here, so a machine that names none gets the first recipe in the
+    # table that can take a turn on it (`provider`), and an image goes to the
+    # running recipe's eyes, then every sighted one (`seeing.route`). There is
+    # no `fallback` here, so every other recipe backs the provider up.
+    "provider": None,
+    "vision_agent": None,
     "headless_timeout": 900,
     "doing_timeout": 3600,
     "handoff_timeout": 600,
@@ -193,10 +197,11 @@ def probe_host(urls):
 # ---------------------------------------------------------------------------
 # THE RESOLVER: the provider, else the one fallback
 # ---------------------------------------------------------------------------
-def provider(cfg):
-    """The name the config gives every turn: `provider`, else claude."""
-    said = (cfg or {}).get("provider")
-    return said.strip() if isinstance(said, str) and said.strip() else "claude"
+def provider(cfg, now=None):
+    """`provider`; unset, the first recipe in table order `unavailable` passes."""
+    said, names = (cfg or {}).get("provider"), list((cfg or {}).get("agents") or {})
+    return said.strip() if isinstance(said, str) and said.strip() else next(
+        (n for n in names if not unavailable(cfg, n, now)), (names or [""])[0])
 
 
 def fallbacks(cfg):
@@ -223,7 +228,7 @@ def fallback(cfg):
 def chain(cfg):
     """Every recipe in the order a turn tries them: the provider, then each
     fallback."""
-    return [provider(cfg)] + fallbacks(cfg)
+    return [n for n in [provider(cfg)] if n] + fallbacks(cfg)
 
 
 def in_fence(cfg, name):
@@ -269,7 +274,7 @@ def resolve(cfg, now=None):
     sentence the board paints. Else `(None, why)`: nobody here can, and the
     turn is not run.
     """
-    want = provider(cfg)
+    want = provider(cfg, now)
     why = unavailable(cfg, want, now)
     if not why:
         return want, None

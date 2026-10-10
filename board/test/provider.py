@@ -275,8 +275,12 @@ try:
     legacy.pop("provider")
     legacy["default_agent"] = "codex"
     write(CONFIG, json.dumps(legacy))
-    check("a config naming only `default_agent` gets the built-in provider",
-          recipes.load_config()["provider"] == "claude")
+    _cfg = recipes.load_config()
+    _first = [n for n in _cfg["agents"] if not recipes.unavailable(_cfg, n)][0]
+    check("a config naming only `default_agent` names no provider: the first "
+          "recipe in the table that can take a turn is it, not codex",
+          _cfg["provider"] is None and recipes.provider(_cfg) == _first
+          and _first != "codex", (_first, recipes.provider(_cfg)))
     status, got = server.post("/default-agent", {"agent": "deepseek"})
     check("and the next tap writes `provider` and drops the leftover key",
           status == 200 and on_disk().get("provider") == "deepseek"
