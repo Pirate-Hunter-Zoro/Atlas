@@ -701,6 +701,8 @@ status, reply = ask("GET", "/subjects.json")
 check("/subjects.json lists every subject",
       sorted(s["id"] for s in json.loads(reply.decode("utf-8"))["subjects"])
       == sorted(list(SUBJECT.values()) + [LONE, "projects/Meetings"]))
+check("/subjects.json names the Meetings subject's id",
+      json.loads(reply.decode("utf-8")).get("meetings") == "projects/Meetings")
 check("a library route without ?subject= is refused",
       ask("GET", "/library.json")[0] == 400)
 check("a library route naming no subject is 404",

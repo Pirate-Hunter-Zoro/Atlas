@@ -63,6 +63,16 @@ def _name(where, slug):
     return str(said) if said else slug.replace("-", " ")
 
 
+def phi(where):
+    """`phi` as the working tree's tutorboard.json in `where` says it: True,
+    False, else None. For display; a delete reads HEAD (`head_phi`)."""
+    from .course import config                               # local: a cycle
+    try:
+        return config.read_config(where).get("phi")
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
 def walk(base=None):
     """`(parent, kind, slug, root)` for every subject, reading no file."""
     base = _base(base)

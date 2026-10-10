@@ -464,9 +464,16 @@ class Handler(BaseHTTPRequestHandler):
         if how == "new":
             return self.new_session(registry)
         if how == "subjects":
-            return self.send_json({"ok": True, "subjects": [
-                {k: one[k] for k in ("id", "kind", "slug", "name")}
-                for one in subjects.all(registry.atlas)]})
+            # `meetings`: the Meetings subject's id when this tree has it,
+            # else null. `phi` per subject is the working tree's, for display.
+            from .. import briefs
+            every = subjects.all(registry.atlas)
+            return self.send_json({
+                "ok": True,
+                "meetings": briefs.MEETINGS if any(
+                    one["id"] == briefs.MEETINGS for one in every) else None,
+                "subjects": [dict({k: one[k] for k in ("id", "kind", "slug", "name")},
+                                  phi=subjects.phi(one["root"])) for one in every]})
         if how == "subject-new":
             return self.new_subject(registry)
         if how == "subject-delete-check":
@@ -555,7 +562,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "bad json"}, status=400)
         if not isinstance(payload, dict):
             return self.send_json({"ok": False, "error": "bad json"}, status=400)
-        parent = {"course": "courses", "project": "projects"}.get(payload.get("kind"))
+        parent = dict((kind, parent) for parent, kind in subjects.DIRS).get(
+            payload.get("kind"))
         name = str(payload.get("name") or "").strip()
         if not parent:
             return self.send_json({"ok": False,
