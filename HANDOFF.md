@@ -5,18 +5,21 @@ cluster steps are the owner's.
 
 ## 1. After the cutover
 
-1. **Bring the cluster up to date.** On a compute node: `cd ~/Atlas && bash scripts/setup-cluster.sh`.
-   `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/HANDOFF-cluster.md` holds
-   the manual items it leaves out: one round trip, one coding-session trial, TRD-EHR's switch to
-   its lockfile, the week-later clean-up of the moved course clones, and removing a PHI subject.
-2. **After the cluster's first relay pass on the new code**, which commits `relay/status.json`
-   (the README's layout lists that file; it does not exist until then):
-   - Remove the old-location claim fallback in `board/tutorboard/jobs.py`: `_old_claim_dirs`,
-     `_old_live`, and `migrate_state` with its calls in jobs.py and colibri.py, which then have
+Both machines are set up: `scripts/setup-mac.sh` and `scripts/setup-cluster.sh` each end clean,
+the relay has committed `relay/status.json`, and research/ and practice/ are gone on both. The
+cluster's Mathlib compiles as a Slurm job (`squeue -n mathlib`); rerunning `setup-cluster.sh`
+reports it built once it is.
+
+1. **The manual cluster items.** `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/HANDOFF-cluster.md`:
+   one round trip, one coding-session trial, TRD-EHR's switch to its lockfile, the week-later
+   clean-up of the moved course clones, and removing a PHI subject.
+2. **Code the cutover left behind**, now safe to remove:
+   - The old-location claim fallback in `board/tutorboard/jobs.py`: `_old_claim_dirs`,
+     `_old_live`, and `migrate_state` with its calls in jobs.py and colibri.py, which have
      nothing left to move. Remove board/test/jobs.py's TRD-EHR old-claims check with them; it
      reads `~/Archive/atlas-migration/2026-10-07/live-dirs.tgz`.
-   - Drop the `/research/` and `/practice/` rules from the root `.gitignore`, once the runbook's
-     step 5 says both directories are gone.
+   - The `/research/` and `/practice/` rules in the root `.gitignore`, with the comment above
+     them.
 
 ## 2. The owner's
 

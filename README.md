@@ -127,6 +127,8 @@ LaunchAgent and no model is ever installed there.
 - The cluster blocks `dl.google.com` and Mathlib's cache host. So Go comes from conda-forge into
   `~/.local/goenv` with `GOPROXY=direct`, and Mathlib is compiled by the job above.
 - `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
+- No hosted model's credential lives on the cluster, and step 7 flags any it finds. Remove the
+  file, or the whole shell function that uses the key, never single lines out of a function.
 - The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
   `board/test/py37.py` enforces it.
 
