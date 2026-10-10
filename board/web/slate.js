@@ -32,11 +32,14 @@ var writer = window.Slate.create({ root: document.getElementById("slate"),
 /* A NOTES CANVAS is a session whose view is `slate`: this page is the whole
    of it. Its title, and End after a second tap within four seconds, which
    ends the session and queues the turn that transcribes these pages into
-   notes.md (`runner.service._notes`). What is owed to the disk goes first. */
+   notes.md (`runner.service._notes`). What is owed to the disk goes first.
+   Bound to nothing, the second tap asks where the notes go first. */
 var endBtn = document.getElementById("notes-end");
 var endArmed = null;
+var notesState = {};
 
 function paintNotes(state) {
+  notesState = state;
   var name = document.getElementById("notes-name");
   name.textContent = state.title || "Notes";
   name.hidden = false;
@@ -61,23 +64,129 @@ function endNotes() {
   clearTimeout(endArmed);
   endArmed = null;
   endBtn.classList.remove("armed");
+  if (sendPanel && Object.prototype.hasOwnProperty.call(notesState, "subject")
+      && !notesState.subject) {
+    endBtn.textContent = "End";
+    openSend();
+    return;
+  }
+  finishEnd({});
+}
+
+/* POST /end with `body`, once the pages are on disk. Refused, the canvas
+   stays open and says why. */
+function finishEnd(body) {
   endBtn.disabled = true;
   endBtn.textContent = "ending…";
   var settle = writer && writer.flush ? writer.flush() : null;
   Promise.resolve(settle).catch(function () {}).then(function () {
     return fetch(BASE + "/end", {
       method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json" }, body: "{}"
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     });
   }).then(function (r) { return r.json(); }).then(function (got) {
     if (!got || !got.ok) throw new Error((got && got.error) || "not ended");
-    endBtn.textContent = "ended: the tutor is transcribing it into notes.md";
+    if (sendPanel) sendPanel.hidden = true;
+    endBtn.textContent = "ended: the tutor is transcribing it into notes.md"
+      + (got.sent ? " in " + got.sent.name : "");
   }).catch(function (e) {
+    var why = (e && e.message) || "the board did not answer";
     endBtn.disabled = false;
-    endBtn.textContent = "End (" + ((e && e.message) || "the board did not answer") + ")";
+    endBtn.textContent = "End (" + why + ")";
+    if (sendPanel && !sendPanel.hidden) sendSaid("Not ended: " + why);
   });
 }
 if (endBtn) endBtn.onclick = endNotes;
+
+/* WHERE THE NOTES GO, for a canvas bound to nothing: every course and
+   project from /subjects.json, and a new one (a project says whether it holds
+   patient data). A tap ends the canvas into it; "let the tutor choose" ends
+   it as it is, and the transcribing turn picks one (`prompts/notes.md`). */
+var sendPanel = document.getElementById("notes-send");
+var sendList = document.getElementById("notes-send-list");
+var sendForm = document.getElementById("notes-send-form");
+var sendName = document.getElementById("notes-send-name");
+var sendPhi = document.getElementById("notes-send-phi");
+var sendMaking = null;
+var sendMakingPhi = null;
+
+function sendSaid(text) { document.getElementById("notes-send-said").textContent = text || ""; }
+
+function openSend() {
+  sendMaking = null;
+  sendMakingPhi = null;
+  sendForm.hidden = true;
+  sendSaid("");
+  sendList.textContent = "";
+  sendPanel.hidden = false;
+  fetch("/subjects.json", { credentials: "same-origin" }).then(function (r) {
+    return r.json();
+  }).then(function (got) {
+    var list = (got && got.subjects) || [];
+    [["course", "Courses"], ["project", "Projects"]].forEach(function (g) {
+      var some = list.filter(function (one) { return one.kind === g[0]; });
+      if (!some.length) return;
+      var head = document.createElement("div");
+      head.className = "notes-send-group";
+      head.textContent = g[1];
+      sendList.appendChild(head);
+      some.forEach(function (one) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = one.name || one.slug || one.id;
+        b.dataset.subject = one.id;
+        b.onclick = function () { sendSaid("sending…"); finishEnd({ subject: one.id }); };
+        sendList.appendChild(b);
+      });
+    });
+    if (!sendList.firstChild) sendSaid("No courses or projects yet: make one below.");
+  }, function () { sendSaid("The list of courses and projects did not come."); });
+}
+
+function startSendMaking(kind) {
+  sendMaking = kind;
+  sendMakingPhi = null;
+  sendForm.hidden = false;
+  sendPhi.hidden = kind !== "project";
+  Array.prototype.forEach.call(sendPhi.querySelectorAll("button"),
+                               function (b) { b.classList.remove("on"); });
+  sendName.placeholder = kind === "project" ? "the project's name" : "the course's name";
+  sendSaid("");
+}
+
+if (sendPanel) {
+  document.getElementById("notes-new-course").onclick = function () { startSendMaking("course"); };
+  document.getElementById("notes-new-project").onclick = function () { startSendMaking("project"); };
+  ["no", "yes"].forEach(function (word) {
+    var b = document.getElementById("notes-phi-" + word);
+    b.onclick = function () {
+      sendMakingPhi = word === "yes";
+      Array.prototype.forEach.call(sendPhi.querySelectorAll("button"),
+                                   function (x) { x.classList.toggle("on", x === b); });
+    };
+  });
+  document.getElementById("notes-send-go").onclick = function () {
+    var name = (sendName.value || "").trim();
+    if (!sendMaking) return;
+    if (!name) { sendSaid("Name it first."); return; }
+    if (sendMaking === "project" && sendMakingPhi === null) {
+      sendSaid("Say whether it holds patient data."); return;
+    }
+    var body = { kind: sendMaking, name: name };
+    if (sendMaking === "project") body.phi = sendMakingPhi;
+    sendSaid("making " + name + "…");
+    fetch("/subjects/new", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); }).then(function (got) {
+      if (!got || !got.ok) { sendSaid((got && got.error) || "Not made."); return; }
+      sendName.value = "";
+      finishEnd({ subject: got.subject.id });
+    }, function () { sendSaid("Not made: the board did not answer."); });
+  };
+  document.getElementById("notes-send-skip").onclick = function () { finishEnd({}); };
+  document.getElementById("notes-send-back").onclick = function () { sendPanel.hidden = true; };
+}
 
 /* Show which question is being answered, so the full-screen view is not
    context-free. A notes canvas answers none: it shows its title and End. */

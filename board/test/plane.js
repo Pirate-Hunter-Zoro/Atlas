@@ -1336,7 +1336,7 @@ const heelSwipe = (id, x, y, dx, dy) => {
     const B = '/s/' + SID;
     const saved = {};
     const posts = [];
-    function mount(urlState, expose) {
+    function mount(urlState, expose, extra) {
       const d2 = new JSDOM(fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8'), {
         runScripts: 'outside-only', pretendToBeVisual: true,
         url: 'https://board.test' + B + '/slate',
@@ -1365,15 +1365,27 @@ const heelSwipe = (id, x, y, dx, dy) => {
                                  strokes: body.strokes, png: body.png };
             return reply({ ok: true, page: body.page });
           }
-          if (url === B + '/end') return reply({ ok: true, wrapup: true });
+          if (url === B + '/end') {
+            return reply(body.subject ? { ok: true, wrapup: true,
+                                          sent: { id: body.subject, name: 'Galois Theory' } }
+                                      : { ok: true, wrapup: true });
+          }
+          if (url === '/subjects/new') {
+            return reply({ ok: true, subject: { id: 'projects/' + body.name, kind: body.kind } });
+          }
           return reply({ ok: false });
+        }
+        if (url === '/subjects.json') {
+          return reply({ ok: true, subjects: [
+            { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
+            { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' }] });
         }
         if (url === urlState) {
           return reply({ pages: Object.keys(saved).sort().map((k) => saved[k]) });
         }
         if (url === B + '/board.json') {
-          return reply({ state: { id: SID, view: 'slate', title: 'Notes 2026-10-09',
-                                  ended: null }, cards: [] });
+          return reply({ state: Object.assign({ id: SID, view: 'slate', title: 'Notes 2026-10-09',
+                                                ended: null }, extra || {}), cards: [] });
         }
         return new Promise(() => {});
       };
@@ -1442,6 +1454,68 @@ const heelSwipe = (id, x, y, dx, dy) => {
           && end.disabled);
     w2.close();
     w3.close();
+
+    // Bound to nothing, End asks where the notes go first.
+    const tapEnd = async (dd) => {
+      dd.getElementById('notes-end').click();
+      await sleep(20);
+      dd.getElementById('notes-end').click();
+      await sleep(60);
+    };
+    const w4 = mount(B + '/slate/state', false, { subject: null });
+    await sleep(60);
+    const d4 = w4.document;
+    posts.length = 0;
+    await tapEnd(d4);
+    const panel = d4.getElementById('notes-send');
+    const rows4 = Array.from(d4.querySelectorAll('#notes-send-list button'));
+    check('an unbound canvas\'s End offers every course and project before it ends',
+          !panel.hidden && !posts.some((p) => p.url === B + '/end')
+          && rows4.map((b) => b.textContent).join(',') === 'Galois Theory,Meetings',
+          rows4.map((b) => b.textContent).join(','));
+    rows4[0].click();
+    await sleep(200);
+    const sentEnd = posts.filter((p) => p.url === B + '/end');
+    check('a tap ends it into that subject', sentEnd.length === 1
+          && sentEnd[0].body.subject === 'courses/Galois-Theory' && panel.hidden
+          && /notes\.md in Galois Theory/.test(d4.getElementById('notes-end').textContent),
+          JSON.stringify(sentEnd));
+    w4.close();
+
+    const w5 = mount(B + '/slate/state', false, { subject: null });
+    await sleep(60);
+    const d5 = w5.document;
+    posts.length = 0;
+    await tapEnd(d5);
+    d5.getElementById('notes-new-project').click();
+    d5.getElementById('notes-send-name').value = 'Reading';
+    d5.getElementById('notes-send-go').click();
+    await sleep(40);
+    check('+ new project asks about patient data before it makes anything',
+          !posts.some((p) => p.url === '/subjects/new')
+          && /patient data/.test(d5.getElementById('notes-send-said').textContent));
+    d5.getElementById('notes-phi-no').click();
+    d5.getElementById('notes-send-go').click();
+    await sleep(200);
+    const made5 = posts.filter((p) => p.url === '/subjects/new');
+    const end5 = posts.filter((p) => p.url === B + '/end');
+    check('then makes it and ends the canvas into it',
+          made5.length === 1 && made5[0].body.phi === false
+          && end5.length === 1 && end5[0].body.subject === 'projects/Reading',
+          JSON.stringify(posts.map((p) => p.url)));
+    w5.close();
+
+    const w6 = mount(B + '/slate/state', false, { subject: null });
+    await sleep(60);
+    const d6 = w6.document;
+    posts.length = 0;
+    await tapEnd(d6);
+    d6.getElementById('notes-send-skip').click();
+    await sleep(200);
+    const end6 = posts.filter((p) => p.url === B + '/end');
+    check('"let the tutor choose" ends it bound to nothing',
+          end6.length === 1 && !end6[0].body.subject, JSON.stringify(end6));
+    w6.close();
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

@@ -2310,14 +2310,21 @@ async function latchFlow() {
 // ---------------------------------------------------------------------------
 // THE HEADER, DRIVEN. Binding from the chip updates it without a reload, the
 // toggle flips `mode` through POST /mode, a new project asks "patient data?",
-// and End posts /end only after a second tap. The server is scripted here; the
-// routes themselves are `test/routing.py`'s and `test/sessions.py`'s.
+// and End posts /end only after a second tap -- on a bound session. On an
+// unbound one End asks where the lecture goes, the chip of one that ended
+// unbound still sends it, and Make binds it first. The tutor's chip chooses
+// who teaches. The server is scripted here; the routes themselves are
+// `test/routing.py`'s, `test/header.py`'s and `test/sessions.py`'s.
 async function headerFlow() {
   const real = window.fetch;
   const asked = [];
   const reply = (o, status) => Promise.resolve({ status: status || 200,
                                                  json: () => Promise.resolve(o) });
   const names = { 'courses/Linear-Algebra': 'Linear Algebra' };
+  const listing = { 'default': 'deepseek', agents: [
+    { name: 'claude', label: 'Claude', headless: true, cmd: 'claude -p' },
+    { name: 'deepseek', label: 'DeepSeek', headless: true, cmd: 'opencode' },
+    { name: 'gone', label: 'Gone', headless: true, missing: true }] };
   window.fetch = (u, init) => {
     const url = String(u);
     const body = init && init.body ? JSON.parse(init.body) : null;
@@ -2334,7 +2341,26 @@ async function headerFlow() {
       names[id] = body.name;
       return reply({ ok: true, subject: { id: id, kind: 'project', name: body.name } });
     }
-    if (url === '/end') return reply({ ok: true, session: { ended: '2026-10-09 22:00' } });
+    if (url === '/end') {
+      if (body.subject === 'projects/TRD-EHR') {
+        return reply({ ok: false, error: 'this session cannot go there' }, 400);
+      }
+      const ended = { ok: true, session: { ended: '2026-10-09 22:00' } };
+      if (body.subject) {
+        Object.assign(ended, { sent: { id: body.subject, name: names[body.subject] || body.subject,
+                                       kind: '' }, filed: [], refused: [] });
+      }
+      return reply(ended);
+    }
+    if (url === '/send') return reply({ ok: true, wrapup: true,
+      sent: { id: body.subject, name: names[body.subject] || body.subject, kind: '' },
+      filed: [], refused: [{ upload: 'uploads/x.pdf', error: 'materials/x.pdf already exists' }] });
+    if (url === '/sessions.json') return reply({ ok: true, sessions: [
+      { id: '20261009-200000', subject: null }, { id: '20261009-190000', subject: 'projects/TRD-EHR' },
+      { id: '20261009-180000', subject: 'projects/TRD-EHR' }] });
+    if (url === '/assistants.json') return reply({ ok: true, assistants: listing });
+    if (url === '/default-agent') return reply({ ok: true, 'default': body.agent, why: '',
+      assistants: Object.assign({}, listing, { 'default': body.agent }) });
     if (url === '/artifact') return reply({ ok: true, id: 't0009', make: body.make,
       source: 'courses/Linear-Algebra/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') });
     if (url === '/hw/build') return reply({ ok: false, detail: 'this session has no write-up yet' });
@@ -2375,17 +2401,22 @@ async function headerFlow() {
     ? ok('and back to teach') : fail('the toggle does not flip back');
   es.onmessage({ data: frame({ mode: 'teach' }) });
 
-  // Make, unbound: nothing can be made until the session has a subject.
+  // Make, unbound: a tap opens the picker to bind the session first.
   const make = doc.getElementById('btn-make');
   const menu = doc.getElementById('makemenu');
+  const head = doc.getElementById('subjpick-head');
   make.click();
   await sleep(20);
-  !menu.hidden && doc.getElementById('make-deck').disabled
-    && /Bind this session/.test(doc.getElementById('make-said').textContent)
-    ? ok('Make on an unbound session says to bind it first, and makes nothing')
-    : fail('Make on an unbound session: hidden=' + menu.hidden + ' said='
-           + doc.getElementById('make-said').textContent);
-  make.click();
+  doc.getElementById('make-deck').click();
+  await sleep(20);
+  !pick.hidden && !head.hidden && /Bind this session/.test(head.textContent)
+    && posts('/artifact').length === 0 && posts('/bind').length === 0
+    ? ok('Make on an unbound session opens the picker to bind it first, and makes nothing yet')
+    : fail('Make on an unbound session: picker hidden=' + pick.hidden + ' head='
+           + head.textContent);
+  doc.body.click();
+  pick.hidden && menu.hidden ? ok('and a tap elsewhere closes it')
+    : fail('the picker stayed open');
 
   // The chip: pick a subject.
   chip.click();
@@ -2510,6 +2541,167 @@ async function headerFlow() {
     : fail('an ended session still offers its controls');
   /body\[data-ended\][^{]*#writer/.test(css)
     ? ok('and nothing on the page writes to it') : fail('the writer survives an ended session');
+
+  // END ON AN UNBOUND SESSION asks where the lecture goes.
+  const skip = doc.getElementById('subjpick-skip');
+  const filter = doc.getElementById('subjpick-filter');
+  const rows = () => Array.prototype.slice.call(pick.querySelectorAll('#subjpick-list button'));
+  const shown = () => rows().filter((b) => !b.hidden);
+  const named = (text) => rows().filter((b) => b.textContent === text)[0];
+  const fresh = async () => {
+    es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+    es.onmessage({ data: frame({}) });
+    await sleep(20);
+  };
+  await fresh();
+  const binds = posts('/bind').length;
+  let ends = posts('/end').length;
+  end.click();
+  await sleep(40);
+  !pick.hidden && !head.hidden && head.textContent === 'Send this lecture to a course or project, then end'
+    && !skip.hidden && posts('/end').length === ends && !end.classList.contains('armed')
+    ? ok('one tap on End of an unbound session opens the picker to send it, posting nothing')
+    : fail('End on an unbound session: picker hidden=' + pick.hidden + ' head=' + head.textContent);
+  const groups = Array.prototype.map.call(pick.querySelectorAll('.subjpick-group'),
+                                          (g) => g.textContent);
+  groups[0] === 'Recent' && rows()[0].textContent === 'TRD-EHR'
+    && rows().filter((b) => b.textContent === 'TRD-EHR').length === 1
+    ? ok('the recently used subjects come first, once each')
+    : fail('the picker lists ' + JSON.stringify(groups) + ' ' + rows().map((b) => b.textContent));
+  filter.value = 'linear';
+  filter.dispatchEvent(new window.Event('input'));
+  shown().length === 1 && shown()[0].textContent === 'Linear Algebra'
+    && Array.prototype.filter.call(pick.querySelectorAll('.subjpick-group'),
+                                   (g) => !g.hidden).length === 1
+    ? ok('the filter line keeps only the subjects that match, and their heading')
+    : fail('the filter shows ' + shown().map((b) => b.textContent));
+  filter.value = '';
+  filter.dispatchEvent(new window.Event('input'));
+  named('TRD-EHR').click();
+  await sleep(40);
+  posts('/end').length === ends + 1 && posts('/end').slice(-1)[0].body.subject === 'projects/TRD-EHR'
+    && !pick.hidden && /Not sent: this session cannot go there/.test(doc.getElementById('subjpick-said').textContent)
+    && !end.disabled && doc.body.dataset.ended !== '1'
+    ? ok('a refused send says why, and the session stays open')
+    : fail('a refused send: ' + doc.getElementById('subjpick-said').textContent);
+  named('Linear Algebra').click();
+  await sleep(40);
+  const sent = posts('/end').slice(-1)[0];
+  sent.body.subject === 'courses/Linear-Algebra' && posts('/bind').length === binds
+    ? ok('a row tap posts /end with the subject, and no /bind')
+    : fail('the send posted ' + JSON.stringify(sent));
+  pick.hidden && label.textContent === 'Linear Algebra' && doc.body.dataset.ended === '1'
+    ? ok('and the header says where it went, and that it ended')
+    : fail('after the send the chip says ' + label.textContent);
+
+  // + new project, in send mode: made, then ended into.
+  await fresh();
+  end.click();
+  await sleep(40);
+  doc.getElementById('subjpick-project').click();
+  doc.getElementById('subjpick-name').value = 'Grant Two';
+  /make it, send it there and end/.test(doc.getElementById('subjpick-go').textContent)
+    ? ok('the new-subject form in send mode says it will end the session')
+    : fail('the form says ' + doc.getElementById('subjpick-go').textContent);
+  ends = posts('/end').length;
+  doc.getElementById('subjpick-go').click();
+  await sleep(20);
+  posts('/end').length === ends ? ok('and asks about patient data before anything')
+    : fail('a project was sent without the phi answer');
+  doc.getElementById('subjpick-phi-yes').click();
+  doc.getElementById('subjpick-go').click();
+  await sleep(60);
+  posts('/subjects/new').slice(-1)[0].body.phi === true
+    && posts('/end').slice(-1)[0].body.subject === 'projects/Grant-Two'
+    ? ok('then makes it and ends the session into it')
+    : fail('the new project went ' + JSON.stringify(posts('/end').slice(-1)[0]));
+
+  // End without sending.
+  await fresh();
+  end.click();
+  await sleep(40);
+  ends = posts('/end').length;
+  skip.click();
+  await sleep(40);
+  posts('/end').length === ends + 1 && !posts('/end').slice(-1)[0].body.subject
+    && pick.hidden && doc.body.dataset.ended === '1'
+    ? ok('"end without sending" ends it with no subject')
+    : fail('end without sending posted ' + JSON.stringify(posts('/end').slice(-1)[0]));
+
+  // ENDED UNBOUND, the chip still sends it: POST /send.
+  es.onmessage({ data: frame({ ended: '2026-10-09 22:00' }) });
+  await sleep(20);
+  !chip.disabled && toggle.disabled && make.disabled
+    && /chip still sends it/.test(doc.getElementById('endedbar').textContent)
+    ? ok('a session that ended unbound keeps its chip, and nothing else, and says so')
+    : fail('ended unbound: chip disabled=' + chip.disabled);
+  chip.click();
+  await sleep(40);
+  !pick.hidden && /ended bound to nothing/.test(head.textContent) && skip.hidden
+    ? ok('which opens the picker to send it') : fail('the chip opened ' + head.textContent);
+  named('Linear Algebra').click();
+  await sleep(40);
+  posts('/send').length === 1 && posts('/send')[0].body.subject === 'courses/Linear-Algebra'
+    ? ok('a row tap posts /send with the subject') : fail('/send was ' + JSON.stringify(posts('/send')));
+  label.textContent === 'Linear Algebra' && !pick.hidden
+    && /uploads\/x\.pdf stayed in this session/.test(doc.getElementById('subjpick-said').textContent)
+    && rows().length === 0
+    ? ok('the chip says where it went, and an upload that could not be filed is named')
+    : fail('after /send: ' + label.textContent + ' / ' + doc.getElementById('subjpick-said').textContent);
+  doc.body.click();
+
+  // MAKE, unbound: bound through the picker, then the deck is asked for.
+  await fresh();
+  make.click();
+  await sleep(20);
+  doc.getElementById('make-deck').click();
+  await sleep(40);
+  const asked0 = posts('/artifact').length;
+  named('Linear Algebra').click();
+  await sleep(60);
+  posts('/bind').slice(-1)[0].body.subject === 'courses/Linear-Algebra'
+    && posts('/artifact').length === asked0 + 1 && posts('/artifact').slice(-1)[0].body.make === 'deck'
+    && pick.hidden && !menu.hidden
+    ? ok('Make on an unbound session binds it from the picker, then asks for the deck')
+    : fail('make then bind: artifacts=' + posts('/artifact').length + ' menu hidden=' + menu.hidden);
+  doc.body.click();
+
+  // WHO TEACHES: the tutor's chip opens the machine's provider setting.
+  const html = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
+  const whoAt = html.indexOf('src="/static/who.js"');
+  whoAt > 0 && whoAt < html.indexOf('src="/static/board.js"')
+    ? ok('board.html loads who.js before board.js') : fail('board.html does not load who.js first');
+  const agentBtn = doc.getElementById('agent');
+  const agentPick = doc.getElementById('agentpick');
+  agentBtn.tagName === 'BUTTON' && !agentBtn.classList.contains('sess-ctl')
+    ? ok('the tutor\'s chip is a button, and not a session control')
+    : fail('the tutor\'s chip is a ' + agentBtn.tagName + ' ' + agentBtn.className);
+  agentBtn.click();
+  await sleep(40);
+  const ways = Array.prototype.map.call(agentPick.querySelectorAll('#agentpick-ways button'),
+                                        (b) => b.textContent);
+  !agentPick.hidden && JSON.stringify(ways) === '["Claude","DeepSeek"]'
+    && agentPick.querySelector('#agentpick-ways button.on').textContent === 'DeepSeek'
+    && /every session's next turn/.test(agentPick.textContent)
+    ? ok('it opens who teaches: every assistant this machine runs, by label, the setting lit, '
+         + 'and that it is every session\'s next turn')
+    : fail('who teaches shows ' + JSON.stringify(ways) + ' hidden=' + agentPick.hidden);
+  agentPick.querySelectorAll('#agentpick-ways button')[0].click();
+  await sleep(40);
+  posts('/default-agent').length === 1 && posts('/default-agent')[0].body.agent === 'claude'
+    && /Claude takes every session's next turn/.test(doc.getElementById('agentpick-said').textContent)
+    && agentPick.querySelector('#agentpick-ways button.on').textContent === 'Claude'
+    ? ok('a tap posts /default-agent with the recipe\'s name, and says what it now does')
+    : fail('the tap posted ' + JSON.stringify(posts('/default-agent')) + ' said '
+           + doc.getElementById('agentpick-said').textContent);
+  chip.click();
+  await sleep(20);
+  agentPick.hidden && !pick.hidden
+    ? ok('and it is one of the header menus: opening another closes it')
+    : fail('who teaches stayed open beside the picker');
+  doc.body.click();
+  doc.querySelectorAll('#bar .sess-ctl').length === 4
+    ? ok('the session controls are still four') : fail('the tutor\'s chip became a session control');
 
   window.fetch = real;
   es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
