@@ -11,8 +11,7 @@
     to it with --append. A result over 800 words is refused, naming the count,
     and nothing is written. It never writes RULES.md.
   * An unbound session has no TUTOR.md, and `board memo` says to bind first.
-  * No `NEXT.md` or `board note` is left in board/, except import_live's
-    "Carried over" mapping.
+  * No `NEXT.md` or `board note` is left in board/.
 
 Everything runs in a temp Atlas (`TUTORBOARD_COURSES`).
 """
@@ -218,11 +217,9 @@ try:
                         "board note", "--", "board"], cwd=ATLAS,
                        stdout=subprocess.PIPE, universal_newlines=True)
     left = [l for l in p.stdout.splitlines()
-            if not l.startswith(("board/tutorboard/sessions.py:",
-                                 "board/test/import_live.py:",
-                                 "board/test/memo.py:"))]
-    check("no NEXT.md or `board note` is left in board/, except import_live's "
-          "\"Carried over\" mapping", left == [], "\n".join(left))
+            if not l.startswith("board/test/memo.py:")]
+    check("no NEXT.md or `board note` is left in board/", left == [],
+          "\n".join(left))
     check("and carry.py is gone",
           not os.path.exists(os.path.join(ROOT, "tutorboard", "carry.py")))
 finally:

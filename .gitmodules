@@ -5,14 +5,12 @@
 	path = vendor/colibri-build
 	url = https://github.com/JustVugg/colibri.git
 
-# vendor/colibri is PULLED FORWARD on every login: `tutor resume` runs
-# `git submodule update --remote --merge vendor/colibri` and then commits the
-# pointer bump itself, with a fixed message naming the old and new commit. That
-# is the only commit anything in this system makes on its own, and it is
-# guarded hard -- only when vendor/colibri is the ONLY dirty path, never
-# mid-merge or mid-rebase, never on a detached HEAD. Without that commit the
-# repository is left dirty every time colibri moves, and the board shows the
-# person "unsaved work" for something they did not do.
+# vendor/colibri is PULLED FORWARD by the cluster's relay pass: it runs
+# `git submodule update --remote --merge vendor/colibri` and commits the
+# pointer bump itself, with a fixed message naming the old and new commit
+# (board/tutorboard/relay.py). It commits only when vendor/colibri is the ONLY
+# dirty path, never mid-merge or mid-rebase, never on a detached HEAD, because
+# a bump folded into somebody's unfinished work is a commit nobody made.
 #
 # vendor/colibri-build is the SAME upstream at a different commit, and it is
 # PINNED at fd93c41 and never pulled. It is a build tree, and a build tree that

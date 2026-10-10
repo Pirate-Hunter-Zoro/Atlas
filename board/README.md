@@ -59,7 +59,7 @@ Python it fixes cannot import. The owner runs `board code` by hand to code with 
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
 | `cluster/lib/` | the failure fingerprint every relayed recipe sources |
 | `tex/` | `board-macros.tex` (generated from `web/macros.js` by `tools/sync-macros.py`) and the write-up template |
-| `scripts/` | install, ship, save-and-push, the relay pass, cluster setup, the cutover |
+| `scripts/` | install, ship, save-and-push, the relay pass, cluster setup |
 | `test/` | one suite per file, run by `test/run.py` |
 
 ## Sessions

@@ -157,14 +157,6 @@ def approved(allowed, path):
     return True, ""
 
 
-def exportable(t, path):
-    """The old thread file's rule, kept for proving the migration
-    (`scripts/migrate-exports.py`): may `path` be published off thread `t`?
-    Only where the thread marks that exact path aggregate."""
-    return any(e["path"] == path and e["aggregate"]
-               for e in (t or {}).get("exports") or [])
-
-
 # ---------------------------------------------------------------------------
 # job states, and the registry fold
 # ---------------------------------------------------------------------------

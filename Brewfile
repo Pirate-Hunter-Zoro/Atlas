@@ -1,6 +1,6 @@
 # The Mac's system tools. `bash scripts/setup.sh` runs `brew bundle` on this file;
 # on the cluster the same tools come from modules or a user-level install of uv
-# and elan. board/README.md section 6 of the setup says what each is for.
+# and elan. A line's comment says what it is for, where the name does not.
 
 # the board and the paper builders
 brew "python"

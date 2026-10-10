@@ -58,7 +58,7 @@ def claims_dir(root):
 # moving runtime state out of live/
 # ---------------------------------------------------------------------------
 def _old_live(root, live=None):
-    """The old `live/`: `<root>/live`, or the one the cutover's import names."""
+    """The old `live/`: `<root>/live`, or `live` when one is named."""
     return live or os.path.join(root, OLD_LIVE)
 
 
@@ -149,7 +149,7 @@ def _rmdir(path):
 def migrate_state(root, live=None):
     """Move this subject's runtime state out of `live/` into `relay/state/`:
     registries are appended, claims land in `reported/`, Colibri task
-    records in `colibri/`. `live` names an old `live/` elsewhere (the cutover).
+    records in `colibri/`. `live` names an old `live/` elsewhere.
 
     Idempotent and cheap when there is nothing to move, so every reader calls
     it first. Under a `flock`, so two readers never append one registry

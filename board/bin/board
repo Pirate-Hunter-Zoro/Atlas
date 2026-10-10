@@ -1864,7 +1864,7 @@ def cmd_colibri(live, args):
 
 # ---------------------------------------------------------------------------
 # Tailscale: `tailscale serve` publishes HTTPS to 127.0.0.1 on the board's port
-# once (install.sh, the cutover), and nothing here re-points it.
+# once (install.sh), and nothing here re-points it.
 # ---------------------------------------------------------------------------
 
 

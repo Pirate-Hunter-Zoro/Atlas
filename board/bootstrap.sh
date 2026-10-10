@@ -5,8 +5,8 @@
 #   bash board/bootstrap.sh [--name <tailnet-name>] [--no-clone]
 #   bash board/bootstrap.sh --private-only
 #
-# Run it once on the machine that will run the board: a cluster node, a desktop,
-# a laptop. It puts `tutor` and `board` on the path, fills in the vendored
+# Run it once on each machine: the Mac, which runs the board, and the cluster,
+# which runs only the relay. It puts `board` on the path, fills in the vendored
 # submodules, brings in ai-config, reports what is missing, and
 # tells you what remains. Run it again whenever you are not sure: every step is
 # idempotent.
@@ -226,10 +226,8 @@ say
 
 # --- what is left -----------------------------------------------------------
 say "Next:"
-say "  board vpn up          link this machine to your tailnet (prints a login URL once)"
-say "  board vpn serve       HTTPS on its *.ts.net name, so the iPad app works offline"
-say "  tutor --list          confirm it can see the courses"
-say "  tutor --agents        point it at the assistant you use here"
+say "  tailscale serve --bg --https=443 http://127.0.0.1:8778   publish the board once (the Mac)"
+say "  board vpn             what tailscale says, and where HTTPS points"
+say "  board doctor --dry    what this machine has, without spending a turn"
 say
-say "  tutor headless galois --agent deepseek     run it as a daemon"
 say "  bash $HERE/scripts/setup-cluster.sh       on the cluster: the relay, and nothing else"

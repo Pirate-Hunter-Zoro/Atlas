@@ -43,7 +43,7 @@ fi
 # The one LaunchAgent. `kickstart -k` kills the running server and starts it
 # again at once; a turn in flight is cut, and its message stays owed and is
 # answered after the restart. TUTORBOARD_LABEL names another job, as it does
-# for install.sh: the cutover's rehearsal ships to its own test label.
+# for install.sh.
 echo
 TARGET="gui/$(id -u)/${TUTORBOARD_LABEL:-tutor-board}"
 if command -v launchctl >/dev/null 2>&1 && launchctl print "$TARGET" >/dev/null 2>&1; then

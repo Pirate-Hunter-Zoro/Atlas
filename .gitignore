@@ -9,11 +9,10 @@
 #
 #  So this file is left holding three honest categories: files a command
 #  regenerates, other people's work, and `ai-config/`, which is its own
-#  private repository. It does not hold "the 308 MB
-#  of therapy audio we would rather not push" -- that is not in here at all, it
-#  is at ~/phi/PSYCH-ASR/, and projects/PSYCH-ASR/README.md says so. An ignore
-#  rule is a guard somebody can delete by accident; a directory outside the
-#  repository is a guard nothing in here can undo.
+#  private repository. Patient data lives only on the cluster, under a
+#  subject's phi/ and results/, ignored by the anchored rules below. An ignore
+#  rule is a guard somebody can delete by accident, so board/test/tracked.py
+#  and the commit-time gate (board/tutorboard/audit.py) refuse those paths too.
 #
 #  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
 #  ones. Nothing here may shadow one of those: git will not descend into a
@@ -127,7 +126,7 @@ Thumbs.db
 
 # ---- a credential dropped in the tree, which is a thing that happens ----
 # A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside
-# this repository -- HANDOFF.md's *Before anything* says so. It still gets
+# this repository -- README.md's Mac setup says so. It still gets
 # dropped here first, because that is where the terminal already is, and this
 # repository is public. So the shapes a key file is given are refused by name,
 # unanchored, so a drop at any depth is caught rather than only one at the root.

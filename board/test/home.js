@@ -4,15 +4,13 @@
 //      subject, last card and new count, notices that dismiss, + new project
 //      asking "patient data?", and the address grammar -- `#/s/` carried to
 //      the session's board, and an old `#/w/` link followed nowhere.
-//   2. Against a real server on a temp Atlas whose Galois live/ was imported
-//      (45 cards, so card 0003 is older than the board's window of 40): `/`
+//   2. Against a real server on a temp Atlas holding a Galois session with
+//      45 cards, so card 0003 is older than the board's window of 40: `/`
 //      asks nothing of the old switch route or /atlas.json, New session opens an unbound
 //      session in teach, "Linear Algebra" made as a course is listed and
 //      committed, no visible control gets a 404, and `#/s/<id>/card/0003`
-//      from the start screen lands on that card in the imported session's
+//      from the start screen lands on that card in the Galois session's
 //      board.
-//   3. Where ~/Archive/atlas-migration/2026-10-07/live-dirs.tgz exists, the
-//      same link on a copy of the real Galois live/.
 //
 // jsdom is a development-only dependency; without it this skips.
 
@@ -32,8 +30,6 @@ try {
 
 const BOARD = path.join(__dirname, '..');
 const WEB = path.join(BOARD, 'web');
-const TGZ = path.join(os.homedir(), 'Archive', 'atlas-migration', '2026-10-07',
-                      'live-dirs.tgz');
 const errors = [];
 const ok = (m) => console.log('ok   ' + m);
 const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
@@ -476,8 +472,8 @@ async function stubbed() {
 
 /* ======================================================== 2. a real server */
 const SERVE = String.raw`
-import json, os, shutil, signal, subprocess, sys, tarfile, tempfile
-board, mode, tgz = sys.argv[1], sys.argv[2], sys.argv[3]
+import json, os, shutil, signal, subprocess, sys, tempfile
+board = sys.argv[1]
 signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))
 sys.path.insert(0, board)
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="tutor-home-"))
@@ -507,30 +503,16 @@ write(os.path.join(atlas, "projects", "Meetings", "tutorboard.json"),
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n*/*/live/\n")
 git("add", "-A")
 git("commit", "-q", "-m", "fixture")
-live = os.path.join(gal, "live")
-if mode == "galois":
-    with tarfile.open(tgz, "r:gz") as tf:
-        members = [m for m in tf.getmembers()
-                   if m.name.startswith("courses/Galois-Theory/live/")
-                   and "/live/archive/" not in m.name and (m.isfile() or m.isdir())]
-        if hasattr(tarfile, "data_filter"):
-            tf.extractall(atlas, members, filter="data")
-        else:
-            tf.extractall(atlas, members)
-else:
-    write(os.path.join(live, "state.json"), json.dumps({"course": "Galois Theory",
-                                                         "chapter": "ch07"}))
-    for n in range(1, 46):
-        write(os.path.join(live, "cards", "%04d-card.md" % n),
-              "---\nkind: note\ntitle: Card %d\n---\nthe body of card-%04d\n" % (n, n))
-
 from tutorboard import sessions
 from tutorboard.server import app
-got = sessions.import_live(atlas, gal, "courses/Galois-Theory",
-                           manifest=os.path.join(tmp, "import.jsonl"))
+sid = sessions.new(title="Galois Theory: ch07", base=atlas)["id"]
+sessions.bind(sid, "courses/Galois-Theory", base=atlas)
+for n in range(1, 46):
+    write(os.path.join(sessions.path(sid, atlas), "cards", "%04d-card.md" % n),
+          "---\nkind: note\ntitle: Card %d\n---\nthe body of card-%04d\n" % (n, n))
 httpd = app.make_server(atlas, 0)
 print(json.dumps({"port": httpd.server_port, "atlas": atlas, "tmp": tmp,
-                  "sid": got["session"]}), flush=True)
+                  "sid": sid}), flush=True)
 try:
     httpd.serve_forever()
 finally:
@@ -540,7 +522,7 @@ finally:
 // The server runs under a home of its own: a route like POST /default-agent
 // writes ~/.config/tutor-board/config.json, and a test must never write the
 // machine's real one.
-function serve(mode) {
+function serve() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'tutor-home-user-'));
   const env = Object.assign({}, process.env, {
     HOME: home,
@@ -550,7 +532,7 @@ function serve(mode) {
     GIT_CONFIG_NOSYSTEM: '1',
   });
   return new Promise((resolve, reject) => {
-    const child = spawn('python3', ['-c', SERVE, BOARD, mode, TGZ],
+    const child = spawn('python3', ['-c', SERVE, BOARD],
                         { stdio: ['ignore', 'pipe', 'pipe'], env });
     child.on('exit', () => fs.rmSync(home, { recursive: true, force: true }));
     let buf = '';
@@ -647,7 +629,7 @@ function visible(d, e) {
 
 async function real() {
   let srv;
-  try { srv = await serve('fixture'); } catch (e) { fail('the fixture server: ' + e.message); return; }
+  try { srv = await serve(); } catch (e) { fail('the fixture server: ' + e.message); return; }
   const base = 'http://127.0.0.1:' + srv.port;
   try {
     const w = await page(base + '/');
@@ -661,7 +643,7 @@ async function real() {
     check('every request / makes is answered, none 404',
           w.__requests.every((r) => r.status && r.status !== 404));
     const cont = d.querySelector('#open-list .row');
-    check('the imported Galois session is under Continue with its last card',
+    check('the Galois session is under Continue with its last card',
           cont && /Galois Theory/.test(cont.textContent) && /Card 45/.test(cont.textContent));
 
     // New session.
@@ -769,8 +751,8 @@ async function sessionLink(base, sid, where, older) {
   const w = await page(base + '/', { hash: '#/s/' + sid + '/card/0003' });
   await until(() => w.__went.length > 0, 8000);
   const want = '/s/' + sid + '/board#/s/' + sid + '/card/0003';
-  check(where + ': #/s/<id>/card/0003 goes to card 0003 of the imported Galois '
-        + 'session', w.__went[0] === want);
+  check(where + ': #/s/<id>/card/0003 goes to card 0003 of the Galois session',
+        w.__went[0] === want);
   const b = await page(base + want);
   const card = () => b.document.querySelector('[data-card="0003"]');
   const landed = await until(() => card() && b.__scrolled.indexOf('0003') >= 0, 15000);
@@ -791,24 +773,9 @@ async function sessionLink(base, sid, where, older) {
   if (b.EventSource) b.document.defaultView.close();
 }
 
-async function rehearsal() {
-  if (!fs.existsSync(TGZ)) {
-    console.log('SKIPPED the Galois rehearsal: ' + TGZ + ' is not here');
-    return;
-  }
-  let srv;
-  try { srv = await serve('galois'); } catch (e) { fail('the Galois copy: ' + e.message); return; }
-  try {
-    await sessionLink('http://127.0.0.1:' + srv.port, srv.sid, 'a copy of the real Galois live/');
-  } finally {
-    srv.child.kill();
-  }
-}
-
 (async () => {
   await stubbed();
   await real();
-  await rehearsal();
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
     : '\nthe start screen opens every session, and every session link lands');
   process.exit(errors.length ? 1 : 0);

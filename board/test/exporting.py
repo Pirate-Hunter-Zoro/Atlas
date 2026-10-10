@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Export approval is the subject's committed tutorboard.json, and TRD-EHR's
-thread marks moved there without approving one path more or less.
+"""Export approval is the subject's committed tutorboard.json.
 
 What the checks are about:
 
@@ -11,15 +10,10 @@ What the checks are about:
   * COMMITTED, AND STILL ON DISK. `approvals` keeps the entries both HEAD and
     the working tree hold: an uncommitted approval approves nothing, and an
     uncommitted revocation takes effect at once.
-  * THE MIGRATION IS EXACT. Over every path the old marks, the tracked
-    `exports/` and every request and report name, the new list approves
-    exactly what the thread file did. The committed tutorboard.json is what
-    `scripts/migrate-exports.py` writes.
   * OLD REPORTS STILL FOLD. TRD-EHR's requests and reports, written with
     `thread`, read through `jobs.view` as before.
 """
 
-import importlib.util
 import json
 import os
 import shutil
@@ -55,10 +49,6 @@ def git(cwd, *args):
     return p.stdout.decode("utf-8", "replace")
 
 
-spec = importlib.util.spec_from_file_location(
-    "migrate_exports", os.path.join(ROOT, "scripts", "migrate-exports.py"))
-migrate = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(migrate)
 
 # --- the rule -------------------------------------------------------------------
 ALLOWED = [{"glob": "results/figs/*.png"}, {"glob": "results/rows.csv"},
@@ -115,92 +105,9 @@ try:
 finally:
     shutil.rmtree(box, ignore_errors=True)
 
-# --- the migration: TRD-EHR ----------------------------------------------------------
 TRD = os.path.join(REPO, "projects", "TRD-EHR")
 TRD = TRD if os.path.isdir(TRD) else None
 check("TRD-EHR is in this checkout", TRD is not None)
-# The thread file as it stood when the marks moved, so the proof outlives it.
-PINNED = "d3284678"
-try:
-    with open(os.path.join(TRD, "threads.json"), encoding="utf-8") as fh:
-        old_doc = json.load(fh)
-except OSError:
-    old_doc = json.loads(git(REPO, "show",
-                             "%s:research/TRD-EHR/threads.json" % PINNED))
-with open(os.path.join(TRD, "tutorboard.json"), encoding="utf-8") as fh:
-    new_list, problems = exports.entries(
-        ((json.load(fh).get("relay") or {}).get("exports")))
-marks = migrate.old_marks(old_doc)
-check("TRD-EHR's tutorboard.json relay.exports is valid, and is exactly what "
-      "migrate-exports.py writes", problems == [] and new_list
-      and new_list == migrate.entries_for(marks))
-
-# Every path anything names: the threads' marks, answered or not, the tracked
-# exports/, and every results/ path in a request or a report.
-universe = set()
-for t in old_doc.get("threads") or []:
-    for e in t.get("exports") or []:
-        p = exports.rel(e.get("path") if isinstance(e, dict) else e)
-        if p:
-            universe.add(p)
-rel_trd = os.path.relpath(TRD, REPO)
-tracked_exports = [p[len(rel_trd) + 1 + len("exports/"):] for p in git(
-    REPO, "ls-files", "--", rel_trd + "/exports").splitlines()]
-universe.update(tracked_exports)
-named = set()
-
-
-def strings(value):
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for v in value.values():
-            for s in strings(v):
-                yield s
-    elif isinstance(value, list):
-        for v in value:
-            for s in strings(v):
-                yield s
-
-
-for sub in ("relay/reports", "relay/requests"):
-    for rel in git(REPO, "ls-files", "--", "%s/%s" % (rel_trd, sub)).split():
-        with open(os.path.join(REPO, rel), encoding="utf-8") as fh:
-            for s in strings(json.load(fh)):
-                for word in s.split():
-                    word = word.strip(",;:()'\"")
-                    if word.startswith("results/"):
-                        named.add(exports.rel(word))
-named.discard(None)
-universe.update(named)
-check("the universe holds the marks, %d tracked exports and %d paths the "
-      "reports and requests name" % (len(tracked_exports), len(named)),
-      set(marks) <= universe and len(tracked_exports) > 0 and len(named) > 0)
-differ = sorted(p for p in universe
-                if migrate.old_approves(old_doc, p)
-                != exports.approved(new_list, p)[0])
-check("over all %d of them, the new list approves exactly what the old "
-      "marks did" % len(universe), differ == [])
-check("every old exportable path is approved by the new list, and the new "
-      "list approves nothing the marks did not",
-      set(p for p in universe if exports.approved(new_list, p)[0])
-      == set(marks))
-widened = sorted(p for p in set(tracked_exports) | named
-                 if exports.approved(new_list, p)[0]
-                 and not migrate.old_approves(old_doc, p))
-check("no tracked file under exports/ or relay/reports/ names a path the new "
-      "list approves that the old marks did not", widened == [])
-check("the one path listed but never marked aggregate stays refused",
-      not exports.approved(
-          new_list, "results/cross_embedder_retrieval/"
-                    "cross_embedder_retrieval.csv")[0])
-check("a glob character in a marked path is escaped: it matches only itself",
-      migrate.entries_for(["results/a[1]*.png"])
-      == [{"glob": "results/a[[]1][*].png"}]
-      and exports.approved(migrate.entries_for(["results/a[1]*.png"]),
-                           "results/a[1]*.png")[0]
-      and not exports.approved(migrate.entries_for(["results/a[1]*.png"]),
-                               "results/a1x.png")[0])
 
 # --- old reports still fold ------------------------------------------------------------
 copy = tempfile.mkdtemp(prefix="tutor-trd-fold-")
@@ -232,5 +139,4 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("an export is approved by the committed tutorboard.json, exactly as "
-      "TRD-EHR's thread marks approved it")
+print("an export is approved by the committed tutorboard.json")
