@@ -302,6 +302,11 @@ DRIVE = {
         ("/bind", {"subject": "../x"}, REFUSED),
         ("/bind", {"subject": "courses/Nowhere"}, REFUSED)]),
     ("POST", "/handover", "lesson"): ("session", [("/handover", {"card": "0001"}, None)]),
+    # Refused here; a send that lands files the session's uploads, so it is
+    # driven after every read of them, before End.
+    ("POST", "/send", "lesson"): ("session", [
+        ("/send", {"subject": "../x"}, REFUSED),
+        ("/send", {"subject": "courses/Nowhere"}, REFUSED)]),
     ("POST", "/dismiss-finish", "lesson"): ("session", [("/dismiss-finish", {}, OK)]),
     ("POST", "/session", "lesson"): ("session", [
         ("/session", {"session": "lecture"}, None),
@@ -762,6 +767,16 @@ kept = reg.sweep(now=time.monotonic() + registry.IDLE_SECONDS + 1)
 check("a session with a stream open is kept", SID["B"] not in kept
       and SID["B"] in reg.loaded())
 conn.close()
+
+# A send that lands: session A files its uploads into its own subject only.
+for who in ("A", "B"):
+    status, reply, wrote, calls = drive_one(
+        "POST", "/s/%s/send" % SID[who], {"subject": SUBJECT[who]}, who)
+    judged("POST /send to its own subject in session %s" % who, who, status, reply,
+           wrote, calls, OK, scope(who))
+    check("and it filed session %s's upload into %s/materials/" % (who, SUBJECT[who]),
+          any(w.startswith(os.path.join(SUBJECT[who], "materials") + os.sep)
+              for w in wrote))
 
 # End, last.
 before = snapshot()

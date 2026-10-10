@@ -21,7 +21,11 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     POST /say                 session   a typed turn, into the session's inbox
     POST /poke                session   rebuild the payload now; queue a turn
                                         when a line that wakes is waiting
-    POST /end                 session   End: `ended` set, and the wrap-up queued
+    POST /send                session   send it to a subject: bind, and file its
+                                        uploads; for an ended session, the
+                                        wrap-up queued late
+    POST /end                 session   End: `ended` set, and the wrap-up queued;
+                                        with `subject`, sent there first
 """
 
 import re
@@ -364,20 +368,112 @@ def post(h, repo, path):
         queued = bool(inbox.waiting(repo)) and runner.wake(repo)
         return h.send_json({"ok": True, "queued": bool(queued)})
 
+    if path == "/send":
+        return _send(h, repo)
+
     if path == "/end":
         return _end(h, repo)
     return NOT_MINE
 
 
-def _end(h, repo):
-    """`POST /end`: End this session. `sessions.end` sets `ended` and commits
-    the subject's TUTOR.md and the session's artifacts; then the wrap-up turn
-    is queued, the only thing that ever runs it. A second End changes
-    nothing but retries the commit."""
+def _body(h):
+    """The request's JSON object, `{}` for an empty body, or None."""
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:                                        # noqa: BLE001
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _sent(h, sid, base, subject):
+    """Send session `sid` to `subject` (`sessions.send`), and ask the
+    registry again so the hub roots at the subject. `(reply keys, None)`, or
+    `(None, refusal reply)` with nothing changed."""
+    try:
+        rec, filed, refused = sessions.send(sid, subject, base=base)
+    except sessions.Refused as exc:
+        return None, h.send_json({"ok": False, "error": str(exc)}, status=400)
+    except sessions.NoSession:
+        return None, h.send_json({"ok": False, "error": "no such session"},
+                                 status=404)
+    found = subjects.find(rec["subject"], base) or {}
+    registry = getattr(h.server, "registry", None)
+    if registry is not None:
+        registry.get(sid)
+    h.note("session %s sent to %s (%d filed, %d refused)"
+           % (sid, rec["subject"], len(filed), len(refused)))
+    return {"sent": {"id": rec["subject"],
+                     "name": found.get("name") or rec["subject"],
+                     "kind": found.get("kind") or ""},
+            "filed": filed, "refused": refused}, None
+
+
+def _elsewhere(h, rec, base, subject):
+    """An ended session bound to a subject other than `subject`: the 409
+    that says where it went, else None."""
+    was = rec.get("subject")
+    if not rec.get("ended") or not was:
+        return None
+    found = subjects.find(subject, base) if subject else None
+    if found and found["id"] == was:
+        return None
+    return h.send_json({"ok": False, "error": "this session has ended and was "
+                        "sent to %s" % was}, status=409)
+
+
+def _send(h, repo):
+    """`POST /send {subject}`: send this session to a subject -- bound, and
+    every upload left in `uploads/` filed into its `materials/`. Open, it
+    stays open. Ended while bound to nothing, the wrap-up is queued late, so
+    the session is written up there and `sessions.end` commits it. Filing,
+    not talking to the tutor, so an ended session answers it
+    (`handler.ENDED_REFUSES`); an ended one already sent elsewhere is 409."""
     if not repo.stored:
         return h.send_json({"ok": False, "error": "not a session"}, status=404)
+    payload = _body(h)
+    if payload is None:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    sid = os.path.basename(repo.live)
+    base = repo.atlas
+    subject = str(payload.get("subject") or "")
+    rec = sessions.get(sid, base) or {}
+    refused = _elsewhere(h, rec, base, subject)
+    if refused is not None:
+        return refused
+    late = bool(rec.get("ended")) and not rec.get("subject")
+    out, refused = _sent(h, sid, base, subject)
+    if refused is not None:
+        return refused
+    queued = late and bool(runner.RUNNER and runner.RUNNER.end(sid))
+    h.hub.worker.dirty.set()
+    out.update(ok=True, session=sessions.get(sid, base), wrapup=queued)
+    return h.send_json(out)
+
+
+def _end(h, repo):
+    """`POST /end {subject?}`: End this session. With `subject`, it is sent
+    there first (`_sent`): a refused send is 400 and the session stays open.
+    `sessions.end` sets `ended` and commits the subject's TUTOR.md and the
+    session's artifacts; then the wrap-up turn is queued, the only thing that
+    ever runs it. A second End changes nothing but retries the commit; one
+    naming another subject than an ended session's is 409."""
+    if not repo.stored:
+        return h.send_json({"ok": False, "error": "not a session"}, status=404)
+    payload = _body(h)
+    if payload is None:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
     sid = os.path.basename(repo.live)
     base = os.path.dirname(os.path.dirname(repo.live))
+    subject = str(payload.get("subject") or "")
+    sent = {}
+    if subject:
+        rec = sessions.get(sid, base) or {}
+        refused = _elsewhere(h, rec, base, subject)
+        if refused is not None:
+            return refused
+        sent, refused = _sent(h, sid, base, subject)
+        if refused is not None:
+            return refused
     try:
         rec, committed, said = sessions.end(sid, base=base)
     except sessions.NoSession:
@@ -385,5 +481,7 @@ def _end(h, repo):
     queued = bool(runner.RUNNER and runner.RUNNER.end(sid))
     h.note("session %s ended (%s)" % (sid, said))
     h.hub.worker.dirty.set()
-    return h.send_json({"ok": True, "session": rec, "committed": bool(committed),
-                        "detail": said, "wrapup": queued})
+    out = {"ok": True, "session": rec, "committed": bool(committed),
+           "detail": said, "wrapup": queued}
+    out.update(sent)
+    return h.send_json(out)

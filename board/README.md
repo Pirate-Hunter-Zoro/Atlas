@@ -80,11 +80,22 @@ and the audit refuses any path under it.
 - **New.** Home's "New session" opens `/s/<id>/board`, unbound, in teach mode.
 - **Bind.** `board bind courses/<Name>` or the subject chip sets `subject` and appends a
   non-waking `[bind]` line. Nothing moves or restarts. `--create` makes the subject first.
+  An unbound session is a generic lecture: its brief lists the subjects there are, and
+  Make binds it through the chip's picker before it makes anything.
+- **Send.** End on an unbound session opens the picker to send it: every course and project,
+  the recent ones first, a filter, `+ new`, and "end without sending". `POST /end {subject}`
+  runs `sessions.send` (bind, then file every upload into `materials/`) and ends it; the
+  wrap-up then writes up the agreed answers (`prompts/wrapup-sent.md`). `POST /send` sends
+  a session that ended unbound, and runs that wrap-up late. A session that has left files,
+  artifacts or a write-up in one subject is not sent to another.
 - **Mode.** `board mode teach|do`, `POST /mode`, or the tutor obeying "do it". Nothing infers
   do mode. A change is a non-waking line, so the next turn reads it.
-- **Persist.** A session stays open until the owner taps End. End sets `ended`, commits the
-  subject's `TUTOR.md` and the session's artifacts, then queues a wrap-up turn that brings
-  `TUTOR.md` up to date with `board memo`. A second End retries the commit.
+- **Persist.** A session stays open until the owner taps End, twice when it is bound. End sets
+  `ended`, commits the subject's `TUTOR.md` and the session's artifacts, then queues a wrap-up
+  turn that brings `TUTOR.md` up to date with `board memo`. A second End retries the commit.
+- **Who teaches.** The tutor's chip in the header opens the machine's provider setting
+  (`POST /default-agent`, drawn by `who.js` as on the home screen). It takes every session's
+  next turn; there is no per-session provider.
 - **Reopen.** A cluster report for an ended session reopens it.
 - **Delete.** A second tap moves the directory to `~/.local/share/tutor-board/trash/<stamp>/`,
   kept 30 days.

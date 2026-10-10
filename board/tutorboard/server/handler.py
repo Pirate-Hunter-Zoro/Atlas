@@ -91,7 +91,8 @@ UNPREFIXED = (
 )
 
 # An ended session is read-only: anything that would talk to its tutor or
-# change it is 409; End (a retried commit), /poke, /seen and reads still
+# change it is 409; End (a retried commit), /send (sending a lecture ended
+# unbound to its subject, which is filing), /poke, /seen and reads still
 # answer. A cluster report reopens it (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
                  "/mode", "/bind", "/upload", "/file", "/annotate/save",

@@ -20,6 +20,9 @@ def _read(name):
 # The wrap-up turn, the only one the student never sees: TUTOR.md brought up
 # to date with `board memo`.
 WRAPUP_PROMPT = _read("wrapup.md")
+# Added to it for a session sent to its subject only at End (or after), which
+# was written up nowhere: its agreed answers first. Filled with %(subject)s.
+WRAPUP_SENT_PROMPT = _read("wrapup-sent.md")
 # The End turn of a notes canvas (`view: slate`): its pages into notes.md.
 # Filled with %(pages)s, %(title)s and %(subject)s.
 NOTES_PROMPT = _read("notes.md")

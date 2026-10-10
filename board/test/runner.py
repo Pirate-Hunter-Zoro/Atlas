@@ -490,6 +490,45 @@ try:
     check("an unbound session ends with no wrap-up, so nothing writes a TUTOR.md "
           "at the Atlas root", got.get("ok") and not calls(su)
           and not os.path.exists(os.path.join(atlas, "TUTOR.md")))
+    check("a session bound while it ran is not written up again at its wrap-up",
+          "taught bound to no course" not in (calls(sa, "wrapup") or [{}])[0].get("prompt", "?"))
+
+    # Sent at End: the wrap-up runs in the subject and writes the lecture up.
+    lecture = "---\nkind: question\ntitle: Show it\n---\n\nShow it.\n"
+    sl = new_session(None, "a generic lecture")
+    write(os.path.join(sessions.path(sl, atlas), "cards", "0001-q.md"), lecture)
+    got = server.post("/s/%s/end" % sl, {"subject": "courses/Demo"})
+    check("End with a subject sends an unbound lecture there and queues its wrap-up",
+          got.get("ok") and got.get("wrapup") and got["session"].get("ended")
+          and (got.get("sent") or {}).get("id") == "courses/Demo", got)
+    until(lambda: calls(sl, "wrapup"), 30)
+    late = (calls(sl, "wrapup") or [{}])[0]
+    check("whose wrap-up is told the lecture was sent at End, to write up its "
+          "agreed answers, and that its uploads are filed",
+          "sent to courses/Demo only at its End" in late.get("prompt", "")
+          and "board writeup add <label> --turn tNNNN" in late.get("prompt", "")
+          and "courses/Demo/materials/" in late.get("prompt", "")
+          and "This session is ending now" in late.get("prompt", ""), late.get("prompt", "")[-800:])
+    check("and it brings the subject's TUTOR.md up to date, not one at the Atlas root",
+          late.get("rc") == 0 and not os.path.exists(os.path.join(atlas, "TUTOR.md")), late)
+
+    # Sent after End: /send queues the same late wrap-up.
+    s_after = new_session(None, "sent afterwards")
+    write(os.path.join(sessions.path(s_after, atlas), "cards", "0001-q.md"), lecture)
+    server.post("/s/%s/end" % s_after)
+    time.sleep(1.5)
+    check("ended unbound, nothing runs", not calls(s_after))
+    got = server.post("/s/%s/send" % s_after, {"subject": "courses/Demo"})
+    check("/send on it binds it and queues the wrap-up late",
+          got.get("ok") and got.get("wrapup")
+          and sessions.get(s_after, atlas)["subject"] == "courses/Demo", got)
+    until(lambda: calls(s_after, "wrapup"), 30)
+    check("which writes it up as sent at End",
+          "sent to courses/Demo only at its End"
+          in (calls(s_after, "wrapup") or [{}])[0].get("prompt", ""))
+    check("sent_late reads the unread [bind] line no card followed",
+          service.sent_late(sessions.repo(s_after, atlas))
+          and not service.sent_late(sessions.repo(sa, atlas)))
 
     # -----------------------------------------------------------------------
     # runner_route: a subject with no open session gets one, and its turn

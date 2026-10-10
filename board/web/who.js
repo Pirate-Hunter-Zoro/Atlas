@@ -1,10 +1,10 @@
 /* ==========================================================================
    who.js -- WHICH ASSISTANT, and the rules both surfaces draw it by.
 
-   The board picks one for a SITTING; the front door picks the one this MACHINE
-   falls back to. Two different answers to one question, and the question is the
-   same shape on both: which recipes can this machine actually run, which of
-   them can be tapped, and what does a dimmed one say about itself.
+   Both surfaces set the one this MACHINE uses: the front door's settings and
+   the board's tutor chip. The question is the same shape on both: which
+   recipes can this machine actually run, which of them can be tapped, and what
+   does a dimmed one say about itself.
 
    ONE COPY, because the alternative was measured in the registry comment in
    `agents/recipes.py`: two lists go out of step the first time a recipe grows a flag,
@@ -80,7 +80,9 @@
     agents.forEach(function (a) {
       var b = host.ownerDocument.createElement("button");
       b.type = "button";
-      b.textContent = a.name;
+      /* The listing's label for people; the recipe's name is what a tap
+         sends, through `pick`. */
+      b.textContent = a.label || a.name;
       b.title = title(a);
       if (a.name === now) b.className = "on" + (a.exclusive ? " local" : "");
       if (a.unkeyed || a.unavailable || (opts.dim && opts.dim(a))) {

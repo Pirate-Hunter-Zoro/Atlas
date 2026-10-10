@@ -65,8 +65,6 @@ reports it built once it is.
 
 ## 3. Loose ends in the code
 
-- The handover button ("you do this step") shows only when `aim` is `coach`, and nothing sets
-  `aim`. It never shows. Key it on mode teach (`coaching` in `board/web/board.js`).
 - The past-lessons path is unreachable: `openHistory`, `showSession` and `#history` in
   `board/web/board.js`, and `GET /archive` in `board/tutorboard/server/routes/lesson.py`.
 - `board job` in a session with an open cluster coding session pins HEAD, so an uncommitted held
@@ -82,6 +80,9 @@ Built and not yet used for real. Strike each one after an evening on the iPad.
 - Home: Continue rows, New session, the Courses and Projects lists, "+ new" with the patient-data
   question, and a subject delete with its typed name.
 - A new session starts unbound; "this is for Topology" binds it and the subject chip updates.
+- A generic lecture sent at End: the send picker, its filter, a new course made from it, and
+  the wrap-up's write-up in that course. One that ended unbound, sent later from its chip.
+- Who teaches, switched from the tutor's chip mid-session.
 - The session header: subject chip, teach and do, Make, End. Teach and do persist until switched;
   a do turn runs `board check`.
 - A `[job]` card waking the filing session when a cluster report lands, and a report reopening an

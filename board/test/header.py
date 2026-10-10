@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """The session header against a real server: the chip binds, the toggle flips
-`mode`, End ends, and an ended session refuses what would write to it.
+`mode`, End ends, and an ended session refuses what would write to it. End
+with a subject sends an unbound lecture there first, and /send sends one that
+ended unbound.
 
 One server on an ephemeral port over a temp Atlas tree with git. The board's
 side of the same controls (four of them, a second tap for End, the chip
@@ -206,9 +208,75 @@ check("it still reads", status == 200)
 status, got = ask("POST", "/s/%s/end" % SID, {})
 check("and a second End only retries the commit", status == 200 and got.get("ok"))
 
+# ---------------------------------------------------------------------------
+# End with a subject: an unbound lecture is sent there, then ended
+# ---------------------------------------------------------------------------
+def upload_into(sid, name):
+    with open(os.path.join(sessions.path(sid, atlas), "uploads", name), "wb") as fh:
+        fh.write(b"%PDF-1.4 lecture\n")
+
+
+LA = os.path.join(atlas, "courses", "Linear-Algebra")
+status, made = ask("POST", "/sessions/new", {})
+U1 = made.get("id")
+upload_into(U1, "lecture.pdf")
+status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Nowhere"})
+check("End naming no subject is refused (%d), and the session stays open and unbound"
+      % status, status == 400 and not record(U1).get("ended")
+      and record(U1).get("subject") is None)
+status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Linear-Algebra"})
+check("End with a subject sends it there and ends it (%d)" % status,
+      status == 200 and record(U1).get("ended")
+      and record(U1).get("subject") == "courses/Linear-Algebra"
+      and (got.get("sent") or {}).get("name") == "Linear Algebra")
+check("its uploads are filed into the subject's materials/, and the reply says so",
+      os.path.isfile(os.path.join(LA, "materials", "lecture.pdf"))
+      and [f.get("to") for f in got.get("filed") or []] == ["materials/lecture.pdf"]
+      and got.get("refused") == [])
+check("the hub serves the subject's root at once",
+      os.path.realpath(httpd.registry.get(U1).hub.repo.root) == os.path.realpath(LA))
+status, got = ask("POST", "/s/%s/end" % U1, {"subject": "projects/Beta"})
+check("an ended session cannot be ended into another subject (%d)" % status,
+      status == 409 and "courses/Linear-Algebra" in (got.get("error") or "")
+      and record(U1).get("subject") == "courses/Linear-Algebra")
+status, got = ask("POST", "/s/%s/end" % U1, {"subject": "courses/Linear-Algebra"})
+check("the same subject again is a plain End retry", status == 200 and got.get("ok"))
+
+# ---------------------------------------------------------------------------
+# /send: a lecture that ended unbound goes to its subject afterwards
+# ---------------------------------------------------------------------------
+status, made = ask("POST", "/sessions/new", {})
+U2 = made.get("id")
+upload_into(U2, "late.pdf")
+status, got = ask("POST", "/s/%s/end" % U2, {})
+check("an unbound session ends with nothing sent", status == 200
+      and record(U2).get("ended") and record(U2).get("subject") is None
+      and "sent" not in got)
+status, got = ask("POST", "/s/%s/send" % U2, {"subject": "projects/Beta"})
+check("an ended unbound session answers /send (%d): bound and its uploads filed"
+      % status, status == 200 and record(U2).get("subject") == "projects/Beta"
+      and os.path.isfile(os.path.join(atlas, "projects", "Beta", "materials", "late.pdf"))
+      and (got.get("sent") or {}).get("id") == "projects/Beta")
+check("it stays ended, and with no runner in this server no wrap-up is queued",
+      record(U2).get("ended") and got.get("wrapup") is False)
+status, got = ask("POST", "/s/%s/send" % U2, {"subject": "courses/Linear-Algebra"})
+check("sent once it has ended, it cannot be sent elsewhere (%d)" % status,
+      status == 409 and record(U2).get("subject") == "projects/Beta")
+status, got = ask("POST", "/s/%s/bind" % U2, {"subject": "courses/Linear-Algebra"})
+check("and /bind on it is still read-only (%d)" % status, status == 409)
+status, made = ask("POST", "/sessions/new", {})
+U3 = made.get("id")
+status, got = ask("POST", "/s/%s/send" % U3, {"subject": "courses/Linear-Algebra"})
+check("an open session answers /send by binding it, and stays open (%d)" % status,
+      status == 200 and record(U3).get("subject") == "courses/Linear-Algebra"
+      and not record(U3).get("ended"))
+status, got = ask("POST", "/s/%s/send" % U3, {"subject": "courses/Nowhere"})
+check("a /send to no subject is refused (%d)" % status,
+      status == 400 and record(U3).get("subject") == "courses/Linear-Algebra")
+
 httpd.shutdown()
 if fails:
     print("\n%d FAILURES" % len(fails))
     sys.exit(1)
-print("\nheader: the chip binds, the toggle flips mode, End ends, and an ended "
-      "session is read-only")
+print("\nheader: the chip binds, the toggle flips mode, End ends or sends, and an "
+      "ended session is read-only but can still be sent")

@@ -10,10 +10,11 @@
 // have a 'fuck this, you do this step' option."
 //
 // What is guarded here is where the button is and where it is NOT. It belongs
-// on the step — the newest card — and nowhere else: a button on a step that has
-// already been typed means nothing, and a button in a sitting whose tutor is
-// already writing the code means less than nothing. jsdom, because all of that
-// is a fact about what is on the glass.
+// on the step — the newest card — and nowhere else, while the session is in
+// teach: a button on a step that has already been typed means nothing, and a
+// button in a session in do, whose tutor is already writing the code, means
+// less than nothing. jsdom, because all of that is a fact about what is on the
+// glass.
 
 const fs = require('fs');
 const path = require('path');
@@ -86,8 +87,8 @@ const steps = [
   { id: '0003', kind: 'lesson', body: 'Step three: wire the clock.', mtime: t0 + 120 },
 ];
 
-const frame = (aim, extra) => JSON.stringify(Object.assign({
-  state: { course: 'Harness', session: 'lecture', aim: aim, aim_now: aim },
+const frame = (mode, extra) => JSON.stringify(Object.assign({
+  state: { course: 'Harness', session: 'lecture', mode: mode, stance_now: mode },
   cards: steps, turns: [], history: 0,
   agent: { agent: 'claude', state: 'listening' },
 }, extra || {}));
@@ -99,11 +100,11 @@ const tapOn = (id) =>
 (async () => {
 
 // ------------------------------------------------ where the tap is, and is not
-es.onmessage({ data: frame('coach') });
+es.onmessage({ data: frame('teach') });
 await sleep(60);
 
 taps().length === 1
-  ? ok('a coaching sitting offers the tap exactly once')
+  ? ok('a session in teach offers the tap exactly once')
   : fail('the tap appeared ' + taps().length + ' times');
 tapOn('0003')
   ? ok('and it is on the step they are looking at')
@@ -124,25 +125,34 @@ tapOn('0003').disabled
   ? ok('and the control says so before the payload comes back')
   : fail('the tap stayed live, so it can be sent twice');
 
+// A new card moves the tap onto it, and the card under it keeps its node.
+const under = doc.querySelector('.card[data-card="0003"]');
+es.onmessage({ data: frame('teach', { cards: steps.concat([
+  { id: '0004', kind: 'lesson', body: 'Step four: test it.', mtime: t0 + 150 }]) }) });
+await sleep(60);
+taps().length === 1 && tapOn('0004') && !tapOn('0003')
+  && doc.querySelector('.card[data-card="0003"]') === under
+  ? ok('the next step takes the tap, and the step under it is not rebuilt for it')
+  : fail('after a new card the tap is on ' + Array.prototype.map.call(taps(),
+      (t) => t.closest('.card').dataset.card));
+
 // -------------------------------------------- the sittings that do not get it
-const noneFor = async (aim, why) => {
-  es.onmessage({ data: frame(aim) });
-  await sleep(60);
-  taps().length === 0 ? ok(why) : fail('the tap showed up in a ' + aim + ' sitting');
-};
-await noneFor('build', 'a sitting whose tutor already writes the code has nothing to hand over');
-await noneFor('teach', 'and a sitting being taught the mathematics is not offered it');
+es.onmessage({ data: frame('do') });
+await sleep(60);
+taps().length === 0
+  ? ok('a session in do, whose tutor already writes the code, has nothing to hand over')
+  : fail('the tap showed up in a session in do');
 
 // A past lesson is read-only. Handing over a step of an evening that is already
 // filed away is not a thing that can happen.
-es.onmessage({ data: frame('coach', { archived: true }) });
+es.onmessage({ data: frame('teach', { archived: true }) });
 await sleep(60);
 taps().length === 0
   ? ok('a filed lesson offers nothing to hand over')
   : fail('a past lesson offered a step');
 
 // And the transcript says what was done, in words rather than a bare tag.
-es.onmessage({ data: frame('coach', { turns: [
+es.onmessage({ data: frame('teach', { turns: [
   { id: 't0007', rev: 1, kind: 'text', t: t0 + 130, card: '0003',
     text: 'You write this step.', signal: 'handover' }] }) });
 await sleep(60);
@@ -157,7 +167,7 @@ chip && /handed this step over/.test(chip.textContent)
 const proposing = steps.concat([
   { id: '0004', kind: 'lesson', mtime: t0 + 180,
     body: 'Rewrote the tasks.\n\n@@THREAD:dims-table:new@@\n\n@@FIGURE:zz@@' }]);
-es.onmessage({ data: frame('build', { cards: proposing }) });
+es.onmessage({ data: frame('do', { cards: proposing }) });
 await sleep(60);
 const old = doc.querySelector('.card[data-card="0004"]');
 old && !old.querySelector('.thread-propose, .thread-accept')
@@ -167,5 +177,5 @@ old && !old.querySelector('.thread-propose, .thread-accept')
 
 console.log();
 if (errors.length) { console.log(errors.length + ' FAILURES'); process.exit(1); }
-console.log('one step goes over, and the sitting is still a coaching one');
+console.log('one step goes over, and the session is still in teach');
 })();

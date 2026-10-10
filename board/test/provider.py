@@ -289,10 +289,14 @@ try:
     js = open(os.path.join(BOARD, "web", "board.js"), encoding="utf-8").read()
     check("the board draws a card's by-line", "card-by" in js and "c.by" in js)
     who = open(os.path.join(BOARD, "web", "who.js"), encoding="utf-8").read()
-    # The board's per-sitting chooser is gone (D27: no per-session provider
-    # override); the home screen draws the machine's default with the rules.
+    # No per-session provider (D27): the home screen and the board's tutor
+    # chip both draw the machine's one setting with the shared rules, and both
+    # set it through /default-agent.
     home = open(os.path.join(BOARD, "web", "home.js"), encoding="utf-8").read()
     check("home.js draws the chooser through the shared rules", "WhoChoice" in home)
+    check("and so does the board's tutor chip, setting the machine's provider, not "
+          "the session's", "WhoChoice.draw" in js and '"/default-agent"' in js
+          and 'BASE + "/default-agent"' not in js)
     check("an unkeyed recipe is drawn dimmed with the key and the file in its "
           "title", "a.unkeyed" in who and "keys" in who)
 finally:

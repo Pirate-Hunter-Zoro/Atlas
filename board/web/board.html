@@ -41,7 +41,9 @@
     <button id="btn-mode" class="sess-ctl mode-toggle" type="button"
             title="teach: you write the code; do: the tutor writes it"><span class="mode-teach">teach</span><span class="mode-do">do</span></button>
     <span id="chapter" class="muted"></span>
-    <span id="agent" class="agent" hidden></span>
+    <!-- The tutor's chip, and the way to choose who teaches: it opens
+         #agentpick. Not a session control: the choice is the machine's. -->
+    <button id="agent" class="agent" type="button" hidden></button>
   </div>
   <div class="bar-right">
     <button id="btn-make" class="sess-ctl" type="button" title="a write-up, a deck or a paper from this session">make<span class="caret"> ▾</span></button>
@@ -128,7 +130,7 @@
 <!-- An ended session is read-only: this says so, and nothing on the page
      writes to it. -->
 <div id="endedbar" class="linkbad endedbar" hidden>
-  <span>This session has ended. It is read-only.</span>
+  <span id="endedbar-text">This session has ended. It is read-only.</span>
 </div>
 
 <div id="linkbad" class="linkbad" hidden>
@@ -201,14 +203,23 @@
   <p id="make-said" class="hdrmenu-note muted"></p>
 </div>
 
-<!-- THE SUBJECT CHIP'S PICKER: every course and project, and a new one. A
-     tap binds the session; a new one is made, committed, then bound. -->
+<!-- THE SUBJECT CHIP'S PICKER: every course and project, and a new one, the
+     bound subject and the recently used ones first, and a line that filters
+     them. A tap binds the session; a new one is made, committed, then bound.
+     End on an unbound session opens it to SEND: the tap ends the session into
+     the subject (POST /end {subject}), or "end without sending" ends it
+     unbound. On a session that ended unbound the chip opens it to send it
+     still (POST /send); Make on an unbound one, to bind it before it makes. -->
 <div id="subjpick" class="barmenu hdrmenu" hidden>
+  <p id="subjpick-head" class="subjpick-head" hidden></p>
+  <input id="subjpick-filter" type="search" autocomplete="off"
+         placeholder="find a course or project">
   <div id="subjpick-list"></div>
-  <div class="subjpick-new">
+  <div id="subjpick-new" class="subjpick-new">
     <button id="subjpick-course" type="button">+ new course</button>
     <button id="subjpick-project" type="button">+ new project</button>
   </div>
+  <button id="subjpick-skip" type="button" hidden>end without sending</button>
   <div id="subjpick-form" class="subjpick-form" hidden>
     <input id="subjpick-name" type="text" autocomplete="off" placeholder="name">
     <div id="subjpick-phi" class="subjpick-phi" hidden>
@@ -219,6 +230,16 @@
     <button id="subjpick-go" type="button" class="primary">make it and bind</button>
   </div>
   <p id="subjpick-said" class="hdrmenu-note muted"></p>
+</div>
+
+<!-- WHO TEACHES: the tutor's chip opens this. The machine's one provider
+     setting (POST /default-agent), the one the home screen shows, drawn by
+     who.js: every session's next turn goes to it, this one's and the rest. -->
+<div id="agentpick" class="barmenu hdrmenu" hidden>
+  <p class="hdrmenu-note muted">Who teaches. One setting for this machine: it
+    takes every session's next turn.</p>
+  <div id="agentpick-ways" class="agentpick-ways"></div>
+  <p id="agentpick-said" class="hdrmenu-note muted"></p>
 </div>
 
 <div id="barmenu" class="barmenu" hidden>
@@ -566,6 +587,9 @@
      calls. Before board.js, which renders fences with them. -->
 <script src="/static/vendor/highlight/highlight.min.js"></script>
 <script src="/static/codeview.js"></script>
+<!-- Which assistants this machine can run, by the rules the home screen
+     draws them by. Before board.js, whose tutor chip opens them. -->
+<script src="/static/who.js"></script>
 <script src="/static/board.js"></script>
 </body>
 </html>

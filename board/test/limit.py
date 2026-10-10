@@ -233,7 +233,7 @@ check("a turn that goes through proves THAT agent's allowance, not the "
       "machine's", "limits.clear_limited(ctx.agent_name)" in src)
 check("the wrap-up is still attempted on End, by whoever can write it, because "
       "TUTOR.md is the continuity there is",
-      "def wrap_up(ctx):" in src and "the wrap-up goes to" in src)
+      "def wrap_up(ctx" in src and "the wrap-up goes to" in src)
 
 health = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                            "machines.py"), encoding="utf-8").read()

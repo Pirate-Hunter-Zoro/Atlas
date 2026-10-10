@@ -29,6 +29,31 @@
   <button id="notes-end" type="button" hidden
           title="end the notes: the tutor transcribes these pages into notes.md">End</button>
 </div>
+<!-- A NOTES CANVAS BOUND TO NOTHING asks at End where its notes go: every
+     course and project, and a new one. A tap ends it into that subject (POST
+     /end {subject}); "let the tutor choose" ends it as it is. -->
+<div id="notes-send" class="notes-send" hidden>
+  <p class="notes-send-head">Send these notes to a course or project, then end</p>
+  <div id="notes-send-list"></div>
+  <div class="notes-send-new">
+    <button id="notes-new-course" type="button">+ new course</button>
+    <button id="notes-new-project" type="button">+ new project</button>
+  </div>
+  <div id="notes-send-form" class="notes-send-form" hidden>
+    <input id="notes-send-name" type="text" autocomplete="off" placeholder="name">
+    <div id="notes-send-phi" class="notes-send-phi" hidden>
+      <span>Patient data?</span>
+      <button id="notes-phi-no" type="button">no</button>
+      <button id="notes-phi-yes" type="button">yes</button>
+    </div>
+    <button id="notes-send-go" type="button">make it, send them there and end</button>
+  </div>
+  <div class="notes-send-acts">
+    <button id="notes-send-skip" type="button">end, and let the tutor choose</button>
+    <button id="notes-send-back" type="button">not yet</button>
+  </div>
+  <p id="notes-send-said" class="notes-send-said"></p>
+</div>
 <div id="prompt" hidden><span class="kind"></span><span class="text"></span></div>
 <div id="slate"></div>
 

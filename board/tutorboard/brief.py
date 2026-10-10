@@ -18,7 +18,7 @@ text for manual use.
 import json
 import os
 
-from . import jobs, memo, reasoning
+from . import jobs, memo, reasoning, subjects
 from .course import config
 from .course import homework
 from .lesson import git as lesson_git
@@ -41,6 +41,13 @@ RECAP_LIMIT = 12000
 
 # The most the book's chapter list may cost the brief, in characters.
 BOOK_CHARS = 1500
+
+# The subjects an unbound session's brief names, so a bind matches one rather
+# than making a near-duplicate.
+SUBJECTS = 60
+
+# The other open sessions on the same subject a brief names.
+SIBLINGS = 5
 
 # The mechanics of a turn; only a turn reads the brief.
 TURN_SENSE = (
@@ -96,6 +103,49 @@ def _unbound(repo):
     if not getattr(repo, "stored", False) or not atlas:
         return False
     return os.path.realpath(repo.root) == os.path.realpath(atlas)
+
+
+def subjects_sense(repo):
+    """The existing subjects, as one line of `id (name)`, at most SUBJECTS
+    of them, or ""."""
+    try:
+        every = subjects.all(getattr(repo, "atlas", None))
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not every:
+        return ""
+    said = ["%s (%s)" % (s["id"], s["name"]) if s["name"] != s["slug"]
+            else s["id"] for s in every[:SUBJECTS]]
+    if len(every) > SUBJECTS:
+        said.append("and %d more" % (len(every) - SUBJECTS))
+    return "subjects there are: " + ", ".join(said)
+
+
+def siblings_sense(repo, subject):
+    """The other open sessions bound to `subject`, each with its write-up and
+    newest card's title, so a new lecture knows where its sibling is; ""
+    when there are none."""
+    from . import sessions                     # local: it imports the course package
+    base = getattr(repo, "atlas", None)
+    here = os.path.basename(os.path.normpath(getattr(repo, "live", "") or ""))
+    try:
+        every = sessions.all(base)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    open_ = [r for r in every if r.get("subject") == subject
+             and not r.get("ended") and r.get("id") != here]
+    if not open_:
+        return ""
+    out = ["other open sessions on %s:" % subject]
+    for rec in open_[:SIBLINGS]:
+        last = (sessions.summary(rec, base).get("last_card") or {})
+        out.append("  - %s%s: write-up %s, last card %s" % (
+            rec["id"], (' "%s"' % rec["title"]) if rec.get("title") else "",
+            rec.get("writeup") or "none",
+            ('"%s"' % last["title"]) if last.get("title") else "none"))
+    if len(open_) > SIBLINGS:
+        out.append("  - …and %d more." % (len(open_) - SIBLINGS))
+    return "\n".join(out)
 
 
 def book_sense(root):
@@ -220,13 +270,22 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
     head = " — ".join(x for x in (st.get("course"), st.get("session"),
                                   st.get("chapter")) if x)
     out.append(head or "no session open")
-    # An unbound session asks for its subject rather than guess.
+    # An unbound session is a generic lecture: taught now, sent at End.
     if getattr(repo, "stored", False) and not st.get("subject"):
-        out.append("subject: none -- this session is not bound to a course or "
-                   "project yet. Before any other work, ask the owner what this "
-                   "session is for. Then `board bind courses/<Name>` or `board "
-                   "bind projects/<Name>`; add `--create` for a new one (a "
-                   "project also needs `--phi yes|no`).")
+        out.append("subject: none -- this session is a generic lecture, bound "
+                   "to no course or project. Teach it now. Bind it only when "
+                   "the owner names a subject: `board bind courses/<Name>` or "
+                   "`board bind projects/<Name>`, `--create` only when no "
+                   "subject below fits (a project also needs `--phi yes|no`). "
+                   "Otherwise the owner sends it to one at End, and the "
+                   "wrap-up writes it up there.")
+        names = subjects_sense(repo)
+        if names:
+            out.append(names)
+    elif getattr(repo, "stored", False):
+        beside_open = siblings_sense(repo, st.get("subject"))
+        if beside_open:
+            out.append(beside_open)
     # The write-up's counts every turn: a debt on the brief gets paid.
     hw_set = homework.bound(root, st)
     if hw_set:
@@ -252,7 +311,8 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
                    "starts it%s" % (
                        "" if not (getattr(repo, "stored", False)
                                   and not st.get("subject"))
-                       else ", once the session is bound to a subject"))
+                       else ", once the session is bound to a subject; sent "
+                            "at End, the wrap-up writes up its agreed answers"))
     if not _unbound(repo):
         book = book_sense(root)
         if book:
