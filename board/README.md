@@ -172,9 +172,11 @@ tree gets a `doc.json` written in place, so its ids hold.
 
 ## The web client
 
-- **Home** (`/`, `web/home.js`): open sessions, New session, notices, courses and projects
-  (each row can make a deck or paper), past sessions, the Notes, Annotate a PDF and Meeting
-  deck actions, relay and Colibri health, settings.
+- **Home** (`/`, `web/home.js`): open sessions, New session, the Tutor chooser, notices, a
+  search, courses and projects most recently used first (each row can make a deck or paper,
+  or be deleted), the newest ten past sessions (an unbound one can be sent to a subject), the
+  Notes, Annotate a PDF and Meeting deck actions, relay and Colibri health, settings. A script
+  that did not load shows a Retry line, and what breaks is posted to `/client-error`.
 - **Board** (`/s/<id>/board`): the session header (subject chip, mode, End), the cards, the
   answer box, the slate. **Slate** (`/s/<id>/slate`) is the full-page writing surface.
 - **Library** (`/library?subject=<id>`): every document and result of a subject, the reader,

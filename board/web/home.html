@@ -15,10 +15,11 @@
 <link rel="icon" href="/icon-192.png">
 <link rel="stylesheet" href="/static/typeface.css">
 <link rel="stylesheet" href="/static/home.css">
-<script src="/static/typeface.js" defer></script>
+<script src="/static/typeface.js" defer onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 </head>
-<!-- The start screen. Top to bottom: open sessions, a new one, notices, the
-     courses and projects, past sessions, three actions, settings. -->
+<!-- The start screen. Top to bottom: open sessions, a new one, who tutors,
+     notices, a search, the courses and projects, past sessions, three
+     actions, settings. -->
 <body>
 
 <header id="bar">
@@ -32,7 +33,15 @@
 </header>
 
 <main>
-  <!-- An old link that could not be followed says so here. -->
+  <!-- The page did not finish loading: a script the proxy dropped, said by
+       the inline check at the end of this file. -->
+  <div id="boot" class="boot" role="alert" hidden>
+    <span id="boot-what">The page did not finish loading.</span>
+    <button id="boot-retry" type="button">Retry</button>
+  </div>
+
+  <!-- An old link that could not be followed says so here, and what a tap
+       on this page did. -->
   <p id="said" class="said" hidden></p>
 
   <!-- The cluster's health (GET /relay.json): relay looks down, not synced,
@@ -50,10 +59,26 @@
     <span class="action-sub" id="new-session-sub">starts unbound, in teach mode</span>
   </button>
 
+  <!-- Who takes the next turn in every session: the machine's one provider
+       setting (POST /default-agent), drawn by `who.js`. Shown when there are
+       at least two to choose between. -->
+  <section id="who" class="who" hidden>
+    <h2 class="who-lead">Tutor</h2>
+    <div id="who-ways" class="who-ways"></div>
+    <p id="who-note" class="who-note"></p>
+  </section>
+
   <section id="notices" hidden>
     <h2>Notices</h2>
     <div id="notice-list" class="rows"></div>
   </section>
+
+  <!-- Narrows the courses, the projects and the past sessions, by name or
+       id, here on the page. -->
+  <input id="find" class="find" type="search" autocomplete="off" autocorrect="off"
+         autocapitalize="off" spellcheck="false"
+         placeholder="find a course, project or past session"
+         aria-label="find a course, project or past session">
 
   <section id="courses">
     <div class="head">
@@ -73,13 +98,13 @@
     <p id="project-none" class="hint" hidden>No project yet.</p>
   </section>
 
-  <!-- libr-local-llm's Colibri: its state, its queue and its tasks, from
-       relay/status.json and the reports (GET /relay.json), and a task filed
-       through POST /colibri. Drawn only where that project is here. -->
+  <!-- Colibri: its state, its queue and its tasks, from relay/status.json
+       and the reports (GET /relay.json), and a task filed through POST
+       /colibri. Drawn only where its project is here; the link names it. -->
   <section id="colibri" hidden>
     <div class="head">
       <h2>Colibri</h2>
-      <a id="colibri-subject" class="add" href="#">libr-local-llm</a>
+      <a id="colibri-subject" class="add" href="#"></a>
     </div>
     <p id="colibri-state" class="coli-state"></p>
     <div id="colibri-tasks" class="rows"></div>
@@ -96,6 +121,7 @@
     <h2>Past sessions</h2>
     <div id="past-list" class="rows"></div>
     <p id="past-none" class="hint" hidden>No session has ended yet.</p>
+    <button id="past-more" class="add more" type="button" hidden>show all</button>
   </section>
 
   <section id="make" class="actions">
@@ -110,7 +136,7 @@
       <span class="action-name">Annotate a PDF</span>
       <span class="action-sub">upload one and write on it</span>
     </button>
-    <button id="act-meeting" class="action" type="button">
+    <button id="act-meeting" class="action" type="button" hidden>
       <span class="action-name">Meeting deck</span>
       <span class="action-sub">over a period you choose</span>
     </button>
@@ -125,11 +151,6 @@
       <button id="btn-face" type="button" title="typeface">
         <span class="set-lead">face</span> Aa
       </button>
-    </div>
-    <div id="who" class="who" hidden>
-      <span class="who-lead">default assistant</span>
-      <span id="who-ways" class="who-ways"></span>
-      <span id="who-note" class="who-note"></span>
     </div>
   </section>
 
@@ -169,6 +190,62 @@
         <span class="action-sub" id="maker-go-sub">name it first</span>
       </button>
       <button id="maker-close" class="action" type="button">
+        <span class="action-name">Not now</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Deleting a course or project from its row. GET /subject/delete says
+     first whether it can go and why not; only then is its slug asked for,
+     typed exactly, and POST /subject/delete moves it to the trash in one
+     commit. -->
+<div id="dropper" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="dropper-title">
+    <p class="eyebrow" id="dropper-kind">delete course</p>
+    <h3 id="dropper-title"></h3>
+    <p class="sheet-line" id="dropper-why"></p>
+    <div id="dropper-ask" hidden>
+      <p class="sheet-line">Type <strong id="dropper-slug"></strong> to delete it.
+        It goes to the trash for 30 days, and its tracked files leave git in
+        one commit.</p>
+      <input id="dropper-name" type="text" autocomplete="off" autocorrect="off"
+             autocapitalize="off" spellcheck="false" aria-label="its name, typed">
+    </div>
+    <p class="sheet-line" id="dropper-said" hidden></p>
+    <div class="sheet-actions">
+      <button id="dropper-go" class="action primary" type="button" disabled>
+        <span class="action-name">Delete it</span>
+        <span class="action-sub" id="dropper-go-sub">type its name first</span>
+      </button>
+      <button id="dropper-close" class="action" type="button">
+        <span class="action-name">Keep it</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Sending an unbound session that has ended to a course or project: POST
+     /s/<id>/send binds it, files its uploads into that subject's materials/
+     and has its write-ups and TUTOR.md follow. + new makes the subject first,
+     through the maker sheet. -->
+<div id="sender" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sender-title">
+    <p class="eyebrow">send to a course or project</p>
+    <h3 id="sender-title"></h3>
+    <p class="sheet-line">Its uploads go into that subject's materials, and
+      its write-ups and TUTOR.md follow.</p>
+    <input id="sender-find" type="search" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" placeholder="find one"
+           aria-label="find a course or project">
+    <div id="sender-list" class="sender-list"></div>
+    <div class="picks">
+      <button id="sender-new-course" type="button">+ new course</button>
+      <button id="sender-new-project" type="button">+ new project</button>
+    </div>
+    <p class="sheet-line" id="sender-said" hidden></p>
+    <div class="sheet-actions">
+      <button id="sender-close" class="action" type="button">
         <span class="action-name">Not now</span>
       </button>
     </div>
@@ -233,8 +310,9 @@
 </div>
 
 <!-- The meeting deck: a period, and the subjects it covers; none chosen is
-     every subject that moved. The deck is projects/Meetings/docs/meeting/, and
-     making one replaces the one before. -->
+     every subject that moved. The deck is docs/meeting/ in the subject
+     /subjects.json names as `meetings`, and making one replaces the one
+     before. -->
 <div id="notes" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
     <p class="eyebrow">the meeting deck</p>
@@ -259,17 +337,52 @@
       </button>
     </div>
     <p class="sheet-line" id="notes-said" hidden></p>
-    <a id="notes-read" class="action primary"
-       href="/library?subject=projects%2FMeetings&amp;doc=meeting&amp;from=home" hidden>
+    <a id="notes-read" class="action primary" hidden>
       <span class="action-name">Read the deck</span>
       <span class="action-sub" id="notes-read-sub"></span>
     </a>
   </div>
 </div>
 
-<script src="/static/address.js"></script>
-<script src="/static/recentre.js"></script>
-<script src="/static/who.js"></script>
-<script src="/static/home.js"></script>
+<!-- A script that does not arrive says so: its own error records it, and
+     the check after them all shows the Retry line when home.js never ran. -->
+<script src="/static/address.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
+<script src="/static/recentre.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
+<script src="/static/who.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
+<script src="/static/home.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
+<script>
+/* THE BOOT CHECK. home.js sets HomeBooted once it has asked for the lists;
+   when it has not, the page says so with a Retry, and the board's log hears
+   which script was missing (POST /client-error). Nothing here may throw. */
+(function () {
+  var missed = window.bootMissed || [];
+  function tell(what, src, msg) {
+    try {
+      fetch("/client-error", {
+        method: "POST", keepalive: true, credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: "home", what: what, src: src, msg: msg,
+                               stack: "", ua: String(navigator.userAgent).slice(0, 200) })
+      })["catch"](function () {});
+    } catch (e) { /* no fetch: the banner still shows */ }
+  }
+  try {
+    for (var i = 0; i < missed.length && i < 4; i++) {
+      tell("boot", String(missed[i]).slice(0, 300), "did not load");
+    }
+    if (window.HomeBooted) return;
+    var name = "home.js";
+    for (var j = 0; j < missed.length; j++) {
+      if (/home\.js/.test(String(missed[j]))) name = "home.js, which did not arrive";
+    }
+    if (!missed.length) tell("boot", "/static/home.js", "home.js did not run");
+    var box = document.getElementById("boot");
+    document.getElementById("boot-what").textContent =
+      "The page did not finish loading (" + name + ").";
+    document.getElementById("boot-retry").onclick = function () { window.location.reload(); };
+    box.hidden = false;
+  } catch (e) { /* the page as it is */ }
+})();
+</script>
 </body>
 </html>

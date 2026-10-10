@@ -226,17 +226,13 @@ button.action { font: inherit; cursor: pointer; }
 }
 .set-lead { color: var(--ink-3); margin-right: .3rem; }
 
-/* WHO THIS MACHINE TEACHES WITH. The same buttons as the board's own chooser
-   and the same rules behind them -- see web/who.js -- one layer down: this sets
-   the machine default rather than one sitting. */
+/* WHO TUTORS: the machine's one provider setting, under New session, drawn by
+   web/who.js. The lead is a section heading, and the note under the buttons
+   always says who takes the next turn. */
 .who {
   display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-  margin-top: .9rem;
 }
-.who-lead {
-  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
-  letter-spacing: .04em;
-}
+.who-lead { flex-basis: 100%; margin: 1.4rem 0 .2rem; }
 .who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
 /* 2.75rem, like every other thing on this page a finger has to hit. A chooser
    nobody can tap on the device it exists for is furniture. */
@@ -246,12 +242,35 @@ button.action { font: inherit; cursor: pointer; }
   border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
 }
 .who-ways button.on {
-  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+  background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600;
 }
 .who-ways button.away { opacity: .55; }
 .who-note {
-  flex-basis: 100%;
-  font-family: var(--ui); font-size: .66rem; line-height: 1.35; color: var(--ink-3);
+  flex-basis: 100%; margin: .2rem 0 0;
+  font-family: var(--ui); font-size: .8rem; line-height: 1.35; color: var(--ink-2);
+}
+
+/* ---------- the search, and what the boot check says ---------- */
+.find {
+  display: block; width: 100%; margin-top: 1.6rem;
+  font: inherit; font-family: var(--ui); font-size: 1rem;
+  padding: .6rem .8rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.add.more { margin-top: .45rem; }
+.boot {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  margin: 0 0 1rem; padding: .6rem .9rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-family: var(--ui); font-size: .92rem;
+}
+.boot button {
+  flex: none; font: inherit; font-weight: 620;
+  min-height: 2.75rem; padding: .3rem .9rem; cursor: pointer;
+  border: 1px solid var(--accent); border-radius: .45rem;
+  background: var(--paper); color: var(--accent);
 }
 
 /* ---------- the sheet ---------- */
@@ -315,7 +334,7 @@ button.action { font: inherit; cursor: pointer; }
   font: inherit; font-size: 1rem; padding: .6rem .7rem; border-radius: .5rem;
   border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
 }
-#maker-name, #artmaker-about {
+#maker-name, #artmaker-about, #dropper-name, #sender-find {
   width: 100%; margin-top: .9rem;
   font: inherit; font-size: 1.05rem;
   padding: .7rem .8rem; border-radius: .5rem;
@@ -390,4 +409,20 @@ button.action { font: inherit; cursor: pointer; }
   background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
 .notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
+
+/* ---------- where a past session is sent ----------
+   Every course and project, the most recently used first, scrolling inside
+   the sheet so + new stays in reach however many there are. */
+.sender-list { display: grid; gap: .3rem; margin-top: .7rem;
+  max-height: 40vh; overflow: auto; }
+.sender-list button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  display: flex; align-items: baseline; gap: .6rem;
+  min-height: 2.75rem; padding: .55rem .7rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .45rem;
+}
+.sender-list button:hover:not(:disabled) { border-color: var(--accent); }
+.sender-kind { width: 3.6rem; flex: none; font-size: .74rem; color: var(--ink-3); }
+#dropper-why a { color: var(--accent); }
 

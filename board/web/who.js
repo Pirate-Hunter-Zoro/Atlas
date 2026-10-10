@@ -1,15 +1,17 @@
 /* ==========================================================================
-   who.js -- WHICH ASSISTANT, and the rules both surfaces draw it by.
+   who.js -- WHICH ASSISTANT, and the rules every surface draws it by.
 
-   Both surfaces set the one this MACHINE uses: the front door's settings and
-   the board's tutor chip. The question is the same shape on both: which
-   recipes can this machine actually run, which of them can be tapped, and what
-   does a dimmed one say about itself.
+   There is one provider setting, the MACHINE's, and every session's next turn
+   goes to it (or to its fallback when it cannot). Both surfaces that draw the
+   choice -- the front door's Tutor chooser and the board's tutor chip -- set
+   that one setting through `POST /default-agent`, and both ask the same three
+   things: which recipes can this machine actually run, which of them can be
+   tapped, and what does a dimmed one say about itself. A button reads the
+   recipe's `label`; what is sent is its `name`.
 
-   ONE COPY, because the alternative was measured in the registry comment in
-   `agents/recipes.py`: two lists go out of step the first time a recipe grows a flag,
-   and a flag on a recipe is exactly how a provider is added. `unkeyed` was the
-   third such flag and it arrived after both surfaces existed.
+   ONE COPY, for the reason in the registry comment in `agents/recipes.py`:
+   two lists go out of step the first time a recipe grows a flag, and a flag
+   on a recipe is exactly how a provider is added.
 
    What a recipe says about itself, and none of it is decided here:
 
@@ -70,19 +72,19 @@
         || (a.exclusive ? "one sitting at a time — " + a.exclusive : a.cmd);
   }
 
-  /* Draw the buttons into `host`. `opts.dim(a)` is the surface's own extra
-     reason to grey one out -- the local model with no server, on the board --
-     and `opts.pick(a)` is what a tap does. A blocked one is drawn and does
-     nothing, which is the point of drawing it. */
+  /* Draw the buttons into `host`, each reading its recipe's `label` (its
+     `name` when it has none). `now` is the NAME of the lit one. `opts.dim(a)`
+     is the surface's own extra reason to grey one out, and `opts.pick(a)` is
+     what a tap does, given the recipe whose `name` is what the server takes.
+     A blocked one is drawn and does nothing, which is the point of drawing it. */
   function draw(host, agents, now, opts) {
     opts = opts || {};
     host.innerHTML = "";
     agents.forEach(function (a) {
       var b = host.ownerDocument.createElement("button");
       b.type = "button";
-      /* The listing's label for people; the recipe's name is what a tap
-         sends, through `pick`. */
       b.textContent = a.label || a.name;
+      b.setAttribute("data-name", a.name);
       b.title = title(a);
       if (a.name === now) b.className = "on" + (a.exclusive ? " local" : "");
       if (a.unkeyed || a.unavailable || (opts.dim && opts.dim(a))) {
