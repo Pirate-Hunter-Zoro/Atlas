@@ -6,10 +6,11 @@
 #
 # 1. The system tools. On a Mac, `brew bundle` on the root Brewfile, installing
 #    what is missing and moving nothing that is there (--no-upgrade). Elsewhere,
-#    uv is installed into ~/.local/bin and the latest stable Go into ~/.local/go
-#    (linked from ~/.local/bin) when either is not on the PATH; nothing needs
-#    root, since the cluster has no Go module. Lean's elan is the Lean
-#    workspace's own setup's to install.
+#    uv is installed into ~/.local/bin when it is not on the PATH, and so is Go:
+#    from conda-forge into ~/.local/goenv where Slurm is (the cluster has no Go
+#    module and blocks dl.google.com), from go.dev into ~/.local/go elsewhere.
+#    Nothing needs root. Lean's elan is the Lean workspace's own setup's to
+#    install.
 # 2. Every workspace, found the way the board finds them (`subjects.all`),
 #    never from a list. ai-config, the one private repository nested in Atlas,
 #    is reported when this machine has not cloned it. A workspace is built by
@@ -17,7 +18,9 @@
 #      pyproject.toml   uv sync, with the `test` extra, and the `cluster` extra
 #                       only where Slurm exists
 #      lean-toolchain   its own scripts/setup.sh: elan, the toolchain, the
-#                       Mathlib cache, the build
+#                       Mathlib cache, the build. Under Slurm it skips the
+#                       cache, which the cluster cannot reach, and the build,
+#                       which scripts/setup-cluster.sh submits as a job
 #      go.mod           go mod download
 #
 # Idempotent: a second run changes nothing and says so. One line per workspace;
@@ -57,7 +60,22 @@ else
       line "uv" "FAILED -- $LOGS/uv.log"; failed=1
     fi
   fi
-  if ! command -v go >/dev/null 2>&1; then
+  # The cluster blocks dl.google.com, so there Go comes from conda-forge, and
+  # modules come straight from their repositories (GOPROXY=direct), because
+  # proxy.golang.org is Google's too.
+  if ! command -v go >/dev/null 2>&1 && [ "$SLURM" = 1 ]; then
+    conda="$(command -v conda || ls -d /opt/apps/easybuild/software/Anaconda3/*/bin/conda 2>/dev/null | tail -1)"
+    if [ -n "$conda" ] \
+        && "$conda" create -y -q -p "$HOME/.local/goenv" -c conda-forge go >"$LOGS/go.log" 2>&1 \
+        && mkdir -p "$HOME/.local/bin" \
+        && ln -sf "$HOME/.local/goenv/bin/go" "$HOME/.local/goenv/bin/gofmt" "$HOME/.local/bin/" \
+        && PATH="$HOME/.local/bin:$PATH" && export PATH \
+        && command -v go >/dev/null 2>&1; then
+      line "go" "installed $(go env GOVERSION) from conda-forge in ~/.local/goenv"
+    else
+      line "go" "FAILED -- $LOGS/go.log"; failed=1
+    fi
+  elif ! command -v go >/dev/null 2>&1; then
     case "$(uname -m)" in x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;; *) goarch="" ;; esac
     gover="$(curl -fsS 'https://go.dev/dl/?mode=json' 2>>"$LOGS/go.log" \
       | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["version"])' 2>>"$LOGS/go.log")"
@@ -73,6 +91,10 @@ else
     else
       line "go" "FAILED -- $LOGS/go.log"; failed=1
     fi
+  fi
+  if [ "$SLURM" = 1 ] && command -v go >/dev/null 2>&1 \
+      && [ "$(go env GOPROXY)" != direct ]; then
+    go env -w GOPROXY=direct
   fi
 fi
 
@@ -117,7 +139,11 @@ for id in $workspaces; do
 
   if [ -f "$ws/lean-toolchain" ]; then
     if [ -f "$ws/scripts/setup.sh" ]; then
-      bash "$ws/scripts/setup.sh" >>"$log" 2>&1 || bad=1
+      # The cluster cannot reach Mathlib's prebuilt cache, and trying costs
+      # half an hour; there, scripts/setup-cluster.sh compiles it as a job.
+      lean_args=()
+      [ "$SLURM" = 1 ] && lean_args=(--source)
+      bash "$ws/scripts/setup.sh" ${lean_args[@]+"${lean_args[@]}"} >>"$log" 2>&1 || bad=1
     else
       (cd "$ws" && lake exe cache get && lake build) >>"$log" 2>&1 || bad=1
     fi

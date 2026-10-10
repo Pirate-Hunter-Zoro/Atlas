@@ -230,4 +230,4 @@ say "  tailscale serve --bg --https=443 http://127.0.0.1:8778   publish the boar
 say "  board vpn             what tailscale says, and where HTTPS points"
 say "  board doctor --dry    what this machine has, without spending a turn"
 say
-say "  bash $HERE/scripts/setup-cluster.sh       on the cluster: the relay, and nothing else"
+say "  bash $ROOT/scripts/setup-cluster.sh   on the cluster: everything, from a compute node"

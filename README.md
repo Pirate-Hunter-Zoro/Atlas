@@ -26,7 +26,9 @@ sessions, the relay and the invariants. How a tutor turn teaches is
 ```
 Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
-  scripts/setup.sh       builds every subject's environment on this machine
+  scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
+  scripts/setup-cluster.sh  the same on the cluster, from a compute node
+  scripts/setup.sh       builds every subject's environment; both of the above run it
   .githooks/             pre-commit (the public-repo gate) and commit-msg
   board/                 the tutoring board: server, CLI, relay, web client, tests
   vendor/                other people's repositories, as submodules
@@ -88,19 +90,18 @@ The iPad reaches the Mac over the owner's tailnet. Nothing on the cluster serves
 
 ```
 git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
-cd Atlas
-bash board/bootstrap.sh
-bash scripts/setup.sh
-tailscale serve --bg --https=443 http://127.0.0.1:8778
+cd Atlas && bash scripts/setup-mac.sh
 ```
 
-- `--recurse-submodules` fills `vendor/`. Without it the directory arrives empty, silently.
-- `bootstrap.sh` clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by absolute path,
-  and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs the one
-  LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
+`setup-mac.sh` is also how an existing Mac is brought up to date; a second run changes nothing.
+It pulls main, runs `board/bootstrap.sh`, runs `scripts/setup.sh`, has tailscale serve the
+board, and checks that the board answers. Its header lists each step.
+
+- `bootstrap.sh` fills `vendor/`, clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
+  absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
+  the one LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
 - `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
   environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
-- `tailscale serve` publishes the server over HTTPS once. Nothing re-points it.
 - Turn on automatic login, so the LaunchAgent comes back after a reboot.
 - The provider is set in `~/.config/tutor-board/config.json` (`provider`, `fallback`,
   `vision_agent`); keys sit in `~/.config/tutor-board/keys.env`. Both stay off the tree.
@@ -112,17 +113,22 @@ On the iPad, open the tailnet address in Safari and use Share, then Add to Home 
 
 ```
 git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
-bash ~/Atlas/board/scripts/setup-cluster.sh
-bash ~/Atlas/scripts/setup.sh
+cd ~/Atlas && bash scripts/setup-cluster.sh
 ```
 
-`setup-cluster.sh` runs the bootstrap, checks that `ai-config/` is present, installs the
-relay's scrontab entry and checks that origin answers. The entry runs
-`board/scripts/relay-pass.sh` every 2 minutes. No board, no LaunchAgent and no model is ever
-installed there.
+Run it on a compute node (`salloc`, then ssh to the node), never on `submit0`. It is also how the
+cluster is brought up to date. It pulls main, runs `board/scripts/setup-cluster.sh` (bootstrap,
+ai-config, the relay's scrontab entry, origin), runs `scripts/setup.sh`, checks the PHI guards,
+submits `projects/Lean-Theorem-Proving/slurm_jobs/build_mathlib.sbatch` when Mathlib is not built,
+checks that no hosted model's credential is here, and runs one relay pass. No board, no
+LaunchAgent and no model is ever installed there.
 
-The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
-`board/test/py37.py` enforces it.
+- The relay's scrontab entry runs `board/scripts/relay-pass.sh` every 2 minutes.
+- The cluster blocks `dl.google.com` and Mathlib's cache host. So Go comes from conda-forge into
+  `~/.local/goenv` with `GOPROXY=direct`, and Mathlib is compiled by the job above.
+- `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
+- The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
+  `board/test/py37.py` enforces it.
 
 ## Working in here
 

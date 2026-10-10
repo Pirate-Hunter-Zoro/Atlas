@@ -5,11 +5,10 @@ cluster steps are the owner's.
 
 ## 1. After the cutover
 
-1. **Run the cluster runbook.** `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/HANDOFF-cluster.md`
-   says how to copy `cluster-runbook.sh` to a login node and run it from `~/Atlas`. It also holds
-   the manual items the script leaves out: one round trip, one coding-session trial, TRD-EHR's
-   switch to its lockfile, the week-later clean-up of the moved course clones, and removing a PHI
-   subject.
+1. **Bring the cluster up to date.** On a compute node: `cd ~/Atlas && bash scripts/setup-cluster.sh`.
+   `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/HANDOFF-cluster.md` holds
+   the manual items it leaves out: one round trip, one coding-session trial, TRD-EHR's switch to
+   its lockfile, the week-later clean-up of the moved course clones, and removing a PHI subject.
 2. **After the cluster's first relay pass on the new code**, which commits `relay/status.json`
    (the README's layout lists that file; it does not exist until then):
    - Remove the old-location claim fallback in `board/tutorboard/jobs.py`: `_old_claim_dirs`,

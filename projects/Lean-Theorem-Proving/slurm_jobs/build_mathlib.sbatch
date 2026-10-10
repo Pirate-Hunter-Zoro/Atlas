@@ -22,12 +22,14 @@
 # artifacts already in .lake/ rather than starting over, so this job is safe to
 # resubmit. It only does real work again when Mathlib is bumped.
 #
-# Submit from the repository root:  sbatch slurm_jobs/build_mathlib.sbatch
+# Submit from projects/Lean-Theorem-Proving:  sbatch slurm_jobs/build_mathlib.sbatch
+# (Atlas's scripts/setup-cluster.sh does, when Mathlib is not built.)
 # ---------------------------------------------------------------------------
 
 set -e
 
-REPO="/home/librad.laureateinstitute.org/mferguson/Lean-Theorem-Proving"
+REPO="${SLURM_SUBMIT_DIR:-$PWD}"
+[ -f "$REPO/lean-toolchain" ] || { echo "submit from projects/Lean-Theorem-Proving, not $REPO" >&2; exit 1; }
 cd "$REPO"
 
 # elan is Lean's toolchain manager; it reads lean-toolchain and selects the
