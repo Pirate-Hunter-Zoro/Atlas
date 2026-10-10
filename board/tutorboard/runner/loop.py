@@ -1,9 +1,10 @@
 """One turn, and the wrap-up: what the runner (`runner/service.py`) runs.
 
 `take_turn(ctx, message)` runs one turn and says whether the message is still
-owed; `wrap_up(ctx)` runs the End turn that updates TUTOR.md. Each is a fresh
-provider process in the Atlas root. The owed message lives on disk
-(`agent.json`), so a server dying mid-turn loses nothing.
+owed; `wrap_up(ctx)` runs the End turn that updates TUTOR.md, and writes up a
+session sent to its subject only at End. Each is a fresh provider process in
+the Atlas root. The owed message lives on disk (`agent.json`), so a server
+dying mid-turn loses nothing.
 """
 
 import os
@@ -301,10 +302,13 @@ def take_turn(ctx, message):
     return {"owed": pending, "error": err}
 
 
-def wrap_up(ctx):
+def wrap_up(ctx, sent=None):
     """The End turn: TUTOR.md brought up to date with `board memo`.
     `(wrote, why)`. Only End queues it. Who writes it is asked again, so a
     stood-down provider does not waste it; with nobody able, it is skipped.
+    `sent` names the subject of a session sent there only at End: the turn
+    writes up its agreed answers first (`WRAPUP_SENT_PROMPT`), on the doing
+    timeout.
     """
     log, logpath, root = ctx.log, ctx.logpath, ctx.root
     ctx.cfg = recipes.load_config()
@@ -321,8 +325,11 @@ def wrap_up(ctx):
     log.write("\n=== %s wrap-up ===\n" % time.strftime("%H:%M:%S"))
     # The recipe key and timeout keep the name `handoff`, so configs still work.
     wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
-    prompt, extra = handed(ctx.spec, prompts.WRAPUP_PROMPT,
-                           brief.turn_context(ctx.repo))
+    said = prompts.WRAPUP_PROMPT
+    if sent:
+        log.write("-- sent to %s at End: its answers are written up first\n" % sent)
+        said += "\n\n" + prompts.WRAPUP_SENT_PROMPT % {"subject": sent}
+    prompt, extra = handed(ctx.spec, said, brief.turn_context(ctx.repo))
     cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in wrap]
                            + extra)
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
@@ -334,7 +341,9 @@ def wrap_up(ctx):
     why = None
     try:
         rc, timed_out = turn.run_turn(
-            cmd, ctx.cwd, log, ctx.cfg.get("handoff_timeout", 600),
+            cmd, ctx.cwd, log,
+            ctx.cfg.get("doing_timeout", 3600) if sent
+            else ctx.cfg.get("handoff_timeout", 600),
             env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
         usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
                           usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))

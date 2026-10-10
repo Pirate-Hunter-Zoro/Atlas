@@ -24,6 +24,9 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
     for a patient-data project, and refuses `../x`, `/abs` and `research/x`.
   * `file` moves an upload into the bound subject and its ink to
     `<subject>/.ink/`, re-keyed: the old keys are gone and the new ones load.
+  * `send` binds, then files every upload left, a clash refused without
+    stopping the rest; a session that already left something in another
+    subject is refused, naming it.
 """
 
 import json
@@ -492,6 +495,86 @@ try:
     check("and refuses a destination already taken",
           code == 1 and "exists" in out
           and os.path.isfile(os.path.join(e_dir, "uploads", "slides.pdf")), out)
+
+    # ---- send: bind, then file every upload left ------------------------------
+    test_root = os.path.join(base, "courses", "Test")
+    s1 = sessions.new("A lecture", base=base, now=now + 130)
+    s1_dir = sessions.path(s1["id"], base)
+    write(os.path.join(s1_dir, "uploads", "galois.pdf"), b"%PDF-1.4 lecture\n")
+    write(os.path.join(s1_dir, "uploads", "board.png"), b"\x89PNG board")
+    write(os.path.join(s1_dir, "uploads", ".part-x"), b"arriving")
+    lec_key = "doc/%s/p1" % sessions.ink_ident("uploads/galois.pdf")
+    write(os.path.join(s1_dir, "annotations", writing.ann_file(lec_key) + ".json"),
+          json.dumps({"card": lec_key, "strokes": [stroke]}))
+    write(os.path.join(test_root, "materials", "board.png"), b"taken")
+    head = git("rev-parse", "HEAD").stdout.strip()
+    rec, filed, refused = sessions.send(s1["id"], "courses/Test", base=base, now=now)
+    check("send binds an unbound session",
+          rec["subject"] == "courses/Test"
+          and sessions.get(s1["id"], base)["subject"] == "courses/Test")
+    check("and files its uploads into materials/",
+          [f["to"] for f in filed] == ["materials/galois.pdf"]
+          and os.path.isfile(os.path.join(test_root, "materials", "galois.pdf")), filed)
+
+    class TestInk(object):
+        notes = os.path.join(test_root, ".ink")
+    lec_new = "doc/%s/p1" % sessions.ink_ident("materials/galois.pdf")
+    check("with their ink re-keyed into the subject's .ink/",
+          lesson_notes.load_notes(TestInk).get(lec_new) == [stroke])
+    check("a name already taken there is refused, and stops none of the rest",
+          [r["upload"] for r in refused] == ["uploads/board.png"]
+          and "exists" in refused[0]["error"]
+          and os.path.isfile(os.path.join(s1_dir, "uploads", "board.png")), refused)
+    check("a part still arriving is left alone",
+          os.path.isfile(os.path.join(s1_dir, "uploads", ".part-x")))
+    signals = [l.get("signal") for l in inbox(s1_dir)]
+    check("one [bind] line and one [filed] line, and nothing committed",
+          signals == ["bind", "filed"]
+          and git("rev-parse", "HEAD").stdout.strip() == head, signals)
+    os.remove(os.path.join(test_root, "materials", "board.png"))
+    rec, filed, refused = sessions.send(s1["id"], "courses/Test", base=base)
+    check("sending to the same subject again files what was left, and binds nothing new",
+          [f["to"] for f in filed] == ["materials/board.png"] and not refused
+          and [l.get("signal") for l in inbox(s1_dir)].count("bind") == 1, filed)
+    try:
+        sessions.send(s1["id"], "projects/Proj", base=base)
+        said = ""
+    except sessions.Refused as exc:
+        said = str(exc)
+    check("sending it to another subject is refused, naming what it left in the first",
+          "courses/Test/materials/galois.pdf" in said
+          and "courses/Test/materials/board.png" in said
+          and sessions.get(s1["id"], base)["subject"] == "courses/Test", said)
+
+    s2 = sessions.new("Nowhere", base=base, now=now + 140)
+    s2_dir = sessions.path(s2["id"], base)
+    write(os.path.join(s2_dir, "uploads", "x.pdf"), b"%PDF x\n")
+    try:
+        sessions.send(s2["id"], "courses/Nowhere", base=base)
+        said = ""
+    except sessions.Refused as exc:
+        said = str(exc)
+    check("send to no subject is refused, binding and filing nothing",
+          "courses/Nowhere" in said and sessions.get(s2["id"], base)["subject"] is None
+          and os.path.isfile(os.path.join(s2_dir, "uploads", "x.pdf"))
+          and not inbox(s2_dir), said)
+    sessions.bind(s2["id"], "courses/Test", base=base)
+    rec, filed, _ = sessions.send(s2["id"], "projects/Proj", base=base)
+    check("a session bound elsewhere that left nothing there is sent on",
+          rec["subject"] == "projects/Proj"
+          and os.path.isfile(os.path.join(proj, "materials", "x.pdf")), filed)
+    s3 = sessions.new("Written up", base=base, now=now + 150)
+    sessions.bind(s3["id"], "courses/Test", base=base)
+    course_repo.Repo(test_root, session=sessions.path(s3["id"], base)).set_state(
+        writeup="courses/Test/docs/x/writeup.tex")
+    try:
+        sessions.send(s3["id"], "projects/Proj", base=base)
+        said = ""
+    except sessions.Refused as exc:
+        said = str(exc)
+    check("and one whose write-up is there is refused, naming it",
+          "courses/Test/docs/x/writeup.tex" in said
+          and sessions.get(s3["id"], base)["subject"] == "courses/Test", said)
 
     # ---- the ignore rule and the commit-time gate -----------------------------
     shutil.copytree(os.path.join(ATLAS, ".githooks"), os.path.join(scratch, ".githooks"))

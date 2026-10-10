@@ -263,11 +263,36 @@ try:
     loose = sessions.new("Loose", base=base)
     lrepo = sessions.repo(loose["id"], base, create=True)
     said = brief.briefing(lrepo, sense)
-    check("an unbound session's brief tells the tutor to ask what it is for",
-          "subject: none" in said and "ask the owner what this session is for" in said
-          and "board bind" in said)
-    check("and a bound one's does not",
-          "subject: none" not in brief.briefing(repo, sense))
+    check("an unbound session's brief says it is a generic lecture: teach it now, "
+          "bind only when the owner names a subject, else it is sent at End",
+          "subject: none" in said and "generic lecture" in said
+          and "Teach it now" in said and "board bind" in said
+          and "sends it to one at End" in said
+          and "ask the owner what this session is for" not in said)
+    check("and names the subjects there are, so a bind does not make a near-duplicate",
+          "subjects there are: courses/Topology" in said)
+    bound = brief.briefing(repo, sense)
+    check("a bound one's does neither", "subject: none" not in bound
+          and "subjects there are" not in bound)
+    check("and with no other session open on its subject, names no sibling",
+          "other open sessions on" not in bound)
+    sib = sessions.new("Topology, chapter 3", base=base)
+    srepo = sessions.repo(sib["id"], base, create=True)
+    srepo.set_state(subject="courses/Topology",
+                    writeup="courses/Topology/docs/ch03/writeup.tex")
+    write(os.path.join(srepo.cards, "0007-q.md"),
+          "---\nkind: question\ntitle: 13(b) the closure\n---\n\nShow it.\n")
+    gone = sessions.new("Topology, ended", base=base)
+    sessions.repo(gone["id"], base, create=True).set_state(subject="courses/Topology")
+    sessions.end(gone["id"], base=base)
+    bound = brief.briefing(repo, sense)
+    check("a sibling open on the same subject is named with its write-up and last card",
+          "other open sessions on courses/Topology:" in bound and sib["id"] in bound
+          and "courses/Topology/docs/ch03/writeup.tex" in bound
+          and '"13(b) the closure"' in bound, bound[:1500])
+    check("but not an ended one, nor the session itself",
+          gone["id"] not in bound and ("%s:" % sid) not in bound.split(
+              "other open sessions on")[1].split("\n---")[0])
 finally:
     shutil.rmtree(base, ignore_errors=True)
     shutil.rmtree(trash, ignore_errors=True)

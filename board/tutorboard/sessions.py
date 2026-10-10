@@ -7,6 +7,7 @@
     delete(id)        move the directory to the trash
     prune_trash()     drop trash entries older than 30 days (server start)
     bind(id, subject) set `subject`, with a non-waking `[bind]` line
+    send(id, subject) bind, then file every upload left into `materials/`
     set_code(id, code) record or clear the session's cluster coding session
     coding()          {id: code} for every session with `code` set
     file(id, upload)  move an upload into the bound subject, ink and all
@@ -280,6 +281,76 @@ def bind(sid, subject, base=None, now=None):
     _line(where, "[bind] %s" % found["id"], "bind", now=now,
           subject=found["id"])
     return rec, True
+
+
+def _left_in(where, base, subject, rec):
+    """What session `rec` has already left in `subject`: the files its
+    `[filed]` lines name, its artifacts there, its write-up. Relative to the
+    Atlas root."""
+    head = subject + "/"
+    out = []
+    try:
+        with open(os.path.join(where, "inbox", "messages.jsonl"), "r",
+                  encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        lines = []
+    for raw in lines:
+        try:
+            one = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(one, dict) and one.get("signal") == "filed":
+            out += [f for f in one.get("files") or ()
+                    if isinstance(f, str) and f.startswith(head) and f not in out]
+    out += [a for a in _artifacts(base, subject, rec["id"]) if a not in out]
+    writeup = rec.get("writeup")
+    if isinstance(writeup, str) and writeup.startswith(head) and writeup not in out:
+        out.append(writeup)
+    return out
+
+
+def send(sid, subject, base=None, now=None):
+    """Send session `sid` to `subject`: bind it (`bind`), then file every
+    upload left in its `uploads/` into the subject's `materials/` (`file`).
+    `(record, filed, refused)`: `filed` holds `file`'s results, `refused`
+    `{upload, error}` for each upload that could not go (its name already
+    taken there), which stops none of the rest.
+
+    Refused, with nothing changed, when `subject` is no subject, or when the
+    session is bound to another subject that already holds something of it
+    -- a filed upload, an artifact, its write-up -- since those stay where
+    they are. The same subject again, or a session bound to nothing: fine.
+    """
+    base = base or subjects.root()
+    where = _need(sid, base)
+    found = subjects.find(subject, base) if subject else None
+    if not found:
+        raise Refused("no subject %r: name one of courses/<name> or "
+                      "projects/<name>" % subject)
+    rec = get(sid, base)
+    was = rec.get("subject")
+    if was and was != found["id"]:
+        left = _left_in(where, base, was, rec)
+        if left:
+            raise Refused("this session is bound to %s and has already left "
+                          "%s there, which would stay behind; it cannot be "
+                          "sent to %s" % (was, ", ".join(left), found["id"]))
+    rec, _changed = bind(sid, found["id"], base=base, now=now)
+    filed, refused = [], []
+    folder = os.path.join(where, "uploads")
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        names = []
+    for name in names:
+        if name.startswith(".") or not os.path.isfile(os.path.join(folder, name)):
+            continue
+        try:
+            filed.append(file(sid, name, base=base, now=now))
+        except Refused as exc:
+            refused.append({"upload": "uploads/" + name, "error": str(exc)})
+    return rec, filed, refused
 
 
 def set_code(sid, code, base=None):
