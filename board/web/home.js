@@ -1,17 +1,22 @@
 /* ==========================================================================
    home.js -- the start screen.
 
-   Top to bottom: the open sessions (Continue), New session, notices, the
-   courses and the projects, past sessions, three actions, and settings.
+   Top to bottom: the open sessions (Continue), New session, who tutors,
+   notices, a search, the courses and the projects (most recently used
+   first), past sessions (the newest ten), three actions, and settings.
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
-   /subjects.json, /notices.json, /relay.json (the cluster's health and
-   Colibri), /assistants.json and, for the meeting deck,
-   /library.json?subject=projects/Meetings. Everything it writes is
-   one of: POST /sessions/new, /subjects/new, /meeting, /default-agent,
-   /colibri (a task, from the Colibri panel) and /artifact?subject=<id> (a
-   deck or a paper from a subject's row), and for Annotate a PDF the new
-   session's own /s/<id>/bind, /upload and /file.
+   /subjects.json (which also names the Meetings subject, or null),
+   /notices.json, /relay.json (the cluster's health and Colibri),
+   /assistants.json, /subject/delete?subject=<id> (whether a subject can be
+   deleted, and why not) and, for the meeting deck, /library.json?subject=
+   <the Meetings subject>. Everything it writes is one of: POST
+   /sessions/new, /subjects/new, /subject/delete, /session/delete, /meeting,
+   /default-agent, /colibri (a task, from the Colibri panel),
+   /artifact?subject=<id> (a deck or a paper from a subject's row),
+   /client-error (what broke on this page, for the board's log), a past
+   session's /s/<id>/send (an unbound one, sent to a course or project), and
+   for Annotate a PDF the new session's own /s/<id>/bind, /upload and /file.
    Notes opens a new session at /s/<id>/slate, a notes canvas.
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
@@ -20,6 +25,9 @@
    board with the address carried whole. Nothing else is an address.
 
    Nothing in the paint may throw: this page is the way into every lesson.
+   What does throw, a script or an image that did not arrive, and a list the
+   board did not answer for are told to the board (`beacon`), and a refresh
+   that failed is tried again, further apart each time.
    ========================================================================== */
 
 (function () {
@@ -44,6 +52,9 @@ var els = {
   newProject: $("new-project"),
   pastList: $("past-list"),
   pastNone: $("past-none"),
+  pastMore: $("past-more"),
+  find: $("find"),
+  panic: $("panic"),
   actMeeting: $("act-meeting"),
   actNotes: $("act-notes"),
   actNotesSub: $("act-notes-sub"),
@@ -97,7 +108,26 @@ var els = {
   coliBrief: $("colibri-brief"),
   coliFile: $("colibri-file"),
   coliFileSub: $("colibri-file-sub"),
-  coliSaid: $("colibri-said")
+  coliSaid: $("colibri-said"),
+  dropper: $("dropper"),
+  dropperKind: $("dropper-kind"),
+  dropperTitle: $("dropper-title"),
+  dropperWhy: $("dropper-why"),
+  dropperAsk: $("dropper-ask"),
+  dropperSlug: $("dropper-slug"),
+  dropperName: $("dropper-name"),
+  dropperSaid: $("dropper-said"),
+  dropperGo: $("dropper-go"),
+  dropperGoSub: $("dropper-go-sub"),
+  dropperClose: $("dropper-close"),
+  sender: $("sender"),
+  senderTitle: $("sender-title"),
+  senderFind: $("sender-find"),
+  senderList: $("sender-list"),
+  senderNewCourse: $("sender-new-course"),
+  senderNewProject: $("sender-new-project"),
+  senderSaid: $("sender-said"),
+  senderClose: $("sender-close")
 };
 
 /* Every navigation goes through here, so there is one place it happens. */
@@ -135,6 +165,59 @@ function day(when) {
 }
 
 function enc(s) { return encodeURIComponent(s); }
+
+/* ------------------------------------------------------------- the beacon */
+/* WHAT BROKE ON THIS PAGE, told to the board: POST /client-error, which puts
+   one line in its log. A script or an image that did not arrive, an error
+   nothing caught, a rejected promise, a list the board did not answer for.
+   The iPad has no console anybody reads, and a request the proxy dropped
+   never reached the board, so this is the only way it hears. `keepalive`
+   lets it outlive a reload. Rate-limited -- the same line once per page, and
+   at most BEACON_BURST a minute -- and it never throws. */
+var BEACON_BURST = 6;
+var beaconSent = {};
+var beaconMinute = { at: 0, n: 0 };
+
+function cut(s, n) { return String(s === undefined || s === null ? "" : s).slice(0, n); }
+
+function beacon(what, src, msg, stack) {
+  try {
+    var key = what + "|" + src + "|" + msg;
+    if (beaconSent[key]) return;
+    var now = Date.now();
+    if (now - beaconMinute.at > 60000) beaconMinute = { at: now, n: 0 };
+    if (beaconMinute.n >= BEACON_BURST) return;
+    beaconMinute.n += 1;
+    beaconSent[key] = true;
+    var p = fetch("/client-error", {
+      method: "POST",
+      keepalive: true,
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: "home", what: cut(what, 40), src: cut(src, 300),
+                             msg: cut(msg, 500), stack: cut(stack, 2000),
+                             ua: cut(navigator.userAgent, 200) })
+    });
+    if (p && p.catch) p.catch(function () { /* the board is down: nothing to tell */ });
+  } catch (e) { /* telling must never be what breaks the page */ }
+}
+
+/* Capture phase, because a script, a stylesheet or an image that failed to
+   load fires its error on the element and it does not bubble. */
+window.addEventListener("error", function (ev) {
+  var t = ev && ev.target;
+  if (t && t !== window && (t.src || t.href)) {
+    beacon("load", t.src || t.href, "did not load (" + cut(t.tagName, 20).toLowerCase() + ")");
+    return;
+  }
+  beacon("error", ev && ev.filename ? ev.filename + ":" + (ev.lineno || 0) : "",
+         ev && ev.message, ev && ev.error && ev.error.stack);
+}, true);
+
+window.addEventListener("unhandledrejection", function (ev) {
+  var r = ev && ev.reason;
+  beacon("rejection", "", r && r.message ? r.message : r, r && r.stack);
+});
 
 /* ---------------------------------------------------------------- sessions */
 var sessionsData = null;      /* the last /sessions.json */
@@ -177,10 +260,20 @@ function pastRow(rec) {
 }
 
 /* A session row with its delete beside it: the first tap arms it for 4 s,
-   the second posts /session/delete and the session goes to the trash. */
+   the second posts /session/delete and the session goes to the trash. A past
+   session bound to nothing also has "send to…", the sheet that gives it a
+   course or project. */
 function withDelete(row, rec) {
   var wrap = el("div", "row-wrap");
   wrap.appendChild(row);
+  if (rec.ended && !rec.subject) {
+    var send = el("button", "row-make", "send to…");
+    send.type = "button";
+    send.title = "send this session to a course or project";
+    send.setAttribute("data-send-for", rec.id);
+    send.onclick = function () { openSender(rec); };
+    wrap.appendChild(send);
+  }
   var b = el("button", "row-delete", "delete");
   b.type = "button";
   b.title = "delete this session";
@@ -218,17 +311,35 @@ function withDelete(row, rec) {
   return wrap;
 }
 
+/* PAST SESSIONS, the newest PAST_SHOWN of them, narrowed by the search; the
+   rest are one tap away ("show all"), until the page is loaded again. */
+var PAST_SHOWN = 10;
+var pastAll = false;
+
+function sessionFound(rec, q) {
+  return !q || [sessionTitle(rec), rec.subject_name, rec.subject, rec.id]
+    .some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+}
+
 function paintSessions(data) {
   var list = (data && data.sessions) || [];
+  var q = query();
   var open = list.filter(function (r) { return !r.ended; });
-  var past = list.filter(function (r) { return !!r.ended; });
+  var past = list.filter(function (r) { return !!r.ended && sessionFound(r, q); });
   els.openList.innerHTML = "";
   open.forEach(function (r) { els.openList.appendChild(withDelete(openRow(r), r)); });
   els.openNone.hidden = open.length > 0;
   els.pastList.innerHTML = "";
-  past.forEach(function (r) { els.pastList.appendChild(withDelete(pastRow(r), r)); });
+  var shown = pastAll ? past : past.slice(0, PAST_SHOWN);
+  shown.forEach(function (r) { els.pastList.appendChild(withDelete(pastRow(r), r)); });
+  els.pastNone.textContent = q ? "No past session matches." : "No session has ended yet.";
   els.pastNone.hidden = past.length > 0;
+  els.pastMore.hidden = shown.length >= past.length;
+  els.pastMore.textContent = "show all (" + past.length + ")";
 }
+
+/* The search, as the lists compare it. */
+function query() { return String(els.find.value || "").trim().toLowerCase(); }
 
 var starting = false;
 
@@ -394,41 +505,299 @@ function annotate() {
 /* ---------------------------------------------------------------- subjects */
 var subjectsData = null;      /* the last /subjects.json */
 
-function subjectRow(s) {
+function subjectRow(s, last) {
   var box = el("div", "subj");
-  box.appendChild(subjectLink(s));
+  box.appendChild(subjectLink(s, last));
   var make = el("button", "row-make", "make");
   make.type = "button";
   make.title = "a deck or a paper about " + (s.name || s.id);
   make.setAttribute("data-make-for", s.id);
   make.onclick = function () { openArtmaker(s); };
   box.appendChild(make);
+  var drop = el("button", "row-delete", "delete");
+  drop.type = "button";
+  drop.title = "delete " + (s.name || s.id);
+  drop.setAttribute("data-drop-for", s.id);
+  drop.onclick = function () { openDropper(s); };
+  box.appendChild(drop);
   return box;
 }
 
-function subjectLink(s) {
+function subjectLink(s, last) {
   var a = el("a", "row");
   a.href = "/library?subject=" + enc(s.id) + "&from=home";
   a.setAttribute("data-subject", s.id);
-  a.appendChild(el("span", "row-name", s.name || s.slug || s.id));
+  a.appendChild(el("span", "row-name", subjectName(s)));
   var open = ((sessionsData && sessionsData.sessions) || []).filter(function (r) {
     return !r.ended && r.subject === s.id;
   }).length;
-  a.appendChild(el("span", "row-sub", open
-    ? plural(open, "open session", "open sessions") : s.id));
+  var bits = [];
+  if (open) bits.push(plural(open, "open session", "open sessions"));
+  if (last) bits.push("last: " + day(last));
+  a.appendChild(el("span", "row-sub", bits.length ? bits.join("  ·  ") : s.id));
   return a;
 }
 
+function subjectName(s) { return s.name || s.slug || s.id; }
+
+/* THE MOST RECENT SESSION ON EACH SUBJECT, by subject id: the later of when
+   it opened and when it ended, as session.json writes them, which compare as
+   text. A subject no session has touched is not in it. */
+function activity() {
+  var out = {};
+  ((sessionsData && sessionsData.sessions) || []).forEach(function (r) {
+    if (!r.subject) return;
+    var at = [r.opened, r.ended].filter(Boolean).sort().pop();
+    if (at && (!out[r.subject] || at > out[r.subject])) out[r.subject] = at;
+  });
+  return out;
+}
+
+/* Every subject, the most recently used first, then the untouched ones by
+   name. Shared by the lists and the send sheet. */
+function byUse(list) {
+  var last = activity();
+  return list.slice().sort(function (a, b) {
+    var x = last[a.id] || "", y = last[b.id] || "";
+    if (x !== y) return x > y ? -1 : 1;
+    var m = subjectName(a).toLowerCase(), n = subjectName(b).toLowerCase();
+    return m < n ? -1 : m > n ? 1 : 0;
+  });
+}
+
+function subjectFound(s, q) {
+  return !q || [s.name, s.slug, s.id]
+    .some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+}
+
 function paintSubjects(data) {
-  var list = (data && data.subjects) || [];
+  var q = query();
+  var last = activity();
+  var list = byUse((data && data.subjects) || []).filter(function (s) {
+    return subjectFound(s, q);
+  });
   var courses = list.filter(function (s) { return s.kind === "course"; });
   var projects = list.filter(function (s) { return s.kind === "project"; });
   els.courseList.innerHTML = "";
-  courses.forEach(function (s) { els.courseList.appendChild(subjectRow(s)); });
+  courses.forEach(function (s) { els.courseList.appendChild(subjectRow(s, last[s.id])); });
+  els.courseNone.textContent = q ? "No course matches." : "No course yet.";
   els.courseNone.hidden = courses.length > 0;
   els.projectList.innerHTML = "";
-  projects.forEach(function (s) { els.projectList.appendChild(subjectRow(s)); });
+  projects.forEach(function (s) { els.projectList.appendChild(subjectRow(s, last[s.id])); });
+  els.projectNone.textContent = q ? "No project matches." : "No project yet.";
   els.projectNone.hidden = projects.length > 0;
+}
+
+/* --------------------------------------------- deleting a subject, the sheet */
+/* `GET /subject/delete?subject=` first, which is read-only: whether it may
+   hold patient data (`phi` at HEAD), and everything else in the way, all of
+   it in `blocker`. Only when nothing is in the way is the slug asked for, and
+   Go wakes only on it typed exactly. The server decides again on the POST. */
+var dropFor = null;
+var dropOpen = false;         /* the check said nothing is in the way */
+var dropping = false;
+
+var PHI_WHY = "It may hold patient data, so the iPad never removes it. It is "
+  + "removed on the cluster: move its fenced data where its agreement says, "
+  + "then git rm it and push from the cluster checkout.";
+
+function openDropper(s) {
+  dropFor = s;
+  dropOpen = false;
+  dropping = false;
+  els.dropperKind.textContent = "delete " + (s.kind === "project" ? "project" : "course");
+  els.dropperTitle.textContent = subjectName(s);
+  els.dropperSlug.textContent = s.slug || "";
+  els.dropperName.value = "";
+  els.dropperAsk.hidden = true;
+  els.dropperWhy.textContent = "Asking the board whether it can go…";
+  dropSay("");
+  paintDropper();
+  els.dropper.hidden = false;
+  getJSON("/subject/delete?subject=" + enc(s.id)).then(function (got) {
+    if (dropFor === s) paintDropCheck(got || {});
+  }).catch(function () {
+    if (dropFor !== s) return;
+    els.dropperWhy.textContent = "The board did not say whether it can go, so "
+      + "nothing can be deleted yet.";
+  });
+}
+
+function paintDropCheck(got) {
+  var why = got.why || "";
+  var blocker = got.blocker || "";
+  var held = got.sessions || [];
+  els.dropperWhy.innerHTML = "";
+  if (got.ok === false && !why) {
+    els.dropperWhy.textContent = got.error || "The board would not say whether it can go.";
+  } else if (why === "phi") {
+    els.dropperWhy.textContent = PHI_WHY;
+  } else if (why === "open-session" && held.length) {
+    els.dropperWhy.appendChild(document.createTextNode("Open on it: "));
+    held.forEach(function (sid, i) {
+      if (i) els.dropperWhy.appendChild(document.createTextNode(", "));
+      var a = el("a", "", sessionLabel(sid));
+      a.href = "/s/" + enc(sid) + "/board";
+      els.dropperWhy.appendChild(a);
+    });
+    els.dropperWhy.appendChild(document.createTextNode(
+      ". End or delete " + (held.length === 1 ? "it" : "them") + " first."));
+  } else if (why || blocker) {
+    els.dropperWhy.textContent = blocker || why;
+  } else {
+    dropOpen = true;
+    if (got.slug) els.dropperSlug.textContent = got.slug;
+    els.dropperWhy.textContent = "Nothing is open on it.";
+    els.dropperAsk.hidden = false;
+    try { els.dropperName.focus(); } catch (e) { /* a page without focus */ }
+  }
+  paintDropper();
+}
+
+/* A session as the sheet names it: its title too, when this page has it. */
+function sessionLabel(sid) {
+  var rec = ((sessionsData && sessionsData.sessions) || []).filter(function (r) {
+    return r.id === sid;
+  })[0];
+  return rec ? sessionTitle(rec) + " (" + sid + ")" : sid;
+}
+
+function closeDropper() {
+  if (dropping) return;
+  dropFor = null;
+  els.dropper.hidden = true;
+}
+
+function dropSay(text, bad) {
+  els.dropperSaid.hidden = !text;
+  els.dropperSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.dropperSaid.textContent = text || "";
+}
+
+function dropTyped() {
+  var slug = els.dropperSlug.textContent || "";
+  return !!slug && els.dropperName.value === slug;
+}
+
+function paintDropper() {
+  els.dropperGo.hidden = !dropOpen;
+  els.dropperGo.disabled = dropping || !dropOpen || !dropTyped();
+  els.dropperGoSub.textContent = dropping ? "deleting…"
+    : dropTyped() ? "to the trash, in one commit" : "type its name first";
+}
+
+function dropSubject() {
+  var s = dropFor;
+  if (!s || dropping || !dropOpen || !dropTyped()) return;
+  dropping = true;
+  dropSay("");
+  paintDropper();
+  postJSON("/subject/delete", { subject: s.id, typed: els.dropperName.value })
+    .then(function (got) {
+      dropping = false;
+      if (!got || !got.ok) {
+        paintDropper();
+        dropSay((got && got.error) || "it was not deleted", true);
+        return;
+      }
+      closeDropper();
+      say(subjectName(s) + " is in the trash" + (got.trash ? " (" + got.trash + ")" : "") + ".");
+      return refresh();
+    }).catch(function () {
+      dropping = false;
+      paintDropper();
+      dropSay("the board did not answer; nothing was deleted", true);
+    });
+}
+
+/* --------------------------------------- sending a past session, the sheet */
+/* An unbound session that has ended goes to a course or project with POST
+   /s/<id>/send: bound, its uploads filed into that subject's materials/, and
+   its wrap-up (write-ups from the recap, TUTOR.md) written there. Every
+   subject is offered, the most recently used first, narrowed by the sheet's
+   own search; + new makes one through the maker sheet and sends it there. */
+var sendFor = null;
+var sending = false;
+
+function openSender(rec) {
+  sendFor = rec;
+  sending = false;
+  els.senderTitle.textContent = sessionTitle(rec);
+  els.senderFind.value = "";
+  senderSay("");
+  paintSender();
+  els.sender.hidden = false;
+}
+
+function closeSender() {
+  if (sending) return;
+  els.sender.hidden = true;
+}
+
+function senderSay(text, bad) {
+  els.senderSaid.hidden = !text;
+  els.senderSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.senderSaid.textContent = text || "";
+}
+
+function paintSender() {
+  var q = String(els.senderFind.value || "").trim().toLowerCase();
+  els.senderList.innerHTML = "";
+  byUse((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
+    if (!subjectFound(s, q)) return;
+    var b = el("button");
+    b.type = "button";
+    b.disabled = sending;
+    b.setAttribute("data-id", s.id);
+    b.appendChild(el("span", "sender-kind", s.kind === "project" ? "project" : "course"));
+    b.appendChild(el("span", "", subjectName(s)));
+    b.onclick = function () { sendTo(s.id, subjectName(s)); };
+    els.senderList.appendChild(b);
+  });
+  if (!els.senderList.children.length) {
+    els.senderList.appendChild(el("p", "hint", q ? "None matches." : "No course or project yet."));
+  }
+  els.senderNewCourse.disabled = sending;
+  els.senderNewProject.disabled = sending;
+}
+
+function sendTo(subject, name) {
+  var rec = sendFor;
+  if (!rec || sending) return;
+  sending = true;
+  els.sender.hidden = false;
+  senderSay("sending it to " + name + "…");
+  paintSender();
+  postJSON("/s/" + enc(rec.id) + "/send", { subject: subject }).then(function (got) {
+    sending = false;
+    if (!got || !got.ok) {
+      paintSender();
+      senderSay((got && (got.error || got.detail)) || "it was not sent", true);
+      return;
+    }
+    closeSender();
+    var filed = got.filed && typeof got.filed === "object" ? got.filed.length : got.filed;
+    say(sessionTitle(rec) + " went to " + ((got.sent && got.sent.name) || name)
+        + (filed ? ", with " + plural(filed, "upload", "uploads") + " filed" : "") + ".");
+    return refresh();
+  }).catch(function () {
+    sending = false;
+    paintSender();
+    senderSay("the board did not answer; it was not sent", true);
+  });
+}
+
+/* + new from the send sheet: the maker sheet, then the session sent to what
+   it made. Closing the maker instead leaves the session where it was. */
+function senderNew(kind) {
+  var rec = sendFor;
+  if (!rec || sending) return;
+  els.sender.hidden = true;
+  openMaker(kind, function (made) {
+    if (!made || !made.id) return;
+    sendFor = rec;
+    sendTo(made.id, made.name || made.id);
+  });
 }
 
 /* ------------------------------------- a deck or a paper, from a subject */
@@ -505,12 +874,17 @@ function askArtifact() {
 var makerKind = "course";
 var makerPhi = null;          /* a project's answer: true, false, or unasked */
 var making = false;
+var makerThen = null;         /* what is done with the subject once made */
 
-function openMaker(kind) {
+/* `then(subject)` runs once the subject is made: the send sheet's + new,
+   which sends its session there. */
+function openMaker(kind, then) {
   makerKind = kind === "project" ? "project" : "course";
   makerPhi = null;
   making = false;
-  els.makerKind.textContent = "new " + makerKind;
+  makerThen = then || null;
+  els.makerKind.textContent = "new " + makerKind
+    + (makerThen ? ", and the session sent to it" : "");
   els.makerName.value = "";
   els.makerName.placeholder = makerKind === "course" ? "Linear Algebra" : "Diarization";
   els.makerPhi.hidden = makerKind !== "project";
@@ -520,7 +894,7 @@ function openMaker(kind) {
   try { els.makerName.focus(); } catch (e) { /* a page without focus */ }
 }
 
-function closeMaker() { els.maker.hidden = true; }
+function closeMaker() { makerThen = null; els.maker.hidden = true; }
 
 function makerSay(text, bad) {
   els.makerSaid.hidden = !text;
@@ -560,7 +934,9 @@ function makeSubject() {
       makerSay((got && got.error) || "it was not made", true);
       return;
     }
+    var then = makerThen;
     closeMaker();
+    if (then) then(got.subject);
     return refresh();
   }).catch(function () {
     making = false;
@@ -635,10 +1011,11 @@ function paintHealth(data) {
 }
 
 /* --------------------------------------------------------------- Colibri */
-/* libr-local-llm's panel. The state is relay/status.json's (D27), the tasks
-   are that project's colibri requests with their reports, and filing one is
-   POST /colibri, which commits and pushes the request as `board colibri`
-   does. The button's second line is what the wait will be. */
+/* The Colibri project's panel, its link named from /subjects.json (the id
+   when the list does not have it). The state is relay/status.json's (D27),
+   the tasks are that project's colibri requests with their reports, and
+   filing one is POST /colibri, which commits and pushes the request as
+   `board colibri` does. The button's second line is what the wait will be. */
 var coliFiling = false;
 
 function minutes(secs) {
@@ -681,6 +1058,10 @@ function paintColibri(data) {
   if (!data || !data.colibri_subject) { els.coli.hidden = true; return; }
   els.coli.hidden = false;
   els.coliSubject.href = "/library?subject=" + enc(data.colibri_subject) + "&from=home";
+  var named = ((subjectsData && subjectsData.subjects) || []).filter(function (s) {
+    return s.id === data.colibri_subject;
+  })[0];
+  els.coliSubject.textContent = named ? subjectName(named) : data.colibri_subject;
   els.coliState.textContent = coliStateLine(data.colibri);
   var tasks = data.colibri_tasks || [];
   els.coliTasks.innerHTML = "";
@@ -758,15 +1139,20 @@ window.addEventListener("hashchange", route);
    writer turn takes minutes, so the sheet watches the Meetings library, whose
    payload carries the deck's record as `meeting`. "Read the deck" is that
    library with the deck opened (`?doc=`): `Reader.open`, and "say what is
-   wrong" files a round that queues a `[revise]` turn in a Meetings session. */
+   wrong" files a round that queues a `[revise]` turn in a Meetings session.
+   Which subject is Meetings is /subjects.json's `meetings`; with none, the
+   action is not offered. */
 var notesSince = "";
 var notesWant = {};
-var MEETINGS = "projects/Meetings";
-var MEETINGS_Q = "subject=" + encodeURIComponent(MEETINGS);
 var notesTimer = null;
 var NOTES_POLL = 10000;
 
+/* The Meetings subject's id, or "" when this Atlas has none. */
+function meetings() { return (subjectsData && subjectsData.meetings) || ""; }
+function meetingsQ() { return "subject=" + encodeURIComponent(meetings()); }
+
 function openNotes() {
+  if (!meetings()) return;
   els.notesSaid.hidden = true;
   notesSince = "";
   notesWant = {};
@@ -789,7 +1175,8 @@ function notesSay(text, bad) {
 }
 
 function pollNotes(quiet) {
-  return getJSON("/library.json?" + MEETINGS_Q)
+  if (!meetings()) return Promise.resolve();
+  return getJSON("/library.json?" + meetingsQ())
     .then(function (got) { paintNotesState(got || {}, quiet); })
     .catch(function () { /* a poll is quiet; the next one asks again */ });
 }
@@ -831,7 +1218,7 @@ function paintNotesState(got, quiet) {
   var check = rec.check || {};
   var unsupported = (check.numbers || []).length + (check.figures || []).length
     + (check.internal || []).length;
-  els.notesRead.setAttribute("href", "/library?" + MEETINGS_Q + "&doc="
+  els.notesRead.setAttribute("href", "/library?" + meetingsQ() + "&doc="
     + encodeURIComponent(row.id) + "&from=home");
   els.notesRead.hidden = false;
   els.notesReadSub.textContent = what
@@ -856,7 +1243,7 @@ function paintSince() {
 function paintWhich() {
   els.notesList.innerHTML = "";
   ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
-    if (s.id === MEETINGS) return;
+    if (s.id === meetings()) return;
     var b = el("button");
     b.type = "button";
     b.setAttribute("data-id", s.id);
@@ -909,12 +1296,33 @@ function makeDeck() {
   });
 }
 
-/* ------------------------------------------------------- default assistant */
+/* ------------------------------------------------------------------- tutor */
 /* The machine's one provider setting, set with POST /default-agent: every
    session's next turn goes to it, or to its fallback when it cannot. Drawn by
-   `who.js`, the rules the board's own chooser uses. */
+   `who.js`. The note under the buttons always says who takes the next turn
+   (the listing's `machine`, or its `why` when that is not the provider);
+   what a tap said stands in for it until the listing is read again, which
+   is every refresh. */
 var lastAssistants = null;
 var whoSaved = null;
+var whoTold = "";
+
+function agentLabel(assistants, name) {
+  var a = ((assistants && assistants.agents) || []).filter(function (x) {
+    return x.name === name;
+  })[0];
+  return (a && a.label) || name;
+}
+
+function sentence(s) { s = String(s || ""); return /[.!?]$/.test(s) ? s : s + "."; }
+
+function nextTurn(assistants) {
+  if (assistants.why) return sentence(assistants.why);
+  if (assistants.machine) {
+    return agentLabel(assistants, assistants.machine) + " takes the next turn in every session.";
+  }
+  return "Nobody can take a turn here right now.";
+}
 
 function paintWho(assistants) {
   if (!window.WhoChoice || !assistants) { els.who.hidden = true; return; }
@@ -922,30 +1330,36 @@ function paintWho(assistants) {
   els.who.hidden = have.length < 2;
   if (els.who.hidden) return;
   window.WhoChoice.draw(els.whoWays, have, whoSaved || assistants["default"], {
-    say: function (m) { els.whoNote.textContent = m; },
+    say: function (m) { whoTold = m; els.whoNote.textContent = sentence(m); },
     pick: function (a) { setDefaultAgent(a.name); }
   });
+  els.whoNote.textContent = whoTold ? sentence(whoTold)
+    : whoSaved ? "asking for " + agentLabel(assistants, whoSaved) + "…"
+    : nextTurn(assistants);
 }
 
 function setDefaultAgent(name) {
   whoSaved = name;
-  els.whoNote.textContent = "";
+  whoTold = "";
   paintWho(lastAssistants);
   postJSON("/default-agent", { agent: name }).then(function (got) {
     if (got && got.ok) {
-      lastAssistants = got.assistants || lastAssistants;
-      /* Who takes the next turn: the provider, or the fallback and why. */
-      els.whoNote.textContent = got.why
-        ? got.why + "."
-        : name + " writes the next card in every session.";
+      if (got.assistants) {
+        lastAssistants = got.assistants;
+        if (lastAssistants["default"] === whoSaved) whoSaved = null;
+      } else {
+        /* Who takes the next turn: the provider, or the fallback and why. */
+        whoTold = got.why || agentLabel(lastAssistants, got.machine || name)
+          + " takes the next turn in every session";
+      }
     } else {
       whoSaved = null;
-      els.whoNote.textContent = (got && (got.detail || got.error)) || "that did not take.";
+      whoTold = (got && (got.detail || got.error)) || "that did not take";
     }
     paintWho(lastAssistants);
   }).catch(function () {
     whoSaved = null;
-    els.whoNote.textContent = "the board did not answer.";
+    whoTold = "the board did not answer";
     paintWho(lastAssistants);
   });
 }
@@ -954,8 +1368,9 @@ function loadAssistants() {
   return getJSON("/assistants.json").then(function (got) {
     lastAssistants = (got && got.assistants) || null;
     if (whoSaved && lastAssistants && lastAssistants["default"] === whoSaved) whoSaved = null;
+    whoTold = "";
     paintWho(lastAssistants);
-  }).catch(function () { paintWho(null); });
+  }).catch(function () { paintWho(lastAssistants); });
 }
 
 /* ------------------------------------------------------------------- theme */
@@ -965,23 +1380,62 @@ function paintTheme() {
 }
 
 /* -------------------------------------------------------------------- load */
+/* A list the page cannot do without: a proxy's 502 (an empty body) or an
+   answer that is not JSON is a failure, told to the board by its URL. */
+function needed(url) {
+  return fetch(url, { credentials: "same-origin", cache: "no-store" }).then(function (r) {
+    if (r.status && r.status >= 400) throw new Error(url + " answered " + r.status);
+    return r.json().catch(function () { throw new Error(url + " was not JSON"); });
+  }).catch(function (e) {
+    var told = new Error((e && e.message) || url + " failed");
+    told.told = true;
+    beacon("fetch", url, told.message);
+    throw told;
+  });
+}
+
+/* A refresh that failed is tried again RETRY_FIRST later, then twice as long
+   each time up to RETRY_MOST, the dot dead meanwhile; one that lands puts the
+   wait back. The 20 s poll goes on beside it. */
+var RETRY_FIRST = 2000;
+var RETRY_MOST = 60000;
+var retryWait = RETRY_FIRST;
+var retryTimer = null;
+
 function refresh() {
   return Promise.all([
-    getJSON("/sessions.json"),
-    getJSON("/subjects.json"),
+    needed("/sessions.json"),
+    needed("/subjects.json"),
     getJSON("/notices.json").catch(function () { return null; })
   ]).then(function (all) {
     els.dot.className = "dot live";
+    retryWait = RETRY_FIRST;
     sessionsData = all[0] || { sessions: [] };
     subjectsData = all[1] || { subjects: [] };
     paintSessions(sessionsData);
     paintSubjects(subjectsData);
+    els.actMeeting.hidden = !meetings();
     if (all[2]) paintNotices(all[2]);
     route();
     loadRelay();
-  }).catch(function () {
+    loadAssistants();
+  }).catch(function (e) {
+    /* A paint that threw is this page's bug, and the board hears it too. */
+    if (!e || !e.told) beacon("paint", "refresh", e && e.message, e && e.stack);
     els.dot.className = "dot dead";
+    if (retryTimer) return;
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      refresh();
+    }, retryWait);
+    retryWait = Math.min(retryWait * 2, RETRY_MOST);
   });
+}
+
+/* The lists again, as they were last read, with the search applied. */
+function repaint() {
+  if (sessionsData) paintSessions(sessionsData);
+  if (subjectsData) paintSubjects(subjectsData);
 }
 
 els.newSession.onclick = newSession;
@@ -1045,18 +1499,48 @@ els.themeBtn.onclick = function () {
   paintTheme();
 };
 els.reload.onclick = function () { window.location.reload(); };
+els.find.addEventListener("input", repaint);
+els.pastMore.onclick = function () { pastAll = true; repaint(); };
+els.dropperName.addEventListener("input", function () { dropSay(""); paintDropper(); });
+els.dropperName.addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") dropSubject();
+});
+els.dropperGo.onclick = dropSubject;
+els.dropperClose.onclick = closeDropper;
+els.dropper.addEventListener("click", function (ev) {
+  if (ev.target === els.dropper) closeDropper();
+});
+els.senderFind.addEventListener("input", paintSender);
+els.senderNewCourse.onclick = function () { senderNew("course"); };
+els.senderNewProject.onclick = function () { senderNew("project"); };
+els.senderClose.onclick = closeSender;
+els.sender.addEventListener("click", function (ev) {
+  if (ev.target === els.sender) closeSender();
+});
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.maker.hidden) closeMaker();
   if (!els.notes.hidden) closeNotes();
   if (!els.artmaker.hidden) closeArtmaker();
   if (!els.annot.hidden) closeAnnot();
+  if (!els.dropper.hidden) closeDropper();
+  if (!els.sender.hidden) closeSender();
 });
 paintTheme();
 document.addEventListener("DOMContentLoaded", paintTheme);
 
+/* THE WAY BACK from a pinched page, placed by `recentre.js` as on the board,
+   under its own key so where it is put is kept; it starts down the right
+   edge, below the bar, so the dot and the wordmark are never under it. */
+if (els.panic && window.Recentre) {
+  window.Recentre.mount({ key: "home.panic", at: { x: .975, y: .16 },
+                          buttons: [{ el: els.panic }] });
+}
+
 refresh();
-loadAssistants();
+/* The boot check at the end of home.html reads this: the lists were asked
+   for, so the page is running. */
+window.HomeBooted = true;
 setInterval(function () { if (!document.hidden) refresh(); }, 20000);
 document.addEventListener("visibilitychange", function () {
   if (!document.hidden) refresh();

@@ -3,7 +3,14 @@
 //   1. With a stubbed server: the sections in order, a Continue row with its
 //      subject, last card and new count, notices that dismiss, + new project
 //      asking "patient data?", and the address grammar -- `#/s/` carried to
-//      the session's board, and an old `#/w/` link followed nowhere.
+//      the session's board, and an old `#/w/` link followed nowhere. The
+//      re-centre pill placed off the bar; the boot check's Retry line and
+//      the beacon to /client-error; a failed refresh tried again; the Tutor
+//      chooser under New session saying who takes the next turn; the search,
+//      the most-recently-used order and the newest ten past sessions; a
+//      subject deleted from its row (and the ones that cannot be, saying
+//      why); an unbound past session sent to a course or project; and the
+//      Meetings subject and the Colibri link read from the server.
 //   2. Against a real server on a temp Atlas holding a Galois session with
 //      45 cards, so card 0003 is older than the board's window of 40: `/`
 //      asks nothing of the old switch route or /atlas.json, New session opens an unbound
@@ -74,30 +81,59 @@ function quiet(window) {
 async function stubbed() {
   const SID = '20261008-201500';
   const GAL = '20261001-090000';
+  const LECT = '20260830-090000';
   const now = Date.now() / 1000;
+  // Ten more ended sessions on Galois, so Past sessions has twelve.
+  const older = [];
+  for (let dd = 20; dd > 10; dd--) {
+    older.push({ id: '202608' + dd + '-090000', title: 'Past ' + dd,
+                 subject: 'courses/Galois-Theory', subject_name: 'Galois Theory',
+                 mode: 'teach', opened: '2026-08-' + dd + ' 09:00:00',
+                 ended: '2026-08-' + dd + ' 10:00:00', url: '/s/202608' + dd + '-090000/board' });
+  }
+  const SUBJECTS = [
+    { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
+    { id: 'courses/Probability', kind: 'course', slug: 'Probability', name: 'Probability' },
+    { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' },
+    { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' },
+    { id: 'projects/libr-local-llm', kind: 'project', slug: 'libr-local-llm', name: 'Local LLM' }];
+  const AGENTS = [
+    { name: 'claude', label: 'Claude', headless: true, cmd: 'claude' },
+    { name: 'codex', label: 'Codex', headless: true, cmd: 'codex' }];
+  // GET /subject/delete?subject=, by subject: what the check says.
+  const CHECKS = {
+    'courses/Probability': { why: '', blocker: '', phi: false, sessions: [] },
+    'projects/Meetings': { why: 'phi', phi: true, sessions: [],
+      blocker: 'projects/Meetings may hold patient data, so it is removed only through a cluster runbook' },
+    'courses/Galois-Theory': { why: 'open-session', phi: false, sessions: [SID, GAL],
+      blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it' },
+    'projects/TRD-EHR': { why: 'request', phi: false, sessions: [],
+      blocker: 'request 2026-10-09-knn is outstanding on it; wait for its report' },
+  };
   const answers = {
     '/sessions.json': {
       ok: true,
       sessions: [
         { id: SID, title: 'Rings', subject: 'courses/Galois-Theory',
           subject_name: 'Galois Theory', mode: 'teach', ended: null,
+          opened: '2026-10-08 20:15:00',
           url: '/s/' + SID + '/board', new_cards: 3,
           last_card: { id: '0012', title: 'Eisenstein, again' } },
         { id: '20261008-180000', title: null, subject: null, subject_name: null,
           mode: 'teach', ended: null, url: '/s/20261008-180000/board',
-          new_cards: 0, last_card: null },
+          opened: '2026-10-08 18:00:00', new_cards: 0, last_card: null },
         { id: GAL, title: 'Galois Theory: ch07', subject: 'courses/Galois-Theory',
           subject_name: 'Galois Theory', mode: 'teach', ended: null,
+          opened: '2026-10-01 09:00:00',
           url: '/s/' + GAL + '/board', new_cards: 0,
           last_card: { id: '0018', title: '' } },
         { id: '20260901-100000', title: 'Old one', subject: 'projects/TRD-EHR',
           subject_name: 'TRD-EHR', mode: 'do', opened: '2026-09-01 10:00:00',
-          ended: '2026-09-02 11:00:00', url: '/s/20260901-100000/board' }] },
-    '/subjects.json': { ok: true, subjects: [
-      { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
-      { id: 'courses/Probability', kind: 'course', slug: 'Probability', name: 'Probability' },
-      { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' },
-      { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' }] },
+          ended: '2026-09-02 11:00:00', url: '/s/20260901-100000/board' },
+        { id: LECT, title: 'Lecture 4', subject: null, subject_name: null, mode: 'teach',
+          opened: '2026-08-30 09:00:00', ended: '2026-08-30 10:00:00',
+          url: '/s/' + LECT + '/board' }].concat(older) },
+    '/subjects.json': { ok: true, meetings: 'projects/Meetings', subjects: SUBJECTS },
     '/notices.json': { ok: true, notices: [
       { t: now - 60, text: 'report t0031 landed', subject: 'projects/TRD-EHR' },
       { t: now - 30, text: 'report t0032 landed', subject: 'projects/TRD-EHR' }] },
@@ -125,13 +161,17 @@ async function stubbed() {
         { id: '2026-10-09-sites-colibri', label: 'sites', brief: 'count sites', state: 'submitted',
           phase: 'queued', task: 'coli-y', attempts: 0, deaths: 0, note: '', relay: [] }],
       estimate: 'a generation is coming up: the relay\'s next pass (every 5 min) queues it' },
-    '/assistants.json': { ok: true, assistants: { default: 'claude', agents: [
-      { name: 'claude', headless: true, cmd: 'claude' },
-      { name: 'codex', headless: true, cmd: 'codex' }] } },
+    '/assistants.json': { ok: true, assistants: { default: 'claude', machine: 'claude',
+                                                  why: null, agents: AGENTS } },
   };
 
-  function load(hash) {
-    const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8'), {
+  // opts: `over` replaces answers by path; `fail` answers a path 502 with an
+  // empty body for its first n asks; `skip` leaves scripts out; `errorsOk`
+  // drops the guard that fails the run on an uncaught error.
+  function load(hash, opts) {
+    opts = opts || {};
+    const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
+    const dom = new JSDOM(html, {
       runScripts: 'outside-only', pretendToBeVisual: true,
       url: 'https://board.test/' + (hash || ''),
     });
@@ -139,12 +179,40 @@ async function stubbed() {
     quiet(w);
     w.__went = [];
     w.asked = [];
+    const fails = Object.assign({}, opts.fail || {});
+    const over = opts.over || {};
     w.fetch = (u, init) => {
       const url = String(u);
       const method = (init && init.method) || 'GET';
       const body = init && init.body ? JSON.parse(init.body) : null;
-      w.asked.push({ url, method, body });
-      let got = answers[url.split('?')[0]];
+      w.asked.push({ url, method, body, keepalive: !!(init && init.keepalive) });
+      const where = url.split('?')[0];
+      if (fails[where]) {
+        fails[where] -= 1;
+        return Promise.resolve({ status: 502,
+                                 json: () => Promise.reject(new SyntaxError('Unexpected end of JSON')) });
+      }
+      let got = where in over ? over[where] : answers[where];
+      if (method === 'GET' && where === '/subject/delete') {
+        const id = new URL(url, 'https://board.test/').searchParams.get('subject');
+        const s = SUBJECTS.filter((x) => x.id === id)[0];
+        got = s && CHECKS[id] ? Object.assign({ ok: true, subject: id, slug: s.slug,
+                                                kind: s.kind, name: s.name }, CHECKS[id]) : null;
+      }
+      if (method === 'POST' && url === '/subject/delete') {
+        got = w.dropReply || { ok: true, subject: body.subject, trash: '/t/x/courses-Probability' };
+      }
+      if (method === 'POST' && /^\/s\/[^/]+\/send$/.test(url)) {
+        const s = SUBJECTS.filter((x) => x.id === body.subject)[0];
+        got = w.sendReply || { ok: true, sent: { id: body.subject, kind: s ? s.kind : 'project',
+                                                 name: s ? s.name : body.subject.split('/')[1] },
+                               filed: ['slides.pdf'], refused: [] };
+      }
+      if (method === 'POST' && url === '/client-error') got = { ok: true };
+      if (method === 'POST' && url === '/default-agent') {
+        got = { ok: true, default: body.agent, machine: body.agent, why: null,
+                assistants: { default: body.agent, machine: body.agent, why: null, agents: AGENTS } };
+      }
       if (method === 'POST' && url.split('?')[0] === '/artifact') {
         got = { ok: true, id: 't0003', make: body.make, session: SID,
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
@@ -162,28 +230,52 @@ async function stubbed() {
       return Promise.resolve({ status: 200,
                                json: () => Promise.resolve(JSON.parse(JSON.stringify(got))) });
     };
-    w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
+    if (!opts.errorsOk) w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
     for (const f of ['typeface.js', 'address.js', 'recentre.js', 'who.js', 'home.js']) {
+      if ((opts.skip || []).indexOf(f) >= 0) continue;
       let src = fs.readFileSync(path.join(WEB, f), 'utf8');
       if (f === 'home.js') src = patched(src);
       try { w.eval(src); } catch (e) { fail('home: ' + f + ': ' + e.message); }
+      if (f === 'recentre.js' && w.Recentre) {
+        const mount = w.Recentre.mount;
+        w.Recentre.mount = (spec) => { w.__mounted = spec; return mount(spec); };
+      }
+    }
+    // The boot check, the inline script at the end of the page, as the
+    // browser would run it after the others.
+    if (opts.boot) {
+      if (opts.missed) w.bootMissed = opts.missed.slice();
+      const inline = /<script>([\s\S]*?)<\/script>/.exec(html);
+      try { w.eval(inline ? inline[1] : ''); } catch (e) { fail('home: the boot check: ' + e.message); }
     }
     return w;
   }
+  const beacons = (page) => page.asked.filter((r) => r.url === '/client-error');
 
   let w = load();
   const d = w.document;
   await sleep(80);
 
-  const order = ['continue', 'new-session', 'notices', 'courses', 'projects', 'past',
-                 'make', 'settings'];
+  const order = ['continue', 'new-session', 'who', 'notices', 'find', 'courses', 'projects',
+                 'past', 'make', 'settings'];
   const at = order.map((id) => {
     const e = d.getElementById(id);
     return e ? Array.prototype.indexOf.call(d.querySelectorAll('main *'), e) : -1;
   });
-  check('top to bottom: Continue, New session, notices, Courses, Projects, Past '
-        + 'sessions, the three actions, Settings',
+  check('top to bottom: Continue, New session, Tutor, notices, the search, Courses, '
+        + 'Projects, Past sessions, the three actions, Settings',
         at.every((n, i) => n >= 0 && (i === 0 || n > at[i - 1])));
+
+  // THE RE-CENTRE PILL is mounted as on the board, under the home key, and
+  // placed below the bar rather than over the dot and the wordmark.
+  const panicAt = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(d.getElementById('panic').style.transform || '');
+  check('the re-centre pill is mounted by recentre.js under its own home key',
+        w.__mounted && w.__mounted.key === 'home.panic'
+        && w.__mounted.buttons[0].el === d.getElementById('panic'));
+  check('and placed down the right edge below the bar, off the dot and the wordmark',
+        panicAt && parseFloat(panicAt[2]) >= 60 && parseFloat(panicAt[1]) > 500);
+  check('the page told the boot check it is running, and nothing was beaconed',
+        w.HomeBooted === true && beacons(w).length === 0);
 
   const open = Array.from(d.querySelectorAll('#open-list .row'));
   check('Continue lists the three open sessions', open.length === 3);
@@ -195,9 +287,13 @@ async function stubbed() {
         rings.getAttribute('href') === '/s/20261008-201500/board');
   check('an unbound session says so', open[1] && /unbound/.test(open[1].textContent));
   const past = Array.from(d.querySelectorAll('#past-list .row'));
-  check('Past sessions lists the ended one, read only, and nothing open',
-        past.length === 1 && /Old one/.test(past[0].textContent)
-        && past[0].title === 'read only');
+  check('Past sessions lists the newest ten ended ones, read only, and nothing open',
+        past.length === 10 && /Old one/.test(past[0].textContent)
+        && past[0].title === 'read only'
+        && past.every((a) => !/Rings|ch07/.test(a.textContent)));
+  check('with "show all (12)" under them',
+        !d.getElementById('past-more').hidden
+        && d.getElementById('past-more').textContent === 'show all (12)');
 
   // A session is deleted from its row, on the second tap.
   const pastDel = d.querySelector('#past-list .row-delete');
@@ -217,8 +313,17 @@ async function stubbed() {
   const courses = Array.from(d.querySelectorAll('#course-list .row'));
   const projects = Array.from(d.querySelectorAll('#project-list .row'));
   check('Courses and Projects each list their own subjects',
-        courses.length === 2 && projects.length === 2
+        courses.length === 2 && projects.length === 3
         && /Galois Theory/.test(courses[0].textContent));
+  const names = (list) => Array.from(d.querySelectorAll(list + ' .row-name')).map((e) => e.textContent);
+  check('the most recently used first, then the untouched ones by name',
+        names('#project-list').join('|') === 'TRD-EHR|Local LLM|Meetings'
+        && names('#course-list').join('|') === 'Galois Theory|Probability');
+  const sub = (id) => (d.querySelector('[data-subject="' + id + '"] .row-sub') || {}).textContent;
+  check('a row says when it was last used, when it has been',
+        sub('projects/TRD-EHR') === 'last: 2026-09-02'
+        && sub('courses/Galois-Theory') === '2 open sessions  ·  last: 2026-10-08'
+        && sub('courses/Probability') === 'courses/Probability');
   check('a subject row opens its page, the library for that subject',
         courses[0].getAttribute('href')
         === '/library?subject=courses%2FGalois-Theory&from=home');
@@ -285,6 +390,12 @@ async function stubbed() {
         && /done/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
         && /RELAY: python 3.12.3/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
         && /queued/.test(d.querySelectorAll('#colibri-tasks .row')[2].textContent));
+  const coliLink = d.getElementById('colibri-subject');
+  check('its link reads the project\'s own name and opens its library',
+        coliLink.textContent === 'Local LLM'
+        && coliLink.getAttribute('href') === '/library?subject=projects%2Flibr-local-llm&from=home');
+  check('and home.html names no project of its own there',
+        !/libr-local-llm/.test(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8')));
   const brief = d.getElementById('colibri-brief');
   const fileBtn = d.getElementById('colibri-file');
   check('filing waits for a brief', fileBtn.disabled);
@@ -328,9 +439,13 @@ async function stubbed() {
   // The meeting deck lists the subjects, Meetings itself left out.
   d.getElementById('act-meeting').click();
   const which = Array.from(d.querySelectorAll('#notes-list button')).map((b) => b.getAttribute('data-id'));
-  check('Meeting deck opens its sheet over every subject but Meetings',
-        !d.getElementById('notes').hidden && which.length === 3
+  check('Meeting deck is offered, since /subjects.json names a Meetings subject',
+        !d.getElementById('act-meeting').hidden);
+  check('and opens its sheet over every subject but Meetings',
+        !d.getElementById('notes').hidden && which.length === 4
         && which.indexOf('projects/Meetings') < 0);
+  check('home.js reads which subject is Meetings rather than naming one',
+        !/projects\/Meetings/.test(fs.readFileSync(path.join(WEB, 'home.js'), 'utf8')));
   await sleep(30);
   const read = d.getElementById('notes-read');
   check('a ready deck is offered as the Meetings library opened on it, the one reader',
@@ -351,9 +466,295 @@ async function stubbed() {
         && d.getElementById('theme-now').textContent === d.body.dataset.mode);
   check('the face setting is wired by typeface.js',
         typeof d.getElementById('btn-face').onclick === 'function');
-  check('the default assistant is drawn with both choices',
-        !d.getElementById('who').hidden
-        && d.querySelectorAll('#who-ways button').length === 2);
+  // THE TUTOR: right under New session, its buttons reading the recipes'
+  // labels, and its note saying who takes the next turn before any tap.
+  const who = d.getElementById('who');
+  const whoNote = () => d.getElementById('who-note').textContent;
+  check('the Tutor chooser sits directly under New session, out of Settings',
+        d.getElementById('new-session').nextElementSibling === who
+        && !d.getElementById('settings').contains(who)
+        && /^Tutor$/.test(who.querySelector('.who-lead').textContent));
+  check('it is drawn with both choices, each reading its label',
+        !who.hidden && Array.from(d.querySelectorAll('#who-ways button'))
+          .map((b) => b.textContent + '=' + b.getAttribute('data-name')).join('|')
+          === 'Claude=claude|Codex=codex');
+  check('and says who takes the next turn without a tap',
+        whoNote() === 'Claude takes the next turn in every session.');
+  answers['/assistants.json'] = { ok: true, assistants: { default: 'claude', machine: 'codex',
+    why: 'claude has run out of its allowance until 14:00, so codex takes the next turn',
+    agents: AGENTS } };
+  d.dispatchEvent(new w.Event('visibilitychange'));
+  await sleep(60);
+  check('the listing is read again on coming back, and a fallback says why',
+        whoNote() === 'claude has run out of its allowance until 14:00, so codex takes the next turn.');
+  d.querySelector('#who-ways button[data-name="codex"]').click();
+  await sleep(40);
+  const picked = w.asked.filter((r) => r.url === '/default-agent');
+  check('a tap posts the recipe\'s name, not its label, and the note follows the reply',
+        picked.length === 1 && picked[0].body.agent === 'codex'
+        && whoNote() === 'Codex takes the next turn in every session.'
+        && d.querySelector('#who-ways button.on').getAttribute('data-name') === 'codex');
+  answers['/assistants.json'] = { ok: true, assistants: { default: 'claude', machine: 'claude',
+                                                          why: null, agents: AGENTS } };
+  {
+    const one = load('', { over: { '/assistants.json': { ok: true, assistants: {
+      default: 'claude', machine: 'claude', why: null, agents: [AGENTS[0]] } } } });
+    await sleep(60);
+    check('with fewer than two to choose between, there is no chooser',
+          one.document.getElementById('who').hidden);
+  }
+
+  // THE SEARCH narrows the subjects and the past sessions, here on the page,
+  // and holds across a refresh.
+  const find = d.getElementById('find');
+  const typeIn = (input, text) => { input.value = text; input.dispatchEvent(new w.Event('input')); };
+  typeIn(find, 'trd');
+  check('the search narrows the courses, the projects and the past sessions by name or id',
+        d.querySelectorAll('#course-list .row').length === 0
+        && !d.getElementById('course-none').hidden
+        && d.getElementById('course-none').textContent === 'No course matches.'
+        && names('#project-list').join('|') === 'TRD-EHR'
+        && d.querySelectorAll('#past-list .row').length === 1
+        && /Old one/.test(d.querySelector('#past-list .row').textContent)
+        && d.getElementById('past-more').hidden);
+  d.dispatchEvent(new w.Event('visibilitychange'));
+  await sleep(60);
+  check('and still narrows them after the lists are read again',
+        names('#project-list').join('|') === 'TRD-EHR'
+        && d.querySelectorAll('#past-list .row').length === 1);
+  typeIn(find, '20260830');
+  check('a past session is found by its id too',
+        d.querySelectorAll('#past-list .row').length === 1
+        && /Lecture 4/.test(d.querySelector('#past-list .row').textContent));
+  typeIn(find, '');
+  check('cleared, everything is back',
+        d.querySelectorAll('#course-list .row').length === 2
+        && d.querySelectorAll('#past-list .row').length === 10);
+  d.getElementById('past-more').click();
+  check('"show all" shows every past session, and goes',
+        d.querySelectorAll('#past-list .row').length === 12
+        && d.getElementById('past-more').hidden);
+
+  // DELETING A SUBJECT from its row: the sheet asks the server first.
+  check('every course and project row offers delete, styled as a session\'s is',
+        d.querySelectorAll('#course-list .subj, #project-list .subj').length === 5
+        && Array.from(d.querySelectorAll('#course-list .subj, #project-list .subj'))
+          .every((b) => b.querySelector('button.row-delete[data-drop-for]')));
+  const dropper = d.getElementById('dropper');
+  const dropGo = d.getElementById('dropper-go');
+  const dropName = d.getElementById('dropper-name');
+  const dropWhy = () => d.getElementById('dropper-why');
+  const openDrop = async (id) => {
+    d.querySelector('[data-drop-for="' + id + '"]').click();
+    await sleep(30);
+  };
+  await openDrop('courses/Probability');
+  check('a subject\'s delete opens the sheet, named, and asks the server whether it can go',
+        !dropper.hidden && d.getElementById('dropper-title').textContent === 'Probability'
+        && d.getElementById('dropper-kind').textContent === 'delete course'
+        && w.asked.some((r) => r.method === 'GET'
+                        && r.url === '/subject/delete?subject=courses%2FProbability'));
+  check('nothing in the way: its slug is asked for, and Go waits for it',
+        !d.getElementById('dropper-ask').hidden
+        && d.getElementById('dropper-slug').textContent === 'Probability' && dropGo.disabled);
+  typeIn(dropName, 'probability');
+  check('the slug typed in the wrong case leaves Go asleep', dropGo.disabled);
+  typeIn(dropName, 'Probability');
+  check('typed exactly, Go wakes', !dropGo.disabled);
+  w.dropReply = { ok: false, error: 'not committed, so nothing moved: index.lock' };
+  dropGo.click();
+  await sleep(30);
+  check('a refusal keeps the sheet open, with the board\'s words',
+        !dropper.hidden && /index\.lock/.test(d.getElementById('dropper-said').textContent)
+        && /bad/.test(d.getElementById('dropper-said').className) && !dropGo.disabled);
+  w.dropReply = null;
+  const askedSubjects = w.asked.filter((r) => r.url === '/subjects.json').length;
+  dropGo.click();
+  await sleep(40);
+  const dropped = w.asked.filter((r) => r.method === 'POST' && r.url === '/subject/delete');
+  check('Go posts the subject and the slug as typed',
+        dropped.length === 2 && dropped[1].body.subject === 'courses/Probability'
+        && dropped[1].body.typed === 'Probability');
+  check('and on ok the sheet closes, says where it went, and the lists are read again',
+        dropper.hidden
+        && d.getElementById('said').textContent === 'Probability is in the trash (/t/x/courses-Probability).'
+        && w.asked.filter((r) => r.url === '/subjects.json').length > askedSubjects);
+  await openDrop('projects/Meetings');
+  check('a subject that may hold patient data asks for no name, and says it goes on the cluster',
+        !dropper.hidden && d.getElementById('dropper-ask').hidden && dropGo.hidden
+        && /patient data/.test(dropWhy().textContent)
+        && /cluster/.test(dropWhy().textContent) && /git rm/.test(dropWhy().textContent));
+  d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  check('Escape closes it', dropper.hidden);
+  await openDrop('courses/Galois-Theory');
+  const held = Array.from(dropWhy().querySelectorAll('a')).map((a) => a.getAttribute('href'));
+  check('a subject with open sessions links each to its board, and says to end or delete them',
+        d.getElementById('dropper-ask').hidden
+        && held.join('|') === '/s/' + SID + '/board|/s/' + GAL + '/board'
+        && /Rings/.test(dropWhy().textContent)
+        && /End or delete them first/.test(dropWhy().textContent));
+  dropper.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  check('a tap on the backdrop closes it', dropper.hidden);
+  await openDrop('projects/TRD-EHR');
+  check('any other blocker is shown in the board\'s own words',
+        d.getElementById('dropper-ask').hidden
+        && dropWhy().textContent === 'request 2026-10-09-knn is outstanding on it; wait for its report');
+  d.getElementById('dropper-close').click();
+  await openDrop('projects/libr-local-llm');
+  check('a check the board could not answer asks for nothing',
+        d.getElementById('dropper-ask').hidden && dropGo.hidden && !dropper.hidden);
+  d.getElementById('dropper-close').click();
+
+  // SEND TO…: an unbound past session, to a course or a project.
+  const sender = d.getElementById('sender');
+  check('only a past session bound to nothing offers "send to…"',
+        d.querySelectorAll('[data-send-for]').length === 1
+        && d.querySelector('[data-send-for]').getAttribute('data-send-for') === LECT);
+  const openSend = () => d.querySelector('[data-send-for="' + LECT + '"]').click();
+  openSend();
+  const sendIds = () => Array.from(d.querySelectorAll('#sender-list button'))
+    .map((b) => b.getAttribute('data-id'));
+  check('it opens a sheet over every course and project, the most recently used first',
+        !sender.hidden && d.getElementById('sender-title').textContent === 'Lecture 4'
+        && sendIds().join('|') === ['courses/Galois-Theory', 'projects/TRD-EHR',
+          'projects/libr-local-llm', 'projects/Meetings', 'courses/Probability'].join('|'));
+  typeIn(d.getElementById('sender-find'), 'prob');
+  check('its search narrows them', sendIds().join('|') === 'courses/Probability');
+  const sendsBefore = w.asked.filter((r) => r.url === '/sessions.json').length;
+  d.querySelector('#sender-list button').click();
+  await sleep(40);
+  const sends = () => w.asked.filter((r) => r.method === 'POST' && /\/send$/.test(r.url));
+  check('a tap posts /s/<id>/send with that subject',
+        sends().length === 1 && sends()[0].url === '/s/' + LECT + '/send'
+        && sends()[0].body.subject === 'courses/Probability');
+  check('and the sheet closes, says where it went, and the lists are read again',
+        sender.hidden
+        && d.getElementById('said').textContent === 'Lecture 4 went to Probability, with 1 upload filed.'
+        && w.asked.filter((r) => r.url === '/sessions.json').length > sendsBefore);
+  w.sendReply = { ok: false, error: 'that session is bound elsewhere already' };
+  openSend();
+  d.querySelector('#sender-list button[data-id="courses/Galois-Theory"]').click();
+  await sleep(40);
+  check('a refusal keeps the sheet open, with the board\'s words',
+        !sender.hidden && /bound elsewhere/.test(d.getElementById('sender-said').textContent));
+  w.sendReply = null;
+  d.getElementById('sender-new-project').click();
+  check('+ new project from it opens the maker, asking "patient data?"',
+        sender.hidden && !d.getElementById('maker').hidden
+        && !d.getElementById('maker-phi').hidden
+        && /sent to it/.test(d.getElementById('maker-kind').textContent));
+  typeIn(d.getElementById('maker-name'), 'Lectures');
+  d.querySelector('#maker-phi button[data-phi="no"]').click();
+  d.getElementById('maker-go').click();
+  await sleep(60);
+  const madeThen = w.asked.filter((r) => r.url === '/subjects/new').pop();
+  check('and the session is sent to what it made',
+        madeThen && madeThen.body.name === 'Lectures' && madeThen.body.phi === false
+        && sends().length === 3 && sends()[2].body.subject === 'projects/Lectures'
+        && sender.hidden && d.getElementById('maker').hidden);
+  openSend();
+  d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  check('Escape closes the send sheet', sender.hidden);
+  openSend();
+  sender.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  check('and so does its backdrop', sender.hidden);
+
+  // NO MEETINGS SUBJECT, and a Colibri project the list does not name.
+  {
+    const mw = load('', { over: { '/subjects.json': { ok: true, meetings: null,
+                                                      subjects: SUBJECTS.slice(0, 4) } } });
+    await sleep(80);
+    check('with no Meetings subject the Meeting deck is not offered',
+          mw.document.getElementById('act-meeting').hidden);
+    check('and a Colibri project the list does not have is named by its id',
+          mw.document.getElementById('colibri-subject').textContent === 'projects/libr-local-llm');
+  }
+
+  // THE BOOT CHECK, at the end of home.html.
+  {
+    const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
+    const tags = html.match(/<script src="\/static\/[^"]+"[^>]*>/g) || [];
+    check('every script the page loads records itself when it does not arrive',
+          tags.length === 5 && tags.every((t) => /onerror="\(window\.bootMissed/.test(t)));
+    check('and the check comes after them all',
+          html.lastIndexOf('<script>') > html.indexOf('<script src="/static/home.js"'));
+    const fine = load('', { boot: true });
+    await sleep(60);
+    check('with home.js running there is no Retry line',
+          fine.document.getElementById('boot').hidden && beacons(fine).length === 0);
+    const gone = load('', { boot: true, skip: ['home.js'], missed: ['https://board.test/static/home.js'] });
+    await sleep(20);
+    const boot = gone.document.getElementById('boot');
+    check('with home.js missing the page says it did not finish loading, with a Retry',
+          !boot.hidden && /did not finish loading/.test(boot.textContent)
+          && /did not arrive/.test(boot.textContent)
+          && typeof gone.document.getElementById('boot-retry').onclick === 'function');
+    const told = beacons(gone);
+    check('and tells the board which script it was',
+          told.length === 1 && told[0].body.page === 'home' && told[0].body.what === 'boot'
+          && told[0].body.src === 'https://board.test/static/home.js' && told[0].keepalive);
+    const ran = load('', { boot: true, skip: ['home.js'] });
+    await sleep(20);
+    check('home.js that arrived but never ran says so too',
+          !ran.document.getElementById('boot').hidden
+          && beacons(ran).some((r) => /did not run/.test(r.body.msg)));
+  }
+
+  // THE BEACON: what broke, told to /client-error, rate-limited, never throwing.
+  {
+    const bw = load('', { errorsOk: true });
+    await sleep(60);
+    const bd = bw.document;
+    bw.dispatchEvent(new bw.ErrorEvent('error', { message: 'boom', filename: 'https://board.test/static/x.js',
+                                                  lineno: 3, error: new bw.Error('boom') }));
+    bw.dispatchEvent(new bw.ErrorEvent('error', { message: 'boom', filename: 'https://board.test/static/x.js',
+                                                  lineno: 3 }));
+    let got = beacons(bw);
+    check('an uncaught error is posted to /client-error once, with where it was',
+          got.length === 1 && got[0].body.page === 'home' && got[0].body.what === 'error'
+          && got[0].body.msg === 'boom' && got[0].body.src === 'https://board.test/static/x.js:3'
+          && typeof got[0].body.ua === 'string' && got[0].keepalive);
+    const img = bd.createElement('img');
+    img.setAttribute('src', '/static/gone.png');
+    bd.body.appendChild(img);
+    img.dispatchEvent(new bw.Event('error'));
+    got = beacons(bw);
+    check('a resource that did not load is caught on its way down, by its URL',
+          got.length === 2 && got[1].body.what === 'load' && /\/static\/gone\.png$/.test(got[1].body.src));
+    const rej = new bw.Event('unhandledrejection');
+    rej.reason = new bw.Error('nope');
+    bw.dispatchEvent(rej);
+    got = beacons(bw);
+    check('an unhandled rejection is told too',
+          got.length === 3 && got[2].body.what === 'rejection' && got[2].body.msg === 'nope');
+    for (let i = 0; i < 20; i++) {
+      bw.dispatchEvent(new bw.ErrorEvent('error', { message: 'storm ' + i, filename: 'y.js', lineno: i }));
+    }
+    check('and a storm is cut short: a handful a minute, not twenty',
+          beacons(bw).length === 6);
+    bw.fetch = () => { throw new Error('no fetch here'); };
+    let threw = null;
+    try {
+      bw.dispatchEvent(new bw.ErrorEvent('error', { message: 'later', filename: 'z.js', lineno: 1 }));
+    } catch (e) { threw = e; }
+    check('telling never throws, even with no fetch', !threw);
+  }
+
+  // A REFRESH THAT FAILED: told, the dot dead, and tried again.
+  {
+    const fw = load('', { fail: { '/sessions.json': 1 } });
+    await sleep(60);
+    const fd = fw.document;
+    check('a list answered 502 leaves the dot dead and is told to the board',
+          fd.getElementById('dot').className === 'dot dead'
+          && beacons(fw).some((r) => r.body.what === 'fetch' && r.body.src === '/sessions.json'
+                              && /502/.test(r.body.msg)));
+    await until(() => fd.getElementById('dot').className === 'dot live', 3500);
+    check('and the refresh is tried again a moment later, and lands',
+          fd.getElementById('dot').className === 'dot live'
+          && fw.asked.filter((r) => r.url === '/sessions.json').length === 2
+          && fd.querySelectorAll('#open-list .row').length === 3);
+  }
 
   // New session goes to the board it was given.
   w.fetch = ((orig) => (u, init) => (String(u) === '/sessions/new'
@@ -433,7 +834,7 @@ async function stubbed() {
   {
     const r1 = await annotated('');
     check('Annotate a PDF opens its sheet, offering every subject or none',
-          !r1.sheet.hidden && r1.opts[0] === '' && r1.opts.length === 5);
+          !r1.sheet.hidden && r1.opts[0] === '' && r1.opts.length === 6);
     check('a chosen PDF can be sent', r1.ready);
     const made = r1.aw.asked.filter((r) => r.url === '/sessions/new')[0];
     check('it makes a session titled for the file, and uploads into that session',
@@ -707,15 +1108,25 @@ async function real() {
       const r = await fetch(new URL(href, base));
       if (r.status === 404) bad.push('link ' + href);
     }
+    // The routes this page reads that the server may not serve yet: the
+    // delete check, and `meetings` in /subjects.json. Where it has them they
+    // are pressed like everything else; where it does not, their controls are
+    // left alone and the page must not offer what it cannot do.
+    const probe = await fetch(base + '/subject/delete?subject=courses%2FGalois-Theory');
+    const checks = probe.status !== 404;
+    if (!checks) console.log('skip  this server has no GET /subject/delete, so no row\'s delete is pressed');
+    const subjectsNow = await (await fetch(base + '/subjects.json')).json();
+    const named = 'meetings' in subjectsNow;
     const before = w.__requests.length;
     const buttons = Array.from(d.querySelectorAll('button'))
       .filter((b) => visible(d, b) && !b.disabled);
     for (const b of buttons) {
       if (b.id === 'btn-reload' || b.id === 'panic') continue;
+      if (!checks && b.hasAttribute('data-drop-for')) continue;
       b.click();
       await sleep(40);
       // Inside a sheet the buttons are visible now: press those too, once.
-      ['notes', 'maker'].forEach((id) => {
+      ['notes', 'maker', 'dropper'].forEach((id) => {
         const sheet = d.getElementById(id);
         if (sheet.hidden || sheet.__pressed) return;
         sheet.__pressed = true;
@@ -723,11 +1134,15 @@ async function real() {
           d.querySelector('#notes-since button[data-since="7d"]').click();
           d.getElementById('notes-make').click();
           d.getElementById('notes-close').click();
-        } else {
+        } else if (id === 'maker') {
           d.querySelector('#maker-phi button[data-phi="no"]').click();
           d.getElementById('maker-close').click();
         }
       });
+      if (!d.getElementById('dropper').hidden) {
+        await sleep(200);
+        d.getElementById('dropper-close').click();
+      }
     }
     await sleep(1500);
     bad = bad.concat(w.__requests.slice(before)
@@ -735,9 +1150,20 @@ async function real() {
       .map((r) => r.method + ' ' + r.url));
     check('no visible control calls a route that 404s'
           + (bad.length ? ': ' + bad.join(', ') : ''), bad.length === 0);
-    check('the controls pressed reached the meeting deck',
-          w.__requests.some((r) => r.url === '/meeting' && r.method === 'POST')
-          && w.__requests.some((r) => r.url === '/library.json?subject=projects%2FMeetings'));
+    if (named && subjectsNow.meetings) {
+      check('the controls pressed reached the meeting deck',
+            w.__requests.some((r) => r.url === '/meeting' && r.method === 'POST')
+            && w.__requests.some((r) => r.url === '/library.json?subject='
+                                 + encodeURIComponent(subjectsNow.meetings)));
+    } else {
+      check('a server that names no Meetings subject gets no Meeting deck action',
+            d.getElementById('act-meeting').hidden
+            && !w.__requests.some((r) => r.url === '/meeting'));
+    }
+    if (checks) {
+      check('a row\'s delete asked the server whether that subject can go',
+            w.__requests.some((r) => /^\/subject\/delete\?subject=/.test(r.url) && r.status === 200));
+    }
 
     await sessionLink(base, srv.sid, 'the fixture', true);
   } finally {
