@@ -117,7 +117,7 @@ Sandip Sen 0000-0001-6107-4095
 
 **Background:** Electronic health records (EHRs) have been shown to support prediction of subsequent antidepressant switching, an imperfect proxy for treatment-resistant depression (TRD). However, it is unclear whether general-purpose narrative embeddings improve prediction beyond structured feature vectors.
 
-**Objective:** We compared structured feature vectors with pretrained embeddings of rule-based patient narratives for predicting a treatment-switching proxy for TRD at the index antidepressant prescription.
+**Objective:** We compared structured feature vectors with pretrained embeddings of template-generated patient narratives for predicting a treatment-switching proxy for TRD at the index antidepressant prescription.
 
 **Methods:** This retrospective study included 42,579 patients with depression from one community health system. The outcome required at least 3 distinct antidepressant treatments, including the index agent, within 365 days. Clinical predictors were derived from a 730-day lookback window. We evaluated 4 classifiers on each representation using a shared 80:20 training and test split, with preprocessing and tuning confined to training data. Four embedding encoders were evaluated; Qwen3-Embedding-8B was primary. The pipelines used the same source records. We assessed discrimination, calibration, and paired bootstrap differences, and used concept permutation and neighbor retrieval to examine the predictive signal.
 
@@ -137,7 +137,7 @@ Prior EHR models have reported widely varying discrimination. Internal performan
 
 General-purpose text encoders provide one way to represent an EHR without training a large clinical foundation model \[16-18\]. Structured fields can be converted into a patient narrative and then encoded as a numerical embedding for prediction. The practical question is whether this additional processing improves on a transparent feature vector. A narrative created from the same structured records adds no new measurement, although the encoding may organize existing information differently.
 
-We asked whether pretrained embeddings of rule-based patient narratives improve prediction of a treatment-switching proxy for TRD beyond structured feature vectors at the index antidepressant prescription. We compared the pipelines in the same patients, using a common temporal design and test set. Secondary analyses examined whether performance depended on the classifier or encoder, which clinical domains contributed, and whether embedding similarity supported prediction.
+We asked whether pretrained embeddings of template-generated patient narratives improve prediction of a treatment-switching proxy for TRD beyond structured feature vectors at the index antidepressant prescription. We compared the pipelines in the same patients, using a common temporal design and test set. Secondary analyses examined whether performance depended on the classifier or encoder, which clinical domains contributed, and whether embedding similarity supported prediction.
 
 # Methods
 

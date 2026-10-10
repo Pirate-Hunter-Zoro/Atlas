@@ -39,7 +39,7 @@ We are pleased to submit our original research manuscript,
 Switching Proxy for Treatment Resistant Depression: Retrospective Cohort
 Study,"** for consideration in *JMIR Mental Health*.
 
-The study asks whether pretrained embeddings of rule-based patient
+The study asks whether pretrained embeddings of template-generated patient
 narratives predict a treatment-switching proxy for treatment-resistant
 depression (TRD) better than structured feature vectors built from the same
 electronic health records (EHRs). Prediction is made at the index

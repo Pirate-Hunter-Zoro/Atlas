@@ -45,7 +45,6 @@ Paper 2 (causal forest, preference instrument and switch framing deferred):
 
 ## Open decisions
 
-- The abstract's "rule-based" narratives (3 places) breaks RULES.md, but it is Martin's prose: ask him.
 - Owed: the CSV question (card 0006) and the S7 re-run (card 0007), in the imported session.
 - Where the sensitivity-label decline's reason goes: Limitations or the covering note.
 - suicidality_flag: a window parameter or a stated precondition.
