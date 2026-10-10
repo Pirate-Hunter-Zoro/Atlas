@@ -1,5 +1,5 @@
 {
-  "at": 1791643214,
+  "at": 1791643333,
   "colibri": {
     "ends": null,
     "load_s": null,
@@ -11,5 +11,5 @@
   "last_error": "",
   "outstanding": {},
   "push_pending": false,
-  "skipped": "the tree has edits outside the cluster's paths: projects/TRD-EHR/paper1-trd-prediction/cover_letter.docx, projects/TRD-EHR/paper1-trd-prediction/cover_letter.md, projects/TRD-EHR/paper1-trd-prediction/cover_letter.pdf, projects/TRD-EHR/paper1-trd-prediction/manuscript.docx, projects/TRD-EHR/paper1-trd-prediction/manuscript.md and 68 more"
+  "skipped": "the tree has edits outside the cluster's paths: projects/TRD-EHR/paper1-trd-prediction/manuscript.docx, projects/TRD-EHR/paper1-trd-prediction/manuscript.pdf, projects/TRD-EHR/paper1-trd-prediction/parts/manuscript/01-title-page.docx, projects/TRD-EHR/paper1-trd-prediction/parts/manuscript/01-title-page.pdf, projects/TRD-EHR/paper1-trd-prediction/parts/manuscript/02-abstract.docx and 57 more"
 }
