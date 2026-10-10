@@ -6,8 +6,10 @@
 #
 # 1. The system tools. On a Mac, `brew bundle` on the root Brewfile, installing
 #    what is missing and moving nothing that is there (--no-upgrade). Elsewhere,
-#    uv is installed into ~/.local/bin if it is not on the PATH; nothing needs
-#    root. Lean's elan is the Lean workspace's own setup's to install.
+#    uv is installed into ~/.local/bin and the latest stable Go into ~/.local/go
+#    (linked from ~/.local/bin) when either is not on the PATH; nothing needs
+#    root, since the cluster has no Go module. Lean's elan is the Lean
+#    workspace's own setup's to install.
 # 2. Every workspace, found the way the board finds them (`subjects.all`),
 #    never from a list. ai-config, the one private repository nested in Atlas,
 #    is reported when this machine has not cloned it. A workspace is built by
@@ -28,7 +30,7 @@ LOGS="${XDG_STATE_HOME:-$HOME/.local/state}/atlas-setup"
 mkdir -p "$LOGS"
 
 # launchd and a bare ssh hand over a short PATH; the tools live in these.
-for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/.elan/bin"; do
+for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/.local/go/bin" "$HOME/.elan/bin"; do
   [ -d "$d" ] && case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
 done
 export PATH
@@ -46,12 +48,31 @@ if [ "$(uname -s)" = Darwin ] && command -v brew >/dev/null 2>&1; then
   else
     line "Brewfile" "FAILED -- $LOGS/brew.log"; failed=1
   fi
-elif ! command -v uv >/dev/null 2>&1; then
-  if curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >"$LOGS/uv.log" 2>&1 \
-      && command -v uv >/dev/null 2>&1; then
-    line "uv" "installed in ~/.local/bin"
-  else
-    line "uv" "FAILED -- $LOGS/uv.log"; failed=1
+else
+  if ! command -v uv >/dev/null 2>&1; then
+    if curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >"$LOGS/uv.log" 2>&1 \
+        && command -v uv >/dev/null 2>&1; then
+      line "uv" "installed in ~/.local/bin"
+    else
+      line "uv" "FAILED -- $LOGS/uv.log"; failed=1
+    fi
+  fi
+  if ! command -v go >/dev/null 2>&1; then
+    case "$(uname -m)" in x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;; *) goarch="" ;; esac
+    gover="$(curl -fsS 'https://go.dev/dl/?mode=json' 2>>"$LOGS/go.log" \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["version"])' 2>>"$LOGS/go.log")"
+    if [ -n "$goarch" ] && [ -n "$gover" ] \
+        && curl -fsSL "https://go.dev/dl/$gover.linux-$goarch.tar.gz" -o "$LOGS/go.tar.gz" 2>>"$LOGS/go.log" \
+        && rm -rf "$HOME/.local/go" && mkdir -p "$HOME/.local/bin" \
+        && tar -C "$HOME/.local" -xzf "$LOGS/go.tar.gz" 2>>"$LOGS/go.log" \
+        && ln -sf "$HOME/.local/go/bin/go" "$HOME/.local/go/bin/gofmt" "$HOME/.local/bin/" \
+        && PATH="$HOME/.local/go/bin:$PATH" && export PATH \
+        && command -v go >/dev/null 2>&1; then
+      rm -f "$LOGS/go.tar.gz"
+      line "go" "installed $gover in ~/.local/go"
+    else
+      line "go" "FAILED -- $LOGS/go.log"; failed=1
+    fi
   fi
 fi
 
