@@ -159,6 +159,12 @@ keys.env
 /courses/*/chapters/*/lectures/
 /courses/*/**/assignment*
 
+# A subject's live/ is an old per-subject board's session state (turns, answers,
+# mission trails). Sessions live in /sessions/ now; a machine that still holds
+# one keeps it invisible here.
+/courses/*/live/
+/projects/*/live/
+
 # ---- the legacy subject roots ----
 # research/ and practice/ merged into projects/. A machine that has not yet run
 # move-residue.sh still holds ignored residue (.venv, phi/, results/, .env) at
