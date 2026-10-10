@@ -131,9 +131,9 @@ class LandingTests(unittest.TestCase):
 
     def test_the_landing_is_read(self):
         self.assertEqual(
-            jobspec.landing("## Delivery\n\nlanding: /home/x/Atlas/research/T/"
+            jobspec.landing("## Delivery\n\nlanding: /home/x/Atlas/projects/T/"
                             "manuscripts\n"),
-            "/home/x/Atlas/research/T/manuscripts")
+            "/home/x/Atlas/projects/T/manuscripts")
 
     def test_a_path_keeps_its_trailing_punctuation(self):
         """`_path_value`, never `_clean`: that one strips `-` and `_` from both ends,

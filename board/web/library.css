@@ -48,6 +48,28 @@ body { font-family: var(--ui); color: var(--ink); }
   margin: 1.4rem .2rem .4rem;
 }
 .lib-dir:first-child { margin-top: .2rem; }
+/* What the board made, what was already here, and the materials. */
+.lib-group {
+  font-size: .8rem; font-weight: 700; color: var(--ink-2);
+  margin: 1.8rem .2rem .2rem; border-bottom: 1px solid var(--rule);
+}
+.lib-group:first-child { margin-top: .2rem; }
+.lib-status { font-size: .74rem; color: var(--ask); }
+.lib-status[data-status="failed"] { color: var(--ink-2); }
+.lib-acts button.lib-delete.armed { color: var(--ask); border-color: var(--ask); }
+
+/* Delete this subject: at the foot of its page, the name typed first. */
+#lib-drop { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+#lib-drop h2 { font-size: .9rem; margin: 0 0 .4rem; }
+#lib-drop-name {
+  font: inherit; padding: .5rem .6rem; border-radius: .4rem; margin: .5rem .4rem 0 0;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+#lib-drop-go {
+  font: inherit; font-weight: 600; padding: .5rem .9rem; border-radius: .4rem;
+  border: 1px solid var(--ask); background: transparent; color: var(--ask); cursor: pointer;
+}
+#lib-drop-go:disabled { border-color: var(--rule); color: var(--ink-3); cursor: default; }
 
 .lib-row {
   display: flex; flex-direction: column; gap: .2rem;
@@ -83,7 +105,7 @@ body { font-family: var(--ui); color: var(--ink); }
 .lib-flight { font-size: .74rem; color: var(--ask); }
 
 .lib-acts { display: flex; gap: .4rem; margin-top: .35rem; flex-wrap: wrap; }
-.lib-acts button, #note-acts button, #reader-bar button {
+.lib-acts button, #note-acts button {
   font: inherit; font-size: .82rem; cursor: pointer;
   padding: .35rem .7rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
@@ -96,108 +118,7 @@ body { font-family: var(--ui); color: var(--ink); }
 }
 #note-acts button:disabled { opacity: .45; cursor: default; }
 
-/* ---------- reading one ---------- */
-/* The list behind an open reader holds still (`library.js`, `read`). */
-body.reading { overflow: hidden; }
-#reader {
-  position: fixed; inset: 0; z-index: 40;
-  display: flex; flex-direction: column;
-  background: var(--paper);
-  overflow: hidden;
-}
-/* Above the pages while a pinch transforms them. */
-#reader > :not(#reader-pages) { position: relative; z-index: 1; }
-#reader-bar {
-  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
-  padding: .6rem 1rem;
-  border-bottom: 1px solid var(--rule); background: var(--paper-2);
-}
-#reader-bar strong { font-size: .95rem; }
-#reader-bar button:last-child { margin-left: auto; }
-/* The pen, lit while it is on, so there is no doubt about whether the next
-   touch will scroll the document or draw on it. */
-#reader-pen.on {
-  background: var(--note); border-color: var(--note); color: #fff;
-}
-#reader-pen:disabled { opacity: .45; cursor: default; }
-/* While the pen is on, a page is a surface to draw on and not a picture to
-   drag. Without this the stroke starts a native image drag, the browser owns
-   the gesture from that moment, and the pointer stream stops. */
-body.annotating .lib-page img {
-  -webkit-user-select: none; user-select: none;
-  -webkit-user-drag: none; -webkit-touch-callout: none;
-}
-/* The one line in the reader that is owed to a reader: a turn running on this
-   document, and ink that was drawn on a version with a different page count. */
-.reader-said {
-  margin: 0; padding: .45rem 1rem;
-  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
-  background: var(--paper-2); border-bottom: 1px solid var(--rule);
-}
-/* Where the ink is. Quiet when it is saved, amber while it is on its way, red
-   when it is not saved -- the one state that should make somebody look. */
-.reader-kept { font-size: .76rem; color: var(--ink-2); }
-.reader-kept.busy { color: var(--ask); }
-.reader-kept.bad { color: var(--bad); font-weight: 600; }
-#reader-keep:disabled { opacity: .45; cursor: default; }
-.reader-rebuilt { color: var(--ink); }
-.reader-copy {
-  margin: 0; padding: .45rem 1rem;
-  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
-  background: var(--paper-2); border-bottom: 1px solid var(--rule);
-}
-.reader-copy.bad { color: var(--bad); }
-.reader-rebuilt button, .reader-copy button {
-  font: inherit; font-size: .78rem; cursor: pointer; margin-left: .5rem;
-  padding: .2rem .6rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-}
-/* A block, not a centred flex column: a page zoomed wider than the glass has
-   to overflow to the right, where it can be scrolled to, rather than to both
-   sides, where its left edge cannot. */
-#reader-pages {
-  flex: 1; overflow: auto; min-height: 0;
-  padding: 1rem;
-  -webkit-overflow-scrolling: touch;
-  /* The anchor is `library.js`'s (`holdAnchor`), and one is enough. */
-  overflow-anchor: none;
-  overscroll-behavior: contain;
-}
-/* `position: relative` is the whole of what the ink needs: `canvas.ann-layer`
-   is absolutely positioned and would otherwise hang off `#reader-pages` and
-   land on page one whichever page was written on. */
-.lib-page {
-  margin: 0 auto 2.75rem; position: relative;
-  width: calc(min(100%, 54rem) * var(--zoom, 1));
-}
-/* The palm: while the nib is down or only just lifted (`pen-writing`), nothing
-   the browser owns moves the pages. Otherwise a finger scrolls either way, pen
-   on or off, and the ink layer over a zoomed page lets it pan sideways too. The
-   pinch is `readerzoom.js`'s, which adds `.zoomable`. */
-body.pen-writing #reader-pages.zoomable { touch-action: none; }
-body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
-  touch-action: pan-x pan-y;
-}
-#reader-pages.pinching { will-change: transform; }
-.lib-page img {
-  display: block; width: 100%; height: auto;
-  /* A page not yet decoded is a letter page tall rather than no height at all,
-     so the pages under it are roughly where they will be. */
-  aspect-ratio: auto 8.5 / 11;
-  border: 1px solid var(--rule); border-radius: .2rem;
-  background: #fff;
-}
-/* THE PAGE'S BOX IS THE PICTURE. Ink is stored in fractions of `.lib-page`,
-   and a caption in flow is a fixed height added to a picture that grows with
-   the zoom -- so every height fraction would name a different place on the
-   page at every zoom. Out of flow, in the margin under the page, the box and
-   the picture are the same rectangle. */
-.lib-page figcaption {
-  position: absolute; left: 0; right: 0; top: 100%;
-  /* One line: the margin holds one, and a second would sit on the next page. */
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-align: center; font-size: .7rem; color: var(--ink-3); padding-top: .25rem;
-}
+/* ---------- reading one: `reader.css`, the one reader's sheet ---------- */
 
 /* ---------- saying what is wrong ---------- */
 #note {
@@ -214,7 +135,7 @@ body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
   background: var(--paper);
   box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
 }
-#note-text, #note-purpose {
+#note-text, #note-purpose, #deck-ask-text {
   font: inherit; font-size: .9rem; line-height: 1.5;
   padding: .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
@@ -281,27 +202,10 @@ body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
 .note-said { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin: 0; }
 .note-said.bad { color: var(--bad); }
 
-/* ---------- the meeting deck ---------- */
-/* The deck's reader IS this reader -- `meeting.html` loads this sheet and
-   reuses `#reader`, `.lib-page` and the pen. What is here is only the two
-   things that page has and the library does not: a way back on the reader's
-   own bar, because `#reader` is fixed to the whole viewport and a header above
-   it would be a header nothing can reach; and a send button that has to look
-   like the consequential one it is. */
-#reader-bar a {
-  color: var(--ink-2); text-decoration: none;
-  font-size: .82rem; padding: .3rem .5rem; border-radius: .35rem;
-  border: 1px solid var(--rule);
-}
-#reader-bar a:hover { background: var(--paper); color: var(--ink); }
-#deck-send {
-  background: var(--note); border-color: var(--note); color: #fff;
-  font-weight: 600;
-}
-#deck-send:disabled {
-  background: transparent; color: var(--ink-2);
-  border-color: var(--rule); font-weight: 400; opacity: .55; cursor: default;
-}
+/* ---------- what no source supports ---------- */
+/* The meeting deck's check, listed under the reader's bar. */
+#reader-check summary { cursor: pointer; }
+#reader-check ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 
 /* ---------- what this workspace has produced ---------- */
 /* Under the documents, on the same page, because "everything this workspace
@@ -521,7 +425,3 @@ body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
   margin: 0; border-radius: 0;
   -webkit-user-drag: none; -webkit-touch-callout: none;
 }
-/* Directions mode, lit so which kind of ink is going down is never a guess. */
-#reader-mode.directions { background: var(--ok, #2f7d4f); border-color: var(--ok, #2f7d4f); color: #fff; }
-/* The directions' own send, in the green their halo is drawn in. */
-#reader-bar #reader-direct { color: var(--ok, #2f7d4f); border-color: var(--ok, #2f7d4f); }

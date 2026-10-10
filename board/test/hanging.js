@@ -72,7 +72,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -176,8 +176,8 @@ doc.getElementById('tutorbad').hidden
 
 // --------------------------------------------------------- a failed turn
 //
-// AND WITH NOTHING IN THE INBOX, WHICH IS THE REAL CASE. `board wait` marks a
-// message read the moment it hands it over, so by the time a turn fails the
+// AND WITH NOTHING IN THE INBOX, WHICH IS THE REAL CASE. The runner marks a
+// message read the moment a turn takes it, so by the time a turn fails the
 // message it failed on is read and the inbox is empty. A failure that could
 // only be reported alongside unclaimed work would therefore never be reported
 // at all -- which is exactly the hole the whole report is about.
@@ -355,7 +355,7 @@ await sleep(40);
 // and the strip's ordinary rule is that a card landing IS the answer, so it
 // stopped talking about ten seconds into a job that takes minutes.
 //
-// The daemon says what a turn was woken for; see `turn_signal` in `bin/tutor`.
+// The daemon says what a turn was woken for; see `turn_signal` in `tutorboard/runner/turn.py`.
 {
   const replan = (cards) => JSON.stringify({
     state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach',

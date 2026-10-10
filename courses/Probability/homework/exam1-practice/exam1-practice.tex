@@ -1,0 +1,340 @@
+% ===========================================================================
+%  Exam1 Practice
+%
+%  THE WRITE-UP, and it is the assistant's to type.
+%    The assistant transcribes each question or topic faithfully and emits an
+%    empty, marked solution region beneath it. The student does the
+%    mathematics; the assistant typesets what they agreed was right, and
+%    nothing that was not on the page the student sent.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Exam 1 Practice}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per thing worked, in the order it was assigned or
+% chosen. A region stays empty until the answer in it is agreed correct.
+
+\begin{problem}{1}
+  (Conditioning and Bayes.) Box 1 holds 3 red and 2 blue balls. Box 2 holds 2 red and
+  3 blue balls. Roll a fair die: on a 1 or 2 use Box 1, otherwise Box 2. Draw two balls
+  from that box without replacement.
+  \begin{enumerate}
+    \item[(a)] Find the probability that both balls are red.
+    \item[(b)] Given that both balls are red, find the probability that Box 1 was used.
+    \item[(c)] Using only the axioms of probability, prove that if $E \subseteq F$ then
+      $P(E) \le P(F)$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 1 =====
+\textbf{(a)} Condition on the box:
+\[
+  P(2 \text{ red}) = P(2 \text{ red} \mid \text{Box 1})\,P(\text{Box 1})
+    + P(2 \text{ red} \mid \text{Box 2})\,P(\text{Box 2})
+  = \tfrac35 \cdot \tfrac24 \cdot \tfrac13 + \tfrac25 \cdot \tfrac14 \cdot \tfrac23.
+\]
+
+\textbf{(b)} By Bayes' formula,
+\[
+  P(\text{Box 1} \mid 2 \text{ red})
+    = \frac{P(2 \text{ red} \mid \text{Box 1})\,P(\text{Box 1})}{P(2 \text{ red})}
+    = \frac{\tfrac35 \cdot \tfrac24 \cdot \tfrac13}
+           {\tfrac35 \cdot \tfrac24 \cdot \tfrac13 + \tfrac25 \cdot \tfrac14 \cdot \tfrac23}.
+\]
+
+\textbf{(c)} Since $E \subseteq F$, write $F = E \cup (F - E)$, where $E$ and $F - E$ are
+mutually exclusive. By the additivity axiom, and since $P(F - E) \ge 0$,
+\[
+  P(F) = P(E \cup (F - E)) = P(E) + P(F - E) \ge P(E).
+\]
+% ===== END SOLUTION 1 =====
+
+\begin{problem}{2}
+  (Indicators.) A fair die is rolled 10 times.
+  \begin{enumerate}
+    \item[(a)] Let $X$ be the number of different faces that appear at least once.
+      Find $\EE{X}$.
+    \item[(b)] Let $Y$ be the number of faces that appear exactly once. Find $\EE{Y}$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 2 =====
+\textbf{(a)} For $i = 1, \ldots, 6$ let $I_i = 1$ if face $i$ shows up at least once
+in the 10 rolls, and $0$ otherwise, so $X = \sum_{i=1}^{6} I_i$. Each
+\[
+  \EE{I_i} = P(i \text{ shows up at least once}) = 1 - P(i \text{ never shows})
+    = 1 - (5/6)^{10},
+\]
+so by linearity
+\[
+  \EE{X} = \sum_{i=1}^{6} \EE{I_i} = 6\left(1 - (5/6)^{10}\right).
+\]
+As the number of rolls grows, $(5/6)^n \to 0$, so $\EE{X} \to 6$.
+
+\textbf{(b)} Let $J_j = 1$ if face $j$ shows up exactly once, and $0$ otherwise, so
+$Y = \sum_{j=1}^{6} J_j$. The count of face $j$ is $\mathrm{Bin}(10, 1/6)$, so
+\[
+  \EE{J_j} = P(j \text{ shows up exactly once})
+    = \binom{10}{1}\left(\tfrac16\right)\left(\tfrac56\right)^{9}
+    = 10\,\frac{5^9}{6^{10}},
+\]
+and by linearity
+\[
+  \EE{Y} = 6 \cdot 10\,\frac{5^9}{6^{10}} = 10\left(\tfrac56\right)^{9}.
+\]
+With $n$ rolls this is $n(5/6)^{n-1} \to 0$: the geometric factor beats the linear one.
+% ===== END SOLUTION 2 =====
+
+\begin{problem}{3}
+  (A joint density.) $X$ and $Y$ have joint density
+  \[
+    f(x,y) = 2, \qquad 0 < y < x < 1,
+  \]
+  and $0$ elsewhere.
+  \begin{enumerate}
+    \item[(a)] Find the marginal densities $f_X$ and $f_Y$.
+    \item[(b)] Find $\operatorname{Cov}(X,Y)$.
+    \item[(c)] Find $P(X + Y < 1)$.
+    \item[(d)] Find the conditional density of $Y$ given $X = x$, and $\EE{Y \mid X}$.
+    \item[(e)] Use the conditional variance formula
+      $\operatorname{Var}(Y) = \EE{\operatorname{Var}(Y \mid X)} + \operatorname{Var}(\EE{Y \mid X})$
+      to find $\operatorname{Var}(Y)$. Check it against $f_Y$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 3 =====
+\textbf{(a)} Integrate out the other variable over the triangle:
+\[
+  f_X(x) = \int_0^x 2\,dy = 2x, \quad 0 < x < 1, \qquad
+  f_Y(y) = \int_y^1 2\,dx = 2 - 2y, \quad 0 < y < 1.
+\]
+
+\textbf{(b)} The means need the variable multiplying its density:
+\[
+  \EE{X} = \int_0^1 x \cdot 2x\,dx = \tfrac23 x^3 \Big|_0^1 = \tfrac23,
+\]
+which lies in $(0,1)$ because $X$ does. Similarly
+\[
+  \EE{Y} = \int_0^1 y \cdot 2(1-y)\,dy = \int_0^1 2y\,dy - \int_0^1 2y^2\,dy
+    = 1 - \tfrac23 = \tfrac13,
+\]
+and $\EE{Y} < \EE{X}$ because $Y < X$ everywhere on the support. For the cross moment,
+\[
+  \EE{XY} = \int_0^1 \int_0^x xy \cdot 2\,dy\,dx
+    = 2\int_0^1 x \left(\tfrac12 x^2\right) dx = \int_0^1 x^3\,dx = \tfrac14.
+\]
+So
+\[
+  \operatorname{Cov}(X,Y) = \EE{XY} - \EE{X}\EE{Y}
+    = \tfrac14 - \tfrac23 \cdot \tfrac13 = \tfrac{9}{36} - \tfrac{8}{36} = \tfrac{1}{36}.
+\]
+
+\textbf{(c)} Inside the triangle, $X + Y < 1$ means $Y < 1 - X$, so $Y < \min(X, 1 - X)$.
+Split at $x = \tfrac12$, where the two bounds meet:
+\[
+  P(X + Y < 1) = \int_0^{1/2} \int_0^x 2\,dy\,dx + \int_{1/2}^1 \int_0^{1-x} 2\,dy\,dx
+    = \int_0^{1/2} 2x\,dx + \int_{1/2}^1 2(1-x)\,dx
+    = \tfrac14 + \tfrac14 = \tfrac12.
+\]
+
+\textbf{(d)} For $0 < x < 1$, using $f_X(x) = \int_0^x 2\,dy = 2x$ from (a),
+\[
+  f_{Y\mid X}(y \mid x) = \frac{f(x,y)}{f_X(x)} = \frac{2}{2x} = \frac{1}{x},
+    \qquad 0 < y < x,
+\]
+so given $X = x$, $Y$ is uniform on $(0, x)$. Then
+\[
+  \EE{Y \mid X = x} = \int_0^x y \cdot \frac{1}{x}\,dy
+    = \frac{1}{x} \cdot \frac12 y^2 \Big|_{y=0}^{y=x} = \frac{x^2}{2x} = \frac{x}{2},
+\]
+so $\EE{Y \mid X} = X/2$. This is a function of $X$: given the value $x$, it returns
+$\EE{Y \mid X = x}$.
+
+\textbf{(e)} Given $X = x$, $Y$ is uniform on $(0, x)$ by (d), so
+$\operatorname{Var}(Y \mid X) = X^2/12$. With $f_X(x) = 2x$,
+\[
+  \EE{\operatorname{Var}(Y \mid X)} = \tfrac{1}{12}\EE{X^2}
+    = \tfrac{1}{12}\int_0^1 x^2 \cdot 2x\,dx = \tfrac{1}{12} \cdot \tfrac12 = \tfrac{1}{24}.
+\]
+The inner mean is $\EE{Y \mid X} = X/2$, so
+\[
+  \operatorname{Var}(\EE{Y \mid X}) = \EE{X^2/4} - \left(\EE{X/2}\right)^2
+    = \int_0^1 \frac{x^2}{4} \cdot 2x\,dx - \left(\tfrac12 \cdot \tfrac23\right)^2
+    = \int_0^1 \frac{x^3}{2}\,dx - \tfrac19 = \tfrac18 - \tfrac19 = \tfrac{1}{72}.
+\]
+By the conditional variance formula,
+\[
+  \operatorname{Var}(Y) = \EE{\operatorname{Var}(Y \mid X)} + \operatorname{Var}(\EE{Y \mid X})
+    = \tfrac{1}{24} + \tfrac{1}{72} = \tfrac{4}{72} = \tfrac{1}{18}.
+\]
+Check against $f_Y(y) = \int_y^1 2\,dx = 2 - 2y$ from (a):
+\[
+  \operatorname{Var}(Y) = \EE{Y^2} - (\EE{Y})^2
+    = \int_0^1 (2 - 2y)\,y^2\,dy - \left(\int_0^1 (2 - 2y)\,y\,dy\right)^2
+    = \int_0^1 2y^2\,dy - \int_0^1 2y^3\,dy - \tfrac19
+    = \tfrac16 - \tfrac19 = \tfrac{1}{18},
+\]
+using $\EE{Y} = \tfrac13$ from (b). The two methods agree.
+% ===== END SOLUTION 3 =====
+
+\begin{problem}{4}
+  (Moment generating functions.)
+  \begin{enumerate}
+    \item[(a)] Show that a Poisson($\lambda$) random variable has moment generating
+      function $\phi(t) = e^{\lambda(e^t - 1)}$.
+    \item[(b)] $X$ has $\phi_X(t) = \left(\tfrac13 + \tfrac23 e^t\right)^5 e^{2(e^t - 1)}$.
+      Write $X$ as a sum of two independent named random variables, and justify that step.
+    \item[(c)] Find $\EE{X}$ and $\operatorname{Var}(X)$.
+    \item[(d)] Find $P(X = 0)$ and $P(X = 1)$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 4 =====
+\textbf{(a)} With $p(i) = e^{-\lambda}\lambda^i / i!$ for $i = 0, 1, 2, \ldots$,
+\[
+  \phi(t) = \EE{e^{tX}} = \sum_{i=0}^{\infty} e^{ti} e^{-\lambda} \frac{\lambda^i}{i!}
+    = e^{-\lambda} \sum_{i=0}^{\infty} e^{it} \frac{\lambda^i}{i!}
+    = e^{-\lambda} \sum_{i=0}^{\infty} \frac{(\lambda e^t)^i}{i!}
+    = e^{-\lambda} e^{\lambda e^t} = e^{\lambda(e^t - 1)}.
+\]
+
+\textbf{(b)} The factor $\left(\tfrac13 + \tfrac23 e^t\right)^5$ is the Binomial$(5, \tfrac23)$
+MGF $(1 - p + pe^t)^n$, and $e^{2(e^t - 1)}$ is the Poisson$(2)$ MGF from (a).
+Let $Y \sim \text{Binomial}(5, \tfrac23)$ and $Z \sim \text{Poisson}(2)$ be independent. Since
+$Y$ and $Z$ are independent,
+\[
+  \phi_{Y+Z}(t) = \phi_Y(t)\,\phi_Z(t)
+    = \left(\tfrac13 + \tfrac23 e^t\right)^5 e^{2(e^t - 1)} = \phi_X(t).
+\]
+By uniqueness of MGFs, $X$ has the same distribution as $Y + Z$.
+
+\textbf{(c)} By (b), $X$ has the same mean and variance as $Y + Z$. By linearity,
+\[
+  \EE{X} = \EE{Y + Z} = \EE{Y} + \EE{Z} = np + \lambda
+    = 5 \cdot \tfrac23 + 2 = \tfrac{10}{3} + \tfrac{6}{3} = \tfrac{16}{3}.
+\]
+Since $Y$ and $Z$ are independent,
+\[
+  \operatorname{Var}(X) = \operatorname{Var}(Y + Z) = \operatorname{Var}(Y) + \operatorname{Var}(Z)
+    = np(1 - p) + \lambda = 5 \cdot \tfrac23 \cdot \tfrac13 + 2
+    = \tfrac{10}{9} + \tfrac{18}{9} = \tfrac{28}{9}.
+\]
+
+\textbf{(d)} By (b), $X$ has the same distribution as $Y + Z$. Since $Y, Z \ge 0$,
+$X = 0$ exactly when $Y = 0$ and $Z = 0$. By independence,
+\[
+  P(X = 0) = P(Y = 0)\,P(Z = 0)
+    = \binom{5}{0}\left(\tfrac23\right)^0\left(\tfrac13\right)^5 \cdot e^{-2}\frac{2^0}{0!}
+    = \frac{(1/3)^5}{e^2} = \frac{e^{-2}}{243}.
+\]
+$X = 1$ exactly when $Y = 0, Z = 1$ or $Y = 1, Z = 0$. These events are mutually exclusive,
+so their probabilities add, and each factors by independence:
+\[
+  P(X = 1) = P(Y = 0)\,P(Z = 1) + P(Y = 1)\,P(Z = 0)
+    = \left(\tfrac13\right)^5 \cdot \frac{2}{e^2} + 5 \cdot \tfrac23 \left(\tfrac13\right)^4 \cdot \frac{1}{e^2}
+    = \frac{2e^{-2}}{243} + \frac{10e^{-2}}{243} = \frac{4e^{-2}}{81}.
+\]
+% ===== END SOLUTION 4 =====
+
+\begin{problem}{11}
+  (First-step analysis.) A fair die is rolled until the first 6. Let $S$ be the sum of
+  all the rolls, the 6 included. Find $\EE{S}$ by conditioning on the first roll.
+\end{problem}
+% ===== SOLUTION 11 =====
+Let $\mu_S = \EE{S}$. Conditioning on the first roll,
+\[
+  \EE{S} = \sum_{i=1}^{6} \EE{S \mid \text{first} = i}\,P(\text{first} = i).
+\]
+If the first roll is $i \le 5$, the process starts over after it, so
+$\EE{S \mid \text{first} = i} = i + \mu_S$. If it is $6$, the process stops and $S = 6$. So
+\[
+  \mu_S = \tfrac16\left[(1 + \mu_S) + (2 + \mu_S) + (3 + \mu_S) + (4 + \mu_S)
+    + (5 + \mu_S) + 6\right] = \tfrac16\left(21 + 5\mu_S\right),
+\]
+which gives $6\mu_S = 21 + 5\mu_S$, so $\mu_S = 21$.
+% ===== END SOLUTION 11 =====
+
+\begin{problem}{14}
+  (Conditioning on a continuous variable.) Let $Y \sim \text{Uniform}(0,1)$. Given $Y = y$,
+  let $X \sim \text{Binomial}(3, y)$.
+  \begin{enumerate}
+    \item[(a)] Find $\EE{X \mid Y}$ and $\operatorname{Var}(X \mid Y)$.
+    \item[(b)] Find $\EE{X}$ and $\operatorname{Var}(X)$.
+    \item[(c)] Find $P(X = 1)$.
+    \item[(d)] Find $\EE{Y \mid X = 1}$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 14 =====
+\textbf{(a)} Given $Y = y$, $X$ is Binomial$(3, y)$, so its conditional mean and variance
+are the Binomial $np$ and $np(1-p)$ with $n = 3$, $p = y$:
+\[
+  \EE{X \mid Y = y} = \sum_{i=0}^{3} i\,P(X = i \mid Y = y) = 3y,
+  \qquad
+  \operatorname{Var}(X \mid Y = y) = 3y(1-y).
+\]
+Hence $\EE{X \mid Y} = 3Y$ and $\operatorname{Var}(X \mid Y) = 3Y(1-Y)$.
+
+\textbf{(b)} By the tower property, with $f(y) = 1$ on $(0,1)$,
+\[
+  \EE{X} = \int_0^1 \EE{X \mid Y = y}\, f(y)\, dy = \int_0^1 3y\, dy
+  = \left[\tfrac32 y^2\right]_0^1 = \tfrac32.
+\]
+For the variance, use $\operatorname{Var}(X) = \EE{X^2} - (\EE{X})^2$. The conditional second
+moment is the conditional variance plus the square of the conditional mean:
+\[
+  \EE{X^2 \mid Y = y} = \operatorname{Var}(X \mid Y = y) + \left(\EE{X \mid Y = y}\right)^2
+  = 3y(1-y) + (3y)^2 = 3y - 3y^2 + 9y^2.
+\]
+Hence
+\[
+  \operatorname{Var}(X) = \int_0^1 \left(3y - 3y^2 + 9y^2\right) dy - \left(\tfrac32\right)^2
+  = \left[\tfrac32 y^2 + 2y^3\right]_0^1 - \tfrac94
+  = \tfrac72 - \tfrac94 = \tfrac54.
+\]
+
+\textbf{(c)} By the law of total probability, with $P(X = 1 \mid Y = y) = \binom31 y(1-y)^2$,
+\[
+  P(X = 1) = \int_0^1 P(X = 1 \mid Y = y)\, f(y)\, dy
+  = \int_0^1 3y(1-y)^2\, dy
+  = \int_0^1 \left(3y - 6y^2 + 3y^3\right) dy
+  = \left[\tfrac32 y^2 - 2y^3 + \tfrac34 y^4\right]_0^1
+  = \tfrac32 - 2 + \tfrac34 = \tfrac14.
+\]
+
+\textbf{(d)} By Bayes' rule, using (c) and $f(y) = 1$ on $(0,1)$,
+\[
+  f_{Y \mid X}(y \mid 1) = \frac{P(X = 1 \mid Y = y)\, f(y)}{P(X = 1)}
+  = \frac{3y(1-y)^2}{1/4} = 12y(1-y)^2, \qquad 0 < y < 1.
+\]
+Hence
+\[
+  \EE{Y \mid X = 1} = \int_0^1 y \cdot 12y(1-y)^2\, dy
+  = \int_0^1 \left(12y^2 - 24y^3 + 12y^4\right) dy
+  = 4 - 6 + \tfrac{12}{5} = \tfrac25.
+\]
+
+\textbf{The conditional second moment from the MGF.} The moment generating function
+$M_X(t) = \EE{e^{tX}}$ satisfies $M_X''(0) = \EE{X^2}$. Given $Y = y$, $X$ is
+Binomial$(3, y)$, so its conditional MGF is
+\[
+  M(t) = \EE{e^{tX} \mid Y = y} = \left(1 - y + y e^t\right)^3.
+\]
+By the chain rule,
+\[
+  M'(t) = 3\left(1 - y + y e^t\right)^2 y e^t,
+\]
+and by the product rule,
+\[
+  M''(t) = 3\left(1 - y + y e^t\right)^2 y e^t
+  + 3y e^t \cdot 2\left(1 - y + y e^t\right) y e^t.
+\]
+At $t = 0$, $1 - y + y e^0 = 1$, so
+\[
+  \EE{X^2 \mid Y = y} = M''(0) = 3(1 - y + y)^2 y + 6y(1 - y + y)y = 3y + 6y^2.
+\]
+This agrees with (b): $3y(1-y) + (3y)^2 = 3y + 6y^2$.
+% ===== END SOLUTION 14 =====
+
+\end{document}

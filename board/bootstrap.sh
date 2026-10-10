@@ -7,7 +7,7 @@
 #
 # Run it once on the machine that will run the board: a cluster node, a desktop,
 # a laptop. It puts `tutor` and `board` on the path, fills in the vendored
-# submodules, brings in the private repositories, reports what is missing, and
+# submodules, brings in ai-config, reports what is missing, and
 # tells you what remains. Run it again whenever you are not sure: every step is
 # idempotent.
 #
@@ -19,27 +19,29 @@
 #     git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
 #     bash Atlas/board/bootstrap.sh
 #
-# Atlas is public and arrives with its vendored submodules. The private
-# repositories nested inside it -- ai-config and each course, ignored by Atlas
-# -- cannot arrive with it, so this clones each entry of atlas.json's "private"
-# with the owner's credentials (git, then `gh repo clone`). A directory that is
-# already there with files in it and no .git -- a machine whose Atlas pull just
-# untracked the course it held -- is ADOPTED in place: its history is fetched
-# underneath the files, nothing on disk is overwritten, a file missing from disk
-# is restored, and local edits stay as uncommitted changes. Then every private
-# repository gets the commit-msg hook: its own .githooks/ if it carries one,
-# Atlas's by absolute path if not.
+# Atlas is public and arrives with its vendored submodules and every course and
+# project. ai-config, the one private repository nested inside it and ignored
+# by it, cannot arrive with it, so this clones it from AI_CONFIG_URL with the
+# owner's credentials (git, then `gh repo clone`). An ai-config directory that
+# is already there with files in it and no .git is ADOPTED in place: its
+# history is fetched underneath the files, nothing on disk is overwritten, a
+# file missing from disk is restored, and local edits stay as uncommitted
+# changes. Then it gets the commit-msg hook: its own .githooks/ if it carries
+# one, Atlas's by absolute path if not.
+#
+# Atlas itself gets core.hooksPath set to its .githooks/ by ABSOLUTE path, so
+# every worktree runs the same commit-msg and pre-commit hooks.
 #
 # `--no-clone` skips the submodules and the cloning; hooks are still set on
-# whatever private repositories are already there. `--private-only` runs the
-# private-repository step and nothing else -- setup-node.sh calls it so there is
-# one copy of that logic.
+# Atlas and on ai-config if it is already there.
+# `--private-only` runs the hook and ai-config steps and nothing else --
+# the board server's cluster thread (`gitops.adopt_private`) calls it, so there
+# is one copy of that logic.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The repository root -- the directory holding atlas.json, one level above the
-# tool.
+# The repository root, one level above the tool.
 ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board"
 NAME=""
@@ -51,7 +53,7 @@ while [ $# -gt 0 ]; do
     --name)    shift; NAME="$1" ;;
     --no-clone) CLONE=0 ;;
     --private-only) PRIVATE_ONLY=1 ;;
-    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown option: $1"; exit 1 ;;
   esac
   shift
@@ -61,27 +63,17 @@ say()  { printf '%s\n' "$*"; }
 good() { printf '  ok    %s\n' "$*"; }
 warn() { printf '  ----  %s\n' "$*"; }
 
-# --- the private repositories ----------------------------------------------
-# path<TAB>url for each entry of atlas.json's "private": the one list, because a
-# fresh clone cannot discover a directory it does not have.
-private_entries() {
-  python3 - "$ROOT/atlas.json" <<'PY' 2>/dev/null
-import json, sys
-try:
-    with open(sys.argv[1], encoding="utf-8") as fh:
-        private = json.load(fh).get("private") or {}
-except (OSError, ValueError):
-    private = {}
-for path, url in private.items():
-    print("%s\t%s" % (path, url))
-PY
-}
+# --- ai-config ---------------------------------------------------------------
+# The one private repository nested inside Atlas. Its URL is fixed here and in
+# tutorboard/gitops.py's AI_CONFIG_URL; nothing else is ever cloned into the tree.
+AI_CONFIG="ai-config"
+AI_CONFIG_URL="https://github.com/Pirate-Hunter-Zoro/ai-config.git"
 
-# Fetch a private repository's history underneath files already on disk.
+# Fetch ai-config's history underneath files already on disk.
 # Every step is non-destructive and safe to repeat: a mixed reset moves the
 # index and HEAD and never the working tree, so a local edit shows as a
 # modification, and only files MISSING from disk are checked out. No git
-# command here may prompt: setup-node.sh runs this with nobody at the terminal,
+# command here may prompt: the periodic pull runs this with nobody at the terminal,
 # and a username prompt there is a job that hangs until its allocation ends.
 adopt() {
   local dest="$1" url="$2"
@@ -96,55 +88,64 @@ adopt() {
   fi
 }
 
-private_repos() {
-  local path url dest gh_name hooks n
-  [ -n "$(private_entries)" ] || return 0
-  say "The private repositories"
-  while IFS=$'\t' read -r path url; do
-    [ -n "$path" ] || continue
-    dest="$ROOT/$path"
-    # A .git with no commit behind it is an adoption that stopped part-way;
-    # adopt() is safe to run again over it.
-    if [ "$CLONE" -eq 1 ] && { [ ! -e "$dest/.git" ] \
-         || ! git -C "$dest" rev-parse -q --verify HEAD >/dev/null 2>&1; }; then
-      if [ ! -d "$dest" ] || [ -z "$(ls -A "$dest" 2>/dev/null)" ]; then
-        gh_name="${url#https://github.com/}"; gh_name="${gh_name%.git}"
-        mkdir -p "$(dirname "$dest")"
-        if GIT_TERMINAL_PROMPT=0 git clone -q "$url" "$dest" >/dev/null 2>&1 \
-           || { command -v gh >/dev/null 2>&1 \
-                && gh repo clone "$gh_name" "$dest" -- -q >/dev/null 2>&1; }; then
-          good "$path: cloned"
-        else
-          warn "$path: could not clone (private: it needs the owner's credentials)"
-          say  "        gh auth login && gh repo clone $gh_name $dest"
-          continue
-        fi
-      elif ! adopt "$dest" "$url" >/dev/null 2>&1; then
-        warn "$path: has files but no history, and adopting it from $url stopped"
-        say  "        no file on disk was overwritten; re-run once 'gh auth login' works"
-        continue
+ai_config() {
+  local path="$AI_CONFIG" url="$AI_CONFIG_URL" dest gh_name hooks n
+  dest="$ROOT/$path"
+  say "The private repository"
+  # A .git with no commit behind it is an adoption that stopped part-way;
+  # adopt() is safe to run again over it.
+  if [ "$CLONE" -eq 1 ] && { [ ! -e "$dest/.git" ] \
+       || ! git -C "$dest" rev-parse -q --verify HEAD >/dev/null 2>&1; }; then
+    if [ ! -d "$dest" ] || [ -z "$(ls -A "$dest" 2>/dev/null)" ]; then
+      gh_name="${url#https://github.com/}"; gh_name="${gh_name%.git}"
+      if GIT_TERMINAL_PROMPT=0 git clone -q "$url" "$dest" >/dev/null 2>&1 \
+         || { command -v gh >/dev/null 2>&1 \
+              && gh repo clone "$gh_name" "$dest" -- -q >/dev/null 2>&1; }; then
+        good "$path: cloned"
       else
-        n="$(git -C "$dest" status --porcelain | grep -c . || true)"
-        good "$path: adopted in place; ${n:-0} local change(s) kept, uncommitted"
+        warn "$path: could not clone (private: it needs the owner's credentials)"
+        say  "        gh auth login && gh repo clone $gh_name $dest"
+        say; return 0
       fi
-    elif [ -e "$dest/.git" ] && git -C "$dest" rev-parse -q --verify HEAD >/dev/null 2>&1; then
-      good "$path: already a repository"
+    elif ! adopt "$dest" "$url" >/dev/null 2>&1; then
+      warn "$path: has files but no history, and adopting it from $url stopped"
+      say  "        no file on disk was overwritten; re-run once 'gh auth login' works"
+      say; return 0
     else
-      warn "$path: not cloned or adopted (--no-clone)"
-      continue
+      n="$(git -C "$dest" status --porcelain | grep -c . || true)"
+      good "$path: adopted in place; ${n:-0} local change(s) kept, uncommitted"
     fi
-    # The commit-msg hook, on from the first commit -- including the ones that
-    # never go through save-and-push.sh. Relative only where the repository
-    # carries its own copy; a relative path anywhere else finds nothing.
-    if [ -d "$dest/.githooks" ]; then hooks=".githooks"; else hooks="$ROOT/.githooks"; fi
-    git -C "$dest" config core.hooksPath "$hooks"
-    git -C "$dest" config core.fileMode false
-  done < <(private_entries)
+  elif [ -e "$dest/.git" ] && git -C "$dest" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+    good "$path: already a repository"
+  else
+    warn "$path: not cloned or adopted (--no-clone)"
+    say; return 0
+  fi
+  # The commit-msg hook, on from the first commit -- including the ones that
+  # never go through save-and-push.sh. Relative only where the repository
+  # carries its own copy; a relative path anywhere else finds nothing.
+  if [ -d "$dest/.githooks" ]; then hooks=".githooks"; else hooks="$ROOT/.githooks"; fi
+  git -C "$dest" config core.hooksPath "$hooks"
+  git -C "$dest" config core.fileMode false
   say
 }
 
+# Atlas's own hooks: commit-msg strips attribution, pre-commit is the
+# commit-time gate (board/tutorboard/audit.py). Absolute, so a worktree finds
+# them too.
+atlas_hooks() {
+  if [ -d "$ROOT/.githooks" ]; then
+    chmod +x "$ROOT"/.githooks/* 2>/dev/null || true
+    git -C "$ROOT" config core.hooksPath "$ROOT/.githooks"
+    good "Atlas hooks: core.hooksPath = $ROOT/.githooks"
+  else
+    warn "no .githooks at $ROOT; commits here run no hooks"
+  fi
+}
+
 if [ "$PRIVATE_ONLY" -eq 1 ]; then
-  private_repos
+  atlas_hooks
+  ai_config
   exit 0
 fi
 
@@ -184,7 +185,11 @@ if [ "$CLONE" -eq 1 ]; then
   say
 fi
 
-private_repos
+say "The commit hooks"
+atlas_hooks
+say
+
+ai_config
 
 # --- tailnet identity -------------------------------------------------------
 if [ -n "$NAME" ]; then
@@ -225,9 +230,6 @@ say "  board vpn up          link this machine to your tailnet (prints a login U
 say "  board vpn serve       HTTPS on its *.ts.net name, so the iPad app works offline"
 say "  tutor --list          confirm it can see the courses"
 say "  tutor --agents        point it at the assistant you use here"
-say "  tutor galois          start a session"
 say
-say "  tutor headless galois --agent opencode     run it as a daemon"
-say "  bash $HERE/scripts/install-autostart.sh --login-hook"
-say "                                            and it comes back by itself on"
-say "                                            every node you are given"
+say "  tutor headless galois --agent deepseek     run it as a daemon"
+say "  bash $HERE/scripts/setup-cluster.sh       on the cluster: the relay, and nothing else"

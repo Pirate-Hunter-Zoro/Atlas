@@ -416,7 +416,12 @@ finally:
     srv.shutdown()
 
 # ---- and the promise the briefs make is now a thing that exists ------------
-tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+# The daemon and every prompt it gives a turn.
+_prompts = os.path.join(ROOT, "tutorboard", "runner", "prompts")
+tutor_src = "".join(
+    open(p, encoding="utf-8").read()
+    for p in [os.path.join(ROOT, "tutorboard", "runner", "loop.py")]
+    + [os.path.join(_prompts, f) for f in sorted(os.listdir(_prompts))])
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
 check("no prompt on this board tells a model to call a tool that does not exist",
       "describe_image" not in tutor_src)
@@ -430,7 +435,7 @@ check("and `board see` is a command", '"see": cmd_see' in board_src)
 # for the same wording, and the two scanners read one list: a second copy of a
 # provider's placeholder is a table that goes stale where nobody is looking.
 check("a tutor's own turn is scanned for the placeholder, not just `board see`",
-      "seeing.blind_answer(turn_text(said))" in tutor_src)
+      "seeing.blind_answer(usage.turn_text(said))" in tutor_src)
 check("and it is read off seeing's list rather than a second copy in the daemon",
       "PLACEHOLDERS" not in tutor_src.replace("`PLACEHOLDERS`", ""))
 

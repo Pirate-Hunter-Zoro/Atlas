@@ -7,7 +7,7 @@
    them can be tapped, and what does a dimmed one say about itself.
 
    ONE COPY, because the alternative was measured in the registry comment in
-   `bin/tutor`: two lists go out of step the first time a recipe grows a flag,
+   `agents/recipes.py`: two lists go out of step the first time a recipe grows a flag,
    and a flag on a recipe is exactly how a provider is added. `unkeyed` was the
    third such flag and it arrived after both surfaces existed.
 
@@ -19,18 +19,13 @@
                 recipe plus a key, so this is the whole of its setup
                 instructions and they belong on the glass
      exclusive  one sitting at a time, machine-wide, in the recipe's own words
-     private    the fenced reader. Never a machine default, because its cards
-                must not be pushed
+     private    an in-fence model: only it reads phi, and it never takes a
+                turn here. `unavailable` says so, and `/default-agent` refuses it
      unavailable why it could not take a turn RIGHT NOW, in the launcher's own
                 sentence -- an allowance that has run out, a hostname this
                 machine cannot open. Offered, dimmed, and the tap says so. It is
                 the only one of these that moves while the board is up, which is
                 why `assistants.TTL` is a minute
-     barred     the machine's switch (`only_agent`) rules it out -- "this
-                machine is running DeepSeek only". Drawn, dimmed, and a tap
-                says so and lands nowhere, so a greyed-out claude is a visible
-                fact rather than a mystery. `assistants.only` is the switch
-                itself, for the line under the buttons
    ========================================================================== */
 
 (function () {
@@ -53,20 +48,13 @@
      were wrong. */
   function choosable(assistants) {
     return offerable(assistants).filter(function (a) {
-      return !a.unkeyed && !a.barred;
+      return !a.unkeyed;
     });
-  }
-
-  /* The switch, as one line for under the buttons, or "". */
-  function only(assistants) {
-    var o = assistants && assistants.only;
-    return o ? o.why + " — tutor agent only --off lifts it" : "";
   }
 
   /* Why this one cannot be tapped, in words a person can act on, or "". */
   function blocked(a) {
     if (!a) return "";
-    if (a.barred) return a.barred;
     if (a.unkeyed) {
       return "needs " + a.unkeyed + " in " + (a.keys || "the key file")
            + " — one " + a.unkeyed + "=… line and it is here";
@@ -95,11 +83,11 @@
       b.textContent = a.name;
       b.title = title(a);
       if (a.name === now) b.className = "on" + (a.exclusive ? " local" : "");
-      if (a.unkeyed || a.unavailable || a.barred || (opts.dim && opts.dim(a))) {
+      if (a.unkeyed || a.unavailable || (opts.dim && opts.dim(a))) {
         b.classList.add("away");
       }
       b.onclick = function () {
-        if (a.unkeyed || a.barred) {
+        if (a.unkeyed) {
           if (opts.say) opts.say(blocked(a));
           return;
         }
@@ -110,6 +98,5 @@
   }
 
   window.WhoChoice = { offerable: offerable, choosable: choosable,
-                       blocked: blocked, title: title, draw: draw,
-                       only: only };
+                       blocked: blocked, title: title, draw: draw };
 }());

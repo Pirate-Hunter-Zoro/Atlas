@@ -4,7 +4,7 @@
    THE READER ZOOMS ITSELF, AND SAFARI DOES NOT. Safari's own pinch scales the
    whole page -- bar and all -- and leaves the reader scrolling a layout that
    thinks nothing happened. Here a pinch changes the WIDTH the pages are laid
-   out at (`--zoom` on the scroller, read by `.lib-page` in `library.css`): the
+   out at (`--zoom` on the scroller, read by `.lib-page` in `reader.css`): the
    pictures and the ink are re-laid out rather than magnified, the pen measures
    real pixels at any zoom, and ink kept in fractions of a page lands where it
    was drawn. While the fingers are down the scroller is only transformed,
@@ -16,7 +16,7 @@
    contact wider than a fingertip, anything landing while the Pencil is on the
    glass, or anything landing while the nib has only just lifted (`pen-writing`,
    `annotate.js`'s latch, which also sets `touch-action: none` on the pages in
-   `library.css`). A hand writing is never a pinch either.
+   `reader.css`). A hand writing is never a pinch either.
 
    AND SAFARI NEVER GETS A PINCH WHILE A DOCUMENT IS OPEN. A pinch the reader
    does not take is Safari's, and a shut it takes bounces the whole page. A
@@ -81,12 +81,12 @@
    when the page has one (the board), and always into `ReaderZoom.trace()`,
    the last `TRACE_MAX`, read from Web Inspector. Nothing leaves the page.
 
-   The library reader, the meeting deck and the board's document panel use it:
+   The library reader and the board's document panel use it:
      ReaderZoom.make({ scroller, surface, bar, chip, page, open(), committed() })
        -> { set(z), zoom(), live(on) }
    `page` is the selector of one page box (`.lib-page` by default). A surface
    with an `open` says when its document opens and shuts with `live`; one
-   without (the meeting deck) is always open and is live from the start.
+   without is always open and is live from the start.
    ========================================================================== */
 
 (function () {
@@ -504,7 +504,7 @@ function make(opts) {
     if (ev.touches.length === 1) arm(ev.touches[0]);
     if (pinch) {
       /* Anything landing on a live pinch is the pinch's: a third finger, a
-         palm. The Pencil ends it, and is still refused to the browser. */
+         palm. The Pencil ends it, and the browser still never gets it. */
       refuse(ev, "joins");
       tap = null;
       if (writing(ev)) end();

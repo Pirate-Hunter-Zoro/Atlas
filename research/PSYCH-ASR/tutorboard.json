@@ -1,8 +1,0 @@
-{
-  "name": "PSYCH-ASR",
-  "phi": true,
-  "check": "uv run --extra test python -m pytest tests -q",
-  "relay": {
-    "colibri": true
-  }
-}

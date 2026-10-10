@@ -17,9 +17,9 @@ side of the wire, and it is the half that can lose an evening:
     written into somebody's repository. A page that is not a JPEG, a page the
     size of a film, four hundred of them -- each is refused with a reason rather
     than written.
-  - THE SERIES IS SHARED. A photograph and a typeset transcript of the same
-    lesson are v3 and v4, not two v3s, because "which one is the latest" is the
-    only question anybody asks of that folder.
+  - THE SERIES IS NUMBERED. A photograph after v1 and an old typeset v2 of
+    the same lesson is v3, not a second v2, because "which one is the latest"
+    is the only question anybody asks of that folder.
   - AND THE WRITE-UP'S PDF HAS TO BE FINDABLE. Three separate places guessed
     where a course's build puts it and all three guessed wrong, so `hw.json`
     recorded `"pdf": null` on a build that had just succeeded and the download
@@ -38,7 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
 sys.path.insert(0, TOOL)
 
-from tutorboard.course import document, homework, screenshot   # noqa: E402
+from tutorboard.course import homework, screenshot   # noqa: E402
 
 fails = []
 
@@ -208,7 +208,7 @@ def main():
             else:
                 bad("%s was written into the repository" % why)
 
-        out_dir = os.path.join(root, document.OUT_DIR)
+        out_dir = os.path.join(root, screenshot.OUT_DIR)
 
         # --- and what is accepted ------------------------------------------
         rec = screenshot.build(root, [jpeg(1472, 2082), jpeg(1472, 2082)])
@@ -222,10 +222,10 @@ def main():
         else:
             bad("the record points at %r, which is not there" % (rec.get("pdf"),))
 
-        if rec.get("pdf", "").startswith(document.OUT_DIR + os.sep):
-            ok("in the same folder the typeset export uses")
+        if rec.get("pdf", "").startswith(screenshot.OUT_DIR + os.sep):
+            ok("in %s/" % screenshot.OUT_DIR)
         else:
-            bad("it went to %r rather than %s/" % (rec.get("pdf"), document.OUT_DIR))
+            bad("it went to %r rather than %s/" % (rec.get("pdf"), screenshot.OUT_DIR))
 
         # Staged, not committed: an export happens in the middle of a lesson and
         # a commit in the middle of a lesson is a decision a person makes.
@@ -236,18 +236,16 @@ def main():
         else:
             bad("the document was not staged, so a push would leave it behind")
 
-        # ONE SERIES, both exports. Photograph, then typeset, then photograph:
-        # v1, v2, v3 of the same lesson. Two independent counters would produce
-        # two v1s and no way to tell which of them is the latest -- which is the
-        # entire question the numbering exists to answer.
+        # ONE SERIES. A photograph, then an old typeset export's .tex at v2,
+        # then a photograph: v3, so an old number is never reused.
         first = rec.get("name")
         with open(os.path.join(out_dir, first.replace("-v1", "-v2") + ".tex"),
                   "w", encoding="utf-8") as fh:
-            fh.write("%% a typeset export that got as far as its source\n")
+            fh.write("%% an old typeset export\n")
         again = screenshot.build(root, [jpeg(1472, 2082)])
         if again.get("name", "").endswith("-v3"):
-            ok("the photograph and the typeset transcript share one series (%s "
-               "after %s)" % (again.get("name"), first))
+            ok("an old typeset export's number is not reused (%s after %s)"
+               % (again.get("name"), first))
         else:
             bad("%r followed %r and a .tex at v2, so the series forked"
                 % (again.get("name"), first))
@@ -305,13 +303,10 @@ def main():
     else:
         bad("Letter was not honoured")
 
-    # --- where a build actually puts the write-up ---------------------------
+    # --- where a build puts the write-up -------------------------------------
     #
-    # The layout that broke it, exactly as Galois-Theory has it: the source in
-    # `chapters/ch03-rings/homework/`, the PDF one level up in
-    # `chapters/ch03-rings/build/`, because `scripts/build.sh` walks to the
-    # nearest unit directory and compiles there. Every previous guess looked in
-    # `homework/build/`, which does not exist.
+    # `board build` writes the PDF beside its source under the source's name.
+    # A PDF anywhere else -- a chapter's old `build/` -- is not this source's.
     with tempfile.TemporaryDirectory() as tmp:
         root = os.path.join(tmp, "Galois-Theory")
         hw_dir = os.path.join(root, "chapters", "ch03-rings", "homework")
@@ -320,46 +315,23 @@ def main():
         os.makedirs(build_dir)
         tex_path = os.path.join(hw_dir, "ch03-homework.tex")
         open(tex_path, "w", encoding="utf-8").write("\\documentclass{article}\n")
-        # The reading for the same chapter, in the same folder, compiled first.
-        open(os.path.join(build_dir, "ch03-notes.pdf"), "wb").write(b"%PDF-1.4\n")
+        open(os.path.join(hw_dir, "ch03-notes.pdf"), "wb").write(b"%PDF-1.4\n")
+        open(os.path.join(build_dir, "ch03-homework.pdf"), "wb").write(b"%PDF-1.4\n")
 
         if homework.compiled_pdf(root, tex_path) is None:
-            ok("a write-up that has not been compiled has no PDF")
+            ok("a write-up not built beside its source has no PDF, whatever "
+               "sits in build/ or under another name")
         else:
             bad("something was offered as the write-up before it was built: %r"
                 % homework.compiled_pdf(root, tex_path))
 
-        want = os.path.join(build_dir, "ch03-homework.pdf")
+        want = os.path.join(hw_dir, "ch03-homework.pdf")
         open(want, "wb").write(b"%PDF-1.4\n")
         got = homework.compiled_pdf(root, tex_path)
         if got and os.path.samefile(got, want):
-            ok("and once it is built it is found in the chapter's build/, which "
-               "is where the build put it")
+            ok("and once it is built it is found beside its source")
         else:
-            bad("the write-up's PDF was not found (%r); this is the defect that "
-                "recorded pdf: null on a build that had just succeeded" % (got,))
-
-        # The chapter's reading is not the write-up. A glob returning whichever
-        # PDF came first hands somebody the notes for an evening they spent
-        # writing up exercises.
-        os.remove(want)
-        got = homework.compiled_pdf(root, tex_path)
-        if got is None:
-            ok("and the chapter's reading is never mistaken for the write-up")
-        else:
-            bad("with no write-up compiled it offered %r" % (got,))
-
-        # The other layout in the wild: the source and the PDF side by side.
-        flat = os.path.join(root, "homework", "hw04")
-        os.makedirs(flat)
-        flat_tex = os.path.join(flat, "hw04.tex")
-        open(flat_tex, "w", encoding="utf-8").write("\\documentclass{article}\n")
-        open(os.path.join(flat, "hw04.pdf"), "wb").write(b"%PDF-1.4\n")
-        got = homework.compiled_pdf(root, flat_tex)
-        if got and os.path.basename(got) == "hw04.pdf":
-            ok("and a course that compiles beside the source is found too")
-        else:
-            bad("the flat layout's PDF was not found: %r" % (got,))
+            bad("the write-up's PDF was not found beside its source: %r" % (got,))
 
     print()
     if fails:

@@ -12,13 +12,8 @@ documents went on naming the place it used to be: `~/Tutor-Board`, `~/colibri`,
 and a document containing one is wrong however the sentence around it reads --
 so it is checked here rather than remembered.
 
-The other class is a number that lives in two places. A count of suites, of
-tests, of families: each has one true value in the code and a copy in prose,
-and the copy is what goes stale. Every number in here is re-derived and
-compared, so the document cannot drift without the suite saying so.
-
 This file makes no claim about prose that is merely out of date. It checks the
-two things a machine can check, and the rest stays a job for a reader.
+things a machine can check, and the rest stays a job for a reader.
 """
 
 import json
@@ -45,26 +40,13 @@ def check(name, cond, detail=""):
                 print("       " + line)
 
 
-# Every tracked path matching `pattern`, relative to ROOT. Atlas's index is
-# not the whole of it: each course under `courses/` is its own repository,
-# which Atlas ignores, so its README, contracts and config are asked of the
-# course's own git and given their `courses/<X>/` prefix back. Without that a
-# course document drops out of every audit here and the suite stays green.
+# Every tracked path matching `pattern`, relative to ROOT. Every course is
+# Atlas's own content, so Atlas's index is the whole of it.
 def ls_files(pattern):
-    repos = [("", ROOT)]
-    courses = os.path.join(ROOT, "courses")
-    if os.path.isdir(courses):
-        for name in sorted(os.listdir(courses)):
-            top = os.path.join(courses, name)
-            if os.path.exists(os.path.join(top, ".git")):
-                repos.append(("courses/%s/" % name, top))
-    rels = []
-    for prefix, top in repos:
-        out = subprocess.run(
-            ["git", "-C", top, "ls-files", pattern],
-            capture_output=True, text=True, check=True).stdout
-        rels.extend(prefix + rel for rel in out.split("\n") if rel)
-    return rels
+    out = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", pattern],
+        capture_output=True, text=True, check=True).stdout
+    return [rel for rel in out.split("\n") if rel]
 
 
 def tracked_markdown():
@@ -92,11 +74,11 @@ RETIRED = {
     "~/Tutor-Board": "board/",
     "~/colibri-build": "vendor/colibri-build",
     "~/colibri": "vendor/colibri",
-    "~/PSYCH-ASR": "research/PSYCH-ASR",
-    "~/TRD-EHR": "research/TRD-EHR",
+    "~/PSYCH-ASR": "projects/PSYCH-ASR",
+    "~/TRD-EHR": "projects/TRD-EHR",
     "~/libr-local-llm": "projects/libr-local-llm",
     "~/Paper-Writer": "projects/Paper-Writer",
-    "~/Research-Journey": "research/PSYCH-ASR/docs",
+    "~/Research-Journey": "projects/PSYCH-ASR/docs",
     "~/Galois-Theory": "courses/Galois-Theory",
     "~/Probability": "courses/Probability",
     "~/.config/tutor-board/courses.txt": "nothing -- workspaces are discovered",
@@ -118,81 +100,7 @@ check("no document names a directory that moved into this repository",
       not found, "\n".join(found[:40]))
 
 
-# ---- 2. Counts that exist twice --------------------------------------------
-
-def suites_in(script):
-    """How many rows `all.sh` actually prints: the loop plus the singles."""
-    with open(script, encoding="utf-8") as fh:
-        text = fh.read()
-    loop = re.search(r'^SUITES="([^"]+)"', text, re.M)
-    n = len(loop.group(1).split()) if loop else 0
-    # Every other row is its own `printf '%-12s '` with a literal name. The
-    # loop's own `"$t"` is not one of them -- it is the rows already counted.
-    n += len([m for m in re.findall(r"printf '%-12s ' \"([^\"]+)\"", text)
-              if m != "$t"])
-    return n
-
-
-real_suites = suites_in(os.path.join(TOOL, "test", "all.sh"))
-claimed = []
-for rel, text in tracked_markdown():
-    for n, line in enumerate(text.split("\n"), 1):
-        m = re.search(r"\b(\d+)\s+suites\b", line)
-        if m and int(m.group(1)) != real_suites:
-            claimed.append("%s:%d  says %s, all.sh runs %d"
-                           % (rel, n, m.group(1), real_suites))
-check("every document that counts the suites counts %d of them" % real_suites,
-      not claimed, "\n".join(claimed))
-
-
-def factory_tests():
-    """Paper-Writer's own count, taken from Paper-Writer."""
-    proc = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
-        cwd=os.path.join(ROOT, "projects", "Paper-Writer"),
-        capture_output=True, text=True)
-    m = re.search(r"Ran (\d+) tests", proc.stderr)
-    return int(m.group(1)) if m else None
-
-
-real_factory = factory_tests()
-stale = []
-if real_factory:
-    for rel, text in tracked_markdown():
-        for n, line in enumerate(text.split("\n"), 1):
-            m = re.search(r"Paper-Writer's (\d+) tests", line)
-            if m and int(m.group(1)) != real_factory:
-                stale.append("%s:%d  says %s, the suite runs %d"
-                             % (rel, n, m.group(1), real_factory))
-check("every document that counts Paper-Writer's tests counts %s of them"
-      % real_factory, real_factory and not stale, "\n".join(stale))
-
-
-with open(os.path.join(ROOT, "atlas.json"), encoding="utf-8") as fh:
-    families = len(json.load(fh)["families"])
-WORDS = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
-miscount = []
-for rel, text in tracked_markdown():
-    for n, line in enumerate(text.split("\n"), 1):
-        m = re.search(r"\b(\w+)\s+famil(?:y|ies)\b", line, re.I)
-        if not m:
-            continue
-        # A SUBJECT'S OWN FAMILIES are not the atlas's: TRD-EHR's handoff says
-        # "24 subgroup levels across 8 families", which is statistics. Only a
-        # line about subgroups is let off; every other count is still audited,
-        # in every file.
-        if re.search(r"\bsubgroups?\b", line, re.I):
-            continue
-        word = m.group(1).lower()
-        said = WORDS.get(word, int(word) if word.isdigit() else None)
-        if said is not None and said != families:
-            miscount.append("%s:%d  says %s, atlas.json names %d"
-                            % (rel, n, m.group(1), families))
-check("every document that counts the families counts %d of them" % families,
-      not miscount, "\n".join(miscount))
-
-
-# ---- 3. A setting a document describes and the code does not read ----------
+# ---- 2. A setting a document describes and the code does not read ----------
 #
 # `mode` is the case this is written from and it is the shape of the class: a
 # key sat in seven `tutorboard.json` files and in seven contracts saying what
@@ -203,8 +111,8 @@ check("every document that counts the families counts %d of them" % families,
 #
 # Both halves are checked: the key is not in a config, and no document writes
 # it as a setting. A sentence that NAMES the key while saying it is dropped is
-# fine and is what `board/AI_INSTRUCTIONS.md` carries -- the pattern here is the
-# JSON spelling, which is a document asserting the file contains it.
+# fine -- the pattern here is the JSON spelling, which is a document asserting
+# the file contains it.
 DEAD_KEYS = ("mode",)
 
 carried = []
@@ -228,6 +136,104 @@ for rel, text in tracked_markdown():
 
 check("no config and no document carries a key the board drops on read",
       not carried, "\n".join(carried))
+
+
+# ---- 3. The core documents' links and anchors resolve ----------------------
+#
+# The three documents an assistant reads first. A relative link names a file
+# that exists, and a `#fragment` names a heading in it, spelled the way GitHub
+# slugs headings. Fenced blocks and inline code are not links. The subject
+# documents are left out: a manuscript links figures that live only on the
+# cluster, under its ignored `results/`.
+CORE = ("README.md", "board/README.md", "board/TEACHING.md")
+
+FENCE_RE = re.compile(r"^\s*(```|~~~)")
+LINK_RE = re.compile(r"\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\)")
+HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
+
+
+def prose_lines(text):
+    """The document's lines, with every fenced line blanked."""
+    out, fenced = [], False
+    for line in text.split("\n"):
+        if FENCE_RE.match(line):
+            fenced = not fenced
+            out.append("")
+            continue
+        out.append("" if fenced else line)
+    return out
+
+
+def slug(heading):
+    """The anchor GitHub gives a heading."""
+    heading = heading.replace("`", "").strip().lower()
+    return re.sub(r"[^\w\- ]", "", heading).replace(" ", "-")
+
+
+def anchors(path):
+    seen, out = {}, set()
+    with open(path, encoding="utf-8") as fh:
+        lines = prose_lines(fh.read())
+    for line in lines:
+        m = HEADING_RE.match(line)
+        if not m:
+            continue
+        s = slug(m.group(1))
+        n = seen.get(s, 0)
+        seen[s] = n + 1
+        out.add(s if n == 0 else "%s-%d" % (s, n))
+    return out
+
+
+def core_texts():
+    for rel in CORE:
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            yield rel, fh.read()
+
+
+broken, links = [], 0
+for rel, text in core_texts():
+    here = os.path.dirname(os.path.join(ROOT, rel))
+    for n, line in enumerate(prose_lines(text), 1):
+        for m in LINK_RE.finditer(re.sub(r"`[^`]*`", "", line)):
+            target = m.group(1)
+            if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
+                continue
+            links += 1
+            path, _, frag = target.partition("#")
+            dest = (os.path.normpath(os.path.join(here, path)) if path
+                    else os.path.join(ROOT, rel))
+            if not os.path.exists(dest):
+                broken.append("%s:%d  %s: no such file" % (rel, n, target))
+            elif frag and dest.endswith(".md") and frag.lower() not in anchors(dest):
+                broken.append("%s:%d  %s: no such heading" % (rel, n, target))
+
+check("every relative link and anchor in the core documents resolves (%d links)"
+      % links, links and not broken, "\n".join(broken))
+
+
+# ---- 4. Every `board` command the core documents name exists ---------------
+#
+# Read off `COMMANDS` in bin/board as text, so this suite imports no CLI. A
+# command in `GONE` is refused by the CLI, so naming it is as wrong as naming
+# one that never was.
+with open(os.path.join(TOOL, "bin", "board"), encoding="utf-8") as fh:
+    cli = fh.read()
+table = cli[cli.index("\nCOMMANDS = {"):]
+table = table[:table.index("\n}\n")]
+commands = set(re.findall(r'"([a-z][a-z-]*)":\s*cmd_', table))
+# `board help` is answered by `main` before the table is read.
+commands.add("help")
+
+unknown = []
+for rel, text in core_texts():
+    for n, line in enumerate(text.split("\n"), 1):
+        for name in re.findall(r"`board ([a-z][a-z-]*)", line):
+            if name not in commands:
+                unknown.append("%s:%d  board %s" % (rel, n, name))
+
+check("every `board` command the core documents name is in COMMANDS (%d commands)"
+      % len(commands), len(commands) >= 20 and not unknown, "\n".join(unknown))
 
 
 # ---- What is deliberately NOT checked here ---------------------------------

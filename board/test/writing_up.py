@@ -1,287 +1,304 @@
 #!/usr/bin/env python3
-"""Handing a manuscript job to Paper-Writer -- and not becoming it.
+"""`board writeup`: every agreed answer in any teach session, typeset and built.
 
-    "keep the seam to one function: a `make` sitting in workspace W assembles a
-     job ... drops it in Paper-Writer's inbox, and the delivered manuscript
-     lands in W under a tracked path. ... Do not fold Paper-Writer's engine into
-     the board."
+    python3 test/writing_up.py
 
-The checks are about the ways a seam like this stops being a seam.
+Everything runs in a temp Atlas (`TUTORBOARD_COURSES`) with its own git
+repository and a temp trash. Nothing touches the real `sessions/`.
 
-  * THE BOARD DOES NOT RUN THE FACTORY. It writes one file into a directory and
-    reads a status file back. No import, no process, no second opinion about
-    somebody else's job. The moment this module knows how a manuscript is
-    written there are two engines and one of them is behind.
-  * A JOB IS NEVER POINTED AT SESSION CONTENT. `PAPER_SOURCE_DIRS` is what the
-    gathering stage may mine, and one workspace in this repository holds
-    identifiable therapy audio and its transcripts. The list is an ALLOWLIST and
-    there is a second refusal by directory name behind it, because the failure is
-    silent and one-way: a job naming that tree would be admitted, gathered, and
-    every number in the ledger would come from patient data in a manuscript
-    nobody would think to check.
-  * NOTHING IN A JOB IS INVENTED. The claims are the plan's own steps, offered as
-    WORK rather than as claims, because a step is a thing to do and a claim is a
-    thing to argue. The venue and the checklist are left blank on purpose -- the
-    template says a wrong venue plans to the wrong length and an inferred
-    checklist places the wrong obligations.
-  * A JOB APPEARS WHOLE. The harness admits a file once it has stopped changing,
-    so a file that appears empty and grows is one it may read halfway through.
+  * An unbound session refuses; bound to a libr-local-llm copy, two answers
+    make `docs/<session-slug>/writeup.tex` from the one template and a
+    writeup.pdf holding both. The doc.json lists the session, the sent page is
+    filed into handwritten/, and a fenced code block is set verbatim.
+  * A Galois copy whose session names chapter 7 writes into
+    `chapters/ch07-.../homework/ch07-homework.tex` in place, region by region,
+    with doc.json written beside it; `board writeup status` reports it,
+    and End commits the set.
+  * A build failure is in the payload the board's banner paints, LaTeX error
+    and all.
+  * An Algo-Solutions teach brief names `board writeup`; a do brief carries no
+    write-up rule.
+  * The old scaffold is gone: one template, no course templates.
 """
 
+import glob
+import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-from tutorboard import atlas, manuscript                              # noqa: E402
-from tutorboard.course import map as course_map, plan, threads        # noqa: E402
+HERE = os.path.dirname(os.path.abspath(__file__))
+BOARD_DIR = os.path.dirname(HERE)
+ATLAS = os.path.dirname(BOARD_DIR)
+BOARD = os.path.join(BOARD_DIR, "bin", "board")
+sys.path.insert(0, BOARD_DIR)
 
 fails = []
 
 
-def check(name, cond):
+def check(name, cond, detail=""):
     if cond:
         print("ok   " + name)
     else:
         fails.append(name)
-        print("FAIL " + name)
+        print("FAIL " + name + (("\n       " + str(detail)) if detail else ""))
 
 
 def write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    with open(path, "wb" if isinstance(text, bytes) else "w") as fh:
         fh.write(text)
 
 
-PAD = "\n" + ("# padding, to clear the size floor on a walkable file\n" * 12)
-PHI = "p" + "hi"
+def read(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return ""
 
-TODO = """PROJECT — REMAINING WORK
 
->>> NEXT ACTION <<<
-  STEP 1. GRADE THE ARMS AGAINST THE CORRECTED REFERENCE.
-    It lives in psych_asr/evaluate/grade.py.
-  STEP 2. RUN THE GRID.
-"""
+base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-writeup-"))
+trash = os.path.realpath(tempfile.mkdtemp(prefix="tutor-writeup-trash-"))
+os.environ["TUTORBOARD_COURSES"] = base
+os.environ["TUTORBOARD_TRASH"] = trash
+os.environ.pop("TUTORBOARD_SESSION", None)
+os.environ.pop("TUTORBOARD_TURN", None)
+ENV = dict(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+           GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+os.environ.update(ENV)
 
-base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-ms-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
+from tutorboard import artifacts, brief, sense, sessions, tex     # noqa: E402
+from tutorboard.course import homework                            # noqa: E402
+
+HAVE_TEX = tex.have_tex()
+HAVE_TEXT = bool(shutil.which("pdftotext"))
+
+
+def git(*args):
+    return subprocess.run(["git"] + list(args), cwd=base, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, universal_newlines=True).stdout.strip()
+
+
+def board(args, session=None, stdin=""):
+    env = dict(os.environ)
+    env.pop("TUTORBOARD_SESSION", None)
+    if session:
+        env["TUTORBOARD_SESSION"] = session
+    p = subprocess.run([sys.executable, BOARD] + list(args), cwd=base, env=env,
+                       input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       universal_newlines=True, timeout=300)
+    return p.returncode, p.stdout
+
+
+def pdf_text(pdf):
+    if not HAVE_TEXT:
+        return ""
+    return subprocess.run(["pdftotext", pdf, "-"], stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL, universal_newlines=True).stdout
+
+
+def subject_dir(slug):
+    """Where a subject lives in this checkout: its parent and directory."""
+    for parent in ("courses", "projects"):
+        d = os.path.join(ATLAS, parent, slug)
+        if os.path.isdir(d):
+            return parent, d
+    return None, None
+
+
+def sent_page(session_dir, tid, data=b"\x89PNG\r\n\x1a\nfake"):
+    """A page the student sent: answers/<tid>-r1.png and its turn."""
+    write(os.path.join(session_dir, "answers", tid + "-r1.png"), data)
+    with open(os.path.join(session_dir, "turns.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"id": tid, "rev": 1, "kind": "ink", "t": 1.0,
+                             "png": "/answers/%s-r1.png" % tid}) + "\n")
+
+
 try:
-    import json
-    write(os.path.join(base, "atlas.json"), json.dumps(
-        {"families": [{"id": "research", "name": "Research"},
-                      {"id": "projects", "name": "Projects"}]}))
-    proj = os.path.join(base, "research", "PSYCH-ASR")
-    writer = os.path.join(base, "projects", "Paper-Writer")
-    for r in (proj, writer):
-        write(os.path.join(r, "tutorboard.json"), "{}\n")
-        os.makedirs(os.path.join(r, "live"), exist_ok=True)
+    git("init", "-q", "-b", "main")
+    write(os.path.join(base, ".gitignore"),
+          "/sessions/\n.ink/\nlive/\n*.pdf\n*.aux\n*.log\n")
 
-    write(os.path.join(proj, "psych_asr", "evaluate", "grade.py"),
-          "def grade():\n    return 1" + PAD)
-    write(os.path.join(proj, "planning", "TODO.txt"), TODO)
-    write(os.path.join(proj, "README.md"), "# P\n\nThe plan is planning/TODO.txt\n")
-    # What a job may be pointed at, and what it must never be.
-    os.makedirs(os.path.join(proj, "results"), exist_ok=True)
-    os.makedirs(os.path.join(proj, "figures"), exist_ok=True)
-    os.makedirs(os.path.join(proj, PHI, "stage1"), exist_ok=True)
-    os.makedirs(os.path.join(proj, "data", "raw"), exist_ok=True)
-    write(os.path.join(proj, "manuscripts", "01-methods.md"), "# Methods\n")
+    # --- the fixtures: copies of three real subjects -------------------------
+    _, llm_src = subject_dir("libr-local-llm")
+    llm = os.path.join(base, "projects", "libr-local-llm")
+    write(os.path.join(llm, "tutorboard.json"),
+          read(os.path.join(llm_src, "tutorboard.json")))
 
-    atlas.forget()
-    os.environ["TUTORBOARD_COURSES"] = base
-    os.environ.pop("PAPER_OUT_DIR", None)
-    os.environ.pop("PAPER_INBOX_DIR", None)
+    _, gal_src = subject_dir("Galois-Theory")
+    gal = os.path.join(base, "courses", "Galois-Theory")
+    ch07 = glob.glob(os.path.join(gal_src, "chapters", "ch07-*"))[0]
+    ch07_rel = os.path.relpath(ch07, gal_src)
+    shutil.copytree(os.path.join(gal_src, "latex"), os.path.join(gal, "latex"))
+    shutil.copyfile(os.path.join(gal_src, "chapters.tsv"), os.path.join(gal, "chapters.tsv"))
+    shutil.copyfile(os.path.join(gal_src, "tutorboard.json"),
+                    os.path.join(gal, "tutorboard.json"))
+    hw_src = os.path.join(ch07, "homework", "ch07-homework.tex")
+    hw_tex = os.path.join(gal, ch07_rel, "homework", "ch07-homework.tex")
+    write(hw_tex, read(hw_src))
+    # A second set, so the session's title is what picks ch07.
+    write(os.path.join(gal, "chapters", "ch05-tests", "homework", "ch05-homework.tex"),
+          read(hw_src))
 
-    # --- the factory is FOUND, not configured -------------------------------
-    check("Paper-Writer is found the way every workspace is found",
-          manuscript.writer_root(base) == writer)
-    check("and the drop folder is resolved from its own configuration",
-          manuscript.inbox(base).endswith(os.path.join("Manuscripts", "_inbox")))
+    algo_parent, algo_src = subject_dir("Algo-Solutions")
+    algo = os.path.join(base, algo_parent or "projects", "Algo-Solutions")
+    write(os.path.join(algo, "tutorboard.json"),
+          read(os.path.join(algo_src, "tutorboard.json")) if algo_src
+          else '{"name": "Algo Solutions", "phi": false}')
+    git("add", "-A")
+    git("commit", "-q", "-m", "fixture")
 
-    # `service/paperwriter.env` is deliberately "plain KEY=value with no logic",
-    # which is the only reason it is safe to read rather than run.
-    write(os.path.join(writer, "service", "paperwriter.env"),
-          "# a comment\nPAPER_OUT_DIR=../Delivered\nPAPER_MODEL=claude-opus-5\n")
-    check("what this machine actually runs with outranks the documented default",
-          manuscript.out_dir(base).endswith("Delivered"))
-    os.remove(os.path.join(writer, "service", "paperwriter.env"))
+    # --- one template, and nothing else ---------------------------------------
+    check("board/tex/writeup.tex.in is the one template",
+          os.path.isfile(homework.TEMPLATE)
+          and not hasattr(homework, "SCAFFOLD") and not hasattr(homework, "PLAIN_PREAMBLE")
+          and not hasattr(homework, "scaffold"))
+    check("no course keeps templates of its own",
+          not glob.glob(os.path.join(ATLAS, "courses", "*", "latex", "templates")))
+    body = homework.render("A & B_1", "Me")
+    check("render fills the title and author, escaped",
+          "\\title{A \\& B\\_1}" in body and "\\author{Me}" in body and "@@" not in body)
+    check("and uses coursemacros only where the subject has them",
+          "\\IfFileExists{coursemacros.sty}{\\usepackage{coursemacros}}" in body)
 
-    # --- a job is never pointed at session content --------------------------
-    found = manuscript._evidence(proj)
-    check("a job is pointed at the results and the figures",
-          any(f.endswith("results") for f in found)
-          and any(f.endswith("figures") for f in found))
-    check("and NEVER at the session content, whatever else is in the workspace",
-          not any(PHI in f for f in found))
-    check("nor at a data tree, which is where all of it used to live",
-          not any("/data" in f for f in found))
-    for bad in (PHI, "data", "inbox", "stage1", "stage2", "raw", "audio",
-                "/a/b/%s/stage1" % PHI, "x/data/raw"):
-        check("refused as a tree to mine: %r" % bad, manuscript.refused(bad))
-    for good in ("results", "figures", "tables", "results/roc"):
-        check("allowed as a tree to mine: %r" % good,
-              not manuscript.refused(good))
+    # --- an unbound session refuses ------------------------------------------
+    s1 = sessions.new("Colibri warmth", base=base)
+    d1 = sessions.path(s1["id"], base)
+    code, out = board(["writeup", "add", "1"], d1, "Q\n---\nA\n")
+    check("an unbound session refuses, and says to bind first",
+          code != 0 and "board bind" in out and not os.path.isdir(os.path.join(llm, "docs")),
+          out)
 
-    # --- nothing in a job is invented ---------------------------------------
-    body = manuscript.job(proj, title="The bake-off")
-    check("the job is the template's own shape", all(
-        h in body for h in ("## Evidence", "## Claims", "## Venue",
-                            "## Reporting checklist", "## Scope")))
-    check("the plan's own steps are in it",
-          "GRADE THE ARMS" in body and "RUN THE GRID" in body)
-    check("and they are offered as WORK, not as claims",
-          "NOT CLAIMS YET" in body)
-    check("the venue is left blank on purpose",
-          "NOT KNOWN TO THE BOARD" in body)
-    check("and so is the checklist, which the template says is never inferred",
-          "NEVER INFERRED" in body)
-    check("prose that already exists here is named, so it is not written twice",
-          "manuscripts/01-methods.md" in body)
-    check("and the job says where the finished paper is to land",
-          "research/PSYCH-ASR/manuscripts" in body)
-    # AS A FIELD, NOT AS A SENTENCE. This was prose for months, nothing in the
-    # factory read it, and every delivered paper stopped in the factory's own
-    # out-directory -- so no workspace ever saw one and the library's whole
-    # factory branch could only fire for a manuscript somebody copied in by hand.
-    check("and it says it in the field `jobspec.landing` reads",
-          manuscript.DELIVERY in body
-          and ("landing: " + os.path.join(os.path.realpath(proj), "manuscripts",
-                                          "the-bake-off")) in body)
-    # THE PAPER'S OWN DIRECTORY. The factory appends nothing, so a workspace
-    # that writes two papers would otherwise have two files called
-    # `manuscript.md` in one folder.
-    check("and it is this paper's own directory under the landing area",
-          manuscript.landing_for(proj, "The bake-off")
-          == os.path.join(os.path.realpath(proj), "manuscripts", "the-bake-off"))
-    check("while a revision lands over the document it corrects, not beside it",
-          manuscript.landing_for(
-              proj, "Anything at all",
-              {"document": "manuscripts/trd-prediction/manuscript.md"})
-          == os.path.join(os.path.realpath(proj), "manuscripts",
-                          "trd-prediction"))
-    check("and a document at the top of the landing area lands back there",
-          manuscript.landing_for(proj, "x", {"document": "manuscripts/m.md"})
-          == os.path.join(os.path.realpath(proj), "manuscripts"))
-    check("absolutely, because the factory cannot resolve a path against a root "
-          "nobody named",
-          all(line.split(": ", 1)[1].startswith("/")
-              for line in body.splitlines() if line.startswith("landing: ")))
-    check("and says it once -- two statements of one fact is one of them stale",
-          body.count("landing: ") == 1
-          and "is to be delivered into" not in body)
+    # --- libr-local-llm: two answers, one writeup.pdf ------------------------
+    sessions.bind(s1["id"], "projects/libr-local-llm", base=base)
+    sent_page(d1, "t0001")
+    code, out = board(["writeup", "add", "warm-pool"], d1,
+                      "Why is the warm pool two jobs?\n---\n"
+                      "Because two generations \\emph{overlap}: $n = 2$.\n"
+                      "```python\ndef warm(n):\n\treturn [spawn(i) for i in range(n)]  # 100% & $x_1\n```\n")
+    wdir = os.path.join(llm, "docs", "colibri-warmth")
+    wtex = os.path.join(wdir, "writeup.tex")
+    check("the first add makes docs/<session-slug>/writeup.tex",
+          os.path.isfile(wtex) and "started docs/colibri-warmth/writeup.tex" in out, out)
+    doc = artifacts.read(wdir) or {}
+    check("its doc.json names writeup.tex and lists the session",
+          doc.get("source") == "writeup.tex" and doc.get("sessions") == [s1["id"]], doc)
+    rec = sessions.get(s1["id"], base)
+    check("session.json's writeup is that source",
+          rec["writeup"] == "projects/libr-local-llm/docs/colibri-warmth/writeup.tex", rec)
+    check("the sent page is filed into handwritten/",
+          os.path.isfile(os.path.join(wdir, "handwritten", "colibri-warmth-warm-pool.png")))
+    text = read(wtex)
+    check("the code block is set verbatim, its tab expanded, nothing escaped",
+          "\\begin{verbatim}\ndef warm(n):\n    return [spawn(i) for i in range(n)]"
+          "  # 100% & $x_1\n\\end{verbatim}" in text, text)
+    check("and no shell-escape package is anywhere", "minted" not in text)
 
-    # THE FACTORY'S OWN OUTPUT IS NOT THIS WORKSPACE'S PROSE. Now that a paper
-    # actually lands here, `manuscripts/` fills up with what the factory delivered
-    # beside the manuscript, and handing any of it back as "prose not to be
-    # written again" tells the factory the wrong thing about its own work.
-    write(os.path.join(proj, "manuscripts", "report.md"), "# The report\n")
-    write(os.path.join(proj, "manuscripts", "a-paper", "parts", "manuscript",
-                       "04-methods.md"), "# Methods\n")
-    write(os.path.join(proj, "manuscripts", "feedback",
-                       "manuscript-2026-09-16-v1.md"), "# What is wrong\n")
-    body = manuscript.job(proj, title="The bake-off")
-    check("the author's report is not offered as prose to keep",
-          "report.md" not in body)
-    check("nor one document's own sections, which are what it was assembled from",
-          "04-methods.md" not in body)
-    check("nor the complaint about it",
-          "manuscript-2026-09-16-v1.md" not in body)
-    check("and the prose that IS this workspace's is still there",
-          "manuscripts/01-methods.md" in body)
-    check("and none of it is listed as a manuscript that landed here either",
-          not any(d["rel"].endswith(("04-methods.md",
-                                     "manuscript-2026-09-16-v1.md"))
-                  for d in manuscript.delivered(proj)))
-    os.remove(os.path.join(proj, "manuscripts", "report.md"))
+    code, out = board(["writeup", "add", "fit"], d1,
+                      "Which tier fits the H100?\n---\nTier one, by $80 > 70$ GB.\n")
+    pdf = os.path.join(wdir, "writeup.pdf")
+    words = pdf_text(pdf)
+    check("two answers produce a writeup.pdf with both",
+          not HAVE_TEX or (code == 0 and os.path.isfile(pdf)
+                           and (not HAVE_TEXT or ("warm pool two jobs" in words
+                                                  and "Which tier fits" in words
+                                                  and "def warm(n)" in words))),
+          out + words[:400])
+    check("the write-up reads done once built",
+          not HAVE_TEX or artifacts.status(wdir) == "done", artifacts.status(wdir))
+    code, out = board(["writeup", "add", "fit"], d1, "---\nTier one: $80 > 70$.\n")
+    check("a second add on one label rewrites its region, nothing appended",
+          "rewrote fit" in out and read(wtex).count("% ===== SOLUTION fit =====") == 1
+          and "80 > 70$." in read(wtex), out)
+    code, out = board(["writeup", "status"], d1)
+    check("board writeup status names the write-up and what is written",
+          code == 0 and "colibri-warmth" in out and "2 of 2 written up" in out, out)
+    code, out = board(["writeup", "add", "../x"], d1, "---\nA\n")
+    check("a label that is not a label is refused", code != 0 and "label" in out, out)
 
-    # The thread file, spent again: a terminology lock half-written.
-    threads.write(proj, {
-        "version": 1,
-        "deliverables": [{"id": "stage1", "title": "Stage 1"}],
-        "threads": [{"id": "grader", "deliverable": "stage1",
-                     "title": "the grader (psych_asr.evaluate.grade)",
-                     "question": "Reproduces the annotator's own error labels.",
-                     "files": ["psych_asr/evaluate/grade.py"]}]})
-    course_map._cache.clear()
-    plan._cache.clear()
-    body = manuscript.job(proj, title="The bake-off")
-    check("a drawn workspace hands over its own names for its own parts",
-          "the grader" in body and "psych_asr.evaluate.grade" in body)
-    check("and is told to add the aliases, which is the half that does the work",
-          "ALIASES" in body)
+    # --- a build failure reaches the board's banner --------------------------
+    code, out = board(["writeup", "add", "broken"], d1,
+                      "A broken one\n---\n\\undefinedmacrohere\n")
+    check("a failed build exits non-zero and prints the LaTeX error",
+          not HAVE_TEX or (code != 0 and "BUILD FAILED" in out
+                           and "Undefined control sequence" in out), out)
+    from tutorboard.server import hub, tikz                        # noqa: E402
+    repo = sessions.repo(s1["id"], base)
+    data = hub.Hub(repo, tikz.TikzWorker(repo)).build()
+    banner = (data.get("hw") or {}).get("build") or {}
+    check("the payload carries the failure the banner paints, with its reason",
+          not HAVE_TEX or (data.get("hw", {}).get("name") == "colibri-warmth"
+                           and banner.get("ok") is False
+                           and "Undefined control sequence" in banner.get("detail", "")),
+          banner)
+    code, out = board(["writeup", "add", "broken"], d1, "---\nFixed.\n")
+    data = hub.Hub(repo, tikz.TikzWorker(repo)).build()
+    check("and fixing it clears it",
+          not HAVE_TEX or ((data.get("hw") or {}).get("build") or {}).get("ok") is True,
+          out)
 
-    # --- dropping it --------------------------------------------------------
-    dry = manuscript.submit(proj, title="The bake-off", base=base, dry_run=True)
-    check("a dry run prints the job and drops nothing",
-          dry["ok"] and not os.path.isdir(manuscript.inbox(base)))
+    # --- Galois: the course's own set, in place -------------------------------
+    s2 = sessions.new("Ch 7 homework", base=base)
+    d2 = sessions.path(s2["id"], base)
+    sessions.bind(s2["id"], "courses/Galois-Theory", base=base)
+    sent_page(d2, "t0001")
+    before = read(hw_tex)
+    code, out = board(["writeup", "add", "14"], d2,
+                      "A statement the sheet already has.\n---\n"
+                      "Since $3^2 = 2$ and $3^3 = 6$ modulo $7$, $3$ is a primitive root.\n")
+    after = read(hw_tex)
+    region = after[after.index("% ===== SOLUTION 14 ====="):
+                   after.index("% ===== END SOLUTION 14 =====")]
+    check("a Galois copy still writes into chapters/ch07-.../homework/ch07-homework.tex",
+          code == 0 and "3$ is a primitive root" in region
+          and "wrote 14 in %s/homework/ch07-homework.tex" % ch07_rel in out, out)
+    check("in place: the statement the sheet has is kept, and nothing is appended",
+          after.count("\\begin{problem}{14}") == 1 and "already has" not in after
+          and len(after.splitlines()) == len(before.splitlines()))
+    check("no docs/ write-up was made for a session on a set",
+          not os.path.isdir(os.path.join(gal, "docs")))
+    hw_dir = os.path.dirname(hw_tex)
+    placed = artifacts.read(hw_dir) or {}
+    check("doc.json is written in place, listing the session",
+          placed.get("source") == "ch07-homework.tex"
+          and placed.get("sessions") == [s2["id"]], placed)
+    listed = [a for a in artifacts.list(gal) if a["dir"] == hw_dir]
+    check("and it is listed as an in-place artifact",
+          len(listed) == 1 and not listed[0]["own"], listed)
+    check("the page is filed beside the set",
+          os.path.isfile(os.path.join(hw_dir, "handwritten", "ch07-14.png")))
+    code, out = board(["writeup", "status"], d2)
+    check("board writeup status reports the set",
+          code == 0 and "ch07" in out and "14     written up" in out, out)
+    rec, ok, said = sessions.end(s2["id"], base=base)
+    shown = git("show", "--stat", "--format=%s", "HEAD")
+    check("End commits the set the session wrote into",
+          ok and "ch07-homework.tex" in shown and "doc.json" in shown, said + shown)
 
-    rec = manuscript.submit(proj, title="The bake-off", base=base)
-    check("a job is dropped in the inbox", rec["ok"]
-          and os.path.isfile(rec["path"]))
-    check("named v1, not stamped with the time", rec["name"].endswith("-v1.md"))
-    again = manuscript.submit(proj, title="The bake-off", base=base)
-    check("and a second job counts up rather than overwriting the first",
-          again["name"].endswith("-v2.md") and os.path.isfile(rec["path"]))
-    check("nothing half-written is left behind for the harness to admit",
-          not any(n.endswith(".part")
-                  for n in os.listdir(manuscript.inbox(base))))
-    check("the board says the job WAITS rather than pretending to start it",
-          "waits" in rec["detail"] or "waiting" in rec["detail"])
-
-    queued = manuscript.waiting(base)
-    check("and both jobs are reported as waiting", len(queued) == 2)
-
-    # --- reading what comes back --------------------------------------------
-    said = manuscript.status(base)
-    check("with no status file, the board says so rather than inventing progress",
-          said["ok"] and not said["said"])
-    write(os.path.join(manuscript.out_dir(base), "_STATUS.md"),
-          "# Status\n\nThe bake-off: DRAFTING, section 3 of 7.\n")
-    said = manuscript.status(base)
-    check("and when there is one, it shows what the FACTORY says, verbatim",
-          "DRAFTING, section 3 of 7" in said["said"])
-
-    # WHAT IS IN `manuscripts/` IS THE MANUSCRIPT, however it got there. The
-    # board does not distinguish a paper the factory delivered from prose
-    # somebody wrote by hand, and should not: "the delivered manuscript lands in
-    # W under a tracked path. Then it is a document like any other." A record of
-    # which half came from where would be a second ledger about somebody else's
-    # job, and it would be wrong the first time anybody edited a delivered file.
-    check("a workspace with nothing but its own prose has that, and no error",
-          [d["rel"] for d in manuscript.delivered(proj)]
-          == [os.path.join("manuscripts", "01-methods.md")])
-    write(os.path.join(proj, "manuscripts", "bake-off.md"), "# The bake-off\n")
-    got = manuscript.delivered(proj)
-    check("and a manuscript that lands beside it is found too",
-          any(d["rel"].endswith("bake-off.md") for d in got) and len(got) == 2)
-    check("newest first, because that is the one somebody just asked for",
-          got[0]["at"] >= got[1]["at"])
-
-    # --- the seam is a seam --------------------------------------------------
-    src = open(os.path.join(ROOT, "tutorboard", "manuscript.py"),
-               encoding="utf-8").read()
-    check("the board never imports the factory",
-          "import paperwriter" not in src and "from paperwriter" not in src)
-    check("and never starts a process",
-          "subprocess" not in src and "os.system" not in src
-          and "popen" not in src.lower())
-
-    # --- a repository with no factory ---------------------------------------
-    shutil.rmtree(writer)
-    atlas.forget()
-    none = manuscript.submit(proj, title="x", base=base)
-    check("a repository with no factory says so instead of failing oddly",
-          not none["ok"] and "Paper-Writer" in none["detail"])
-
+    # --- the brief -------------------------------------------------------------
+    s3 = sessions.new("Two pointers", base=base)
+    sessions.bind(s3["id"], "%s/Algo-Solutions" % (algo_parent or "projects"), base=base)
+    taught = brief.briefing(sessions.repo(s3["id"], base), sense)
+    check("an Algo-Solutions teach brief names board writeup",
+          "board writeup add <label>" in taught and "writeup: none yet" in taught)
+    from tutorboard import mode as session_mode                    # noqa: E402
+    session_mode.set_mode(sessions.repo(s3["id"], base), "do", "test")
+    done = brief.briefing(sessions.repo(s3["id"], base), sense)
+    check("a do brief carries no write-up rule",
+          "mode: do" in done and sense.WRITEUP_SENSE not in done)
+    walk = brief.briefing(sessions.repo(s1["id"], base), sense)
+    check("and a teach session with a write-up has its debt on the brief",
+          "writeup: colibri-warmth (docs/colibri-warmth/writeup.tex) -- 3 of 3 written up"
+          in walk, [l for l in walk.splitlines() if l.startswith("writeup")])
 finally:
-    os.environ.pop("TUTORBOARD_COURSES", None)
-    atlas.forget()
     shutil.rmtree(base, ignore_errors=True)
+    shutil.rmtree(trash, ignore_errors=True)
 
 print()
 if fails:
-    print("%d check(s) failed" % len(fails))
+    print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a job is handed over, and the board does not become the thing it hands to")
+print("an agreed answer in any session is written up and built")

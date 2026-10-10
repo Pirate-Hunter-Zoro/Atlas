@@ -1,0 +1,19 @@
+{
+  "name": "Algo Solutions",
+  "phi": false,
+  "check": {
+    "all": [
+      "go",
+      "test",
+      "./..."
+    ],
+    "one": [
+      "go",
+      "test",
+      "./{dir}/..."
+    ],
+    "path": [
+      "/usr/local/go/bin"
+    ]
+  }
+}

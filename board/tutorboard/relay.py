@@ -1,51 +1,18 @@
-"""relay.py -- the cluster's half of the relay: one pass, every five minutes.
+"""relay.py -- the cluster's half of the relay: one pass, every two minutes.
 
-The Mac commits `relay/requests/<id>.json`; this pulls it, checks it again with
-`jobs.check`, submits it through `jobs.submit_recipe`, polls it with
-`jobs.poll`, and commits `relay/reports/<id>.json` and `exports/`. GitHub is
-the only channel. HANDOFF.md's "The relay" is the contract.
+scrontab runs `board/scripts/relay-pass.sh` (a bash pull, a re-exec when
+board/ changed), then `board/bin/relay --once`, which is `run_pass`. Under
+one `flock` (`relay/.lock`; a second pass skips): pull fast-forward and move
+`vendor/colibri`; validate and submit or refuse each new request; poll jobs
+(`squeue` plus exit files, since `sacct` is refused) and write reports and
+exports; queue and check Colibri tasks; commit only what this pass wrote,
+rebase under any edits, push. A coding session's held paths and a Colibri
+workspace are the owner's edits: the pull goes under them and the pass
+never commits them. No model runs here; a failed job prints `RELAY:` lines.
 
-ONE PASS, IN ORDER, UNDER ONE LOCK (`relay/.lock` at the repository root,
-`flock`, so a second pass at once skips rather than waits):
-
-1. Pull, fast-forward only. A tree with edits or unpushed commits outside the
-   cluster's own paths is skipped, and `relay/state.json` says why, except
-   the owner's edits inside one workspace that opts in with
-   `"relay": {"sync": true}`: those step 5 commits. Then `pull_vendor` moves
-   `vendor/colibri`.
-2. Each request with no report is validated, then submitted or refused.
-3. Unfinished jobs are polled with `jobs.poll`: `squeue` plus the wrapper's
-   exit file, because `sacct` is refused here. An ended job's exports are
-   copied and checked, and its report written.
-4. A `colibri` request is queued as a task (`colibri.relay_file`), and
-   `colibri.relay_pass` reports each task. A Colibri task is read-only
-   analysis whose outputs go under the workspace's ignored `phi/`, so a
-   finished one is checked (`check_task`): any change git can see in its
-   workspace fails it, and nothing it wrote is committed. No model runs in
-   the pass: a failed job's recipe prints `RELAY:` lines
-   (`slurm_jobs/lib/relay_trap.sh`), and the Mac repairs it.
-5. Only what this pass wrote under `relay/reports/` and `exports/` is
-   committed (`staged_paths`); anything else there is named in
-   `relay/state.json`. Then a synced workspace's edits, one commit each
-   (`sync_commit`), past the PHI check `board push` uses; what it refuses is
-   left uncommitted and named. The pass rebases onto origin with `holds.sync`
-   and pushes. A rejected push is retried by the next pass; a sync commit
-   behind a stopped rebase or a refused push is undone into edits again
-   (`_unwind`). Never force.
-
-A held thread's files and a Colibri task's workspace are the owner's edits,
-left uncommitted: neither skips the pass, and the pull goes under them. A
-task's changes stay so when the check fails it, for the owner to settle.
-A request's report is named for its id where that is valid, else for its
-file, so no payload names a path outside `relay/reports/`.
-
-A REPORT IS PUBLIC. It carries state, the Slurm id, times, the exit code, which
-`produces` paths exist, which exports landed, the lines the job printed behind
-`RELAY:`, and the exception type of a crash. Never a log tail. Every string in
-it goes through `public` first: absolute paths become `<path>`, and the lab's
-`names_phi` policy withholds what it matches.
-
-Standard library only.
+The constraint: a report is public. Every string goes through `public`
+(paths become `<path>`, the PHI policy withholds what it matches), and a log
+excerpt appears only where the subject's phi is literally false.
 """
 
 import fcntl
@@ -53,27 +20,33 @@ import getpass
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
-from . import atlas, jobs, leaving, paths
-from .course import threads as course_threads
+from . import exports, jobs, leaving, paths, subjects, worktree
 
 LOCK = os.path.join("relay", ".lock")
 STATE = os.path.join("relay", "state.json")
+# The relay's public health, tracked at the Atlas root: what the Mac reads.
+# `relay/state.json` beside it is the ignored, cluster-only detail.
+STATUS = "relay/status.json"
 
 # An export is at most this big.
 CAP = 5 * 1024 * 1024
-# What of a job's log reaches a report: `RELAY:` lines only, this many, this
-# long, out of at most this much of the log's end.
+# `RELAY:` lines from a job's log reach a report: this many, this long, out
+# of at most this much of the log's end.
 MAX_LINES = 40
 MAX_LINE = 200
 READ_TAIL = 2 * 1024 * 1024
 MAX_NOTE = 2000
 
+# How often scrontab runs a pass, in minutes.
+PASS_MINUTES = 2
 # What the scrontab entry asks for. A pass is git and a few sbatch calls.
 SCRON_PARTITION = "c3_short"
 SCRON_TIME = "00:15:00"
@@ -91,11 +64,8 @@ _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
 def public(text, names_phi=None, limit=MAX_LINE):
-    """`text` fit for a public report, or None where the PHI policy matches it.
-
-    Control characters go, an absolute or home path becomes `<path>` (a path
-    is where lab storage gets named), and it is cut to `limit`.
-    """
+    """`text` fit for a public report, or None where the PHI policy matches
+    it: control characters go, paths become `<path>`, cut to `limit`."""
     s = _CTRL_RE.sub("", str(text or "")).strip()
     s = _PATH_RE.sub("<path>", s)
     if names_phi is not None:
@@ -110,8 +80,8 @@ def public(text, names_phi=None, limit=MAX_LINE):
 
 
 def relay_lines(text, names_phi=None):
-    """The lines a job printed behind `RELAY:`, made public. The last
-    `MAX_LINES` of them, prefix dropped; nothing else of the log."""
+    """The last `MAX_LINES` lines a job printed behind `RELAY:`, made public;
+    nothing else of the log."""
     out = []
     for line in (text or "").splitlines():
         if not line.startswith("RELAY:"):
@@ -127,8 +97,8 @@ _EXC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
 
 
 def crash_type(text):
-    """The exception type of the last Python traceback in `text`, or "".
-    The type only: its message can print anything."""
+    """The exception type of the last traceback in `text`, or "". Never the
+    message, which can print anything."""
     lines = (text or "").splitlines()
     starts = [i for i, l in enumerate(lines)
               if l.startswith("Traceback (most recent call last)")]
@@ -171,13 +141,14 @@ def _logs(rec):
 # ---------------------------------------------------------------------------
 # git, in the cluster checkout
 # ---------------------------------------------------------------------------
-def _git(base, *args, timeout=120, raw=False):
+def _git(base, *args, timeout=120, raw=False, env=None, input=None):
     try:
         p = subprocess.run(["git"] + list(args), cwd=base,
-                           env=dict(os.environ, **GIT_ENV),
+                           env=dict(os.environ, **dict(GIT_ENV, **(env or {}))),
                            stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL if raw else subprocess.STDOUT,
-                           universal_newlines=True, timeout=timeout)
+                           universal_newlines=True, timeout=timeout,
+                           input=input)
     except (OSError, subprocess.SubprocessError) as exc:
         return 1, str(exc)
     return p.returncode, (p.stdout or "") if raw else (p.stdout or "").strip()
@@ -188,50 +159,48 @@ def _rel(base, path):
 
 
 def spaces(base):
-    """`[(workspace root, its path relative to the repository)]`.
-
-    Only the workspaces Atlas's own repository holds. A course is its own
-    private repository and never goes to the cluster, so the relay neither
-    syncs it nor reads requests from it: a path relative to Atlas names
-    nothing Atlas's index can see, and every status there would come back
-    empty."""
-    return [(w["root"], _rel(base, w["root"])) for w in atlas.workspaces(base)
-            if not os.path.exists(os.path.join(w["root"], ".git"))]
+    """`[(workspace root, its path relative to the repository)]` per subject."""
+    return [(where, _rel(base, where)) for where in subjects.roots(base)]
 
 
-def held_paths(where):
-    """Repository-relative paths a standing hold covers, workspace by
-    workspace: `holds.owned`, which is the hold files, the reports and
-    exports, and every held thread's files. The owner edits these at the
-    cluster and `board send` commits them, so neither an edit nor an unpushed
-    commit under them is a reason to skip."""
-    from . import holds
-    out = []
-    for root, ws in where:
-        try:
-            mine = holds.owned(root)
-        except Exception:                                    # noqa: BLE001
-            continue
-        out.extend(ws + "/" + p.strip("/") for p in mine if p)
-    return out
+def coding(base):
+    """Repository-relative paths an open coding session holds, `[]` if none."""
+    from . import code
+    try:
+        return code.held(base)
+    except Exception:                                        # noqa: BLE001
+        return []
+
+
+HELD_UPSTREAM = "held path changed upstream"
+
+
+def held_upstream(base, ref, held):
+    """Held paths `HEAD...ref` changes, which stop a pull; None where git
+    fails."""
+    if not held:
+        return []
+    code, out = _git(base, "-c", "core.quotePath=false", "diff", "--name-only",
+                     "HEAD...%s" % ref, "--", *held)
+    if code != 0:
+        return None
+    return sorted(l for l in out.splitlines() if l)
 
 
 def colibri_busy(base):
-    """Repository-relative workspace paths a Colibri task owns: one queued or
-    running there, one finished and not yet checked (`check_task`), and one
-    the queue failed, whose changes stay for the owner. Edits there are not
-    the pass's to commit, and they do not skip it."""
-    from . import colibri, missions
+    """Repository-relative workspaces a Colibri task owns (queued, running,
+    unchecked or failed): their edits are not the pass's to commit."""
+    from . import colibri
     out = []
     try:
         root = colibri.queue_root()
         if not root:
             return []
-        for rec in missions.tasks(root):
+        for rec in colibri.tasks(root):
             q = rec.get("queue")
             if q in ("queued", "running", "failed") or (
                     q == "done" and not rec.get("checked")):
-                found = atlas.find(rec.get("workspace") or "")
+                found = subjects.find(rec.get("workspace") or "")
                 if found:
                     out.append(_rel(base, found["root"]))
     except Exception:                                        # noqa: BLE001
@@ -244,26 +213,15 @@ def _under(rel, prefixes):
 
 
 def owned(base, rel, where=None, held=None):
-    """Is this repository-relative path one the cluster writes? A workspace's
-    `relay/reports/` and `exports/`, the `vendor/colibri` pointer the pass
-    moves, and (`held`, from `held_paths`) what a standing hold covers."""
-    if rel == "vendor/colibri":
+    """Is this path one the cluster writes: reports, exports, status.json,
+    the `vendor/colibri` pointer, or a path a coding session holds?"""
+    if rel in ("vendor/colibri", STATUS):
         return True
     for _, ws in where if where is not None else spaces(base):
         for mine in ("relay/reports/", "exports/"):
             if rel.startswith(ws + "/" + mine):
                 return True
     return _under(rel, held)
-
-
-def tolerated(base, rel, where=None):
-    """A tracked file the pass may find changed and leave so: a workspace's job
-    registry, which only a machine with Slurm appends to (the poll, and
-    `board job` here). It is not the relay's to commit."""
-    for root, ws in where if where is not None else spaces(base):
-        if rel == ws + "/" + _rel(root, jobs.registry(root)):
-            return True
-    return False
 
 
 def _dirty(base):
@@ -303,54 +261,8 @@ def _count(base, spec):
 
 
 # ---------------------------------------------------------------------------
-# the owner's edits, where a workspace opts in
+# step 1: the pull
 # ---------------------------------------------------------------------------
-# `"relay": {"sync": true}` in a workspace's `tutorboard.json` lets the pass
-# commit and push the owner's own edits there, one commit per workspace, after
-# the PHI check `board push` uses. Without it an edit there skips the pass.
-SYNC_MESSAGE = "%s: cluster sync"
-_SYNC_RE = re.compile(r"^(.+): cluster sync$")
-NO_POLICY_SYNC = ("the PHI guard's policy (ai-config/policy/phi.py) is not "
-                  "installed in this checkout, so nothing is synced")
-
-
-def sync_spaces(where):
-    """Repository-relative workspaces whose `jobs.relay_opts` says `sync`.
-
-    FAIL CLOSED. A workspace's holds and the Colibri queue are what tell the
-    owner's edits from a hold's or a task's, so a pass that cannot read either
-    syncs nothing. A task the queue gave up on (`failed`) still owns its
-    workspace until somebody settles it."""
-    asked = [(root, ws) for root, ws in where
-             if jobs.relay_opts(root).get("sync") is True]
-    if not asked:
-        return []
-    from . import colibri, holds, missions
-    try:
-        for root, _ in asked:
-            holds.owned(root)
-        given_up = []
-        queue = colibri.queue_root()
-        if queue:
-            given_up = [str(rec.get("workspace") or "").strip()
-                        for rec in missions.tasks(queue)
-                        if rec.get("queue") == "failed"]
-    except Exception:                                        # noqa: BLE001
-        return []
-
-    def taken(root, ws):
-        # The spellings `atlas.find` accepts: family/name, bare name, root.
-        return any(g and (g.strip("/") in (ws, os.path.basename(ws))
-                          or paths.same_dir(root, g)) for g in given_up)
-    return [ws for root, ws in asked if not taken(root, ws)]
-
-
-def _space_of(rel, where):
-    """The one workspace this repository-relative path is inside, or None."""
-    hits = [ws for _, ws in where if rel.startswith(ws + "/")]
-    return hits[0] if len(hits) == 1 else None
-
-
 def _status(base, rel, strict=False):
     """Repository-relative paths under `rel` git sees as changed or new:
     tracked edits, both sides of a rename, untracked files not ignored.
@@ -373,157 +285,70 @@ def _status(base, rel, strict=False):
     return got
 
 
-def _sync_log(base, ref):
-    """`[(sha, parents, subject, files)]` for `ref..HEAD`, newest first."""
-    code, out = _git(base, "-c", "core.quotePath=false", "log",
-                     "--format=%x01%H%x09%P%x09%s", "--name-only",
-                     "%s..HEAD" % ref)
+def _stashes(base):
+    """How many entries `git stash list` holds, or None if git would not say."""
+    code, out = _git(base, "stash", "list", timeout=20)
     if code != 0:
-        return []
-    got = []
-    for block in out.split("\x01")[1:]:
-        lines = block.splitlines()
-        head = (lines[0] if lines else "").split("\t", 2)
-        if len(head) < 3:
-            continue
-        got.append((head[0], head[1].split(), head[2],
-                    [l for l in lines[1:] if l.strip()]))
-    return got
+        return None
+    return len([l for l in out.splitlines() if l.strip()])
 
 
-def _sync_ws(subject, opted):
-    m = _SYNC_RE.match(subject)
-    return m.group(1) if m and m.group(1) in opted else None
+def pull_under(base):
+    """Bring the upstream in under the edits here. `(ok, said)`.
 
-
-def _synced(base, ref, opted):
-    """Paths in `ref..HEAD` that only sync commits changed: a sync a killed
-    pass left unpushed does not skip the next pass, which pushes it."""
-    if not opted:
-        return set()
-    mine, other = set(), set()
-    for _, _, subject, files in _sync_log(base, ref):
-        ws = _sync_ws(subject, opted)
-        for f in files:
-            (mine if ws and f.startswith(ws + "/") else other).add(f)
-    return mine - other
-
-
-def _unwind(base, ref, opted):
-    """Undo the sync commits on top of HEAD that origin lacks, keeping their
-    changes in the tree, unstaged. The paths they carried, or `[]`.
-
-    A sync commit is never left behind a rebase that stopped or a push that
-    was refused: the owner's edits go back to being edits, and the next pass
-    tries again."""
-    if not opted:
-        return []
-    target = None
-    for _, parents, subject, _ in _sync_log(base, ref):
-        if not _sync_ws(subject, opted) or len(parents) != 1:
-            break
-        target = parents[0]
-    if not target:
-        return []
-    code, out = _git(base, "-c", "core.quotePath=false", "diff",
-                     "--name-only", target, "HEAD")
-    files = [l for l in out.splitlines() if l] if code == 0 else []
-    code, _ = _git(base, "reset", "-q", "--soft", target)
+    `git rebase --autostash`, safe only because no edited path changes
+    upstream, which is checked first. A failed rebase is aborted, restoring
+    the tree."""
+    busy = worktree.busy_reason(base)
+    if busy:
+        return False, "%s, so nothing was pulled" % busy
+    code, up = _git(base, "rev-parse", "--abbrev-ref", "@{upstream}", timeout=10)
     if code != 0:
-        return []
-    if files:
-        _git(base, "reset", "-q", "--", *files)
-    return files
+        return True, "no upstream to pull from"
+    remote = up.strip().split("/", 1)[0]
+    code, out = _git(base, "fetch", "--quiet", remote)
+    if code != 0:
+        return False, "could not fetch %s: %s" % (remote, out[-300:])
+    if not _count(base, "HEAD..@{upstream}"):
+        return True, "already current"
+    code, out = _git(base, "diff", "--name-only", "-z", "HEAD...@{upstream}",
+                     raw=True)
+    if code != 0:
+        return False, ("could not read what origin changes, so nothing was "
+                       "pulled")
+    incoming = set(x for x in out.split("\0") if x)
+    dirty = _status(base, ".", strict=True)
+    if dirty is None:
+        return False, "git status failed, so nothing was pulled"
+    clash = sorted(p for p in dirty if p in incoming)
+    if clash:
+        return False, ("origin changes %s, which %s uncommitted edits here, so "
+                       "nothing was pulled"
+                       % (", ".join(clash[:6]),
+                          "has" if len(clash) == 1 else "have"))
+    stashed = _stashes(base)
+    code, out = _git(base, "rebase", "--autostash", "--quiet", "@{upstream}",
+                     timeout=300)
+    if code != 0:
+        _git(base, "rebase", "--abort")
+        return False, ("the rebase onto origin stopped, so it was undone and "
+                       "the tree is as it was: %s" % out[-300:])
+    code, left = _git(base, "diff", "--name-only", "--diff-filter=U")
+    if code != 0 or left:
+        return False, ("the edits set aside did not go back cleanly; they are "
+                       "kept in `git stash list`: %s" % left)
+    # `stash apply` can refuse yet exit 0, leaving the edits in the stash.
+    after = _stashes(base)
+    if (stashed is None or after is None or after > stashed
+            or "resulted in conflicts" in out):
+        return False, ("the edits set aside did not go back; they are kept in "
+                       "`git stash list` (stash@{0}), so put them back with "
+                       "`git stash pop` before the next pull")
+    return True, "pulled origin under the edits here"
 
 
-# A NEW FILE SYNCS ONLY AS SOURCE OR PROSE. The `board push` check reads a
-# file's contents only in a fenced workspace, and the cluster is where patient
-# rows are; a stray table, record, notebook or dump written beside the code
-# stays on the cluster for the owner to commit by hand. A file git already
-# tracks passed the ship check once and syncs whatever its extension.
-SYNC_NEW = (".py", ".sh", ".sbatch", ".md", ".tex", ".bib", ".toml", ".yaml",
-            ".yml", ".cfg", ".ini", ".lean", ".go", ".js", ".css", ".html")
-
-
-def _tracked(base, rel):
-    code, _ = _git(base, "ls-files", "--error-unmatch", "--", rel)
-    return code == 0
-
-
-def _sync_refusal(base, rel, names_phi, incoming, flagged):
-    """Why the pass leaves this owner's edit uncommitted, or ""."""
-    if names_phi is None:
-        return NO_POLICY_SYNC
-    if rel in incoming:
-        return ("origin changes it too, so the owner merges it; nothing is "
-                "forced")
-    try:
-        if names_phi(rel):
-            return "its path is one the PHI policy names"
-    except Exception:                                        # noqa: BLE001
-        return "the PHI policy failed on its path"
-    if rel in flagged:
-        return "the PHI check `board push` uses refuses it"
-    full = os.path.join(base, rel)
-    if os.path.islink(full):
-        return "it is a symlink, which the owner commits by hand"
-    if (os.path.exists(full) and not rel.lower().endswith(SYNC_NEW)
-            and not _tracked(base, rel)):
-        return ("a new file of this kind may hold data, so the owner commits "
-                "it by hand")
-    try:
-        if os.path.isfile(full) and os.path.getsize(full) > CAP:
-            return "it is over the 5 MB cap"
-    except OSError:
-        pass
-    return ""
-
-
-def sync_commit(base, sync):
-    """Commit the owner's edits `sync` names (`{workspace: [paths]}`), one
-    commit per workspace, `<workspace>: cluster sync`. `(committed, left)`:
-    `left` is `[{"path", "why"}]`, each still uncommitted in the tree."""
-    from . import holds
-    names_phi = leaving.policy(base)
-    every = sorted(p for ps in sync.values() for p in ps)
-    incoming = set()
-    up = upstream(base)
-    if up:
-        code, out = _git(base, "-c", "core.quotePath=false", "diff",
-                         "--name-only", "HEAD...%s" % up[2])
-        if code == 0:
-            incoming = set(l for l in out.splitlines() if l)
-    flagged = set(leaving.refused(base, every, base)) if names_phi else set()
-    done, left = [], []
-    for ws in sorted(sync):
-        take = []
-        for p in sorted(set(sync[ws])):
-            why = _sync_refusal(base, p, names_phi, incoming, flagged)
-            if why:
-                left.append({"path": p, "why": why})
-            else:
-                take.append(p)
-        if not take:
-            continue
-        ok, out = holds._commit(base, take, SYNC_MESSAGE % ws)
-        if ok:
-            done.extend(take)
-        else:
-            said = (out.splitlines() or [""])[-1][:200]
-            left.extend({"path": p, "why": "the commit failed: %s" % said}
-                        for p in take)
-    return done, left
-
-
-def sync(base, where, pull_vendor=None, said=None):
-    """Step 1. `(skip reason or "", error or "")`.
-
-    `said`, a dict, gets `sync`: the owner's edits `publish` commits
-    (`{workspace: [paths]}`), and `sync_left`: any a stopped pull unwound."""
-    from . import worktree
-    said = said if said is not None else {}
-    said.setdefault("sync", {})
-    said.setdefault("sync_left", [])
+def pull(base, where, pull_vendor=None):
+    """Step 1. `(skip reason or "", error or "")`."""
     busy = worktree.busy_reason(base)
     if busy:
         return "%s in the repository" % busy, ""
@@ -531,60 +356,44 @@ def sync(base, where, pull_vendor=None, said=None):
     if not up:
         return "HEAD is detached or its branch has no upstream", ""
     remote, theirs, ref = up
+    restore_status(base)
     dirty = _dirty(base)
     if dirty is None:
         return "git status failed", ""
-    held = held_paths(where)
+    held = coding(base)
     busy_ws = colibri_busy(base)
-
-    def cluster_s(p):
-        return (owned(base, p, where, held) or tolerated(base, p, where)
-                or _under(p, busy_ws))
-    stray = [p for p in dirty if not cluster_s(p)]
-    # The owner's edits inside one opted-in workspace are the pass's to
-    # commit; anything else stray still skips it, as before.
-    opted = sync_spaces(where)
-    mine = {}
-    for ws in opted:
-        for p in _status(base, ws):
-            if not cluster_s(p) and _space_of(p, where) == ws:
-                mine.setdefault(ws, []).append(p)
-    taken = set(p for ps in mine.values() for p in ps)
-    stray = [p for p in stray if p not in taken]
+    stray = [p for p in dirty
+             if not owned(base, p, where, held) and not _under(p, busy_ws)]
     if stray:
         return ("the tree has edits outside the cluster's paths: %s"
                 % ", ".join(stray[:5]) + (" and %d more" % (len(stray) - 5)
                                           if len(stray) > 5 else "")), ""
-    said["sync"] = dict((ws, sorted(ps)) for ws, ps in mine.items())
     code, out = _git(base, "fetch", "--quiet", remote, theirs)
     error = "" if code == 0 else "fetch from %s failed: %s" % (
         remote, out.splitlines()[-1] if out else "no output")
     ahead = _count(base, "%s..HEAD" % ref)
     if ahead:
         code, out = _git(base, "diff", "--name-only", "%s...HEAD" % ref)
-        excused = _synced(base, ref, opted)
         theirs_not = [p for p in out.splitlines() if p
-                      and not owned(base, p, where, held) and p not in excused]
+                      and not owned(base, p, where, held)]
         if code != 0 or theirs_not:
             return ("the branch has commits origin lacks, outside the "
                     "cluster's paths: %s" % ", ".join(theirs_not[:5])), error
+    # Origin changing a held path stops the pull rather than overwrite the
+    # owner's work; the pass runs at this HEAD and says why.
     if not error and _count(base, "HEAD..%s" % ref):
-        if ahead or mine or [p for p in dirty if not tolerated(base, p, where)]:
-            # Commits of its own to replay, or the owner's edits (a held
-            # thread, a Colibri task's, a synced workspace's) to keep:
-            # `holds.sync` checks origin leaves every edited path alone,
-            # rebases under an autostash, and says so when the edits did not
-            # go back.
-            from . import holds
-            ok, why = holds.sync(base)
-            if not ok:
-                back = _unwind(base, ref, opted)
-                if back:
-                    said["sync_left"].extend(
-                        {"path": p, "why": "the pull onto origin stopped, so "
-                         "it is uncommitted again and tried next pass"}
-                        for p in back)
-                    ok, why = holds.sync(base)
+        clash = held_upstream(base, ref, held)
+        if clash is None:
+            error = ("could not tell whether origin changes a coding "
+                     "session's held paths, so nothing was pulled")
+        elif clash:
+            error = ("%s: %s. Nothing was pulled; `board code <session> --end` "
+                     "refuses the same files until they are merged by hand"
+                     % (HELD_UPSTREAM, ", ".join(clash[:5])))
+    if not error and _count(base, "HEAD..%s" % ref):
+        if ahead or dirty:
+            # Local commits to replay, or the owner's edits to keep.
+            ok, why = pull_under(base)
             if not ok:
                 return "", "pull onto %s failed: %s" % (ref, why)
         else:
@@ -600,11 +409,86 @@ def sync(base, where, pull_vendor=None, said=None):
     return "", error
 
 
-# What this pass wrote: every report and every landed export, absolute.
-# `publish` commits exactly these, so a file that reached `exports/` or
-# `relay/reports/` any other way (a task, a recipe writing there itself) is
-# never published unchecked.
+# What this pass wrote, absolute. `publish` commits exactly these, so a file
+# that reached `exports/` or `relay/reports/` another way is never published.
 _WRITTEN = set()
+
+
+def pull_vendor(quiet=False):
+    """Move `vendor/colibri` forward and commit the pointer.
+
+    The only commit anything makes on its own, so it is guarded: only when
+    the pointer is the only dirty path, never during a merge or rebase, never
+    on a detached HEAD. Committed because a bumped pointer would otherwise
+    show as unsaved work. `vendor/colibri-build` is never moved: a build
+    tree moving under a build is the failure it exists to avoid.
+    """
+    base = subjects.root()
+    sub = os.path.join(base, "vendor", "colibri")
+    if not os.path.isdir(os.path.join(sub, ".git")) and \
+       not os.path.isfile(os.path.join(sub, ".git")):
+        return None                      # not a checkout here; nothing to do
+
+    def say(msg):
+        if not quiet:
+            print("  " + msg)
+
+    busy = worktree.busy_reason(base)
+    if busy:
+        say("colibri not pulled: %s in the repository" % busy)
+        return False
+
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=kw.pop("cwd", base),
+                              env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, timeout=kw.get("timeout", 90))
+
+    try:
+        before = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+        p = git("submodule", "update", "--remote", "--merge", "vendor/colibri")
+        after = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+    except (OSError, subprocess.TimeoutExpired):
+        say("could not reach colibri's remote; leaving it where it is")
+        return False
+    if p.returncode != 0:
+        out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        say("colibri not pulled: %s" % (out[-1] if out else "update failed"))
+        return False
+    if before == after:
+        return True                      # already current, and silent about it
+
+    # --- the pointer is now dirty. Commit it, or say why not. ---------------
+    try:
+        if git("rev-parse", "--abbrev-ref", "HEAD").stdout.decode().strip() == "HEAD":
+            say("colibri moved, but HEAD is detached here, so the pointer is "
+                "left uncommitted")
+            return False
+        status = git("status", "--porcelain").stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+    dirty = [l[3:].strip() for l in status.splitlines() if l.strip()]
+    stray = [d for d in dirty if d.rstrip("/") != "vendor/colibri"]
+    if stray:
+        say("colibri moved to %s, and the pointer is left uncommitted because "
+            "there is other uncommitted work here: %s"
+            % (after[:8], ", ".join(stray[:3])))
+        return False
+
+    msg = ("vendor/colibri moves from %s to %s\n\n"
+           "The pointer only. Written by the relay on the cluster, and "
+           "committed here rather than left "
+           "dirty -- an uncommitted pointer nobody touched shows on the board as "
+           "unsaved work, which is a lie the person cannot act on."
+           % (before[:8], after[:8]))
+    try:
+        git("commit", "--only", "-m", msg, "--", "vendor/colibri")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    say("colibri moved %s -> %s, pointer committed" % (before[:8], after[:8]))
+    return True
 
 
 def _changed(base, rels):
@@ -628,11 +512,9 @@ def _changed(base, rels):
 
 
 def staged_paths(base, where):
-    """`(paths to commit, paths left unpublished)`, repository-relative.
-
-    The commit is what this pass wrote, plus a report for a request filed here
-    that a pass killed before its commit left behind. Anything else changed
-    under `exports/` or `relay/reports/` is left, and named."""
+    """`(paths to commit, paths left unpublished)`, repository-relative: what
+    this pass wrote, plus a report a killed pass left. Anything else under
+    `exports/` or `relay/reports/` is left and named."""
     written = set(_rel(base, p) for p in _WRITTEN)
     dirs = []
     for root, ws in where:
@@ -652,14 +534,13 @@ def staged_paths(base, where):
     return sorted(take), sorted(left)
 
 
-def publish(base, where, message, push=True, sync=None, said=None):
-    """Step 5. Commit the cluster's paths, then the owner's edits `sync`
-    names (`sync_commit`), rebase, push. `(sha, error)`. `said`, a dict, gets
-    `synced` (paths pushed in a sync commit) and `sync_left`."""
-    said = said if said is not None else {}
-    said.setdefault("synced", [])
-    said.setdefault("sync_left", [])
+def publish(base, where, message, push=True):
+    """Step 5. Commit the cluster's paths, rebase, push. `(sha, error)`."""
     mine, _ = staged_paths(base, where)
+    if status_dirty(base):
+        mine.append(STATUS)
+        if mine == [STATUS]:
+            message = "relay: status"
     if mine:
         code, out = _git(base, "add", "--", *mine)
         if code != 0:
@@ -668,41 +549,24 @@ def publish(base, where, message, push=True, sync=None, said=None):
                          *mine)
         if code != 0:
             return "", "commit failed: %s" % (out.splitlines() or [""])[-1]
-    if sync:
-        done, left = sync_commit(base, sync)
-        said["synced"].extend(done)
-        said["sync_left"].extend(left)
     up = upstream(base)
     if not up or not push:
         return "", ""
     remote, theirs, ref = up
-    opted = sync_spaces(where)
-
-    def unwound(why):
-        back = _unwind(base, ref, opted)
-        said["synced"][:] = [p for p in said["synced"] if p not in back]
-        said["sync_left"].extend({"path": p, "why": why} for p in back)
-        return back
     if not _count(base, "%s..HEAD" % ref):
         return "", ""
-    from . import holds
-    ok, why = holds.sync(base)
-    if not ok and unwound("the rebase onto origin stopped, so it is "
-                          "uncommitted again and tried next pass"):
-        ok, why = holds.sync(base)
+    _git(base, "fetch", "--quiet", remote, theirs)
+    clash = held_upstream(base, ref, coding(base))
+    if clash:
+        return "", "%s: %s; nothing was pushed" % (HELD_UPSTREAM,
+                                                    ", ".join(clash[:5]))
+    ok, why = pull_under(base)
     if not ok:
         return "", "rebase before the push failed: %s" % why
     if not _count(base, "%s..HEAD" % ref):
         return "", ""
     code, out = _git(base, "push", "--quiet", remote, "HEAD:%s" % theirs,
                      timeout=180)
-    if code != 0 and unwound("the push was refused, so it is uncommitted "
-                             "again and tried next pass"):
-        if not _count(base, "%s..HEAD" % ref):
-            return "", "the sync commit's push was refused: %s" % (
-                out.splitlines() or [""])[-1]
-        code, out = _git(base, "push", "--quiet", remote, "HEAD:%s" % theirs,
-                         timeout=180)
     if code != 0:
         return "", "push rejected, retried next pass: %s" % (
             out.splitlines() or [""])[-1]
@@ -713,9 +577,8 @@ def publish(base, where, message, push=True, sync=None, said=None):
 # reports
 # ---------------------------------------------------------------------------
 def request_id(req):
-    """The id a request's report is named and keyed by: its `id` where that
-    is a valid one, else its file's own name, which no payload can make a
-    path elsewhere."""
+    """The id a report is named by: the request's valid `id`, else its file
+    name, which no payload can turn into a path."""
     rid = req.get("id") if isinstance(req, dict) else None
     if isinstance(rid, str) and jobs.REQUEST_ID_RE.match(rid):
         return rid
@@ -727,10 +590,14 @@ _SAFE_STEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
 
 
 def write_report(ws, rid, rep):
+    """Write one report, with `ran_at`: the HEAD its job was submitted at, else
+    HEAD now."""
     rid = str(rid)
     if not _SAFE_STEM.match(rid):
         raise ValueError("a report id names a file in relay/reports/")
     rep = dict((k, v) for k, v in rep.items() if k != jobs.FILE_KEY)
+    if not rep.get("ran_at"):
+        rep["ran_at"] = jobs.head(ws, short=True) or "unknown"
     target = os.path.join(jobs.reports_dir(ws), rid + ".json")
     os.makedirs(os.path.dirname(target), exist_ok=True)
     tmp = target + ".tmp"
@@ -739,7 +606,6 @@ def write_report(ws, rid, rep):
         fh.write("\n")
     os.replace(tmp, target)
     _WRITTEN.add(os.path.realpath(target))
-    course_threads.forget(ws)
     return target
 
 
@@ -748,9 +614,15 @@ def _field(value, names_phi):
 
 
 def _base_report(req, state, now, names_phi=None):
-    return {"id": request_id(req), "kind": _field(req.get("kind"), names_phi),
-            "thread": _field(req.get("thread"), names_phi), "state": state,
-            "updated": round(float(now), 3)}
+    """A report's common fields; `label` and `session` are echoed so the Mac
+    wakes the filing session."""
+    rep = {"id": request_id(req), "kind": _field(req.get("kind"), names_phi),
+           "state": state, "updated": round(float(now), 3)}
+    for key in ("label", "session"):
+        said = _field(req.get(key), names_phi)
+        if said:
+            rep[key] = said
+    return rep
 
 
 def refuse(ws, req, problems, now, names_phi=None):
@@ -760,18 +632,16 @@ def refuse(ws, req, problems, now, names_phi=None):
     return write_report(ws, request_id(req), rep)
 
 
-def export(ws, rec, clean, names_phi=None):
+def export(ws, rec, allowed, names_phi=None):
     """Copy a finished job's exports into `exports/`. `(landed, refused)`.
 
-    Each path is checked again here, in code, whatever the request said: under
-    `results/`, an allowed extension, marked aggregate on the thread now, a
-    regular file of at most 5 MB, a target git would track, and nothing the
-    PHI policy matches in its path or, for text, its content.
+    Each path is checked again here: under `results/`, an allowed extension,
+    approved now by `relay.exports`, a regular file of at most 5 MB, trackable,
+    and nothing the PHI policy matches in path or text content.
     """
     landed, refused = [], []
-    one = course_threads.thread(clean, rec.get("thread")) if clean else None
     for rel in rec.get("export") or []:
-        rel = course_threads._rel(rel)
+        rel = exports.rel(rel)
 
         def no(why):
             refused.append({"path": rel, "why": why})
@@ -782,11 +652,12 @@ def export(ws, rec, clean, names_phi=None):
             no("not a path under results/")
             continue
         ext = os.path.splitext(rel)[1].lower()
-        if ext not in course_threads.EXPORT_EXTS:
-            no("not one of %s" % ", ".join(course_threads.EXPORT_EXTS))
+        if ext not in exports.EXPORT_EXTS:
+            no("not one of %s" % ", ".join(exports.EXPORT_EXTS))
             continue
-        if not one or not course_threads.exportable(one, rel):
-            no("not marked aggregate on the thread")
+        ok, why = exports.approved(allowed, rel)
+        if not ok:
+            no(why)
             continue
         if names_phi is not None and names_phi(rel):
             no("the PHI policy matches its path")
@@ -819,16 +690,21 @@ def export(ws, rec, clean, names_phi=None):
     return landed, refused
 
 
-def finish(ws, rec, req, clean, now, names_phi=None):
+def finish(ws, rec, req, allowed, now, names_phi=None):
     """The report for a job that has ended."""
     state = "completed" if rec.get("state") == "COMPLETED" else "failed"
     rep = _base_report(req, state, now, names_phi)
+    # The HEAD it was submitted at, not the one it ended at.
+    ran_at = (rec.get("ran_at")
+              or (jobs.reports(ws).get(request_id(req)) or {}).get("ran_at"))
+    if ran_at:
+        rep["ran_at"] = ran_at
     rep.update({"jobid": str(rec.get("jobid")),
                 "submitted": rec.get("submitted"),
                 "ended": rec.get("ended") or "",
                 "exit": rec.get("exit") or ""})
     produces = list(req.get("produces") or [])
-    rep["produced"] = [p for p in produces if course_threads.here(ws, p)]
+    rep["produced"] = [p for p in produces if paths.present(ws, p)]
     rep["missing"] = [p for p in produces if p not in rep["produced"]]
     out, err = _logs(rec)
     # Without the policy nothing the job printed is published.
@@ -837,9 +713,10 @@ def finish(ws, rec, req, clean, now, names_phi=None):
     crashed = crash_type(err) or crash_type(out)
     if crashed:
         rep["error"] = crashed
+    rep.update(log_excerpt(ws, out, err, names_phi))
     if state == "completed":
         landed, refused = export(ws, dict(rec, export=req.get("export")),
-                                 clean, names_phi)
+                                 allowed, names_phi)
     else:
         landed = []
         refused = [{"path": p, "why": "the job did not complete"}
@@ -849,6 +726,19 @@ def finish(ws, rec, req, clean, now, names_phi=None):
         rep["export_refused"] = refused
     rep["note"] = recipe_note(rec, rep)
     return write_report(ws, request_id(req), rep)
+
+
+def log_excerpt(ws, out, err, names_phi):
+    """`{output, output_total, output_cut}` of a job's log, or {}: only where
+    `code.output_open` holds (phi literally false on disk and at HEAD, no
+    fence, policy loaded), filtered by `code.check_output`."""
+    from . import code
+    if names_phi is None or not code.output_open(ws, names_phi=names_phi):
+        return {}
+    text = out if not err else (out.rstrip("\n") + "\n" + err if out
+                                else err)
+    got = code.check_output(text, ws, names_phi, code.top_of(ws) or None)
+    return dict((k, got[k]) for k in ("output", "output_total", "output_cut"))
 
 
 def recipe_note(rec, rep):
@@ -869,7 +759,9 @@ def recipe_note(rec, rep):
     if rep.get("exported") or rep.get("export_refused"):
         bits.append("%d exported, %d refused." % (
             len(rep.get("exported") or []), len(rep.get("export_refused") or [])))
-    if state != "COMPLETED":
+    if state != "COMPLETED" and "output" in rep:
+        bits.append("Its log, cut, is here too: the subject's phi is false.")
+    elif state != "COMPLETED":
         bits.append("The log stays on the cluster; its RELAY: lines are what "
                     "it says here, and a diagnostic recipe asks it more.")
     return " ".join(bits)
@@ -878,10 +770,8 @@ def recipe_note(rec, rep):
 # ---------------------------------------------------------------------------
 # Colibri tasks: read-only analysis, checked when they finish
 # ---------------------------------------------------------------------------
-# A Colibri task reads the fenced data and writes what it makes under the
-# workspace's ignored `phi/` (`colibri.TASK_PROMPT`). Its work is never
-# tracked, so nothing of it needs a reviewer or a ship: the pass looks at the
-# workspace once the task is done, and a change git can see there fails it.
+# A Colibri task writes only under the ignored `phi/`, so once it is done any
+# change git can see in its workspace fails it.
 CHANGED = ("a Colibri task changed tracked files; its work belongs in ignored "
            "locations")
 
@@ -896,13 +786,10 @@ def _stamp(full):
 
 
 def workspace_changes(ws):
-    """`{repository-relative path: _stamp}` for every change git can see under
-    workspace `ws` -- tracked edits and untracked files it does not ignore --
-    less what the cluster writes there: reports, holds, the job registry, and
-    what this pass wrote. None where git cannot say.
-
-    `colibri.file` keeps this as a task's baseline, so the owner's edits from
-    before the task are not the task's."""
+    """`{repository-relative path: _stamp}` for every change git sees under
+    `ws`, less what the cluster writes there; None where git cannot say.
+    `colibri.file` keeps it as a task's baseline, so earlier owner edits are
+    not the task's."""
     code, top = _git(ws, "rev-parse", "--show-toplevel")
     if code != 0 or not top:
         return None
@@ -911,24 +798,17 @@ def workspace_changes(ws):
     got = _status(base, rel, strict=True)
     if got is None:
         return None
-    from . import holds
     prefix = "" if rel == "." else rel + "/"
-    mine = [prefix + jobs.RELAY + "/reports", prefix + jobs.RELAY + "/"
-            + holds.HOLDS, prefix + _rel(ws, jobs.registry(ws))]
+    mine = [prefix + jobs.RELAY + "/reports"]
     written = set(_rel(base, p) for p in _WRITTEN)
     return dict((p, _stamp(os.path.join(base, p))) for p in got
                 if not _under(p, mine) and p not in written)
 
 
 def check_task(ws, rec, names_phi=None):
-    """Did this finished task leave its workspace as git sees it? None where
-    that cannot be read, so the task is checked again next pass; else
-    `{"changed": count, "relay": lines}`.
-
-    `changed` counts the paths changed since the task's baseline and never
-    names them: they may sit beside the data. A task with no baseline counts
-    every change. `relay` is the `RELAY:` lines of the client's output, made
-    public; without the policy, none."""
+    """Did this finished task leave its workspace as git sees it? None when
+    unreadable (checked again next pass), else `{"changed": count, "relay":
+    lines}`. Paths are counted, never named: they may sit beside the data."""
     now = workspace_changes(ws)
     if now is None:
         return None
@@ -940,6 +820,231 @@ def check_task(ws, rec, names_phi=None):
     if names_phi is not None and isinstance(out, str) and out:
         lines = relay_lines(_tail(out), names_phi)
     return {"changed": len(changed), "relay": lines}
+
+
+# ---------------------------------------------------------------------------
+# relay/status.json: the relay's public health
+# ---------------------------------------------------------------------------
+# `{"skipped", "last_error", "push_pending", "outstanding", "colibri", "at"}`,
+# every string through `public`, naming no node or path. Committed only when a
+# field besides `at` changed, so an idle relay makes no commits: with the
+# reports by a running pass, or on origin's tip through a temporary index by a
+# skipped one (`status_aside`). The cluster is its only writer, and writes it
+# only on a base holding every status commit origin has, so two never diverge.
+WITHHELD = "(withheld by the PHI policy)"
+
+
+def status_doc(skipped, error, push_pending, at, names_phi=None,
+               outstanding=None, colibri=None):
+    def say(text):
+        if not text:
+            return ""
+        said = public(_no_node(text), names_phi, 400)
+        return said if said is not None else WITHHELD
+    out = {}
+    for subject, reqs in sorted((outstanding or {}).items()):
+        name = public(subject, names_phi, 120)
+        if not name or not reqs:
+            continue
+        out[name] = dict((rid, public(st, names_phi, 20) or "?")
+                         for rid, st in sorted(reqs.items())
+                         if jobs.REQUEST_ID_RE.match(str(rid)))
+    return {"skipped": say(skipped), "last_error": say(error),
+            "push_pending": bool(push_pending), "outstanding": out,
+            "colibri": _colibri_status(colibri) if colibri else None,
+            "at": int(at)}
+
+
+def _colibri_status(block):
+    """`colibri.relay_status`'s block, each field type-checked: the status is
+    public."""
+    def num(v):
+        return int(v) if isinstance(v, (int, float)) and not isinstance(
+            v, bool) else None
+    task = block.get("task")
+    reason = block.get("reason")
+    return {"state": str(block.get("state") or "unknown")[:12],
+            "ends": num(block.get("ends")), "queue": num(block.get("queue")) or 0,
+            "task": task if isinstance(task, str) and _TASK_RE.match(task)
+            else None,
+            "load_s": num(block.get("load_s")),
+            "reason": reason if isinstance(reason, str)
+            and re.match(r"^[A-Za-z]{1,40}$", reason) else ""}
+
+
+_TASK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
+
+
+def _no_node(text):
+    """`text` with this machine's own host name, whole or short, as
+    `<node>`: the status names no node."""
+    text = str(text)
+    try:
+        host = socket.gethostname() or ""
+    except OSError:
+        host = ""
+    for name in sorted(set([host, host.split(".")[0]]), key=len, reverse=True):
+        if len(name) >= 3:
+            text = re.sub(r"(?<![\w.-])%s(?![\w-])" % re.escape(name),
+                          "<node>", text)
+    return text
+ENDED = ("refused", "completed", "failed")
+
+
+def outstanding(where):
+    """`{subject: {request id: state}}`: every request in the tree whose
+    report has not ended it, `requested` where it has no report."""
+    out = {}
+    for ws, rel in where:
+        try:
+            reps = jobs.reports(ws)
+            for req in jobs.requests(ws):
+                rid = request_id(req)
+                st = str((reps.get(rid) or {}).get("state") or "requested")
+                if st not in ENDED:
+                    out.setdefault(rel, {})[rid] = st
+        except Exception:                                    # noqa: BLE001
+            continue
+    return out
+
+
+def colibri_block(base, st, now):
+    """Colibri's block for `relay/status.json`, or None without a queue. On
+    failure HEAD's block stands."""
+    from . import colibri
+    prev = status_at(base).get("colibri")
+    try:
+        if not colibri.queue_root():
+            return None
+        memo = st.get("colibri") if isinstance(st.get("colibri"), dict) else {}
+        got = colibri.relay_status(prev, memo, now)
+        st["colibri"] = memo
+        return got
+    except Exception:                                        # noqa: BLE001
+        return prev if isinstance(prev, dict) else None
+
+
+def _same_status(a, b):
+    def bare(d):
+        return dict((k, v) for k, v in (d or {}).items() if k != "at")
+    return bare(a) == bare(b)
+
+
+def status_at(base, ref="HEAD"):
+    """`relay/status.json` as `ref` has it, or {}."""
+    code, out = _git(base, "show", "%s:%s" % (ref, STATUS), raw=True)
+    if code != 0:
+        return {}
+    try:
+        got = json.loads(out)
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def _status_text(doc):
+    return json.dumps(doc, indent=2, sort_keys=True) + "\n"
+
+
+def read_status(base):
+    """The tree's `relay/status.json`, or {}."""
+    try:
+        with open(os.path.join(base, STATUS), "r", encoding="utf-8") as fh:
+            got = json.load(fh)
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_status(base, doc):
+    """Write `doc` into the tree when it differs from HEAD's beyond `at`.
+    True when written, for `publish` to commit."""
+    if _same_status(status_at(base), doc):
+        return False
+    path = os.path.join(base, STATUS)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as fh:
+        fh.write(_status_text(doc))
+    os.replace(path + ".tmp", path)
+    return True
+
+
+def status_dirty(base):
+    """Does the tree's `relay/status.json` differ from HEAD's?"""
+    code, out = _git(base, "status", "--porcelain", "--untracked-files=all",
+                     "--", STATUS)
+    return code == 0 and bool(out.strip())
+
+
+def restore_status(base):
+    """Put `relay/status.json` back as HEAD has it, so an uncommitted write
+    leaves no edit."""
+    if not status_dirty(base):
+        return
+    if _git(base, "cat-file", "-e", "HEAD:%s" % STATUS)[0] == 0:
+        _git(base, "checkout", "-q", "HEAD", "--", STATUS)
+    else:
+        _git(base, "rm", "-q", "--cached", "--ignore-unmatch", "--", STATUS)
+        try:
+            os.remove(os.path.join(base, STATUS))
+        except OSError:
+            pass
+
+
+def status_aside(base, doc):
+    """A skipped pass's status, committed on origin's tip and pushed, with
+    HEAD, the index and the tree untouched. "" or why not."""
+    up = upstream(base)
+    if not up:
+        if _git(base, "rev-parse", "--verify", "--quiet",
+                "refs/remotes/origin/main")[0] != 0:
+            return "no upstream to push the status to"
+        up = ("origin", "main", "origin/main")
+    remote, theirs, ref = up
+    code, out = _git(base, "fetch", "--quiet", remote, theirs, timeout=60)
+    if code != 0:
+        return "fetch from %s failed: %s" % (
+            remote, out.splitlines()[-1] if out else "no output")
+    code, tip = _git(base, "rev-parse", "--verify", "--quiet",
+                     "%s^{commit}" % ref)
+    if code != 0 or not tip:
+        return "no %s to put the status on" % ref
+    if _same_status(status_at(base, tip), doc):
+        return ""
+    code, carried = _git(base, "rev-list", "--max-count=1", "%s..HEAD" % tip,
+                         "--", STATUS, raw=True)
+    if code == 0 and carried.strip():
+        return ("an unpushed commit here carries the status; the next pass "
+                "that pushes publishes it")
+    scratch = tempfile.mkdtemp(prefix="relay-status-")
+    env = {"GIT_INDEX_FILE": os.path.join(scratch, "index")}
+    try:
+        code, blob = _git(base, "hash-object", "-w", "--stdin",
+                          input=_status_text(doc))
+        if code != 0:
+            return "status commit failed: %s" % blob
+        for args in (("read-tree", tip),
+                     ("update-index", "--add", "--cacheinfo", "100644", blob,
+                      STATUS)):
+            code, out = _git(base, *args, env=env)
+            if code != 0:
+                return "status commit failed: %s" % (out.splitlines()
+                                                     or [""])[-1]
+        code, tree = _git(base, "write-tree", env=env)
+        if code != 0:
+            return "status commit failed: %s" % tree
+        code, sha = _git(base, "commit-tree", tree, "-p", tip, "-m",
+                         "relay: status")
+        if code != 0:
+            return "status commit failed: %s" % (sha.splitlines() or [""])[-1]
+        code, out = _git(base, "push", "--quiet", remote,
+                         "%s:refs/heads/%s" % (sha, theirs), timeout=180)
+        if code != 0:
+            return "status push rejected, retried next pass: %s" % (
+                out.splitlines() or [""])[-1]
+        return ""
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -976,12 +1081,9 @@ def sbatch_env():
 
 def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
              push=True):
-    """One pass. Returns a summary dict; `relay/state.json` records it.
-
-    `run` is how Slurm is asked (sbatch, scontrol, squeue), so a test can
-    answer from a table; git is always the real one.
-    """
-    base = os.path.realpath(base or atlas.root())
+    """One pass; returns a summary that `relay/state.json` records. `run` asks
+    Slurm, so a test can answer from a table; git is always real."""
+    base = os.path.realpath(base or subjects.root())
     lock = os.path.join(base, LOCK)
     os.makedirs(os.path.dirname(lock), exist_ok=True)
     fh = open(lock, "a+")
@@ -999,48 +1101,57 @@ def _locked_pass(base, run, now, pull_vendor, push):
     t0 = float(now or time.time())
     st = read_state(base)
     summary = {"submitted": [], "refused": [], "ended": [], "skipped": "",
-               "error": "", "synced": []}
+               "error": ""}
     errors = []
-    said = {}
+    wrote = False
     _WRITTEN.clear()
     try:
         where = spaces(base)
-        skip, err = sync(base, where, pull_vendor, said)
+        skip, err = pull(base, where, pull_vendor)
         if err:
             errors.append(err)
         if skip:
             summary["skipped"] = skip
+            up = upstream(base)
+            doc = status_doc(skip, "; ".join(errors), up and _count(
+                base, "%s..HEAD" % up[2]), t0, leaving.policy(base),
+                outstanding(where), colibri_block(base, st, t0))
+            if push:
+                err = status_aside(base, doc)
+                if err:
+                    errors.append(err)
         else:
-            atlas.forget()
             where = spaces(base)
             _work(base, where, run, t0, summary)
             errors.extend(summary.pop("errors", []))
+            # Committed by an earlier pass and not yet pushed.
+            up = upstream(base)
+            block = colibri_block(base, st, t0)
+            if up and not _count(base, "HEAD..%s" % up[2]):
+                wrote = write_status(base, status_doc(
+                    "", "; ".join(errors), _count(base, "%s..HEAD" % up[2]),
+                    t0, leaving.policy(base), outstanding(where), block))
             ids = summary["submitted"] + summary["refused"] + summary["ended"]
             msg = ("relay: %d report(s) -- %s" % (len(ids), ", ".join(ids[:6]))
                    if ids else "relay: reports")
-            sha, err = publish(base, where, msg[:200], push=push,
-                               sync=said.get("sync"), said=said)
+            sha, err = publish(base, where, msg[:200], push=push)
             if err:
                 errors.append(err)
-            summary["synced"] = list(said.get("synced") or [])
-            # Changed under exports/ or relay/reports/ and not written by a
-            # pass: never committed, and named here for the owner.
+            # Not written by a pass: never committed, named for the owner.
             st["unpublished"] = staged_paths(base, where)[1][:50]
             if sha:
                 st["last_pushed"] = sha
                 st["pushed_at"] = time.time()
     except Exception as exc:                                 # noqa: BLE001
         errors.append("%s: %s" % (type(exc).__name__, exc))
+    if wrote:
+        restore_status(base)        # its commit failed: leave no edit behind
     summary["error"] = "; ".join(errors)
     st.update({"last_pass": t0, "host": socket.gethostname(),
                "skipped": summary["skipped"],
                "push_pending": any("push rejected" in e for e in errors),
                "counts": dict((k, len(summary[k])) for k in
-                              ("submitted", "refused", "ended")),
-               # The owner's edits a synced workspace pushed this pass, and
-               # those left uncommitted, each with why.
-               "synced": summary["synced"][:50],
-               "sync_left": list(said.get("sync_left") or [])[:50]})
+                              ("submitted", "refused", "ended"))})
     if errors:
         st["last_error"] = summary["error"]
         st["error_at"] = t0
@@ -1049,7 +1160,7 @@ def _locked_pass(base, run, now, pull_vendor, push):
 
 
 def _num(value):
-    """A sortable number out of a request's `filed`, whatever it holds."""
+    """A sortable number out of a request's `filed`, whatever it contains."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0.0
     return float(value)
@@ -1065,8 +1176,7 @@ def _work(base, where, run, now, summary):
     env = sbatch_env()
     errors = summary.setdefault("errors", [])
     for ws, rel in where:
-        # One workspace's trouble is that workspace's: the others, the
-        # Colibri step and the publish still run.
+        # One workspace's trouble does not stop the others or the publish.
         try:
             _work_space(ws, run, now, summary, names_phi, env)
         except Exception as exc:                             # noqa: BLE001
@@ -1082,8 +1192,7 @@ def _work_space(ws, run, now, summary, names_phi, env):
     from . import colibri
     reqs = jobs.requests(ws)
     if not reqs:
-        # A workspace with no requests can still have jobs `board job`
-        # submitted here directly; their endings wake its inbox.
+        # Jobs submitted here directly still wake their inbox.
         jobs.report(ws, run=run, now=now)
         return
     reps = jobs.reports(ws)
@@ -1118,7 +1227,7 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
         return
     if ok["kind"] == "colibri":
         got = colibri.relay_file(ws, ok)
-        write_report(ws, rid, _colibri_public(got, rid, names_phi, now))
+        write_report(ws, rid, _colibri_public(got, rid, names_phi, now, req))
         summary["refused" if got.get("state") == "refused"
                 else "submitted"].append(rid)
         return
@@ -1127,25 +1236,33 @@ def _one_request(ws, req, rid, run, now, summary, names_phi, env, colibri):
                          % ok["kind"]], now, names_phi)
         summary["refused"].append(rid)
         return
+    ran_at = jobs.head(ws, short=True) or "unknown"
     rec, why = jobs.submit_recipe(
-        ws, ok["thread"], ok["recipe"], env=ok["env"],
+        ws, ok.get("label"), ok["recipe"], env=ok["env"],
         produces=ok["produces"], export=ok["export"], key=rid,
         run=run, now=now, sbatch_env=env,
-        path=jobs.relay_registry(ws),
-        extra={"request": rid, "kind": "recipe"})
+        extra={"request": rid, "kind": "recipe", "ran_at": ran_at})
     if not rec:
         refuse(ws, req, [why], now, names_phi)
         summary["refused"].append(rid)
         return
     rep = _base_report(req, "submitted", now, names_phi)
-    rep.update({"jobid": rec["jobid"], "submitted": rec["submitted"]})
+    rep.update({"jobid": rec["jobid"], "submitted": rec["submitted"],
+                "ran_at": ran_at})
     write_report(ws, rid, rep)
     summary["submitted"].append(rid)
 
 
-def _colibri_public(rep, rid, names_phi, now):
-    """A Colibri task's report, every string in it made public."""
-    out = dict(rep, id=rid, kind="colibri", updated=round(float(now), 3))
+def _colibri_public(rep, rid, names_phi, now, req=None):
+    """A Colibri task's report, every string in it made public. Its `label`
+    and `session` are the request's (`_base_report`), never the task's."""
+    out = dict((k, v) for k, v in rep.items()
+               if k not in ("label", "session", "thread"))
+    out.update(id=rid, kind="colibri", updated=round(float(now), 3))
+    for key in ("label", "session"):
+        said = _field((req or {}).get(key), names_phi)
+        if said:
+            out[key] = said
     if "note" in out:
         said = public(out.get("note"), names_phi, MAX_NOTE)
         out["note"] = (said if said is not None else
@@ -1153,12 +1270,11 @@ def _colibri_public(rep, rid, names_phi, now):
     if out.get("problems"):
         out["problems"] = [public(p, names_phi, 400) or "(withheld by the PHI "
                            "policy)" for p in out["problems"]]
-    for key in ("task", "jobid", "thread"):
+    for key in ("task", "jobid"):
         if key in out:
             out[key] = _field(str(out[key]), names_phi)
     if "relay" in out:
-        # Scrubbed when the task was checked, and again here: nothing in a
-        # report is trusted to have been made public somewhere else.
+        # Scrubbed again: nothing in a report is trusted to be public already.
         said = [public(l, names_phi) for l in out.get("relay") or []
                 if isinstance(l, str)] if names_phi is not None else []
         out["relay"] = [l for l in said if l][-MAX_LINES:]
@@ -1175,10 +1291,15 @@ def _colibri_step(now, summary, names_phi, colibri):
         rid = rep.get("id")
         if not isinstance(rid, str) or not jobs.REQUEST_ID_RE.match(rid):
             continue
-        if not any(request_id(r) == rid for r in jobs.requests(ws)):
+        req = next((r for r in jobs.requests(ws) if request_id(r) == rid),
+                   None)
+        if req is None:
             continue
-        out = _colibri_public(rep, rid, names_phi, now)
+        out = _colibri_public(rep, rid, names_phi, now, req)
         old = jobs.reports(ws).get(rid) or {}
+        # The HEAD the task was queued at, which `write_report` stamped.
+        if old.get("ran_at"):
+            out["ran_at"] = old["ran_at"]
         same = dict((k, v) for k, v in old.items() if k != "updated")
         if same == dict((k, v) for k, v in out.items() if k != "updated"):
             continue
@@ -1189,33 +1310,32 @@ def _colibri_step(now, summary, names_phi, colibri):
 
 def _poll(ws, by_id, run, now, summary, names_phi):
     jobs.report(ws, run=run, now=now)
-    path, claims = jobs.relay_registry(ws), jobs.relay_claims(ws)
-    ended = jobs.poll(ws, run=run, now=now, path=path, claims=claims)
+    ended = jobs.poll(ws, run=run, now=now, relay=True)
     reps = jobs.reports(ws)
-    for rec in jobs.records(ws, path).values():
+    for rec in jobs.records(ws, relay=True).values():
         rid = rec.get("request")
         if rid not in by_id:
             continue
         rep = reps.get(rid) or {}
-        if (not course_threads.finished(rec) and rec.get("state") == "RUNNING"
+        if (not exports.finished(rec) and rec.get("state") == "RUNNING"
                 and rep.get("state") == "submitted"):
             rep = dict(rep, state="running", updated=round(now, 3),
                        started=rec.get("seen") or now)
             write_report(ws, rid, rep)
-    clean, _ = course_threads.read(ws)
+    allowed = exports.approvals(ws)
     for rec in ended:
         rid = rec.get("request")
         req = by_id.get(rid)
         try:
             if not req:
                 raise KeyError("request %s is gone" % rid)
-            finish(ws, rec, req, clean, now, names_phi)
+            finish(ws, rec, req, allowed, now, names_phi)
         except Exception:                                    # noqa: BLE001
             # No report, so no claim: the next pass offers it again.
-            jobs._unclaim(ws, rec["jobid"], claims)
+            jobs._unclaim(ws, rec["jobid"])
             continue
         jobs.append(ws, {"jobid": rec["jobid"], "request": rid,
-                         "reported": float(now)}, path=path)
+                         "reported": float(now)})
         summary["ended"].append(rid)
 
 
@@ -1234,8 +1354,8 @@ def _ago(t, now=None):
 
 
 def where_line(base=None, now=None):
-    """One line for `tutor where`, or "" where the relay never ran."""
-    st = read_state(os.path.realpath(base or atlas.root()))
+    """The relay's last pass in one line, or "" where it never ran."""
+    st = read_state(os.path.realpath(base or subjects.root()))
     if not st.get("last_pass"):
         return ""
     said = "relay: last pass %s on %s" % (_ago(st["last_pass"], now),
@@ -1253,9 +1373,9 @@ def where_line(base=None, now=None):
 
 
 def status(base=None, now=None):
-    """What `tutor relay --status` prints: the last pass, and every
+    """What `relay --status` prints: the last pass, and every
     workspace's requests by state."""
-    base = os.path.realpath(base or atlas.root())
+    base = os.path.realpath(base or subjects.root())
     lines = [where_line(base, now) or "relay: no pass has run here"]
     for ws, rel in spaces(base):
         reqs = jobs.requests(ws)
@@ -1266,8 +1386,8 @@ def status(base=None, now=None):
         for r in reqs:
             s = (reps.get(str(r.get("id"))) or {}).get("state") or "requested"
             counts[s] = counts.get(s, 0) + 1
-        out = [j for j in jobs.records(ws, jobs.relay_registry(ws)).values()
-               if not course_threads.finished(j)]
+        out = [j for j in jobs.records(ws, relay=True).values()
+               if not exports.finished(j)]
         lines.append("  %-28s %s%s" % (rel, ", ".join(
             "%d %s" % (counts[k], k) for k in sorted(counts)),
             "; jobs out: %s" % ", ".join(
@@ -1277,15 +1397,151 @@ def status(base=None, now=None):
 
 
 # ---------------------------------------------------------------------------
+# the Mac's view of the cluster: relay down, not synced, Colibri
+# ---------------------------------------------------------------------------
+# Read on the Mac from its own tree and `pull.json` only, never from Slurm
+# (D27). A request on origin with no report `DOWN_AFTER` seconds later means
+# the relay looks down; a failed pull means "not synced". Cached for
+# `HEALTH_TTL`, because every payload build asks.
+DOWN_AFTER = 15 * 60
+HEALTH_TTL = 20.0
+_HEALTH = {}
+
+
+def forget():
+    """Drop the cached health: something just changed it."""
+    _HEALTH.clear()
+
+
+def _filed_at(atlas, rel):
+    """`(sha, commit time)` of the last commit touching `rel`, or `(None, 0)`."""
+    code, out = _git(atlas, "log", "-1", "--format=%H %ct", "--", rel,
+                     timeout=20)
+    parts = out.split() if code == 0 else []
+    if len(parts) != 2 or not parts[1].isdigit():
+        return None, 0
+    return parts[0], int(parts[1])
+
+
+def stale_requests(atlas, now=None, after=DOWN_AFTER):
+    """`[{subject, id, since}]`: requests with no report `after` seconds past
+    their commit. Uncommitted or not on origin's main is not the relay's."""
+    now = float(now or time.time())
+    on_origin = _git(atlas, "rev-parse", "--verify", "--quiet",
+                     "refs/remotes/origin/main")[0] == 0
+    out = []
+    for ws in subjects.roots(atlas):
+        reqs = jobs.requests(ws)
+        if not reqs:
+            continue
+        reps = jobs.reports(ws)
+        for req in reqs:
+            rid = request_id(req)
+            if rid in reps:
+                continue
+            rel = _rel(atlas, os.path.join(jobs.requests_dir(ws), "%s.json"
+                                           % req.get(jobs.FILE_KEY)))
+            sha, when = _filed_at(atlas, rel)
+            if not sha or now - when < after:
+                continue
+            if on_origin and _git(atlas, "merge-base", "--is-ancestor", sha,
+                                  "refs/remotes/origin/main")[0] != 0:
+                continue
+            out.append({"subject": _rel(atlas, ws), "id": rid, "since": when})
+    out.sort(key=lambda r: (r["since"], r["id"]))
+    return out
+
+
+def pull_health(state_dir=None):
+    """pull.json as the Mac's health: `{ok, said, step, at}`, `said` being
+    "not synced: <git's words>" when the last pull or ls-remote failed; None
+    where the cluster thread has written none."""
+    from . import cluster
+    path = os.path.join(state_dir or paths.STATE_DIR, cluster.PULL_STATE)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("ok") is not False:
+        return {"ok": True, "said": "", "step": rec.get("step"),
+                "at": rec.get("at")}
+    said = str(rec.get("said") or "the %s failed" % (rec.get("step") or "pull"))
+    if not said.startswith("not synced"):
+        said = "not synced: " + said
+    return {"ok": False, "said": said[:400], "step": rec.get("step"),
+            "at": rec.get("at")}
+
+
+def health(atlas, now=None, state_dir=None, fresh=False):
+    """The cluster's health as the Mac sees it: `{down, stale, pull, status,
+    lines}`. `lines` are the sentences to show, worst first; `[]` when all
+    is well."""
+    atlas = os.path.realpath(atlas)
+    key = (atlas, state_dir)
+    t = time.time()
+    hit = _HEALTH.get(key)
+    if not fresh and now is None and hit and t - hit[0] < HEALTH_TTL:
+        return json.loads(hit[1])
+    stale = stale_requests(atlas, now)
+    pull_said = pull_health(state_dir)
+    doc = read_status(atlas)
+    lines = []
+    if stale:
+        lines.append("relay looks down: %s had no report %d minutes after "
+                     "%s commit" % (
+                         ", ".join("%s %s" % (r["subject"], r["id"])
+                                   for r in stale[:3])
+                         + (" and %d more" % (len(stale) - 3)
+                            if len(stale) > 3 else ""),
+                         DOWN_AFTER // 60,
+                         "its" if len(stale) == 1 else "their"))
+    if pull_said and not pull_said["ok"]:
+        lines.append(pull_said["said"])
+    if doc.get("skipped"):
+        lines.append("the relay skipped its last pass: %s" % doc["skipped"])
+    if doc.get("last_error"):
+        lines.append("the relay's last error: %s" % doc["last_error"])
+    if doc.get("push_pending"):
+        lines.append("the relay has reports it has not pushed yet")
+    out = {"down": bool(stale), "stale": stale, "pull": pull_said,
+           "synced": not (pull_said and not pull_said["ok"]),
+           "status": dict((k, doc.get(k)) for k in (
+               "skipped", "last_error", "push_pending", "at")),
+           "lines": lines}
+    _HEALTH[key] = (t, json.dumps(out))
+    return out
+
+
+def panel(atlas, now=None, state_dir=None):
+    """GET /relay.json: `health`, and Colibri as status.json says it, with
+    the libr-local-llm tasks the panel lists and what filing one costs."""
+    from . import colibri
+    out = health(atlas, now, state_dir)
+    st = colibri.status(atlas, now)
+    found = subjects.find(colibri.WORKSPACE, base=atlas)
+    out.update({"ok": True, "colibri": st,
+                "colibri_subject": found["id"] if found else None,
+                "colibri_tasks": colibri.tasks_on_mac(
+                    found["root"], running=st.get("task"))
+                if found else [],
+                "estimate": colibri.estimate(st)})
+    return out
+
+
+# ---------------------------------------------------------------------------
 # the scrontab entry
 # ---------------------------------------------------------------------------
-def scrontab_block(python=None, tutor=None, log=None):
-    """The entry, between markers so `install` can replace it."""
+def scrontab_block(python=None, entry=None, log=None):
+    """The entry, between markers so `install` can replace it. RELAY_PYTHON is
+    the installing interpreter, because scrontab's PATH may find an older one."""
     python = python or sys.executable
-    tutor = tutor or os.path.join(paths.TOOL, "bin", "tutor")
+    entry = entry or os.path.join(paths.TOOL, "scripts", "relay-pass.sh")
     log = log or os.path.join(paths.STATE_DIR, "relay-scron.log")
     return "\n".join([
-        SCRON_BEGIN + " (written by `tutor relay --install`)",
+        SCRON_BEGIN + " (written by `relay --install`)",
         "#SCRON --partition=%s" % SCRON_PARTITION,
         "#SCRON --time=%s" % SCRON_TIME,
         "#SCRON --cpus-per-task=1",
@@ -1293,7 +1549,9 @@ def scrontab_block(python=None, tutor=None, log=None):
         "#SCRON --job-name=tutor-relay",
         "#SCRON --output=%s" % log,
         "#SCRON --open-mode=append",
-        "*/5 * * * * %s %s relay --once --quiet" % (python, tutor),
+        "*/%d * * * * RELAY_PYTHON=%s bash %s" % (PASS_MINUTES,
+                                                  shlex.quote(python),
+                                                  shlex.quote(entry)),
         SCRON_END,
     ]) + "\n"
 

@@ -89,6 +89,8 @@ function penOn() { return !!(window.Annotate && window.Annotate.isOn && window.A
 
 function make(opts) {
   var pages = opts.pages;
+  /* The page's own URL for a ledger route: its session's, or its subject's. */
+  var urlFor = opts.url || function (path) { return path; };
   var btn = opts.button || null;
   var zoomer = opts.zoom || null;
   var host = (pages && pages.parentNode) || document.body;
@@ -206,7 +208,7 @@ function make(opts) {
     if (!doc || !has(doc)) return Promise.resolve();
     var mine = ++asked;
     var id = doc.id;
-    return fetch("/library/ledger/" + encodeURIComponent(id),
+    return fetch(urlFor("/library/ledger/" + encodeURIComponent(id)),
                  { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
       .then(function (got) {
@@ -510,9 +512,6 @@ function make(opts) {
       var list = el("ol", "lg-rows");
       rows(r).forEach(function (item) { list.appendChild(row(r, item)); });
       body.appendChild(list);
-      (r.extra || []).forEach(function (x) {
-        body.appendChild(el("p", "lg-note", "The factory's own change: " + x.issue));
-      });
     }
     var others = (data.rounds || []).map(function (x, i) { return [x, i]; })
       .filter(function (p) { return p[1] !== pick; });
@@ -553,13 +552,13 @@ function make(opts) {
     if (item.crop) {
       var img = el("img", "lg-crop");
       img.loading = "lazy";
-      img.src = item.crop;
+      img.src = urlFor(item.crop);
       img.alt = "what you wrote, note " + item.n;
       box.appendChild(img);
     } else if (item.marked) {
       var pic = el("img", "lg-crop lg-marked");
       pic.loading = "lazy";
-      pic.src = item.marked;
+      pic.src = urlFor(item.marked);
       pic.alt = "your marks on page " + item.page;
       box.appendChild(pic);
     }
@@ -716,7 +715,7 @@ function make(opts) {
 
   function setState(r, item, state, why, msg) {
     if (!doc || !r) return;
-    fetch("/library/ledger/state", {
+    fetch(urlFor("/library/ledger/state"), {
       method: "POST", credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ document: doc.id, note: r.note, id: item.id,

@@ -1,6 +1,6 @@
 // INK FOLLOWS THE READER'S ZOOM -- one case, run against every reader that
-// zooms (`test/library.js`, `test/deck.js` and `test/paperzoom.js`, the
-// board's own document panel, each call it in one line). A reader that is not
+// zooms (`test/library.js` and `test/paperzoom.js`, the board's built
+// reader, each call it in one line). A reader that is not
 // the library's says where its pages are: `t.scroller`, `t.page`, `t.css` and
 // `t.fit`, the page's fit width in pixels, and `t.padX`, `t.gap`, `t.caption`
 // where its layout differs.
@@ -9,7 +9,7 @@
 // they're getting all out of wack and misplaced."*
 //
 // jsdom lays nothing out, so the reader's layout is stood in for here, from
-// the same numbers `library.css` uses: a page `min(100%, 54rem) × zoom` wide,
+// the same numbers `reader.css` uses: a page `min(100%, 54rem) × zoom` wide,
 // a picture as tall as its own aspect makes it, and a caption that is part of
 // the page's box only if the stylesheet leaves it in flow -- read off the real
 // stylesheet, so the model moves when the CSS does. The canvas is a recorder:
@@ -60,7 +60,7 @@ module.exports = async function inkFollowsZoom(w, t) {
 
   /* ---- the stylesheet, the window, the scroll -------------------------- */
   const style = doc.createElement('style');
-  style.textContent = fs.readFileSync(path.join(WEB, t.css || 'library.css'), 'utf8');
+  style.textContent = fs.readFileSync(path.join(WEB, t.css || 'reader.css'), 'utf8');
   doc.head.appendChild(style);
   const de = doc.documentElement;
   Object.defineProperty(de, 'clientWidth', { configurable: true, get: () => GLASS });

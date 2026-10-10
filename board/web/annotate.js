@@ -23,16 +23,10 @@ var LAYER = "ann-layer";
 var pen = { colour: "#e0b45c", width: 2.2 };
 var on = false;
 
-/* Room to draw outside the card, ABOVE and BELOW it. A mark about a line of
-   prose is very often a ring around it, and a ring around something near an edge
-   goes outside the box -- the coordinates used to be clamped into [0,1], so the
-   ring came back with a straight edge where it met the boundary. It read as the
-   pen cutting out. Fractions are still fractions OF THE CARD, so everything
-   anchored stays anchored; the canvas simply extends past the card and the
-   fractions are allowed past 0 and 1 by this much.
-
-   Sideways there is no such number, because sideways the answer is the window.
-   See `padsOf`. */
+/* Room to draw outside the card, above and below it, so a ring round a line
+   near an edge keeps its curve instead of being clamped flat. Fractions are
+   still fractions of the card and may pass 0 and 1 by this much. Sideways
+   the answer is the window: see `padsOf`. */
 var PAD = 18;
 
 /* The most a layer will grow into the gap above or below it. A gap can be
@@ -73,20 +67,8 @@ function like(s, p, pr) {
   var out = { c: s.c, w: s.w, p: p, pr: pr };
   if (s.pg) out.pg = 1;
   else if (typeof s._k === "string") out._k = s._k;
-  if (s.dir) out.dir = 1;
   return out;
 }
-
-/* WHICH KIND OF INK THE NEXT STROKE IS. The library reader sets it from its
-   toggle: `"dir"` stamps `dir: 1` on every stroke drawn from now on,
-   because that ink is a direction for the work and is sent apart from the
-   fixes. Nothing else sets it, so a stroke with no field is a fix -- on the
-   board, on `/meeting`, and in any unstamped ink. */
-var penKind = null;
-/* WHETHER A PASTE KEEPS ITS KIND. Only the library reader sends the kinds
-   apart (`keepKinds`); pasted anywhere else, a copied direction is a fix,
-   because no other surface has a send that would ever carry it. */
-var kinded = false;
 
 /* Painted-path caches live on the stroke but never reach the disk: a path in
    pixels of one geometry is no use to any other, and it is most of the bytes. */
@@ -117,9 +99,7 @@ function onPage(s, aspect) {
   }
   var p = s.p.slice();
   for (var i = 1; i < p.length; i += 2) p[i] *= k;
-  var out = { c: s.c, w: w, p: p, pr: (s.pr || []).slice(), pg: 1 };
-  if (s.dir) out.dir = 1;
-  return out;
+  return { c: s.c, w: w, p: p, pr: (s.pr || []).slice(), pg: 1 };
 }
 
 /* A stroke as it goes to disk. Ink saved by an older viewer arrives carrying
@@ -213,23 +193,16 @@ function nextBox(node, dir) {
 
 /* How far each layer reaches beyond its card, per side, in CSS pixels.
 
-   Sideways: to the edge of the WINDOW. `#board` is a 46rem column centred in the
-   glass, so on a tablet held in landscape there are two hundred pixels of margin
-   down each side with nothing over them -- and a pen put down there had no
-   canvas under it, so the gesture went to the page and the page scrolled.
-   Reported in exactly those words: "on the side of the screen, the far left and
-   right, I can't write/annotate there because it scrolls." Where the ink lands is
-   not a decision the margin gets to make.
+   Sideways: to the edge of the window, so a pen in the margin beside the
+   centred `#board` column writes rather than scrolls.
 
    Up and down: half the gap to the neighbour, so a run of cards is covered
    without any two layers fighting over the same strip -- clamped at PAD, which is
    what an ordinary 2.1rem gap comes to, and at REACH, which is what stops a
    folded run of cards from being turned into backing store.
 
-   `documentElement.clientWidth` rather than `innerWidth`: on a desktop the
-   second includes the scrollbar, and a canvas reaching under it is a canvas
-   sticking out of the document, which the browser answers with a horizontal
-   scrollbar of its own. */
+   `documentElement.clientWidth` rather than `innerWidth`, which includes a
+   desktop scrollbar and would push the canvas out of the document. */
 function padsOf(card, r) {
   var vw = document.documentElement.clientWidth || window.innerWidth || 0;
   var p = { l: PAD, r: PAD, t: PAD, b: PAD };
@@ -250,25 +223,19 @@ function padsOf(card, r) {
   return p;
 }
 
-/* The slate's ink geometry, shared rather than reimplemented: smooth the samples
-   as they arrive, run a Catmull-Rom curve through them, resample it to about a
-   pixel, and vary the width along it. Without this the layer drew raw pointer
-   samples joined by straight lines, which is the faceted, jagged line the slate
-   exists not to have. */
-var ink = (window.Slate && window.Slate.ink) || null;
-var SMOOTH = ink ? ink.SMOOTH : 0.3;
-var trust = (ink && ink.trust) || function () { return SMOOTH; };
-var MIN_STEP = ink ? ink.MIN_STEP : 0.5;
-var RESAMPLE = ink ? ink.RESAMPLE : 0.8;
-var POLISH = ink ? ink.POLISH : 2;
-
-function densify(pts) {
-  return ink ? ink.densify(pts) : pts;
-}
-
-function polish(pts, passes) {
-  return ink ? ink.polish(pts, passes) : pts;
-}
+/* The slate's ink geometry, shared rather than reimplemented (`ink-core.js`):
+   smooth the samples as they arrive, run a Catmull-Rom curve through them,
+   resample it to about a pixel, and vary the width along it. There is no
+   fallback to raw samples joined by straight lines, the faceted line this
+   exists not to draw: a page that forgot to load ink-core.js fails here. */
+var ink = window.InkCore;
+if (!ink) throw new Error("annotate.js: ink-core.js is not loaded");
+var trust = ink.trust;
+var MIN_STEP = ink.MIN_STEP;
+var RESAMPLE = ink.RESAMPLE;
+var POLISH = ink.POLISH;
+var densify = ink.densify;
+var polish = ink.polish;
 var store = Object.create(null);      /* card id -> [stroke, ...] */
 var dirty = Object.create(null);      /* card ids with unsaved changes */
 /* Which cards' marks have been handed to the tutor. Separate from `dirty`,
@@ -302,22 +269,15 @@ function layerOf(card) {
   return c;
 }
 
-/* THE ZONE ROUND THE LAST STROKE, which is the only part of a card that refuses
-   a native pan while the latch is shut (`.card > .ann-zone` in `board.css`).
+/* The zone round the last stroke: the only part of a card that refuses a
+   native pan while the latch is shut (`.card > .ann-zone` in `board.css`).
+   The latch serves the next stroke of the same word, which lands beside the
+   last, so only the stroke's box plus `ZONE_REACH` refuses; a finger anywhere
+   else keeps the browser's own scroll, with momentum.
 
-   The latch is for the next stroke of the same word, and that lands beside the
-   last one. Shutting every card's whole layer for it left a person who writes,
-   swipes and writes again with no native scroll at all: nearly every swipe
-   landed in the gap and got only `handPan`, with no momentum and paced by the
-   main thread. Reported from the iPad, Galois Theory: "I couldn't scroll while
-   annotating ... I want both." So the zone is the stroke's box plus
-   `ZONE_REACH` on each side, drawn once per lift (`zoneAt`), and a finger
-   anywhere else keeps the browser's own scroll.
-
-   A cards-only thing: a document's pages keep their own latch on the scroller
-   (`#reader-pages`, `#paper-pages`). A pen landing on the zone begins a stroke
-   on its card exactly as the layer would; `begin` captures the pointer to the
-   layer, so the rest of the stroke goes there. */
+   Cards only: a document's pages keep their own latch on `#reader-pages`. A
+   pen landing on the zone begins a stroke on its card as the layer would;
+   `begin` captures the pointer to the layer for the rest of the stroke. */
 var ZONE = "ann-zone";
 /* About an inch and a half: far enough that the heel of a writing hand, which
    rests below and beside the nib, lands inside it and is refused, and near
@@ -422,18 +382,11 @@ function size(card, canvas) {
       && canvas._pt === p.t && canvas._pb === p.b) return lifted;
   canvas._w = w; canvas._h = h; canvas._dpr = dpr; canvas._real = need;
   canvas._pl = p.l; canvas._pr = p.r; canvas._pt = p.t; canvas._pb = p.b;
-  /* The box exists whatever is on it: this element is what takes the pen while
-     annotate mode is on, and it has to reach the margins and MEET its
-     neighbours, or a stroke begun out there lands on nothing at all. Only the
-     BITMAP waits.
-
-     A layer with nothing on it holds one pixel. Every card in the lesson gets
-     one of these, and it used to be allocated at the card's full size in device
-     pixels the moment the card appeared: on a retina tablet several megabytes a
-     card, twenty or thirty cards, almost all of it backing store for a canvas
-     nobody will ever draw on. It is the same budget the dormant boards were
-     turned into photographs to stay inside of, spent here on nothing. The real
-     bitmap arrives with the first mark. */
+  /* The box exists whatever is on it: this element takes the pen in annotate
+     mode and must reach the margins and meet its neighbours, or a stroke begun
+     there lands on nothing. Only the bitmap waits: an unmarked layer holds one
+     pixel, because a full-size backing store per card is megabytes for nothing.
+     The real bitmap arrives with the first mark. */
   canvas.style.width = (w + p.l + p.r) + "px";
   canvas.style.height = (h + p.t + p.b) + "px";
   canvas.style.left = -p.l + "px";
@@ -482,14 +435,9 @@ function pathOf(s, cv) {
   return s._path;
 }
 
-/* What a stroke covers, in canvas pixels, cached the same way.
-
-   This is what makes an erase cheap. Rubbing out a word on a card holding a
-   hundred marks used to clear the whole layer and repaint every one of them --
-   per pointer sample, of which a Pencil sends four a frame. The rectangle the
-   removed ink occupied is the only part of the canvas that changed; everything
-   else on it is already correct and repainting it is work spent to arrive back
-   where it started. */
+/* What a stroke covers, in canvas pixels, cached the same way. This is what
+   makes an erase cheap: only the rectangle the removed ink occupied is
+   repainted, not the whole layer per pointer sample. */
 function bboxOf(s, cv) {
   var key = geomOf(cv);
   if (s._boxKey === key && s._box) return s._box;
@@ -502,11 +450,8 @@ function bboxOf(s, cv) {
     if (y > y1) y1 = y;
   }
   /* The curve runs a little outside the samples it was fitted through, and the
-     line has width. Both are small and both are why this is generous. A
-     direction's halo (`halo`) is wider than its line, and is inside the box
-     too, or a repair would leave a ring of it behind. */
-  var w = widthOf(s, cv);
-  var m = s.dir ? Math.max(w * 1.6 + 4, w * 1.3 + 7) : w * 1.6 + 4;
+     line has width. Both are small and both are why this is generous. */
+  var m = widthOf(s, cv) * 1.6 + 4;
   cache(s, "_boxKey", key);
   cache(s, "_box", { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m });
   return s._box;
@@ -568,36 +513,6 @@ function paintFrom(ctx, dense, from, base) {
   }
 }
 
-/* A DIRECTION, SEEN AS ONE AT A GLANCE: a translucent green band under the
-   line, so a page carrying fixes and directions shows which is which in the
-   ink's own colours. One path at one width, never `paintFrom`'s runs: that
-   starts a new path at every width change, and a translucent stroke drawn that
-   way darkens wherever two runs' round caps overlap. Every layer draws it, so
-   any surface holding direction ink shows it (the board's `#paper` viewer
-   too); `png`, `pictureOver` and the burned copy draw the ink alone. */
-var HALO = "rgba(47,125,79,0.22)";
-
-function halo(ctx, dense, base) {
-  if (!dense.length) return;
-  ctx.save();
-  ctx.strokeStyle = HALO;
-  ctx.fillStyle = HALO;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  var w = base * 2.6 + 5;
-  ctx.beginPath();
-  if (dense.length === 1) {
-    ctx.arc(dense[0][0], dense[0][1], w / 2, 0, 6.2832);
-    ctx.fill();
-  } else {
-    ctx.lineWidth = w;
-    ctx.moveTo(dense[0][0], dense[0][1]);
-    for (var i = 1; i < dense.length; i++) ctx.lineTo(dense[i][0], dense[i][1]);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function context(canvas) {
   var ctx = canvas.getContext("2d");
   if (!ctx) return null;
@@ -630,11 +545,6 @@ function repair(id, cv, box) {
     if (!s.p || s.p.length < 2) return false;
     var bb = bboxOf(s, cv);
     return !(bb.x1 < x0 || bb.x0 > x1 || bb.y1 < y0 || bb.y0 > y1);
-  });
-  /* The halos first, all of them, so no direction's band tints a line drawn
-     before it. */
-  here.forEach(function (s) {
-    if (s.dir) halo(ctx, pathOf(s, cv), widthOf(s, cv));
   });
   here.forEach(function (s) {
     paint(ctx, s, pathOf(s, cv), s.c || pen.colour, 1, cv);
@@ -776,17 +686,14 @@ function png(id) {
    ring with nothing under it says nothing about what it rings. So this draws
    the page image first, at its native resolution, and the ink over it in the
    colours it was drawn in -- the whole page, widened to take in any mark that
-   strays past its edge. `img` is the page's own <img>, already loaded.
-
-   `kind` ("fix" or "dir") keeps that kind of ink only, cropped to it: a note
-   about fixes is shown no direction, and a direction no fix. */
-function pictureOver(id, img, kind) {
+   strays past its edge. `img` is the page's own <img>, already loaded. */
+function pictureOver(id, img) {
   var src = nodeFor(id);
   if (!src || !img || !img.naturalWidth) return "";
   var live = src.querySelector("canvas." + LAYER);
   if (!live || !live._w) return "";
   var strokes = (store[id] || []).filter(function (s) {
-    return s.p && s.p.length >= 2 && (!kind || !!s.dir === (kind === "dir"));
+    return s.p && s.p.length >= 2;
   });
   if (!strokes.length) return "";
   var r = src.getBoundingClientRect(), ir = img.getBoundingClientRect();
@@ -821,16 +728,10 @@ function pictureOver(id, img, kind) {
 /* Undo has to cover erasing and clearing too, not just strokes, or the eraser is
    a one-way door over the tutor's own words.
 
-   A step is the LIST of strokes, not a copy of them. It used to be a deep copy --
-   every point of every mark on the card, rebuilt on every pen-down and every
-   touch of the rubber, with sixty of them on the stack. That is the same defect
-   the slate had: an allocation proportional to everything already written,
-   landing at the exact moment a hand is asking the surface for something, which
-   from behind a pen is a delay on tapping to write.
-
-   It is correct only because nothing on a card is ever changed in place: adding a
-   mark, erasing and clearing all REPLACE the list. If that ever stops being true
-   the undo stack silently starts holding the present. */
+   A step is the list of strokes, not a deep copy, so a pen-down never pays
+   for everything already written. That is correct only because nothing on a
+   card is changed in place: adding, erasing and clearing all replace the list.
+   If that stops being true the undo stack silently starts holding the present. */
 var past = [], future = [];
 var HISTORY = 60;
 
@@ -859,15 +760,8 @@ var tool = "pen";        /* pen | erase | lasso */
 var drawing = null;
 var pending = false;
 
-/* How far the rubber reaches, in CSS pixels of the layer, plus a little for how
-   thick the line being rubbed is.
-
-   It used to be a fraction -- 0.02 -- and the fraction was of two different
-   things at once: the horizontal distance was in card WIDTHS and the vertical
-   one in card HEIGHTS, and they were then added as though they were the same
-   unit. On a card the shape a line of prose is, that is a rubber that reaches
-   fifteen pixels sideways and two downwards. A pixel is a pixel in both
-   directions. */
+/* How far the rubber reaches, in CSS pixels of the layer (the same unit both
+   ways), plus a little for the thickness of the line being rubbed. */
 var ERASE_R = 11;
 
 /* Square of the distance from a point to a segment. The rubber is a SWEEP --
@@ -884,21 +778,9 @@ function distToSeg(px, py, ax, ay, bx, by) {
   return dx * dx + dy * dy;
 }
 
-/* THE RUBBER TAKES OUT WHAT IT TOUCHES, NOT THE STROKE IT TOUCHES.
-
-   This used to remove the whole stroke, which is what the slate does -- and on
-   the slate it is right, because a stroke there is a letter. A stroke HERE is a
-   ring around a paragraph, a line under a sentence, an arrow across half a card:
-   one pen-down that covers the width of the lesson. Touching any part of it took
-   all of it, and with two or three such marks on a card that is the whole
-   annotation gone for a tick in the corner of it. Reported in exactly those
-   words: "the erasing when annotating wipes out EVERYTHING - it should just wipe
-   out what I touch".
-
-   So a stroke the rubber crosses is SPLIT: the samples inside the nib go, and
-   each surviving run on either side becomes a mark of its own. A run of one
-   sample is dropped -- a single point is a dot, and nobody rubbed out the middle
-   of a line in order to leave two dots behind.
+/* The rubber takes out what it touches, not the stroke it touches: a stroke
+   here may be a ring round a paragraph, so a stroke it crosses is split and
+   each surviving run becomes its own mark. A one-sample run is dropped.
 
    Returns fresh stroke objects, never the ones it was given: the undo stack
    holds the card's list by reference and is only correct while nothing on a card
@@ -977,19 +859,10 @@ function at(ev, d) {
 }
 
 /* ------------------------------------------------------------- selection */
-/* WHAT IS PICKED, AND ON WHICH CARD.
-
-   Ink on the lesson used to be write-only: a mark could be drawn, rubbed out, or
-   cleared, and that was the whole of it. Which meant the one thing a person
-   actually asks for -- "this working I wrote over your card belongs on my own
-   board" -- could not be done at all, and the answer was to write it out a
-   second time.
-
-   So the layer gets a lasso of its own, and it is deliberately the same gesture
-   as the slate's: loop around something, and it is caught if more than 60% of it
-   is inside the loop. A selection belongs to ONE card, because that is what a
-   mark is anchored to, and it is dropped when the card's marks change underneath
-   it. */
+/* What is picked, and on which card: a lasso with the slate's own gesture
+   (caught when more than 60% is inside the loop), so ink written over a card
+   can be moved to one's own board. A selection belongs to one card, its
+   anchor, and is dropped when that card's marks change underneath it. */
 var pick = null;              /* { id: card id, idx: [index into store[id]] } */
 /* The last card a pen was put down on. It is where a paste goes when nothing is
    selected -- the card somebody was just working on is a better guess than the
@@ -1047,11 +920,7 @@ function toPixels(s, cv) {
     pts.push([s.p[i] * w + pl, s.p[i + 1] * h + pt,
               s.pr && s.pr[n] !== undefined ? s.pr[n] : 0.5]);
   }
-  var out = { c: s.c || pen.colour, w: widthOf(s, cv), hl: false, pts: pts };
-  /* Its kind crosses with it (`ink-clip.js` carries it), so a direction cut
-     and pasted is still a direction. */
-  if (s.dir) out.dir = 1;
-  return out;
+  return { c: s.c || pen.colour, w: widthOf(s, cv), hl: false, pts: pts };
 }
 
 /* Which card a paste lands on: the one holding the selection, else the one last
@@ -1150,9 +1019,6 @@ var CLIP = {
          line in its own colour, which is the nearest true thing. */
       var got = { c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr };
       if (cv._page) { got.w = got.w * PAGE_REF / w; got.pg = 1; }
-      /* A paste keeps the kind it was drawn as, whatever the toggle says
-         now -- on a surface that keeps kinds at all (`kinded`). */
-      if (s.dir && kinded) got.dir = 1;
       all.push(got);
     });
     store[id] = all;
@@ -1211,7 +1077,6 @@ function feed(ev, d) {
    stroke on every frame. */
 function extend(d) {
   var pts = d.raw;
-  if (!ink) { d.dense = pts.slice(); d.built = pts.length; return; }
   while (d.built + 2 < pts.length) {
     var i = d.built;
     var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
@@ -1327,32 +1192,16 @@ function dropSelection() {
 document.addEventListener("selectstart", noSelect, true);
 document.addEventListener("dragstart", noSelect, true);
 
-/* AND THE LAST WORD OF ALL BELONGS TO A CLOCK, BECAUSE `drawing` IS WHAT
-   REFUSES EVERY SCROLL ON THE PAGE.
+/* And the last word belongs to a clock, because `drawing` refuses every
+   scroll on the page: `onTouchMove` is on the document, so a stroke that never
+   ends would refuse scrolling everywhere with nothing on the glass saying why.
 
-   A stroke in progress is the whole of the test in `onTouchMove`, and that
-   listener is on the DOCUMENT -- so a stroke that never ends refuses the scroll
-   everywhere, for the rest of the sitting, with nothing on the glass saying why.
-   Reported from the iPad: *"When I annotated for the first time in a session
-   just now, I couldn't scroll at all. Then I selected 'done' to stop annotating,
-   and I could scroll. Then I started annotating again, and I could scroll."*
-   That is this defect exactly, and the toggle is what cleared it: `armTouch`
-   takes the refusal off on the way out and `begin` finishes the stale stroke on
-   the next pen-down, so it can only ever be seen once.
-
-   Every OTHER way a lift goes missing is already caught -- the window pair
-   below, `blur`, `begin` finishing what it finds -- and the one they share is
-   that each is filtered by `pointerId`. A lift delivered under an id that is not
-   this stroke's is rescued by none of them, and `mine` is right to refuse it: a
-   second contact must not end the pen's stroke. So the floor is not another
-   event. It is silence.
-
-   MEASURED IN SECONDS AND PUSHED FORWARD BY EVERY SAMPLE, so a stroke being
-   drawn never meets it. What it catches is a stroke nothing has been heard from
-   at all, which is not a hand on the glass however it got there. It is long on
-   purpose: a nib held motionless mid-word sends nothing, and cutting somebody's
-   stroke in two is a real cost where a latch nobody can clear is the whole
-   reported fault. */
+   Every other lost lift is caught (the window pair below, `blur`, `begin`
+   finishing what it finds), but all filter by `pointerId`, and a lift under
+   another id is rightly refused by `mine`. So the floor is silence: measured
+   in seconds and pushed forward by every sample, so a live stroke never meets
+   it. Long on purpose, because a motionless nib sends nothing and cutting a
+   stroke is a real cost. `armTouch` and `begin` also clear a stale stroke. */
 /* WHAT THIS LAYER IS DOING, IN THE LOG EVERYTHING ELSE ON THE PAGE WRITES TO.
 
    Scrolling while annotating has been reported three times and diagnosed twice,
@@ -1418,52 +1267,31 @@ function strokeOver() {
 });
 window.addEventListener("blur", function () { if (drawing) end(null); });
 
-/* WHETHER THIS IS A SCROLL IS A QUESTION ABOUT THE HAND, NOT ABOUT THE PLACE.
+/* Whether this is a scroll is a question about the hand, not the place. The
+   layer permits the scroll in CSS and this takes it back when the hand says
+   so: `begin` runs on `pointerdown`, before `touchstart`, and sets `drawing`
+   for a pen always and for a finger only when the slate says a finger
+   writes. Otherwise the page scrolls natively, with its own momentum.
 
-   It used to be about the place. `touch-action: none` sat on the cards, so a
-   swipe over a card was always a stroke and a swipe anywhere else -- the margins
-   down each side, the gaps -- was always a scroll. That is two rules a person has
-   to hold in their head about their own screen, and it gets the pen wrong exactly
-   where the pen has least room: out in the margin, where the answer was "you
-   scrolled".
-
-   So the layer permits the scroll in CSS and this takes it back when the hand
-   says so. `drawing` is the whole of the test: `begin` runs on `pointerdown`,
-   which is dispatched before `touchstart`, and it sets `drawing` for a pen
-   always and for a finger only when the slate has been told a finger writes. If
-   we own the gesture, nothing scrolls. If we do not, the page scrolls natively,
-   with its own momentum, which is not a thing worth reimplementing.
-
-   `touchType` is the belt to that braces: it is what Safari calls an Apple
-   Pencil, and it means the pen is refused the scroll even if the two events
-   arrive the other way round. */
+   `touchType` is the belt to that braces: Safari's name for an Apple Pencil,
+   refused the scroll even if the two events arrive the other way round. */
 function stylus(ev) {
   var t = ev.changedTouches && ev.changedTouches[0];
   return !!t && t.touchType === "stylus";
 }
 
-/* AND ONCE A PEN IS AT WORK, THE LAYER REFUSES THE SCROLL OUTRIGHT.
+/* And once a pen is at work, the layer refuses the scroll outright.
 
-   `touch-action` is read when a gesture STARTS, and a `preventDefault` on
-   `touchstart` is only honoured while the event is cancelable -- which it is not
-   during a fling. So a pen put down while the page is still moving, or a pen
-   whose own gesture the browser has decided to treat as a pan, gets a
-   `pointercancel` instead of ink: the stroke ends where it was, the page pans,
-   and until everything settles nothing the pen does marks anything. Reported as:
-   "I wrote down the first letter and it stopped writing. I paused for a couple of
-   seconds, tried again, and writing continued fine."
+   `touch-action` is read when a gesture starts, and `preventDefault` on
+   `touchstart` is honoured only while cancelable (not during a fling), so a
+   pen put down on a moving page gets `pointercancel` instead of ink. So while
+   the pen is at work the zone round the last stroke (`.ann-zone`, see
+   `zoneOf`) carries `touch-action: none`: the next stroke cannot be re-read
+   as a pan, and a finger landing there then is a palm. The rest of the card
+   scrolls natively throughout, as with the slate's own palm window.
 
-   A latch closes that. While the pen is at work the zone round the last stroke
-   (`.ann-zone`, see `zoneOf`) carries `touch-action: none`, so the NEXT stroke
-   cannot be reinterpreted however quickly it follows, and a finger landing there
-   in that window is a palm rather than a scroll -- which is what a finger
-   arriving beside a working nib is. The rest of the card scrolls natively
-   throughout, and the zone opens again with the latch. Same shape as the slate's own palm window, and the
-   same reason.
-
-   Note what this does NOT do: it does not decide anything by where the hand
-   landed. The hand still decides. It only stops one hand's own gesture from
-   being re-read as the other's. */
+   This decides nothing by where the hand landed; the hand still decides. It
+   only stops one hand's gesture being re-read as the other's. */
 /* How long the latch outlives a page that is still moving.
 
    It was a second and a half after the last SAMPLE, and a second and a half is
@@ -1571,21 +1399,10 @@ function armScroll(want) {
   }
 }
 
-/* THE RELEASE IS EXACT, AND THE WINDOW IS THE NUMBER ABOVE.
-
-   This was a `setInterval` at 500 ms, and its phase was set by the FIRST sample
-   of a sequence -- so it had nothing to do with when the nib actually lifted.
-   The first tick at or after `PEN_MODE` is the one that let go, which put the
-   real window anywhere between 700 and 1200 ms, uniformly, averaging 950. A
-   window nobody can predict is worse than a longer one that is the same every
-   time, because the second can be learned and the first reads as a fault.
-
-   Reported as: annotating, going to scroll, *"suddenly scrolling didn't work…
-   it paused for a second. I was like, wait what? Why isn't this working?"*
-
-   One timer, armed for exactly what is left. `penSeen` never re-arms, so a
-   stroke of a thousand samples costs one timeout rather than a `clearTimeout`
-   and a `setTimeout` each; the lift asks again, once, through `penLift`. */
+/* The release is exact, and the window is the number above: one timer armed
+   for exactly what is left, because a window that varies reads as a fault
+   while a fixed one can be learned. `penSeen` never re-arms, so a long stroke
+   costs one timeout; the lift asks again, once, through `penLift`. */
 function penRelease() {
   penTimer = null;
   /* Still down. Ask again rather than forgetting: nothing else re-arms this, and
@@ -1793,21 +1610,11 @@ function penWatch() {
   }
 }
 
-/* A CONTROL IS NOT A PLACE TO DRAW, AND THE PEN HAS TO BE ABLE TO PRESS ONE.
-
-   This listener is on the DOCUMENT, so it sees the touch that lands on the
-   annotation bar exactly as it sees one that lands on a card. A
-   `preventDefault` on `touchstart` is also what suppresses the synthetic click
-   the browser would otherwise send -- so with a stylus the Pen, Erase, Select,
-   undo and colour buttons took the touch and then did nothing, and the only way
-   to change tools was to put the pencil down and use a finger. Reported as:
-   "I'm trying to use the pen to select the eraser tool ... I have to use my
-   finger".
-
-   So the refusal is about the ink, and it stops at the edge of anything that is
-   a control. Nothing is given up by letting these through: a button has no
-   scroll of its own to refuse. The writing surface's own tools are covered by
-   the same test, because the board draws them into the same page. */
+/* A control is not a place to draw, and the pen has to be able to press one.
+   This listener is on the document, and a `preventDefault` on `touchstart`
+   also suppresses the synthetic click, so the refusal stops at the edge of
+   any control (the board's and the slate's tools alike). A button has no
+   scroll of its own to refuse. */
 function onControl(ev) {
   var t = ev && ev.target;
   if (!t || !t.closest) return false;
@@ -1824,12 +1631,12 @@ function freshGesture(ev) {
 
 /* Where the latch refuses a pan natively: the zone round the last stroke on a
    card (`.ann-zone`), and a zoomable reader's whole scroller (`#reader-pages`
-   in `library.css`, `#paper-pages` in `board.css`), whose bare strips are then
+   in `reader.css`), whose bare strips are then
    scrolled by `handPan` too. The rest of a card's layer keeps its native pan. */
 function onLayer(ev) {
   var t = ev && ev.target;
   return !!(t && t.closest
-            && t.closest("." + ZONE + ".on, #reader-pages, #paper-pages"));
+            && t.closest("." + ZONE + ".on, #reader-pages"));
 }
 
 function onTouchStart(ev) {
@@ -1876,32 +1683,15 @@ function onTouchMove(ev) {
   say("ink-late", { at: "touchmove" });
 }
 
-/* WHEN THESE TWO LISTENERS EXIST AT ALL IS THE WHOLE OF WHETHER THE LESSON
-   SCROLLS SMOOTHLY.
+/* When these two listeners exist at all decides whether the lesson scrolls
+   smoothly. A non-passive `touchmove` makes the browser ask the main thread
+   before every scrolled pixel, and a busy main thread then stalls the scroll.
 
-   A `touchmove` listener that is not passive is a promise to the browser that
-   the page might refuse the gesture, and the browser keeps that promise by
-   asking the main thread about every single move before it is allowed to scroll
-   or zoom a pixel. That is a round trip per frame, behind KaTeX, a payload
-   arriving, a card being laid out -- and when the main thread is busy the
-   scroll simply stops until it is not. Reported twice, in the same words each
-   time: "scrolling is still janky and delayed and unresponsive at times,
-   especially when I'm annotating", and then "scrolling AND zooming when
-   annotating is janky".
-
-   There were two of these on EVERY card's layer, attached when the card was
-   attached and never removed -- so the whole reading column was covered in them,
-   at every moment, whether annotate mode was on or not.
-
-   Now: one pair, on the document, which sees exactly the same events because
-   nothing on the way up stops them. `touchstart` exists only while annotate mode
-   is on -- it is one round trip as a gesture begins, which is the price of being
-   able to refuse a scroll the browser has already decided is a scroll, and it is
-   paid once rather than per frame. And `touchmove` exists only while a stroke is
-   actually being drawn, which is the only time anything would ever be refused.
-   With a finger on the glass and no stroke in progress there is nothing
-   non-passive in the way, and the scroll and the pinch are the compositor's
-   again.
+   So: one pair, on the document. `touchstart` exists only while annotate mode
+   is on (one round trip as a gesture begins, the price of refusing a scroll),
+   and `touchmove` only while a stroke is being drawn. With a finger down and
+   no stroke, nothing non-passive is in the way and scroll and pinch belong to
+   the compositor.
 
    `pointerdown` is dispatched before `touchstart` in WebKit, which is what makes
    this safe: `begin` has already run and armed the refusal before the first
@@ -1941,12 +1731,8 @@ function begin(ev, card) {
   if (!id) return;
   dropSelection();
   /* A finger scrolls the lesson unless the slate has been told a finger writes.
-     Returning before preventDefault is what lets the scroll happen.
-
-     This used to be a latch of its own -- "once a pen has been seen, a finger is
-     a palm" -- which meant the two surfaces disagreed about the same hand, and
-     both of them forgot the answer on every reload. One setting, read from the
-     component that owns it. */
+     Returning before preventDefault is what lets the scroll happen. One
+     setting, read from the component that owns it, so both surfaces agree. */
   if (ev.pointerType === "touch"
       && !(window.Slate && window.Slate.fingerWrites && window.Slate.fingerWrites())) return;
   if (ev.pointerType !== "touch") penSeen();
@@ -1966,26 +1752,14 @@ function begin(ev, card) {
     erasing: tool === "erase",
     stroke: { c: pen.colour, w: pen.width, p: [], pr: [] },
   };
-  if (penKind === "dir") d.stroke.dir = 1;
   /* Before the layer is sized, because what it is sized to depends on whether
      anything is going to be drawn on it -- and this is that. */
   drawing = d;
-  /* AND IF THE LAYER WAS RESIZED, PUT BACK WHAT WAS ON IT.
-
-     `size` reallocates the bitmap when the geometry has moved, and allocating a
-     canvas clears it -- every mark already on the card, gone from the glass in
-     the instant before a new one is drawn. Nothing then put them back: the pen
-     lift repaints only the rectangle the new stroke covered, which is the whole
-     point of that rectangle, and a full redraw happened only on a window resize.
-     So the marks came back when the iPad was turned, and not before.
-
-     The geometry moves constantly and never because of anything the person is
-     doing: the layer reaches half way into the gap above and below the card, so a
-     card arriving anywhere in the lesson, a turn being inserted, the writing
-     drawer opening beside the question, a figure finishing its compile -- all of
-     them change the padding of a card that has not itself changed size, which is
-     exactly the case the per-card resize observer cannot see. Reported as:
-     "adding a new annotation makes the old annotations disappear". */
+  /* And if the layer was resized, put back what was on it: reallocating the
+     bitmap clears it, and the lift repaints only the new stroke's rectangle.
+     The geometry moves often without the card changing size (its padding
+     reaches into neighbouring gaps), which the per-card resize observer
+     cannot see. */
   if (size(card, canvas)) repair(id, canvas, boxOf(canvas));
   card._annGrew = false;
   /* Read from the sizing above rather than asked for again: `size` has just paid
@@ -2069,12 +1843,9 @@ function rub(ev) {
   frame();
 }
 
-/* Whose hand this is. A stroke belongs to ONE pointer, and the others that
-   arrive on the layer while it is being drawn are the rest of the hand holding
-   the pen -- or a finger that has landed to scroll. Both of them used to be able
-   to finish somebody else's stroke, because a `pointerup` is a `pointerup`
-   whoever sent it, and the symptom is annotation that stops writing partway
-   through a word for no reason anybody can reproduce. */
+/* Whose hand this is. A stroke belongs to one pointer; others arriving while
+   it is drawn (the rest of the hand, or a finger landing to scroll) must not
+   finish it, since a `pointerup` is a `pointerup` whoever sent it. */
 function mine(ev, d) {
   return !(ev && ev.pointerId !== undefined && d.pid !== undefined
            && ev.pointerId !== d.pid);
@@ -2082,21 +1853,11 @@ function mine(ev, d) {
 
 function move(ev) {
   var d = drawing;
-  /* THE LATCH IS ABOUT A NIB THAT IS DOWN, NOT ONE THAT IS NEAR.
-
-     An Apple Pencil hovers: within about a centimetre of the glass it sends
-     `pointermove` with `pointerType: "pen"` and nothing touching anything. This
-     ran on every one of them, so simply HOLDING the pencil over the lesson kept
-     `body.pen-writing` alive, and the layer went on refusing the one-finger pan
-     for as long as the pencil was in somebody's hand -- which, while
-     annotating, is the whole time. Reported from the iPad: annotating with the
-     pencil and unable to scroll with a finger at all.
-
-     `d` is the test, because it is exactly "a stroke is in progress". The case
-     the latch exists for is the NEXT stroke of the same word, and that one is
-     covered by the page itself: if the previous stroke was re-read as a pan the
-     page is still moving, and `penRelease` holds the latch shut for 700 ms
-     after the last scroll. */
+  /* The latch is about a nib that is down, not one that is near: a hovering
+     Pencil sends `pointermove` too, and must not keep the pan refused. `d` is
+     the test, exactly "a stroke is in progress". The next stroke of a word is
+     covered by the page: if the last was re-read as a pan the page is still
+     moving, and `penRelease` holds the latch for 700 ms after the last scroll. */
   if (ev && ev.pointerType !== "touch" && on && d) penSeen();
   if (!on || !d) return;
   if (!mine(ev, d)) return;
@@ -2189,8 +1950,8 @@ function end(ev) {
     return;
   }
 
-  /* A drag moved ink that is already on the card: it has to reach the disk, and
-     it is no longer the picture the tutor was handed. */
+  /* A drag moved ink already on the card: it must reach the disk, and it is
+     not the picture the tutor was handed any more. */
   if (d.moving) {
     drawing = null;
     if (d.dragged) {
@@ -2254,17 +2015,10 @@ function end(ev) {
   onChange();
 }
 
-/* The layer, put right after a stroke.
-
-   Only the rectangle the stroke touched -- a full repaint of the card was a
-   noticeable cost at every pen lift on a card carrying a lot of ink, which is
-   what "I try to write something out multiple times and a few seconds later the
-   multiple writings all show up" is made of. The exception is a card that
-   changed size WHILE the stroke was being drawn: its layer is measured against a
-   geometry that no longer exists, and the whole thing has to be laid out and
-   repainted. The resize observer cannot do it, because it is asleep for the
-   duration of a stroke and will not fire again for a change it has already
-   reported. */
+/* The layer, put right after a stroke: only the rectangle the stroke touched.
+   A card that changed size during the stroke is laid out and repainted
+   whole, because the resize observer sleeps through a stroke and will not
+   fire again for a change it already reported. */
 function settle(card, cv, id, box) {
   if (card && card._annGrew) {
     card._annGrew = false;
@@ -2320,13 +2074,10 @@ window.Annotate = {
          repainting it from scratch is exactly the work that makes a line arrive
          after the nib. The resize case that needs it has its own guard. */
       if (drawing && drawing.card === c) return;
-      /* Every card, INCLUDING the ones with nothing on them. A layer with no ink
-         has no bitmap and nothing to repaint -- `draw` returns as soon as it
-         knows that -- but it still has to be laid out: this element is what takes
-         the pen, it reaches out to both edges of the window, and a window that
-         has changed width leaves it covering somewhere the card no longer is.
-         Skipping them here is the "margins are unwritable" defect in a new coat,
-         and `test/link.js` holds the rule. */
+      /* Every card, including the empty ones: an empty layer has no bitmap to
+         repaint but still takes the pen out to both window edges, so it must
+         be laid out after a resize or the margins go unwritable
+         (`test/link.js` holds the rule). */
       draw(c);
     });
   },
@@ -2346,16 +2097,8 @@ window.Annotate = {
         fresh.push(id);
       }
     });
-    /* Only what was actually adopted.
-
-       This is called on every payload -- which is every card the tutor writes
-       and every heartbeat -- and it used to redraw EVERY card in the lesson each
-       time: a forced layout and a full repaint per card, a dozen or more of
-       them, arriving in the middle of somebody writing. Reported as annotated
-       writing being "hella laggy", after the autosave's picture had already been
-       taken out of the way. The marks that arrive in a payload are the ones
-       being restored after a reload, and there is nothing to redraw for the
-       rest. */
+    /* Only what was actually adopted: this runs on every payload, and the
+       marks in a payload are the ones restored after a reload. */
     fresh.forEach(function (id) {
       if (!(store[id] || []).length) return;
       var card = nodeFor(id);
@@ -2364,14 +2107,9 @@ window.Annotate = {
   },
   setOn: function (v) {
     on = !!v;
-    /* HOW LONG THE MODE ITSELF COSTS, because that is the remaining candidate
-       for "the first gesture after I tapped the pencil did nothing".
-       `body.annotating` restyles every card in the lesson -- a box-shadow and a
-       radius each -- and `armTouch` installs a NON-PASSIVE `touchstart` on the
-       document in the same breath. A non-passive touchstart is a promise that
-       the main thread will be consulted before any gesture may scroll, so the
-       cost of that restyle is paid by whoever touches the glass next. Measured
-       here rather than reasoned about: the number goes in the log. */
+    /* How long the mode itself costs, logged: `body.annotating` restyles every
+       card while `armTouch` installs a non-passive `touchstart`, so the
+       restyle's cost lands on the next touch. */
     var t0 = Date.now();
     document.body.classList.toggle("annotating", on);
     var layers = document.querySelectorAll("canvas." + LAYER).length;
@@ -2490,10 +2228,8 @@ window.Annotate = {
     future.length = 0;
     pick = null;
     lastCard = null;
-    /* The canvases keep their bitmaps until something repaints them, and a
-       layer whose card has gone is about to be removed anyway -- but the ones
-       that survive the reconcile would otherwise still be showing ink the
-       store no longer has. */
+    /* The canvases keep their bitmaps until repainted, so the layers that
+       survive the reconcile are repainted to drop ink the store has lost. */
     Array.prototype.forEach.call(allNodes(), function (c) { draw(c); });
     onChange();
   },
@@ -2533,21 +2269,8 @@ window.Annotate = {
     draw(nodeFor(id));
     onChange();
   },
-  /* One page's ink over the page itself, for a note about a document; one
-     kind of it when `kind` is "fix" or "dir". */
-  picture: function (id, img, kind) { return pictureOver(id, img, kind); },
-  /* How many strokes of each kind are on one key. */
-  kinds: function (id) {
-    var n = { fix: 0, dir: 0 };
-    (store[id] || []).forEach(function (s) { if (s.dir) n.dir++; else n.fix++; });
-    return n;
-  },
-  /* The kind of ink the pen draws from now on: "dir", or a fix. */
-  setKind: function (k) { penKind = k === "dir" ? "dir" : null; },
-  kind: function () { return penKind; },
-  /* Whether a pasted direction stays one on this page: the library reader's
-     call, and nobody else's. */
-  keepKinds: function (v) { kinded = !!v; },
+  /* One page's ink over the page itself, for a note about a document. */
+  picture: function (id, img) { return pictureOver(id, img); },
   /* Take off one key's strokes that `gone` says the server already took off
      (`library.wiped`), keeping the rest, and save what is left. Out of the
      undo history too, as `drop` does. Returns how many went. */
@@ -2571,22 +2294,9 @@ window.Annotate = {
     return list.length - left.length;
   },
   payload: function (id, send) {
-    /* The picture ONLY when it is actually going to the tutor.
-
-       `png()` builds an offscreen canvas, repaints every stroke on it and
-       PNG-encodes the result. That ran on every autosave -- which is about a
-       second after every stroke, for every card with unsaved marks -- and on a
-       tablet holding a long lesson it is hundreds of milliseconds of the main
-       thread each time. Reported as: "HELLA laggy. I try to write something out
-       multiple times and a few seconds later the multiple writings all show up
-       overlapping." That is precisely what a blocked main thread looks like from
-       behind a pen: the strokes were captured the whole time and nothing could
-       paint them.
-
-       Nothing read it. An autosave exists so a reload does not cost the marks,
-       and what a reload restores is `strokes`; the server writes the file and
-       `load_notes` never looks at it. The tutor reads the picture, and the tutor
-       only sees marks that were sent. */
+    /* The picture only when it is actually going to the tutor: encoding a PNG
+       blocks the main thread, and nothing reads an autosave's picture (a
+       reload restores `strokes`; the tutor sees only sent marks). */
     var was = asLoaded[id], list = store[id] || [];
     var strokes = was && was.lists.indexOf(list) >= 0 ? was.raw : list.map(saved);
     return { card: id, strokes: strokes,
@@ -2595,9 +2305,8 @@ window.Annotate = {
   onChange: function (fn) { onChange = fn || function () {}; }
 };
 
-/* Coalesced to one repaint a frame. A resize arrives in bursts -- the iPad's
-   keyboard sliding up, a rotation settling -- and each one of them used to
-   repaint every marked card in the lesson. */
+/* Coalesced to one repaint a frame, because a resize arrives in bursts (the
+   keyboard sliding up, a rotation settling). */
 var redrawFrame = 0;
 window.addEventListener("resize", function () {
   if (redrawFrame) return;

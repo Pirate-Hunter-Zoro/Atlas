@@ -65,9 +65,9 @@ function ask(handlers, url, init) {
 (async () => {
   const base = 'https://board.example.ts.net';
 
-  // 1. Nothing cached, the board is gone, the app opens.
+  // 1. Nothing cached, the board is gone, the app opens on a session's board.
   let { handlers } = scope({});
-  let res = await ask(handlers, base + '/board', { navigate: true });
+  let res = await ask(handlers, base + '/s/20261008-210000/board', { navigate: true });
   if (!res) {
     fail('the worker resolved with nothing at all — that is the blank screen');
   } else {
@@ -91,17 +91,58 @@ function ask(handlers, url, init) {
 
   // 2. The shell IS cached: hand it over, because the board's own banner is
   //    better than a generic page -- it keeps the lesson readable behind it.
-  ({ handlers } = scope({ '/board': new Response('<html>the board</html>', {
+  //    A session's board is board.html whatever the id, cached once under its
+  //    /static/ name, so any session URL falls back to the one copy.
+  ({ handlers } = scope({ '/static/board.html': new Response('<html>the board</html>', {
     headers: { 'Content-Type': 'text/html' } }) }));
-  res = await ask(handlers, base + '/board', { navigate: true });
+  res = await ask(handlers, base + '/s/20261008-210000/board', { navigate: true });
   const cachedBody = res ? await res.text() : '';
   /the board/.test(cachedBody)
     ? ok('a cached shell is preferred, so the board can say so itself')
     : fail('the cached shell was not used');
+  for (const p of ['/s/X/board', '/s/X/', '/s/X', '/s/X/board/']) {
+    ({ handlers } = scope({ '/static/board.html': new Response('<html>the board</html>') }));
+    res = await ask(handlers, base + p, { navigate: true });
+    /the board/.test(res ? await res.text() : '')
+      ? ok('offline, ' + p + ' shows the cached board')
+      : fail('offline, ' + p + ' did not show the cached board');
+  }
+  ({ handlers } = scope({ '/static/slate.html': new Response('<html>the slate</html>') }));
+  res = await ask(handlers, base + '/s/X/slate', { navigate: true });
+  /the slate/.test(res ? await res.text() : '')
+    ? ok('and /s/X/slate shows the cached slate')
+    : fail('/s/X/slate did not show the cached slate');
+  ({ handlers } = scope({}));
+  res = await ask(handlers, base + '/s/X/slate', { navigate: true });
+  res && res.status === 503 && /not answering/.test(await res.text())
+    ? ok('and with nothing cached it shows the unreachable page')
+    : fail('an uncached /s/X/slate did not show the unreachable page');
+  /"\/static\/board\.html"/.test(SRC) && /"\/static\/slate\.html"/.test(SRC)
+    ? ok('both shell pages are precached under their /static/ names')
+    : fail('the board or the slate page is not in SHELL');
+
+  //    Reachable, the session's own page comes off the network.
+  let s0;
+  ({ handlers, ctx: s0 } = scope({ '/static/board.html': new Response('cached') }));
+  s0.fetch = () => Promise.resolve(new Response('<html>live</html>'));
+  res = await ask(handlers, base + '/s/X/board', { navigate: true });
+  /live/.test(res ? await res.text() : '')
+    ? ok('online, a session page is the network\'s')
+    : fail('online, a session page came from the cache');
+
+  //    Only pages: a session's data is the network's, untouched.
+  for (const p of ['/s/X/board.json', '/s/X/events', '/s/X/slate/state',
+                   '/s/X/result/r1', '/s/X/board']) {
+    ({ handlers } = scope({ '/static/board.html': new Response('stale') }));
+    res = ask(handlers, base + p);
+    res === undefined
+      ? ok(p + ' (not a navigation) is left to the network')
+      : fail('the worker answered ' + p);
+  }
 
   // 3. A home-screen icon can carry a query string.
-  ({ handlers } = scope({ '/board': new Response('<html>the board</html>') }));
-  res = await ask(handlers, base + '/board?from=homescreen', { navigate: true });
+  ({ handlers } = scope({ '/static/board.html': new Response('<html>the board</html>') }));
+  res = await ask(handlers, base + '/s/X/board?from=homescreen', { navigate: true });
   const q = res ? await res.text() : '';
   /the board/.test(q)
     ? ok('and a query string does not miss the very page that was cached')
@@ -158,6 +199,44 @@ function ask(handlers, url, init) {
   /"\/library"/.test(SRC)
     ? ok('and is listed in the shell, so it is there after one visit')
     : fail('/library is not in SHELL');
+
+  // 8. AN ALLOWLIST: only an exact SHELL path, a font or KaTeX is ever matched
+  //    against the cache. Anything else is the network's, even with a copy of
+  //    it sitting in the cache and the network gone.
+  const stale = new Response('stale');
+  const tried = [];
+  for (const p of ['/archive/x', '/atlas.json', '/map/inside/x', '/notes/what',
+                   '/board/extra', '/static/mathjs/math.js', '/static/unlisted.js']) {
+    const store = {};
+    store[p] = stale;
+    let s;
+    ({ handlers, ctx: s } = scope(store));
+    const match = s.caches.match;
+    s.caches.match = (...a) => { tried.push(p); return match(...a); };
+    res = ask(handlers, base + p, { navigate: true });
+    res === undefined
+      ? ok(p + ' is never answered by the worker')
+      : fail('the worker answered ' + p);
+  }
+  tried.length === 0
+    ? ok('and none of them was ever matched against the cache')
+    : fail('cache-matched: ' + tried.join(', '));
+
+  // While the fonts and KaTeX are answered from the cache first.
+  ({ handlers } = scope({ '/static/katex/fonts/KaTeX_Main-Regular.woff2':
+                          new Response('font') }));
+  res = await ask(handlers, base + '/static/katex/fonts/KaTeX_Main-Regular.woff2');
+  /font/.test(res ? await res.text() : '')
+    ? ok('a KaTeX font is answered from the cache')
+    : fail('a cached KaTeX font was not used');
+
+  // VERSION is the server's to write; the source holds the placeholder it replaces.
+  /var VERSION = "board-shell-dev";/.test(SRC)
+    ? ok('VERSION is a placeholder the server fills with a hash of the shell')
+    : fail('sw.js lost its VERSION placeholder');
+  !/mathjs/.test(SRC)
+    ? ok('and math.js is not precached; the calculator loads it when opened')
+    : fail('math.js is still precached');
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nan unreachable board still paints something');

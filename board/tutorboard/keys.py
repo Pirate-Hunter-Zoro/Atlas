@@ -2,32 +2,13 @@
 
     ~/.config/tutor-board/keys.env
 
-`NAME=value`, one a line, `#` for a comment, no shell and no expansion. Beside
-the `config.json` the launcher already reads, and OUTSIDE the tree for the same
-reason `cost.jsonl` is machine-local: the account that pays for it belongs to
-this machine, and this repository is public.
-
-A recipe names the key it needs with `needs_key` and spends it through `env`,
-where `{NAME}` is substituted from here. Nothing else reads this file, and
-nothing ever puts a value from it on a command line -- argv is in `ps` output,
-which is the whole reason `ai-config/policy/credentials.txt` exists.
-
-WHAT IS CHECKED ABOUT THE FILE'S MODE, AND WHAT DELIBERATELY IS NOT. A
-world-readable key file is refused: every account on the machine could read it
-and there is nothing to argue about. A GROUP-readable one is not, and the
-obvious rule that refuses it would be wrong here. Measured on this machine: the
-home directory is NFSv4 and the server enforces the mode through its own ACLs,
-so `chmod 600` reports success and `stat` comes back `770`, owner
-`mferguson:domain users`; `setfacl` is ignored, there is no `nfs4_setfacl` and
-there is no root. A refusal on the group bit would refuse every file in this
-home, `~/.claude/.credentials.json` included, which has sat at exactly those
-permissions for as long as this board has run. So the key is as protected as
-everything else on this filer, tightening it is a storage request rather than a
-line of Python, and this module says it once and carries on.
-
-Cached, with the reasoning `assistants.TTL` carries: the answer changes only
-when somebody edits a file, and a `--agents --json` four times a second must
-not become a stat and a parse four times a second either.
+`NAME=value`, one a line, `#` comments, no shell and no expansion; outside
+the tree because this repository is public. A recipe names its key with
+`needs_key` and spends it through `env` (`{NAME}`); nothing puts a value on
+a command line, because argv is visible in `ps`. A world-readable file is
+refused; a group-readable one is not, because this home's NFSv4 server
+reports every file as mode 770 whatever `chmod` says. Cached, since
+`--agents --json` is polled.
 """
 
 import os
@@ -54,8 +35,7 @@ def _read(path):
         st = os.stat(path)
     except OSError:
         return {}, "there is no %s" % path
-    # Other-readable, or other-writable. The group bit is not asked about; see
-    # the module docstring for the measurement that settles it.
+    # Other-readable or other-writable only; see the module docstring.
     if st.st_mode & (stat.S_IROTH | stat.S_IWOTH):
         return {}, ("%s is readable by every account on this machine "
                     "(mode %o); `chmod o-rwx` it and the keys in it will be "
@@ -69,9 +49,7 @@ def _read(path):
                     continue
                 name, _, value = line.partition("=")
                 name = name.strip()
-                # No shell, so a quoted value is a value with quotes on it
-                # unless they wrap the whole of it -- which is what somebody
-                # copying a key out of a provider's page writes.
+                # Quotes wrapping the whole value are stripped; others are kept.
                 value = value.strip()
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
                     value = value[1:-1]
@@ -105,11 +83,7 @@ def get(name):
 
 
 def why_not():
-    """Why the store is empty, in one sentence, or None if it is not.
-
-    For a message on the glass. A person told *the key is missing* can act; a
-    person told *the turn failed* cannot.
-    """
+    """Why the store is empty, in one sentence for the glass, or None."""
     _all()
     return _CACHE["why"]
 
@@ -123,16 +97,9 @@ def forget():
 # `{NAME}` in a recipe's `env`
 # ---------------------------------------------------------------------------
 def fill(value):
-    """Substitute `{NAME}` from the store. None where a named key is absent.
-
-    None rather than the literal braces, and that is the whole point: a
-    `{DEEPSEEK_API_KEY}` handed to a provider verbatim is an authentication
-    failure in a log file, which is the least actionable thing the person
-    holding the iPad could be given. Absent is a fact the chooser can draw.
-
-    Only `{NAME}` is a key: a brace that does not open a bare name is text.
-    `OPENCODE_CONFIG_CONTENT` is a JSON object whose own placeholder is
-    `{env:NAME}`, and both pass through untouched.
+    """Substitute `{NAME}` from the store. None where a named key is absent,
+    never the literal braces (an opaque auth failure). Only a bare `{NAME}`
+    is a key: `{env:NAME}` and other braces pass through untouched.
     """
     text = str(value)
     out = []
@@ -160,11 +127,8 @@ def fill(value):
 
 
 def unkeyed(spec):
-    """The key this recipe needs and this machine has not got, or None.
-
-    Asked of the recipe rather than of the turn, so the answer can be drawn on
-    a button before it is tapped rather than found in a log after.
-    """
+    """The key this recipe needs and this machine lacks, or None: drawable on
+    a button before it is tapped."""
     wanted = (spec or {}).get("needs_key")
     if not wanted:
         return None

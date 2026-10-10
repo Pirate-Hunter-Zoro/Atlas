@@ -1,9 +1,9 @@
 /* ==========================================================================
    inkkeep.js -- ink on a reader's pages that says it is kept.
 
-   ONE SAVE PATH, loaded by both readers: the library's (`library.js`) and the
-   meeting deck's (`meeting.js`). Two copies are how one of them ends up
-   cleaning a page on a 500 and never trying it again.
+   ONE SAVE PATH, made by the one reader (`reader.js`) for every page that
+   reads a PDF. Two copies are how one of them ends up cleaning a page on a
+   500 and never trying it again.
 
    What it keeps:
 
@@ -28,8 +28,8 @@
         key (`opts.build`), and it rides on every save of freshly drawn ink,
         with anything else the reader stamps on it (`opts.stamp`).
      6. INK FOR A PAGE THAT IS GONE IS LET GO. A save the board answers with
-        `gone` was drawn on something that is no longer there, and retrying it
-        forever would write it onto whatever replaced it.
+        `gone` was drawn on something since replaced, and retrying it would
+        write it onto the replacement.
 
    `send` is NEVER set from here. Each reader decides what its ink becomes,
    and neither makes a turn per ring drawn.
@@ -39,6 +39,8 @@
      stamp(id)   more fields for a fresh body of the key, or null
      paint()     repaint whatever says where the ink is
      saved(done) after a round, `done` = [{id, ok, gone}]
+     url         where a body is POSTed (default `/annotate/save`): the
+                 reader's session or subject route
    and answers `{save, queue, flush, settle, owed, failed}`. `InkKeep.words`
    is the one sentence both status lines say.
    ========================================================================== */
@@ -111,7 +113,7 @@ function make(opts) {
         init.keepalive = true;
         budget -= init.body.length;
       }
-      var job = fetch("/annotate/save", init).then(function (r) {
+      var job = fetch(opts.url || "/annotate/save", init).then(function (r) {
         var read = r && r.json ? r.json().catch(function () { return {}; })
                                : Promise.resolve({});
         return read.then(function (got) {

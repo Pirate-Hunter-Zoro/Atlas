@@ -146,8 +146,10 @@ os.makedirs(os.path.join(course, "live", "cards"), exist_ok=True)
 
 def write_card(text):
     p = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T"],
+        [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T",
+         "--repo", course],
         cwd=course, input=text.encode("utf-8"),
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(course, "live")),
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
     path = p.stdout.decode().strip().splitlines()[-1] if p.stdout.strip() else ""
     try:
@@ -160,8 +162,9 @@ def write_card(text):
 def write_card_forced(text):
     p = subprocess.run(
         [sys.executable, os.path.join(ROOT, "bin", "board"), "write", "question", "T",
-         "--force"],
+         "--force", "--repo", course],
         cwd=course, input=text.encode("utf-8"),
+        env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(course, "live")),
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
     path = p.stdout.decode().strip().splitlines()[-1] if p.stdout.strip() else ""
     try:
@@ -256,8 +259,7 @@ check("a real card still goes straight through",
 # The door `board write` is not on. The session brief tells an interactive tutor
 # to write its card into `live/cards/` itself, and an agent with file tools does
 # exactly that -- so the READER checks as well: the board, the recap the tutor
-# reads its own lesson back through, and the exported document.
-from tutorboard.course import document              # noqa: E402
+# reads its own lesson back through.
 
 check("a card written straight to disk is not read as a lesson",
       reasoning.card_body(LEAK) == reasoning.THINKING_NOTICE)
@@ -268,12 +270,6 @@ check("and what stands in its place says the turn did not land, rather than "
 
 check("a real card is handed back exactly as written",
       reasoning.card_body(REAL[2][1]) == REAL[2][1])
-
-_cards = tempfile.mkdtemp()
-with open(os.path.join(_cards, "0001-leak.md"), "w", encoding="utf-8") as fh:
-    fh.write("---\nkind: lesson\n---\n" + LEAK)
-check("the export reads through the same gate",
-      reasoning.THINKING_NOTICE in document.read_cards(_cards)[0]["body"])
 
 
 print()

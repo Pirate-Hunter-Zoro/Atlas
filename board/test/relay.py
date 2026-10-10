@@ -8,9 +8,17 @@ What the checks are about:
     report pushed -- which the Mac's merged registry then reads.
   * A REFUSAL IS A REPORT. A bad request is never submitted; its report says
     every problem.
+  * A REPORT SAYS WHERE IT RAN. Every report carries `ran_at`, the cluster's
+    HEAD at submission; a request whose `commit` HEAD lacks is refused; the
+    `[job]` line says when other code lies between the two.
   * TWO PASSES AT ONCE: one runs, the other skips.
   * AN EXPORT OVER THE CAP is refused in the report and never copied.
   * A DIRTY TREE SKIPS THE PASS, and `relay/state.json` says why.
+  * `relay/status.json` IS THE PUBLIC HEALTH: committed with the reports, or
+    beside the branch for a skipped pass, and only when a field other than
+    `at` changed. It is never left edited in the tree.
+  * relay-pass.sh PULLS IN BASH: a pushed board/ change re-execs it once and
+    runs the new Python, and a pushed fix lands after a pushed syntax error.
   * A REJECTED PUSH is retried by the next pass, rebased, never forced.
   * A REPORT IS PUBLIC: `RELAY:` lines only, paths redacted, a crash by its
     exception type.
@@ -24,7 +32,9 @@ Git is real (a bare origin and two clones); Slurm is a table.
 import fcntl
 import json
 import os
+import re
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -35,10 +45,9 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard import jobs, leaving, relay                            # noqa: E402
-from tutorboard.course import threads                                  # noqa: E402
+from tutorboard import code as coding, jobs, leaving, relay            # noqa: E402
 
-TUTOR = os.path.join(ROOT, "bin", "tutor")
+RELAY = os.path.join(ROOT, "bin", "relay")
 fails = []
 
 
@@ -179,13 +188,14 @@ try:
     git(seed, "init", "-q", "-b", "main")
     for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
         git(seed, "config", k, v)
-    write(os.path.join(seed, "atlas.json"),
-          json.dumps({"families": [{"id": "research"}]}))
     write(os.path.join(seed, ".gitignore"),
           "**/relay/state/\n/relay/state.json\n/relay/.lock\nai-config/\n")
-    proj = os.path.join(seed, "research", "Proj")
+    proj = os.path.join(seed, "projects", "Proj")
+    # The owner's export approvals, committed: a png by glob, and a csv
+    # matched without `aggregate`, which approves nothing.
     write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Proj"}))
+          json.dumps({"name": "Proj", "relay": {"exports": [
+              {"glob": "results/*.png"}, {"glob": "results/rows.csv"}]}}))
     write(os.path.join(proj, "AI_INSTRUCTIONS.md"), "# contract\n")
     write(os.path.join(proj, ".gitignore"),
           "live/\nresults/\nlogs/\n!exports/**\n")
@@ -193,7 +203,6 @@ try:
     write(os.path.join(proj, "slurm", "sweep.sbatch"), RECIPE)
     write(os.path.join(proj, "slurm", "crash.sbatch"), CRASH)
     write(os.path.join(proj, "slurm", "diagnose.sbatch"), DIAGNOSE)
-    write(os.path.join(proj, "jobs.jsonl"), "")
     git(seed, "add", "-A")
     git(seed, "commit", "-q", "-m", "seed")
     git(seed, "remote", "add", "origin", origin)
@@ -208,8 +217,8 @@ try:
         return where
 
     mac, cluster = clone("mac"), clone("cluster")
-    mws = os.path.join(mac, "research", "Proj")
-    cws = os.path.join(cluster, "research", "Proj")
+    mws = os.path.join(mac, "projects", "Proj")
+    cws = os.path.join(cluster, "projects", "Proj")
     write(os.path.join(cluster, "ai-config", "policy", "phi.py"), POLICY)
 
     def file_from_mac(req):
@@ -222,7 +231,7 @@ try:
         return ok, problems
 
     def origin_report(rid):
-        return git(origin, "show", "main:research/Proj/relay/reports/%s.json"
+        return git(origin, "show", "main:projects/Proj/relay/reports/%s.json"
                    % rid)
 
     slurm = Slurm()
@@ -234,21 +243,47 @@ try:
     def run_pass(now=None):
         return relay.run_pass(cluster, run=slurm, now=now)
 
+    # Colibri's squeue, as rows: none until a check below puts one there.
+    from tutorboard import colibri as coli
+    COLI = {"rows": []}
+    coli._all_jobs = lambda: COLI["rows"]
+
     # --- a request runs --------------------------------------------------------
-    good = {"id": "r1", "kind": "recipe", "thread": "knn",
-            "recipe": "slurm/sweep.sbatch",
+    good = {"id": "r1", "kind": "recipe", "label": "knn",
+            "session": "20261008-120000", "recipe": "slurm/sweep.sbatch",
             "env": {"EMBEDDER": "bge-small", "SIZE": "100"},
             "produces": ["results/out.json", "results/none.json"],
             "export": ["results/sweep.png", "results/big.png"]}
     ok, problems = file_from_mac(good)
     check("the Mac side files the request clean", problems == [])
+    filed_at = git(mac, "rev-parse", "HEAD")
+    check("the request is stamped with the Mac's HEAD before its own commit",
+          load(os.path.join(mws, "relay", "requests", "r1.json"))["commit"]
+          == git(mac, "rev-parse", "HEAD~1"))
     got = run_pass()
     check("the pass pulls it and submits it", got["submitted"] == ["r1"]
           and not got["skipped"] and not got["error"])
+    st = json.loads(git(origin, "show", "main:relay/status.json") or "null")
+    check("the first pass commits relay/status.json with its reports",
+          st and st["skipped"] == "" and st["last_error"] == ""
+          and st["push_pending"] is False and isinstance(st["at"], int)
+          and sorted(st) == ["at", "colibri", "last_error", "outstanding",
+                             "push_pending", "skipped"]
+          and "relay/status.json" in git(origin, "show", "--name-only",
+                                         "--format=", "main").split())
+    check("it names the request still out, by subject, and Colibri off",
+          st and st["outstanding"] == {"projects/Proj": {"r1": "submitted"}}
+          and st["colibri"]["state"] == "off" and st["colibri"]["queue"] == 0)
     rep = load(os.path.join(cws, "relay", "reports", "r1.json"))
     jid = rep and rep.get("jobid")
     check("its report says submitted, with the Slurm id",
           rep and rep["state"] == "submitted" and jid in slurm.scripts)
+    check("and echoes the request's label and session",
+          rep and rep.get("label") == "knn"
+          and rep.get("session") == "20261008-120000" and "thread" not in rep)
+    check("and carries ran_at, the cluster's HEAD short sha it was submitted "
+          "at", rep and 7 <= len(rep.get("ran_at") or "") < 40
+          and filed_at.startswith(rep["ran_at"]))
     sent = [c for c in slurm.calls if os.path.basename(c[0]) == "sbatch"][-1]
     check("sbatch got the wrapper and only the declared variables",
           sent[-1].endswith(os.path.join("relay", "state", "r1.sbatch"))
@@ -256,12 +291,13 @@ try:
     check("from an environment without the pass's own Slurm variables",
           slurm.envs[-1] is not None and "SLURM_JOB_ID" not in slurm.envs[-1])
     check("and the report reached origin", '"submitted"' in origin_report("r1"))
-    check("the job is registered in the relay's ignored registry, not the "
-          "tracked one", "r1" in json.dumps(jobs.records(
-              cws, jobs.relay_registry(cws)))
-          and open(os.path.join(cws, "jobs.jsonl")).read() == ""
+    check("the job is registered in relay/state/jobs.jsonl, which git "
+          "ignores, as the relay's", "r1" in json.dumps(jobs.records(
+              cws, relay=True))
+          and not jobs.records(cws, relay=False)
+          and os.path.isfile(os.path.join(cws, "relay", "state", "jobs.jsonl"))
           and git(cluster, "check-ignore", "-q",
-                  "research/Proj/relay/state/jobs.jsonl") == "")
+                  "projects/Proj/relay/state/jobs.jsonl") == "")
 
     slurm.queue[jid] = "RUNNING"
     run_pass()
@@ -283,7 +319,7 @@ try:
     check("an export inside the cap is copied to exports/ and committed",
           rep["exported"] == ["results/sweep.png"]
           and os.path.isfile(os.path.join(cws, "exports", "results", "sweep.png"))
-          and "research/Proj/exports/results/sweep.png" in git(
+          and "projects/Proj/exports/results/sweep.png" in git(
               cluster, "ls-files"))
     check("an export over the 5 MB cap is refused in the report, never copied",
           [r["path"] for r in rep.get("export_refused") or []]
@@ -299,23 +335,33 @@ try:
           and "/media" not in whole and "SESSION-17" not in whole)
     check("its note is a sentence the code wrote",
           "completed" in rep["note"] and "1 exported, 1 refused" in rep["note"])
-    check("the commit touches only relay/reports/ and exports/",
-          all(p.startswith(("research/Proj/relay/reports/",
-                            "research/Proj/exports/"))
+    check("the completed report keeps the ran_at it was submitted at, though "
+          "the cluster's HEAD has moved since",
+          filed_at.startswith(rep.get("ran_at") or "-")
+          and not git(cluster, "rev-parse", "HEAD").startswith(rep["ran_at"]))
+    check("the commit touches only relay/reports/, exports/ and the status",
+          all(p.startswith(("projects/Proj/relay/reports/",
+                            "projects/Proj/exports/")) or p == relay.STATUS
               for p in git(cluster, "show", "--name-only", "--format=",
                            "HEAD").split()))
     check("and carries no trailer", "Co-Authored" not in git(
         cluster, "log", "-1", "--format=%B"))
     git(mac, "pull", "-q", "--rebase")
-    threads._cache.clear()
     view = jobs.view(mws)
     check("the Mac's merged registry reads it COMPLETED, exports and all",
           view["relay:r1"]["state"] == "COMPLETED"
           and view["relay:r1"]["exported"] == ["results/sweep.png"]
           and os.path.isfile(os.path.join(mws, "exports", "results",
                                           "sweep.png")))
-    check("and its thread is no longer requested or running",
-          threads.stages(mws)["knn"]["status"] not in ("requested", "running"))
+    check("and its report keeps the label and session the Mac wakes by",
+          view["relay:r1"]["label"] == "knn"
+          and view["relay:r1"]["session"] == "20261008-120000")
+    said = jobs.sense(mws, view["relay:r1"])
+    check("the [job] line names the commit it was filed at and ran_at, and "
+          "says nothing more where only relay traffic lies between them",
+          "filed at %s" % view["relay:r1"]["commit"][:12] in said
+          and "ran at   %s" % view["relay:r1"]["ran_at"] in said
+          and jobs.ran_elsewhere(mws, view["relay:r1"]) == "")
 
     # --- a refusal ---------------------------------------------------------------
     bad = dict(good, id="r2", env={"EMBEDDER": "bge-small", "DATA": "x"})
@@ -332,6 +378,60 @@ try:
     check("and its report names the undeclared key",
           any("DATA" in p for p in rep["problems"]))
     check("and is pushed", '"refused"' in origin_report("r2"))
+    check("a refusal carries ran_at too",
+          git(cluster, "rev-parse", "HEAD~1").startswith(rep.get("ran_at")
+                                                         or "-"))
+
+    # --- a request pinned to a commit the cluster's HEAD lacks -------------------
+    git(mac, "pull", "-q", "--rebase")
+    git(mac, "checkout", "-q", "-b", "unpushed")
+    write(os.path.join(mws, "src", "fit.py"), "print('never pushed')\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "a commit that never reaches origin")
+    lost = git(mac, "rev-parse", "HEAD")
+    git(mac, "checkout", "-q", "main")
+    write(os.path.join(mws, "relay", "requests", "r2b.json"),
+          json.dumps(dict(good, id="r2b", commit=lost)))
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "a request pinned to it")
+    git(mac, "push", "-q", "origin", "main")
+    n = len(slurm.scripts)
+    got = run_pass()
+    rep = load(os.path.join(cws, "relay", "reports", "r2b.json"))
+    check("a request whose commit HEAD does not contain is refused, unrun",
+          got["refused"] == ["r2b"] and len(slurm.scripts) == n
+          and rep["state"] == "refused" and rep.get("ran_at"))
+    check("and the report says why: HEAD lacks the commit it was filed after",
+          any("does not contain commit %s" % lost[:12] in p
+              for p in rep["problems"]))
+    git(mac, "branch", "-q", "-D", "unpushed")
+
+    # --- the [job] line says when ran_at is other code than commit -----------
+    git(mac, "pull", "-q", "--rebase")
+    now_at = git(mac, "rev-parse", "--short", "HEAD")
+    check("between two commits with only relay traffic between them, the "
+          "[job] line says nothing more",
+          jobs.ran_elsewhere(mws, {"commit": filed_at, "ran_at": now_at})
+          == "")
+    git(mac, "checkout", "-q", "-b", "moved")
+    write(os.path.join(mws, "src", "fit.py"), "print('pushed later')\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "code pushed after the request")
+    later_at = git(mac, "rev-parse", "--short", "HEAD")
+    said = jobs.relay_sense(mws, dict(view["relay:r1"], ran_at=later_at))
+    check("where code changed between them, it names the file and asks the "
+          "card to say which code the result belongs to",
+          "It ran at %s, not at %s" % (
+              later_at, view["relay:r1"]["commit"][:12]) in said
+          and "projects/Proj/src/fit.py" in said and "which code" in said)
+    check("and where this checkout lacks ran_at, it says so",
+          "does not have" in jobs.ran_elsewhere(
+              mws, {"commit": filed_at, "ran_at": "abcdef1"}))
+    git(mac, "checkout", "-q", "main")
+    git(mac, "branch", "-q", "-D", "moved")
+    check("a commit that is not a sha is refused before any git runs",
+          any("`commit`" in p for p in jobs.check(
+              cws, dict(good, id="r2c", commit="HEAD~3"))[1]))
 
     # --- two passes at once --------------------------------------------------------
     held = open(os.path.join(cluster, relay.LOCK), "a+")
@@ -384,9 +484,89 @@ try:
           and rep.get("error") == "ValueError"
           and "1234" not in json.dumps(rep) and "starting" not in json.dumps(rep))
 
+    # --- a log excerpt only where phi is literally false ----------------------
+    # Two subjects run the same failing recipe, which sources nothing: the
+    # wrapper fingerprints it in both, and only the open one's report carries
+    # its log.
+    git(mac, "pull", "-q", "--rebase")
+    BOOM = """#!/bin/bash
+#SBATCH --time=00:05:00
+echo "working in $PWD/results"
+for i in $(seq 1 300); do echo "progress line $i"; done
+echo "SESSION-9 is in this row"
+%s src/boom.py
+""" % sys.executable
+    for name, phi in (("Open", False), ("Shut", True)):
+        sub = os.path.join(mac, "projects", name)
+        write(os.path.join(sub, "tutorboard.json"),
+              json.dumps({"name": name, "phi": phi}))
+        write(os.path.join(sub, ".gitignore"), "results/\nlogs/\n")
+        write(os.path.join(sub, "slurm", "boom.sbatch"), BOOM)
+        write(os.path.join(sub, "src", "boom.py"),
+              "def main():\n    raise ValueError('patient 1234')\n\n\nmain()\n")
+    git(mac, "add", "-A")
+    git(mac, "commit", "-q", "-m", "two subjects, one open")
+    git(mac, "push", "-q")
+    for name in ("Open", "Shut"):
+        sub = os.path.join(mac, "projects", name)
+        ok, problems = jobs.check(sub, {
+            "id": "boom-" + name.lower(), "kind": "recipe", "label": "boom",
+            "recipe": "slurm/boom.sbatch", "filed": time.time()})
+        jobs.file_request(sub, ok, push=False)
+    git(mac, "push", "-q")
+    got = run_pass()
+    reps = {}
+    for name in ("Open", "Shut"):
+        sub = os.path.join(cluster, "projects", name)
+        jid = load(os.path.join(sub, "relay", "reports",
+                                "boom-%s.json" % name.lower()))["jobid"]
+        slurm.run_job(jid)
+    got = run_pass()
+    for name in ("Open", "Shut"):
+        reps[name] = load(os.path.join(cluster, "projects", name, "relay",
+                                       "reports", "boom-%s.json"
+                                       % name.lower()))
+    opened, shut = reps["Open"], reps["Shut"]
+    check("both fail, and a recipe with no source line still fingerprints: "
+          "the Python's file and line, and the wrapper's failure line",
+          all(r["state"] == "failed" and r["exit"] == "1:0"
+              and "error ValueError at src/boom.py:2 in main" in r["relay"]
+              and any(l.startswith("recipe slurm/boom.sbatch failed: exit 1, "
+                                   "checkout ") for l in r["relay"])
+              for r in (opened, shut)))
+    out = opened.get("output") or []
+    check("the open subject's report carries its log, cut from the middle",
+          opened.get("output_total", 0) > 300 and opened.get("output_cut", 0) > 0
+          and len(out) == opened["output_total"] - opened["output_cut"] + 1
+          and any("cut" in l for l in out))
+    check("with the subject's paths made relative, nothing else absolute, and "
+          "what the policy matches withheld",
+          "working in results" in out
+          and any('File "src/boom.py", line 2' in l for l in out)
+          and base not in json.dumps(opened)
+          and os.path.realpath(base) not in json.dumps(opened)
+          and "SESSION-9" not in json.dumps(opened))
+    check("and its note says the log is there",
+          "Its log, cut, is here too" in opened["note"])
+    check('the "phi": true subject\'s report carries no output at all',
+          not any(k in shut for k in ("output", "output_total", "output_cut"))
+          and "progress line" not in json.dumps(shut)
+          and "The log stays on the cluster" in shut["note"])
+    git(mac, "pull", "-q", "--rebase")
+    open_view = jobs.view(os.path.join(mac, "projects", "Open"))["relay:boom-open"]
+    said = jobs.relay_sense(os.path.join(mac, "projects", "Open"), open_view)
+    shut_view = jobs.view(os.path.join(mac, "projects", "Shut"))["relay:boom-shut"]
+    check("the Mac's [job] line shows the open log and not the shut one",
+          "Its log, %d line(s), %d cut from the middle" % (
+              opened["output_total"], opened["output_cut"]) in said
+          and "    working in results" in said
+          and "Its log," not in jobs.relay_sense(
+              os.path.join(mac, "projects", "Shut"), shut_view))
+
     # --- a dirty tree skips the pass -------------------------------------------
     file_from_mac(dict(good, id="r5"))
     write(os.path.join(cws, "AI_INSTRUCTIONS.md"), "# an owner's edit\n", "a")
+    head = git(cluster, "rev-parse", "HEAD")
     got = run_pass()
     st = load(os.path.join(cluster, "relay", "state.json"))
     check("an edit outside the cluster's paths skips the pass",
@@ -394,17 +574,37 @@ try:
           and not os.path.exists(os.path.join(cws, "relay", "requests",
                                               "r5.json")))
     check("and relay/state.json says so", "AI_INSTRUCTIONS.md" in st["skipped"])
+    public = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("a skipping pass writes its reason to relay/status.json on origin",
+          "AI_INSTRUCTIONS.md" in public["skipped"]
+          and not got["error"]
+          and git(origin, "log", "-1", "--format=%s", "main") == "relay: status"
+          and git(origin, "show", "--name-only", "--format=", "main")
+          == "relay/status.json")
+    check("on top of origin's tip, leaving HEAD and the tree as they were",
+          git(cluster, "rev-parse", "HEAD") == head
+          and git(cluster, "status", "--porcelain", "--", "relay")
+          == "")
+    tip = git(origin, "rev-parse", "main")
+    got = run_pass()
+    check("an identical second skipping pass makes no commit",
+          got["skipped"] and git(origin, "rev-parse", "main") == tip)
     check("the owner's edit is left where it was",
           "an owner's edit" in open(os.path.join(cws, "AI_INSTRUCTIONS.md")).read())
-    git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
-    write(os.path.join(cws, "jobs.jsonl"), '{"jobid": "1", "thread": "knn"}\n',
-          "a")
+    git(cluster, "checkout", "--", "projects/Proj/AI_INSTRUCTIONS.md")
+    jobs.append(cws, {"jobid": "1", "label": "knn", "state": "COMPLETED",
+                      "reported": 1.0})
     got = run_pass()
     check("but the job registry, which only a Slurm machine appends to, does "
           "not skip it", not got["skipped"] and "r5" in got["submitted"])
-    check("and is not the relay's to commit",
-          "M research/Proj/jobs.jsonl" in git(cluster, "status", "--porcelain"))
-    git(cluster, "checkout", "--", "research/Proj/jobs.jsonl")
+    check("and the pass after a skip pulls the skip's status, then commits "
+          "it cleared", json.loads(git(origin, "show",
+                                       "main:relay/status.json"))["skipped"]
+          == "" and git(cluster, "status", "--porcelain", "--",
+                        "relay/status.json") == "")
+    check("and git does not see it",
+          "jobs.jsonl" not in git(cluster, "status", "--porcelain",
+                                  "--untracked-files=all"))
     write(os.path.join(cluster, "notes.md"), "x\n")
     git(cluster, "add", "notes.md")
     git(cluster, "commit", "-q", "-m", "an unpushed commit of the owner's")
@@ -458,8 +658,7 @@ try:
           and t1["problems"] == [jobs.NO_TURN] and len(slurm.scripts) == n)
     check("the relay has no turn to run, and the command no --turn",
           not hasattr(relay, "run_turn") and "turn" not in got
-          and "--turn" not in open(TUTOR, encoding="utf-8").read().split(
-              "def cmd_relay", 1)[1].split("\ndef ", 1)[0])
+          and "--turn" not in open(RELAY, encoding="utf-8").read())
 
     # --- a failed recipe: asked with a diagnostic, repaired on the Mac ---------
     file_from_mac({"id": "k1", "kind": "recipe", "thread": "knn",
@@ -495,12 +694,12 @@ try:
     run_pass()
     dg1 = load(os.path.join(cws, "relay", "reports", "dg1.json"))
     touched = set(git(origin, "log", "--name-only", "--format=",
-                      "%s..main" % before).split())
+                      "%s..main" % before).split()) - {relay.STATUS}
     check("it completes with only its RELAY: lines, and publishes its reports "
           "and nothing else", dg1["state"] == "completed"
           and dg1["relay"] == ["has RESULTS_DIR/trained_models entries 0"]
-          and touched == {"research/Proj/relay/reports/dg1.json",
-                          "research/Proj/relay/requests/dg1.json"})
+          and touched == {"projects/Proj/relay/reports/dg1.json",
+                          "projects/Proj/relay/requests/dg1.json"})
     git(mac, "pull", "-q", "--rebase")
     rec = dict((r["request"], r) for r in jobs.relayed(mws))["dg1"]
     said = jobs.relay_sense(mws, rec)
@@ -508,9 +707,9 @@ try:
           "failed recipe with `board job --fixes`",
           said.startswith("[repair]") and "it came back" in said
           and "board push" in said
-          and "board job knn --fixes k1 -- slurm/crash.sbatch" in said)
+          and "board job --fixes k1 -- slurm/crash.sbatch" in said)
     check("and a plain rerun of the recipe is refused on the Mac meanwhile",
-          jobs.open_fix(mws, "knn", "slurm/crash.sbatch") == "k1")
+          jobs.open_fix(mws, "slurm/crash.sbatch") == "k1")
 
     for rid in ("rk2", "rk3"):
         ok, problems = file_from_mac({"id": rid, "kind": "recipe",
@@ -590,12 +789,20 @@ try:
     got = run_pass()
     check("and the next pass neither refuses them again nor commits",
           got["refused"] == [] and git(origin, "rev-parse", "main") == before)
+    got = run_pass(now=time.time() + 3600)
+    check("an hour on, an identical pass still makes no commit: only `at` "
+          "would change", git(origin, "rev-parse", "main") == before
+          and git(cluster, "rev-parse", "HEAD") == before
+          and git(cluster, "status", "--porcelain", "--", "relay") == "")
+    check("relay/status.json is the cluster's path",
+          relay.owned(cluster, "relay/status.json", where=[])
+          and not relay.owned(cluster, "relay/other.json", where=[]))
 
     # --- a colibri request: a task, read-only, checked once it is done -------
-    from tutorboard import atlas as _atlas, colibri as coli, missions
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "tutorboard.json"),
-          json.dumps({"name": "Proj", "relay": {"colibri": True}}))
+          json.dumps({"name": "Proj", "relay": {"colibri": True, "exports": [
+              {"glob": "results/*.png"}, {"glob": "results/rows.csv"}]}}))
     write(os.path.join(mws, ".gitignore"), "phi/\n", "a")
     git(mac, "add", "-A")
     git(mac, "commit", "-q", "-m", "Proj takes Colibri tasks")
@@ -603,13 +810,12 @@ try:
     queue = os.environ["COLI_QUEUE_ROOT"]
     os.environ["COLI_STATE_DIR"] = os.path.join(base, "coli-state")
     os.environ["TUTORBOARD_COURSES"] = cluster
-    _atlas.forget()
     real_start, real_jobs = coli.start_generation, coli._all_jobs
     coli.start_generation = lambda: ("", "no Slurm in this test")
     coli._all_jobs = lambda: []
 
     def task_of(rid):
-        return [t for t in missions.tasks(queue) if t["request"] == rid][0]
+        return [t for t in coli.tasks(queue) if t["request"] == rid][0]
 
     def colibri_runs(rid, out_text, tracked=(), ignored=()):
         """What a generation does with the task: claims it, writes, prints
@@ -618,15 +824,17 @@ try:
         out = os.path.join(base, "sessions", "phi", "tasks",
                            task["id"] + ".out")
         write(out, out_text)
-        missions.update_task(queue, task, out=out)
-        missions.claim_task(queue, task_of(rid), "101")
+        coli.update_task(queue, task, out=out)
+        coli.claim_task(queue, task_of(rid), "101")
         for rel, text in list(tracked) + list(ignored):
             write(os.path.join(cws, rel), text)
-        missions.finish_task(queue, task_of(rid), True)
+        coli.finish_task(queue, task_of(rid), True)
 
     def pushed_since(sha):
+        """What reached origin since `sha`, less the relay's status, which
+        rides with any report that changes what is outstanding."""
         return set(git(origin, "log", "--name-only", "--format=",
-                       "%s..main" % sha).split())
+                       "%s..main" % sha).split()) - {relay.STATUS}
     try:
         file_from_mac({"id": "c1", "kind": "colibri", "thread": "knn",
                        "brief": "grade the diarization of SESSION-1"})
@@ -670,14 +878,14 @@ try:
               and "SESSION" not in json.dumps(c1))
         check("and no diff: nothing it wrote is committed",
               "diff" not in c1 and pushed_since(before)
-              == set(["research/Proj/relay/reports/c1.json"]))
+              == set(["projects/Proj/relay/reports/c1.json"]))
 
         write(os.path.join(cws, "notes", "owner.md"), "the owner's, before\n")
         file_from_mac({"id": "c2", "kind": "colibri", "thread": "knn",
                        "brief": "reconstruct the transcript"})
         run_pass()
         check("the owner's edit from before the task is its baseline",
-              list(task_of("c2")["baseline"]) == ["research/Proj/notes/owner.md"])
+              list(task_of("c2")["baseline"]) == ["projects/Proj/notes/owner.md"])
         colibri_runs("c2", "RELAY: reconstructed 1 transcript\n",
                      tracked=[("AI_INSTRUCTIONS.md", "# edited by a task\n"),
                               ("notes/transcript.txt", "a line of dialogue\n")])
@@ -694,7 +902,7 @@ try:
               and "owner.md" not in json.dumps(c2))
         check("nothing it changed is committed; the changes stay on the "
               "cluster", pushed_since(before)
-              == set(["research/Proj/relay/reports/c2.json"])
+              == set(["projects/Proj/relay/reports/c2.json"])
               and "edited by a task" in open(
                   os.path.join(cws, "AI_INSTRUCTIONS.md")).read()
               and os.path.isfile(os.path.join(cws, "notes", "transcript.txt")))
@@ -711,22 +919,24 @@ try:
               and "2 tracked path(s)" in said and "for the owner" in said)
     finally:
         coli.start_generation, coli._all_jobs = real_start, real_jobs
-        git(cluster, "checkout", "--", "research/Proj/AI_INSTRUCTIONS.md")
+        git(cluster, "checkout", "--", "projects/Proj/AI_INSTRUCTIONS.md")
         shutil.rmtree(os.path.join(cws, "notes"), ignore_errors=True)
         shutil.rmtree(os.path.join(queue, "live"), ignore_errors=True)
         os.environ.pop("TUTORBOARD_COURSES", None)
         os.environ.pop("COLI_STATE_DIR", None)
-        _atlas.forget()
 
-    # --- a hold: the owner's edit to a held file does not skip the pass -------
+    # --- a coding session: the owner's edit to a held file does not skip ------
     git(mac, "pull", "-q", "--rebase")
-    write(os.path.join(mws, "relay", "holds", "knn.json"), json.dumps(
-        {"thread": "knn", "files": ["src/knn.py"], "at": time.time()}))
     write(os.path.join(mws, "src", "knn.py"), "x = 1\n")
     git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "knn: hold")
+    git(mac, "commit", "-q", "-m", "knn: the file")
     git(mac, "push", "-q")
     run_pass()
+    state_was = os.environ.get("BOARD_STATE_DIR")
+    os.environ["BOARD_STATE_DIR"] = os.path.join(base, "code-state")
+    _, probs = coding.start(cluster, "knn", ["projects/Proj/src/knn.py"],
+                            cwd=cluster)
+    check("a coding session holds src/knn.py at the cluster", not probs)
     write(os.path.join(cws, "src", "knn.py"), "x = 2  # the owner, mid-step\n")
     git(mac, "pull", "-q", "--rebase")
     write(os.path.join(mws, "notes.md"), "the Mac pushes elsewhere\n", "a")
@@ -743,7 +953,66 @@ try:
           and "src/knn.py" in git(cluster, "status", "--porcelain")
           and "the Mac pushes elsewhere" in open(
               os.path.join(cws, "notes.md")).read())
-    git(cluster, "checkout", "--", "research/Proj/src/knn.py")
+    git(cluster, "checkout", "--", "projects/Proj/src/knn.py")
+    coding.forget("knn")
+    os.environ.pop("BOARD_STATE_DIR", None)
+    if state_was is not None:
+        os.environ["BOARD_STATE_DIR"] = state_was
+
+    # --- status.json: outstanding requests and Colibri, and nothing private ----
+    logs = os.path.join(base, "coli-logs")
+    os.makedirs(logs)
+    os.environ["COLI_LOG_DIR"] = logs
+    file_from_mac(dict(good, id="r10"))
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("status.json lists each request not yet ended, under its subject",
+          st["outstanding"].get("projects/Proj", {}).get("r10") == "submitted"
+          and "r1" not in st["outstanding"].get("projects/Proj", {}))
+    tip = git(origin, "rev-parse", "main")
+    got = run_pass()
+    check("an identical pass makes no commit",
+          not got["error"] and git(origin, "rev-parse", "main") == tip)
+    started = time.time() - 3600
+    COLI["rows"] = [{"id": "4231", "state": "RUNNING", "node": "compute304",
+                     "reason": "None", "left": 8 * 3600, "start": started}]
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("Colibri loading reaches status.json with its walltime end",
+          st["colibri"]["state"] == "loading"
+          and abs(st["colibri"]["ends"] - (time.time() + 8 * 3600)) < 60
+          and st["colibri"]["load_s"] is None)
+    tip = git(origin, "rev-parse", "main")
+    COLI["rows"][0]["left"] = 8 * 3600 - 2
+    got = run_pass()
+    check("and an identical pass while it loads makes no commit: the "
+          "walltime end holds through squeue's jitter",
+          not got["error"] and git(origin, "rev-parse", "main") == tip)
+    write(os.path.join(logs, "colibri_serve_out-4231.txt"),
+          "COLIBRI-SERVE READY\n")
+    run_pass()
+    st = json.loads(git(origin, "show", "main:relay/status.json"))
+    check("the pass that first sees it warm records the cold load it timed",
+          st["colibri"]["state"] == "warm"
+          and 3590 <= (st["colibri"]["load_s"] or 0) <= 3700)
+    COLI["rows"] = []
+    run_pass()
+    host = socket.gethostname()
+    versions = git(origin, "log", "--format=%H", "main", "--",
+                   "relay/status.json").split()
+    blobs = [git(origin, "show", "%s:relay/status.json" % v) for v in versions]
+    check("no status.json ever pushed names an absolute path or a node",
+          len(blobs) > 5 and not any(
+              base in b or "compute304" in b or host in b
+              or host.split(".")[0] in b or re.search(r'(^|[\s"(])/[\w~]', b)
+              for b in blobs))
+    said = relay.status_doc("fetch failed on %s: /scratch/lab/x" % host, "",
+                            0, 1)
+    check("a skip reason naming this host or a path is published without "
+          "either", host not in said["skipped"]
+          and "/scratch" not in said["skipped"] and "<node>" in said["skipped"]
+          and "<path>" in said["skipped"])
+    os.environ.pop("COLI_LOG_DIR", None)
 
     # --- the command, status and where ------------------------------------------
     bin_dir = os.path.join(base, "bin")
@@ -759,38 +1028,82 @@ try:
                    base, "state"), TUTOR_SLURM="1")
 
     def tutor(*args, **kw):
-        p = subprocess.run([sys.executable, TUTOR] + list(args), cwd=base,
+        p = subprocess.run([sys.executable, RELAY] + list(args), cwd=base,
                            env=dict(env, **kw), stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, timeout=300)
         return p.returncode, p.stdout.decode("utf-8", "replace")
-    code, out = tutor("relay", "--once")
-    check("`tutor relay --once` runs a pass", code == 0
+    code, out = tutor("--once")
+    check("`relay --once` runs a pass", code == 0
           and "1 submitted" in out
           and load(os.path.join(cws, "relay", "reports", "r7.json"))["jobid"]
           == "7777")
-    code, out = tutor("relay", "--status")
-    check("`tutor relay --status` shows the last pass and the requests",
-          code == 0 and "last pass" in out and "research/Proj" in out
+    code, out = tutor("--status")
+    check("`relay --status` shows the last pass and the requests",
+          code == 0 and "last pass" in out and "projects/Proj" in out
           and "submitted" in out and "7777 (PENDING)" in out)
-    code, out = tutor("relay", "--once", TUTOR_SLURM="0")
+    code, out = tutor("--once", TUTOR_SLURM="0")
     check("and refuses on a machine without Slurm",
           code == 1 and "no Slurm" in out)
-    check("`tutor where` prints the relay's last pass",
-          relay.where_line(cluster).startswith("relay: last pass")
-          and "relay.where_line()" in open(TUTOR, encoding="utf-8").read())
+    check("the relay's last pass is one line, which `--status` opens on",
+          relay.where_line(cluster).startswith("relay: last pass"))
 
     # --- the scrontab entry ---------------------------------------------------------
-    block = relay.scrontab_block("/usr/bin/python3", "/x/board/bin/tutor",
+    block = relay.scrontab_block("/usr/bin/python3",
+                                 "/x/board/scripts/relay-pass.sh",
                                  "/x/relay.log")
-    check("the entry runs one pass every five minutes on c3_short",
-          "*/5 * * * * /usr/bin/python3 /x/board/bin/tutor relay --once --quiet"
-          in block and "#SCRON --partition=c3_short" in block
+    check("the entry runs relay-pass.sh every two minutes on c3_short, on "
+          "the installing python",
+          "*/2 * * * * RELAY_PYTHON=/usr/bin/python3 bash "
+          "/x/board/scripts/relay-pass.sh" in block
+          and "#SCRON --partition=c3_short" in block
           and "#SCRON --output=/x/relay.log" in block)
-    old = "# mine\n0 * * * * true\n" + relay.scrontab_block("a", "b", "c")
+    check("and by default it names board/scripts/relay-pass.sh",
+          relay.scrontab_block().rstrip().splitlines()[-2].endswith(
+              " bash " + os.path.join(ROOT, "scripts", "relay-pass.sh")))
+    default = relay.scrontab_block()
+    check("the default entry is every two minutes, through relay-pass.sh, "
+          "and nothing else runs: no watcher job, no poke file",
+          "\n*/2 * * * * " in default and "relay-pass.sh" in default
+          and len([x for x in default.splitlines()
+                   if x and not x.startswith("#")]) == 1
+          and "watch" not in default and "poke" not in default)
+
+    # --- board/bin/relay: the entry, and the relay path only ----------------------
+    def entry(*args, **kw):
+        p = subprocess.run([sys.executable] + list(args), cwd=base,
+                           env=dict(env, **kw), stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, timeout=300)
+        return p.returncode, p.stdout.decode("utf-8", "replace")
+    code, out = entry(RELAY, "--status")
+    check("`relay --status` reports from the entry scrontab runs",
+          code == 0 and "last pass" in out and "projects/Proj" in out)
+    code, out = entry(RELAY, "--once", TUTOR_SLURM="0")
+    check("and `relay` refuses a pass without Slurm",
+          code == 1 and "no Slurm" in out)
+    code, out = entry("-X", "importtime", RELAY, "--help")
+    loaded = set(re.findall(r"\|\s+(tutorboard[\w.]*)\s*$", out, re.M))
+    check("it imports the relay path and nothing of the board server, the tutor "
+          "runner or the assistants",
+          code == 0 and "tutorboard.relay" in loaded
+          and not [m for m in loaded if m.startswith((
+              "tutorboard.server", "tutorboard.runner", "tutorboard.agents"))])
+    old = ("# mine\n0 * * * * true\n" + relay.scrontab_block("a", "b", "c")
+           + "#SCRON --partition=mine\n30 1 * * * echo after\n")
     new = relay.merged_crontab(old, block)
-    check("installing replaces the old block and keeps the owner's lines",
-          new.count(relay.SCRON_BEGIN) == 1 and "0 * * * * true" in new
-          and "/x/relay.log" in new)
+    check("installing replaces only its own block and keeps the owner's "
+          "lines, before and after it",
+          new.count(relay.SCRON_BEGIN) == 1 and new.count(relay.SCRON_END) == 1
+          and " bash b" not in new and "/x/relay.log" in new
+          and new.startswith("# mine\n0 * * * * true\n#SCRON --partition=mine"
+                             "\n30 1 * * * echo after\n")
+          and new.endswith(block)
+          and relay.merged_crontab(new, block) == new)
+    five = relay.scrontab_block("a", "b", "c").replace("*/2 ", "*/5 ")
+    moved = relay.merged_crontab("# mine\n0 * * * * true\n" + five, default)
+    check("and an installed five-minute entry becomes the two-minute one, "
+          "the owner's lines kept",
+          moved == "# mine\n0 * * * * true\n" + default
+          and "*/5" not in moved)
 
     class Scron:
         def __init__(self):
@@ -804,24 +1117,193 @@ try:
     os.environ["BOARD_STATE_DIR"] = os.path.join(base, "state")
     scron = Scron()
     ok, _ = relay.install(run=scron)
-    check("`tutor relay --install` writes it through scrontab",
-          ok and scron.written and "relay --once" in scron.written
+    check("`relay --install` writes it through scrontab",
+          ok and scron.written and "relay-pass.sh" in scron.written
           and scron.written.startswith("# mine"))
 finally:
     os.environ.clear()
     os.environ.update(saved_env)
     shutil.rmtree(base, ignore_errors=True)
 
+# --- relay-pass.sh: bash pulls, so a pushed fix lands --------------------------------
+# A bare origin and two clones of a tree holding this board's tutorboard/, bin/
+# and scripts/. The Mac pushes; the cluster runs only relay-pass.sh, under
+# /bin/bash (3.2 on this Mac), with no flock and no timeout unless faked.
+LAUNCHER = os.path.join(ROOT, "scripts", "relay-pass.sh")
+BASH = "/bin/bash" if os.path.exists("/bin/bash") else "bash"
+MARK_CODE = ('\n_MARK = os.environ.get("RELAY_TEST_MARK")\nif _MARK:\n'
+             '    with open(_MARK, "a") as _fh:\n'
+             '        _fh.write("v2 %s\\n" % os.environ.get("RELAY_PASS_REEXEC", ""))\n')
+lbase = tempfile.mkdtemp(prefix="tutor-relaypass-")
+try:
+    lorigin = os.path.join(lbase, "origin.git")
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", lorigin],
+                   check=True)
+    lseed = os.path.join(lbase, "seed")
+    os.makedirs(lseed)
+    git(lseed, "init", "-q", "-b", "main")
+    skip = shutil.ignore_patterns("__pycache__", "*.pyc", "node_modules")
+    for sub in ("tutorboard", "bin", "scripts"):
+        shutil.copytree(os.path.join(ROOT, sub),
+                        os.path.join(lseed, "board", sub), ignore=skip)
+    write(os.path.join(lseed, ".gitignore"),
+          "/relay/state.json\n/relay/.lock*\n__pycache__/\n")
+    git(lseed, "add", "-A")
+    git(lseed, "-c", "user.email=t@example.com", "-c", "user.name=t",
+        "commit", "-q", "-m", "seed")
+    git(lseed, "remote", "add", "origin", lorigin)
+    git(lseed, "push", "-q", "-u", "origin", "main")
+
+    def lclone(name):
+        where = os.path.join(lbase, name)
+        git(lbase, "clone", "-q", lorigin, where)
+        for k, v in (("user.email", "%s@example.com" % name),
+                     ("user.name", name)):
+            git(where, "config", k, v)
+        return where
+    lmac, lcl = lclone("mac"), lclone("cluster")
+    mark = os.path.join(lbase, "mark")
+    fake = os.path.join(lbase, "fakebin")
+    write(os.path.join(fake, "flock"), "#!/bin/sh\nexit 0\n")
+    write(os.path.join(fake, "timeout"), '#!/bin/sh\nshift\nexec "$@"\n')
+    for name in ("flock", "timeout"):
+        os.chmod(os.path.join(fake, name), 0o755)
+    lenv = dict((k, v) for k, v in saved_env.items()
+                if not k.startswith(("TUTORBOARD_", "RELAY_", "SLURM_")))
+    lenv.update(TUTOR_SLURM="1", RELAY_TEST_MARK=mark,
+                RELAY_PYTHON=sys.executable,
+                BOARD_STATE_DIR=os.path.join(lbase, "state"),
+                COLI_QUEUE_ROOT=os.path.join(lbase, "queue"))
+    os.makedirs(lenv["COLI_QUEUE_ROOT"])
+
+    def launch(faked=False):
+        env = dict(lenv)
+        if faked:
+            env["PATH"] = fake + os.pathsep + env.get("PATH", "")
+        p = subprocess.run([BASH, os.path.join(lcl, "board", "scripts",
+                                               "relay-pass.sh")],
+                           cwd=lbase, env=env, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, timeout=300)
+        return (p.returncode, p.stdout.decode("utf-8", "replace"),
+                p.stderr.decode("utf-8", "replace"))
+
+    def marks():
+        try:
+            with open(mark, encoding="utf-8") as fh:
+                return fh.read().splitlines()
+        except OSError:
+            return []
+
+    def mac_push(msg, edit):
+        git(lmac, "pull", "-q", "--rebase")
+        edit()
+        git(lmac, "add", "-A")
+        git(lmac, "commit", "-q", "-m", msg)
+        git(lmac, "push", "-q")
+        return git(lmac, "rev-parse", "HEAD")
+
+    def contains(sha):
+        return subprocess.run(["git", "merge-base", "--is-ancestor", sha,
+                               "HEAD"], cwd=lcl).returncode == 0
+
+    code, out, err = launch()
+    check("relay-pass.sh runs a pass on a quiet tree and exits 0",
+          code == 0 and "re-exec" not in err and marks() == []
+          and git(lcl, "status", "--porcelain") == "")
+    check("and the pass committed relay/status.json and pushed it",
+          '"skipped": ""' in git(lorigin, "show", "main:relay/status.json"))
+
+    lrelay = os.path.join(lmac, "board", "tutorboard", "relay.py")
+    llaunch = os.path.join(lmac, "board", "scripts", "relay-pass.sh")
+
+    def board_change():
+        write(lrelay, MARK_CODE, "a")
+        with open(llaunch, encoding="utf-8") as fh:
+            text = fh.read()
+        write(llaunch, text.replace("main() {\n",
+                                    'main() {\n    echo "launcher v2" >&2\n', 1))
+    sha = mac_push("board: a change", board_change)
+    code, out, err = launch()
+    check("a pushed board/ change is pulled by bash, which re-execs once",
+          code == 0 and contains(sha) and err.count("re-exec") == 1)
+    check("into the new launcher, once", err.count("launcher v2") == 1)
+    check("which runs the new Python", marks() == ["v2 1"])
+
+    sha = mac_push("board: a syntax error",
+                   lambda: write(lrelay, "\ndef broken(:\n", "a"))
+    code, out, err = launch()
+    check("a pushed syntax error in relay.py is pulled, and the pass fails",
+          code != 0 and contains(sha) and "SyntaxError" in err
+          and marks() == ["v2 1"])
+
+    def fix():
+        with open(lrelay, encoding="utf-8") as fh:
+            text = fh.read()
+        write(lrelay, text.replace("\ndef broken(:\n", ""))
+    sha = mac_push("board: the fix", fix)
+    code, out, err = launch(faked=True)
+    check("the next pushed fix is pulled by bash and used, with no manual "
+          "step (flock and timeout present)",
+          code == 0 and contains(sha) and err.count("re-exec") == 1
+          and marks() == ["v2 1", "v2 1"])
+
+    code, out, err = launch()
+    check("a pass with nothing new pulls nothing and re-execs nothing",
+          code == 0 and "re-exec" not in err and marks()[-1] == "v2 ")
+
+    lockdir = os.path.join(lcl, "relay", ".lock.launcher.d")
+    os.makedirs(lockdir)
+    write(os.path.join(lockdir, "pid"), "%d\n" % os.getpid())
+    n = len(marks())
+    code, out, err = launch()
+    check("a launcher whose lock a live process holds exits 0 and does nothing",
+          code == 0 and len(marks()) == n and os.path.isdir(lockdir))
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    write(os.path.join(lockdir, "pid"), "%d\n" % dead.pid)
+    code, out, err = launch()
+    check("a lock its dead holder left is taken, and removed on exit",
+          code == 0 and len(marks()) == n + 1 and not os.path.exists(lockdir))
+
+    sha = mac_push("notes", lambda: write(os.path.join(lmac, "notes.md"), "x\n"))
+    head = git(lcl, "rev-parse", "HEAD")
+    merging = os.path.join(lcl, ".git", "MERGE_HEAD")
+    write(merging, head + "\n")
+    code, out, err = launch()
+    os.remove(merging)
+    st = json.loads(git(lorigin, "show", "main:relay/status.json"))
+    check("a merge in progress: bash does not pull, and the pass still runs "
+          "and reports why", "not pulling: MERGE_HEAD" in err
+          and git(lcl, "rev-parse", "HEAD") == head
+          and "merge is in progress" in st["skipped"])
+    git(lcl, "checkout", "-q", "--detach")
+    code, out, err = launch()
+    check("so does a detached HEAD", "not pulling: detached HEAD" in err
+          and git(lcl, "rev-parse", "HEAD") == head)
+    git(lcl, "checkout", "-q", "main")
+    code, out, err = launch()
+    check("and once the tree is ordinary again the pull goes through",
+          code == 0 and contains(sha)
+          and json.loads(git(lorigin, "show", "main:relay/status.json"))[
+              "skipped"] == "")
+finally:
+    shutil.rmtree(lbase, ignore_errors=True)
+
 # --- the real repository ------------------------------------------------------------
 check("the root .gitignore keeps the relay's state out of git",
       subprocess.run(["git", "check-ignore", "-q",
-                      "research/TRD-EHR/relay/state/x.exit"],
+                      "projects/TRD-EHR/relay/state/x.exit"],
                      cwd=REPO).returncode == 0
       and subprocess.run(["git", "check-ignore", "-q", "relay/state.json"],
                          cwd=REPO).returncode == 0)
+check("and the launcher's lock, while relay/status.json is tracked",
+      all(subprocess.run(["git", "check-ignore", "-q", p], cwd=REPO).returncode
+          == 0 for p in ("relay/.lock.launcher", "relay/.lock.launcher.d/pid"))
+      and subprocess.run(["git", "check-ignore", "-q", "relay/status.json"],
+                         cwd=REPO).returncode == 1)
 check("TRD-EHR tracks what the relay exports",
       subprocess.run(["git", "check-ignore", "-q",
-                      "research/TRD-EHR/exports/results/a/figures/x.png"],
+                      "projects/TRD-EHR/exports/results/a/figures/x.png"],
                      cwd=REPO).returncode == 1)
 
 print()

@@ -2,5 +2,6 @@
   "name": "Paper-Writer",
   "subtitle": "A manuscript factory, and the prose contract it enforces",
   "stance": "do",
+  "phi": false,
   "check": "uv run python -m unittest discover -s tests"
 }

@@ -21,6 +21,15 @@ used by the calculator (`web/calc.js`). It is Apache-2.0 licensed; its licence a
 fraction.js, typed-function, seedrandom, tiny-emitter, escape-latex, javascript-natural-sort and
 @babel/runtime helpers, all MIT licensed; their licences are at `web/mathjs/LICENSE-bundled`.
 
+## highlight.js
+
+`web/vendor/highlight/highlight.min.js` is [highlight.js](https://highlightjs.org) 11.12.0, built
+from its release tag with its own `tools/build.js -t browser` and only six languages: Python, Go,
+Bash, R and SQL from highlight.js, and Lean from
+[highlightjs-lean](https://github.com/leanprover-community/highlightjs-lean) 1.2.0. It colours
+code in cards and in the source viewer (`web/codeview.js`). Both are BSD-3-Clause licensed; their
+licences are at `web/vendor/highlight/LICENSE` and `web/vendor/highlight/LICENSE-lean`.
+
 ## OpenDyslexic
 
 `web/fonts/opendyslexic-*.woff2` is OpenDyslexic by Abbie Gonzalez, taken from the

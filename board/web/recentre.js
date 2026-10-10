@@ -21,12 +21,8 @@
    JavaScript against `visualViewport`, with a counter-scale so the button stays
    the same size under a thumb however far the page has been zoomed in.
 
-   Extracted from board.js because the front door needs it too. The atlas is a
-   plane exactly as the map is, drawn by the same measuring (`gauge.js`) and
-   moved by the same gestures (`plane-core.js`) -- and a way back that exists on
-   one of the two is a way back nobody can rely on. Two copies of this would be
-   two spellings of one answer, which is the argument `gauge.js` already makes
-   and pays for.
+   Extracted from board.js because the front door needs it too: a way back
+   that exists on one page and not the other is a way back nobody can rely on.
 
    Loaded before board.js, home.js and readerzoom.js, which asks `unzoom` to
    put a page zoom back when a document opens over one.
@@ -42,20 +38,10 @@ var DEFAULT_AT = { x: .975, y: .1 };
 var HOLD_MS = 380;               /* a press, rather than a tap: held by TIME */
 var ROW = .07;                   /* where the next one starts out, down the glass */
 
-/* EACH BUTTON IS ITS OWN WIDGET, WITH ITS OWN PLACE ON THE GLASS.
-
-   They were one stack: one anchor, the rest parked underneath it, and dragging
-   any of them moved the trio. That is one object made of three controls that
-   have nothing to do with each other -- putting the zoom back, finding your own
-   writing, and abandoning the plan -- so wanting the first one somewhere and the
-   third one somewhere else was not a thing the arrangement could express. Asked
-   for as: "make the re-centre, the writing re-centre, and the change direction
-   buttons independent of each other - three separate widgets not stuck to each
-   other."
-
-   So each carries its own anchor and its own remembered position, under its own
-   key. They start out where the stack used to put them, so nothing jumps on the
-   day this changes, and from then on each one goes where it is put. */
+/* Each button is its own widget with its own place on the glass: re-centring
+   the zoom, finding your writing and abandoning the plan have nothing to do
+   with each other, so each carries its own anchor and remembered position
+   under its own key. */
 var items = [];                  /* [{ el, onTap, size, fallback, at, key }] */
 var base = "";
 var held = null;
@@ -197,11 +183,8 @@ function stuck() {
   [120, 400].forEach(function (ms) { setTimeout(place, ms); });
 }
 
-/* EVERY BUTTON MOVES ITSELF, AND ONLY ITSELF.
-
-   A press and hold on any of them picks that one up. It used to pick up all
-   three, because all three were one object; they are three now, and a control
-   that moves something other than itself is a control nobody can aim. */
+/* Every button moves itself, and only itself: a press and hold picks up that
+   one, since a control that moves something else cannot be aimed. */
 function drag(one) {
   one.el.addEventListener("pointerdown", function (ev) {
     ev.preventDefault();
@@ -284,9 +267,8 @@ function mount(spec) {
   base = spec.key || "board.panic";
   onStuck = spec.onStuck || null;
   items = [];
-  /* Where the group used to sit, as one. Read once, so that the first time a
-     board runs with separate buttons they are found where they were left rather
-     than back in the corner. */
+  /* The old shared group position, read once, so buttons first appear where
+     the group was left rather than back in the corner. */
   var wasGroup = saved(base);
   (spec.buttons || []).forEach(function (b, i) {
     if (!b || !b.el) return;

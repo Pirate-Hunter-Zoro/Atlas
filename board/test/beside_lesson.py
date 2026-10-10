@@ -30,7 +30,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from tutorboard import atlas, brief                                   # noqa: E402
+from tutorboard import brief                                   # noqa: E402
 from tutorboard.course import repo as course_repo                     # noqa: E402
 from tutorboard.lesson import git as lesson_git                       # noqa: E402
 
@@ -59,11 +59,8 @@ def git(base, *args):
 
 base = tempfile.mkdtemp(prefix="tutor-beside-")
 try:
-    write(os.path.join(base, "atlas.json"), json.dumps(
-        {"families": [{"id": "courses", "name": "Courses"},
-                      {"id": "research", "name": "Research"}]}))
     mine = os.path.join(base, "courses", "Galois-Theory")
-    other = os.path.join(base, "research", "PSYCH-ASR")
+    other = os.path.join(base, "projects", "PSYCH-ASR")
     for r in (mine, other):
         write(os.path.join(r, "tutorboard.json"), json.dumps({"name": "X"}))
         os.makedirs(os.path.join(r, "live", "cards"), exist_ok=True)
@@ -76,8 +73,8 @@ try:
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "everything, to start from")
 
-    repo = course_repo.Repo(mine)
-    them = course_repo.Repo(other)
+    repo = course_repo.Repo(mine, os.path.join(mine, "live"))
+    them = course_repo.Repo(other, os.path.join(other, "live"))
 
     # The tutor's knowledge stops at the newest card it wrote.
     write(os.path.join(repo.cards, "0001-a-card.md"),
@@ -155,7 +152,7 @@ try:
     os.makedirs(os.path.join(quiet, "live", "cards"), exist_ok=True)
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "a quiet workspace")
-    q = course_repo.Repo(quiet)
+    q = course_repo.Repo(quiet, os.path.join(quiet, "live"))
     # A SECOND, because git compares whole seconds and `--since` is given an
     # integer. A card written in the same second as the commit that made the
     # workspace would leave that commit inside the window -- which errs toward
@@ -172,7 +169,7 @@ try:
     write(os.path.join(loose, "tutorboard.json"), json.dumps({"name": "L"}))
     lesson_git._BESIDE.clear()
     check("and one that is not a git repository is not an error",
-          brief.beside_sense(course_repo.Repo(loose)) == "")
+          brief.beside_sense(course_repo.Repo(loose, os.path.join(loose, "live"))) == "")
     shutil.rmtree(loose, ignore_errors=True)
 
     # --- cached, because the payload is polled four times a second ----------
@@ -184,7 +181,6 @@ try:
           % int((time.time() - t0) * 1000), time.time() - t0 < 2.0)
 
 finally:
-    atlas.forget()
     shutil.rmtree(base, ignore_errors=True)
 
 print()

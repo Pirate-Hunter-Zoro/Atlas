@@ -1,0 +1,94 @@
+% ===========================================================================
+%  Chapter 01 homework — Groups, fields and vector spaces
+%  Garling, A Course in Galois Theory
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant transcribes each assigned problem statement faithfully and
+%    emits an empty, marked solution region beneath it.
+%    The user types the mathematics inside those regions. No assistant writes
+%    inside a SOLUTION region in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Chapter 01 Homework --- Groups, fields and vector spaces}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+% Assistant: replace this block with one problem/solution pair per assigned
+% exercise, in the order assigned, following the pattern below exactly.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{01.3}
+  Suppose that $H$ is a subgroup of $G$ of index $2$. Show that $H$ is a normal
+  subgroup of $G$.
+\end{problem}
+% ===== SOLUTION 01.3 =====
+We must show that $g h g^{-1} \in H$ for every $g \in G$ and every $h \in H$.
+Let $h \in H$.
+
+\medskip
+\noindent\textbf{Case 1: $g \in H$.}
+Then $g h g^{-1} \in H$ by closure; no normality is needed to guarantee this.
+
+\medskip
+\noindent\textbf{Case 2: $g \notin H$.}
+Since $H$ has index $2$, there are exactly two cosets of $H$ in $G$, namely $H$ and
+one other; let $gH$ be that disjoint coset of $H$, so $g \notin H$. Denote
+$x = g h g^{-1}$.
+
+Suppose $x \in gH$. Then there exists $h_1 \in H$ such that
+\[
+  g h g^{-1} \;=\; g h_1
+  \iff g^{-1} \;=\; h^{-1} h_1
+  \iff g \in H,
+\]
+a contradiction.
+
+So since $x \notin gH$ due to the contradiction, $x \in H$, since $H$ and $gH$
+partition $G$. So $x = g h g^{-1} \in H$ and $H$ is normal. \qed
+% ===== END SOLUTION 01.3 =====
+
+\begin{problem}{01.5}
+  Suppose that $H$ is a normal subgroup of $G$ and that $K$ is a normal subgroup
+  of $H$. Is $K$ necessarily a normal subgroup of $G$?
+\end{problem}
+% ===== SOLUTION 01.5 =====
+No. Normality does not pass through; we give a counterexample.
+
+\medskip
+\noindent Take $G = S_4$ and let
+\[
+  H \;=\; \{\, e,\ (1\,2)(3\,4),\ (1\,3)(2\,4),\ (1\,4)(2\,3) \,\}.
+\]
+Each non-identity element of $H$ is its own inverse, and the product of any two
+distinct non-identity elements is the third, so $H$ is a subgroup, and it is
+abelian. Moreover $H$ consists of \emph{every} element of $S_4$ of cycle type
+$2+2$, together with $e$; since conjugation preserves cycle type,
+$g H g^{-1} \subseteq H$ for every $g \in S_4$, so $H \normal S_4$.
+
+\medskip
+\noindent Let $K = \{\, e,\ (1\,2)(3\,4) \,\}$. This is a subgroup, since
+$(1\,2)(3\,4)$ is its own inverse; any of the three non-identity elements of $H$
+would have served equally well, for the same reason. For any $p \in H$ and
+$k \in K$ we have $p k p^{-1} = k \in K$, because $H$ is abelian, so
+$K \normal H$.
+
+\medskip
+\noindent But take $g = (1\,2\,3\,4) \in G$ and $k = (1\,2)(3\,4) \in K$. Then
+$g^{-1} = (2\,1\,4\,3)$ and
+\[
+  g k g^{-1}
+  \;=\; (1\,2\,3\,4)(1\,2)(3\,4)(2\,1\,4\,3)
+  \;=\; (1\,2\,3\,4)(1\,2)(2\,1\,3)
+  \;=\; (1\,2\,3\,4)(1\,3)
+  \;=\; (1\,4)(2\,3),
+\]
+and $(1\,4)(2\,3) \notin K$. Hence $K$ is not normal in $G$. \qed
+% ===== END SOLUTION 01.5 =====
+
+\end{document}

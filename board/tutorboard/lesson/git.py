@@ -1,46 +1,30 @@
-"""The repository underneath a lesson: whether it has anything uncommitted, and
-what happens when somebody presses save.
+"""The repository underneath a lesson: what is uncommitted, what save does,
+and what somebody changed beside the lesson.
 
-Saving compiles the write-up first, because a LaTeX error found at push time
-is found by the student, on the board, at the moment they were trying to
-leave.
+The constraint: everything is scoped to the workspace by pathspec, because
+Atlas holds every workspace and the root's status or log answers for all.
 """
 
 import glob as _glob
 import json
 import os
 import subprocess
-import sys
 import time
 
-from .. import atlas, leaving, paths, worktree
+from .. import gitops, leaving, paths, subjects, worktree
 from ..course import homework
+from ..course import repo as course_repo
 
 
-# Keyed by workspace root. One process serves one board, so in practice this
-# holds one entry -- but a key that is not the workspace is a cache that answers
-# about the wrong workspace the first time anything asks twice, and Atlas is a
-# repository where "the wrong workspace" is several other people's afternoons.
+# Keyed by workspace root, so one workspace never answers for another.
 _DIRTY = {}
 DIRTY_TTL = 8.0
 
 
 def repo_dirty(repo):
-    """How many files are uncommitted IN THIS WORKSPACE, or None if it cannot be told.
-
-    This exists so the board can show that there is something to save. Leaving a
-    session is silent -- a lid closes, an app is swiped away -- and the student
-    should be able to see, before they go, that going now loses something.
-
-    **Scoped to the workspace**, which is the whole of what the move to one
-    repository changed here. `git status --porcelain` at the root of a monorepo
-    answers about every workspace in it, so a board on Galois Theory would show
-    an unsaved-work badge because somebody's afternoon on TRD-EHR is
-    uncommitted -- a warning about work the person looking at it cannot see,
-    attached to the button that would then commit it. The pathspec is the fix
-    and it is one argument.
-
-    `run_push` commits the same scope; see `save_pathspec`.
+    """How many files are uncommitted in this workspace, or None if unknown:
+    the board's unsaved-work badge. Scoped by `save_pathspec`, the scope
+    `run_push` commits.
     """
     now = time.time()
     key = os.path.realpath(repo.root)
@@ -50,15 +34,8 @@ def repo_dirty(repo):
     value = None
     if worktree.git_dir(repo.root):
         try:
-            # `--no-optional-locks`, because this is a BADGE. An ordinary
-            # `git status` takes `.git/index.lock` to write back the index it
-            # just refreshed -- a kindness to the next command, and the wrong
-            # trade entirely for a poll that runs every eight seconds in a
-            # repository whose slate pages are being rewritten while somebody
-            # draws on them. Killed at the timeout below, it leaves the lock
-            # behind and closes every route to a commit in here. It also means
-            # the badge keeps answering while somebody else holds the lock,
-            # instead of going blank at the moment it has most to say.
+            # `--no-optional-locks`: a poll must not take `.git/index.lock`,
+            # which a timeout kill would leave behind, blocking every commit.
             p = subprocess.run(["git", "--no-optional-locks", "status",
                                 "--porcelain", "--", repo.root], cwd=repo.root,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -74,13 +51,8 @@ def repo_dirty(repo):
 
 
 def hw_needs_building(repo):
-    """The sitting's problem set, if its PDF is missing or older than its source.
-
-    Cheap: two `stat` calls behind a lookup the board already does every payload.
-    Returns the set's name, or None when there is nothing to build -- no problem
-    sets in this repository, none bound to this sitting, or a PDF already newer
-    than the `.tex`.
-    """
+    """The sitting's problem set if its PDF is missing or older than its
+    `.tex`, else None. Two stats."""
     try:
         st = homework.status(repo.root, repo.state())
     except Exception:                                        # noqa: BLE001
@@ -97,103 +69,48 @@ def hw_needs_building(repo):
 
 
 def run_hw_build(repo):
-    """Compile the write-up because somebody asked, and hand back the record.
-
-    `build_before_push` compiles only when the PDF is stale, which is right for
-    a push -- there is no reason to spend a minute of LaTeX on a document that is
-    already current. This one is a person pressing a button, and it always runs:
-    "build it" that quietly does nothing is a button you press twice.
-
-    The record comes back off `hw.json` rather than being reconstructed here, so
-    the board is told exactly what the CLI recorded -- including `pdf`, which is
-    what a download needs, and the LaTeX tail, which is what a failure needs.
-    """
+    """Compile the write-up because somebody asked (always runs) and return
+    the `hw.json` record, with `pdf` and any LaTeX tail."""
     try:
         st = homework.status(repo.root, repo.state())
     except Exception:                                        # noqa: BLE001
         st = None
     if not st or not st.get("rel") or not st.get("name"):
         return {"ok": False,
-                "detail": "no problem set is bound to this sitting, so there is "
-                          "nothing to write up. `board hw use <set>` names one."}
-    cli = os.path.join(paths.TOOL, "bin", "board")
-    if not os.path.exists(cli):
-        return {"ok": False, "detail": "the board CLI is not where it should be"}
+                "detail": "this session has no write-up yet, so there is nothing "
+                          "to build. The first `board writeup add` starts one."}
     try:
-        # stdin=DEVNULL: a board detached by `board start`, or started by
-        # launchd, has fd 0 closed, and a python3 that inherits that dies with
-        # "can't initialize sys standard streams" before it runs a line. See
-        # the note in `server/spawn.py`.
-        p = subprocess.run([sys.executable, cli, "hw", "build"], cwd=repo.root,
-                           stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=300)
-        out = p.stdout.decode("utf-8", "replace").strip()
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        homework.build(repo.root, repo.live, st)
+    except OSError as exc:
         return {"ok": False, "set": st.get("name"), "detail": str(exc)}
-    try:
-        with open(os.path.join(repo.live, "hw.json"), "r", encoding="utf-8") as fh:
-            rec = json.load(fh)
-    except (OSError, ValueError):
-        rec = {"ok": False, "set": st.get("name"), "detail": out[-1600:]}
+    rec = homework.last_build(repo.live) or {"ok": False, "detail": "no record"}
     rec.setdefault("set", st.get("name"))
     return rec
 
 
 def build_before_push(repo):
-    """Compile the write-up, so what is committed is the document and not just
-    its source.
-
-    An exercise is finished when it is typeset, not when it is agreed: the point
-    of the hour is the piece of mathematics. Compiling it was a step the tutor had
-    to remember at the end of a turn that had already delivered its card -- and
-    sessions end by being abandoned far more often than they end tidily. What got
-    pushed was then a `.tex` carrying tonight's proof beside a `.pdf` from last
-    week that does not, which is worse than no PDF at all: it looks finished and
-    is silently missing the exercise the evening was spent on.
-
-    The compile is `board hw build`, the same one the tutor would run, so there is
-    one way of building and one `hw.json` -- which the board is already painting,
-    so a LaTeX error appears on the iPad rather than in a log nobody is reading.
-    """
+    """Compile the write-up when its PDF is missing or older than the `.tex`,
+    so a commit never pairs tonight's proof with last week's PDF. Errors reach
+    the iPad through `hw.json`."""
     name = hw_needs_building(repo)
     if not name:
         return None
-    cli = os.path.join(paths.TOOL, "bin", "board")
-    if not os.path.exists(cli):
-        return None
     try:
-        # stdin=DEVNULL: a board detached by `board start`, or started by
-        # launchd, has fd 0 closed, and a python3 that inherits that dies with
-        # "can't initialize sys standard streams" before it runs a line. See
-        # the note in `server/spawn.py`.
-        p = subprocess.run([sys.executable, cli, "hw", "build"], cwd=repo.root,
-                           stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=180)
-        out = p.stdout.decode("utf-8", "replace").strip()
-        code = p.returncode
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        st = homework.status(repo.root, repo.state())
+        code, _pdf, out = homework.build(repo.root, repo.live, st)
+    except Exception as exc:                                 # noqa: BLE001
         out, code = str(exc), 1
     return {"set": name, "ok": code == 0, "detail": out[-800:]}
 
 
 def save_pathspec(root, top, only=None):
-    """What a save from the workspace at `root` commits, as git pathspecs
-    relative to `top`, the repository it is in.
+    """What a save from the workspace at `root` commits, as pathspecs relative
+    to `top`, its repository. `(specs, refused)`.
 
-    `(specs, refused)`. With no `only`, the workspace's own directory. With
-    `only`, those paths -- each resolved against the working directory -- and
-    `refused` names every one that is not inside the workspace, because a save
-    made here commits here and nowhere else. Either way the tool and any
-    workspace nested inside this one are excluded. NFS litter (`.nfs*`) is kept
-    out by the repository's own `.gitignore` -- Atlas's, or a course's own --
-    so no door commits it.
-
-    AN EXCLUDE NAMES, LITERALLY, A DIRECTORY INSIDE ONE OF THE PATHS IT
-    NARROWS. With an exclude outside them, or a wildcard one such as
-    `**/.nfs*`, git 2.52's `add -A` adds no untracked file at all, and the save
-    reports "nothing to commit" over a workspace full of new work.
+    The workspace's directory, or `only`'s paths, refusing any outside it.
+    The tool and nested workspaces are excluded; `.nfs*` is the root
+    .gitignore's. Each exclude literally names a directory inside a narrowed
+    path, because otherwise git 2.52's `add -A` adds no untracked file.
     """
     real_top = os.path.realpath(top)
     real_root = os.path.realpath(root)
@@ -215,7 +132,7 @@ def save_pathspec(root, top, only=None):
 
     nested = [paths.TOOL]
     try:
-        nested += [w["root"] for w in atlas.workspaces()]
+        nested += subjects.roots()
     except OSError:
         pass
     narrowed = [os.path.join(real_top, s) for s in specs]
@@ -229,9 +146,8 @@ def save_pathspec(root, top, only=None):
 
 
 def repo_top(root):
-    """The repository the workspace at `root` is in, asked of git rather than
-    derived by taking `dirname` of its git directory -- which is right for an
-    ordinary clone and wrong for a linked worktree or a submodule."""
+    """The repository the workspace at `root` is in, asked of git, because a
+    worktree's or submodule's git directory is not under it."""
     try:
         p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -245,24 +161,11 @@ def repo_top(root):
 
 
 def run_push(repo, message=None):
-    """Commit and push, and record what happened.
+    """Commit and push this workspace (`save_pathspec`), and record it.
 
-    The work is the repository owner's. The script carries no co-author trailer
-    and neither does anything here -- history should credit the person who did
-    the mathematics and nobody else.
-
-    It commits THIS WORKSPACE and nothing else: `save_pathspec` is the
-    pathspec, so the tool, every other workspace and NFS litter stay out of a
-    commit named after this one. Everything uncommitted inside the workspace
-    goes, because save means save. The commit message names the workspace.
-
-    What it still will not do is commit into an operation somebody is part-way
-    through. A rebase or a merge outstanding means a terminal in this repository
-    has its own plan for the next commit, and a tap on an iPad is not an
-    instruction to walk over it -- so the tap says what is in the way instead,
-    on the board, where the person who tapped is looking. That guard reads the
-    REPOSITORY's git directory now, not the workspace's, which is the same
-    question asked one level up.
+    No co-author trailer: the work is the owner's. Never commits into an
+    outstanding rebase or merge, read from the repository's git directory;
+    the board says what is in the way.
     """
     busy = worktree.busy_reason(repo.root)
     if busy:
@@ -278,21 +181,9 @@ def run_push(repo, message=None):
         with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
             json.dump(record, fh, indent=2)
         return record
-    # AND NOTHING THAT REACHES FOR SESSION CONTENT. The same check the command
-    # line makes, on the same push, because this is the same push: a fixture
-    # cut out of a transcript goes with it. See `tutorboard/leaving.py` for what it catches.
-    #
-    # NO OVERRIDE HERE, and that is the difference between this surface and the
-    # command line. `board push --anyway` is a keyboard act; a button on a
-    # tablet that waves a PHI fence through is the thing the fence is for. The
-    # way past it from the iPad is to tell the tutor, which is a person deciding
-    # and an assistant acting.
+    # The same PHI content scan as `board push` (`leaving.py`), with no
+    # override: a tablet tap must not wave a PHI fence through.
     phi = leaving.reason(repo.root)
-    # And nothing a thread held at the cluster owns: `holds.refusal`, the same
-    # check `board push` makes.
-    if not phi:
-        from .. import holds
-        phi = holds.refusal(repo.root)
     if phi:
         record = {
             "ok": False,
@@ -303,11 +194,8 @@ def run_push(repo, message=None):
         with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
             json.dump(record, fh, indent=2)
         return record
-    # A lock left behind by a git that was killed is not an operation to respect;
-    # it is rubbish, and until this it closed the only door the person tapping
-    # has. Git's own answer -- "remove the file manually to continue" -- is not
-    # an instruction anybody can follow from an iPad, and it was the entire
-    # contents of a red banner on 10 September while the work sat uncommitted.
+    # A stale lock from a killed git is removed: its own advice cannot be
+    # followed from an iPad.
     lock_verdict, lock_said = worktree.lock_reason(repo.root)
     cleared = None
     if lock_verdict == "held":
@@ -322,48 +210,21 @@ def run_push(repo, message=None):
         return record
     if lock_verdict == "stale":
         cleared = worktree.clear_stale_lock(repo.root)
-    # The write-up is part of the work, so it is part of the commit. Only when it
-    # is actually out of date, so an ordinary save in the middle of a lesson
-    # costs nothing.
+    # An out-of-date write-up is rebuilt into the commit.
     built = build_before_push(repo)
 
-    # The workspace leads the message. `save-and-push.sh` lives with the tool,
-    # one copy for every repository, and it is run FROM THE REPOSITORY ROOT --
-    # Atlas's, or a course's own: a push is a push of the repository, and
-    # pretending otherwise from a subdirectory is how a commit ends up with
-    # half of what somebody meant.
-    said = message or "lesson complete"
-    where = atlas.identify(repo.root)
-    if where and not said.startswith(where):
-        said = "%s: %s" % (where, said)
+    # The workspace leads the message, and the commit is of the repository
+    # the workspace is in, carrying only `save_pathspec`.
+    said = message or gitops.SAVE
+    where = subjects.identify(repo.root)
+    lead = subjects.prefix(repo.root)
+    if lead and not said.startswith(lead + ":"):
+        said = "%s: %s" % (lead, said)
 
     top = repo_top(repo.root)
     specs, _ = save_pathspec(repo.root, top)
-
-    # ONE copy of the script, and the working directory is what tells it which
-    # repository to commit. A workspace has no `scripts/` of its own -- the
-    # tool's copy is the only copy -- and the script derives its root from
-    # `pwd`, not from where it is installed. That distinction is not pedantry:
-    # a root taken from the script's own location makes a test that taps save
-    # on a throwaway repository commit the real Atlas.
-    script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
-    if os.path.exists(script):
-        cmd = ["bash", script, said, "--"] + specs
-    else:
-        cmd = ["bash", "-c",
-               'set -e; export GIT_TERMINAL_PROMPT=0; m="$1"; shift; '
-               'git add -A -- "$@"; '
-               'git diff --cached --quiet || git commit -m "$m" --only -- "$@"; '
-               'git push', "_", said] + specs
-    try:
-        p = subprocess.run(cmd, cwd=top, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, timeout=180)
-        out = p.stdout.decode("utf-8", "replace").strip()
-        code = p.returncode
-    except subprocess.TimeoutExpired:
-        out, code = "timed out after 3 minutes -- is a credential prompt waiting?", 1
-    except OSError as exc:
-        out, code = str(exc), 1
+    ok, out = gitops.save(top, specs, said)
+    code = 0 if ok else 1
 
     record = {
         "ok": code == 0,
@@ -376,8 +237,7 @@ def run_push(repo, message=None):
         record["cleared_lock"] = True
         record["detail"] = cleared + "\n" + record["detail"]
     if built:
-        # Said on the board, not only in a log. A push that quietly shipped a
-        # stale PDF because LaTeX failed is the exact silence this exists to end.
+        # On the board, not only in a log.
         record["built"] = built["set"]
         record["built_ok"] = built["ok"]
         if not built["ok"]:
@@ -392,56 +252,26 @@ def run_push(repo, message=None):
 # ---------------------------------------------------------------------------
 # what somebody did while the board was not looking
 # ---------------------------------------------------------------------------
-#     "I want to be able to pop open my laptop and code up something and have
-#      the tutor see that if it pertains to whatever project we're in."
-#
-# Every turn is a cold turn -- `session_turns: 1`, a fresh `claude -p` reading
-# `board brief` off disk -- so the briefing is the only place this can go. A
-# tutor that has just been told what changed can teach the thing that changed;
-# one that has not will cheerfully explain a function somebody rewrote at lunch.
-#
-# TWO RULES, and the second is the one that matters.
-#
-#   SCOPED TO THE WORKSPACE. Atlas's repository holds every research, project
-#   and practice workspace, and `git log` at its root answers about all of
-#   them. A course is its own repository, and the scope costs it nothing. A
-#   turn about TRD-EHR told about PSYCH-ASR's afternoon is a turn that will
-#   try to teach it.
-#
-#   NAMED AS THE PERSON'S WORK, NEVER THE TUTOR'S. A turn that mistakes a commit
-#   somebody made on their laptop for something it did itself will report having
-#   done work it has not done, and that is the worst failure this board has: it
-#   is undetectable from the outside, it is confidently stated, and it makes
-#   every other thing the tutor says less believable. The wording below says
-#   whose work it is three times, in three different ways, on purpose.
-#
-# NOT THE DIFF. A briefing is about 22k tokens and it stays that way. Subjects,
-# filenames, and a count -- enough to know what to go and read, which is what a
-# turn needs, and nothing that grows with the size of an afternoon's work.
+# What changed beside the lesson, for the brief: every turn is cold, so this
+# is the only way a tutor learns of a laptop commit. Scoped to the workspace;
+# named as the person's work, never the tutor's, because a tutor claiming
+# someone else's commit is undetectable and corrosive. Subjects, filenames
+# and a count, never the diff, so the brief does not grow.
 
 _BESIDE = {}
 BESIDE_TTL = 20.0
 
-# How many commits and how many filenames are worth saying. Past these it is the
-# COUNT that is the fact -- "eleven commits" tells a turn what it needs, and the
-# eleventh subject does not.
+# Past these, the count is the fact.
 BESIDE_COMMITS = 8
 BESIDE_FILES = 12
 
-# The furthest back this ever looks, whatever the sitting says. A lecture opened
-# a fortnight ago and left open is the ordinary case on this board, and a
-# fortnight of somebody's commits is not news, it is a changelog.
+# The furthest back this looks: older commits are history, not news.
 BESIDE_WINDOW = 3 * 86400
 
 
 def _seen_until(repo):
-    """The moment the tutor's knowledge of this workspace stops.
-
-    The newest card it wrote, because a card is the tutor saying something and
-    therefore the last point at which it certainly knew the state of the world.
-    Failing that the sitting's own opening. Either way capped at
-    `BESIDE_WINDOW`, so what comes back is news rather than history.
-    """
+    """When the tutor's knowledge of this workspace stops: its newest card,
+    else the sitting's opening, capped at `BESIDE_WINDOW`."""
     newest = 0
     try:
         for name in os.listdir(repo.cards):
@@ -469,12 +299,9 @@ def _seen_until(repo):
 
 
 def beside_the_lesson(repo):
-    """What somebody did to THIS workspace that the tutor has not been told.
-
-    `{"commits": [...], "uncommitted": [...], "files": n, "since": t}` or None
-    when this is not a git repository. Cached, because the payload is polled
-    four times a second and this is two `git` calls.
-    """
+    """What somebody did to this workspace that the tutor has not been told:
+    `{"commits": [...], "uncommitted": [...], "files": n, "since": t}`, or
+    None outside git. Cached; the payload is polled often."""
     now = time.time()
     key = os.path.realpath(repo.root)
     hit = _BESIDE.get(key)
@@ -486,9 +313,7 @@ def beside_the_lesson(repo):
         since = _seen_until(repo)
         value = {"since": since, "commits": [], "uncommitted": [], "files": 0}
         try:
-            # SCOPED BY PATHSPEC, not filtered afterwards. The pathspec is what
-            # makes this answer about one workspace in a repository that may
-            # hold several.
+            # Scoped by pathspec, not filtered afterwards.
             p = subprocess.run(
                 ["git", "--no-optional-locks", "log",
                  "--since=@%d" % int(since), "--no-merges",
@@ -509,11 +334,9 @@ def beside_the_lesson(repo):
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-        theirs = uncommitted(repo.root)
+        theirs = uncommitted(repo.root, session=repo.session)
         if theirs is not None:
-            # COUNTED AFTER THE FILTER, so the number and the list are about
-            # the same thing. "2 files are uncommitted" over a list of one is
-            # a turn wondering what the other one was.
+            # Counted after the filter, so count and list agree.
             value["files"] = len(theirs)
             value["uncommitted"] = theirs[:BESIDE_FILES]
 
@@ -521,20 +344,12 @@ def beside_the_lesson(repo):
     return value
 
 
-def uncommitted(root, paths=None):
-    """Uncommitted paths under `paths` (default: the workspace), relative to `root`.
-
-    None where git cannot be asked. `live/` is left out: it is the board's own
-    scratch -- cards, ink, state -- and listing it as changed work would make
-    every answer open with what the board itself just did.
-    """
+def uncommitted(root, paths=None, session=None):
+    """Uncommitted paths under `paths` (default: the workspace), relative to
+    `root`; None where git cannot be asked. The session directory is left
+    out: it is the board's own scratch."""
     try:
-        # `git status --porcelain` prints paths relative to the GIT ROOT, not
-        # to the directory it was run in -- so in a repository holding several
-        # workspaces every name comes back with the workspace's own directory
-        # on the front of it. A turn in PSYCH-ASR told about
-        # `research/PSYCH-ASR/notes/ch04.md` has to strip a prefix to find a
-        # file that is right there beside it.
+        # Porcelain paths are relative to the git root; re-relativise them.
         top = root
         tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                             cwd=root, stdout=subprocess.PIPE,
@@ -562,13 +377,16 @@ def uncommitted(root, paths=None):
         if " -> " in rel:
             rel = rel.split(" -> ", 1)[1]
         try:
-            # Both sides resolved: git answers the top with symlinks taken out,
-            # and a Mac's temporary and home paths run through one (`/var` is
-            # `/private/var`), so a raw `root` puts `../../private` on the front.
+            # Both sides resolved, since git strips symlinks (`/var` is
+            # `/private/var` on a Mac).
             here = os.path.relpath(os.path.realpath(os.path.join(top, rel)),
                                    os.path.realpath(root))
         except ValueError:
             here = rel
         names.append(here)
+    bound = session or course_repo.session_dir(root)
+    if not bound:
+        return names
+    scratch = os.path.relpath(bound, root)
     return [n for n in names
-            if not n.startswith("live" + os.sep) and n != "live"]
+            if not n.startswith(scratch + os.sep) and n != scratch]

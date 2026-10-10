@@ -8,24 +8,18 @@
 #      says where.
 #
 #  So this file is left holding three honest categories: files a command
-#  regenerates, other people's papers, and directories that are their own
-#  repositories -- `ai-config/` and each course. It does not hold "the 308 MB
+#  regenerates, other people's work, and `ai-config/`, which is its own
+#  private repository. It does not hold "the 308 MB
 #  of therapy audio we would rather not push" -- that is not in here at all, it
-#  is at ~/phi/PSYCH-ASR/, and research/PSYCH-ASR/README.md says so. An ignore
+#  is at ~/phi/PSYCH-ASR/, and projects/PSYCH-ASR/README.md says so. An ignore
 #  rule is a guard somebody can delete by accident; a directory outside the
 #  repository is a guard nothing in here can undo.
 #
 #  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
-#  ones. In particular the `live/*` allowlist -- cards, slate, answers,
-#  archive, inbox, text, state.json, turns.jsonl and jobs.jsonl tracked, the
-#  rest ignored -- is what makes a lecture the same lesson on whichever machine picks it up.
-#  Nothing here may shadow one of those: git will not descend into a directory
-#  ignored higher up, so a rule for `live/` written HERE would make every
-#  deeper `!live/cards/` unreachable. That is why this file names no directory
-#  a workspace re-includes.
-#
-#  A course reads none of this file: it is its own repository, so its own
-#  .gitignore carries the build, LaTeX and credential rules below as well.
+#  ones. Nothing here may shadow one of those: git will not descend into a
+#  directory ignored higher up, so a rule here for a directory a workspace
+#  re-includes would make every deeper `!` line there unreachable. That is
+#  why this file names no directory a workspace re-includes.
 # ===========================================================================
 
 # ---- build products, every language in here ----
@@ -41,6 +35,8 @@ node_modules/
 # recreates all of it. It never leaves the machine.
 .lake/
 build/
+# Not output: the board's builder keeps its pandoc filter here.
+!/board/tutorboard/build/
 
 # ---- LaTeX, which writes eight files beside every one it is asked for ----
 *.aux
@@ -50,22 +46,35 @@ build/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.vrb
+*.out
+# Built PDFs, where documents are built. A PDF already tracked stays tracked.
+/courses/**/*.pdf
+/projects/*/docs/**/*.pdf
+/projects/*/homework/**/*.pdf
+# A marked copy: ink burned into a copy of a PDF, beside it (`burn.py`).
+*-marked.pdf
+*-marked-[0-9]*.pdf
 
 # ---- the relay's own state, on the cluster ----
-# The pass's lock and `state.json` at the root; in each workspace the wrapped
-# job scripts, their exit codes, and the registry of
-# what the relay submitted. A log can print anything, so none of it is tracked;
-# a report under `relay/reports/` is what crosses.
+# The pass's lock and `state.json` at the root; in each subject the wrapped
+# job scripts, their exit codes, the job registry, the claims and the Colibri
+# queue (`jobs.py`). A log can print anything, so none of it is tracked; a
+# report under `relay/reports/` is what crosses.
 **/relay/state/
 /relay/state.json
-/relay/.lock
+/relay/.lock*
 
-# ---- the meeting deck's pointer, and the pictures of its marks ----
-# The deck itself lives in its host workspace's `writeups/meeting/`, where its
-# `.tex` is tracked and a fenced host's push scan reads it. `meetings/` holds
-# only where it is, its state and page map (rewritten on every poll), and the
-# rendered ink copied out for the turn that reads it. Neither is a document.
-meetings/
+# ---- the meeting deck: projects/Meetings/docs/meeting/ ----
+# `meeting.tex` and doc.json are tracked. The brief quotes commits and
+# sessions, the figures are copies of results, and the sidecar and the marks'
+# pictures are rewritten on every build: none of them is tracked.
+/projects/Meetings/docs/meeting/_brief.*
+/projects/Meetings/docs/meeting/_provenance.json
+/projects/Meetings/docs/meeting/figures/
+/projects/Meetings/docs/meeting/marks/
+# An older machine's root pointer to the deck. Nothing writes it.
+/meetings/
 
 # ---- other people's published papers ----
 # The citation libraries hold PDFs whose copyright belongs to their authors.
@@ -101,8 +110,7 @@ Thumbs.db
 # The same rule covers a workflow, a subagent, a slash command and a skill,
 # which are logic written against one provider's API and go stale at its next
 # release. A job worth keeping is kept as a specification any assistant can
-# execute -- `board/tools/docs-audit.md` is the pattern -- and the harness is
-# regenerated from it.
+# execute, and the harness is regenerated from it.
 #
 # `**/` on purpose: a pattern with a slash in it is anchored to the directory
 # its .gitignore sits in, so `.claude/` written HERE would match only the one
@@ -110,17 +118,12 @@ Thumbs.db
 # which are the only ones that actually exist.
 **/.claude/
 
-# ---- directories that are their own private repositories ----
+# ---- the one directory that is its own private repository ----
 # `ai-config/` holds the operating contract every assistant reads, the PHI
 # guard, and each vendor's settings files, which name real paths on the lab's
-# storage. Each course (github.com/Pirate-Hunter-Zoro/<name>, cloned into
-# `courses/<name>`) tracks its textbook, slides and sheets, which belong to
-# other people. Both live INSIDE this tree, so one directory is the whole of
-# the work, and both are ignored here, so a public repository never carries a
-# byte of them. `board/bootstrap.sh` clones each one listed under "private" in
-# `atlas.json`.
+# storage. It lives INSIDE this tree, so one directory is the whole of the
+# work, and is ignored here, so a public repository never carries a byte of it.
 /ai-config/
-/courses/*/
 
 # ---- a credential dropped in the tree, which is a thing that happens ----
 # A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside
@@ -139,3 +142,27 @@ Thumbs.db
 *.key
 keys.env
 .env
+
+# ---- what stays on the Mac, and what belongs to somebody else ----
+# Sessions, document ink and materials (third-party or uploaded files) are
+# never tracked. phi/ and results/ never leave the machine they are on. A
+# course's textbook, chapter readings, lecture decks and assignment sheets are
+# other people's work. board/tutorboard/audit.py refuses the same shapes at
+# commit time, which is the guard a `git add -f` cannot walk past.
+/sessions/
+**/.ink/
+**/materials/
+/projects/*/phi/
+/projects/*/results/
+/courses/*/phi/
+/courses/*/textbook/
+/courses/*/chapters/*/reading/
+/courses/*/chapters/*/lectures/
+/courses/*/**/assignment*
+
+# ---- the legacy subject roots ----
+# research/ and practice/ merged into projects/. A machine that has not yet run
+# move-residue.sh still holds ignored residue (.venv, phi/, results/, .env) at
+# the old paths after a pull; these keep all of it invisible to git.
+/research/
+/practice/

@@ -42,6 +42,18 @@ body > #away {
 #away a {
   color: var(--sl-dim); text-decoration: none; font-size: .85rem;
 }
+#notes-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--sl-ink); font-size: .85rem; font-weight: 600;
+}
+#notes-end {
+  margin-left: auto; flex: none;
+  font: inherit; font-size: .8rem; padding: .3rem .8rem; cursor: pointer;
+  color: var(--sl-ink); background: var(--sl-panel);
+  border: 1px solid var(--sl-line); border-radius: .4rem;
+}
+#notes-end.armed { border-color: var(--sl-accent); color: var(--sl-accent); }
+#notes-end:disabled { cursor: default; color: var(--sl-dim); }
 body > #prompt {
   flex: none; display: flex; align-items: baseline; gap: .5rem;
   padding: .2rem .9rem .5rem; font-size: .8rem; color: var(--sl-dim);

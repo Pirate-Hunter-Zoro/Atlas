@@ -49,7 +49,7 @@ def check(name, cond):
 
 tmp = tempfile.mkdtemp(prefix="tutor-ann-")
 json.dump({"name": "T", "mode": "math"}, open(os.path.join(tmp, "tutorboard.json"), "w"))
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 open(os.path.join(repo.cards, "0003-a-card.md"), "w", encoding="utf-8").write(
     "---\nkind: lesson\ntitle: A card\n---\n\nSomething to mark up.\n")
 
@@ -169,23 +169,21 @@ try:
     check("marking the same card again revises that turn", len(sent) == 1)
     check("and the revision is recorded", sent[0]["rev"] == 2)
 
-    # --- a page's direction picture is its own file ---------------------------
-    # The library reader saves one picture per kind of ink, so a page with a
-    # fix and a direction on it never has one kind filed as the other.
+    # --- one kind of ink: old ink loads in place -----------------------------
+    # A stroke stored with the retired direction field is ordinary ink: it is
+    # saved and read back as it stands, a page has one picture, and a stale
+    # `png_kind` names no second file.
     page = "doc/a-deck/p2"
     stem = os.path.join(repo.notes, writing_route.ann_file(page))
     fix = {"c": "#e8746c", "w": 3, "pg": 1, "p": [0.1, 0.1, 0.2, 0.2]}
-    way = dict(fix, dir=1)
-    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG})
-    fix_png = open(stem + ".png", "rb").read()
-    post("/annotate/save", {"card": page, "strokes": [fix, way], "png": PNG[:-4] + "AAAA",
+    old = json.loads('{"c": "#3366cc", "w": 3, "pg": 1, "dir": 1, "p": [0.3, 0.3, 0.4, 0.4]}')
+    post("/annotate/save", {"card": page, "strokes": [fix, old], "png": PNG})
+    post("/annotate/save", {"card": page, "strokes": [fix, old], "png": PNG[:-4] + "AAAA",
                             "png_kind": "dir"})
-    check("a picture saved for direction ink goes to <stem>.dir.png",
-          os.path.isfile(stem + ".dir.png"))
-    check("and the fix picture beside it is left alone",
-          open(stem + ".png", "rb").read() == fix_png)
-    check("a direction stroke is stored with its `dir` field, a fix with none",
-          notes.load_notes(repo)[page] == [fix, way])
+    check("a page's picture is one file, whatever a stale reader calls it",
+          os.path.isfile(stem + ".png") and not os.path.exists(stem + ".dir.png"))
+    check("and old ink with the retired field is read back in place, as it was saved",
+          notes.load_notes(repo)[page] == [fix, old])
 
     # --- saving mid-session must not end the session --------------------------
     # `board push` from a terminal archives a code session, because a commit is
@@ -238,8 +236,8 @@ try:
           status == 200 and not repo.state().get("hw"))
 
     # --- jumping to a chapter -------------------------------------------------
-    # Moving to a different chapter is starting a different lesson, so what is
-    # being left has to be filed whole rather than written over.
+    # A chapter labels the sitting. Nothing is filed away: a session keeps every
+    # card until the owner ends it.
     open(os.path.join(tmp, "chapters.tsv"), "w", encoding="utf-8").write(
         "01\t1\t9\tch01-a\tFirst chapter\n02\t10\t19\tch02-b\tSecond chapter\n")
     open(os.path.join(repo.cards, "0009-mid-lesson.md"), "w", encoding="utf-8").write(
@@ -249,10 +247,9 @@ try:
     check("a chapter can be opened from the board", status == 200 and body.get("ok"))
     check("and the sitting is labelled with it",
           repo.state().get("chapter") == "Ch 02 — Second chapter")
-    check("the lesson that was open is filed, not discarded",
-          len(archive.list_archive(repo)) >= 1)
-    check("and the board starts clean for the new chapter",
-          not [n for n in os.listdir(repo.cards) if n.endswith(".md")])
+    check("and the cards stay where they are",
+          "0009-mid-lesson.md" in os.listdir(repo.cards)
+          and not archive.list_archive(repo))
 
     status, _ = post("/session", {"session": "lecture", "chapter": "Ch 99 — Invented"})
     check("a chapter this course does not have is refused", status == 400)
@@ -264,8 +261,8 @@ try:
     cap = _io.StringIO()
     real_stderr, sys.stderr = sys.stderr, cap
     try:
-        post("/annotate/save", {"card": "0003", "strokes": strokes, "png": PNG})
-        post("/annotate/save", {"card": "0003", "strokes": strokes, "png": PNG,
+        post("/annotate/save", {"card": "0009", "strokes": strokes, "png": PNG})
+        post("/annotate/save", {"card": "0009", "strokes": strokes, "png": PNG,
                                 "send": True, "turn": t["id"]})
     finally:
         sys.stderr = real_stderr

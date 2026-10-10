@@ -1,15 +1,4 @@
-"""What a repository says it is.
-
-A course declares its name, and whether the tutor is there to teach the work or
-to do it. It does NOT declare a subject any more: there was a `mode`, `math` or
-`code`, and it decided both how the board looked and how the lesson was shaped.
-It is gone. Every repository is taught the one way -- the way the mathematics
-courses were always taught -- and a repository whose subject happens to be code
-says so by having code in it, not by turning off half the board.
-
-A `mode` left over in a `tutorboard.json` is read and ignored, because those
-files live in the course repositories rather than here and a stale key must
-never be the reason a board behaves differently from its neighbour.
+"""What a subject's `tutorboard.json` says, and a session's mode.
 """
 
 import json
@@ -17,71 +6,55 @@ import os
 import re
 import shlex
 
-from .. import atlas
+
+# A session's MODE, in `session.json`: who writes the code. `teach` withholds
+# it; `do` writes it. A session opens in teach and changes only by `board mode`,
+# `POST /mode`, or the tutor obeying "do it". Nothing infers `do`.
+MODES = ("teach", "do")
 
 
-# Who writes the code. Declared here rather than beside `clean_stance` below,
-# because `read_config` has to be able to say whether a repository ANSWERED the
-# question or was given the default -- see `said_stance`.
-STANCES = ("teach", "do")
+def clean_mode(mode):
+    """A mode from a request, or None if it is not one. Never raises."""
+    mode = str(mode or "").strip().lower()
+    return mode if mode in MODES else None
 
-# `check` is the workspace's test command (`clean_check`); the brief names it,
-# and the contracts say a turn that changed code runs it before it pushes.
-DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach", "check": None}
+
+def mode_of(state):
+    """The session's mode: `do` only where `session.json` says so, else teach."""
+    return "do" if clean_mode((state or {}).get("mode")) == "do" else "teach"
 
 
 def read_config(root):
-    """A course declares itself in tutorboard.json at its root.
+    """What a subject's `tutorboard.json` says: `name`, `phi`, `check`, `relay`.
 
-    Everything is optional. What is not declared is defaulted, and the default
-    is only ever about how the board behaves, never about whether it works.
+    All optional; other keys (`stance`, `aim`, `subtitle`, `mode`, `agent`)
+    are ignored. `name` defaults to the directory with dashes as spaces.
+    `phi` stays literal (True, False, else None), because only a literal False
+    opens check output (`code.output_open`). `check` goes through
+    `clean_check`.
     """
-    cfg = dict(DEFAULT_CONFIG)
-    # What the FILE said, kept apart from what it is defaulted to. The two are
-    # different answers and `said_stance` below turns on the difference.
-    said = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
             said = json.load(fh) or {}
     except (OSError, ValueError):
         said = {}
-    if isinstance(said, dict):
-        cfg.update(said)
-    else:
+    if not isinstance(said, dict):
         said = {}
-
-    if not cfg.get("name"):
-        cfg["name"] = os.path.basename(os.path.abspath(root)).replace("-", " ")
-
-    # A subject is not a setting. Whatever a course file still says here is
-    # dropped on the way through, so nothing downstream can branch on it again.
-    cfg.pop("mode", None)
-
-    stance = (cfg.get("stance") or "").lower()
-    # Never guessed. Writing the code for somebody who wanted to learn it is the
-    # one failure here that cannot be undone by the next card, so it is only ever
-    # done because a repository asked for it in writing.
-    cfg["stance"] = "do" if stance == "do" else "teach"
-    # AND WHETHER IT WAS SAID AT ALL, which the default above cannot express. A
-    # family declares a default style in `atlas.json`, and that default can only
-    # apply to a repository that has not answered for itself -- so "teach because
-    # it says teach" and "teach because nothing said anything" have to be
-    # different answers here. See `stance_for`.
-    cfg["said_stance"] = str(said.get("stance") or "").strip().lower() in STANCES
-    # WHETHER A CHECK'S OUTPUT MAY LEAVE THIS WORKSPACE WHOLE. `"phi": true`
-    # closes it: a held step's check then reports `RELAY:` lines only. Only a
-    # literal true counts; `holds.output_open` has three more tests, each of
-    # which closes it on its own.
-    cfg["phi"] = said.get("phi") is True
-    # The workspace's own check for a held step, validated. A bad one is
-    # dropped and said, so a hold never runs something nobody declared.
+    phi = said.get("phi")
+    relay = said.get("relay")
+    cfg = {
+        "name": said.get("name")
+        or os.path.basename(os.path.abspath(root)).replace("-", " "),
+        "phi": phi if isinstance(phi, bool) else None,
+        "relay": relay if isinstance(relay, dict) else {},
+    }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])
     return cfg
 
 
 # ---------------------------------------------------------------------------
-# a workspace's CHECK: what `board send` runs on a held step
+# a workspace's CHECK: what `board check` and each `board code` step run
 # ---------------------------------------------------------------------------
 #
 #     "check": "uv run --extra test python -m pytest tests -q"
@@ -95,8 +68,8 @@ def read_config(root):
 #               "path": ["/usr/local/go/bin"]}
 #
 # `all` checks the whole workspace and `one` checks the held paths, through the
-# placeholders `{dir}`, `{file}` and `{module}` (`holds.check_spec` fills them).
-# `argv[0]` is one of `CHECK_PROGRAMS` or a workspace script, which the hold
+# placeholders `{dir}`, `{file}` and `{module}` (`code.check_spec` fills them).
+# `argv[0]` is one of `CHECK_PROGRAMS` or a workspace script, which the check
 # requires tracked and unchanged at HEAD. It runs without a shell, with `path`
 # put in front of PATH.
 CHECK_PROGRAMS = ("go", "lake", "uv", "python3", "bash", "make")
@@ -105,11 +78,8 @@ _HOLE_RE = re.compile(r"\{[^}]*\}")
 
 
 def check_program(word):
-    """Is this an allowed `argv[0]`: a named program, or a workspace script?
-
-    A script is a workspace path with a directory or an extension in it, so a
-    bare program name that is not one of `CHECK_PROGRAMS` is refused rather
-    than read as a file nobody wrote."""
+    """Is this an allowed `argv[0]`: a `CHECK_PROGRAMS` name, or a workspace
+    script (a path with a directory or extension)?"""
     word = str(word or "")
     if word in CHECK_PROGRAMS:
         return True
@@ -120,11 +90,8 @@ def check_program(word):
 
 
 def _leaves(word):
-    """Does this word of a check name a path outside the workspace? An
-    absolute or home path, or a `..` step, anywhere in it: after `--opt=`,
-    or inside a `bash -c` line. A check runs from the workspace root, and its
-    output is judged by that workspace's fence, so it may not reach into
-    another one."""
+    """Does this word of a check reach outside the workspace (absolute, home
+    or `..`, anywhere in it)? A check is judged by its own workspace's fence."""
     for part in _WORD_SPLIT.split(str(word).replace("\\", "/")):
         if part.startswith(("/", "~", "$")) or ".." in part.split("/"):
             return True
@@ -205,291 +172,9 @@ def clean_check(raw):
 
 
 # ---------------------------------------------------------------------------
-# the stance of THIS SITTING, which is not always the stance of the repository
+# An assistant's NAME from a request: only its shape is checked here. Who takes
+# a turn is the machine's one provider setting (`recipes.resolve`).
 # ---------------------------------------------------------------------------
-#
-# A repository was allowed one answer to "is the tutor here to teach the work or
-# to do it", and a real project does not have one. PSYCH-ASR is the case that
-# broke it: the grid-search plumbing around a bake-off is drudgery its owner has
-# written fifty times and wants written for them, and the correction algorithm in
-# `transcript/corrections.py` is the thing they actually need to understand. One
-# repository, both answers, and one word in `tutorboard.json` to say them in --
-# so the work went to a terminal, and once it was there the teaching went with
-# it and the board saw neither.
-#
-# So the repository's word is the DEFAULT and a sitting may say otherwise. What
-# does not change is that neither is ever guessed: a sitting stance is written by
-# the person opening the sitting, on the board or at a terminal, and a sitting
-# that says nothing inherits rather than infers. The two words themselves are
-# `STANCES`, at the top of this file, because `read_config` needs them too.
-
-
-def clean_stance(stance):
-    """A stance from a request, or None if it is not one. Never raises."""
-    stance = str(stance or "").strip().lower()
-    return stance if stance in STANCES else None
-
-
-def stance_for(root, state):
-    """What this sitting's stance actually is, and it is DERIVED, not parallel.
-
-    Read here rather than in each caller so that there is one answer to it. A
-    walkthrough is the exception and it is not this function's exception to
-    make -- `sense` holds it, because what a walkthrough refuses is not a stance
-    but a method: there is nothing to write either way when the machinery is
-    already on disk.
-
-    AN AIM ALREADY ANSWERS THIS. `build` with a stance of `teach` is a
-    contradiction, and while the two were resolved separately the browser was
-    sending both -- deciding on its own authority something the repository and
-    the family had already said. So the order is:
-
-        this sitting's own stance  -- somebody tapped it, for this evening
-        this sitting's aim         -- `AIM_STANCE`; build writes, coach does not
-        the repository's stance    -- `tutorboard.json`, where it says so
-        its family's default aim   -- `atlas.json`, through `aim_for`
-
-    and nothing below the first two is a guess: each is something written down
-    somewhere, by somebody, about this workspace or the family it is in.
-
-    The last of those can only ever resolve to `teach` now, and `aim_for` is
-    where that is decided rather than here: a family default is a style and is
-    never on its own the answer to who writes the code.
-    """
-    own = clean_stance((state or {}).get("stance"))
-    if own:
-        return own
-    mine = clean_aim((state or {}).get("aim"))
-    if mine:
-        return AIM_STANCE.get(mine, "teach")
-    cfg = read_config(root)
-    if cfg.get("said_stance"):
-        return cfg.get("stance") or "teach"
-    return AIM_STANCE.get(aim_for(root, state), "teach")
-
-
-# ---------------------------------------------------------------------------
-# what THIS sitting is for
-# ---------------------------------------------------------------------------
-#
-# A stance says who writes the code. An AIM says what the sitting is for, and
-# the two are not the same question: "teach me how this works" and "tell me what
-# to write and I'll code it" are both `stance: teach` and they are not the same
-# evening. Asked for as a list of things every sitting should be able to be:
-# *"All tutoring sessions should have the capability of being a math tutor, a
-# coder, a coding coacher, a presentation creator, a paper creator, and the
-# ability to show any or all sections of said papers or presentations."*
-#
-# So the sitting carries one, chosen on the map at the moment of opening it, and
-# `sense` puts it in the line the tutor is woken with. Six, and no more: a
-# seventh would be a distinction nobody makes with a thumb.
-#
-#     teach   work it through properly -- the mathematics, done not described
-#     build   the tutor writes the code and reports what it changed
-#     coach   one step at a time, in English; the person types it
-#     trace   read what is already there, line by line
-#     drill   questions asked cold over a scope
-#     paper   produce a document -- a write-up or a deck -- rather than an answer
-#
-# `slides` is `paper` with a different product and is spelled out separately at
-# the point of use, because what the tutor has to do differs and the word for it
-# should not.
-AIMS = ("teach", "build", "coach", "trace", "drill", "paper", "slides")
-
-
-def clean_aim(aim):
-    """An aim from a request, or None if it is not one. Never raises.
-
-    Dropped rather than refused, for the same reason a misspelled stance is: the
-    request is about which sitting to open, and failing the whole of it over a
-    word would leave somebody on the lesson they were trying to leave.
-    """
-    aim = str(aim or "").strip().lower()
-    return aim if aim in AIMS else None
-
-
-# What each aim actually asks the tutor to do, in one sentence, in the line it is
-# woken with. Written here rather than in `sense` so that the words a person taps
-# on the map and the words the tutor is given cannot drift apart.
-AIM_MEANS = {
-    "teach": "They asked to be TAUGHT this: work it through properly, one step "
-             "at a time, and make them do the step. Do not write their code.",
-    "build": "They asked you to BUILD it: write the code yourself, run it, and "
-             "report what you changed and what it did. The card is a report, "
-             "not an exercise.",
-    "coach": "They asked to be TOLD WHAT TO WRITE: name the calls, the "
-             "arguments and the order in English, one step per card, and let "
-             "them type it. Do not write the code for them.",
-    "trace": "They asked to be WALKED THROUGH code that already exists: trace "
-             "it by hand with them, predict returns, say which branch runs. "
-             "Nothing new is written in this sitting.",
-    "drill": "They asked to be SET PROBLEMS on this, cold. Ask; do not explain "
-             "first.",
-    # These two say what the document IS ABOUT as well as what to do, because
-    # these are the words a person taps and the words the tutor is given, and
-    # they must not drift from `sense.MAKE_SENSE`. That is why this dictionary is
-    # in this file rather than in `sense`.
-    #
-    # AND EACH ANSWERS TWO QUESTIONS SEPARATELY. How the document reads is
-    # fixed -- the subject explained, never the evening narrated. What it covers
-    # is not: a paper about the concepts an evening covered is a legitimate ask,
-    # and one refusal answering both questions turned it away.
-    "paper": "They asked you to WRITE IT UP as a document: the product of this "
-             "sitting is a paper kept in writeups/, not an answer. Draft it, "
-             "show them sections as you go, and take corrections. It is an "
-             "explainer about the machinery -- how this works, and the "
-             "mathematics -- written for somebody who was not in the room, and "
-             "never a narration of this sitting: no first person, and no "
-             "reference to its cards or its questions. What it COVERS may be "
-             "one part of the repository, a chapter, or the concepts this "
-             "sitting covered.",
-    "slides": "They asked you to BUILD A DECK about this: the product of this "
-              "sitting is slides kept in writeups/. Draft them, show them on "
-              "the board a page at a time, and take corrections. The deck "
-              "explains the machinery to somebody who was not in the room and "
-              "is never a narration of this sitting: no first person, and no "
-              "reference to its cards or its questions. What it COVERS may be "
-              "one part of the repository, a chapter, or the concepts this "
-              "sitting covered.",
-}
-
-
-# THE TWO AIMS THAT ARE HELD OVER A SCOPE rather than simply chosen. A
-# walkthrough needs a list of files and a drill needs a part of the repository to
-# ask over, so choosing one of those IS choosing what it is over -- which is a
-# tap on the map and a new sitting. Everything that offers the aims as a choice
-# for the sitting already open leaves these two out and says why.
-AIMS_OVER = ("trace", "drill")
-
-# WHICH AIMS WRITE AND WHICH TEACH, so that a stance never has to be chosen
-# beside an aim that has already answered. `build`, `paper` and `slides` produce
-# a change to the repository; the other four produce cards.
-AIM_STANCE = {
-    "build": "do",
-    "paper": "do",
-    "slides": "do",
-    "teach": "teach",
-    "coach": "teach",
-    "trace": "teach",
-    "drill": "teach",
-}
-
-
-# ---------------------------------------------------------------------------
-# the KIND of a sitting: learn, coach or build
-# ---------------------------------------------------------------------------
-#
-# Every sitting, in every workspace, is one of three kinds, and a kind is not a
-# third axis beside stance and aim. It names an aim, and the aim names the
-# stance:
-#
-#     learn  -> aim teach -> stance teach   a board lesson; no code
-#     coach  -> aim coach -> stance teach   they write the part being learned,
-#                                           one step per card; the tutor
-#                                           writes the plumbing
-#     build  -> aim build -> stance do      the work is done; the card a report
-#
-# Read back the other way by `kind_for`, so a sitting opened with an aim and no
-# kind still has one. Learn and coach share the teach stance, and where nothing
-# says which, a thread's sitting is coach when the thread's files are code.
-KINDS = ("learn", "coach", "build")
-KIND_AIM = {"learn": "teach", "coach": "coach", "build": "build"}
-AIM_KIND = {"teach": "learn", "trace": "learn", "drill": "learn",
-            "coach": "coach",
-            "build": "build", "paper": "build", "slides": "build"}
-
-# What each kind asks of the turn, in one line. The whole of each is
-# `live/TEACHING.md`'s; this is which section to hold to. Here rather than in
-# `brief`, so the brief and the waking line say the same words.
-KIND_SENSE = {
-    "learn": "a LEARN sitting: a board lesson run by live/TEACHING.md -- "
-             "exercises, their handwriting, a compiled write-up. You write none "
-             "of the code or proof being learned.",
-    "coach": "a COACH sitting: they write the code the sitting exists to teach "
-             "(the estimator, the solver, the proof) and you guide one step per "
-             "card (live/TEACHING.md, *A coach sitting*). You write the "
-             "plumbing yourself: figures, dataframe reshaping, serialization, "
-             "test and job scaffolding. Read their diff and run the check "
-             "yourself, except in a sitting held at the cluster, where the "
-             "check runs there and its result comes to you.",
-    "build": "a BUILD sitting: you or your agents do the work and the card is "
-             "a report of what changed.",
-}
-
-
-def clean_kind(kind):
-    """A kind from a request, or None if it is not one. Never raises."""
-    kind = str(kind or "").strip().lower()
-    return kind if kind in KINDS else None
-
-
-def kind_aim(kind, aim=None):
-    """The aim a kind opens with. An aim that already belongs to it is kept,
-    so `build` with `paper` stays a paper."""
-    kind = clean_kind(kind)
-    aim = clean_aim(aim)
-    if not kind:
-        return aim
-    if aim and AIM_KIND.get(aim) == kind:
-        return aim
-    return KIND_AIM[kind]
-
-
-def _is_code(root, rel):
-    """Is this workspace path source code, or a directory holding some?"""
-    from . import walk                                       # local: a cycle
-    target = os.path.join(root, rel)
-    if os.path.isdir(target):
-        seen = 0
-        for _dir, _subs, names in os.walk(target):
-            for n in names:
-                if os.path.splitext(n)[1] in walk.SOURCE:
-                    return True
-                seen += 1
-                if seen > 400:
-                    return False
-        return False
-    return os.path.splitext(rel)[1] in walk.SOURCE
-
-
-def kind_for(root, state, files=None):
-    """What kind this sitting is: its own, else read off its aim, else its stance.
-
-    `files` are the thread's files, which answer learn-or-coach for a teach
-    stance with nothing else to go on. "" for a sitting on no thread with
-    nothing to say.
-    """
-    state = state or {}
-    own = clean_kind(state.get("kind"))
-    if own:
-        return own
-    # Only the sitting's OWN aim answers before the stance and the files: an
-    # aim inherited from a family says how a workspace teaches, not whether
-    # this thread is code.
-    own_aim = clean_aim(state.get("aim"))
-    if own_aim:
-        return AIM_KIND[own_aim]
-    if stance_for(root, state) == "do":
-        return "build"
-    if state.get("thread"):
-        return "coach" if any(_is_code(root, f) for f in files or []) else "learn"
-    return AIM_KIND.get(aim_for(root, state), "")
-
-
-# ---------------------------------------------------------------------------
-# WHICH ASSISTANT, and why only the shape of the name is checked here
-# ---------------------------------------------------------------------------
-#
-# The registry is in `bin/tutor` and belongs there: an agent entry is a command
-# recipe, so a second model is a second entry whose `cmd` carries the flag, and
-# this file has no business knowing what commands a machine has. What a request
-# can be checked against here is that it is a NAME -- something safe to write
-# into `state.json` and match against the registry later.
-#
-# An unknown one is DROPPED by `resolve_agent` rather than refused, which is the
-# rule a misspelled stance already follows and for a sharper reason: a sitting is
-# being opened, and leaving a course with no tutor at all over a word from a
-# browser is worse than ignoring the word.
 AGENT_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,31}$")
 
 
@@ -497,125 +182,3 @@ def clean_agent(agent):
     """An assistant name from a request, or None if it is not one. Never raises."""
     agent = str(agent or "").strip().lower()
     return agent if AGENT_RE.match(agent) else None
-
-
-def workspace_agent(cfg, kind=None):
-    """The assistant `tutorboard.json` names for a sitting of this kind, or None.
-
-    `agent` is a name, which holds for every sitting in the workspace, or an
-    object keyed by kind -- `{"learn": "deepseek", "build": "claude"}` -- where
-    a kind it does not name falls through to the machine's default. The name is
-    passed on as written, lowercased, so `resolve_agent` can refuse one this
-    machine has not got rather than quietly teach with another.
-    """
-    said = (cfg or {}).get("agent")
-    if isinstance(said, dict):
-        said = said.get(clean_kind(kind) or "")
-    if not isinstance(said, str):
-        return None
-    return said.strip().lower() or None
-
-
-def sitting_kind(root):
-    """The kind of the sitting open in this workspace, off its `state.json`, or ""."""
-    if not root:
-        return ""
-    try:
-        with open(os.path.join(root, "live", "state.json"), "r",
-                  encoding="utf-8") as fh:
-            state = json.load(fh) or {}
-    except (OSError, ValueError):
-        return ""
-    if not isinstance(state, dict):
-        return ""
-    try:
-        return kind_for(root, state) or ""
-    except Exception:                                        # noqa: BLE001
-        return ""
-
-
-def sitting_agent(root):
-    """Which assistant THIS SITTING asked for, off its own `state.json`, or None.
-
-    Read here so that the launcher and the server ask one function. It sits
-    beside `node` and `aim` under the rule `_mark` states: a box chosen for an
-    evening's work is not a statement about what the repository is, and neither
-    is an assistant. `tutorboard.json` is the layer that IS such a statement.
-    """
-    if not root:
-        return None
-    try:
-        with open(os.path.join(root, "live", "state.json"), "r",
-                  encoding="utf-8") as fh:
-            return clean_agent((json.load(fh) or {}).get("agent"))
-    except (OSError, ValueError, AttributeError):
-        return None
-
-
-def sitting_box(state):
-    """Which box of the map this sitting is on: its thread, else its node.
-
-    A workspace with a thread file opens sittings on THREADS, and `state.json`
-    carries `thread`. `node` is left only for a box of a derived map, which is
-    a part of the tree rather than a question.
-    """
-    state = state or {}
-    return str(state.get("thread") or state.get("node") or "").strip()
-
-
-def family_aim(root, base=None):
-    """The default style of the family this workspace sits in, or "".
-
-    `atlas.json` "names and orders the five families and says which hold somebody
-    else's work" -- and a default style is a property of a family in exactly that
-    sense. It is still not a registry of workspaces: nothing there names one, and
-    making a course is still `mkdir courses/Topology`.
-    """
-    try:
-        fam = atlas.family_of(root, base)
-        for one in atlas.families(base):
-            if one["id"] == fam:
-                return clean_aim(one.get("aim")) or ""
-    except Exception:                                        # noqa: BLE001
-        return ""
-    return ""
-
-
-def aim_for(root, state, base=None):
-    """What this sitting is FOR, with the whole precedence in one function.
-
-        the sitting's own aim   -- tapped on the map, or `board aim`
-        the workspace's own     -- `tutorboard.json`
-        the family's default    -- `atlas.json`, and only where it teaches
-
-    A SITTING NOBODY OPENED FROM THE MAP HAD NO STYLE AT ALL. `tutor galois`,
-    `board open`, a chapter tapped in the contents drawer and a board resumed
-    after a reboot all left `aim` unset, so the sitting ran on stance alone --
-    which is `teach` nearly everywhere and is the wrong answer for a project.
-
-    A FAMILY DEFAULT IS A STYLE, NEVER AN INSTRUCTION TO WRITE CODE, and that is
-    the one asymmetry in this function. `read_config` already states the rule it
-    follows from: writing the code for somebody who wanted to learn it is the one
-    failure here that cannot be undone by the next card, so it is only ever done
-    because a repository asked for it in writing. A sentence about a DIRECTORY is
-    not a repository asking. `projects` defaults to `build`, and `libr-local-llm`
-    declares only a name -- so a plain lecture opened in a workspace somebody
-    arrives at wanting to understand was a DOING turn, and being taught cost a
-    tap on `teach` first. That is the wrong way round, and a tap is exactly what
-    this whole tool exists to remove.
-
-    So a doing aim inherited from a family is dropped and the sitting runs on
-    stance, which is `teach` unless the workspace says otherwise in writing. A
-    teaching default still applies: it takes nothing away and it is what gives a
-    bare `tutor galois` its style. Nothing changes for a sitting that TAPPED an
-    aim, or for a workspace that declared one -- both of those are somebody
-    saying it, which is all this asks for.
-    """
-    own = clean_aim((state or {}).get("aim"))
-    if own:
-        return own
-    said = clean_aim(read_config(root).get("aim"))
-    if said:
-        return said
-    fam = family_aim(root, base)
-    return "" if AIM_STANCE.get(fam) == "do" else fam

@@ -1,31 +1,17 @@
 /* ==========================================================================
    ink-clip.js -- one clipboard, for every surface that holds handwriting.
 
-   There are three writing surfaces in this app and they used to have three
-   clipboards. The slate's was a variable inside `create`, so every mounted
-   instance had its own: the full-screen page at /slate and the drawer under the
-   question on the board are two instances, which made "copy here, paste there"
-   a copy into a bucket nobody else could see. The annotation layer had no
-   clipboard at all, so a line of working written over the tutor's own words
-   could only ever stay there.
+   Ink cut from a proof belongs to the person holding the pen, not to the
+   surface it came from, so the slate instances and the annotation layer share
+   this one clipboard.
 
-   That is the wrong shape for the thing being carried. Ink cut out of a proof is
-   not a property of the surface it was cut from -- it is a property of the
-   person holding the pen, who is in the middle of moving it somewhere else. So
-   there is one clipboard, it lives here, and every surface reads and writes it.
+   What is on it is geometry, not a surface's own coordinates: the slate
+   stores logical page units and the annotation layer fractions of a card, so
+   a clip is CSS pixels with its top-left at the origin, which both convert to
+   and from, keeping the size it looked on the glass.
 
-   WHAT IS ON IT IS GEOMETRY, NOT A SURFACE'S OWN COORDINATES. The slate stores
-   strokes in logical page units, which are CSS pixels at 100% zoom; the
-   annotation layer stores them as fractions of the card they are anchored to,
-   because a lesson reflows and ink about a word has to move with the word. Those
-   two cannot be assigned to each other. A clip is therefore neither: it is CSS
-   pixels with its own top-left corner at the origin, which both surfaces can
-   convert to and from, and which means a mark keeps the size it looked on the
-   glass when it crosses between them.
-
-   It is also written to `localStorage`, so the clipboard survives the one thing
-   that is not a copy between two live surfaces: opening /slate, which is a
-   navigation, and coming back.
+   It is also written to `localStorage`, so it survives opening /slate (a
+   navigation) and coming back.
    ========================================================================== */
 
 (function () {
@@ -128,9 +114,6 @@ window.InkClip = {
                     q.length > 2 ? Math.round(q[2] * 100) / 100 : 0.5];
           }),
         };
-        /* A document's direction ink stays one when pasted in the library
-           reader (`Annotate.keepKinds`); every other surface drops it. */
-        if (s.dir) out.dir = 1;
         return out;
       }),
     };

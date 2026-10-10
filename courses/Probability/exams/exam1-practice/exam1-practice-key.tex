@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Exam 1 Practice --- Answer Key}
+\author{For grading. Do not open before attempting.}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{enumerate}
+  \item[\textbf{1.}]
+    (a) $P(RR \mid B_1) = \tfrac35\cdot\tfrac24 = \tfrac{3}{10}$ and
+    $P(RR \mid B_2) = \tfrac25\cdot\tfrac14 = \tfrac{1}{10}$, so
+    $P(RR) = \tfrac13\cdot\tfrac{3}{10} + \tfrac23\cdot\tfrac{1}{10} = \tfrac16$.
+    (b) $\dfrac{1/10}{1/6} = \tfrac35$.
+    (c) $F = E \cup (F E^c)$, a disjoint union, so
+    $P(F) = P(E) + P(FE^c) \ge P(E)$ by additivity and nonnegativity.
+
+  \item[\textbf{2.}]
+    (a) $X = \sum_{j=1}^6 \ind{\text{face } j \text{ appears}}$, so
+    $\EE{X} = 6\left(1 - (5/6)^{10}\right)$.
+    (b) Each face appears exactly once with probability
+    $10\cdot\tfrac16(5/6)^{9}$, so $\EE{Y} = 10\,(5/6)^{9}$.
+
+  \item[\textbf{3.}]
+    (a) $f_X(x) = 2x$ on $(0,1)$; $f_Y(y) = 2(1-y)$ on $(0,1)$.
+    (b) $\EE{X} = \tfrac23$, $\EE{Y} = \tfrac13$,
+    $\EE{XY} = \int_0^1\!\int_0^x 2xy\,dy\,dx = \tfrac14$, so
+    $\Cov = \tfrac14 - \tfrac29 = \tfrac{1}{36}$.
+    (c) The region $\{0<y<x,\ x+y<1\}$ is the triangle $(0,0),(1,0),(\tfrac12,\tfrac12)$
+    of area $\tfrac14$, so the probability is $\tfrac12$.
+    (d) $f_{Y\mid X}(y \mid x) = 1/x$ on $(0,x)$: uniform, so $\EEc{Y}{X} = X/2$.
+    (e) $\Var(Y\mid X) = X^2/12$ and $\EE{X^2} = \tfrac12$, so the first term is
+    $\tfrac{1}{24}$. $\Var(X) = \tfrac12 - \tfrac49 = \tfrac{1}{18}$, so the second is
+    $\tfrac{1}{72}$. Total $\tfrac{1}{18}$. Check: $\EE{Y^2} = \tfrac16$ and
+    $\tfrac16 - \tfrac19 = \tfrac{1}{18}$.
+
+  \item[\textbf{4.}]
+    (a) $\sum_k e^{tk} e^{-\lambda}\lambda^k/k! = e^{-\lambda} e^{\lambda e^t}$.
+    (b) The mgf of an independent sum is the product of the mgfs, and an mgf that
+    exists near $0$ determines the distribution. So $X = B + P$ with
+    $B \dist \Bin{5}{2/3}$ and $P \dist \Poisson{2}$ independent.
+    (c) $\EE{X} = \tfrac{10}{3} + 2 = \tfrac{16}{3}$;
+    $\Var(X) = 5\cdot\tfrac23\cdot\tfrac13 + 2 = \tfrac{28}{9}$.
+    (d) $P(X=0) = (1/3)^5 e^{-2}$.
+    $P(X=1) = (1/3)^5\cdot 2e^{-2} + 5\cdot\tfrac23(1/3)^4\cdot e^{-2}
+    = \tfrac{12}{243}e^{-2} = \tfrac{4}{81}e^{-2}$.
+
+  \item[\textbf{5.}]
+    $\EE{S} = 360$, $\Var(S) = 36\cdot 100 = 3600$, $\mathrm{sd}(S) = 60$.
+    (a) $\le 360/720 = \tfrac12$. (b) $\le 3600/120^2 = \tfrac14$.
+    (c) $\approx 1 - \Phi\!\left(\tfrac{420-360}{60}\right) = 1 - \Phi(1)$.
+
+  \item[\textbf{6.}]
+    (a) $P(B=k) = \sum_{n\ge k} e^{-4}\tfrac{4^n}{n!}\binom{n}{k}(\tfrac14)^k(\tfrac34)^{n-k}
+    = e^{-4}\tfrac{1}{k!}\sum_{m\ge0}\tfrac{3^m}{m!} = e^{-1}\tfrac{1}{k!}$.
+    (b) $\EE{T} = \EE{N}\EE{Y} = 12$.
+    $\Var(T) = \EE{N}\Var(Y) + \Var(N)\EE{Y}^2 = 4\cdot2 + 4\cdot9 = 44$.
+
+  \item[\textbf{7.}]
+    $P(5) = \tfrac{4}{36}$, $P(7) = \tfrac{6}{36}$, so $\dfrac{4/36}{10/36} = \tfrac25$.
+
+  \item[\textbf{8.}]
+    (a) No: $p(0,0) = \tfrac18 \ne P(X=0)P(Y=0) = \tfrac12\cdot\tfrac38$.
+    (b) $\EEc{X}{Y=0} = \tfrac23$, $\EEc{X}{Y=1} = \tfrac13$, $\EEc{X}{Y=2} = \tfrac12$.
+    $\tfrac38\cdot\tfrac23 + \tfrac38\cdot\tfrac13 + \tfrac28\cdot\tfrac12 = \tfrac12 = \EE{X}$.
+    (c) $\EE{XY} = \tfrac38$, $\EE{Y} = \tfrac78$, so $\Cov = \tfrac38 - \tfrac{7}{16} = -\tfrac{1}{16}$.
+
+  \item[\textbf{9.}]
+    $x = uv$, $y = u(1-v)$, $|J| = u$. $f_{U,V}(u,v) = u e^{-u}$ for $u>0$,
+    $0<v<1$. It factors, so they are independent:
+    $U \dist \Gam{2}{1}$ and $V \dist \Unif{0}{1}$.
+
+  \item[\textbf{10.}]
+    $S = \sum_{i=1}^5 X_i$ with $P(X_i = 1) = \tfrac{6}{10}$, so $\EE{S} = 3$.
+    $P(X_i = X_j = 1) = \tfrac{6}{10}\cdot\tfrac59 = \tfrac13$, so
+    $\Cov(X_i,X_j) = \tfrac13 - \tfrac{9}{25} = -\tfrac{2}{75}$.
+    $\Var(S) = 5\cdot\tfrac{6}{10}\cdot\tfrac{4}{10} + 20\cdot(-\tfrac{2}{75}) = \tfrac23$.
+
+  \item[\textbf{11.}]
+    $\EE{S} = \tfrac16\cdot 6 + \tfrac56\left(3 + \EE{S}\right)$, so
+    $\tfrac16\EE{S} = \tfrac72$ and $\EE{S} = 21$.
+
+  \item[\textbf{12.}]
+    (a) $e^{\lambda(e^t-1)}e^{\mu(e^t-1)} = e^{(\lambda+\mu)(e^t-1)}$, and the mgf
+    determines the distribution.
+    (b) $\dfrac{P(X=k)P(Y=n-k)}{P(X+Y=n)} = \binom{n}{k}\left(\tfrac{\lambda}{\lambda+\mu}\right)^k
+    \left(\tfrac{\mu}{\lambda+\mu}\right)^{n-k}$, which is $\Bin{n}{\lambda/(\lambda+\mu)}$.
+
+  \item[\textbf{13.}]
+    $\EE{|X|} = \tfrac{2}{\pi}\int_0^\infty \tfrac{x}{1+x^2}\,dx
+    = \lim_{a\to\infty}\tfrac1\pi\ln(1+a^2) = \infty$.
+\end{enumerate}
+
+\end{document}

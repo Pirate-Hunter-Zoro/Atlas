@@ -1,0 +1,207 @@
+{
+  "about": "Written by migrate-artifacts.py --apply-tree. `ink` maps each document's old library id to its new one, per subject; --apply-ink renames <subject>/.ink/ by it.",
+  "moves": [
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "homework/knn-ksweep",
+      "to": "docs/knn-ksweep",
+      "source": "knn-ksweep.tex"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "homework/retrieval-and-subgroups",
+      "to": "docs/retrieval-and-subgroups",
+      "source": "retrieval-and-subgroups.tex"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "writeups/deck-260925-0942",
+      "to": "docs/deck-260925-0942",
+      "source": "deck-260925-0942.tex"
+    }
+  ],
+  "placed": [
+    {
+      "subject": "projects/PSYCH-ASR",
+      "dir": "docs",
+      "source": "stage1_pipeline_walkthrough.tex"
+    },
+    {
+      "subject": "projects/libr-local-llm",
+      "dir": "docs",
+      "source": "fleet_walkthrough.tex"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "dir": "paper1-trd-prediction",
+      "source": "manuscript.md"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "dir": "paper2-counterfactual",
+      "source": "PAPER2_OUTLINE.md"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch01-groups-fields-and-vector-spaces/homework",
+      "source": "ch01-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch02-axiom-of-choice-and-zorns-lemma/homework",
+      "source": "ch02-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch03-rings/homework",
+      "source": "ch03-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch04-field-extensions/homework",
+      "source": "ch04-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch05-tests-for-irreducibility/homework",
+      "source": "ch05-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch06-ruler-and-compass-constructions/homework",
+      "source": "ch06-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch07-splitting-fields/homework",
+      "source": "ch07-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch08-algebraic-closure-of-a-field/homework",
+      "source": "ch08-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch09-normal-extensions/homework",
+      "source": "ch09-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch10-separability/homework",
+      "source": "ch10-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch11-automorphisms-and-fixed-fields/homework",
+      "source": "ch11-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch12-finite-fields/homework",
+      "source": "ch12-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch13-theorem-of-the-primitive-element/homework",
+      "source": "ch13-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch14-cubics-and-quartics/homework",
+      "source": "ch14-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch15-roots-of-unity/homework",
+      "source": "ch15-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch16-cyclic-extensions/homework",
+      "source": "ch16-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch17-solution-by-radicals/homework",
+      "source": "ch17-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch18-transcendental-elements-and-algebraic-independence/homework",
+      "source": "ch18-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch19-some-further-topics/homework",
+      "source": "ch19-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "chapters/ch20-calculation-of-galois-groups/homework",
+      "source": "ch20-homework.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "homework/worksheet-automorphisms-splitting-fields",
+      "source": "worksheet-automorphisms-splitting-fields.tex"
+    },
+    {
+      "subject": "courses/Galois-Theory",
+      "dir": "homework/worksheet-field-extensions",
+      "source": "worksheet-field-extensions.tex"
+    },
+    {
+      "subject": "courses/Probability",
+      "dir": "homework/exam1-practice",
+      "source": "exam1-practice.tex"
+    },
+    {
+      "subject": "courses/Probability",
+      "dir": "homework/hw01",
+      "source": "hw01.tex"
+    },
+    {
+      "subject": "courses/Probability",
+      "dir": "homework/hw02",
+      "source": "hw02.tex"
+    },
+    {
+      "subject": "courses/Probability",
+      "dir": "homework/hw02-redone",
+      "source": "hw02-redone.tex"
+    },
+    {
+      "subject": "courses/Probability",
+      "dir": "homework/hw03",
+      "source": "hw03.tex"
+    }
+  ],
+  "untracked": [
+    "projects/TRD-EHR/homework/knn-ksweep/knn-ksweep.pdf",
+    "projects/TRD-EHR/homework/retrieval-and-subgroups/retrieval-and-subgroups.pdf",
+    "projects/TRD-EHR/writeups/deck-260925-0942/deck-260925-0942.out",
+    "projects/TRD-EHR/writeups/deck-260925-0942/deck-before.out"
+  ],
+  "ink": [
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "homework-knn-ksweep-knn-ksweep",
+      "to": "knn-ksweep"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "homework-retrieval-and-subgroups-retriev",
+      "to": "retrieval-and-subgroups"
+    },
+    {
+      "subject": "projects/TRD-EHR",
+      "from": "writeups-deck-260925-0942-deck-260925-09",
+      "to": "deck-260925-0942"
+    }
+  ],
+  "rebuild": [
+    "projects/TRD-EHR/docs/knn-ksweep/knn-ksweep.tex",
+    "projects/TRD-EHR/docs/retrieval-and-subgroups/retrieval-and-subgroups.tex"
+  ]
+}

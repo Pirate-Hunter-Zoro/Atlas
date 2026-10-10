@@ -19,6 +19,3 @@ __pycache__/
 .DS_Store
 .claude/
 .codex/
-
-# live tutoring board (Tutor-Board) — scratch space, never tracked
-live/

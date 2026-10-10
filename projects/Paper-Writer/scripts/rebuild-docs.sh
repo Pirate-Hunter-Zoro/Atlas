@@ -75,6 +75,8 @@ SKIP_NAMES=(
   PROMPT_TEMPLATE.md
   TEACHING.md
   MEMORY.md
+  RULES.md
+  TUTOR.md
 )
 
 # Directories that hold no paper, whatever is in them. The second line is

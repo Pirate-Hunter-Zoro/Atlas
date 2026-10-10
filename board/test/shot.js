@@ -16,9 +16,8 @@
 //     inherits the page's own rules and every card is the height of a page.
 //   - WHAT IS PHOTOGRAPHED. Anything not on the glass has a rectangle of zeros
 //     and would come out as a blank page.
-//   - AND THE FALLBACK. `shot.js` is a separate deferred file. A board that
-//     opened from a cache without it must fall back to the typeset export
-//     rather than throw on a tap.
+//   - AND WITHOUT IT. `shot.js` is a separate deferred file. A board that
+//     opened from a cache without it must say so rather than throw on a tap.
 
 const fs = require('fs');
 const path = require('path');
@@ -515,7 +514,7 @@ for (const sel of MUST_GO) {
       : Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
   };
 
-  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js']) {
     try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); } catch (e) { /* not under test */ }
   }
   // Deliberately NOT shot.js, so the fallback is what is under test here.
@@ -528,25 +527,19 @@ for (const sel of MUST_GO) {
   try {
     asked.length = 0;
     w.document.getElementById('btn-export').onclick();
-    asked.some((u) => /\/export$/.test(u))
-      ? ok('and its export button falls back to the typeset transcript')
+    const said = w.document.getElementById('pushed-text').textContent;
+    /photograph/.test(said) && !asked.some((u) => /\/export/.test(u))
+      ? ok('and its export button says it could not photograph, asking nothing')
       : fail('a board without the rasteriser asked for ' + JSON.stringify(asked)
-             + ' — the export button does nothing at all');
+             + ' and said ' + JSON.stringify(said));
   } catch (e) {
     fail('tapping export without the rasteriser threw: ' + e.message);
   }
 
-  // And the whole course was never the photograph's job: a filed sitting is not
-  // on the glass, so there is nothing on the device to photograph.
-  try {
-    asked.length = 0;
-    w.document.getElementById('btn-export-all').onclick();
-    asked.some((u) => /\/export$/.test(u))
-      ? ok('and the whole course is still typeset, which is the only way it can be')
-      : fail('exporting the course asked for ' + JSON.stringify(asked));
-  } catch (e) {
-    fail('exporting the whole course threw: ' + e.message);
-  }
+  // The typeset transcript is gone (D11): one export, the photograph.
+  !w.document.getElementById('btn-export-all')
+    ? ok('and there is no typeset whole-course export')
+    : fail('the menu still offers the typeset whole-course export');
 }
 
 // --- and the hook actually gets set, in the real load order ------------------
@@ -569,7 +562,7 @@ for (const sel of MUST_GO) {
   w.fetch = (u) => (/slate\/state/.test(String(u))
     ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
     : new Promise(() => {}));
-  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js',
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js',
                    'shot.js', 'board.js']) {
     try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail('loading ' + f + ': ' + e.message); }

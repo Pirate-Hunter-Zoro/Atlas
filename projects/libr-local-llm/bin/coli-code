@@ -2,7 +2,7 @@
 # Put colibri to work in a directory. Any directory, any task.
 #
 #   coli-code                          # Claude Code, TUI, in the current directory
-#   coli-code -d ~/Atlas/research/X    # ...somewhere else
+#   coli-code -d ~/Atlas/projects/X    # ...somewhere else
 #   coli-code "fix the failing test"   # one-shot, no TUI
 #   coli-code -a opencode              # the other front end
 #   coli-code --yes "..."              # do not stop to ask about each tool call

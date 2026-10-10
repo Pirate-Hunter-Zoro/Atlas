@@ -15,8 +15,7 @@ const path = require('path');
 
 const WEB = path.join(__dirname, '..', 'web');
 const PAIRS = [['home.html', 'home.css'], ['board.html', 'board.css'],
-               ['slate.html', 'slate.css'], ['library.html', 'library.css'],
-               ['meeting.html', 'library.css']];
+               ['slate.html', 'slate.css'], ['library.html', 'library.css']];
 const GUARD = /\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important/;
 
 let fails = 0;

@@ -21,6 +21,12 @@ slurm_jobs/logs/*
 !config/opencode-deepseek.json
 # The board's file for this workspace: its name and the check a turn runs.
 !/tutorboard.json
+
+# AN ARTIFACT'S RECORD IS TRACKED: `docs/doc.json` and `docs/<slug>/doc.json`
+# hold a document's title, its source file and the sessions that asked for it.
+!/docs/doc.json
+!/docs/*/doc.json
+
 *.jsonl
 
 # so must the markdown linter's, which is config and not data
@@ -41,12 +47,6 @@ __pycache__/
 *.pyc
 node_modules/
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked.
-live/*
-# but the job registry is tracked: which Slurm jobs ran for which thread,
-# appended by `board job`.
-!live/jobs.jsonl
-
 # THE THREAD FILE IS TRACKED: this project's deliverables and threads, which is
 # judgement no other file contains. The negation comes after the `*.json` rule
 # above, or that rule is the last match and wins.
@@ -55,12 +55,11 @@ live/*
 # held step's check to RELAY: lines on the cluster's checkout too.
 !tutorboard.json
 
-# THE RELAY'S REQUESTS, REPORTS AND HOLDS ARE TRACKED: they are how the Mac and
+# THE RELAY'S REQUESTS AND REPORTS ARE TRACKED: they are how the Mac and
 # the cluster talk, through the repository. Each must survive the blanket *.json
 # rule above.
 !relay/requests/*.json
 !relay/reports/*.json
-!relay/holds/*.json
 
 # ---- LaTeX build artifacts ----
 # docs/*.tex is the source and docs/*.pdf is the deliverable; everything

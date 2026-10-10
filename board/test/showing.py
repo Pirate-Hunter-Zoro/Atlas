@@ -2,7 +2,7 @@
 """A figure the pipeline made, on the glass -- and nothing else out of the tree.
 
     `results/counterfactual_pipeline/<contrast>/propensity_by_arm.png` exists
-    and cannot be put on the board. `reading.py` offers PDFs only and refuses
+    and cannot be put on the board. The document walk offers PDFs only and refuses
     `results` by name; nothing serves an image out of a workspace. The only
     route a figure had to a lesson was somebody copying it into
     `live/inbox/uploads/` -- a second copy of a file the next job overwrites.
@@ -15,11 +15,11 @@ Four things, and each of them is a way the feature turns into a defect:
 
   * A PATH FROM A BROWSER NEVER REACHES A FILESYSTEM. What arrives is an id,
     compared against the ids of the figures discovery actually found. Same rule
-    as `reading.find` and `walk.resolve`, and the same reason: the alternative
+    as `library.drawer_find` and `walk.resolve`, and the same reason: the alternative
     is a query parameter carrying a repo-relative path, which is a traversal
     waiting to be written.
 
-  * THE FENCE HOLDS HERE TOO. `research/PSYCH-ASR/phi/` is session content, and
+  * THE FENCE HOLDS HERE TOO. `projects/PSYCH-ASR/phi/` is session content, and
     a route that serves images out of a workspace is the second place that has
     to be refused by name. `tutorboard/fenced.py` is the one list.
 
@@ -51,9 +51,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from tutorboard import fenced, sense                              # noqa: E402
-from tutorboard.course import results, repo as course_repo        # noqa: E402
+from tutorboard.course import library, repo as course_repo        # noqa: E402
 from tutorboard.server.handler import Handler                     # noqa: E402
 from tutorboard.server.hub import Hub                             # noqa: E402
+from tutorboard.server.routes import pages                        # noqa: E402
 from tutorboard.server.tikz import TikzWorker                     # noqa: E402
 
 fails = []
@@ -134,12 +135,12 @@ write(os.path.join(WS, "results", "spacer.png"), b"\x89PNG\r\n\x1a\ntiny")
 write(os.path.join(WS, "results", "summary.csv"), b"a,b\n1,2\n")
 write(os.path.join(WS, "results", "deep", "a", "b", "c", "buried.png"), BIG)
 
-repo = course_repo.Repo(WS)
+repo = course_repo.Repo(WS, os.path.join(WS, "live"))
 with open(repo.state_path, "w", encoding="utf-8") as fh:
     json.dump({"course": "TRD-EHR"}, fh)
 
-results._cache.clear()
-found = results.figures(WS)
+library.forget()
+found = library.figures(WS)
 ids = [f["id"] for f in found]
 rels = [f["rel"] for f in found]
 
@@ -161,10 +162,16 @@ check("A FENCED DIRECTORY IS REFUSED INSIDE AN ALLOWED TREE",
       not [r for r in rels if "/phi/" in r])
 check("and at any depth under one, not only at the top",
       not [r for r in rels if "/raw/" in r])
-check("which is the same list the manuscript factory refuses",
+check("which is the one list every walker refuses",
       fenced.refused("results/phi/turn_table.png")
       and fenced.refused("results/cohort/raw/waveform.png")
       and not fenced.refused("results/counterfactual_pipeline/x.png"))
+for bad in ("p" + "hi", "data", "inbox", "stage1", "stage2", "raw", "audio",
+            "/a/b/p%s/stage1" % "hi", "x/data/raw"):
+    check("refused by name: %r" % bad, fenced.refused(bad))
+for good in fenced.RESULT_DIRS + ("results/roc",):
+    check("a result directory is not refused: %r" % good,
+          not fenced.refused(good))
 
 check("a file too small to be a plot is not offered",
       not [r for r in rels if "spacer" in r])
@@ -189,14 +196,14 @@ check("and each says which one it is, because the drawer shows three rows",
           "counterfactual_pipeline/snri_vs_ssri"])
 check("an id is a function of the path and nothing else, so a card written "
       "today still resolves next month",
-      results.ident("results/a/b.png") == results.ident("results/a/b.png")
-      and results.ident("results/a/b.png") != results.ident("results/c/b.png"))
+      library.result_ident("results/a/b.png") == library.result_ident("results/a/b.png")
+      and library.result_ident("results/a/b.png") != library.result_ident("results/c/b.png"))
 check("and a path too long to fit in one is still uniquely named",
-      len(results.ident("results/" + "x" * 300 + "/plot.png")) <= results.MAX_ID
-      and results.ident("results/" + "x" * 300 + "/plot.png")
-      != results.ident("results/" + "y" * 300 + "/plot.png"))
+      len(library.result_ident("results/" + "x" * 300 + "/plot.png")) <= library.RESULT_ID_MAX
+      and library.result_ident("results/" + "x" * 300 + "/plot.png")
+      != library.result_ident("results/" + "y" * 300 + "/plot.png"))
 check("every id is one the route will accept",
-      all(re.match(r"^[a-z0-9-]{1,%d}$" % results.MAX_ID, i) for i in ids))
+      all(re.match(r"^[a-z0-9-]{1,%d}$" % library.RESULT_ID_MAX, i) for i in ids))
 
 
 # ---------------------------------------------------------------------------
@@ -206,10 +213,10 @@ print("\n-- bounded, because a results tree has hundreds in it --")
 
 for i in range(60):
     write(os.path.join(WS, "results", "many", "plot_%02d.png" % i), png_bytes())
-results._cache.clear()
-lots = results.figures(WS)
-check("a drawer is offered %d figures and no more" % results.MAX_FIGURES,
-      len(lots) == results.MAX_FIGURES)
+library.forget()
+lots = library.figures(WS)
+check("a drawer is offered %d figures and no more" % library.MAX_FIGURES,
+      len(lots) == library.MAX_FIGURES)
 check("newest first, because the one being asked about is the one that changed",
       all(lots[i]["at"] >= lots[i + 1]["at"] for i in range(len(lots) - 1)))
 check("so what the cap drops is the oldest, not an arbitrary two dozen",
@@ -217,18 +224,18 @@ check("so what the cap drops is the oldest, not an arbitrary two dozen",
 # Taken away again, so the sections below are about a workspace with figures in
 # it rather than about the flood.
 shutil.rmtree(os.path.join(WS, "results", "many"))
-results._cache.clear()
+library.forget()
 
 started = time.time()
-results._cache.clear()
-results.figures(WS)
+library.forget()
+library.figures(WS)
 first = time.time() - started
 started = time.time()
-results.figures(WS)
+library.figures(WS)
 check("and the answer is remembered rather than re-walked on every payload",
       time.time() - started < max(first, 0.001))
 check("for the same window as every other discovery on this board",
-      results.CACHE_SECONDS == 30)
+      library.CACHE_SECONDS == 30)
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +253,7 @@ httpd.repo = repo
 httpd.hub = hub
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
-real = [f for f in results.figures(WS)
+real = [f for f in library.figures(WS)
         if f["rel"].endswith("bupropion_vs_ssri/propensity_by_arm.png")]
 check("the figure this change exists for has an id to ask for", bool(real))
 if real:
@@ -270,7 +277,7 @@ for evil in ("/result/../../../../etc/passwd",
 
 # A figure that IS on disk, inside a fenced directory, asked for by the id it
 # would have had. The refusal is the fence and not the lookup failing by luck.
-status, _h, _b = get(PORT, "/result/" + results.ident("results/phi/turn_table.png"))
+status, _h, _b = get(PORT, "/result/" + library.result_ident("results/phi/turn_table.png"))
 check("and an id naming a figure inside the fence is refused too", status == 404)
 
 
@@ -279,9 +286,12 @@ check("and an id naming a figure inside the fence is refused too", status == 404
 # ---------------------------------------------------------------------------
 print("\n-- what the board is told, and what the tutor is told --")
 
-built = hub.build()
-check("the board's payload carries the figures", bool(built.get("results"))
-      and len(built["results"]["figures"]) == len(results.figures(WS)))
+from tutorboard.server import hub as hub_module                  # noqa: E402
+check("the tick leaves the figures out; they are the subject's",
+      "results" not in hub.build())
+built = hub_module.subject_info(repo)
+check("and /subject.json carries them", bool(built.get("results"))
+      and len(built["results"]["figures"]) == len(library.figures(WS)))
 check("each with a name, a place and a date the drawer can show",
       all(f.get("name") and f.get("iso") is not None
           for f in built["results"]["figures"]))
@@ -294,24 +304,24 @@ check("a tutor is told the figures exist and how to put one in a card",
 check("and told a figure is something to ask about rather than an explanation",
       "under it" in line.lower())
 check("and never handed the address of one inside the fence",
-      results.ident("results/phi/turn_table.png") not in line)
+      library.result_ident("results/phi/turn_table.png") not in line)
 
 # A FIGURE NAMED BY ITS PATH. The briefing names six ids out of hundreds, so a
 # direction asking for any other figure needs an address a tutor can write.
 check("a tutor is told any figure can go in a card by its path",
       "/result/results/" in line and "path" in line)
 want = "results/counterfactual_pipeline/snri_vs_ssri/propensity_by_arm.png"
-said = results.embed_ids(WS, "![p](/result/%s) and ![q](/result/./%s)" % (want, want))
+said = library.embed_result_ids(WS, "![p](/result/%s) and ![q](/result/./%s)" % (want, want))
 check("a path in a card becomes that figure's id, with or without ./",
       said == "![p](/result/%s) and ![q](/result/%s)"
-      % (results.ident(want), results.ident(want)))
+      % (library.result_ident(want), library.result_ident(want)))
 for miss in ("results/phi/turn_table.png", "results/nope.png",
              "../../../etc/passwd", "results/summary.csv"):
     text = "![x](/result/%s)" % miss
     check("and a path that is not an offered figure is left alone: %s" % miss,
-          results.embed_ids(WS, text) == text)
+          library.embed_result_ids(WS, text) == text)
 check("an id already in a card is not touched",
-      results.embed_ids(WS, "![x](/result/abc-123)") == "![x](/result/abc-123)")
+      library.embed_result_ids(WS, "![x](/result/abc-123)") == "![x](/result/abc-123)")
 
 from tutorboard.lesson import cards as lesson_cards               # noqa: E402
 os.makedirs(repo.cards, exist_ok=True)
@@ -319,24 +329,26 @@ with open(os.path.join(repo.cards, "0001-sweep.md"), "w", encoding="utf-8") as f
     fh.write("---\nkind: lesson\n---\n![p](/result/%s)\n\nWhy flat?\n" % want)
 on_glass = lesson_cards.load_cards(repo, worker)
 check("and the board's cards carry the id, so the route serves the figure",
-      bool(on_glass) and "/result/%s)" % results.ident(want) in on_glass[0]["body"]
-      and get(PORT, "/result/" + results.ident(want))[0] == 200)
+      bool(on_glass) and "/result/%s)" % library.result_ident(want) in on_glass[0]["body"]
+      and get(PORT, "/result/" + library.result_ident(want))[0] == 200)
 os.remove(os.path.join(repo.cards, "0001-sweep.md"))
 
 empty = os.path.join(TMP, "Galois-Theory")
 os.makedirs(os.path.join(empty, "chapters"))
 check("a workspace with no results sends nothing rather than an empty group",
-      results.status(type("R", (), {"root": empty})()) is None
+      library.figures_status(type("R", (), {"root": empty})()) is None
       and sense.results_sense(type("R", (), {"root": empty})()) == "")
 
 sw = open(os.path.join(ROOT, "web", "sw.js"), encoding="utf-8").read()
-live = re.search(r"var LIVE = /(.+)/;", sw)
-check("the service worker sends the figure route to the network, always",
-      bool(live) and re.match(live.group(1), "/result/anything"))
-check("which is the rule it already has for a document rebuilt at one name",
-      bool(live) and re.match(live.group(1), "/download/homework"))
-check("and the shell version was bumped, or the app serves its cached copy",
-      'VERSION = "board-shell-v' in sw)
+shell = pages.shell_urls(sw)
+runtime = re.search(r"var RUNTIME = /(.+)/;", sw)
+check("the service worker answers only its shell and its fonts",
+      bool(shell) and runtime is not None)
+for path in ("/result/anything", "/download/homework"):
+    check("so %s is the network's, always" % path,
+          path not in shell and not re.match(runtime.group(1), path))
+check("and /sw.js goes out with a VERSION hashed from that shell",
+      re.search(rb'"board-shell-[0-9a-f]{16}"', get(PORT, "/sw.js")[2]) is not None)
 
 
 # ---------------------------------------------------------------------------
@@ -377,8 +389,8 @@ text(os.path.join(SWEEP, "what_it_found.md"), "# what the sweep found\n\nk=40.\n
 # And a table inside the fence, which must be as refused as the picture was.
 text(os.path.join(WS, "results", "phi", "turn_table.csv"), "patient,turn\n1,hi\n")
 
-results.forget()
-made = results.browse(repo)
+library.forget()
+made = library.browse_results(repo)
 rows = [r for g in made["groups"] for r in g["figures"] + g["tables"]]
 wheres = [g["where"] for g in made["groups"]]
 sweep = [g for g in made["groups"] if g["where"] == "neighbor_count_sweep"]
@@ -413,11 +425,11 @@ check("and neither its picture nor its table is a row anywhere on it",
       not [r for r in rows if r["file"] in ("turn_table.png",
                                             "turn_table.csv")])
 check("the fenced table cannot be read back by the id it would have had",
-      results.table(WS, results.ident("results/phi/turn_table.csv"))
+      library.result_table(WS, library.result_ident("results/phi/turn_table.csv"))
       .get("ok") is not True)
 check("nor by the route, which answers 404 rather than an empty table",
       get(PORT, "/library/table/"
-          + results.ident("results/phi/turn_table.csv"))[0] == 404)
+          + library.result_ident("results/phi/turn_table.csv"))[0] == 404)
 check("and the refusal is the one list, matched on the NAME at any depth",
       fenced.refused("results/phi/turn_table.csv")
       and "phi" in fenced.NEVER)
@@ -433,26 +445,26 @@ check("tapping the figure on the browse list serves the picture",
 # to resolve it. `MAX_FIGURES` is a cap on what a CARD is offered; a page that
 # lists four hundred and 404s three hundred and seventy-six of them is worse
 # than one that lists none.
-for i in range(results.MAX_IN_GROUP + 10):
+for i in range(library.MAX_IN_GROUP + 10):
     write(os.path.join(WS, "results", "lots", "plot_%02d.png" % i), png_bytes())
-results.forget()
-flood = results.browse(repo)
-drawer = set(f["id"] for f in results.figures(WS))
+library.forget()
+flood = library.browse_results(repo)
+drawer = set(f["id"] for f in library.figures(WS))
 listed = [r for g in flood["groups"] for r in g["figures"]]
 past = [f for f in listed if f["id"] not in drawer]
 check("the browse list is not capped at the drawer's two dozen",
-      len(listed) > results.MAX_FIGURES and bool(past))
+      len(listed) > library.MAX_FIGURES and bool(past))
 check("and a figure past that cap is served rather than 404ed",
       get(PORT, "/result/" + past[0]["id"])[0] == 200)
 check("a group still says how many rows it is not showing, because a silent "
       "cap reads as *this is all there is*",
       any(g["more"] for g in flood["groups"] if g["where"] == "lots"))
 shutil.rmtree(os.path.join(WS, "results", "lots"))
-results.forget()
+library.forget()
 
 # ---- a table, read back rather than downloaded ----
 by_file = {}
-for g in results.browse(repo)["groups"]:
+for g in library.browse_results(repo)["groups"]:
     for t in g["tables"]:
         by_file[t["file"]] = t
 check("every table written into the sweep directory is addressable",
@@ -478,8 +490,8 @@ check("a CSV comes back as columns and rows rather than as a download",
       status == 200 and sheet.get("shape") == "rows"
       and sheet.get("columns") == ["alpha", "n_neighbors", "roc_auc"])
 check("bounded, and it says how much of the file it is showing",
-      len(sheet.get("rows") or []) == results.MAX_ROWS
-      and sheet.get("more") == 500 - results.MAX_ROWS)
+      len(sheet.get("rows") or []) == library.MAX_ROWS
+      and sheet.get("more") == 500 - library.MAX_ROWS)
 check("a JSON one comes back as text, because it is not rows",
       read_back("sweep_summary.json")[1].get("shape") == "text")
 check("and it is the numbers that are in the file",
@@ -557,15 +569,15 @@ for i in range(PAST_A_DRAWER):
     write(os.path.join(WS, "results", "gallery", "panel_%02d.png" % i),
           png_bytes())
 before = visible_files()
-results.forget()
-shelf = results.browse(repo)
+library.forget()
+shelf = library.browse_results(repo)
 shots = [f for g in shelf["groups"] for f in g["figures"]]
-drawer = set(f["id"] for f in results.figures(WS))
+drawer = set(f["id"] for f in library.figures(WS))
 served = set(get(PORT, "/result/" + f["id"])[0] for f in shots)
 check("a gallery is offered more figures than a drawer's cap, so the two are "
       "not the same question asked twice",
-      len(shots) > results.MAX_FIGURES
-      and len(drawer) == results.MAX_FIGURES)
+      len(shots) > library.MAX_FIGURES
+      and len(drawer) == library.MAX_FIGURES)
 check("and EVERY ONE of them is served by the id its own row carries -- a grid "
       "asks for all of them at once, and one that 404s is a hole nobody can "
       "tell from a figure a job has deleted",
@@ -577,14 +589,14 @@ check("DRAWING EVERY FIGURE WRITES NOTHING. There is no thumbnail, so there is "
       "no cache, so there is nothing in a gitignored tree to leak into git",
       visible_files() == before)
 shutil.rmtree(os.path.join(WS, "results", "gallery"))
-results.forget()
+library.forget()
 
 # ---- AND AN EMPTY ONE EXPLAINS ITSELF ----
 check("a workspace with no results says why rather than drawing an empty box",
-      results.browse(type("R", (), {"root": empty})()).get("why", "")
+      library.browse_results(type("R", (), {"root": empty})()).get("why", "")
       .startswith("This workspace has no results directory"))
 check("and names where a job would have to write for one to appear",
-      "results/" in results.browse(type("R", (), {"root": empty})())["why"])
+      "results/" in library.browse_results(type("R", (), {"root": empty})())["why"])
 
 # A workspace whose output is session content -- PSYCH-ASR's own shape, a
 # top-level `phi/` and no results directory. The empty page must NAME the fence
@@ -593,24 +605,24 @@ sealed = os.path.join(TMP, "PSYCH-ASR")
 write(os.path.join(sealed, "phi", "stage1", "turn_table.png"), BIG)
 text(os.path.join(sealed, "phi", "stage1", "turns.csv"), "patient,turn\n1,hi\n")
 fenced.forget()
-results.forget()
-shut = results.browse(type("R", (), {"root": sealed})())
+library.forget()
+shut = library.browse_results(type("R", (), {"root": sealed})())
 check("a workspace that holds a fence has it NAMED on the page, so an empty "
       "list cannot pass for a workspace with nothing in it",
       not shut["groups"] and shut["fenced"] == ["phi"]
       and "`phi/`" in shut["why"])
 check("and nothing inside it is listed, whichever kind of file it is",
       not [r for g in shut["groups"] for r in g["figures"] + g["tables"]]
-      and not results.index(sealed))
+      and not library.result_index(sealed))
 check("nor readable by the id it would have had, either kind",
-      results.find(sealed, results.ident("phi/stage1/turn_table.png"))[0] is None
-      and results.table(sealed, results.ident("phi/stage1/turns.csv"))
+      library.find_result(sealed, library.result_ident("phi/stage1/turn_table.png"))[0] is None
+      and library.result_table(sealed, library.result_ident("phi/stage1/turns.csv"))
       .get("ok") is not True)
 
 check("the service worker sends the table route to the network too, because a "
       "job rewrites a result under the name it already had",
-      bool(live) and re.match(live.group(1), "/library/table/anything")
-      and re.match(live.group(1), "/library/results.json"))
+      all(p not in shell and not re.match(runtime.group(1), p)
+          for p in ("/library/table/anything", "/library/results.json")))
 
 shutil.rmtree(TMP, ignore_errors=True)
 

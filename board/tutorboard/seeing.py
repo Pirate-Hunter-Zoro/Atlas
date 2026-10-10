@@ -1,36 +1,15 @@
 """What is in this image, for an assistant that cannot see one.
 
-`board see <path>` prints a description of a PNG, a JPEG or a page of a PDF.
+`board see <path>` prints a description of a PNG, a JPEG or a page of a PDF:
+a subcommand every agent already has, so no tool protocol is needed. Where
+the image goes is a recipe's `vision` block (an endpoint, or a command
+running a sighted assistant already installed): the running agent's first,
+then `vision_agent`. Every request carries a code drawn only in the image,
+and an answer that cannot say it back is refused, because a confident
+paragraph about an unseen page is the failure that must not happen.
 
-WHY A BOARD SUBCOMMAND AND NOT A TOOL PROTOCOL. A subcommand is the one
-interface every agent in the registry already has -- `board brief`, `board
-recap`, `board write` -- so this needs no MCP, no adapter and no per-vendor
-plumbing, and a new provider inherits it by existing. It is also the honest
-fallback for the local model, which is the assistant that most needs it and the
-one no hosted vision route may ever be handed a fenced file from.
-
-WHERE THE IMAGE GOES IS A RECIPE FIELD, NOT A CONSTANT. A `vision` block on an
-agent names either an endpoint, a model and a key, or a COMMAND to run on the
-file -- a sighted assistant that is already installed needs no second provider
-and no second key. The running agent's own recipe is asked first, and
-`vision_agent` at the top of the config answers for the case where the agent
-running the sitting has no eyes. Both come out of `tutor --agents --json`, which
-is the registry, so there is no second table.
-
-AND AN ANSWER IS NOT BELIEVED BECAUSE IT ARRIVED. The one failure this path
-must not have is a confident paragraph about a page nobody looked at -- a route
-whose model is text-only, a harness that dropped the image, a file-reading tool
-that was denied. Every request therefore carries a code that is in the IMAGE and
-nowhere in the prompt, and an answer that cannot say it back is refused. See
-`_code`, `_token_png` and `blind_answer`.
-
-AND IT REFUSES A FENCED PATH BEFORE IT READS A BYTE. This sends a file to a
-hosted provider, which is exactly what `ai-config/policy/phi.py` exists to stop
--- and a board subcommand does not go through any assistant's pre-tool hook. So
-the check is here, first, by name, with the reason. Getting this wrong grows the
-tool a documented route for sending session content to a third party.
-
-Standard library only: `urllib.request`, a base64 data URL, no dependency.
+The constraint: a fenced path is refused before a byte is read, because this
+sends files to a hosted provider and no pre-tool hook sees a board command.
 """
 
 import base64
@@ -50,9 +29,7 @@ import zlib
 from . import fenced, keys
 
 
-# What the model is asked, when the caller asks nothing in particular. Written
-# for the one thing this is for: a page of somebody's handwriting that a tutor
-# has to read back and mark.
+# The default question: read back a page of handwriting a tutor must mark.
 DEFAULT_ASK = (
     "Transcribe everything written or printed in this image, in reading order, "
     "and keep the layout of it -- line breaks, columns, what is crossed out. "
@@ -62,45 +39,26 @@ DEFAULT_ASK = (
     "on the page."
 )
 
-# Poppler renders at this many pixels across. Wide enough that small handwriting
-# survives, narrow enough that a base64 data URL of one page is not a megabyte
-# of request body per page.
+# Wide enough for small handwriting, narrow enough for one data URL per page.
 PAGE_WIDTH = 1600
 
 TIMEOUT = 180
 
-# The four an OpenAI-format endpoint accepts, plus jpg for the same type under
-# its other extension. A fifth added here is a 400 from every hosted route.
+# The types every OpenAI-format endpoint accepts; a fifth is a 400.
 IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
-# THE VARIABLES A RECIPE USES TO POINT A BINARY SOMEWHERE ELSE, and the reason
-# a command route has to be run without them. `board see` is run by the tutor's
-# own Bash tool, inside a turn whose environment the RUNNING recipe wrote -- so
-# in a sitting whose recipe exports `ANTHROPIC_BASE_URL`, claude's vision route,
-# whose whole premise is "the binary that is installed here anyway", is not
-# Claude at all. It is that recipe's provider, reached a second time through a
-# second door.
-#
-# Measured on this machine, the same PNG both ways: 14.4 s and a correct
-# transcription in a clean environment; 180 s and `\`claude\` did not answer
-# within 180 s` with those variables exported. That is the whole of the
-# handwriting fallback for such a sitting, and it is why this list is a
-# constant here rather than a habit somewhere.
-#
-# A recipe overrides it: `env` on the `vision` block is applied after the scrub,
-# and a value of None unsets. So the rule lives beside the command it is about.
+# Variables that point a binary at another provider. A command route runs
+# without them, because inside a turn the running recipe set them and the
+# route would reach that recipe's provider again instead of the local
+# binary. `vision.env` is applied after the scrub; None unsets.
 ROUTING = ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
            "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL",
            "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
            "ANTHROPIC_DEFAULT_HAIKU_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL",
            "OPENAI_BASE_URL", "OPENAI_API_KEY")
 
-# WHAT A PROVIDER SAYS WHEN THE IMAGE DID NOT ARRIVE, in its own words, with
-# HTTP 200 and a normal result object. DeepSeek's endpoint maps an unrecognised
-# model name onto its text-only model and substitutes this for the image block
-# rather than failing; the same string turns up in the model's own reasoning
-# ("the message includes '[Unsupported Image]'"). Cheapest possible detector for
-# the most expensive possible failure.
+# What a provider substitutes, with HTTP 200, when the image did not arrive
+# (DeepSeek maps unknown models to text-only).
 PLACEHOLDERS = ("[Unsupported Image]", "[Unsupported Document]")
 
 
@@ -109,70 +67,35 @@ class Refused(Exception):
 
 
 def registry():
-    """`tutor --agents --json`, parsed, or {}. One subprocess, and it is fine.
-
-    This is a command a person or an assistant runs occasionally, not a poll:
-    `assistants.listing` caches it for the hub because the hub asks four times
-    a second, and nothing here does.
-    """
-    from .server import spawn
-    code, out = spawn.tutor_cli(["--agents", "--json"], timeout=30)
-    if code != 0:
-        return {}
+    """`recipes.listing()`, or {} when it cannot be built."""
+    from .agents import recipes
     try:
-        return json.loads(out.strip().splitlines()[-1]) or {}
-    except (ValueError, IndexError):
+        return recipes.listing() or {}
+    except Exception:                                        # noqa: BLE001
         return {}
 
 
 def route(agent=None, table=None):
     """Where an image goes, as `(settings, why-there-is-none)`.
 
-    The running agent's own recipe first, then `vision_agent`. A recipe with
-    eyes of its own is still asked FIRST rather than skipped: `board see` is
-    also how a person checks the route, and answering from somebody else's
-    recipe when this one names its own would be a lie about what happens.
-
-    A ROUTE THROUGH A PROVIDER THAT IS STOOD DOWN IS NOT A ROUTE. The same
-    hostname that drops a tutor's turns drops its vision request, and the
-    stand-down a failed turn already wrote is the evidence -- so the next name
-    on the list answers instead, and where none can, the refusal says which
-    host went dark rather than sending a page at it to find out again.
-
-    BUT THE STAND-DOWN IS ABOUT A HOST, NOT ABOUT A NAME, and that distinction
-    is what makes the climb-down work at all. A command route no longer opens
-    the provider's hostname -- `ROUTING` is scrubbed out of its environment --
-    so an agent whose TURNS are stood down still has working eyes on the binary
-    that is installed here, and skipping them on the strength of the name would
-    answer "every vision route on this machine is stood down" with one sitting
-    on the path. An ENDPOINT route is skipped when the stand-down names its own
-    host, and also when the stand-down names no host at all: that is
-    `mark_failing`, a recipe whose requests are being refused for a reason the
-    network is innocent of -- a renamed model, a rejected key -- and this route
-    carries the same recipe's key to the same provider.
-
-    AND A ROUTE THAT SAYS IT CANNOT SEE IS NEVER HANDED A PAGE. `sighted: false`
-    on a `vision` block is a fact about the model behind it, and an answer from
-    a blind route is indistinguishable from a transcription -- which is the one
-    outcome this whole file exists to prevent.
+    The running agent's own recipe first, then `vision_agent`, so `board see`
+    reports the route that really answers. A stood-down host is skipped: an
+    endpoint route when the stand-down names its host or none, never a
+    command route by name alone, since commands scrub `ROUTING`. An in-fence
+    recipe is never a route (only it reads phi), nor one marked `sighted:
+    false`.
     """
     from .net import egress
     table = registry() if table is None else table
     agents = {a.get("name"): a for a in (table.get("agents") or [])}
     tried, dark, blind = [], [], []
-    # The switch's own recipe is asked right after the running agent: under
-    # `only_agent` every other name is barred, so a `vision_agent` or default
-    # still naming one would leave no route at all.
-    only = (table.get("only") or {}).get("agent")
-    for name in (agent, only, table.get("vision_agent"), table.get("default")):
+    for name in (agent, table.get("vision_agent"), table.get("default")):
         if not name or name in tried:
             continue
         tried.append(name)
-        # A recipe the machine's switch bars is not a route, whatever its
-        # recipe says: `only_agent` is a promise about which provider is
-        # called, and an image is a call.
-        if (agents.get(name) or {}).get("barred"):
-            dark.append("'%s' is off (%s)" % (name, agents[name]["barred"]))
+        if (agents.get(name) or {}).get("private"):
+            dark.append("'%s' is an in-fence model and never a vision route"
+                        % name)
             continue
         got = (agents.get(name) or {}).get("vision")
         if not got or not (got.get("endpoint") or got.get("cmd")):
@@ -201,27 +124,11 @@ def route(agent=None, table=None):
 # ---------------------------------------------------------------------------
 # The witness code: proof that whatever answered actually looked
 # ---------------------------------------------------------------------------
-# A VISION ROUTE THAT ANSWERS WITHOUT LOOKING IS INDISTINGUISHABLE FROM ONE THAT
-# READ THE PAGE, and that is the failure this board can least afford: the tutor
-# writes a card off the answer, marks working it never saw, and nothing anywhere
-# exits non-zero. It has three separate causes and one shape. The endpoint's
-# model is text-only and the provider swaps `[Unsupported Image]` in for the
-# image. The command route's file-reading tool is absent or denied, and the
-# model answers from the filename -- reproduced here, exit 0, non-empty stdout,
-# "I can't transcribe it -- this session has no file-reading tool". Or the
-# harness in between simply drops the block.
-#
-# So every request carries a strip with six digits on it that are in the IMAGE
-# and in nothing else: not in the prompt, not in a filename, not derivable. An
-# answer that cannot say them back did not see the page, whatever else it says,
-# and is refused. `board eyes` is the same instrument run by hand for a person;
-# this is it run on every call, for a program.
-#
-# Drawn here rather than rendered, because the alternatives are worse than the
-# fifty lines: TeX is not on every machine, poppler is not either, and a route
-# that silently stops being checked is the thing being guarded against. Standard
-# library, one zlib call, no dependency -- which is the same promise the rest of
-# this file makes.
+# The witness code. A route can answer without looking (text-only model,
+# denied file read, dropped block) and still exit 0, so every request carries
+# six digits drawn only in the image; an answer that cannot repeat them is
+# refused. Drawn here in the standard library so the check never silently
+# depends on TeX or poppler.
 GLYPHS = {
     "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
     "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
@@ -236,14 +143,11 @@ GLYPHS = {
     "-": ("00000", "00000", "00000", "11111", "00000", "00000", "00000"),
 }
 
-# How far into the answer the code is looked for. Generous: a model that opens
-# with a sentence of its own before the line it was asked for has still read the
-# strip, and refusing that would be this guard failing the honest case.
+# Generous: a model may open with a sentence before the code line.
 WITNESS_WINDOW = 600
 
-# What the model is told about the strip. Deliberately says what to do when it
-# CANNOT see -- an invented code is the one answer worse than a refusal, and a
-# model told to guess is a model that guesses.
+# Tells the model what to do when it cannot see: an invented code is worse
+# than a refusal.
 WITNESS_ASK = (
     "\n\nThe FIRST image is a strip carrying a six-digit code and nothing "
     "else. Read that code off the strip and make the first line of your answer "
@@ -276,12 +180,7 @@ def _png(path, width, height, rows):
 
 
 def _token_png(code, path, scale=18, pad=48):
-    """The code, in black on white, big enough that no model has to squint.
-
-    Eighteen pixels a cell puts each digit at 90 x 126, which is larger than any
-    handwriting on a slate page and is the point: the strip must never be the
-    hard part of the image.
-    """
+    """The code, black on white, larger than any handwriting on the page."""
     glyphs = [GLYPHS[c] for c in code if c in GLYPHS]
     cells = max(1, len(glyphs) * 6 - 1)     # five wide, one of gap, none trailing
     width = pad * 2 + cells * scale
@@ -317,12 +216,7 @@ def witnessed(said, code):
 
 
 def without_code(said):
-    """The answer with the `CODE:` line taken off the front.
-
-    The code is plumbing and the card is written from what is left, so it does
-    not belong in the description. Only the front, and only the one line: a
-    transcription that legitimately contains the word is not touched.
-    """
+    """The answer with the leading `CODE:` line removed; only that line."""
     lines = (said or "").splitlines()
     while lines and (not lines[0].strip()
                      or re.match(r"^\s*[`*]*\s*CODE\b\s*[:\-]", lines[0], re.I)):
@@ -333,11 +227,8 @@ def without_code(said):
 
 
 def _command_env(settings):
-    """The environment a command route runs with: this one, minus the routing.
-
-    See `ROUTING`. The recipe's own `vision.env` is applied on top, so a route
-    that genuinely wants one of those variables says so where the command is.
-    """
+    """The environment a command route runs with: this one minus `ROUTING`,
+    then the recipe's own `vision.env`."""
     env = dict(os.environ)
     for name in ROUTING:
         env.pop(name, None)
@@ -368,12 +259,8 @@ def _data_url(path):
 
 
 def pages(path, page=None, width=PAGE_WIDTH):
-    """The image files to send: the file itself, or a PDF's pages rendered.
-
-    A temporary directory comes back with them and is the caller's to remove --
-    returned rather than cleaned up here, because the files have to outlive this
-    call by exactly as long as it takes to read them.
-    """
+    """The image files to send: the file itself, or a PDF's pages rendered,
+    with a temporary directory that is the caller's to remove."""
     low = path.lower()
     if low.endswith(IMAGES):
         return [path], None
@@ -411,21 +298,10 @@ def pages(path, page=None, width=PAGE_WIDTH):
 
 
 def ask(settings, images, prompt):
-    """The answer, PROVED to have been written by something that looked.
-
-    A code strip goes in front of the page and the code has to come back. It is
-    six digits, drawn here, in the image and nowhere else -- so an answer
-    carrying it read the image, and an answer without it did not, whatever it
-    says about the page. Both outcomes are then loud: this raises, `cmd_see`
-    prints the reason and exits non-zero, and no card is written off a paragraph
-    about nothing. See the note above `GLYPHS` for the three ways that happens.
-
-    `_answer` is the two spellings underneath, because a vision route is a
-    recipe field and recipes are not all endpoints. `cmd` runs a sighted
-    assistant that is already installed and hands it the file; `endpoint` is one
-    HTTP request in the OpenAI chat-completions shape -- not an agent loop and
-    not a conversation, which is why it is `/v1/chat/completions` rather than
-    the Anthropic-format endpoint the same recipe drives a whole tutor through.
+    """The answer, proved to come from something that looked: a code strip
+    goes in front and must come back, else this raises and `cmd_see` exits
+    non-zero. `_answer` does one request: `cmd` runs an installed sighted
+    assistant on the file; `endpoint` is one OpenAI chat-completions call.
     """
     code = _code()
     box = tempfile.mkdtemp(prefix="board-see-code-")
@@ -434,10 +310,7 @@ def ask(settings, images, prompt):
         said = _answer(settings, [strip] + list(images), prompt + WITNESS_ASK)
     finally:
         shutil.rmtree(box, ignore_errors=True)
-    # AND NOW THE TWO WAYS AN ANSWER CAN BE A LIE, in the order they are cheap
-    # to tell apart. The provider saying so in its own words comes first,
-    # because its message names the cause; a missing code only says that
-    # whatever answered did not look.
+    # The provider's own "no image" words first, since they name the cause.
     placeholder = blind_answer(said)
     if placeholder:
         raise Refused(
@@ -491,10 +364,7 @@ def _answer(settings, images, prompt):
         raise Refused("%s answered %s: %s" % (settings["endpoint"],
                                               exc.code, detail.strip()))
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        # AND THE FINDING IS WRITTEN DOWN, so the next page is not sent at a
-        # host that has just refused a connection. This is the same stand-down a
-        # failed turn writes, on the same record and per agent, which is what
-        # makes `route` able to pass over this recipe and answer from another.
+        # Record the stand-down, so `route` answers from another recipe next.
         from .net import egress
         from urllib.parse import urlsplit
         host = urlsplit(settings["endpoint"]).hostname or ""
@@ -511,36 +381,12 @@ def _answer(settings, images, prompt):
 
 
 def _ask_command(settings, images, prompt):
-    """A sighted assistant that is already installed, run once on these files.
+    """An installed sighted assistant, run once on these files.
 
-    WHY A COMMAND IS A VISION ROUTE AT ALL. The models that teach here can see;
-    what a hosted `/chat/completions` route buys is a SECOND provider, a second
-    key and a model name that goes stale, for a job the binary on the path does
-    already. So a recipe may name a command instead of an endpoint, and the
-    fallback route on a machine is then whatever assistant it teaches with.
-
-    RUN IN THE IMAGE'S OWN DIRECTORY, AND THE FILE ASKED FOR BY NAME. A headless
-    turn has nobody to approve reading a path outside its working directory, and
-    a refused read does not fail -- the model answers from the filename and
-    sounds certain, which is the one outcome worse than an error. Every rendered
-    page of a PDF lands in one temporary directory, so one directory always
-    covers them.
-
-    ONE DIRECTORY, MADE HERE, HOLDING EXACTLY WHAT IS BEING ASKED ABOUT. The
-    code strip and the page do not start out as neighbours -- the strip is drawn
-    into a temporary directory and a slate page lives in the workspace -- and
-    "the files in this directory" is only an instruction if it is true. So they
-    are copied together, which is what `pages` already does for every page of a
-    PDF. The fence ran in `describe`, long before this, so nothing reaches here
-    that was not already allowed to leave.
-
-    AND IT RUNS WITHOUT THE ROUTING VARIABLES. See `ROUTING`: inside a turn the
-    running recipe wrote the environment, and inheriting it points this command
-    at the provider whose eyes are being fallen back FROM.
-
-    The answer is stdout. `{prompt}` in the command is the question with the
-    filenames in it; nothing is put on the command line that is not already a
-    path on this machine.
+    Run in one temporary directory holding exactly the strip and the pages,
+    with the files asked for by name, because a headless turn cannot approve
+    reads elsewhere and a refused read answers from the filename. Run without
+    `ROUTING`. The fence already ran in `describe`. The answer is stdout.
     """
     box = tempfile.mkdtemp(prefix="board-see-ask-")
     try:
@@ -594,11 +440,8 @@ def _run_command(settings, images, prompt):
 def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
     """What is in this file, as text. Raises `Refused` with the reason.
 
-    THE FENCE IS THE FIRST THING AND NOT THE SECOND. Nothing is opened, nothing
-    is rendered and nothing leaves the machine for a path inside one -- see
-    `fenced.refused_in`, which is the workspace-relative rule, and the note
-    there for why it is that one rather than the any-depth `refused`: the slate
-    pages this command exists to read live in the board's own `live/inbox/`.
+    The fence comes first, before anything is opened (`fenced.refused_in`,
+    the workspace-relative rule, since slate pages live in `live/inbox/`).
     """
     path = os.path.abspath(os.path.expanduser(str(path or "")))
     hit = (fenced.refused_in(root, path) if root else fenced.refused(path))
@@ -607,31 +450,19 @@ def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
             "%s is inside `%s/`, which is fenced -- and `board see` sends a "
             "file to a hosted provider. Nothing in there may leave this "
             "machine. The local model reads it where it sits; see the "
-            "`private` recipe in `tutor --agents`." % (path, hit))
+            "`private` recipe in agents/recipes.py." % (path, hit))
     if not os.path.isfile(path):
         raise Refused("there is no file at %s" % path)
-    # Resolved once, here, rather than on each pass below: `route` asks
-    # `tutor --agents --json` when it is handed nothing, and the retry must not
-    # buy a second subprocess to answer a question that has not changed.
+    # Resolved once: `route` may build the provider table in a subprocess.
     table = registry() if table is None else table
     settings, why = route(agent, table)
     if not settings:
         raise Refused(why)
     images, box = pages(path, page)
     try:
-        # AND THE ROUTE IS RE-ASKED ONCE WHEN THE FIRST ONE FAILS, because the
-        # attempt that just failed is what WRITES the evidence the next choice
-        # is made on: `ask` marks a provider unreachable when its endpoint
-        # refuses a connection, and that record is only consulted by a `route`
-        # call that happens afterwards. Resolved before the attempt and never
-        # again, the first `board see` of a DeepSeek sitting always failed with
-        # "api.deepseek.com could not be reached" and the tutor had no reason to
-        # believe a second try would differ -- so it did not make one.
-        #
-        # Once, and only onto a DIFFERENT route. `route` walks its own candidate
-        # list, so the name it returns after the stand-down is the next one
-        # down; the same name back means nothing moved and the first refusal is
-        # the honest answer.
+        # On failure, re-ask the route once: the failed attempt wrote the
+        # stand-down the next choice depends on. Only onto a different route;
+        # the same one back means the first refusal stands.
         tried, said = [], []
         while True:
             try:

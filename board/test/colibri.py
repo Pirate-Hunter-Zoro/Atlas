@@ -1,37 +1,23 @@
 #!/usr/bin/env python3
-"""The local model, reached from the iPad.
+"""The local model, and the machinery the board keeps for a slow assistant.
 
-`coli-code` serves GLM-5.2 int4 to a coding client in any directory, and it was
-reachable from a terminal and from nowhere else. Five things stood between it and
-a thumb, and this is the suite for them.
+1. COLIBRI IS NOT A TUTOR RECIPE. It runs only as relay tasks on the cluster,
+   so the built-in table has no `colibri` row; the `coli-code` client and its
+   egress guard are still checked where the client is checked out.
 
-1. THERE WAS NO `colibri` AGENT. It is a command recipe like the other five --
-   nothing in `bin/tutor` knows what a model is -- and the resumed turn must
-   carry `--continue`, because a fresh session on this model re-pays a
-   15,900-token preamble at a few tokens a second: hours, not pennies.
+2. A SLOW RECIPE'S TIMEOUT IS A FLOOR, so a machine that adds one does not have
+   every turn killed at the sitting's cap.
 
-2. EVERY TURN WOULD HAVE BEEN KILLED AT ONE HOUR, in the middle of its first
-   prefill, and the board would have painted it as a turn that FAILED rather
-   than one that was interrupted. The timeout is now a property of the agent as
-   well as of the sitting.
+3. THE SERVER'S FOUR STATES, off `squeue` on the cluster; on the Mac off
+   relay/status.json only, with no start control; and the relay timing a
+   cold load.
 
-3. NOTHING STARTED THE SERVER. Four states off `squeue`, and a control that
-   returns at once because an allocation, a 429 GB load and a warm-up
-   generation is seven or eight minutes on a good day.
+4. A SITTING CAN CHOOSE ITS ASSISTANT, above the workspace's own answer.
 
-4. A SITTING COULD NOT CHOOSE ITS ASSISTANT. Four layers resolved it and none of
-   them was the sitting, so choosing the local model for one evening meant
-   editing a file that is a statement about the workspace for ever -- and the
-   iPad could reach none of the four.
-
-5. AND TWO REFUSALS. The server runs one KV slot, so a second sitting anywhere
-   on this machine evicts the first one's prefix and costs it its whole preamble
-   again; and this is the only assistant allowed to read `phi`, so a card of its
-   own must not reach a remote.
+5. AND TWO REFUSALS for a recipe that declares them: `exclusive` (one sitting
+   at a time on the machine) and `private` (its cards must not reach a remote).
 """
 
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -44,13 +30,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, colibri                        # noqa: E402
+from tutorboard import colibri                        # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-tutor = importlib.util.module_from_spec(
-    importlib.util.spec_from_loader("tutor", loader))
-loader.exec_module(tutor)
+from tutorboard.runner import daemon  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 fails = []
 
@@ -64,22 +49,24 @@ def check(name, cond):
 
 
 # ---------------------------------------------------------------------------
-# 1. a sixth row in a table that already had five
+# 1. Colibri is not a tutor recipe: it runs only as relay tasks
 # ---------------------------------------------------------------------------
-AGENTS = tutor.DEFAULT_CONFIG["agents"]
-spec = AGENTS.get("colibri") or {}
+AGENTS = recipes.DEFAULT_CONFIG["agents"]
+check("there is no colibri tutor recipe, nor aider, cursor or plain opencode",
+      not any(n in AGENTS for n in ("colibri", "aider", "cursor", "opencode")))
+check("and the deepseek recipe stays", "deepseek" in AGENTS)
 
-check("there is a colibri agent at all", bool(spec))
-check("and it is `coli-code`, which is the whole of what the board knows about it",
-      spec.get("cmd") == ["coli-code"])
-check("a first turn opens a session", "coli-code" in (spec.get("headless_first") or []))
-check("and a later one CONTINUES it, which is the whole cost argument here",
-      "--continue" in (spec.get("headless") or [])
-      and "--continue" not in (spec.get("headless_first") or []))
-check("a headless turn does not stop to ask about each tool call",
-      "--yes" in (spec.get("headless") or []))
-check("and the prompt still reaches it",
-      any("{prompt}" in a for a in spec.get("headless", [])))
+# What a machine would add to its own config to put a slow, fenced, one-slot
+# assistant on the board. The machinery below -- the clock floor, `exclusive`
+# and `private` -- is about any such recipe, and is exercised through this one.
+spec = {"cmd": ["coli-code"], "prompt": "argv",
+        "headless_first": ["coli-code", "--yes", "{prompt}"],
+        "headless": ["coli-code", "--yes", "--continue", "{prompt}"],
+        "timeout": 28800,
+        "exclusive": "the server runs one KV slot, so a second sitting "
+                     "evicts the first one's prefix",
+        "private": "it is the only assistant allowed to read `phi`, so its "
+                   "cards must not reach a remote"}
 
 # The flag the recipe depends on has to exist in the thing it drives. It did
 # not: `coli-code` had no way to continue a session, and the board's whole cost
@@ -143,31 +130,35 @@ else:
 # 2. the clock
 # ---------------------------------------------------------------------------
 CFG = {"headless_timeout": 900, "doing_timeout": 3600,
-       "default_agent": "claude", "hosts": {},
+       "provider": "claude",
        "agents": {"claude": {"cmd": ["claude"]}, "colibri": spec}}
 
 teach = tempfile.mkdtemp(prefix="tutor-coli-teach-")
 doing = tempfile.mkdtemp(prefix="tutor-coli-doing-")
 for where, st in ((teach, {"session": "lecture", "aim": "teach"}),
-                  (doing, {"session": "lecture", "aim": "build"})):
+                  (doing, {"session": "lecture", "mode": "do"})):
     os.makedirs(os.path.join(where, "live"), exist_ok=True)
     with open(os.path.join(where, "live", "state.json"), "w", encoding="utf-8") as fh:
         json.dump(st, fh)
+# A turn's clock reads the session's state, through the session's Repo.
+from tutorboard.course import repo as course_repo  # noqa: E402
+teach, doing = [course_repo.Repo(w, os.path.join(w, "live"), create=False)
+                for w in (teach, doing)]
 
 check("a teaching turn's clock is unchanged for a hosted agent",
-      tutor.turn_timeout(CFG, teach, CFG["agents"]["claude"]) == 900)
+      runturn.turn_timeout(CFG, teach, CFG["agents"]["claude"]) == 900)
 check("and so is a doing turn's",
-      tutor.turn_timeout(CFG, doing, CFG["agents"]["claude"]) == 3600)
+      runturn.turn_timeout(CFG, doing, CFG["agents"]["claude"]) == 3600)
 check("a turn with no agent named at all is unchanged too",
-      tutor.turn_timeout(CFG, teach) == 900)
+      runturn.turn_timeout(CFG, teach) == 900)
 check("a colibri teaching turn gets the recipe's number, which is hours",
-      tutor.turn_timeout(CFG, teach, spec) == spec["timeout"] > 3600)
+      runturn.turn_timeout(CFG, teach, spec) == spec["timeout"] > 3600)
 check("and the recipe is a FLOOR, so a longer sitting still wins",
-      tutor.turn_timeout(dict(CFG, doing_timeout=99999), doing, spec) == 99999)
+      runturn.turn_timeout(dict(CFG, doing_timeout=99999), doing, spec) == 99999)
 check("a recipe with nonsense in the field does not break the clock",
-      tutor.turn_timeout(CFG, teach, {"timeout": "soon"}) == 900)
-shutil.rmtree(teach, ignore_errors=True)
-shutil.rmtree(doing, ignore_errors=True)
+      runturn.turn_timeout(CFG, teach, {"timeout": "soon"}) == 900)
+shutil.rmtree(teach.root, ignore_errors=True)
+shutil.rmtree(doing.root, ignore_errors=True)
 
 # ---------------------------------------------------------------------------
 # 3. the four states, off squeue, with no cluster in the room
@@ -194,10 +185,8 @@ def fake_run(args, timeout=10):
 colibri._run = fake_run
 
 
-def state(**kw):
-    colibri.forget()
-    colibri._ASKED["at"] = 0.0
-    return colibri.status(**kw)
+def state():
+    return colibri.observe()
 
 
 QUEUE["lines"] = ""
@@ -212,7 +201,7 @@ now = state()
 check("a job Slurm has not run yet reads as queued", now["state"] == "queued")
 check("and Slurm's own reason is what is shown, because a 950 GB ask can pend "
       "indefinitely and nothing else says why",
-      now["detail"] == "Resources")
+      now["detail"] == "Resources" and now["reason"] == "Resources")
 check("the job number comes back, so a person can go and look at it",
       now["job"] == "4231")
 
@@ -244,65 +233,79 @@ now = state()
 check("a job whose engine fell over is not reported as loading for ever",
       now["state"] == "off" and "failed to load" in now["detail"])
 
-# The cache, because the board polls four times a second.
+_was_run = colibri._run
+colibri._run = lambda args, timeout=10: None
+check("where squeue cannot be asked, observe says so rather than off",
+      colibri.observe() is None)
+colibri._run = fake_run
+
+# THE MAC READS ONLY relay/status.json (D27): no squeue, no log, no start.
+check("the Mac has no start control: the server starts for a filed task",
+      not os.path.exists(os.path.join(ROOT, "tutorboard", "server", "spawn.py"))
+      and not hasattr(colibri, "submitted")
+      and not hasattr(colibri, "forget"))
+mac = tempfile.mkdtemp(prefix="tutor-coli-mac-")
+
+
+def mac_status(block, now=None):
+    os.makedirs(os.path.join(mac, "relay"), exist_ok=True)
+    with open(os.path.join(mac, "relay", "status.json"), "w") as fh:
+        json.dump({"skipped": "", "last_error": "", "push_pending": False,
+                   "outstanding": {}, "colibri": block, "at": 1}, fh)
+    del asked[:]
+    return colibri.status(mac, now=now)
+
+
 QUEUE["lines"] = ""
-del asked[:]
-colibri.forget()
-colibri.status()
-first = len(asked)
-for _ in range(20):
-    colibri.status()
-check("twenty polls ask Slurm once", len(asked) == first)
-check("and the window is the one the rest of the board uses", colibri.TTL == 15.0)
+now = mac_status({"state": "loading", "ends": int(time.time()) + 7200,
+                  "queue": 2, "task": "coli-20261009-120000-abcd",
+                  "load_s": 4080, "reason": ""})
+check("the Mac reads loading from status.json while squeue says nothing",
+      now["state"] == "loading" and asked == []
+      and "68 min" in now["detail"] and now["queue"] == 2
+      and now["task"] == "coli-20261009-120000-abcd")
+check("and \"off\" never shows while status says loading",
+      "off" not in now["state"] and "no server" not in now["detail"])
+now = mac_status({"state": "warm", "ends": 10000 + 3 * 3600, "queue": 0,
+                  "task": None, "load_s": 4080, "reason": ""}, now=10000)
+check("warm, with the time left reckoned from the published walltime end",
+      now["state"] == "warm" and now["left"] == 3 * 3600
+      and "3 h 00 min left" in now["detail"])
+now = mac_status(None)
+check("with no colibri block the state is unknown, never off",
+      now["state"] == "unknown")
+check("a cold-start estimate comes from the load the relay timed",
+      "68 min" in colibri.estimate({"state": "off", "load_s": 4080})
+      and "cold start" in colibri.estimate({"state": "off", "load_s": 4080})
+      and "warm" in colibri.estimate({"state": "warm"}))
+shutil.rmtree(mac, ignore_errors=True)
 
-# A start that has been asked for but is not yet in the queue still says so:
-# sbatch takes about a second, and "nothing is running" reported back to
-# somebody who has just tapped start is how a second tap happens.
-colibri.submitted()
-check("a submit in flight reads as queued rather than as nothing",
-      colibri.status()["state"] == "queued")
-colibri._ASKED["at"] = time.time() - colibri.SUBMIT_GRACE - 1
-colibri.forget()
-check("and a submit that never appeared does not claim to be queued for ever",
-      colibri.status()["state"] == "off")
-
-# And the control refuses rather than submitting a second job.
-from tutorboard.server import spawn                          # noqa: E402
-
-# These stand in for the Mac's board, so they say so: on the cluster `sbatch`
-# is on the PATH and the button is refused before it reads the queue at all.
-os.environ["TUTOR_SLURM"] = "0"
-QUEUE["lines"] = "4231|PENDING||Priority"
-colibri.forget()
-colibri._ASKED["at"] = 0.0
-started, said = spawn.wake_colibri()
-check("with a job already queued, the control does not submit a second",
-      started is False and "Priority" in said)
-QUEUE["lines"] = "4231|RUNNING|compute304|None"
+# THE RELAY TIMES A COLD LOAD: seen running and not warm, then warm.
+memo = {}
+open(OUT, "w").close()
+open(ERR, "w").close()
+QUEUE["lines"] = "4231|RUNNING|compute304|None|8:00:00|"
+got = colibri.relay_status({}, memo, now=1000.0)
+check("a generation seen cold is remembered with the pass that saw it",
+      got["state"] == "loading" and memo["cold"] == {"4231": 1000.0}
+      and got["load_s"] is None and got["ends"] == 1000 + 8 * 3600)
 with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("COLIBRI-SERVE READY\n")
-colibri.forget()
-started, said = spawn.wake_colibri()
-check("and does nothing at all against a warm one", started is False)
-
-# WHERE SLURM IS, THE BUTTON STARTS NOTHING. Colibri on the node is directed
-# only from the Mac, by a relay request; a board served on the cluster that
-# could start it from a button is a model turn nobody on the Mac asked for.
-QUEUE["lines"] = ""
-colibri.forget()
-colibri._ASKED["at"] = 0.0
-os.environ["TUTOR_SLURM"] = "1"
-_was_up = colibri.up_command
-colibri.up_command = lambda: "/bin/false"
-_asked_before = len(asked)
-started, said = spawn.wake_colibri()
-check("on a machine with Slurm the start button is refused and names the Mac route",
-      started is False and "relay request from the Mac" in said
-      and "board colibri" in said)
-check("and it is refused before Slurm is even asked, so nothing is submitted",
-      len(asked) == _asked_before and not colibri._ASKED["at"])
-colibri.up_command = _was_up
-os.environ.pop("TUTOR_SLURM", None)
+QUEUE["lines"] = "4231|RUNNING|compute304|None|7:00:00|"
+got2 = colibri.relay_status(got, memo, now=1000.0 + 3600 + 100)
+check("the first pass that sees it warm records the load",
+      got2["state"] == "warm" and got2["load_s"] == 3700
+      and memo["cold"] == {})
+check("and the walltime end does not move for squeue's jitter",
+      got2["ends"] == got["ends"])
+check("no node name and no path in the public block",
+      "compute304" not in json.dumps(got2) and "/" not in json.dumps(got2))
+colibri._run = lambda args, timeout=10: None
+got3 = colibri.relay_status(got2, memo, now=9999.0)
+check("where squeue cannot be asked the published state stands",
+      got3["state"] == "warm" and got3["ends"] == got2["ends"]
+      and got3["load_s"] == 3700)
+colibri._run = fake_run
 
 # ---------------------------------------------------------------------------
 # 3b. the chain, which is what makes the server always up
@@ -448,7 +451,7 @@ else:
               subprocess.run(["bash", "-n", os.path.join(LLM, name)]).returncode == 0)
 
 # ---------------------------------------------------------------------------
-# 4. the fifth layer, which is the sitting
+# 4. no sitting or workspace chooses, and the fence is a refusal
 # ---------------------------------------------------------------------------
 tree = tempfile.mkdtemp(prefix="tutor-coli-tree-")
 work = os.path.join(tree, "projects", "Harness")
@@ -456,88 +459,45 @@ live = os.path.join(work, "live")
 os.makedirs(live)
 open(os.path.join(work, "AI_INSTRUCTIONS.md"), "w").close()
 
-R = {"default_agent": "claude", "hosts": {},
-     "agents": {"claude": {"cmd": ["claude"]}, "codex": {"cmd": ["codex"]},
-                "colibri": spec}}
+R = {"provider": "claude", "fallback": "codex",
+     "agents": {"claude": {"cmd": [sys.executable],
+                           "headless_first": [sys.executable]},
+                "codex": {"cmd": [sys.executable],
+                          "headless_first": [sys.executable]},
+                "colibri": dict(spec, cmd=[sys.executable])}}
 course = {"root": work, "dir": "Harness", "name": "Harness"}
-
-
-def sitting(**kw):
-    with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
-        json.dump(kw, fh)
-
-
-sitting(session="lecture")
-check("a sitting that names no assistant resolves exactly as it always did",
-      tutor.resolve_agent(R, course) == "claude")
-
-sitting(session="lecture", agent="colibri")
-check("a sitting that names one beats the machine default",
-      tutor.resolve_agent(R, course) == "colibri")
-check("and it beats the workspace's own answer, because a choice made for an "
-      "evening is not a statement about the repository",
-      tutor.resolve_agent(R, dict(course, agent="codex")) == "colibri")
-check("the command line still beats the sitting",
-      tutor.resolve_agent(R, course, "codex") == "codex")
-
-sitting(session="lecture", agent="nonesuch")
-said = []
-check("a sitting asking for an assistant this machine has not got FALLS BACK "
-      "rather than leaving the course with no tutor at all",
-      tutor.resolve_agent(R, course, say=said.append) == "claude")
-check("and says so, once, where somebody can see it",
-      any("nonesuch" in m for m in said))
-# The other layers still refuse, and must: a workspace naming an agent in
-# writing is a decision, and quietly using a different one would be worse.
-sitting(session="lecture")
-check("a WORKSPACE naming an agent that does not exist still refuses",
-      tutor.resolve_agent(R, dict(course, agent="nonesuch"),
-                          say=lambda m: None) is None)
-
-check("the name is validated as a name and nothing else, because the registry "
-      "is in the launcher",
+with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
+    json.dump({"session": "lecture", "agent": "colibri"}, fh)
+with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Harness", "agent": "colibri"}, fh)
+check("a sitting or workspace naming colibri moves nothing: the provider takes it",
+      recipes.resolve(R) == ("claude", None))
+check("an in-fence recipe as the provider is refused, and the fallback takes it",
+      recipes.resolve(dict(R, provider="colibri"))[0] == "codex")
+check("and as the fallback it is never fallen into",
+      recipes.resolve(dict(R, provider="nonesuch", fallback="colibri"))[0] is None)
+check("the name is validated as a name and nothing else",
       config.clean_agent("Colibri") == "colibri"
       and config.clean_agent("../../etc/passwd") is None
       and config.clean_agent("") is None)
-sitting(session="lecture", agent="../../etc/passwd")
-check("so a path that reached state.json somehow is not read as an assistant",
-      config.sitting_agent(work) is None)
-check("and a workspace with no sitting at all answers None rather than raising",
-      config.sitting_agent(os.path.join(tree, "nothing", "here")) is None
-      and config.sitting_agent(None) is None)
 
 # ---------------------------------------------------------------------------
 # 5. the two refusals
 # ---------------------------------------------------------------------------
-check("the recipe says WHY it is one at a time, so the reason travels with it",
-      "KV slot" in (spec.get("exclusive") or ""))
-check("and why its cards must not be committed",
-      "phi" in (spec.get("private") or ""))
 
-# AND THAT `private` IS WHAT NAMES THE READER OF A FENCE, which is the half the
-# board leans on. A workspace holding a fenced directory says so on both
-# choosers and names the one assistant that may open it -- and it names it by
-# looking for the recipe carrying `private`, because the alternative is the name
-# `colibri` written into a browser, where it would go out of step with this
-# table the first time either moved. Exactly one recipe may carry it: two would
-# make "the one assistant" a list, and the board would take whichever sorted
-# first.
+# `private` IS WHAT NAMES THE READER OF A FENCE, and no built-in recipe carries
+# it: Colibri reads fenced data only as a relay task on the cluster.
 carries = [n for n, sp in AGENTS.items() if sp.get("private")]
-check("exactly one recipe in the table says it may read a fence, so naming it "
-      "is a lookup rather than a second list: " + ", ".join(carries),
-      carries == ["colibri"])
-listed = json.loads(subprocess.run(
-    [sys.executable, os.path.join(ROOT, "bin", "tutor"), "--agents", "--json"],
-    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-    ).stdout.decode("utf-8", "replace").strip().splitlines()[-1])
-check("and it reaches the browser, which is where the chooser reads it",
-      [a["name"] for a in listed["agents"] if a.get("private")] == ["colibri"])
+check("no built-in recipe says it may read a fence: " + ", ".join(carries),
+      carries == [])
+listed = recipes.listing(recipes.load_config())
+check("and the browser is told the same",
+      [a["name"] for a in listed["agents"] if a.get("private")] == [])
 check("beside whether this machine has it at all, because an assistant that "
       "is not installed here cannot be the answer either",
       all("missing" in a for a in listed["agents"]))
 
 os.environ["TUTORBOARD_COURSES"] = tree
-atlas.forget()
 # The refusals below are about a colibri sitting, not about whether this machine
 # has the client: the cluster puts `coli-code` on the path and the Mac does not,
 # so a stub stands in for it and the binary check is passed on both.
@@ -549,81 +509,50 @@ os.environ["PATH"] = stub_bin + os.pathsep + os.environ.get("PATH", "")
 other = os.path.join(tree, "projects", "Elsewhere")
 os.makedirs(os.path.join(other, "live"))
 open(os.path.join(other, "AI_INSTRUCTIONS.md"), "w").close()
-with open(os.path.join(tree, "atlas.json"), "w", encoding="utf-8") as fh:
-    json.dump({"families": [{"id": "projects", "name": "Projects"}]}, fh)
 RT = dict(R, courses_dir=tree)
 
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": tutor.this_host(), "agent": "colibri",
-               "state": "working", "pid": os.getpid(),
-               "last_seen": time.time()}, fh)
-check("a colibri sitting already running somewhere else is found",
-      tutor.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
-code, msg = tutor.agent_start(RT, course, "colibri")
-check("and a second one is refused by name, saying which workspace holds it",
-      code == 1 and "Elsewhere" in msg)
-check("and saying why, in the recipe's own words", "KV slot" in msg)
-check("nothing was written on the way to refusing",
-      not os.path.exists(os.path.join(live, "agent.json")))
-
-# A hosted agent is not affected by any of it.
-code, msg = tutor.agent_start(RT, course, "claude")
-check("and the refusal is the recipe's, not the file's: a hosted agent opens "
-      "beside it",
-      code != 1 or "KV slot" not in msg)
-
-# The one on the other node is the case this has to catch: what is protected is
-# a server on one machine, and the sitting that would evict it may be anywhere.
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": "compute999", "agent": "colibri", "state": "working",
-               "pid": 4021421, "last_seen": time.time()}, fh)
-check("a colibri sitting listening on ANOTHER node is found too, off the "
-      "heartbeat, because the pid over there names a process table this "
-      "machine cannot read",
-      tutor.agent_held_elsewhere(RT, course, "colibri") == "Elsewhere")
-with open(os.path.join(other, "live", "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"host": "compute999", "agent": "colibri", "state": "working",
-               "pid": 4021421, "last_seen": time.time() - 100000}, fh)
-check("and one that stopped beating over there is not holding anything",
-      tutor.agent_held_elsewhere(RT, course, "colibri") is None)
-os.remove(os.path.join(other, "live", "agent.json"))
-
-# And the cards. `git check-ignore` rather than a list of workspaces: the answer
-# is written down in the repository that decides it.
-git_tree = tempfile.mkdtemp(prefix="tutor-coli-git-")
-tracked = os.path.join(git_tree, "Course")
-os.makedirs(os.path.join(tracked, "live", "cards"))
-open(os.path.join(tracked, "AI_INSTRUCTIONS.md"), "w").close()
-subprocess.run(["git", "init", "-q", tracked], stdout=subprocess.DEVNULL)
-check("a workspace whose live/ is committed says so",
-      tutor.cards_are_tracked(tracked))
-with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("live/*\n!threads.json\n")
-check("and one that ignores live/ -- which is what the workspace holding `phi` "
-      "does -- says so too",
-      not tutor.cards_are_tracked(tracked))
-check("a directory that is not a repository at all refuses nobody",
-      not tutor.cards_are_tracked(git_tree + "-nothing"))
-
-with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("# nothing\n")
-GT = dict(R, courses_dir=git_tree)
-code, msg = tutor.agent_start(GT, {"root": tracked, "dir": "Course",
-                                   "name": "Course"}, "colibri")
-check("so a colibri sitting refuses to open where its card would be pushed",
-      code == 1 and "committed" in msg)
-check("and names the one line that changes it, rather than leaving it to be "
-      "guessed at",
-      ".gitignore" in msg)
-code, msg = tutor.agent_start(GT, {"root": tracked, "dir": "Course",
-                                   "name": "Course"}, "claude")
-check("while a hosted assistant opens there as it always has",
-      "committed" not in msg)
-shutil.rmtree(git_tree, ignore_errors=True)
+# NO SITTING STARTS A DAEMON ANY MORE, colibri's included: the board server's
+# runner takes every turn, and a start is refused before any recipe is read.
+check("a colibri sitting is refused like any other start: nothing starts a "
+      "daemon, and the server runs turns",
+      not hasattr(daemon, "agent_start")
+      and not os.path.exists(os.path.join(live, "agent.json")))
 shutil.rmtree(tree, ignore_errors=True)
 os.environ.pop("TUTORBOARD_COURSES", None)
-atlas.forget()
+
+# ---------------------------------------------------------------------------
+# 6. THE QUEUE IS colibri.py's, in the queue root's ignored relay/state/colibri/
+# ---------------------------------------------------------------------------
+qroot = tempfile.mkdtemp(prefix="tutor-coliq-")
+try:
+    rec = colibri.file_task(qroot, "rows", "count the rows", "projects/X",
+                            now=1000.0)
+    check("a task is filed as one record under relay/state/colibri/",
+          rec is not None and os.listdir(os.path.join(
+              qroot, "relay", "state", "colibri")) == [rec["id"] + ".json"])
+    got = colibri.claim_task(qroot, rec, "101", now=1001.0)
+    check("and claimed once, its flag beside it",
+          got and got["queue"] == "running"
+          and colibri.claim_task(qroot, rec, "102") is None
+          and os.path.isfile(os.path.join(qroot, "relay", "state", "colibri",
+                                          rec["id"] + ".task.1")))
+    os.makedirs(os.path.join(qroot, "live", "missions"))
+    with open(os.path.join(qroot, "live", "missions", "coli-old.json"),
+              "w") as fh:
+        json.dump({"id": "coli-old", "kind": "task", "queue": "queued",
+                   "brief": "filed before the move", "at": 500.0}, fh)
+    check("a task filed before the move is read from the queue, moved in",
+          [t["id"] for t in colibri.tasks(qroot)] == ["coli-old", rec["id"]]
+          and colibri.next_task(qroot)["id"] == "coli-old"
+          and not os.path.exists(os.path.join(qroot, "live", "missions",
+                                              "coli-old.json")))
+finally:
+    shutil.rmtree(qroot, ignore_errors=True)
+for name in ("colibri.py", "relay.py"):
+    with open(os.path.join(ROOT, "tutorboard", name), encoding="utf-8") as fh:
+        src = fh.read()
+    check("no `missions.` call remains in %s" % name, "missions." not in src)
 
 print("%d FAILURES" % len(fails) if fails
-      else "the local model is one tap away, and it refuses the two taps it should")
+      else "Colibri is read off squeue on the cluster and off status.json on the Mac")
 sys.exit(1 if fails else 0)

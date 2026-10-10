@@ -73,21 +73,21 @@ html { background: none; }
 /* THE PAGE IS NOT PINCHED. Safari lets no page undo its own pinch zoom, so a
    zoomed lesson had no way back but pinching out. `touch-action` is intersected
    down the tree, so nothing under this can pinch the page either. The writing
-   surface and the map zoom themselves, and `#findink` and `#mapback` put those
-   back. `board.js` also refuses Safari's `gesturestart`. */
+   surface zooms itself, and `#findink` puts it back. `board.js` also refuses
+   Safari's `gesturestart`. */
 html { touch-action: pan-x pan-y; }
 /* THE ONE EXCEPTION: A PAGE ALREADY MAGNIFIED UNDER AN OPEN DOCUMENT. Where
    Safari ignores `Recentre.unzoom`, its own pinch out is the only way back,
    and the rule above forbids it. `readerzoom.js` puts `page-magnified` on
    <html> while a document is open and `visualViewport.scale` is over 1.01,
-   and takes it off the moment either stops. The reader (`#reader`, `#paper`)
+   and takes it off the moment either stops. The reader (`#reader`)
    and everything in it get the pinch as well, because `touch-action` is
    intersected down the tree; `!important` because the ink layers' and the
    bars' own rules are more specific. A hand writing (`pen-writing`) keeps
    its `none`. */
 html.page-magnified { touch-action: manipulation; }
-html.page-magnified body:not(.pen-writing) :is(#reader, #paper),
-html.page-magnified body:not(.pen-writing) :is(#reader, #paper) * {
+html.page-magnified body:not(.pen-writing) #reader,
+html.page-magnified body:not(.pen-writing) #reader * {
   touch-action: manipulation !important;
 }
 
@@ -133,7 +133,7 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 
    Every item here was `nowrap` and none of them could shrink, so the group
    simply overran and `.bar-left`'s `overflow: hidden` cut the last one through
-   the middle of a word -- a chip reading "claud" hard against the map button,
+   the middle of a word -- a chip reading "claud" hard against the next control,
    with no ellipsis to say it had been cut. Reported as: "the things at the top
    bar get kind of cut off."
 
@@ -184,18 +184,12 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 }
 #bar button:hover, #bar a:hover { background: var(--paper-2); color: var(--ink); }
 #btn-slate { border-color: var(--rule); font-weight: 600; white-space: nowrap; }
-.session {
-  flex: none; font-size: .62rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase;
-  padding: .18rem .4rem; border-radius: .25rem;
-  background: var(--paper-2); color: var(--ink-3);
-}
 /* A BLOCK, NOT A FLEX BOX, SO THE WORDS CAN END IN AN ELLIPSIS.
    `text-overflow` acts on inline content; in an `inline-flex` the words are a
    flex item and it never fired, so a squeezed chip was chopped rather than
    trimmed. Its minimum is the dot: the colour is the half that carries the
-   state, and a dot alone against the map button still says attached, working or
-   dead. The words are on the chip's `title` and in the strip below. */
+   state, and a dot alone against the next control still says attached, working
+   or dead. The words are on the chip's `title` and in the strip below. */
 .agent {
   display: block;
   flex: 0 1 auto; flex-shrink: 2; min-width: .45rem;
@@ -231,8 +225,6 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 }
 @keyframes pulse { 50% { opacity: .25; } }
 
-.session[data-kind="homework"] { color: var(--ask); background: color-mix(in srgb, var(--ask) 14%, transparent); }
-.session[data-kind="review"] { color: var(--note); background: color-mix(in srgb, var(--note) 16%, transparent); }
 
 /* ---------- the board ---------- */
 #board {
@@ -275,15 +267,10 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 #newver-now { margin-left: auto; }
 .newver button.quiet { border-color: transparent; background: transparent; }
 
-/* AN ANSWER WAITING SOMEWHERE ELSE.
-
-   A stack of rows rather than one line, because the whole point of it is that
-   more than one turn can be running at once -- that is the thing that was asked
-   for. Each row is a button the width of the strip: a notification somebody has
-   to aim at on a tablet is a notification they stop using.
-
-   It shares the chrome's own rhythm and colour and it is deliberately the
-   quietest thing in there. Nothing is wrong; something is READY. */
+/* DOCUMENTS ASKED FOR FROM THIS SESSION, in the chrome. Each row is the width
+   of the strip: a row somebody has to aim at on a tablet is one they stop
+   using. The quietest thing in the chrome: nothing is wrong, something is
+   being written or is ready. */
 .newsbar {
   display: block;
   padding: .55rem max(1rem, env(safe-area-inset-left)) .55rem max(1rem, env(safe-area-inset-right));
@@ -321,8 +308,8 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   padding: .45rem .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
-/* A workspace name is free text. Kept from taking the whole row, so the time
-   and the arrow stay inside the button that owns them. */
+/* Kept from taking the whole row, so the time and the arrow stay inside the
+   button that owns them. */
 .news-where {
   font-weight: 700; flex: 0 1 auto; min-width: 0; max-width: 45%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -332,117 +319,43 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 .news-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .76rem; }
 .news-go { flex: none; color: var(--ink-2); }
 
-/* A MISSION ROW IS AN ANSWER ROW PLUS A STATE, and the state is the only thing
-   on it that is worth a colour: still going, done, failed. The row wraps so a
-   failed one can put the reason on a second line -- "nothing is attached to
-   that workspace any more" and "the allocation ended" are the same word and
-   two different next moves, and neither fits beside a task. */
-.mission-row { flex-wrap: wrap; }
-.mission-state {
+/* A DOCUMENT ROW CARRIES ITS STATE as a pill, the only thing on it worth a
+   colour: `writing`, `done` or `failed`. The row wraps so a failed one can put
+   its reason on a second line. */
+.writeup-row { flex-wrap: wrap; }
+.writeup-state {
   flex: none; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
   padding: .1rem .3rem; border-radius: .25rem;
   border: 1px solid var(--rule); color: var(--ink-2);
 }
-.mission-row[data-state="running"] .mission-state {
+.writeup-row[data-state="writing"] .writeup-state {
   color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
 }
-.mission-row[data-state="failed"] .mission-state {
-  color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--rule));
-}
-.mission-row[data-state="failed"] {
-  border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
-}
-/* A DOCUMENT ASKED FOR FROM THIS SITTING wears the same row and the same pill,
-   because it is the same sentence about a different thing: something was set
-   going and here is where it got to. Its three states are `writing`, `done` and
-   `failed`, so only the first two need a colour of their own -- a mission's
-   `running` and `failed` already carry the other two readings. */
-.mission-row[data-state="writing"] .mission-state {
-  color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
-}
-.mission-row[data-state="done"] .mission-state {
+.writeup-row[data-state="done"] .writeup-state {
   color: var(--ask); border-color: color-mix(in srgb, var(--ask) 45%, var(--rule));
 }
-.mission-why {
+.writeup-row[data-state="failed"] .writeup-state {
+  color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--rule));
+}
+.writeup-row[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
+}
+.writeup-why {
   flex-basis: 100%; margin-top: .2rem;
   font-size: .76rem; color: var(--bad);
 }
 
-.mission-ship {
-  flex: none; font-size: .66rem; letter-spacing: .05em;
-  color: var(--ink-2);
-}
-
-/* WHAT IT HAS BEEN DOING. "Still going" is a state somebody is told to leave
-   alone, and after the first hour it is not something anybody can act on. The
-   last reported step sits on a line of its own under the task -- it is a
-   sentence, not a label, so it does not compete for the width -- and the
-   control beside the task opens the whole trail.
-
-   Quiet, because this is still the chrome. Nothing in here may read as louder
-   than the lesson under it. */
-.mission-step {
-  flex-basis: 100%; margin-top: .2rem;
-  font-size: .78rem; color: var(--ink);
-}
-.mprog-more {
-  flex: none; font-size: .66rem; letter-spacing: .05em; cursor: pointer;
-  padding: .1rem .3rem; border-radius: .25rem;
-  border: 1px dashed var(--rule); color: var(--ink-2);
-}
-.mprog-lead { cursor: pointer; text-decoration: underline dotted; }
-.mprog {
-  margin-top: .35rem;
-  padding: .5rem .6rem;
-  border-radius: .4rem;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-  font-size: .82rem;
-}
-.mprog-head { display: flex; align-items: baseline; gap: .5rem; }
-.mprog-who {
-  font-weight: 700; font-size: .7rem;
-  text-transform: uppercase; letter-spacing: .07em;
-}
-.mprog-close { margin-left: auto; flex: none; }
-.mprog p { margin: .3rem 0 0; }
-.mprog-facts { color: var(--ink-2); font-size: .76rem; }
-.mprog-task { color: var(--ink-2); }
-.mprog-quiet { color: var(--ink-2); font-style: italic; }
-.mprog-made { color: var(--ink); font-size: .76rem; }
-.mprog-why { color: var(--bad); }
-.mprog-ship { color: var(--ink-2); font-size: .76rem; }
-/* The trail reads top to bottom in the order it happened, which is the order a
-   person reconstructs an evening in. The board's own lines -- dispatched, a
-   turn started, picked up after the node went away -- are dimmed, because the
-   machinery working must not read as the assistant's report. */
-.mprog-steps {
-  list-style: none; margin: .4rem 0 0; padding: 0;
-  display: grid; gap: .2rem;
-}
-.mprog-step { display: flex; gap: .5rem; align-items: baseline; }
-.mprog-step.machine { color: var(--ink-2); font-style: italic; }
-.mprog-when {
-  flex: none; font-variant-numeric: tabular-nums;
-  font-size: .72rem; color: var(--ink-2);
-}
-.mprog-said { min-width: 0; }
-.mprog-names {
-  list-style: none; margin: .3rem 0 0; padding: 0;
-  display: grid; gap: .1rem;
-  font-size: .76rem; color: var(--ink-2);
-}
-
-/* The one switch on the dispatcher, and the sentence under it that says who
-   actually pushes. A checkbox the width of a thumb: this is tapped on glass. */
-.elsewhere-ship {
-  display: flex; align-items: center; gap: .5rem;
-  margin-top: .6rem; font-size: .9rem; cursor: pointer;
-}
-.elsewhere-ship input { width: 1.1rem; height: 1.1rem; }
-.elsewhere-ship-note { margin-top: .3rem; font-size: .78rem; }
-
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
+/* The cluster's health: one line, the worst first, the rest in its tooltip. */
+.healthbar {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .5rem max(1rem, env(safe-area-inset-left)) .5rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui); font-size: .82rem;
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--bad) 10%, var(--paper));
+}
+.health-lead { font-weight: 700; letter-spacing: .04em; flex: none; }
+#health-text { min-width: 0; overflow-wrap: anywhere; }
 /* A FAILED BUILD SHOWS THE LAST LINE OF THE LOG, which can be a hundred and
    sixty characters of monospace. Unshrinkable, it crushed the count to a column
    of single words and pushed the strip off the glass. The set's name stays
@@ -457,17 +370,6 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 #hw-build[data-ok="yes"] { color: var(--good); }
 #hw-build[data-ok="no"] { color: var(--bad); font-family: var(--mono); }
 
-/* The review strip. Same job as the homework one -- say what the sitting is
-   about, because nothing else on an iPad can. */
-.rvbar { background: color-mix(in srgb, var(--note) 10%, var(--paper)); font-size: .82rem; }
-#rv-lead { font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-           font-size: .68rem; color: var(--note); flex: none; }
-#rv-scope { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#rv-change {
-  margin-left: auto; flex: none; font: inherit; font-size: .74rem; cursor: pointer;
-  padding: .2rem .5rem; border-radius: .35rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2);
-}
 
 /* The ink layer sits over the card it belongs to, and is inert until annotate
    mode is on -- otherwise it would eat every scroll and every text selection in
@@ -626,6 +528,7 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 }
 .card-title { font-size: 1.02rem; font-weight: 640; color: var(--ink); }
 .card-num { font-size: .7rem; color: var(--ink-3); margin-left: auto; flex: none; }
+.card-by { font-size: .7rem; color: var(--ink-3); flex: none; }
 
 /* Feedback that a later card has replaced: folded to its heading, one line, and
    opened again by tapping it. Not hidden -- a transcript keeps everything -- but
@@ -874,6 +777,45 @@ body[data-mode="auto"].sys-dark .card {
 }
 .body pre code { background: none; padding: 0; font-size: inherit; }
 
+/* CODE: a fence with a language is highlighted (`codeview.js`), and one with
+   `path#Lx-y` is numbered from x under a caption linking /source/. The same
+   rules draw the source page, which has no `.body`. Colours are the board's
+   own, so dark mode needs nothing extra. */
+.code-fence { margin: 1rem 0; }
+.code-fence figcaption { font-size: .78rem; margin: 0 0 .25rem; }
+.code-fence .code-ref { color: var(--note); text-decoration: none; }
+.code-fence .code-ref code { background: none; padding: 0; }
+.code-fence pre { margin: 0; }
+pre.code, pre.code code { font-family: var(--mono); }
+pre.code.numbered .line { display: block; padding-right: .5rem; }
+pre.code.numbered .line::before {
+  content: attr(data-n); display: inline-block; min-width: 2.6em;
+  margin-right: 1em; text-align: right; color: var(--ink-3);
+  -webkit-user-select: none; user-select: none;
+}
+pre.code .line.mark { background: color-mix(in srgb, var(--ask) 15%, transparent); }
+.hljs-comment, .hljs-quote, .hljs-doctag { color: var(--ink-3); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: var(--accent); }
+.hljs-string, .hljs-regexp, .hljs-char, .hljs-subst { color: var(--good); }
+.hljs-number, .hljs-literal, .hljs-symbol { color: var(--ask); }
+.hljs-title, .hljs-section, .hljs-type { color: var(--note); }
+.hljs-variable, .hljs-params, .hljs-attr, .hljs-property { color: var(--ink); }
+.hljs-meta { color: var(--ink-2); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+body.source-page { padding: 0 1rem 3rem; }
+.source-head {
+  position: sticky; top: 0; padding: .7rem 0 .5rem; background: var(--paper);
+  font: 400 .85rem var(--mono); color: var(--ink-2);
+  border-bottom: 1px solid var(--rule); margin-bottom: .6rem;
+}
+.source-head .source-path { color: var(--ink); }
+body.source-page pre.code {
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: .45rem;
+  padding: .8rem 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.5;
+}
+
 .body table {
   border-collapse: collapse; margin: 1rem 0;
   font-size: .95em;
@@ -934,38 +876,6 @@ body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180de
    the strip has to wrap rather than clip it. */
 .busy { flex-wrap: nowrap; }
 .busy #busy-text { min-width: 0; }
-
-/* ---------- answering a question in a code project ---------- */
-#codeanswer {
-  margin: 0 0 2.1rem;
-  border: 1px solid var(--rule);
-  border-radius: .5rem;
-  background: color-mix(in srgb, var(--ask) 6%, var(--paper));
-  padding: .7rem .9rem;
-  font-family: var(--ui);
-}
-#codeanswer-head {
-  display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
-  margin-bottom: .6rem;
-}
-#codeanswer-label { font-weight: 600; font-size: .92rem; }
-#codeanswer-hint { color: var(--ink-3); font-size: .8rem; }
-#codeanswer-head #codeanswer-skip {
-  margin-left: auto; flex: none;
-  font: inherit; font-size: .78rem;
-  background: transparent; color: var(--ink-3);
-  border: 1px solid var(--rule); border-radius: .35rem;
-  padding: .2rem .55rem;
-}
-#codeanswer-acts { display: flex; gap: .5rem; flex-wrap: wrap; }
-#codeanswer-acts button {
-  font: inherit; font-size: .88rem;
-  padding: .45rem .8rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-}
-#codeanswer-acts button.primary {
-  background: var(--ask); border-color: var(--ask); color: #fff;
-}
 
 /* ---------- student messages echoed on the board ---------- */
 .mine {
@@ -1374,7 +1284,7 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
    neither visible nor self-explanatory: it read as a smudge and said nothing
    about what pressing it would do. It carries its own name and the board's
    accent, like every other control that acts rather than describes. */
-#panic, #findink, #mapback {
+#panic, #findink {
   position: fixed; left: 0; top: 0; z-index: 62;
   transform-origin: 0 0;
   display: flex; align-items: center; gap: .35rem;
@@ -1393,115 +1303,27 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   -webkit-tap-highlight-color: transparent;
   transition: box-shadow .18s, filter .18s;
 }
-#panic svg, #findink svg, #mapback svg { width: .95rem; height: .95rem; display: block; flex: none; }
+#panic svg, #findink svg { width: .95rem; height: .95rem; display: block; flex: none; }
 /* The quieter of the pair: `#panic` is the way out of a zoom there is no
    other way out of, this is a convenience while writing. Same shape, less
    shout, so the one that matters most stays the one the eye finds. */
-#findink, #mapback {
+#findink {
   background: color-mix(in srgb, var(--accent) 22%, var(--paper));
   color: var(--ink);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
 }
 
-/* OVER THE MAP, AND ONLY THERE.
-
-   The stack sits at 62 and the map is 96, so on the map the way back was
-   painted over by the very thing somebody was lost in -- and the map's own
-   controls are chrome, which a pinch pans off the glass. Raised while the map
-   is open rather than always, because everywhere else the stack's ordinary
-   place in the order is the right one: over the lesson, under the menu. */
-body.mapping #panic,
-body.mapping #findink,
-body.mapping #mapback,
-body.mapping #notesend { z-index: 97; }
-#panic:hover, #findink:hover, #mapback:hover { filter: brightness(1.1); }
+#panic:hover, #findink:hover { filter: brightness(1.1); }
 /* Held down: it has become a thing being moved, and must look like one before
    the finger travels, or the first drag reads as a tap that did nothing. */
-#panic.holding, #findink.holding, #mapback.holding {
+#panic.holding, #findink.holding {
   cursor: grabbing;
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
               0 4px 14px rgba(0,0,0,.3);
 }
 /* Tapped: acknowledge it, because what the tap does is a change of scale and
    not a change of content, which is easy to miss on a page you were lost in. */
-#panic.hit, #findink.hit, #mapback.hit { filter: brightness(1.25); }
-
-/* ---------- the way out of the whole plan ---------- */
-/* The third member of the moveable stack, and the only one that changes
-   anything: the two above it put a zoom back, this one changes what the work
-   IS. Same shape so it is found in the same place, quieter than `#panic` so the
-   way out of a zoom stays the loudest thing in the corner, and deliberately not
-   red — a direction change is a normal thing to want, not an accident to be
-   warned about.
-
-   ABOVE THE MAP (96) AND THE DOCUMENT VIEWER (95), which the stack is not. The
-   promise is that it is reachable at any moment, and the two surfaces that
-   cover the whole screen are exactly the ones somebody is looking at when they
-   realise the plan is wrong. Under `.barmenu` (99), which is the most recent
-   thing anybody asked for. */
-#redirect {
-  position: fixed; left: 0; top: 0; z-index: 97;
-  transform-origin: 0 0;
-  display: flex; align-items: center; gap: .35rem;
-  padding: .42rem .7rem .42rem .55rem;
-  border-radius: 1.4rem;
-  border: 1px solid color-mix(in srgb, var(--note, var(--accent)) 55%, var(--rule));
-  background: color-mix(in srgb, var(--note, var(--accent)) 16%, var(--paper));
-  color: var(--ink);
-  font: 700 .74rem var(--ui);
-  letter-spacing: .02em;
-  box-shadow: 0 4px 14px rgba(0,0,0,.24);
-  cursor: pointer;
-  touch-action: none;
-  -webkit-user-select: none; user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-#redirect svg { width: .95rem; height: .95rem; display: block; flex: none; }
-#redirect:hover { filter: brightness(1.06); }
-/* The other two ride at 62 and are covered by the map; this one is not, so it
-   is the one thing over a map that must not look like part of it. */
-body.mapping #redirect, body.papering #redirect {
-  box-shadow: 0 6px 20px rgba(0,0,0,.4);
-}
-
-/* The sheet it opens. Over everything the button is over, and wider than the
-   drawers: what goes in it is a paragraph somebody is writing, not a list they
-   are picking from. */
-#steer {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 98;
-  width: min(30rem, 96vw);
-  background: var(--paper); border-left: 1px solid var(--rule);
-  display: flex; flex-direction: column;
-  box-shadow: -8px 0 26px rgba(0,0,0,.22);
-  font-family: var(--ui); font-size: .85rem;
-}
-#steer-body { flex: 1; overflow-y: auto; padding: .9rem; }
-.steer-now {
-  margin: 0 0 .9rem; padding: .6rem .7rem;
-  border-left: 3px solid var(--note, var(--accent));
-  background: var(--paper-2); color: var(--ink-2);
-  font-size: .8rem; white-space: pre-wrap;
-}
-.steer-label { display: block; margin-bottom: .45rem; color: var(--ink-2); }
-#steerbox {
-  width: 100%; box-sizing: border-box;
-  font: inherit; font-size: .92rem; line-height: 1.45;
-  color: var(--ink); background: var(--paper-2);
-  border: 1px solid var(--rule); border-radius: .45rem;
-  padding: .6rem .7rem; resize: vertical;
-}
-#steerbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.steer-note { margin: 0 0 .7rem; font-size: .74rem; }
-.steer-acts { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
-.steer-acts button {
-  font: 600 .82rem var(--ui); cursor: pointer;
-  padding: .5rem .9rem; border-radius: .45rem;
-  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
-}
-.steer-acts button.primary {
-  border-color: var(--accent); background: var(--accent); color: var(--paper);
-}
-.steer-acts button:disabled { opacity: .45; cursor: default; }
+#panic.hit, #findink.hit { filter: brightness(1.25); }
 
 /* ---------- what the student said, in the lesson ---------- */
 .mine .signal {
@@ -1524,10 +1346,6 @@ body.mapping #redirect, body.papering #redirect {
   font-family: var(--ui); font-size: .85rem;
 }
 #history-list { flex: 1; overflow-y: auto; padding: .5rem; }
-/* Two targets on one line: READ it, and TAKE IT AWAY. They are side by side
-   rather than stacked because they are the same size of decision, and the
-   reading half keeps the whole width it had — the PDF button is `flex: none`
-   and the row shrinks around it. */
 .session-line {
   display: flex; align-items: stretch; gap: .35rem; margin-bottom: .4rem;
 }
@@ -1538,7 +1356,6 @@ body.mapping #redirect, body.papering #redirect {
   border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
 }
 .session-row:hover { background: var(--paper-2); }
-.session-keep { flex: none; align-self: center; font-size: .72rem; }
 .session-name { display: block; font-weight: 650; }
 .session-sub { display: block; margin-top: .15rem; font-size: .72rem; color: var(--ink-3); }
 
@@ -1547,7 +1364,7 @@ body.mapping #redirect, body.papering #redirect {
    without it the box is sized to the half of the screen right of `left` and
    the transform never gives the other half back, so it could not be wider
    than 50vw whatever its `max-width` said. */
-.reading {
+#reading {
   position: fixed; left: 50%; transform: translateX(-50%);
   width: max-content; max-width: calc(100vw - 1.5rem);
   bottom: calc(1.2rem + env(safe-area-inset-bottom)); z-index: 45;
@@ -1571,11 +1388,8 @@ body.mapping #redirect, body.papering #redirect {
    bottom of every code course and nothing else ever set that attribute. */
 
 /* ---------- scratch drawer ---------- */
-/* Three drawers, one shape: the scratch list, the contents, and the review
-   picker. #contents used to carry a comment saying it borrowed this and an
-   empty rule that borrowed nothing, so it laid out in the flow of the page
-   under the lesson rather than over it. An ID selector is not inheritance. */
-#scratch, #contents, #review, #shelf, #elsewhere, #trace, #docnew {
+/* The drawers, one shape: the scratch list and the trace. */
+#scratch, #trace {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
   width: min(24rem, 92vw);
   background: var(--paper); border-left: 1px solid var(--rule);
@@ -1613,68 +1427,52 @@ body.mapping #redirect, body.papering #redirect {
 }
 #reopen:hover { border-style: solid; border-color: var(--accent);
                 color: var(--accent); }
+#older {
+  display: block; margin: 0 auto 1.4rem;
+  font: 600 .82rem var(--ui); cursor: pointer;
+  padding: .45rem .95rem; border-radius: 1.4rem;
+  border: 1px dashed var(--rule);
+  background: transparent; color: var(--ink-2);
+}
+#older[hidden] { display: none; }
+#older:hover { border-style: solid; border-color: var(--accent);
+               color: var(--accent); }
 .scratch-head button { border: 0; background: none; font: inherit; cursor: pointer; color: var(--ink-2); }
 #scratch-list { flex: 1; overflow-y: auto; padding: .6rem; }
-#shelf-list { flex: 1; overflow-y: auto; padding: .2rem .9rem; }
-/* ABOVE THE MAP, which is the one drawer here that has to be. The others open
-   over the lesson and 60 clears it; this one is opened FROM the picture -- off
-   a badge on a box, or off the map bar -- and the map is a full-glass panel at
-   96. A drawer behind the surface that opened it is a tap that does nothing.
-   98 is `#steer`'s storey: over everything except the ⋯ menu at 99. */
-#shelf { z-index: 98; width: min(27rem, 94vw); }
-/* Opened from the map's documents region, so above the map for `#shelf`'s
-   reason. */
-#docnew { z-index: 98; bottom: auto; border-bottom: 1px solid var(--rule); }
-#docnew .scratch-foot { font-size: .85rem; display: flex; flex-direction: column;
-                        gap: .6rem; align-items: stretch; }
-.docnew-makes { display: flex; gap: .4rem; }
-.docnew-make {
-  flex: 1; font: 600 .82rem var(--ui); cursor: pointer;
-  padding: .5rem .8rem; border-radius: .45rem;
-  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
-}
-.docnew-make.on { border-color: var(--accent); color: var(--accent); }
-#docnew-about { font: inherit; padding: .5rem; border-radius: .4rem;
-                border: 1px solid var(--rule); background: var(--paper-2);
-                color: var(--ink); resize: vertical; }
-#shelf-title { min-width: 0; overflow: hidden; text-overflow: ellipsis;
-               white-space: nowrap; }
-#shelf-list .group {
-  font-family: var(--ui); font-size: .66rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-  margin: .9rem .1rem .35rem;
-}
-#shelf-list .group:first-child { margin-top: .4rem; }
-#shelf-list .none { color: var(--ink-3); padding: .8rem .1rem; }
-.shelf-row { padding: .6rem .1rem; border-bottom: 1px solid var(--rule); }
-.shelf-row:last-child { border-bottom: 0; }
-.shelf-row strong { display: block; }
-.shelf-row .name {
-  display: block; margin: .15rem 0 .5rem;
-  font-size: .78rem; color: var(--ink-2); overflow-wrap: anywhere;
-}
-/* A document with no compiled PDF is still a document, and saying so is the
-   point: the source is there and nothing has been built from it. Greyed and
-   without buttons, because the two buttons would both fail. */
-.shelf-row.unbuilt strong { color: var(--ink-3); }
-.shelf-row .flag {
-  display: inline-block; margin-right: .35rem;
-  font-size: .68rem; letter-spacing: .04em; text-transform: uppercase;
-  border: 1px solid var(--rule); border-radius: .3rem; padding: 0 .25rem;
-  color: var(--ink-3);
-}
-.shelf-row .flag.stale { color: var(--bad); border-color: var(--bad); }
-.shelf-acts { display: flex; flex-wrap: wrap; gap: .4rem; }
-/* The way from one box's documents to all of them. Quiet: somebody who tapped
-   a badge asked about that box, and this is the afterthought. */
-#shelf-foot button {
-  font: inherit; font-family: var(--ui); font-size: .78rem;
-  border: 0; background: none; padding: 0; cursor: pointer;
-  color: var(--accent); text-decoration: underline;
-}
 #scratch-list a { display: block; margin-bottom: .7rem; color: var(--ink); text-decoration: none; }
 #scratch-list img { width: 100%; border-radius: .4rem; border: 1px solid var(--rule); }
 #scratch-list .name { font-size: .72rem; color: var(--ink-3); word-break: break-all; }
+/* The Materials drawer: uploads in flight, this session's uploads, and the
+   subject's materials, each deletable after a second tap. */
+#upload-state:empty { display: none; }
+#upload-state { padding: .5rem .9rem; border-bottom: 1px solid var(--rule); }
+.upload-line { display: flex; align-items: center; gap: .5rem; padding: .25rem 0;
+               font-size: .78rem; color: var(--ink-2); }
+.upload-line progress { flex: 0 0 5.5rem; height: .45rem; }
+.upload-words { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.upload-line.done { color: var(--ink-3); }
+.upload-line.bad { color: var(--bad); }
+.upload-dismiss { border: 0; background: none; cursor: pointer; color: var(--ink-3);
+                  font: inherit; }
+.mat-group {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  padding: .7rem .9rem 0;
+}
+#scratch #scratch-list { flex: 0 1 auto; min-height: 0; }
+#scratch .scratch-foot { margin-top: auto; }
+#materials { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#materials-list { padding: .3rem .9rem .6rem; }
+#materials-list .name { font-size: .72rem; color: var(--ink-3); }
+.mat-row { display: flex; align-items: center; justify-content: space-between;
+           gap: .5rem; padding: .35rem 0; border-bottom: 1px solid var(--rule); }
+.mat-row:last-child { border-bottom: 0; }
+.mat-name { min-width: 0; overflow-wrap: anywhere; font-size: .78rem; }
+.mat-name.is-doc { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.mat-delete { flex: none; font: 600 .72rem var(--ui); cursor: pointer;
+              padding: .2rem .5rem; border-radius: .35rem;
+              border: 1px solid var(--rule); background: transparent; color: var(--ink-2); }
+.mat-delete.armed { border-color: var(--bad); color: var(--bad); }
 
 /* ---------- drop target ---------- */
 .drop {
@@ -1727,106 +1525,12 @@ body.mapping #redirect, body.papering #redirect {
 #viewer-close:hover { background: #262a31; }
 body.viewing { overflow: hidden; }
 
-/* ---------- a PDF, read on the board ---------- */
-/* The pages are pictures, drawn by the machine that holds the PDF. Not a frame
-   and not a navigation: iOS renders a PDF in a frame as one unscrollable page,
-   and navigating to one in a standalone app leaves the board with no chrome and
-   no way back. This is a panel the page owns, so ✕ returns to the lesson. */
-#paper {
-  position: fixed; inset: 0; z-index: 95;
-  display: flex; flex-direction: column;
-  background: var(--paper-2, #16171a);
-}
-.paper-bar {
-  flex: none; display: flex; align-items: center; gap: .7rem;
-  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
-  padding-top: max(.6rem, env(safe-area-inset-top));
-  font-family: var(--ui); font-size: .85rem;
-  background: var(--paper); color: var(--ink);
-  border-bottom: 1px solid var(--rule);
-}
-#paper-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The subtitle is also where `keep writing` says what it did, for four seconds,
-   in a whole sentence from the server. Unshrinkable, that sentence pushed the
-   title to nothing and save and close off the glass. It ellipsizes like the
-   title, and the whole sentence is its tooltip. */
-#paper-sub {
-  flex: 0 1 auto; min-width: 0; font-size: .78rem;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-#paper-keep { flex: none; white-space: nowrap; }
-/* The right-hand group starts at the map glyph, which is always there;
-   `save a copy` is not -- a document with no build record has none --
-   so the push to the right cannot hang off it. */
-#paper-get { flex: none; }
-#paper-close {
-  flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
-  border-radius: .35rem; border: 1px solid var(--rule);
-  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
-}
-/* Scrolls itself. The body is locked while this is up, so a two-finger drag
-   inside the pages cannot end up panning the lesson underneath. */
-/* A BLOCK, NOT A CENTRED FLEX COLUMN: a page zoomed wider than the glass has
-   to overflow to the right, where it can be scrolled to, rather than to both
-   sides, where its left edge cannot. The pinch is `readerzoom.js`'s, which
-   adds `.zoomable` and sets `--zoom`. */
-.paper-pages {
-  flex: 1 1 auto; overflow: auto; min-height: 0; -webkit-overflow-scrolling: touch;
-  padding: 1rem max(.6rem, env(safe-area-inset-left))
-           max(2rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-right));
-  overscroll-behavior: contain;
-}
-/* Above the pages while a pinch transforms them. */
-#paper > .paper-bar { position: relative; z-index: 1; }
-.paper-pages.pinching { will-change: transform; }
-/* The palm, as in the library reader: while the nib is down or only just
-   lifted, nothing the browser owns moves the pages; otherwise a finger pans a
-   zoomed page either way, over the ink layer too. */
-body.pen-writing .paper-pages.zoomable { touch-action: none; }
-body.annotating:not(.pen-writing) .paper-pages canvas.ann-layer {
-  touch-action: pan-x pan-y;
-}
-#paper-zoom { flex: none; }
-/* A page is white because paper is white -- the board's dark skin belongs to
-   the lesson, and a typeset document inverted is a document nobody can read. */
-.paper-pages img {
-  width: 100%; height: auto; display: block;
-  background: #fff; border-radius: .3rem;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
-}
-/* ONE PAGE, IN ITS OWN BOX, and the box is what the ink is anchored to.
-
-   A page's size on the glass is whatever the panel's width and the reader's
-   zoom make it, so ink stored in page pixels is somewhere else the moment the
-   iPad rotates. Stored in fractions of this box it stays on the same words for
-   ever — which is the trick the lesson already plays one level in, on cards.
-
-   `position: relative` is the whole of what the layer needs: `canvas.ann-layer`
-   is absolutely positioned and would otherwise hang off `.paper-pages` and land
-   on page one whichever page was written on. */
-.paper-page {
-  position: relative; margin: 0 auto .9rem;
-  width: calc(min(100%, 46rem) * var(--zoom, 1));
-}
-
-.paper-say {
-  max-width: 30rem; margin: 2rem auto; text-align: center;
-  font-family: var(--ui); font-size: .9rem; color: var(--ink-2);
-}
-.paper-say strong { display: block; margin-bottom: .5rem; color: var(--ink); }
-.paper-say button { margin-top: .9rem; }
-.paper-say button + button { margin-left: .45rem; }
-.paper-say .detail {
-  display: block; margin-top: .7rem; text-align: left;
-  font-family: var(--mono); font-size: .72rem; color: var(--ink-3);
-  overflow-wrap: anywhere;
-}
-body.papering { overflow: hidden; }
+/* ---------- a PDF, read on the board: `reader.css`, the one reader ---------- */
 
 /* ---------- print ---------- */
 @media print {
-  #bar, #drawbar, #scratch, #contents, #review, #shelf, .jump, .drop,
-  .finish, .pushed, #panic, #mapback, #reopen, #viewer, #paper { display: none !important; }
+  #bar, #drawbar, #scratch, .jump, .drop,
+  .finish, .pushed, #panic, #reopen, #viewer, #reader { display: none !important; }
   body { background: #fff; color: #000; }
   #board { max-width: none; padding: 0; }
   .card { break-inside: avoid; animation: none; }
@@ -1834,33 +1538,6 @@ body.papering { overflow: hidden; }
   .tw-soon { visibility: visible; }
   .mine { background: #f2f2f2; }
 }
-
-/* ---------- a choice strip ---------- */
-/* `#kind` and `#keepwhat`. Docked above the tool bar, because that is where the hand and the Send button
-   already are, and a dialogue in the middle of the page is a dialogue that gets
-   dismissed by accident on a tablet. */
-.sendwhat {
-  position: fixed; z-index: 60;
-  left: 50%; transform: translateX(-50%); width: max-content;
-  bottom: calc(5.4rem + env(safe-area-inset-bottom));
-  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-  justify-content: center;
-  max-width: min(38rem, calc(100vw - 1.5rem));
-  padding: .6rem .7rem;
-  border-radius: .6rem;
-  border: 1px solid var(--rule);
-  background: var(--paper-2);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .28);
-  font-family: var(--ui); font-size: .84rem;
-}
-.sendwhat button {
-  font: inherit; cursor: pointer;
-  padding: .45rem .7rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-}
-.sendwhat button.primary { background: var(--note); border-color: var(--note); color: #fff; font-weight: 600; }
-.sendwhat button.quiet { border-color: transparent; color: var(--ink-3); }
-.sendwhat button:disabled { opacity: .45; cursor: default; }
 
 /* A member of the moveable stack: placed against the visual viewport by
    `panicPlace`, pressed and held to move, remembered on its own. */
@@ -1882,8 +1559,8 @@ body.papering { overflow: hidden; }
               0 6px 22px rgba(0, 0, 0, .25);
 }
 
-/* What it opens. A drawer at the storey `#steer` uses, so it is over the map
-   and under the menu. Rows are 44px: a thumb picks them. */
+/* What it opens. A drawer at 98: over the reader and under the menu. Rows are
+   44px: a thumb picks them. */
 #notepick {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 98;
   width: min(26rem, 94vw);
@@ -1950,14 +1627,13 @@ body.papering { overflow: hidden; }
   font-family: var(--ui); font-size: .8rem;
 }
 body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
-/* ABOVE THE DOCUMENT PANEL while one is open. `#paper` is z-index 95 and this
-   bar is 58, so with a deck on the glass the pen's own controls were behind it
-   — the ink went down and there was no way to change the nib, undo it or put
-   it away. Only while papering: in the lesson the bar's ordinary place in the
-   stack is the right one, and raising it there would put it over the menu,
-   which is the one thing that must stay on top. */
-body.papering .annbar { z-index: 96; }
-#paper-ink[aria-pressed="true"] { color: var(--ask); }
+/* ABOVE THE READER while one is open. `#reader` is z-index 95 on the board
+   and this bar is 58, so with a deck on the glass the pen's own controls were
+   behind it — the ink went down and there was no way to change the nib, undo
+   it or put it away. Only while reading: in the lesson the bar's ordinary place
+   in the stack is the right one, and raising it there would put it over the
+   menu, which is the one thing that must stay on top. */
+body.reading .annbar-board { z-index: 96; }
 /* A control is not prose, and on a tablet the difference is not academic.
    `body.annotating #board *` already refuses selection over the lesson -- and
    this bar is fixed-position, OUTSIDE #board, so none of it applied here. Press
@@ -2025,192 +1701,14 @@ body.papering .annbar { z-index: 96; }
   font-weight: 650;
 }
 
-/* The sitting badge is a control, and it has to LOOK like one on glass, where
-   nothing hovers. `#bar button` outranks `.session` and strips the chip, so the
-   chip is restated here at the specificity that wins, and the kind colours
-   after it. */
-#bar #session {
-  cursor: pointer; font-family: var(--ui);
-  font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  padding: .38rem .55rem; border-radius: .35rem;
-  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
-}
-/* Cut with an ellipsis like the course and the chapter, rather than through
-   the middle of its word by `.bar-left`'s overflow. */
-#bar #session {
-  flex: 0 1 auto; flex-shrink: 2; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis;
-}
-/* ON A PHONE THE RIGHT GROUP KEEPS ITS GLYPHS AND DROPS ITS WORDS. Six labelled
-   controls are about three hundred and sixty pixels, which on a 390px glass left
-   the left group nothing -- not the course, not the badge. The glyph is the
-   control; the word is the first thing that can be spared, and the title says
-   it anyway. Except the map's: a bare ◈ was asked to say what it is. */
-@media (max-width: 600px) {
+/* BELOW A LANDSCAPE IPAD THE RIGHT GROUP KEEPS ITS GLYPHS AND DROPS ITS WORDS.
+   With the words, the writing tools beside Make and End leave the left group
+   too little for the subject chip and the teach/do toggle on an 820px glass.
+   The glyph is the control; the word is the first thing that can be spared,
+   and the title says it anyway. */
+@media (max-width: 1100px) {
   #bar .bar-word { display: none; }
 }
-#bar #session:hover { border-color: var(--ink-3); color: var(--ink); }
-#bar #session[data-kind="homework"] { color: var(--ask); background: color-mix(in srgb, var(--ask) 14%, transparent); }
-#bar #session[data-kind="review"] { color: var(--note); background: color-mix(in srgb, var(--note) 16%, transparent); }
-#kind-sets { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-#kind-sets button.on, #kind-lecture.on, #kind-review.on, #kind-walk.on {
-  background: var(--note); border-color: var(--note); color: #fff; font-weight: 600;
-}
-
-/* WHO WRITES THE CODE IN THIS SITTING. Set apart from the kinds of sitting by a
-   rule down its left, because it is a different question from the one the
-   buttons beside it answer: those say what kind of sitting, this says what the
-   tutor does in it. On a narrow glass it wraps to its own line rather than
-   pushing the sitting kinds off the edge. */
-.kind-stance {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding-left: .6rem; margin-left: .2rem;
-  border-left: 1px solid var(--rule);
-}
-.kind-stance-lead {
-  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
-  letter-spacing: .04em;
-}
-#stance-teach.on, #stance-do.on {
-  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
-}
-/* A doing stance is the one worth seeing from across the room: it is the state
-   in which the tutor writes code the student would otherwise have written, and
-   it is the one mistake the next card cannot undo. */
-#stance-do.on { background: var(--ask); border-color: var(--ask); color: var(--paper); }
-
-/* WHICH ASSISTANT WRITES IT, on its own line under the aim, because the answer
-   carries a sentence with it: a server that is queued behind a 950 GB ask, or
-   loading 429 GB off the filer, is a state nobody can guess from a button. */
-.kind-who {
-  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
-  flex-basis: 100%;
-  padding-top: .5rem; margin-top: .1rem;
-  border-top: 1px solid var(--rule);
-}
-.kind-who-lead {
-  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
-  letter-spacing: .04em;
-}
-#kind-who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-#kind-who-ways button.on {
-  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
-}
-/* The local model marked as the one that is not free to start: it holds a
-   compute node and one KV slot, and the difference matters before the tap. */
-#kind-who-ways button.on.local {
-  background: var(--ask); border-color: var(--ask); color: var(--paper);
-}
-#kind-who-ways button.away { opacity: .55; }
-.kind-who-note {
-  flex-basis: 100%;
-  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
-  color: var(--ink-3);
-}
-/* THE FENCE, and it is the one line in this row that is not about preference.
-   Coloured like the doing stance for the same reason: it is the state in which
-   a tap does something no later card can undo. */
-.kind-who-fence, .elsewhere-fence {
-  flex-basis: 100%;
-  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
-  color: var(--ask);
-}
-.elsewhere-fence { margin: .35rem .1rem 0; }
-#elsewhere-list .fence {
-  margin-left: auto;             /* the far end of the row, away from the name */
-  font-family: var(--ui); font-size: .62rem; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--ask);
-}
-
-/* WHAT THIS SITTING IS FOR, and it is the row that does not wait. The buttons
-   above it choose the sitting to OPEN; these five change the one that is open,
-   so they get a whole line of their own and a sentence saying so -- a control
-   that takes effect on tap, sitting beside three that do not, is a control
-   somebody taps twice. */
-.kind-aim {
-  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
-  flex-basis: 100%;
-  padding-top: .5rem; margin-top: .1rem;
-  border-top: 1px solid var(--rule);
-}
-.kind-aim-lead {
-  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
-  letter-spacing: .04em;
-}
-#kind-aim-ways,
-/* The two that ask for a DOCUMENT rather than changing the sitting. Same row
-   shape, because it is the same kind of control -- a tap that takes effect at
-   once -- and the words are the same table's. Its own line, because a paper is
-   not an aim and the two must not read as one list of seven. */
-#kind-doc-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-.kind-aim-note {
-  flex-basis: 100%;
-  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
-  color: var(--ink-3);
-}
-#kind-aim-ways button.on {
-  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
-}
-/* The three that WRITE, marked the way a doing stance is: this is the state in
-   which the tutor writes what the person would otherwise have written. */
-#kind-aim-ways button.on.does {
-  background: var(--ask); border-color: var(--ask); color: var(--paper);
-}
-
-/* A walkthrough's list is files, headed by the directory they sit in -- a flat
-   hundred filenames is not a list anybody reads. Same shape as the group
-   heading the review list already uses. */
-#review-list .pick-dir {
-  font-family: var(--ui); font-size: .66rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-  margin: .9rem .3rem .35rem;
-}
-
-/* The contents panel borrows the drawer the scratch list already uses -- the
-   panel. NOT the scroller inside it, which is a separate rule and was never
-   written: `#scratch-list`, `#shelf-list`, `#history-list` and `#review-list`
-   each carry the two declarations that make the middle of a drawer the part
-   that moves, and this one carried neither.
-   A drawer is a fixed panel from the top of the glass to the bottom with a head
-   and a foot that do not move, so the list between them has to be told to take
-   the space that is left and to scroll inside it. Untold, it lays out at its
-   full height and runs off the bottom edge, where there is nothing to scroll
-   and no way to reach it -- and the entries that fall off are the ones at the
-   end. Probability's eleven chapters reach the bottom of an iPad on their own,
-   which put every problem set past it: "the bar showing the contents and the
-   Problem Sets is not scrollable, so I can't reach the problem sets." */
-#contents { }
-#contents-list {
-  flex: 1; overflow-y: auto; padding: .5rem;
-  /* The lesson behind must not take over when the list reaches its end, and a
-     drag down the list is the list moving: there is nothing in here a pinch or
-     a double-tap wants. */
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-}
-#contents-list .group {
-  font-family: var(--ui); font-size: .66rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-  margin: .9rem 0 .35rem;
-}
-#contents-list .group:first-child { margin-top: .2rem; }
-#contents-list button {
-  display: block; width: 100%; text-align: left;
-  font: inherit; font-family: var(--ui); font-size: .82rem;
-  padding: .5rem .6rem; margin-bottom: .25rem; cursor: pointer;
-  border: 1px solid var(--rule); border-radius: .4rem;
-  background: var(--paper); color: var(--ink);
-}
-#contents-list button:hover { background: var(--paper-2); }
-#contents-list button.here { border-color: var(--note); font-weight: 650; }
-#contents-list button .sub { color: var(--ink-3); font-weight: 400; }
-#contents-list .none { color: var(--ink-3); font-size: .82rem; }
-
-/* ---------- the review picker ---------- */
-/* A list of things to tick, sized for a thumb rather than a mouse: a review is
-   chosen on a tablet, with a pen in the other hand. */
-#review-list { flex: 1; overflow-y: auto; padding: .5rem; }
-
 /* ---------- what just happened ---------- */
 /* A log is read, not admired: monospace, small, and one move per line. The
    whole point is the GAPS between the timestamps, so they are the first column
@@ -2233,95 +1731,6 @@ body.papering .annbar { z-index: 96; }
 #trace-code.stale { color: var(--bad); }
 #trace-copy { border: 0; background: none; font: inherit; cursor: pointer;
               color: var(--accent); }
-
-/* ---------- putting one to work somewhere else ---------- */
-/* The same drawer as the three above it, because it is the same shape of
-   question: a list to pick from, and a foot that acts on the pick. */
-#elsewhere-list { flex: 1; overflow-y: auto; padding: .5rem;
-                  overscroll-behavior: contain; touch-action: pan-y; }
-#elsewhere-list button {
-  display: flex; align-items: baseline; gap: .5rem; width: 100%;
-  padding: .5rem .6rem; margin-bottom: .2rem; text-align: left;
-  font: inherit; cursor: pointer; border-radius: .4rem;
-  border: 1px solid transparent; background: none; color: var(--ink);
-}
-#elsewhere-list button.on {
-  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
-  font-weight: 600;
-}
-#elsewhere-list .group {
-  font-family: var(--ui); font-size: .66rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-  margin: .9rem .3rem .35rem;
-}
-#elsewhere-list .where { color: var(--ink-3); font-size: .7rem; }
-/* WHO IS ATTACHED IN IT. Pushed to the far end with the fence, and to the LEFT
-   of it: a fence is about what an assistant may read there and this is about
-   what a tap costs, and the warning keeps the edge. */
-#elsewhere-list .holds {
-  margin-left: auto;
-  font-family: var(--ui); font-size: .62rem; color: var(--ink-3);
-  white-space: nowrap;
-}
-#elsewhere-list .holds + .fence { margin-left: .45rem; }
-#elsewhere-task {
-  display: block; width: 100%; margin: .5rem 0 .4rem;
-  font: inherit; padding: .5rem .6rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-  resize: vertical;
-}
-#elsewhere-go { display: block; width: 100%; font: 600 .82rem var(--ui);
-                cursor: pointer; padding: .55rem .8rem; border-radius: .45rem;
-                border: 1px solid var(--accent);
-                background: var(--accent); color: var(--paper); }
-#elsewhere-go[disabled] { opacity: .45; cursor: default; }
-.elsewhere-who { font-family: var(--ui); font-size: .7rem; color: var(--ink-3);
-                 display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
-.elsewhere-who button { font: inherit; cursor: pointer; padding: .2rem .45rem;
-                        border-radius: .3rem; border: 1px solid var(--rule);
-                        background: none; color: var(--ink-2); }
-.elsewhere-who button.on { background: var(--ink-3); border-color: var(--ink-3);
-                           color: #fff; font-weight: 600; }
-.elsewhere-said { font-family: var(--ui); font-size: .7rem; color: var(--ink-2);
-                  min-height: 1rem; }
-.elsewhere-said.bad { color: var(--bad); }
-.elsewhere-note { font-size: .66rem; line-height: 1.35; }
-#review-list .group {
-  font-family: var(--ui); font-size: .66rem; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-  margin: .9rem .3rem .35rem;
-}
-#review-list button {
-  display: flex; align-items: center; gap: .55rem;
-  width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--ink);
-  padding: .6rem .7rem; margin-bottom: .3rem;
-  border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
-}
-#review-list button:hover { background: var(--paper-2); }
-#review-list button .tick {
-  flex: none; width: 1.15rem; height: 1.15rem; border-radius: .3rem;
-  border: 1.5px solid var(--rule); background: var(--paper);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: .8rem; line-height: 1; color: var(--paper);
-}
-#review-list button.on { border-color: var(--note); background: color-mix(in srgb, var(--note) 8%, var(--paper)); }
-#review-list button.on .tick { background: var(--note); border-color: var(--note); }
-#review-list button .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-#review-list .none { color: var(--ink-3); font-size: .82rem; padding: .5rem .3rem; }
-.review-acts { display: flex; align-items: center; gap: .5rem; }
-.review-acts button {
-  font: inherit; font-size: .78rem; cursor: pointer;
-  padding: .45rem .7rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-}
-.review-acts button.primary {
-  margin-left: auto; background: var(--note); border-color: var(--note);
-  color: #fff; font-weight: 600;
-}
-.review-acts button.quiet { border-color: transparent; color: var(--ink-3); }
-.review-acts button:disabled { opacity: .45; cursor: default; }
-#review-count { flex: none; font-size: .74rem; }
-.review-note { margin: .55rem 0 0; font-size: .72rem; line-height: 1.35; }
 
 /* ---------- the overflow menu ---------- */
 /* Anchored under the bar rather than floating over the lesson, so it reads as
@@ -2429,446 +1838,7 @@ body.papering .annbar { z-index: 96; }
   animation: pulse 1.1s ease-in-out infinite;
 }
 
-/* ---------- the map ---------- */
-/* The front door of a course: its working parts as a diagram, and a tap on any
-   of them. It covers the glass the way the document viewer does -- a head that
-   does not move, a plane that pans and pinches, and a foot that says what was
-   last tapped -- and it is painted from the same tokens as everything else, so
-   light and dark come out right with no second palette.
-
-   Every colour here is a token. Adding one means adding it to BOTH blocks at
-   the top of this file, or half the board changes theme and the map does not. */
-#map {
-  position: fixed; inset: 0; z-index: 96;
-  display: flex; flex-direction: column;
-  /* Explicit, never transparent: the viewer paints its own ground behind the
-     page and a transparent surface borrows whatever is under it. */
-  background: var(--paper);
-  font-family: var(--ui);
-}
-.map-bar {
-  flex: none; display: flex; align-items: center; gap: .7rem;
-  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
-  padding-top: max(.6rem, env(safe-area-inset-top));
-  font-size: .85rem; background: var(--paper); color: var(--ink);
-  border-bottom: 1px solid var(--rule);
-}
-#map-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The gap that pushes the controls to the far end is HERE rather than on the
-   first of them, because the first of them is now conditional: `#map-docs` is
-   hidden in a workspace with no documents, and a hidden element's auto margin
-   is no margin at all -- which left the controls stranded in the middle. */
-/* The count gives way with the title, never the controls: on a phone the
-   buttons alone are most of the bar, and an unshrinkable count pushed ✕ off
-   the glass. */
-#map-count {
-  flex: 0 1 auto; min-width: 0; font-size: .78rem; margin-right: auto;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-#map-docs, #map-fit, #map-close {
-  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .7rem;
-  border-radius: .35rem; border: 1px solid var(--rule);
-  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
-  white-space: nowrap; touch-action: manipulation;
-}
-#map-close { width: 2.2rem; padding: 0; }
-#map-docs { font-variant-numeric: tabular-nums; }
-#map-docs:hover { border-color: var(--note); color: var(--note); }
-
-/* THE PLANE. `touch-action: none` says the browser need not ask the main thread
-   what to do with a touch -- there is nothing here to scroll, and a non-passive
-   `touchmove` listener on a surface somebody drags is how a page that is merely
-   moving starts to stutter. The pan and the pinch are ours; see `plane-core.js`. */
-.map-plane {
-  flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
-  background: var(--paper-2);
-  touch-action: none;
-  -webkit-user-select: none; user-select: none;
-  cursor: grab;
-}
-.map-plane:active { cursor: grabbing; }
-/* Panning and pinching are a transform on this one element, never a regenerate:
-   the SVG is built once per payload and the gesture only moves it. */
-.map-sheet {
-  position: absolute; top: 0; left: 0;
-  transform-origin: 0 0; will-change: transform;
-}
-.map-sheet svg { display: block; overflow: visible; }
-/* Text is laid out at its own size, not at the size the zoom puts on the
-   glass. Without this, WebKit and Blink re-hint a 12px line drawn at half
-   scale up to 9% wider than the gauge measured, so the fitted view -- the one
-   every map opens at -- ran descriptions out of their boxes, and pinching
-   changed the width of a line nobody had redrawn. */
-.map-sheet svg text { text-rendering: geometricPrecision; }
-
-/* A BOX. The status is a class on the group and the whole visual language is
-   here, so what `done` looks like can change without touching the generator. */
-.map-sheet .node { cursor: pointer; }
-.map-sheet .node rect.box {
-  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2;
-}
-.map-sheet .node .name { font: 650 15px var(--ui); fill: var(--ink); }
-.map-sheet .node .also { font: 400 11px var(--ui); fill: var(--ink-3); }
-.map-sheet .node .does { font: 400 12px var(--ui); fill: var(--ink-2); }
-.map-sheet .node:hover rect.box { stroke: var(--ink-3); }
-.map-sheet .node:focus { outline: none; }
-.map-sheet .node:focus rect.box { stroke: var(--note); stroke-width: 2; }
-
-/* A document is content, and it is not machinery. Dashed, so the difference is
-   visible before the label is read. */
-/* THE DOCUMENTS REGION. A plate rather than a box: it is a part of the map
-   picture, not a part of the repository, so it has no status stripe. */
-.map-sheet .docs-region rect.region {
-  fill: var(--paper-2); stroke: var(--rule); stroke-width: 1.2;
-}
-.map-sheet .docs-region .region-name { font: 700 15px var(--ui); fill: var(--ink); }
-.map-sheet .docs-region .region-group {
-  font: 700 10.5px var(--ui); letter-spacing: .1em; text-transform: uppercase;
-  fill: var(--ink-3);
-}
-.map-sheet .docs-region .region-doc,
-.map-sheet .docs-region .region-more,
-.map-sheet .docs-region .region-new { cursor: pointer; }
-.map-sheet .docs-region .region-doc rect,
-.map-sheet .docs-region .region-more rect { fill: transparent; }
-.map-sheet .docs-region .region-doc:hover rect,
-.map-sheet .docs-region .region-doc:focus rect { fill: var(--paper); }
-.map-sheet .docs-region .region-doc:focus,
-.map-sheet .docs-region .region-more:focus,
-.map-sheet .docs-region .region-new:focus { outline: none; }
-.map-sheet .docs-region .region-doc text { font: 500 12.5px var(--ui); fill: var(--ink); }
-.map-sheet .docs-region .region-doc.unbuilt text { fill: var(--ink-3); }
-.map-sheet .docs-region .region-more text { font: 600 12px var(--ui); fill: var(--accent); }
-.map-sheet .docs-region .region-new rect { fill: transparent; stroke: var(--accent); }
-.map-sheet .docs-region .region-new text { font: 600 12px var(--ui); fill: var(--accent); }
-.map-sheet .node.doc rect.box { stroke-dasharray: 5 4; fill: var(--paper-2); }
-/* And so is a part nothing imports and that imports nothing: it sits in the
-   band under the graph rather than being wired into a relationship that is not
-   there. */
-.map-sheet .node.apart rect.box { stroke-dasharray: 2 3; }
-
-/* The left edge of a box is its status, as a bar of colour rather than a word:
-   a picture is read at a glance and a glance does not read labels. */
-.map-sheet .node rect.mark { fill: var(--rule); }
-.map-sheet .node.done    rect.mark { fill: var(--good); }
-.map-sheet .node.working rect.mark { fill: var(--ask); }
-.map-sheet .node.next    rect.mark { fill: var(--step-now); }
-.map-sheet .node.later   rect.mark { fill: var(--step-later); }
-.map-sheet .node.blocked rect.mark { fill: var(--bad); }
-.map-sheet .node.unknown rect.mark { fill: var(--rule); }
-
-/* Being worked on right now is the one state worth more than a stripe: it is
-   where the person is, and the map's job at that moment is to say so. */
-.map-sheet .node.working rect.box {
-  stroke: var(--ask); stroke-width: 2;
-  fill: color-mix(in srgb, var(--ask) 7%, var(--paper));
-}
-.map-sheet .node.done .name { fill: var(--ink-2); }
-/* And where they last opened something, which is where the course reopens. */
-.map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
-
-/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, requested,
-   written, result, open — which outranks the plan's next and later. Unsaved
-   work dashes the outline: git shows a change under the thread's paths. */
-.map-sheet .node.thread.t-done    rect.mark { fill: var(--good); }
-.map-sheet .node.thread.t-running rect.mark { fill: var(--ask); }
-.map-sheet .node.thread.t-requested rect.mark { fill: var(--ask); opacity: 0.5; }
-.map-sheet .node.thread.t-written rect.mark { fill: var(--note); }
-.map-sheet .node.thread.t-result  rect.mark { fill: var(--step-soon); }
-.map-sheet .node.thread.t-open    rect.mark { fill: var(--rule); }
-.map-sheet .node.thread.t-running rect.box {
-  fill: color-mix(in srgb, var(--ask) 6%, var(--paper));
-}
-.map-sheet .node.thread.unsaved rect.box { stroke-dasharray: 6 3; }
-
-/* A DELIVERABLE IS A FRAME, and its threads are the boxes inside it. */
-.map-sheet .frame rect {
-  fill: color-mix(in srgb, var(--paper-2) 55%, transparent);
-  stroke: var(--rule); stroke-width: 1.2;
-}
-.map-sheet .frame .frame-name { font: 700 15px var(--ui); fill: var(--ink); }
-.map-sheet .frame.empty rect { stroke-dasharray: 5 4; }
-
-/* AN OPEN DECISION, after the task chips: a question the owner answers. */
-.map-sheet .chip.decision circle { fill: var(--paper); stroke: var(--bad);
-                                   stroke-width: 1.8; }
-.map-sheet .chip.decision text { fill: var(--bad); }
-/* A TURN ON THE THREAD STOPPED WITHOUT A REPORT. */
-.map-sheet .chip.stopped circle { fill: var(--bad); stroke: none; }
-.map-sheet .chip.stopped text { fill: var(--paper); }
-
-/* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
-.map-sheet .chip { cursor: pointer; }
-.map-sheet .chip circle { fill: var(--step-some); stroke: none; }
-.map-sheet .chip text {
-  font: 700 11px var(--ui); fill: var(--paper);
-  dominant-baseline: auto;
-}
-.map-sheet .chip.now circle   { fill: var(--step-now); }
-.map-sheet .chip.soon circle  { fill: var(--step-soon); }
-.map-sheet .chip.later circle { fill: var(--step-later); }
-.map-sheet .chip.some circle  { fill: var(--step-some); }
-.map-sheet .chip:hover circle { stroke: var(--ink); stroke-width: 1.6; }
-.map-sheet .chip:focus { outline: none; }
-.map-sheet .chip:focus circle { stroke: var(--ink); stroke-width: 2; }
-
-.map-sheet .edge {
-  fill: none; stroke: var(--rule); stroke-width: 1.5;
-  stroke-linecap: round; stroke-linejoin: round;
-}
-/* An arrow eleven imports thick is a different fact from one carrying a single
-   mention, and thickness is the only place to say it without another label. */
-.map-sheet .edge.strong { stroke: var(--ink-3); stroke-width: 2.2; }
-.map-sheet .edge-head { fill: var(--ink-3); }
-
-/* WHAT FLOWS ALONG AN ARROW, where a written map says so — `words`, `turns`,
-   `a graded transcript`. On a plate the colour of the plane, because a word
-   laid straight over a curve is unreadable, and the plate sits in the gutter
-   between two ranks, which is empty by construction. A derived map carries
-   none of these: an import is not a thing that flows, and the arrow's
-   thickness already says how much of one it is. */
-.map-sheet .edge-plate { fill: var(--paper); stroke: none; }
-.map-sheet .edge-label {
-  fill: var(--ink-3); font-size: 10.5px; font-weight: 500;
-  text-anchor: middle; pointer-events: none;
-}
-
-/* WHERE YOU ARE IN THE THREE DEPTHS. A row of names, each one a way back to
-   the picture it names, and the last of them is where you are. */
-.map-crumb {
-  flex: none; display: flex; align-items: center; gap: .3rem;
-  padding: .4rem max(.9rem, env(safe-area-inset-left));
-  overflow-x: auto; overscroll-behavior-x: contain;
-  border-bottom: 1px solid var(--rule); background: var(--paper);
-  font-size: .78rem; white-space: nowrap;
-}
-.map-crumb .crumb {
-  flex: none; border: 0; background: none; color: var(--note);
-  font: inherit; cursor: pointer; padding: .1rem .15rem;
-  text-decoration: underline; text-underline-offset: .15em;
-}
-.map-crumb .crumb.here {
-  color: var(--ink); font-weight: 650; text-decoration: none; cursor: default;
-}
-.map-crumb .crumb-sep { flex: none; color: var(--ink-3); }
-.map-crumb .crumb-said { flex: none; color: var(--ink-3); margin-left: .4rem; }
-
-/* A BOX ONE LEVEL DOWN. A module is a file and a symbol is a class or a
-   function; both are drawn lighter than a part, because the part is the thing
-   the repository is organised into and these are what it is made of. */
-.map-sheet .node.module rect.box { fill: var(--paper-2); }
-.map-sheet .node.symbol rect.box { fill: var(--paper-2); stroke-dasharray: none; }
-/* AND A BOX THAT IS NOT PART OF WHAT YOU ARE READING. A sibling an arrow
-   leaves towards, drawn as a wall: it keeps its own name -- which on a
-   hand-drawn map is the name a PERSON gave it -- and says it is elsewhere. */
-.map-sheet .node.outside rect.box {
-  fill: var(--paper-2); stroke-dasharray: 4 3; opacity: .85;
-}
-.map-sheet .node.outside .name { fill: var(--ink-2); }
-
-/* LOOK INSIDE THIS ONE. Its own tap, at the top right, because the box itself
-   already has one -- a part opens a sitting and this opens the level below it,
-   and one target cannot mean both. */
-/* HOW MANY DOCUMENTS THIS BOX HOLDS, at the right end of the row of steps.
-   Both corners are already spoken for -- the arrow down a level at the top
-   right, the other-ways dots at the bottom right -- and this is not a corner
-   control anyway: it is the same row as the work, because a compiled write-up
-   is what a step of the work left behind. A plate rather than a circle, because
-   it carries a glyph and a number and a circle would have to be a big one. */
-.map-sheet .docs { cursor: pointer; }
-.map-sheet .docs rect {
-  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2;
-}
-.map-sheet .docs text {
-  font-family: var(--ui); font-size: 11px; font-weight: 600;
-  fill: var(--ink-2); pointer-events: none;
-}
-.map-sheet .docs:hover rect { stroke: var(--note); }
-.map-sheet .docs:hover text { fill: var(--note); }
-.map-sheet .docs:focus { outline: none; }
-.map-sheet .docs:focus rect { stroke: var(--note); stroke-width: 2; }
-
-.map-sheet .dig { cursor: pointer; }
-.map-sheet .dig circle { fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; }
-.map-sheet .dig polygon { fill: var(--ink-2); }
-.map-sheet .dig:hover circle { stroke: var(--note); }
-.map-sheet .dig:hover polygon { fill: var(--note); }
-.map-sheet .dig:focus { outline: none; }
-.map-sheet .dig:focus circle { stroke: var(--note); stroke-width: 2; }
-
-/* AND THE OTHER WAYS TO WORK ON IT, at the bottom right, opposite the one that
-   goes down a level. Three dots rather than an arrow: an arrow at the other
-   corner of the same box would read as a second way down, and this is a sheet
-   rather than a depth. */
-.map-sheet .ways { cursor: pointer; }
-.map-sheet .ways circle { fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; }
-.map-sheet .ways circle.dot { fill: var(--ink-2); stroke: none; }
-.map-sheet .ways:hover circle { stroke: var(--note); }
-.map-sheet .ways:hover circle.dot { fill: var(--note); stroke: none; }
-.map-sheet .ways:focus { outline: none; }
-.map-sheet .ways:focus circle { stroke: var(--note); stroke-width: 2; }
-.map-sheet .ways:focus circle.dot { stroke: none; }
-
-/* The steps nothing could place, in a tray under the bar. */
-.map-loose {
-  flex: none; display: flex; align-items: center; gap: .4rem;
-  padding: .45rem max(.9rem, env(safe-area-inset-left));
-  overflow-x: auto; overscroll-behavior-x: contain;
-  border-bottom: 1px solid var(--rule); background: var(--paper);
-  font-size: .76rem; white-space: nowrap;
-}
-.loose-chip {
-  flex: none; display: inline-flex; align-items: center; gap: .35rem;
-  border: 1px solid var(--rule); border-radius: 1rem;
-  background: var(--paper); color: var(--ink); cursor: pointer;
-  font: inherit; padding: .2rem .6rem .2rem .2rem; max-width: 16rem;
-}
-.loose-chip .n {
-  flex: none; width: 1.3rem; height: 1.3rem; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: .7rem; color: var(--paper);
-  background: var(--step-some);
-}
-.loose-chip.now .n   { background: var(--step-now); }
-.loose-chip.soon .n  { background: var(--step-soon); }
-.loose-chip.later .n { background: var(--step-later); }
-.loose-chip .t { overflow: hidden; text-overflow: ellipsis; }
-
-/* What the colours mean, said once, in the foot. */
-.map-legend { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
-.map-legend .key { display: inline-flex; align-items: center; gap: .3rem;
-                   color: var(--ink-3); }
-.map-legend .key::before {
-  content: ""; width: .62rem; height: .62rem; border-radius: 50%;
-  background: var(--step-some);
-}
-.map-legend .key.now::before   { background: var(--step-now); }
-.map-legend .key.soon::before  { background: var(--step-soon); }
-.map-legend .key.later::before { background: var(--step-later); }
-
-/* THE WAYS TO WORK ON ONE BOX. The drawer shape the rest of the board already
-   uses, inside the map so it goes away with it. */
-#work {
-  position: absolute; top: 0; right: 0; bottom: 0; z-index: 8;
-  width: min(24rem, 96vw);
-  background: var(--paper); border-left: 1px solid var(--rule);
-  display: flex; flex-direction: column;
-  box-shadow: -8px 0 26px rgba(0,0,0,.24);
-  font-family: var(--ui); font-size: .85rem;
-}
-.work-what { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
-/* THE TITLE WRAPS. It was one line with an ellipsis on the end, in a panel
-   24rem wide, over step names that run to a hundred and ten characters -- so
-   the sheet that asks what to do about a step was naming half of it. A title
-   is three lines at worst and the head is not the part that scrolls. */
-#work-title { overflow-wrap: anywhere; }
-#work-sub { font-size: .74rem; line-height: 1.35;
-            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-            overflow: hidden; }
-#work-close { border: 0; background: none; font: inherit; cursor: pointer;
-              color: var(--ink-2); flex: none; align-self: flex-start; }
-
-/* WHAT THIS BOX IS WAITING ON. Only a written map can say it — nothing on disk
-   knows that a stage is stuck behind a seam that does not exist yet — and it
-   belongs on the sheet rather than on the box, because the sheet is what opens
-   when somebody taps a box intending to work on it. That is the moment "you
-   cannot, yet, and here is why" is worth a line. */
-.work-blocked {
-  margin: .35rem 0 0; font-size: .74rem; font-weight: 600;
-  color: var(--bad); grid-column: 1 / -1;
-}
-/* The list between the head and the foot is the part that scrolls. Being inside
-   a fixed panel does not make an element a scroller: it needs the room that is
-   left AND permission to scroll inside it, and the entries that fall off the
-   end of a panel that has neither are unreachable. */
-#work-list {
-  flex: 1; overflow-y: auto; padding: .5rem;
-  overscroll-behavior: contain; touch-action: pan-y;
-}
-.work-way {
-  display: flex; flex-direction: column; gap: .15rem; width: 100%;
-  text-align: left; cursor: pointer; font: inherit;
-  margin-bottom: .4rem; padding: .55rem .7rem; border-radius: .5rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-}
-.work-way strong { font-weight: 650; }
-.work-way span { color: var(--ink-3); font-size: .76rem; }
-.work-way:hover { border-color: var(--accent); background: var(--paper-2); }
-/* The kind a thread's last sitting was, offered first. */
-.work-way.kind.last { border-color: var(--accent); }
-.work-way .work-agent { color: var(--ink-2); font-size: .74rem; font-style: normal; }
-.work-way .work-agent.off { color: var(--bad); }
-
-/* WHAT A THREAD HOLDS, as rows: code is never a box. */
-.thread-head {
-  margin: .8rem .2rem .25rem; font-size: .68rem; font-weight: 700;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
-}
-.thread-row {
-  display: block; width: 100%; text-align: left; margin: 0 0 .15rem;
-  padding: .3rem .5rem; border: 0; border-radius: .35rem; background: none;
-  font: inherit; font-size: .78rem; color: var(--ink); overflow-wrap: anywhere;
-}
-button.thread-row { cursor: pointer; color: var(--note); }
-button.thread-row:hover { background: var(--paper-2); }
-.thread-row.on { background: var(--paper-2); font-weight: 650; }
-.thread-row.open { color: var(--bad); font-weight: 600; }
-.thread-row.missing, .thread-row.dir { color: var(--ink-3); }
-/* A THREAD PROPOSED ON A CARD, and the tap that adds it. */
-.thread-propose { margin: .3rem 0 .6rem; font: .78rem var(--ui); color: var(--ink-3); }
-.thread-accept { font: 600 .8rem var(--ui); cursor: pointer;
-                 padding: .4rem .75rem; border-radius: .4rem;
-                 border: 1px solid var(--accent); background: var(--accent);
-                 color: var(--paper); }
-.thread-accept[disabled] { opacity: .5; cursor: default; }
-.thread-refused { display: block; margin-top: .3rem; color: var(--bad); }
-
-/* OR A MISSION ON THE THREAD, under the three kinds. */
-.thread-mission { margin: .6rem 0 .2rem; }
-.thread-mission-task {
-  display: block; width: 100%; margin: 0 0 .35rem; box-sizing: border-box;
-  font: inherit; font-size: .8rem; padding: .45rem .55rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
-  resize: vertical;
-}
-.thread-mission-go { font: 600 .78rem var(--ui); cursor: pointer;
-                     padding: .4rem .7rem; border-radius: .4rem;
-                     border: 1px solid var(--accent); background: var(--accent);
-                     color: var(--paper); }
-.thread-mission-go[disabled] { opacity: .45; cursor: default; }
-
-/* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
-   document viewer. One shape and one word, so it is recognised as the same
-   control and as a place rather than an ornament.
-
-   It said `◈` alone at first, and a glyph on its own is not a label: asked for
-   as "make that button that takes me back to the map more obvious as something
-   that would take me back to the map". It carries the word now, and in the title
-   bar it carries a border as well -- it is the one control there that goes
-   somewhere, and the rest act on the lesson in front of you. */
-.to-map { line-height: 1; }
-#bar .to-map {
-  border-color: var(--rule);
-  color: var(--ink);
-  font-weight: 600;
-}
-#bar .to-map:hover { border-color: var(--accent); color: var(--accent); }
 .head-acts { display: flex; align-items: center; gap: .5rem; flex: none; }
-.head-acts .to-map {
-  border: 1px solid var(--rule); border-radius: .4rem;
-  background: none; font: inherit; font-size: .74rem; cursor: pointer;
-  color: var(--ink-2); padding: .18rem .4rem;
-}
-.head-acts .to-map:hover { border-color: var(--accent); color: var(--accent); }
-.paper-bar .to-map {
-  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .6rem;
-  border-radius: .35rem; border: 1px solid var(--rule);
-  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
-  white-space: nowrap; margin-left: auto;
-}
-/* The map covers the glass, so the lesson underneath must not take a scroll
-   meant for the plane -- the same rule the document viewer already has. */
-body.mapping { overflow: hidden; }
 
 /* ---------- calculator ---------- */
 /* A floating panel, not a drawer: it covers only itself, so the lesson behind
@@ -2968,9 +1938,87 @@ body.mapping { overflow: hidden; }
 .calc-fn-sig { color: var(--ink-3); font-size: .75rem; }
 /* Shrunk to its input line, for a problem that needs the lesson more. */
 #calc.small #calc-log, #calc.small #calc-keys, #calc.small #calc-fns { display: none; }
-/* Over a document, the image viewer or the map, which is exactly when a
+/* Over a document or the image viewer, which is exactly when a
    problem set is open and a calculator wanted -- the annotation bar's
    precedent. Still under the sheets (98) and the menu (99). */
-body.papering #calc, body.viewing #calc { z-index: 96; }
-body.mapping #calc { z-index: 97; }
+body.reading #calc, body.viewing #calc { z-index: 96; }
 @media print { #calc { display: none !important; } }
+
+/* ---------- the session header ---------- */
+/* The session's four controls: the subject chip, the teach/do toggle, Make
+   and End. Chips with a rule round them, because nothing on glass hovers. */
+#bar .sess-ctl { border-color: var(--rule); }
+#bar .subject-chip {
+  display: inline-flex; align-items: center; gap: 0;
+  flex: 0 1 auto; min-width: 7.5em; max-width: 22rem; overflow: hidden;
+  font-weight: 650; color: var(--ink);
+}
+#bar .subject-chip[data-bound="0"] #course { font-style: italic; font-weight: 500; color: var(--ink-3); }
+#bar .caret { color: var(--ink-3); }
+#bar .mode-toggle { display: inline-flex; padding: 0; overflow: hidden; }
+#bar .mode-toggle span { padding: .4rem .55rem; color: var(--ink-3); }
+#bar .mode-toggle[data-now="teach"] .mode-teach,
+#bar .mode-toggle[data-now="do"] .mode-do {
+  background: var(--ink); color: var(--paper); font-weight: 650;
+}
+#bar #btn-end.armed {
+  color: var(--bad); border-color: var(--bad); font-weight: 650;
+}
+#bar .sess-ctl:disabled { cursor: default; opacity: .55; }
+#bar .sess-ctl:disabled:hover { background: transparent; color: var(--ink-2); }
+/* The tutor's chip gives way before the subject does: its dot carries it. */
+#bar .agent { flex-shrink: 4; }
+/* A phone is narrower than the writing tools and the session's controls
+   together: the session's go on a row of their own rather than off the glass. */
+@media (max-width: 600px) {
+  #bar { flex-wrap: wrap; row-gap: .35rem; }
+  #bar .bar-left { flex: 1 1 100%; }
+  #bar .bar-right { margin-left: auto; }
+}
+
+/* The chip's picker opens under the chip, on the left; Make's under Make. */
+.hdrmenu { min-width: 15rem; }
+#subjpick { left: max(.6rem, env(safe-area-inset-left)); right: auto; }
+.hdrmenu-note { margin: .3rem .4rem .1rem; font-size: .76rem; }
+.hdrmenu-note:empty { display: none; }
+#make-about { display: block; width: calc(100% - .4rem); margin: .2rem .2rem .35rem;
+              box-sizing: border-box; }
+#makemenu button:disabled { opacity: .5; }
+.subjpick-group { margin: .35rem .4rem .1rem; font-size: .7rem; letter-spacing: .08em;
+                  text-transform: uppercase; color: var(--ink-3); }
+#subjpick-list button.on { font-weight: 650; color: var(--accent); }
+.subjpick-new { display: flex; gap: .3rem; border-top: 1px solid var(--rule);
+                margin-top: .3rem; padding-top: .3rem; }
+.subjpick-new button { flex: 1; }
+.subjpick-form { display: flex; flex-direction: column; gap: .35rem; padding: .3rem .2rem; }
+#make-about,
+.subjpick-form input {
+  font: inherit; padding: .4rem .5rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.subjpick-phi { display: flex; align-items: center; gap: .35rem; }
+.subjpick-phi button.on { background: var(--ink); color: var(--paper); }
+
+/* Coding at the cluster: one line, the command in monospace, copied whole. */
+.codebar {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .45rem max(1rem, env(safe-area-inset-left)) .45rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui); font-size: .82rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+}
+.codebar-lead { color: var(--ink-3); flex: none; }
+.codebar .code-cmd {
+  flex: 1 1 12rem; min-width: 0; font-family: var(--mono);
+  font-size: .8rem; padding: .3rem .45rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.codebar #code-step { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codebar button { flex: none; }
+
+/* An ended session reads; it does not write. */
+.endedbar { background: var(--paper-2); }
+body[data-ended] #writer, body[data-ended] #begin, body[data-ended] #reopen,
+body[data-ended] #btn-annotate, body[data-ended] #btn-slate, body[data-ended] #btn-clip,
+body[data-ended] #notesend, body[data-ended] #drop {
+  display: none !important;
+}

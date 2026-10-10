@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  tutor-board: the Mac's one board server, board/serve.py on port 8778.
+
+  A template. `install.sh` fills each @NAME@ with an absolute path (launchd
+  expands nothing) and copies the result to
+  ~/Library/LaunchAgents/tutor-board.plist. install.sh prints it with its plist option.
+
+  A LaunchAgent, not a daemon: it runs in the owner's login session, where the
+  keychain holding git's credential and the assistants' logins is open, and
+  automatic login brings it up with nobody at the keyboard.
+
+  KeepAlive true: launchd starts the server again whenever it exits. The
+  server exits 0 by itself once committed board code changed and no turn runs
+  (TUTORBOARD_FRESH), so a ship lands without anyone restarting anything.
+  TUTORBOARD_CLUSTER turns on the thread that pulls and hears the cluster.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>tutor-board</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@PYTHON@</string>
+    <string>@BOARD@/serve.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@ATLAS@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>@HOME@/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>TUTORBOARD_CLUSTER</key>
+    <string>1</string>
+    <key>TUTORBOARD_FRESH</key>
+    <string>1</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>@LOG@</string>
+  <key>StandardErrorPath</key>
+  <string>@LOG@</string>
+</dict>
+</plist>

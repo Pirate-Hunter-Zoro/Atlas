@@ -1,297 +1,146 @@
 # Atlas
 
-Every course, project and tool I work on, in one place — with a tutoring board that maps each
-one, teaches it, writes it up, and says what is next.
+Every course and project I work on, in one public repository, with a tutoring board that
+teaches it, codes it, writes it up and sends long work to the cluster.
 
-```
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
-bash Atlas/board/bootstrap.sh
-```
+The board is `board/`. Its own README, [board/README.md](board/README.md), covers processes,
+sessions, the relay and the invariants. How a tutor turn teaches is
+[board/TEACHING.md](board/TEACHING.md).
 
-`--recurse-submodules` matters. Without it `vendor/` arrives empty. `bootstrap.sh` clones each
-private repository listed under `"private"` in `atlas.json` — `ai-config/` and every course —
-into place, and adopts one already there.
+## Hard constraints
 
----
+- **The repository is public.** Every commit is published the moment it is pushed, and git
+  keeps it forever. The TRD-EHR manuscript links here, so it stays public.
+- **No PHI in git.** Patient data lives only on the cluster, in ignored `phi/` and `results/`
+  directories. Anchored ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each
+  refuse it on their own, because any one guard can be deleted by accident.
+- **No hosted model runs on an institute machine**, for any vendor, through any proxy.
+  `projects/libr-local-llm/docs/deepseek-egress.md` is the citation. The one model beside the
+  data is Colibri, which is local and runs only as a relay task.
+- **The Mac is the only brain.** Every model turn, compile and deck runs on the Mac mini.
+  The cluster runs Slurm jobs and the relay, nothing else.
+- **Commits are authored by the owner.** `.githooks/commit-msg` strips assistant trailers.
 
-## What is in here
+## Layout
 
 ```
 Atlas/
-  README.md          this file
-  atlas.json         the families, in the order the front door draws them
-  HANDOFF.md         what is left to build, in order
-  Brewfile           the Mac's system tools
-  scripts/setup.sh   builds every workspace's environment — see "Setting up a machine"
-  board/             Tutor-Board — the tool. `bash board/install.sh` installs it.
-                     README.md is its architecture, SETTLED.md the rules already built
-
-  courses/           a workspace per course. Each is its OWN private repository,
-                     ignored by this one
-  research/          a workspace per line of research
-  projects/          a workspace per piece of infrastructure
-  practice/          a workspace per thing kept sharp
-
-  vendor/            somebody else's repositories, as submodules
-  ai-config/         the AI assistant configuration. Its OWN private repository,
-                     ignored by this one — see below
+  README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
+  scripts/setup.sh       builds every subject's environment on this machine
+  .githooks/             pre-commit (the public-repo gate) and commit-msg
+  board/                 the tutoring board: server, CLI, relay, web client, tests
+  vendor/                other people's repositories, as submodules
+  ai-config/             the AI assistant configuration; a private repository, ignored here
+  relay/status.json      the cluster relay's health, committed by the relay on change
+  sessions/<id>/         tutoring sessions; Mac only, ignored
+  courses/<Name>/        one directory per course
+  projects/<Name>/       one directory per project
 ```
 
-**NOTHING LISTS THE WORKSPACES, AND THAT IS THE POINT.** A workspace is a second-level
-directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` — found by looking, never
-declared. A list of them in a README is a registry, and a registry is a file somebody has to
-remember to edit when a directory appears or goes. Nobody does, so it goes quietly false, and
-then it is worse than nothing because a reader believes it.
+A **subject** is any directory directly under `courses/` or `projects/`. Its kind is its
+parent. Nothing lists the subjects: `mkdir projects/X` makes a project, because a registry is
+a file somebody forgets to edit. `ls courses projects` or the board's home screen shows them.
 
-```bash
-ls courses research projects practice      # or open the front door, which draws it
+Inside a subject:
+
+| Path | What it is | Tracked |
+| --- | --- | --- |
+| `tutorboard.json` | `name`, `phi`, `check`, `relay` | yes |
+| `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
+| `TUTOR.md` | the tutor's memory, written only with `board memo` | yes |
+| `README.md` | the owner's own notes; never fed to a turn | yes |
+| `docs/<slug>/` | an artifact: `doc.json` plus its source | yes |
+| `relay/requests/`, `relay/reports/`, `exports/` | the cluster channel | yes |
+| `materials/`, `.ink/` | uploaded and third-party files, and ink on documents | no |
+| `relay/state/` | the relay's job registry and Colibri queue | no |
+| `phi/`, `results/`, `.env` | cluster data; never read by an agent | no |
+
+`phi` gates what leaves the cluster. Check output and log excerpts cross only when
+`tutorboard.json` sets `phi` to `false` literally, on disk and at HEAD.
+
+`projects/Meetings/` is a PHI subject and holds the meeting deck at `docs/meeting/`.
+
+Textbooks, lecture slides, assignment handouts, `materials/` and session uploads are ignored.
+Worked solutions, write-ups and the owner's handwritten answers are tracked.
+
+## The Mac and the cluster
+
+The two machines never talk directly. GitHub is the only channel: `main`, plus one
+`code/<session-id>` branch per open cluster coding session.
+
+| | Mac mini (home) | Cluster (institute) |
+| --- | --- | --- |
+| Runs | the board server, every model turn, every build | Slurm jobs, and the relay every 2 minutes from scrontab |
+| Models | `claude` by default, `codex` as fallback, DeepSeek through `opencode` | Colibri only, as a relay task |
+| Holds | Atlas, sessions, materials, ink | Atlas, `phi/`, `results/`, model weights |
+
+- The Mac pushes a request under `<subject>/relay/requests/`. The relay pulls it, checks it,
+  submits it to Slurm and pushes a report. The Mac hears the report and wakes the session that
+  filed it.
+- A failed job is repaired on the Mac, by up to three repair turns. No model runs beside the
+  data.
+- To code at the cluster, the owner runs `board code <session> <paths>` in a cluster terminal.
+  Each pause becomes a step on `code/<session>`, and the tutor on the Mac answers on the iPad.
+
+The iPad reaches the Mac over the owner's tailnet. Nothing on the cluster serves a board.
+
+## Setting up the Mac
+
+```
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+cd Atlas
+bash board/bootstrap.sh
+bash scripts/setup.sh
+tailscale serve --bg --https=443 http://127.0.0.1:8778
 ```
 
-Starting something new is `mkdir projects/Topology`. The front door draws it on the next poll;
-the board finds it; nothing needs telling. A course is the exception, because Atlas ignores
-`courses/*/`: it needs `git init`, a private remote, its own `.githooks/` and `.gitignore`, and an
-entry under `"private"` in `atlas.json` so a new machine clones it. `board/README.md`, "Setting
-up a course repository", has the steps.
+- `--recurse-submodules` fills `vendor/`. Without it the directory arrives empty, silently.
+- `bootstrap.sh` clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by absolute path,
+  and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs the one
+  LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
+- `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
+  environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
+- `tailscale serve` publishes the server over HTTPS once. Nothing re-points it.
+- Turn on automatic login, so the LaunchAgent comes back after a reboot.
+- The provider is set in `~/.config/tutor-board/config.json` (`provider`, `fallback`,
+  `vision_agent`); keys sit in `~/.config/tutor-board/keys.env`. Both stay off the tree.
+- `board doctor --dry` reports what the machine has without spending a turn.
 
-Two levels, and they mean something. A **family** is a kind of work. A **workspace** is one
-course or one project — the board treats those identically, which is why there is one word for
-both. `atlas.json` names and orders the six families and says which hold somebody else's work.
-That is all it does.
+On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 
----
-
-## The board is the way in
-
-`board/` is a tutoring board: a local web app you open on a tablet, one per workspace, each on
-its own port. It reads the workspace off disk, draws a **map** of it, opens a **sitting**, and
-runs an assistant against it — as a tutor that explains and makes you do the work, or as a pair
-that writes the code, per sitting.
-
-**The board runs on the Mac mini at home, and only there.** The iPad reaches it over the owner's
-tailnet. The `tutor-board.tutor-watch` LaunchAgent keeps every board and tutor up and brings them
-back after a reboot. Work that needs the cluster goes to it as a relay request (below).
+## Setting up the cluster
 
 ```
-bash board/install.sh          once, per machine
-tutor                          pick a workspace; it starts the board and the tutor
-tutor galois                   go straight there
-tutor where                    what is running, on this machine and the tailnet
-tutor watch                    keep this machine's boards and tutors up (the LaunchAgent runs it)
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
+bash ~/Atlas/board/scripts/setup-cluster.sh
+bash ~/Atlas/scripts/setup.sh
 ```
 
-Opening the app lands on the **atlas**: one picture of every workspace, what is next in each, and
-which ones have a board up. Tapping one opens that workspace's own map where you left it.
+`setup-cluster.sh` runs the bootstrap, checks that `ai-config/` is present, installs the
+relay's scrontab entry and checks that origin answers. The entry runs
+`board/scripts/relay-pass.sh` every 2 minutes. No board, no LaunchAgent and no model is ever
+installed there.
 
-Three questions are answerable from any surface in here, and they are the reason the thing exists:
-
-| | from |
-|---|---|
-| **What has been done** | commits, closed plan steps, the archive of finished sittings |
-| **What must be done next** | the plan, drawn as chips on the box of the map it belongs to |
-| **How to tell somebody** | a write-up, a deck, or meeting notes whose links land where they say |
-
-None of those three comes from a status somebody typed into a file by hand.
-
-**A course has a spine and a project needs one.** A course's spine is its book: `chapters.tsv`,
-one sitting per chapter. A project's spine is its deliverables and the threads under them, each
-one a question with its code, outputs, write-up and jobs. Each sitting on a thread has a kind:
-learn, coach or build. `HANDOFF.md` is what is left to build.
-
----
-
-## What is in the tree that git cannot see
-
-**Data lives with its project, inside the tree, and three independent guards keep git blind to
-it.** None of the three is trusted alone:
-
-1. **An anchored ignore rule** in the workspace's own `.gitignore`. Anchored, because a pattern
-   with no leading slash matches at every depth — an unanchored `artifacts/` swallows a source
-   subpackage of the same name, and one with a slash in it matches only its own directory.
-2. **`board/test/tracked.py` asks GIT ITSELF**, on every run of the suite, whether it can see
-   either directory — `git status --porcelain --untracked-files=all` over each, which must come
-   back empty. This is the part that makes the arrangement safe rather than merely allowed: it
-   fails before a commit rather than after, and it catches an ignore rule that reads perfectly
-   well and does not work. Break it and the suite goes red with the words GIT CAN SEE.
-3. **`ai-config/policy/phi.py` fences the directory by NAME**, so an assistant cannot read a
-   syllable of the audio wherever it sits.
-
-| What | Where | Why it cannot be tracked |
-|---|---|---|
-| Therapy session audio (308 MB) | `research/PSYCH-ASR/phi/` | Identifiable PHI; the filenames carry participant IDs |
-| Job results and model dumps (1.5 GB) | `research/TRD-EHR/results/` | Regenerable, and seven files over GitHub's 50 MB warning |
-| Other authors' published papers | on disk, beside their citation library | Their copyright. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
-| A course: its textbook, a professor's slides, an assignment sheet, the lesson transcript | `courses/<name>/`, its own private repository, which tracks all of it | Their copyright. Atlas ignores `courses/*/`, so a public repository carries nothing of a course |
-| The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage, and the PHI guard describes what it is guarding |
-
-**The directory is called `phi` because the fence matches that name, and nothing in the tree
-shows you that.** Renaming it unfences 308 MB of identifiable PHI while four documents go on
-promising a guard that has stopped matching. `.gitignore`, the workspace README, its
-`AI_INSTRUCTIONS.md` and `job_env.sh` each say DO NOT RENAME IT where somebody would be about to.
-
-Neither directory is symlinked: a symlink is a tracked file pointing at PHI, which hands the next
-reader a map to it. `PSYCH_ASR_DATA` finds the audio — read by `psych_asr/config.py`, exported by
-`slurm_jobs/lib/job_env.sh`, both deriving their default from **their own file's location** rather
-than from `$HOME`, so a clone anywhere finds its own data and never another checkout's.
-
-**Each workspace keeps its own `.gitignore` and those are the load-bearing ones** — in particular
-the `live/*` allowlist (cards, slate, answers, archive, inbox, text, `state.json`, `turns.jsonl`
-tracked, the rest ignored), which is what makes a lecture the same lesson on whichever machine
-picks it up. Nothing in the root file may shadow one of those: git will not descend into a
-directory ignored higher up, so a rule for `live/` at the root makes every deeper `!live/cards/`
-unreachable. The root `.gitignore` holds three categories: files a command regenerates, other
-people's papers, and the directories that are their own repositories. A course reads none of it,
-so each course's `.gitignore` carries its own build, LaTeX and credential rules.
-
-A course's tracked `live/archive` runs to 100 MB of lesson transcript. It is all small files and
-it is the transcript, so it is right that it is tracked. Do not "solve" it by untracking the
-transcript.
-
-### `ai-config/` and the courses — inside the tree, tracked by their own git
-
-The last two rows of that table are *here* and still not part of this repository. `ai-config/`
-holds the operating contract every AI assistant reads, the PHI guard, and each vendor's
-settings files. Each course holds other people's books and slides. Each is its own private
-repository, and `/ai-config/` and `/courses/*/` are in the root `.gitignore`, so Atlas never
-tracks a byte of them.
-
-Inside the tree because one directory should be the whole of the work — a machine is one clone
-and one command. Ignored because a public repository must not carry them. `bootstrap.sh` clones
-them; `ai-config` then installs itself:
-
-```bash
-bash ai-config/scripts/install.sh
-```
-
-A course repository commits through the same board save and `board push` as any workspace,
-into its own remote. It carries its own `.githooks/commit-msg`; the first `save-and-push.sh` in
-it sets `core.hooksPath`.
-
-**It is deliberately not tied to one AI provider.** The contract names no vendor, and neither
-do the rules deciding what counts as PHI; each assistant gets a thin adapter and a symlink
-under whatever filename it happens to look for. Moving to another provider is adapter work,
-not a rewrite of the safety rules under time pressure. `ai-config/README.md` is the whole of
-it, including the one thing that does *not* port: an assistant with no pre-tool hook cannot be
-fenced off from this data at all.
-
----
-
-## Setting up a machine
-
-One command builds every workspace's environment, on the Mac and on the cluster alike:
-
-```bash
-bash scripts/setup.sh          # once per machine, and again whenever a lockfile moves
-bash board/install.sh          # the board itself, which needs nothing but python3
-```
-
-- **System tools are the root `Brewfile`** on the Mac: TeX Live with latexmk, dvisvgm, poppler,
-  pandoc, node, gh, Tailscale, uv, libomp and go. `setup.sh` runs `brew bundle --no-upgrade` on
-  it, which installs what is missing and moves nothing that is there. On the cluster the same
-  tools come from modules, and `setup.sh` installs `uv` into `~/.local/bin` without root.
-- **Python is `uv`.** Each workspace with Python has a `pyproject.toml` and a committed
-  `uv.lock`, and `uv sync` builds `.venv/` inside the workspace, which git ignores. The `test`
-  extra holds pytest. The `cluster` extra holds the GPU packages, and only a machine with Slurm
-  installs it.
-- **Lean is `elan`.** `practice/Lean-Theorem-Proving/lean-toolchain` pins the version, and that
-  workspace's own `scripts/setup.sh` installs elan into `~/.elan`, fetches the Mathlib cache with
-  `lake` and builds.
-- **Go is the `go` on the PATH**, and `setup.sh` downloads `practice/Algo-Solutions`' modules.
-
-`setup.sh` finds the workspaces the way the board does, by looking, prints one line for each,
-and keeps what every step printed in `~/.local/state/atlas-setup/`. Each workspace names its
-check, the command a turn runs before it pushes code, as `check` in its `tutorboard.json`; for
-Python it runs through `uv run`, in that workspace's environment. `board/README.md` §6 of the
-setup has the rest.
-
----
+The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
+`board/test/py37.py` enforces it.
 
 ## Working in here
 
-**You ship what you change, in the session you change it, without being asked.** That covers a
-section of a plan, a one-line fix to a stale sentence, a test you corrected, a directory somebody
-removed that the tree still remembers. Work that ends a session sitting in the working tree is work
-nobody has: this repository is used from an iPad, off a board that runs from the last commit, so
-uncommitted work is invisible to the person using it AND it is the next session's mystery diff.
+- Commit named paths only, never `git add -A` at the root: one repository holds every
+  subject, and a blanket add files somebody else's unfinished work.
+  `bash board/scripts/save-and-push.sh "message" -- <paths>` commits and pushes named paths.
+- Edit `board/` only in a git worktree under `~/Developer/Atlas-wt/`. The main checkout serves
+  the iPad live, so a half-finished edit there breaks a lesson in progress.
+- Run `python3 board/test/run.py` before shipping board code.
+- `vendor/colibri` moves forward on the cluster: every relay pass bumps the pointer and commits
+  it, and only when nothing else in the tree is dirty. `vendor/colibri-build` is pinned and
+  moved only by hand, because a build tree that moves under a build is the failure it exists
+  to avoid.
+- `HANDOFF.md` holds only the work still to do.
 
-Two mechanics make "ship it" mean more than "commit it":
-
-- `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and restarts every
-  board. A board is a long-lived process that read `serve.py` when it started, so a commit alone
-  changes nothing for somebody holding an iPad.
-- **Changes outside `board/` are not covered by that**, and that is the easy half to forget.
-  `bash board/scripts/save-and-push.sh "message" -- <paths>` is how those go, with a pathspec so
-  one workspace's change does not sweep up another's unfinished afternoon.
-
-And the rest of it, in the order it bites:
-
-- **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`, `board.js`,
-  `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new in the cache
-  list), or the installed app serves its cached copy and the work is invisible.
-- **Run `bash board/test/all.sh` before every ship.** 123 suites. Keep them green.
-- **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs early and refuses
-  PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
-  anywhere in Atlas. This is public, and git remembers. It does not audit a course repository,
-  which relies on its own `.gitignore`.
-- **The lesson must stay reachable.** Somebody is mid-proof on a tablet while the tool changes
-  under them. Every surface added is one somebody can be stranded on.
-- **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg` strips
-  them; `save-and-push.sh` turns the hook on for a fresh clone.
-- **A lesson save commits only its own workspace.** `board/` and other workspaces stay
-  uncommitted until their own save or `ship.sh`.
-- **Do not fix things noticed in passing.** One change, shipped, checked, then the next.
-
----
-
-## History
-
-2,050 commits, from eleven repositories, merged in with their paths rewritten so every file sits
-where it now lives. `git log --follow` works through the move.
-
-**This clone is the only copy.** There are no upstream remotes for the eleven and no bundles: back
-it up like anything else that exists once.
-
-`vendor/colibri` and `vendor/colibri-build` are submodules of the same upstream at two different
-commits — one pulled forward on every login, one pinned at `fd93c41` and never pulled, because a
-build tree that moves underneath a build is the failure it exists to avoid. Neither is my code and
-neither is committed into.
-
-The pull is `pull_vendor()` in `board/bin/tutor`, called on login (`tutor resume`), by `tutor
-pull`, and by every relay pass on the cluster. **It commits the pointer bump itself**, with a fixed message
-naming the old and new commit, and that is the only commit anything in this system makes on its
-own — without it the repository is left dirty every time colibri moves and the board shows unsaved
-work nobody did. It is guarded three ways: only when `vendor/colibri` is the *only* dirty path,
-never mid-merge or mid-rebase, never on a detached HEAD. `scripts/catch-up.sh` does the same update
-on the same guards. A clone without `--recurse-submodules` arrives with an empty `vendor/` and no
-error; `bootstrap.sh` repairs it.
-
----
-
-## The machine this was built for
-
-Two machines, and they never talk directly. **The Mac is the only brain: no hosted model call
-runs on an institute machine, for any vendor** (`projects/libr-local-llm/docs/deepseek-egress.md`).
-
-| | Mac mini (home) | Cluster (institute) |
-|---|---|---|
-| Runs | the board, every model turn, compiles, decks, meetings | Slurm jobs, `tutor relay --once` from scrontab every five minutes, Colibri while it has a task |
-| Models | each provider through its own harness: `claude`, `codex`, and DeepSeek through `opencode -m deepseek/deepseek-flash`. `tutor agent only deepseek` (the `only_agent` key) runs one and bars the rest | Colibri only: local, read-only analysis that writes under the ignored `phi/`; a change git can see fails the task |
-| Holds | Atlas and every course repository, no PHI | Atlas, `results/`, `phi/`, models |
-
-- **A failed job is fixed on the Mac**: its report wakes a `[repair]` doing turn there.
-- **Code typed on the cluster comes back through `board hold` and `board send`**, and the Mac's
-  coach answers.
-- **The Mac pulls every five minutes** (faster with a request out or a hold standing) and before
-  every turn. The relay commits the owner's cluster edits in every workspace: `atlas.json`
-  says `"relay": {"sync": true}`, and a workspace's own `tutorboard.json` may say `false`.
-
-GitHub is the only channel between them. `HANDOFF.md` has the split and `board/README.md`, "The
-Mac is the only brain", the rules.
-
-Python standard library only; plain browser JavaScript; nothing that needs a package manager at
-runtime.
-
----
+Python standard library only; plain browser JavaScript; no package manager at run time.
 
 ## Licence
 
-See `LICENSE`. Coursework and manuscripts are mine; `vendor/` is not, and carries its own.
+MIT, in `LICENSE`. Coursework and manuscripts are mine; `vendor/` and the files `NOTICE.md`
+lists carry their own licences.

@@ -86,7 +86,7 @@ const zoomTo = async (scale, offsetLeft, offsetTop) => {
 
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'recentre.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'reader.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -225,9 +225,9 @@ const press = (type, x, y) => btn.dispatchEvent(
       ? ok('the button says what it does')
       : fail('the button is unlabelled: ' + JSON.stringify(btn.textContent));
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-    // The rule is shared with the re-centres for the other two zooms on this
-    // page -- the writing surface's, and the map's. One shape, one corner.
-    const rule = (css.match(/#panic(?:,\s*#(?:findink|mapback))*\s*\{[^}]*\}/) || [''])[0];
+    // The rule is shared with the re-centre for the other zoom on this page,
+    // the writing surface's. One shape, one corner.
+    const rule = (css.match(/#panic(?:,\s*#findink)*\s*\{[^}]*\}/) || [''])[0];
     /background:\s*var\(--accent\)/.test(rule)
       ? ok('and is painted in the accent, not in the page it sits on')
       : fail('the button has no contrasting fill; it reads as a smudge');
@@ -419,134 +419,38 @@ const press = (type, x, y) => btn.dispatchEvent(
     }
   }
 
-  // --- AND THE WAY TO THE MAP, SURFACE BY SURFACE --------------------------
+  // --- THE MAP IS GONE, AND EVERY WAY TO IT WITH IT -------------------------
   //
-  // A course opens on a picture of its working parts. That is only worth having
-  // if it can be got back to, and "there is a way back" as a single assertion is
-  // exactly the check that passes while one real state is stranded -- so there
-  // is one check per surface, named after the surface.
-  //
-  // The map itself is the one place the control is allowed to be absent, and
-  // that is not a condition on the guarantee: you are already there.
+  // A session starts generic and names its subject from the header's chip;
+  // there is no map to go back to, and no control anywhere opens one.
   {
-    const ways = doc.querySelectorAll('.to-map');
-    ways.length
-      ? ok('there is a control that opens the map (' + ways.length + ' of them)')
-      : fail('there is no way to the map anywhere on this page');
-
-    const inside = (sel) => {
-      const host = doc.querySelector(sel);
-      return !!(host && host.querySelector('.to-map'));
-    };
-
-    // The lesson, scrolled anywhere, zoomed to anything: the title bar. It is
-    // the same surface as an empty board, a board whose tutor is dead, and a
-    // board that has lost its connection -- none of them takes the bar away.
-    inside('#bar')
-      ? ok('from the lesson: the title bar carries it')
-      : fail('the lesson has no way to the map');
-    const bar = doc.getElementById('btn-map');
-    bar && !bar.hidden
-      ? ok('from an empty board, a dead tutor and a dropped link: the same control, '
-           + 'never hidden')
-      : fail('the bar control is conditional, so those three states are stranded');
-    {
-      const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
-      !/els\.mapBtn\.hidden\s*=|btn-map"\)\.hidden\s*=/.test(js)
-        ? ok('and nothing in the board ever takes it away')
-        : fail('something hides the map control; the guarantee is then conditional');
-    }
-
-    // The full-screen writing surface is a page of its own, so it carries its
-    // own link rather than the board's control.
-    {
-      const slate = fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8');
-      /id="tomap"[^>]*href="\/board\?map=1"/.test(slate)
-        ? ok('from the writing surface: /slate links straight to the map')
-        : fail('the full-screen writing surface has no way to the map');
-      const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
-      /map=1/.test(js)
-        ? ok('and the board honours that address when it arrives')
-        : fail('nothing on the board reads ?map=1, so the slate\'s link lands nowhere');
-    }
-
-    // The document viewer covers the whole glass, so the bar underneath it is
-    // not reachable and it needs one of its own.
-    inside('#paper')
-      ? ok('from the document viewer, mid-deck')
-      : fail('a document open over the lesson has no way to the map');
-
-    // A past lesson under ◷ is the same page with the bar still on it, and the
-    // drawer it was opened from covers the bar on a phone.
-    inside('#history')
-      ? ok('from a past lesson opened read-only under ◷')
-      : fail('the history drawer has no way to the map');
-
-    // Every drawer, sheet and picker. Each of these is a fixed panel that
-    // reaches 92% of the width of a phone.
-    [['#contents', 'the contents drawer'],
-     ['#review', 'the scope picker'],
-     ['#shelf', 'the documents drawer'],
-     ['#scratch', 'the scratch drawer']].forEach(([sel, what]) => {
-      inside(sel)
-        ? ok('from ' + what)
-        : fail(what + ' (' + sel + ') has no way to the map');
-    });
-
-    // The sheets are strips rather than panels -- they stand at the bottom of
-    // the glass and leave the bar alone. That is why they need no control of
-    // their own, and it is a property of the stylesheet rather than a hope.
-    {
-      const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-      const sheet = /\.sendwhat\s*\{([^}]*)\}/.exec(css);
-      sheet && /bottom:/.test(sheet[1]) && !/top:\s*0/.test(sheet[1])
-        ? ok('from inside a sheet: a sheet is a strip at the foot and leaves the bar')
-        : fail('a sheet now covers the top of the glass, so the bar control is '
-               + 'unreachable while one is open');
-    }
-  }
-
-  // 8. THE MAP IS A PLANE, AND A PLANE CAN BE PANNED INTO NOTHING.
-  //    The map covers the whole glass and has a pan and a zoom the page knows
-  //    nothing about; its own ⤢ is page chrome, which a pinch takes away. So it
-  //    gets the same treatment the writing surface already had -- and the stack
-  //    has to be ABOVE the map while one is open, which is the one thing the
-  //    z-index order got wrong for as long as the map has existed.
-  {
-    const back = doc.getElementById('mapback');
-    back ? ok('the map has a re-centre of its own')
-         : fail('a map panned into empty space has no way back');
-    back && back.hidden
-      ? ok('and is absent while there is no map to be lost on')
-      : fail('the map re-centre is offered with no map on the glass');
-    back && /map/i.test(back.textContent)
-      ? ok('and says which of the three it is')
-      : fail('the three re-centres are not tellable apart');
+    const html = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
+    const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-    const mapZ = (css.match(/#map\s*\{[^}]*z-index:\s*(\d+)/) || [])[1];
-    const upZ = (css.match(/body\.mapping\s+#panic[^{]*\{[^}]*z-index:\s*(\d+)/) || [])[1];
-    (mapZ && upZ && Number(upZ) > Number(mapZ))
-      ? ok('and the stack rises over the map, which used to paint over it')
-      : fail('the way back is underneath the thing it is a way back from');
-    // And only there: everywhere else the stack's ordinary place in the order is
-    // the right one -- over the lesson, under the menu.
-    /body\.mapping\s+#panic/.test(css)
-      ? ok('and only while the map is open')
-      : fail('the stack was raised everywhere, so it now sits over the menu');
+    !/to-map|id="btn-map"|id="map"|id="mapback"|data-retired/.test(html + css)
+      ? ok('the board draws no way to the map, and nothing retired is left hidden')
+      : fail('a way to the map, or a retired control, is still in the page');
+    !/function (mapDraw|openElsewhere|openContents|openShelf|paintKindChooser)\(/.test(js)
+      ? ok('and board.js holds none of the map, shelf, contents, elsewhere or kind code')
+      : fail('board.js still carries the retired map or sitting code');
+    !fs.existsSync(path.join(WEB, 'gauge.js'))
+      ? ok('and the map\'s measuring, gauge.js, is gone with it')
+      : fail('gauge.js is still in web/');
+    const slate = fs.readFileSync(path.join(WEB, 'slate.html'), 'utf8');
+    const lib = fs.readFileSync(path.join(WEB, 'library.html'), 'utf8');
+    !/id="tomap"|map=1/.test(slate) && !/id="lib-map"|map=1/.test(lib)
+      ? ok('nor do the writing surface and the library')
+      : fail('/slate or /library still links to the map');
   }
 
   // 8b. AND EACH OF THEM MOVES ITSELF, AND NOTHING ELSE.
   //
-  //     They were one stack with one anchor: a press on any of them moved all
-  //     three, because all three were one object. They are three now -- putting
-  //     the zoom back, finding your own writing, and abandoning the plan have
-  //     nothing to do with each other -- and a control that moves something other
-  //     than itself is a control nobody can aim. Asked for as: "make the
-  //     re-centre, the writing re-centre, and the change direction buttons
-  //     independent of each other - three separate widgets not stuck to each
-  //     other."
+  //     A press on any of them moves that one alone: putting the zoom back,
+  //     finding your own writing and sending your marks have nothing to do with
+  //     each other, and a control that moves something other than itself is a
+  //     control nobody can aim.
   {
-    const turn = doc.getElementById('redirect');
+    const turn = doc.getElementById('notesend');
     const spot = (el) => {
       const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(el.style.transform || '');
       return m ? { x: +m[1], y: +m[2] } : null;
@@ -578,7 +482,7 @@ const press = (type, x, y) => btn.dispatchEvent(
       ? ok('and it is put down where it was left')
       : fail('the button is still held after the finger lifted');
     let mine = null;
-    try { mine = JSON.parse(window.localStorage.getItem('board.panic.redirect') || 'null'); }
+    try { mine = JSON.parse(window.localStorage.getItem('board.panic.notesend') || 'null'); }
     catch (e) { /* reported below */ }
     mine && typeof mine.x === 'number'
       ? ok('and remembered under its own name, not the group\'s')
@@ -589,8 +493,8 @@ const press = (type, x, y) => btn.dispatchEvent(
   // 8c. SEND MY ANNOTATIONS IS ONE OF THEM TOO.
   //
   //     It sat pinned to the bottom centre of the glass, which is where the ink
-  //     is. Asked for as: "I want it to be a movable widget like the re-center,
-  //     my ink, and rethink buttons."
+  //     is. Asked for as: "I want it to be a movable widget like the re-center
+  //     and my ink buttons."
   {
     const send = doc.getElementById('notesend');
     const press3 = (type, x, y) => send.dispatchEvent(
@@ -617,15 +521,10 @@ const press = (type, x, y) => btn.dispatchEvent(
       : fail('the picker stays open after a tap outside it');
     {
       const pcss = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-      /body\.mapping #notesend[^{]*\{[^}]*z-index:\s*97/.test(pcss)
-        || /body\.mapping #notesend\s*\{[^}]*z-index:\s*97/.test(pcss)
-        || /body\.mapping #mapback,\s*body\.mapping #notesend\s*\{\s*z-index:\s*97/.test(pcss)
-        ? ok('and it is raised over the map with the rest of the stack')
-        : fail('send my annotations is painted under the map');
       const z = /#notepick\s*\{[^}]*z-index:\s*(\d+)/.exec(pcss);
       z && +z[1] > 96 && +z[1] < 99
-        ? ok('the picker sits over the map and under the menu')
-        : fail('the picker is under the map or over the menu');
+        ? ok('the picker sits over the reader and under the menu')
+        : fail('the picker is under the reader or over the menu');
     }
     press3('pointerdown', 400, 560);
     await sleep(500);

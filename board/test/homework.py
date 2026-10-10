@@ -40,6 +40,8 @@ def check(name, cond):
 
 
 SET = r"""\documentclass[11pt]{article}
+\newenvironment{problem}[1]{\par\noindent\textbf{Problem #1.}\ }{\par}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
 \begin{document}
 \begin{problem}{%(a)s}
   A statement that has been transcribed.
@@ -207,26 +209,31 @@ try:
 
     def run(cwd, *args):
         p = subprocess.run([sys.executable, board] + list(args), cwd=cwd,
+                           env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(
+                               cwd, "live")),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
         return p.returncode, p.stdout.decode("utf-8", "replace")
 
-    code, out = run(prob, "open", "P", "Homework 4", "--homework")
-    check("opening a homework sitting binds it to a set", code == 0 and "hw04" in out)
+    code, out = run(prob, "hw", "status")
+    check("`board hw` is an unknown command: `board writeup` is the only name",
+          code == 1 and "unknown command: hw" in out)
+
+    code, out = run(prob, "writeup", "use", "hw04")
+    check("`board writeup use` binds the sitting to a set", code == 0 and "hw04" in out)
     with open(os.path.join(prob, "live", "state.json"), encoding="utf-8") as fh:
         state = json.load(fh)
     check("and records which one", state.get("hw") == "homework/hw04/hw04.tex")
-    check("and that it is homework", state.get("session") == "homework")
 
-    code, out = run(prob, "hw")
+    code, out = run(prob, "writeup")
     check("status reports the set and what is empty",
           code == 0 and "hw04" in out and "EMPTY" in out and "1 of 3" in out)
 
-    code, out = run(prob, "hw", "use", "hw05")
+    code, out = run(prob, "writeup", "use", "hw05")
     check("a set can be pinned by name", code == 0)
-    code, out = run(prob, "hw")
+    code, out = run(prob, "writeup")
     check("and the pin takes effect", "hw05" in out)
 
-    code, out = run(prob, "hw", "use", "hw99")
+    code, out = run(prob, "writeup", "use", "hw99")
     check("pinning a set that does not exist fails loudly", code != 0)
 
     # Filing handwriting: the frozen answer, never the live slate page.
@@ -236,84 +243,102 @@ try:
     with open(os.path.join(prob, "live", "turns.jsonl"), "w", encoding="utf-8") as fh:
         json.dump({"id": "t0001", "rev": 1, "kind": "ink", "answers": "0001",
                    "t": 1.0, "png": "/answers/t0001-r1.png"}, fh)
-    code, out = run(prob, "hw", "file", "2")
+    code, out = run(prob, "writeup", "file", "2")
     filed = os.path.join(prob, "homework", "hw05", "handwritten", "hw05-2.png")
     check("a sent page files into the set it belongs to",
           code == 0 and os.path.isfile(filed))
 
-    code, out = run(prob, "hw", "file", "../../etc/passwd")
+    code, out = run(prob, "writeup", "file", "../../etc/passwd")
     check("a label cannot escape the handwritten directory",
           not os.path.exists(os.path.join(tmp, "passwd")))
 
-    code, out = run(gal, "hw", "list")
+    code, out = run(gal, "writeup", "list")
     check("list works without a session being open", code == 0 and "ch07" in out)
+
+    # --- the book's chapters, read off the chapter directories ---------------
+    check("a course's chapters come off its chapter directories",
+          [(c["num"], c["title"]) for c in homework.chapters(gal)]
+          == [("7", "splitting fields")]
+          and homework.chapter_label(homework.opening(gal))
+          == "Ch 7 — splitting fields"
+          and homework.chapter_dir(gal, "Ch 7 — splitting fields")
+          == "chapters/ch07-splitting-fields"
+          and homework.chapters(prob) == [])
+    code, out = run(gal, "writeup", "new", "ch07")
+    with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
+        pinned = json.load(fh).get("hw")
+    check("`board writeup new chNN` writes into that chapter's set",
+          code == 0 and pinned
+          == "chapters/ch07-splitting-fields/homework/ch07-homework.tex"
+          and not os.path.isdir(os.path.join(gal, "docs")))
+    code, out = run(gal, "brief")
+    check("and the brief lists the book's chapters",
+          code == 0 and "book: 1 chapter -- 7 splitting fields" in out)
+    code, out = run(prob, "brief")
+    check("a subject with no chapters has no book line", "\nbook: " not in out)
 
     # ---- a write-up for something that has none -----------------------------
     #
-    # Every sitting produces a compiled document, and most workspaces are not
-    # courses: there is no chapter to bind and no sheet to bind to, so the rule
-    # had no file to be obeyed with and the evening stayed in the cards. The
-    # portable layout is the answer, because `sets()` already looks for it.
+    # Every session produces a compiled document, and most workspaces are not
+    # courses: there is no chapter to bind and no sheet to bind to. The session's
+    # own write-up is an artifact at docs/<slug>/writeup.tex, from the one
+    # template, found by the session's pin and never listed as a set.
     bare = os.path.join(tmp, "bare")
     write(os.path.join(bare, "tutorboard.json"), '{"name": "B", "mode": "math"}')
     check("a workspace can start with no sets at all", homework.sets(bare) == [])
 
-    made, why = homework.scaffold(bare, "Yoneda Lemma", title="Notes on Yoneda")
-    check("one can be started by name", made and why is None)
-    check("in the layout every workspace can hold",
-          made and made["rel"] == os.path.join("homework", "yoneda-lemma",
-                                               "yoneda-lemma.tex"))
-    check("and it is found the moment it exists",
-          [s["name"] for s in homework.sets(bare)] == ["yoneda-lemma"])
-    check("and binds the sitting without a pin",
-          (homework.bound(bare, {"chapter": "Yoneda Lemma"}) or {}) .get("name")
-          == "yoneda-lemma" or
-          (homework.find(bare, {}) or {}).get("name") == "yoneda-lemma")
+    made, new = homework.start(bare, {}, title="Notes on Yoneda")
+    check("one can be started by title", new and made["name"] == "notes-on-yoneda")
+    check("as the session's own artifact under docs/",
+          made["rel"] == os.path.join("docs", "notes-on-yoneda", "writeup.tex")
+          and os.path.isfile(os.path.join(bare, "docs", "notes-on-yoneda", "doc.json")))
+    check("which is no problem set", homework.sets(bare) == [])
+    check("and is found by its pin",
+          (homework.bound(bare, {"hw": made["rel"]}) or {}).get("name")
+          == "notes-on-yoneda"
+          and (homework.status(bare, {"hw": made["rel"]}) or {}).get("total") == 0)
 
     body = open(made["tex"], encoding="utf-8").read()
-    check("it carries a title somebody chose", "Notes on Yoneda" in body)
-    check("and stands alone where there is no coursemacros.sty",
-          "newenvironment{problem}" in body and "usepackage{coursemacros}" not in body)
+    check("it carries a title somebody chose", "\\title{Notes on Yoneda}" in body)
+    check("and stands alone where there is no coursemacros.sty, using them where "
+          "there is", "newenvironment{problem}" in body
+          and "IfFileExists{coursemacros.sty}{\\usepackage{coursemacros}}" in body)
 
-    # A write-up already started is somebody's evening, and a second `new` on the
-    # same name must not be the thing that ends it.
-    again, why2 = homework.scaffold(bare, "yoneda-lemma")
-    check("starting the same one twice refuses rather than overwrites",
-          again is None and "already exists" in (why2 or ""))
-    check("and the first one is untouched",
-          open(made["tex"], encoding="utf-8").read() == body)
+    again, new2 = homework.start(bare, {"hw": made["rel"]})
+    check("starting it again is the same write-up, untouched",
+          not new2 and again["tex"] == made["tex"]
+          and open(made["tex"], encoding="utf-8").read() == body)
 
-    check("a name that flattens to nothing is refused",
-          homework.scaffold(bare, "///")[0] is None)
+    said, why = homework.add(made["tex"], "1", "Show it.", "It is shown.")
+    said2, _ = homework.add(made["tex"], "2", "", "And this.")
+    st = homework.status(bare, {"hw": made["rel"]})
+    check("added answers are problems in the order they were agreed",
+          said["region"] == "added" and said2["statement"] == "placeholder"
+          and [p["label"] for p in st["problems"]] == ["1", "2"]
+          and st["written"] == 2 and st["stated"] == 1)
 
-    # Where the workspace HAS the shared preamble, the document uses it, so a
-    # write-up started this way reads like every other one in that course.
-    withmac = os.path.join(tmp, "withmac")
-    write(os.path.join(withmac, "tutorboard.json"), '{"name": "W", "mode": "math"}')
-    write(os.path.join(withmac, "latex", "coursemacros.sty"), "% macros")
-    m2, _ = homework.scaffold(withmac, "reading-group")
-    check("a course's own macros are used when the course has them",
-          "usepackage{coursemacros}" in open(m2["tex"], encoding="utf-8").read())
-
-    code, out = run(bare, "hw", "new", "second-topic", "A", "Second", "Topic")
-    check("the command line starts one too", code == 0 and "second-topic" in out)
+    code, out = run(bare, "writeup", "new", "Second", "Topic")
+    check("the command line starts one too",
+          code == 0 and "docs/second-topic/writeup.tex" in out)
     with open(os.path.join(bare, "live", "state.json"), encoding="utf-8") as fh:
         check("and pins the sitting to it",
-              json.load(fh).get("hw", "").endswith("second-topic.tex"))
+              json.load(fh).get("hw", "").endswith("second-topic/writeup.tex"))
 
     # ---- the brief carries the debt, in a LECTURE, with nothing pinned -------
     #
     # A chapter's exercises get worked in sittings opened as lectures, and the
     # write-up is owed there exactly as it is in a homework sitting. The brief
     # used to print a homework line only when `state["hw"]` was set, which only
-    # `board hw use` and `--homework` write. So a lecture opened as "Ch 4" was
+    # `board writeup use` and a homework sitting write. So a lecture opened as "Ch 4" was
     # never once told that a file existed and was empty; an evening of agreed
     # mathematics stayed in the cards, and what compiled was the scaffold.
     #
     # The counts are the point, not the name. "homework set: ch07" is a fact
     # about configuration and reads as already handled. "0 of 3 written up" is
     # a debt.
-    code, out = run(gal, "open", "G", "Ch 07 — splitting fields")
+    write(os.path.join(gal, "live", "state.json"), json.dumps(
+        {"course": "G", "chapter": "Ch 07 — splitting fields",
+         "session": "lecture"}))
     with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
         lecture = json.load(fh)
     check("a lecture pins nothing, which is what made this invisible",
@@ -338,18 +363,13 @@ try:
     tex_path = os.path.join(prob, "homework", "hw05", "hw05.tex")
     pdf = os.path.splitext(tex_path)[0] + ".pdf"
 
-    # Stand in for LaTeX: a build script is honoured before the built-in path,
-    # and this test is about WHEN a build happens, not about compiling TeX.
-    scripts = os.path.join(prob, "scripts")
-    os.makedirs(scripts, exist_ok=True)
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\necho "pretending to compile $1"\n'
-                 'printf %%s "%%PDF-1.4" > "${1%%.tex}.pdf"\n')
+    # Real LaTeX, through `board build`: the set compiles as it stands. A
+    # machine with no TeX skips the checks that need a PDF.
+    HAVE_TEX = tex.have_tex()
 
-    # A real throwaway repository with NO origin, because there is one
-    # save-and-push.sh and it is the tool's: a workspace has no copy of its own
-    # for a test to stub out. With no `origin` the script commits and says so,
-    # which is every part of a push this suite is about and none of the network.
+    # A real throwaway repository with NO origin: `gitops.save` commits and
+    # says so, which is every part of a push this suite is about and none of
+    # the network.
     def sh(*args):
         subprocess.run(list(args), cwd=prob, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, check=True)
@@ -363,25 +383,18 @@ try:
     check("a set with no PDF at all is out of date", not os.path.exists(pdf))
     code, out = run(prob, "push", "an agreed exercise")
     check("pushing compiles the write-up first",
-          code == 0 and "compiling" in out and os.path.exists(pdf))
+          code == 0 and "compiling" in out
+          and (os.path.exists(pdf) or not HAVE_TEX))
     check("and says which set it built", "hw05" in out)
     check("and then actually commits", "committed" in out)
 
-    # THE SCRIPT IS THE TOOL'S, and this is the assertion that says so. `board
-    # push` reaching for a `scripts/save-and-push.sh` beside the sitting is two
-    # doors onto two different files, and the terminal's was the older one.
-    # Asserted on the path the code resolves rather than on any sentence about
-    # it: the repository holds exactly one copy and it is under the tool.
+    # ONE PATH TO A COMMIT: `board push` and the save button both go through
+    # `gitops.save`, so the terminal's door cannot drift from the iPad's.
     src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
     push_body = src[src.index("def cmd_push("):src.index("def cmd_slate(")]
-    resolved = [ln for ln in push_body.splitlines()
-                if "save-and-push.sh" in ln and "os.path.join" in ln]
-    check("bin/board resolves save-and-push.sh under the tool and nowhere else",
-          len(resolved) == 1 and "TOOL" in resolved[0]
-          and "live.root" not in resolved[0])
-    check("and the tool's copy is the one that is actually there",
-          os.path.isfile(os.path.join(ROOT, "scripts", "save-and-push.sh"))
-          and not os.path.exists(os.path.join(prob, "scripts", "save-and-push.sh")))
+    check("bin/board commits through gitops.save and runs no script of its own",
+          "gitops.save(top, specs, message)" in push_body
+          and "save-and-push.sh" not in push_body)
 
     # AND THE SUBJECT LEADS WITH THE WORKSPACE, which is the other half of one
     # door. The commit carries the whole repository, so a history of subjects
@@ -403,10 +416,11 @@ try:
 
     # A second push with nothing changed must not rebuild: an ordinary save in
     # the middle of a lesson should cost nothing.
-    stamp = os.path.getmtime(pdf)
+    stamp = os.path.getmtime(pdf) if HAVE_TEX else 0
     code, out = run(prob, "push", "again")
     check("a push with the PDF already current does not rebuild",
-          code == 0 and "compiling" not in out and os.path.getmtime(pdf) == stamp)
+          not HAVE_TEX or (code == 0 and "compiling" not in out
+                           and os.path.getmtime(pdf) == stamp))
 
     # Write to the source, and it is out of date again.
     with open(tex_path, "a", encoding="utf-8") as fh:
@@ -417,10 +431,11 @@ try:
           code == 0 and "compiling" in out)
 
     # A LaTeX error must not eat the source. The `.tex` is the record.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\necho "! Undefined control sequence."\nexit 1\n')
-    with open(tex_path, "a", encoding="utf-8") as fh:
-        fh.write("\n%% broken\n")
+    with open(tex_path, "r", encoding="utf-8") as fh:
+        good = fh.read()
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(good.replace("\\end{document}",
+                              "\\undefinedmacrohere\n\\end{document}"))
     code, out = run(prob, "push", "with a broken write-up")
     check("a build that fails still pushes the source, which is the record",
           code == 0 and "committed" in out)
@@ -429,38 +444,33 @@ try:
 
     # ---- the compiler has to be findable, wherever it is installed --------
     #
-    # A course's build.sh knows where TeX lives on the machine it was written on
-    # and nowhere else -- Probability's prepends TinyTeX's Linux directory,
-    # which on the Mac does not exist. So a board started by a login agent, with
-    # a PATH of /usr/bin:/bin and nothing more, ran that script, could not find
-    # pdflatex, and reported the failure as the document's. An evening's
-    # homework was written up and could not be typeset, and the source was
-    # fine the whole time.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\n'
-                 'printf %s "$PATH" > "$(dirname "$0")/../seen-path"\n'
-                 'printf %s "${TEXINPUTS:-}" > "$(dirname "$0")/../seen-inputs"\n'
-                 'printf %%s "%%PDF-1.4" > "${1%%.tex}.pdf"\n')
-    code, out = run(prob, "hw", "build")
-    seen_path = open(os.path.join(prob, "seen-path"), encoding="utf-8").read()
-    seen_inputs = open(os.path.join(prob, "seen-inputs"), encoding="utf-8").read()
-    check("the course's build script runs with TeX on its PATH",
-          all(d in seen_path.split(os.pathsep) for d in tex.tex_bin_dirs()))
+    # `board writeup build` goes through `board build`, which finds TeX wherever
+    # this machine installed it and puts the board's macros on TEXINPUTS. A
+    # board started by a login agent has a PATH of /usr/bin:/bin.
+    from tutorboard import build
+    env = build.tex_env_for(tex_path)
+    check("the build runs with TeX on its PATH",
+          all(d in env["PATH"].split(os.pathsep) for d in tex.tex_bin_dirs()))
     check("and with the board's own macros where LaTeX will look for them",
-          os.path.join(ROOT, "tex") in seen_inputs.split(os.pathsep))
+          os.path.join(ROOT, "tex") in env["TEXINPUTS"].split(os.pathsep))
 
     # "FAILED" on its own is what sends somebody to a laptop to discover that
-    # nothing was wrong with their mathematics. Whatever the reason -- no
-    # compiler on this machine, or a script that discards its own output -- the
-    # board has to carry one.
-    with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\nexit 1\n')
-    code, out = run(prob, "hw", "build")
-    check("a build that fails silently is still given a reason",
-          code != 0 and len(out.strip()) > 40)
+    # nothing was wrong with their mathematics. The board has to carry the
+    # reason: the LaTeX error, or that this machine has no LaTeX.
+    code, out = run(prob, "writeup", "build")
+    check("a build that fails is given a reason",
+          code != 0 and ("Undefined control sequence" in out
+                         or (not HAVE_TEX and "No LaTeX" in out)))
     rec = json.load(open(os.path.join(prob, "live", "hw.json"), encoding="utf-8"))
     check("and the reason is recorded for the board to show",
           rec["ok"] is False and len(rec["detail"].strip()) > 40)
+
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(good)
+    code, out = run(prob, "writeup", "build")
+    check("and once it is fixed, hw build compiles it beside the source",
+          not HAVE_TEX or (code == 0 and os.path.exists(pdf)
+                           and not os.path.exists(os.path.splitext(tex_path)[0] + ".aux")))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

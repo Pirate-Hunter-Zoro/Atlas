@@ -3,7 +3,7 @@
 
 Nothing showed a workspace's documents together. The ⋯ menu offers the two the
 BOARD makes -- the exported lesson and the compiled write-up -- and the contents
-drawer offers what `reading.py` found, as pages to put on a card. Neither is
+drawer offers what `library.drawer` found, as pages to put on a card. Neither is
 "every paper and presentation in this project", and there was nowhere at all to
 say what was wrong with one.
 
@@ -40,12 +40,13 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import manuscript, sense
-from tutorboard.course import library, reading
+from tutorboard import sense
+from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
 from tutorboard.lesson import notes as lesson_notes
-from tutorboard.server import handler, hub, spawn, tikz
+from tutorboard.server import handler, hub, tikz
+from tutorboard.runner import service as runner_service  # noqa: E402
 
 fails = []
 
@@ -160,7 +161,7 @@ check("THE FENCE HOLDS: nothing in phi/ is in the library",
 check("and somebody else's reference library is not either",
       not [d for d in found if "references" in (d["dir"] or "")])
 check("the fence is the one list, read from fenced.py",
-      "phi" in reading.fenced.NEVER)
+      "phi" in library.fenced.NEVER)
 
 # AN ID, NEVER A PATH.
 ident = one("How Audio Becomes a Transcript")["id"]
@@ -179,7 +180,7 @@ check("every id is distinct, so two documents never answer to one name",
 # ---------------------------------------------------------------------------
 # A note is written against the REPO rather than the root: the marks on a
 # document's pages live in the board's own drawer, and a note carries them.
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 flat = one("TRD prediction from EHR text")
 put("writeups/serve-harness/serve-harness.tex",
     "\\documentclass{article}\n\\title{How the serve harness works}\n")
@@ -248,7 +249,7 @@ check("a document can be marked under its library name",
       marked["id"] in idents)
 check("and under the drawer's name for the same file, which is where marking "
       "works today",
-      reading.ident(tmp, library.path_of(tmp, marked, ".pdf")) in idents)
+      library.drawer_ident(tmp, library.path_of(tmp, marked, ".pdf")) in idents)
 
 ink("doc/%s/p2" % marked["id"], strokes=4)
 ink("doc/%s/p5" % idents[-1], strokes=2, png=False)
@@ -275,11 +276,10 @@ check("marks handed over this way are recorded as sent, so the board stops "
       all(lesson_notes.load_notes_sent(repo).get(m["key"]) for m in found))
 check("and the payload says a document has been drawn on",
       [d["marks"] for d in library.status(repo)["documents"]
-       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2,
-                                        "dir": {"pages": 0, "strokes": 0}}])
+       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2}])
 # A DOCUMENT NOT MADE FROM SITTINGS SENDS ALL ITS INK EVERY ROUND, as it always
 # has: `waiting` is every marked page. Only a deck with a brief beside it keeps
-# ink an earlier round delivered behind -- test/sittings.py.
+# ink an earlier round delivered behind -- test/briefs.py.
 
 # THE INK COMES BACK WITH THE PAGES. The library page opens no sitting and reads
 # no `state.json`, so it holds no live payload to restore marks out of -- the
@@ -450,26 +450,10 @@ check("a correction is still a correction in the same file",
       "- ask: revise" in open(rec["path"], encoding="utf-8").read())
 
 # ---------------------------------------------------------------------------
-# which machinery revises which
-# ---------------------------------------------------------------------------
-put("manuscripts/manuscript.md", "# A delivered manuscript\n")
-put("manuscripts/manuscript.pdf", size=30000)
-library.forget()
-delivered = None
-for d in library.documents(tmp):
-    if d["dir"] == manuscript.LANDING:
-        delivered = d
-check("a manuscript delivered into manuscripts/ is the factory's to revise",
-      delivered and delivered["made"] == "paper-writer")
-check("and a document the board compiled is the board's",
-      library.find(tmp, mine["id"])["made"] == "board")
-
-# ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
 woken = []
-spawn.wake_tutor = lambda r: woken.append(r) or True
-spawn.fresh_tutor = lambda root, course: fails.append("a tutor was replaced")
+runner_service.wake = lambda r: woken.append(r) or True
 
 worker = tikz.TikzWorker(repo)
 worker.start()
@@ -555,6 +539,10 @@ try:
     check("and says outright that this is not part of the lesson",
           "NOT PART OF THE LESSON" in line["text"]
           and "no card" in line["text"].lower())
+    check("and lets the turn choose, per request, to edit the source or write "
+          "TUTOR.md: one kind of ink, one send",
+          "TUTOR.md" in line["text"] and "board memo" in line["text"]
+          and "your choice" in line["text"])
     check("nothing about it is in the lesson's own transcript",
           not os.path.isfile(repo.turns_path)
           or not [t for t in open(repo.turns_path, encoding="utf-8")
@@ -635,14 +623,21 @@ try:
     check("an overhaul with no real purpose in it is refused over the wire too",
           status == 400 and body.get("ok") is False)
 
-    # AN OVERHAUL OF A DELIVERED MANUSCRIPT IS NOT ASKED FOR HERE. The factory
-    # holds its evidence, its terminology lock and its venue, and "restructure,
-    # cut and rewrite" is what every one of those gates exists to refuse.
+    # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT. TRD-EHR's shape: the
+    # Markdown is the source, and the turn is told to rebuild it with the one
+    # builder there is.
+    paper = [d for d in library.documents(tmp)
+             if d["dir"] == "paper1-trd" and d["stem"] == "manuscript"][0]
     status, body = post("/library/feedback",
-                        {"document": delivered["id"], "ask": "rework",
-                         "purpose": PURPOSE})
-    check("and an overhaul of a delivered manuscript is refused by name",
-          status == 409 and "manuscript factory" in (body.get("error") or ""))
+                        {"document": paper["id"],
+                         "text": "Section 3 reports the wrong split."})
+    with open(repo.messages_path, encoding="utf-8") as fh:
+        line = [json.loads(l) for l in fh if l.strip()][-1]
+    check("a note on a Markdown manuscript asks the board for a revision",
+          status == 200 and body.get("revise") == "board"
+          and body.get("asked") is True and line.get("signal") == "revise")
+    check("and the turn is told to rebuild its source with board build",
+          "`board build paper1-trd/manuscript.md`" in line["text"])
 
     # A SECTION IS CORRECTED THROUGH ITS WHOLE. The note stays on the section it
     # was written on; the revision names the manuscript the section is re-cut
@@ -702,7 +697,7 @@ if _git("init", "-q") == 0:
     _git("config", "user.name", "Test")
     _git("add", "-A")
     _git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "the deck as it stands")
-    git_repo = course_repo.Repo(repo_tmp)
+    git_repo = course_repo.Repo(repo_tmp, os.path.join(repo_tmp, "live"))
     library.forget()
     deck = [d for d in library.documents(repo_tmp) if d["stem"] == "deck"][0]
     check("with the source committed as it stands, an overhaul is allowed",
@@ -782,7 +777,7 @@ with open(led_tex, "w", encoding="utf-8") as fh:
 with open(led_pdf, "wb") as fh:
     fh.write(pdf_lines([["The first page says hello."],
                         ["We found that the model was significant", "at the end."]]))
-lrepo = course_repo.Repo(led_tmp)
+lrepo = course_repo.Repo(led_tmp, os.path.join(led_tmp, "live"))
 library.forget()
 ldoc = [d for d in library.documents(led_tmp) if d["stem"] == "led"][0]
 digest0 = course_paper._digest(led_pdf, course_paper.PAGE_WIDTH)
@@ -986,39 +981,6 @@ check("so it is counted once, in the round it rides",
 check("and the first round is landed by the second having been filed",
       ledger.check(led_tmp, ldoc, note1, later=True)["landed"])
 
-# THE MANUSCRIPT FACTORY'S ANSWER: what its editor APPLIED, one per issue.
-fac_items = [{"id": "R2.1"}, {"id": "R2.2"}, {"id": "R2.3"}]
-fac, extra = ledger.from_factory(fac_items, {"edits": [
-    {"issue": "[R2.1] the abstract overclaims", "find": "proves", "replace": "suggests",
-     "applied": True},
-    {"issue": "[R2.2] wrong split", "find": "80/20", "replace": "70/30",
-     "applied": False, "why": "MISSING"},
-    {"issue": "TERMINOLOGY: a gate's own fix", "find": "a", "replace": "b",
-     "applied": True}]})
-check("a factory edit that applied answers its request as done, with old and new",
-      fac["R2.1"]["disposition"] == "done" and fac["R2.1"]["old"] == "proves"
-      and fac["R2.1"]["new"] == "suggests")
-check("one that did not apply is not done, saying why",
-      fac["R2.2"]["disposition"] == "not done" and "MISSING" in fac["R2.2"]["did"])
-check("a request no edit names is not answered, and the factory's own edits "
-      "are listed rather than dropped",
-      "R2.3" not in fac and len(extra) == 1)
-
-# AND WHEN THE FACTORY'S RECORD LANDS BESIDE A ROUND, the board turns it into
-# that round's answers -- in the ledger, which is the contract whoever answered.
-with open(ledger.factory_path(r2["path"]), "w", encoding="utf-8") as fh:
-    json.dump({"version": 1, "edits": [
-        {"issue": "[R1.5] 'significant' said without the test", "applied": True,
-         "find": "was significant", "replace": "was considered significant"}]}, fh)
-fac_check = ledger.check(led_tmp, ldoc, r2["path"])
-check("a round the manuscript factory answered has landed, its answers taken "
-      "from what the editor applied",
-      fac_check["landed"] and fac_check["items"]["R1.5"]["status"] == "answered"
-      and fac_check["items"]["R1.5"]["answer"]["by"] == "paper-writer")
-check("and they are written into the ledger itself",
-      json.load(open(ledger.ledger_path(r2["path"]), encoding="utf-8"))["answers"]
-      ["R1.5"]["disposition"] == "done")
-
 # OVER THE WIRE.
 lworker = tikz.TikzWorker(lrepo)
 lworker.start()
@@ -1133,8 +1095,7 @@ check("a round's number is past every round there has been, a deleted note's "
       "included",
       ledger.next_round(led_tmp, ldoc) == high + 1)
 
-# TYPED WORDS ARE WRITTEN ONCE, so a long round still fits what the factory
-# reads of a note.
+# TYPED WORDS ARE WRITTEN ONCE, so a long round does not double the note.
 paras = ["Paragraph %d says %s." % (n, "something long " * 60) for n in range(5)]
 long_note = library.write_note(lrepo, ldoc["id"], "\n\n".join(paras), hand_over=False)
 ledger.mark_unsent(long_note["path"])
@@ -1143,17 +1104,13 @@ check("a typed paragraph appears in the note once, under its id",
       all(body_long.count(p) == 1 for p in paras)
       and len(body_long) < len("".join(paras)) + 2500)
 
-# A STRUCTURAL EDIT -- a section moved -- applied, with no new wording.
-struct_ans, _ = ledger.from_factory([{"id": "R1.2"}], {"edits": [
-    {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
-     "replace": "", "applied": True}]})
-check("a factory edit that restructured is done, and anchored on what it moved",
-      struct_ans["R1.2"]["disposition"] == "done" and not struct_ans["R1.2"]["new"]
-      and struct_ans["R1.2"]["anchor"] == "The first page says hello.")
-with open(ledger.factory_path(retry["path"]), "w", encoding="utf-8") as fh:
-    json.dump({"version": 1, "edits": [
-        {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
-         "replace": "", "applied": True}]}, fh)
+# A STRUCTURAL EDIT -- a section moved -- done, with no new wording, anchored on
+# what it moved.
+sled = json.load(open(ledger.ledger_path(retry["path"]), encoding="utf-8"))
+sled["answers"] = {"R1.2": {"disposition": "done", "did": "Moved the methods.",
+                            "anchor": "The first page says hello."}}
+with open(ledger.ledger_path(retry["path"]), "w", encoding="utf-8") as fh:
+    json.dump(sled, fh)
 sc = ledger.check(led_tmp, ldoc, retry["path"])
 check("and it is not flagged for new wording it never had",
       sc["items"]["R1.2"]["status"] == "answered"
@@ -1202,7 +1159,7 @@ with open(pr_tex, "w", encoding="utf-8") as fh:
 PAGE1 = ["Alpha bravo charlie delta.", "Echo foxtrot golf hotel."]
 with open(pr_pdf, "wb") as fh:
     fh.write(pdf_lines([PAGE1, ["India juliet kilo lima."]]))
-prepo = course_repo.Repo(pr_tmp)
+prepo = course_repo.Repo(pr_tmp, os.path.join(pr_tmp, "live"))
 library.forget()
 pdoc = [d for d in library.documents(pr_tmp) if d["stem"] == "pairs"][0]
 pdig0 = course_paper._digest(pr_pdf, course_paper.PAGE_WIDTH)
@@ -1237,6 +1194,7 @@ BOARD = os.path.join(ROOT, "bin", "board")
 
 def board_round(*args):
     p = subprocess.run([sys.executable, BOARD, "round"] + list(args) + ["--repo", pr_tmp],
+                       env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(pr_tmp, "live")),
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     return p.returncode, p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")
 
@@ -1378,13 +1336,12 @@ foc = ledger.word_diff("One old. Two old.", "One new. Two new.", tex=False, focu
 check("a diff focused on the passage a request quoted shows only its own change",
       foc == [["=", "Two"], ["-", "old."], ["+", "new."]])
 
-# TWO KINDS OF INK ON ONE PAGE. A stroke drawn with the reader's toggle on
-# directions carries `dir: 1`: it is never a request, a fix's wipe leaves it,
-# and its picture is its own file.
-D = lambda pts: dict(S(pts), dir=1)                                  # noqa: E731
+# ONE KIND OF INK, AND OLD INK LOADS IN PLACE. A stroke stored with the
+# retired direction field is ordinary ink: counted, filed and wiped with the
+# rest, and the `.dir.png` a retired reader saved beside it is never read.
 mixed = "doc/%s/p1" % pdoc["id"]
 mstem = os.path.join(prepo.notes, writing_route.ann_file(mixed))
-dstroke = D([0.60, 0.60, 0.70, 0.70])
+dstroke = dict(S([0.60, 0.60, 0.70, 0.70]), **json.loads('{"dir": 1}'))
 
 
 def mixed_page(sent, build=True):
@@ -1401,51 +1358,28 @@ def mixed_page(sent, build=True):
 mixed_page(False)
 library.forget()
 mk = library.marks(prepo, pdoc)
-check("a page carrying both kinds is a fix page of one stroke, with the fix picture",
-      [(m["page"], m["strokes"]) for m in mk] == [(1, 1)]
+check("a page carrying old ink is a page of two strokes, with its one picture",
+      [(m["page"], m["strokes"]) for m in mk] == [(1, 2)]
       and mk[0]["png"].endswith(".png") and not mk[0]["png"].endswith(".dir.png"))
-dk = library.marks(prepo, pdoc, kind="dir")
-check("and a direction page of one stroke, with its own picture",
-      [(m["page"], m["strokes"]) for m in dk] == [(1, 1)]
-      and dk[0]["png"].endswith(".dir.png"))
-pv_items = ledger.preview(prepo, library.carried(prepo, pdoc, mk), "")
 split_items = ledger.split(prepo, mk, "")
-check("the filing panel's split makes no request out of direction ink",
-      [(i["kind"], i["page"], i["count"]) for i in pv_items] == [("ink", 1, 1)]
-      and [len(i["strokes"]) for i in split_items] == [1]
-      and not any(s.get("dir") for s in split_items[0]["strokes"]))
+check("the filing panel's split files the old stroke as ink like any other",
+      sum(len(i["strokes"]) for i in split_items) == 2
+      and all(i["page"] == 1 for i in split_items))
 st_marks = [d["marks"] for d in library.status(prepo)["documents"]
             if d["id"] == pdoc["id"]][0]
-# `status` wipes first: the round has landed, and the fix stroke on page 1 is
-# the one it filed on the build it was filed against, so it went.
-check("the row counts fixes and directions apart, after the wipe took the "
-      "delivered fix",
-      st_marks["pages"] == 0 and st_marks["strokes"] == 0
-      and st_marks["dir"] == {"pages": 1, "strokes": 1})
-with open(mstem + ".json", encoding="utf-8") as fh:
-    left = json.load(fh)
-check("the filed-ink check counts fix strokes only: a landed round's ring goes "
-      "though a direction was drawn beside it",
-      left["strokes"] == [dstroke] and left["sent"] is False
-      and left.get("build", {}).get("digest") == pdig0)
-check("and the wipe deletes the fix picture and keeps the direction's",
-      not os.path.isfile(mstem + ".png") and os.path.isfile(mstem + ".dir.png"))
+check("the row counts every stroke as one kind of ink, and has no second count",
+      st_marks["pages"] == 1 and st_marks["strokes"] == 2 and "dir" not in st_marks)
 mixed_page(True, build=False)
 gone = library.wipe_delivered(prepo, pdoc)
-with open(mstem + ".json", encoding="utf-8") as fh:
-    left = json.load(fh)
-check("a delivered fix page loses its fixes and keeps its directions, now unsent",
-      gone == [mixed] and left["strokes"] == [dstroke] and left["sent"] is False)
+check("a delivered page loses all its ink and its picture, the old stroke too",
+      gone == [mixed] and not os.path.isfile(mstem + ".json")
+      and not os.path.isfile(mstem + ".png"))
+check("and the strokes it took are named for a reader still showing them",
+      library.wiped(prepo, pdoc).get(mixed) == [ring, dstroke])
 
 code3, out3 = board_round(pdoc["id"])
-check("with no ink and nothing reopened, `board round` refuses and says why -- "
-      "direction ink is nothing to file",
+check("with no ink and nothing reopened, `board round` refuses and says why",
       code3 == 1 and "nothing to file" in out3)
-check("and the direction ink is left where it was",
-      os.path.isfile(mstem + ".json") and os.path.isfile(mstem + ".dir.png"))
-check("a page whose last ink is stripped goes whole, both pictures",
-      library.strip_kind(prepo, mixed, "dir")
-      and not os.path.isfile(mstem + ".json") and not os.path.isfile(mstem + ".dir.png"))
 
 print()
 if fails:

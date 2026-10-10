@@ -1,9 +1,5 @@
 #!/bin/bash
-# One launcher for both units. The unit name is the single argument; the service files
-# differ only in that name and their schedule.
-#
-# Near-identical per-unit launch scripts used to live here. They drifted, because two
-# copies of the same eleven lines always do.
+# One launcher for both daemons, run by hand. The daemon's name is the single argument.
 #
 #   ./run.sh author | builder
 #
@@ -34,7 +30,7 @@ if [ -n "$GIT" ] && [ -d "$REPO/.git" ]; then
 fi
 
 # The deployed configuration — the model, the evidence sources, the output folder,
-# quiet hours. Sourced rather than baked into the service files so the two units cannot
+# quiet hours. Sourced rather than baked into the launcher so the two daemons cannot
 # disagree about it, and so a change is one edit plus a restart. `set -a` exports every
 # assignment; an absent file is fine, since every value has a default in config.py.
 ENV_FILE="$REPO/service/paperwriter.env"

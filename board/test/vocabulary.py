@@ -110,7 +110,7 @@ hub = open(os.path.join(ROOT, "tutorboard", "server", "hub.py"),
            encoding="utf-8").read()
 check("the payload carries them, per workspace, because the vocabulary is the "
       "course's rather than the machine's",
-      '"macros": coursemacros.for_workspace(self.repo.root)' in hub)
+      '"macros": coursemacros.for_workspace(repo.root)' in hub)
 
 bjs = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
 check("the page takes them off the payload", "setCourseMacros(data.macros)" in bjs)

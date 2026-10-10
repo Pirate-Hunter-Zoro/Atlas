@@ -90,8 +90,8 @@ function boot(remembered) {
     window.localStorage.setItem('answer-kind', remembered);
   }
 
-  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                   'slate-core.js', 'annotate.js', 'board.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js',
+                   'ink-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }

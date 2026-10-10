@@ -5,17 +5,14 @@ Not a speed test. A tutor billed by the token pays for every character it is
 told to read, and it pays again for every round trip inside a turn, because each
 one resends the whole conversation. Two things follow, and this file guards both:
 
-- **A resumed turn must not be told to re-read what it already holds.** The
-  single prompt this replaced told every turn to read AI_INSTRUCTIONS.md,
-  TEACHING.md, BRIEF.md, HANDOFF.md and every card in live/cards/ -- roughly
-  fourteen thousand tokens of documents the agent was already carrying, plus one
-  round trip per card.
-- **A lesson is read back in one call.** `board recap` is that call. Reading a
-  twelve-card lesson card by card is twelve round trips for what fits in one.
+- **A turn is a fresh process and is handed what it must read.** The brief
+  and the recap ride in its prompt (test/injected.py); it reads no document
+  and no card file by file.
+- **A lesson is read back in one block.** The recap is that block, also
+  printed by `board recap`. Reading a twelve-card lesson card by card is
+  twelve round trips for what fits in one.
 """
 
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -26,11 +23,12 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 BOARD = os.path.join(ROOT, "bin", "board")
+sys.path.insert(0, ROOT)
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(spec)
-loader.exec_module(tutor)
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import usage  # noqa: E402
 
 fails = []
 
@@ -44,168 +42,61 @@ def check(name, cond):
 
 
 # --- the prompts ----------------------------------------------------------
-first = tutor.HEADLESS_FIRST_PROMPT
-resume = tutor.HEADLESS_RESUME_PROMPT
+# Literal phrases here count toward the 30 that test/teaching.py's docstring
+# caps across both files.
+first = prompts.HEADLESS_FIRST_PROMPT
 
-check("a cold turn reads the standing rules in one call, not three documents",
-      "board brief" in first and "board recap" in first)
-check("and is told NOT to read the documents that call replaced",
-      "Do not read" in first and "AI_INSTRUCTIONS.md" in first
-      and "live/TEACHING.md" in first and "live/BRIEF.md" in first)
-check("and not to read the lesson card by card",
-      "live/cards/ file by file" in first)
-check("a resumed turn is told NOT to re-read the contract",
-      "Do not re-read" in resume and "AI_INSTRUCTIONS.md" in resume)
-for doc in ("live/TEACHING.md", "live/BRIEF.md", "HANDOFF.md", "live/cards/"):
-    check("a resumed turn is told not to re-read %s" % doc,
-          doc in resume.split("Do not re-read", 1)[1].split("\n\n", 1)[0])
-
-# --- the two things a turn must not do ------------------------------------
-# Both cost real money in a real session and neither could be fixed by asking
-# more firmly, so both are refused by the command as well as forbidden here.
-for name, p in (("cold", first), ("resumed", resume)):
-    check("a %s turn is told not to run `board wait`" % name,
-          "Do not run `board wait`" in p)
-    check("a %s turn is told not to touch HANDOFF.md" % name,
-          "Do not touch `HANDOFF.md`" in p)
-    check("a %s turn is told to leave the next one a note" % name,
-          "board note" in p and "120 words" in p)
-
-# The wait output IS the inbox, already marked read. Telling the agent to run
+check("a turn is told the brief and the recap are above, and not to fetch them",
+      "The brief and the recap are above" in first
+      and "Do not run `board brief` or `board recap`" in first)
+check("and not to read the lesson card by card", "cards file by file" in first)
+# The prompt IS the inbox, already marked read. Telling the agent to run
 # `board inbox` as well bought an empty round trip on every single turn.
-for name, p in (("cold", first), ("resumed", resume)):
-    check("a %s turn is not sent to `board inbox` for what it already has" % name,
-          "do not run `board inbox`" in p.lower())
+check("and not to run `board inbox` for what it already has",
+      "do not run `board inbox`" in first.lower())
+check("a turn is told to keep TUTOR.md true with `board memo`",
+      "board memo" in first)
+check("there is no resume prompt: every turn is a fresh process",
+      not hasattr(prompts, "HEADLESS_RESUME_PROMPT"))
 
-check("the handoff is capped, because it is read on every future session",
-      "350 words" in tutor.HANDOFF_PROMPT)
-check("and it is written through the one command that enforces the cap",
-      "board handoff" in tutor.HANDOFF_PROMPT)
-check("the wrap-up reads the lesson back in one call, holding one turn only",
-      "board recap" in tutor.HANDOFF_PROMPT
-      and "file by file" in tutor.HANDOFF_PROMPT)
-# It used to be told not to re-read the lesson at all, because it ran on a
-# session that had taught the whole of it. It does not any more -- a teaching
-# turn is its own session, so the wrap-up resumes onto the LAST turn and holds
-# one card. So the guarantee changed shape: it reads the lesson back, in one
-# call, and still reads none of the documents.
-check("the handoff turn reads no document to write itself",
-      "do not read ai_instructions.md" in tutor.HANDOFF_PROMPT.lower()
-      and "live/TEACHING.md" in tutor.HANDOFF_PROMPT
-      and "old HANDOFF.md" in tutor.HANDOFF_PROMPT)
-check("the handoff is not a documentation review either",
-      "Do not review" in tutor.HANDOFF_PROMPT)
-
-# --- which session a turn runs in -----------------------------------------
+# --- every turn is a fresh process ----------------------------------------
+# Every session's turn runs in the Atlas root, so a resume would pick up
+# another session's conversation. What a turn holds never grows with the lesson.
 spec_claude = {"headless_first": ["claude", "-p", "{prompt}"],
                "headless": ["claude", "-p", "{prompt}", "--continue"]}
+for sig in ("", "unfinished", "carry", "revise", "writeup", "repair"):
+    use, template = runturn.turn_plan(spec_claude, sig)
+    check("a %s turn opens a fresh conversation" % (sig or "lesson"),
+          "--continue" not in use)
+check("a lesson turn is cold-prompted",
+      runturn.turn_plan(spec_claude)[1] is first)
+check("an unfinished report reads what the work changed off disk",
+      runturn.turn_plan(spec_claude, "unfinished")[1]
+      is prompts.HEADLESS_UNFINISHED_PROMPT)
+check("and a `[carry]` is not special: it is an ordinary cold turn",
+      runturn.turn_plan(spec_claude, "carry")[1] is first
+      and not hasattr(prompts, "HEADLESS_CARRY_PROMPT"))
+use, template = runturn.turn_plan({"headless": ["codex", "exec", "{prompt}"]})
+check("an agent with one recipe runs that, cold-prompted",
+      use == ["codex", "exec", "{prompt}"] and template is first)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 0, 12)
-check("with nothing to resume, a turn opens a session",
-      fresh and "--continue" not in use and template is first)
+check("the config says how big an allowance window is, without guessing",
+      "quota_tokens" in recipes.DEFAULT_CONFIG
+      and recipes.DEFAULT_CONFIG["quota_tokens"] is None)
 
-use, template, fresh = tutor.turn_plan(spec_claude, 1, 12)
-check("with a session in hand it is resumed",
-      not fresh and "--continue" in use and template is resume)
-
-use, template, fresh = tutor.turn_plan(spec_claude, 11, 12)
-check("and stays resumed up to the limit", not fresh)
-
-use, template, fresh = tutor.turn_plan(spec_claude, 12, 12)
-check("at the limit it starts fresh rather than carry twelve turns of history",
-      fresh and "--continue" not in use and template is first)
-
-use, template, fresh = tutor.turn_plan(spec_claude, 99, 0)
-check("session_turns 0 resumes for ever, which is what a flat rate wants",
-      not fresh)
-
-# The default, and the whole point of the arrangement: every turn is its own
-# session, so what a turn holds does not grow with the lesson.
-check("the shipped default is one turn to a session",
-      tutor.DEFAULT_CONFIG["session_turns"] == 1)
-for carried in (1, 5, 40):
-    use, template, fresh = tutor.turn_plan(spec_claude, carried, 1)
-    check("with session_turns 1, turn %d is fresh and cold-prompted" % (carried + 1),
-          fresh and "--continue" not in use and template is first)
-
-# A TURN PICKED UP AFTER ITS NODE WENT IS RESUMED, WHATEVER THE COUNT SAYS.
-# `session_turns` is 1, so every other turn is fresh and the `--continue` recipe
-# is unreachable -- which on this model is a 15,900-token preamble at a few
-# tokens a second of prefill, paid again on every hop. There IS a session here:
-# the turn that just died opened it and the transcript is on the shared home.
-spec_colibri = {"headless_first": ["coli-code", "--yes", "{prompt}"],
-                "headless": ["coli-code", "--yes", "--continue", "{prompt}"]}
-use, template, fresh = tutor.turn_plan(spec_colibri, 0, 1, "carry")
-check("a carried turn continues the conversation it was cut off in, with "
-      "nothing carried and session_turns 1, which is every other turn fresh",
-      not fresh and "--continue" in use
-      and template is tutor.HEADLESS_CARRY_PROMPT)
-check("and it is told the node went rather than that it failed, because a turn "
-      "told nothing starts over",
-      "Nothing you did caused this" in tutor.HEADLESS_CARRY_PROMPT
-      and "%(inbox)s" in tutor.HEADLESS_CARRY_PROMPT)
-check("and told to write files as it finishes them, because the next "
-      "interruption takes whatever it is still holding",
-      "still holding" in tutor.HEADLESS_CARRY_PROMPT)
-check("and the count goes up, so a second hop resumes what the first one left",
-      tutor.carry_after("carry", False, 0) == 1)
-
-# AND THE TURN GETS EIGHT HOURS, under a nine-hour generation, so the
-# generation's own end is the cut rather than this number. A turn cut at its
-# cap burns a pick-up, which is what bounds a wedged client.
-check("a colibri turn is capped at eight hours, taken as a floor over every "
-      "number a sitting carries",
-      tutor.turn_timeout({"headless_timeout": 900, "doing_timeout": 3600},
-                         "/nonexistent",
-                         tutor.DEFAULT_CONFIG["agents"]["colibri"]) == 28800)
-
-# An agent with no separate opening recipe must still work, and must not be
-# handed a resume prompt on a session it never opened.
-use, template, fresh = tutor.turn_plan({"headless": ["codex", "exec", "{prompt}"]}, 0, 12)
-check("an agent with one recipe still gets the cold prompt on its first turn",
-      fresh and template is first)
-
-check("the config carries a session length", "session_turns" in tutor.DEFAULT_CONFIG)
-check("and somewhere to say how big an allowance window is, without guessing",
-      "quota_tokens" in tutor.DEFAULT_CONFIG
-      and tutor.DEFAULT_CONFIG["quota_tokens"] is None)
-
-# --- the stance a repository declares --------------------------------------
-# `stance: do` is what a repository sets when it wants the work done rather than
-# taught. It is never guessed: writing the code for somebody who wanted to learn
-# it is the one mistake here the next card cannot undo.
-#
-# It is the ONLY thing a repository still says about how it is taught. A `mode`
-# of `math` or `code` used to sit beside it and carry a whole second method --
-# `code_sense` -- and a whole second interface. A stance is a paragraph appended
-# to the one method, which is why it is a line of configuration and not a mode.
-import importlib.machinery as _m  # noqa: E402
-import importlib.util as _u       # noqa: E402
-
+# --- the session's mode ------------------------------------------------------
+# `mode: do` is what the owner sets when they want the work done rather than
+# taught. It is never guessed: anything that is not `do` teaches.
 from tutorboard import sense as serve_mod                    # noqa: E402
 
-check("teaching is the default, and it adds nothing to the method",
-      serve_mod.stance_sense("teach") == ""
-      and serve_mod.stance_sense(None) == ""
-      and serve_mod.stance_sense("code") == "")
-do = serve_mod.stance_sense("do")
-check("a doing repository is told to write the code",
-      "you write the code" in do.lower())
-check("and to run what needs running", "run what needs running" in do)
-# Still one card. NOT still "written before the rest of the work": that
-# ordering is a teaching turn's, and in a turn that writes the code it produces
-# a card describing an intention and no code -- which is what came back the
-# first time somebody asked for an implementation. The order for a doing turn is
-# its own clause now; `test/teaching.py` holds it.
-check("but still one card", "one card" in do.lower())
-check("and the card-first ordering is no longer claimed for a doing turn",
-      "before the rest" not in do)
-check("which has an order of its own that says so outright",
-      "opposite" in serve_mod.DOING_SENSE.lower()
-      and "board write --over" in serve_mod.DOING_SENSE)
-check("and to say what it did not actually verify", "did NOT verify" in do)
-check("and no subject is read anywhere in the config",
-      "mode" not in serve_mod.config.DEFAULT_CONFIG)
+check("teaching is the default, and anything that is not do teaches",
+      serve_mod.mode_sense("teach") == serve_mod.TEACH_SENSE
+      and serve_mod.mode_sense(None) == serve_mod.TEACH_SENSE
+      and serve_mod.mode_sense("code") == serve_mod.TEACH_SENSE)
+check("do mode is a paragraph of its own",
+      serve_mod.mode_sense("do") == serve_mod.DO_SENSE != serve_mod.TEACH_SENSE)
+check("and no subject's config carries a mode",
+      "mode" not in serve_mod.config.read_config(tempfile.gettempdir()))
 
 # --- board recap ----------------------------------------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-tokens-")
@@ -213,6 +104,7 @@ try:
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "Test Course", "mode": "math"}, fh)
     live = os.path.join(tmp, "live")
+    SESSION_ENV = dict(os.environ, TUTORBOARD_SESSION=live)
     cards = os.path.join(live, "cards")
     os.makedirs(cards)
     with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
@@ -243,7 +135,7 @@ try:
                              "answers": "0006", "kind": "text",
                              "text": "the two cosets are H and its complement"}) + "\n")
 
-    p = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    p = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     out = p.stdout.decode("utf-8", "replace")
     check("recap runs", p.returncode == 0)
@@ -275,7 +167,7 @@ try:
         with open(os.path.join(cards, "%04d-card-%d.md" % (n, n)), "w",
                   encoding="utf-8") as fh:
             fh.write("---\nkind: lesson\ntitle: Card %d\n---\n\n%s\n" % (n, body))
-    pbig = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    pbig = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     bigout = pbig.stdout.decode("utf-8", "replace")
     check("a long lesson still says how many cards it has", "70 card(s)" in bigout)
@@ -283,14 +175,14 @@ try:
           "Card 70" in bigout and "Card 1\n" not in bigout
           and "earlier card(s) not listed" in bigout)
     check("and it says where the earlier ones went, and how to see them",
-          "HANDOFF.md" in bigout and "recap --all" in bigout)
+          "TUTOR.md" in bigout and "recap --all" in bigout)
     check("a seventy-card recap is no bigger than a twelve-card one was (%d vs %d)"
           % (len(bigout), len(out)), len(bigout) < len(out) * 3)
     for n in range(13, 71):
         os.remove(os.path.join(cards, "%04d-card-%d.md" % (n, n)))
 
     # --all is there for the rare case, and is honestly bigger.
-    p2 = subprocess.run([sys.executable, BOARD, "recap", "--all"], cwd=tmp,
+    p2 = subprocess.run([sys.executable, BOARD, "recap", "--all"], cwd=tmp, env=SESSION_ENV,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     check("--all prints the lesson in full when that is genuinely wanted",
           len(p2.stdout) > total)
@@ -298,134 +190,110 @@ try:
     # An empty lesson says so rather than printing nothing.
     for n in os.listdir(cards):
         os.remove(os.path.join(cards, n))
-    p3 = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp,
+    p3 = subprocess.run([sys.executable, BOARD, "recap"], cwd=tmp, env=SESSION_ENV,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     check("an empty lesson says so", b"no cards yet" in p3.stdout)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
-# --- board brief: the cold read, in one call ------------------------------
+# --- board brief: a size budget -------------------------------------------
 # The other half of what a turn reads. `recap` above is the lesson; this is the
-# standing rules, and it replaced three whole documents read in three round
-# trips. What is guarded here is that it says the things a turn acts on AND
-# that it is a small fraction of what it replaced -- either one alone is not
-# the point.
-RULES = """### The rules that do not bend
+# method, the owner's RULES.md at HEAD and the tutor's TUTOR.md, read on every
+# cold turn. A fixture with RULES.md at its 300-word size and TUTOR.md at its
+# 800-word cap, beside a contract, a method and a handoff that are padded and
+# must not be read, briefs in at most `brief.BUDGET` (14,000) characters.
+from tutorboard import brief as brief_mod                     # noqa: E402
 
-- **You never make the user transcribe what they already wrote.** Open the PNG.
-- **The user never runs a board command.**
-
-## 14. Something after the rules
-
-This paragraph is not part of the rules and must not be printed as though it were.
-"""
+RULES = ("# Rules\n\n- **You never make the user transcribe what they already "
+         "wrote.** Open the PNG.\n- **The user never runs a board command.**\n"
+         + "".join("- rule %d: %s\n" % (i, "keep the data fenced " * 3)
+                   for i in range(18)))
+TUTOR = ("# Test Course\n\n## Where things are\n\n"
+         + "chapters/ch01 holds the notes and homework. " * 20
+         + "\n\n## Now\n\n" + "Cosets, then Lagrange, then quotients. " * 80
+         + "\n\n## Open decisions\n\n" + "- which book's notation\n" * 25
+         + "\n## Done recently\n\n" + "- subgroups and orders\n" * 37)
 
 tmp = tempfile.mkdtemp(prefix="tutor-brief-")
 try:
     with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
         json.dump({"name": "Test Course"}, fh)
     contract = ("# AI_INSTRUCTIONS.md\n\n## 0. Who you are working for\n\n"
-                + ("padding that a turn has no reason to pay for. " * 900)
-                + "\n\n## 13. The live board\n\n" + RULES)
+                + ("padding that a turn has no reason to pay for. " * 900))
     with open(os.path.join(tmp, "AI_INSTRUCTIONS.md"), "w", encoding="utf-8") as fh:
         fh.write(contract)
+    with open(os.path.join(tmp, "RULES.md"), "w", encoding="utf-8") as fh:
+        fh.write(RULES)
+    with open(os.path.join(tmp, "TUTOR.md"), "w", encoding="utf-8") as fh:
+        fh.write(TUTOR)
+    with open(os.path.join(tmp, "README.md"), "w", encoding="utf-8") as fh:
+        fh.write("# Test Course\n\n" + "the owner's README, never briefed. " * 400)
     live = os.path.join(tmp, "live")
     os.makedirs(os.path.join(live, "cards"))
-    method = "# TEACHING.md\n\n" + ("the method, at length. " * 1500)
-    with open(os.path.join(live, "TEACHING.md"), "w", encoding="utf-8") as fh:
-        fh.write(method)
+    with open(os.path.join(tmp, ".gitignore"), "w", encoding="utf-8") as fh:
+        fh.write("/live/\n")
     with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
                    "chapter": "Ch 1 - Groups"}, fh)
     hand = "<!-- chapter: Ch 1 - Groups -->\n# HANDOFF\n\nthey got cosets.\n"
     with open(os.path.join(tmp, "HANDOFF.md"), "w", encoding="utf-8") as fh:
         fh.write(hand)
+    for argv in (["init", "-q"], ["add", "-A"],
+                 ["-c", "user.email=t@example.com", "-c", "user.name=t",
+                  "commit", "-q", "-m", "fixture"]):
+        subprocess.run(["git", "-C", tmp] + argv, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=True)
 
     def board(*args, **kw):
         return subprocess.run([sys.executable, BOARD] + list(args), cwd=tmp,
+                              env=dict(os.environ, TUTORBOARD_SESSION=live),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=60, **kw)
 
+    check("the fixture's RULES.md is at its 300-word size and TUTOR.md at its "
+          "800-word cap", 280 <= len(RULES.split()) <= 300
+          and 760 <= len(TUTOR.split()) <= 800)
     p = board("brief")
     out = p.stdout.decode("utf-8", "replace")
     check("brief runs", p.returncode == 0)
     check("it says what this sitting is", "Test Course" in out and "Ch 1 - Groups" in out)
-    check("it carries the method rather than a pointer to it",
-          "THE LESSON IS EXERCISES" in out)
-    check("and the measure the work already has, which every sitting is asked for",
-          "NAME THE MEASURE THIS WORK ALREADY HAS" in out)
-    check("it carries this course's rules that do not bend",
-          "never make the user transcribe" in out)
-    check("and stops at the end of them",
-          "must not be printed as though it were" not in out)
-    check("it carries the handoff", "they got cosets" in out)
-    check("it says how a turn works now",
-          "board note" in out and "board wait" in out and "own session" in out)
-    check("it names the documents it replaced, for a rule that needs its detail",
-          "AI_INSTRUCTIONS.md" in out and "live/TEACHING.md" in out
-          and "13. The live board" in out)
-    documents = len(contract) + len(method) + len(hand)
-    check("brief is a fraction of the documents it replaced (%d vs %d bytes)"
-          % (len(out), documents), len(out) < documents / 8.0)
+    check("it carries the method, the measure and how a turn works",
+          serve_mod.METHOD_SENSE in out and serve_mod.MEASURE_SENSE in out
+          and brief_mod.TURN_SENSE in out)
+    check("it carries the owner's RULES.md", "never make the user transcribe" in out)
+    check("and the tutor's TUTOR.md, whole", "subgroups and orders" in out
+          and "which book's notation" in out)
+    check("it names the method's file for a rule that needs its detail",
+          brief_mod.METHOD in out)
+    check("and reads none of the contract, the handoff or the README",
+          "padding that a turn" not in out and "they got cosets" not in out
+          and "never briefed" not in out)
+    check("THE BUDGET: a fixture brief is at most %d characters (%d)"
+          % (brief_mod.BUDGET, len(out)),
+          brief_mod.BUDGET == 14000 and len(out) <= brief_mod.BUDGET)
 
-    # --- the note: what one turn tells the next ---------------------------
-    p = board("note", input=b"they read the exists as a for-all. Ask only for the witness.")
-    check("a note is written", p.returncode == 0 and b"NEXT.md" in p.stdout)
-    check("and comes back in the brief",
-          "read the exists as a for-all" in board("brief").stdout.decode())
-    p = board("note", input=("word " * 200).encode())
-    check("a note over its cap is REFUSED, not trimmed",
-          p.returncode == 1 and b"cap is 120" in p.stdout)
-    check("and the note that was there is untouched",
-          b"witness" in board("note", "--show").stdout)
-    check("a note can be cleared", board("note", "--clear").returncode == 0
-          and b"no note" in board("note", "--show").stdout)
-
-    # --- the handoff: capped at the door ----------------------------------
-    p = board("handoff", input=("word " * 400).encode())
-    check("a handoff over 350 words is REFUSED, not trimmed",
-          p.returncode == 1 and b"cap is 350" in p.stdout)
-    check("and nothing was written over the old one",
-          b"they got cosets" in board("handoff", "--show").stdout)
+    # --- the handoff is gone: TUTOR.md carries the subject ------------------
     p = board("handoff", input=b"# HANDOFF\n\nthey got quotient groups.\n")
-    check("a handoff inside the cap is written", p.returncode == 0)
-    with open(os.path.join(tmp, "HANDOFF.md"), "r", encoding="utf-8") as fh:
-        written = fh.read()
-    check("and is stamped with the chapter it is about, by the writer",
-          written.startswith("<!-- chapter: Ch 1 - Groups -->"))
-    check("`--check` says how long it is",
-          b"words, cap 350, ok" in board("handoff", "--check").stdout)
+    check("`board handoff` refuses by name, pointing at `board memo`, and writes "
+          "nothing", p.returncode == 2 and b"board memo" in p.stdout
+          and b"Traceback" not in p.stdout
+          and open(os.path.join(tmp, "HANDOFF.md"), encoding="utf-8").read() == hand)
 
-    # --- board wait: a turn does not wait ---------------------------------
-    # The defect this refuses cost $4.49 in one turn: the agent ran `board wait`
-    # at the end of its own turn, held the conversation open while the student
-    # thought, and answered their next message inside it.
-    import time as _time
-    agent = os.path.join(live, "agent.json")
+    for gone in ("hold", "send", "release", "coach"):
+        p = board(gone, "x")
+        check("`board %s` refuses, replaced by `board code`, with no traceback"
+              % gone, p.returncode == 2
+              and b"replaced by `board code` (T38)" in p.stdout
+              and b"Traceback" not in p.stdout)
 
-    def record(**kw):
-        with open(agent, "w", encoding="utf-8") as fh:
-            json.dump(kw, fh)
-
-    from tutorboard import machine                            # noqa: E402
-    node = machine.node_name()
-    record(host=node, pid=os.getpid(), state="working", turns=3,
-           last_seen=_time.time())
+    # --- there is no `board wait`: a turn does not wait -------------------
+    # The defect this replaced cost $4.49 in one turn: the agent ran `board
+    # wait` at the end of its own turn, held the conversation open while the
+    # student thought, and answered their next message inside it. The runner
+    # starts a fresh turn per message, so nothing waits and the command is gone.
     p = board("wait", "--timeout", "1")
-    check("a `board wait` from inside a headless turn is refused",
-          p.returncode == 0 and b"does not wait" in p.stdout)
-    check("and it is told what to do instead", b"board note" in p.stdout)
-    p = board("wait", "--timeout", "1", "--force")
-    check("the daemon's own waiter gets through with --force",
-          p.returncode == 2 and b"nothing sent" in p.stdout)
-    record(host=node, pid=os.getpid(), state="listening", last_seen=_time.time())
-    check("and a daemon between turns is not its own turn",
-          board("wait", "--timeout", "1").returncode == 2)
-    record(host=node, pid=os.getpid(), mode="interactive", state="attached",
-           cmd="python3", last_seen=_time.time())
-    check("a person at a terminal may still wait",
-          board("wait", "--timeout", "1").returncode == 2)
-    os.remove(agent)
+    check("`board wait` is no command at all",
+          p.returncode != 0 and b"unknown command" in p.stdout)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
@@ -433,22 +301,18 @@ finally:
 # A design whose whole justification is price has to be measured. These two
 # guard the measurement itself: the flag that makes the agent report, and the
 # parse of what it reports.
-claude = tutor.DEFAULT_CONFIG["agents"]["claude"]
+claude = recipes.DEFAULT_CONFIG["agents"]["claude"]
 check("the claude recipe says how to ask what a turn cost",
       claude.get("usage") == "claude-json" and claude.get("usage_args"))
 check("the flag is appended rather than written into the recipe, so a machine "
       "carrying an old copy of it still reports",
-      "--output-format" not in claude["headless"]
-      and "--output-format" in tutor.with_usage(claude, claude["headless"]))
+      "--output-format" not in claude["headless_first"]
+      and "--output-format" in usage.with_usage(claude, claude["headless_first"]))
 check("and appending it twice does not repeat it",
-      tutor.with_usage(claude, tutor.with_usage(claude, claude["headless"]))
-      == tutor.with_usage(claude, claude["headless"]))
+      usage.with_usage(claude, usage.with_usage(claude, claude["headless_first"]))
+      == usage.with_usage(claude, claude["headless_first"]))
 check("an agent that reports nothing is simply not accounted for",
-      tutor.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
-check("and `board cost` splits the evening by who taught it, because the "
-      "reason to have three is to see which one it went on",
-      "by_agent.setdefault" in open(os.path.join(ROOT, "bin", "tutor"),
-                                    encoding="utf-8").read())
+      usage.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
 
 fd, logpath = tempfile.mkstemp(prefix="tutor-cost-", suffix=".log")
 try:
@@ -467,7 +331,7 @@ try:
             "modelUsage": {"claude-opus-5[1m]": {"costUSD": 0.371},
                            "claude-haiku-4-5-20251001": {"costUSD": 0.001}},
         }) + "\n")
-    u = tutor.read_turn_usage(logpath, offset, "claude-json")
+    u = usage.read_turn_usage(logpath, offset, "claude-json")
     check("a turn's own report is read back out of the log",
           u.get("usd") == 0.372 and u.get("requests") == 6)
     check("and the numbers that matter are the cumulative ones",
@@ -480,10 +344,10 @@ try:
     check("noise on the same stream does not break the parse",
           u.get("session") == "abc")
     check("an agent that reports nothing yields nothing rather than raising",
-          tutor.read_turn_usage(logpath, offset, None) == {})
+          usage.read_turn_usage(logpath, offset, None) == {})
     check("and a log with no report at all is not an error",
-          tutor.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
-          and tutor.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
+          usage.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
+          and usage.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
 
     # ---- WHAT A TURN COST, PER PROVIDER -----------------------------------
     #
@@ -493,31 +357,31 @@ try:
     # covering two thirds of the table the moment there were three of them.
     check("`usage` is a dispatch, so a provider is a parser added beside the "
           "others rather than a branch in the reader",
-          set(tutor.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
+          set(usage.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
     check("and a kind nobody wrote a parser for costs nothing rather than "
-          "raising", tutor.read_turn_usage(logpath, offset, "no-such-kind") == {})
+          "raising", usage.read_turn_usage(logpath, offset, "no-such-kind") == {})
 
     # A PROVIDER DRIVEN THROUGH SOMEBODY ELSE'S BINARY REPORTS THE TOKENS RIGHT
     # AND THE MONEY WRONG. The counts are the model's own; the prices compiled
     # into that binary are its vendor's. So the counts are kept and the dollars
     # are recomputed from the recipe's table.
-    DS = tutor.DEFAULT_CONFIG["agents"]["deepseek"]
+    DS = recipes.DEFAULT_CONFIG["agents"]["deepseek"]
     import calendar                                            # noqa: E402
     peak = calendar.timegm((2026, 9, 23, 2, 0, 0, 0, 0, 0))    # Wednesday 02:00
     off = calendar.timegm((2026, 9, 23, 12, 0, 0, 0, 0, 0))    # Wednesday 12:00
     weekend = calendar.timegm((2026, 9, 26, 2, 0, 0, 0, 0, 0))  # Saturday 02:00
     check("the provider's own peak window is open when it says it is",
-          tutor.at_peak_rate(DS["prices"], peak)
-          and not tutor.at_peak_rate(DS["prices"], off))
+          usage.at_peak_rate(DS["prices"], peak)
+          and not usage.at_peak_rate(DS["prices"], off))
     check("and its weekday rule is honoured, because it has one",
-          not tutor.at_peak_rate(DS["prices"], weekend))
+          not usage.at_peak_rate(DS["prices"], weekend))
     check("a table with no windows is charged at peak -- guessing the dear rate "
-          "cannot understate a bill", tutor.at_peak_rate({}, off))
+          "cannot understate a bill", usage.at_peak_rate({}, off))
 
     counts = {"tokens": 100000, "in": 50000, "out": 10000,
               "cache_write": 0, "cache_read": 40000}
-    dear = tutor.priced(counts, DS, peak)
-    cheap = tutor.priced(counts, DS, off)
+    dear = usage.priced(counts, DS, peak)
+    cheap = usage.priced(counts, DS, off)
     check("the dollars are computed here rather than believed from the JSON",
           abs(dear["usd"] - 0.02724) < 1e-6)
     check("off-peak is charged off-peak", abs(cheap["usd"] - dear["usd"] / 2) < 1e-6)
@@ -528,7 +392,7 @@ try:
     check("the token counts are untouched, because they are the model's own "
           "report and they are right",
           dear["tokens"] == 100000 and dear["cache_read"] == 40000)
-    bare = tutor.priced(counts, tutor.DEFAULT_CONFIG["agents"]["codex"])
+    bare = usage.priced(counts, recipes.DEFAULT_CONFIG["agents"]["codex"])
     check("and a provider with no price table records the tokens and NO dollar "
           "figure, which is honest rather than wrong",
           "usd" not in bare and "rate" not in bare)
@@ -545,7 +409,7 @@ try:
                                        "cached_input_tokens": n * 400,
                                        "output_tokens": n * 100}},
     }) for n in (1, 2, 3))
-    got = tutor.read_codex_usage(stream)
+    got = usage.read_codex_usage(stream)
     check("the last running total is the answer, not the sum of them",
           got["out"] == 300 and got["cache_read"] == 1200)
     check("and the cached half is not counted twice in the billed total",
@@ -553,7 +417,7 @@ try:
     check("round trips are counted, because the stream is where they are",
           got["requests"] == 3)
     check("a stream that reported nothing is nothing rather than a crash",
-          tutor.read_codex_usage("some plain output\n") == {})
+          usage.read_codex_usage("some plain output\n") == {})
 
     # AND THE SHAPE IT HAS NOW, which is not that one. Codex 0.156.1 emits no
     # `token_count` event at all: the numbers ride on `turn.completed` as a
@@ -574,7 +438,7 @@ try:
                               "output_tokens": 139,
                               "reasoning_output_tokens": 0}}),
     ])
-    got = tutor.read_codex_usage(now)
+    got = usage.read_codex_usage(now)
     check("the turn's own usage event is read, which is where the numbers are "
           "now", got["out"] == 139 and got["cache_read"] == 32512)
     check("and the cached half is still not billed twice",
@@ -583,13 +447,13 @@ try:
           "run made two shell calls and reported once",
           got["requests"] == 1)
     check("and the cache WRITE is carried now, because this shape reports one",
-          tutor.read_codex_usage(json.dumps(
+          usage.read_codex_usage(json.dumps(
               {"type": "turn.completed",
                "usage": {"input_tokens": 10, "cached_input_tokens": 4,
                          "cache_write_input_tokens": 6, "output_tokens": 2}}
           ))["cache_write"] == 6)
     check("two turns in one stream are summed, because each is its own bill",
-          tutor.read_codex_usage("\n".join(
+          usage.read_codex_usage("\n".join(
               json.dumps({"type": "turn.completed",
                           "usage": {"input_tokens": 100, "output_tokens": 10}})
               for _ in range(2)))["tokens"] == 220)

@@ -9,8 +9,8 @@ signal, not a composer.
 
 This drives the real HTTP handler, because what is being guarded is the whole
 round trip -- the endpoint accepting the signal, the turn landing in the
-transcript, and the inbox line being something an assistant woken by `board wait`
-can actually act on. In a headless session that line IS the prompt.
+transcript, and the inbox line being something a turn woken on it can actually
+act on. That line IS the prompt.
 """
 
 import json
@@ -49,7 +49,7 @@ def check(name, cond):
 tmp = tempfile.mkdtemp(prefix="tutor-begin-")
 with open(os.path.join(tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Test Course"}, fh)
-repo = course_repo.Repo(tmp)
+repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
 
 worker = tikz.TikzWorker(repo)
 worker.start()
@@ -97,7 +97,7 @@ try:
 
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
         lines = [json.loads(l) for l in fh if l.strip()]
-    check("it reaches the inbox, which is what `board wait` watches", len(lines) == 1)
+    check("it reaches the inbox, which is what a turn is handed", len(lines) == 1)
     text = lines[0].get("text", "") if lines else ""
     # The failure this guards: the inbox line used to be the bare tag "[begin] ",
     # and a headless assistant woken with that string has been told nothing.
@@ -111,13 +111,12 @@ try:
           "carries no label of its own" in text and "Do not guess" in text)
     check("a course that is not a book is not given a fictional chapter one",
           "follows a book" not in text)
-    # And it is told where to look instead. This repository has no syllabus, so
-    # the only thing that can say what comes next is what it points at -- which
-    # is the whole of what the old `code` mode was for.
-    check("and is pointed at the README rather than left to survey",
-          "README.md" in text and "manufacture a curriculum" in text)
+    # And it is told where to look instead: TUTOR.md's "Now", never the README.
+    check("and is pointed at TUTOR.md rather than left to survey",
+          "TUTOR.md" in text and "manufacture a curriculum" in text
+          and "README.md" not in text)
 
-    # An unread message is what wakes `board wait`.
+    # An unread message is what a turn takes.
     check("it arrives unread", lines and lines[0].get("read") is False)
 
     # The signal vocabulary is closed. A typo must not become a new kind of turn.
@@ -299,48 +298,25 @@ try:
     check("a sentence of their own is left alone",
           "the lattice makes no sense" in last and "they are stuck" not in last)
 
-    # `board wait` has to wake on what is ALREADY unread, not only on what
-    # arrives while it happens to be blocking. It used to take the unread count
-    # as a baseline and return when that count grew, so a begin signal sent
-    # before a tutor was attached -- which is the entire cold start this file is
-    # about -- left the daemon waiting for a second tap on a board that was
-    # already asking. The student tapped begin twice and got one card.
-    import subprocess  # noqa: E402
-    import time as _t   # noqa: E402
+    # A turn takes what is ALREADY unread, not only what arrives later: a begin
+    # signal sent before anything was ready to read it is the whole cold start
+    # this file is about. `inbox.take` is what the runner hands a turn.
+    from tutorboard.lesson import inbox  # noqa: E402
 
-    with open(repo.messages_path, "r", encoding="utf-8") as fh:
-        unread = [json.loads(l) for l in fh if l.strip()]
-    check("something is sitting unread before the wait starts",
-          any(not m.get("read") for m in unread))
+    check("something is sitting unread before the turn takes it",
+          inbox.waiting(repo))
+    text, _taken = inbox.take(repo)
+    check("and the turn is handed it, not an empty inbox",
+          "the lattice makes no sense" in text)
+    # Taking is what consumes a message, so the next turn is handed nothing.
+    check("a taken message is not handed over again",
+          inbox.take(repo)[0] == "" and not inbox.waiting(repo))
 
-    began = _t.time()
-    p_wait = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
-                             "wait", "--timeout", "20"], cwd=tmp,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=60)
-    took = _t.time() - began
-    out = p_wait.stdout.decode("utf-8", "replace")
-    check("a message already unread wakes `board wait` at once",
-          p_wait.returncode == 0 and took < 5)
-    check("and it is handed the message, not an empty inbox",
-          "the lattice makes no sense" in out)
-
-    # Reading is what consumes a message, so the next wait must block again
-    # rather than deliver the same thing for ever.
-    p_wait = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
-                             "wait", "--timeout", "1"], cwd=tmp,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=60)
-    check("a read message does not wake it again", p_wait.returncode == 2)
-
-    # ---- a picture is a message too --------------------------------------
+    # ---- a picture rides with the next message ----------------------------
     #
-    # A screenshot of the next four exercises is the student saying "these are
-    # the ones I want to do", and in a mathematics course it is the ONLY way to
-    # say it: there is no text box, and the slate answers a question rather than
-    # starting a subject. So it has to reach the tutor, and it has to reach it
-    # meaning something -- a wake-up whose whole content is a filename has told
-    # the assistant nothing, exactly as the bare "[begin]" tag did.
+    # D21: an upload lands in the session's uploads/ with a line that wakes
+    # nothing. The next turn reads it with whatever the student says next, and
+    # the line names the file and its size, with the path under it.
     boundary = "----tutorboardtest"
     payload = (
         "--%s\r\n"
@@ -359,15 +335,16 @@ try:
     with open(repo.messages_path, "r", encoding="utf-8") as fh:
         notes = [json.loads(l) for l in fh if l.strip()]
     shot = [m for m in notes if m.get("files")]
-    check("it reaches the inbox, which is what wakes the tutor", len(shot) == 1)
-    check("unread, so it wakes one that is already waiting",
-          shot and shot[0].get("read") is False)
+    check("it reaches the inbox", len(shot) == 1)
+    check("unread, and waking nothing by itself",
+          shot and shot[0].get("read") is False and shot[0].get("wake") is False
+          and not inbox.waiting(repo))
     shot_text = shot[0].get("text", "") if shot else ""
-    check("the line names the file", "exercises.png" in shot_text)
-    check("and says what to do with it, because a picture has no sentence in it",
-          "open the file" in shot_text.lower() and "look at" in shot_text.lower())
-    check("the line is not just a filename",
-          len(shot_text.strip()) > len("[uploaded] exercises.png") + 20)
+    check("the line names the file and its size",
+          shot_text == "[uploaded] exercises.png (8 B)")
+    text, _taken = inbox.take(repo)
+    check("the next turn is handed it, with the path to open",
+          "exercises.png" in text and os.path.join(repo.uploads, "exercises.png") in text)
 
     # And the tutor is TOLD that any of this happens.
     with open(os.path.join(ROOT, "TEACHING.md"), "r", encoding="utf-8") as fh:
@@ -409,13 +386,13 @@ try:
     # tool exists to remove, and it was found the worst way, as a question:
     # "do I ask the tutor to begin?"
     before = len(turns.load_turns(repo))
-    status, body = post("/session", {"session": "lecture", "aim": "teach"})
+    status, body = post("/session", {"session": "lecture"})
     check("a sitting opened without asking to start does not start one",
           status == 200 and body.get("begun") is False
           and len(turns.load_turns(repo)) == before)
 
-    status, body = post("/session", {"session": "lecture", "aim": "build",
-                                     "stance": "do", "begin": True})
+    status, body = post("/mode", {"mode": "do"})
+    status, body = post("/session", {"session": "lecture", "begin": True})
     check("and one opened WITH the ask starts the turn itself",
           status == 200 and body.get("begun") is True)
     sent = turns.load_turns(repo)

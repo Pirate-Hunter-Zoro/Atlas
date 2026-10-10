@@ -1,1109 +1,804 @@
 /* ==========================================================================
-   home.js -- the front door, and the ATLAS on it.
+   home.js -- the start screen.
 
-       "Every time I open the application, I want to be taken to a very visually
-        pleasing map of EVERYTHING. I can choose what course or project I want to
-        go to next."
+   Top to bottom: the open sessions (Continue), New session, notices, the
+   courses and the projects, past sessions, three actions, and settings.
 
-   So this page does two things. Above the fold it is a DOOR: the workspace the
-   board is in, what it is waiting on, and one tap back into the lesson somebody
-   was in twenty seconds ago. That half is unchanged and it is the half that
-   must never get slower or cleverer.
+   Everything it reads is unprefixed and one of these: GET /sessions.json,
+   /subjects.json, /notices.json, /relay.json (the cluster's health and
+   Colibri), /assistants.json and, for the meeting deck,
+   /library.json?subject=projects/Meetings. Everything it writes is
+   one of: POST /sessions/new, /subjects/new, /meeting, /default-agent,
+   /colibri (a task, from the Colibri panel) and /artifact?subject=<id> (a
+   deck or a paper from a subject's row), and for Annotate a PDF the new
+   session's own /s/<id>/bind, /upload and /file.
+   Notes opens a new session at /s/<id>/slate, a notes canvas.
+   A session opens at /s/<id>/board; a subject's page is its library,
+   /library?subject=<id>.
 
-   Below it is the atlas. It used to be two lists -- "Other courses" and
-   "Earlier" -- and a list is not a map. The same objection that killed the
-   first version of the per-workspace map applies word for word to a column of
-   names: "I don't want just a list of all the TODOs. I want a map of the
-   CONTENT." So it is drawn: one plane, a region per family, a card per
-   workspace, each saying what is next in it and how much is outstanding.
+   AN ADDRESS IN THE BAR IS FOLLOWED. `#/s/<id>/...` goes to that session's
+   board with the address carried whole. Nothing else is an address.
 
-   Three rules it inherits, each paid for once already:
-
-     * TEXT IS MEASURED, NEVER ESTIMATED. `gauge.js`, shared with the map. A
-       line of capitals is half again wider than characters times a constant,
-       and that is how labels came to run out of their boxes.
-     * THE LAYOUT IS DETERMINISTIC. Three cards across, always, computed from a
-       constant rather than from the width of the glass. A picture that settles
-       somewhere different on each device is not one anybody can learn. What
-       adapts is the VIEW: a narrow screen opens framed on the card you are in
-       rather than on the whole plane, and a tap opens the sheet, so nothing
-       depends on reading twelve-point text on a phone.
-     * NOTHING IN THE PAINT MAY THROW. A front door that throws is a blank
-       screen where the app used to be, and this one is the way back into a
-       lesson.
-
-   Switching is the other clever part and it is unchanged: a workspace other
-   than the current one lives on a different port, and the installed app has
-   exactly one origin baked into it, so the browser cannot simply navigate
-   there. It asks the server to move the board -- start that workspace's server
-   and re-point the HTTPS proxy at it -- and then reloads. The address never
-   changes.
+   Nothing in the paint may throw: this page is the way into every lesson.
    ========================================================================== */
 
 (function () {
 "use strict";
 
+function $(id) { return document.getElementById(id); }
+
 var els = {
-  dot: document.getElementById("dot"),
-  eyebrow: document.getElementById("hero-eyebrow"),
-  course: document.getElementById("hero-course"),
-  chapter: document.getElementById("hero-chapter"),
-  count: document.getElementById("hero-count"),
-  slateSub: document.getElementById("hero-slate"),
-  waiting: document.getElementById("waiting"),
-  waitingText: document.getElementById("waiting-text"),
-  answers: document.getElementById("answers"),
-  answersLead: document.getElementById("answers-lead"),
-  answersList: document.getElementById("answers-list"),
-  missions: document.getElementById("missions"),
-  missionsLead: document.getElementById("missions-lead"),
-  missionsOpen: document.getElementById("missions-open"),
-  missionsList: document.getElementById("missions-list"),
-  missionProgress: document.getElementById("mission-progress"),
-  atlasWrap: document.getElementById("atlas-wrap"),
-  atlasEmpty: document.getElementById("atlas-empty"),
-  atlasWhat: document.getElementById("atlas-what"),
-  atlasBlurb: document.getElementById("atlas-blurb"),
-  atlasUp: document.getElementById("atlas-up"),
-  doors: document.getElementById("doors"),
-  cards: document.getElementById("cards"),
-  found: document.getElementById("found"),
-  atlasQ: document.getElementById("atlas-q"),
-  atlasQClear: document.getElementById("atlas-q-clear"),
-  panic: document.getElementById("panic"),
-  sheet: document.getElementById("sheet"),
-  sheetFamily: document.getElementById("sheet-family"),
-  sheetName: document.getElementById("sheet-name"),
-  sheetWhere: document.getElementById("sheet-where"),
-  sheetNext: document.getElementById("sheet-next"),
-  sheetNextText: document.getElementById("sheet-next-text"),
-  sheetMeta: document.getElementById("sheet-meta"),
-  sheetOpen: document.getElementById("sheet-open"),
-  sheetOpenSub: document.getElementById("sheet-open-sub"),
-  sheetClose: document.getElementById("sheet-close"),
-  sheetLibrary: document.getElementById("sheet-library"),
-  sheetLibrarySub: document.getElementById("sheet-library-sub"),
-  sheetTrace: document.getElementById("sheet-trace"),
-  sheetKinds: document.getElementById("sheet-kinds"),
-  sheetTraceSub: document.getElementById("sheet-trace-sub"),
-  where: document.getElementById("where"),
-  who: document.getElementById("who"),
-  whoWays: document.getElementById("who-ways"),
-  whoNote: document.getElementById("who-note"),
-  notes: document.getElementById("notes"),
-  notesSince: document.getElementById("notes-since"),
-  notesSaid: document.getElementById("notes-said"),
-  notesClose: document.getElementById("notes-close"),
-  notesBtn: document.getElementById("atlas-notes"),
-  notesWhich: document.getElementById("notes-which"),
-  notesWhichLine: document.getElementById("notes-which-line"),
-  notesList: document.getElementById("notes-list"),
-  notesMake: document.getElementById("notes-make"),
-  notesMakeSub: document.getElementById("notes-make-sub"),
-  notesBack: document.getElementById("notes-back"),
-  notesRead: document.getElementById("notes-read"),
-  notesReadSub: document.getElementById("notes-read-sub"),
-  notesTitle: document.getElementById("notes-title"),
-  doc: document.getElementById("doc"),
-  docBtn: document.getElementById("atlas-doc"),
-  docTitle: document.getElementById("doc-title"),
-  docLine: document.getElementById("doc-line"),
-  docMakes: document.getElementById("doc-makes"),
-  docWhere: document.getElementById("doc-where"),
-  docScopes: document.getElementById("doc-scopes"),
-  docSaid: document.getElementById("doc-said"),
-  docRead: document.getElementById("doc-read"),
-  docReadSub: document.getElementById("doc-read-sub"),
-  docBack: document.getElementById("doc-back"),
-  docBackSub: document.getElementById("doc-back-sub"),
-  docClose: document.getElementById("doc-close"),
-  sittings: document.getElementById("sittings"),
-  sittingsBtn: document.getElementById("atlas-sittings"),
-  sittingsTitle: document.getElementById("sittings-title"),
-  sittingsLine: document.getElementById("sittings-line"),
-  sittingsDecks: document.getElementById("sittings-decks"),
-  sittingsDecksList: document.getElementById("sittings-decks-list"),
-  sittingsPick: document.getElementById("sittings-pick"),
-  sittingsList: document.getElementById("sittings-list"),
-  sittingsWhat: document.getElementById("sittings-what"),
-  sittingsItems: document.getElementById("sittings-items"),
-  sittingsSaid: document.getElementById("sittings-said"),
-  sittingsHow: document.getElementById("sittings-how"),
-  sittingsRead: document.getElementById("sittings-read"),
-  sittingsReadSub: document.getElementById("sittings-read-sub"),
-  sittingsGo: document.getElementById("sittings-go"),
-  sittingsGoName: document.getElementById("sittings-go-name"),
-  sittingsGoSub: document.getElementById("sittings-go-sub"),
-  sittingsBack: document.getElementById("sittings-back"),
-  sittingsBackSub: document.getElementById("sittings-back-sub"),
-  sittingsClose: document.getElementById("sittings-close"),
-  busy: document.getElementById("busy"),
-  busyText: document.getElementById("busy-text"),
-  busySub: document.getElementById("busy-sub")
+  dot: $("dot"),
+  said: $("said"),
+  openList: $("open-list"),
+  openNone: $("open-none"),
+  newSession: $("new-session"),
+  newSessionSub: $("new-session-sub"),
+  notices: $("notices"),
+  noticeList: $("notice-list"),
+  courseList: $("course-list"),
+  courseNone: $("course-none"),
+  projectList: $("project-list"),
+  projectNone: $("project-none"),
+  newCourse: $("new-course"),
+  newProject: $("new-project"),
+  pastList: $("past-list"),
+  pastNone: $("past-none"),
+  actMeeting: $("act-meeting"),
+  actNotes: $("act-notes"),
+  actNotesSub: $("act-notes-sub"),
+  actAnnotate: $("act-annotate"),
+  annot: $("annot"),
+  annotFile: $("annot-file"),
+  annotSubject: $("annot-subject"),
+  annotBar: $("annot-bar"),
+  annotSaid: $("annot-said"),
+  annotGo: $("annot-go"),
+  annotGoSub: $("annot-go-sub"),
+  annotClose: $("annot-close"),
+  themeBtn: $("btn-theme"),
+  themeNow: $("theme-now"),
+  reload: $("btn-reload"),
+  who: $("who"),
+  whoWays: $("who-ways"),
+  whoNote: $("who-note"),
+  maker: $("maker"),
+  makerKind: $("maker-kind"),
+  makerName: $("maker-name"),
+  makerPhi: $("maker-phi"),
+  makerSaid: $("maker-said"),
+  makerGo: $("maker-go"),
+  makerGoSub: $("maker-go-sub"),
+  makerClose: $("maker-close"),
+  notes: $("notes"),
+  notesSince: $("notes-since"),
+  notesList: $("notes-list"),
+  notesMake: $("notes-make"),
+  notesMakeSub: $("notes-make-sub"),
+  notesClose: $("notes-close"),
+  notesSaid: $("notes-said"),
+  notesRead: $("notes-read"),
+  notesReadSub: $("notes-read-sub"),
+  artmaker: $("artmaker"),
+  artmakerWhere: $("artmaker-where"),
+  artmakerMake: $("artmaker-make"),
+  artmakerAbout: $("artmaker-about"),
+  artmakerSaid: $("artmaker-said"),
+  artmakerGo: $("artmaker-go"),
+  artmakerGoSub: $("artmaker-go-sub"),
+  artmakerClose: $("artmaker-close"),
+  artmakerOpen: $("artmaker-open"),
+  health: $("health"),
+  coli: $("colibri"),
+  coliSubject: $("colibri-subject"),
+  coliState: $("colibri-state"),
+  coliTasks: $("colibri-tasks"),
+  coliNone: $("colibri-none"),
+  coliBrief: $("colibri-brief"),
+  coliFile: $("colibri-file"),
+  coliFileSub: $("colibri-file-sub"),
+  coliSaid: $("colibri-said")
 };
 
-function plural(n, one, many) {
-  return n + " " + (n === 1 ? one : many);
+/* Every navigation goes through here, so there is one place it happens. */
+function go(url) { window.location.href = url; }
+
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
 }
 
-function ago(t) {
-  if (!t) return "";
-  var s = Math.max(0, Date.now() / 1000 - t);
-  if (s < 90) return "just now";
-  if (s < 3600) return Math.round(s / 60) + " min ago";
-  if (s < 86400) return Math.round(s / 3600) + " h ago";
-  return Math.round(s / 86400) + " d ago";
+function getJSON(url) {
+  return fetch(url, { credentials: "same-origin", cache: "no-store" })
+    .then(function (r) { return r.json(); });
 }
 
-/* ------------------------------------------------------------ the current */
-function paintBoard(d) {
-  var st = d.state || {};
-  var cards = d.cards || [];
-
-  els.course.textContent = st.course || "No lesson open";
-  els.chapter.textContent = st.chapter || "";
-  document.title = st.course ? st.course + " · Board" : "Board";
-
-  if (cards.length) {
-    var last = cards[cards.length - 1];
-    els.count.textContent = plural(cards.length, "card", "cards") + " · " + ago(last.mtime);
-    els.eyebrow.textContent = "current";
-  } else {
-    els.count.textContent = "nothing on the board yet";
-    els.eyebrow.textContent = "ready";
-  }
-
-  /* A question with nothing sent after it is still owed an answer. */
-  var lastQuestion = null;
-  for (var i = cards.length - 1; i >= 0; i--) {
-    if (cards[i].kind === "question") { lastQuestion = cards[i]; break; }
-  }
-  var msgs = d.messages || [];
-  var lastReply = msgs.length ? msgs[msgs.length - 1].t : 0;
-  if (lastQuestion && lastQuestion.mtime > lastReply) {
-    els.waitingText.textContent = lastQuestion.title || ("card " + lastQuestion.id);
-    els.waiting.hidden = false;
-  } else {
-    els.waiting.hidden = true;
-  }
-
-  var push = d.push;
-  if (push) {
-    var line = document.getElementById("pushline");
-    if (!line) {
-      line = document.createElement("p");
-      line.id = "pushline";
-      line.className = "pushline";
-      document.getElementById("current").appendChild(line);
-    }
-    line.className = "pushline " + (push.ok ? "ok" : "bad");
-    line.textContent = (push.ok ? "✓ pushed " : "✕ push failed ") + push.iso
-                     + (push.ok ? "" : " — " + (push.detail || "").split("\n").slice(-1)[0]);
-  }
-
-  if (st.session) els.eyebrow.textContent = st.session;
-
-  var slate = d.slate || [];
-  els.slateSub.textContent = slate.length
-    ? plural(slate.length, "page", "pages") + " written"
-    : "the slate";
-}
-
-/* ============================================================== the atlas
-   THREE LEVELS, AND ONLY THE LAST OF THEM IS A PLANE.
-
-       "It's just an ugly grid of projects in an inner box that has wacky
-        zooming. On the homescreen, I want a nice 'Research' option, 'Courses'
-        option, and 'Projects' option, and honestly something pertaining to
-        vendor/ as well... When I select one of those four options, I want to
-        see all available projects/courses/research projects/vendor tools
-        portrayed in again a visually pleasing way, and then we can go into an
-        individual project map."
-
-   This page used to build ONE SVG plane -- a region per family, a card per
-   workspace -- and hand it to `plane-core.js` to be panned and pinched, with a
-   `fit` button because it could not be seen at once. Six families and a dozen
-   workspaces is A LIST OF SIX. A list is not a diagram, and drawing it on a
-   plane is what produced the wacky zooming: the gesture layer was solving a
-   problem the content did not have, and the page it sat on could be pinched
-   over the top of it, which is two ways to be lost.
-
-   So:
-
-     1. THE DOOR -- the families, as large tappable things. `atlas.json`
-        already carries them in the order they should be drawn with a sentence
-        each, and those sentences are what a door says.
-     2. THE FAMILY -- its workspaces, each with what it is and what is
-        happening in it. Every field was already in the payload and was being
-        drawn as a small card on a plane.
-     3. THE PROJECT MAP -- a diagram, which is the one thing here that
-        genuinely needs a plane. It lives on the board, `plane-core.js` still
-        draws it, and it finally has content whose shape justifies it.
-
-   NEITHER OF THE TWO LEVELS HERE IS A PLANE. No pan, no pinch, no fit, and no
-   measuring: these are HTML elements in a CSS grid, so the browser lays the
-   text out and a label cannot run out of a box it was not measured for. The
-   constant that used to matter -- three across, always, never from the width of
-   the glass -- is a media query now, which is the same promise kept by the
-   thing whose job it is.
-
-   ONE RULE SURVIVES UNCHANGED AND IT IS THE IMPORTANT ONE: nothing in the
-   paint may throw. A front door that throws is a blank screen where the app
-   used to be, and this one is the way back into a lesson. */
-
-var atlas = null;                    /* the payload, as it arrived */
-var atlasFamily = "";                /* the family being read, or "" for the door */
-/* A sentence the atlas is showing INSTEAD of a level -- an address that no
-   longer resolves, a board too old to serve a payload. Kept in a variable so a
-   poll twenty seconds later does not wipe it off the screen. */
-var atlasSaid = "";
-
-function aAgo(t) {
-  if (!t) return "never";
-  var s = Math.max(0, Date.now() / 1000 - t);
-  if (s < 3600) return "just now";
-  if (s < 86400) return Math.round(s / 3600) + "h ago";
-  if (s < 86400 * 14) return Math.round(s / 86400) + "d ago";
-  return Math.round(s / 604800) + "w ago";
-}
-
-/* The one line under a card: how much is outstanding, whether a board is up,
-   and when it was last committed to. Names and numbers, never adjectives. */
-function aMeta(c) {
-  var bits = [];
-  if (c.open) {
-    bits.push(c.open + (c.kind === "book" ? " chapters left" : " open"));
-  }
-  if (c.cards) bits.push(c.cards + (c.cards === 1 ? " card" : " cards"));
-  bits.push(aAgo(c.touched));
-  return bits.join("  ·  ");
-}
-
-/* And the same line for a vendor tree, which has none of those things. Nothing
-   is outstanding in somebody else's repository, and no cards are written
-   against it -- what it has is a commit and some source. */
-function aTreeMeta(t) {
-  var bits = [];
-  if (t.at) bits.push("at " + t.at);
-  if (t.files) {
-    bits.push(t.files + (t.capped ? "+" : "")
-              + (t.files === 1 ? " source file" : " source files"));
-  }
-  bits.push(aAgo(t.touched));
-  return bits.join("  ·  ");
-}
-
-/* What is in one family, whichever list it comes from. A vendor family holds
-   TREES and every other family holds WORKSPACES, and the two are separate
-   lists on purpose: `atlas.trees()` is read and drawn and is never something
-   work is handed in to. This is the one place that has to know both. */
-function aIn(fam) {
-  if (!atlas) return [];
-  if (fam.vendor) {
-    return (atlas.trees || []).filter(function (t) { return t.family === fam.id; });
-  }
-  return (atlas.workspaces || []).filter(function (c) { return c.family === fam.id; });
-}
-
-function aFamily(id) {
-  var found = null;
-  ((atlas && atlas.families) || []).forEach(function (f) {
-    if (f.id === id) found = f;
+function postJSON(url, body) {
+  return fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  }).then(function (r) {
+    return r.json().catch(function () { return { ok: false }; });
   });
-  return found;
 }
 
-function aEl(tag, cls, text) {
-  var el = document.createElement(tag);
-  if (cls) el.className = cls;
-  if (text !== undefined && text !== null) el.textContent = text;
-  return el;
+function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+
+/* `YYYY-MM-DD HH:MM:SS`, as session.json writes it, as a short date. */
+function day(when) {
+  var s = String(when || "");
+  return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
-/* ------------------------------------------------------------ level one */
-/* WHAT A DOOR SAYS. Its name and the sentence `atlas.json` already carries for
-   it -- "Graduate coursework, taught chapter by chapter.", "The projects that
-   become papers." -- and then what is true inside it right now. The sentences
-   existed and the old front door used them as nothing but a heading. */
-function aDoorLine(fam, mine) {
-  var bits = [];
-  var word = fam.vendor ? "tree" : fam.id === "courses" ? "course"
-           : fam.id === "practice" ? "set" : "project";
-  bits.push(mine.length + " " + word + (mine.length === 1 ? "" : "s"));
-  var live = mine.filter(function (c) { return c.running; }).length;
-  if (live) bits.push(live + " live");
-  var news = mine.filter(function (c) { return c.news; }).length;
-  if (news) bits.push(news === 1 ? "an answer waiting" : news + " answers waiting");
-  var going = mine.filter(function (c) {
-    return c.mission && c.mission.state === "running";
-  }).length;
-  if (going) bits.push(going === 1 ? "one still going" : going + " still going");
-  return bits.join("  ·  ");
+function enc(s) { return encodeURIComponent(s); }
+
+/* ---------------------------------------------------------------- sessions */
+var sessionsData = null;      /* the last /sessions.json */
+
+function sessionTitle(rec) {
+  return rec.title || (rec.subject_name ? rec.subject_name : "Untitled session");
 }
 
-function paintDoors() {
-  var host = els.doors;
-  host.innerHTML = "";
-  var drawn = 0;
-  ((atlas && atlas.families) || []).forEach(function (fam) {
-    var mine = aIn(fam);
-    /* A FAMILY WITH NOTHING IN IT IS NOT A DOOR. `board` is the tool doing the
-       offering rather than one of the things offered, and a heading over empty
-       space reads as something missing rather than as something absent on
-       purpose. */
-    if (!mine.length) return;
-    drawn += 1;
-    var b = aEl("button", "door" + (fam.vendor ? " vendor" : ""));
-    b.type = "button";
-    b.appendChild(aEl("span", "door-name", fam.name || fam.id));
-    if (fam.blurb) b.appendChild(aEl("span", "door-blurb", fam.blurb));
-    b.appendChild(aEl("span", "door-line", aDoorLine(fam, mine)));
-    /* WHERE YOU ARE, on the door rather than only on the card behind it: the
-       one thing somebody wants from the front door is the way back into the
-       lesson they were in, and that has to be visible before the first tap. */
-    if (mine.some(function (c) { return c.current; })) {
-      b.classList.add("here");
-      b.appendChild(aEl("span", "door-tag", "you are in here"));
-    }
-    b.onclick = function () { openFamily(fam.id); };
-    host.appendChild(b);
-  });
-  return drawn;
+function openRow(rec) {
+  var a = el("a", "row");
+  a.href = rec.url || "/s/" + enc(rec.id) + "/board";
+  a.setAttribute("data-session", rec.id);
+  var top = el("span", "row-top");
+  top.appendChild(el("span", "row-name", sessionTitle(rec)));
+  if (rec.new_cards) {
+    top.appendChild(el("span", "badge", rec.new_cards + " new"));
+  }
+  a.appendChild(top);
+  var bits = [rec.subject_name || rec.subject || "unbound"];
+  if (rec.mode === "do") bits.push("do");
+  a.appendChild(el("span", "row-sub", bits.join("  ·  ")));
+  var last = rec.last_card;
+  a.appendChild(el("span", "row-last", last
+    ? "last: " + (last.title || "card " + last.id)
+    : "nothing on the board yet"));
+  return a;
 }
 
-/* ------------------------------------------------------------ level two */
-/* A CARD, IN HTML. Every field it carries was already in the payload and was
-   already on the plane; what has changed is that the browser wraps the text
-   instead of `gauge.js` measuring it, which is why a SHOUTED plan step can no
-   longer run out of its box. */
-function aCard(c, fam, withFamily) {
-  var b = aEl("button", "ws-card");
+/* A past session opens its board to read; nothing on this row changes it. */
+function pastRow(rec) {
+  var a = el("a", "row past");
+  a.href = rec.url || "/s/" + enc(rec.id) + "/board";
+  a.title = "read only";
+  a.setAttribute("data-session", rec.id);
+  a.appendChild(el("span", "row-name", sessionTitle(rec)));
+  a.appendChild(el("span", "row-sub",
+    (rec.subject_name || rec.subject || "unbound") + "  ·  "
+    + day(rec.opened) + (rec.ended ? " to " + day(rec.ended) : "")));
+  return a;
+}
+
+/* A session row with its delete beside it: the first tap arms it for 4 s,
+   the second posts /session/delete and the session goes to the trash. */
+function withDelete(row, rec) {
+  var wrap = el("div", "row-wrap");
+  wrap.appendChild(row);
+  var b = el("button", "row-delete", "delete");
   b.type = "button";
-  if (c.current) b.classList.add("here");
-  var news = !!c.news && !c.current;
-  if (news) b.classList.add("news");
-
-  /* WHERE IT CAME FROM, in the flat read only. Behind a door the family is the
-     heading above the grid and repeating it on every card is furniture; in a
-     list drawn from all six it is the one thing the card is missing. */
-  if (withFamily) b.appendChild(aEl("span", "ws-family", fam.name || fam.id || ""));
-
-  var top = aEl("div", "ws-top");
-  top.appendChild(aEl("strong", "ws-name", c.course || c.repo || c.name));
-  if (news) top.appendChild(aEl("span", "ws-dot news", ""));
-  var job = c.mission && c.mission.state;
-  if (job === "running" || job === "failed") {
-    top.appendChild(aEl("span", "ws-dot mission " + job, ""));
-  }
-  b.appendChild(top);
-
-  if (c.current) b.appendChild(aEl("span", "ws-tag here", "you are here"));
-
-  if (c.next) {
-    var lead = aEl("span", "ws-tag", c.kind === "book" ? "NEXT CHAPTER" : "NEXT");
-    b.appendChild(lead);
-    b.appendChild(aEl("span", "ws-next", c.next));
-  }
-
-  if (fam.vendor) {
-    b.appendChild(aEl("span", "ws-meta", aTreeMeta(c)));
-  } else if (c.running) {
-    var live = aEl("span", "ws-meta live");
-    live.appendChild(aEl("span", "ws-dot live", ""));
-    live.appendChild(aEl("span", "", (c.node ? "live on " + c.node + "  ·  "
-                                             : "live  ·  ") + aMeta(c)));
-    b.appendChild(live);
-  } else {
-    b.appendChild(aEl("span", "ws-meta", aMeta(c)));
-  }
-
-  b.onclick = function () { openSheet(c, fam); };
-  return b;
-}
-
-function paintFamily() {
-  var fam = aFamily(atlasFamily);
-  var host = els.cards;
-  host.innerHTML = "";
-  if (!fam) return 0;
-  var mine = aIn(fam);
-  mine.forEach(function (c) { host.appendChild(aCard(c, fam)); });
-  return mine.length;
-}
-
-/* ------------------------------------------------------------ the levels */
-/* GOING IN IS A TAP AND COMING BACK OUT HAS TO BE ONE TOO, and for most of this
-   page's life it was not: the control was a small pill in the corner of the
-   head, worded "all of it", and the head scrolled away with the page -- so
-   somebody reading a family's cards had nothing on the glass that led back to
-   the doors, and the only route out was to open a workspace and let the reload
-   land on them.
-
-   Three things carry it now. The button is first in the head, thumb-sized and
-   named after where it goes; the head is sticky, so it is reachable from the
-   bottom of the longest family; and going IN pushes a history entry, so the
-   back gesture and the laptop's Escape key both come out.
-
-   THE HISTORY ENTRY CARRIES NO URL OF ITS OWN, and that is deliberate: the hash
-   on this page belongs to `address.js` and naming a family in it would put two
-   grammars in one address. `pushState` with no url pushes an entry and leaves
-   the address exactly as it was. */
-var atlasPushed = false;   /* this page owns the entry the open family sits on */
-
-function showFamily(id, scroll) {
-  atlasFamily = id || "";
-  paintLevels();
-  if (!scroll) return;
-  /* The head of the section, so the first card is where the eye already is. A
-     family opened from a door two screens down would otherwise land with the
-     cards below the fold -- and coming back out from the bottom of a long list
-     would leave the doors above the top of the window. */
-  try { els.atlasWrap.scrollIntoView({ block: "start", behavior: "smooth" }); }
-  catch (e) { /* an older browser scrolls or it does not; neither is fatal */ }
-}
-
-function openFamily(id) {
-  showFamily(id, true);
-  try {
-    history.pushState({ atlasFam: id }, "");
-    atlasPushed = true;
-  } catch (e) { /* no history is a page that still works, one tap at a time */ }
-}
-
-function closeFamily() {
-  /* PAINTED FIRST, ADDRESSED SECOND. `history.back()` answers when the browser
-     feels like it and the tap has to land now; the popstate that follows asks
-     for the level this already painted, so it is a repaint of the same thing. */
-  showFamily("", true);
-  if (atlasPushed) {
-    atlasPushed = false;
-    try { history.back(); return; } catch (e) { /* then just leave the entry */ }
-  }
-  try { history.replaceState(null, ""); } catch (e) {}
-}
-
-/* The back gesture, and the browser's own button where there is one. A popped
-   entry that names a family is that family; anything else is the doors. */
-window.addEventListener("popstate", function (ev) {
-  var st = (ev && ev.state) || null;
-  var fam = st && st.atlasFam && aFamily(st.atlasFam) ? st.atlasFam : "";
-  atlasPushed = !!fam;
-  showFamily(fam, false);
-});
-
-/* ------------------------------------------------------------- flat read */
-/* WHAT THE HIERARCHY CANNOT ANSWER. Two levels answer "what is in Courses";
-   they cannot answer "where is the thing called colibri", because at the door
-   no workspace is drawn at all and inside a family every other family's is
-   hidden. This is the same payload read flat, and a match carries the family it
-   came out of so the answer includes the way back to it. */
-function atlasQuery() {
-  return ((els.atlasQ && els.atlasQ.value) || "").trim().toLowerCase();
-}
-
-/* Everything one card could be called. The id and the repo are in here on
-   purpose: a directory name is what somebody types when the pretty name has
-   gone out of their head, and it is the name the rest of the board uses. */
-function aHay(c, fam) {
-  return [c.course, c.repo, c.name, c.id, c.chapter, c.drawn, c.next,
-          fam.name, fam.id].filter(Boolean).join("  ").toLowerCase();
-}
-
-function aMatches(q) {
-  var out = [];
-  ((atlas && atlas.families) || []).forEach(function (fam) {
-    aIn(fam).forEach(function (c) {
-      if (aHay(c, fam).indexOf(q) >= 0) out.push({ c: c, fam: fam });
+  b.title = "delete this session";
+  b.setAttribute("data-delete", rec.id);
+  var armed = null;
+  b.onclick = function () {
+    if (!armed) {
+      b.textContent = "tap again";
+      b.classList.add("armed");
+      armed = setTimeout(function () {
+        armed = null;
+        b.textContent = "delete";
+        b.classList.remove("armed");
+      }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    b.disabled = true;
+    b.textContent = "deleting";
+    postJSON("/session/delete", { id: rec.id }).then(function (got) {
+      if (got && got.ok) { wrap.remove(); refresh(); return; }
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "delete";
+      say((got && got.error) || "the session was not deleted");
+    }).catch(function () {
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "delete";
+      say("the board did not answer; nothing was deleted");
     });
-  });
-  /* The one you are in first, then anything with an answer waiting, then by
-     when it was last touched. A list of matches is still a list of places to
-     go, and the order is the same one the rest of the page uses. */
-  out.sort(function (a, b) {
-    var w = function (m) { return (m.c.current ? 2 : 0) + (m.c.news ? 1 : 0); };
-    return (w(b) - w(a)) || ((b.c.touched || 0) - (a.c.touched || 0));
-  });
-  return out;
-}
-
-function paintFound(q) {
-  var host = els.found;
-  host.innerHTML = "";
-  var hits = aMatches(q);
-  hits.forEach(function (m) { host.appendChild(aCard(m.c, m.fam, true)); });
-  return hits.length;
-}
-
-function clearFind() {
-  if (els.atlasQ) els.atlasQ.value = "";
-  paintLevels();
-}
-
-/* WHICH LEVEL IS ON THE GLASS. One function, because two things deciding which
-   of three surfaces is showing is two states that drift apart. */
-function paintLevels() {
-  var q = atlasQuery();
-  var fam = atlasFamily ? aFamily(atlasFamily) : null;
-  if (!fam) atlasFamily = "";
-  var doors = paintDoors();
-  var here = fam ? paintFamily() : 0;
-  var hits = q ? paintFound(q) : 0;
-  /* A QUERY IS A LEVEL OF ITS OWN and it is drawn over whichever of the other
-     two was showing. It does not close the family: clearing the field puts you
-     back where you were typing, which is what a filter means. */
-  els.doors.hidden = !!fam || !!q;
-  els.cards.hidden = !fam || !!q;
-  els.found.hidden = !q;
-  els.atlasUp.hidden = !fam || !!q;
-  if (els.atlasQClear) els.atlasQClear.hidden = !q;
-  els.atlasWhat.textContent = q ? (hits + (hits === 1 ? " match" : " matches"))
-                                : fam ? (fam.name || fam.id) : "Everything";
-  els.atlasBlurb.textContent = q
-    ? "everywhere, not just " + (fam ? (fam.name || fam.id) : "one family")
-    : (fam ? (fam.blurb || "") : "");
-  els.atlasBlurb.hidden = !(q || (fam && fam.blurb));
-  els.atlasWrap.hidden = false;
-  if (q && !hits) {
-    els.atlasEmpty.hidden = false;
-    els.atlasEmpty.textContent = "Nothing here is called that.";
-  } else if (!q && !doors && !here) {
-    els.atlasEmpty.hidden = false;
-    els.atlasEmpty.textContent = "Nothing to draw yet.";
-  } else if (!atlasSaid) {
-    els.atlasEmpty.hidden = true;
-  }
-}
-
-function atlasSay(text) {
-  atlasSaid = text || "";
-  els.atlasEmpty.hidden = !atlasSaid;
-  if (atlasSaid) els.atlasEmpty.textContent = atlasSaid;
-}
-
-/* ------------------------------------------ an answer waiting somewhere else
-
-   The board carries this strip too, and for the same reason; this is the half
-   that is on screen when somebody comes back to the app rather than to a
-   lesson. A turn set going before dinner finishes into an empty room, and the
-   only thing that made it findable was remembering which workspace it was in.
-
-   The fact comes off the atlas payload -- `news` per workspace, computed by
-   `tutorboard/news.py` -- so this costs no request of its own. */
-function answerAgo(when) {
-  var secs = Math.max(0, Math.round(Date.now() / 1000 - (when || 0)));
-  if (secs < 60) return "just now";
-  var mins = Math.round(secs / 60);
-  if (mins < 60) return mins + "m ago";
-  var hrs = Math.round(mins / 60);
-  if (hrs < 24) return hrs + "h ago";
-  return Math.round(hrs / 24) + "d ago";
-}
-
-var answersShown = "";
-
-function paintAnswers(payload) {
-  if (!els.answers) return;
-  var waiting = [];
-  ((payload && payload.workspaces) || []).forEach(function (c) {
-    if (c.news && !c.current) waiting.push(c);
-  });
-  waiting.sort(function (a, b) { return (b.news_at || 0) - (a.news_at || 0); });
-  waiting = waiting.slice(0, 4);
-  if (!waiting.length) {
-    els.answers.hidden = true;
-    els.answersList.textContent = "";
-    answersShown = "";
-    return;
-  }
-  var sig = waiting.map(function (c) {
-    return c.id + "@" + Math.round(c.news_at || 0);
-  }).join("~");
-  els.answers.hidden = false;
-  els.answersLead.textContent = waiting.length === 1
-    ? "an answer is waiting"
-    : waiting.length + " answers are waiting";
-  if (sig === answersShown) return;
-  answersShown = sig;
-  els.answersList.textContent = "";
-  waiting.forEach(function (c) {
-    var row = document.createElement("button");
-    row.type = "button";
-    row.className = "answer-row";
-    row.dataset.ws = c.id;
-    var where = document.createElement("span");
-    where.className = "answer-where";
-    where.textContent = c.course || c.repo || c.id;
-    where.title = where.textContent;
-    var what = document.createElement("span");
-    what.className = "answer-what";
-    what.textContent = c.news_title || c.chapter || "the tutor wrote a card";
-    var when = document.createElement("span");
-    when.className = "answer-when";
-    when.textContent = answerAgo(c.news_at);
-    row.appendChild(where);
-    row.appendChild(what);
-    row.appendChild(when);
-    /* THE SAME DOOR THE CARD OPENS. A notification that took a second route
-       into a workspace would be a second behaviour to keep true; this is the
-       sheet's own button, minus the sheet. */
-    row.addEventListener("click", function () { openWorkspace(c); });
-    els.answersList.appendChild(row);
-  });
-}
-
-/* WHAT IS STILL RUNNING SOMEWHERE NOBODY IS LOOKING.
-
-   "when I put colibri or anything on a mission, just because I close the iPad
-    doesn't mean that should end. Next time I open the iPad and access the board,
-    that mission should still be going or notify me somewhere if it's done."
-
-   The panel above is a turn that finished. This is one that has not, and the
-   front door is where it matters most: this page is what is open when somebody
-   comes back to the app, so a job set going before bed is read from here rather
-   than from the lesson it was left in.
-
-   THE CURRENT WORKSPACE IS NOT EXCLUDED, and that is the one rule this panel
-   does not share with the answers above it. A badge about an answer in the
-   workspace you are standing in is furniture -- the lesson is one tap away. A
-   mission is not: it was set going hours ago, the board does not open by
-   itself, and "still going" about the workspace you are about to enter is
-   exactly what somebody needs to know before they enter it. */
-var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
-var missionsShown = "";
-
-/* WHAT IT HAS BEEN DOING, WHICH IS THE OTHER HALF OF THE SAME ASK.
-
-   "Whenever an agent is dispatched in some way, make it so that if I click on
-    that box that says 'A Mission is still going' I can see what has been going
-    on and been accomplished thus far."
-
-   `mission.js` draws it and fetches it; this is the two ways in. The panel
-   lead opens the newest, because that is the box the ask points at, and each
-   row carries its own control so a second mission is not behind a first.
-   Tapping the row itself still opens the workspace -- that is the way back,
-   and it is not being replaced by a disclosure. */
-function missionProgress(g) {
-  var host = els.missionProgress;
-  if (!host || !window.MissionPanel) return;
-  if (window.MissionPanel.shown(host) === g.m.id) {
-    window.MissionPanel.hide(host);
-    return;
-  }
-  window.MissionPanel.show(host, {
-    ws: g.ws.id, id: g.m.id, agent: g.m.agent,
-    course: g.ws.course || g.ws.repo || g.ws.id,
-    task: g.m.task, state: g.m.state, reason: g.m.reason, ship: g.m.ship,
-  });
-}
-
-/* What the lead's tap is about. Held rather than re-derived so the handler is
-   bound once, on a control that is in the page from the start. */
-var missionFirst = null;
-
-function paintMissions(payload) {
-  if (!els.missions) return;
-  var going = [];
-  ((payload && payload.workspaces) || []).forEach(function (c) {
-    if (c.mission && c.mission.state) {
-      going.push({ ws: c, m: c.mission });
-    }
-  });
-  going.sort(function (a, b) { return (b.m.at || 0) - (a.m.at || 0); });
-  going = going.slice(0, 4);
-  missionFirst = going[0] || null;
-  if (!going.length) {
-    els.missions.hidden = true;
-    els.missionsList.textContent = "";
-    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
-    missionsShown = "";
-    return;
-  }
-  /* The newest step is part of the signature, because it is part of the row: a
-     list rebuilt only on a change of STATE would hold the first progress line
-     for the whole of a five-hour mission. */
-  var sig = going.map(function (g) {
-    return g.ws.id + "/" + g.m.id + "@" + g.m.state + "#" + (g.m.steps || 0);
-  }).join("~");
-  var live = going.filter(function (g) { return g.m.state === "running"; }).length;
-  els.missions.hidden = false;
-  els.missionsLead.textContent = live === going.length
-    ? (live === 1 ? "a mission is still going"
-                  : live + " missions are still going")
-    : (going.length === 1 ? "a mission has ended"
-                          : going.length + " missions, and not all are running");
-  if (sig === missionsShown) return;
-  missionsShown = sig;
-  els.missionsList.textContent = "";
-  going.forEach(function (g) {
-    var row = document.createElement("button");
-    row.type = "button";
-    row.className = "answer-row mission-row";
-    row.dataset.ws = g.ws.id;
-    row.dataset.state = g.m.state;
-    var pill = document.createElement("span");
-    pill.className = "mission-state";
-    pill.textContent = MISSION_WORD[g.m.state] || g.m.state;
-    var where = document.createElement("span");
-    where.className = "answer-where";
-    where.textContent = g.ws.course || g.ws.repo || g.ws.id;
-    where.title = where.textContent;
-    var what = document.createElement("span");
-    what.className = "answer-what";
-    what.textContent = (g.m.agent ? g.m.agent + ": " : "") + (g.m.task || "");
-    var when = document.createElement("span");
-    when.className = "answer-when";
-    when.textContent = answerAgo(g.m.at);
-    row.appendChild(pill);
-    row.appendChild(where);
-    row.appendChild(what);
-    row.appendChild(when);
-    /* THE LAST THING IT SAID IT FINISHED, on the row. "Still going" is a state
-       to leave alone and after the first hour it is not enough to act on; this
-       is the one line that says the work is moving. */
-    if (g.m.step) {
-      var did = document.createElement("span");
-      did.className = "mission-step";
-      did.textContent = g.m.step;
-      row.appendChild(did);
-    }
-    if (g.m.state === "failed" && g.m.reason) {
-      var why = document.createElement("span");
-      why.className = "mission-why";
-      why.textContent = g.m.reason;
-      row.appendChild(why);
-    }
-    /* AND THE WHOLE OF IT IS ONE TAP FURTHER, on a control of its own rather
-       than on the row: the row is the way back into the workspace and a
-       disclosure that stole that tap would be a notification with no door. */
-    var more = document.createElement("span");
-    more.className = "mprog-more";
-    more.textContent = g.m.steps
-      ? g.m.steps + " step" + (g.m.steps === 1 ? "" : "s")
-      : "what it has done";
-    more.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      missionProgress(g);
-    });
-    row.appendChild(more);
-    /* THE SAME DOOR EVERYTHING ELSE ON THIS PAGE OPENS. A mission that failed
-       is one somebody has to go and look at, and a row that says so and cannot
-       take them there is half a notification. */
-    row.addEventListener("click", function () { openWorkspace(g.ws); });
-    els.missionsList.appendChild(row);
-  });
-}
-
-/* THE BOX ITSELF, WHICH IS WHAT THE ASK NAMES. Bound once, on a control that is
-   in the page from the start, and it opens the newest mission -- which is the
-   only one when there is one, and the one somebody means when there are two. */
-if (els.missionsOpen) {
-  els.missionsOpen.addEventListener("click", function () {
-    if (missionFirst) missionProgress(missionFirst);
-  });
-}
-
-
-function paintAtlas(payload) {
-  /* Outside the try below and before it: a picture that could not be drawn is
-     not a reason to lose the one row that says work has come back. */
-  try { paintAnswers(payload); } catch (e) { /* not the way back; the row is */ }
-  try { paintMissions(payload); } catch (e) { /* likewise */ }
-  /* NOTHING IN HERE MAY THROW. A front door that throws is a blank screen
-     where the app used to be, and this one is the way back into a lesson. */
-  try {
-    atlas = payload || { families: [], workspaces: [], trees: [] };
-    paintLevels();
-  } catch (e) {
-    try {
-      atlasSay("the atlas could not be drawn; the door above still works");
-    } catch (e2) { /* then there is nothing left to say it with */ }
-  }
-}
-
-els.atlasUp.onclick = closeFamily;
-
-/* The field repaints on every keystroke. There is no request behind it -- the
-   atlas is already in memory -- so there is nothing to debounce and a delay
-   would only be a list that lags the thumb. */
-if (els.atlasQ) {
-  els.atlasQ.addEventListener("input", function () {
-    try { paintLevels(); } catch (e) { /* never a blank front door */ }
-  });
-  /* Enter on a single match opens it: the whole point of typing a name is that
-     you already know which one you mean. */
-  els.atlasQ.addEventListener("keydown", function (ev) {
-    if (ev.key !== "Enter") return;
-    var q = atlasQuery();
-    if (!q) return;
-    var hits = aMatches(q);
-    if (hits.length === 1) { ev.preventDefault(); openSheet(hits[0].c, hits[0].fam); }
-  });
-}
-if (els.atlasQClear) els.atlasQClear.onclick = clearFind;
-
-/* THE WAY BACK, and there is one of them now rather than two.
-
-   `recentre.js` owns the button: where it sits against the VISUAL viewport,
-   how it is dragged, and what putting the page's own magnification back means.
-   The atlas used to be a plane, which could be panned into empty space on top
-   of that, and the control answering the first was page chrome a pinch took
-   off the glass. Neither level here is a plane, so there is one way to be lost
-   and one button for it. */
-if (els.panic && window.Recentre) {
-  /* Bottom right, not the default top right: the sticky head keeps its tool
-     pills in that corner, and on a phone they wrap to a second row exactly
-     where the button would land on top of one. `main` keeps the bottom free. */
-  window.Recentre.mount({ key: "board.panic", at: { x: .975, y: .93 },
-                          buttons: [{ el: els.panic }] });
-}
-
-/* ---------------------------------------------------------- the sheet */
-var sheetFor = null;
-var sheetTree = false;
-var sheetTraceAt = "";      /* the address Trace it goes to, or "" */
-
-function openSheet(c, fam) {
-  sheetFor = c;
-  fam = fam || aFamily(c.family) || {};
-  /* A VENDOR TREE IS NOT A WORKSPACE, and the sheet is where that stops being
-     an abstraction. There is no board to move, nothing to write up and nothing
-     to hand in -- so the two buttons that do those things are not offered, and
-     the sheet says plainly what this one is instead of leaving somebody to
-     discover it by tapping. */
-  var tree = !!fam.vendor;
-  sheetTree = tree;
-  sheetTraceAt = "";
-  if (els.sheetTrace) els.sheetTrace.hidden = true;
-  els.sheetFamily.textContent = fam.name || fam.id || "";
-  els.sheetName.textContent = c.course || c.repo || c.name;
-  els.sheetOpen.hidden = tree;
-  els.sheetLibrary.hidden = tree;
-  if (els.sheetKinds) els.sheetKinds.hidden = tree;
-  if (tree) {
-    els.sheetWhere.textContent = c.id;
-    els.sheetNextText.textContent = "";
-    els.sheetNext.hidden = true;
-    els.sheetMeta.textContent = aTreeMeta(c)
-      + "  ·  pulled, not written: read and drawn, never handed work";
-    /* AND THE ONE THING THAT CAN BE DONE WITH IT. A trace over a tree is a
-       sitting in the workspace that is READING it -- there is no board in
-       somebody else's repository, and the cards belong where the work is. So
-       this is an address into the workspace the board is already serving, and
-       where it is serving none of them there is nowhere to hold the sitting and
-       the sheet says that instead of offering a button that cannot work. */
-    var reading = aReading();
-    sheetTraceAt = aTreeAddr(reading, c);
-    if (els.sheetTrace) {
-      els.sheetTrace.hidden = !sheetTraceAt;
-      els.sheetTraceSub.textContent = sheetTraceAt
-        ? "drawn in " + (reading.course || reading.repo)
-          + ", where the board is — nothing is written to it"
-        : "";
-    }
-    if (!sheetTraceAt) {
-      els.sheetMeta.textContent += "  ·  open a workspace first: a trace over "
-                                 + "it is a sitting in the one reading it";
-    }
-    els.sheet.hidden = false;
-    return;
-  }
-  els.sheetWhere.textContent = c.id + (c.chapter ? "  ·  " + c.chapter : "");
-  /* WHAT THE PERSON CALLS THIS WHOLE WORKSPACE, where they have drawn it. The
-     one field the written map lends the front door, and it belongs on the sheet
-     rather than on the card: a card already carries a name, what is next and
-     how much is outstanding, and a fourth line on it is a paragraph. */
-  if (c.drawn) {
-    els.sheetWhere.textContent += "  ·  " + c.drawn;
-  }
-  if (c.next) {
-    els.sheetNextText.textContent = c.next_label || c.next;
-    els.sheetNext.hidden = false;
-  } else {
-    els.sheetNext.hidden = true;
-  }
-  els.sheetMeta.textContent = aMeta(c)
-    + (c.running ? "  ·  live" + (c.node ? " on " + c.node : "") : "")
-    + (c.stance === "do" ? "  ·  writes the code" : "");
-  els.sheetOpenSub.textContent = c.current
-    ? "you are already here"
-    : "moves the board; the address does not change";
-  els.sheetLibrarySub.textContent = c.current
-    ? "everything written up in here"
-    : "moves the board, then opens its library";
-  els.sheet.hidden = false;
-}
-
-/* WHICH WORKSPACE IS READING, and it is the one the board is serving. A tree
-   is not a workspace and has no board of its own, so the sitting a trace opens
-   has to be held somewhere -- and "where the board already is" is the only
-   answer that needs no second question asked of somebody holding a tablet. */
-function aReading() {
-  var found = null;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    if (c.current) found = c;
-  });
-  return found;
-}
-
-/* The address of a tree, read in a workspace. Through the grammar like every
-   other link on this page: an older cached shell with no `address.js` gets no
-   button rather than a hand-built hash, because two spellings of a place is
-   the one thing that file exists to prevent. */
-function aTreeAddr(reading, tree) {
-  if (!reading || !tree || !window.Address) return "";
-  return window.Address.format({ ws: reading.id, surface: "tree",
-                                 tree: tree.id });
-}
-
-function closeSheet() {
-  els.sheet.hidden = true;
-  sheetFor = null;
-  sheetTree = false;
-  sheetTraceAt = "";
-}
-
-els.sheetClose.onclick = closeSheet;
-els.sheet.addEventListener("click", function (ev) {
-  if (ev.target === els.sheet) closeSheet();
-});
-/* ONE WAY INTO A WORKSPACE. The sheet's button, a notification row, and
-   anything else that opens one all come here: two routes in is two behaviours
-   that drift, and the one that rots is the one used less often. */
-function openWorkspace(c) {
-  if (!c) return;
-  /* THROUGH THE ADDRESS, not around it. A tap and a link have to do the same
-     thing or there are two ways into a workspace and one of them will rot;
-     `addrRoute` is the single one, and it reproduces exactly what this button
-     did before. A shell with no grammar -- an older cached one -- falls back to
-     the switch, which is the half that matters. */
-  var at = addrOf(c);
-  if (at) {
-    addrDone = "";
-    if (window.location.hash === at) addrRoute();
-    else window.location.hash = at;
-    return;
-  }
-  /* Already here: this is the door, not a switch. Going through /switch for a
-     board that is already serving is a restart somebody did not ask for. */
-  if (c.current) { location.href = "/board"; return; }
-  switchTo(c.repo);
-}
-
-els.sheetOpen.onclick = function () {
-  var c = sheetFor;
-  closeSheet();
-  openWorkspace(c);
-};
-
-/* A SITTING OF ONE KIND, in any workspace: learn, coach or build. The board
-   moves here and opens on the lesson with `?kind=`, which board.js reads once
-   and sends to POST /aim on the board that now serves this workspace -- so
-   the kind is set where the sitting is, whichever port or name answers. */
-function openAs(c, kind) {
-  if (!c || !kind) return;
-  var page = "/board?kind=" + encodeURIComponent(kind);
-  if (c.current) { location.href = page; return; }
-  switchTo(c.repo, "", page);
-}
-
-if (els.sheetKinds) {
-  Array.prototype.forEach.call(els.sheetKinds.querySelectorAll("[data-kind]"),
-    function (b) {
-      b.onclick = function () {
-        var c = sheetFor;
-        closeSheet();
-        openAs(c, b.getAttribute("data-kind"));
-      };
-    });
-}
-
-/* The library of a workspace, from the front door. It is served by whichever
-   board is answering at this address, so a workspace that is not the one being
-   served has to be switched to first -- which is the same journey Open this
-   makes, ending on a different page.
-
-   ONE ROUTE TO A LIBRARY, for the reason `openWorkspace` is one route into a
-   workspace: the sheet offers this and so does a commissioned document, and two
-   spellings of the same journey is one of them rotting. */
-function openLibrary(c) {
-  if (!c) return;
-  /* WHERE THIS CAME FROM, carried into the page, so its way back leads here
-     rather than into a lesson nobody opened. The library's own default is
-     `/board`, which is right when a lesson stepped sideways into it and wrong
-     for every tap made from this sheet. */
-  if (c.current) { location.href = "/library?from=home"; return; }
-  switchTo(c.repo, "", "/library?from=home");
-}
-
-els.sheetLibrary.onclick = function () {
-  var c = sheetFor;
-  closeSheet();
-  openLibrary(c);
-};
-
-/* THROUGH THE ADDRESS, the same way a workspace is opened. The board is already
-   serving the workspace this names -- that is how the address was built -- so
-   `addrRoute` sends it straight to the board, which draws the tree. */
-if (els.sheetTrace) {
-  els.sheetTrace.onclick = function () {
-    var at = sheetTraceAt;
-    closeSheet();
-    if (!at) return;
-    addrDone = "";
-    if (window.location.hash === at) addrRoute();
-    else window.location.hash = at;
   };
+  wrap.appendChild(b);
+  return wrap;
 }
+
+function paintSessions(data) {
+  var list = (data && data.sessions) || [];
+  var open = list.filter(function (r) { return !r.ended; });
+  var past = list.filter(function (r) { return !!r.ended; });
+  els.openList.innerHTML = "";
+  open.forEach(function (r) { els.openList.appendChild(withDelete(openRow(r), r)); });
+  els.openNone.hidden = open.length > 0;
+  els.pastList.innerHTML = "";
+  past.forEach(function (r) { els.pastList.appendChild(withDelete(pastRow(r), r)); });
+  els.pastNone.hidden = past.length > 0;
+}
+
+var starting = false;
+
+function newSession() {
+  if (starting) return;
+  starting = true;
+  els.newSession.disabled = true;
+  els.newSessionSub.textContent = "opening…";
+  postJSON("/sessions/new", {}).then(function (got) {
+    if (got && got.ok && got.url) { go(got.url); return; }
+    throw new Error((got && got.error) || "the session was not made");
+  }).catch(function (e) {
+    starting = false;
+    els.newSession.disabled = false;
+    els.newSessionSub.textContent = e.message || "the board did not answer";
+  });
+}
+
+/* ------------------------------------------------------------------- notes */
+/* A NOTES CANVAS is a session in full-slate view (`view: slate`), titled by
+   the day. Its End has the tutor transcribe the pages into notes.md. */
+function today() {
+  var d = new Date();
+  function two(n) { return (n < 10 ? "0" : "") + n; }
+  return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate());
+}
+
+function newNotes() {
+  if (starting) return;
+  starting = true;
+  els.actNotes.disabled = true;
+  els.actNotesSub.textContent = "opening…";
+  postJSON("/sessions/new", { view: "slate", title: "Notes " + today() })
+    .then(function (got) {
+      if (got && got.ok && got.url) { go(got.url); return; }
+      throw new Error((got && got.error) || "the canvas was not made");
+    }).catch(function (e) {
+      starting = false;
+      els.actNotes.disabled = false;
+      els.actNotesSub.textContent = e.message || "the board did not answer";
+    });
+}
+
+/* ---------------------------------------------------------- annotate a PDF */
+/* ONE PDF, INTO A NEW SESSION. It lands in the session's uploads/ with a line
+   that wakes nothing (D21); with a subject picked the session is bound to it
+   and the upload filed straight into its materials/, its ink id following.
+   The session's board then opens it in the reader, by its `doc` address. */
+var annotBusy = false;
+
+function annotSay(text, bad) {
+  els.annotSaid.hidden = !text;
+  els.annotSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.annotSaid.textContent = text || "";
+}
+
+function paintAnnot() {
+  var f = els.annotFile.files && els.annotFile.files[0];
+  els.annotGo.disabled = annotBusy || !f;
+  els.annotGoSub.textContent = annotBusy ? "uploading…"
+    : f ? (els.annotSubject.value ? "into " + els.annotSubject.value
+                                  : "into a new session")
+    : "choose a PDF";
+}
+
+function openAnnot() {
+  annotBusy = false;
+  annotSay("");
+  els.annotBar.hidden = true;
+  els.annotFile.value = "";
+  var keep = els.annotSubject.value;
+  els.annotSubject.innerHTML = "";
+  var none = el("option", "", "not yet: it stays in the session");
+  none.value = "";
+  els.annotSubject.appendChild(none);
+  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
+    var o = el("option", "", (s.kind === "course" ? "course: " : "project: ")
+                              + (s.name || s.id));
+    o.value = s.id;
+    els.annotSubject.appendChild(o);
+  });
+  els.annotSubject.value = keep;
+  if (els.annotSubject.value !== keep) els.annotSubject.value = "";
+  paintAnnot();
+  els.annot.hidden = false;
+}
+
+function closeAnnot() {
+  if (annotBusy) return;
+  els.annot.hidden = true;
+}
+
+/* One XHR, because fetch says nothing about progress. */
+function uploadTo(base, file) {
+  return new Promise(function (resolve, reject) {
+    var form = new FormData();
+    form.append("f0", file, file.name);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", base + "/upload");
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable || !e.total) return;
+      els.annotBar.value = Math.floor(100 * e.loaded / e.total);
+    };
+    xhr.onload = function () {
+      var got = {};
+      try { got = JSON.parse(xhr.responseText || "{}"); } catch (e) { got = {}; }
+      if (xhr.status === 200 && got.ok && (got.files || []).length) {
+        resolve(got.files[0]);
+        return;
+      }
+      reject(new Error("the upload failed (" + xhr.status + "): "
+                       + (got.error || "the board refused it")));
+    };
+    xhr.onerror = function () {
+      reject(new Error("the upload failed: the board did not answer"));
+    };
+    xhr.send(form);
+  });
+}
+
+function annotate() {
+  var file = els.annotFile.files && els.annotFile.files[0];
+  var subject = els.annotSubject.value;
+  if (!file || annotBusy) return;
+  if (!/\.pdf$/i.test(file.name || "")) {
+    annotSay("That is not a PDF.", true);
+    return;
+  }
+  annotBusy = true;
+  annotSay("");
+  els.annotBar.value = 0;
+  els.annotBar.hidden = false;
+  paintAnnot();
+  var sid = "", base = "";
+  postJSON("/sessions/new", { title: "Annotate " + file.name }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.error) || "the session was not made");
+    sid = got.id;
+    base = "/s/" + enc(sid);
+    if (!subject) return null;
+    return postJSON(base + "/bind", { subject: subject }).then(function (b) {
+      if (!b || !b.ok) throw new Error((b && b.error) || "the session was not bound");
+    });
+  }).then(function () {
+    return uploadTo(base, file);
+  }).then(function (up) {
+    if (!subject) return up.doc;
+    return postJSON(base + "/file", { upload: up.name }).then(function (f) {
+      if (!f || !f.ok) throw new Error((f && f.error) || "it was not filed");
+      return f.doc;
+    });
+  }).then(function (doc) {
+    if (!doc) throw new Error("the board cannot read that PDF");
+    go(base + "/board" + window.Address.format(
+      { session: sid, surface: "doc", doc: doc }));
+  }).catch(function (e) {
+    annotBusy = false;
+    els.annotBar.hidden = true;
+    annotSay((e && e.message) || "the board did not answer", true);
+    paintAnnot();
+  });
+}
+
+/* ---------------------------------------------------------------- subjects */
+var subjectsData = null;      /* the last /subjects.json */
+
+function subjectRow(s) {
+  var box = el("div", "subj");
+  box.appendChild(subjectLink(s));
+  var make = el("button", "row-make", "make");
+  make.type = "button";
+  make.title = "a deck or a paper about " + (s.name || s.id);
+  make.setAttribute("data-make-for", s.id);
+  make.onclick = function () { openArtmaker(s); };
+  box.appendChild(make);
+  return box;
+}
+
+function subjectLink(s) {
+  var a = el("a", "row");
+  a.href = "/library?subject=" + enc(s.id) + "&from=home";
+  a.setAttribute("data-subject", s.id);
+  a.appendChild(el("span", "row-name", s.name || s.slug || s.id));
+  var open = ((sessionsData && sessionsData.sessions) || []).filter(function (r) {
+    return !r.ended && r.subject === s.id;
+  }).length;
+  a.appendChild(el("span", "row-sub", open
+    ? plural(open, "open session", "open sessions") : s.id));
+  return a;
+}
+
+function paintSubjects(data) {
+  var list = (data && data.subjects) || [];
+  var courses = list.filter(function (s) { return s.kind === "course"; });
+  var projects = list.filter(function (s) { return s.kind === "project"; });
+  els.courseList.innerHTML = "";
+  courses.forEach(function (s) { els.courseList.appendChild(subjectRow(s)); });
+  els.courseNone.hidden = courses.length > 0;
+  els.projectList.innerHTML = "";
+  projects.forEach(function (s) { els.projectList.appendChild(subjectRow(s)); });
+  els.projectNone.hidden = projects.length > 0;
+}
+
+/* ------------------------------------- a deck or a paper, from a subject */
+/* `POST /artifact?subject=<id>`: the server makes the doc.json and the
+   newest open session on that subject (else a new one bound to it) writes
+   and builds it. The reply names the session, which is where it is seen
+   being written. */
+var artFor = null;
+var artMake = "deck";
+var artAsking = false;
+
+function openArtmaker(s) {
+  artFor = s;
+  artMake = "deck";
+  artAsking = false;
+  els.artmakerWhere.textContent = s.name || s.id;
+  els.artmakerAbout.value = "";
+  els.artmakerOpen.hidden = true;
+  artSay("");
+  paintArtmaker();
+  els.artmaker.hidden = false;
+  try { els.artmakerAbout.focus(); } catch (e) { /* a page without focus */ }
+}
+
+function closeArtmaker() { els.artmaker.hidden = true; }
+
+function artSay(text, bad) {
+  els.artmakerSaid.hidden = !text;
+  els.artmakerSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.artmakerSaid.textContent = text || "";
+}
+
+function paintArtmaker() {
+  Array.prototype.forEach.call(els.artmakerMake.querySelectorAll("button[data-make]"),
+    function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-make") === artMake ? "true" : "false");
+    });
+  var about = els.artmakerAbout.value.trim();
+  els.artmakerGo.disabled = artAsking || !about;
+  els.artmakerGoSub.textContent = artAsking ? "asking…"
+    : !about ? "say what it is about"
+    : artMake === "deck" ? "a beamer deck, built to PDF" : "a Markdown paper, built to .docx";
+}
+
+function askArtifact() {
+  var about = els.artmakerAbout.value.trim();
+  if (!artFor || !about || artAsking) return;
+  artAsking = true;
+  paintArtmaker();
+  postJSON("/artifact?subject=" + enc(artFor.id), { make: artMake, about: about })
+    .then(function (got) {
+      artAsking = false;
+      if (!got || !got.ok) {
+        paintArtmaker();
+        artSay((got && got.error) || "it was not asked for", true);
+        return;
+      }
+      els.artmakerAbout.value = "";
+      paintArtmaker();
+      artSay((artMake === "deck" ? "A deck" : "A paper") + " is being written: "
+             + (got.source || "its file") + ".");
+      if (got.session) {
+        els.artmakerOpen.href = "/s/" + enc(got.session) + "/board";
+        els.artmakerOpen.hidden = false;
+      }
+    }).catch(function () {
+      artAsking = false;
+      paintArtmaker();
+      artSay("the board did not answer", true);
+    });
+}
+
+/* ------------------------------------------------------- + new, the sheet */
+var makerKind = "course";
+var makerPhi = null;          /* a project's answer: true, false, or unasked */
+var making = false;
+
+function openMaker(kind) {
+  makerKind = kind === "project" ? "project" : "course";
+  makerPhi = null;
+  making = false;
+  els.makerKind.textContent = "new " + makerKind;
+  els.makerName.value = "";
+  els.makerName.placeholder = makerKind === "course" ? "Linear Algebra" : "Diarization";
+  els.makerPhi.hidden = makerKind !== "project";
+  els.makerSaid.hidden = true;
+  paintMaker();
+  els.maker.hidden = false;
+  try { els.makerName.focus(); } catch (e) { /* a page without focus */ }
+}
+
+function closeMaker() { els.maker.hidden = true; }
+
+function makerSay(text, bad) {
+  els.makerSaid.hidden = !text;
+  els.makerSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.makerSaid.textContent = text || "";
+}
+
+function paintMaker() {
+  Array.prototype.forEach.call(els.makerPhi.querySelectorAll("button[data-phi]"),
+    function (b) {
+      var said = b.getAttribute("data-phi") === "yes";
+      b.setAttribute("aria-pressed", makerPhi === said ? "true" : "false");
+    });
+  var name = els.makerName.value.trim();
+  var want = !name ? "name it first"
+    : makerKind === "project" && makerPhi === null ? "say whether it holds patient data"
+    : "";
+  els.makerGo.disabled = making || !!want;
+  els.makerGoSub.textContent = making ? "making it…" : want
+    || (makerKind === "project" && makerPhi
+        ? "a project holding patient data: phi/ and results/ ignored"
+        : "one commit: tutorboard.json and TUTOR.md");
+}
+
+function makeSubject() {
+  var name = els.makerName.value.trim();
+  if (!name || making) return;
+  if (makerKind === "project" && makerPhi === null) return;
+  making = true;
+  paintMaker();
+  var body = { kind: makerKind, name: name };
+  if (makerKind === "project") body.phi = makerPhi;
+  postJSON("/subjects/new", body).then(function (got) {
+    making = false;
+    if (!got || !got.ok) {
+      paintMaker();
+      makerSay((got && got.error) || "it was not made", true);
+      return;
+    }
+    closeMaker();
+    return refresh();
+  }).catch(function () {
+    making = false;
+    paintMaker();
+    makerSay("the board did not answer", true);
+  });
+}
+
+/* ---------------------------------------------------------------- notices */
+/* A cluster report with no session to wake (D16). Dismissing one is this
+   device's own record, kept in localStorage by the notice's key. */
+var DISMISSED = "board.notices.dismissed";
+
+function noticeKey(n) {
+  return String(n.id || ((n.t || n.at || "") + "|" + noticeText(n)));
+}
+
+function noticeText(n) {
+  return String(n.text || n.line || n.title || n.what || "");
+}
+
+function dismissed() {
+  try {
+    var got = JSON.parse(localStorage.getItem(DISMISSED) || "[]");
+    return Array.isArray(got) ? got : [];
+  } catch (e) { return []; }
+}
+
+function dismiss(key) {
+  var keep = dismissed().filter(function (k) { return k !== key; });
+  keep.push(key);
+  try { localStorage.setItem(DISMISSED, JSON.stringify(keep.slice(-200))); }
+  catch (e) { /* private browsing: it comes back on the next load */ }
+}
+
+var lastNotices = [];
+
+function paintNotices(data) {
+  if (data) lastNotices = (data.notices || []).filter(function (n) { return n; });
+  var gone = dismissed();
+  var show = lastNotices.filter(function (n) {
+    return gone.indexOf(noticeKey(n)) < 0;
+  });
+  els.noticeList.innerHTML = "";
+  show.forEach(function (n) {
+    var row = el("div", "row notice");
+    var body = el("span", "row-main");
+    body.appendChild(el("span", "row-name", noticeText(n) || "a report came back"));
+    var where = [n.subject, n.iso || n.when].filter(Boolean).join("  ·  ");
+    if (where) body.appendChild(el("span", "row-sub", where));
+    row.appendChild(body);
+    var x = el("button", "dismiss", "✕");
+    x.type = "button";
+    x.title = "dismiss";
+    x.onclick = function () { dismiss(noticeKey(n)); paintNotices(null); };
+    row.appendChild(x);
+    els.noticeList.appendChild(row);
+  });
+  els.notices.hidden = show.length === 0;
+}
+
+/* ---------------------------------------------------- the cluster's health */
+/* GET /relay.json: `lines` are the sentences, worst first (`relay.health`):
+   relay looks down, not synced, a skipped pass, the relay's last error. */
+var lastRelay = null;
+
+function paintHealth(data) {
+  var lines = (data && data.lines) || [];
+  els.health.innerHTML = "";
+  lines.forEach(function (l) { els.health.appendChild(el("div", "health-line", l)); });
+  els.health.hidden = lines.length === 0;
+}
+
+/* --------------------------------------------------------------- Colibri */
+/* libr-local-llm's panel. The state is relay/status.json's (D27), the tasks
+   are that project's colibri requests with their reports, and filing one is
+   POST /colibri, which commits and pushes the request as `board colibri`
+   does. The button's second line is what the wait will be. */
+var coliFiling = false;
+
+function minutes(secs) {
+  var m = Math.max(1, Math.round(secs / 60));
+  return m < 90 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
+}
+
+function coliStateLine(st) {
+  if (!st) return "";
+  var bits = ["Colibri: " + (st.detail || st.state)];
+  if (st.queue) bits.push(plural(st.queue, "task waiting", "tasks waiting"));
+  if (st.task) bits.push("running " + st.task);
+  return bits.join("  ·  ");
+}
+
+function coliRow(t, running) {
+  var row = el("div", "row coli");
+  var top = el("span", "row-top");
+  top.appendChild(el("span", "row-name", t.label || t.brief || t.id));
+  /* `phase` is colibri.phase: queued, working, done (or filed, failed,
+     refused), from the report and status.json's running task. */
+  var phase = t.phase || t.state;
+  if (running && t.task && t.task === running && phase !== "done"
+      && phase !== "failed") phase = "working";
+  var state = phase === "filed" ? "filed, waiting for the relay" : phase;
+  top.appendChild(el("span", "row-sub", state));
+  row.appendChild(top);
+  var sub = [t.id];
+  if (t.attempts) sub.push("attempt " + t.attempts);
+  if (t.deaths) sub.push(plural(t.deaths, "death", "deaths"));
+  row.appendChild(el("span", "row-sub", sub.join("  ·  ")));
+  if (t.note) row.appendChild(el("span", "row-last", t.note));
+  (t.relay || []).forEach(function (l) {
+    row.appendChild(el("span", "coli-relay", "RELAY: " + l));
+  });
+  return row;
+}
+
+function paintColibri(data) {
+  if (!data || !data.colibri_subject) { els.coli.hidden = true; return; }
+  els.coli.hidden = false;
+  els.coliSubject.href = "/library?subject=" + enc(data.colibri_subject) + "&from=home";
+  els.coliState.textContent = coliStateLine(data.colibri);
+  var tasks = data.colibri_tasks || [];
+  els.coliTasks.innerHTML = "";
+  tasks.forEach(function (t) {
+    els.coliTasks.appendChild(coliRow(t, data.colibri && data.colibri.task));
+  });
+  els.coliNone.hidden = tasks.length > 0;
+  paintColiFile();
+}
+
+function paintColiFile() {
+  var brief = (els.coliBrief.value || "").trim();
+  els.coliFile.disabled = coliFiling || !brief;
+  els.coliFileSub.textContent = coliFiling ? "filing\u2026"
+    : (lastRelay && lastRelay.estimate) || "say what the task is first";
+}
+
+function coliSay(text) {
+  els.coliSaid.hidden = !text;
+  els.coliSaid.textContent = text || "";
+}
+
+function fileColibri() {
+  var brief = (els.coliBrief.value || "").trim();
+  if (!brief || coliFiling) return;
+  coliFiling = true;
+  coliSay("");
+  paintColiFile();
+  postJSON("/colibri", { brief: brief }).then(function (got) {
+    coliFiling = false;
+    if (got && got.ok) {
+      els.coliBrief.value = "";
+      coliSay((got.detail || "filed") + ". " + (got.estimate || ""));
+    } else {
+      coliSay((got && got.error) || "that did not take");
+    }
+    paintColiFile();
+    loadRelay();
+  }).catch(function () {
+    coliFiling = false;
+    coliSay("the board did not answer");
+    paintColiFile();
+  });
+}
+
+function loadRelay() {
+  return getJSON("/relay.json").then(function (got) {
+    lastRelay = got || null;
+    paintHealth(lastRelay);
+    paintColibri(lastRelay);
+  }).catch(function () { /* the next refresh asks again */ });
+}
+
+/* -------------------------------------------------------------- addresses */
+var routed = "";              /* the address text this page last followed */
+
+function say(text) {
+  els.said.hidden = !text;
+  els.said.textContent = text || "";
+}
+
+function route() {
+  if (!window.Address) return;
+  var a = null;
+  try { a = window.Address.parse(window.location.hash || ""); } catch (e) { a = null; }
+  if (!a || a.text === routed) return;
+  routed = a.text;
+  go("/s/" + enc(a.session) + "/board" + a.text);
+}
+
+window.addEventListener("hashchange", route);
 
 /* ------------------------------------------------------- the meeting deck */
-/* "I have generally two — sometimes three — meetings per week to talk about my
-    research… I want to be able to select which projects meeting notes are
-    generated for… I want a presentation like the ones made for PSYCH-ASR
-    created and rendered for me."
-
-   The front door is what is open when somebody remembers they have a meeting
-   in ten minutes, so it is where this lives. TWO QUESTIONS, in this order:
-   how far back, and then which projects — with what each one HAS to report
-   since that date beside it, because ticking bare names is guessing.
-
-   ONE DECK. Making a new one REPLACES the one before it: this is a one-off
-   communication tool and the only one worth keeping is the most recent. Its
-   `.tex` is tracked in the workspace it is written in, so `git log` holds every
-   deck there has been.
-
-   A WRITER TURN WRITES IT, over a brief of the period, and that takes
-   minutes -- so the sheet watches it and says being written, ready, or why it
-   did not land. Nothing a reader can be waiting on may be silent. */
-var notesSince = "";       /* the period they chose */
-var notesWant = {};        /* workspace id -> ticked */
+/* ONE DECK, replaced by each ask; git history keeps every `meeting.tex`. A
+   writer turn takes minutes, so the sheet watches the Meetings library, whose
+   payload carries the deck's record as `meeting`. "Read the deck" is that
+   library with the deck opened (`?doc=`): `Reader.open`, and "say what is
+   wrong" files a round that queues a `[revise]` turn in a Meetings session. */
+var notesSince = "";
+var notesWant = {};
+var MEETINGS = "projects/Meetings";
+var MEETINGS_Q = "subject=" + encodeURIComponent(MEETINGS);
+var notesTimer = null;
+var NOTES_POLL = 10000;
 
 function openNotes() {
   els.notesSaid.hidden = true;
-  els.notesWhich.hidden = true;
-  els.notesSince.hidden = false;
-  els.notesTitle.textContent = "How far back?";
   notesSince = "";
   notesWant = {};
-  sinceButtons(false);
-  /* THE ONE FROM BEFORE, offered first, because that is what you want in the
-     ten minutes before the meeting -- or the one being written, watched. */
+  paintSince();
+  paintWhich();
   els.notesRead.hidden = true;
   pollNotes(true);
   els.notes.hidden = false;
 }
 
-/* WHERE THE ONE DECK GOT TO. A writer turn takes minutes, so the sheet watches
-   `/meeting/deck.json` while it is open: being written, ready, or did not land
-   -- the deck from sittings' three states, said in its words. */
-var notesTimer = null;
-var NOTES_POLL = 10000;
+function closeNotes() {
+  els.notes.hidden = true;
+  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
+}
+
+function notesSay(text, bad) {
+  els.notesSaid.hidden = false;
+  els.notesSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.notesSaid.textContent = text;
+}
 
 function pollNotes(quiet) {
-  return fetch("/meeting/deck.json", { credentials: "same-origin" })
-    .then(function (r) { return r.json(); })
-    .then(function (rec) { paintNotesState(rec || {}, quiet); })
+  return getJSON("/library.json?" + MEETINGS_Q)
+    .then(function (got) { paintNotesState(got || {}, quiet); })
     .catch(function () { /* a poll is quiet; the next one asks again */ });
+}
+
+/* THE DECK'S ROW in the Meetings library: the document carrying `meeting`. */
+function deckRow(got) {
+  var out = null;
+  (got.documents || []).forEach(function (d) { if (d.meeting && !out) out = d; });
+  return out;
 }
 
 function watchNotes() {
@@ -1114,15 +809,15 @@ function watchNotes() {
   }, NOTES_POLL);
 }
 
-function paintNotesState(rec, quiet) {
-  if (!rec.ok) return;
-  var n = (rec.workspaces || []).length;
-  var what = n + (n === 1 ? " project" : " projects")
+function paintNotesState(got, quiet) {
+  var rec = got.meeting;
+  if (!rec) return;
+  var n = (rec.subjects || []).length;
+  var what = plural(n, "subject", "subjects")
     + (rec.period ? ", " + rec.period : rec.since ? ", " + rec.since : "");
   if (rec.state === "being written") {
     els.notesRead.hidden = true;
-    notesSay("Being written in " + ((rec.names || {})[rec.host] || rec.host)
-             + " — " + what + ". This sheet says when it is ready.");
+    notesSay("Being written in Meetings: " + what + ". This sheet says when it is ready.");
     watchNotes();
     return;
   }
@@ -1131,93 +826,44 @@ function paintNotesState(rec, quiet) {
     if (!quiet) notesSay(rec.why || "The deck did not land. Ask for it again.", true);
     return;
   }
-  if (!rec.built) return;
+  var row = deckRow(got);
+  if (!rec.ready || !row) return;
+  var check = rec.check || {};
+  var unsupported = (check.numbers || []).length + (check.figures || []).length
+    + (check.internal || []).length;
+  els.notesRead.setAttribute("href", "/library?" + MEETINGS_Q + "&doc="
+    + encodeURIComponent(row.id) + "&from=home");
   els.notesRead.hidden = false;
   els.notesReadSub.textContent = what
-    + (rec.unsupported ? " · " + rec.unsupported + " to check" : "")
-    + ((rec.marked || []).length ? " · marked up" : "");
+    + (unsupported ? " · " + unsupported + " to check" : "")
+    + (row.marks && row.marks.pages ? " · marked up" : "");
   if (!quiet) {
-    var slides = Object.keys(rec.pages || {}).length;
-    notesSay("Ready: " + slides + (slides === 1 ? " project slide" : " project slides")
-             + " about " + what + ". It replaced the one before it."
-             + (rec.unsupported ? " " + rec.unsupported + " thing"
-                + (rec.unsupported === 1 ? " on it is" : "s on it are")
-                + " not in any source; the reader lists them." : ""));
+    notesSay("Ready: " + plural(rec.pages || row.pages || 0, "slide", "slides")
+             + " about " + what + ". It replaced the one before it.");
   }
 }
 
-function closeNotes() {
-  els.notes.hidden = true;
-  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
+function paintSince() {
+  Array.prototype.forEach.call(els.notesSince.querySelectorAll("button[data-since]"),
+    function (b) {
+      b.setAttribute("aria-pressed",
+                     b.getAttribute("data-since") === notesSince ? "true" : "false");
+    });
+  paintTicks();
 }
 
-function sinceButtons(off) {
-  Array.prototype.forEach.call(
-    els.notesSince.querySelectorAll("button"),
-    function (b) { b.disabled = !!off; });
-}
-
-function notesSay(text, bad) {
-  els.notesSaid.hidden = false;
-  els.notesSaid.className = "sheet-line" + (bad ? " bad" : "");
-  els.notesSaid.textContent = text;
-}
-
-/* WHICH PROJECTS, WITH WHAT EACH ONE HAS. `/notes/what` is `gather`'s own
-   output per workspace — the same counts the deck itself is assembled from, so
-   the list cannot disagree with the deck it produces. */
-function askWhich(since) {
-  notesSince = since;
-  sinceButtons(true);
-  notesSay("looking at what has landed…");
-  fetch("/notes/what", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ since: since })
-  }).then(function (r) { return r.json(); }).then(function (got) {
-    sinceButtons(false);
-    if (!got || !got.ok) {
-      notesSay((got && got.detail) || "that period could not be read", true);
-      return;
-    }
-    els.notesSaid.hidden = true;
-    els.notesRead.hidden = true;
-    els.notesSince.hidden = true;
-    els.notesWhich.hidden = false;
-    els.notesTitle.textContent = "Which projects?";
-    els.notesWhichLine.textContent = "Since " + got.since
-      + ". The ones that moved are already chosen.";
-    paintWhich(got.workspaces || []);
-  }).catch(function (e) {
-    sinceButtons(false);
-    notesSay(e.message || "the board did not answer", true);
-  });
-}
-
-function paintWhich(list) {
-  notesWant = {};
+/* Every course and project but Meetings itself, which is where the deck goes. */
+function paintWhich() {
   els.notesList.innerHTML = "";
-  list.forEach(function (w) {
-    /* TICKED WHERE IT MOVED. That is what the deck covers when nobody says
-       anything, so the default state of the list is the default behaviour. */
-    notesWant[w.id] = !!w.moved;
-    var b = document.createElement("button");
+  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
+    if (s.id === MEETINGS) return;
+    var b = el("button");
     b.type = "button";
-    b.setAttribute("data-id", w.id);
-    b.setAttribute("data-moved", w.moved ? "1" : "0");
-    var tick = document.createElement("span");
-    tick.className = "tick";
-    var name = document.createElement("span");
-    name.textContent = w.name;
-    var what = document.createElement("span");
-    what.className = "what";
-    what.textContent = whatOf(w);
-    b.appendChild(tick);
-    b.appendChild(name);
-    b.appendChild(what);
+    b.setAttribute("data-id", s.id);
+    b.appendChild(el("span", "tick"));
+    b.appendChild(el("span", "", s.name || s.id));
     b.onclick = function () {
-      notesWant[w.id] = !notesWant[w.id];
+      notesWant[s.id] = !notesWant[s.id];
       paintTicks();
     };
     els.notesList.appendChild(b);
@@ -1225,53 +871,36 @@ function paintWhich(list) {
   paintTicks();
 }
 
-function whatOf(w) {
-  if (!w.moved) return "nothing since";
-  var bits = [];
-  if (w.commits) bits.push(w.commits + (w.commits === 1 ? " commit" : " commits"));
-  if (w.closed) bits.push(w.closed + (w.closed === 1 ? " step" : " steps") + " closed");
-  if (w.sittings) bits.push(w.sittings + (w.sittings === 1 ? " sitting" : " sittings"));
-  if (!bits.length && w.story) bits.push("the handoff moved");
-  return bits.join(", ");
+function chosen() {
+  return Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
 }
 
 function paintTicks() {
-  var n = 0;
-  Array.prototype.forEach.call(
-    els.notesList.querySelectorAll("button"), function (b) {
-      var on = !!notesWant[b.getAttribute("data-id")];
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-      b.querySelector(".tick").textContent = on ? "✓" : "·";
-      if (on) n += 1;
-    });
-  els.notesMake.disabled = !n;
-  els.notesMakeSub.textContent = n
-    ? n + (n === 1 ? " project" : " projects") + ", replacing the last deck"
-    : "choose at least one";
+  Array.prototype.forEach.call(els.notesList.querySelectorAll("button"), function (b) {
+    var on = !!notesWant[b.getAttribute("data-id")];
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.querySelector(".tick").textContent = on ? "✓" : "·";
+  });
+  var n = chosen().length;
+  els.notesMake.disabled = !notesSince;
+  els.notesMakeSub.textContent = !notesSince ? "choose a period"
+    : (n ? plural(n, "subject", "subjects") : "every subject that moved")
+      + ", replacing the last deck";
 }
 
 function makeDeck() {
-  var want = Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
-  if (!want.length) return;
+  if (!notesSince) return;
   els.notesMake.disabled = true;
   notesSay("asking for it…");
-  fetch("/notes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ since: notesSince, want: want })
-  }).then(function (r) { return r.json(); }).then(function (rec) {
+  postJSON("/meeting", { since: notesSince, items: chosen() }).then(function (rec) {
     rec = rec || {};
     els.notesMake.disabled = false;
-    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN: two fenced projects, an
-       assistant busy over there, a period in which nothing landed. */
     if (!rec.ok) {
       notesSay(rec.detail || rec.error || "the deck could not be asked for", true);
       return;
     }
-    notesSay(rec.detail || ("Being written in " + rec.where + "."));
+    notesSay(rec.detail || "Being written in Meetings.");
     els.notesRead.hidden = true;
-    /* Asked at once, not in ten seconds: the answer may already be there. */
     pollNotes(false);
     watchNotes();
   }).catch(function (e) {
@@ -1280,1118 +909,173 @@ function makeDeck() {
   });
 }
 
-if (els.notesBtn) els.notesBtn.onclick = openNotes;
-if (els.notesClose) els.notesClose.onclick = closeNotes;
-if (els.notesMake) els.notesMake.onclick = makeDeck;
-if (els.notesBack) {
-  els.notesBack.onclick = function () {
-    els.notesWhich.hidden = true;
-    els.notesSince.hidden = false;
-    els.notesSaid.hidden = true;
-    els.notesTitle.textContent = "How far back?";
-  };
-}
-if (els.notes) {
-  els.notes.addEventListener("click", function (ev) {
-    if (ev.target === els.notes) closeNotes();
-  });
-}
-if (els.notesSince) {
-  els.notesSince.addEventListener("click", function (ev) {
-    var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
-    if (b && !b.disabled) askWhich(b.getAttribute("data-since"));
-  });
-}
-
-
-/* --------------------------------------------- a paper or a deck, at the door */
-/* "The ability to write a paper or a slide deck should just be an option on the
-    homescreen, and from there I want to be able to specify which
-    projects/course, and which sections/results."
-
-   A PRODUCT IS NOT AN AIM, and this is where that stops being a slogan. Asking
-   for a document used to mean being in a sitting in the workspace it is about,
-   and the workspace it is about is usually not the one the board is serving --
-   so the ask cost a switch, a sitting and a change to what that sitting was
-   for, to produce something that never touches the lesson.
-
-   THREE QUESTIONS, each replacing the last in one sheet: which product, which
-   workspace, what it is over. They are in that order because each one narrows
-   the next -- only the workspace knows what it has to write up -- and Back
-   walks them in reverse.
-
-   THE ASK IS WRITTEN WHERE THE WORK IS. `POST /writeup` with a `repo` puts it
-   in that workspace's inbox, where its own assistant picks it up; the document
-   lands in ITS library. Nothing appears on this board, and the sheet says so
-   rather than leaving somebody watching for it here. */
-var docProduct = "";      /* "paper" or "slides" */
-var docAt = 1;            /* which of the three questions is on the glass */
-var docWs = null;         /* the workspace it is being asked of */
-var docRepo = "";         /* how the server spells that workspace */
-var docCalled = "";       /* what to call that workspace in a sentence */
-/* WHICH WORKSPACE THE PAGE IS WAITING ON, so a reply for one it has stopped
-   asking about cannot repaint the list. Opening the wrong workspace and then
-   the right one is the ordinary case -- it is two taps -- and the two answers
-   come back in whatever order the disk gives them, which for a course with a
-   plan and forty documents is not the order they were asked in. Without this
-   the heading names one workspace and the ask goes to another. */
-var docWanted = "";
-/* AND WHERE IT ACTUALLY LANDED, out of the reply rather than out of the tap. */
-var docLanded = null;
-
-function closeDoc() { els.doc.hidden = true; }
-
-function docSay(text, bad) {
-  els.docSaid.hidden = false;
-  els.docSaid.className = "sheet-line" + (bad ? " bad" : "");
-  els.docSaid.textContent = text;
-}
-
-function docButtons(host, off) {
-  Array.prototype.forEach.call(host.querySelectorAll("button"),
-    function (b) { b.disabled = !!off; });
-}
-
-/* WHICH QUESTION IS BEING ASKED, and only ever one of them. The title carries
-   it: a sheet whose heading never changes is three screens wearing one. */
-function docStep(n) {
-  docAt = n;
-  /* LEAVING THE THIRD QUESTION STOPS WAITING ON ITS ANSWER. Back, or a second
-     workspace, and whatever was in flight for the first one is nobody's. */
-  if (n !== 3) docWanted = "";
-  els.docMakes.hidden = n !== 1;
-  els.docWhere.hidden = n !== 2;
-  els.docScopes.hidden = n !== 3;
-  els.docBack.hidden = n === 1;
-  els.docSaid.hidden = true;
-  els.docRead.hidden = true;
-  if (n === 1) {
-    els.docTitle.textContent = "Which one?";
-    els.docLine.textContent = "Written where the work is, by whoever is working "
-      + "there. It lands in that workspace's library.";
-    return;
-  }
-  var word = docProduct === "slides" ? "deck" : "paper";
-  if (n === 2) {
-    els.docTitle.textContent = "Which workspace?";
-    els.docLine.textContent = "The " + word + " is written in the workspace it "
-      + "is about, not here.";
-    els.docBackSub.textContent = "a paper or a deck";
-    return;
-  }
-  els.docTitle.textContent = "What is it over?";
-  els.docLine.textContent = "One " + word + ", about one part of " + docCalled + ".";
-  els.docBackSub.textContent = "a different workspace";
-}
-
-function openDoc() {
-  docProduct = "";
-  docWs = null;
-  docLanded = null;
-  docRepo = "";
-  docCalled = "";
-  docButtons(els.docMakes, false);
-  docStep(1);
-  els.doc.hidden = false;
-}
-
-/* WHICH WORKSPACE, OUT OF THE PAYLOAD THIS PAGE ALREADY POLLS. The atlas is in
-   memory by the time anything here is tappable, so there is no request behind
-   this list -- and a second source for it is a second list to go stale.
-
-   A VENDOR TREE IS NOT OFFERED. Trees are a separate list for exactly this
-   reason, and the family is asked as well, because a list that is right only
-   because of how the payload happens to be shaped is right by accident. */
-function paintDocWhere() {
-  var host = els.docWhere;
-  host.innerHTML = "";
-  var drawn = 0;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    var fam = aFamily(c.family) || {};
-    if (fam.vendor) return;
-    var b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("data-id", c.id);
-    var name = document.createElement("span");
-    name.textContent = c.course || c.repo || c.id;
-    var sub = document.createElement("span");
-    sub.className = "doc-sub";
-    sub.textContent = (fam.name || c.family || "")
-      + (c.current ? "  ·  where the board is" : "");
-    b.appendChild(name);
-    b.appendChild(sub);
-    b.onclick = function () { docAskScopes(c); };
-    host.appendChild(b);
-    drawn += 1;
-  });
-  if (!drawn) {
-    docSay("nothing is drawn yet to write one about", true);
-  }
-  return drawn;
-}
-
-/* WHAT IT IS OVER, ASKED OF THE WORKSPACE ITSELF. Only it knows what it has --
-   its sections, its results, the evening just taught -- so the keys come from
-   there and the order they arrive in is theirs. The wait says which workspace
-   is being asked, and so does the failure: "it could not be read" beside three
-   workspaces is a sentence about none of them. */
-function docAskScopes(c) {
-  docWs = c;
-  /* THE QUALIFIED NAME, NOT THE BARE DIRECTORY, and it is the same name in both
-     requests. A workspace is discovered rather than registered -- making one is
-     `mkdir courses/Topology` -- so two families can hold the same directory
-     name, and both routes take the first walk hit for a bare one. `family/name`
-     is the spelling that cannot mean two places. */
-  docRepo = c.id || c.repo || "";
-  docCalled = c.course || c.repo || c.id;
-  docWanted = docRepo;
-  var asked = docRepo;
-  els.docScopes.innerHTML = "";
-  docStep(3);
-  docSay("reading what " + docCalled + " has to write up…");
-  fetch("/writeup/scopes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ repo: asked })
-  }).then(function (r) { return r.json(); }).then(function (got) {
-    /* A REPLY FOR A WORKSPACE NOBODY IS ASKING ABOUT ANY MORE IS DROPPED. */
-    if (asked !== docWanted) return;
-    got = got || {};
-    if (!got.ok) {
-      docSay(got.error || (docCalled + " could not say what it has to write "
-                           + "up"), true);
-      return;
-    }
-    /* WHAT THE SERVER CALLS IT, from here on -- its display name, and its own
-       id where it gave one. The bare `repo` it also answers with is the
-       ambiguous spelling and is deliberately not taken. */
-    docRepo = got.id || docRepo;
-    docCalled = got.name || docCalled;
-    els.docSaid.hidden = true;
-    paintDocScopes(got.scopes || [], got.more || 0);
-  }).catch(function (e) {
-    if (asked !== docWanted) return;
-    docSay(e.message || (docCalled + " did not answer"), true);
-  });
-}
-
-function paintDocScopes(list, more) {
-  var host = els.docScopes;
-  host.innerHTML = "";
-  if (!list.length) {
-    docSay(docCalled + " has nothing to be written up yet", true);
-    return;
-  }
-  /* WHAT THE LIST STOPS SHORT OF, said rather than left to be assumed. A picker
-     that ends at a cap and says nothing reads as everything there is, and the
-     scope somebody cannot find is then the one they do not know to look for. */
-  if (more) {
-    docSay(more + (more === 1 ? " more is" : " more are")
-           + " not offered here — open " + docCalled + " and ask there.");
-  }
-  list.forEach(function (sc) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("data-scope", sc.key);
-    var name = document.createElement("span");
-    name.textContent = sc.label;
-    b.appendChild(name);
-    if (sc.what) {
-      var sub = document.createElement("span");
-      sub.className = "doc-sub";
-      sub.textContent = sc.what;
-      b.appendChild(sub);
-    }
-    b.onclick = function () { docAsk(sc.key); };
-    host.appendChild(b);
-  });
-}
-
-/* THE ASK ITSELF, and it carries the three answers and nothing else. The scope
-   is a key the workspace handed out a moment ago; the server turns it back into
-   the sentence the document is written to, because the page inventing that
-   sentence is the page deciding what the scope means. */
-/* THE CARD FOR THE WORKSPACE THE SERVER ANSWERED ABOUT, looked up by the same
-   qualified name the ask carried. The card tapped three questions ago is not
-   the authority on where the document went: the answer is. */
-function docCardFor(id) {
-  var found = null;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    if (c.id === id || c.repo === id) found = found || c;
-  });
-  return found;
-}
-
-function docAsk(scope) {
-  docButtons(els.docScopes, true);
-  docSay("asking " + docCalled + "…");
-  fetch("/writeup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ makes: docProduct, repo: docRepo, scope: scope })
-  }).then(function (r) { return r.json(); }).then(function (rec) {
-    rec = rec || {};
-    docButtons(els.docScopes, false);
-    /* A REFUSAL IS PAINTED, NOT SWALLOWED. An assistant already busy in that
-       workspace answers 409 with a sentence about what it is doing, and that is
-       something a person can act on -- come back, or ask somewhere else. */
-    if (!rec.ok) {
-      docSay(rec.error || rec.detail || "it could not be asked for", true);
-      return;
-    }
-    /* WHERE IT WENT IS THE REPLY'S TO SAY, and the way back is read off the
-       same answer. The card tapped two questions ago cannot be trusted for
-       either: it is what was ASKED, and the workspace that was written in is
-       what came BACK. */
-    docLanded = docCardFor(rec.repo || docRepo) || docWs;
-    var where = rec.where || docCalled;
-    var here = !!(docLanded && docLanded.current);
-    var word = docProduct === "slides" ? "The deck" : "The paper";
-    docSay(here
-      ? word + " is being written in " + where + ". It appears in its library "
-        + "rather than on the board."
-      : word + " is being written in " + where + ". It appears in that "
-        + "workspace's library, not on this board.");
-    els.docRead.hidden = false;
-    els.docReadSub.textContent = here
-      ? "everything written up in " + where
-      : "moves the board, then opens its library";
-  }).catch(function (e) {
-    docButtons(els.docScopes, false);
-    docSay(e.message || "the board did not answer", true);
-  });
-}
-
-if (els.docBtn) els.docBtn.onclick = openDoc;
-if (els.docClose) els.docClose.onclick = closeDoc;
-if (els.docRead) {
-  els.docRead.onclick = function () {
-    var c = docLanded || docWs;
-    closeDoc();
-    openLibrary(c);
-  };
-}
-if (els.docMakes) {
-  els.docMakes.addEventListener("click", function (ev) {
-    var b = ev.target.closest ? ev.target.closest("button[data-makes]") : null;
-    if (!b || b.disabled) return;
-    docProduct = b.getAttribute("data-makes");
-    /* The step first, then the list: `docStep` clears what was said, and an
-       empty atlas has something to say. */
-    docStep(2);
-    paintDocWhere();
-  });
-}
-/* BACK WALKS THEM IN REVERSE, one question at a time, the way the deck's does.
-   A Back that returns to the first question from the third is a Back nobody can
-   predict. */
-if (els.docBack) {
-  els.docBack.onclick = function () {
-    if (docAt === 3) { docStep(2); return; }
-    docProduct = "";
-    docStep(1);
-  };
-}
-if (els.doc) {
-  els.doc.addEventListener("click", function (ev) {
-    if (ev.target === els.doc) closeDoc();
-  });
-}
-
-
-/* ------------------------------------------------------ slides from sittings */
-/* "I just want to be able to select from tutoring sessions what we've done
-    over all sessions and get to pick a list of the things I want to include in
-    the presentation. I leave it up to the AI tutor to actually decide what
-    slides are dedicated to which things accomplished... I don't want to be
-    limited to one slide per project."
-
-   THREE STEPS IN ONE SHEET, each replacing the last, and Back walks them in
-   reverse: which sittings, from every workspace and every date; what those
-   sittings did, all ticked, so the list is a chance to leave things out; and
-   the deck being written, watched until it is there.
-
-   NOTHING HERE DECIDES A SLIDE. How many a thing gets and which go together is
-   the tutor's, and the figures those sittings made reach it from the server,
-   not from a picker. What goes over the wire is ids the server handed out --
-   `tutorboard/sittings.py` recomputes the items from the sittings named and
-   only lets the ticks choose among them.
-
-   THE DECK LANDS IN A LIBRARY, the one of the workspace holding most of what
-   was ticked, and "Read the deck" opens it there. Ink on a slide and "say what
-   is wrong" are the library's own loop and redraw it in place. */
-var sitAt = 1;              /* which of the three steps is on the glass */
-var sitRows = [];           /* the sittings, as the server listed them */
-var sitWant = {};           /* sitting id -> ticked */
-var sitGroups = [];         /* what the ticked sittings did */
-var sitTicked = {};         /* item id -> ticked */
-var sitPicked = [];         /* the sittings the items were asked for */
-var sitDeck = null;         /* the deck this sheet asked for: {slug, where} */
-var sitDeckRows = [];       /* the decks already made, newest first */
-var sitTimer = null;
-/* WHICH ANSWER THE SHEET IS WAITING FOR, so one it has stopped waiting for
-   cannot repaint it -- `docWanted`'s rule. Back and a second tap are two
-   requests in flight, and the disk answers them in its own order. */
-var sitWanted = "";
-var SIT_POLL = 10000;
-
-function sitSay(text, bad) {
-  els.sittingsSaid.hidden = !text;
-  els.sittingsSaid.className = "sheet-line" + (bad ? " bad" : "");
-  els.sittingsSaid.textContent = text || "";
-}
-
-function sitPost(url, body) {
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(body || {})
-  }).then(function (r) { return r.json(); });
-}
-
-function sittingsStep(n) {
-  sitAt = n;
-  if (n !== 3) sitDeck = null;
-  els.sittingsPick.hidden = n !== 1;
-  els.sittingsWhat.hidden = n !== 2;
-  els.sittingsDecks.hidden = n !== 1 || !sitDeckRows.length;
-  els.sittingsGo.hidden = n === 3;
-  els.sittingsBack.hidden = n === 1;
-  els.sittingsRead.hidden = true;
-  els.sittingsHow.hidden = true;
-  sitSay("");
-  if (n === 1) {
-    els.sittingsTitle.textContent = "Which sittings?";
-    els.sittingsLine.textContent = "Every sitting in every workspace, newest "
-      + "first. Tick the ones the deck draws from.";
-    paintSittingTicks();
-    return;
-  }
-  if (n === 2) {
-    els.sittingsTitle.textContent = "What goes in the deck?";
-    els.sittingsLine.textContent = "Untick anything to leave out. The tutor "
-      + "decides how many slides each thing gets, and brings in the figures "
-      + "those sittings produced.";
-    els.sittingsBackSub.textContent = "different sittings";
-    paintItemTicks();
-    return;
-  }
-  els.sittingsTitle.textContent = "Being written";
-  els.sittingsBackSub.textContent = "what goes in the deck";
-}
-
-function openSittings() {
-  sitRows = [];
-  sitWant = {};
-  sitOpen = {};
-  sitGroups = [];
-  sitTicked = {};
-  sitPicked = [];
-  els.sittingsList.innerHTML = "";
-  els.sittingsItems.innerHTML = "";
-  sittingsStep(1);
-  els.sittings.hidden = false;
-  sitSay("reading every sitting…");
-  sitWanted = "list";
-  sitPost("/sittings").then(function (got) {
-    if (sitWanted !== "list") return;
-    sitWanted = "";
-    got = got || {};
-    if (!got.ok) { sitSay(got.error || "the sittings could not be read", true); return; }
-    sitSay("");
-    sitFold = got.fold || 20;
-    paintSittings(got.sittings || []);
-  }).catch(function (e) {
-    if (sitWanted !== "list") return;
-    sitWanted = "";
-    sitSay(e.message || "the board did not answer", true);
-  });
-  pollDecks();
-  if (sitTimer) clearInterval(sitTimer);
-  sitTimer = setInterval(function () {
-    if (!els.sittings.hidden && !document.hidden) pollDecks();
-  }, SIT_POLL);
-}
-
-function closeSittings() {
-  els.sittings.hidden = true;
-  sitWanted = "";
-  if (sitTimer) clearInterval(sitTimer);
-  sitTimer = null;
-}
-
-/* A HEADING PER WORKSPACE, and the rows under it newest first -- the order the
-   server sends them in. What each one holds is on its row, because ticking a
-   bare name is guessing.
-
-   EVERY SITTING IS SENT, and a workspace's past its first `sitFold` are folded
-   behind "show N older sittings" -- "over all sessions" means the oldest one
-   can be ticked, and a term of Galois Theory unfolded is a scroll. */
-var sitFold = 20;
-var sitOpen = {};           /* workspace id -> its older sittings are shown */
-
-function paintSittings(rows) {
-  sitRows = rows;
-  var host = els.sittingsList;
-  host.innerHTML = "";
-  var here = null;
-  var n = 0;
-  var hidden = {};
-  rows.forEach(function (r) {
-    if (r.ws !== here) {
-      here = r.ws;
-      n = 0;
-      var head = document.createElement("p");
-      head.className = "sittings-group";
-      head.textContent = r.ws_name + ((r.fenced || []).length
-        ? "  ·  holds " + r.fenced.join(", ") + "/" : "");
-      host.appendChild(head);
-    }
-    n += 1;
-    if (n > sitFold && !sitOpen[r.ws]) {
-      hidden[r.ws] = (hidden[r.ws] || 0) + 1;
-      return;
-    }
-    var b = sitRow(r.id, r.label, sitWhat(r), function () {
-      sitWant[r.id] = !sitWant[r.id];
-      paintSittingTicks();
-    });
-    b.setAttribute("data-ws", r.ws);
-    host.appendChild(b);
-  });
-  /* The fold goes under its own workspace's last shown row. */
-  Object.keys(hidden).forEach(function (ws) {
-    var last = null;
-    Array.prototype.forEach.call(host.querySelectorAll("button[data-id]"),
-      function (b) { if (b.getAttribute("data-ws") === ws) last = b; });
-    if (last) last.parentNode.insertBefore(sitMore(ws, hidden[ws]), last.nextSibling);
-  });
-  if (!rows.length) sitSay("There are no sittings to make a deck from yet.", true);
-  paintSittingTicks();
-}
-
-function sitMore(ws, n) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.className = "sittings-more";
-  b.textContent = "show " + n + (n === 1 ? " older sitting" : " older sittings");
-  b.onclick = function () {
-    sitOpen[ws] = true;
-    paintSittings(sitRows);
-  };
-  return b;
-}
-
-function sitWhat(r) {
-  var bits = [r.cards + (r.cards === 1 ? " card" : " cards")];
-  if (r.commits) bits.push(r.commits + (r.commits === 1 ? " commit" : " commits"));
-  return bits.join(" · ");
-}
-
-function sitRow(id, text, what, onTap) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.setAttribute("data-id", id);
-  var tick = document.createElement("span");
-  tick.className = "tick";
-  var body = document.createElement("span");
-  body.className = "sittings-text";
-  var name = document.createElement("span");
-  name.className = "name";
-  name.textContent = text;
-  body.appendChild(name);
-  if (what) {
-    var sub = document.createElement("span");
-    sub.className = "what";
-    sub.textContent = what;
-    body.appendChild(sub);
-  }
-  b.appendChild(tick);
-  b.appendChild(body);
-  b.onclick = onTap;
-  return b;
-}
-
-function sitTicks(host, want) {
-  var n = 0;
-  Array.prototype.forEach.call(host.querySelectorAll("button[data-id]"),
-    function (b) {
-      var on = !!want[b.getAttribute("data-id")];
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-      b.querySelector(".tick").textContent = on ? "✓" : "·";
-      if (on) n += 1;
-    });
-  return n;
-}
-
-function paintSittingTicks() {
-  if (sitAt !== 1) return;
-  var n = sitTicks(els.sittingsList, sitWant);
-  els.sittingsGo.disabled = !n;
-  els.sittingsGoName.textContent = "Show what was done in " + n
-    + (n === 1 ? " sitting" : " sittings");
-  els.sittingsGoSub.textContent = n ? "then choose what goes in" : "tick at least one";
-}
-
-/* WHAT THEY DID, asked of the server for exactly the sittings ticked. */
-function askItems() {
-  var picks = sitRows.filter(function (r) { return sitWant[r.id]; })
-    .map(function (r) { return r.id; });
-  if (!picks.length) return;
-  var key = "items:" + picks.join("|");
-  sitWanted = key;
-  els.sittingsGo.disabled = true;
-  sitSay("reading what " + (picks.length === 1 ? "that sitting" : "those "
-    + picks.length + " sittings") + " did…");
-  sitPost("/sittings/items", { picks: picks }).then(function (got) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    got = got || {};
-    els.sittingsGo.disabled = false;
-    if (!got.ok) { sitSay(got.error || "what they did could not be read", true); return; }
-    sitPicked = picks;
-    paintItems(got.groups || []);
-    sittingsStep(2);
-  }).catch(function (e) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sitSay(e.message || "the board did not answer", true);
-  });
-}
-
-var SIT_KIND = { commit: "commit", step: "a plan step finished",
-                 handoff: "from the handoff", whole: "the cards and the transcript" };
-
-function sitItemWhat(i) {
-  var said = SIT_KIND[i.kind] || i.kind;
-  if (i.kind === "commit" && i.detail) return said + " " + i.detail;
-  if (i.kind === "handoff" && i.detail) return said + " · " + i.detail;
-  return said;
-}
-
-/* ALL TICKED, because what those sittings did is what the deck covers when
-   nobody says anything -- so this list narrows a decision rather than asking
-   for one from nothing. The server has already left out what a handoff says
-   about the student and the next move. And each sitting has one tap to untick
-   all of it, because picking three things out of twenty-four should not be
-   twenty-one taps. */
-function paintItems(groups) {
-  sitGroups = groups;
-  sitTicked = {};
-  var host = els.sittingsItems;
-  host.innerHTML = "";
-  groups.forEach(function (g) {
-    var head = document.createElement("p");
-    head.className = "sittings-group";
-    head.textContent = g.ws_name + " — " + g.label;
-    host.appendChild(head);
-    var ids = (g.items || []).map(function (i) { return i.id; });
-    if (ids.length > 1) {
-      var all = document.createElement("button");
-      all.type = "button";
-      all.className = "sittings-all";
-      all.onclick = function () {
-        var on = !ids.every(function (id) { return sitTicked[id]; });
-        ids.forEach(function (id) { sitTicked[id] = on; });
-        paintItemTicks();
-      };
-      all.sitIds = ids;
-      host.appendChild(all);
-    }
-    (g.items || []).forEach(function (i) {
-      sitTicked[i.id] = true;
-      host.appendChild(sitRow(i.id, i.text, sitItemWhat(i), function () {
-        sitTicked[i.id] = !sitTicked[i.id];
-        paintItemTicks();
-      }));
-    });
-  });
-}
-
-function paintItemTicks() {
-  if (sitAt !== 2) return;
-  Array.prototype.forEach.call(els.sittingsItems.querySelectorAll(".sittings-all"),
-    function (b) {
-      var every = b.sitIds.every(function (id) { return sitTicked[id]; });
-      b.textContent = every ? "untick all of these" : "tick all of these";
-    });
-  var n = sitTicks(els.sittingsItems, sitTicked);
-  els.sittingsGo.disabled = !n;
-  els.sittingsGoName.textContent = "Write the deck (" + n
-    + (n === 1 ? " thing)" : " things)");
-  els.sittingsGoSub.textContent = n ? "the tutor plans the slides"
-                                    : "tick at least one";
-}
-
-function writeDeck() {
-  var items = Object.keys(sitTicked).filter(function (id) { return sitTicked[id]; });
-  if (!items.length) return;
-  var key = "deck:" + items.join("|");
-  sitWanted = key;
-  els.sittingsGo.disabled = true;
-  sitSay("asking for it…");
-  sitPost("/sittings/deck", { picks: sitPicked, items: items }).then(function (rec) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    rec = rec || {};
-    els.sittingsGo.disabled = false;
-    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN. An assistant busy in the
-       workspace it went to answers with what it is doing, and that is
-       something a person can act on. */
-    if (!rec.ok) { sitSay(rec.error || rec.detail || "it could not be asked for", true); return; }
-    sittingsStep(3);
-    sitDeck = { slug: rec.slug, where: rec.where };
-    els.sittingsLine.textContent = rec.detail || ("The tutor is writing it in "
-      + rec.where + ".");
-    pollDecks();
-  }).catch(function (e) {
-    if (sitWanted !== key) return;
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sitSay(e.message || "the board did not answer", true);
-  });
-}
-
-/* WHERE EACH DECK GOT TO. Asked on opening and every few seconds while the
-   sheet is open, because a deck takes minutes and the sheet says when it is
-   there rather than leaving somebody to guess. */
-function pollDecks() {
-  sitPost("/sittings/decks").then(function (got) {
-    if (!got || !got.ok) return;
-    paintDecks(got.decks || []);
-  }).catch(function () { /* a poll is quiet; the next one asks again */ });
-}
-
-function paintDecks(rows) {
-  sitDeckRows = rows;
-  var host = els.sittingsDecksList;
-  host.innerHTML = "";
-  rows.forEach(function (d) {
-    var row = document.createElement("div");
-    row.className = "sittings-deck" + (d.state === "did not land" ? " bad" : "");
-    var text = document.createElement("span");
-    text.className = "sittings-text";
-    text.appendChild(document.createTextNode(d.title + " · " + d.host_name + " · "));
-    var st = document.createElement("span");
-    st.className = "sittings-state";
-    st.textContent = d.state;
-    text.appendChild(st);
-    if (d.why) {
-      var why = document.createElement("span");
-      why.className = "what";
-      why.textContent = d.why;
-      text.appendChild(why);
-    }
-    row.appendChild(text);
-    if (d.state === "ready" && d.doc) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.textContent = "Read it";
-      b.onclick = function () { readDeck(d); };
-      row.appendChild(b);
-    }
-    host.appendChild(row);
-  });
-  els.sittingsDecks.hidden = sitAt !== 1 || !rows.length;
-  if (sitAt !== 3 || !sitDeck) return;
-  var mine = null;
-  rows.forEach(function (d) { if (d.slug === sitDeck.slug) mine = d; });
-  if (!mine) return;
-  if (mine.state === "ready" && mine.doc) {
-    els.sittingsTitle.textContent = "Ready";
-    els.sittingsRead.hidden = false;
-    els.sittingsReadSub.textContent = "in " + mine.host_name + "'s library";
-    els.sittingsHow.hidden = false;
-    sitSay("");
-    els.sittingsRead.onclick = function () { readDeck(mine); };
-  } else if (mine.state === "did not land") {
-    els.sittingsTitle.textContent = "Did not land";
-    sitSay(mine.why || ("The tutor ended without building the deck. Ask for "
-           + "it again."), true);
-  }
-}
-
-/* THE LIBRARY OF THE WORKSPACE IT WAS WRITTEN IN, opened on the deck itself.
-   Served by whichever board answers at this address, so a workspace that is not
-   the one being served is switched to first -- `openLibrary`'s journey, with
-   the document named on the way in. */
-function readDeck(d) {
-  var page = "/library?from=home&doc=" + encodeURIComponent(d.doc);
-  var card = null;
-  ((atlas && atlas.workspaces) || []).forEach(function (c) {
-    if (c.id === d.host_id || c.repo === d.host) card = card || c;
-  });
-  closeSittings();
-  if (card && card.current) { location.href = page; return; }
-  switchTo(d.host, "", page);
-}
-
-if (els.sittingsBtn) els.sittingsBtn.onclick = openSittings;
-if (els.sittingsClose) els.sittingsClose.onclick = closeSittings;
-if (els.sittingsGo) {
-  els.sittingsGo.onclick = function () {
-    if (sitAt === 1) askItems();
-    else if (sitAt === 2) writeDeck();
-  };
-}
-/* BACK WALKS THEM IN REVERSE, one step at a time, keeping what was ticked. */
-if (els.sittingsBack) {
-  els.sittingsBack.onclick = function () {
-    sitWanted = "";
-    els.sittingsGo.disabled = false;
-    sittingsStep(sitAt === 3 ? 2 : 1);
-  };
-}
-if (els.sittings) {
-  els.sittings.addEventListener("click", function (ev) {
-    if (ev.target === els.sittings) closeSittings();
-  });
-}
-
-
-/* ------------------------------------------------------------ the address */
-/* THE FRONT DOOR IS THE ONLY THING THAT CAN MOVE THE ONE ADDRESS between two
-   workspaces, so it is where every cross-workspace link lands. A board handed
-   an address for somewhere else sends it here; this switches, and then goes on
-   to the surface the address named.
-
-   `address.js` is the grammar and `board.js` the resolver for surfaces inside a
-   workspace. All this page decides is WHICH workspace, which is the one
-   question it is the only page able to answer. */
-var addrDone = "";          /* the address this page has already acted on */
-
-function addrOf(c) {
-  if (!window.Address || !c || !c.id) return "";
-  return window.Address.format({ ws: c.id, surface: "workspace" });
-}
-
-function addrNow() {
-  if (!window.Address) return null;
-  try { return window.Address.parse(window.location.hash || ""); }
-  catch (e) { return null; }
-}
-
-function addrRoute() {
-  var a = addrNow();
-  /* Not until the atlas has arrived: which workspaces exist is the whole of
-     what this has to decide, and guessing is how a link opens the wrong one. */
-  if (!a || !atlas) return;
-  if (a.text === addrDone) return;
-  addrDone = a.text;
-
-  atlasSay("");
-  var mine = null;
-  (atlas.workspaces || []).forEach(function (c) { if (c.id === a.ws) mine = c; });
-  if (!mine) {
-    /* A MISS IS A MISS. Said on the atlas, where the person is looking, and the
-       door above it still works. */
-    atlasSay("there is no " + a.ws + " in this repository any more — "
-             + "everything that is here is below");
-    return;
-  }
-
-  /* EVERY ADDRESS GOES TO THE BOARD WHOLE. A bare workspace address is the
-     sheet's own "open", and it names the workspace's MAP: *"I want to just go
-     straight to the map of a course/project, no tutoring session necessary."*
-     The board's `addrGo` opens it. And a map is only looking, so no assistant
-     is started for it -- the tap on a box that begins a sitting wakes one. */
-  var mapOnly = a.surface === "workspace";
-  if (mine.current) {
-    location.href = "/board" + a.text;
-    return;
-  }
-  switchTo(mine.repo, a.text, "", mapOnly);
-}
-
-window.addEventListener("hashchange", addrRoute);
-/* ESCAPE UNWINDS ONE THING AT A TIME, outermost first: the sheet over the
-   level, the document over the level, the deck, then the query, then the
-   family. Closing two surfaces on one key is how somebody ends up two screens
-   from where they were and cannot say which tap did it. */
-document.addEventListener("keydown", function (ev) {
-  if (ev.key !== "Escape") return;
-  if (!els.sheet.hidden) closeSheet();
-  else if (els.doc && !els.doc.hidden) closeDoc();
-  else if (els.sittings && !els.sittings.hidden) closeSittings();
-  else if (els.notes && !els.notes.hidden) closeNotes();
-  else if (atlasQuery()) clearFind();
-  else if (atlasFamily) closeFamily();
-});
-
-/* `addr`, when there is one, is where to go once the board has moved: the
-   surface the link named, on the board itself. Without one this lands exactly
-   where it always did.
-
-   `page` is the other kind of destination: a whole page of the board's rather
-   than a surface inside the lesson. `/library` is the one that wanted it, and
-   it wanted it for the reason the address grammar does not cover it -- the
-   library is not a place in a lesson.
-
-   `mapOnly` is a switch to look rather than to sit: the board and the address
-   move, and the assistant is left where it is. */
-function switchTo(repo, addr, page, mapOnly) {
-  if (moving) return;                 /* one at a time; a second tap is a queue */
-  moving = { repo: repo };
-  showBusy("opening " + repo + "…", "asking");
-  var ask = { repo: repo };
-  if (mapOnly) ask.agent = false;
-  fetch("/switch", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(ask)
-  }).then(function (r) { return r.json(); }).then(function (res) {
-    if (!res.ok) throw new Error(res.error || "switch failed");
-    var to = page || (addr ? "/board" + addr : "/");
-    /* OFF THE ADDRESS, THE ADDRESS MOVING IS INVISIBLE. A page loaded from a
-       board's own port answers as that board whatever the address points at,
-       so waiting for it to change is 45 seconds and a reload back into the
-       workspace being left -- "I just get bounced back to the home screen".
-       Go where the opened board answers instead. */
-    var away = elsewhere(res, to);
-    if (away) { location.href = away; return new Promise(function () {}); }
-    if (res.address === false) {
-      throw new Error("the address could not be moved: "
-                      + (res.address_error || "no reason given"));
-    }
-    return waitForAddress(repo, Date.now());
-  }).then(function () {
-    /* Landed or not, this goes where it was sent. The board re-pointed the address
-       at the course before it answered, so by here the switch has happened; the
-       poll is only how we know not to reload too early. There is nothing to ask
-       a person about, and asking was worse than useless -- from the iPad it read
-       as a switch that could not be made. */
-    location.href = page || (addr ? "/board" + addr : "/");
-  }).catch(function (e) {
-    showBusy("could not open " + repo, e.message || String(e));
-    moving = null;
-  });
-}
-
-/* The URL of `to` on the board a switch just opened, or "" when this page is
-   already on the address and the ordinary wait is right. On this machine
-   (`127.0.0.1`, a tunnel) the opened board's own port is the way there; from
-   anywhere else it is the one HTTPS name, which the switch has just pointed at
-   it. */
-function elsewhere(res, to) {
-  var here = location.hostname;
-  var onAddress = location.protocol === "https:" && !location.port
-                  && (!res.host || here === res.host);
-  if (onAddress) return "";
-  if (here === "127.0.0.1" || here === "localhost" || !res.host) {
-    return res.port ? location.protocol + "//" + here + ":" + res.port + to : "";
-  }
-  return "https://" + res.host + to;
-}
-
-/* Which course is answering at this address RIGHT NOW. Asking is the only
-   honest way to know a switch has landed: the name is re-pointed by the board
-   that took it, and the page cannot see that happen. */
-function serving() {
-  return fetch("/health?t=" + Date.now(), { cache: "no-store" })
-    .then(function (r) { return r.json(); })
-    .catch(function () { return null; });   /* mid-move the socket is closed */
-}
-
-/* Poll until the address actually serves what was asked for.
-
-   This is the whole of the fix for "I had to tap it ten times": reloading the
-   instant `/switch` answers lands on the board you were trying to leave, which
-   reads exactly like a tap that did nothing — so you tap again, and every one
-   of those taps was working. A board that has just taken the name answers this
-   within a second or two; the ceiling is only there so a reload eventually
-   happens whatever the network did. */
-function waitForAddress(repo, began) {
-  return serving().then(function (h) {
-    if (h && h.dir === repo) return true;
-    var waited = Math.round((Date.now() - began) / 1000);
-    if (waited >= SWITCH_PATIENCE) return false;
-    showBusy("opening " + repo + "…", waited > 2 ? "starting the board · "
-             + waited + "s" : "starting the board");
-    return new Promise(function (go) { setTimeout(go, 600); })
-      .then(function () { return waitForAddress(repo, began); });
-  });
-}
-
-var SWITCH_PATIENCE = 45;             /* seconds. A cold board start is slow. */
-var moving = null;
-
-/* One message, no questions. The overlay used to end in "ask again" / "stay
-   here", which is a dead end wearing the clothes of a choice: the switch had
-   in fact been made and the only thing wrong was that nothing had moved the
-   address. Tapping the overlay dismisses it; that is all it does. */
-function showBusy(text, sub) {
-  els.busy.hidden = false;
-  els.busyText.textContent = text;
-  els.busySub.textContent = sub || "";
-}
-
-els.busy.onclick = function () {
-  els.busy.hidden = true;
-  moving = null;
-  refresh();
-};
-
-/* -------------------------------------------------- who this machine teaches with
-   The board's chooser picks an assistant for a SITTING; this picks the one a
-   workspace gets when nobody has said otherwise, which is the layer under it in
-   `resolve_agent`'s precedence. Same buttons, same rules: `web/who.js`, shared
-   with `paintWho` on the board so the two cannot go out of step the first time
-   a recipe grows a flag.
-
-   The thing this is for is an evening that has run out. Until now that meant a
-   laptop, an account page and a config file; it is a tap. */
+/* ------------------------------------------------------- default assistant */
+/* The machine's one provider setting, set with POST /default-agent: every
+   session's next turn goes to it, or to its fallback when it cannot. Drawn by
+   `who.js`, the rules the board's own chooser uses. */
+var lastAssistants = null;
 var whoSaved = null;
-var whoOnlyLine = "";
 
 function paintWho(assistants) {
-  /* A FIRST RELOAD AFTER A SHIP STILL RUNS THE OLD SHELL, so this page can be
-     one that has `home.js` and has never heard of `who.js`. Draw nothing rather
-     than throw: this runs inside `refresh`, and a throw here would take
-     `addrRoute` down with it -- an address that stops routing, to add a chooser. */
-  if (!window.WhoChoice) return;
+  if (!window.WhoChoice || !assistants) { els.who.hidden = true; return; }
   var have = window.WhoChoice.offerable(assistants);
-  /* One name is not a choice. Two is, and so is one plus a provider that is a
-     single line in a key file away -- which is exactly the case worth drawing,
-     because that line is the whole of the setup. */
   els.who.hidden = have.length < 2;
   if (els.who.hidden) return;
-  var now = whoSaved || (assistants && assistants["default"]);
-  window.WhoChoice.draw(els.whoWays, have, now, {
+  window.WhoChoice.draw(els.whoWays, have, whoSaved || assistants["default"], {
     say: function (m) { els.whoNote.textContent = m; },
     pick: function (a) { setDefaultAgent(a.name); }
   });
-  /* THE SWITCH, under the buttons it greys out, for as long as it is on. The
-     line owns the note only while nothing else has said anything there: a
-     tap's answer is not painted over by the next poll. A page from before
-     `only` existed in who.js draws no line rather than throwing. */
-  var line = window.WhoChoice.only ? window.WhoChoice.only(assistants) : "";
-  if (!els.whoNote.textContent || els.whoNote.textContent === whoOnlyLine) {
-    els.whoNote.textContent = line;
-  }
-  whoOnlyLine = line;
 }
 
 function setDefaultAgent(name) {
-  /* Shown at once and corrected by the answer. The write is a file on this
-     machine and comes back in milliseconds, but the payload it changes is on a
-     twenty-second poll, so without this the tap reads as having done nothing. */
   whoSaved = name;
   els.whoNote.textContent = "";
   paintWho(lastAssistants);
-  fetch("/default-agent", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agent: name })
-  }).then(function (r) { return r.json(); }).then(function (got) {
+  postJSON("/default-agent", { agent: name }).then(function (got) {
     if (got && got.ok) {
       lastAssistants = got.assistants || lastAssistants;
-      whoSaved = got["default"];
-      /* WHAT MOVED, BY NAME. The old sentence described the machine layer
-         accurately and read, to somebody out of allowance, as a tap that had
-         done nothing: the sittings already open are the ones they are switching
-         FOR, and those are exactly what the sentence did not mention. */
-      var moved = (got.moved || []);
-      els.whoNote.textContent = moved.length
-        ? name + " writes the next card, including the "
-          + (moved.length === 1 ? "sitting open in " : "sittings open in ")
-          + moved.join(", ") + "."
-        : name + " writes the next card in a workspace that has not named "
-          + "its own.";
+      /* Who takes the next turn: the provider, or the fallback and why. */
+      els.whoNote.textContent = got.why
+        ? got.why + "."
+        : name + " writes the next card in every session.";
     } else {
       whoSaved = null;
-      els.whoNote.textContent = (got && got.detail) || "that did not take.";
+      els.whoNote.textContent = (got && (got.detail || got.error)) || "that did not take.";
     }
     paintWho(lastAssistants);
   }).catch(function () {
     whoSaved = null;
-    els.whoNote.textContent = "this board could not be reached.";
+    els.whoNote.textContent = "the board did not answer.";
     paintWho(lastAssistants);
   });
 }
 
-var lastAssistants = null;
+function loadAssistants() {
+  return getJSON("/assistants.json").then(function (got) {
+    lastAssistants = (got && got.assistants) || null;
+    if (whoSaved && lastAssistants && lastAssistants["default"] === whoSaved) whoSaved = null;
+    paintWho(lastAssistants);
+  }).catch(function () { paintWho(null); });
+}
 
-/* ------------------------------------------------------------------ load */
+/* ------------------------------------------------------------------- theme */
+/* The theme is `typeface.js`'s (`Typeface.theme`); this only says which. */
+function paintTheme() {
+  els.themeNow.textContent = document.body.dataset.mode || "auto";
+}
+
+/* -------------------------------------------------------------------- load */
 function refresh() {
-  if (moving) return Promise.resolve();   /* not while the address is in flight */
   return Promise.all([
-    fetch("/board.json").then(function (r) { return r.json(); }),
-    fetch("/atlas.json").then(function (r) { return r.json(); })
-      .catch(function () { return null; }),
-    fetch("/courses.json").then(function (r) { return r.json(); })
-      .catch(function () { return {}; })
+    getJSON("/sessions.json"),
+    getJSON("/subjects.json"),
+    getJSON("/notices.json").catch(function () { return null; })
   ]).then(function (all) {
     els.dot.className = "dot live";
-    paintBoard(all[0] || {});
-    /* A board on an older tool serves no `/atlas.json`. Draw nothing rather
-       than throw: the door above still works, which is the half that matters. */
-    if (all[1]) paintAtlas(all[1]);
-    else {
-      atlasSay("this board is on an older version of the tool and has no "
-               + "atlas to draw");
-    }
-    var w = (all[2] || {}).where;
-    els.where.textContent = w || "";
-    lastAssistants = (all[0] || {}).assistants || lastAssistants;
-    /* The optimistic answer is held only until the poll agrees with it. Held
-       for ever, a default changed from a terminal would never show here. */
-    if (whoSaved && lastAssistants && lastAssistants["default"] === whoSaved) {
-      whoSaved = null;
-    }
-    paintWho(lastAssistants);
-    /* Only now: the atlas is what says which workspaces exist, and an address
-       cannot be routed before that is known. */
-    addrRoute();
+    sessionsData = all[0] || { sessions: [] };
+    subjectsData = all[1] || { subjects: [] };
+    paintSessions(sessionsData);
+    paintSubjects(subjectsData);
+    if (all[2]) paintNotices(all[2]);
+    route();
+    loadRelay();
   }).catch(function () {
     els.dot.className = "dot dead";
   });
 }
 
-refresh();
-setInterval(function () { if (!document.hidden) refresh(); }, 20000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
-window.addEventListener("focus", refresh);
-window.addEventListener("pageshow", refresh);
-
-/* ---------------------------------------------------------------- chrome */
-var THEME_KEY = "board.theme";
-function applyTheme(mode) {
-  document.body.dataset.mode = mode;
-  syncSystemTheme();
-  try { localStorage.setItem(THEME_KEY, mode); } catch (e) {}
-}
-function syncSystemTheme() {
-  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.body.classList.toggle("sys-dark", dark);
-}
-document.getElementById("btn-theme").onclick = function () {
-  var order = ["auto", "light", "dark"];
-  applyTheme(order[(order.indexOf(document.body.dataset.mode) + 1) % 3]);
+els.newSession.onclick = newSession;
+els.coliBrief.addEventListener("input", function () { coliSay(""); paintColiFile(); });
+els.coliFile.onclick = fileColibri;
+els.newCourse.onclick = function () { openMaker("course"); };
+els.newProject.onclick = function () { openMaker("project"); };
+els.makerName.addEventListener("input", function () { makerSay(""); paintMaker(); });
+els.makerName.addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") makeSubject();
+});
+els.makerPhi.addEventListener("click", function (ev) {
+  var b = ev.target.closest ? ev.target.closest("button[data-phi]") : null;
+  if (!b) return;
+  makerPhi = b.getAttribute("data-phi") === "yes";
+  paintMaker();
+});
+els.makerGo.onclick = makeSubject;
+els.makerClose.onclick = closeMaker;
+els.maker.addEventListener("click", function (ev) {
+  if (ev.target === els.maker) closeMaker();
+});
+els.artmakerMake.addEventListener("click", function (ev) {
+  var b = ev.target.closest ? ev.target.closest("button[data-make]") : null;
+  if (!b) return;
+  artMake = b.getAttribute("data-make") === "paper" ? "paper" : "deck";
+  paintArtmaker();
+});
+els.artmakerAbout.addEventListener("input", function () { artSay(""); paintArtmaker(); });
+els.artmakerAbout.addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") askArtifact();
+});
+els.artmakerGo.onclick = askArtifact;
+els.artmakerClose.onclick = closeArtmaker;
+els.artmaker.addEventListener("click", function (ev) {
+  if (ev.target === els.artmaker) closeArtmaker();
+});
+els.actMeeting.onclick = openNotes;
+els.actNotes.onclick = newNotes;
+els.actAnnotate.onclick = openAnnot;
+els.annotFile.addEventListener("change", function () { annotSay(""); paintAnnot(); });
+els.annotSubject.addEventListener("change", paintAnnot);
+els.annotGo.onclick = annotate;
+els.annotClose.onclick = closeAnnot;
+els.annot.addEventListener("click", function (ev) {
+  if (ev.target === els.annot) closeAnnot();
+});
+els.notesClose.onclick = closeNotes;
+els.notesMake.onclick = makeDeck;
+els.notes.addEventListener("click", function (ev) {
+  if (ev.target === els.notes) closeNotes();
+});
+els.notesSince.addEventListener("click", function (ev) {
+  var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
+  if (!b) return;
+  notesSince = b.getAttribute("data-since");
+  paintSince();
+});
+els.themeBtn.onclick = function () {
+  if (window.Typeface) window.Typeface.theme("next");
+  paintTheme();
 };
-document.getElementById("btn-reload").onclick = function () { location.reload(); };
-if (window.matchMedia) {
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncSystemTheme);
-}
-try { applyTheme(localStorage.getItem(THEME_KEY) || "auto"); } catch (e) { applyTheme("auto"); }
+els.reload.onclick = function () { window.location.reload(); };
+document.addEventListener("keydown", function (ev) {
+  if (ev.key !== "Escape") return;
+  if (!els.maker.hidden) closeMaker();
+  if (!els.notes.hidden) closeNotes();
+  if (!els.artmaker.hidden) closeArtmaker();
+  if (!els.annot.hidden) closeAnnot();
+});
+paintTheme();
+document.addEventListener("DOMContentLoaded", paintTheme);
 
-/* ------------------------------------------------------------------ PWA */
+refresh();
+loadAssistants();
+setInterval(function () { if (!document.hidden) refresh(); }, 20000);
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) refresh();
+});
+window.addEventListener("pageshow", function (ev) { if (ev && ev.persisted) refresh(); });
+
+/* --------------------------------------------------------------------- PWA */
 if ("serviceWorker" in navigator && window.isSecureContext) {
   var hadController = !!navigator.serviceWorker.controller;
   var reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", function () {
     if (!hadController || reloading) return;
     reloading = true;
-    location.reload();
+    window.location.reload();
   });
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(function (reg) {
       function check() { if (!document.hidden) { try { reg.update(); } catch (e) {} } }
       document.addEventListener("visibilitychange", check);
-      window.addEventListener("pageshow", check);
       window.addEventListener("focus", check);
     }).catch(function () {});
   });

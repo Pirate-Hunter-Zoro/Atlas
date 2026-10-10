@@ -7,12 +7,9 @@ and a tutor with nowhere to put that does the only thing it can -- there is a
 card in PSYCH-ASR that proves it, invented arithmetic on fictional numbers in a
 repository whose owner wanted an algorithm on disk explained to him.
 
-So: the scope is a file in this repository, it is checked before it reaches
-anything, and the tutor is told to trace rather than to write. What is guarded
-here is the same as everywhere else -- that nothing invented reaches the
-filesystem or the prompt -- plus the one thing that is new, which is that the
-stance may now belong to the sitting rather than to the repository, and a stance
-that overrode the written one must never outlive the sitting that chose it.
+So: the scope is a file in this repository, checked before it reaches
+anything. What is guarded here is that nothing invented reaches the filesystem
+or the prompt, and that who writes the code is the session's mode alone.
 """
 
 import json
@@ -29,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard.course import walk            # noqa: E402
 from tutorboard.course import config          # noqa: E402
-from tutorboard import brief, sense           # noqa: E402
+from tutorboard import brief, sense, subjects # noqa: E402
 from tutorboard.course import repo as course_repo   # noqa: E402
 from tutorboard.lesson import archive         # noqa: E402
 from tutorboard.server import handler, hub, tikz    # noqa: E402
@@ -132,8 +129,7 @@ try:
 
     write(prose, "README.md", "# all narrative, no machinery\n" + BODY)
     check("a repository with no source says so rather than inventing something",
-          walk.units(prose) == [] and walk.status(prose, {}) is None
-          and walk.kind(prose) == "")
+          walk.units(prose) == [] and walk.kind(prose) == "")
 
     # --- a name from a request is checked, never trusted ----------------------
     # A person names machinery the way their language names it, and the last
@@ -173,74 +169,30 @@ try:
           len(walk.resolve(proj, ["psych_asr.evaluate.grade",
                                   "psych_asr.evaluate.grade.grade"])[0]) == 2)
 
-    # --- the scope is re-resolved on the way out, never echoed back -----------
-    state = {"walk": ["psych_asr/evaluate/grade.py::grade",
-                      "psych_asr/gone.py"]}
-    check("a scope naming something deleted since drops it",
-          [u["name"] for u in walk.scope(proj, state)]
-          == ["psych_asr/evaluate/grade.py::grade"])
-
-    check("a short scope is named in the sitting label",
-          walk.sitting_label(walk.resolve(proj, ["psych_asr.evaluate.grade.grade"])[0])
-          == "Walkthrough — grade")
-    check("and a long one is counted instead of listed",
-          walk.sitting_label([{"short": "a"}] * 5) == "Walkthrough — 5 files")
+    check("a walkthrough sitting is gone: no scope, label or status of its own",
+          not any(hasattr(walk, n) for n in ("scope", "sitting_label", "status")))
 finally:
     shutil.rmtree(prose, ignore_errors=True)
 
 # --- what the tutor is actually told ------------------------------------------
+# A walkthrough is a method the tutor picks in teach mode, not a sitting kind: a
+# state still saying `session: walk` reads as a lecture.
 try:
     json.dump({"name": "PSYCH-ASR"},
               open(os.path.join(proj, "tutorboard.json"), "w"))
-    r = course_repo.Repo(proj)
+    r = course_repo.Repo(proj, os.path.join(proj, "live"))
     st = r.state()
     st.update({"session": "walk",
                "walk": ["psych_asr/evaluate/grade.py::grade"]})
     json.dump(st, open(r.state_path, "w"))
-
     line = sense.session_sense(r)
-    check("the tutor is told this is a walkthrough", "WALKTHROUGH SITTING" in line)
-    check("and what it is over, named in the prompt rather than left to be found",
-          "psych_asr/evaluate/grade.py::grade" in line)
-    check("and that nothing is being built", "NOTHING IS BEING BUILT HERE" in line)
-    check("and not to assign a change or write code into a card",
-          "Do not assign a change" in line and "do not write code into a card" in line)
-    check("and that the scope is not its to widen", "not yours to widen" in line)
-    # The failure this sitting exists to replace: a tour of the file, top to
-    # bottom, read on a tablet and understood by nobody.
-    check("the exercise is a hand trace, not an explanation",
-          "hand trace" in line and "they carry it one step" in line)
-    check("on one invented instance carried the whole way through",
-          "ONE INSTANCE FOR THE WHOLE SITTING" in line and "INVENTED" in line)
-    check("with a plain name before the identifier",
-          "PLAIN NAMES BEFORE IDENTIFIERS" in line)
-    check("and an excerpt rather than the file",
-          "smallest excerpt" in line and "never the file" in line)
-    check("the recap comes last, which is the word dump it replaces",
-          "ONLY WHEN THE TRACE IS DONE" in line and "Last, never first" in line)
-    check("and it still points at the method rather than restating it",
-          "live/TEACHING.md" in line)
-    check("and produces no document, like a review",
-          "do not compile" in line and "no write-up" in line)
-    # A lecture chooses a manageable few pieces of work. A walkthrough does not
-    # choose anything: the student named it.
-    check("and is not told to pick a manageable few, which is a lecture behaviour",
-          "manageable few" not in line)
-
-    st["walk"] = []
-    json.dump(st, open(r.state_path, "w"))
-    line = sense.session_sense(r)
-    check("a walkthrough with nothing named asks rather than choosing",
-          "Ask in your first card" in line and "do not choose it yourself" in line)
-    check("and does not go looking for a candidate",
-          "Do not survey the repository" in line)
+    check("a legacy walk sitting reads as a lecture in teach mode",
+          "WALKTHROUGH SITTING" not in line and "IN TEACH MODE" in line
+          and "a walkthrough of code that already exists" in line)
 finally:
     pass
 
-# --- a stance belongs to a sitting, not only to a repository ------------------
-# One word in tutorboard.json could only ever answer for the whole repository,
-# and a project has both kinds of work in it: plumbing its owner wants written,
-# and the one algorithm they need to understand. Both answers, one repository.
+# --- the mode is the session's, and tutorboard.json says nothing about it ------
 teach_repo = tempfile.mkdtemp(prefix="tutor-walk-teach-")
 do_repo = tempfile.mkdtemp(prefix="tutor-walk-do-")
 try:
@@ -251,69 +203,36 @@ try:
     write(teach_repo, "psych_asr/grid.py", "def sweep():\n" + BODY + "\n")
     write(do_repo, "pipeline/confound.py", "def overlap():\n" + BODY + "\n")
 
-    check("a sitting that says nothing runs under the repository's own answer",
-          config.stance_for(teach_repo, {}) == "teach"
-          and config.stance_for(do_repo, {}) == "do")
-    check("and a sitting that names one runs under that instead",
-          config.stance_for(teach_repo, {"stance": "do"}) == "do"
-          and config.stance_for(do_repo, {"stance": "teach"}) == "teach")
-    check("a word that is not a stance is not one",
-          config.stance_for(teach_repo, {"stance": "maybe"}) == "teach"
-          and config.clean_stance("maybe") is None)
+    rd = course_repo.Repo(do_repo, os.path.join(do_repo, "live"))
+    st = rd.state()
+    st.update({"session": "lecture", "chapter": "the propensity model"})
+    json.dump(st, open(rd.state_path, "w"))
+    line = sense.session_sense(rd)
+    check("a tutorboard.json stance of do is ignored: the session teaches",
+          "IN TEACH MODE" in line and "IN DO MODE" not in line)
 
-    rt = course_repo.Repo(teach_repo)
+    rt = course_repo.Repo(teach_repo, os.path.join(teach_repo, "live"))
     st = rt.state()
-    st.update({"session": "lecture", "chapter": "the grid sweep", "stance": "do"})
+    st.update({"session": "lecture", "chapter": "the grid sweep", "mode": "do"})
     json.dump(st, open(rt.state_path, "w"))
     line = sense.session_sense(rt)
-    check("a doing sitting in a teaching repository is told to write the code",
-          "STANCE IS DO" in line and "you write the code yourself" in line)
-    # The one mistake here the next card cannot undo is writing the code for
-    # somebody who wanted to learn it. An override that leaks into the handoff
-    # becomes the repository's answer without anybody deciding it.
-    check("and told that it is this sitting's and ends with it",
-          "CHOSEN FOR THIS SITTING" in line
-          and "Do not write it into HANDOFF.md" in line)
-
-    rd = course_repo.Repo(do_repo)
-    st = rd.state()
-    st.update({"session": "lecture", "chapter": "the propensity model",
-               "stance": "teach"})
-    json.dump(st, open(rd.state_path, "w"))
-    line = sense.session_sense(rd)
-    check("a teaching sitting in a doing repository puts the withholding back",
-          "THIS SITTING'S IS TEACH" in line and "they write the code, you do not" in line)
-    check("and says the repository's own answer is unchanged",
-          "the repository's own answer is unchanged" in line)
-
-    # A walkthrough and a review read rather than write, so a repository that
-    # wants its code written does not get it written into one of these.
-    st.update({"session": "walk", "walk": ["pipeline/confound.py"],
-               "stance": None})
-    st.pop("stance")
-    json.dump(st, open(rd.state_path, "w"))
-    line = sense.session_sense(rd)
-    check("a doing repository's walkthrough is still a walkthrough",
-          "WALKTHROUGH SITTING" in line and "STANCE IS DO" not in line)
-
-    # The briefing is where a cold turn finds out, and a turn that cannot see
-    # that the stance was chosen for the evening will write it down as standing.
-    st = rt.state()
+    check("a session in do mode is told to write the code",
+          "IN DO MODE" in line and "you write the code yourself" in line)
     line = brief.briefing(rt, sense)
-    check("the briefing names the sitting's stance and the repository's when they differ",
-          "stance: do" in line and "tutorboard.json says teach" in line)
-    st.pop("stance")
+    check("the briefing names the mode", "mode: do" in line)
+    st.pop("mode")
     json.dump(st, open(rt.state_path, "w"))
     line = brief.briefing(rt, sense)
-    check("and names it once when they agree",
-          "stance: teach" in line and "tutorboard.json says" not in line)
+    check("and teach when the session says nothing", "mode: teach" in line)
     check("a workspace that names no check gets no check line",
           "\ncheck: " not in line)
     json.dump({"name": "PSYCH-ASR", "check": "uv run --extra test python -m pytest tests -q"},
               open(os.path.join(teach_repo, "tutorboard.json"), "w"))
     line = brief.briefing(rt, sense)
-    check("the briefing names the workspace's check, to run before a push",
-          "check: uv run --extra test python -m pytest tests -q" in line
+    check("the briefing names the workspace's check, run as `board check` "
+          "before a push",
+          "check: `board check`" in line
+          and "uv run --extra test python -m pytest tests -q" in line
           and "before a push" in line)
 finally:
     shutil.rmtree(teach_repo, ignore_errors=True)
@@ -329,7 +248,7 @@ try:
     write(tmp, "psych_asr/transcript/corrections.py",
           "def apply_corrections(turns, log):\n" + BODY + "\n")
     walk._cache.clear()
-    repo = course_repo.Repo(tmp)
+    repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
     open(os.path.join(repo.cards, "0001-mid-lesson.md"), "w",
          encoding="utf-8").write("---\nkind: lesson\ntitle: A card\n---\n\nx\n")
 
@@ -361,52 +280,18 @@ try:
 
     try:
         payload = board.build()
-        check("the board is told what can be walked through before any walkthrough exists",
-              payload.get("walk") and len(payload["walk"]["units"]) == 2)
-        check("and that nothing is being walked through yet",
-              payload["walk"]["scope"] == [])
+        check("the tick carries no walkthrough picker: it is the session's only",
+              "walk" not in payload)
 
-        status, body = post("/session", {
+        status, _ = post("/session", {
             "session": "walk", "over": ["psych_asr.evaluate.grade.grade"]})
-        check("a walkthrough can be opened from the board",
-              status == 200 and body.get("ok"))
-        st = repo.state()
-        check("the badge will read walk", st.get("session") == "walk")
-        check("and the scope is recorded as the file and the definition in it",
-              st.get("walk") == ["psych_asr/evaluate/grade.py::grade"])
-        check("the sitting is labelled with what it covers",
-              "Walkthrough" in (st.get("chapter") or ""))
-        # Opening one is starting a different lesson, so what is being left is
-        # filed whole rather than written over -- the same rule as a review.
-        check("and the lesson it interrupted was filed, not overwritten",
-              len(archive.list_archive(repo)) == 1)
-
-        status, body = post("/session", {"session": "walk", "over": ["nope.py"]})
-        check("a file this repository does not have is refused by name",
-              status == 400 and body.get("unknown") == ["nope.py"])
-        status, _ = post("/session", {"session": "walk", "over": []})
-        check("and a walkthrough over nothing is refused rather than opened",
-              status == 400)
-        check("a refused walkthrough leaves the sitting it was in alone",
-              repo.state().get("walk") == ["psych_asr/evaluate/grade.py::grade"])
-
-        # A stance chosen on the board belongs to the sitting being opened, and
-        # the way back to the repository's own answer is to open one without
-        # choosing -- which is what tapping `lecture` does.
+        check("the board no longer opens a walkthrough sitting", status == 400)
+        check("and the lesson it would have interrupted is untouched",
+              not archive.list_archive(repo))
         status, _ = post("/session", {"session": "lecture", "stance": "do"})
-        check("a stance chosen on the board reaches the sitting",
-              repo.state().get("stance") == "do")
-        check("and opening that sitting cleared the walkthrough's scope",
-              not repo.state().get("walk"))
-        check("and the tutor is told to write the code",
-              "STANCE IS DO" in sense.session_sense(repo))
-        status, _ = post("/session", {"session": "lecture"})
-        check("opening the next sitting without one gives the repository back",
-              not repo.state().get("stance")
-              and "STANCE IS DO" not in sense.session_sense(repo))
-        status, _ = post("/session", {"session": "lecture", "stance": "sideways"})
-        check("a stance that is not one is dropped rather than failing the request",
-              status == 200 and not repo.state().get("stance"))
+        check("a stance sent with a sitting is ignored",
+              status == 200 and not repo.state().get("stance")
+              and "IN DO MODE" not in sense.session_sense(repo))
     finally:
         httpd.shutdown()
 finally:
@@ -414,277 +299,156 @@ finally:
     shutil.rmtree(proj, ignore_errors=True)
 
 # ---------------------------------------------------------------------------
-# A VENDOR TREE IS WALKABLE, AND IS STILL NOT A WORKSPACE
+# ANY PATH IN ATLAS, WITH board/ AND vendor/ READ-ONLY
 # ---------------------------------------------------------------------------
-# `atlas.json` made one claim out of two: the vendor family was skipped, and the
-# reason given was that nothing in it is the person's to be GRADED on. The ask
-# was about TRACING -- *"who knows when we'll want to explore external tools in
-# the same way... That's the best way to dive into how Colibri works"* -- and
-# under the merged rule that was impossible for a reason about homework.
-#
-# So there are two lists, and what is guarded here is that they stay two. The
-# failure to catch is either direction: a tree that cannot be read, or a tree
-# that something eventually offers a sitting in.
-from tutorboard import atlas                                # noqa: E402
-from tutorboard.course import map as mapping                 # noqa: E402
+# A name this subject does not have is looked for under the Atlas root. The
+# subject's own source comes first, the bare-filename shortcut stays the
+# subject's, and nothing private, hidden, ignored or fenced is reachable.
 
 home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
+outside = tempfile.mkdtemp(prefix="tutor-walk-outside-")
 was = os.environ.get("TUTORBOARD_COURSES")
 try:
-    with open(os.path.join(home, "atlas.json"), "w", encoding="utf-8") as fh:
-        json.dump({"families": [
-            {"id": "research", "name": "Research", "blurb": "Papers."},
-            {"id": "vendor", "name": "Vendor", "blurb": "Pulled, not written.",
-             "vendor": True},
-        ]}, fh)
-    write(home, "research/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
-    write(home, "research/PSYCH-ASR/psych_asr/grade.py",
+    write(home, "courses/Topology/tutorboard.json", '{"name": "Topology"}')
+    write(home, "courses/Topology/topo/space.py",
+          "def open_sets(x):\n" + BODY + "\n")
+    write(home, "projects/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
+    write(home, "projects/PSYCH-ASR/psych_asr/grade.py",
           "def grade(a, b):\n" + BODY + "\n")
-    # Somebody else's repository, at a commit. No `tutorboard.json`, no `live/`,
-    # nothing that has ever said it wants to be taught in.
-    write(home, "vendor/colibri/src/engine.c",
-          "int warm(void) {\n" + BODY + "\n}\n")
+    write(home, "projects/PSYCH-ASR/phi/a.py", "def a():\n" + BODY + "\n")
+    write(home, "projects/PSYCH-ASR/results/r.py", "def r():\n" + BODY + "\n")
+    write(home, "board/tutorboard/relay.py",
+          "def run_once(base):\n" + BODY + "\n")
+    write(home, "board/data/x.py", "def x():\n" + BODY + "\n")
+    write(home, "board/node_modules/katex/index.js",
+          "function render() {\n" + BODY + "\n}\n")
     write(home, "vendor/colibri/bin/coli-up",
           "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
+    write(home, "vendor/colibri/raw/x.py", "def x():\n" + BODY + "\n")
     write(home, "vendor/colibri/README.md", "# colibri\n" + BODY)
-    # AND THE TRAP IN THE OTHER DIRECTION. A vendor tree carrying the marker
-    # that makes a directory a workspace is still not one: the family decides,
-    # and a file inside somebody else's repository is not this side's promise.
-    write(home, "vendor/pretender/tutorboard.json", '{"name": "Pretender"}')
-    write(home, "vendor/pretender/thing.py", "def thing():\n" + BODY + "\n")
-    os.makedirs(os.path.join(home, "vendor", "unpulled"), exist_ok=True)
-
+    write(home, "ai-config/policy/phi.py", "def fence():\n" + BODY + "\n")
+    write(home, "sessions/20261008-000000/x.py", "def x():\n" + BODY + "\n")
+    write(home, ".hidden/x.py", "def x():\n" + BODY + "\n")
+    write(outside, "secret.py", "def secret():\n" + BODY + "\n")
+    os.symlink(os.path.join(outside, "secret.py"),
+               os.path.join(home, "projects", "PSYCH-ASR", "escape.py"))
     os.environ["TUTORBOARD_COURSES"] = home
-    atlas.forget()
     walk._cache.clear()
-    mapping._cache.clear()
+    ws = os.path.join(home, "courses", "Topology")
 
-    ids = [w["id"] for w in atlas.workspaces()]
-    trees = {t["id"]: t for t in atlas.trees()}
-    check("a vendor tree is not a workspace, and the family is still skipped",
-          ids == ["research/PSYCH-ASR"])
-    check("and a marker file inside somebody else's repository does not make "
-          "one -- the family decides, not a file in the tree",
-          "vendor/pretender" not in ids)
-    check("but the trees are listed, which is the half that was missing",
-          sorted(trees) == ["vendor/colibri", "vendor/pretender"])
-    check("a submodule nobody has pulled is an empty directory, not a tree",
-          "vendor/unpulled" not in trees)
-    check("and a tree comes back shaped like a workspace, so a caller that "
-          "wants a name and a root does not care which list it came from",
-          set(["id", "family", "family_name", "dir", "root"])
-          <= set(trees["vendor/colibri"]))
+    check("a vendor tree is not a subject",
+          [w["id"] for w in subjects.all()]
+          == ["courses/Topology", "projects/PSYCH-ASR"])
+    check("and the vendor-tree machinery is gone",
+          not hasattr(walk, "resolve_any") and not hasattr(walk, "ELSEWHERE"))
 
-    # WALKABLE. The same walk, over a root nobody is graded on.
-    names = [u["name"] for u in walk.units(trees["vendor/colibri"]["root"])]
-    check("a vendor tree's source is walkable: tracing is not grading",
-          "src/engine.c" in names and "bin/coli-up" in names)
-    check("and its prose is refused there for the same reason it is anywhere",
-          "README.md" not in names)
-    chosen, unknown = walk.resolve(trees["vendor/colibri"]["root"],
-                                   ["bin/coli-up::warm"])
-    check("and a symbol inside it is carried once the file really defines it",
-          [u["name"] for u in chosen] == ["bin/coli-up::warm"] and not unknown)
-
-    # DIAGRAMMABLE. `map.shape` takes a root and does not ask whose it is.
-    drawn = mapping.shape(trees["vendor/colibri"]["root"])
-    check("and a vendor tree has a diagram, which is what it is there for",
-          drawn and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
-
-    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED. Same rule as
-    # `atlas.find`, `walk.resolve` and `reading.find`: a miss is a miss.
-    check("a tree is found by the name discovery gave it",
-          (atlas.find_tree("vendor/colibri") or {})["id"] == "vendor/colibri")
-    check("and by its bare directory name, which is how everything else is spelt",
-          (atlas.find_tree("colibri") or {})["id"] == "vendor/colibri")
-    for made_up in ("../../etc/passwd", "vendor", "vendor/nothing", "", None,
-                    "research/PSYCH-ASR"):
-        check("a tree name that matches nothing resolves to nothing: %r"
-              % (made_up,), atlas.find_tree(made_up) is None)
-    check("and a workspace is not reachable through the tree door either",
-          atlas.find("vendor/colibri") is None)
-
-    # -----------------------------------------------------------------------
-    # AND THE SITTING ITSELF, WHICH IS THE HALF THAT WAS MISSING
-    # -----------------------------------------------------------------------
-    # *"A `trace` sitting over `vendor/colibri` is exactly the right shape and
-    # it is currently impossible."* It was impossible because a walkthrough's
-    # scope is resolved against the root of the workspace the board is SERVING,
-    # and no vendor tree is under one of those.
-    #
-    # The expensive answer was to let a sitting be held over a foreign root, at
-    # which point `Repo.root` stops being the single answer to "where are we".
-    # This is the other one: the sitting is held in the workspace that is
-    # READING the tree, and the tree is named IN THE SCOPE. So what has to be
-    # true is one thing said three ways -- the scope reaches out, the sitting
-    # does not, and the tree is never written to.
-    ws = os.path.join(home, "research", "PSYCH-ASR")
-
-    chosen, unknown = walk.resolve_any(
-        ws, ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
-    check("a scope can name this workspace's own source and a vendor tree's "
-          "in one list, which is what a trace held here over somebody else's "
-          "code actually is",
+    chosen, unknown = walk.resolve(ws, ["board/tutorboard/relay.py"])
+    check("board/tutorboard/relay.py resolves from a course, read-only",
+          not unknown and len(chosen) == 1
+          and chosen[0]["path"] == "board/tutorboard/relay.py"
+          and chosen[0]["readonly"] is True
+          and os.path.realpath(chosen[0]["root"]) == os.path.realpath(home))
+    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up"])
+    check("vendor/colibri/bin/coli-up resolves by its shebang, read-only",
           not unknown and [u["name"] for u in chosen]
-          == ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
-    check("and the foreign one says which repository it is in, so whatever "
-          "opens the file knows where to look",
-          chosen[1]["tree"] == "vendor/colibri"
-          and chosen[1]["root"] == trees["vendor/colibri"]["root"]
-          and chosen[1]["path"] == "bin/coli-up"
-          and not chosen[0].get("tree"))
-    check("while the workspace's own resolver is untouched and still refuses "
-          "a marked name, because one root is all it answers for",
-          walk.resolve(ws, ["@vendor/colibri/bin/coli-up"])[1]
-          == ["@vendor/colibri/bin/coli-up"])
+          == ["vendor/colibri/bin/coli-up"] and chosen[0]["readonly"] is True)
+    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up::warm",
+                                        "board.tutorboard.relay.run_once"])
+    check("a symbol in Atlas is carried once the file really defines it",
+          not unknown and sorted(u["name"] for u in chosen)
+          == ["board/tutorboard/relay.py::run_once",
+              "vendor/colibri/bin/coli-up::warm"])
+    check("and one it does not define is unknown",
+          walk.resolve(ws, ["board/tutorboard/relay.py::missing"])[1]
+          == ["board/tutorboard/relay.py::missing"])
 
-    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED -- on both halves of
-    # it. The marker is not a licence to reach anywhere: the tree is found in
-    # what `atlas.trees()` listed, and the rest is found in what that tree's own
-    # walk listed.
-    for made_up in ("@vendor/nothing/x.py", "@vendor/colibri/nope.py",
-                    "@vendor/colibri/bin/coli-up::missing",
-                    "@vendor/colibri/README.md", "@vendor/colibri",
-                    "@research/PSYCH-ASR/psych_asr/grade.py",
-                    "@vendor/../../etc/passwd", "@"):
-        check("a scope that matches nothing is refused by name: %r" % (made_up,),
-              walk.resolve_any(ws, [made_up])[1] == [made_up])
+    chosen, unknown = walk.resolve(ws, ["topo/space.py", "board/tutorboard/relay.py"])
+    check("the subject's own source comes first, and is not read-only",
+          not unknown and [u["path"] for u in chosen]
+          == ["topo/space.py", "board/tutorboard/relay.py"]
+          and chosen[0]["readonly"] is False
+          and os.path.realpath(chosen[0]["root"]) == os.path.realpath(ws))
+    chosen, unknown = walk.resolve(
+        ws, ["projects/PSYCH-ASR/psych_asr/grade.py::grade"])
+    check("another project's source resolves, and is not read-only",
+          not unknown and chosen[0]["readonly"] is False
+          and chosen[0]["name"] == "projects/PSYCH-ASR/psych_asr/grade.py::grade")
+    check("the bare-filename shortcut stays subject-local",
+          walk.resolve(ws, ["relay.py", "coli-up", "grade.py"])[1]
+          == ["relay.py", "coli-up", "grade.py"]
+          and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
+          == ["topo/space.py"])
 
-    st = {"walk": ["@vendor/colibri/bin/coli-up::warm"]}
-    check("the scope is re-resolved on the way out, the way a local one is",
-          [u["name"] for u in walk.scope(ws, st)]
-          == ["@vendor/colibri/bin/coli-up::warm"])
-    check("and the badge says whose code it is -- a label reading warm alone "
-          "would not",
-          walk.sitting_label(walk.scope(ws, st)) == "Walkthrough — colibri/warm")
+    fenced_names = ["projects/PSYCH-ASR/phi/a.py", "vendor/colibri/raw/x.py",
+                    "board/data/x.py::x", "projects.PSYCH-ASR.phi.a"]
+    chosen, unknown = walk.resolve(ws, fenced_names)
+    check("a fenced name is refused anywhere in Atlas",
+          chosen == [] and unknown == fenced_names)
+    refused = ["ai-config/policy/phi.py", "sessions/20261008-000000/x.py",
+               ".hidden/x.py", "projects/PSYCH-ASR/results/r.py",
+               "board/node_modules/katex/index.js", "vendor/colibri/README.md",
+               "projects/PSYCH-ASR/escape.py", "../" + os.path.basename(outside)
+               + "/secret.py", os.path.join(outside, "secret.py"),
+               "courses/Topology/../../etc/passwd", "board/tutorboard/nope.py"]
+    for name in refused:
+        check("refused: %s" % name, walk.resolve(ws, [name])[1] == [name])
+    chosen, _ = walk.resolve(ws, ["Board/tutorboard/relay.py"])
+    check("a differently-cased board/ path is still read-only",
+          all(u["readonly"] for u in chosen))
 
-    # WHAT THE TUTOR IS TOLD, and the one thing it could get badly wrong.
-    walk_repo = course_repo.Repo(ws)
-    live_st = walk_repo.state()
-    live_st.update({"session": "walk",
-                    "walk": ["@vendor/colibri/bin/coli-up::warm"]})
-    json.dump(live_st, open(walk_repo.state_path, "w"))
-    line = sense.session_sense(walk_repo)
-    check("the tutor is told this is somebody else's code",
-          "NOT THIS REPOSITORY'S CODE" in line and "vendor/colibri" in line)
-    check("and that a defect found in it is not work to be done",
-          "change nothing in it" in line and "not to be" not in line
-          and "do not write a patch" in line)
-    check("and which workspace the sitting belongs to, because that is where "
-          "the cards are filed",
-          "The sitting is PSYCH-ASR's" in line)
-    live_st["walk"] = ["psych_asr/grade.py"]
-    json.dump(live_st, open(walk_repo.state_path, "w"))
-    check("and a sitting over this repository's own source is told none of it",
-          "NOT THIS REPOSITORY'S CODE" not in sense.session_sense(walk_repo))
-
-    # THE TREE IS NEVER WRITTEN TO. Not by opening the sitting, not by drawing
-    # it, not by anything: it is somebody else's repository at a commit.
-    def _shape_of(root):
-        out = []
-        for here, dirs, files in os.walk(root):
-            for name in sorted(files):
-                path = os.path.join(here, name)
-                out.append((os.path.relpath(path, root),
-                            os.path.getsize(path), os.stat(path).st_mtime))
-        return sorted(out)
-
-    tree_root = trees["vendor/colibri"]["root"]
-    before = _shape_of(tree_root)
-
-    # --- through the real handler -------------------------------------------
-    worker = tikz.TikzWorker(walk_repo)
-    worker.start()
-    board = hub.Hub(walk_repo, worker)
-    board.payload = json.dumps(board.build())
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler.Handler)
-    httpd.daemon_threads = True
-    httpd.repo = walk_repo
-    httpd.hub = board
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    BASE = "http://127.0.0.1:%d" % port
-
-    def post(path, body):
-        req = urllib.request.Request(BASE + path, method="POST",
-                                     data=json.dumps(body).encode("utf-8"),
-                                     headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return r.status, json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
-
-    def get(path):
-        try:
-            with urllib.request.urlopen(BASE + path, timeout=30) as r:
-                return r.status, json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
-
-    try:
-        status, body = post("/session", {
-            "session": "walk", "over": ["@vendor/colibri/bin/coli-up::warm"]})
-        check("a trace over a vendor tree opens, which is the whole of this item",
-              status == 200 and body.get("ok"))
-        opened = walk_repo.state()
-        check("and it is a sitting in the workspace that is reading the tree, "
-              "not a board in somebody else's repository",
-              opened.get("session") == "walk"
-              and opened.get("walk") == ["@vendor/colibri/bin/coli-up::warm"]
-              and not os.path.isdir(os.path.join(tree_root, "live")))
-        check("the sitting's own files are this workspace's",
-              os.path.isdir(os.path.join(ws, "live", "cards")))
-        status, body = post("/session", {
-            "session": "walk", "over": ["@vendor/nothing/x.py"]})
-        check("a tree this repository does not pull is refused by name",
-              status == 400 and body.get("unknown") == ["@vendor/nothing/x.py"])
-
-        # THE DIAGRAM OF A TREE NEEDS A SURFACE, and it is the board's own map
-        # rather than a second renderer: `map.inside` already answers with a
-        # picture that is not the workspace's, and a foreign repository is
-        # exactly that shape.
-        status, drawn = get("/map/tree/vendor/colibri")
-        check("a tree has a picture, on the surface that already draws one",
-              status == 200 and drawn.get("ok")
-              and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
-        check("and the picture says whose it is, so a scope taken off it is "
-              "spelt with the tree in it",
-              drawn.get("tree") == "vendor/colibri"
-              and drawn.get("depth") == "tree")
-        check("and says the rule where somebody is looking at it",
-              "pulled and not written here" in (drawn.get("why") or ""))
-        check("nothing on it is working, next or done: none of it is work this "
-              "side has taken on",
-              all(n["status"] == "unknown" for n in drawn["nodes"])
-              and not [n for n in drawn["nodes"] if n["steps"]])
-        status, deeper = get("/map/tree/vendor/colibri/inside/bin")
-        check("a box of it opens the way a box of this repository does",
-              status == 200 and deeper.get("tree") == "vendor/colibri"
-              and [n["name"] for n in deeper["nodes"]] == ["coli-up"])
-        for missed in ("/map/tree/vendor/nothing",
-                       "/map/tree/research/PSYCH-ASR",
-                       "/map/tree/vendor/colibri/inside/nowhere"):
-            check("a name that matches nothing is a 404 rather than a picture: "
-                  "%s" % missed, get(missed)[0] == 404)
-    finally:
-        httpd.shutdown()
-
-    check("and after all of it the tree is byte for byte what it was: it is "
-          "read, drawn and traced, and never written to",
-          _shape_of(tree_root) == before)
+    line = sense.session_sense(course_repo.Repo(ws, os.path.join(ws, "live")))
+    check("the sense says any path in Atlas may be traced, board/ and vendor/ "
+          "read-only",
+          "TRACE ANY PATH IN ATLAS" in line
+          and "board/ and vendor/ ARE READ-ONLY" in line)
 finally:
     if was is None:
         os.environ.pop("TUTORBOARD_COURSES", None)
     else:
         os.environ["TUTORBOARD_COURSES"] = was
-    atlas.forget()
     walk._cache.clear()
-    mapping._cache.clear()
     shutil.rmtree(home, ignore_errors=True)
+    shutil.rmtree(outside, ignore_errors=True)
+
+# The real Atlas root: the board's own relay module, from a temp subject.
+atlas_root = os.path.dirname(ROOT)
+somewhere = tempfile.mkdtemp(prefix="tutor-walk-real-")
+try:
+    chosen, unknown = walk.resolve(somewhere, ["board/tutorboard/relay.py"],
+                                   base=atlas_root)
+    check("the real board/tutorboard/relay.py resolves read-only",
+          not unknown and chosen[0]["readonly"] is True)
+finally:
+    walk._cache.clear()
+    shutil.rmtree(somewhere, ignore_errors=True)
+
+# --- the fence: no code walker looks inside a directory in fenced.NEVER -------
+from tutorboard import fenced                                # noqa: E402
+
+fence = tempfile.mkdtemp(prefix="tutor-walk-fence-")
+try:
+    for rel in ("pkg/ok.py", "stage1/run.py", "raw/x.py", "phi/y.py",
+                "PHI/z.py", "pkg/Audio/w.py"):
+        write(fence, rel, "def f():\n" + BODY + "\n    return 1\n")
+    walk._cache.clear()
+    check("in_fence matches any lower-cased component, and nothing else",
+          fenced.in_fence("a/Stage1/x.py") and fenced.in_fence("phi")
+          and fenced.in_fence("a\\raw\\b.py")
+          and not fenced.in_fence("pkg/ok.py") and not fenced.in_fence("raw.py")
+          and not fenced.in_fence(""))
+    check("walk.units lists only the file outside every fence",
+          [u["path"] for u in walk.units(fence)] == ["pkg/ok.py"])
+    typed = ["stage1/run.py::f", "stage1/run.py", "stage1.run.f", "phi/y.py",
+             "raw/x.py::f", "PHI/z.py"]
+    chosen, unknown = walk.resolve(fence, typed)
+    check("walk.resolve refuses a typed path through the fence",
+          chosen == [] and unknown == typed)
+    chosen, unknown = walk.resolve(fence, ["pkg/ok.py::f"])
+    check("and still resolves the path beside it",
+          [u["name"] for u in chosen] == ["pkg/ok.py::f"] and unknown == [])
+finally:
+    walk._cache.clear()
+    shutil.rmtree(fence, ignore_errors=True)
 
 print()
 if fails:

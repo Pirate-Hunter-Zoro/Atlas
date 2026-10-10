@@ -13,8 +13,8 @@ brew "gh"
 brew "tailscale"
 cask "font-dejavu"   # the PDF face Paper-Writer names: it has the ₀ ρ ≈ − a paper uses
 
-# the workspaces' code. Not elan: practice/Lean-Theorem-Proving/scripts/setup.sh
+# the workspaces' code. Not elan: projects/Lean-Theorem-Proving/scripts/setup.sh
 # installs it into ~/.elan on both machines, and a second one here would shadow it.
 brew "uv"            # every pyproject.toml and uv.lock
 brew "libomp"        # OpenMP, which xgboost's and lightgbm's Mac wheels load
-brew "go"            # practice/Algo-Solutions
+brew "go"            # projects/Algo-Solutions

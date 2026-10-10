@@ -86,6 +86,7 @@ let src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
 src = src.replace('})();', 'window.__render = render;\n})();');
 vm.runInContext(fs.readFileSync(path.join(WEB, 'macros.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(path.join(WEB, 'ink-core.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8'), sandbox);
 vm.runInContext(src, sandbox, { filename: 'board.js' });
 
@@ -176,6 +177,21 @@ paint('code', question, []);
 check('nothing is stamped on the body from a mode',
       !('mode2' in sandbox.document.body.dataset));
 check('and board.js does not read one', !/state\.mode/.test(src));
+
+// --- the session's mode: teach or do -------------------------------------
+// session.json `mode` is a different word with the same key: teach or do, and
+// the header's toggle is the one thing on the page that reads it (T24). An old
+// `math` or `code` reads as teach, and neither changes the answer panel.
+paint('code', question, []);
+check('an old mode:code paints the toggle as teach',
+      registry['btn-mode'].dataset.now === 'teach');
+r = paint('do', question, []);
+check('mode:do paints the toggle as do', registry['btn-mode'].dataset.now === 'do');
+check('and offers the same answer panel', r.answer === false);
+paint('teach', question, []);
+check('mode:teach paints it as teach again', registry['btn-mode'].dataset.now === 'teach');
+check('and nothing but the toggle is painted from it',
+      !/body\.dataset\.mode/.test(src) && !('mode' in sandbox.document.body.dataset));
 
 // A prompt that cannot be declined is a prompt that gets answered badly to make
 // it go away. Skipping is a turn like any other -- it is in the transcript and it

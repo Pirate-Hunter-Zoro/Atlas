@@ -22,9 +22,8 @@ Every clause of that was true, and there were three separate faults behind it.
      raises the share sheet -- somewhere to PUT a document, not somewhere to
      read one. "Did the proof make it in" was unanswerable from the board.
 
-  3. THE SERVICE WORKER WAS CACHING THE DOWNLOADS. `/download/...` matched
-     neither the live list nor the runtime list, so it fell through to the shell
-     rule, which caches any 200 it sees. Megabytes of transcript inside the
+  3. THE SERVICE WORKER WAS CACHING THE DOWNLOADS. `/download/...` was on no
+     list, so it fell through to a rule that cached any 200 it saw. Megabytes of transcript inside the
      app's own storage allowance, and a document rebuilt at the same URL served
      from a cache while the link blinks -- last week's write-up under this
      week's name.
@@ -44,9 +43,11 @@ started by launchd has a PATH of /usr/bin:/bin) and has to degrade rather than
 show an empty panel.
 """
 
+import gzip
 import json
 import os
 import re
+import shutil
 import socket
 import sys
 import tempfile
@@ -58,10 +59,12 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tutorboard import paths                                      # noqa: E402
 from tutorboard.course import paper, repo as course_repo          # noqa: E402
 from tutorboard.lesson import state as lesson_state               # noqa: E402
 from tutorboard.server.handler import Handler                     # noqa: E402
 from tutorboard.server.hub import Hub                             # noqa: E402
+from tutorboard.server.routes import pages as page_routes          # noqa: E402
 from tutorboard.server.tikz import TikzWorker                     # noqa: E402
 
 fails = []
@@ -127,12 +130,14 @@ def pdf_bytes(pages=3):
 # a real board, on a real socket, over a real course directory
 # ---------------------------------------------------------------------------
 TMP = tempfile.mkdtemp(prefix="paper-")
+# The page cache, moved into the fixture: the real one is shared and pruned.
+paths.PAGES = os.path.join(TMP, "pages")
 COURSE = os.path.join(TMP, "Galois-Theory")
 os.makedirs(COURSE)
 with open(os.path.join(COURSE, "tutorboard.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": "Galois Theory"}, fh)
 
-repo = course_repo.Repo(COURSE)
+repo = course_repo.Repo(COURSE, os.path.join(COURSE, "live"))
 with open(repo.state_path, "w", encoding="utf-8") as fh:
     json.dump({"course": "Galois Theory", "chapter": "Ch 7", "session": "homework"}, fh)
 
@@ -268,15 +273,20 @@ if have_renderer:
     # And the cache does not grow without limit, nor evict the other document.
     lesson_view = json.loads(get(PORT, "/view/lesson")[2].decode("utf-8"))
     check("both documents can be held at once",
-          lesson_view.get("ok") and lesson_view.get("n") == 2
-          and os.path.isdir(os.path.join(repo.live, "paper")))
-    digests = set()
-    for f in os.listdir(os.path.join(repo.live, "paper")):
-        m = re.match(r"^([0-9a-f]+)-\d+\.png$", f)
-        if m:
-            digests.add(m.group(1))
+          lesson_view.get("ok") and lesson_view.get("n") == 2)
+    check("the pages live in the shared cache, one directory per build, and "
+          "nothing in the session",
+          os.path.isfile(os.path.join(paths.PAGES, lesson_view["digest"],
+                                      os.path.basename(lesson_view["pages"][0])))
+          and not os.path.exists(os.path.join(repo.live, "paper")))
+    # More builds than the cache keeps: the oldest go, the one in hand stays.
+    for n in range(paper.CACHE_SETS + 3):
+        os.makedirs(os.path.join(paths.PAGES, "%016x" % n))
+    paper._prune(lesson_view["digest"])
+    digests = [d for d in os.listdir(paths.PAGES)
+               if re.match(r"^[0-9a-f]{6,}$", d)]
     check("and the cache keeps a bounded number of page sets (%d)" % len(digests),
-          len(digests) <= paper.CACHE_SETS)
+          len(digests) <= paper.CACHE_SETS and lesson_view["digest"] in digests)
 else:
     check("a machine with no page renderer says so rather than showing an "
           "empty panel",
@@ -349,25 +359,25 @@ check("and the banner is its own function, so an export no longer repaints the "
 check("whether a document exists comes from the payload's `papers`",
       "var papers = {};" in js and "papers = data.papers || {};" in js)
 check("and the banner offers reading as well as keeping",
-      'id="pushed-view"' in html and "openPaper(bannerKind)" in js)
+      'id="pushed-view"' in html and "readKind(bannerKind)" in js)
 
 # 3. Reachable at any moment, not only in the banner of the build that made it.
 #
 #    AND NOT FROM A PANEL OF TWO. The ⋯ menu's documents panel offered exactly
 #    the lesson and the write-up, off the payload's `papers` -- the last thing
-#    built, which is not an inventory. It is gone, and the way back to a
-#    document is the map: a count on the box, a tap, `/shelf.json`. Asserted as
-#    an ABSENCE rather than deleted, because a deletion that can silently come
-#    back is a deletion that will.
+#    built, which is not an inventory. It is gone, and the way to every
+#    document is the library, in the same menu. Asserted as an ABSENCE rather
+#    than deleted, because a deletion that can silently come back is a deletion
+#    that will.
 check("the two-document panel is gone from the menu",
       'id="btn-papers"' not in html and 'id="papers"' not in html
       and 'id="papers-list"' not in html)
 check("and nothing in the board still draws it",
       "function openPapers(" not in js and "function renderPapers(" not in js
       and "renderPapers()" not in js)
-check("the way back to a document is the map: a count on a box, and a drawer",
-      'id="shelf"' in html and 'id="map-docs"' in html
-      and "function openShelf(" in js)
+check("the way to every document is the library, from the menu",
+      'id="btn-library"' in html and 'id="shelf"' not in html
+      and "function openShelf(" not in js)
 check("which offers to make the one that is not there, so it is never a dead end",
       "compile it now" in js and "export it now" in js)
 
@@ -390,30 +400,104 @@ check("every last-resort open is a NEW context (%d of them)" % len(opens),
 # its own box so ink could be anchored to it (§2.4) -- which changed nothing
 # about what is on the glass. What matters is that a page is an <img> built
 # here and put into the panel, and that there is no frame anywhere near it.
-check("the pages are drawn server-side and shown as pictures",
-      "<iframe" not in html
-      and 'createElement("img")' in js
-      and re.search(r"els\.paperPages\.appendChild\(\w+\)", js) is not None)
+# THE ONE READER (`reader.js`) draws every PDF on the glass, the board's too:
+# the board mounts it, it builds its own markup, and every page is an <img>
+# in a box of its own.
+reader = open(os.path.join(ROOT, "web", "reader.js"), encoding="utf-8").read()
+check("the pages are drawn server-side and shown as pictures, by the one reader",
+      "<iframe" not in html and 'src="/static/reader.js"' in html
+      and "Reader.mount(" in js and "reader.open(" in js
+      and 'createElement("img")' in reader
+      and re.search(r"els\.pages\.appendChild\(\w+\)", reader) is not None)
 check("and each page is its own box, so ink anchors to the page it is on",
-      'class = "paper-page"' in js.replace("className", "class"))
-check("and the panel can be closed, which is the whole reason it is a panel",
-      "function closePaper()" in js and 'id="paper-close"' in html)
+      'className = "lib-page"' in reader)
+check("and the reader can be closed, which is the whole reason it is a panel",
+      'id="reader-close"' in reader and "function closeReader()" in js
+      and 'id="paper' not in html)
 
-# 6. The service worker leaves every one of them alone.
-live = re.search(r"var LIVE = (/.*/);", sw)
-check("the service worker has a live list", live is not None)
-if live:
-    pattern = live.group(1)[1:-1]
-    for path in ("/download/lesson", "/download/homework", "/view/homework",
-                 "/paper/abc123-1.png"):
-        check("the service worker never caches %s" % path,
-              re.match(pattern, path) is not None)
-    check("and still caches the shell it exists for",
-          re.match(pattern, "/static/board.js") is None
-          and re.match(pattern, "/board") is None)
-ver = re.search(r'var VERSION = "board-shell-v(\d+)"', sw)
-check("and the shell version was bumped, or the installed app serves its cached "
-      "copy and none of this is visible", ver is not None and int(ver.group(1)) >= 84)
+# 6. The service worker leaves every one of them alone. It answers only an
+#    allowlist -- the exact paths in SHELL, and fonts and KaTeX -- so a
+#    document is the network's by not being on it.
+shell = page_routes.shell_urls(sw)
+runtime = re.search(r"var RUNTIME = /(.*)/;", sw)
+check("the service worker has a shell allowlist and a font rule",
+      bool(shell) and runtime is not None)
+
+
+def sw_answers(path):
+    return path in shell or bool(runtime and re.match(runtime.group(1), path))
+
+
+for path in ("/download/lesson", "/download/homework", "/view/homework",
+             "/paper/abc123-1.png"):
+    check("the service worker never caches %s" % path, not sw_answers(path))
+check("and still caches the shell it exists for",
+      sw_answers("/static/board.js") and sw_answers("/static/board.html")
+      and sw_answers("/static/katex/fonts/KaTeX_Main-Regular.woff2"))
+check("and every shell path is a file the server has",
+      all(os.path.isfile(page_routes.shell_file(u)) for u in shell))
+
+# 7. VERSION is the server's to write: a hash of the SHELL files, so an edit to
+#    any of them reaches an installed app with nobody bumping anything.
+status, heads, served = get(PORT, "/sw.js")
+ver = re.search(rb'var VERSION = "board-shell-([0-9a-f]{16})"', served)
+check("/sw.js is served with a hashed VERSION in place of the placeholder",
+      status == 200 and ver is not None and b"board-shell-dev" not in served)
+check("and the source keeps the placeholder the server replaces",
+      page_routes.SW_PLACEHOLDER in sw)
+check("and math.js is not precached; the calculator loads it when opened",
+      "/static/mathjs/math.js" not in shell)
+
+real_web = paths.WEB
+copy = os.path.join(tempfile.mkdtemp(prefix="sw-"), "web")
+shutil.copytree(real_web, copy)
+paths.WEB = copy
+try:
+    first = get(PORT, "/sw.js")[2]
+    check("the same files give the same VERSION", get(PORT, "/sw.js")[2] == first)
+    with open(os.path.join(copy, "mathjs", "math.js"), "a", encoding="utf-8") as fh:
+        fh.write("\n// not in the shell\n")
+    check("a file outside the shell leaves /sw.js alone", get(PORT, "/sw.js")[2] == first)
+    with open(os.path.join(copy, "board.js"), "a", encoding="utf-8") as fh:
+        fh.write("\n// an edit\n")
+    second = get(PORT, "/sw.js")[2]
+    check("editing only board.js changes GET /sw.js", second != first)
+    check("and only its VERSION line",
+          re.sub(rb'"board-shell-[0-9a-f]+"', b"", second)
+          == re.sub(rb'"board-shell-[0-9a-f]+"', b"", first))
+finally:
+    paths.WEB = real_web
+    shutil.rmtree(os.path.dirname(copy), ignore_errors=True)
+
+# 8. Text assets go out gzipped to a client that takes it.
+def get_gz(path, enc="gzip"):
+    req = urllib.request.Request("http://127.0.0.1:%d%s" % (PORT, path),
+                                 headers={"Accept-Encoding": enc})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return dict(resp.headers), resp.read()
+
+
+raw = open(os.path.join(ROOT, "web", "board.js"), "rb").read()
+heads, body = get_gz("/static/board.js")
+check("board.js goes out gzipped when the client accepts it",
+      heads.get("Content-Encoding") == "gzip" and gzip.decompress(body) == raw)
+check("and gzipped it is under 200 KB (%d bytes, from %d)" % (len(body), len(raw)),
+      len(body) < 200 * 1024)
+check("and says it varies by Accept-Encoding", heads.get("Vary") == "Accept-Encoding")
+check("and the same bytes come back the second time", get_gz("/static/board.js")[1] == body)
+heads, body = get_gz("/static/board.js", "identity")
+check("a client that does not take gzip gets the file as it is",
+      "Content-Encoding" not in heads and body == raw)
+heads, body = get_gz("/static/board.js", "gzip;q=0")
+check("and so does one that refuses it by quality", "Content-Encoding" not in heads)
+for page, ctype in (("/board", "text/html"), ("/static/board.css", "text/css"),
+                    ("/sw.js", "javascript")):
+    heads, body = get_gz(page)
+    check("%s is gzipped too" % page,
+          heads.get("Content-Encoding") == "gzip" and ctype in heads.get("Content-Type", "")
+          and len(gzip.decompress(body)) > 0)
+heads, _body = get_gz("/icon-192.png")
+check("and an image is not", "Content-Encoding" not in heads)
 
 print()
 if fails:

@@ -72,8 +72,8 @@ check("and a mark on the open question is called an answer",
 lead, how = writing.ann_says("doc/stage2-deck/p3", False)
 check("a page is described as a page of a named document",
       "page 3" in lead and "stage2-deck" in lead)
-check("and the tutor is given the address of that page, in §2.1 terms",
-      "#/w/" in how and "doc/stage2-deck/p3" in how)
+check("and the tutor is given the session address of that page",
+      "#/s/" in how and "#/w/" not in how and "doc/stage2-deck/p3" in how)
 
 # --- the client half --------------------------------------------------------
 js = open(os.path.join(ROOT, "web", "annotate.js"), encoding="utf-8").read()
@@ -85,18 +85,21 @@ check("nothing in the ink layer parses the key -- it is opaque",
       "dataset.ann" in js and js.count("dataset.ann") == 1)
 
 board = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
-check("a document page is given its own box to anchor ink to",
-      'class = "paper-page"' in board.replace("className", "class"))
+reader = open(os.path.join(ROOT, "web", "reader.js"), encoding="utf-8").read()
+check("a document page is given its own box to anchor ink to, by the one reader",
+      'className = "lib-page"' in reader and "Reader.mount(" in board)
 check("and the box is keyed by the address of that page",
-      'dataset.ann = "doc/"' in board)
+      'dataset.ann = h.inkKey + "/p" + n' in reader
+      and 'inkKey: "doc/" + paperIdent(kind)' in board)
 check("the pen is reachable while a document is open",
-      "paper-ink" in board)
+      'id="reader-pen"' in reader and "reader.els.pen" in board)
 
-css = open(os.path.join(ROOT, "web", "board.css"), encoding="utf-8").read()
+css = open(os.path.join(ROOT, "web", "reader.css"), encoding="utf-8").read()
+board_css = open(os.path.join(ROOT, "web", "board.css"), encoding="utf-8").read()
 check("the page box is positioned, or the layer hangs off the scroller",
-      re.search(r"\.paper-page\s*{[^}]*position:\s*relative", css) is not None)
-check("and the pen's toolbar rises above the document panel",
-      re.search(r"body\.papering \.annbar\s*{[^}]*z-index:\s*9[6-9]", css)
+      re.search(r"\.lib-page\s*{[^}]*position:\s*relative", css) is not None)
+check("and the pen's toolbar rises above the reader",
+      re.search(r"body\.reading \.annbar-board\s*{[^}]*z-index:\s*9[6-9]", board_css)
       is not None)
 
 print()

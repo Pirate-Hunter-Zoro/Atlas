@@ -1,39 +1,48 @@
-"""Starting a board: parse the arguments, open the sockets, write the record.
+"""Starting the board: parse the arguments and open the one listener.
 
-Everything a board DOES lives in the package. This is the part that only
-happens once, and the reason it is a module of its own is that a board is a
-long-lived process identified by its command line -- `serve.py --root X --port
-N` is what `board_is_running` matches and what `tutor restart` looks for, so the
-entry point keeps its name and its shape.
+    serve.py [--port N] [--atlas DIR] [--lan]
+
+One process serves every session at `/s/<id>/`, on config.json's `port`
+(default 8778) on loopback; `tailscale serve` publishes it, and nothing here
+re-points it. A session's Repo and Hub are made on first use and dropped when
+idle (`registry.py`). The runner (`runner/service.py`) takes every turn in this
+process: started here after `recover`, and on SIGTERM it kills the turns in
+flight, whose messages stay owed for the next start.
+
+Two more threads, each switched on by the LaunchAgent's environment
+(`scripts/launchd/tutor-board.plist`), so a server started by hand or by a
+test runs neither:
+
+  * `TUTORBOARD_CLUSTER=1`: the cluster thread (`cluster.Ear`), which pulls
+    when origin's main moves, hears every subject's reports, and hears each
+    `code/<id>` ref: a coding session's step at the cluster wakes its session.
+  * `TUTORBOARD_FRESH=1`: the freshness thread. Once committed board code
+    differs from what this process loaded (`stamp.moved`) and no turn runs
+    or waits, the server stops listening and exits 0; launchd (KeepAlive)
+    starts it again on the new code.
+
+The boot line names the code stamp this process loaded.
 """
 
-import json
 import os
-import socket
+import shutil
+import signal
 import socketserver
 import sys
 import threading
 import time
 from http.server import ThreadingHTTPServer
 
-from .. import machine, paths, stamp
-from ..course import repo as course_repo
-from ..net import tailscale
+from .. import cluster, jobs, paths, sessions, stamp, subjects
+from ..runner import service
 from .handler import Handler
-from .hub import Hub
-from .tikz import TikzWorker
+from .registry import Registry
 
 
 class BoardServer(ThreadingHTTPServer):
-    """`ThreadingHTTPServer` without the reverse lookup in `server_bind`.
-
-    `HTTPServer.server_bind` asks `socket.getfqdn` for the name of the address
-    it bound, and nothing here reads the answer. On the Mac that lookup goes out
-    through the tailnet's resolver and an exit node, and was measured taking
-    over thirty seconds for the tailnet address -- longer than `board start`
-    waits for the record, so a board started by `tutor watch` was called dead,
-    killed as a leftover on the next pass, and started again.
-    """
+    """`ThreadingHTTPServer` without the reverse lookup in `server_bind`,
+    which nothing reads and which can take thirty seconds through the
+    tailnet's resolver."""
 
     def server_bind(self):
         socketserver.TCPServer.server_bind(self)
@@ -42,31 +51,20 @@ class BoardServer(ThreadingHTTPServer):
         self.server_port = port
 
 
-def lan_addresses():
-    addrs = []
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        addrs.append(s.getsockname()[0])
-        s.close()
-    except Exception:
-        pass
-    return addrs
-
-
-def main(argv):
-    root = os.getcwd()
-    port = 8778
-    # Loopback by default. There is no authentication of any kind here, so
-    # listening on every interface has to be a decision somebody made on purpose.
-    # Tailscale reaches the board through 127.0.0.1 either way.
+def parse(argv):
+    """`(atlas, port, host)` from serve.py's arguments. `--port` and `--atlas`
+    are for tests; the board itself runs with none."""
+    atlas = subjects.root()
+    port = paths.port()
+    # Loopback by default: there is no authentication here. `tailscale serve`
+    # reaches 127.0.0.1.
     host = "127.0.0.1"
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in ("--root", "-r"):
+        if a in ("--atlas", "-a"):
             i += 1
-            root = argv[i]
+            atlas = argv[i]
         elif a in ("--port", "-p"):
             i += 1
             port = int(argv[i])
@@ -74,83 +72,96 @@ def main(argv):
             host = "0.0.0.0"
         elif a == "--local":
             host = "127.0.0.1"
+        else:
+            raise SystemExit("serve.py: unknown argument %r" % a)
         i += 1
+    return os.path.abspath(atlas), port, host
 
-    repo = course_repo.Repo(root)
-    worker = TikzWorker(repo)
-    worker.start()
-    hub = Hub(repo, worker)
-    hub.payload = json.dumps(hub.build())
 
+def make_server(atlas, port, host="127.0.0.1", start=True):
+    """The one listener, with its session registry. `start` False builds
+    hubs that run no threads, for a test that drives them itself."""
     httpd = BoardServer((host, port), Handler)
     httpd.daemon_threads = True
-    httpd.repo = repo
-    httpd.hub = hub
+    httpd.registry = Registry(atlas, start=start)
+    return httpd
 
-    t = threading.Thread(target=hub.poll_loop, daemon=True)
-    t.start()
 
-    # And a second door, on the tailnet address and nowhere else.
-    #
-    # A board listens on loopback, deliberately: there is no authentication here
-    # and the university LAN is not somewhere to put an unauthenticated page. The
-    # consequence went unnoticed for a week -- another machine could never see
-    # this one's boards. Asking where a course is served means probing its ports
-    # on the machine that might be serving it, every one of those probes was
-    # refused by a socket bound to 127.0.0.1, and so a course could only ever be
-    # found on the machine doing the asking. From the iPad: "Galois Theory is the
-    # only option, and when I tap Probability I can't switch".
-    #
-    # The tailscale address is not the LAN: it is reachable only by machines on
-    # this tailnet, which is the same trust boundary the iPad already crosses to
-    # read the lesson. So bind that one too, and only that one.
-    tailnet = []
-    for addr in tailscale.tailnet_addresses():
+def slurm_here():
+    """Is this a Slurm host? `jobs.has_slurm()` (so `TUTOR_SLURM=1` says yes),
+    or `sbatch` on PATH whatever `TUTOR_SLURM` says: no board server runs on
+    the cluster, and an override meant for tests does not make one."""
+    return jobs.has_slurm() or shutil.which("sbatch") is not None
+
+
+# How often the freshness thread asks git whether the committed code moved.
+FRESH_EVERY = 5.0
+
+
+def watch_fresh(httpd, runner, every=FRESH_EVERY, say=None):
+    """The freshness thread: once `stamp.moved()` says why and the runner
+    stops with nothing running or queued, stop the listener so `main`
+    returns 0. Returns the reason."""
+    say = say or (lambda msg: (sys.stderr.write(msg + "\n"), sys.stderr.flush()))
+    while True:
+        time.sleep(every)
         try:
-            second = BoardServer((addr, port), Handler)
-        except OSError as exc:
-            sys.stderr.write("not listening on %s: %s\n" % (addr, exc))
+            why = stamp.moved()
+        except Exception:                                    # noqa: BLE001
+            why = None
+        if not why or not runner.quiesce():
             continue
-        second.daemon_threads = True
-        second.repo = repo
-        second.hub = hub
-        threading.Thread(target=second.serve_forever, daemon=True).start()
-        tailnet.append(addr)
-    # And the way that works where binding does not: on a machine running
-    # tailscaled in userspace mode the address exists but no interface carries
-    # it, so `bind()` fails and the board would be invisible to the other machine
-    # -- which is the machine that decides where the address points. tailscaled
-    # accepts the connection itself and forwards it to loopback.
-    if not tailnet and tailscale.publish_board(port):
-        # The tailnet name, not the hostname: this machine is `compute302` to
-        # slurm and `compute-node` on the tailnet, and only the second one is
-        # reachable from the machine that needs to reach it.
-        tailnet.append(tailscale.tailnet_self() or machine.node_name())
+        say("board: %s and no turn runs; exiting 0 for launchd to start the "
+            "new code" % why)
+        httpd.fresh = why
+        httpd.shutdown()
+        return why
 
-    info = {
-        "pid": os.getpid(),
-        "port": port,
-        "bind": host,
-        # The home directory is shared across compute nodes, so a pid on its own
-        # says nothing -- the same number is very likely alive on this node and
-        # belong to something else entirely.
-        "node": machine.node_name(),
-        "root": repo.root,
-        # Only advertise what is actually listening.
-        "urls": (["http://127.0.0.1:%d/" % port] +
-                 ["http://%s:%d/" % (a, port) for a in tailnet] +
-                 (["http://%s:%d/" % (a, port) for a in lan_addresses()]
-                  if host == "0.0.0.0" else [])),
-        "started": time.time(),
-        # Which code this process loaded, read before the import. None is a
-        # board started some other way, and a watch beat reads it as stale.
-        "code": stamp.LOADED,
-    }
-    with open(os.path.join(repo.live, ".board.json"), "w", encoding="utf-8") as fh:
-        json.dump(info, fh, indent=2)
-    sys.stderr.write("board listening on %s\n" % ", ".join(info["urls"]))
+
+def main(argv):
+    if slurm_here():
+        sys.stderr.write("serve.py: this is a Slurm host, and the board never runs "
+                         "on the cluster; the cluster's entry is board/bin/relay\n")
+        return 2
+    atlas, port, host = parse(argv)
+    httpd = make_server(atlas, port, host)
+    httpd.fresh = None
+    runner = service.install(service.Runner(atlas, port=httpd.server_port))
+    queued = runner.recover()
+    runner.start()
+
+    def stop(*_):
+        runner.shutdown()
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, stop)
+    threading.Thread(target=httpd.registry.sweep_loop, daemon=True).start()
+    # The trash keeps a delete 30 days; older entries go at startup.
+    try:
+        pruned = sessions.prune_trash()
+    except OSError:
+        pruned = []
+    threads = []
+    if os.environ.get("TUTORBOARD_CLUSTER") == "1":
+        cluster.Ear(atlas).start()
+        threads.append("cluster")
+    if os.environ.get("TUTORBOARD_FRESH") == "1":
+        threading.Thread(target=watch_fresh, args=(httpd, runner),
+                         name="fresh", daemon=True).start()
+        threads.append("fresh")
+    sys.stderr.write("board listening on http://%s:%d/ for %s; code %s; pid %d; "
+                     "%d turn(s) at once%s%s\n" % (
+                         host, httpd.server_port, atlas, stamp.LOADED or "unknown",
+                         os.getpid(), runner.concurrency,
+                         "; threads: %s" % ", ".join(threads) if threads else "",
+                         "; recovered %s" % ", ".join(queued) if queued else ""))
+    if pruned:
+        sys.stderr.write("board: pruned %d trash entr%s older than %d days\n" % (
+            len(pruned), "y" if len(pruned) == 1 else "ies", sessions.TRASH_DAYS))
     sys.stderr.flush()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        pass
+        runner.shutdown()
+        return 0
+    runner.shutdown()
+    return 0

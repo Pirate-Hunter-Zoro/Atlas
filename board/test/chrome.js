@@ -270,13 +270,11 @@ decl(draw, 'top') === null
     // NAMED AS THE STYLESHEET NAMES THEM. `block()` matches the selector
     // literally, so a rule whose selector list has gained a name answers null
     // here and the entry drops silently out of the comparison -- a check that
-    // has stopped running, which is worse than one that fails. `#shelf` and
-    // `#steer` are their own entries as well as being in that list, because
-    // both override it to 98 and 98 is the storey under the menu.
-    const others = ['#drawbar', '.annbar', '.notesend', '#notepick', '.jump', '.sendwhat',
-                    '#history', '#panic, #findink',
-                    '#scratch, #contents, #review, #shelf, #elsewhere, #trace',
-                    '#shelf', '#steer', '.drop', '#viewer', '#paper']
+    // has stopped running, which is worse than one that fails. `#notepick` is
+    // at 98, the storey under the menu.
+    const others = ['#drawbar', '.annbar', '.notesend', '#notepick', '.jump',
+                    '#history', '#panic, #findink', '#scratch, #trace',
+                    '.drop', '#viewer', '#paper']
       .map((sel) => ({ sel, z: zOf(sel) }))
       .filter((r) => r.z !== null);
     const over = others.filter((r) => r.z >= mine);
@@ -302,14 +300,10 @@ decl(draw, 'top') === null
 // that fall off the end are unreachable: there is nothing to scroll, and the
 // page behind takes the drag instead.
 //
-// `#contents-list` was the one that had neither, and the end of the contents is
-// where the problem sets are. Reported as "the bar showing the contents and the
-// Problem Sets is not scrollable, so I can't reach the problem sets."
 [['#scratch-list', 'the scratch drawer'],
- ['#shelf-list', 'the documents drawer'],
  ['#history-list', 'past lessons'],
- ['#review-list', 'the review picker'],
- ['#contents-list', 'the contents']].forEach(([sel, what]) => {
+ ['#trace-list', 'what just happened'],
+ ['#notepick-list', 'the annotations picker']].forEach(([sel, what]) => {
   const b = block(sel);
   if (b === null) return fail(sel + ' has no rule of its own — ' + what
                               + ' cannot scroll');
@@ -322,37 +316,6 @@ decl(draw, 'top') === null
            + (grows ? 'does not scroll' : 'does not take the space it is given')
            + ' — its last entries fall off the bottom of the drawer');
 });
-
-// --- and the map is a panel of the same shape -------------------------------
-//
-// A head that does not move, a plane between, a foot that does not move. The
-// plane is the part that has to take the room that is left -- being inside a
-// fixed panel does not make an element fill it -- and it must clip rather than
-// scroll, because what moves inside it is a transform and not a scrollbar.
-{
-  const map = block('#map');
-  const plane = block('.map-plane');
-  map && /fixed/.test(decl(map, 'position') || '')
-    ? ok('the map covers the glass')
-    : fail('#map is not a fixed surface — it will lay out in the flow of the lesson');
-  /* The viewer paints its own ground behind the page; a transparent surface
-     borrows whatever is under it and comes out in the wrong theme. */
-  /var\(--paper/.test(decl(map, 'background') || '')
-    ? ok('and paints an explicit background from the tokens')
-    : fail('the map surface is transparent — it will take the host\'s theme');
-  const grows = /^1\b|^1 /.test(decl(plane, 'flex') || '');
-  grows && /hidden/.test(decl(plane, 'overflow') || '')
-    ? ok('the plane takes the room between the head and the foot, and clips')
-    : fail('the map plane does not fill the panel, or does not clip — the picture '
-           + 'will run off the bottom with nothing to scroll');
-  /none/.test(decl(plane, 'touch-action') || '')
-    ? ok('and the browser is told not to ask the main thread about a touch on it')
-    : fail('the plane has no touch-action, so every drag asks before it moves');
-  // `body.mapping` locks the lesson underneath, the way `body.papering` does.
-  /hidden/.test(decl(block('body.mapping'), 'overflow') || '')
-    ? ok('and the lesson underneath cannot take a scroll meant for the plane')
-    : fail('nothing locks the page behind the map');
-}
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nevery bar is where it belongs');

@@ -39,9 +39,14 @@ global.setTimeout = setTimeout;
 // pans and pinches. See web/plane-core.js.
 eval(fs.readFileSync(path.replace('board.js', 'plane-core.js'), 'utf8'));
 
+// Code fences are highlighted by the vendored highlight.js through codeview.js,
+// both loaded by board.html before board.js. Indirect eval: each defines a global.
+(0, eval)(fs.readFileSync(path.replace('board.js', 'vendor/highlight/highlight.min.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.replace('board.js', 'codeview.js'), 'utf8'));
+
 let src = fs.readFileSync(path, 'utf8');
 // expose the internals for testing
-src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore };\n})();');
+src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore, typeset, katexTrust };\n})();');
 eval(src);
 
 const R = window.__test.renderMarkdown;
@@ -70,6 +75,47 @@ check('underscore in math not escaped',
   ['$\\alpha_1$', '<em>real</em>']);
 check('inline code', 'run `make split` now', ['<code>make split</code>']);
 check('fenced code', 'a\n\n```\nx = 1\n```\n\nb', ['<pre><code>x = 1</code></pre>']);
+// A FENCE KEEPS ITS INFO STRING. A language highlights; `path#Lx-y` numbers
+// from x and adds a caption linking the source viewer; math stays plain.
+{
+  const src = fs.readFileSync(path.replace('web/board.js', 'tutorboard/code.py'), 'utf8')
+    .split('\n').slice(39, 58).join('\n');
+  const out = R('See\n\n```py board/tutorboard/code.py#L40-58\n' + src + '\n```\n\ndone.');
+  const nums = (out.match(/<span class="line" data-n="(\d+)">/g) || [])
+    .map(s => +/data-n="(\d+)"/.exec(s)[1]);
+  const ok = out.indexOf('<figure class="code-fence">') !== -1
+    && out.indexOf('<a class="code-ref" href="/source/board/tutorboard/code.py?from=40&amp;to=58"') !== -1
+    && out.indexOf('<code>board/tutorboard/code.py#L40-58</code>') !== -1
+    && out.indexOf('class="hljs language-py"') !== -1
+    && /<span class="hljs-(keyword|string|comment|title)/.test(out)
+    && JSON.stringify(nums) === JSON.stringify(Array.from({ length: 19 }, (_, i) => 40 + i))
+    && out.indexOf('<p>done.</p>') !== -1;
+  ok ? console.log('ok   a py fence over code.py#L40-58 is highlighted, numbered 40 to 58, with a caption link')
+     : (fails++, console.log('FAIL code.py fence\n   got: ' + out.slice(0, 600)));
+}
+{
+  const code = fs.readFileSync(path.replace('web/board.js', 'tutorboard/code.py'), 'utf8')
+    .split('\n').slice(9, 12).join('\n');
+  const out = R('```board/tutorboard/code.py#L10-12\n' + code + '\n```');
+  /href="\/source\/board\/tutorboard\/code\.py\?from=10&amp;to=12"/.test(out)
+    && /language-python/.test(out) && /data-n="10"/.test(out) && /data-n="12"/.test(out)
+    && !/data-n="13"/.test(out)
+    ? console.log('ok   a path with no language takes python from .py')
+    : (fails++, console.log('FAIL code.py fence\n   got: ' + out.slice(0, 400)));
+}
+check('a language alone highlights without numbers or a caption',
+  '```bash\necho "hi" # done\n```',
+  ['<pre class="code"><code class="hljs language-bash">', 'hljs-'], ['data-n=', 'figcaption']);
+['go', 'lean', 'r', 'sql', 'python'].forEach(l => {
+  const known = window.CodeView.language(l);
+  known ? console.log('ok   highlight.js has ' + l)
+        : (fails++, console.log('FAIL highlight.js lacks ' + l));
+});
+check('a math fence is untouched', '```math\nx^2 < y\n```',
+  ['<pre><code>x^2 &lt; y</code></pre>'], ['hljs', 'data-n=']);
+check('a caption path is escaped, and html in code is text',
+  '```py a/"b<x>.py#L1\nprint("<script>")\n```',
+  [], ['<script>', '"b<x>']);
 check('bullet list', '- alpha\n- beta\n', ['<ul>', '<li>alpha</li>', '<li>beta</li>', '</ul>']);
 check('ordered list', '1. first\n2. second\n', ['<ol>', '<li>first</li>']);
 check('nested list', '- outer\n  - inner\n', ['<ul>', '<li>outer<ul><li>inner</li></ul></li>']);
@@ -118,6 +164,89 @@ check('starred command not italic', 'use $x^*y^*z$ here', ['$x^*y^*z$'], ['<em>'
                   + 'left to complain about')
     : (fails++, console.log('FAIL the first pass left ' + JSON.stringify(left)));
 }
+
+// KATEX TRUSTS ONLY SAFE COMMANDS. A card is model-written text rendered as
+// HTML, so `\href{javascript:...}` must not become a live anchor, an image must
+// not load from another host, and `\htmlClass` and friends must not reach the
+// DOM. Run with the real KaTeX and auto-render in jsdom, through `typeset`.
+{
+  let JSDOM = null;
+  try { ({ JSDOM } = require('jsdom')); } catch (e) { JSDOM = null; }
+  if (!JSDOM) {
+    fails++;
+    console.log('FAIL jsdom is not installed; run.py installs it');
+  } else {
+    const web = require('path').join(__dirname, '..', 'web', 'katex');
+    const dom = new JSDOM('<!doctype html><html><body></body></html>',
+      { url: 'https://board.test/s/1/board', runScripts: 'outside-only' });
+    dom.window.eval(fs.readFileSync(web + '/katex.min.js', 'utf8'));
+    dom.window.eval(fs.readFileSync(web + '/auto-render.min.js', 'utf8'));
+    global.renderMathInElement = dom.window.renderMathInElement;
+    global.location = dom.window.location;
+    global.URL = dom.window.URL;
+
+    const card = (md) => {
+      const el = dom.window.document.createElement('div');
+      el.innerHTML = R(md);
+      window.__test.typeset(el);
+      return el;
+    };
+    const verdict = (name, ok, el) => {
+      if (ok) { console.log('ok   ' + name); return; }
+      fails++;
+      console.log('FAIL ' + name + '\n   got: ' + el.innerHTML.slice(0, 300));
+    };
+    const anchors = (el) => Array.from(el.querySelectorAll('a')).map(a => a.getAttribute('href'));
+    const images = (el) => Array.from(el.querySelectorAll('img')).map(i => i.getAttribute('src'));
+
+    let el = card('Click $\\href{javascript:alert(1)}{x}$ now.');
+    verdict('a card whose math is \\href{javascript:alert(1)}{x} renders no javascript: anchor',
+      el.querySelector('.katex') && anchors(el).length === 0
+      && !/javascript:/i.test(el.innerHTML.replace(/<annotation[\s\S]*?<\/annotation>/g, '')), el);
+    ['JaVaScRiPt:alert(1)', 'javascript&colon;alert(1)', ' javascript:alert(1)',
+     'data:text/html,<b>x</b>', 'vbscript:x'].forEach(u => {
+      el = card('$\\href{' + u + '}{x}$ and $\\url{' + u + '}$');
+      verdict('no anchor for ' + u, anchors(el).length === 0, el);
+    });
+    el = card('$\\href{https://example.org/a}{x}$, $\\url{http://example.org}$, $\\href{notes/a.pdf}{y}$');
+    verdict('http, https and relative links still render as anchors',
+      JSON.stringify(anchors(el)) === JSON.stringify(
+        ['https://example.org/a', 'http://example.org', 'notes/a.pdf']), el);
+    el = card('$\\includegraphics{/static/a.png}$ $\\includegraphics{https://board.test/b.png}$');
+    verdict('a same-origin image loads',
+      JSON.stringify(images(el)) === JSON.stringify(['/static/a.png', 'https://board.test/b.png']), el);
+    el = card('$\\includegraphics{https://evil.test/x.png}$ $\\includegraphics{//evil.test/y.png}$');
+    verdict('an image from another origin does not', images(el).length === 0, el);
+    el = card('$\\htmlId{pwn}{a}$ $\\htmlClass{pwn}{b}$ $\\htmlStyle{color:red}{c}$ $\\htmlData{pwn=1}{d}$');
+    verdict('\\htmlId, \\htmlClass, \\htmlStyle and \\htmlData are refused',
+      !el.querySelector('#pwn') && !el.querySelector('.pwn')
+      && !el.querySelector('[style*="red"]') && !el.querySelector('[data-pwn]'), el);
+    // The source page: the server's numbered, marked lines, coloured in place.
+    {
+      const d = new JSDOM('<!doctype html><body class="source-page"><pre class="code numbered">'
+        + '<code data-source="1" data-lang="python" data-from="2" data-to="3">'
+        + '<span class="line" data-n="1" id="L1">s = """a\n</span>'
+        + '<span class="line mark" data-n="2" id="L2">b"""\n</span>'
+        + '<span class="line mark" data-n="3" id="L3">def f(x):\n</span>'
+        + '<span class="line" data-n="4" id="L4">    return x &lt; 1</span></code></pre></body>').window.document;
+      const before = d.querySelector('code').textContent;
+      window.CodeView.upgrade(d);
+      const code = d.querySelector('code');
+      const lines = Array.from(code.querySelectorAll('.line'));
+      verdict('the source page keeps its numbers and marks once highlighted, a string across lines included',
+        code.textContent === before && lines.length === 4
+        && lines.map(l => l.getAttribute('data-n')).join() === '1,2,3,4'
+        && lines.filter(l => l.classList.contains('mark')).map(l => l.getAttribute('data-n')).join() === '2,3'
+        && !!lines[1].querySelector('.hljs-string') && !!lines[2].querySelector('.hljs-keyword'), code);
+    }
+    const t = window.__test.katexTrust;
+    verdict('the trust function refuses a command it does not know',
+      t({ command: '\\htmlClass', class: 'x' }) === false
+      && t({ command: '\\somethingNew', url: 'https://x' }) === false
+      && t({ command: '\\href', url: 'https://x', protocol: 'https' }) === true, el);
+  }
+}
+
 
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nall markdown checks passed');
 process.exit(fails ? 1 : 0);

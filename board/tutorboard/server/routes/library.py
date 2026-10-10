@@ -1,39 +1,27 @@
 """The library: every document this workspace has written, and feedback on one.
 
-A SURFACE RATHER THAN A SITTING, and that is the whole design. Nothing here
-writes to `live/cards/`, archives a lesson or touches `live/state.json`, because
-somebody mid-proof on an iPad must not be interrupted by somebody correcting a
-deck. What a note does is land beside the document it is about and wake a turn
-that is not the lesson's.
+A surface, not a sitting: nothing here writes cards or session state, so a
+correction to a deck never interrupts somebody mid-proof. A note lands beside
+its document and wakes a turn that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
-    GET  /shelf.json                the same inventory GROUPED BY THE BOX ON
-                                    THE MAP each document belongs to, which is
-                                    what the map's own drawer opens
     GET  /library/results.json      everything this workspace PRODUCED, grouped
                                     by the directory it came out of -- or a
                                     sentence saying why there is nothing
     GET  /library/table/<id>        one table, read back as rows or as text,
                                     because a page cannot open a file
-    POST /writeup                   a paper or a deck, asked for from a sitting
-                                    on this board or commissioned from the front
-                                    door against any workspace on the machine
+    POST /artifact                  a deck or a paper `{make, about?}`, from the
+                                    session's Make menu or a subject's row on
+                                    the start screen: the doc.json first, then
+                                    a `[writeup]` turn that writes and builds it
     POST /writeup/seen              one finished ask waved off the board's strip
-    POST /sittings                  every sitting in every workspace, as rows to
-                                    tick -- `tutorboard/sittings.py`
-    POST /sittings/items            what the ticked sittings did, as rows to
-                                    untick
-    POST /sittings/deck             a deck of what stayed ticked, asked for in
-                                    the workspace holding most of it
-    POST /sittings/decks            the newest few of those, and where each
-                                    one got to
     GET  /library/stamp             one hash of where every document is and
                                     when it last changed, cheap enough to ask
                                     every few seconds
     GET  /library/view/<id>         the pages of one, drawn by the renderer the
                                     board already has
-    GET  /library/marked/<id>/<name> a marked copy `POST /annotate/burn` made
-                                    of one, as an attachment
+    GET  /library/marked/<id>/<name> a marked copy `POST /annotate/burn` kept
+                                    beside one's PDF, as an attachment
     GET  /library/note/<id>/<name>  one round of feedback, read back -- which is
                                     where the turn wrote what it changed
     GET  /library/ledger/<id>       every round's requests, what was done about
@@ -46,113 +34,88 @@ that is not the lesson's.
     POST /library/feedback          one round of feedback, written where the
                                     document is, and then acted on -- in words,
                                     in ink, or in both
+    POST /doc/delete                one artifact `{subject, id}`, after a
+                                    second tap: to the trash with its ink, and
+                                    its tracked files out in one commit
+    GET  /materials.json            the files under the subject's materials/
+    POST /material/delete           one material `{subject, name}`, after a
+                                    second tap: to the trash with its ink
 
-AN ID, NEVER A PATH. What arrives from the browser is compared against what
-discovery found -- `library.find` -- and a miss is a miss. `reading.find` is the
-rule and `/result/` is the worked example. A NOTE'S NAME is the same rule one
-level down: matched against the names `library.notes` found beside that
-document, never joined onto a directory. A WORKSPACE and a SCOPE KEY on
-`/writeup` are the same rule again: `machines.workspaces` and `scopes.find` are
-the lists, and the root comes off the match.
+Subject routes are served under `/s/<id>/` for the session's own subject, or
+unprefixed with `?subject=<id>` from the library page (`handler.UNPREFIXED`);
+/writeup/seen is session-only. An ask for another subject's tutor goes
+through `registry.runner_route`, which picks the session.
 
-A DOCUMENT IS NOT THE ONLY THING A WORKSPACE MAKES, which is why the results
-are on this page rather than on a second one. A mission ends by naming what it
-wrote -- *figure `neighbor_count_sweep.png` and four tables* -- and until there
-was somewhere to look at those, the only way to read a finished result was a
-terminal. `course/results.py` already knew where every one of them is: the
-drawer puts a figure in a card, and what was missing was the list. One page,
-because "everything this workspace has produced" is one question, and because
-this is the page somebody already knows how to reach -- the front door offers it
-per workspace and the board's ⋯ menu opens it.
-
-AND FEEDBACK IS NEVER JUST FILED. A note nothing acts on is a note the person
-believes is in force, which is the same defect `/direction` was built to avoid.
-So writing one dispatches the revision in the same request, and the reply says
-which machinery took it: the board revises a document it compiled, and
-Paper-Writer revises a manuscript it delivered.
-
-TWO ASKS, NOT ONE. `revise` is a correction and keeps the document's structure,
-its names for things and its claims. `rework` is an overhaul -- "that
-presentation needs an overhaul now that we plan to use colibri" -- and may
-restructure, cut, reorder and rewrite. It costs a sentence saying what the
-document is FOR now, and it is refused against an uncommitted source, because
-git is the only undo an overhaul has.
+The constraint: an id, never a path. Ids are matched against discovery
+(`library.find`), note names against `library.notes`, and `/artifact` takes
+no path at all. Feedback is never just filed: writing a note dispatches a
+`[revise]` turn in the same request. `rework` (an overhaul) needs a purpose
+sentence and a committed source, because git is its only undo.
 """
 
 import json
 import os
+import re
 import time
 from urllib.parse import unquote
 
 from . import NOT_MINE
 from . import writing
-from .. import spawn
-from ... import (atlas, leaving, machines, manuscript, paths, scopes, sense,
-                 sittings, writeups)
+from .. import registry
+from ...runner import service as runner
+from ... import (artifacts, briefs, fenced, leaving, paths, sense, subjects,
+                 writeups)
 from ...course import burn
-from ...course import config
 from ...course import ledger
 from ...course import library
-from ...course import results
-from ...course import shelf
-from ...course.repo import Repo
 from ...lesson import turns
 
 
 def get(h, repo, path):
     if path == "/library.json":
-        return h.send_json(library.status(repo))
+        return h.send_json(with_deck(library.status(repo), repo))
 
-    # EVERY DOCUMENT, UNDER THE BOX IT BELONGS TO. The same inventory the page
-    # above draws, ordered the way the map orders its boxes, because it is read
-    # beside the picture. Fetched on a tap and never on the payload: the map's
-    # payload carries the COUNT per box, which is four bytes, and this is the
-    # list.
-    if path == "/shelf.json":
-        try:
-            return h.send_json(shelf.grouped(repo))
-        except Exception as exc:                             # noqa: BLE001
-            # The same reason `/library/stamp` catches: a 500 here paints "the
-            # board is not answering" over a fault that is a directory walk.
-            return h.send_json({"ok": False, "error": str(exc)})
+    if path == "/materials.json":
+        found = subjects.find(repo.root, registry.base_of(repo))
+        if not found:
+            return h.send_json({"ok": False, "error": "this session is bound to "
+                                "no subject, so it has no materials"}, status=404)
+        # A library PDF carries its id `doc` for the drawer's reader.
+        ids = library.ident_map(found["root"])
+        listed = subjects.materials(found["root"])
+        for m in listed:
+            ident = ids.get(os.path.realpath(os.path.join(
+                found["root"], subjects.MATERIALS, *m["name"].split("/"))))
+            if ident and m["name"].lower().endswith(".pdf"):
+                m["doc"] = ident
+        return h.send_json({"ok": True, "subject": found["id"],
+                            "materials": listed})
 
-    # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
-    # somebody, so it is stats and nothing else -- no titles read out of
-    # sources, no `pdfinfo`, no notes listed. `/library.json` is the expensive
-    # answer and is fetched only once this says the answer has changed.
+    # Stats only: polled every few seconds; `/library.json` is the expensive
+    # answer, fetched when this changes.
     if path == "/library/stamp":
         try:
             return h.send_json(library.stamp(repo.root))
         except Exception as exc:                             # noqa: BLE001
-            # A poll that 500s makes the page paint "the board is not
-            # answering", which points a reader at the network for a fault that
-            # is a walk of a directory.
+            # A 500 would paint "the board is not answering" over a walk fault.
             return h.send_json({"ok": False, "error": str(exc)})
 
-    # WHAT THIS WORKSPACE HAS PRODUCED. Its own fetch rather than a field on
-    # `/library.json`, because they are two walks of two different trees: the
-    # documents walk reads titles out of sources and runs `pdfinfo` per PDF, and
-    # this one walks the result directories. The page draws whichever arrives
-    # first, and a workspace with no results still gets its documents.
+    # Its own fetch: a different tree and walk from `/library.json`.
     if path == "/library/results.json":
         try:
-            return h.send_json(results.browse(repo))
+            return h.send_json(library.browse_results(repo))
         except Exception as exc:                             # noqa: BLE001
-            # The same reason `/library/stamp` catches: a 500 here paints "the
-            # board is not answering" over a fault that is a directory walk.
+            # As for `/library/stamp`.
             return h.send_json({"ok": False, "error": str(exc)})
 
-    # ONE TABLE, READ HERE RATHER THAN DOWNLOADED. A CSV handed to a browser is
-    # a file an iPad puts somewhere nobody can find. An id, never a path --
-    # `results.table` does the same lookup `/result/` does, with the kind it
-    # will answer for changed, and a miss is a miss.
+    # One table read back as rows, because a downloaded CSV is lost on an iPad.
+    # An id, never a path (`library.result_table`).
     if path.startswith("/library/table/"):
-        got = results.table(repo.root, unquote(path[len("/library/table/"):]))
+        got = library.result_table(repo.root, unquote(path[len("/library/table/"):]))
         return h.send_json(got, status=200 if got.get("ok") else 404)
 
-    # A MARKED COPY, handed over to be kept. An id and a name, both matched
-    # against what is on disk under `live/marked/<id>/` -- `burn.marked_file`
-    # -- and sent as an attachment, because it is asked for to go into Files.
+    # A marked copy as an attachment for Files; id and name matched on disk
+    # (`burn.marked_file`).
     if path.startswith("/library/marked/"):
         rest = path[len("/library/marked/"):].split("/", 1)
         found = burn.marked_file(repo, rest[0] if rest else "",
@@ -163,15 +126,10 @@ def get(h, repo, path):
         return h.send_file(found, download=os.path.basename(found))
 
     if path.startswith("/library/view/"):
-        # The same rasteriser, the same cache and the same `/paper/<name>.png`
-        # page addresses the lesson's own documents use. What differs is only
-        # how the file was found.
+        # The lesson's own rasteriser, cache and page addresses.
         return h.send_json(library.pages(repo, path[len("/library/view/"):]))
 
-    # WHAT A ROUND ACTUALLY SAID. The turn writes `## What was changed` at the
-    # bottom of the feedback file, and that is the answer to *did it do what I
-    # asked* -- in a file the iPad cannot open. An id and a name, both matched
-    # against what discovery found.
+    # One round's text, including the turn's `## What was changed`.
     if path.startswith("/library/note/"):
         rest = path[len("/library/note/"):].split("/", 1)
         doc = library.find(repo.root, rest[0] if rest else "")
@@ -182,8 +140,7 @@ def get(h, repo, path):
                                 unquote(rest[1]) if len(rest) > 1 else "")
         return h.send_json(got, status=200 if got.get("ok") else 404)
 
-    # WHAT EACH REQUEST WAS AND WHAT WAS DONE ABOUT IT, placed on the build
-    # that is on disk now. An id, matched against discovery like every other.
+    # Each request, its answer, and its place on the build on disk.
     if path.startswith("/library/ledger/"):
         # Either name: the board's document drawer asks by its own (`find_any`).
         doc = library.find_any(repo.root, unquote(path[len("/library/ledger/"):]))
@@ -195,8 +152,8 @@ def get(h, repo, path):
         except Exception as exc:                             # noqa: BLE001
             return h.send_json({"ok": False, "error": str(exc)[-300:]})
 
-    # A REQUEST'S OWN PICTURE. An id, a round's name and a file's name, each
-    # matched against what is on disk -- `ledger.evidence` -- never joined.
+    # A request's picture: id, round and file name matched on disk
+    # (`ledger.evidence`), never joined.
     if path.startswith("/library/evidence/"):
         rest = path[len("/library/evidence/"):].split("/")
         doc = library.find(repo.root, rest[0]) if len(rest) == 3 else None
@@ -229,9 +186,7 @@ def post(h, repo, path):
         if not doc:
             return h.send_json({"ok": False, "error": "no such document"},
                                status=404)
-        # A PIECE IS CORRECTED THROUGH ITS WHOLE. The note and the ink stay on
-        # the section they were written on; the revision is asked of the
-        # document the section is re-cut from, by that document's machinery.
+        # A piece is corrected through its whole, by that document's machinery.
         whole = (library.find(repo.root, doc.get("whole") or "")
                  if doc.get("piece") else None)
         if doc.get("piece") and ask == "rework":
@@ -244,9 +199,8 @@ def post(h, repo, path):
         if ask == "rework":
             stop = rework_refused(repo, doc)
             if stop:
-                # NOTHING IS WRITTEN WHEN THIS REFUSES. A note filed for an
-                # overhaul that never started is a note somebody believes is in
-                # force, which is the defect the whole route was built against.
+                # Nothing is written when this refuses: an unstarted overhaul's
+                # note would read as in force.
                 return h.send_json({"ok": False, "ask": "rework",
                                     "error": stop}, status=409)
         rec = library.write_note(repo, ident, text, page=page, ask=ask,
@@ -259,24 +213,19 @@ def post(h, repo, path):
                            purpose=rec.get("purpose") or "",
                            ledger_rel=rec.get("ledger") or "",
                            ids=rec.get("ids") or []))
-        # THE INK IS DELIVERED WHEN THE REVISION IS ASKED, not when the note is
-        # written: a note beside an ask that failed has delivered nothing, and
-        # marking its ink sent would leave the retry without it. A reopened
-        # request is carried on the same rule.
+        # Ink (and reopened requests) count as delivered only once the
+        # revision was asked, so a failed ask leaves them for the retry.
         if rec.get("asked"):
             library.hand_over(repo, keys)
             ledger.carry(repo.root, doc, carry, rec.get("note") or "")
         elif rec.get("path"):
-            # NOTHING IS ANSWERING THIS ROUND. It stays on disk and counts
-            # nowhere; the retry files the same ink and the same reopened
-            # requests again, so each is counted once.
+            # Nothing answers this round: it counts nowhere, and the retry
+            # files the same ink and requests again.
             ledger.mark_unsent(rec["path"], rec.get("detail") or "")
         return h.send_json(rec)
 
-    # THE SPLIT, SHOWN BEFORE IT IS SENT. What the panel's words and the
-    # document's ink would become as requests, so "that was one request, not
-    # three" is said with a tap before the round rather than in the next one.
-    # Nothing is written.
+    # How words and ink would split into requests, before sending. Writes
+    # nothing.
     if path == "/library/ledger/preview":
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -297,8 +246,8 @@ def post(h, repo, path):
                                reopen=ledger.reopened(repo.root, doc))
         return h.send_json({"ok": True, "items": items})
 
-    # ONE REQUEST CLOSED OR REOPENED. A reopened one costs a line of why, and
-    # rides the next round under the id it already has.
+    # A reopened request costs a line of why and rides the next round under
+    # its id.
     if path == "/library/ledger/state":
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -314,299 +263,282 @@ def post(h, repo, path):
         library.forget()
         return h.send_json(got, status=200 if got.get("ok") else 400)
 
-    # A PAGE MARKED AS A DIRECTION, not as a complaint: the note panel's third
-    # ask. It never goes near `_revise` -- see `proposals.from_document`.
-    if path == "/library/direction":
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        doc = library.find(repo.root, str(payload.get("document") or "").strip())
-        if not doc:
-            return h.send_json({"ok": False, "error": "no such document"},
-                               status=404)
-        from ... import proposals                      # local: avoids a cycle
-        # THE PAGES THE READER PICTURED FOR THIS SEND, each with how many
-        # direction strokes it had then. Only those go; a missing list sends
-        # nothing drawn.
-        pictured = {}
-        for it in payload.get("pictured") or []:
-            if isinstance(it, dict) and writing.ann_ok(str(it.get("key") or "")):
-                try:
-                    pictured[str(it["key"])] = int(it.get("n"))
-                except (TypeError, ValueError):
-                    pass
-        rec = proposals.from_document(repo, doc, payload.get("page"),
-                                      payload.get("text") or "", pictured)
-        # THE INK LEFT ON THE DOCUMENT, so the reader takes the sent direction
-        # strokes off its glass: `Annotate.load` never takes a mark away. The
-        # reader refreshes the keys named in `stripped` and drops the strokes
-        # in `wiped`.
-        if rec.get("ok"):
-            rec["ink"] = library.ink(repo, doc)
-            rec["wiped"] = library.wiped(repo, doc)
-        h.server.hub.worker.dirty.set()
-        return h.send_json(rec, status=200 if rec.get("ok") else 400)
+    if path == "/artifact":
+        return _artifact(h, repo)
 
-    if path == "/writeup":
-        return _writeup(h, repo)
-
-    # SLIDES FROM SITTINGS: which sittings, what they did, the deck, and where
-    # each deck got to. See `tutorboard/sittings.py`, and `_sittings_deck` for
-    # why the deck goes through `/writeup`'s own dispatch.
-    if path in ("/sittings", "/sittings/items", "/sittings/deck",
-                "/sittings/decks"):
+    if path == "/material/delete":
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         if not isinstance(payload, dict):
             payload = {}
-        base = atlas.root() or repo.root
+        got, code = delete_material(repo, str(payload.get("subject") or "").strip(),
+                                    str(payload.get("name") or ""))
+        if got.get("ok"):
+            h.hub.worker.dirty.set()
+        return h.send_json(got, status=code)
+
+    if path == "/doc/delete":
         try:
-            if path == "/sittings":
-                return h.send_json(sittings.listing(base))
-            if path == "/sittings/items":
-                return h.send_json(sittings.items(base, _strings(payload, "picks")))
-            if path == "/sittings/decks":
-                return h.send_json(sittings.decks(base))
-        except Exception as exc:                             # noqa: BLE001
-            # A walk of every workspace's archive. A 500 paints "the board is not
-            # answering" over a fault that is a directory somebody can name.
-            return h.send_json({"ok": False, "error": str(exc)[-300:]},
-                               status=500)
-        return _sittings_deck(h, repo, base, payload)
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            payload = {}
+        got, code = delete_doc(repo, str(payload.get("subject") or "").strip(),
+                               str(payload.get("id") or "").strip().lower())
+        if got.get("ok"):
+            h.hub.worker.dirty.set()
+        return h.send_json(got, status=code)
 
     if path == "/writeup/seen":
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        # A `writing` one cannot be waved away: it is still being written, and
-        # that is the fact the strip is reporting. `writeups.seen` refuses it.
-        got = writeups.seen(repo.root, str(payload.get("id") or ""))
-        h.server.hub.worker.dirty.set()
+        # A `writing` ask cannot be waved away (`writeups.seen` refuses it).
+        got = writeups.seen(repo, str(payload.get("id") or ""))
+        h.hub.worker.dirty.set()
         return h.send_json({"ok": bool(got)})
 
     return NOT_MINE
 
 
-def _writeup(h, repo):
-    """A PAPER OR A DECK, ASKED FOR FROM ANY SITTING, WITHOUT CHANGING IT.
+# What the Make menu sends, and what each is called in a record.
+MAKES = {"deck": "slides", "paper": "paper"}
 
-    **The want, and it was asked as a question:** *"at any point can I have a
-    presentation or paper written up going through the things we talked about in
-    that tutoring session? Can I do that in ANY tutoring session?"* The answer
-    was no, twice over.
 
-    A DOCUMENT IS NOT AN AIM, and that is the whole design. An aim says what the
-    sitting is FOR; a paper or a deck is a PRODUCT. Asking for one used to mean
-    `POST /aim` -- the sitting becomes a make sitting, and every card after it is
-    written that way -- and the aim row is withheld from a review and from a
-    walkthrough, so in the two sittings where a write-up is worth the most there
-    was no way to ask at all. This changes no aim, archives nothing, replaces no
-    tutor, and is therefore available everywhere, like everything else on this
-    page.
+def _artifact(h, repo):
+    """`POST /artifact {make: "deck"|"paper", about?}`: a deck or a paper.
 
-    IT IS IN THIS FILE RATHER THAN BESIDE `/aim`, because every rule that makes
-    it safe is this file's: no card, no sitting, no `state.json`. The document
-    lands in the library and the library's own loop corrects it.
-
-    AND NOTHING GOES IN THE TRANSCRIPT, which is the one place this differs from
-    `/aim` and `/handover`. Both of those put the tap in as a turn of the
-    student's, because a card is coming back and a transcript that opens with the
-    answer reads as the tutor deciding something on its own. Here no card is
-    coming: a student turn with no reply is what sets `awaitingReply`, and the
-    board would sit waiting for a card that this turn is told not to write. So
-    what says it is happening is the RECORD -- `tutorboard/writeups.py` -- which
-    the board paints in the strip and which survives a closed lid, and the reply
-    carries its id.
-
-    THE SCOPE IS THE EVENING UNLESS THEY SAID OTHERWISE. A box tapped on the map
-    already opens a make sitting scoped to that box; the ask with no route at all
-    was *"write up the four things we just covered"*, so that is the default and
-    `sense.writeup_sense` says how to read the lesson back for it.
-
-    AND IT CAN BE COMMISSIONED FROM THE FRONT DOOR, AGAINST A WORKSPACE NOBODY
-    IS LOOKING AT. Asked for in these words: *"the ability to write a paper or a
-    slide deck should just be an option on the homescreen, and from there I want
-    to be able to specify which projects/course, and which sections/results."*
-    So `repo` names the workspace and `scope` names what it is over -- a key
-    from `POST /writeup/scopes`, resolved through `tutorboard/scopes.py` against
-    the TARGET's root and never joined onto a path. A scope beats a free-text
-    `about`, because one of them was picked off a list of what is really there
-    and the other was typed.
-
-    THE DOCUMENT THEN LANDS IN THAT WORKSPACE'S LIBRARY, WHICH IS NOT THE BOARD
-    THAT COMMISSIONED IT. Nothing on this board changes and nothing appears in
-    its library: the record, the inbox line and the finished document are all
-    written over there, and the way back to them is that workspace's own
-    library page. The reply says which workspace it went to for exactly that
-    reason -- an ask whose product appears somewhere else has to say where.
+    Changes no mode and writes no card. The server writes
+    `<subject>/docs/<slug>/doc.json` first, choosing slug and path, then
+    queues a `[writeup]` turn naming that source and `board build`. Under
+    `/s/<id>/` the scope is the session's own (an unbound session is
+    refused); unprefixed, `?subject=<id>` picks via `registry.runner_route`
+    and `about` is required.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
     except Exception:
         return h.send_json({"ok": False, "error": "bad json"}, status=400)
-    makes = writeups.clean_makes(payload.get("makes"))
-    if not makes:
-        # Named rather than defaulted. Which of the two is known at the moment of
-        # tapping -- there are two controls for exactly that reason -- so a
-        # request that does not say has gone wrong somewhere worth hearing about.
-        return h.send_json({"ok": False, "error": "paper or slides"}, status=400)
-
-    # WHICH WORKSPACE THE DOCUMENT IS FOR, and it is this one unless the request
-    # says otherwise. `/elsewhere` and `/switch` resolve a name the same way:
-    # matched against what the walk already found, with the ROOT taken off the
-    # match rather than rebuilt out of the name, because the same name can sit
-    # under two families.
-    #
-    # THE BOARD'S OWN WORKSPACE ANSWERS TO ITS OWN NAME WHETHER OR NOT THE WALK
-    # CAN SEE IT, and it is answered for FIRST. A board serves exactly one root,
-    # it was handed the `Repo` for it, and building a second object for the
-    # directory it is already sitting in is two objects that can disagree about
-    # one lesson.
-    want = str(payload.get("repo") or "").strip()
-    match = None
-    if want and want not in (os.path.basename(os.path.realpath(repo.root)),
-                             atlas.identify(repo.root)):
-        for c in machines.workspaces(repo):
-            if want in (c["repo"], c["id"]):
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-    # THE ROOT NOW, THE `Repo` ONLY ONCE THE ASK IS ALLOWED. Constructing one
-    # is not a read: `Repo.__init__` calls `ensure_dirs`, which makes `live/`
-    # and its eight subdirectories, and it does that because a long-lived board
-    # has to put back what git removed under it. Here it would mean a REFUSED
-    # request -- an unknown scope, an assistant already busy -- leaving a live
-    # directory behind in a workspace that was never written in, which is the
-    # opposite of what the two comments below promise.
-    root = match["root"] if match else repo.root
-    where_dir = match["repo"] if match else os.path.basename(
-        os.path.realpath(repo.root))
-    where_name = ((match["course"] or match["repo"]) if match
-                  else (config.read_config(repo.root)["name"] or where_dir))
-
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    make = str(payload.get("make") or "").strip().lower()
+    if make not in MAKES:
+        return h.send_json({"ok": False, "error": "make is deck or paper"},
+                           status=400)
     about = str(payload.get("about") or "").strip()[:writeups.ABOUT_CHARS]
-    key = str(payload.get("scope") or "").strip()
-    if key:
-        # A KEY, LOOKED UP IN THE TARGET'S OWN LIST. Resolved against the
-        # workspace the document is FOR, not against this one: the chapters on
-        # offer are that course's chapters, and a key resolved here would answer
-        # with the wrong sentence or with none. Nothing is written before this
-        # answers -- a scope nobody recognises is a document about the wrong
-        # thing, which is worse than a refusal.
-        found = scopes.find(root, key)
-        if not found:
-            return h.send_json({"ok": False, "error": "no such scope"},
-                               status=400)
-        # AND IT BEATS FREE TEXT. One of the two was picked off a list of what
-        # that workspace really has and the other was typed; where both arrived,
-        # the request has two minds and the list is the one to trust. Clamped
-        # like the typed one: the record stores `about[:ABOUT_CHARS]` either
-        # way, and a sentence that goes to the assistant whole while the record
-        # and the strip carry it cut is one ask described two ways.
-        about = found["about"][:writeups.ABOUT_CHARS]
-
-    got = _dispatch_writeup(h, repo, match, makes, about)
+    if getattr(repo, "stored", False) and not (repo.state() or {}).get("subject"):
+        # An unbound session's root is the Atlas root: nothing to put it in.
+        return h.send_json({"ok": False, "error": "this session is not bound to a "
+                            "course or project: bind it first"}, status=409)
+    sessionless = registry.is_sessionless(repo)
+    if sessionless and not about:
+        return h.send_json({"ok": False, "error": "say what it is about"},
+                           status=400)
+    got = _dispatch_writeup(h, repo, None, MAKES[make], about)
     if not isinstance(got, dict):
         return got
-    return h.send_json({"ok": True, "id": got["id"], "makes": makes,
-                        "about": got["rec"].get("about") or "", "state": "writing",
-                        "repo": where_dir, "where": where_name,
-                        "detail": (("It is being written in %s and will appear "
-                                    "in THAT workspace's library rather than "
-                                    "this one. Nothing on this board changes."
-                                    % where_name) if match else
-                                   ("It is being written now and will appear in "
-                                    "the library. That turn is not part of the "
-                                    "lesson: it writes no card and leaves the "
-                                    "sitting on the board alone."))})
+    art = got.get("artifact") or {}
+    return h.send_json({"ok": True, "id": got["id"], "make": make,
+                        "about": about, "state": "writing",
+                        "doc": art.get("id") or "", "source": art.get("source") or "",
+                        "session": got.get("session"),
+                        "subject": art.get("subject") or ""})
 
 
-def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
-    """Ask for a document in the workspace `match` names -- or this one, where
-    `match` is None -- and return `{id, rec, root}`, or the refusal already sent.
-
-    `/writeup`'s own body, pulled out so that `/sittings/deck` asks for its deck
-    through exactly the same order of things rather than a copy of it. `line` is
-    the inbox line where the caller has its own, and `prepare` is called with the
-    target's root and the ask's id once the ask is allowed and before it is
-    recorded -- the deck from sittings writes its brief there, so a refusal
-    leaves nothing behind and a recorded ask always has its brief.
+def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None,
+                      ask=None):
+    """Ask for a document in the workspace `match` names (or this one), and
+    return `{id, rec, root}` or the refusal already sent. `prepare(target,
+    id)` runs once the ask is allowed and before it is recorded (the meeting
+    deck writes its brief there); a dict it returns may name `doc_dir`.
     """
-    got, err = dispatch(repo, match, makes, about, line=line, prepare=prepare)
+    got, err = dispatch(repo, match, makes, about, line=line, prepare=prepare,
+                        ask=ask)
     if err:
         return h.send_json(err[0], status=err[1])
     if got.get("woke"):
         h.note("nothing was reading the board; starting a tutor to write it")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     return got
 
 
-def dispatch(repo, match, makes, about, line=None, prepare=None):
-    """`_dispatch_writeup` without a request: `({id, rec, root, woke}, None)`,
-    or `(None, (payload, status))` for a refusal. The meeting deck is asked for
-    from the command line through this as well as from the front door, so the
-    two entry points are one order of things."""
-    root = match["root"] if match else repo.root
-    if match:
-        # THE START IS ASKED FIRST, AND NOTHING IS WRITTEN UNTIL IT IS ALLOWED.
-        # `/elsewhere`'s order, deliberately and for its reason: the other way
-        # round leaves a document asked for in another workspace's inbox with
-        # nothing that will ever read it, and the refusals there fire routinely
-        # -- one colibri sitting at a time machine-wide, and cards that must not
-        # be committed. The serving workspace keeps the opposite order below,
-        # also unchanged: there the board is already up and `wake_tutor` is a
-        # start only if nothing is reading.
-        # `--respawn` for `/elsewhere`'s reason too: a write-up asked for in
-        # another workspace starts a daemon there, and the person is still
-        # looking at this board.
-        code, out = spawn.tutor_cli(["agent", "start", match["repo"],
-                                     "--respawn"], timeout=60)
-        said = out.strip()[-300:]
-        if code != 0:
-            return None, ({"ok": False, "repo": match["repo"],
-                           "error": said}, 409)
+class _Refusal(Exception):
+    """A write-up refused once its target was known: `(payload, status)`."""
 
-    # NOW it is allowed, so now there is a workspace to write in.
-    target = Repo(root) if match else repo
+    def __init__(self, payload, status):
+        Exception.__init__(self, payload.get("error") or "")
+        self.payload, self.status = payload, status
 
-    # An id from the same series the lesson's turns use, so nothing in the inbox
-    # has to be told apart by shape. NOT written into `live/turns.jsonl`; see
-    # above.
-    wid = turns.next_turn_id(target)
-    if prepare:
+
+def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
+    """`_dispatch_writeup` without a request: `({id, rec, root, woke}, None)`
+    or `(None, (payload, status))`. The CLI and the front door share it.
+
+    Only an ask for the session's own subject goes to its own tutor; others
+    go through `registry.runner_route`. Nothing is written until the target
+    is known, so a refusal leaves nothing behind.
+    """
+    made = {}
+
+    def ready(target, wid):
+        """Make what the ask needs in `target`, and return the inbox text."""
+        doc_dir, text = None, line
+        if line is None and prepare is None:
+            # A plain ask makes its artifact first, so the turn is told the
+            # exact file, from the Atlas root.
+            try:
+                art = artifacts.create(
+                    target.root,
+                    about[:80] or ("Slides" if makes == "slides" else "Paper"),
+                    session=target.live if target.stored else None,
+                    ext=".tex" if makes == "slides" else ".md")
+            except (ValueError, OSError) as exc:
+                raise _Refusal({"ok": False, "error": "no document could be made "
+                                "here: %s" % exc}, 409)
+            doc_dir = art["rel"]
+            top = os.path.realpath(target.atlas or registry.base_of(repo))
+
+            def rel(p):
+                # From the Atlas root; a workspace outside it is named whole.
+                p = os.path.realpath(p)
+                said = os.path.relpath(p, top)
+                return p if said.startswith("..") else said.replace(os.sep, "/")
+            src = rel(art["path"])
+            made["artifact"] = {"id": art["id"], "source": src,
+                                "subject": rel(target.root)}
+            text = "[writeup] " + sense.writeup_sense(makes, about, source=src)
+        if prepare:
+            try:
+                got = prepare(target, wid)
+            except Exception as exc:                         # noqa: BLE001
+                raise _Refusal({"ok": False,
+                                "error": "nothing could be prepared: %s" % exc}, 500)
+            if isinstance(got, dict) and got.get("doc_dir"):
+                doc_dir = got["doc_dir"]
+        made["rec"] = writeups.ask(target, wid, makes, about,
+                                   agent="",
+                                   doc_dir=doc_dir,
+                                   session=(os.path.basename(target.live)
+                                            if target.stored else None))
+        return {"text": text or ("[writeup] " + sense.writeup_sense(makes, about))}
+
+    record = {"rev": 0, "kind": "text", "answers": None, "from": "student",
+              "signal": "writeup", "read": False}
+    if match or registry.is_sessionless(repo):
+        subject = match["id"] if match else registry.subject_of(repo)
         try:
-            prepare(target.root, wid)
-        except Exception as exc:                             # noqa: BLE001
+            got = registry.runner_route(
+                subject, record, base=registry.base_of(repo), before=ready,
+                ask=ask or ("a deck" if makes == "slides" else "a paper"))
+        except LookupError:
+            return None, ({"ok": False, "error": "no such subject"}, 404)
+        except _Refusal as no:
+            return None, (no.payload, no.status)
+        except OSError as exc:
             return None, ({"ok": False,
-                           "error": "nothing could be prepared: %s" % exc}, 500)
-    rec = writeups.ask(target.root, wid, makes, about,
-                       agent=config.sitting_agent(target.root) or "")
-    line = line or ("[writeup] " + sense.writeup_sense(makes, about))
-    record = {
-        "id": wid, "rev": 0, "kind": "text", "answers": None,
-        "t": time.time(),
-        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "from": "student", "text": line, "signal": "writeup", "read": False,
-    }
+                           "error": "nothing could be asked: %s" % exc}, 500)
+        return {"id": got["id"], "rec": made["rec"], "root": got["repo"].root,
+                "session": got["session"], "woke": False,
+                "artifact": made.get("artifact")}, None
+
+    # An id from the lesson's turn series; not written into `turns.jsonl`.
+    wid = turns.next_turn_id(repo)
     try:
-        with open(target.messages_path, "a", encoding="utf-8") as fh:
+        record.update(ready(repo, wid))
+    except _Refusal as no:
+        return None, (no.payload, no.status)
+    record.update(id=wid, t=time.time(), iso=time.strftime("%Y-%m-%d %H:%M:%S"))
+    try:
+        with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
     except OSError as exc:
         return None, ({"ok": False,
                        "error": "nothing could be asked: %s" % exc}, 500)
-    woke = False
-    if not match:
-        # A request that sits in an inbox beside a board with no tutor on it is a
-        # tap that did nothing for ever -- the same reason `/say` and `_revise`
-        # wake one. The other workspace already had its start asked for above.
-        woke = bool(spawn.wake_tutor(repo))
-    return {"id": wid, "rec": rec, "root": target.root, "woke": woke}, None
+    # Queued on the runner, the same as `/say` and `_revise`.
+    woke = bool(runner.wake(repo))
+    return {"id": wid, "rec": made["rec"], "root": repo.root, "woke": woke,
+            "session": os.path.basename(repo.live) if repo.stored else None,
+            "artifact": made.get("artifact")}, None
+
+
+SUBJECT_ID = re.compile(r"\A(?:courses|projects|research|practice)/[A-Za-z0-9._-]+\Z")
+
+
+def delete_doc(repo, subject, ident):
+    """`POST /doc/delete`: `(payload, status)`. An id and a subject id, never
+    a path: the subject is this board's or matches `subjects.find`, the
+    document matches the library. A fenced name is 403 before any lookup.
+    """
+    served = (subjects.find(repo.root) or {}).get("id") or ""
+    if fenced.refused(subject) or fenced.refused("%s/%s" % (artifacts.DOCS, ident)):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    if not subject or subject == served:
+        root = repo.root
+    elif SUBJECT_ID.match(subject):
+        found = subjects.find(subject)
+        if not found or found["id"] != subject:
+            return {"ok": False, "error": "no such subject"}, 404
+        root = found["root"]
+    else:
+        return {"ok": False, "error": "no such subject"}, 404
+    if not ident or not writing.ANN_DOC.match("doc/%s/p1" % ident):
+        return {"ok": False, "error": "no such document"}, 404
+    library.forget()
+    doc = library.find(root, ident)
+    if not doc or not doc.get("artifact"):
+        return {"ok": False, "error": (
+            "no such document" if not doc else
+            "%s has no doc.json, so it is not the board's to delete"
+            % doc["title"])}, 404
+    if fenced.refused(doc["artifact"]):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    from ... import sessions                        # local: a cycle through artifacts
+    ink = [os.path.join(root, sessions.INK)]
+    if paths.same_dir(root, repo.root):
+        ink.append(repo.notes)
+    got = artifacts.delete(root, os.path.join(root, *doc["artifact"].split("/")),
+                           idents=library.mark_idents(root, doc), ink_dirs=ink)
+    library.forget()
+    if got.get("fenced"):
+        return {"ok": False, "error": got["said"]}, 403
+    got.pop("trash", None)
+    return dict(got, id=doc["id"], title=doc["title"]), (200 if got["ok"] else 500)
+
+
+def delete_material(repo, subject, name):
+    """`POST /material/delete`: `(payload, status)`. A subject id and a name
+    `subjects.materials` listed; fenced names 403 first. File and ink go to
+    the trash; an ignored file makes no commit.
+    """
+    served = subjects.find(repo.root, registry.base_of(repo))
+    if fenced.refused(subject) or fenced.refused(name):
+        return {"ok": False, "error": "that is under a fence"}, 403
+    if not subject or (served and subject == served["id"]):
+        found = served
+    elif SUBJECT_ID.match(subject):
+        found = subjects.find(subject, registry.base_of(repo))
+        if found and found["id"] != subject:
+            found = None
+    else:
+        found = None
+    if not found:
+        return {"ok": False, "error": "no such subject"}, 404
+    library.forget()
+    rel = "%s/%s" % (subjects.MATERIALS, name)
+    doc = next((d for d in library.documents(found["root"])
+                if d.get("group") == "material" and d.get("rel") == rel), None)
+    idents = library.mark_idents(found["root"], doc) if doc else []
+    try:
+        _where, said = subjects.delete_material(found["root"], name, idents)
+    except subjects.Refused as exc:
+        status = 404 if str(exc).startswith("no material") else 500
+        return {"ok": False, "error": str(exc)}, status
+    library.forget()
+    return {"ok": True, "subject": found["id"], "name": name, "said": said}, 200
 
 
 def _pages(got):
@@ -632,193 +564,102 @@ def _strings(payload, key):
     return [str(x) for x in got if isinstance(x, (str, int))][:500]
 
 
-def _sittings_deck(h, repo, base, payload):
-    """A deck of the things ticked from past sittings, in one host workspace.
-
-    THE ITEMS ARE RECOMPUTED HERE, from the sittings picked, and the ids that
-    arrived only choose among them. Nothing the page sent is a path or a
-    sentence: what goes in the brief is what this server found.
-
-    ONE HOST, THE WORKSPACE HOLDING THE MOST OF WHAT WAS TICKED -- or the
-    fenced one, where any tick is from a fenced workspace (`host_for`) -- and
-    that is a deliberate cut. A deck about three workspaces filed under one of them is
-    filed under one -- and in exchange the whole library loop is reused as it
-    is: the reader, the pen, "say what is wrong", and the redraw in place. A
-    root `decks/` directory would need its own route family for every one of
-    those.
-
-    THROUGH `/writeup`'s OWN DISPATCH, so the order is the one that is already
-    right: the start asked for over there first and nothing written if it is
-    refused; then the brief, the record and the inbox line.
-    """
-    groups, _ = sittings.gather(base, _strings(payload, "picks"))
-    groups = sittings.ticked(groups, _strings(payload, "items"))
-    if not groups:
-        return h.send_json({"ok": False, "error": "tick at least one thing"},
-                           status=400)
-    clash = sittings.mixed_fences(groups)
-    if clash:
-        return h.send_json({"ok": False, "error": clash}, status=400)
-    host = sittings.host_for(groups)
-    match = None
-    # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason:
-    # it is already up, and `wake_tutor` is a start only if nothing is reading.
-    if not paths.same_dir(next(g["row"]["root"] for g in groups
-                               if g["ws"] == host), repo.root):
-        for c in machines.workspaces(repo):
-            if c["id"] == host:
-                match = c
-                break
-        if not match:
-            return h.send_json({"ok": False, "error": "unknown workspace"},
-                               status=404)
-    host_root = match["root"] if match else repo.root
-    host_name = next(g["ws_name"] for g in groups if g["ws"] == host)
-    slug = sittings.deck_slug(host_root)
-    n = sum(len(g["items"]) for g in groups)
-    about = ("a deck of %d thing%s ticked from %d past sitting%s, briefed in "
-             "writeups/%s/%s" % (n, "" if n == 1 else "s", len(groups),
-                                 "" if len(groups) == 1 else "s", slug,
-                                 sittings.BRIEF_MD))[:writeups.ABOUT_CHARS]
-    line = "[writeup] " + sense.writeup_sense("slides",
-                                              sense.sittings_about(slug))
-
-    def prepare(root, wid):
-        sittings.write_brief(base, root, slug, groups, wid=wid, host=host)
-
-    got = _dispatch_writeup(h, repo, match, "slides", about, line=line,
-                            prepare=prepare)
-    if not isinstance(got, dict):
-        return got
-    return h.send_json({
-        "ok": True, "id": got["id"], "slug": slug, "host": host,
-        "repo": (match or {}).get("repo") or os.path.basename(
-            os.path.realpath(repo.root)),
-        "where": host_name, "state": "being written", "things": n,
-        "detail": ("The tutor is writing it in %s. It takes several minutes "
-                   "and this sheet says when it is ready. You can close it; "
-                   "the deck also appears under Decks already made."
-                   % host_name)})
-
-
 def ask_meeting(repo, base, since_ts, human, want=None):
-    """Ask for THE MEETING DECK: `({id, host, where, dir, record}, None)`, or
-    `(None, (payload, status))`.
-
-    THE DECK FROM SITTINGS WITH A PRESET, through the same dispatch. The period
-    and the workspaces choose what the brief holds (`meeting.blocks_for`); the
-    host is `sittings.host_for`'s answer, so a deck touching a fenced workspace
-    is written inside it by whatever may read it; and `meeting.prepare` runs
-    where the deck from sittings writes its brief -- once the ask is allowed,
-    before it is recorded -- so a refusal leaves the last deck standing.
+    """Ask for the meeting deck: `({id, host, where, dir, record}, None)` or
+    `(None, (payload, status))`. The brief is `briefs.blocks_for` the period
+    and subjects; `briefs.replace` runs in `prepare`, so a refusal leaves the
+    last deck standing.
     """
-    from ... import meeting                          # local: a heavy import
-    blocks, every, why = meeting.blocks_for(base, want, since_ts)
+    blocks, every, why = briefs.blocks_for(base, want, since_ts)
     if why:
         return None, ({"ok": False, "detail": why}, 400)
     if not blocks:
         return None, ({"ok": False, "detail": (
             "Nothing landed in %s in %s, so there is nothing to present. "
             "Choose a longer period." % (human, ", ".join(
-                w["dir"] for w in every) or "any workspace"))}, 400)
-    host, clash = meeting.host_for(blocks)
-    if clash:
-        return None, ({"ok": False, "detail": clash}, 400)
-    host_block = next(b for b in blocks if b["id"] == host)
-    taken = meeting.occupied(host_block["root"])
-    if taken:
-        return None, ({"ok": False, "detail": taken}, 409)
-    match = None
-    # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason.
-    if not paths.same_dir(host_block["root"], repo.root):
-        for c in machines.workspaces(repo):
-            if c["id"] == host:
-                match = c
-                break
-        if not match:
-            return None, ({"ok": False, "detail": "unknown workspace %s" % host},
-                          404)
-    period = meeting.period_text(since_ts)
-    rel = "%s/%s" % (meeting.WRITEUPS, meeting.DECK_DIR)
+                s["id"] for s in every) or "any subject"))}, 400)
+    if not briefs.meetings_root(base):
+        return None, ({"ok": False, "detail": (
+            "%s is missing; `board bind %s --create --phi yes` makes it"
+            % (briefs.MEETINGS, briefs.MEETINGS))}, 409)
+    period = briefs.period_text(since_ts)
+    rel = briefs.deck_rel()
     about = ("the meeting deck for %s, briefed in %s/%s"
-             % (period, rel, meeting.BRIEF_MD))[:writeups.ABOUT_CHARS]
-    line = "[writeup] " + sense.writeup_sense("slides",
-                                              sense.meeting_about(rel, period))
+             % (period, rel, briefs.BRIEF_MD))[:writeups.ABOUT_CHARS]
+    line = "[writeup] " + sense.writeup_sense("slides", sense.meeting_about(
+        rel, period, "%s/%s" % (briefs.MEETINGS, rel)))
     made = {}
 
-    def prepare(root, wid):
-        made["rec"] = meeting.prepare(base, root, blocks, since_ts, human, wid,
-                                      host, repo=repo)
+    def prepare(target, wid):
+        made["rec"] = briefs.replace(
+            base, blocks, since_ts, human,
+            session=os.path.basename(target.live) if target.stored else None,
+            ink=briefs.ink_dirs(base, repo))
+        return made["rec"]
 
-    got, err = dispatch(repo, match, "slides", about, line=line, prepare=prepare)
+    got, err = dispatch(repo, {"id": briefs.MEETINGS}, "slides", about, line=line,
+                        prepare=prepare, ask="the meeting deck")
     if err:
         payload = dict(err[0])
         payload.setdefault("detail", payload.get("error") or "")
         return None, (payload, err[1])
-    return {"id": got["id"], "host": host, "where": host_block["name"],
-            "dir": made.get("rec", {}).get("dir") or "",
-            "record": made.get("rec") or {}, "woke": got.get("woke")}, None
+    brief = made.get("rec", {}).get("brief") or {}
+    return {"id": got["id"], "host": briefs.MEETINGS, "where": "Meetings",
+            "dir": "%s/%s" % (briefs.MEETINGS, rel), "record": brief,
+            "woke": got.get("woke"), "session": got.get("session")}, None
 
 
 def meeting_deck(h, repo, base, since_ts, human, want=None):
-    """`POST /notes`: the meeting deck asked for, and the sheet told it is being
-    written. The sheet then watches `/meeting/deck.json`."""
+    """`POST /meeting`: the meeting deck asked for, and the sheet told it is
+    being written. The sheet then watches the Meetings library (`with_deck`)."""
     got, err = ask_meeting(repo, base, since_ts, human, want=want)
     if err:
         return h.send_json(err[0], status=err[1])
-    if got.get("woke"):
-        h.note("nothing was reading the board; starting a tutor to write the "
-               "meeting deck")
-    h.server.hub.worker.dirty.set()
+    h.hub.worker.dirty.set()
     rec = got["record"]
     return h.send_json({
         "ok": True, "id": got["id"], "name": "meeting", "state": "being written",
         "host": got["host"], "where": got["where"], "dir": got["dir"],
-        "workspaces": rec.get("workspaces") or [],
+        "session": got.get("session"),
+        "workspaces": rec.get("subjects") or [],
         "names": rec.get("names") or {}, "since": human,
         "period": rec.get("period") or "",
-        "detail": ("The assistant is writing it in %s. It takes several minutes, "
-                   "and this sheet says when it is ready. It replaces the deck "
-                   "before it." % got["where"])})
+        "detail": ("The assistant is writing it in Meetings. It takes several "
+                   "minutes, and this sheet says when it is ready. It replaces "
+                   "the deck before it.")})
+
+
+def with_deck(payload, repo):
+    """The Meetings library's payload with the meeting deck's record on its
+    row as `meeting` (`briefs.deck`); other subjects pass through."""
+    if registry.subject_of(repo) != briefs.MEETINGS:
+        return payload
+    try:
+        rec = briefs.deck(registry.base_of(repo) or subjects.root())
+    except Exception:                                        # noqa: BLE001
+        rec = None
+    rel = briefs.deck_rel()
+    for doc in payload.get("documents") or []:
+        if doc.get("artifact") == rel:
+            doc["meeting"] = rec
+    payload["meeting"] = rec
+    return payload
 
 
 def rework_refused(repo, doc):
     """Why this document may not be overhauled from here, or "".
 
-    THREE REFUSALS, AND EACH NAMES WHAT IS IN THE WAY. `worktree.busy_reason`
-    is the shape: this runs where nobody is reading a terminal, so it says what
-    is in the way, changes nothing, and leaves a sentence the board can paint.
-
-    THE SOURCE HAS TO BE COMMITTED. An overhaul replaces a whole document and
-    git is the only undo there is; committed as it stands, the whole overhaul is
-    one diff and reverting it costs nothing. The board refuses rather than
-    committing on somebody's behalf -- a commit of a half-finished edit is a
-    worse undo than none, because the state they would revert to is one they
-    never chose.
-
-    A DELIVERED MANUSCRIPT IS NOT OVERHAULED FROM HERE either, and that is the
-    same seam `_revise` holds one function down. The factory owns the evidence,
-    the terminology lock, the reporting checklist and the venue's word limit,
-    and "restructure, cut and rewrite" is the one instruction every one of those
-    gates exists to refuse. A paper whose purpose has changed is a new paper and
-    is asked for as one.
+    The source must be committed, because git is an overhaul's only undo. The
+    board refuses rather than commit on somebody's behalf: a half-finished
+    edit is a worse undo than none.
     """
-    if doc.get("made") == "paper-writer":
-        return ("%s was delivered by the manuscript factory, and an overhaul is "
-                "not something that comes back through here: the factory holds "
-                "its evidence, its terminology lock and its venue. Say what is "
-                "wrong with it instead, or ask for a new paper."
-                % doc["title"])
     src = doc.get("source") or ""
     if not src:
         return ("%s has no source in this repository -- there is only a built "
                 "file -- so there is nothing to rework."
                 % doc["title"])
     if leaving.uncommitted(repo.root, src):
-        # AND IT NAMES A TAP RATHER THAN A COMMAND. The whole point of this
-        # surface is that the laptop is not opened, so a refusal whose remedy is
-        # `git commit` has sent somebody to a keyboard to get past the board's
-        # own guard. `⤓ save` on the board is that commit and is already there.
+        # Name the board's save tap, not `git commit`: the laptop stays shut.
         return ("`%s` has changes nothing has committed, and an overhaul "
                 "replaces the whole document: git is the only undo it has. Tap "
                 "⤓ save on the board to commit it as it stands, then ask again "
@@ -829,85 +670,56 @@ def rework_refused(repo, doc):
 
 def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
             ids=()):
-    """Ask for the revision, by whichever machinery wrote the document.
-
-    THE TWO KINDS ARE CHANGED BY DIFFERENT MACHINERY, and this is the seam.
-
-    A board-made explainer -- a `.tex` under `writeups/`, or any document this
-    repository holds the source of -- is revised by the board: a `[revise]` line
-    in the inbox and a turn woken on it. That turn runs FRESH and writes no
-    card; see `HEADLESS_REVISE_PROMPT` in `bin/tutor` for why a resumed one
-    would drag the lesson into the document.
-
-    A manuscript delivered into `manuscripts/` is revised by the factory that
-    wrote it, because the factory is what holds the evidence, the terminology
-    lock, the reporting checklist and the venue's word limit. An explainer is
-    NOT routed through it: "how the serve harness works, and the arithmetic
-    behind the batch size" has no venue and makes no claims, and every one of
-    those gates would either refuse it or invent something to satisfy itself.
-
-    `ask` is which of the two the person tapped, and it changes the signal, the
-    prompt that turn is woken with and how long it gets -- see `turn_plan` and
-    `doing_now` in `bin/tutor`. It never reaches the factory: `rework_refused`
-    has already turned an overhaul of a delivered manuscript away by name.
-
-    `ledger_rel` and `ids` are the round's requests (`course/ledger.py`). The
-    board's turn is told to answer every id in that file; the factory is
-    reached through the note, which lists the same ids, and its editor cites
-    them in the issues it raises.
+    """Ask for the revision: a `[revise]` (or `[rework]`) line and a turn woken
+    on it. The turn runs fresh and writes no card (`HEADLESS_REVISE_PROMPT`).
+    The line names the source and, for a deck, its brief; `ledger_rel` and
+    `ids` are the requests to answer. `ask` sets the signal, prompt and clock
+    (`turn_plan`, `doing_now`).
     """
-    if doc.get("made") == "paper-writer":
-        try:
-            out = manuscript.revise(repo.root, doc, note_rel)
-        except Exception as exc:                             # noqa: BLE001
-            return {"revise": "paper-writer", "asked": False,
-                    "detail": "the manuscript job could not be assembled: %s" % exc}
-        return {"revise": "paper-writer", "asked": bool(out.get("ok")),
-                "job": out.get("name") or "",
-                "detail": out.get("detail") or ""}
-
-    # AN OVERHAUL IS A DIFFERENT SIGNAL AND A DIFFERENT PROMPT, and it names the
-    # SOURCE rather than the rendering: that is the file whose committed state
-    # was just checked, and it is the file the turn edits.
-    #
-    # A DECK MADE FROM SITTINGS CARRIES ITS BRIEF, and the line says where it
-    # is: that is the file saying what the deck covers, and an addition asked
-    # for in ink is read against it rather than refused as a widening. Found by
-    # looking beside the document, never from anything the page sent.
     brief = ""
     if library.from_sittings(repo.root, doc):
-        brief = "%s/%s" % (doc["dir"], sittings.BRIEF_MD)
+        brief = "%s/%s" % (doc["dir"], library.DECK_BRIEF)
     if ask == "rework":
         line = "[rework] " + sense.rework_sense(doc.get("source") or doc["rel"],
                                                 note_rel, purpose, brief=brief,
-                                                ledger=ledger_rel, ids=ids)
+                                                ledger=ledger_rel, ids=ids,
+                                                source=doc.get("source") or "")
     else:
         line = "[revise] " + sense.revise_sense(doc["rel"], note_rel,
                                                 brief=brief, ledger=ledger_rel,
-                                                ids=ids)
+                                                ids=ids,
+                                                source=doc.get("source") or "")
     record = {
-        # An id from the same series the lesson's turns use, so nothing in the
-        # inbox has to be told apart by shape. It is NOT written into
-        # `live/turns.jsonl`: the transcript is the lesson's, and this is not
-        # part of the lesson.
-        "id": turns.next_turn_id(repo),
         "rev": 0, "kind": "text", "answers": None,
         "t": time.time(),
         "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
         "from": "student", "text": line, "signal": ask, "read": False,
     }
+    if registry.is_sessionless(repo):
+        # From the library page: `runner_route` picks the session.
+        try:
+            got = registry.runner_route(registry.subject_of(repo), record,
+                                        base=registry.base_of(repo),
+                                        ask="%s %s" % (ask, doc.get("title") or ""))
+        except (LookupError, OSError) as exc:
+            return {"revise": "board", "asked": False,
+                    "detail": "the note is written but nothing could be asked: %s"
+                              % exc}
+        h.hub.worker.dirty.set()
+        return {"revise": "board", "asked": True, "session": got["session"],
+                "detail": ("The tutor has been asked to %s it, in the newest "
+                           "session on this subject." % ask)}
+    # An id from the lesson's turn series; not written into `turns.jsonl`,
+    # which is the lesson's.
+    record["id"] = turns.next_turn_id(repo)
     try:
         with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
     except OSError as exc:
         return {"revise": "board", "asked": False,
                 "detail": "the note is written but nothing could be asked: %s" % exc}
-    # A request that sits in an inbox beside a board with no tutor on it is a
-    # tap that did nothing for ever -- the same reason `/say` wakes one.
-    if spawn.wake_tutor(repo):
-        h.note("nothing was reading the board; starting a tutor for %s"
-               % ("an overhaul" if ask == "rework" else "a revision"))
-    h.server.hub.worker.dirty.set()
+    runner.wake(repo)
+    h.hub.worker.dirty.set()
     return {"revise": "board", "asked": True,
             "detail": ("The tutor has been asked to rework it, and an overhaul "
                        "takes longer than a correction. That turn is not part "

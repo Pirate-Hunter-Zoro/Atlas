@@ -21,7 +21,7 @@ TRD-EHR primary analysis
 <!-- Point PAPER_SOURCE_DIRS at the directories the gathering stage may read. Set it in
      the environment or in the service file, colon-separated:
 
-       PAPER_SOURCE_DIRS=~/Atlas/research/TRD-EHR/results:~/Atlas/research/PSYCH-ASR/docs
+       PAPER_SOURCE_DIRS=~/Atlas/projects/TRD-EHR/results:~/Atlas/projects/PSYCH-ASR/docs
 
      with ~/Atlas replaced by wherever the checkout is (~/Developer/Atlas on the Mac).
 
@@ -95,7 +95,7 @@ TRIPOD+AI
 <!-- Where the finished paper is to land, in the workspace that asked for it. ONE
      line, and the path is ABSOLUTE:
 
-       landing: /home/you/Atlas/research/TRD-EHR/manuscripts/trd-prediction
+       landing: /home/you/Atlas/projects/TRD-EHR/manuscripts/trd-prediction
 
      Absolute for the same reason `## Revision` carries `workspace:`: the harness is
      another repository with its own root, and it cannot resolve a relative path
@@ -124,7 +124,7 @@ TRIPOD+AI
 
        document: manuscripts/manuscript.md
        feedback: manuscripts/feedback/manuscript-2026-09-16-v1.md
-       workspace: /home/you/Atlas/research/TRD-EHR
+       workspace: /home/you/Atlas/projects/TRD-EHR
 
      `document` is the MARKDOWN the paper was delivered as, never a .docx or a .pdf:
      those are built from it, so an edit made anywhere else is discarded by the next

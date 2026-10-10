@@ -1,24 +1,18 @@
-"""Tutor-Board: a live board for tutoring sessions.
+"""Tutor-Board: a live board for tutoring sessions, organised by what a thing
+is about.
 
-The package is organised by WHAT A THING IS ABOUT, because that is the question
-somebody actually has when they arrive: not "where does this function live" but
-"where is the code that decides which machine serves the address".
+    paths, machine, tex         what this machine knows about itself
+    net/                        the tailnet, and whether a turn can get out
+    limits, reasoning, plain    what a model said and what it may not say
+    sessions, subjects          the session store and courses/projects
+    course/                     a subject's config, documents and homework
+    lesson/                     what is on the board: cards, turns, the slate
+    server/                     the HTTP board and its routes
+    runner/                     the turns: one fresh provider process each
+    relay, jobs, colibri, code  the cluster channel
 
-    paths, ports, choice        what this machine knows about itself
-    machine, processes, tex     what this machine IS, and what is alive on it
-    net/                        the tailnet this board is reached on, and
-                                whether a turn can get out to a model
-    limits, reasoning, handoff  what a model said, what it may not say, and what
-                                it leaves behind
-    course/                     a course on disk: its config, its documents,
-                                its homework, its chapters
-    lesson/                     what is on the board right now: cards, turns,
-                                answers, the slate, the archive
-    server/                     the HTTP board itself, and its routes
-    cli/                        the commands: board, tutor
-
-Standard library only, everywhere. A board runs on a compute node with no
-package manager and no right to install one.
+Standard library only, everywhere, because the relay path runs on the
+cluster's python3 with nothing installable.
 """
 
 __all__ = []

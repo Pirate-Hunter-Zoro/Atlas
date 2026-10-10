@@ -98,7 +98,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'who.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -499,12 +499,34 @@ if (es) {
 // surface, not on the lesson. So pen, erase, undo and redo did nothing at all
 // while annotating, which reads as broken rather than as out of scope.
 if (es && window.Annotate) {
-  var annbar = doc.getElementById('annbar');
+  // One bar, `annbar.js`, mounted by board.js: board.html carries no markup of
+  // its own for it.
+  var annbar = doc.querySelector('.annbar-board');
   var btnA = doc.getElementById('btn-annotate');
 
+  if (!/id="annbar"/.test(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'))
+      && doc.querySelectorAll('.annbar').length === 1 && annbar)
+    ok('the board\'s annotation tools are annbar.js\'s bar, and only that one');
+  else fail('board.html still carries a tool bar of its own, or annbar.js mounted none');
+
   btnA.onclick();
-  if (!annbar.hidden) ok('turning annotation on brings its own tools with it');
+  if (annbar && !annbar.hidden) ok('turning annotation on brings its own tools with it');
   else fail('annotate mode has no tools of its own');
+
+  var nibs = annbar ? annbar.querySelectorAll('.ann-nib') : [];
+  var well = annbar && annbar.querySelector('.ann-custom input[type="color"]');
+  if (nibs.length === 3 && well) ok('the board\'s bar has the nib sizes and the colour well');
+  else fail('the board\'s bar has ' + nibs.length + ' nibs and '
+            + (well ? 'a' : 'no') + ' colour well');
+  if (nibs.length === 3) {
+    nibs[2].onclick();
+    var broad = +nibs[2].dataset.w;
+    if (nibs[2].classList.contains('on')) ok('a nib tapped on the board is the one shown chosen');
+    else fail('the broad nib does not show as chosen after a tap');
+    nibs[1].onclick();
+    if (broad > +nibs[1].dataset.w) ok('and the nibs are of different sizes');
+    else fail('the nibs are all one size');
+  }
 
   window.Annotate.setOn(true);
   window.Annotate.load({});
@@ -574,16 +596,14 @@ if (es && window.Annotate) {
     }
     ink('pointerup', 100, 10, 0.4);
 
-    // Ink quality is one problem and it has one implementation. If the layer
-    // ever stops finding the slate's geometry it falls back to joining raw
-    // samples with straight lines -- which is the jagged line, back again, and
-    // silently.
-    if (window.Slate && window.Slate.ink
-        && typeof window.Slate.ink.densify === 'function'
-        && typeof window.Slate.ink.polish === 'function')
-      ok('the annotation layer shares the slate\'s ink pipeline');
-    else fail('the slate no longer exposes its ink geometry; the annotation '
-              + 'layer is drawing raw samples again');
+    // Ink quality is one problem and it has one implementation, ink-core.js,
+    // which both the slate and the annotation layer read.
+    if (window.InkCore
+        && typeof window.InkCore.densify === 'function'
+        && typeof window.InkCore.polish === 'function'
+        && !(window.Slate && window.Slate.ink))
+      ok('the annotation layer and the slate share ink-core.js');
+    else fail('the ink geometry is not ink-core.js\'s alone');
 
     var marks = window.Annotate.payload('0003').strokes;
     var last = marks[marks.length - 1];
@@ -1299,7 +1319,7 @@ if (es && window.Annotate) {
 
 
   // The mode has an exit that is not the title bar.
-  doc.getElementById('ann-done').onclick();
+  annbar.querySelector('button.primary').onclick();
   if (annbar.hidden && !doc.body.classList.contains('annotating'))
     ok('and the mode has a way out from where the hand already is');
   else fail('annotate mode can only be left from the title bar');
@@ -1474,13 +1494,8 @@ if (es) {
   // THE PANEL THAT USED TO ANSWER THIS IS GONE, and that is the assertion
   // rather than the deletion. The \u22ef menu carried a documents panel listing
   // exactly two -- the last lesson exported and the last write-up compiled, off
-  // the payload's `papers`. That is a record of the last thing BUILT and not an
-  // inventory: a course with forty compiled PDFs had thirty-eight of them
-  // reachable from nothing. The way back is now the MAP -- a count on the box
-  // whose source the document came out of, and a control on the map bar for all
-  // of them. What the drawer then DRAWS is `test/shelf.js`, which has a server
-  // to answer it; what is checked here is that the old way is gone, cannot come
-  // back unnoticed, and has a way that works in its place.
+  // the payload's `papers`: a record of the last thing BUILT, not an inventory.
+  // The way to every document is the library, one tap away in the same menu.
   doc.getElementById('pushed-close').onclick();
   !doc.getElementById('btn-papers') && !doc.getElementById('papers')
     ? ok('the two-document panel is gone from the menu')
@@ -1493,35 +1508,11 @@ if (es) {
              + 'come back without anybody deciding to bring it back');
   }
 
-  // The map bar's control, which is the way to ALL of them. It is hidden until
-  // a payload says some box holds one -- a control that opens an empty list
-  // teaches somebody not to tap it -- and this suite renders no map, so what is
-  // asked of it is the wiring rather than the visibility.
-  const mapDocs = doc.getElementById('map-docs');
-  const shelf = doc.getElementById('shelf');
-  mapDocs && shelf
-    ? ok('the map bar carries a way to every document in the workspace')
-    : fail('a document is reachable only from the banner that made it');
-  if (mapDocs && shelf) {
-    const before = window.__asked.length;
-    mapDocs.onclick();
-    !shelf.hidden
-      ? ok('and it opens with the banner gone')
-      : fail('the documents drawer does not open');
-    window.__asked.slice(before).some((u) => /^\/shelf\.json/.test(u))
-      ? ok('asking the server on the tap, because the list is not on the payload')
-      : fail('the drawer opened without asking: ' + JSON.stringify(
-               window.__asked.slice(before)));
-    // The payload is rebuilt four times a second. A list of forty documents on
-    // it is the one thing the map's own rule forbids, so the box carries the
-    // COUNT and the drawer fetches the list.
-    !/"docs"\s*:\s*\[/.test(JSON.stringify(hwPayload()))
-      ? ok('and the payload carries no list of documents for it to have used')
-      : fail('the payload is carrying the document list');
-    doc.getElementById('btn-shelf-close').onclick();
-    shelf.hidden ? ok('and the drawer closes')
-                 : fail('the documents drawer cannot be closed');
-    es.onmessage({ data: JSON.stringify(hwPayload()) });
+  {
+    const lib = doc.getElementById('btn-library');
+    lib && doc.getElementById('barmenu').contains(lib)
+      ? ok('the library, every document in the subject, is in the menu')
+      : fail('a document is reachable only from the banner that made it');
   }
 
   // ------------------------------------------------------------------------
@@ -1529,11 +1520,12 @@ if (es) {
   //
   // And because navigating to one in a standalone app is the trap the whole
   // handover was rewritten to escape. The pages are drawn by the machine that
-  // holds the PDF and shown in a panel this page owns and can close.
-  var paper = doc.getElementById('paper');
+  // holds the PDF and shown in the one reader (`reader.js`), which this page
+  // mounts and can close.
   var boardHtml = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
-  paper && !/\<iframe/.test(boardHtml)
-    ? ok('the document is read in a panel of pictures, not in a frame')
+  /src="\/static\/reader\.js"/.test(boardHtml) && !/\<iframe/.test(boardHtml)
+    && /Reader\.mount\(/.test(fs.readFileSync(path.join(WEB, 'board.js'), 'utf8'))
+    ? ok('the document is read in the one reader, as pictures, not in a frame')
     : fail('the viewer is a frame, which iOS renders as one unscrollable page');
 
   // The filename is the SERVER's business -- it knows the course and the set --
@@ -1758,59 +1750,48 @@ if (es) {
   else fail('the end-of-session offer lost its wording');
 }
 
-// The badge that names the sitting is the control that changes it. Switching was
-// terminal-only, so wanting help with a problem set meant finding a keyboard.
+// THE SESSION HEADER HOLDS FOUR SESSION CONTROLS: the subject chip, the
+// teach/do toggle, Make and End. The sitting badge and its kind chooser, the
+// review strip, the map and every way to it, the contents drawer, the shelf
+// and "elsewhere" are gone, markup and all.
 if (es) {
-  var badge = doc.getElementById('session');
-  var chooser2 = doc.getElementById('kind');
-  es.onmessage({ data: JSON.stringify({
-    state: { course: 'P', session: 'lecture', mode: 'math' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' }, sets: ['hw01', 'hw02'] }) });
-  if (!badge.hidden && badge.dataset.kind === 'lecture' && badge.textContent)
-    ok('the sitting is named on the board even in a lecture');
-  else fail('the sitting badge is hidden, so nothing can be tapped to change it');
+  var sessCtl = doc.querySelectorAll('#bar .sess-ctl');
+  sessCtl.length === 4
+    ? ok('the header shows four session controls (' + sessCtl.length + ')')
+    : fail('the header shows ' + sessCtl.length + ' session controls, not four');
+  ['btn-subject', 'btn-mode', 'btn-make', 'btn-end'].forEach(function (id) {
+    var el = doc.getElementById(id);
+    if (!el || !el.classList.contains('sess-ctl') || el.hidden || el.closest('[hidden]'))
+      fail(id + ' is not one of the visible session controls');
+  });
+  ok('they are the chip, the toggle, Make and End');
 
-  badge.onclick();
-  if (!chooser2.hidden) ok('and tapping it offers the choice');
-  else fail('the badge is not a control');
-
-  // A bare kind word read as a label on an iPad: it has to name the style and
-  // say that it opens, and the chip has to survive `#bar button`.
-  if (badge.textContent === 'teach \u25be')
-    ok('the badge names the style and says it opens: ' + badge.textContent);
-  else fail('the badge does not name the running style: ' + badge.textContent);
-  var aimRow = doc.getElementById('kind-aim-ways');
-  if (aimRow && aimRow.querySelector('button.on'))
-    ok('with no aim set anywhere, the running style is still marked in the for: row');
-  else fail('the for: row marks no style, which reads as none running');
-  if (/#bar #session\s*{[^}]*background:\s*var\(--paper-2\)[^}]*}/.test(css)
-      && /#bar #session\s*{[^}]*border:\s*1px solid var\(--rule\)/.test(css))
-    ok('the badge keeps a chip at a specificity #bar button cannot strip');
-  else fail('#bar button strips the badge to a bare word again');
-  es.onmessage({ data: JSON.stringify({
-    state: { course: 'T', session: 'lecture', mode: 'code', stance_now: 'do' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' } }) });
-  if (/build/.test(badge.textContent)) ok('a doing workspace with no aim reads as build');
-  else fail('a doing workspace with no aim does not say build: ' + badge.textContent);
-  var offered = doc.getElementById('kind-sets').textContent;
-  if (/hw01/.test(offered) && /hw02/.test(offered))
-    ok('offering the sets this course actually has');
-  else fail('the problem sets were not offered: ' + offered);
-  doc.getElementById('kind-cancel').onclick();
-  if (chooser2.hidden) ok('and it can be dismissed');
-  else fail('the sitting chooser cannot be dismissed');
+  ['session', 'kind', 'rvbar', 'btn-map', 'btn-contents', 'btn-work-elsewhere',
+   'map', 'map-docs', 'shelf', 'contents', 'review', 'elsewhere', 'steer',
+   'redirect', 'mapback', 'docnew'].forEach(function (id) {
+    if (doc.getElementById(id)) fail('#' + id + ' is still in the page');
+  });
+  !doc.querySelector('[data-retired], .to-map')
+    ? ok('the badge, the kind strip, the map, contents, shelf and elsewhere are gone')
+    : fail('a retired control is still in the page');
+  Array.prototype.some.call(doc.querySelectorAll('#bar button, #bar a, #bar label'),
+    function (el) {
+      return !el.classList.contains('sess-ctl')
+        && /map|contents|elsewhere|lecture|review/.test(el.title || '');
+    })
+    ? fail('a retired control is still in the bar')
+    : ok('and nothing else in the bar opens one of them');
 }
 
-// Thirteen controls in one row is a row that overlaps itself on a tablet.
+// Everything else in the bar is a writing tool or the overflow menu.
 if (es) {
   var menu = doc.getElementById('barmenu');
   var more = doc.getElementById('btn-more');
   var right = doc.querySelector('.bar-right');
-  var visible = right.querySelectorAll('button, a, label').length;
-  if (visible <= 6) ok('the title bar carries only what a lesson uses (' + visible + ')');
-  else fail('the title bar is still crowded: ' + visible + ' controls');
+  var tools = Array.prototype.filter.call(right.querySelectorAll('button, a, label'),
+    function (el) { return !el.classList.contains('sess-ctl'); }).length;
+  if (tools <= 5) ok('beside them the bar carries only what a lesson uses (' + tools + ')');
+  else fail('the title bar is crowded: ' + tools + ' tools beside the session controls');
 
   if (menu && menu.hidden) ok('and the rest is one tap away, not on screen');
   else fail('the overflow menu is missing or always open');
@@ -1829,66 +1810,6 @@ if (es) {
   doc.getElementById('btn-face').click();
   if (menu.hidden) ok('and closes behind a choice, so it cannot swallow the next tap');
   else fail('the menu stays open after a choice');
-}
-
-// A course is chapters and problem sets, and the board showed neither: the only
-// way to a different chapter was somebody typing `board open` in a terminal.
-if (es) {
-  var panel = doc.getElementById('contents');
-  var opener = doc.getElementById('btn-contents');
-  var frame = {
-    state: { course: 'G', session: 'lecture', mode: 'math',
-             chapter: 'Ch 02 — Rings' },
-    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' },
-    history: 3,
-    sets: ['ch01', 'ch02'],
-    contents: { chapters: [{ num: '01', label: 'Ch 01 — Groups' },
-                           { num: '02', label: 'Ch 02 — Rings' }],
-                sets: [{ name: 'ch01', rel: 'chapters/ch01/homework/a.tex' },
-                       { name: 'ch02', rel: 'chapters/ch02/homework/b.tex' }] },
-  };
-  es.onmessage({ data: JSON.stringify(frame) });
-
-  if (opener && panel.hidden) ok('the contents opener is there and closed');
-  else fail('no way into the contents, or it is up unasked');
-
-  opener.onclick();
-  var text = doc.getElementById('contents-list').textContent;
-  if (/Ch 01 — Groups/.test(text) && /Ch 02 — Rings/.test(text))
-    ok('every chapter the course has is listed');
-  else fail('chapters are not offered: ' + text.slice(0, 90));
-  if (/Problem sets/.test(text) && /ch01/.test(text))
-    ok('and its problem sets beside them');
-  else fail('problem sets are not offered');
-  if (/Past lessons/.test(text) && /3 filed/.test(text))
-    ok('and the way back to what is already filed');
-  else fail('past lessons are not reachable from the contents');
-
-  var hereBtn = Array.prototype.filter.call(
-    doc.querySelectorAll('#contents-list button'),
-    function (b) { return /Ch 02/.test(b.textContent); })[0];
-  if (hereBtn && /here/.test(hereBtn.className))
-    ok('and the chapter you are in is marked as such');
-  else fail('there is no way to tell which chapter you are in');
-
-  doc.getElementById('btn-contents-close').onclick();
-  if (panel.hidden) ok('the panel closes');
-  else fail('the contents panel cannot be closed');
-
-  // A repository that follows no book has neither chapters nor sets, and must
-  // not be told it is broken -- its sittings are made as it goes. Nothing in the
-  // payload declares which kind of repository this is any more: having no
-  // chapters and no sets IS the answer.
-  es.onmessage({ data: JSON.stringify(Object.assign({}, frame, {
-    state: { course: 'TRD', session: 'lecture' },
-    history: 0, contents: { chapters: [], sets: [] } })) });
-  opener.onclick();
-  var text2 = doc.getElementById('contents-list').textContent;
-  if (/as you go/.test(text2) && !/No chapters or problem sets found/.test(text2))
-    ok('a repository with no book is told its sittings are made as it goes');
-  else fail('a bookless repository gets an empty or wrong contents: ' + text2.slice(0, 90));
-  doc.getElementById('btn-contents-close').onclick();
 }
 
 // ---------------------------------------------------------------------------
@@ -2386,6 +2307,214 @@ async function latchFlow() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// THE HEADER, DRIVEN. Binding from the chip updates it without a reload, the
+// toggle flips `mode` through POST /mode, a new project asks "patient data?",
+// and End posts /end only after a second tap. The server is scripted here; the
+// routes themselves are `test/routing.py`'s and `test/sessions.py`'s.
+async function headerFlow() {
+  const real = window.fetch;
+  const asked = [];
+  const reply = (o, status) => Promise.resolve({ status: status || 200,
+                                                 json: () => Promise.resolve(o) });
+  const names = { 'courses/Linear-Algebra': 'Linear Algebra' };
+  window.fetch = (u, init) => {
+    const url = String(u);
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    asked.push({ url: url, method: (init && init.method) || 'GET', body: body });
+    if (url === '/subjects.json') return reply({ ok: true, subjects: [
+      { id: 'courses/Linear-Algebra', kind: 'course', slug: 'Linear-Algebra',
+        name: 'Linear Algebra' },
+      { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' }] });
+    if (url === '/bind') return reply({ ok: true, changed: true, subject: {
+      id: body.subject, name: names[body.subject] || body.subject, kind: '' } });
+    if (url === '/mode') return reply({ ok: true, mode: body.mode, changed: true });
+    if (url === '/subjects/new') {
+      const id = 'projects/' + body.name.replace(/[^A-Za-z0-9]+/g, '-');
+      names[id] = body.name;
+      return reply({ ok: true, subject: { id: id, kind: 'project', name: body.name } });
+    }
+    if (url === '/end') return reply({ ok: true, session: { ended: '2026-10-09 22:00' } });
+    if (url === '/artifact') return reply({ ok: true, id: 't0009', make: body.make,
+      source: 'courses/Linear-Algebra/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') });
+    if (url === '/hw/build') return reply({ ok: false, detail: 'this session has no write-up yet' });
+    return real(u, init);
+  };
+  const posts = (url) => asked.filter((a) => a.url === url && a.method === 'POST');
+  const frame = (st) => JSON.stringify({
+    state: Object.assign({ id: '20261009-210000', subject: null, mode: 'teach',
+                           ended: null, course: 'Atlas' }, st),
+    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
+    agent: { agent: 'claude', state: 'listening' } });
+  const chip = doc.getElementById('btn-subject');
+  const label = doc.getElementById('course');
+  const toggle = doc.getElementById('btn-mode');
+  const pick = doc.getElementById('subjpick');
+  const end = doc.getElementById('btn-end');
+  const href = window.location.href;
+
+  es.onmessage({ data: frame({}) });
+  label.textContent === 'unbound' && chip.dataset.bound === '0'
+    ? ok('a new session\'s chip says unbound')
+    : fail('an unbound session\'s chip says ' + label.textContent);
+  toggle.dataset.now === 'teach'
+    ? ok('and the toggle says teach') : fail('the toggle says ' + toggle.dataset.now);
+
+  // The toggle.
+  toggle.click();
+  await sleep(20);
+  const flip = posts('/mode');
+  flip.length === 1 && flip[0].body.mode === 'do' && toggle.dataset.now === 'do'
+    ? ok('the toggle posts mode do to /mode and shows it')
+    : fail('the toggle did not flip the mode: ' + JSON.stringify(flip));
+  es.onmessage({ data: frame({ mode: 'do' }) });
+  toggle.click();
+  await sleep(20);
+  posts('/mode').length === 2 && posts('/mode')[1].body.mode === 'teach'
+    && toggle.dataset.now === 'teach'
+    ? ok('and back to teach') : fail('the toggle does not flip back');
+  es.onmessage({ data: frame({ mode: 'teach' }) });
+
+  // Make, unbound: nothing can be made until the session has a subject.
+  const make = doc.getElementById('btn-make');
+  const menu = doc.getElementById('makemenu');
+  make.click();
+  await sleep(20);
+  !menu.hidden && doc.getElementById('make-deck').disabled
+    && /Bind this session/.test(doc.getElementById('make-said').textContent)
+    ? ok('Make on an unbound session says to bind it first, and makes nothing')
+    : fail('Make on an unbound session: hidden=' + menu.hidden + ' said='
+           + doc.getElementById('make-said').textContent);
+  make.click();
+
+  // The chip: pick a subject.
+  chip.click();
+  await sleep(20);
+  !pick.hidden && asked.some((a) => a.url === '/subjects.json')
+    ? ok('the chip opens a picker of every course and project')
+    : fail('the chip opened nothing');
+  const row = Array.prototype.filter.call(pick.querySelectorAll('#subjpick-list button'),
+    (b) => b.textContent === 'Linear Algebra')[0];
+  row ? ok('listing them by name') : fail('the picker lists ' + pick.textContent);
+  if (row) row.click();
+  await sleep(20);
+  const bound = posts('/bind');
+  bound.length === 1 && bound[0].body.subject === 'courses/Linear-Algebra'
+    ? ok('a tap binds the session through /bind')
+    : fail('no bind was posted: ' + JSON.stringify(bound));
+  label.textContent === 'Linear Algebra' && chip.dataset.bound === '1' && pick.hidden
+    ? ok('and the chip says so at once') : fail('the chip still says ' + label.textContent);
+  window.location.href === href
+    ? ok('without a reload') : fail('binding navigated to ' + window.location.href);
+  es.onmessage({ data: frame({}) });
+  label.textContent === 'Linear Algebra'
+    ? ok('a payload built before the bind does not paint unbound back over it')
+    : fail('a stale payload undid the chip: ' + label.textContent);
+  es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+
+  // Make, bound: a deck about the line above, a paper about this session, and
+  // the session's write-up built.
+  make.click();
+  await sleep(20);
+  const about = doc.getElementById('make-about');
+  about.value = 'the k sweep';
+  doc.getElementById('make-deck').click();
+  await sleep(30);
+  const asks = posts('/artifact');
+  asks.length === 1 && asks[0].body.make === 'deck' && asks[0].body.about === 'the k sweep'
+    ? ok('deck posts /artifact with make deck and what it is about')
+    : fail('the deck ask was ' + JSON.stringify(asks));
+  /being written: courses\/Linear-Algebra\/docs\/x\/x\.tex/.test(
+    doc.getElementById('make-said').textContent) && about.value === '' && !menu.hidden
+    ? ok('and the menu names the file being written')
+    : fail('the menu said ' + doc.getElementById('make-said').textContent);
+  doc.getElementById('make-paper').click();
+  await sleep(30);
+  posts('/artifact').length === 2 && posts('/artifact')[1].body.make === 'paper'
+    && posts('/artifact')[1].body.about === ''
+    ? ok('paper with an empty line asks about this session')
+    : fail('the paper ask was ' + JSON.stringify(posts('/artifact')[1]));
+  doc.getElementById('make-writeup').click();
+  await sleep(30);
+  posts('/hw/build').length === 1
+    && /no write-up yet/.test(doc.getElementById('make-said').textContent)
+    ? ok('write-up builds the session\'s write-up, and says why it could not')
+    : fail('write-up posted ' + posts('/hw/build').length + ', said '
+           + doc.getElementById('make-said').textContent);
+  make.click();
+
+  // The chip: make a project, which asks about patient data first.
+  chip.click();
+  await sleep(20);
+  doc.getElementById('subjpick-project').click();
+  const form = doc.getElementById('subjpick-form');
+  const phi = doc.getElementById('subjpick-phi');
+  !form.hidden && !phi.hidden
+    ? ok('+ new project asks "patient data?"') : fail('a new project is not asked about patient data');
+  doc.getElementById('subjpick-name').value = 'Grant Notes';
+  doc.getElementById('subjpick-go').click();
+  await sleep(20);
+  posts('/subjects/new').length === 0
+    ? ok('and makes nothing until it is answered') : fail('a project was made without the phi answer');
+  doc.getElementById('subjpick-phi-no').click();
+  doc.getElementById('subjpick-go').click();
+  await sleep(40);
+  const made = posts('/subjects/new');
+  made.length === 1 && made[0].body.kind === 'project' && made[0].body.phi === false
+    && made[0].body.name === 'Grant Notes'
+    ? ok('then posts /subjects/new with the answer')
+    : fail('the new project was posted as ' + JSON.stringify(made));
+  posts('/bind').slice(-1)[0].body.subject === 'projects/Grant-Notes'
+    && label.textContent === 'Grant Notes'
+    ? ok('and binds the session to it') : fail('the new project was not bound: ' + label.textContent);
+
+  // CODING AT THE CLUSTER: the exact command to copy, `board code <id> <paths>`.
+  const codebar = doc.getElementById('codebar');
+  const codeCmd = doc.getElementById('code-cmd');
+  const codeBtn = doc.getElementById('btn-code');
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
+  codebar.hidden && codeBtn && !codeBtn.hidden && doc.getElementById('barmenu').contains(codeBtn)
+    ? ok('a session not coding at the cluster offers the command from the overflow menu')
+    : fail('the cluster command is drawn, or not offered, before coding starts');
+  codeBtn.click();
+  !codebar.hidden && codeCmd.value === 'board code 20261009-210000 '
+    ? ok('which shows `board code <id> ` with the paths left to type')
+    : fail('the menu showed ' + JSON.stringify(codeCmd.value));
+  doc.getElementById('code-close').click();
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: {
+    ref: 'refs/heads/code/20261009-210000', sha: 'abcdef0123456789', step: 2,
+    paths: ['projects/Grant-Notes/src', 'projects/Grant-Notes/tests/test_a.py'] } }) });
+  !codebar.hidden && codeCmd.value === 'board code 20261009-210000 projects/Grant-Notes/src '
+      + 'projects/Grant-Notes/tests/test_a.py'
+    && /step 2/.test(doc.getElementById('code-step').textContent) && codeBtn.hidden
+    ? ok('while coding, the header shows the exact command with its held paths, and the step')
+    : fail('the coding header shows ' + JSON.stringify(codeCmd.value) + ' hidden=' + codebar.hidden);
+  doc.querySelectorAll('#bar .sess-ctl').length === 4
+    ? ok('and the session controls are still four') : fail('the code line added a session control');
+  es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
+  codebar.hidden ? ok('a cleared `code` hides it') : fail('the code line outlived `code`');
+
+  // End, after a second tap.
+  end.click();
+  await sleep(20);
+  posts('/end').length === 0 && end.classList.contains('armed')
+    ? ok('one tap on End only arms it') : fail('a single tap ended the session');
+  end.click();
+  await sleep(20);
+  posts('/end').length === 1
+    ? ok('the second tap posts /end') : fail('End posted ' + posts('/end').length + ' times');
+  const endedbar = doc.getElementById('endedbar');
+  !endedbar.hidden && doc.body.dataset.ended === '1' && end.disabled && chip.disabled
+    && toggle.disabled
+    ? ok('an ended session says so and is read-only')
+    : fail('an ended session still offers its controls');
+  /body\[data-ended\][^{]*#writer/.test(css)
+    ? ok('and nothing on the page writes to it') : fail('the writer survives an ended session');
+
+  window.fetch = real;
+  es.onmessage({ data: frame({ subject: 'courses/Linear-Algebra', course: 'Linear Algebra' }) });
+}
+
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
@@ -2395,6 +2524,7 @@ if (es) {
     await latchFlow();
     await sendingFlow();
     await reopenFlow();
+    await headerFlow();
     await sleep(900);
     var fin2 = doc.getElementById('finish');
     var lead2 = doc.getElementById('finish-lead');

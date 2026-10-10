@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 # ===========================================================================
-#  ship.sh -- commit and push this tool, then put every course on the new code.
+#  ship.sh -- commit and push this tool, then put the board server on it.
 #
-#  A board and a tutor are long-lived processes that read `serve.py` and
-#  `bin/tutor` once, when they start. Changing this repository therefore does
-#  nothing to a course that is already running: the pages are served from disk
-#  and look new while the endpoints and the daemon behind them are the old ones.
-#  That is invisible from the outside and it has cost an evening more than once.
-#
-#  So shipping is one act, not two: commit, push, and bounce what is running.
+#  The board server reads `serve.py` and `tutorboard/` once, when it starts.
+#  It notices committed board code by itself and exits for launchd to restart
+#  it once no turn runs; this restarts it now instead, so a ship lands at once.
 #
 #      bash scripts/ship.sh ["commit message"]
 #
-#  It commits ONLY the tool's own directory. Everything lives in one repository
-#  now, and a ship that ran `git add -A` would file nine workspaces' unfinished
-#  work under a commit message about the board.
+#  It commits ONLY the tool's own directory. Everything lives in one repository,
+#  and a ship that ran `git add -A` would file every subject's unfinished work
+#  under a commit message about the board.
 #
 #  The commit is authored by whoever `git config user.name` says. No trailers,
 #  no co-authors, no attribution to any assistant -- the work belongs to the
@@ -22,58 +18,38 @@
 # ===========================================================================
 set -uo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=scripts/tool.sh
-. "$HERE/scripts/tool.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$HERE" || { echo "cannot enter $HERE" >&2; exit 1; }
 
 MSG="${1:-board and tutor updates}"
 
-# The TOOL's path inside the repository, worked out rather than typed: this is
-# `board` today and the point of deriving it is that a rename does not silently
-# turn shipping into "commit everything". `scripts/tool.sh` is the one place it
-# is derived, because `save-and-push.sh` needs the same answer and the copy it
-# had was wrong.
-REL="$(tool_prefix)"
-
-# When the ship began, before anything is committed. Another node's watch can
-# restart its boards while the push below is still running, and that is still
-# this ship's restart rather than a board that was "already" on the new code.
-SINCE="$(date +%s)"
+# The tool's path inside its repository (`board`), asked of git rather than
+# typed, so a rename never turns shipping into "commit everything". Empty means
+# the tool is the repository root, and then the pathspec is the whole tree.
+REL="$(git -C "$HERE" rev-parse --show-prefix 2>/dev/null)"
+REL="${REL%/}"
 
 echo "== the tool (${REL:-the repository}) =="
-# ONLY the tool's own paths. There is one repository now: without the pathspec,
-# shipping a change to the board would sweep up whatever is uncommitted in nine
-# other workspaces and commit it under "board and tutor updates". A course's
-# half-finished proof is not a board update and must never be filed as one.
-if [ -n "$REL" ]; then
-  bash "$HERE/scripts/save-and-push.sh" "$MSG" -- "$REL"
-else
-  bash "$HERE/scripts/save-and-push.sh" "$MSG"
-fi
+bash "$HERE/scripts/save-and-push.sh" "$MSG" -- "${REL:-.}"
 status=$?
 if [ $status -ne 0 ]; then
   echo
   echo "push did not succeed, so nothing has been restarted." >&2
-  echo "Running processes are still on the old code, which is the safe place" >&2
-  echo "for them to be while the change is not saved anywhere." >&2
+  echo "The server is still on the old code, which is the safe place for it" >&2
+  echo "to be while the change is not saved anywhere." >&2
   exit $status
 fi
 
-# save-and-push.sh already bounces the boards when it is this repository being
-# pushed. The tutors are the other half, and they are only bounced from here --
-# a course pushing its own homework has no business restarting anybody's tutor.
-#
-# `--stale` bounces only what is not on the tree's code stamp, and `--wait`
-# waits for every other node's watch to put its boards on it: the checkout is
-# shared, so that node already has the files, and its watch's ship beat is what
-# restarts them. No ssh. One line per board and per tutor says where it landed
-# or why not.
+# The one LaunchAgent. `kickstart -k` kills the running server and starts it
+# again at once; a turn in flight is cut, and its message stays owed and is
+# answered after the restart. TUTORBOARD_LABEL names another job, as it does
+# for install.sh: the cutover's rehearsal ships to its own test label.
 echo
-if command -v tutor >/dev/null 2>&1; then
-  tutor restart --tutors --stale --wait --since "$SINCE"
+TARGET="gui/$(id -u)/${TUTORBOARD_LABEL:-tutor-board}"
+if command -v launchctl >/dev/null 2>&1 && launchctl print "$TARGET" >/dev/null 2>&1; then
+  launchctl kickstart -k "$TARGET" && echo "restarted $TARGET"
 else
-  echo "tutor is not on PATH; run 'tutor restart --tutors --stale --wait' by hand" >&2
+  echo "no LaunchAgent tutor-board here; run board/install.sh to install it" >&2
 fi
 
 echo

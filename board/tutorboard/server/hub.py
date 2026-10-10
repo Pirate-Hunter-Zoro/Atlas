@@ -1,300 +1,264 @@
-"""One payload, built once, pushed to every browser that has the board open.
+"""One payload per session, built once, pushed to every browser that has the
+board open: in full to a browser that connects, then as deltas.
+
+The payload is the session's and nothing else's: session.json, the newest
+WINDOW cards and their ink, the turns, the unread count, the slate, the
+drafts, the agent, the write-up's status and the subject's macros; and one
+shared key, `relay`, the cluster's health. What the subject holds -- its
+problem sets, results, jobs and Colibri -- is `GET /subject.json`
+(`subject_info`), fetched when the board opens and when the drawer does. Older cards are `GET /cards?before=<n>` (`older_cards`).
+
+A push after the first payload is a delta:
+
+    {"delta": true, "seq": n, "cards_changed": [card, ...],
+     "cards_removed": [id, ...], <every top-level key that changed>: value}
+
+`cards_removed` names cards whose files are gone. A card that only slid out
+of the window is not removed: the browser keeps what it has.
 """
 
-import hashlib
 import json
 import os
+import stat
 import threading
 import time
 
-from .. import coursemacros
-from .. import (assistants, colibri, direction, fenced, missions, news,
-                writeups)
+from .. import assistants, cluster, colibri, coursemacros, fenced, paths
+from .. import relay, writeups
 from .. import jobs as slurm_jobs
-from . import spawn
-from ..course import config, homework
-from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
+from ..course import config, homework, library
+from ..lesson import cards, git, notes, slate, state, turns, uploads
 
-# How often the worker looks for a change nothing told it about. The board is
-# pushed to, not polled, so this is the safety net rather than the mechanism.
-POLL_SECONDS = 0.25
+# The payload is rebuilt only when something says it changed: a route's dirty
+# mark (`worker.dirty`), a change the sentinel sees in the session files it
+# stats every SENTINEL_SECONDS, or SLOW_SECONDS passing, for sources nothing
+# marks (the agent record's judgement, built papers).
+SENTINEL_SECONDS = 1.0
+SLOW_SECONDS = 30.0
+
+# How many of the newest cards a payload carries; `/cards?before=` pages the
+# rest, this many at a time.
+WINDOW = 40
 
 # Keys of the payload that are carried but never pushed on their own. See `tick`.
 QUIET = ("notes", "notes_sent")
 
+# Payload keys whose sources are gone (D27): null until the client code that
+# reads them is deleted.
+GONE = ("map", "plan", "reading", "direction")
+
+
+def sentinel(live):
+    """The mtime and size of every watched path under `live`, and of each entry
+    of a watched directory. Equal answers mean nothing watched changed."""
+    out = []
+    for rel in paths.SESSION_WATCHED:
+        where = os.path.join(live, rel)
+        try:
+            st = os.stat(where)
+        except OSError:
+            out.append((rel, None, None))
+            continue
+        out.append((rel, st.st_mtime_ns, st.st_size))
+        if not stat.S_ISDIR(st.st_mode):
+            continue
+        try:
+            entries = list(os.scandir(where))
+        except OSError:
+            continue
+        for e in entries:
+            try:
+                es = e.stat()
+            except OSError:
+                continue
+            out.append((rel + "/" + e.name, es.st_mtime_ns, es.st_size))
+    out.sort(key=lambda t: t[0])
+    return out
+
 
 class Hub:
+    """No lock: each subscriber is a (queue, condition) pair, and appending to,
+    removing from or copying the list of them is one atomic step."""
+
     def __init__(self, repo, worker):
         self.repo = repo
         self.worker = worker
-        self.lock = threading.Lock()
         self.clients = []
         self.payload = "{}"
-        self.digest = ""
-        self.ink = ""
         self.seq = 0
+        # What the browsers were last pushed: each top-level key's JSON, and
+        # each card's in the window. A delta is the difference from these.
+        self.sent = {}
+        self.sent_cards = {}
+        # Every card id on disk at the last build.
+        self.ids = set()
+        # Set by `stop`: the session registry dropped this hub, so its loop
+        # ends and any stream still on it closes, to reconnect to a new one.
+        self.stopped = threading.Event()
+
+    def stop(self):
+        self.stopped.set()
+        self.worker.dirty.set()
 
     def subscribe(self):
-        q = []
-        cv = threading.Condition()
-        client = (q, cv)
-        with self.lock:
-            self.clients.append(client)
+        client = ([], threading.Condition())
+        self.clients.append(client)
         return client
 
     def unsubscribe(self, client):
-        with self.lock:
-            if client in self.clients:
-                self.clients.remove(client)
+        try:
+            self.clients.remove(client)
+        except ValueError:
+            pass
 
     def build(self):
+        """The session's payload. Reads the session directory, the cards in
+        the window, the write-up the session pins and the subject's macros;
+        nothing walks or globs the subject."""
+        repo = self.repo
         jobs = []
-        on_board = cards.load_cards(self.repo, jobs)
+        on_board, older, ids = cards.window(repo, jobs, WINDOW)
         if jobs:
             self.worker.submit(jobs)
-        board_state = self.repo.state()
-        cfg = config.read_config(self.repo.root)
-        board_state.setdefault("course", cfg["name"])
-        # WHAT THE REPOSITORY ITSELF SAYS about who writes the code, which is
-        # not always what this sitting says. The board needs both: the chooser
-        # shows which is in force, and the busy strip has to know whether the
-        # turn running now is one that DOES the work -- because in one of those
-        # a card landing means the work is starting rather than finished. It was
-        # a constant `"teach"` in the client until now, which is a guess that is
-        # wrong in exactly the repositories this matters most in.
-        board_state["declared_stance"] = cfg.get("stance") or "teach"
-        # AND WHAT THIS SITTING IS ACTUALLY RUNNING UNDER, resolved once, here.
-        # A sitting nobody opened from the map names no aim, and the answer then
-        # comes from the workspace or from its family's default in `atlas.json` --
-        # which the client cannot read and must not re-derive. The chooser shows
-        # `aim_now`, and the busy strip asks `stance_now` whether the turn running
-        # is one that DOES the work. See `course/config.aim_for`.
-        board_state["aim_now"] = config.aim_for(self.repo.root, board_state)
-        board_state["stance_now"] = config.stance_for(self.repo.root, board_state)
+        self.ids = set(ids)
+        board_state = repo.state()
+        board_state.setdefault("course", config.read_config(repo.root)["name"])
+            # The session's mode; `stance_now` repeats it for the old busy
+            # strip.
+        board_state["mode"] = config.mode_of(board_state)
+        board_state["stance_now"] = board_state["mode"]
+        ink, ink_sent = notes.card_ink(repo, [c["id"] for c in on_board])
         data = {
             "state": board_state,
             "cards": on_board,
-            "turns": turns.load_turns(self.repo),
-            "messages": notes.load_messages(self.repo),
-            "uploads": uploads.load_uploads(self.repo),
-            "slate": slate.load_slate(self.repo),
-            "notes": notes.load_notes(self.repo),
-            "notes_sent": notes.load_notes_sent(self.repo),
-            "text_drafts": notes.load_text_drafts(self.repo),
-            "unsaved": git.repo_dirty(self.repo),
-            "push": state.load_push(self.repo),
-            "export": state.load_export(self.repo),
-            # Which documents can be taken off the board, or read on it, RIGHT
-            # NOW -- not which one was just built. A document is a file, not an
-            # event, and the controls for it were living in the banner of the
-            # build that produced it. See `state.load_papers`.
-            "papers": state.load_papers(self.repo),
-            "agent": state.load_agent(self.repo),
-            # What is in the inbox that nothing has taken. The board's answer to
-            # "I sent that and nothing is happening", and it comes off disk
-            # rather than out of the browser's memory so it is still true after
-            # a reload. See `notes.waiting`.
-            "waiting": notes.waiting(self.repo),
-            "history": len(archive.list_archive(self.repo)),
-            # WHO CAN BE ASKED TO TUTOR THIS SITTING, and what the local model's
-            # server is doing right now. Both are here rather than behind a
-            # request of their own because the chooser is drawn from the payload
-            # like everything else on the page, and because the second one has a
-            # state that CHANGES while nobody taps anything -- a job pending for
-            # ten minutes and then loading for eight.
-            #
-            # Neither costs a poll. `assistants.listing` shells out once per
-            # board process and `colibri.status` caches its `squeue` for fifteen
-            # seconds, which is the rule `machines.held_nodes` already follows.
-            "assistants": assistants.listing(),
-            "colibri": colibri.status(),
-            # AND WHETHER THIS WORKSPACE HOLDS A FENCE, which is the third
-            # thing the chooser needs and the one nothing said. The registry
-            # above carries which assistant may read one -- the recipe with
-            # `private` on it -- so naming it is a lookup in what is already
-            # here rather than a second list. The names, so the row can say
-            # what a hosted pick will not be able to open. See `fenced.holds`.
-            "fenced": list(fenced.holds(self.repo.root)),
-            # THE MACROS THIS COURSE WRITES IN. The board typesets twice and
-            # only one of the two engines was being told: LaTeX loads the
-            # course's own `latex/coursemacros.sty` and then the board's
-            # `\providecommand` gap-filler, so the course wins there; KaTeX had
-            # `web/macros.js` and nothing else, so a macro the course defines and
-            # the board does not reached the glass as source -- or, worse, at the
-            # board's arity with the argument silently dropped. Same rule on both
-            # sides now: the course's definition wins. See
-            # `tutorboard/coursemacros.py`.
-            "macros": coursemacros.for_workspace(self.repo.root),
+            # How many cards are older than the window: `/cards?before=`.
+            "cards_older": older,
+            "turns": turns.load_turns(repo),
+            # What is in the inbox that nothing has taken (`notes.waiting`).
+            "waiting": notes.waiting(repo),
+            "slate": slate.load_slate(repo),
+            "text_drafts": notes.load_text_drafts(repo),
+            "notes": ink,
+            "notes_sent": ink_sent,
+            "uploads": uploads.load_uploads(repo),
+            "push": state.load_push(repo),
+            "export": state.load_export(repo),
+            # Which of the session's own documents exist now: its records and
+            # a stat each (`state.load_papers`).
+            "papers": state.load_papers(repo),
+            "agent": state.load_agent(repo),
+            # The write-up: the set session.json pins, and documents asked
+            # for from this session (`writeups.waiting`).
+            "hw": _safe(state.load_hw, repo, board_state),
+            "writeups": _safe(writeups.waiting, repo),
+            # The subject's macros, so KaTeX matches LaTeX.
+            "macros": coursemacros.for_workspace(repo.root),
+            # The cluster's health, the same for every session.
+            "relay": _safe(relay.health, cluster.atlas_of(repo.root)),
         }
-        # Only in a homework sitting, and read from the .tex itself rather than
-        # from a record the board keeps: the file is the truth, the assistant
-        # edits it directly, and two sources of truth drift.
-        # In a homework sitting, always. In a lecture, once a set has been bound
-        # to it -- a lecture that works through a section's exercises is writing
-        # them up into the same file, and the state of that file is exactly as
-        # invisible from an iPad either way.
-        # Bound means pinned OR named by the session label. Requiring the pin
-        # made the panel depend on somebody having run `board hw use`, so a
-        # sitting opened as "Ch 4" filled no file and said nothing about it.
-        bound = None
-        try:
-            bound = homework.bound(self.repo.root, board_state)
-        except Exception:
-            bound = None
-        if board_state.get("session") == "homework" or bound:
-            data["hw"] = state.load_hw(self.repo)
-        # The names alone, always: the board offers them when switching, and a
-        # lecture has no `hw` block to carry them in. A glob, not a parse.
-        try:
-            data["sets"] = [x["name"] for x in homework.sets(self.repo.root)][:40]
-        except Exception:
-            data["sets"] = []
-        data["contents"] = state.load_contents(self.repo)
-        # Always, in both kinds of repository: a review is chosen from the board
-        # and the chooser needs something to offer before the sitting exists.
-        data["review"] = state.load_review(self.repo)
-        # And the same for a walkthrough, whose scope is a file in this
-        # repository. A repository with no source at all -- a narrative one, all
-        # prose and no machinery -- sends nothing rather than an empty list, and
-        # the board does not offer the sitting.
-        data["walk"] = state.load_walk(self.repo)
-        # What this project says comes next, and what it can be shown. Both are
-        # what a book course gets from its chapter table, arriving from the two
-        # places a project actually keeps them: the plan its README points at,
-        # and the documents somebody already wrote about how it works.
-        data["plan"] = state.load_plan(self.repo)
-        data["reading"] = state.load_reading(self.repo)
-        # And what it PRODUCED, which is the other half and had no route to the
-        # glass at all. A figure a pipeline wrote could only reach a lesson by
-        # somebody copying it into the inbox -- a second copy of a file the next
-        # job overwrites. See `course/results.py`.
-        data["results"] = state.load_results(self.repo)
-        # And the picture the whole lot hangs on. A course opens on this rather
-        # than on an empty board: the working parts, what is done and what is
-        # not, and a tap on any of them to start work there. Every repository
-        # has one, drawn or derived. See `course/map.py`.
-        data["map"] = state.load_map(self.repo)
-        # WHAT THIS WORKSPACE IS FOR, when they have changed it. The panel that
-        # changes it opens showing what is in force -- a person about to replace
-        # a direction should be able to read the one they are replacing, and on
-        # a device that has been closed since they set it there is nowhere else
-        # it could come from. None where nothing is set, so the board can tell
-        # "never changed" from "changed to nothing".
-        said, when = direction.read(self.repo.root)
-        data["direction"] = {"text": said, "when": when} if said else None
-        # AN ANSWER THAT LANDED SOMEWHERE ELSE. A turn set going in one
-        # workspace goes on running while its person works in another, and until
-        # this there was nothing anywhere that said it had finished -- the only
-        # way to find out was to switch back and look. `news.waiting` is cached
-        # hard; see the module.
-        data["news"] = news.waiting(self.repo)
-        # AND WHAT IS STILL RUNNING THERE. The same sentence in the present
-        # tense: `news` is a card that landed, a mission is a job that was set
-        # going and has not come back yet. A closed lid does not end one, so the
-        # board that comes up tomorrow reads them off disk rather than out of a
-        # browser's memory. Cached hard; see `missions.py`.
-        data["missions"] = missions.waiting(self.repo)
-        # AND THE SLURM JOBS REGISTERED HERE THAT HAVE NOT ENDED, so the busy
-        # strip says "running" between turns as well as the box. A read of one
-        # small file; the daemon's poll is what moves it. See `jobs.py`.
-        data["jobs"] = slurm_jobs.running(self.repo.root)
-        # AND A DOCUMENT ASKED FOR FROM THE SITTING THAT IS OPEN. The turn that
-        # writes one is told to write no card, so it is invisible on the board by
-        # construction -- which leaves "I asked for a deck and nothing happened"
-        # with nowhere to be answered. The record says it is being written and
-        # then says it is in the library. Cheap when there is nothing to say,
-        # which is nearly always; see `tutorboard/writeups.py`.
-        data["writeups"] = writeups.waiting(self.repo)
+        for key in GONE:
+            data[key] = None
         return data
 
     def poll_loop(self):
-        while True:
-            # A MISSION THAT WAS TOLD TO SHIP ITSELF, AND HAS FINISHED.
-            #
-            # Here because this loop is the only thing in the tool that runs
-            # without anybody asking it to and outlives the request that started
-            # it: a mission ends in a workspace with no board and no browser on
-            # it, so nothing there is going to notice. Throttled inside
-            # `ship_missions` to one walk every twenty seconds, and the ship is
-            # claimed with an exclusive create, so every board on the machine
-            # running this loop still hands each mission over exactly once.
-            try:
-                spawn.ship_missions()
-            except Exception:
-                pass
+        """Rebuild on a dirty mark, a sentinel change, or every SLOW_SECONDS.
 
-            # AND A MISSION WHOSE NODE WENT AWAY UNDER IT.
-            #
-            # Here for the same reason as the line above: this loop is the only
-            # thing in the tool that runs without anybody asking it to and
-            # outlives the request that started it. A colibri client is a step of
-            # the serve job's allocation and dies with it, and where the board
-            # went at the same moment there is nothing left anywhere to notice.
-            # Throttled inside `carry_missions`, and each pick-up is claimed with
-            # an exclusive create, so every board running this loop still picks
-            # each mission up exactly once.
-            try:
-                spawn.carry_missions()
-            except Exception:
-                pass
-
-            # AND A MISSION THAT BROUGHT ITS OWN ASSISTANT AND HAS ENDED.
-            #
-            # Here for the reason the two lines above are, and AFTER them: a
-            # release must not empty a workspace between a ship being owed and
-            # the turn that pushes it being woken. Throttled inside
-            # `release_missions`, and each release is claimed with an exclusive
-            # create, so every board running this loop gives each assistant
-            # back exactly once.
-            try:
-                spawn.release_missions()
-            except Exception:
-                pass
-
-            try:
-                self.tick()
-            except Exception:
-                pass
-            if self.worker.dirty.wait(POLL_SECONDS):
-                self.worker.dirty.clear()
+        The mark is cleared before the sentinel is read and the sentinel before
+        the build, so a change landing mid-build triggers one more pass.
+        """
+        seen = None
+        built = 0.0
+        dirty = self.worker.dirty
+        while not self.stopped.is_set():
+            marked = dirty.is_set()
+            if marked:
+                dirty.clear()
+            now = sentinel(self.repo.live)
+            if marked or now != seen or time.monotonic() - built >= SLOW_SECONDS:
+                seen = now
+                built = time.monotonic()
+                try:
+                    self.tick()
+                except Exception:
+                    pass
+            dirty.wait(SENTINEL_SECONDS)
 
     def tick(self):
-        """Build the payload, and push it if the lesson changed."""
+        """Build the payload, keep it whole for the next browser, and push
+        what changed. Ink alone is not pushed: the page that drew it has it."""
         data = self.build()
-        # The digest covers content only; seq is stamped afterwards, or every
-        # poll would look like a change and loop forever.
-        #
-        # INK ALONE IS NOT A CHANGE WORTH PUSHING. Every autosave of a card's
-        # marks rewrites `notes`, and pushing that re-sends the whole lesson and
-        # re-renders it on the tablet about a second after each stroke -- the
-        # middle of the next one, which then stutters or is lost. The page that
-        # drew the ink already has it, and `Annotate.load` adopts only cards it
-        # has never seen. The payload is still rebuilt, so a reload or the next
-        # real push carries the ink as it is on disk.
-        lesson = {k: v for k, v in data.items() if k not in QUIET}
-        blob = json.dumps(lesson, sort_keys=True)
-        digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()
-        ink = json.dumps([data.get(k) for k in QUIET], sort_keys=True)
-        ink = hashlib.sha1(ink.encode("utf-8")).hexdigest()
-        if digest != self.digest:
-            self.digest = digest
-            self.ink = ink
+        window = dict((c["id"], _blob(c)) for c in data["cards"])
+        keys = dict((k, _blob(v)) for k, v in data.items() if k != "cards")
+        changed = [c for c in data["cards"]
+                   if self.sent_cards.get(c["id"]) != window[c["id"]]]
+        removed = sorted(i for i in self.sent_cards if i not in self.ids)
+        moved = [k for k in keys if self.sent.get(k) != keys[k]]
+        if changed or removed or [k for k in moved if k not in QUIET]:
             self.seq += 1
-            data["seq"] = self.seq
-            self.payload = json.dumps(data)
-            self.push(self.payload)
-        elif ink != self.ink:
-            self.ink = ink
-            data["seq"] = self.seq
-            self.payload = json.dumps(data)
+            delta = {"delta": True, "seq": self.seq,
+                     "cards_changed": changed, "cards_removed": removed}
+            for k in moved:
+                delta[k] = data[k]
+            self.sent = keys
+            self.sent_cards = window
+            self.payload = json.dumps(dict(data, seq=self.seq))
+            self.push(json.dumps(delta))
+        elif moved:
+            self.payload = json.dumps(dict(data, seq=self.seq))
 
     def push(self, payload):
-        with self.lock:
-            targets = list(self.clients)
+        targets = list(self.clients)
         for q, cv in targets:
             with cv:
                 q.append(payload)
                 cv.notify()
+
+
+def _blob(value):
+    return json.dumps(value, sort_keys=True)
+
+
+def _safe(load, *args):
+    """`load(*args)`, or None when it raises: one source must not take the
+    payload down with it."""
+    try:
+        return load(*args)
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def older_cards(repo, worker, before, limit=WINDOW):
+    """`GET /cards?before=<n>`: the newest `limit` cards numbered below `n`,
+    their ink, and how many are older still."""
+    jobs = []
+    got, older, _ids = cards.window(repo, jobs, limit, before="%04d" % before)
+    if jobs and worker is not None:
+        worker.submit(jobs)
+    ink, ink_sent = notes.card_ink(repo, [c["id"] for c in got])
+    return {"ok": True, "cards": got, "older": older,
+            "notes": ink, "notes_sent": ink_sent}
+
+
+def subject_info(repo):
+    """`GET /subject.json`: what the subject holds that a board shows, read
+    when asked rather than on every tick. Problem sets, results, running
+    jobs and Colibri; and the subject's uncommitted count, the providers
+    and the fences, which the save badge and the tutor chooser paint."""
+    root = repo.root
+    try:
+        sets = [{"name": x["name"], "rel": x["rel"]} for x in homework.sets(root)][:60]
+    except Exception:                                        # noqa: BLE001
+        sets = []
+    return {
+        "ok": True,
+        "sets": sets,
+        "results": _safe(library.figures_status, repo),
+        "jobs": _safe(slurm_jobs.running, root) or [],
+        "colibri": _safe(colibri.status, cluster.atlas_of(root)),
+        "unsaved": _safe(git.repo_dirty, repo),
+        "assistants": _safe(assistants.listing),
+        "fenced": list(_safe(fenced.holds, root) or []),
+    }
 
 
 # ---------------------------------------------------------------------------

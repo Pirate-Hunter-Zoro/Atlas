@@ -13,9 +13,7 @@ source, the prompts that tell a turn to name what it left uncommitted, and the
 board not reading a placeholder as an answer.
 """
 
-import importlib.machinery
 import json
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -26,13 +24,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import direction, sense                     # noqa: E402
+from tutorboard import sense                                # noqa: E402
 from tutorboard.lesson import cards, git as lesson_git      # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
-_spec = importlib.util.spec_from_loader("tutor", loader)
-tutor = importlib.util.module_from_spec(_spec)
-loader.exec_module(tutor)
+from tutorboard.runner import prompts  # noqa: E402
+from tutorboard.runner import loop as runloop  # noqa: E402
+from tutorboard.runner import turn as runturn  # noqa: E402
 
 BOARD = [sys.executable, os.path.join(ROOT, "bin", "board")]
 
@@ -56,6 +53,7 @@ def git(cwd, *args):
 
 def board_write(ws, body, *args):
     p = subprocess.run(BOARD + ["write"] + list(args) + ["--repo", ws],
+                       env=dict(os.environ, TUTORBOARD_SESSION=os.path.join(ws, "live")),
                        input=body.encode("utf-8"), stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, timeout=60)
     return p.returncode, p.stdout.decode("utf-8", "replace").strip()
@@ -66,8 +64,8 @@ try:
     # A repository holding two workspaces, so the listing is shown to be about
     # this one.
     git(base, "init", "-q")
-    ws = os.path.join(base, "research", "W")
-    other = os.path.join(base, "research", "V")
+    ws = os.path.join(base, "projects", "W")
+    other = os.path.join(base, "projects", "V")
     for d in (ws, other):
         os.makedirs(os.path.join(d, "live", "cards"))
         with open(os.path.join(d, "tutorboard.json"), "w") as fh:
@@ -77,6 +75,11 @@ try:
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "start")
     room = os.path.join(ws, "live", "cards")
+    # This process reads the session the way a turn's `board` does: bound.
+    from tutorboard.course import repo as course_repo        # noqa: E402
+    os.environ["TUTORBOARD_SESSION"] = os.path.join(ws, "live")
+    course_repo.resolve(ws, create=False)
+    del os.environ["TUTORBOARD_SESSION"]
 
     # -- the placeholder at the door ---------------------------------------
     print("\n-- the placeholder is written `pending` --")
@@ -90,21 +93,22 @@ try:
     # -- a turn that exits on it is woken once ------------------------------
     print("\n-- a turn that exits with it pending is woken once more --")
     out = "[2026-10-01 10:00:00] [aim] write the sweep\n"
-    line = tutor.report_owed(ws, "aim", out)
+    line = runloop.report_owed(ws, "aim", out)
     check("the daemon owes an [unfinished] turn", bool(line))
     check("which turn_signal reads as unfinished",
-          tutor.turn_signal(line) == "unfinished")
+          runturn.turn_signal(line) == "unfinished")
     check("and which names the placeholder", os.path.relpath(path, ws) in line)
     check("and keeps the message it was answering", "write the sweep" in line)
 
-    use, prompt, fresh = tutor.turn_plan({"headless": ["r"], "headless_first": ["f"]},
-                                         0, 1, "unfinished")
-    check("an unfinished turn resumes the session that did the work",
-          use == ["r"] and not fresh)
+    use, prompt = runturn.turn_plan({"headless": ["r"], "headless_first": ["f"]},
+                                    "unfinished")
+    check("an unfinished turn is a fresh process like every other, reading "
+          "what the work changed off disk",
+          use == ["f"])
     check("and is told to write the report over the card",
-          prompt is tutor.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
+          prompt is prompts.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
           and "uncommitted" in prompt)
-    check("it runs on a doing turn's clock", tutor.doing_now(ws, "unfinished"))
+    check("it runs on a doing turn's clock", runturn.doing_now(ws, "unfinished"))
 
     # -- a report written over it settles it ---------------------------------
     print("\n-- a report written over it is not owed anything --")
@@ -112,7 +116,7 @@ try:
     check("the report goes over the placeholder", code == 0)
     _, rmeta = cards.newest(room)
     check("and is no longer pending", not cards.is_pending(rmeta))
-    check("so nothing is owed", tutor.report_owed(ws, "aim", out) is None)
+    check("so nothing is owed", runloop.report_owed(ws, "aim", out) is None)
 
     # -- a second exit on a placeholder gets the stopped card -----------------
     print("\n-- an [unfinished] turn that also leaves it pending --")
@@ -127,7 +131,7 @@ try:
           sorted(lesson_git.uncommitted(ws) or []) == ["fit.py", "kept.py"])
     check("and can be narrowed to a thread's paths",
           lesson_git.uncommitted(ws, ["fit.py"]) == ["fit.py"])
-    again = tutor.report_owed(ws, "unfinished", line)
+    again = runloop.report_owed(ws, "unfinished", line)
     check("nothing more is woken", again is None)
     body = open(path2, encoding="utf-8").read()
     smeta, sbody = cards.parse_front_matter(body)
@@ -141,21 +145,12 @@ try:
           and "V/kept.py" not in sbody)
     check("and the board's own scratch is not listed", "live/" not in sbody)
     check("a stopped card is not pending, so the next exit owes nothing",
-          tutor.report_owed(ws, "aim", out) is None)
+          runloop.report_owed(ws, "aim", out) is None)
     check("no part file is left behind",
           not [n for n in os.listdir(room) if n.startswith(".")])
 
-    # -- on a thread, the stopped card lists what THAT thread left ------------
-    print("\n-- a stopped card on a thread lists its paths and its jobs --")
-    with open(os.path.join(ws, "threads.json"), "w") as fh:
-        json.dump({"version": 1,
-                   "deliverables": [{"id": "p1", "title": "Paper 1"}],
-                   "threads": [{"id": "fit", "deliverable": "p1",
-                                "title": "The fit", "files": ["fit.py"]},
-                               {"id": "other", "deliverable": "p1",
-                                "title": "Other", "files": ["kept.py"]}]}, fh)
-    with open(os.path.join(ws, "live", "state.json"), "w") as fh:
-        json.dump({"thread": "fit"}, fh)
+    # -- a stopped card names the jobs registered since the work began -------
+    print("\n-- a stopped card lists the jobs the work registered --")
     code, path3 = board_write(ws, "Fitting again.\n", "pending", "again")
     began = os.path.getmtime(path3)
     with open(os.path.join(ws, "live", "jobs.jsonl"), "w") as fh:
@@ -163,43 +158,26 @@ try:
                              "submitted": began - 3600}) + "\n")
         fh.write(json.dumps({"thread": "fit", "jobid": "12", "cmd": "sbatch sweep.sbatch",
                              "submitted": began + 1}) + "\n")
-    check("the sitting's thread and its paths are read off the thread file",
-          tutor.owed_thread(ws) == ("fit", ["fit.py"]))
-    tutor.report_owed(ws, "unfinished", line)
+    runloop.report_owed(ws, "unfinished", line)
     tmeta, tbody = cards.parse_front_matter(open(path3, encoding="utf-8").read())
-    check("the stopped card names its thread in its front matter",
-          tmeta.get("kind") == cards.STOPPED and tmeta.get("thread") == "fit")
-    check("and lists what is uncommitted under that thread's paths",
-          "Uncommitted on `fit`" in tbody and "`fit.py`" in tbody
-          and "`kept.py`" not in tbody)
-    check("and counts what else is uncommitted, so the list is not all there is",
-          "more path" in tbody and "elsewhere in this workspace" in tbody)
+    check("the placeholder is replaced by a stopped card naming no thread",
+          tmeta.get("kind") == cards.STOPPED and not tmeta.get("thread"))
+    check("which lists what is uncommitted in the workspace",
+          "`fit.py`" in tbody and "`kept.py`" in tbody)
     check("and names the job registered since the work began, not an older one",
-          "`12` on `fit`" in tbody and "sweep.sbatch" in tbody
-          and "`11`" not in tbody)
-    check("the newest card stopped on `fit`, so that thread is badged",
-          cards.stopped_thread(room) == "fit")
-    from tutorboard.course import map as mapping, threads as course_threads
-    course_threads._cache.clear()
-    mapping._cache.clear()
-    drawn = dict((n["id"], n) for n in mapping.status(ws, {"thread": "fit"})["nodes"])
-    check("the map badges that thread's box and no other",
-          drawn["fit"].get("stopped") is True and drawn["other"].get("stopped") is False)
-    code, _ = board_write(ws, "Next turn.\n", "lesson", "next")
-    check("and the next card takes the badge away", cards.stopped_thread(room) == "")
+          "`12`" in tbody and "sweep.sbatch" in tbody and "`11`" not in tbody)
 finally:
     shutil.rmtree(base, ignore_errors=True)
 
 # -- the wiring, read as source ----------------------------------------------
 print("\n-- the loop settles a turn on its report --")
-src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-loop = src.split("def headless(")[-1].split("handoff ===")[0]
+src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
+           encoding="utf-8").read()
+loop = src.split("def take_turn(")[-1].split("wrap-up ===")[0]
 check("the loop asks report_owed where nothing else is owed",
-      "if pending is None:\n            pending = report_owed(" in loop)
+      "if pending is None:\n        pending = report_owed(" in loop)
 check("before the debt is written down", loop.index("report_owed(") <
-      loop.index("owe(pending)\n\n    # The last turn"))
-check("a failed resume of an unfinished turn retries with its own prompt",
-      "HEADLESS_UNFINISHED_PROMPT if this_signal == \"unfinished\"" in loop)
+      loop.index("owe(ctx, pending)\n    return"))
 check("the assistant is not swapped under an unfinished turn",
       'signal == "unfinished"' in src.split("def for_this_turn(")[1].split("\ndef ")[0])
 
@@ -208,12 +186,6 @@ check("a doing turn opens with `board write pending`",
       "`board write pending`" in sense.DOING_SENSE)
 check("and its report names uncommitted files",
       "left uncommitted" in sense.DOING_SENSE)
-check("so does a re-planning turn",
-      "`board write pending`" in direction.CHANGED
-      and "left uncommitted" in direction.CHANGED)
-check("and a thread's rethink turn",
-      "`board write pending`" in direction.RETHINK
-      and "left uncommitted" in direction.RETHINK)
 
 print("\n-- the board does not read a placeholder as an answer --")
 js = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
