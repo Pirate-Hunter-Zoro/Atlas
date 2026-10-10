@@ -1,0 +1,173 @@
+#!/bin/bash
+# The everyday opencode front door. Opens on IT's model server
+# (ai.laureateinstitute.org, Open WebUI over Ollama on a DGX Spark), which is
+# always up, so there is no Slurm job to start. Switch models inside the TUI
+# with /models: IT's two gpt-oss models are always there, and our own ollama
+# models join them when an ollama server answers on this node.
+#
+#   coder                            # the TUI, in the current directory
+#   coder "explain this repo"        # one-shot, no TUI
+#   coder -d ~/Atlas/projects/x      # ...somewhere else
+#   coder -c "and now the tests"     # continue the last session here
+#   coder -s ses_abc123 "..."        # resume one session by id
+#   coder -l                         # list this directory's sessions
+#   coder -m gpt-oss:20b "..."       # a different model (bare id is fine)
+#
+# The key is ~/.config/libr-ai/key, one line, made at the site's
+# Settings > Account > API keys. opencode reads it through the config's file
+# substitution, so it never reaches argv or the environment.
+#
+# The server is IT's VM, not our node, and Open WebUI keeps a copy of every
+# chat. So a directory behind the PHI fence is refused, by asking ai-config's
+# policy exactly as ds-code does. It is a gate on the launch directory, not a
+# fence: do not reach for this inside research/PSYCH-ASR at all.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+LLM_REPO="$(dirname "$_self")"
+ATLAS_ROOT="$(git -C "$LLM_REPO" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$ATLAS_ROOT" ]; then
+    echo "coder: $LLM_REPO is not inside a git checkout, so the PHI policy" >&2
+    echo "in ai-config/ cannot be found. Refusing." >&2
+    exit 1
+fi
+
+# The ~/.bashrc `opencode` function probes the local ollama port and refuses
+# when nothing is there, which is irrelevant to a remote server.
+unset -f opencode 2>/dev/null || true
+
+HOST="https://ai.laureateinstitute.org"
+KEY_FILE="$HOME/.config/libr-ai/key"
+MODEL="libr-ai/gpt-oss:120b"
+WORKDIR="$PWD"
+SESSION=""
+CONTINUE=""
+LIST_SESSIONS=""
+_need() { [ $# -ge 2 ] || { echo "coder: $1 needs a value after it." >&2; exit 2; }; }
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -m|--model)    _need "$@"; MODEL="$2"; shift 2 ;;
+        -d|--dir)      _need "$@"; WORKDIR="$2"; shift 2 ;;
+        -s|--session)  _need "$@"; SESSION="$2"; shift 2 ;;
+        -c|--continue) CONTINUE=1; shift ;;
+        -l|--list-sessions) LIST_SESSIONS=1; shift ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        --)          shift; break ;;
+        -*)          echo "coder: unknown flag $1. \`coder --help\` lists what there is;" >&2
+                     echo "              put it after \`--\` to make it part of the question." >&2
+                     exit 2 ;;
+        *)           break ;;
+    esac
+done
+MESSAGE="$*"
+
+if [ -n "$SESSION" ] && [ -n "$CONTINUE" ]; then
+    echo "coder: -s and -c both choose a session; pass one or the other." >&2
+    exit 2
+fi
+
+case "$MODEL" in */*) ;; *) MODEL="libr-ai/$MODEL" ;; esac
+
+[ -d "$WORKDIR" ] || { echo "coder: no such directory: $WORKDIR" >&2; exit 2; }
+WORKDIR="$(cd "$WORKDIR" && pwd -P)"
+
+if ! command -v opencode >/dev/null 2>&1; then
+    echo "coder: no opencode on PATH. It is installed under nvm, so a shell" >&2
+    echo "that has not sourced ~/.bashrc does not have it." >&2
+    exit 127
+fi
+
+# Fail closed: no policy is not the same answer as "not fenced".
+_asks="$ATLAS_ROOT/ai-config/adapters/generic.py"
+if [ ! -r "$_asks" ]; then
+    echo "coder: cannot tell whether ${WORKDIR} is behind the PHI fence --" >&2
+    echo "there is no policy at $_asks. Refusing." >&2
+    exit 1
+fi
+if ! python3 "$_asks" --path "$WORKDIR/" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+coder: this directory is behind the PHI fence.
+
+    ${WORKDIR}
+
+ai.laureateinstitute.org is IT's server and keeps every chat, so a fenced
+directory does not go there. The assistant that may read one runs on our own
+hardware:
+
+    coli-code -d ${WORKDIR}
+EOF
+    exit 2
+fi
+
+# Layered over ~/.config/opencode/opencode.json, the same way and for the same
+# reasons as ds-code: the array key hides ollama, and default_agent plus coder
+# are repinned so the global qwen3-coder agent does not kill the session.
+export OPENCODE_CONFIG="$LLM_REPO/config/opencode-libr-ai.json"
+
+# Our ollama models go in the /models picker only when they can answer. Listed
+# without a server, picking one fails with a connection error mid-session.
+# The endpoint is loopback on the job's node, so this is true only when the
+# ollama job is on the node you are standing on.
+_ollama="${OLLAMA_HOST:-127.0.0.1:11500}"
+if ( exec 3<>"/dev/tcp/${_ollama%:*}/${_ollama##*:}" ) 2>/dev/null; then
+    export OPENCODE_CONFIG_CONTENT='{"enabled_providers":["libr-ai","ollama"]}'
+    OLLAMA_NOTE="also in /models: ollama (${_ollama})"
+else
+    OLLAMA_NOTE="no ollama server on this node; ollama-code reaches one elsewhere"
+fi
+
+# A session store of its own, so -c never resumes an ollama or DeepSeek session.
+export XDG_DATA_HOME="${CODER_SESSION_ROOT:-$HOME/.local/share/coder}"
+mkdir -p "$XDG_DATA_HOME"
+
+cd "$WORKDIR"
+
+if [ -n "$LIST_SESSIONS" ]; then
+    echo "coder sessions in ${WORKDIR}:" >&2
+    exec opencode session list
+fi
+
+if [ ! -s "$KEY_FILE" ]; then
+    echo "coder: no key at $KEY_FILE. Make one at ${HOST} under" >&2
+    echo "Settings > Account > API keys and save it there, one line." >&2
+    exit 1
+fi
+
+# opencode answers an unreachable host with a cursor and nothing else, so ask
+# first. Any HTTP status means the firewall let us through; 401 means the key.
+if ! _code="$(curl -sS -o /dev/null -m 8 -w '%{http_code}' \
+        -H "Authorization: Bearer $(<"$KEY_FILE")" "$HOST/api/models" 2>&1)"; then
+    cat >&2 <<EOF
+coder: ${HOST} does not answer from this node (${HOSTNAME:-unknown}).
+
+    ${_code}
+
+IT's firewall allows port 443 to it from the compute nodes. A node outside
+that rule times out exactly like this; ask IT to add it.
+EOF
+    exit 69
+fi
+if [ "$_code" = "401" ] || [ "$_code" = "403" ]; then
+    echo "coder: the server refused the key in $KEY_FILE (HTTP $_code)." >&2
+    echo "Make a new one at ${HOST} under Settings > Account > API keys." >&2
+    exit 1
+fi
+
+OC_ARGS=()
+[ -n "$SESSION" ]  && OC_ARGS+=(--session "$SESSION")
+[ -n "$CONTINUE" ] && OC_ARGS+=(--continue)
+
+cat >&2 <<BANNER
+Directory:  ${WORKDIR}
+Model:      ${MODEL}  (${HOST})
+Transcript: ${XDG_DATA_HOME}/opencode
+Switch:     /models inside the TUI; ${OLLAMA_NOTE}
+
+IT's server keeps a copy of every chat. Non-PHI work only.
+BANNER
+
+if [ -n "$MESSAGE" ]; then
+    exec opencode run -m "$MODEL" "${OC_ARGS[@]}" -- "$MESSAGE"
+else
+    exec opencode -m "$MODEL" "${OC_ARGS[@]}"
+fi

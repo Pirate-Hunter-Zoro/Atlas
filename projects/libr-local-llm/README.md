@@ -258,7 +258,7 @@ A delimited `# >>> ollama >>>` block in `~/.bashrc` sets these. A backup of the 
 | Variable | Value | Why |
 | --- | --- | --- |
 | `PATH` | **prepend** `$HOME/bin` | reach the ollama binary |
-| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands — `ollama-*` (§4a), `coli-*` (§4c) and `ds-code` (§4d). See below — this one has three constraints |
+| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands — `ollama-*` (§4a), `coli-*` (§4c), `ds-code` (§4d) and `coder` (§4e). See below — this one has three constraints |
 | `OLLAMA_MODELS` | `/media/studies/.../models/ollama` | weights on studies, not the 100 GB home share |
 | `OLLAMA_HOST` | `127.0.0.1:11500` | non-default port avoids collisions on shared nodes; **loopback keeps a PHI-processing endpoint off the cluster network** |
 | `OLLAMA_CONTEXT_LENGTH` | `65536` in `~/.bashrc`, **overridden to `131072` in the accel sbatch** | ollama defaults to a few thousand tokens; an agent silently truncates its own history there. 65536 is the number that has to be safe on *one* 46 GB card, where `medgemma:27b-it-q8_0` is 29.6 GB before any KV cache. The accel profile has four cards and 114 GB of them idle, so it serves `gpt-oss:120b` at the model's full 131072 — see §7.24 for why that is a *quality* setting and not just a capacity one |
@@ -842,6 +842,31 @@ into a router. `ds-code` is a `#!/bin/bash` script, so it does not inherit a she
 first place, and unlike the `srun`-based siblings it never crosses a `bash -lc` — there is no remote
 node to reach. It opens with `unset -f opencode` anyway, one line, so that stays true however the
 file is invoked.
+
+---
+
+## 4e. The everyday front door (`coder`)
+
+`coder` opens the opencode TUI on IT's model server, `https://ai.laureateinstitute.org` (Open WebUI
+over Ollama on a DGX Spark). The server is always up, so there is no Slurm job to start. Switch
+models inside the TUI with `/models`: IT's `gpt-oss:120b` (the default) and `gpt-oss:20b` are always
+listed, and our own ollama models join them only when an ollama server answers on this node, because
+a listed model with no server fails mid-session. The inline `OPENCODE_CONFIG_CONTENT` override adds
+`ollama` to `enabled_providers` when it does. Flags are `ds-code`'s (`-d -c -s -l -m`, `--help`).
+
+- **Reachability.** IT's firewall allows port 443 from the compute nodes. A node outside that rule
+  times out, so the wrapper probes `/api/models` first and names the node instead of hanging.
+- **The key** is `~/.config/libr-ai/key`, one line, made on the site under Settings > Account > API
+  keys. `config/opencode-libr-ai.json` reads it through opencode's `{file:...}` substitution, so it
+  never reaches argv or the environment. A key never goes in this repo; it is public.
+- **The endpoint** is `/api`, not `/v1`. Open WebUI serves its OpenAI-compatible chat route under
+  `/api`.
+- **PHI.** The server is IT's VM and Open WebUI keeps every chat, so the wrapper asks
+  `ai-config/adapters/generic.py` about the launch directory and refuses a fenced one, exactly as
+  `ds-code` does. It is a gate, not a fence (§4d).
+- **Config and transcript** layer the same way as `ds-code`'s: `OPENCODE_CONFIG` points at the layered
+  file, which repins `default_agent` and `coder`, and sessions live in
+  `~/.local/share/coder/opencode`.
 
 ---
 
