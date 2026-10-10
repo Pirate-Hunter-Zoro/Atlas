@@ -48,7 +48,7 @@ depression diagnosis. No property of the index depends on post-index data. Each 
 was truncated at the index date and rendered two ways. The feature representation is a
 typed vector of coded fields. The embedded representation is a Markdown narrative
 written by fixed rules, with no generative model involved, encoded by a pretrained
-sentence-transformer. Four encoders were evaluated and `Qwen3-Embedding-8B` is primary.
+sentence-transformer. Four encoders were evaluated; results that name no encoder are for `Qwen3-Embedding-8B`.
 Four classifiers were tuned by cross-validated grid search on each representation:
 logistic regression, random forest, gradient boosting, and XGBoost. All were evaluated
 once, on a held-out stratified 20% split of 8,516 patients containing 1,491
@@ -248,8 +248,8 @@ structured record. That guarantee costs fluency and is worth it, because a gener
 summary introduces statements the record does not support at measured rates [23] and
 here the narrative is the predictor. Four pretrained sentence-transformer encoders were
 evaluated independently: `bge-small-en-v1.5` [12], `bge-en-icl` [13],
-`Qwen3-Embedding-4B`, and `Qwen3-Embedding-8B` [14]. `Qwen3-Embedding-8B` is the primary
-encoder. The two representations come from the same temporal slice and do not hold
+`Qwen3-Embedding-4B`, and `Qwen3-Embedding-8B` [14]. Results that name no encoder are for
+`Qwen3-Embedding-8B`. The two representations come from the same temporal slice and do not hold
 identical field inventories, so a head-to-head comparison estimates the performance of
 two complete pipelines rather than the isolated effect of data format. Supplement S11 is
 the field-level crosswalk, Supplement M5 the encoding rules, and Supplement S6 two

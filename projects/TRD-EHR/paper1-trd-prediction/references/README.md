@@ -56,7 +56,7 @@ physical copy here so this library is self-contained; the primary copies live un
 
 | # | File | Role |
 | --- | ------ | ------ |
-| 5 | `05_Qwen2025_Qwen3-Embedding_arXiv.pdf` | Qwen3-Embedding tech report — primary encoder (8B) + comparison encoder (4B) |
+| 5 | `05_Qwen2025_Qwen3-Embedding_arXiv.pdf` | Qwen3-Embedding tech report — Qwen3-Embedding-8B and Qwen3-Embedding-4B |
 | 6 | `06_Xiao2023_CPack-BGE_arXiv.pdf` | C-Pack / BGE — covers the `bge-small-en-v1.5` comparison encoder |
 | 7 | `07_Li2024_bge-en-icl_arXiv.pdf` | `bge-en-icl` comparison encoder |
 | 8 | `08_Google2025_MedGemma_arXiv.pdf` | MedGemma technical report — the `medgemma-27b-text-it` LLM similarity judge |

@@ -166,7 +166,7 @@ and cannot disentangle co-correlated clinical features without joint
 perturbation.
 
 **No representational advantage.** The embedding held no significant
-advantage over the transparent feature vector on the primary encoder.
+advantage over the transparent feature vector on Qwen3-Embedding-8B.
 Its appeal is therefore parity without an explicit feature vector, plus
 stability across encoders — but this is not a free lunch: the embedding
 still depends on the hand-built deterministic narrative, which required

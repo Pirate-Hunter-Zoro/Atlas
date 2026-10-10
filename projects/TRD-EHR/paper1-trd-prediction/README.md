@@ -16,8 +16,8 @@ enforced rather than remembered: the point-and-claim map is gated by Paper-Write
 2. Nearest-neighbor retrieval over that embedding — the clinical digital-twin premise
    — captures real label-informative structure and still loses decisively to a trained
    model. Retrieval is a sweep over every neighbourhood size from 1 to 34,063, nearest
-   and random neighbours alike, and no single k is the headline. For the primary
-   encoder the best retrieval result over that sweep, 0.625 (95% CI 0.610–0.640), is
+   and random neighbours alike, and no single k is the headline. For
+   Qwen3-Embedding-8B the best retrieval result over that sweep, 0.625 (95% CI 0.610–0.640), is
    0.032 (95% CI 0.022–0.043) below embedded logistic regression. The other three
    encoders get the same plot (manuscript Figure 5), without paired contrasts.
 

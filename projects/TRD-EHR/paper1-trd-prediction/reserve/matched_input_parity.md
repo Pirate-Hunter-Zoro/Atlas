@@ -33,7 +33,7 @@ field mismatch does not carry the published finding.
 The paper's primary comparison sets a generalized pretrained transformer
 embedding of a deterministic
 clinical narrative against a typed feature vector, on the same patients, with
-the same split. On the primary encoder the head-to-head contrast is embedded
+the same split. On Qwen3-Embedding-8B the head-to-head contrast is embedded
 logistic regression 0.657 against feature-vector XGBoost 0.649: a paired
 difference of +0.008 (95% CI −0.003 to +0.019), reported as no evidence of
 superior discrimination.

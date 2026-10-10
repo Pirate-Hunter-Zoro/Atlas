@@ -77,8 +77,7 @@ One change per representation, and nothing else.
   unrecorded level — the pattern of silence goes out with the content, which is
   the point.
 - **The narrative drops the Religion field from its sociodemographics line**, and
-  the 42,579 re-rendered narratives are re-embedded with the primary encoder
-  `Qwen3-Embedding-8B`. The renderer's check on 200 sampled narratives confirmed
+  the 42,579 re-rendered narratives are re-embedded with `Qwen3-Embedding-8B`. The renderer's check on 200 sampled narratives confirmed
   no Religion field survived the render.
 
 Both changes are opt-in flags — `NARRATIVE_DROP_RELIGION` for the renderer and a

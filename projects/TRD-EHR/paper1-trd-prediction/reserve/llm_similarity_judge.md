@@ -489,4 +489,4 @@ of the multiplicity denominator, not the evidence.
 
 The `results` tree is gitignored, so a clone of this repository carries this
 prose and none of the numbers. Regenerating them means re-running the neighbor
-pipeline on the primary encoder.
+pipeline on Qwen3-Embedding-8B.

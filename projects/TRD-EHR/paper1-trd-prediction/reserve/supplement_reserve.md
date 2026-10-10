@@ -474,8 +474,8 @@ sociodemographic information carried in utilisation, diagnosis or treatment patt
 
 Standard machine learning, the cross-encoder comparison and the semantic ablation all
 used the complete 42,579-patient cohort and the shared 8,516-patient test set, with
-`Qwen3-Embedding-8B` as the primary encoder and `MedGemma-27B` as the similarity judge.
-The retrieval analyses used the full grid of retrieval schemes and weightings for the primary encoder.
+`Qwen3-Embedding-8B` as the encoder and `MedGemma-27B` as the similarity judge.
+The retrieval analyses used the full grid of retrieval schemes and weightings for Qwen3-Embedding-8B.
 
 On that encoder the retrieval scheme dominated the weighting strategy. The weightings
 were nearly indistinguishable under nearest retrieval, and the judge added value only

@@ -15,7 +15,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for the primary encoder, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 3 neighbor configurations for Qwen3-Embedding-8B, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and uniform random retrieval (k = 32,720) as a control. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the control. The best k was chosen on all test patients, not within each subgroup.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% (95% CI 98.7--99.1) of held-out patients preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
@@ -27,7 +27,7 @@ The individual-level calibration slope was estimated by logistic regression of o
 
 Table S10 gives discrimination and calibration within each sociodemographic stratum, and Figure S13 plots the discrimination.
 
-Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
+Table S10. Discrimination and calibration by sociodemographic stratum, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), Qwen3-Embedding-8B, held-out test set. Groups are not disjoint across families: every patient with a recorded sex appears in one sex row and every patient with a recorded race in one race row.
 
 | **Group** | **n** | **Events** | **Arm** | **ROC AUC (95% CI)** | **Brier (95% CI)** | **Logistic slope (95% CI)** | **Mean risk difference (95% CI)** |
 | -------------------- | ---------: | -----------: | -------- | ---------------- | ---------------- | -------------- | ------------------ |
@@ -105,7 +105,7 @@ E LR: embedded logistic regression; F XGB: feature-vector XGBoost; N WTD: logist
 
 ## S9.3 Clinical strata
 
-Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder.
+Table S11. Discrimination and calibration by recorded depression phenotype, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), Qwen3-Embedding-8B.
 
 | **Group** | **n** | **Events** | **Arm** | **ROC AUC (95% CI)** | **Brier (95% CI)** | **Logistic slope (95% CI)** | **Mean risk difference (95% CI)** |
 | -------------------- | ---------: | -----------: | -------- | ---------------- | ---------------- | -------------- | ------------------ |
@@ -174,4 +174,4 @@ The remaining 4 adjusted contrasts indicated lower discrimination among never-ma
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 
-Figure S13. Subgroup discrimination across sociodemographic strata, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), primary encoder, with 95% bootstrap confidence intervals. The dotted line marks chance. Strata declared not estimable are omitted.
+Figure S13. Subgroup discrimination across sociodemographic strata, one representative model per arm (embedded logistic regression, feature-vector XGBoost, and logistic-regression-weighted retrieval at k = 295, the leading model of each), Qwen3-Embedding-8B, with 95% bootstrap confidence intervals. The dotted line marks chance. Strata declared not estimable are omitted.
