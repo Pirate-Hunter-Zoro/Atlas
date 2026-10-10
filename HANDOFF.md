@@ -10,9 +10,30 @@ the relay has committed `relay/status.json`, and research/ and practice/ are gon
 cluster's Mathlib compiles as a Slurm job (`squeue -n mathlib`); rerunning `setup-cluster.sh`
 reports it built once it is.
 
-1. **The manual cluster items.** `/Users/mikeyferguson/Library/Mobile Documents/com~apple~CloudDocs/HANDOFF-cluster.md`:
-   one round trip, one coding-session trial, TRD-EHR's switch to its lockfile, the week-later
-   clean-up of the moved course clones, and removing a PHI subject.
+1. **The manual cluster items.** Each needs judgement, so none is in `setup-cluster.sh`.
+   - **One round trip.** In an iPad session bound to projects/TRD-EHR, ask the tutor to file its
+     cheapest diagnostic recipe; a completed `[job]` card arrives within about 5 minutes. In one
+     bound to the diarization project, ask for a dry job; its report completes, and job_env.sh
+     resolves its data variable inside that subject's fenced directory.
+   - **One coding-session trial.** Start an iPad session bound to projects/Algo-Solutions and run
+     the command its header shows on the cluster (`board code <session-id> leetcode/<dir>`). Edit
+     one file; a `[code] step` card shows within about a minute. `board code <session-id> --end`
+     leaves one new commit and no `code/*` ref on origin.
+   - **TRD-EHR's lockfile.** The conda environment on lab storage stays until the lockfile
+     reproduces it. Build uv.lock into lab storage through UV_PROJECT_ENVIRONMENT with
+     `uv sync --locked --extra test --extra cluster`, rewrite setup_envs.sh to call that, and
+     compare one real sweep and one causal run against the conda environment's last results.
+     causal_forest_env folds in too (econml 0.17.0 accepts scikit-learn 1.7.1). Only then remove
+     both conda environments, and decide how `scripts/setup.sh`'s per-subject .venv and
+     UV_PROJECT_ENVIRONMENT meet.
+   - **From 2026-10-16: the moved-aside course clones.** Check nothing in them is missing from
+     Atlas (`diff -rq ~/atlas-migration/courses.pre-fold/<Name> ~/Atlas/courses/<Name>`, ignoring
+     `.git`), then `rm -rf ~/atlas-migration/courses.pre-fold`. The bundles in
+     `~/atlas-migration/` stay.
+   - **Removing a fenced subject**, when decided. The iPad refuses it. On the cluster, confirm no
+     job, request or coding session is open for it, move its fenced data, results and .env where
+     its data agreement says, then `git rm -r projects/<Name>`, commit and push from the cluster
+     checkout.
 2. **Code the cutover left behind**, now safe to remove:
    - The old-location claim fallback in `board/tutorboard/jobs.py`: `_old_claim_dirs`,
      `_old_live`, and `migrate_state` with its calls in jobs.py and colibri.py, which have
