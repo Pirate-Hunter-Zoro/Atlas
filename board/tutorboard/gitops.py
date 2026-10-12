@@ -4,6 +4,7 @@
                                                 named paths only, no trailers
     push(root)                                  fetch, merge, push; never forced
     pull(root)                                  fast-forward only, guarded
+    lockfiles_moved(root, before, after)        the subjects to rebuild after one
     save(root, paths, message)                  commit, then push
     adopt_private(base)                         clone ai-config where it is missing
 
@@ -314,6 +315,30 @@ def _vendor_moved(root, before, after):
     return False
 
 
+# What `scripts/setup.sh` builds a subject's environment from, at the
+# subject's root. One a pull moved leaves that environment stale.
+LOCKFILES = ("uv.lock", "go.sum", "lake-manifest.json", "lean-toolchain")
+
+
+def lockfiles_moved(root, before, after):
+    """The ids (`<parent>/<slug>`) of the subjects still in `root` whose
+    lockfile differs between two commits, sorted; [] when nothing moved."""
+    from tutorboard import subjects                          # local: a cycle
+    if not before or not after or before == after:
+        return []
+    code, out = _git(root, "diff", "--name-only", "--no-renames", before, after)
+    if code != 0:
+        return []
+    parents = set(p for p, _ in subjects.DIRS)
+    moved = set()
+    for path in out.splitlines():
+        parts = path.split("/")
+        if (len(parts) == 3 and parts[0] in parents and parts[2] in LOCKFILES
+                and os.path.isdir(os.path.join(root, parts[0], parts[1]))):
+            moved.add("%s/%s" % (parts[0], parts[1]))
+    return sorted(moved)
+
+
 def pull(root, quiet=False, timeout=60, say=None):
     """Fast-forward `root` to its upstream. True when it ran, False when it was
     refused or failed, None where there is nothing to pull (no repository, no
@@ -393,9 +418,10 @@ def sync_private(base, state_dir, now=None, every=PRIVATE_EVERY, say=None,
     """Fast-forward `base`'s ai-config when it is due, then relink it if it moved.
 
     None when there is no ai-config repository or the last try was under
-    `every` seconds ago. Otherwise `{"pulled": bool, "moved": bool, "linked":
-    True|False|None, "why": str}`: `pulled` from `pull` (the same refusals --
-    a merge in progress, a detached HEAD, local edits git will not carry);
+    `every` seconds ago. Otherwise `{"pulled": True|False|None, "moved": bool,
+    "linked": True|False|None, "why": str}`: `pulled` is `pull`'s answer (False
+    for the same refusals -- a merge in progress, a detached HEAD, local edits
+    git will not carry; None when ai-config has no origin to pull from);
     `linked` None when nothing moved, else whether `scripts/install.sh` ran
     clean, which is what puts a new file or link in place. The time of each try
     is kept in `state_dir/PRIVATE_STAMP`, so a restarted server waits out the
@@ -421,8 +447,9 @@ def sync_private(base, state_dir, now=None, every=PRIVATE_EVERY, say=None,
     ok = pull(repo, quiet=True, timeout=timeout, say=said.append)
     _, after = _git(repo, "rev-parse", "HEAD")
     moved = ok is True and before != after
-    rec = {"pulled": ok is True, "moved": moved, "linked": None,
-           "why": "" if ok is True else (said[-1] if said else "pull refused")}
+    rec = {"pulled": ok, "moved": moved, "linked": None,
+           "why": "" if ok is True else "no origin" if ok is None
+           else (said[-1] if said else "pull refused")}
     if moved:
         script = os.path.join(repo, "scripts", "install.sh")
         try:

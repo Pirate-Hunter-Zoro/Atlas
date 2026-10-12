@@ -9,7 +9,7 @@
 # Everything it does happens under $HOME. It never uses sudo, never edits a file
 # outside ~/.local and ~/Library/LaunchAgents, and never installs anything you
 # did not ask for: the TeX and Tailscale steps are printed for you to run, not
-# run for you.
+# run for you. A coding checkout gets no LaunchAgent (the role file, below).
 #
 # `--plist` fills scripts/launchd/tutor-board.plist and prints it: ARGs are
 # appended to serve.py's, TUTORBOARD_LABEL renames the job, TUTORBOARD_LOG
@@ -117,7 +117,25 @@ esac
 #
 # The agent is RENDERED and COPIED: launchd reads it at bootstrap and expands
 # nothing, so every path in it is absolute, the interpreter included.
-if command -v launchctl >/dev/null 2>&1; then
+#
+# A coding checkout (ROLE_FILE says `coding`; `scripts/setup-mac.sh --coding`
+# writes it) is a Mac that runs no board, so it gets no agent, and one left
+# from before is booted out: two boards would both pull and answer the iPad.
+ROLE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role"
+CODING=0
+[ "$(tr -d '[:space:]' <"$ROLE_FILE" 2>/dev/null)" = coding ] && CODING=1
+if [ "$CODING" = 1 ]; then
+  if command -v launchctl >/dev/null 2>&1; then
+    for stray in tutor-board tutor-board.tutor-pull tutor-board.tutor-watch; do
+      if launchctl print "gui/$(id -u)/$stray" >/dev/null 2>&1; then
+        launchctl bootout "gui/$(id -u)/$stray" >/dev/null 2>&1
+        good "booted out $stray"
+      fi
+      rm -f "$HOME/Library/LaunchAgents/$stray.plist"
+    done
+  fi
+  good "no LaunchAgent: a coding checkout runs no board ($ROLE_FILE)"
+elif command -v launchctl >/dev/null 2>&1; then
   AGENTS="$HOME/Library/LaunchAgents"
   DOMAIN="gui/$(id -u)"
   LABEL="tutor-board"
@@ -217,7 +235,10 @@ fi
 
 # --- tailscale, optional ---------------------------------------------------
 ts_kind="$(python3 -c 'import sys; sys.path.insert(0, "'"$HERE"'"); from tutorboard.net import tailscale; print(tailscale.tailscale_cli()[1])' 2>/dev/null)"
+# A coding checkout publishes nothing on the tailnet.
+[ "$CODING" = 1 ] && ts_kind=coding
 case "$ts_kind" in
+  coding) : ;;
   system)
     good "tailscale (managed by this system — nothing for the board to start)" ;;
   userspace)

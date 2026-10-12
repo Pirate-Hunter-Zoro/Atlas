@@ -6,7 +6,8 @@ The assistant runs these. The student never does.
 
     board status                       is the one board server up, and this
                                        session's subject, mode and cards
-    board pull [--quiet]               fast-forward Atlas, vendor checkouts along
+    board pull [--quiet]               fast-forward Atlas, vendor checkouts along,
+                                       and ai-config; name stale lockfiles
     board cost [<session|subject>] [--turns]
                                        what the turns cost, from every session's
                                        cost.jsonl
@@ -2422,16 +2423,31 @@ def cmd_pull(live, args):
     """board pull [--quiet] [--atlas <dir>]
 
     Fast-forward Atlas (`gitops.pull`), and the vendor checkouts with it when
-    the pull moved a vendor pointer. Refused during a rebase, merge or on a
-    detached HEAD. Exit 1 when the pull was refused or failed; 0 when it ran or
-    there is no origin to pull from. The board server's cluster thread pulls on
-    its own; this is the by-hand one.
+    the pull moved a vendor pointer, then name every subject whose lockfile it
+    moved (`gitops.lockfiles_moved`), even with --quiet, since
+    `scripts/setup.sh` must rebuild those. Then fast-forward ai-config now and
+    relink it if it moved (`gitops.sync_private`), because Atlas's pull never
+    moves it. Refused during a rebase, merge or on a detached HEAD. Exit 1 when
+    either pull was refused or failed; 0 when they ran or there is no origin
+    to pull from. The board server's cluster thread pulls on its own; this is
+    the by-hand one, and a coding laptop's only one.
     """
     base = _flag_value(args, "--atlas") or subjects.root()
+    _, before = gitops._git(base, "rev-parse", "HEAD")
     got = gitops.pull(base, quiet="--quiet" in args)
     if got is None and "--quiet" not in args:
         print("nothing to pull: %s has no origin" % base)
-    return 1 if got is False else 0
+    if got:
+        _, after = gitops._git(base, "rev-parse", "HEAD")
+        moved = gitops.lockfiles_moved(base, before, after)
+        if moved:
+            print("  lockfiles moved in %s; rebuild with: bash scripts/setup.sh"
+                  % ", ".join(moved))
+    private = gitops.sync_private(base, paths.STATE_DIR, every=0, say=print)
+    if private and private["pulled"] is None and "--quiet" not in args:
+        print("nothing to pull: %s has no origin"
+              % os.path.join(base, gitops.AI_CONFIG))
+    return 1 if got is False or (private and private["pulled"] is False) else 0
 
 
 def cmd_cost(live, args):

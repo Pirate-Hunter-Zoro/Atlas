@@ -22,13 +22,6 @@ continues open session `20261009-193922-5` or starts fresh; whether the deck nam
    `!/docs/*/doc.json`: `!/docs/**/feedback/*.ledger.json`, `!/docs/**/feedback/*/items.json` and
    `!/docs/**/feedback/*/states.json`. The round directory's other JSON is cache and stays
    ignored. Commit only on a yes.
-4. **Laptop setup.** `scripts/setup-mac.sh --coding` writes `~/.config/tutor-board/role` so a rerun
-   stays a coding checkout: pull, bootstrap, `install.sh` with no LaunchAgent (and a stray one
-   booted out), `scripts/setup.sh`, ai-config fast-forward and install, no tailscale serve, no
-   port-8778 check. `install.sh` loads the LaunchAgent wherever launchctl exists, so it is gated
-   first. Setup checks `ai-config/policy/phi.py` is present, because without it check output never
-   reaches the tutor. `board pull` also fast-forwards ai-config and names subjects whose lockfiles
-   moved. README gains the laptop section.
 
 ### Then the lesson
 
