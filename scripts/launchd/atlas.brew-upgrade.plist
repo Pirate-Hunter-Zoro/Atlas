@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Rendered by `scripts/brew-upgrade.py install`: @HOME@ and @ATLAS@ become absolute paths.
      Hourly, and the script decides whether to work. No RunAtLoad, so loading never
-     starts an upgrade. /usr/bin/python3, because this job upgrades brew's python. -->
+     starts an upgrade. /usr/bin/python3, because this job upgrades brew's python.
+     AbandonProcessGroup, so a bootout never kills a brew the job started mid-link. -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -19,6 +20,8 @@
     <integer>3600</integer>
     <key>RunAtLoad</key>
     <false/>
+    <key>AbandonProcessGroup</key>
+    <true/>
     <key>ProcessType</key>
     <string>Background</string>
     <key>LowPriorityIO</key>

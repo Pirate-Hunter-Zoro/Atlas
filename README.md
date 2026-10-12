@@ -119,10 +119,12 @@ board, and checks that the board answers. Its header lists each step.
   each one you use, once.
 - Step 8 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
   cask current once a day in 03:00-07:59, then brew's npm globals, `ai-tools-update` and uv's
-  Pythons. It then checks the subjects' venvs, TeX, the Brewfile and the board, and repairs a
-  broken venv. Where another brew upgrader is installed it upgrades nothing and only repairs,
-  because two upgraders fight over brew's lock. `atlas-brew status` reports; `atlas-brew off`
-  stops it for good.
+  Pythons. It then checks the subjects' venvs, TeX, the Brewfile and the board. It repairs a
+  broken venv, and puts back an assistant CLI the upgrade removed; a CLI missing before the run
+  stays missing. A recorded problem is checked again each hour until it clears. Where another
+  brew upgrader is loaded it upgrades nothing and only repairs, because two upgraders fight over
+  brew's lock. `atlas-brew status` reports. `atlas-brew off` stops it for good; a run under way
+  stops before its next step, and the job unloads once it ends.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 

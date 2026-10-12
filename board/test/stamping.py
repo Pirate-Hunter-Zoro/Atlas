@@ -8,7 +8,8 @@ shell file, a test and `bin/board` do not move it; each stamped path does.
 `stamp.imports` proves a new tree imports before the freshness thread gives
 way to it, and writes nothing into the tree. `serve.py` reads its stamp before
 it imports the package. `stamp.python_moved` names an interpreter that moved
-or went. `test/hearing.py` runs the freshness thread itself.
+or went, under `moved`'s guards. `test/hearing.py` runs the freshness thread
+itself.
 """
 
 import os
@@ -99,11 +100,26 @@ try:
     stamp.PYTHON_AT_START = os.path.join(plain, "Cellar", "python@3.15", "3.15.0",
                                          "bin", "python3.15")
     try:
-        why = stamp.python_moved()
+        broken = stamp.python_moved(gitdir)
+        commit_file("tutorboard/server/app.py", "")
+        commit_file("tutorboard/runner/__init__.py", "")
+        commit_file("tutorboard/runner/service.py", "")
+        why = stamp.python_moved(gitdir)
+        with open(os.path.join(gitdir, "tutorboard", "half.py"), "w") as fh:
+            fh.write("def (:\n")
+        dirty = stamp.python_moved(gitdir)
+        os.remove(os.path.join(gitdir, "tutorboard", "half.py"))
+        with open(os.path.join(gitdir, ".git", "rebase-merge"), "w") as fh:
+            fh.write("")
+        rebasing = stamp.python_moved(gitdir)
+        os.remove(os.path.join(gitdir, ".git", "rebase-merge"))
     finally:
         stamp.PYTHON_AT_START = was
-    check("and gives the reason once the one it started on is gone",
+    check("once the one it started on is gone, a tree that imports gets the reason",
           why and why.startswith("its python moved from ") and "3.15.0" in why, why)
+    check("and a tree that does not import, has uncommitted edits, or is mid-rebase "
+          "does not, as with a code move", (broken, dirty, rebasing) == (None,) * 3,
+          (broken, dirty, rebasing))
     app_src = open(os.path.join(ROOT, "tutorboard", "server", "app.py"),
                    encoding="utf-8").read()
     check("the freshness thread asks it beside the code stamp",

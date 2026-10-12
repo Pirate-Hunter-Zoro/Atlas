@@ -20,9 +20,15 @@ launchctl shim that keeps its loaded agents in a file.
     brew service and our own label are not one; the baseline tick acts on
     nothing; a moved fingerprint repairs the broken venv only; an unchanged
     one writes nothing.
-  - BUSY and THE LOCK skip a tick with no call.
-  - OUTDATED, HOLDS, A CASK FAILURE, THE ORDER, update-tools, DRY-RUN, R1.
+  - DEFER: a plist whose job is not loaded is no upgrader; a recorded problem
+    is re-probed, report only, an hour on.
+  - BUSY and THE LOCK skip a tick with no call; a busy tick logs why, and an
+    editor, a pager or a `tail` of the log is not busy.
+  - OUTDATED, HOLDS, A CASK FAILURE, THE ORDER, update-tools, OFF MID-RUN,
+    R3 (only a CLI the run removed is put back), DRY-RUN, R1.
   - THE PLIST, install, off, on, status, and brewcare's lines and summary.
+    `off` and `install` during a run boot nothing out; the detached `settle`
+    does it once the lock is free, and no process is killed by name.
 """
 
 import contextlib
@@ -32,7 +38,6 @@ import json
 import os
 import plistlib
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -212,7 +217,9 @@ class Fake(object):
         self.bundle_ok = True
         self.broken = set()
         self.serve = "https://mini.tail.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:%d\n" % PORT
-        self.pids = ""
+        self.not_loaded = set()
+        self.clis = []
+        self.on_call = None
 
     def __call__(self, argv, timeout, mutating=False, env=None, cwd=None):
         argv = [str(a) for a in argv]
@@ -223,6 +230,12 @@ class Fake(object):
             return 0, "", ""
         s = nice(argv)
         prog = os.path.basename(argv[0])
+        if self.on_call:
+            self.on_call(s)
+        if s == "bash ai-config/scripts/install-clis.sh --list":
+            missing = self.clis.pop(0) if self.clis else []
+            return 0, "".join("  --    %s is missing; would run: curl x | bash\n" % m
+                              for m in missing) + "  ok    Claude Code is installed\n", ""
         if prog == "brew":
             if argv[1:3] == ["outdated", "--json=v2"]:
                 return self.outdated
@@ -241,8 +254,6 @@ class Fake(object):
                 return (0, "4242\n", "") if self.brew_running else (1, "", "")
             if pat == "brew[-_]?upgrade":
                 return (0, self.other_running, "") if self.other_running else (1, "", "")
-            if pat == "scripts/brew-upgrade.py":
-                return (0, self.pids, "") if self.pids else (1, "", "")
             for app in self.apps_running:
                 if app in pat.replace("\\", ""):
                     return 0, "777\n", ""
@@ -260,6 +271,8 @@ class Fake(object):
         if prog == "tailscale":
             return 0, self.serve, ""
         if prog == "launchctl":
+            if argv[1] == "print" and argv[2].split("/")[-1] in self.not_loaded:
+                return 113, "", "Could not find service"
             return 0, "", ""
         for key in self.fail:
             if s.startswith(key):
@@ -334,7 +347,8 @@ UPGRADES = ("brew update", "brew upgrade", "brew bundle install", "brew cleanup"
 
 
 def upgrade_calls(f):
-    return [c["s"] for c in f.calls if c["s"].startswith(UPGRADES)]
+    return [c["s"] for c in f.calls if c["s"].startswith(UPGRADES)
+            and not c["s"].endswith("--list")]
 
 
 try:
@@ -391,6 +405,15 @@ try:
     mod.main(["run"])
     check("and at 14:00 does not", not upgrade_calls(f) and "last_attempt" not in state(),
           f.said())
+    f = reset(14, state={"first_seen": (at(14) - timedelta(hours=1)).isoformat(),
+                         "probed_at": (at(14) - timedelta(hours=10)).isoformat(),
+                         "problems": [{"what": "projects/B has no .venv",
+                                       "fix": "bash scripts/setup.sh"}]})
+    mod.main(["run"])
+    st = state()
+    check("own mode outside the window re-probes a recorded problem, report only",
+          st["problems"] == [] and st["probed_at"] == at(14).isoformat()
+          and not upgrade_calls(f) and not f.said("uv sync"), (st, f.said()))
 
     # =======================================================================
     # defer
@@ -431,7 +454,8 @@ try:
     mod.main(["run"])
     check("an unchanged fingerprint writes no state",
           read(STATE) == before and os.stat(STATE).st_mtime == 1
-          and not [c for c in f.calls if not c["s"].startswith("pgrep")], f.said())
+          and not [c for c in f.calls if not c["s"].startswith(("pgrep", "launchctl print"))],
+          f.said())
     os.makedirs(os.path.join(prefix, "Cellar", "node", "24.2"))
     f.calls = []
     mod.main(["run"])
@@ -445,7 +469,46 @@ try:
     check("and leaves the Brewfile to setup", not f.said("brew bundle install")
           and any(p["fix"] == "bash scripts/setup.sh" for p in st["problems"]),
           st["problems"])
+    f.broken = set()
+    f.bundle_ok = True
+    f.calls = []
+    mod.main(["run"])
+    check("a problem fixed by hand stays up while the hour has not passed",
+          [p["what"] for p in state()["problems"]] == ["the Brewfile is not satisfied"]
+          and not f.said("python") and not f.said("brew bundle"), state()["problems"])
+    mod.now = lambda: at(5)
+    f.calls = []
+    mod.main(["run"])
+    st = state()
+    check("an hour later it is re-probed, report only, and clears",
+          st["problems"] == [] and st["probed_at"] == at(5).isoformat()
+          and f.said("python -c pass") and not f.said("uv sync")
+          and not upgrade_calls(f), (st, f.said()))
+    f.calls = []
+    mod.now = lambda: at(7)
+    mod.main(["run"])
+    check("and with none left nothing is re-probed",
+          not [c for c in f.calls if not c["s"].startswith(("pgrep", "launchctl"))],
+          f.said())
+
     shutil.rmtree(os.path.join(prefix, "Cellar", "node", "24.2"))
+
+    f = reset(4)
+    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade",
+          ["/Users/x/Media/run_brew_upgrade.sh"])
+    f.not_loaded = {"com.example.brewupgrade"}
+    check("another upgrader's plist whose job is not loaded is no upgrader",
+          mod.other_upgrader() is None)
+    mod.main(["run"])
+    check("and the tick upgrades here", state().get("mode") == "own"
+          and "brew update" in f.said(), f.said())
+    f = reset(4)
+    plist(sys_daemons, "com.example.brew-autoupdate.plist", "com.example.brew-autoupdate",
+          ["/x/brew_autoupdate"])
+    found = mod.other_upgrader()
+    check("a LaunchDaemon's job is asked of the system domain",
+          found and found[0] == "com.example.brew-autoupdate"
+          and "launchctl print system/com.example.brew-autoupdate" in f.said(), f.said())
 
     # =======================================================================
     # busy, and the lock
@@ -459,8 +522,28 @@ try:
         f = reset(4)
         setup(f)
         mod.main(["run", "--force"])
-        check("busy (%s): the tick does nothing and stamps nothing" % what,
-              not upgrade_calls(f) and not os.path.exists(STATE), f.said())
+        check("busy (%s): the tick does nothing, stamps nothing, and logs why" % what,
+              not upgrade_calls(f) and not os.path.exists(STATE)
+              and "skipped: " + what.replace("Media's brew_upgrade.py",
+                                             "another brew upgrader") in read(LOG),
+              (f.said(), read(LOG)))
+    for line in ("501 tail -f /Users/x/.local/state/atlas-setup/brew-upgrade.log",
+                 "502 less brew-upgrade.log",
+                 "503 vim board/test/brew_upgrade.py",
+                 "504 /bin/zsh -c tail -n 20 ~/.local/state/atlas-setup/brew-upgrade.log",
+                 "505 /usr/bin/python3 -c import x # brew_upgrade"):
+        f = reset(4)
+        f.other_running = line + "\n"
+        mod.main(["run", "--force"])
+        check("not busy: %s" % line.split(None, 1)[1][:40],
+              "brew update" in f.said(), (f.said(), read(LOG)))
+    for line in ("601 /Library/Developer/CommandLineTools/Library/Frameworks/Python3."
+                 "framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python "
+                 "/Users/x/Media/brew_upgrade.py",
+                 "602 /bin/bash /Users/x/Media/run_brew_upgrade.sh",
+                 "603 /opt/homebrew/bin/brew-autoupdate start"):
+        check("busy: %s" % line.split()[1][-30:],
+              mod.upgrader_line(line), line)
     f = reset(4, role="coding")
     f.other_running = "%d /usr/bin/python3 /a/scripts/brew-upgrade.py run\n" % os.getpid()
     BOARD_SAYS.update({"running": ["s1"]})
@@ -602,6 +685,76 @@ try:
     os.rename(TOOLS_SCRIPT + ".away", TOOLS_SCRIPT)
 
     # =======================================================================
+    # off mid-run
+    # =======================================================================
+    f = reset(4)
+    f.outdated = outdated([("wget", {})], ["bar"])
+
+    def owner_runs_off(s):
+        if s.startswith("brew upgrade --formula"):
+            write(mod.OFF_FILE, "off\n")
+    f.on_call = owner_runs_off
+    code = mod.main(["run"])
+    st = state()
+    check("off during a step: that step finishes, nothing after it runs",
+          code == 0 and "brew upgrade --formula wget" in f.said()
+          and not [s for s in upgrade_calls(f) + f.said("uv")
+                   if not s.startswith("brew update")
+                   and s != "brew upgrade --formula wget"]
+          and st["last_result"] == "stopped" and "last_success" not in st
+          and mod.lock_holder() is None and "off by owner" in read(LOG), (f.said(), st))
+    f = reset(4)
+    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade", ["/x"])
+    f.broken = {VENV_A}
+    write(STATE, json.dumps({"mode": "defer", "fingerprint": "old",
+                             "deferred_to": {"label": "com.example.brewupgrade"}}))
+
+    def off_in_defer(s):
+        if s.startswith("python -c pass"):
+            write(mod.OFF_FILE, "off\n")
+    f.on_call = off_in_defer
+    code = mod.main(["run"])
+    check("and in defer mode the repair after it does not run",
+          code == 0 and not f.said("uv sync") and mod.lock_holder() is None,
+          (f.said(), read(LOG)))
+
+    # =======================================================================
+    # R3: a CLI the run removed, and only that
+    # =======================================================================
+    for label, lists, want_install, want_problem in (
+            ("nothing missing before or after", [[], []], False, None),
+            ("one removed by the run is put back", [[], ["Codex"]], True, None),
+            ("one missing before stays missing", [["Gemini"], ["Gemini"]], False, None),
+            ("one removed beside one kept off is reported, not installed",
+             [["Gemini"], ["Codex", "Gemini"]], False,
+             "Codex went missing in the upgrade")):
+        f = reset(4)
+        f.clis = [list(x) for x in lists]
+        mod.main(["run"])
+        probs = [p["what"] for p in state()["problems"]]
+        check("CLIs: %s" % label,
+              ("bash ai-config/scripts/install-clis.sh" in f.said()) is want_install
+              and (want_problem in probs if want_problem else not probs),
+              (f.said("bash"), state()["problems"]))
+    check("and the reported one names what install-clis.sh would also install",
+          "also installs Gemini" in state()["problems"][0]["fix"], state()["problems"])
+    st = state()
+    st["probed_at"] = at(2).isoformat()
+    write(STATE, json.dumps(st))
+    f = reset(5, state=st)
+    f.clis = [["Codex", "Gemini"]]
+    mod.main(["run"])
+    check("an hour on, the re-probe keeps it while it is still gone",
+          [p["what"] for p in state()["problems"]] == ["Codex went missing in the upgrade"]
+          and not upgrade_calls(f), (state()["problems"], f.said()))
+    st = state()
+    st["probed_at"] = at(2).isoformat()
+    f = reset(5, state=st)
+    f.clis = [["Gemini"]]
+    mod.main(["run"])
+    check("and drops it once it is back", state()["problems"] == [], state()["problems"])
+
+    # =======================================================================
     # dry-run
     # =======================================================================
     f = reset(4)
@@ -616,7 +769,8 @@ try:
     out = buf.getvalue()
     real = [c for c in f.calls if c["mutating"] and not c["dry"]]
     sneaky = [c["s"] for c in f.calls if not c["mutating"]
-              and c["s"].startswith(UPGRADES + ("uv sync",))]
+              and c["s"].startswith(UPGRADES + ("uv sync",))
+              and not c["s"].endswith("--list")]
     check("dry-run: no state, no lock, the log untrimmed",
           code == 0 and not os.path.exists(STATE) and not os.path.exists(mod.LOCK)
           and read(LOG) == big, out)
@@ -690,9 +844,10 @@ try:
                                                       pl["StandardOutPath"],
                                                       pl["StandardErrorPath"]])
                 if v != "run"]
-    check("the plist: absolute paths, its label, no RunAtLoad, hourly, system python",
+    check("the plist: absolute paths, its label, no RunAtLoad, hourly, system python, "
+          "its children abandoned to finish",
           pl["Label"] == "atlas.brew-upgrade" and pl["RunAtLoad"] is False
-          and pl["StartInterval"] == 3600
+          and pl["StartInterval"] == 3600 and pl["AbandonProcessGroup"] is True
           and pl["ProgramArguments"][0] == "/usr/bin/python3"
           and pl["ProgramArguments"][1:] == [os.path.join(atlas, "scripts",
                                                           "brew-upgrade.py"), "run"]
@@ -723,6 +878,8 @@ try:
           and os.path.realpath(mod.LINK) == os.path.realpath(SCRIPT)
           and "upgrades brew daily 03:00-07:59" in out, (out, read(CALLS)))
     plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade", ["/x/y"])
+    with open(LOADED, "a") as fh:
+        fh.write("com.example.brewupgrade\n")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.main(["install"])
@@ -730,30 +887,68 @@ try:
           "defers to com.example.brewupgrade (repairs only)" in buf.getvalue(),
           buf.getvalue())
 
-    f = Fake()
-    victim = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)",
-                               "scripts/brew-upgrade.py"])
-    f.pids = "%d\n%d\n" % (victim.pid, os.getpid())
+    def hold_lock():
+        """A run under way: a process holding the lock with its pid in it."""
+        p = subprocess.Popen([sys.executable, "-c",
+                              "import fcntl,os,sys,time\n"
+                              "fd=os.open(sys.argv[1],os.O_RDWR|os.O_CREAT)\n"
+                              "fcntl.flock(fd,fcntl.LOCK_EX)\n"
+                              "os.write(fd,b'%d\\n'%os.getpid())\n"
+                              "print('held',flush=True)\n"
+                              "time.sleep(60)\n", mod.LOCK],
+                             stdout=subprocess.PIPE, universal_newlines=True)
+        p.stdout.readline()
+        return p
 
-    def off_run(argv, timeout, mutating=False, env=None, cwd=None):
-        if os.path.basename(argv[0]) == "pgrep":
-            return f(argv, timeout, mutating, env, cwd)
-        return real_run(argv, timeout, mutating, env, cwd)
-    mod.run = off_run
+    def until(cond, secs=15):
+        end = time.time() + secs
+        while time.time() < end:
+            if cond():
+                return True
+            time.sleep(0.1)
+        return cond()
+
+    os.makedirs(os.path.dirname(mod.LOCK), exist_ok=True)
+    holder = hold_lock()
+    check("lock_holder names the run's pid while it holds the lock",
+          mod.lock_holder() == holder.pid, mod.lock_holder())
+    open(CALLS, "w").close()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         code = mod.main(["off"])
-    try:
-        victim.wait(timeout=10)
-        killed = victim.returncode == -signal.SIGTERM
-    except subprocess.TimeoutExpired:
-        victim.kill()
-        killed = False
-    check("off: booted out, the plist gone, the off switch written, the lock holder "
-          "stopped", code == 0 and "atlas.brew-upgrade" not in read(LOADED).split()
-          and not os.path.exists(mod.AGENT) and os.path.exists(mod.OFF_FILE) and killed,
-          (buf.getvalue(), read(CALLS)))
+    off_said = buf.getvalue()
+    check("off during a run: the switch written and the plist gone, but no bootout "
+          "while it runs", code == 0 and os.path.exists(mod.OFF_FILE)
+          and not os.path.exists(mod.AGENT)
+          and "atlas.brew-upgrade" in read(LOADED).split()
+          and "launchctl bootout" not in read(CALLS)
+          and "pid %d" % holder.pid in off_said and "unloads once it ends" in off_said,
+          (off_said, read(CALLS)))
+    holder.kill()
+    holder.wait()
+    check("and once the run ends, settle unloads it",
+          until(lambda: "atlas.brew-upgrade" not in read(LOADED).split())
+          and until(lambda: "settle: the run ended; unloaded" in read(LOG)),
+          (read(LOADED), read(LOG)))
+    check("lock_holder is None once no run holds it", mod.lock_holder() is None)
+
     mod.run = real_run
+    os.remove(mod.OFF_FILE)
+    mod.main(["install"])
+    bystander = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)",
+                                  "scripts/brew-upgrade.py"])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = mod.main(["off"])
+    time.sleep(0.3)
+    alive = bystander.poll() is None
+    bystander.kill()
+    bystander.wait()
+    check("off with no run: booted out, the plist gone, the off switch written, and a "
+          "process that only names the script left alone",
+          code == 0 and "atlas.brew-upgrade" not in read(LOADED).split()
+          and not os.path.exists(mod.AGENT) and os.path.exists(mod.OFF_FILE) and alive,
+          (buf.getvalue(), read(CALLS)))
     open(CALLS, "w").close()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -773,6 +968,23 @@ try:
     check("on: the switch removed, loaded again", code == 0
           and not os.path.exists(mod.OFF_FILE)
           and "atlas.brew-upgrade" in read(LOADED).split(), buf.getvalue())
+
+    write(mod.AGENT, "an older template\n")
+    holder = hold_lock()
+    open(CALLS, "w").close()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = mod.main(["install"])
+    check("install with a changed plist during a run: written, not booted out",
+          code == 0 and read(mod.AGENT) != "an older template\n"
+          and "launchctl bootout" not in read(CALLS)
+          and "reloads once it ends" in buf.getvalue(), (buf.getvalue(), read(CALLS)))
+    holder.kill()
+    holder.wait()
+    check("and once the run ends, settle reloads it",
+          until(lambda: "settle: the run ended; reloaded" in read(LOG))
+          and "launchctl bootout" in read(CALLS)
+          and "atlas.brew-upgrade" in read(LOADED).split(), (read(CALLS), read(LOG)))
 
     write(STATE, json.dumps({"mode": "own", "last_attempt": "2026-10-12T03:30:00",
                              "last_result": "ok", "held": {}, "failed": {},

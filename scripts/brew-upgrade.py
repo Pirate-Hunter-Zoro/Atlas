@@ -5,6 +5,7 @@
     atlas-brew repair [--dry-run]          the probes and repairs, now
     atlas-brew status                      what the last run did; exit 1 on a problem
     atlas-brew install | off | on | plist  the LaunchAgent, atlas.brew-upgrade
+    atlas-brew settle                      internal: reload or unload once a run ends
 
 `atlas-brew` is ~/.local/bin/atlas-brew, a link to this file. setup-mac.sh's
 step 8 runs `install` on both roles. State is $BOARD_STATE_DIR/brew.json (else
@@ -15,15 +16,19 @@ The rules, each with its reason:
 
   * DEFER TO ANOTHER UPGRADER. When a LaunchAgent or LaunchDaemon whose label or
     program matches `brew.?(upgrade|autoupdate)|homebrew-autoupdate` is
-    installed, this job upgrades nothing and only probes and repairs, on the
-    tick after brew's tree moves, because two upgraders fight over brew's lock.
+    installed and loaded, this job upgrades nothing and only probes and repairs,
+    on the tick after brew's tree moves, because two upgraders fight over brew's
+    lock. A plist left installed but not loaded is no upgrader: it upgrades
+    nothing, so this job does.
   * HOURLY, GATED TO ONCE A DAY IN 03:00-07:59. A sleeping machine misses a
     calendar job; an hourly tick catches up. The host never upgrades outside the
     window, because the owner may be in a lesson. A coding laptop upgrades
     outside it only when 48 hours overdue, on AC and idle 20 minutes, because a
     laptop is shut at night.
-  * BUSY MEANS NEXT HOUR. A running brew, another upgrader running, or a board
-    turn running or queued skips the tick and stamps nothing.
+  * BUSY MEANS NEXT HOUR. A running brew, another upgrader running (an
+    interpreter whose script's name matches, never an editor or a `tail` of the
+    log), or a board turn running or queued skips the tick, logs why, and
+    stamps nothing.
   * NEVER GREEDY. Casks that update themselves are left to do so, and a stale
     record of one is never "upgraded" over the app.
   * HOLDS. A pinned formula, a tailscale run as a brew service on the host (it
@@ -36,8 +41,17 @@ The rules, each with its reason:
     nothing more current.
   * REPAIRS ACT ONLY ON BREAKAGE. A subject's .venv that cannot start is
     re-synced with `uv sync --locked`; the board's LaunchAgent whose interpreter
-    is gone is reinstalled; a Brewfile miss is installed in own mode. TeX and the
-    board's reachability are reported, never touched.
+    is gone is reinstalled; a Brewfile miss is installed in own mode; an
+    assistant CLI the run itself removed is put back, and one already missing
+    before the run is left missing, because that is how the owner keeps one off
+    a machine. TeX and the board's reachability are reported, never touched.
+    A recorded problem is re-probed, report only, each hour until it clears.
+  * OFF STOPS BETWEEN STEPS. `off` writes the off switch; a run sees it before
+    its next step and stops. A job mid-run is never booted out: a detached
+    `settle` waits on the run's lock and unloads (or, for `install`, reloads)
+    the job once the run ends, and AbandonProcessGroup keeps launchd from
+    killing a brew it started, because a brew killed mid-link leaves a keg
+    unlinked.
   * SYSTEM PYTHON. The LaunchAgent runs /usr/bin/python3, because this job
     upgrades brew's python; this file is stdlib-only and 3.7-clean.
 """
@@ -49,7 +63,6 @@ import os
 import plistlib
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import urllib.request
@@ -100,6 +113,7 @@ def find_prefix():
 PREFIX = find_prefix()
 
 MIN_INTERVAL_H = 20
+RECHECK_MIN = 50                     # a recorded problem is re-probed hourly
 WINDOW = range(3, 8)                 # 03:00-07:59 local
 OVERDUE_H = 48
 STALE_H = 72
@@ -294,9 +308,17 @@ def read_plist(path):
         return None
 
 
+def job_loaded(label, path):
+    """Is the job `label`, from the plist at `path`, loaded? A LaunchDaemon is
+    asked of the system domain, an agent of this user's."""
+    where = "system" if os.path.dirname(path) == AGENT_DIRS[2] else domain()
+    return run(["launchctl", "print", "%s/%s" % (where, label)], T_PROBE)[0] == 0
+
+
 def other_upgrader():
-    """(label, path) of another installed brew upgrader, or None. Read from the
-    plists alone: no vendor is named and no other job's state is read."""
+    """(label, path) of another loaded brew upgrader, or None. Found from the
+    plists, so no vendor is named and no other job's state is read; one whose
+    job is not loaded upgrades nothing, so it is passed over."""
     for d in AGENT_DIRS:
         try:
             names = sorted(os.listdir(d))
@@ -316,12 +338,35 @@ def other_upgrader():
             if not isinstance(prog, list):
                 prog = [str(prog)]
             text = " ".join([label] + [str(p) for p in prog])
-            if OTHER.search(text):
+            if OTHER.search(text) and job_loaded(label or name[:-6], path):
                 return label or name, path
     return None
 
 
 # ------------------------------------------------------------------------ busy
+
+INTERPRETER = re.compile(r"^(python[\d.]*|ruby|perl|node|bash|sh|zsh|dash|ksh)$", re.I)
+
+
+def upgrader_line(line):
+    """Is this `pgrep -lf` line another brew upgrader at work? Only a program
+    named like one, or an interpreter running a script named like one: an
+    editor, a pager, a `tail -f` of the log or a shell's `-c` command that
+    names the file is not, and neither is this script."""
+    parts = line.strip().split()
+    if len(parts) < 2 or not parts[0].isdigit() or int(parts[0]) == os.getpid():
+        return False
+    if "scripts/brew-upgrade.py" in line:
+        return False
+    prog, args = os.path.basename(parts[1]), parts[2:]
+    if OTHER.search(prog):
+        return True
+    if not INTERPRETER.match(prog) or not args:
+        return False
+    if args[0].startswith("-") and "c" in args[0]:
+        return False
+    return bool(OTHER.search(" ".join(args)))
+
 
 def busy(role):
     """Why this tick must not work now, or None."""
@@ -331,14 +376,8 @@ def busy(role):
     code, out, _ = run(["pgrep", "-lf", "brew[-_]?upgrade"], T_PROBE)
     if code == 0:
         for line in out.splitlines():
-            parts = line.strip().split(None, 1)
-            if not parts or not parts[0].isdigit():
-                continue
-            if int(parts[0]) == os.getpid():
-                continue
-            if "scripts/brew-upgrade.py" in line:
-                continue
-            return "another brew upgrader is running (%s)" % line.strip()[:120]
+            if upgrader_line(line):
+                return "another brew upgrader is running (%s)" % line.strip()[:120]
     if role == "host":
         try:
             with urllib.request.urlopen("http://127.0.0.1:%d/health" % board_port(),
@@ -371,6 +410,35 @@ def take_lock():
     os.write(fd, ("%d\n" % os.getpid()).encode())
     _lock_fd = fd
     return True
+
+
+def lock_holder():
+    """The pid holding the run's lock (0 when it wrote none), or None when no
+    run holds it."""
+    try:
+        fd = os.open(LOCK, os.O_RDONLY)
+    except OSError:
+        return None
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError:
+            said = os.read(fd, 32).decode("ascii", "replace").strip()
+            return int(said) if said.isdigit() else 0
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return None
+    finally:
+        os.close(fd)
+
+
+class Stopped(Exception):
+    """The owner turned the job off mid-run."""
+
+
+def check_off():
+    """Between steps: stop when `off` has been run since this run began."""
+    if not DRY and os.path.exists(OFF_FILE):
+        raise Stopped()
 
 
 def drop_lock():
@@ -536,6 +604,7 @@ def act(argv, timeout, acting, cwd=None, env=None):
     (a baseline tick, or --dry-run, which still says what it would run)."""
     if not acting:
         return None
+    check_off()
     code, out, err = run(argv, timeout, mutating=True, cwd=cwd, env=env)
     if DRY:
         return None
@@ -596,15 +665,49 @@ def probe_venvs(acting):
     return out
 
 
-def probe_clis(own, acting):
-    """R3, own mode only: put back any assistant CLI that went missing. Defer
-    mode leaves node and npm to the other upgrader."""
-    script = os.path.join(ATLAS, "ai-config", "scripts", "install-clis.sh")
-    if not own or not os.path.isfile(script):
+CLIS = os.path.join("ai-config", "scripts", "install-clis.sh")
+
+
+def clis_missing():
+    """The assistant CLIs install-clis.sh would install, by its label, from its
+    `--list`; None when it is not here or cannot say."""
+    script = os.path.join(ATLAS, CLIS)
+    if not os.path.isfile(script):
+        return None
+    code, out, _ = run(["bash", script, "--list"], T_PROBE * 2)
+    if code != 0:
+        return None
+    return set(m.group(1) for m in
+               (re.match(r"\s*--\s+(.+?) is missing; would run:", l)
+                for l in out.splitlines()) if m)
+
+
+def probe_clis(own, acting, before):
+    """R3, own mode only: put back an assistant CLI this run removed. `before`
+    is what was missing as the run began (None: not known, so nothing is put
+    back). install-clis.sh installs every missing CLI, so it runs only when
+    nothing was missing before; otherwise the gone one is reported. Defer mode
+    leaves node and npm to the other upgrader."""
+    if not own or before is None:
         return []
-    if act(["bash", script], T_TOOLS, acting) is False:
-        log("! install-clis.sh: a CLI did not install (none is required)")
-    return []
+    after = clis_missing()
+    gone = sorted((after or set()) - before)
+    if not gone:
+        return []
+    log("probe CLIs: %s went missing in this run" % ", ".join(gone))
+    if not before:
+        if act(["bash", os.path.join(ATLAS, CLIS)], T_TOOLS, acting):
+            log("repaired: install-clis.sh put back %s" % ", ".join(gone))
+            return []
+    return [cli_problem(gone, before)]
+
+
+def cli_problem(gone, before):
+    p = problem("%s went missing in the upgrade" % ", ".join(gone),
+                "bash %s, which also installs %s" % (CLIS, ", ".join(sorted(before)))
+                if before else "bash " + CLIS)
+    p.update({"clis": list(gone), "kept_off": sorted(before)})
+    return p
 
 
 def probe_tex():
@@ -681,18 +784,21 @@ def probe_board_serve():
     return out
 
 
-def repairs(role, own, acting, brewfile=True):
+def repairs(role, own, acting, brewfile=True, clis_before=None):
     """Every probe for this role; each repair acts only when `acting`. The
     problems found, as [{what, fix}]."""
     log("repairs (%s%s)" % ("own" if own else "defer",
                             "" if acting else ", report only"))
     found = []
     if role == "host":
+        check_off()
         found += probe_board_agent(acting)
+    check_off()
     found += probe_venvs(acting)
-    found += probe_clis(own, acting)
+    found += probe_clis(own, acting, clis_before)
     found += probe_tex()
     if brewfile:
+        check_off()
         found += probe_brewfile(own, acting)
     if role == "host":
         found += probe_board_serve()
@@ -803,8 +909,11 @@ def own_run(state, role, why):
     failed, held = {}, {}
     defers = dict(state.get("cask_defers") or {})
     found = []
+    stopped = False
     try:
+        clis_before = clis_missing()
         # 1. the index
+        check_off()
         if DRY:
             log("index not refreshed (dry-run)")
         else:
@@ -864,6 +973,7 @@ def own_run(state, role, why):
                 log("HELD: %s %s -> %s: %s" % (name, h["installed"], h["latest"], h["why"]))
 
             # 4. formulae, named
+            check_off()
             if names:
                 log("upgrading formulae: %s" % ", ".join(names))
                 code, out, err = brew(["upgrade", "--formula"] + names, T_FORMULAE,
@@ -875,6 +985,7 @@ def own_run(state, role, why):
 
             # 5. casks, one at a time
             for name in sorted(run_casks):
+                check_off()
                 code, out, err = brew(["upgrade", "--cask", name], T_CASK, mutating=True)
                 if code == 0:
                     defers.pop(name, None)
@@ -887,6 +998,7 @@ def own_run(state, role, why):
                     log_tail(out + "\n" + err, "cask " + name, 8)
 
         # 6. the Brewfile
+        check_off()
         bf = probe_brewfile(True, True)
         if bf:
             ok = False
@@ -894,6 +1006,7 @@ def own_run(state, role, why):
 
         # 7. brew's npm globals
         npm = os.path.join(PREFIX, "bin", "npm")
+        check_off()
         if os.path.exists(npm):
             code, out, err = run([npm, "update", "-g"], T_NPM, mutating=True,
                                  env=brew_env())
@@ -904,6 +1017,7 @@ def own_run(state, role, why):
 
         # 8. the assistant CLIs, by ai-config's own updater
         tools = os.path.join(ATLAS, "ai-config", "scripts", "update-tools")
+        check_off()
         if os.path.isfile(tools):
             code, out, err = run(["bash", tools], T_TOOLS, mutating=True)
             if code != 0:
@@ -917,6 +1031,7 @@ def own_run(state, role, why):
             pythons = [n for n in os.listdir(UV_PYTHONS) if n.startswith("cpython-")]
         except OSError:
             pythons = []
+        check_off()
         if uv and pythons:
             code, out, err = run([uv, "python", "upgrade"], T_UVPY, mutating=True)
             if code != 0:
@@ -924,14 +1039,18 @@ def own_run(state, role, why):
                 log_tail(out + "\n" + err, "uv", 8)
 
         # 10. repairs
-        found += repairs(role, True, True, brewfile=False)
+        found += repairs(role, True, True, brewfile=False, clis_before=clis_before)
 
         # 11. cleanup, last
+        check_off()
         code, out, err = brew(["cleanup", "--prune=%d" % PRUNE_DAYS], T_CLEANUP,
                               mutating=True)
         if code != 0:
             log("! brew cleanup exited %d" % code)
             log_tail(out + "\n" + err, "cleanup", 3)
+    except Stopped:
+        ok, stopped = False, True
+        log("off by owner: the run stops here, before its next step")
     except Exception as exc:                                 # noqa: BLE001
         ok = False
         failed["brew-upgrade.py"] = repr(exc)[:300]
@@ -939,7 +1058,7 @@ def own_run(state, role, why):
     finally:
         drop_lock()
         done = now()
-        state["last_result"] = "ok" if ok else "partial"
+        state["last_result"] = "stopped" if stopped else "ok" if ok else "partial"
         if ok:
             state["last_success"] = stamp(done)
         state["last_duration_seconds"] = int((done - started).total_seconds())
@@ -955,6 +1074,30 @@ def own_run(state, role, why):
     return 0
 
 
+def recheck(state, role, own):
+    """A recorded problem is probed again, report only, once RECHECK_MIN has
+    passed: one fixed by its own fix (`tlmgr install`, setup.sh) moves nothing
+    the fingerprint sees, and would otherwise stay up until the next move."""
+    if not state.get("problems"):
+        return 0
+    last = parse_ts(state.get("probed_at"))
+    if last and hours_since(last) * 60 < RECHECK_MIN:
+        return 0
+    log("re-probing %d recorded problem(s)" % len(state["problems"]))
+    found = repairs(role, own, False)
+    # What the run removed is known only to the run; keep what is still gone.
+    clis = [p for p in state["problems"] if isinstance(p, dict) and p.get("clis")]
+    missing = clis_missing() if clis else None
+    for p in clis:
+        still = [n for n in p["clis"] if n in (missing or set())]
+        if still:
+            found.append(cli_problem(still, set(p.get("kept_off") or [])))
+    state.update({"problems": found, "probed_at": stamp()})
+    save_state(state)
+    notify(state)
+    return 0
+
+
 def defer_tick(state, role, other, forced=False):
     """Defer mode: probe and repair once brew's tree moves; upgrade nothing."""
     fp = fingerprint()
@@ -965,7 +1108,7 @@ def defer_tick(state, role, other, forced=False):
         log("fingerprint: %s" % ("no baseline yet" if not stored else
                                  "unchanged" if stored == fp else "moved"))
     if same and not forced and not DRY:
-        return 0
+        return recheck(state, role, False)
     baseline = not stored and not forced
     if baseline:
         log("first tick: probes only, recording the baseline")
@@ -996,42 +1139,51 @@ def cmd_run(force=False, repair_only=False):
     why_busy = busy(role)
     if why_busy:
         if not DRY:
+            log("skipped: %s; the next hour asks again" % why_busy)
             return 0
         log("busy: %s; a real tick would stop here" % why_busy)
     if not take_lock():
         log("another run holds the lock")
         return 0
     try:
-        state = load_state()
-        if mode == "defer":
-            if DRY:
-                log("gate: not used; defers to %s, so nothing is upgraded" % other[0])
-            return defer_tick(state, role, other, forced=repair_only)
-        if repair_only:
-            found = repairs(role, True, True)
-            state.update({"problems": found, "probed_at": stamp(), "role": role})
-            save_state(state)
-            notify(state)
-            return 0
-        if not state.get("first_seen"):
-            state["first_seen"] = stamp()
-            save_state(state)
-        if DRY:
-            go, why = gate(state, role)
-            log("gate: %s (%s)" % ("would run" if go else "would skip", why))
-            why = "dry run"
-        elif force:
-            why = "forced"
-        else:
-            go, why = gate(state, role)
-            if not go:
-                if why == "formulae.brew.sh unreachable" and now().hour in WINDOW:
-                    log("skipped: %s; the next hour retries" % why)
-                return 0
-        hold_awake()
-        return own_run(state, role, why)
+        return work(role, other, force, repair_only)
+    except Stopped:
+        log("off by owner: stopped before the next step")
+        return 0
     finally:
         drop_lock()
+
+
+def work(role, other, force, repair_only):
+    """cmd_run's body, under the lock."""
+    state = load_state()
+    if other:
+        if DRY:
+            log("gate: not used; defers to %s, so nothing is upgraded" % other[0])
+        return defer_tick(state, role, other, forced=repair_only)
+    if repair_only:
+        found = repairs(role, True, True)
+        state.update({"problems": found, "probed_at": stamp(), "role": role})
+        save_state(state)
+        notify(state)
+        return 0
+    if not state.get("first_seen"):
+        state["first_seen"] = stamp()
+        save_state(state)
+    if DRY:
+        go, why = gate(state, role)
+        log("gate: %s (%s)" % ("would run" if go else "would skip", why))
+        why = "dry run"
+    elif force:
+        why = "forced"
+    else:
+        go, why = gate(state, role)
+        if not go:
+            if why == "formulae.brew.sh unreachable" and now().hour in WINDOW:
+                log("skipped: %s; the next hour retries" % why)
+            return recheck(state, role, True)
+    hold_awake()
+    return own_run(state, role, why)
 
 
 # ------------------------------------------------------------ the LaunchAgent
@@ -1084,11 +1236,16 @@ def cmd_install():
     except OSError as exc:
         print("could not write %s: %s" % (AGENT, exc))
         return 1
-    if changed or not loaded():
-        run(["launchctl", "bootout", "%s/%s" % (domain(), LABEL)], T_PROBE)
-        code, out, err = run(["launchctl", "bootstrap", domain(), AGENT], T_PROBE)
+    holder = lock_holder()
+    is_loaded = loaded()
+    if changed and is_loaded and holder is not None:
+        spawn_settle()
+        print("%s: a run (pid %s) is under way; the job reloads once it ends"
+              % (LABEL, holder or "?"))
+    elif changed or not is_loaded:
+        code, why = reload_job()
         if code != 0:
-            print("launchctl bootstrap failed: %s" % (last_line(err, out) or code))
+            print("launchctl bootstrap failed: %s" % why)
             return 1
     try:
         os.makedirs(os.path.dirname(LINK), exist_ok=True)
@@ -1107,25 +1264,70 @@ def cmd_install():
     return 0
 
 
-def cmd_off():
+def reload_job():
+    """Boot the job out and, unless it is off or its plist is gone, back in.
+    (code, why) of the bootstrap; (0, "") when there is none."""
     run(["launchctl", "bootout", "%s/%s" % (domain(), LABEL)], T_PROBE)
+    if os.path.exists(OFF_FILE) or not os.path.exists(AGENT):
+        return 0, ""
+    code, out, err = run(["launchctl", "bootstrap", domain(), AGENT], T_PROBE)
+    return code, (last_line(err, out) or str(code))
+
+
+def spawn_settle():
+    """Start `settle` detached, in its own session, so neither this command
+    ending nor the job's bootout takes it down."""
+    try:
+        os.makedirs(SETUP_DIR, exist_ok=True)
+        with open(LOG, "a", encoding="utf-8") as out:
+            subprocess.Popen([sys.executable, SCRIPT, "settle"], stdin=subprocess.DEVNULL,
+                             stdout=out, stderr=out, start_new_session=True,
+                             close_fds=True)
+        return True
+    except OSError as exc:
+        print("could not start settle: %s" % exc)
+        return False
+
+
+def cmd_settle():
+    """Wait for the run that holds the lock to end, then reload the job, or
+    unload it when it is off. A bootout of a running job would stop the run
+    between a keg's unlink and its link."""
+    try:
+        os.makedirs(SETUP_DIR, exist_ok=True)
+        fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError as exc:
+        log("! settle: %s" % exc)
+        return 1
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        code, why = reload_job()
+        log("settle: the run ended; %s" % (
+            "unloaded" if os.path.exists(OFF_FILE) or not os.path.exists(AGENT)
+            else "reloaded" if code == 0 else "bootstrap failed: %s" % why))
+        return 0 if code == 0 else 1
+    finally:
+        os.close(fd)
+
+
+def cmd_off():
+    os.makedirs(os.path.dirname(OFF_FILE), exist_ok=True)
+    with open(OFF_FILE, "w", encoding="utf-8") as fh:
+        fh.write("off since %s; atlas-brew on undoes it\n" % stamp())
     try:
         os.remove(AGENT)
     except OSError:
         pass
-    os.makedirs(os.path.dirname(OFF_FILE), exist_ok=True)
-    with open(OFF_FILE, "w", encoding="utf-8") as fh:
-        fh.write("off since %s; atlas-brew on undoes it\n" % stamp())
-    code, out, _ = run(["pgrep", "-f", "scripts/brew-upgrade.py"], T_PROBE)
-    mine = set([os.getpid(), os.getppid()])
-    for tok in out.split() if code == 0 else []:
-        if tok.isdigit() and int(tok) not in mine:
-            try:
-                os.kill(int(tok), signal.SIGTERM)
-            except OSError:
-                pass
-    print("%s is off: unloaded, its plist removed, %s written; a running brew "
-          "is left to finish" % (LABEL, OFF_FILE))
+    holder = lock_holder()
+    if holder is None:
+        reload_job()
+        print("%s is off: unloaded, its plist removed, %s written"
+              % (LABEL, OFF_FILE))
+        return 0
+    spawn_settle()
+    print("%s is off: %s written, its plist removed. The run under way (pid %s) "
+          "stops before its next step, its current brew left to finish; the job "
+          "unloads once it ends" % (LABEL, OFF_FILE, holder or "?"))
     return 0
 
 
@@ -1189,7 +1391,8 @@ def main(argv):
         return 2
     cmd, flags = argv[0], argv[1:]
     allowed = {"run": ("--dry-run", "--force"), "repair": ("--dry-run",)}
-    if cmd not in ("run", "repair", "status", "install", "off", "on", "plist") \
+    if cmd not in ("run", "repair", "status", "install", "off", "on", "plist",
+                   "settle") \
             or any(f not in allowed.get(cmd, ()) for f in flags):
         print(USAGE, file=sys.stderr)
         return 2
@@ -1206,6 +1409,8 @@ def main(argv):
         return cmd_off()
     if cmd == "on":
         return cmd_on()
+    if cmd == "settle":
+        return cmd_settle()
     sys.stdout.write(render().decode("utf-8"))
     return 0
 

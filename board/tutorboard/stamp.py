@@ -4,8 +4,8 @@ A stamp is a short hash of the git trees a process loads (`serve.py` and
 `tutorboard/`), read at start (`LOADED`) and compared with HEAD. `web/` is
 out (`sw.js` VERSION moves the shell) and `bin/board` is out (a fresh CLI
 every call). `moved()` is the server's freshness check, and `python_moved()`
-says a brew upgrade moved its interpreter; the server then exits 0 once no
-turn runs and launchd restarts it on the new code.
+says a brew upgrade moved its interpreter, under the same guards; the server
+then exits 0 once no turn runs and launchd restarts it on the new code.
 
 The constraint: a process reads its stamp before importing `tutorboard`, so
 the stamp never names newer code than it runs; this module is therefore a
@@ -114,17 +114,34 @@ def dirty(tool=TOOL):
     return p.returncode != 0 or bool(p.stdout.strip())
 
 
-def python_moved():
-    """Why this process should restart onto its python's new home, or None:
-    the interpreter's resolved path changed, or the one it started on is gone."""
-    here = os.path.realpath(sys.executable)
-    if here != PYTHON_AT_START or not os.path.exists(PYTHON_AT_START):
-        return "its python moved from %s to %s" % (PYTHON_AT_START, here)
-    return None
-
-
 # Each new stamp's import check, once: {stamp: ok}.
 _imported = {}
+
+# Each moved python's import check, once per python and stamp: {(python, stamp): ok}.
+_python_imported = {}
+
+
+def python_moved(tool=TOOL):
+    """Why this process should restart onto its python's new home, or None:
+    the interpreter's resolved path changed, or the one it started on is gone.
+    The same guards as `moved`, because a restart loads the working tree: None
+    while board/ has uncommitted edits, a rebase or detached HEAD is under way,
+    or the tree does not import under the new python."""
+    here = os.path.realpath(sys.executable)
+    if here == PYTHON_AT_START and os.path.exists(PYTHON_AT_START):
+        return None
+    now = tree(tool, cached=False)
+    if now is None or dirty(tool) or blocked(tool):
+        return None
+    key = (here, now)
+    if key not in _python_imported:
+        ok, _line = imports(tool)
+        if ok is None:
+            return None
+        _python_imported[key] = ok
+    if not _python_imported[key]:
+        return None
+    return "its python moved from %s to %s" % (PYTHON_AT_START, here)
 
 
 def moved(tool=TOOL):
