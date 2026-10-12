@@ -6,7 +6,11 @@ returns at once; `--status` exits 0 built, 1 missing, 2 running, 3 failed; the
 project's `scripts/build.sh` refuses while Mathlib is anything but built,
 because `lake build` would otherwise compile it inside a check; its
 `scripts/setup.sh` starts the build and builds the exercises only once
-Mathlib is built.
+Mathlib is built. Starts that overlap start one build; the build ignores the
+hangup and interrupt of the terminal that started it and runs under
+`caffeinate -is`; setup-mac.sh's step 7 starts it; and every script in the
+project's scripts/ is committed executable, because each says to run it as
+./scripts/<name>.
 
 The scripts run on a copy of themselves, against a stub `lake` whose cache
 fetch and build are steered by files, a mathlib checkout that is a one-commit
@@ -69,10 +73,13 @@ echo "warning: declaration uses 'sorry'"
 exit 0
 """
 
-base = tempfile.mkdtemp(prefix="tutor-mathlib-")
+# Real path: a script run by a relative path, as setup-mac.sh runs this one,
+# names its checkout by the real path, and HOME must be a prefix of it.
+base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-mathlib-"))
 try:
     home = os.path.join(base, "home")
-    proj = os.path.join(home, "Lean")
+    atlas = os.path.join(home, "Atlas")
+    proj = os.path.join(atlas, "projects", "Lean-Theorem-Proving")
     ctl = os.path.join(base, "ctl")
     bin_ = os.path.join(base, "bin")
     slurm_bin = os.path.join(base, "slurm")
@@ -100,7 +107,7 @@ try:
     mathlib = os.path.join(proj, ".lake", "packages", "mathlib")
     olean = os.path.join(mathlib, ".lake", "build", "lib", "lean", "Mathlib.olean")
     state = os.path.join(base, "state", "atlas-setup")
-    stem = os.path.join(state, "mathlib-Lean")
+    stem = os.path.join(state, "mathlib-Atlas_projects_Lean-Theorem-Proving")
 
     def git_in(*args):
         return subprocess.run(["git", "-C", mathlib] + list(args), env=env, check=True,
@@ -356,6 +363,119 @@ try:
     check("setup.sh under Slurm starts nothing and points at the sbatch",
           rc == 0 and "sbatch slurm_jobs/build_mathlib.sbatch" in out
           and not calls() and status()[0] == 1)
+
+    # -----------------------------------------------------------------------
+    def unbuild():
+        if os.path.exists(olean):
+            os.remove(olean)
+
+    # J. starts that overlap start one build
+    # -----------------------------------------------------------------------
+    hold(True)
+    reset_calls()
+    script = os.path.join(proj, "scripts", "build-mathlib.sh")
+    starts = [subprocess.Popen(["bash", script, "--source"], cwd=proj, env=env,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              for _ in range(6)]
+    said = [p.communicate(timeout=60)[0] for p in starts]
+    time.sleep(0.5)
+    check("six starts at once: one says started and five say running (%s)"
+          % [o.split(" ", 1)[0] for o in said],
+          sum(o.startswith("started") for o in said) == 1
+          and sum(o.startswith("running") for o in said) == 5
+          and all(p.returncode == 0 for p in starts))
+    check("and lake build Mathlib runs once",
+          [c.split(" ", 1)[1] for c in calls()] == ["build Mathlib"])
+    check("no start's turn is left behind", not os.path.lexists(stem + ".starting"))
+    hold(False)
+    check("that one build ends built", settle()[0] == 0)
+
+    unbuild()
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    os.symlink(str(dead.pid), stem + ".starting")
+    rc, out, took = run("build-mathlib.sh", "--source")
+    check("a turn left by a start that died is cleared, and the start goes ahead",
+          rc == 0 and out.startswith("started") and took < 10
+          and not os.path.lexists(stem + ".starting"))
+    check("and its build ends built", settle()[0] == 0)
+    reset_calls()
+
+    # -----------------------------------------------------------------------
+    # K. the build outlives its terminal, and keeps the Mac awake
+    # -----------------------------------------------------------------------
+    unbuild()
+    hold(True)
+    caller = subprocess.Popen(["bash", script], cwd=proj, env=env, start_new_session=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    out = caller.communicate(timeout=60)[0]
+    check("a start from a terminal of its own says started", out.startswith("started"))
+    # caffeinate runs the build in its own pid and asserts beside it, as a
+    # process of its own with the build's command line after its flags.
+    if shutil.which("caffeinate"):
+        everything = subprocess.run(["ps", "-axo", "command="], capture_output=True,
+                                    text=True).stdout.splitlines()
+        check("the build runs under caffeinate -is",
+              "caffeinate -is bash %s --run" % script in [c.strip() for c in everything])
+    for sig in (signal.SIGHUP, signal.SIGINT):
+        try:
+            os.killpg(caller.pid, sig)
+        except OSError:
+            pass
+    time.sleep(1)
+    rc, out = status()
+    check("the terminal's hangup and interrupt leave the build running", rc == 2)
+    hold(False)
+    check("and it ends built", settle()[0] == 0)
+    reset_calls()
+
+    # -----------------------------------------------------------------------
+    # L. setup-mac.sh's step 7, run from the Atlas root
+    # -----------------------------------------------------------------------
+    lines = open(os.path.join(ATLAS, "scripts", "setup-mac.sh"), encoding="utf-8").read().splitlines()
+    head = [l for l in lines if l.startswith(("problems=0", "good()", "warn()"))]
+    start = lines.index('echo "== 7. Mathlib"') if 'echo "== 7. Mathlib"' in lines else None
+    step7 = []
+    if start is not None:
+        for l in lines[start:]:
+            if l == "echo":
+                break
+            step7.append(l)
+    check("setup-mac.sh has its step 7 and its good and warn", len(head) == 3 and step7)
+    step7_sh = os.path.join(base, "step7.sh")
+    write(step7_sh, "\n".join(["set -uo pipefail"] + head + step7 + ['exit "$problems"']) + "\n")
+
+    def step(cwd=atlas):
+        p = subprocess.run(["bash", step7_sh], cwd=cwd, env=env, capture_output=True,
+                           text=True, timeout=60)
+        return p.returncode, p.stdout + p.stderr
+
+    unbuild()
+    hold(True)
+    rc, out = step()
+    check("on a missing Mathlib, step 7 starts the build (%r)" % out.strip(),
+          rc == 0 and "ok    Mathlib started" in out and status()[0] == 2)
+    rc, out = step()
+    check("while it builds, step 7 says running", rc == 0 and "ok    Mathlib running" in out)
+    hold(False)
+    settle()
+    rc, out = step()
+    check("once it is built, step 7 says built", rc == 0 and "ok    Mathlib built" in out)
+    rc, out = step(cwd=base)
+    check("where there is no Lean project, step 7 says so",
+          rc == 0 and "ok    no Lean project here" in out)
+    reset_calls()
+
+    # -----------------------------------------------------------------------
+    # M. committed executable
+    # -----------------------------------------------------------------------
+    staged = subprocess.run(["git", "-C", ATLAS, "ls-files", "-s", "--",
+                             "projects/Lean-Theorem-Proving/scripts/"],
+                            capture_output=True, text=True).stdout.splitlines()
+    modes = {l.split("\t", 1)[1].rsplit("/", 1)[1]: l.split(" ", 1)[0] for l in staged}
+    check("every script in the project's scripts/ is committed 100755 (%s)"
+          % sorted(n for n, m in modes.items() if m != "100755"),
+          "build-mathlib.sh" in modes and all(m == "100755" for m in modes.values()))
 
 finally:
     hold_path = os.path.join(base, "ctl", "hold")

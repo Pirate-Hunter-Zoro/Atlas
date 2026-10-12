@@ -51,15 +51,20 @@ for a in "$@"; do
   esac
 done
 
-# The pid of a live build, or nothing. A pid counts only while its command line
-# is still this script, so a pid reused after a reboot is not a build.
+# A pid counts only while its command line is still this script, so a pid
+# reused after a reboot is not a build.
+alive() {
+  ps -p "$1" -o command= 2>/dev/null | grep -q 'build-mathlib\.sh'
+}
+
+# The pid of a live build, or nothing.
 holder() {
   local f pid
   [ -d "$LOCK" ] || return 1
   for f in "$LOCK"/*; do
     pid="$(cat "$f" 2>/dev/null)"
     [ -n "$pid" ] || continue
-    if ps -p "$pid" -o command= 2>/dev/null | grep -q 'build-mathlib\.sh'; then
+    if alive "$pid"; then
       echo "$pid"; return 0
     fi
   done
@@ -109,14 +114,34 @@ if [ "$MODE" = start ]; then
     ''|*[!0-9]*|0) echo "LEANTP_THREADS must be a positive whole number, not '$threads'" >&2
                    exit 64 ;;
   esac
+  mkdir -p "$STATE" || exit 1
+  # Starts take turns, from the status check until the lock holds a pid: two at
+  # once would each find no build, and each clear the lock the other had taken.
+  # The turn is a symlink naming its start's pid, which ln makes or refuses in
+  # one step; a turn whose start is dead is cleared.
+  TURN="$STATE/$name.starting"
+  took=0
+  for _ in $(seq 100); do
+    if ln -s "$$" "$TURN" 2>/dev/null; then took=1; break; fi
+    other="$(readlink "$TURN" 2>/dev/null)"
+    [ -n "$other" ] || continue
+    if ! alive "$other"; then
+      [ "$(readlink "$TURN" 2>/dev/null)" = "$other" ] && rm -f "$TURN"
+      continue
+    fi
+    sleep 0.1
+  done
+  if [ "$took" = 0 ]; then
+    echo "another start (pid $other) has held $TURN for 10s" >&2; exit 1
+  fi
+  trap '[ "$(readlink "$TURN" 2>/dev/null)" = "$$" ] && rm -f "$TURN"' EXIT
   said="$(status)"; rc=$?
   case "$rc" in
     0|2) echo "$said"; exit 0 ;;
   esac
-  mkdir -p "$STATE" || exit 1
-  rm -rf "$LOCK"   # status() found no live holder, so any lock here is stale
+  rm -rf "$LOCK"   # status() found no live holder, and no other start is past it
   if ! mkdir "$LOCK" 2>/dev/null; then
-    echo "running: another start took the lock just now; log $LOG"; exit 0
+    echo "could not take the lock $LOCK" >&2; exit 1
   fi
   echo "$$" >"$LOCK/start"
   echo running >"$STATUS"
