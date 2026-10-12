@@ -49,13 +49,6 @@ continues open session `20261009-193922-5` or starts fresh; whether the deck nam
      linked worktree or a branch other than main is refused. The three end-path changes ship
      together, or `--end` is refused by its own held paths.
    - The pre-commit hook refuses held paths, with a bypass that only `board code --end` sets.
-4. **Laptop setup.** `scripts/setup-mac.sh --coding` writes `~/.config/tutor-board/role` so a rerun
-   stays a coding checkout: pull, bootstrap, `install.sh` with no LaunchAgent (and a stray one
-   booted out), `scripts/setup.sh`, ai-config fast-forward and install, no tailscale serve, no
-   port-8778 check. `install.sh` loads the LaunchAgent wherever launchctl exists, so it is gated
-   first. Setup checks `ai-config/policy/phi.py` is present, because without it check output never
-   reaches the tutor. `board pull` also fast-forwards ai-config and names subjects whose lockfiles
-   moved. README gains the laptop section.
 
 ### Then the lesson
 

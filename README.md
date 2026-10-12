@@ -117,6 +117,23 @@ board, and checks that the board answers. Its header lists each step.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 
+## Setting up a laptop
+
+```
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+cd Atlas && bash scripts/setup-mac.sh --coding
+```
+
+A laptop is a coding checkout: it runs `board code` and no board. `--coding` writes `coding` to
+`~/.config/tutor-board/role`, so every later run stays a coding checkout. That run does the Mac's
+steps without the LaunchAgent, and boots out one left from before. It skips tailscale serve, the
+provider config and the port-8778 check. Deleting the role file makes the next run a host.
+
+- `ai-config/policy/phi.py` must be there. Without it, `board code` withholds every check's
+  output from the tutor. Setup says when it is missing.
+- `board pull` brings the laptop up to date: Atlas, its vendor checkouts and ai-config. It names
+  each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those.
+
 ## Setting up the cluster
 
 ```

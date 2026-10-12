@@ -3,6 +3,7 @@
     commit(root, paths, message, refuse=None)   named paths only, no trailers
     push(root)                                  fetch, merge, push; never forced
     pull(root)                                  fast-forward only, guarded
+    lockfiles_moved(root, before, after)        the subjects to rebuild after one
     save(root, paths, message)                  commit, then push
     adopt_private(base)                         clone ai-config where it is missing
 
@@ -298,6 +299,30 @@ def _vendor_moved(root, before, after):
         if any(m.lstrip(":") == "160000" for m in modes):
             return True
     return False
+
+
+# What `scripts/setup.sh` builds a subject's environment from, at the
+# subject's root. One a pull moved leaves that environment stale.
+LOCKFILES = ("uv.lock", "go.sum", "lake-manifest.json", "lean-toolchain")
+
+
+def lockfiles_moved(root, before, after):
+    """The ids (`<parent>/<slug>`) of the subjects still in `root` whose
+    lockfile differs between two commits, sorted; [] when nothing moved."""
+    from tutorboard import subjects                          # local: a cycle
+    if not before or not after or before == after:
+        return []
+    code, out = _git(root, "diff", "--name-only", "--no-renames", before, after)
+    if code != 0:
+        return []
+    parents = set(p for p, _ in subjects.DIRS)
+    moved = set()
+    for path in out.splitlines():
+        parts = path.split("/")
+        if (len(parts) == 3 and parts[0] in parents and parts[2] in LOCKFILES
+                and os.path.isdir(os.path.join(root, parts[0], parts[1]))):
+            moved.add("%s/%s" % (parts[0], parts[1]))
+    return sorted(moved)
 
 
 def pull(root, quiet=False, timeout=60, say=None):

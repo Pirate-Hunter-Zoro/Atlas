@@ -191,6 +191,14 @@ say
 
 ai_config
 
+# A coding checkout (`scripts/setup-mac.sh --coding`) serves no board, so it
+# has no tailnet name to take and nothing to publish.
+if [ "$(tr -d '[:space:]' <"$CONFIG_DIR/role" 2>/dev/null)" = coding ]; then
+  say "Next:"
+  say "  board doctor --dry    what this machine has, without spending a turn"
+  exit 0
+fi
+
 # --- tailnet identity -------------------------------------------------------
 if [ -n "$NAME" ]; then
   export BOARD_TAILNET_NAME="$NAME"
