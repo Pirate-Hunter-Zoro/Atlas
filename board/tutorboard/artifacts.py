@@ -3,7 +3,9 @@
     create(subject, title, session, ext)   a new one at `<subject>/docs/<slug>/`
                                            (`source=` names its file)
     place(dir, source, title)              doc.json written in place, in an existing tree
+    asked_by(dir, session)                 a session that asked for a revision, added
     list(root), get(root, id)              every artifact of a subject; one by id
+    kept(artifact)                         the paths an End commits for it
     status(dir)                            writing | done | failed, from mtimes
     delete(root, dir, ...)                 to the trash, its ink with it, one commit
 
@@ -197,6 +199,22 @@ def place(d, source, title, session=None):
     return out
 
 
+def asked_by(d, session):
+    """Add `session` to the sessions of the artifact at `d`, which has asked
+    for its revision: that session's End commits it, and its recap goes to
+    the revising turn. The record, or None without a doc.json. Nothing else
+    in doc.json changes."""
+    rec = read(d)
+    sid = _session_id(session)
+    if rec is None or not sid:
+        return rec
+    sessions = rec.get("sessions") if isinstance(rec.get("sessions"), builtins.list) else []
+    if sid not in sessions:
+        rec["sessions"] = sessions + [sid]
+        _write_json(os.path.join(d, DOC_JSON), rec)
+    return rec
+
+
 def _own(root, d):
     """Is `d` a new artifact's own directory, `<root>/docs/<slug>/`?"""
     rel = os.path.relpath(d, root).replace(os.sep, "/").split("/")
@@ -288,6 +306,50 @@ def outputs(path):
     stem, ext = os.path.splitext(path)
     got = [stem + o for o in OUTPUTS.get(ext.lower(), ()) if os.path.isfile(stem + o)]
     return sorted(got, key=_mtime, reverse=True)
+
+
+# A round directory's caches, which the board rewrites on every read.
+ROUND_CACHE = re.compile(r"\A(?:checked|placed-.*)\.json\Z")
+
+
+def kept(art):
+    """The absolute paths an End commits for artifact `art` (an entry of
+    `list`). A `docs/<slug>/` artifact owns its directory, so all of it. One
+    placed in place shares its directory with other work, so only doc.json,
+    the source, its built files, the pages a write-up files in `handwritten/`
+    beside it, and its own rounds in `feedback/`: each note, ledger and round
+    directory named for the source's stem, less the round's caches."""
+    if art["own"]:
+        return [art["dir"]]
+    out = [os.path.join(art["dir"], DOC_JSON)]
+    path = art["path"]
+    if not path:
+        return out
+    out += [path] + outputs(path)
+    here = os.path.dirname(path)
+    hand = os.path.join(here, "handwritten")
+    if os.path.isdir(hand):
+        out.append(hand)
+    stem = os.path.splitext(os.path.basename(path))[0]
+    mine = re.compile(r"\A%s-\d{4}-\d{2}-\d{2}-v\d+" % re.escape(stem))
+    top = os.path.join(here, "feedback")
+    try:
+        names = sorted(os.listdir(top))
+    except OSError:
+        names = []
+    for name in names:
+        m = mine.match(name)
+        if not m:
+            continue
+        rest, p = name[m.end():], os.path.join(top, name)
+        if rest in (".md", ".ledger.json") and os.path.isfile(p):
+            out.append(p)
+        elif rest == "" and os.path.isdir(p):
+            for there, dirs, files in os.walk(p):
+                dirs.sort()
+                out += [os.path.join(there, f) for f in sorted(files)
+                        if not ROUND_CACHE.match(f)]
+    return out
 
 
 def _running(session_dir):

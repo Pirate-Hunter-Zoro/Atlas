@@ -175,10 +175,63 @@ def _artifacts(base, subject, sid):
             for a in artifacts.for_session(os.path.join(base, subject), sid)]
 
 
+def _kept(base, subject, sid):
+    """What End commits of the artifacts listing this session
+    (`artifacts.kept`), relative to the Atlas root. A path `git add` would
+    refuse -- ignored and untracked, or gone and never tracked -- is left
+    out."""
+    from . import artifacts                              # local: artifacts imports this
+    root = os.path.realpath(os.path.join(base, subject))
+    out = []
+    for a in artifacts.for_session(root, sid):
+        for p in artifacts.kept(a):
+            rel = "%s/%s" % (subject, os.path.relpath(p, root).replace(os.sep, "/"))
+            if rel not in out:
+                out.append(rel)
+    if not out:
+        return out
+    code, said = gitops._git(base, "-c", "core.quotePath=false",
+                             "check-ignore", "--", *out)
+    ignored = set(said.splitlines()) if code == 0 else set()
+    kept = []
+    for rel in out:
+        if rel in ignored:
+            continue
+        if not os.path.lexists(os.path.join(base, *rel.split("/"))):
+            code, said = gitops._git(base, "ls-files", "--", rel)
+            if code != 0 or not said.strip():
+                continue
+        kept.append(rel)
+    return kept
+
+
+def _settle(base, subject, sid):
+    """Write out every feedback round on the artifacts listing this session
+    -- the note's `## What was changed`, the round's `after` copy -- which
+    the library otherwise writes only when it is next read, after the commit
+    that should hold them. A failure costs that round's account, never End."""
+    from . import artifacts                              # local: artifacts imports this
+    from .course import library
+    root = os.path.join(base, subject)
+    repo = course_repo.sessionless(root, base)
+    try:
+        # By directory, not id: a `docs/<slug>/` artifact whose slug a walked
+        # document already took has another id in the library.
+        rels = set(a["rel"] for a in artifacts.for_session(root, sid))
+        # Uncached: End must not leave the library a stale listing to serve.
+        docs = [d for d in library._documents(os.path.realpath(root))
+                if d.get("artifact") in rels] if rels else []
+    except Exception:                                        # noqa: BLE001
+        return
+    for doc in docs:
+        library._settle(repo, doc)
+
+
 def end(sid, base=None, now=None):
     """End session `sid`: set `ended`, then commit the bound subject's
-    TUTOR.md and every artifact listing the session. `(record, ok, said)`.
-    Ending again keeps the time and retries the commit."""
+    TUTOR.md and every artifact listing the session (`_kept`), its feedback
+    settled first (`_settle`). `(record, ok, said)`. Ending again keeps the time and
+    retries the commit."""
     base = base or subjects.root()
     where = _need(sid, base)
     rec = get(sid, base)
@@ -193,7 +246,8 @@ def end(sid, base=None, now=None):
     keep = []
     if os.path.isfile(os.path.join(base, subject, "TUTOR.md")):
         keep.append("%s/TUTOR.md" % subject)
-    keep += _artifacts(base, subject, rec["id"])
+    _settle(base, subject, rec["id"])
+    keep += _kept(base, subject, rec["id"])
     if not keep:
         return rec, True, "ended; nothing of %s to commit" % subject
     ok, said = gitops.commit(base, keep, "%s: session %s ended" % (subject, rec["id"]))

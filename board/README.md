@@ -151,7 +151,9 @@ tree gets a `doc.json` written in place, so its ids hold.
 
 - **Build.** `board build <file>` is the only compiler: pdflatex for `.tex` (beamer or
   article, detected), pandoc for `.md` to `.docx`, plus PDF when an engine exists. Output lands
-  beside the source. Built PDFs are ignored.
+  beside the source. A beamer deck with an Overfull or Underfull box fails, its PDF written
+  and each box named by page and source line. Built PDFs are ignored; one already tracked
+  stays tracked, and End commits it rebuilt.
 - **Write-ups.** In teach mode every agreed answer goes in with `board writeup add`, and the
   PDF is rebuilt. A course's assigned set is the same artifact, written in place
   (`board writeup use hw04`).
@@ -162,7 +164,12 @@ tree gets a `doc.json` written in place, so its ids hold.
   history keeps the old ones.
 - **Reader.** One reader (`web/reader.js`) shows every PDF as page pictures drawn on the Mac.
   "Say what's wrong" files the marked pages as a round of the document's ledger and wakes a
-  `[revise]` turn, which edits the source or writes `TUTOR.md`.
+  `[revise]` turn, which edits the source or writes `TUTOR.md`. The turn runs in the
+  session it was asked from, else the subject's newest open session (`registry.runner_route`),
+  is handed its recap, and that
+  session goes on the document's `doc.json`, so its End settles the rounds and commits the
+  document with its feedback. One placed in a shared directory commits only its own files
+  (`artifacts.kept`), never its neighbours.
 - **Ink** is one kind. Card ink lives in the session; document ink lives in
   `<subject>/.ink/`, keyed `doc/<id>/p<n>`. Both are ignored.
 - **Materials** are third-party or uploaded files in `<subject>/materials/`, ignored, readable

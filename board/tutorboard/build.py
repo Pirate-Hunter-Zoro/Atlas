@@ -2,6 +2,7 @@
 
     .tex   pdflatex, beside the source. Beamer or article, detected from the
            document class. Twice, and a third time when the log says "Rerun".
+           A deck with an Overfull or Underfull box fails, its PDF built.
     .md    pandoc, to .docx and also to .pdf when the PDF engine exists.
 
 Output lands beside the source. Nothing else in board/ runs a compiler.
@@ -130,6 +131,33 @@ def _tex_errors(log_text):
     return "\n".join(out)
 
 
+# A box warning: TeX set something wider or taller than its box (Overfull), or
+# stretched it thin (Underfull). In a deck that is text off the frame or a gap
+# in it, so it is a defect rather than noise.
+_BOX_RE = re.compile(r"^(?:Overfull|Underfull) \\[hv]box\b")
+# A page shipped out: `[12` at a line's start or after a space.
+_PAGE_RE = re.compile(r"(?:^|(?<=\s))\[(\d+)(?![\d.])")
+
+
+def _box_warnings(log_text):
+    """Every box warning in a LaTeX log, as `page N: <warning>`. The page is
+    the one after the last shipped out, which is where the warning lands. The
+    paragraph TeX prints under a warning, up to a blank line, is skipped, so
+    its text never reads as a page number."""
+    out, page, quoting = [], 0, False
+    for ln in log_text.splitlines():
+        if quoting:
+            quoting = bool(ln.strip())
+            continue
+        if _BOX_RE.match(ln):
+            out.append("page %d: %s" % (page + 1, ln.strip()))
+            quoting = True
+            continue
+        for m in _PAGE_RE.finditer(ln):
+            page = max(page, int(m.group(1)))
+    return out
+
+
 def build_tex(source, keep_aux=False):
     """Compile one .tex beside itself. Returns the result dict of `build`."""
     src = os.path.abspath(source)
@@ -166,14 +194,23 @@ def build_tex(source, keep_aux=False):
         detail = _tex_errors(_read(stem + ".log")) or printed.strip()[-1200:]
         return _result(False, [], "FAILED to compile %s\n%s" % (name, detail), kind)
 
+    boxes = _box_warnings(_read(stem + ".log")) if kind == "beamer" else []
     keep = (".aux",) if keep_aux else ()
     for ext in SCRATCH:
         f = stem + ext
         if ext not in keep and os.path.isfile(f) and os.path.getmtime(f) >= started - 1:
             os.remove(f)
-    return _result(True, [pdf], "built %s (%s, %d pdflatex run%s)"
-                   % (os.path.basename(pdf), kind, runs, "" if runs == 1 else "s"),
-                   kind)
+    said = ("built %s (%s, %d pdflatex run%s)"
+            % (os.path.basename(pdf), kind, runs, "" if runs == 1 else "s"))
+    if boxes:
+        # The PDF is there to look at; the deck is not finished.
+        return _result(False, [pdf], (
+            "%s, but NOT FINISHED: %d box warning%s. Overfull is content off "
+            "the frame and Underfull a stretched gap. Fix each in %s and build "
+            "again; the deck counts only once there are none.\n%s"
+            % (said, len(boxes), "" if len(boxes) == 1 else "s", name,
+               "\n".join(boxes))), kind)
+    return _result(True, [pdf], said, kind)
 
 
 def _read(path):

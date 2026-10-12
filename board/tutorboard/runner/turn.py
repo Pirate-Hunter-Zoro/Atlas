@@ -137,11 +137,10 @@ def turn_plan(spec, signal=""):
 
 def context_plan(signal=""):
     """`(brief, recap)`: what a turn woken for `signal` is handed above its
-    prompt. Revisions, reworks and write-ups get neither; `[unfinished]` gets
-    the recap only."""
-    if signal in ("revise", "rework", "writeup"):
-        return False, False
-    if signal == "unfinished":
+    prompt. Revisions, reworks, write-ups and `[unfinished]` get the recap
+    only: a document turn runs in the session that asked for it, and that
+    session's lesson is what the document is about."""
+    if signal in ("revise", "rework", "writeup", "unfinished"):
         return False, True
     return True, True
 

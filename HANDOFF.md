@@ -17,15 +17,11 @@ continues open session `20261009-193922-5` or starts fresh; whether the deck nam
 
 ### Build
 
-1. **The deck loop.** `POST /library/feedback` sends `[revise]` for any document
-   (`server/routes/library.py:671-732`), so a non-Meetings deck already revises. Its weak spots:
-   - `runner/prompts/revise.md` never says `board see`, so ink-only feedback goes unread.
-   - A write-up or revise turn gets no brief or recap (`runner/turn.py:146-147`). Record the
-     routing session in `doc.json` and give the turn that session's recap.
-   - The writeup prompt lets beamer overfull boxes through. They are defects to fix before a
-     build counts.
-   - `projects/libr-local-llm/.gitignore:15` ignores `*.json`, so feedback ledgers never commit.
-     It is the owner's file: propose the two negations and commit only on a yes.
+1. **The deck loop: the owner's yes.** `projects/libr-local-llm/.gitignore:15` ignores `*.json`,
+   so a deck's feedback ledgers never commit. It is the owner's file. The proposal, after
+   `!/docs/*/doc.json`: `!/docs/**/feedback/*.ledger.json`, `!/docs/**/feedback/*/items.json` and
+   `!/docs/**/feedback/*/states.json`. The round directory's other JSON is cache and stays
+   ignored. Commit only on a yes.
 2. **Mathlib on the Mac.** The Mac already has Mathlib from `lake exe cache get`; the sbatch exists
    because the cluster blocks the cache host. Add `projects/Lean-Theorem-Proving/scripts/build-mathlib.sh`:
    cache first, then an incremental `lake build`; `--source` skips the cache; `--status` exits 0
@@ -68,10 +64,13 @@ Walk the owner through it on the iPad, one step per reply. Note every rough edge
    `board/tutorboard/{colibri,relay,jobs,cluster,leaving,fenced}.py`, `ai-config/policy/`. The
    subject is `phi: true` but holds no PHI on the Mac, so a hosted turn reads tracked docs and code
    only. No live Colibri task: a cold load takes 68 minutes. Its TUTOR.md is at 686 of 800 words.
-2. Make, Deck, with the agreed about line. Read it in the library, ink it, "Say what's wrong", and
-   run at least two revise rounds.
-3. End commits `docs/<slug>/` (the .tex, doc.json and feedback). The PDF stays on the Mac
-   (root `.gitignore:52`).
+2. Rework `projects/libr-local-llm/docs/fleet_walkthrough.tex` from the library: ink it, "Say
+   what's wrong" as an overhaul with the agreed purpose, then at least two revise rounds. Each
+   round goes to the lesson session while it is the newest open one on the subject. The deck
+   builds today with four Overfull vboxes (pages 3, 5, 8, 10), which the first round must fix.
+3. Let the last round finish, then End. It settles the rounds and commits the deck's own files:
+   the .tex, doc.json, its feedback and the rebuilt PDF, which is tracked. The rest of `docs/`
+   stays out of the commit.
 4. The owner's feedback goes into board/TEACHING.md and the prompts, in a worktree, merged after
    the lesson.
 

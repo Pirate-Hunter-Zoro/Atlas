@@ -415,7 +415,8 @@ to paste code or push by hand.
 The Make menu, or a subject's row on the start screen, asks for a document. The
 board makes `<subject>/docs/<slug>/doc.json`; a `[writeup]` turn writes the file
 its line names and runs `board build` on it. A **deck** is a beamer `.tex`,
-built to PDF. A **paper** is Markdown, built to .docx and a PDF where an engine
+built to PDF, and counts only once that passes: an Overfull or Underfull box
+fails it. A **paper** is Markdown, built to .docx and a PDF where an engine
 exists. The turn writes no card and leaves the session's cards and mode as it
 found them.
 
@@ -423,13 +424,13 @@ found them.
   explainer for somebody who was not in the room: no first person, no "we
   covered", no reference to the cards or questions. **This is a refusal, not a
   preference.**
-- **It lives in `docs/<slug>/`** with its `figures/` beside it. Write the file
-  the line names and no other.
+- **It lives in `docs/<slug>/`**, `figures/` beside it: that file and no other.
 - **The scope may be a part of the repository, a chapter or the evening.** With
   none named, it is the concepts this session covered: read the lesson back with
   `board recap --all` and explain each topic from scratch.
 
-A correction from the library is a `[revise]` turn on the source.
+A library correction is a `[revise]` turn, an overhaul a `[rework]`: `board see`
+each picture the feedback file names.
 
 ### A notes canvas
 

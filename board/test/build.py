@@ -5,7 +5,9 @@ A beamer deck and an article (with the subject's own `latex/coursemacros.sty`)
 through pdflatex; a Markdown document with figures in a sibling directory
 through pandoc to a .docx that carries every figure it names. A figure that
 did not arrive fails the build, a figure that will not sit on the page fails
-it under --strict, and a missing pandoc or PDF engine is named.
+it under --strict, and a missing pandoc or PDF engine is named. A deck with an
+Overfull or Underfull box fails with its PDF built, naming each box by page
+and source line; an article's boxes do not fail it.
 """
 
 import os
@@ -117,6 +119,28 @@ try:
           inputs[:2] == [os.path.join(subj, "latex"), os.path.join(ROOT, "tex")],
           repr(inputs))
 
+    # ---- box warnings, read off a log ---------------------------------------
+    LOG = "\n".join([
+        "(./deck.tex [1", "", "]",
+        "Overfull \\hbox (15.2pt too wide) in paragraph at lines 12--14",
+        "[]\\T1/lmss/m/n/10.95 see [7] and [8",
+        "",
+        "[2", "", "]",
+        "Overfull \\vbox (8.8pt too high) detected at line 30",
+        " []", "",
+        "Underfull \\hbox (badness 10000) in alignment at lines 40--44",
+        "", "[3] [4", "]",
+        "Underfull \\vbox (badness 10000) has occurred while \\output is active []",
+        "", "[5]"])
+    got = build._box_warnings(LOG)
+    check("every Overfull and Underfull box in a log is found, each on the page "
+          "after the last one shipped out",
+          got == ["page 2: Overfull \\hbox (15.2pt too wide) in paragraph at lines 12--14",
+                  "page 3: Overfull \\vbox (8.8pt too high) detected at line 30",
+                  "page 3: Underfull \\hbox (badness 10000) in alignment at lines 40--44",
+                  "page 5: Underfull \\vbox (badness 10000) has occurred while "
+                  "\\output is active []"], "\n".join(got))
+
     # ---- .tex ---------------------------------------------------------------
     if not HAVE_TEX:
         print("skip the .tex builds: no LaTeX on this machine")
@@ -159,6 +183,29 @@ try:
         code, out = cli(os.path.relpath(deck, subj), cwd=subj)
         check("`board build` takes a path relative to where it is run",
               code == 0 and out.strip().endswith("deck.pdf"), out)
+
+        wide = os.path.join(subj, "docs", "wide", "wide.tex")
+        write(wide, DECK.replace(
+            r"\end{document}",
+            "\\begin{frame}{Too wide}\\rule{30cm}{1pt}\\end{frame}\n"
+            "\\end{document}"))
+        rec = build.build(wide)
+        stem = os.path.splitext(wide)[0]
+        check("a deck with an Overfull box fails, its PDF still built to look at",
+              not rec["ok"] and rec["built"] == [stem + ".pdf"]
+              and os.path.isfile(stem + ".pdf"), rec["detail"])
+        check("and says which box, on which page, from which source line",
+              "NOT FINISHED: 1 box warning" in rec["detail"]
+              and "page 3: Overfull \\hbox" in rec["detail"]
+              and "at lines 6--6" in rec["detail"], rec["detail"])
+        check("and its scratch files still go", not os.path.exists(stem + ".log"))
+        code, out = cli(wide)
+        check("`board build` exits 1 on it", code == 1 and "Overfull" in out, out)
+        write(art, ARTICLE.replace(r"\end{document}",
+                                   "\\noindent\\rule{30cm}{1pt}\n\\end{document}"))
+        rec = build.build(art)
+        check("an article's Overfull box does not fail it",
+              rec["ok"] and "Overfull" not in rec["detail"], rec["detail"])
 
     # ---- .md ----------------------------------------------------------------
     proj = os.path.join(atlas, "projects", "Paper")
