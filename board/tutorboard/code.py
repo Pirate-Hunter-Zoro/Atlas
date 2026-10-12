@@ -29,9 +29,11 @@ Mac-local mode, where `<top>/sessions/<session>/session.json` exists (the
 board's own checkout): each step goes to the local `refs/heads/code/<session>`
 and is never pushed; the server's ear hears it there without the network. The
 loop takes no step while a turn is answering the session (`answering`),
-because it may be writing the held files; what the turn changed is one step
-of its own, taken as it ends and marked `by: tutor`, which the ear records
-without waking a turn. The registration's `local` decides where the ref is
+because it may be writing the held files. In do mode (`tutor_writes`, at the
+turn's start or end) what changed under the turn is one step of its own,
+taken as it ends and marked `by: tutor`, which the ear records without waking
+a turn. In teach mode the tutor writes no held file, so a change made under
+the turn is the owner's: an ordinary step after the quiet, which wakes one. The registration's `local` decides where the ref is
 (`keeps_local`), never a local branch of that name alone. `--end` commits on main
 exempt from its own session's hold (`gitops.commit(exempt=)`, which also sets
 the pre-commit hook's `END_ENV`), pushes, deletes the local ref and clears
@@ -245,6 +247,14 @@ def answering(top, sid, now=None):
     except (TypeError, ValueError):
         return False
     return (time.time() if now is None else now) - seen < TURN_STALE
+
+
+def tutor_writes(top, sid):
+    """May a turn write the held files of Mac session `sid`: its session.json
+    `mode` is `do`. In teach mode the tutor withholds the code, so a held file
+    that changes is the owner's."""
+    got = _json(os.path.join(top, SESSIONS, sid, "session.json")) or {}
+    return str(got.get("mode") or "").strip().lower() == "do"
 
 
 def keeps_local(top, sid):
@@ -1087,8 +1097,9 @@ class Loop(object):
         self.stopped = False
         self.owing = False
         # The held files' signature as a turn began, and the one it left them
-        # at: that step is the turn's own.
+        # at: that step is the turn's own, in do mode only (`writes`).
         self.before = None
+        self.writes = False
         self.turn_sig = None
         self.said = set()
 
@@ -1112,14 +1123,17 @@ class Loop(object):
                 self.say("the tutor is answering session %s: the next step "
                          "waits for its turn to end" % self.rec["session"])
                 self.before = signature(self.top, self.rec["paths"])[0]
+                self.writes = tutor_writes(self.top, self.rec["session"])
             self.owing = True
             return False
         sig, newest = signature(self.top, self.rec["paths"])
         if self.owing:
             self.owing = False
-            # The turn changed the held files: its own step, taken now, so
-            # the owner's next edit is a step of theirs.
-            if sig != self.before:
+            # The turn changed the held files in do mode: its own step, taken
+            # now, so the owner's next edit is a step of theirs. In teach mode
+            # the change is the owner's, taken after the quiet, and it wakes.
+            if sig != self.before and (
+                    self.writes or tutor_writes(self.top, self.rec["session"])):
                 self.turn_sig = sig
         if sig != self.sig:
             if self.sig is not None:
