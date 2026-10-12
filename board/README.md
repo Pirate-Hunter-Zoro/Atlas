@@ -256,23 +256,34 @@ session. IT's server keeps every chat, so the Mac, the relay and the task script
 subject whose tutorboard.json does not say `"phi": false`; a PHI subject uses Colibri. The key
 is `~/.config/libr-ai/key` on the cluster.
 
-## Coding at the cluster
+## Coding sessions
 
 One git ref per coding session, `code/<session-id>` (`code.py`).
 
-- `board code <session> <path>...`, run by the owner in a cluster terminal, holds those paths.
-  After 10 s of quiet it snapshots them through a temporary index, so HEAD, the index and main
-  never move. The commit-time gate and the subject's check run over the snapshot, and it is
-  pushed fast-forward to `code/<session>` with `Step N` in the message.
+- `board code <session> <path>...`, run by the owner in a terminal on the cluster or a laptop,
+  holds those paths. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
+  the index and main never move. The commit-time gate and the subject's check run over the
+  snapshot, and it is pushed fast-forward to `code/<session>` with `Step N` in the message.
 - The Mac's cluster thread hears the ref, records it in `session.json` `code`, brings the held
   files in its working tree to the new tip, and wakes the session with `[code] step N`. The
   tutor answers on the iPad.
-- A vibe push from the Mac while the session is open goes to the same ref, and the cluster loop
-  applies it when its held paths are unchanged. Otherwise it prints "both sides changed".
+- A vibe push from the Mac while the session is open goes to the same ref, and the loop applies
+  it when its held paths are unchanged. Otherwise it prints "both sides changed".
 - `--end` takes the relay's lock and makes one commit of the held paths on main, then deletes
   the ref. `--abandon` deletes the ref only.
-- While a session is held, the relay tolerates edits to its paths, and the Mac refuses commits
-  to them on main.
+- While a session is held, the relay tolerates edits to its paths, and the Mac and the
+  pre-commit hook refuse commits to them on main. `--end` alone lifts that, for its own session
+  (`BOARD_CODE_END`).
+- **Mac-local**, where `sessions/<session>/session.json` exists (the board's own checkout): steps
+  go to the local `refs/heads/code/<session>`, never pushed. The cluster thread lists local refs
+  every pass without the network, brings nothing and never releases one. Only the registration's
+  `local` makes a ref local; a branch checked out from origin's `code/<session>` is not. The loop
+  takes no step while a turn is answering the session (`agent.json` has `owed`, says `working`,
+  and its heartbeat is fresh), because the tutor may be writing the held files. What that turn
+  changed is one step marked `by: tutor`, taken as it ends; the ear records it with a non-waking
+  `[stepped]` line, so a do-mode edit never wakes a turn about itself. `--end` commits on main,
+  pushes, deletes the local ref and clears `code`. A linked worktree of that checkout, or a
+  branch other than main, is refused.
 
 `board code` answers before anything else in `bin/board` is imported, so the cluster loads no
 server, runner or model module.

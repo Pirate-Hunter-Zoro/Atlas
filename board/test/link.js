@@ -2502,13 +2502,13 @@ async function headerFlow() {
     && label.textContent === 'Grant Notes'
     ? ok('and binds the session to it') : fail('the new project was not bound: ' + label.textContent);
 
-  // CODING AT THE CLUSTER: the exact command to copy, `board code <id> <paths>`.
+  // A CODING SESSION: the exact command to copy, `board code <id> <paths>`.
   const codebar = doc.getElementById('codebar');
   const codeCmd = doc.getElementById('code-cmd');
   const codeBtn = doc.getElementById('btn-code');
   es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
   codebar.hidden && codeBtn && !codeBtn.hidden && doc.getElementById('barmenu').contains(codeBtn)
-    ? ok('a session not coding at the cluster offers the command from the overflow menu')
+    ? ok('a session not coding offers the command from the overflow menu')
     : fail('the cluster command is drawn, or not offered, before coding starts');
   codeBtn.click();
   !codebar.hidden && codeCmd.value === 'board code 20261009-210000 '

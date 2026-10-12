@@ -22,18 +22,6 @@ continues open session `20261009-193922-5` or starts fresh; whether the deck nam
    `!/docs/*/doc.json`: `!/docs/**/feedback/*.ledger.json`, `!/docs/**/feedback/*/items.json` and
    `!/docs/**/feedback/*/states.json`. The round directory's other JSON is cache and stays
    ignored. Commit only on a yes.
-3. **Coding sessions on the Mac mini and a laptop.** `board code` (`board/tutorboard/code.py`) needs
-   no Slurm, and `board/test/code.py` passes on the Mac.
-   - Laptop: a plain clone runs the same protocol and pushes `code/<sid>` to GitHub, which the Mac's
-     Ear already hears. Only the wording changes ("at the cluster", "beside the data" in
-     `runner/prompts/code.md`, TEACHING.md and the board header's command strip).
-   - Mac-local, detected when `<top>/sessions/<sid>/session.json` exists: steps go to a local
-     `refs/heads/code/<sid>` that is never pushed; the Ear also lists local refs, without network,
-     and never releases them; the loop waits while `agent.json` has `owed` set; `--end` exempts its
-     own session from `gitops.held_refusal`, commits on main, pushes and deletes the local ref; a
-     linked worktree or a branch other than main is refused. The three end-path changes ship
-     together, or `--end` is refused by its own held paths.
-   - The pre-commit hook refuses held paths, with a bypass that only `board code --end` sets.
 4. **Laptop setup.** `scripts/setup-mac.sh --coding` writes `~/.config/tutor-board/role` so a rerun
    stays a coding checkout: pull, bootstrap, `install.sh` with no LaunchAgent (and a stray one
    booted out), `scripts/setup.sh`, ai-config fast-forward and install, no tailscale serve, no

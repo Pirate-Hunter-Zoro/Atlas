@@ -19,7 +19,15 @@ repository, is fast-forwarded every few minutes and relinked when it moved
 (`gitops.sync_private`). A moved code ref is
 fetched and recorded in session.json `code`; a step wakes the session with
 `[code] step N: ...` and brings unchanged held files to the new tip; a
-deleted ref releases them with a non-waking `[unheld]` line.
+deleted ref releases them with a non-waking `[unheld]` line. A Mac-local
+session's `refs/heads/code/*` is listed here too, every pass and without the
+network, and recorded with `local`; its files are this working tree's own, so
+nothing is brought or put back, and the ear never releases it (`board code
+--end` and `--abandon` clear `code` themselves; a record whose local ref is
+gone is dropped and nothing moves). Only a ref whose registration here says
+`local` is one: a branch checked out from origin's ref is not. A step the
+tutor's own turn made (`by: tutor`) is recorded with a non-waking
+`[stepped]` line, so an edit in do mode never wakes a turn of its own.
 
 The constraint: this runs on the cluster's python3 too (jobs imports it), so
 no walrus or `match`, and the runner is reached through `sys.modules`, never
@@ -168,6 +176,7 @@ class Ear(object):
         self.say = say or (lambda msg: sys.stderr.write(msg + "\n"))
         self.main = None          # origin's main at the last ls-remote
         self.code = {}            # refs/heads/code/<id> -> sha, at the last ls-remote
+        self.local = {}           # refs/heads/code/<id> -> sha this checkout keeps
         self._noticed = {}        # code refs heard for no session here
         self.pulls = 0
         self._last = None         # (key, record) pull.json holds now
@@ -196,6 +205,29 @@ class Ear(object):
             elif ref.startswith("refs/heads/code/"):
                 refs[ref] = sha
         return main, refs, None
+
+    def local_refs(self):
+        """`{ref: sha}` for the `refs/heads/code/*` this checkout keeps
+        itself: Mac-local coding sessions, never pushed, each with a
+        registration here that says `local`. No network. None when git
+        cannot say."""
+        from . import code as coding, gitops
+        code, out = gitops._git(self.atlas, "for-each-ref",
+                                "--format=%(objectname) %(refname)",
+                                CODE_PREFIX.rstrip("/"))
+        if code != 0:
+            return None
+        refs = {}
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) != 2 or not parts[1].startswith(CODE_PREFIX):
+                continue
+            # A branch made from origin's ref (`git checkout code/<id>`) is
+            # not the session's: origin's is.
+            rec = coding.read(parts[1][len(CODE_PREFIX):], self.atlas)
+            if rec and rec.get("local"):
+                refs[parts[1]] = parts[0]
+        return refs
 
     def contains(self, sha):
         """Does HEAD here already contain commit `sha`? False when the
@@ -241,16 +273,21 @@ class Ear(object):
         if error:
             if self._record(False, "ls-remote", error):
                 self.say("cluster: origin did not answer: %s" % error)
-        heard_code = []
-        if not error:
+        else:
             self.main, self.code = main, refs
             pulled = False
-            # Before the pull: a released session's held files go back as
-            # HEAD has them, so main's --end commit fast-forwards over them.
-            try:
-                heard_code = self.hear_code(refs)
-            except Exception as exc:                         # noqa: BLE001
-                self.say("cluster: hearing the code refs failed: %r" % (exc,))
+        local = self.local_refs()
+        if local is not None:
+            self.local = local
+        # Before the pull: a released session's held files go back as HEAD
+        # has them, so main's --end commit fast-forwards over them. Local
+        # refs are heard with origin silent too.
+        heard_code = []
+        try:
+            heard_code = self.hear_code(None if error else refs, local)
+        except Exception as exc:                             # noqa: BLE001
+            self.say("cluster: hearing the code refs failed: %r" % (exc,))
+        if not error:
             # ai-config is ignored by Atlas, so a pull never brings it back,
             # and never moves it forward either: that is sync_private's, on
             # its own slower clock.
@@ -277,28 +314,40 @@ class Ear(object):
                 self._record(True, "ls-remote", "", remote=main)
         return {"pulled": pulled, "heard": heard_code + self.hear()}
 
-    # -- coding sessions at the cluster ------------------------------------
-    def hear_code(self, refs):
-        """Hear `refs` (`{ref: sha}`, every `refs/heads/code/*` origin has):
-        a moved one is fetched, recorded and woken; a session whose ref is
-        gone is released. The records heard."""
+    # -- coding sessions --------------------------------------------------
+    def hear_code(self, refs, local=None):
+        """Hear `refs` (`{ref: sha}`, every `refs/heads/code/*` origin has;
+        None when origin did not answer) and `local` (those this checkout
+        keeps itself; None when unknown). A moved one is recorded and woken,
+        fetched first from origin; a session whose ref is gone from origin
+        is released. A local one is never released: its record is dropped
+        when the ref is gone. The records heard."""
         from . import code as coding, sessions
         held = sessions.coding(self.atlas)
         out = []
-        for ref_name, sha in sorted(refs.items()):
+        heard = dict(refs or {})
+        # A ref this checkout keeps is the session's own, whatever origin has.
+        heard.update(local or {})
+        for ref_name, sha in sorted(heard.items()):
             sid = ref_name[len(CODE_PREFIX):]
             if not coding.SESSION_RE.match(sid):
                 continue
+            mine = ref_name in (local or {})
             old = held.get(sid)
-            if old is not None and old.get("sha") == sha:
+            if old is not None and old.get("sha") == sha \
+                    and bool(old.get("local")) == mine:
                 continue
             if old is None and self._noticed.get(ref_name) == sha:
                 continue
-            got = self.hear_step(sid, sha, old)
+            got = self.hear_step(sid, sha, old, local=mine)
             if got:
                 out.append(got)
         for sid, old in sorted(held.items()):
-            if old.get("ref") not in refs:
+            if old.get("local"):
+                if local is not None and old.get("ref") not in local:
+                    sessions.set_code(sid, None, base=self.atlas)
+                continue
+            if refs is not None and old.get("ref") not in refs:
                 out.append(self.release(sid, old))
         return out
 
@@ -309,11 +358,12 @@ class Ear(object):
                                 timeout=gitops.NET_TIMEOUT)
         return "" if code == 0 else ((out.splitlines() or ["fetch failed"])[-1])
 
-    def hear_step(self, sid, sha, old):
-        """Take `sha`, the new tip of `code/<sid>`. The line woken or noticed,
-        `{}` when the commit wakes nothing, None when it could not be read."""
+    def hear_step(self, sid, sha, old, local=False):
+        """Take `sha`, the new tip of `code/<sid>`, `local` when this
+        checkout keeps the ref itself. The line woken or noticed, `{}` when
+        the commit wakes nothing, None when it could not be read."""
         from . import code as coding, gitops, sessions
-        err = self._fetch(sid)
+        err = "" if local else self._fetch(sid)
         if err:
             self.say("cluster: could not fetch code/%s: %s" % (sid, err))
             return None
@@ -342,15 +392,28 @@ class Ear(object):
                 return {}
             root = os.path.join(self.atlas, subject) if subject else self.atlas
             return wake(root, sid, text, signal="code")
-        seen, note = self._bring(old, sha, paths)
+        # A local step was taken from this working tree: nothing to bring.
+        seen, note = (sha, "") if local else self._bring(old, sha, paths)
         rec = {"ref": coding.ref(sid), "sha": sha, "paths": paths,
                "step": said["step"] or int(old.get("step") or 0),
                "subject": subject, "prev": prev, "seen": seen,
                "at": time.strftime("%Y-%m-%d %H:%M:%S")}
+        if local:
+            rec["local"] = True
         sessions.set_code(sid, rec, base=self.atlas)
         if not said["step"]:
             return {}
         rng = "%s..%s" % (prev[:12], sha[:12]) if prev else sha[:12]
+        if said.get("tutor"):
+            # The tutor's own edit, taken as its turn ended: told, never
+            # woken, or each do-mode edit would wake a turn about itself.
+            text = ("[stepped] step %d on code/%s is your own edit, taken as "
+                    "your last turn ended: `git diff %s -- %s`. It woke no "
+                    "turn." % (said["step"], sid, rng, " ".join(paths) or "."))
+            sessions._line(sessions.path(sid, self.atlas), text, "stepped",
+                           ref=coding.ref(sid))
+            return {"session": sid, "id": coding.ref(sid), "state": "stepped",
+                    "text": text}
         text = ("%s\ncode/%s moved to %s. Read the change yourself: "
                 "`git diff %s -- %s`; the step's check is in `git log -1 %s`.%s"
                 % (line, sid, sha[:12], rng, " ".join(paths) or ".",
@@ -409,8 +472,8 @@ class Ear(object):
                         " The held files here were not put back: %s." % err)
         sessions.set_code(sid, None, base=self.atlas)
         where = sessions.path(sid, self.atlas)
-        text = ("[unheld] code/%s is gone from origin: the coding session at "
-                "the cluster ended or was abandoned.%s" % (sid, note))
+        text = ("[unheld] code/%s is gone from origin: the coding session "
+                "that pushed it ended or was abandoned.%s" % (sid, note))
         if where:
             sessions._line(where, text, "unheld", ref=old.get("ref"))
         return {"session": sid, "id": old.get("ref"), "state": "unheld",

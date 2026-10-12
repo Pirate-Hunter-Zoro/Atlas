@@ -151,7 +151,7 @@ _SIGNAL_TAG = re.compile(r"^\[[^\]\n]*\]\s*\[([a-z]+)\]")
 
 
 # Non-waking lines that ride in front of the one that woke the turn.
-QUIET_SIGNALS = ("bind", "mode", "uploaded", "filed", "unheld")
+QUIET_SIGNALS = ("bind", "mode", "uploaded", "filed", "unheld", "stepped")
 
 
 def turn_signal(out):

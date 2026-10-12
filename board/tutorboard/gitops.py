@@ -1,6 +1,7 @@
 """Every commit, push and pull the board makes, in one place.
 
-    commit(root, paths, message, refuse=None)   named paths only, no trailers
+    commit(root, paths, message, refuse=None, exempt=None)
+                                                named paths only, no trailers
     push(root)                                  fetch, merge, push; never forced
     pull(root)                                  fast-forward only, guarded
     save(root, paths, message)                  commit, then push
@@ -8,8 +9,10 @@
 
 The Mac's timed pull is `cluster.Ear`; `save-and-push.sh` wraps `save`;
 relay.py and code.py keep their own cluster-side git. While a session has
-`code` set, `commit` on main refuses its held paths (`held_refusal`): they
-reach main only through `board code <id> --end`.
+`code` set, `commit` on main refuses its held paths (`held_refusal`), and so
+does the pre-commit hook (`audit.coding_refusals`): they reach main only through
+`board code <id> --end`, the one caller of `commit(exempt=<id>)`, which sets
+`END_ENV` for the hook.
 
 The constraint: nothing here commits into an operation somebody started in
 a terminal (rebase, merge, cherry-pick, revert, bisect, detached HEAD;
@@ -37,11 +40,17 @@ COMMIT_TIMEOUT = 180
 
 _ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/bin/false"}
 
+# The session whose own held paths a commit may carry: set only by `board code
+# <id> --end`, read by the pre-commit hook.
+END_ENV = "BOARD_CODE_END"
+
 
 def _git(root, *args, **kw):
     """`(code, output)` of one git command in `root`, stdout and stderr
-    together. Never raises: a timeout is code 124, a missing git 127."""
+    together. `env` adds to the environment. Never raises: a timeout is code
+    124, a missing git 127."""
     env = dict(os.environ, **_ENV)
+    env.update(kw.get("env") or {})
     try:
         p = subprocess.run(["git"] + list(args), cwd=root, env=env,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -110,11 +119,13 @@ def _under(rel, base):
     return rel == base or rel.startswith(base + "/")
 
 
-def held_refusal(root, paths):
+def held_refusal(root, paths, exempt=None):
     """Why a commit of `paths` on main here would take files a coding session
-    at the cluster holds, or "". Only the files the commit would change count:
-    a commit of a whole subject whose held files are untouched goes through."""
-    held = held_paths(root)
+    holds, or "". Only the files the commit would change count: a commit of a
+    whole subject whose held files are untouched goes through. Session
+    `exempt`'s own paths are not refused: its `--end`."""
+    held = dict((sid, p) for sid, p in held_paths(root).items()
+                if sid != exempt)
     if not held:
         return ""
     code, branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
@@ -129,8 +140,8 @@ def held_refusal(root, paths):
         mine = [f for f in files if any(_under(f, h) for h in theirs)]
         if mine:
             said.append(
-                "nothing was committed: %s %s held by coding session %s at the "
-                "cluster. Its changes go to code/%s (`board push` from that "
+                "nothing was committed: %s %s held by coding session %s. "
+                "Its changes go to code/%s (`board push` from that "
                 "session) and reach main with `board code %s --end`; commit "
                 "other paths with `board push \"msg\" -- <paths>`."
                 % (", ".join(mine[:6]) + (" and %d more" % (len(mine) - 6)
@@ -139,7 +150,7 @@ def held_refusal(root, paths):
     return "\n".join(said)
 
 
-def commit(root, paths, message, refuse=None):
+def commit(root, paths, message, refuse=None, exempt=None):
     """Commit the named `paths` (relative to `root`) and nothing else.
     `(ok, said)`; nothing to commit is ok.
 
@@ -147,7 +158,9 @@ def commit(root, paths, message, refuse=None):
     is staged stays staged and out of this commit. The message goes in as
     given, with no trailers. `refuse(paths)` may return a reason, and then
     nothing is committed; so does a change on main to a path a coding session
-    at the cluster holds (`held_refusal`).
+    holds (`held_refusal`). `exempt`, a session id, lifts that refusal for its
+    own paths here and in the pre-commit hook (`END_ENV`); only `board code
+    <id> --end` passes it.
 
     `--only` is used only when something outside the paths is staged. It takes
     each path from the working tree, so it drops a staged removal of a file
@@ -168,7 +181,7 @@ def commit(root, paths, message, refuse=None):
         return False, ("nothing was committed: %s in this repository. Nothing "
                        "has been lost -- finish or abort it, then save again."
                        % busy)
-    held = held_refusal(root, paths)
+    held = held_refusal(root, paths, exempt)
     if held:
         return False, held
     said = []
@@ -198,7 +211,8 @@ def commit(root, paths, message, refuse=None):
                 "and drops the removal.\n  Nothing has been lost. Commit the "
                 "removal by itself: stage only it and commit with no pathspec."
                 % " ".join(kept))
-    code, out = _git(root, *cmd, timeout=COMMIT_TIMEOUT)
+    code, out = _git(root, *cmd, timeout=COMMIT_TIMEOUT,
+                     env={END_ENV: exempt or ""})
     if code != 0:
         said.append("git commit failed: %s" % out)
         return False, "\n".join(said)

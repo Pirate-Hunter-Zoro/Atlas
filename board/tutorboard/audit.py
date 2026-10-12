@@ -2,11 +2,11 @@
 
 Every commit to Atlas is public and git remembers, so this is checked before
 anything is written: `.githooks/pre-commit` asks `check` of the staged paths
-(plus `leaving.refused`, the participant scan and a tutor turn's refusals;
-see `main`), and `board/test/tracked.py` asks it of the whole index and asks
-`held` which directories git must be blind to. Third-party material inside a
-course is `other_peoples_work`. Messages say what a path is, so the reader
-can judge the refusal.
+(plus `leaving.refused`, the participant scan, a tutor turn's refusals and a
+coding session's held paths; see `main`), and `board/test/tracked.py` asks it
+of the whole index and asks `held` which directories git must be blind to.
+Third-party material inside a course is `other_peoples_work`. Messages say
+what a path is, so the reader can judge the refusal.
 
 The constraint: the hook runs on the cluster's python3 (maybe 3.7), so
 relay-path rules apply. Standard library only.
@@ -449,6 +449,38 @@ def gate(top, home, turn):
     return out
 
 
+def coding_refusals(top, entries, exempt=None):
+    """A commit on main in `top` that changes a file a coding session holds:
+    session.json `code` of the board's sessions here (`gitops.held_paths`),
+    and `board code` registrations for this checkout (`code.registrations`).
+    Those files reach main through `board code <id> --end` only, which names
+    its own session in `exempt` (`gitops.END_ENV`)."""
+    from . import code, gitops
+    held = {}
+    for sid, theirs in gitops.held_paths(top).items():
+        held.setdefault(sid, set()).update(theirs)
+    for rec in code.registrations(top):
+        held.setdefault(rec["session"], set()).update(
+            p for p in rec.get("paths") or [] if isinstance(p, str) and p)
+    held.pop(exempt or None, None)
+    if not held:
+        return []
+    said = _git(["symbolic-ref", "--quiet", "--short", "HEAD"], top)
+    if said is None or said.decode("utf-8", "replace").strip() != gitops.MAIN:
+        return []
+    out = []
+    for sid, theirs in sorted(held.items()):
+        hit = sorted(e[3] for e in entries
+                     if any(e[3] == h or e[3].startswith(h + "/")
+                            for h in theirs))
+        if hit:
+            out.append("%s%s held by coding session %s: held files reach main "
+                       "only through `board code %s --end`."
+                       % (", ".join(hit[:6]), " and %d more" % (len(hit) - 6)
+                          if len(hit) > 6 else "", sid, sid))
+    return out
+
+
 def main(argv=None):
     """The pre-commit hook: `python3 -m tutorboard.audit <hook's repository>`."""
     argv = sys.argv[1:] if argv is None else argv
@@ -460,6 +492,9 @@ def main(argv=None):
     turn = bool(os.environ.get("TUTORBOARD_TURN"))
     try:
         refusals = gate(top, home, turn)
+        from . import gitops
+        refusals += coding_refusals(top, staged(top),
+                                    os.environ.get(gitops.END_ENV) or None)
     except Exception as exc:                                 # noqa: BLE001
         # Fail closed: a gate that cannot run has checked nothing.
         refusals = ["the commit-time gate could not run (%s: %s)."

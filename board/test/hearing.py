@@ -926,6 +926,9 @@ try:
     check("with a non-waking [unheld] line",
           len(unheld) == 1 and unheld[0].get("wake") is False
           and unheld[0]["text"].startswith("[unheld]"), unheld)
+    check("which names no machine: a laptop's session is released the same way",
+          unheld and "cluster" not in unheld[0]["text"]
+          and "ended or was abandoned" in unheld[0]["text"], unheld)
     check("the Mac's held file goes back as HEAD had it, so main's --end "
           "commit pulls cleanly in the same pass",
           until(lambda: git(cmac, "rev-parse", "HEAD").strip()
