@@ -404,9 +404,10 @@ def sync_private(base, state_dir, now=None, every=PRIVATE_EVERY, say=None,
     """Fast-forward `base`'s ai-config when it is due, then relink it if it moved.
 
     None when there is no ai-config repository or the last try was under
-    `every` seconds ago. Otherwise `{"pulled": bool, "moved": bool, "linked":
-    True|False|None, "why": str}`: `pulled` from `pull` (the same refusals --
-    a merge in progress, a detached HEAD, local edits git will not carry);
+    `every` seconds ago. Otherwise `{"pulled": True|False|None, "moved": bool,
+    "linked": True|False|None, "why": str}`: `pulled` is `pull`'s answer (False
+    for the same refusals -- a merge in progress, a detached HEAD, local edits
+    git will not carry; None when ai-config has no origin to pull from);
     `linked` None when nothing moved, else whether `scripts/install.sh` ran
     clean, which is what puts a new file or link in place. The time of each try
     is kept in `state_dir/PRIVATE_STAMP`, so a restarted server waits out the
@@ -432,8 +433,9 @@ def sync_private(base, state_dir, now=None, every=PRIVATE_EVERY, say=None,
     ok = pull(repo, quiet=True, timeout=timeout, say=said.append)
     _, after = _git(repo, "rev-parse", "HEAD")
     moved = ok is True and before != after
-    rec = {"pulled": ok is True, "moved": moved, "linked": None,
-           "why": "" if ok is True else (said[-1] if said else "pull refused")}
+    rec = {"pulled": ok, "moved": moved, "linked": None,
+           "why": "" if ok is True else "no origin" if ok is None
+           else (said[-1] if said else "pull refused")}
     if moved:
         script = os.path.join(repo, "scripts", "install.sh")
         try:

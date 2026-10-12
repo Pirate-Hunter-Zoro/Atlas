@@ -2443,7 +2443,10 @@ def cmd_pull(live, args):
             print("  lockfiles moved in %s; rebuild with: bash scripts/setup.sh"
                   % ", ".join(moved))
     private = gitops.sync_private(base, paths.STATE_DIR, every=0, say=print)
-    return 1 if got is False or (private and not private["pulled"]) else 0
+    if private and private["pulled"] is None and "--quiet" not in args:
+        print("nothing to pull: %s has no origin"
+              % os.path.join(base, gitops.AI_CONFIG))
+    return 1 if got is False or (private and private["pulled"] is False) else 0
 
 
 def cmd_cost(live, args):

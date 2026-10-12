@@ -6,7 +6,8 @@
 PULL. A bare origin stands in for GitHub, with a vendor submodule. The cluster
 moves the vendor pointer and pushes; `board pull --atlas <mac clone>`
 fast-forwards the Mac and brings its vendor checkout along, leaving the tree
-clean. A diverged clone is refused with exit 1 and its work kept.
+clean. A diverged clone is refused with exit 1 and its work kept. An Atlas
+or an ai-config with no origin has nothing to pull, exit 0.
 
 COST. A fixture Atlas with three sessions: two bound to courses/Topology with a
 `cost.jsonl` each, and one that never billed. `board cost` lists the ones that
@@ -150,6 +151,15 @@ try:
     code, out = board("pull", "--atlas", plain)
     check("an Atlas with no origin has nothing to pull, and is not an error",
           code == 0 and "nothing to pull" in out, out)
+
+    subprocess.run(["git", "init", "-q", os.path.join(plain, "ai-config")],
+                   check=True)
+    code, out = board("pull", "--atlas", plain)
+    check("nor is an ai-config with no origin, and it says so",
+          code == 0 and "nothing to pull: %s has no origin"
+          % os.path.join(plain, "ai-config") in out, out)
+    code, out = board("pull", "--quiet", "--atlas", plain)
+    check("and --quiet says nothing of it", code == 0 and not out.strip(), out)
 
     # =======================================================================
     # board cost

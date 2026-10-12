@@ -188,6 +188,15 @@ try:
     os.makedirs(pbase)
     check("no ai-config is nothing to do",
           gitops.sync_private(pbase, pstate, now=1000) is None)
+    lone = os.path.join(pbase, gitops.AI_CONFIG)
+    subprocess.run(["git", "init", "-q", lone], check=True)
+    heard = []
+    got = gitops.sync_private(pbase, pstate, now=1000, say=heard.append)
+    check("an ai-config with no origin is nothing to pull, not a refusal",
+          got == {"pulled": None, "moved": False, "linked": None,
+                  "why": "no origin"} and not heard)
+    shutil.rmtree(lone)
+    os.remove(os.path.join(pstate, gitops.PRIVATE_STAMP))
     porigin = os.path.join(work, "ai-config.git")
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", porigin], check=True)
     pseed = os.path.join(work, "ai-config-seed")
