@@ -14,8 +14,9 @@ anything but the shim.
 
   - --CODING WRITES THE ROLE FILE, and a rerun without it stays a coding
     checkout.
-  - NO LAUNCHAGENT IS LOADED, and a stray `tutor-board` is booted out with its
-    plist; without the role, install.sh does load it.
+  - NO BOARD LAUNCHAGENT IS LOADED; atlas.brew-upgrade is. A stray
+    `tutor-board` is booted out with its plist; without the role, install.sh
+    does load it.
   - TAILSCALE AND PORT 8778 ARE NEVER ASKED.
   - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run.
   - A MISSING ai-config/policy/phi.py IS A PROBLEM, named.
@@ -118,7 +119,7 @@ case "$1" in
   print) grep -qx "${2##*/}" "$LAPTOP_LOADED" ;;
   bootout) grep -vx "${2##*/}" "$LAPTOP_LOADED" >"$LAPTOP_LOADED.new"
            mv "$LAPTOP_LOADED.new" "$LAPTOP_LOADED" ;;
-  bootstrap) echo tutor-board >>"$LAPTOP_LOADED" ;;
+  bootstrap) b="${3##*/}"; echo "${b%.plist}" >>"$LAPTOP_LOADED" ;;
 esac
 """, EXE)
 write(os.path.join(shims, "tailscale"), "#!/bin/bash\n" + LOG, EXE)
@@ -155,7 +156,8 @@ try:
     git(seed, "remote", "add", "origin", origin)
     real = {}
     for rel in ("scripts/setup-mac.sh", "board/bootstrap.sh", "board/install.sh",
-                "board/scripts/launchd/tutor-board.plist"):
+                "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py",
+                "scripts/launchd/atlas.brew-upgrade.plist"):
         real[rel] = read(os.path.join(ATLAS, rel))
     real.update({
         ".gitignore": "/ai-config/\n",
@@ -190,9 +192,12 @@ try:
           any("bootout" in l and l.endswith("/tutor-board") for l in calls("launchctl"))
           and not os.path.exists(AGENT) and "tutor-board" not in read(LOADED),
           "\n".join(calls("launchctl")))
-    check("and no LaunchAgent is loaded",
-          not any(l.startswith("launchctl bootstrap") for l in calls("launchctl"))
-          and "no LaunchAgent: a coding checkout runs no board" in out, out)
+    check("no tutor-board bootstrap, and atlas.brew-upgrade is loaded",
+          not any(l.startswith("launchctl bootstrap") and "tutor-board" in l
+                  for l in calls("launchctl"))
+          and "no LaunchAgent: a coding checkout runs no board" in out
+          and "atlas.brew-upgrade" in read(LOADED).split()
+          and "atlas.brew-upgrade loaded;" in out, out)
     check("tailscale and port 8778 are never asked",
           not calls("tailscale") and not calls("curl")
           and "skipped: a coding checkout serves no board" in out, read(CALLS))

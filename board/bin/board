@@ -2396,6 +2396,11 @@ def machine_check():
     v4, tsname = ts_info()
     print("tailnet:  %s  (this machine calls itself '%s')"
           % (tsname or "not linked", tailscale.tailnet_hostname()))
+    # Not fatal: brew upkeep is setup's machine job (scripts/brew-upgrade.py).
+    from tutorboard import brewcare
+    said = brewcare.summary()
+    if said is not None:
+        print("brew:     %s" % said)
 
     # --- and the half of the machine that actually teaches -------------------
     print()

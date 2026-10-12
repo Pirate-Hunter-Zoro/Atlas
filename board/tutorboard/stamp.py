@@ -3,12 +3,13 @@
 A stamp is a short hash of the git trees a process loads (`serve.py` and
 `tutorboard/`), read at start (`LOADED`) and compared with HEAD. `web/` is
 out (`sw.js` VERSION moves the shell) and `bin/board` is out (a fresh CLI
-every call). `moved()` is the server's freshness check; the server then exits
-0 once no turn runs and launchd restarts it on the new code.
+every call). `moved()` is the server's freshness check, and `python_moved()`
+says a brew upgrade moved its interpreter; the server then exits 0 once no
+turn runs and launchd restarts it on the new code.
 
 The constraint: a process reads its stamp before importing `tutorboard`, so
 the stamp never names newer code than it runs; this module is therefore a
-leaf (os, subprocess, hashlib, time only).
+leaf (os, sys, subprocess, hashlib, time only).
 """
 
 import hashlib
@@ -27,6 +28,10 @@ _cache = {}
 
 # What this process loaded, set once by `mark_loaded` before the import.
 LOADED = None
+
+# The interpreter this process started on, resolved: a brew upgrade of python
+# moves it, and the old keg goes at the next `brew cleanup`.
+PYTHON_AT_START = os.path.realpath(sys.executable)
 
 
 def tree(tool=TOOL, cached=True):
@@ -107,6 +112,15 @@ def dirty(tool=TOOL):
     except (OSError, subprocess.SubprocessError):
         return True
     return p.returncode != 0 or bool(p.stdout.strip())
+
+
+def python_moved():
+    """Why this process should restart onto its python's new home, or None:
+    the interpreter's resolved path changed, or the one it started on is gone."""
+    here = os.path.realpath(sys.executable)
+    if here != PYTHON_AT_START or not os.path.exists(PYTHON_AT_START):
+        return "its python moved from %s to %s" % (PYTHON_AT_START, here)
+    return None
 
 
 # Each new stamp's import check, once: {stamp: ok}.

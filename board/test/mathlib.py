@@ -438,7 +438,9 @@ try:
     step7 = []
     if start is not None:
         for l in lines[start:]:
-            if l == "echo":
+            # Step 7 ends at the next step's header or the summary's blank echo;
+            # step 8 loads a LaunchAgent and must never run here.
+            if l == "echo" or (l.startswith('echo "== ') and step7):
                 break
             step7.append(l)
     check("setup-mac.sh has its step 7 and its good and warn", len(head) == 3 and step7)

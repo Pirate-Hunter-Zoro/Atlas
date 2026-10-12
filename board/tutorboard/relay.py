@@ -1545,9 +1545,12 @@ def health(atlas, now=None, state_dir=None, fresh=False):
 
 def panel(atlas, now=None, state_dir=None):
     """GET /relay.json: `health`, and Colibri as status.json says it, with
-    the libr-local-llm tasks the panel lists and what filing one costs."""
-    from . import colibri
+    the libr-local-llm tasks the panel lists and what filing one costs. The
+    machine's `brew:` lines (`brewcare`) join `lines` here only, so they never
+    reach a brief."""
+    from . import brewcare, colibri
     out = health(atlas, now, state_dir)
+    out["lines"] = out["lines"] + brewcare.lines(state_dir)
     st = colibri.status(atlas, now)
     found = subjects.find(colibri.WORKSPACE, base=atlas)
     out.update({"ok": True, "colibri": st,

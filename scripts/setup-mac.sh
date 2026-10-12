@@ -7,7 +7,7 @@
 #
 # --coding makes a coding checkout instead, a laptop that runs `board code` and
 # no board: it writes `coding` to ~/.config/tutor-board/role, so every rerun
-# stays one, and then step 2 installs no LaunchAgent and boots out a stray one,
+# stays one, and then step 2 installs no board LaunchAgent and boots out a stray one,
 # and steps 5 and 6 skip tailscale serve, the provider config and port 8778.
 # Step 7 still runs, because a laptop codes Lean too.
 # Deleting the role file makes the next run a host again.
@@ -28,6 +28,7 @@
 #      board/test/tracked.py passes
 #   7  Mathlib: built, building, or its background build started
 #      (projects/Lean-Theorem-Proving/scripts/build-mathlib.sh)
+#   8  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -61,7 +62,7 @@ case "${1:-}" in
 esac
 CODING=0
 [ "$(tr -d '[:space:]' <"$ROLE_FILE" 2>/dev/null)" = coding ] && CODING=1
-[ "$CODING" = 1 ] && echo "a coding checkout ($ROLE_FILE): no board, no LaunchAgent, no tailscale serve"
+[ "$CODING" = 1 ] && echo "a coding checkout ($ROLE_FILE): no board, no board LaunchAgent, no tailscale serve"
 
 echo "== 1. main"
 if GIT_TERMINAL_PROMPT=0 git pull -q --ff-only origin main 2>"$LOGS/pull.log"; then
@@ -145,6 +146,9 @@ elif said="$(bash "$mathlib" 2>&1)"; then
 else
   warn "Mathlib: $said"
 fi
+
+echo "== 8. brew upkeep"
+if said="$(python3 scripts/brew-upgrade.py install 2>&1)"; then good "$said"; else warn "brew upkeep: $said"; fi
 
 echo
 if [ "$problems" -eq 0 ] && [ "$CODING" = 1 ]; then

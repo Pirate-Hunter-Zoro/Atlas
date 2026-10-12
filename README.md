@@ -104,19 +104,25 @@ board, and checks that the board answers. Its header lists each step.
 
 - `bootstrap.sh` fills `vendor/`, clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
-  the one LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
+  the board's LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
 - `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
   environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
 - Mathlib builds in the background
   (`projects/Lean-Theorem-Proving/scripts/build-mathlib.sh`); setup's last step says built,
   running or started.
-- Turn on automatic login, so the LaunchAgent comes back after a reboot.
+- Turn on automatic login, so the LaunchAgents come back after a reboot.
 - The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
   `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
   Both stay off the tree.
 - `board doctor --dry` reports what the machine has without spending a turn.
 - Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once.
+- Step 8 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
+  cask current once a day in 03:00-07:59, then brew's npm globals, `ai-tools-update` and uv's
+  Pythons. It then checks the subjects' venvs, TeX, the Brewfile and the board, and repairs a
+  broken venv. Where another brew upgrader is installed it upgrades nothing and only repairs,
+  because two upgraders fight over brew's lock. `atlas-brew status` reports; `atlas-brew off`
+  stops it for good.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 
@@ -129,13 +135,16 @@ cd Atlas && bash scripts/setup-mac.sh --coding
 
 A laptop is a coding checkout: it runs `board code` and no board. `--coding` writes `coding` to
 `~/.config/tutor-board/role`, so every later run stays a coding checkout. That run does the Mac's
-steps without the LaunchAgent, and boots out one left from before. It skips tailscale serve, the
-provider config and the port-8778 check. Deleting the role file makes the next run a host.
+steps without the board's LaunchAgent, and boots out one left from before. It skips tailscale
+serve, the provider config and the port-8778 check. Deleting the role file makes the next run a
+host.
 
 - `ai-config/policy/phi.py` must be there. Without it, `board code` withholds every check's
   output from the tutor. Setup says when it is missing.
 - `board pull` brings the laptop up to date: Atlas, its vendor checkouts and ai-config. It names
   each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those.
+- The same brew job runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
+  and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
 
 ## Setting up the cluster
 
@@ -175,8 +184,9 @@ they run these two, which a second run leaves unchanged:
   missing, under `$HOME`, with no prompt and no login. It prints each login command. A failed
   install is reported and the rest go on.
 
-`ai-tools-update`, on a daily timer, updates each CLI the way that machine installed it: npm
-for a copy in `node_modules`, the CLI's own `update` otherwise.
+`ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
+`node_modules`, the CLI's own `update` otherwise. It runs from a daily timer on the cluster, and
+from `atlas.brew-upgrade` on a Mac.
 
 **On the cluster** the home is NFS with institute-wide group ACLs, and `chmod` cannot change
 them. `shell.sh` sees the network home and wraps any CLI whose descriptor asks. Codex runs with

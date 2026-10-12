@@ -7,7 +7,8 @@
 shell file, a test and `bin/board` do not move it; each stamped path does.
 `stamp.imports` proves a new tree imports before the freshness thread gives
 way to it, and writes nothing into the tree. `serve.py` reads its stamp before
-it imports the package. `test/hearing.py` runs the freshness thread itself.
+it imports the package. `stamp.python_moved` names an interpreter that moved
+or went. `test/hearing.py` runs the freshness thread itself.
 """
 
 import os
@@ -91,6 +92,22 @@ try:
           not ok and "SyntaxError" in line, line)
     check("and the check writes nothing into the tree",
           not any("__pycache__" in d for d, _, _ in os.walk(gitdir)))
+
+    check("python_moved is None while the interpreter stays put",
+          stamp.python_moved() is None, stamp.PYTHON_AT_START)
+    was = stamp.PYTHON_AT_START
+    stamp.PYTHON_AT_START = os.path.join(plain, "Cellar", "python@3.15", "3.15.0",
+                                         "bin", "python3.15")
+    try:
+        why = stamp.python_moved()
+    finally:
+        stamp.PYTHON_AT_START = was
+    check("and gives the reason once the one it started on is gone",
+          why and why.startswith("its python moved from ") and "3.15.0" in why, why)
+    app_src = open(os.path.join(ROOT, "tutorboard", "server", "app.py"),
+                   encoding="utf-8").read()
+    check("the freshness thread asks it beside the code stamp",
+          "stamp.moved() or stamp.python_moved()" in app_src)
 finally:
     shutil.rmtree(gitdir, ignore_errors=True)
     shutil.rmtree(plain, ignore_errors=True)

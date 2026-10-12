@@ -14,6 +14,8 @@ What the checks are about:
     load the relay timed. No brief is a 400. The filed task then shows
     queued, working and done as the relay's reports and status.json say.
   * THE BRIEF names a relay that looks down.
+  * BREW. brew.json's failures join /relay.json's lines; relay.health and the
+    brief never carry them.
 
 Synthetic repositories only: a bare origin and a "Mac" clone.
 """
@@ -175,6 +177,23 @@ try:
                 return r.status, json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read().decode() or "{}")
+
+    # --- brew upkeep: the panel only -------------------------------------------
+    write(os.path.join(os.environ["BOARD_STATE_DIR"], "brew.json"), json.dumps({
+        "mode": "own", "last_attempt": "2026-10-12T03:30:00",
+        "last_success": "2026-10-11T03:30:00", "last_result": "partial",
+        "failed": {"ffmpeg": "Error: a download failed"}, "held": {},
+        "problems": []}))
+    code, got = ask("GET", "/relay.json")
+    check("a brew failure joins /relay.json's lines",
+          code == 200 and "brew: ffmpeg did not upgrade: Error: a download failed"
+          in got["lines"], got.get("lines"))
+    plain = relay.health(mac, fresh=True)
+    check("and relay.health and the brief stay without it",
+          not any(l.startswith("brew:") for l in plain["lines"])
+          and "brew" not in brief.relay_sense(ws)
+          and not any("brew" in l for l in brief._health(ws)), plain["lines"])
+    os.remove(os.path.join(os.environ["BOARD_STATE_DIR"], "brew.json"))
 
     code, got = ask("GET", "/relay.json")
     check("/relay.json carries Colibri loading from status.json",

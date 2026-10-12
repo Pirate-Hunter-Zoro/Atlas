@@ -106,14 +106,14 @@ FRESH_EVERY = 5.0
 
 
 def watch_fresh(httpd, runner, every=FRESH_EVERY, say=None):
-    """The freshness thread: once `stamp.moved()` says why and the runner
-    stops with nothing running or queued, stop the listener so `main`
-    returns 0. Returns the reason."""
+    """The freshness thread: once `stamp.moved()` or `stamp.python_moved()`
+    says why and the runner stops with nothing running or queued, stop the
+    listener so `main` returns 0. Returns the reason."""
     say = say or (lambda msg: (sys.stderr.write(msg + "\n"), sys.stderr.flush()))
     while True:
         time.sleep(every)
         try:
-            why = stamp.moved()
+            why = stamp.moved() or stamp.python_moved()
         except Exception:                                    # noqa: BLE001
             why = None
         if not why or not runner.quiesce():

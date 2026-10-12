@@ -12,9 +12,11 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
 
 ### On the Mac
 
-- **One LaunchAgent**, label `tutor-board`, rendered from `scripts/launchd/tutor-board.plist`
+- **One board LaunchAgent**, label `tutor-board`, rendered from `scripts/launchd/tutor-board.plist`
   by `install.sh`. KeepAlive, an absolute interpreter path, ThrottleInterval 10. It runs one
   `serve.py` on port 8778, loopback only. `tailscale serve` publishes it over HTTPS once.
+  `atlas.brew-upgrade` is setup's machine job, not the board's; its `brew:` lines appear in
+  `/relay.json` and `board doctor`.
 - **`serve.py`** serves every session at `/s/<id>/`, plus the unprefixed home, library and
   subject routes. `tutorboard/server/app.py` is the start. A session's Repo and Hub are made on
   first use and dropped after 10 idle minutes (`server/registry.py`). Its listen backlog is
@@ -34,8 +36,8 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   it also fast-forwards `ai-config`, which Atlas's pull never moves, and reruns its
   `scripts/install.sh` when that moved it (`gitops.sync_private`).
 - **The freshness thread** (only with `TUTORBOARD_FRESH=1`). Once committed board code differs
-  from what the process loaded (`stamp.py`) and no turn runs or waits, the server exits 0 and
-  launchd starts it on the new code.
+  from what the process loaded (`stamp.py`), or a brew upgrade moved its python, and no turn
+  runs or waits, the server exits 0 and launchd starts it on the new code.
 
 A server started by hand or by a test sets neither variable, so it never pulls the real origin.
 `serve.py` refuses to start where Slurm exists.
