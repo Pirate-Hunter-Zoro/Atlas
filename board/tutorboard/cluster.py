@@ -24,7 +24,10 @@ session's `refs/heads/code/*` is listed here too, every pass and without the
 network, and recorded with `local`; its files are this working tree's own, so
 nothing is brought or put back, and the ear never releases it (`board code
 --end` and `--abandon` clear `code` themselves; a record whose local ref is
-gone is dropped and nothing moves).
+gone is dropped and nothing moves). Only a ref whose registration here says
+`local` is one: a branch checked out from origin's ref is not. A step the
+tutor's own turn made (`by: tutor`) is recorded with a non-waking
+`[stepped]` line, so an edit in do mode never wakes a turn of its own.
 
 The constraint: this runs on the cluster's python3 too (jobs imports it), so
 no walrus or `match`, and the runner is reached through `sys.modules`, never
@@ -205,9 +208,10 @@ class Ear(object):
 
     def local_refs(self):
         """`{ref: sha}` for the `refs/heads/code/*` this checkout keeps
-        itself: Mac-local coding sessions, never pushed. No network. None
-        when git cannot say."""
-        from . import gitops
+        itself: Mac-local coding sessions, never pushed, each with a
+        registration here that says `local`. No network. None when git
+        cannot say."""
+        from . import code as coding, gitops
         code, out = gitops._git(self.atlas, "for-each-ref",
                                 "--format=%(objectname) %(refname)",
                                 CODE_PREFIX.rstrip("/"))
@@ -216,7 +220,12 @@ class Ear(object):
         refs = {}
         for line in out.splitlines():
             parts = line.split()
-            if len(parts) == 2 and parts[1].startswith(CODE_PREFIX):
+            if len(parts) != 2 or not parts[1].startswith(CODE_PREFIX):
+                continue
+            # A branch made from origin's ref (`git checkout code/<id>`) is
+            # not the session's: origin's is.
+            rec = coding.read(parts[1][len(CODE_PREFIX):], self.atlas)
+            if rec and rec.get("local"):
                 refs[parts[1]] = parts[0]
         return refs
 
@@ -395,6 +404,16 @@ class Ear(object):
         if not said["step"]:
             return {}
         rng = "%s..%s" % (prev[:12], sha[:12]) if prev else sha[:12]
+        if said.get("tutor"):
+            # The tutor's own edit, taken as its turn ended: told, never
+            # woken, or each do-mode edit would wake a turn about itself.
+            text = ("[stepped] step %d on code/%s is your own edit, taken as "
+                    "your last turn ended: `git diff %s -- %s`. It woke no "
+                    "turn." % (said["step"], sid, rng, " ".join(paths) or "."))
+            sessions._line(sessions.path(sid, self.atlas), text, "stepped",
+                           ref=coding.ref(sid))
+            return {"session": sid, "id": coding.ref(sid), "state": "stepped",
+                    "text": text}
         text = ("%s\ncode/%s moved to %s. Read the change yourself: "
                 "`git diff %s -- %s`; the step's check is in `git log -1 %s`.%s"
                 % (line, sid, sha[:12], rng, " ".join(paths) or ".",
@@ -453,8 +472,8 @@ class Ear(object):
                         " The held files here were not put back: %s." % err)
         sessions.set_code(sid, None, base=self.atlas)
         where = sessions.path(sid, self.atlas)
-        text = ("[unheld] code/%s is gone from origin: the coding session at "
-                "the cluster ended or was abandoned.%s" % (sid, note))
+        text = ("[unheld] code/%s is gone from origin: the coding session "
+                "that pushed it ended or was abandoned.%s" % (sid, note))
         if where:
             sessions._line(where, text, "unheld", ref=old.get("ref"))
         return {"session": sid, "id": old.get("ref"), "state": "unheld",

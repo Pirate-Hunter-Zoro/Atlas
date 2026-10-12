@@ -403,7 +403,8 @@ subject's check. The Mac wakes your turn with a `[code] step N` line.
   only where the subject's output is open. Do not run the check here.
 - **The held files are the owner's while the session codes.** A commit to them
   on main is refused. In do mode, edit them here and `board push`, which their
-  loop applies. On this Mac your edit is simply their next step.
+  loop applies. On this Mac your edit becomes a step of its own as your
+  turn ends; a `[stepped]` line says so and wakes nothing.
 - **Your card is public.** In a fenced subject: aggregate numbers only, never a
   row, an identifier or a path to lab storage.
 - **The check is yours to write only where the subject declares none**, as a

@@ -28,8 +28,11 @@ the check and its output rules live here too.
 Mac-local mode, where `<top>/sessions/<session>/session.json` exists (the
 board's own checkout): each step goes to the local `refs/heads/code/<session>`
 and is never pushed; the server's ear hears it there without the network. The
-loop takes no step while the session's `agent.json` has `owed` set, because a
-turn running then may be writing the held files. `--end` commits on main
+loop takes no step while a turn is answering the session (`answering`),
+because it may be writing the held files; what the turn changed is one step
+of its own, taken as it ends and marked `by: tutor`, which the ear records
+without waking a turn. The registration's `local` decides where the ref is
+(`keeps_local`), never a local branch of that name alone. `--end` commits on main
 exempt from its own session's hold (`gitops.commit(exempt=)`, which also sets
 the pre-commit hook's `END_ENV`), pushes, deletes the local ref and clears
 session.json `code`. A linked worktree of that checkout, or a branch other
@@ -214,16 +217,51 @@ def mode(top, sid):
     return True, ""
 
 
-def owed(top, sid):
-    """Does the tutor owe Mac session `sid` an answer: its `agent.json` has
-    `owed` set. A turn then may be writing the held files."""
+# A running turn's heartbeat rewrites agent.json every 30 s (`runner/loop.py`).
+TURN_STALE = 120.0
+
+
+def _json(path):
     try:
-        with open(os.path.join(top, SESSIONS, sid, "agent.json"), "r",
-                  encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             got = json.load(fh)
     except (OSError, ValueError):
+        return None
+    return got if isinstance(got, dict) else None
+
+
+def answering(top, sid, now=None):
+    """Is a turn answering Mac session `sid` now: its `agent.json` has `owed`
+    set, says `working` or `wrapping up`, and was written in the last
+    `TURN_STALE` seconds. Such a turn may be writing the held files. `owed`
+    alone is not enough: a turn nobody could take leaves it set, and only a
+    step would wake the next one."""
+    got = _json(os.path.join(top, SESSIONS, sid, "agent.json"))
+    if not got or not got.get("owed") \
+            or got.get("state") not in ("working", "wrapping up"):
         return False
-    return isinstance(got, dict) and bool(got.get("owed"))
+    try:
+        seen = float(got.get("last_seen") or 0)
+    except (TypeError, ValueError):
+        return False
+    return (time.time() if now is None else now) - seen < TURN_STALE
+
+
+def keeps_local(top, sid):
+    """Does session `sid` keep `code/<sid>` in this checkout, never pushed?
+    Its registration here says, else session.json `code`; with neither, a
+    local ref in the board's own checkout (`mode`). A local branch of that
+    name alone (a `git checkout code/<sid>`) is not the session's."""
+    rec = read(sid, top)
+    if rec:
+        return bool(rec.get("local"))
+    if not SESSION_RE.match(str(sid or "")):
+        return False
+    stored = _json(os.path.join(top, SESSIONS, sid, "session.json")) or {}
+    held = stored.get("code")
+    if isinstance(held, dict) and held.get("ref"):
+        return bool(held.get("local"))
+    return bool(local_tip(top, sid)) and mode(top, sid)[0]
 
 
 def _unhold(top, sid, text):
@@ -583,10 +621,10 @@ def vibe(top, sid, held_paths, since, message):
     The parent is origin's tip; the tree is that tip's plus the held files
     changed since `since` (`code.seen`, else HEAD). A file the tip changed
     differently is refused by name. Gated first; fast-forward only. A
-    Mac-local session's ref is here: its loop takes the held files as they
-    are in this working tree, so nothing is pushed.
+    Mac-local session's ref is here (`keeps_local`): its loop takes the held
+    files as they are in this working tree, so nothing is pushed.
     """
-    if local_tip(top, sid):
+    if keeps_local(top, sid):
         return "", ("nothing to push: session %s codes in this checkout, so "
                     "the held files here are its own and its loop takes them "
                     "as the next step" % sid)
@@ -649,14 +687,20 @@ def vibe(top, sid, held_paths, since, message):
     return sha, "pushed %s to code/%s: %s" % (sha[:12], sid, ", ".join(mine))
 
 
+# A step's line when a turn's edit made it (`Loop.tick`).
+BY_TUTOR = "by: tutor"
+
+
 def step_of(top, sha):
     """What a commit on a code ref says of itself: `{step, subject, paths,
-    title, vibe}`. `step` is 0 for a commit that is not a step (a vibe push)."""
+    title, vibe, tutor}`. `step` is 0 for a commit that is not a step (a vibe
+    push); `tutor` when a turn's own edit made the step."""
     _, body = _git(top, "log", "-1", "--format=%B", sha)
     lines = body.splitlines()
     out = {"step": 0, "subject": "", "paths": [],
            "title": lines[0].strip() if lines else "",
-           "vibe": VIBE in lines}
+           "vibe": VIBE in lines,
+           "tutor": BY_TUTOR in [l.strip() for l in lines]}
     for line in lines:
         m = re.match(r"^Step (\d+)$", line.strip())
         if m:
@@ -958,14 +1002,16 @@ def step_check(top, rec, run=subprocess.run):
     return got, open_
 
 
-def message(rec, n, changed, got, open_, ran_at):
+def message(rec, n, changed, got, open_, ran_at, tutor=False):
     """A step's commit message. Public: every line in it is a file name, a
-    number, or what `run_check` already made public."""
+    number, or what `run_check` already made public. `tutor` when a turn's
+    own edit made the step (`BY_TUTOR`)."""
     state = got.get("state") or "none"
     shown = ", ".join(changed[:3]) + (" and %d more" % (len(changed) - 3)
                                       if len(changed) > 3 else "")
-    lines = ["Step %d (check: %s): %s" % (n, state, shown), "",
-             "Step %d" % n,
+    lines = ["Step %d (check: %s%s): %s" % (n, state, ", by the tutor"
+                                            if tutor else "", shown), "",
+             "Step %d" % n] + ([BY_TUTOR] if tutor else []) + [
              "check: %s" % state,
              "session: %s" % rec["session"],
              "subject: %s" % rec["subject"],
@@ -1040,6 +1086,10 @@ class Loop(object):
         self.waiting = None
         self.stopped = False
         self.owing = False
+        # The held files' signature as a turn began, and the one it left them
+        # at: that step is the turn's own.
+        self.before = None
+        self.turn_sig = None
         self.said = set()
 
     def _once(self, line):
@@ -1057,24 +1107,32 @@ class Loop(object):
             self.remote()
         if self.stopped or self.waiting:
             return False
-        if self.rec.get("local") and owed(self.top, self.rec["session"]):
+        if self.rec.get("local") and answering(self.top, self.rec["session"]):
             if not self.owing:
                 self.say("the tutor is answering session %s: the next step "
                          "waits for its turn to end" % self.rec["session"])
+                self.before = signature(self.top, self.rec["paths"])[0]
             self.owing = True
             return False
-        self.owing = False
         sig, newest = signature(self.top, self.rec["paths"])
+        if self.owing:
+            self.owing = False
+            # The turn changed the held files: its own step, taken now, so
+            # the owner's next edit is a step of theirs.
+            if sig != self.before:
+                self.turn_sig = sig
         if sig != self.sig:
             if self.sig is not None:
                 self.changed_at = now
             self.sig = sig
-        if now - max(newest, self.changed_at) < QUIET or now < self.retry_at:
+        tutor = sig == self.turn_sig
+        if (not tutor and now - max(newest, self.changed_at) < QUIET) \
+                or now < self.retry_at:
             return False
         if sig == self.checked:
             return False
         self.checked = sig
-        return self.snapshot()
+        return self.snapshot(tutor=tutor)
 
     def remote(self):
         """Apply a commit on `code/<session>` the loop did not make."""
@@ -1113,7 +1171,9 @@ class Loop(object):
             self.waiting = tip
             self._once(said)
 
-    def snapshot(self):
+    def snapshot(self, tutor=False):
+        """One step of the held paths as they are; `tutor` when a turn's own
+        edit made it. True when it landed."""
         rec, top = self.rec, self.top
         parent = rec["last"]
         new, err = tree(top, parent, rec["paths"])
@@ -1133,7 +1193,8 @@ class Loop(object):
         self.say("step %d: %s -- running the check" % (n, ", ".join(changed[:6])))
         got, open_ = step_check(top, rec, run=self.run)
         code, ran_at = _git(top, "rev-parse", "--short", "HEAD")
-        msg = message(rec, n, changed, got, open_, ran_at if code == 0 else "")
+        msg = message(rec, n, changed, got, open_, ran_at if code == 0 else "",
+                      tutor=tutor)
         code, sha = _git(top, "commit-tree", new, "-p", parent, "-F", "-",
                          input=msg)
         if code != 0:
@@ -1162,10 +1223,11 @@ class Loop(object):
         _save(rec)
         for line in got.get("relay") or []:
             self.say("  RELAY: " + line)
-        self.say("step %d %s code/%s: check %s%s" % (
+        self.say("step %d %s code/%s: check %s%s%s" % (
             n, "on" if rec.get("local") else "pushed to", rec["session"],
             got.get("state"),
-            "" if got.get("state") == "none" else ", exit %s" % got.get("exit")))
+            "" if got.get("state") == "none" else ", exit %s" % got.get("exit"),
+            " (the tutor's edit)" if tutor else ""))
         return True
 
 
@@ -1285,8 +1347,9 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
     if not rec:
         say("board code: no coding session %s is held in this checkout" % sid)
         return 1
-    local, why = mode(top, sid)
-    local = local or bool(rec.get("local"))
+    # The registration says where the ref is, not a branch of that name.
+    local = bool(rec.get("local"))
+    _, why = mode(top, sid)
     if why:
         say("board code: nothing was ended: " + why)
         return 1
@@ -1382,8 +1445,7 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
 def abandon(top, sid, say=print):
     """`--abandon`: the ref and the registration go; the tree stays."""
     rec = read(sid, top)
-    local = bool(rec and rec.get("local")) or bool(
-        SESSION_RE.match(str(sid or "")) and local_tip(top, sid))
+    local = keeps_local(top, sid)
     err = _drop_ref(top, sid, local)
     if err:
         say("board code: " + err)

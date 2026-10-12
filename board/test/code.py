@@ -14,11 +14,18 @@ does not skip, and an upstream change to one is reported, not pulled; a
 request pinned to code/S is accepted; `board code --help` imports no server
 or runner module.
 
+A local branch made from origin's code/S (`git checkout code/S`) does not
+make the session local: --abandon still drops origin's ref, `board push` still
+asks origin, and the ear does not hear it as a local ref.
+
 Mac-local mode, in the `mac` clone made a board checkout (`sessions/<id>/`):
 a step lands on the local code ref and never on origin; a linked worktree and
 a branch other than main are refused; the ear lists the local ref with origin
 unreachable, records it without moving a file and never releases it; the
-loop waits while agent.json owes an answer; `board push` there sends nothing;
+loop waits while a turn is answering, and not for an owed message no turn is
+answering; what the turn changed is one step marked `by: tutor`, taken as it
+ends, which the ear records with a non-waking `[stepped]` line, while the
+owner's next edit wakes as before; `board push` there sends nothing;
 --end commits on main past its own hold, pushes to the bare origin, deletes
 the local ref and clears `code`; --abandon drops the ref and leaves the files.
 The real pre-commit hook refuses a held file on main, for a registration and
@@ -32,6 +39,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -356,6 +364,39 @@ try:
           and read(os.path.join(cluster, "projects", "Shut", "src", "a.py"))
           == "z = 1\n")
 
+    # --- a branch made from origin's code/S is not a local session -------------
+    from tutorboard import cluster as ear_mod  # noqa: E402
+    S6 = "20261008-145000"
+    rec6, probs = code.start(cluster, S6, ["projects/Shut/src"], cwd=cluster)
+    loop6 = code.Loop(cluster, rec6, say=say, clock=clock)
+    loop6.tick()
+    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 3\n")
+    for _ in range(int(code.QUIET / code.POLL) + 1):
+        clock.t += code.POLL
+        loop6.tick()
+    pushed6 = tip(S6)
+    # What `git checkout code/S` leaves behind: a local branch tracking origin.
+    git(cluster, "branch", "-q", "--track", "code/%s" % S6,
+        "origin/code/%s" % S6)
+    check("a local branch of origin's code/S does not make the session local",
+          pushed6 != "" and code.keeps_local(cluster, S6) is False)
+    sha, what = code.vibe(cluster, S6, ["projects/Shut/src"], pushed6, "a vibe")
+    check("so `board push` still asks origin",
+          sha == "" and "codes in this checkout" not in what
+          and "as code/%s has them" % S6 in what, what)
+    git(mac, "fetch", "-q", "origin",
+        "refs/heads/code/%s:refs/heads/code/%s" % (S6, S6))
+    ear6 = ear_mod.Ear(mac, state_dir=os.path.join(work, "ear6"),
+                       say=lambda m: None)
+    check("and the ear does not hear such a branch as a local ref",
+          ear6.local_refs() == {}, ear6.local_refs())
+    git(mac, "branch", "-q", "-D", "code/%s" % S6)
+    rc = code.abandon(cluster, S6, say=say)
+    check("--abandon drops origin's ref, not only the local branch",
+          rc == 0 and tip(S6) == "" and code.read(S6) is None)
+    git(cluster, "branch", "-q", "-D", "code/%s" % S6)
+    git(cluster, "checkout", "-q", "--", "projects/Shut/src/a.py")
+
     # --- the gate refuses a step --------------------------------------------------
     S3 = "20261008-150000"
     rec3, probs = code.start(cluster, S3, ["projects/Open/src"], cwd=cluster)
@@ -494,7 +535,8 @@ try:
           == "c = 11\n")
 
     # The tutor owes an answer: no step until its turn ends.
-    write(agent, json.dumps({"state": "working", "owed": "[code] step 1"}))
+    write(agent, json.dumps({"state": "working", "owed": "[code] step 1",
+                             "last_seen": time.time()}))
     del said[:]
     for _ in range(int(code.QUIET / code.POLL) + 3):
         clock.t += code.POLL
@@ -518,6 +560,75 @@ try:
     check("the ear follows the local ref", (sessions.get(SL, mac).get("code")
                                             or {}).get("sha") == step2)
 
+    def woken(n):
+        return [m for m in inbox() if m.get("signal") == "code"
+                and m["text"].startswith("[code] step %d" % n)]
+
+    # An owed message no turn is answering (nobody could take it) stops no
+    # step: only a step would wake the turn that answers it.
+    write(agent, json.dumps({"state": "working", "owed": "[code] step 2",
+                             "last_seen": time.time() - code.TURN_STALE - 5}))
+    check("a working state whose heartbeat stopped is no turn",
+          not code.answering(mac, SL))
+    write(agent, json.dumps({"state": "listening", "owed": "[code] step 2",
+                             "last_seen": time.time()}))
+    check("nor is owed with no turn running", not code.answering(mac, SL))
+    write(os.path.join(mac, "projects", "Open", "src", "c.py"), "c = 13\n")
+    del said[:]
+    for _ in range(int(code.QUIET / code.POLL) + 1):
+        clock.t += code.POLL
+        loopl.tick()
+    step3 = local_tip()
+    check("so a failed turn's owed message never stops the steps",
+          step3 != step2 and "Step 3" in git(mac, "log", "-1", "--format=%B",
+                                             step3)
+          and not any("the tutor is answering" in s for s in said), said)
+    ear.once()
+    check("and the owner's step wakes the session", len(woken(3)) == 1)
+
+    # The tutor's own edit in do mode: a step of its own, waking nothing.
+    write(agent, json.dumps({"state": "working", "owed": "[code] step 3",
+                             "last_seen": time.time()}))
+    clock.t += code.POLL
+    loopl.tick()
+    write(os.path.join(mac, "projects", "Open", "src", "c.py"), "c = 14\n")
+    for _ in range(int(code.QUIET / code.POLL) + 1):
+        clock.t += code.POLL
+        loopl.tick()
+    check("the turn's edit is no step while it runs", local_tip() == step3)
+    write(agent, json.dumps({"state": "listening", "owed": None,
+                             "last_seen": time.time()}))
+    clock.t += code.POLL
+    loopl.tick()
+    step4 = local_tip()
+    msg4 = git(mac, "log", "-1", "--format=%B", step4)
+    check("as the turn ends, its edit is one step at once, marked by: tutor",
+          step4 != step3 and "Step 4" in msg4
+          and code.BY_TUTOR in msg4.splitlines()
+          and code.step_of(mac, step4)["tutor"] is True, msg4)
+    n_lines = len(inbox())
+    ear.once()
+    stepped = [m for m in inbox()[n_lines:] if m.get("signal") == "stepped"]
+    check("the ear records it and wakes no turn: one quiet [stepped] line",
+          (sessions.get(SL, mac).get("code") or {}).get("sha") == step4
+          and not woken(4) and len(stepped) == 1
+          and stepped[0].get("wake") is False
+          and stepped[0]["text"].startswith("[stepped] step 4"),
+          inbox()[n_lines:])
+    from tutorboard.runner import turn as turn_mod  # noqa: E402
+    check("and the next turn's signal reads past it",
+          turn_mod.turn_signal("[t] %s\n[t] [code] step 5: x"
+                               % stepped[0]["text"]) == "code")
+    write(os.path.join(mac, "projects", "Open", "src", "c.py"), "c = 15\n")
+    for _ in range(int(code.QUIET / code.POLL) + 1):
+        clock.t += code.POLL
+        loopl.tick()
+    step5 = local_tip()
+    ear.once()
+    check("the owner's next edit is theirs, and wakes the session",
+          step5 != step4 and code.step_of(mac, step5)["tutor"] is False
+          and len(woken(5)) == 1)
+
     # The board's own save, and the hook, refuse the held file on main.
     ok_, what = gitops.commit(mac, ["projects/Open/src"], "by the board")
     check("gitops.commit on main refuses the held paths",
@@ -530,7 +641,7 @@ try:
     rc = code.end(mac, SL, say=say, wait=1)
     check("--end on a branch other than main is refused",
           rc == 1 and any("not main" in s for s in said[-2:])
-          and local_tip() == step2, said[-2:])
+          and local_tip() == step5, said[-2:])
     git(mac, "checkout", "-q", "main")
     git(mac, "branch", "-q", "-D", "other")
 

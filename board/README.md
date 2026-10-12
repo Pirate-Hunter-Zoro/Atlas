@@ -269,10 +269,14 @@ One git ref per coding session, `code/<session-id>` (`code.py`).
   (`BOARD_CODE_END`).
 - **Mac-local**, where `sessions/<session>/session.json` exists (the board's own checkout): steps
   go to the local `refs/heads/code/<session>`, never pushed. The cluster thread lists local refs
-  every pass without the network, brings nothing and never releases one. The loop takes no step
-  while the session's `agent.json` has `owed` set, because the tutor may be writing the held
-  files. `--end` commits on main, pushes, deletes the local ref and clears `code`. A linked
-  worktree of that checkout, or a branch other than main, is refused.
+  every pass without the network, brings nothing and never releases one. Only the registration's
+  `local` makes a ref local; a branch checked out from origin's `code/<session>` is not. The loop
+  takes no step while a turn is answering the session (`agent.json` has `owed`, says `working`,
+  and its heartbeat is fresh), because the tutor may be writing the held files. What that turn
+  changed is one step marked `by: tutor`, taken as it ends; the ear records it with a non-waking
+  `[stepped]` line, so a do-mode edit never wakes a turn about itself. `--end` commits on main,
+  pushes, deletes the local ref and clears `code`. A linked worktree of that checkout, or a
+  branch other than main, is refused.
 
 `board code` answers before anything else in `bin/board` is imported, so the cluster loads no
 server, runner or model module.
