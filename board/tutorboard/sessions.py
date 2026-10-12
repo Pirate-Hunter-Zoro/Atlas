@@ -175,10 +175,31 @@ def _artifacts(base, subject, sid):
             for a in artifacts.for_session(os.path.join(base, subject), sid)]
 
 
+def _settle(base, subject, sid):
+    """Write out every feedback round on the artifacts listing this session
+    -- the note's `## What was changed`, the round's `after` copy -- which
+    the library otherwise writes only when it is next read, after the commit
+    that should hold them. A failure costs that round's account, never End."""
+    from . import artifacts                              # local: artifacts imports this
+    from .course import library
+    root = os.path.join(base, subject)
+    repo = course_repo.sessionless(root, base)
+    try:
+        ids = set(a["id"] for a in artifacts.for_session(root, sid))
+        # Uncached: End must not leave the library a stale listing to serve.
+        docs = [d for d in library._documents(os.path.realpath(root))
+                if d["id"] in ids] if ids else []
+    except Exception:                                        # noqa: BLE001
+        return
+    for doc in docs:
+        library._settle(repo, doc)
+
+
 def end(sid, base=None, now=None):
     """End session `sid`: set `ended`, then commit the bound subject's
-    TUTOR.md and every artifact listing the session. `(record, ok, said)`.
-    Ending again keeps the time and retries the commit."""
+    TUTOR.md and every artifact listing the session, its feedback settled
+    first (`_settle`). `(record, ok, said)`. Ending again keeps the time and
+    retries the commit."""
     base = base or subjects.root()
     where = _need(sid, base)
     rec = get(sid, base)
@@ -193,6 +214,7 @@ def end(sid, base=None, now=None):
     keep = []
     if os.path.isfile(os.path.join(base, subject, "TUTOR.md")):
         keep.append("%s/TUTOR.md" % subject)
+    _settle(base, subject, rec["id"])
     keep += _artifacts(base, subject, rec["id"])
     if not keep:
         return rec, True, "ended; nothing of %s to commit" % subject

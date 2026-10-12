@@ -174,9 +174,12 @@ try:
           prompt.startswith("You are running headless") and "=== THE BRIEF" not in prompt
           and "and a normal subgroup?" in prompt)
 
-    # --- a revision reads neither; an [unfinished] report the recap --------
+    # --- a revision and an [unfinished] report read the recap only --------
     argv = turn("plain", "[2026-10-09 10:03:00] [revise] fix page 2 of docs/a/a.pdf")
-    check("a revision is handed neither", "=== THE" not in argv[-1], argv[-1][:200])
+    check("a revision is handed the recap of the session it runs in, and not "
+          "the brief", argv[-1].startswith("=== THE RECAP")
+          and "NEWEST-MARK-3" in argv[-1] and "=== THE BRIEF" not in argv[-1],
+          argv[-1][:200])
     argv = turn("plain", "[2026-10-09 10:04:00] [unfinished] The turn before this "
                          "one exited with sessions/x/cards/0003-c3.md still the "
                          "placeholder.")

@@ -668,13 +668,28 @@ def rework_refused(repo, doc):
     return ""
 
 
+def _asked_from(root, doc, session_repo):
+    """Record the session a revision runs in on the document's doc.json, so
+    that session's End commits the revised document, its built files and its
+    feedback. A document with no doc.json records nothing; a failed write
+    costs the commit at End, never the ask."""
+    if not doc.get("artifact") or not getattr(session_repo, "stored", False):
+        return
+    try:
+        artifacts.asked_by(os.path.join(root, *doc["artifact"].split("/")),
+                           session_repo.live)
+    except (OSError, ValueError):
+        pass
+
+
 def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
             ids=()):
     """Ask for the revision: a `[revise]` (or `[rework]`) line and a turn woken
     on it. The turn runs fresh and writes no card (`HEADLESS_REVISE_PROMPT`).
     The line names the source and, for a deck, its brief; `ledger_rel` and
     `ids` are the requests to answer. `ask` sets the signal, prompt and clock
-    (`turn_plan`, `doing_now`).
+    (`turn_plan`, `doing_now`). The session it runs in goes on the
+    document's doc.json (`_asked_from`).
     """
     brief = ""
     if library.from_sittings(repo.root, doc):
@@ -700,7 +715,9 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
         try:
             got = registry.runner_route(registry.subject_of(repo), record,
                                         base=registry.base_of(repo),
-                                        ask="%s %s" % (ask, doc.get("title") or ""))
+                                        ask="%s %s" % (ask, doc.get("title") or ""),
+                                        before=lambda chosen, _id: _asked_from(
+                                            repo.root, doc, chosen))
         except (LookupError, OSError) as exc:
             return {"revise": "board", "asked": False,
                     "detail": "the note is written but nothing could be asked: %s"
@@ -712,6 +729,7 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
     # An id from the lesson's turn series; not written into `turns.jsonl`,
     # which is the lesson's.
     record["id"] = turns.next_turn_id(repo)
+    _asked_from(repo.root, doc, repo)
     try:
         with open(repo.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")

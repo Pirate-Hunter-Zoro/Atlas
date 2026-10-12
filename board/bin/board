@@ -2046,7 +2046,8 @@ def cmd_build(live, args):
     A .tex runs pdflatex in its own directory (beamer or article, detected),
     twice and a third time when the log asks; TEXINPUTS holds the subject's
     `latex/` and the board's `tex/`. Scratch files go on success; `--keep-aux`
-    keeps the `.aux`. A .md builds a .docx with the reference document found
+    keeps the `.aux`. A beamer deck with an Overfull or Underfull box fails,
+    its PDF built and each box named by page and source line. A .md builds a .docx with the reference document found
     from the source upward (`formats/*.docx`), plus a .pdf when the PDF engine
     exists. A figure that did not reach the .docx fails the build; one that will
     not sit on the page fails it only with `--strict`.

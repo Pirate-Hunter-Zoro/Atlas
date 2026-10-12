@@ -3,6 +3,7 @@
     create(subject, title, session, ext)   a new one at `<subject>/docs/<slug>/`
                                            (`source=` names its file)
     place(dir, source, title)              doc.json written in place, in an existing tree
+    asked_by(dir, session)                 a session that asked for a revision, added
     list(root), get(root, id)              every artifact of a subject; one by id
     status(dir)                            writing | done | failed, from mtimes
     delete(root, dir, ...)                 to the trash, its ink with it, one commit
@@ -195,6 +196,22 @@ def place(d, source, title, session=None):
            "asked_at": rec.get("asked_at")}
     _write_json(os.path.join(d, DOC_JSON), out)
     return out
+
+
+def asked_by(d, session):
+    """Add `session` to the sessions of the artifact at `d`, which has asked
+    for its revision: that session's End commits it, and its recap goes to
+    the revising turn. The record, or None without a doc.json. Nothing else
+    in doc.json changes."""
+    rec = read(d)
+    sid = _session_id(session)
+    if rec is None or not sid:
+        return rec
+    sessions = rec.get("sessions") if isinstance(rec.get("sessions"), builtins.list) else []
+    if sid not in sessions:
+        rec["sessions"] = sessions + [sid]
+        _write_json(os.path.join(d, DOC_JSON), rec)
+    return rec
 
 
 def _own(root, d):
