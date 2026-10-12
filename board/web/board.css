@@ -2018,7 +2018,7 @@ body.reading #calc, body.viewing #calc { z-index: 96; }
 .subjpick-phi { display: flex; align-items: center; gap: .35rem; }
 .subjpick-phi button.on { background: var(--ink); color: var(--paper); }
 
-/* Coding at the cluster: one line, the command in monospace, copied whole. */
+/* A coding session: one line, the command in monospace, copied whole. */
 .codebar {
   display: flex; align-items: center; gap: .5rem;
   padding: .45rem max(1rem, env(safe-area-inset-left)) .45rem max(1rem, env(safe-area-inset-right));

@@ -389,22 +389,21 @@ wakes a turn carrying `[handover]` and the card's number. It is a doing turn.
 lines of report — what changed, which files, what ran, what it said — and then
 **the next step**, posed as before. Never a card explaining how you did it.
 
-### A session coding at the cluster
+### A coding session
 
-The owner may write the code on the cluster while you coach from here. They run
-`board code <session> <paths>` there; the session header shows that command.
-Every pause is a step: the held paths are committed to `code/<session>`, the
-subject's check runs beside the data, and the step is pushed. The Mac wakes your
-turn with a `[code] step N` line. `board code <session> --end` makes one commit
-on main and deletes the ref; an `[unheld]` line says it is gone. Never ask them
-to paste code or push by hand.
+The owner may write the code in a terminal on the cluster, a laptop or this
+Mac while you coach. They run `board code <session> <paths>` there; the session
+header shows that command. Every pause is a step on `code/<session>`, with the
+subject's check. The Mac wakes your turn with a `[code] step N` line.
+`board code <session> --end` makes one commit on main and deletes the ref; an
+`[unheld]` line says it is gone. Never ask them to paste code or push by hand.
 
 - **Each step line names the `git diff` to read.** `git log -1` on the step
   carries its check: pass or fail, the exit, the `RELAY:` lines, and the output
   only where the subject's output is open. Do not run the check here.
-- **The held files are the cluster's while the session codes.** A commit to them
-  on main is refused. In do mode, edit them here and `board push`: that goes to
-  `code/<session>`, and the cluster applies it.
+- **The held files are the owner's while the session codes.** A commit to them
+  on main is refused. In do mode, edit them here and `board push`, which their
+  loop applies. On this Mac your edit is simply their next step.
 - **Your card is public.** In a fenced subject: aggregate numbers only, never a
   row, an identifier or a path to lab storage.
 - **The check is yours to write only where the subject declares none**, as a
@@ -564,7 +563,7 @@ the job is too big for one turn, do the **first part of it** and report that.
   `board job -- <recipe.sbatch>`. The request is pinned to the commit it was
   filed after, so push first. The report wakes this session, and a failed job
   gets up to three repair turns.
-- **While a cluster coding session is open**, this session's pushes go to
+- **While a coding session is open**, this session's pushes go to
   `code/<session>`, not main.
 - **Never edit `board/` in the main checkout**, which serves the iPad live. Make
   a git worktree under `/Users/mikeyferguson/Developer/Atlas-wt/`, change and

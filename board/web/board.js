@@ -3866,8 +3866,8 @@ function paintHeader(state) {
   }
 }
 
-/* CODING AT THE CLUSTER. session.json `code` is set while a coding session
-   holds paths there (`cluster.Ear` hears its ref): the strip shows the exact
+/* A CODING SESSION. session.json `code` is set while a coding session holds
+   paths (`cluster.Ear` hears its ref): the strip shows the exact
    command, `board code <id> <paths>`, and the last step. Before it starts the
    overflow menu's entry opens the strip with `board code <id> ` to copy and
    the paths left to type. */

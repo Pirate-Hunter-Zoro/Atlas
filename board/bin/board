@@ -922,7 +922,7 @@ def cmd_finish(live, args):
 
 
 def push_code(live, held, message, only=None):
-    """`board push` in a session coding at the cluster: the held files go to
+    """`board push` in a coding session: the held files go to
     `code/<id>` as one commit (`code.vibe`), never to main. Paths outside the
     held ones are refused."""
     from tutorboard import code as coding
@@ -948,7 +948,7 @@ def push_code(live, held, message, only=None):
                 outside.append(p)
         if outside:
             return record(False, (
-                "this session is coding at the cluster, so its pushes go to "
+                "this session is coding, so its pushes go to "
                 "code/%s and carry only the held paths (%s); not pushed: %s"
                 % (sid, ", ".join(paths), ", ".join(outside))))
     since = held.get("seen") or ""
@@ -1011,7 +1011,7 @@ def cmd_push(live, args):
                            "detail": phi}, fh, indent=2)
             return 1
 
-    # A session coding at the cluster pushes to its ref, never to main (D17).
+    # A coding session pushes to its ref, never to main (D17).
     coding_now = (live.state() or {}).get("code") if live.stored else None
     if isinstance(coding_now, dict) and coding_now.get("ref"):
         return push_code(live, coding_now, message, only)

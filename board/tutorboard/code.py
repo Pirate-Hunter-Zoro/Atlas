@@ -1,7 +1,8 @@
-"""code.py -- a coding session held at the cluster: `board code`.
+"""code.py -- a coding session: `board code`.
 
-The owner writes code in a terminal on the cluster, beside the data, and the
-tutor coaches from the Mac. One git ref carries it, `code/<session>`:
+The owner writes code in a terminal (on the cluster beside the data, on a
+laptop, or on the Mac itself) and the tutor coaches from the Mac. One git ref
+carries it, `code/<session>`:
 
     board code <session> <path>...    hold these paths and watch them
     board code <session>              resume watching a session held here
@@ -11,7 +12,8 @@ tutor coaches from the Mac. One git ref carries it, `code/<session>`:
     board code --list                 the sessions held on this machine
 
 A registration, `~/.local/state/tutor-board/code/<session>.json`, is the
-session on this machine: {session, subject, paths, base, last, step, root};
+session on this machine: {session, subject, paths, base, last, step, root},
+and `local` in Mac-local mode;
 paths are repository-relative inside one subject. Each step: after `QUIET`
 seconds without an mtime change the held paths are snapshot through a
 temporary index (`GIT_INDEX_FILE`), so HEAD, the real index and main never
@@ -22,6 +24,16 @@ are unchanged since the last snapshot, else "both sides changed" waits.
 `--end` takes the relay's `relay/.lock` and commits the held paths to main
 as one commit. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
 the check and its output rules live here too.
+
+Mac-local mode, where `<top>/sessions/<session>/session.json` exists (the
+board's own checkout): each step goes to the local `refs/heads/code/<session>`
+and is never pushed; the server's ear hears it there without the network. The
+loop takes no step while the session's `agent.json` has `owed` set, because a
+turn running then may be writing the held files. `--end` commits on main
+exempt from its own session's hold (`gitops.commit(exempt=)`, which also sets
+the pre-commit hook's `END_ENV`), pushes, deletes the local ref and clears
+session.json `code`. A linked worktree of that checkout, or a branch other
+than main, is refused.
 
 The constraint: relay-path code on the cluster's python3 (maybe 3.7): no
 walrus, no `match`, standard library only. A check's output leaves only
@@ -53,6 +65,9 @@ CHANNEL = ("relay", "exports")
 # Never walked by the mtime poll.
 SKIP_DIRS = (".git", "node_modules", "__pycache__", ".lake")
 
+# The Mac's session store under the Atlas root: Mac-local mode.
+SESSIONS = "sessions"
+
 # Longer work goes through `board job`.
 CHECK_SECONDS = 30 * 60
 
@@ -70,9 +85,10 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\
                      r"|\x1b[@-Z\\-_]")
 
 USAGE = """\
-board code <session> <path>...        hold these paths at the cluster and watch
-                                      them: each pause of 10 s is a step, pushed
-                                      to code/<session> with its check
+board code <session> <path>...        hold these paths here and watch them:
+                                      each pause of 10 s is a step on
+                                      code/<session> with its check, pushed
+                                      (kept local in the Mac's own checkout)
 board code <session>                  resume watching a session held here
 board code <session> --end [--title T]
                                       commit the held paths to main as one
@@ -148,6 +164,81 @@ def remote_tip(top, sid):
     else:
         _git(top, "update-ref", tracking(sid), sha)
     return sha, ""
+
+
+def local_tip(top, sid):
+    """`code/<sid>` as this checkout keeps it itself, or "": a Mac-local
+    session's ref, which is never pushed."""
+    code, out = _git(top, "rev-parse", "--verify", "--quiet", ref(sid))
+    return out if code == 0 else ""
+
+
+def tip_of(top, sid, local):
+    """`(sha, error)`: `code/<sid>` where the session keeps it, the local ref
+    in Mac-local mode (no network), else origin's (`remote_tip`)."""
+    if local:
+        return local_tip(top, sid), ""
+    return remote_tip(top, sid)
+
+
+# ---------------------------------------------------------------------------
+# Mac-local mode: the board's own checkout
+# ---------------------------------------------------------------------------
+def _stored(top, sid):
+    return os.path.isfile(os.path.join(top, SESSIONS, sid, "session.json"))
+
+
+def mode(top, sid):
+    """`(local, refusal)` for session `sid` in checkout `top`. `local` when
+    `<top>/sessions/<sid>/session.json` exists: the board's own checkout.
+    Refused there: a linked worktree of it (the session is that checkout's)
+    and a branch other than main (`--end` commits on main)."""
+    code, out = _git(top, "rev-parse", "--git-dir", "--git-common-dir",
+                     timeout=10)
+    dirs = [os.path.realpath(os.path.join(top, l))
+            for l in out.splitlines()] if code == 0 else []
+    if len(dirs) == 2 and dirs[0] != dirs[1]:
+        main = os.path.dirname(dirs[1])
+        if _stored(main, sid):
+            return True, ("this is a linked worktree of %s, whose board holds "
+                          "session %s: code it there, on main" % (main, sid))
+        return False, ""
+    if not _stored(top, sid):
+        return False, ""
+    code, branch = _git(top, "symbolic-ref", "--quiet", "--short", "HEAD",
+                        timeout=10)
+    if code != 0 or branch != "main":
+        return True, ("this checkout is on %s, not main: a session of this "
+                      "board codes on main" % (branch if code == 0
+                                               else "a detached HEAD"))
+    return True, ""
+
+
+def owed(top, sid):
+    """Does the tutor owe Mac session `sid` an answer: its `agent.json` has
+    `owed` set. A turn then may be writing the held files."""
+    try:
+        with open(os.path.join(top, SESSIONS, sid, "agent.json"), "r",
+                  encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return isinstance(got, dict) and bool(got.get("owed"))
+
+
+def _unhold(top, sid, text):
+    """Clear Mac session `sid`'s session.json `code` and leave a non-waking
+    `[unheld]` line. The ear never releases a local ref, so `--end` and
+    `--abandon` do it; nothing in the working tree moves."""
+    from . import sessions
+    try:
+        where = sessions.path(sid, top)
+        if not where:
+            return
+        sessions.set_code(sid, None, base=top)
+        sessions._line(where, "[unheld] " + text, "unheld", ref=ref(sid))
+    except Exception:                                        # noqa: BLE001
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +417,9 @@ def start(top, sid, words, cwd=None, now=None):
     rec = read(sid)
     if rec and not _same(rec.get("root"), top):
         return None, ["session %s is held in %s, not here" % (sid, rec.get("root"))]
+    local, why = mode(top, sid)
+    if why:
+        return None, [why]
     if rec and not words:
         return rec, []
     others = dict((r["session"], r["paths"]) for r in registrations()
@@ -349,6 +443,8 @@ def start(top, sid, words, cwd=None, now=None):
     rec = {"session": sid, "subject": subject, "paths": found, "base": base,
            "last": base, "step": 0, "root": os.path.realpath(top),
            "started": round(float(now or time.time()), 3)}
+    if local:
+        rec["local"] = True
     _save(rec)
     return rec, []
 
@@ -486,8 +582,14 @@ def vibe(top, sid, held_paths, since, message):
 
     The parent is origin's tip; the tree is that tip's plus the held files
     changed since `since` (`code.seen`, else HEAD). A file the tip changed
-    differently is refused by name. Gated first; fast-forward only.
+    differently is refused by name. Gated first; fast-forward only. A
+    Mac-local session's ref is here: its loop takes the held files as they
+    are in this working tree, so nothing is pushed.
     """
+    if local_tip(top, sid):
+        return "", ("nothing to push: session %s codes in this checkout, so "
+                    "the held files here are its own and its loop takes them "
+                    "as the next step" % sid)
     tip, err = remote_tip(top, sid)
     if err:
         return "", err
@@ -937,6 +1039,7 @@ class Loop(object):
         self.retry_at = 0.0
         self.waiting = None
         self.stopped = False
+        self.owing = False
         self.said = set()
 
     def _once(self, line):
@@ -954,6 +1057,13 @@ class Loop(object):
             self.remote()
         if self.stopped or self.waiting:
             return False
+        if self.rec.get("local") and owed(self.top, self.rec["session"]):
+            if not self.owing:
+                self.say("the tutor is answering session %s: the next step "
+                         "waits for its turn to end" % self.rec["session"])
+            self.owing = True
+            return False
+        self.owing = False
         sig, newest = signature(self.top, self.rec["paths"])
         if sig != self.sig:
             if self.sig is not None:
@@ -970,16 +1080,17 @@ class Loop(object):
         """Apply a commit on `code/<session>` the loop did not make."""
         rec, top = self.rec, self.top
         sid = rec["session"]
-        tip, err = remote_tip(top, sid)
+        tip, err = tip_of(top, sid, rec.get("local"))
         if err:
             self._once(err)
             return
         if not tip:
             if rec.get("pushed"):
-                self.say("code/%s is gone from origin: the session was ended "
+                self.say("code/%s is gone from %s: the session was ended "
                          "or abandoned elsewhere. Stopped watching; the "
                          "registration stays until `board code %s --abandon`."
-                         % (sid, sid))
+                         % (sid, "here" if rec.get("local") else "origin",
+                            sid))
                 self.stopped = True
             return
         if tip == rec["last"]:
@@ -1028,22 +1139,32 @@ class Loop(object):
         if code != 0:
             self.say("step not sent: commit-tree failed: %s" % sha)
             return False
-        code, out = _git(top, "push", "--quiet", "origin",
-                         "%s:%s" % (sha, ref(rec["session"])), timeout=180)
+        if rec.get("local"):
+            # Never pushed: the ear hears it here. Moved only from `parent`,
+            # or created only where it is not there yet.
+            code, out = _git(top, "update-ref", "-m", "board code: step %d" % n,
+                             ref(rec["session"]), sha,
+                             parent if rec.get("pushed") else "")
+        else:
+            code, out = _git(top, "push", "--quiet", "origin",
+                             "%s:%s" % (sha, ref(rec["session"])), timeout=180)
         if code != 0:
-            self.say("step %d is not pushed (%s); tried again shortly"
-                     % (n, (out.splitlines() or ["no answer"])[-1]))
+            self.say("step %d is not on code/%s (%s); tried again shortly"
+                     % (n, rec["session"],
+                        (out.splitlines() or ["no answer"])[-1]))
             self.checked = None
             self.retry_at = self.clock() + FETCH_EVERY
             self.fetched_at = None
             return False
-        _git(top, "update-ref", tracking(rec["session"]), sha)
+        if not rec.get("local"):
+            _git(top, "update-ref", tracking(rec["session"]), sha)
         rec.update(last=sha, step=n, pushed=True)
         _save(rec)
         for line in got.get("relay") or []:
             self.say("  RELAY: " + line)
-        self.say("step %d pushed to code/%s: check %s%s" % (
-            n, rec["session"], got.get("state"),
+        self.say("step %d %s code/%s: check %s%s" % (
+            n, "on" if rec.get("local") else "pushed to", rec["session"],
+            got.get("state"),
             "" if got.get("state") == "none" else ", exit %s" % got.get("exit")))
         return True
 
@@ -1090,10 +1211,11 @@ def watch(top, rec, say=print, sleep=time.sleep, clock=time.time,
           ticks=None, run=subprocess.run):
     """The loop: a tick every `POLL` seconds until Ctrl-C. Exit code."""
     loop = Loop(top, rec, say=say, clock=clock, run=run)
-    say("holding %s for session %s. Each pause of %d s is a step, pushed to "
+    say("holding %s for session %s. Each pause of %d s is a step %s "
         "code/%s with its check. Ctrl-C stops watching; `board code %s --end` "
         "commits to main." % (", ".join(rec["paths"]), rec["session"],
-                              int(QUIET), rec["session"], rec["session"]))
+                              int(QUIET), "on this checkout's" if rec.get("local")
+                              else "pushed to", rec["session"], rec["session"]))
     try:
         while not loop.stopped:
             loop.tick()
@@ -1129,8 +1251,16 @@ def _lock(top, wait):
             time.sleep(1)
 
 
-def _drop_ref(top, sid):
-    """Delete `code/<sid>` on origin, where it is. "" or the error."""
+def _drop_ref(top, sid, local=False):
+    """Delete `code/<sid>` on origin, where it is, or here in Mac-local mode.
+    "" or the error."""
+    if local:
+        if local_tip(top, sid):
+            code, out = _git(top, "update-ref", "-d", ref(sid))
+            if code != 0:
+                return "could not delete code/%s here: %s" % (
+                    sid, (out.splitlines() or ["no answer"])[-1])
+        return ""
     tip, err = remote_tip(top, sid)
     if err:
         return err
@@ -1146,11 +1276,19 @@ def _drop_ref(top, sid):
 
 def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
     """`--end`: the held paths as one commit on main, pushed; then the ref
-    and the registration go. Exit code."""
+    and the registration go. Exit code.
+
+    The commit is exempt from this session's own hold, in `gitops.commit`
+    and in the pre-commit hook, and from nobody else's."""
     from . import gitops
     rec = read(sid, top)
     if not rec:
         say("board code: no coding session %s is held in this checkout" % sid)
+        return 1
+    local, why = mode(top, sid)
+    local = local or bool(rec.get("local"))
+    if why:
+        say("board code: nothing was ended: " + why)
         return 1
     fh = _lock(top, wait)
     if fh is None:
@@ -1158,7 +1296,7 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
             "Try again." % (LOCK, wait))
         return 1
     try:
-        tip, err = remote_tip(top, sid)
+        tip, err = tip_of(top, sid, local)
         if err:
             say("board code: nothing was ended: " + err)
             return 1
@@ -1210,12 +1348,12 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
         with _Index() as ix:
             _git(top, "read-tree", "HEAD", env=ix.env)
             there = _present(top, rec["paths"], ix.env)
-        title = (title or "").strip() or "%s, coached at the cluster (%d step%s)" % (
+        title = (title or "").strip() or "%s, coded with the tutor (%d step%s)" % (
             ", ".join(rec["paths"][:3]), int(rec.get("step") or 0),
             "" if int(rec.get("step") or 0) == 1 else "s")
         msg = "%s: %s" % (rec["subject"], title.splitlines()[0])
         if there:
-            ok, said = gitops.commit(top, there, msg)
+            ok, said = gitops.commit(top, there, msg, exempt=sid)
             if not ok:
                 say("board code: %s\nNothing was ended." % said)
                 return 1
@@ -1226,11 +1364,14 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
                 "The session stays open; --end again pushes it." % said)
             return 1
         say(said)
-        err = _drop_ref(top, sid)
+        err = _drop_ref(top, sid, local)
         if err:
             say("board code: main is pushed, but " + err)
             return 1
         forget(sid)
+        if local:
+            _unhold(top, sid, "code/%s ended here: its held paths are "
+                    "committed to %s and the ref is gone." % (sid, branch))
         say("session %s ended: its paths are committed to %s and code/%s is "
             "gone." % (sid, branch, sid))
         return 0
@@ -1241,11 +1382,16 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
 def abandon(top, sid, say=print):
     """`--abandon`: the ref and the registration go; the tree stays."""
     rec = read(sid, top)
-    err = _drop_ref(top, sid)
+    local = bool(rec and rec.get("local")) or bool(
+        SESSION_RE.match(str(sid or "")) and local_tip(top, sid))
+    err = _drop_ref(top, sid, local)
     if err:
         say("board code: " + err)
         return 1
     forget(sid)
+    if local:
+        _unhold(top, sid, "code/%s was abandoned here; the held files are as "
+                "they were." % sid)
     say("session %s abandoned: code/%s is gone%s. The working tree is as it "
         "was." % (sid, sid, "" if rec else " (nothing was registered here)"))
     return 0

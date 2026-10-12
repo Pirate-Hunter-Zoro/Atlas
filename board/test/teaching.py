@@ -117,7 +117,7 @@ for q in quoted:
     check("and %r is a heading" % q, is_heading(q))
 # The methods a teach turn picks from, each a section of its own.
 for q in ("Homework", "A test review", "A walkthrough", "Coaching",
-          "A session coding at the cluster", "A deck or a paper"):
+          "A coding session", "A deck or a paper"):
     check("the method %r is a heading" % q, is_heading(q))
 
 # Retired features stay out of it.
