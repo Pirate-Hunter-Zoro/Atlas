@@ -3,44 +3,28 @@
 Work still to do, and nothing else. Delete an item when it lands. Agents never ssh to the cluster:
 cluster steps are the owner's.
 
-## 1. Next session: build, then the Colibri lesson
+## 1. Next session: the Colibri lesson
 
-Build with ultracode: one workflow per stage, every agent in a worktree under
-`~/Developer/Atlas-wt/`, `python3 board/test/run.py` green, and an adversarial review before the
-merge. A merge restarts the live board, so everything lands before the lesson starts. No Mathlib
-build runs during the lesson.
+The owner wants to be able to pitch Colibri to any audience. Walk them through it on the iPad, one
+step per reply, and note every rough edge for TEACHING.md. No Mathlib build runs during the lesson.
 
-First ask the owner, in one AskUserQuestion: the deck's audience and length; a new deck through
-Make or a rework of `projects/libr-local-llm/docs/fleet_walkthrough.tex`; whether the lesson
-continues open session `20261009-193922-5` or starts fresh; whether the deck names the live gaps
-(loopback is not a boundary, ollama has no auth, KV persistence) or only the controls.
-
-### Build
-
-1. **The deck loop: the owner's yes.** `projects/libr-local-llm/.gitignore:15` ignores `*.json`,
-   so a deck's feedback ledgers never commit. It is the owner's file. The proposal, after
-   `!/docs/*/doc.json`: `!/docs/**/feedback/*.ledger.json`, `!/docs/**/feedback/*/items.json` and
-   `!/docs/**/feedback/*/states.json`. The round directory's other JSON is cache and stays
-   ignored. Commit only on a yes.
-
-### Then the lesson
-
-Walk the owner through it on the iPad, one step per reply. Note every rough edge for TEACHING.md.
-
-1. A teach session bound to `projects/libr-local-llm`. In order: what Colibri is and where it runs;
-   why it is safe with PHI (local weights, fences, the egress block, what a hosted model may read);
-   how it rides LIBR's HPC (Slurm, the relay, `relay/status.json`, the cold start). Sources: README
-   §4c, DESIGN §9, P0-STATUS findings 16-22, FLEET-BUILD.md, `docs/deepseek-egress.md`,
-   `board/tutorboard/{colibri,relay,jobs,cluster,leaving,fenced}.py`, `ai-config/policy/`. The
-   subject is `phi: true` but holds no PHI on the Mac, so a hosted turn reads tracked docs and code
-   only. No live Colibri task: a cold load takes 68 minutes. Its TUTOR.md is at 686 of 800 words.
-2. Rework `projects/libr-local-llm/docs/fleet_walkthrough.tex` from the library: ink it, "Say
-   what's wrong" as an overhaul with the agreed purpose, then at least two revise rounds. Each
-   round goes to the lesson session while it is the newest open one on the subject. The deck
-   builds today with four Overfull vboxes (pages 3, 5, 8, 10), which the first round must fix.
-3. Let the last round finish, then End. It settles the rounds and commits the deck's own files:
-   the .tex, doc.json, its feedback and the rebuilt PDF, which is tracked. The rest of `docs/`
-   stays out of the commit.
+1. A fresh teach session bound to `projects/libr-local-llm`. In order: what Colibri is and where it
+   runs; why it is safe with PHI (local weights, fences, the egress block, what a hosted model may
+   read); how it rides LIBR's HPC (Slurm, the relay, `relay/status.json`, the cold start); the live
+   gaps and their mitigations: loopback is not a boundary, ollama has no auth, KV persistence.
+   Sources: README §4c, DESIGN §9, P0-STATUS findings 16-22, FLEET-BUILD.md,
+   `docs/deepseek-egress.md`, `board/tutorboard/{colibri,relay,jobs,cluster,leaving,fenced}.py`,
+   `ai-config/policy/`. The subject is `phi: true` but holds no PHI on the Mac, so a hosted turn
+   reads tracked docs and code only. No live Colibri task: a cold load takes 68 minutes. Its
+   TUTOR.md is at 686 of 800 words.
+2. Rework `projects/libr-local-llm/docs/fleet_walkthrough.tex` from the library, not Make: ink it,
+   then "Say what's wrong" as an overhaul. Each round goes to the lesson session while it is the
+   newest open one on the subject. The deck has four Overfull vboxes (pages 3, 5, 8, 10), and
+   `board build` fails on them, so the first draft fixes them. After the first draft the owner
+   decides scope by ink, through revise rounds.
+3. Let the last round finish, then End. It settles the rounds and commits the deck's own files in
+   `docs/`: the .tex, `doc.json`, each round's ledger, `items.json` and `states.json`, and the
+   tracked PDF. The rest of `docs/` stays out.
 4. The owner's feedback goes into board/TEACHING.md and the prompts, in a worktree, merged after
    the lesson.
 
