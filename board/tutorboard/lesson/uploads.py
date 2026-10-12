@@ -11,12 +11,14 @@ def load_uploads(repo, limit=40):
     (`library.uploads`). A `.part-*` file still arriving, and any other dot
     file, is not one."""
     from ..course import library                       # local: heavy
-    docs = dict((u["name"], u["id"]) for u in library.uploads(repo))
     out = []
     try:
         names = os.listdir(repo.uploads)
     except OSError:
         names = []
+    # Listed after the names, so a PDF that lands between the two listings is
+    # in both, and never shows for a tick as a file the reader cannot open.
+    docs = dict((u["name"], u["id"]) for u in library.uploads(repo))
     for name in names:
         path = os.path.join(repo.uploads, name)
         if name.startswith(".") or not os.path.isfile(path):
