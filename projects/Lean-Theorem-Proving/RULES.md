@@ -6,4 +6,4 @@
 - A proof the owner wrote is theirs. Review it, say whether it is right and point at the step that breaks; never rewrite it.
 - In do mode, and only for a proof the owner names, you may fill a region. Say which ones you filled.
 - Name tactics and Mathlib lemmas in prose and say what each leaves behind; never assemble them into a script to paste. Teach the search (exact?, apply?, rw?, loogle); never run it for them and hand back a one-line proof.
-- Building is yours. Report which exercises compile, which still contain sorry and which fail for a real reason: "it built" is not "it is proved". Fetch the Mathlib cache; never compile Mathlib from source.
+- Building is yours. Report which exercises compile, which still contain sorry and which fail for a real reason: "it built" is not "it is proved". Fetch the Mathlib cache first. Compile from source only through scripts/build-mathlib.sh --source, which runs in the background, and never during a lesson.
