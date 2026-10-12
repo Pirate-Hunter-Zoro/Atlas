@@ -43,6 +43,20 @@ if [[ "${1:-}" == *.tex ]]; then
   exit 0
 fi
 
+# --- Mathlib first -----------------------------------------------------------
+# Without a built Mathlib, `lake build` compiles it in the foreground: hours,
+# inside a check. So this refuses at once and says why.
+mathlib=$(bash "$ROOT/scripts/build-mathlib.sh" --status); ms=$?
+case $ms in
+  0) ;;
+  2) echo "NOT BUILT: Mathlib is building in the background -- $mathlib"
+     echo "Check again once scripts/build-mathlib.sh --status says built."
+     exit 1 ;;
+  *) echo "NOT BUILT: Mathlib is not ready -- $mathlib"
+     echo "scripts/build-mathlib.sh starts its build in the background."
+     exit 1 ;;
+esac
+
 # --- the ordinary case: a Lean build ---------------------------------------
 out=$(lake build "$@" 2>&1); status=$?
 # Lean writes this with BACKTICKS -- declaration uses `sorry` -- not with the

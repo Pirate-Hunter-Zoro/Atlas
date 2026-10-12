@@ -107,6 +107,9 @@ board, and checks that the board answers. Its header lists each step.
   the one LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
 - `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
   environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
+- Mathlib builds in the background
+  (`projects/Lean-Theorem-Proving/scripts/build-mathlib.sh`); setup's last step says built,
+  running or started.
 - Turn on automatic login, so the LaunchAgent comes back after a reboot.
 - The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
   `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
