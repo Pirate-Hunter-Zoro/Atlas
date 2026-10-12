@@ -1,0 +1,74 @@
+% ===========================================================================
+%  Writeup 20261012-111337
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Writeup 20261012-111337}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{colibri-disqualifier}
+Three servers were put in front of us: (a) gpt-oss:120b on IT's VM over HTTPS; (b) GLM-5.2 at int4 on one GPU of a c3\_short node; (c) qwen3-coder:30b via ollama at a loopback address. Exactly one of them is Colibri. For each of the other two, name the property --- wrong model, wrong place, or wrong permission --- that rules it out.
+\end{problem}
+% ===== SOLUTION colibri-disqualifier =====
+gpt-oss:120b is the wrong model and the wrong place. It is not GLM-5.2, so it fails the model test, and it runs on IT's VM rather than on a c3\_short node, so it fails the place test as well.
+
+qwen3-coder:30b is the wrong model. It is not GLM-5.2.
+
+So the only server that is Colibri is (b), GLM-5.2 at int4 on one GPU of a c3\_short node.
+% ===== END SOLUTION colibri-disqualifier =====
+
+\begin{problem}{colibri-resident-set}
+The dense-and-attention-plus-KV working set is about 23 GB, and the A40 has 46 GB of VRAM. State which tier that 23 GB occupies, and why it is a different tier from where the routed experts' 407 GB lives.
+\end{problem}
+% ===== SOLUTION colibri-resident-set =====
+The 23 GB of dense and attention tensors plus the KV cache stays resident in the A40's VRAM. It fits comfortably inside 46 GB, and every token passes through it, so it never leaves the card. The routed experts' 407 GB cannot fit in 46 GB of VRAM, so those weights live in the node's 1 TB of RAM. They wait there as separate expert blocks that Colibri fetches into the card only for the tokens that need them, making room as it goes.
+% ===== END SOLUTION colibri-resident-set =====
+
+\begin{problem}{colibri-part}
+A single routed expert's weights is one block in the bank of ~407 GB, and one such block is a single "part." Name what a part is, and say why the ~23 GB resident set is not made of parts.
+\end{problem}
+% ===== SOLUTION colibri-part =====
+A part is one routed expert's weights, one small block in the bank. In the drawing the experts are separate blocks, and a token lights only a few of them ("some used; not all"), so each block can be chosen and moved on its own.
+
+The resident set has no parts because every token reads all of it ("every token needs this"). It is never chosen between, so nothing inside it splits off into a piece that can be selected or moved; it stays whole and resident.
+% ===== END SOLUTION colibri-part =====
+
+\begin{problem}{colibri-what-travels}
+On the Colibri drawing, one thing travels across the gap between the two memories. Name the object that travels, and name the memory it comes from and the memory it lands in.
+\end{problem}
+% ===== SOLUTION colibri-what-travels =====
+A routed expert's weights --- one part --- crosses the gap. It rests in the node's 1 TB of RAM, where all 407 GB of experts wait as separate blocks, and it is copied into the A40's 46 GB of VRAM when a token routes to it. That is the fetch: the card is far too small to hold every expert, so only the parts a token actually needs are brought over, and room is made for them as they come.
+% ===== END SOLUTION colibri-what-travels =====
+
+\end{document}
