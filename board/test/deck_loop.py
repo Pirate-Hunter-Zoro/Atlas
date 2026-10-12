@@ -19,7 +19,10 @@ negations that keep a document's record and its feedback (the ledger,
     and round directory, and leaves nothing of the deck modified. The
     round's caches (`checked.json`, `placed-*.json`) stay ignored. The
     owner's edits, drafts and rounds on other documents in that `docs/`
-    stay out of the commit.
+    stay out of the commit. What the overhaul pulls into the deck beside it
+    (an image, a sub-file and what that pulls in) is committed with it; a
+    file named only in a LaTeX comment is not. A PDF a failed build deleted
+    is committed as deleted.
   * End settles a `docs/<slug>/` deck whose slug a walked document already
     holds as its library id (`DESIGN.md` beside a "Design" deck).
   * A revision, overhaul or write-up turn is handed the recap of the session
@@ -170,8 +173,19 @@ try:
     check("the session's inbox wakes a [rework] turn naming the source",
           signal == "rework" and "docs/fleet.tex" in out, out)
 
-    # The turn: the deck rewritten and rebuilt, every request answered.
-    write(os.path.join(docs, "fleet.tex"), DECK.replace("One frame.", "Colibri."))
+    # The turn: the deck rewritten and rebuilt, every request answered. The
+    # overhaul adds files of its own beside it: an image and a sub-file that
+    # pulls in another image from a folder of its own. A map it commented out
+    # is the owner's draft, not the deck's.
+    write(os.path.join(docs, "fleet.tex"), DECK.replace(
+        "One frame.", "Colibri.\\includegraphics[width=4cm]{colibri-map}"
+        "\n%\\includegraphics{old-map.png}\n\\input{frames}"))
+    write(os.path.join(docs, "colibri-map.png"), b"\x89PNG map")
+    write(os.path.join(docs, "old-map.png"), b"\x89PNG old")
+    write(os.path.join(docs, "frames.tex"),
+          "\\graphicspath{{figs/}}\n\\begin{frame}\\includegraphics{arch}"
+          "\\end{frame}\n")
+    write(os.path.join(docs, "figs", "arch.png"), b"\x89PNG arch")
     write(os.path.join(docs, "fleet.pdf"), b"%PDF-1.4 second\n" + b"y" * 4000)
     led = os.path.join(lab, *note["ledger"].split("/"))
     got = read_json(led)
@@ -226,6 +240,9 @@ try:
         "rev-list", "--count", "%s..HEAD" % head).stdout.strip() == "1", said)
     for want in ("projects/Lab/docs/fleet.tex", "projects/Lab/docs/fleet.pdf",
                  "projects/Lab/docs/doc.json",
+                 "projects/Lab/docs/colibri-map.png",
+                 "projects/Lab/docs/frames.tex",
+                 "projects/Lab/docs/figs/arch.png",
                  "projects/Lab/" + note["rel"],
                  "projects/Lab/" + note["ledger"],
                  "projects/Lab/" + note2["ledger"]):
@@ -245,7 +262,8 @@ try:
           round_files)
     left = git("status", "--porcelain", "--", "projects/Lab/docs").stdout
     theirs = ("projects/Lab/docs/egress.md", "projects/Lab/docs/draft-private.md",
-              "projects/Lab/docs/feedback/egress-")
+              "projects/Lab/docs/feedback/egress-",
+              "projects/Lab/docs/old-map.png")
     deck_left = [l for l in left.splitlines()
                  if not any(t in l for t in theirs)]
     check("nothing of the deck under docs/ is left modified or untracked after "
@@ -254,9 +272,25 @@ try:
           "not the owner's edit to another document, nor an untracked draft, "
           "nor that document's round",
           not any(f.startswith(t) for f in files for t in theirs), files)
-    check("and those stay as the owner left them",
+    check("and those stay as the owner left them, the commented-out map too",
           " M projects/Lab/docs/egress.md" in left
-          and "?? projects/Lab/docs/draft-private.md" in left, left)
+          and "?? projects/Lab/docs/draft-private.md" in left
+          and "?? projects/Lab/docs/old-map.png" in left, left)
+
+    # ---- a revise whose last build failed: the PDF is gone ------------------
+    # pdflatex with -halt-on-error deletes the tracked PDF it could not
+    # rebuild; End commits that deletion rather than leave it in the tree.
+    write(os.path.join(docs, "fleet.tex"), DECK.replace("One frame.", "Broken."))
+    os.remove(os.path.join(docs, "fleet.pdf"))
+    head = git("rev-parse", "HEAD").stdout.strip()
+    rec, ok, said = sessions.end(other, base=base)
+    files = git("show", "--name-status", "--pretty=format:", "HEAD").stdout
+    left = git("status", "--porcelain", "--", "projects/Lab/docs/fleet.pdf",
+               "projects/Lab/docs/fleet.tex").stdout
+    check("End after a failed build commits the deleted PDF with the source",
+          ok and "D\tprojects/Lab/docs/fleet.pdf" in files
+          and "M\tprojects/Lab/docs/fleet.tex" in files and left == "",
+          (said, files, left))
 
     # ---- End settles a docs/<slug>/ deck whose slug a walked document took --
     write(os.path.join(lab, "DESIGN.md"), "# Design\n\nHow the lab is laid out.\n")

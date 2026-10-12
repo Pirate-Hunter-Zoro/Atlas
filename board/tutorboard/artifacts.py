@@ -308,6 +308,82 @@ def outputs(path):
     return sorted(got, key=_mtime, reverse=True)
 
 
+def built(path):
+    """Every built file a source can have beside it, there or not: End
+    commits one a failed build deleted (`sessions._kept` drops the ones
+    never tracked)."""
+    stem, ext = os.path.splitext(path)
+    return [stem + o for o in OUTPUTS.get(ext.lower(), ())]
+
+
+# What a source pulls in from a file of its own: LaTeX by command, with its
+# optional argument; Markdown by image link.
+TEX_PULL = re.compile(r"\\(includegraphics|includepdf|input|include|subfile|"
+                      r"lstinputlisting|verbatiminput|bibliography|"
+                      r"addbibresource)\*?\s*(?:\[[^\]]*\]\s*)?\{([^{}]*)\}")
+TEX_PATHS = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})*)\s*\}")
+TEX_COMMENT = re.compile(r"(?<!\\)%.*")
+MD_PULL = re.compile(r"!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'][^)]*)?\)")
+# The extensions a name without one is tried with, by command.
+TRIED = {"includegraphics": (".pdf", ".png", ".jpg", ".jpeg", ".eps"),
+         "includepdf": (".pdf",), "input": (".tex",), "include": (".tex",),
+         "subfile": (".tex",), "bibliography": (".bib",)}
+PULL_DEPTH = 4
+
+
+def pulled(path):
+    """The files the source at `path` pulls in -- an image, a sub-file, a
+    bibliography -- that exist inside its own directory and outside the
+    fence, following sub-files of sub-files. An overhaul that adds one beside
+    the deck has End commit it with the source that names it. Commented-out
+    LaTeX pulls nothing."""
+    here = os.path.dirname(os.path.abspath(path))
+    out, seen, todo = [], set(), [(os.path.abspath(path), 0)]
+    while todo:
+        src, depth = todo.pop(0)
+        if src in seen:
+            continue
+        seen.add(src)
+        try:
+            with open(src, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        found = []
+        if src.lower().endswith(".md"):
+            found = [("", m.group(1)) for m in MD_PULL.finditer(text)]
+        else:
+            text = "\n".join(TEX_COMMENT.sub("", line)
+                             for line in text.splitlines())
+            prefixes = [""]
+            for m in TEX_PATHS.finditer(text):
+                prefixes += re.findall(r"\{([^{}]*)\}", m.group(1))
+            for m in TEX_PULL.finditer(text):
+                cmd, arg = m.group(1), m.group(2)
+                names = arg.split(",") if cmd == "bibliography" else [arg]
+                for name in names:
+                    for pre in (prefixes if cmd == "includegraphics" else [""]):
+                        found.append((cmd, pre.strip() + name.strip()))
+        # LaTeX reads every name from the main file's directory.
+        for cmd, name in found:
+            if not name or "://" in name or name.startswith("#"):
+                continue
+            stem = os.path.normpath(os.path.join(here, name))
+            for cand in [stem] + [stem + e for e in TRIED.get(cmd, ())]:
+                rel = os.path.relpath(cand, here)
+                if rel.startswith("..") \
+                        or fenced.in_fence(rel.replace(os.sep, "/")) \
+                        or not os.path.isfile(cand):
+                    continue
+                if cand not in out and cand != os.path.abspath(path):
+                    out.append(cand)
+                if cand.lower().endswith(".tex") and depth < PULL_DEPTH:
+                    todo.append((cand, depth + 1))
+                break
+    return out
+
+
+
 # A round directory's caches, which the board rewrites on every read.
 ROUND_CACHE = re.compile(r"\A(?:checked|placed-.*)\.json\Z")
 
@@ -316,7 +392,8 @@ def kept(art):
     """The absolute paths an End commits for artifact `art` (an entry of
     `list`). A `docs/<slug>/` artifact owns its directory, so all of it. One
     placed in place shares its directory with other work, so only doc.json,
-    the source, its built files, the pages a write-up files in `handwritten/`
+    the source, its built files (`built`, a deleted one too), what it pulls
+    in beside it (`pulled`), the pages a write-up files in `handwritten/`
     beside it, and its own rounds in `feedback/`: each note, ledger and round
     directory named for the source's stem, less the round's caches."""
     if art["own"]:
@@ -325,7 +402,7 @@ def kept(art):
     path = art["path"]
     if not path:
         return out
-    out += [path] + outputs(path)
+    out += [path] + built(path) + [p for p in pulled(path) if p not in out]
     here = os.path.dirname(path)
     hand = os.path.join(here, "handwritten")
     if os.path.isdir(hand):
