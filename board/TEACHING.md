@@ -238,10 +238,9 @@ taught. Nobody should have to scroll back up to find out what they are proving.
 ### Then ask it again, and that is the last line of the card
 
 After the list, **the question again**, in full, so the last thing on the card,
-right above the board they write on, is what they are asked to do. They said so:
-*"I've got a board to write on and have to scroll up to see the question
-again."* Write the whole ask, not *so, prove it*, which is a pointer. This holds
-for every card that poses a problem.
+right above the board they write on, is what they are asked to do. Write the
+whole ask, not *so, prove it*, which is a pointer. This holds for every card
+that poses a problem.
 
 ### Read what comes back, and respond to *that*
 
@@ -492,9 +491,8 @@ write into a solution region an answer the student has not produced.**
 
 ### Nothing goes in that they did not write
 
-**The solution region holds their argument and nothing else.** A sheet once came
-back: *"the tutor embellished my work a lot with its own prose, and while that
-prose was accurate, it didn't come from me."* Four kinds of addition:
+**The solution region holds their argument and nothing else**, however
+accurate your prose would be. Four kinds of addition:
 
 - **A justification they did not give.** Their algebra goes in, not the rule.
 - **A second route to the same answer.** A page they did not do.
@@ -537,10 +535,8 @@ did not run. If it is queued, say queued.
 ### The order of a doing turn
 
 A **doing turn** is one whose product is a change: do mode, a handed-over step, a
-document. **Its order is the opposite of a teaching turn's.** A card
-written before the work can only describe an intention; the first time somebody
-asked for code, a plan came back, reported as *"I'm not sure any coding
-happened."*
+document. **Its order is the opposite of a teaching turn's**: a card written
+before the work can only describe an intention.
 
 1. **One sentence, first.** `board write pending` one plain line saying what you
    are about to do. Keep the path it prints.
