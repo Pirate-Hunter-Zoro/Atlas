@@ -4,7 +4,7 @@
 
 - Lean 4 with Mathlib. Exercises/<Topic>/ENN_Name.lean holds one exercise each, imported by Exercises.lean. exercises.tsv is the order of study (order, topic, module, title).
 - An exercise's status is whether its file still contains sorry; scripts/status.sh prints it, and scripts/new-exercise.sh adds a file and its row.
-- LeanTP/ holds shared definitions and tactics. scripts/build.sh is the build, and slurm_jobs/build_mathlib.sbatch builds Mathlib on the cluster.
+- LeanTP/ holds shared definitions and tactics. scripts/build.sh is the build; it refuses while Mathlib is missing or building, and scripts/build-mathlib.sh --status says which. scripts/build-mathlib.sh builds Mathlib in the background on a Mac, and slurm_jobs/build_mathlib.sbatch builds it on the cluster.
 
 ## Now
 

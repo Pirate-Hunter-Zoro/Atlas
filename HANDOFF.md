@@ -22,17 +22,6 @@ continues open session `20261009-193922-5` or starts fresh; whether the deck nam
    `!/docs/*/doc.json`: `!/docs/**/feedback/*.ledger.json`, `!/docs/**/feedback/*/items.json` and
    `!/docs/**/feedback/*/states.json`. The round directory's other JSON is cache and stays
    ignored. Commit only on a yes.
-2. **Mathlib on the Mac.** The Mac already has Mathlib from `lake exe cache get`; the sbatch exists
-   because the cluster blocks the cache host. Add `projects/Lean-Theorem-Proving/scripts/build-mathlib.sh`:
-   cache first, then an incremental `lake build`; `--source` skips the cache; `--status` exits 0
-   built, 1 missing, 2 running, 3 failed. It backgrounds itself under `caffeinate -is` and nohup,
-   with its lock, log and status file under `~/.local/state/atlas-setup/`, and caps
-   `LEAN_NUM_THREADS` at 8 for 24 GB of RAM (`LEANTP_THREADS` overrides). The project's
-   `scripts/setup.sh` calls it instead of compiling in the foreground, and `setup-mac.sh` gains a
-   last step that reports built, running or started. `scripts/build.sh` refuses fast while a build
-   runs or Mathlib is missing. Exercise `--source` once on a scratch clone: a source build writes
-   about 7 GB and 52 GB are free. `RULES.md:9` forbids compiling from source; it is the owner's
-   file, so propose the change.
 3. **Coding sessions on the Mac mini and a laptop.** `board code` (`board/tutorboard/code.py`) needs
    no Slurm, and `board/test/code.py` passes on the Mac.
    - Laptop: a plain clone runs the same protocol and pushes `code/<sid>` to GitHub, which the Mac's

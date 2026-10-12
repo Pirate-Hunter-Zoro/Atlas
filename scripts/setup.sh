@@ -17,10 +17,10 @@
 #    what it holds:
 #      pyproject.toml   uv sync, with the `test` extra, and the `cluster` extra
 #                       only where Slurm exists
-#      lean-toolchain   its own scripts/setup.sh: elan, the toolchain, the
-#                       Mathlib cache, the build. Under Slurm it skips the
-#                       cache, which the cluster cannot reach, and the build,
-#                       which scripts/setup-cluster.sh submits as a job
+#      lean-toolchain   its own scripts/setup.sh: elan, the toolchain, and
+#                       Mathlib's build started in the background. Under Slurm
+#                       it starts nothing; scripts/setup-cluster.sh submits
+#                       Mathlib as a job
 #      go.mod           go mod download
 #
 # Idempotent: a second run changes nothing and says so. One line per workspace;
@@ -139,11 +139,7 @@ for id in $workspaces; do
 
   if [ -f "$ws/lean-toolchain" ]; then
     if [ -f "$ws/scripts/setup.sh" ]; then
-      # The cluster cannot reach Mathlib's prebuilt cache, and trying costs
-      # half an hour; there, scripts/setup-cluster.sh compiles it as a job.
-      lean_args=()
-      [ "$SLURM" = 1 ] && lean_args=(--source)
-      bash "$ws/scripts/setup.sh" ${lean_args[@]+"${lean_args[@]}"} >>"$log" 2>&1 || bad=1
+      bash "$ws/scripts/setup.sh" >>"$log" 2>&1 || bad=1
     else
       (cd "$ws" && lake exe cache get && lake build) >>"$log" 2>&1 || bad=1
     fi

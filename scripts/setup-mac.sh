@@ -16,6 +16,8 @@
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  the provider config exists, the board answers on 8778, and
 #      board/test/tracked.py passes
+#   7  Mathlib: built, building, or its background build started
+#      (projects/Lean-Theorem-Proving/scripts/build-mathlib.sh)
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -102,6 +104,17 @@ else
 fi
 python3 board/test/tracked.py >"$LOGS/tracked.log" 2>&1 \
   && good "tracked.py: git can see nothing it must not" || warn "tracked.py fails; see $LOGS/tracked.log"
+
+echo "== 7. Mathlib"
+# Starts the build when it is neither built nor running, and returns at once.
+mathlib=projects/Lean-Theorem-Proving/scripts/build-mathlib.sh
+if [ ! -f "$mathlib" ]; then
+  good "no Lean project here"
+elif said="$(bash "$mathlib" 2>&1)"; then
+  good "Mathlib $said"
+else
+  warn "Mathlib: $said"
+fi
 
 echo
 if [ "$problems" -eq 0 ]; then
