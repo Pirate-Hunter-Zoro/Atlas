@@ -68,8 +68,9 @@ Walk the owner through it on the iPad, one step per reply. Note every rough edge
    what's wrong" as an overhaul with the agreed purpose, then at least two revise rounds. Each
    round goes to the lesson session while it is the newest open one on the subject. The deck
    builds today with four Overfull vboxes (pages 3, 5, 8, 10), which the first round must fix.
-3. Let the last round finish, then End. It settles the rounds and commits `docs/` whole: the
-   .tex, doc.json, the feedback and the rebuilt PDF, which is tracked.
+3. Let the last round finish, then End. It settles the rounds and commits the deck's own files:
+   the .tex, doc.json, its feedback and the rebuilt PDF, which is tracked. The rest of `docs/`
+   stays out of the commit.
 4. The owner's feedback goes into board/TEACHING.md and the prompts, in a worktree, merged after
    the lesson.
 

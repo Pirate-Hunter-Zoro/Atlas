@@ -16,8 +16,12 @@ negations that keep a document's record and its feedback (the ledger,
     refused once the source has changes nothing committed.
   * End of that session settles every round, then commits the revised
     .tex, the rebuilt tracked PDF, doc.json and every round's note, ledger
-    and round directory, and leaves nothing under `docs/` modified. The
-    round's caches (`checked.json`, `placed-*.json`) stay ignored.
+    and round directory, and leaves nothing of the deck modified. The
+    round's caches (`checked.json`, `placed-*.json`) stay ignored. The
+    owner's edits, drafts and rounds on other documents in that `docs/`
+    stay out of the commit.
+  * End settles a `docs/<slug>/` deck whose slug a walked document already
+    holds as its library id (`DESIGN.md` beside a "Design" deck).
   * A revision, overhaul or write-up turn is handed the recap of the session
     it runs in, and its prompt sends it to `board see` for the ink and
     holds a deck to a build with no box warnings.
@@ -63,7 +67,7 @@ os.environ["TUTORBOARD_COURSES"] = base
 os.environ["TUTORBOARD_TRASH"] = trash
 os.environ.pop("TUTORBOARD_SESSION", None)
 
-from tutorboard import brief, sessions                              # noqa: E402
+from tutorboard import artifacts, brief, sessions                   # noqa: E402
 from tutorboard.course import library                               # noqa: E402
 from tutorboard.lesson import inbox                                 # noqa: E402
 from tutorboard.runner import prompts, turn                         # noqa: E402
@@ -202,6 +206,16 @@ try:
           rec)
 
     # ---- End ---------------------------------------------------------------
+    # The owner's own work beside the deck in docs/: an edit to a tracked
+    # document, an untracked draft, and a round of feedback on that document.
+    write(os.path.join(docs, "egress.md"), "# Not the deck\n\nThe owner's edit.\n")
+    write(os.path.join(docs, "draft-private.md"), "# Not for any commit\n")
+    egress = [d for d in library.documents(lab) if d["stem"] == "egress"][0]
+    note_e = library.write_note(page, egress["id"], "Not the deck's round.",
+                                hand_over=False)
+    check("a round on the other document in docs/ is filed under its stem",
+          note_e.get("ok") and note_e["rel"].startswith("docs/feedback/egress-"),
+          note_e)
     note_path = os.path.join(lab, *note["rel"].split("/"))
     check("the answered round has no account under its note before End",
           "## What was changed" not in open(note_path, encoding="utf-8").read())
@@ -230,10 +244,62 @@ try:
           and os.path.isfile(os.path.join(note_path[:-3], "checked.json")),
           round_files)
     left = git("status", "--porcelain", "--", "projects/Lab/docs").stdout
-    check("nothing under docs/ is left modified or untracked after End, the "
-          "rebuilt PDF included", left.strip() == "", left)
-    check("and the other document in docs/ was untouched, so not committed",
-          "projects/Lab/docs/egress.md" not in files, files)
+    theirs = ("projects/Lab/docs/egress.md", "projects/Lab/docs/draft-private.md",
+              "projects/Lab/docs/feedback/egress-")
+    deck_left = [l for l in left.splitlines()
+                 if not any(t in l for t in theirs)]
+    check("nothing of the deck under docs/ is left modified or untracked after "
+          "End, the rebuilt PDF included", deck_left == [], left)
+    check("End commits only the deck's own files from the docs/ it shares: "
+          "not the owner's edit to another document, nor an untracked draft, "
+          "nor that document's round",
+          not any(f.startswith(t) for f in files for t in theirs), files)
+    check("and those stay as the owner left them",
+          " M projects/Lab/docs/egress.md" in left
+          and "?? projects/Lab/docs/draft-private.md" in left, left)
+
+    # ---- End settles a docs/<slug>/ deck whose slug a walked document took --
+    write(os.path.join(lab, "DESIGN.md"), "# Design\n\nHow the lab is laid out.\n")
+    git("add", "-A", "projects/Lab/DESIGN.md")
+    git("commit", "-q", "-m", "design")
+    sid3 = registry.open_bound(base, "projects/Lab", "Design talk")
+    made = artifacts.create(lab, "Design", session=sid3, ext=".tex", base=base)
+    design = made["dir"]
+    write(os.path.join(design, "design.tex"), DECK)
+    write(os.path.join(design, "design.pdf"), b"%PDF-1.4 first\n" + b"z" * 4000)
+    library.forget()
+    listed = library.documents(lab)
+    deck3 = [d for d in listed if d.get("artifact") == "docs/design"]
+    walked = [d for d in listed if d["stem"] == "DESIGN"]
+    check("a 'Design' deck beside a root DESIGN.md: the walked file has the "
+          "slug as its id, so the deck has another",
+          made["id"] == "design" and deck3 and walked
+          and walked[0]["id"] == "design" and deck3[0]["id"] != "design",
+          [(d["id"], d.get("artifact"), d["stem"]) for d in listed])
+    deck3 = deck3[0]
+    note4 = library.write_note(page, deck3["id"], "Frame 1 is too dense.",
+                               hand_over=False)
+    write(os.path.join(design, "design.tex"), DECK.replace("One frame.", "Less."))
+    write(os.path.join(design, "design.pdf"), b"%PDF-1.4 second\n" + b"w" * 4000)
+    led4 = os.path.join(lab, *note4["ledger"].split("/"))
+    got = read_json(led4)
+    got["answers"] = {i: {"disposition": "done", "did": "cut it",
+                          "new": "Less."} for i in note4["ids"]}
+    write(led4, json.dumps(got))
+    rec, ok, said = sessions.end(sid3, base=base)
+    files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
+    check("End settles that deck's round, not the walked document's: its "
+          "account and after-copy are in the commit",
+          ok and "## What was changed" in git(
+              "show", "HEAD:projects/Lab/" + note4["rel"]).stdout
+          and any(f.startswith("projects/Lab/" + note4["rel"][:-3] + "/")
+                  and f.endswith("/after.tex") for f in files), (said, files))
+    library.forget()
+    library.status(page)
+    left = git("status", "--porcelain", "--", "projects/Lab/docs/design",
+               "projects/Lab/DESIGN.md").stdout
+    check("and the next library read leaves nothing of it to commit",
+          left.strip() == "", left)
 
     # ---- what the turn is handed --------------------------------------------
     for sig in ("revise", "rework", "writeup"):

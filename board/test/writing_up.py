@@ -277,6 +277,10 @@ try:
     shown = git("show", "--stat", "--format=%s", "HEAD")
     check("End commits the set the session wrote into",
           ok and "ch07-homework.tex" in shown and "doc.json" in shown, said + shown)
+    named = git("show", "--name-only", "--format=", "HEAD").split()
+    check("and the page filed beside it, while the chapter's other files stay out",
+          any(f.endswith("/homework/handwritten/ch07-14.png") for f in named)
+          and all("/homework/" in f for f in named if "ch07" in f), named)
 
     # --- the brief -------------------------------------------------------------
     s3 = sessions.new("Two pointers", base=base)

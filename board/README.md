@@ -168,7 +168,8 @@ tree gets a `doc.json` written in place, so its ids hold.
   session it was asked from, else the subject's newest open session (`registry.runner_route`),
   is handed its recap, and that
   session goes on the document's `doc.json`, so its End settles the rounds and commits the
-  document with its feedback.
+  document with its feedback. One placed in a shared directory commits only its own files
+  (`artifacts.kept`), never its neighbours.
 - **Ink** is one kind. Card ink lives in the session; document ink lives in
   `<subject>/.ink/`, keyed `doc/<id>/p<n>`. Both are ignored.
 - **Materials** are third-party or uploaded files in `<subject>/materials/`, ignored, readable
