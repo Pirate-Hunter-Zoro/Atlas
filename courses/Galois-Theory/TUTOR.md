@@ -8,14 +8,15 @@
 
 ## Now
 
-The owner skipped chapter 6 on 2026-09-22 and set the worksheet Automorphisms, Irreducibility and Splitting Fields in its place. Its write-up, homework/worksheet-automorphisms-splitting-fields/, has every solution region of 7(a) through 12(c) filled, with each handwritten page beside it. Problems 11 and 12, the finite-field pair first left for a sheet of their own, were done too.
+Chapter 7, Splitting fields. Problem 13. Parts (a) and (b) are written up; (c) and (d) are not.
 
-What comes next is the owner's call. In book order it is chapter 7, Splitting fields.
+Card 0033 posed 13(c): take $p=13$, show $2$ is a primitive root modulo $13$, and list every subgroup of $(\ZZ/13\ZZ)^\times$ with the degree over $\QQ$ of its fixed field.
 
-chapters/ch06-ruler-and-compass-constructions/ stays as it stands: four transcribed statements with empty regions. The earlier sheet, homework/worksheet-field-extensions/ (problems 1-6), is a separate set.
+At turn t0134 the student sent a page with the order computation ($2^6\equiv-1$, so order $12$) and a partial list of subgroups, but with a boxed question: "what do you mean fixed field?" Card 0034 answers that in its own card --- defines $K^H$, gives $[K^H:\QQ]=12/|H|$ --- and asks one thing: which of $\zeta+\zeta^{-1}$ and $\zeta-\zeta^{-1}$ lies in the fixed field of $H=\{1,12\}$. The working on the page is NOT yet assessed; the d=6 entry looks wrong but was not marked. Awaiting their reply.
 
 ## Open decisions
 
 ## Done recently
 
 - The automorphisms and splitting-fields worksheet, problems 7-12: Aut(ℚ(ζₙ)/ℚ) inside (ℤ/nℤ)ˣ, Φₚ irreducible, the whole machine on x⁴+1, the splitting field of x³−2, and the finite-field pair.
+- Problem 13(a) and 13(b) transcribed into ch07-homework.tex (SOLUTION 13 region); pages ch07-13a.png, ch07-13b.png.

@@ -43,7 +43,17 @@ Since $(\ZZ/p\ZZ)^\times$ is cyclic, there is a primitive root $g$ modulo $p$. T
 
 Suppose $\sigma_k\in G$, with $\sigma_k(\zeta)=\zeta^k$. Since $g$ is a primitive root modulo $p$, there is an $n$ with $g^n\equiv k\pmod p$. So $\sigma_g^{\,n}(\zeta)=\zeta^{g^n}=\zeta^k=\sigma_k(\zeta)$, and since an element of $G$ is determined by its value at $\zeta$, $\sigma_g^{\,n}=\sigma_k$. Hence $\sigma_g$ generates $G$, and $G$ is cyclic of order $p-1$.
 \end{proof}
-% TODO(mferguson): parts (b)--(d) go here.
+\noindent\textbf{(b)}
+\begin{proof}
+For a subgroup $H\le G$ the index is $[G:H]=|G|/|H|$, so the subgroup of order $(p-1)/d$ has index $d$.
+
+For $H\le G$ the fixed field is $K^H=\{k\in K:\sigma(k)=k \text{ for every }\sigma\in H\}$, and $[K:K^H]=|H|$.
+
+A cyclic group has exactly one subgroup of each order dividing its order. Since $G$ is cyclic, it has exactly one subgroup $H$ of order $(p-1)/d$. By the correspondence $H$ has exactly one fixed field $K^H=K_d$, and by the index computation above $[K_d:\QQ]=d$.
+
+Since $G$ is cyclic, every subgroup is normal, so $H\unlhd G$. Hence $K_d=K^H$ is Galois over $\QQ$, with Galois group $G/H$, a quotient of the cyclic group $G$ and therefore cyclic.
+\end{proof}
+% TODO(mferguson): parts (c)--(d) go here.
 % ===== END SOLUTION 13 =====
 
 \begin{problem}{14}
