@@ -8,11 +8,9 @@
 
 ## Now
 
-Chapter 7, Splitting fields. Problem 13. Parts (a) and (b) are written up; (c) and (d) are not.
+Chapter 7, Splitting fields. Problem 13. Parts (a) and (b) are written up. 13(c) -- list the subgroups of $(\ZZ/13\ZZ)^\times$ with their fixed-field degrees -- was SKIPPED at t0136 (card 0035 held the full restatement), after the hand-check in 0034 was also skipped; per the skip rule it is not re-asked and stays unwritten.
 
-Card 0033 posed 13(c): take $p=13$, show $2$ is a primitive root modulo $13$, and list every subgroup of $(\ZZ/13\ZZ)^\times$ with the degree over $\QQ$ of its fixed field.
-
-At turn t0134 the student sent a page with the order computation ($2^6\equiv-1$, so order $12$) and a partial list of subgroups, but with a boxed question: "what do you mean fixed field?" Card 0034 answers that in its own card --- defines $K^H$, gives $[K^H:\QQ]=12/|H|$ --- and asks one thing: which of $\zeta+\zeta^{-1}$ and $\zeta-\zeta^{-1}$ lies in the fixed field of $H=\{1,12\}$. The working on the page is NOT yet assessed; the d=6 entry looks wrong but was not marked. Awaiting their reply.
+13(d): with $H\le G$ of index $d$ and $\eta_H=\sum_{a\in H}\zeta^a$, show $K_d=\QQ(\eta_H)$. At t0137 they did not compute the period; instead they sketched the plan and asked on the page "Is this plan a good direction?" Card 0037 answers yes -- the plan is $\eta_H\in K_d$ (H fixes the period) then a degree comparison, keeping the nested-over-$\QQ$ diagram -- and re-poses the one concrete step: for $p=13$, $H=\{1,3,4,9,10,12\}$, compute $\sigma_3(\eta_H)$ and say in one line why it returns $\eta_H$. Awaiting their reply. Arc to hold: $\eta_H\in K_d$, then $[\QQ(\eta_H):\QQ]=d$ via the $d$ distinct coset periods as conjugates, forcing equality.
 
 ## Open decisions
 
