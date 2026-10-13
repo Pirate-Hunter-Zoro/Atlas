@@ -45,8 +45,8 @@ reports it built once it is.
      cheapest diagnostic recipe; a completed `[job]` card arrives within about 5 minutes. In one
      bound to the diarization project, ask for a dry job; its report completes, and job_env.sh
      resolves its data variable inside that subject's fenced directory.
-   - **One coding-session trial.** Start an iPad session bound to projects/Algo-Solutions and run
-     the command its header shows on the cluster (`board code <session-id> leetcode/<dir>`). Edit
+   - **One coding-session trial.** Start an iPad session bound to a non-PHI subject with code and run
+     the command its header shows on the cluster (`board code <session-id> <path>`). Edit
      one file; a `[code] step` card shows within about a minute. `board code <session-id> --end`
      leaves one new commit and no `code/*` ref on origin.
    - **TRD-EHR's lockfile.** The conda environment on lab storage stays until the lockfile
@@ -67,8 +67,8 @@ reports it built once it is.
 2. **Code the cutover left behind**, now safe to remove:
    - The old-location claim fallback in `board/tutorboard/jobs.py`: `_old_claim_dirs`,
      `_old_live`, and `migrate_state` with its calls in jobs.py and colibri.py, which have
-     nothing left to move. Remove board/test/jobs.py's TRD-EHR old-claims check with them; it
-     reads `~/Archive/atlas-migration/2026-10-07/live-dirs.tgz`.
+     nothing left to move. Keep the synthetic migration regressions in `board/test/jobs.py` aligned with the
+     supported on-disk formats.
    - The `/research/` and `/practice/` rules in the root `.gitignore`, with the comment above
      them.
 
@@ -81,8 +81,6 @@ reports it built once it is.
   Confirm their wording before submission. All are under `projects/TRD-EHR/paper1-trd-prediction/`:
   `manuscript.md:400`, `parts/manuscript/10-data-availability.md:12`, `cover_letter.md:89`,
   `tripod_ai_checklist.md:98`, `reserve/manuscript_reserve.md:335`.
-- **Algo-Solutions.** `leetcode/totalbeauty` imports `algo-solutions/helpermath` and
-  `algo-solutions/leetcode` without using them, so `go vet` and `go test` fail in that package.
 - **TRD-EHR's TUTOR.md** is at 797 of 800 words. `board memo` refuses the next addition until it
   is trimmed.
 - **The dimension-count versus best-k scatter.** Decide in a session whether it enters the k-sweep

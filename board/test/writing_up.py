@@ -6,17 +6,17 @@
 Everything runs in a temp Atlas (`TUTORBOARD_COURSES`) with its own git
 repository and a temp trash. Nothing touches the real `sessions/`.
 
-  * An unbound session refuses; bound to a libr-local-llm copy, two answers
+  * An unbound session refuses; bound to a synthetic research project, two answers
     make `docs/<session-slug>/writeup.tex` from the one template and a
     writeup.pdf holding both. The doc.json lists the session, the sent page is
     filed into handwritten/, and a fenced code block is set verbatim.
-  * A Galois copy whose session names chapter 7 writes into
+  * A chapter-course fixture whose session names chapter 7 writes into
     `chapters/ch07-.../homework/ch07-homework.tex` in place, region by region,
     with doc.json written beside it; `board writeup status` reports it,
     and End commits the set.
   * A build failure is in the payload the board's banner paints, LaTeX error
     and all.
-  * An Algo-Solutions teach brief names `board writeup`; a do brief carries no
+  * An Arena-Lab teach brief names `board writeup`; a do brief carries no
     write-up rule.
   * The old scaffold is gone: one template, no course templates.
 """
@@ -100,15 +100,6 @@ def pdf_text(pdf):
                           stderr=subprocess.DEVNULL, universal_newlines=True).stdout
 
 
-def subject_dir(slug):
-    """Where a subject lives in this checkout: its parent and directory."""
-    for parent in ("courses", "projects"):
-        d = os.path.join(ATLAS, parent, slug)
-        if os.path.isdir(d):
-            return parent, d
-    return None, None
-
-
 def sent_page(session_dir, tid, data=b"\x89PNG\r\n\x1a\nfake"):
     """A page the student sent: answers/<tid>-r1.png and its turn."""
     write(os.path.join(session_dir, "answers", tid + "-r1.png"), data)
@@ -122,32 +113,34 @@ try:
     write(os.path.join(base, ".gitignore"),
           "/sessions/\n.ink/\nlive/\n*.pdf\n*.aux\n*.log\n")
 
-    # --- the fixtures: copies of three real subjects -------------------------
-    _, llm_src = subject_dir("libr-local-llm")
-    llm = os.path.join(base, "projects", "libr-local-llm")
+    # Synthetic subjects cover a plain project and chapter-shaped homework.
+    llm = os.path.join(base, "projects", "Research-Lab")
     write(os.path.join(llm, "tutorboard.json"),
-          read(os.path.join(llm_src, "tutorboard.json")))
-
-    _, gal_src = subject_dir("Galois-Theory")
-    gal = os.path.join(base, "courses", "Galois-Theory")
-    ch07 = glob.glob(os.path.join(gal_src, "chapters", "ch07-*"))[0]
-    ch07_rel = os.path.relpath(ch07, gal_src)
-    shutil.copytree(os.path.join(gal_src, "latex"), os.path.join(gal, "latex"))
-    shutil.copyfile(os.path.join(gal_src, "chapters.tsv"), os.path.join(gal, "chapters.tsv"))
-    shutil.copyfile(os.path.join(gal_src, "tutorboard.json"),
-                    os.path.join(gal, "tutorboard.json"))
-    hw_src = os.path.join(ch07, "homework", "ch07-homework.tex")
+          json.dumps({"name": "Research Lab", "phi": True}))
+    gal = os.path.join(base, "courses", "Algebra-Lab")
+    write(os.path.join(gal, "tutorboard.json"),
+          json.dumps({"name": "Algebra Lab", "phi": False}))
+    ch07_rel = "chapters/ch07-fixture"
     hw_tex = os.path.join(gal, ch07_rel, "homework", "ch07-homework.tex")
-    write(hw_tex, read(hw_src))
-    # A second set, so the session's title is what picks ch07.
+    sheet = r"""\documentclass{article}
+\newenvironment{problem}[1]{\par Problem #1.}{\par}
+\begin{document}
+\begin{problem}{14}
+A fixed statement.
+\end{problem}
+% ===== SOLUTION 14 =====
+% TODO: the owner's answer.
+% ===== END SOLUTION 14 =====
+\end{document}
+"""
+    write(hw_tex, sheet)
     write(os.path.join(gal, "chapters", "ch05-tests", "homework", "ch05-homework.tex"),
-          read(hw_src))
+          sheet)
 
-    algo_parent, algo_src = subject_dir("Algo-Solutions")
-    algo = os.path.join(base, algo_parent or "projects", "Algo-Solutions")
+    algo_parent = "projects"
+    algo = os.path.join(base, algo_parent, "Arena-Lab")
     write(os.path.join(algo, "tutorboard.json"),
-          read(os.path.join(algo_src, "tutorboard.json")) if algo_src
-          else '{"name": "Algo Solutions", "phi": false}')
+          '{"name": "Arena Lab", "phi": false}')
     git("add", "-A")
     git("commit", "-q", "-m", "fixture")
 
@@ -172,8 +165,8 @@ try:
           code != 0 and "board bind" in out and not os.path.isdir(os.path.join(llm, "docs")),
           out)
 
-    # --- libr-local-llm: two answers, one writeup.pdf ------------------------
-    sessions.bind(s1["id"], "projects/libr-local-llm", base=base)
+    # --- Research-Lab: two answers, one writeup.pdf ------------------------
+    sessions.bind(s1["id"], "projects/Research-Lab", base=base)
     sent_page(d1, "t0001")
     code, out = board(["writeup", "add", "warm-pool"], d1,
                       "Why is the warm pool two jobs?\n---\n"
@@ -188,7 +181,7 @@ try:
           doc.get("source") == "writeup.tex" and doc.get("sessions") == [s1["id"]], doc)
     rec = sessions.get(s1["id"], base)
     check("session.json's writeup is that source",
-          rec["writeup"] == "projects/libr-local-llm/docs/colibri-warmth/writeup.tex", rec)
+          rec["writeup"] == "projects/Research-Lab/docs/colibri-warmth/writeup.tex", rec)
     check("the sent page is filed into handwritten/",
           os.path.isfile(os.path.join(wdir, "handwritten", "colibri-warmth-warm-pool.png")))
     text = read(wtex)
@@ -240,10 +233,10 @@ try:
           not HAVE_TEX or ((data.get("hw") or {}).get("build") or {}).get("ok") is True,
           out)
 
-    # --- Galois: the course's own set, in place -------------------------------
+    # --- the chapter course's own set, in place -------------------------------
     s2 = sessions.new("Ch 7 homework", base=base)
     d2 = sessions.path(s2["id"], base)
-    sessions.bind(s2["id"], "courses/Galois-Theory", base=base)
+    sessions.bind(s2["id"], "courses/Algebra-Lab", base=base)
     sent_page(d2, "t0001")
     before = read(hw_tex)
     code, out = board(["writeup", "add", "14"], d2,
@@ -252,7 +245,7 @@ try:
     after = read(hw_tex)
     region = after[after.index("% ===== SOLUTION 14 ====="):
                    after.index("% ===== END SOLUTION 14 =====")]
-    check("a Galois copy still writes into chapters/ch07-.../homework/ch07-homework.tex",
+    check("a chapter-course fixture still writes into chapters/ch07-.../homework/ch07-homework.tex",
           code == 0 and "3$ is a primitive root" in region
           and "wrote 14 in %s/homework/ch07-homework.tex" % ch07_rel in out, out)
     check("in place: the statement the sheet has is kept, and nothing is appended",
@@ -284,9 +277,9 @@ try:
 
     # --- the brief -------------------------------------------------------------
     s3 = sessions.new("Two pointers", base=base)
-    sessions.bind(s3["id"], "%s/Algo-Solutions" % (algo_parent or "projects"), base=base)
+    sessions.bind(s3["id"], "%s/Arena-Lab" % (algo_parent or "projects"), base=base)
     taught = brief.briefing(sessions.repo(s3["id"], base), sense)
-    check("an Algo-Solutions teach brief names board writeup",
+    check("an Arena-Lab teach brief names board writeup",
           "board writeup add <label>" in taught and "writeup: none yet" in taught)
     from tutorboard import mode as session_mode                    # noqa: E402
     session_mode.set_mode(sessions.repo(s3["id"], base), "do", "test")

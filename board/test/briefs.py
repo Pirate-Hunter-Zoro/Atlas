@@ -386,10 +386,9 @@ try:
     out = subprocess.run(["git", "ls-files", "*.out"], cwd=REPO, stdout=subprocess.PIPE,
                          universal_newlines=True).stdout
     check("no *.out is tracked", out.strip() == "", out)
-    meet = json.load(open(os.path.join(REPO, "projects", "Meetings", "tutorboard.json")))
-    check("projects/Meetings is tracked, and holds patient data",
-          meet == {"name": "Meetings", "phi": True}
-          and os.path.isfile(os.path.join(REPO, "projects", "Meetings", "TUTOR.md")))
+    meet = json.load(open(os.path.join(MEET, "tutorboard.json")))
+    check("the meeting fixture holds patient data",
+          meet.get("phi") is True)
 
     # ---- a deck with a brief is revised against it ---------------------------------
     status, said_ = ask("POST", "/library/feedback?subject=projects/Meetings",

@@ -383,12 +383,9 @@ with open(os.path.join(ROOT, "TEACHING.md"), encoding="utf-8") as fh:
 check("the method says long work goes to the cluster through `board job`, and "
       "the check runs first", "`board job -- <recipe.sbatch>`" in method
       and "`board check`" in method)
-for ws in ("courses/Galois-Theory", "courses/Probability", "projects/Algo-Solutions",
-           "projects/Lean-Theorem-Proving", "projects/PSYCH-ASR",
-           "projects/libr-local-llm", "projects/TRD-EHR", "projects/Paper-Writer"):
-    root = os.path.join(REPO, ws)
-    if not os.path.isdir(root):
-        continue
+from tutorboard import subjects
+for subject in subjects.all(REPO):
+    ws, root = subject["id"], subject["root"]
     # Asked of git by path: `registry` would migrate a real live/.
     where = os.path.join(jobs.STATE, jobs.NAME)
     check("%s: the registry it would write (%s) is ignored by git"
@@ -547,97 +544,47 @@ finally:
     shutil.rmtree(first, ignore_errors=True)
 
 
-# --- TRD-EHR's whole report history over its old claims wakes nothing ------------
-ARCHIVE = os.path.expanduser(
-    "~/Archive/atlas-migration/2026-10-07/live-dirs.tgz")
-TRD = [rel for rel in ("projects/TRD-EHR",)
-       if os.path.isdir(os.path.join(REPO, rel, "relay", "reports"))]
-if not os.path.isfile(ARCHIVE) or not TRD:
-    print("ok   (skipped: no %s here, so TRD-EHR's old claims cannot be "
-          "read)" % ("live-dirs.tgz" if TRD else "TRD-EHR"))
-else:
-    import tarfile
-    trd_rel = TRD[0]
-    hist = tempfile.mkdtemp(prefix="tutor-trdhear-")
-    try:
-        def subject_copy(name):
-            """A repository holding TRD-EHR's requests and reports, committed
-            over an empty base, and the base's sha."""
-            top = os.path.join(hist, name)
-            ws = os.path.join(top, trd_rel)
-            os.makedirs(ws)
-            git(top, "init", "-q", "-b", "main")
-            git(top, "config", "user.email", "t@example.com")
-            git(top, "config", "user.name", "t")
-            write(os.path.join(top, ".gitignore"), "**/relay/state/\nlive/\n")
-            git(top, "add", "-A")
-            git(top, "commit", "-q", "-m", "base")
-            base_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=top,
-                                      stdout=subprocess.PIPE,
-                                      universal_newlines=True).stdout.strip()
-            for part in ("requests", "reports"):
-                shutil.copytree(os.path.join(REPO, trd_rel, "relay", part),
-                                os.path.join(ws, "relay", part))
-            for f in ("tutorboard.json",):
-                if os.path.isfile(os.path.join(REPO, trd_rel, f)):
-                    shutil.copy(os.path.join(REPO, trd_rel, f),
-                                os.path.join(ws, f))
-            git(top, "add", "-A")
-            git(top, "commit", "-q", "-m", "TRD-EHR's report history")
-            return ws, base_sha
+# A historical report range is heard once, even after legacy claim migration.
+from relay_fixture import write_history
+hist = tempfile.mkdtemp(prefix="tutor-history-")
+try:
+    def subject_copy(name):
+        top = os.path.join(hist, name)
+        ws = os.path.join(top, "projects", "Relay-Lab")
+        os.makedirs(ws)
+        git(top, "init", "-q", "-b", "main")
+        git(top, "config", "user.email", "t@example.com")
+        git(top, "config", "user.name", "t")
+        write(os.path.join(top, ".gitignore"), "**/relay/state/\nlive/\n")
+        git(top, "add", "-A")
+        git(top, "commit", "-q", "-m", "base")
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=top,
+                             stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
+        write_history(ws)
+        git(top, "add", "-A")
+        git(top, "commit", "-q", "-m", "synthetic reports")
+        return ws, sha
 
-        def woken(ws):
-            # Every line hearing dropped: none of these requests names a
-            # live session, so each is a notice under the copy's root.
-            return cluster.notices(cluster.atlas_of(ws), limit=0)
+    def woken(ws):
+        return cluster.notices(cluster.atlas_of(ws), limit=0)
 
-        ended = [n for n in os.listdir(os.path.join(REPO, trd_rel, "relay",
-                                                    "reports"))
-                 if n.endswith(".json") and json.load(open(os.path.join(
-                     REPO, trd_rel, "relay", "reports", n))).get("state")
-                 in jobs.ENDED_REPORTS]
-
-        # The control: with no claims, every ended report in the range wakes.
-        bare, base_sha = subject_copy("bare")
-        write(os.path.join(bare, "relay", "state", "reported", jobs.HEARD),
-              base_sha + "\n")
-        jobs.hear(bare, now=1.0)
-        check("with no claims, hearing the whole history wakes every ended "
-              "report (%d)" % len(ended), len(woken(bare)) == len(ended) > 0)
-
-        # The real thing: the archive's old claims, in live/jobs.reported/.
-        ws, base_sha = subject_copy("claimed")
-        with tarfile.open(ARCHIVE, "r:gz") as tar:
-            want = [m for m in tar.getmembers() if m.isfile()
-                    and m.name.endswith("/TRD-EHR/live/jobs.reported/"
-                                        + os.path.basename(m.name))]
-            for m in want:
-                data = tar.extractfile(m).read()
-                write(os.path.join(ws, "live", "jobs.reported",
-                                   os.path.basename(m.name)),
-                      data.decode("utf-8"))
-        # Heard from before the first report, so every report is in range.
-        write(os.path.join(ws, "live", "jobs.reported", jobs.HEARD),
-              base_sha + "\n")
-        check("the archive holds a claim for every ended TRD-EHR report",
-              sorted(os.path.basename(m.name) for m in want
-                     if not m.name.endswith(jobs.HEARD))
-              == sorted("relay-%s.%s" % (n[:-len(".json")], json.load(open(
-                  os.path.join(REPO, trd_rel, "relay", "reports", n)))
-                  ["state"]) for n in ended))
-        heard = jobs.hear(ws, now=1.0)
-        check("jobs.hear over TRD-EHR's full report history and its old "
-              "live/jobs.reported wakes nothing",
-              heard == [] and woken(ws) == []
-              and not os.path.exists(os.path.join(ws, "live",
-                                                  "jobs.reported")))
-        check("and the claims now sit in relay/state/reported/",
-              len(os.listdir(os.path.join(ws, "relay", "state", "reported")))
-              == len(want))
-        check("and a second hearing wakes nothing either",
-              jobs.hear(ws, now=2.0) == [] and woken(ws) == [])
-    finally:
-        shutil.rmtree(hist, ignore_errors=True)
+    bare, sha = subject_copy("bare")
+    write(os.path.join(bare, "relay", "state", "reported", jobs.HEARD), sha + "\n")
+    jobs.hear(bare, now=1.0)
+    check("without claims, both ended reports wake", len(woken(bare)) == 2)
+    ws, sha = subject_copy("claimed")
+    for ident, state in (("fixture-failed", "failed"), ("fixture-done", "completed")):
+        write(os.path.join(ws, "live", "jobs.reported", "relay-%s.%s" % (ident, state)), "1\n")
+    write(os.path.join(ws, "live", "jobs.reported", jobs.HEARD), sha + "\n")
+    check("migrated claims suppress historical reports",
+          jobs.hear(ws, now=1.0) == [] and woken(ws) == [])
+    check("claims move into relay/state/reported",
+          not os.path.exists(os.path.join(ws, "live", "jobs.reported"))
+          and len(os.listdir(os.path.join(ws, "relay", "state", "reported"))) == 3)
+    check("a second hearing also stays quiet",
+          jobs.hear(ws, now=2.0) == [] and woken(ws) == [])
+finally:
+    shutil.rmtree(hist, ignore_errors=True)
 
 # --- a request is pinned to the commit it was filed after --------------------
 pin = tempfile.mkdtemp(prefix="tutor-pin-")

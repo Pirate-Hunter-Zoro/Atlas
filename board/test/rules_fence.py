@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PSYCH-ASR's committed RULES.md reaches a bound session's brief with its
+"""Guarded-Lab's committed RULES.md reaches a bound session's brief with its
 data-fence rule.
 
 Stdlib only.
@@ -44,11 +44,11 @@ os.environ.pop("TUTORBOARD_TURN", None)
 from tutorboard import brief, sense, sessions                        # noqa: E402
 
 try:
-    real = os.path.join(ATLAS, "projects", "PSYCH-ASR", "RULES.md")
-    psych = os.path.join(base, "projects", "PSYCH-ASR")
+    psych = os.path.join(base, "projects", "Guarded-Lab")
     write(os.path.join(psych, "tutorboard.json"),
-          json.dumps({"name": "PSYCH-ASR", "phi": True}))
-    shutil.copy(real, os.path.join(psych, "RULES.md"))
+          json.dumps({"name": "Guarded Lab", "phi": True}))
+    write(os.path.join(psych, "RULES.md"),
+          "Never read anything under phi/. Read LOCAL-MODELS.md first.\n")
     write(os.path.join(base, ".gitignore"), "/sessions/\n")
     for argv in (["init", "-q"], ["add", "-A"],
                  ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
@@ -56,9 +56,9 @@ try:
         subprocess.run(["git", "-C", base] + argv, check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     sid = sessions.new(base=base)["id"]
-    sessions.bind(sid, "projects/PSYCH-ASR", base=base)
+    sessions.bind(sid, "projects/Guarded-Lab", base=base)
     said = brief.briefing(sessions.repo(sid, base, create=True), sense)
-    check("PSYCH-ASR's brief carries its data-fence rule from HEAD",
+    check("Guarded-Lab's brief carries its data-fence rule from HEAD",
           "Never read anything under phi/" in said
           and "LOCAL-MODELS.md" in said, said[-1500:])
 finally:

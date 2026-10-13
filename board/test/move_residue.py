@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`scripts/move-residue.sh` and PSYCH-ASR's `job_env.sh`, on temp trees only.
+"""`scripts/move-residue.sh`, on temp trees only.
 
     python3 test/move_residue.py
 
@@ -20,7 +20,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.dirname(HERE)
 ROOT = os.path.dirname(BOARD)
 SCRIPT = os.path.join(BOARD, "scripts", "move-residue.sh")
-LIB = os.path.join(ROOT, "projects", "PSYCH-ASR", "slurm_jobs", "lib")
 BASH = "/bin/bash" if os.path.exists("/bin/bash") else shutil.which("bash")
 
 # Names that sit below a fenced directory: no output may ever carry them.
@@ -297,46 +296,6 @@ try:
           p.returncode != 0 and "still holds tracked files" in p.stderr, p.stderr)
     check("and moves nothing", snapshot(repo) == before)
 
-    # --- job_env.sh: a missing data root stops the job ------------------------
-    base = fresh("jobenv")
-    bases.append(base)
-    # Atlas-shaped: the subject's relay_trap.sh is a shim sourcing the shared
-    # one four levels up, in board/cluster/lib.
-    ws = os.path.join(base, "projects", "ws")
-    shutil.copytree(LIB, os.path.join(ws, "slurm_jobs", "lib"),
-                    ignore=shutil.ignore_patterns("__pycache__"))
-    shutil.copytree(os.path.join(ROOT, "board", "cluster", "lib"),
-                    os.path.join(base, "board", "cluster", "lib"),
-                    ignore=shutil.ignore_patterns("__pycache__"))
-    recipe = os.path.join(ws, "slurm_jobs", "job.sbatch")
-    put(recipe, "#!/bin/bash\nset -e\nsource slurm_jobs/lib/job_env.sh\n"
-                "echo reached\n")
-
-    def job(extra=None):
-        e = dict(os.environ)
-        e.pop("PSYCH_ASR_DATA", None)
-        e.update(extra or {})
-        return subprocess.run([BASH, recipe], cwd=ws, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, universal_newlines=True, env=e)
-
-    p = job()
-    check("job_env.sh stops a job whose phi/ is missing",
-          p.returncode != 0 and "reached" not in p.stdout
-          and "RELAY: data root PSYCH_ASR_DATA does not exist" in p.stderr, p.stderr)
-    check("and does not create it", not os.path.exists(os.path.join(ws, "phi")))
-    check("its RELAY: line names no path",
-          not any(l.startswith("RELAY:") and (base in l or os.path.realpath(base) in l)
-                  for l in p.stderr.splitlines()),
-          p.stderr)
-    gone = os.path.join(base, "elsewhere", "data-root")
-    p = job({"PSYCH_ASR_DATA": gone})
-    check("an override pointing nowhere stops the job too, creating nothing",
-          p.returncode != 0 and "reached" not in p.stdout
-          and not os.path.exists(os.path.join(base, "elsewhere")), p.stderr)
-    os.makedirs(os.path.join(ws, "phi"))
-    p = job()
-    check("with the data root present the job runs on",
-          p.returncode == 0 and "reached" in p.stdout, p.stderr)
 finally:
     for b in bases:
         shutil.rmtree(b, ignore_errors=True)
@@ -346,5 +305,4 @@ if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
 print("move-residue.sh renames residue on one filesystem only, refuses "
-      "collisions, never lists below a fence, and job_env.sh never recreates "
-      "a data root")
+      "collisions, and never lists below a fence")

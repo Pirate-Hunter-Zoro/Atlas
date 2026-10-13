@@ -83,16 +83,15 @@ Guards fail closed, so callers and registrations go before the files they name.
    `.gitmodules` entry, the subjects' `relay/` and `exports/` conventions, the web layer's relay
    health strip, Colibri panel, job cards and notices, the repair prompt, the Python 3.7 rule with
    `board/test/py37.py`, and Lean's `slurm_jobs/` with its `setup.sh` cluster branch.
-4. **Tests:** delete the cluster tests. Convert every test that reads a leaving subject from the real
-   tree (`writing_up.py`, `rules_fence.py`, `exporting.py` and whatever the census finds) to fixtures.
+4. **Tests:** delete tests for removed cluster behavior. Subject-owned suites live under each
+   subject's `tests/board/` and disappear with it; board suites use synthetic subjects.
 5. **PHI**, per the owner's answer. `~/.claude/hooks/block-phi.py` is a symlink into ai-config, and a
    registered hook with a missing target blocks every tool call. The pre-commit hook refuses every
    commit when `audit.py` is missing.
 6. **Purge** the leaving subjects with `git rm -r`, then delete the directories outright.
    `subjects.walk` lists any directory under `projects/` as a subject, and ignored `.venv`, `docs`
    and `relay/state` survive `git rm`.
-7. **LIBR text in staying subjects:** Algo-Solutions `README.md:78-89` (lab paths), the Lean
-   README and TUTOR.md cluster text, Paper-Writer's TRD examples and fixture, the Meetings
+7. **LIBR text in staying subjects:** the Lean README and TUTOR.md cluster text, Paper-Writer's TRD examples and fixture, the Meetings
    documents the owner named.
 8. **Other clones:** a pull there leaves the `vendor/colibri-build` checkout, its `.git/modules`
    entry and the purged project directories. `sync.py` or `setup-mac.sh` removes them, and

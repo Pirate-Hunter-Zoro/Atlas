@@ -7,8 +7,7 @@ name = "mathlib"
 scope = "leanprover-community"
 
 # Shared library: notation, helper lemmas, and tactic shorthands that get
-# reused across exercises. The analogue of Algo-Solutions' datastructures/
-# and helpermath/ packages.
+# reused across exercises.
 [[lean_lib]]
 name = "LeanTP"
 

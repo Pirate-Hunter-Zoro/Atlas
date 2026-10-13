@@ -45,21 +45,21 @@ if not os.path.isfile(os.path.join(ROOT, leaving.POLICY)):
     print("skip  %s is absent, so there is no policy to probe" % leaving.POLICY)
     sys.exit(0)
 
-for rel in ("projects/PSYCH-ASR/%s/x" % D, "research/PSYCH-ASR/%s/x" % D,
-            "projects/TRD-EHR/%s/deep/y.json" % D):
+for rel in ("projects/Guarded-Lab/%s/x" % D, "research/Guarded-Lab/%s/x" % D,
+            "projects/Other-Lab/%s/deep/y.json" % D):
     code, out = probe(rel)
     check("refused by policy and fence: %s" % rel.replace(D, "<fence>"),
           code == 0 and out.count("refuses") == 2, out)
 
-code, out = probe(os.path.join(ROOT, "projects", "PSYCH-ASR", D, "x"))
+code, out = probe(os.path.join(ROOT, "projects", "Guarded-Lab", D, "x"))
 check("an absolute path inside the tree is refused the same way", code == 0, out)
 
-code, out = probe(os.path.join("PSYCH-ASR", D, "x"),
+code, out = probe(os.path.join("Guarded-Lab", D, "x"),
                   cwd=os.path.join(ROOT, "projects"))
 check("and a path relative to another directory is placed in the tree",
       code == 0, out)
 
-for rel in ("projects/PSYCH-ASR/notes.md", "projects/TRD-EHR/README.md",
+for rel in ("projects/Guarded-Lab/notes.md", "projects/Other-Lab/README.md",
             "board/tutorboard/leaving.py"):
     code, out = probe(rel)
     check("an ordinary file passes, exit 1: %s" % rel, code == 1, out)

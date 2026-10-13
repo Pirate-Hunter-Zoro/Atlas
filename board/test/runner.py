@@ -151,13 +151,13 @@ def calls(sid=None, kind=None):
 atlas = os.path.join(box, "atlas")
 write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
       json.dumps({"name": "Demo", "phi": False}))
-algo = os.path.join(atlas, "projects", "Algo-Solutions")
-# Algo-Solutions' own tutorboard.json, wherever the tree keeps it (practice/
-# until it moves to projects/).
-_algo_cfg = [p for p in (os.path.join(ROOT, d, "Algo-Solutions", "tutorboard.json")
-                         for d in ("projects", "practice")) if os.path.isfile(p)]
-with open(_algo_cfg[0]) as fh:
-    write(os.path.join(algo, "tutorboard.json"), fh.read())
+algo = os.path.join(atlas, "projects", "Arena-Lab")
+# The Go check is a fixture, independent of any real project.
+write(os.path.join(algo, "tutorboard.json"), json.dumps({
+    "name": "Arena Lab", "phi": False,
+    "check": {"all": ["go", "test", "./..."],
+              "one": ["go", "test", "./{dir}/..."],
+              "path": ["/usr/local/go/bin"]}}))
 write(os.path.join(algo, "go.mod"), "module algo\n\ngo 1.21\n")
 write(os.path.join(algo, "sum", "sum.go"),
       "package sum\n\nfunc Add(a, b int) int { return a + b }\n")
@@ -397,9 +397,9 @@ try:
           [len(cards(s)) for s in trio] == [1, 1, 1], [cards(s) for s in trio])
 
     # -----------------------------------------------------------------------
-    # a do turn in Algo-Solutions runs `board check`
+    # a do turn in Arena-Lab runs `board check`
     # -----------------------------------------------------------------------
-    sd = new_session("projects/Algo-Solutions", "algo")
+    sd = new_session("projects/Arena-Lab", "algo")
     session_mode.set_mode(sessions.repo(sd, atlas), "do")
     ctl(sd, "check")
     server.post("/s/%s/say" % sd, {"text": "make it pass"})

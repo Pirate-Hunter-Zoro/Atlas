@@ -505,25 +505,10 @@ try:
 finally:
     shutil.rmtree(bare_base, ignore_errors=True)
 
-# --- the real repository -------------------------------------------------------------
-recipe = os.path.join(REPO, "projects", "TRD-EHR", "slurm_jobs", "quick_runs",
-                      "neighbor_count_sweep.sbatch")
-with open(recipe, encoding="utf-8") as fh:
-    names, said = jobs.declarations(fh.read())
-check("TRD-EHR's neighbour sweep declares EMBEDDER and REDRAW for the relay",
-      said == [] and sorted(names) == ["EMBEDDER", "REDRAW"])
-with open(os.path.join(REPO, "projects", "TRD-EHR", "slurm_jobs", "quick_runs",
-                       "diagnose.sbatch"), encoding="utf-8") as fh:
-    names, said = jobs.declarations(fh.read())
-check("TRD-EHR has a diagnostic recipe, declaring EMBEDDER, LOOK and MODULE",
-      said == [] and sorted(names) == ["EMBEDDER", "LOOK", "MODULE"]
-      and jobs.diagnostics(os.path.join(REPO, "projects", "TRD-EHR"))
-      == [("slurm_jobs/quick_runs/diagnose.sbatch",
-           ["EMBEDDER", "LOOK", "MODULE"])])
-for ws in ("projects/TRD-EHR", "projects/PSYCH-ASR", "projects/libr-local-llm"):
-    root = os.path.join(REPO, ws)
-    if os.path.isdir(root):
-        check("%s: git would see a request" % ws, jobs.request_visible(root) == "")
+# Every discovered subject uses the shared relay visibility rules.
+for subject in subjects.all(REPO):
+    check("%s: git would see a request" % subject["id"],
+          jobs.request_visible(subject["root"]) == "")
 
 # --- a request is public the moment it is pushed --------------------------------
 leaky = tempfile.mkdtemp(prefix="tutor-leak-")

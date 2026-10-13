@@ -62,7 +62,7 @@ try:
     mk(tmp, "projects/X")
     mk(tmp, "projects/libr-local-llm", {"name": "libr-local-llm"})
     mk(tmp, "projects/Paper-Writer", {"name": "Paper-Writer"})
-    mk(tmp, "projects/Algo-Solutions")
+    mk(tmp, "projects/Arena-Lab")
     # Residue left at the legacy parents on a machine that has not moved it.
     mk(tmp, "research/Leftover", {"name": "Leftover"})
     mk(tmp, "practice/Stale")
@@ -77,7 +77,7 @@ try:
     got = subjects.all()
     ids = [s["id"] for s in got]
     check("all() lists every non-dot directory under the subject parents",
-          ids == ["courses/Topology", "projects/Algo-Solutions",
+          ids == ["courses/Topology", "projects/Arena-Lab",
                   "projects/PSYCH-ASR", "projects/Paper-Writer", "projects/X",
                   "projects/libr-local-llm"])
     check("research/ and practice/ hold no subject: they merged into projects/",
@@ -91,11 +91,11 @@ try:
           kinds["courses/Topology"] == "course"
           and kinds["projects/X"] == "project"
           and kinds["projects/PSYCH-ASR"] == "project"
-          and kinds["projects/Algo-Solutions"] == "project")
+          and kinds["projects/Arena-Lab"] == "project")
     names = dict((s["id"], s["name"]) for s in got)
     check("name comes from tutorboard.json, else the slug",
           names["courses/Topology"] == "Algebraic Topology"
-          and names["projects/Algo-Solutions"] == "Algo Solutions")
+          and names["projects/Arena-Lab"] == "Arena Lab")
     check("vendor/ and dot directories are not subjects",
           not any("colibri" in i or ".trash" in i for i in ids))
 
@@ -118,7 +118,7 @@ try:
     # No fallback: an id under a merged-away parent is not a subject's id.
     check("find('research/PSYCH-ASR') returns nothing, though PSYCH-ASR exists",
           subjects.find("research/PSYCH-ASR") is None
-          and subjects.find("practice/Algo-Solutions") is None
+          and subjects.find("practice/Arena-Lab") is None
           and subjects.find("PSYCH-ASR")["id"] == "projects/PSYCH-ASR")
     check("and residue under such a parent is never a subject",
           subjects.find("research/Leftover") is None

@@ -8,10 +8,9 @@
 
 A suite is any `*.py` or `*.js` file in this directory except those in
 HELPERS. Discovery, not a list: a suite added here runs without anyone
-registering it. Three checks that live outside this directory run with the
-full set: Paper-Writer's unittests, `tools/sync-macros.py --check`, and
-ai-config's own `scripts/test.sh` (the PHI policy's tests), which also runs
-with --guards. Where ai-config is absent the run says SKIPPED, loudly.
+registering it. The full set also discovers subjects' tests/board/*.py entry points and runs
+`tools/sync-macros.py --check` and ai-config's `scripts/test.sh`. The policy
+tests also run with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
 environment, plus a page cache of its own (TUTORBOARD_PAGES). Suites in SERIAL never run beside each other.
@@ -20,6 +19,7 @@ Stdlib only.
 """
 
 import argparse
+import glob
 import os
 import shutil
 import subprocess
@@ -31,13 +31,12 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.dirname(HERE)
 ROOT = os.path.dirname(BOARD)
-FACTORY = os.path.join(ROOT, "projects", "Paper-Writer")
 AI_CONFIG_TESTS = os.path.join(ROOT, "ai-config", "scripts", "test.sh")
 
 # Files in this directory that are not suites. A helper other than this file
 # is a shared case some suite requires; the run names the suites it runs in,
 # and fails when none does.
-HELPERS = ["run.py", "inkzoom.js", "sessionpage.js"]
+HELPERS = ["run.py", "inkzoom.js", "sessionpage.js", "relay_fixture.py"]
 
 # Suites that must not run beside one another: each binds a fixed port or
 # writes shared state under ~/.config. Found by comparing a -j 1 run with a
@@ -51,7 +50,7 @@ GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "code.py",
           "py37.py", "exporting.py", "phi_probe.py"]
 
 # Started first, because they are the longest; the rest follow by name.
-FIRST = ["link.js", "plane.js", "factory", "seam.js", "relay.py"]
+FIRST = ["link.js", "plane.js", "seam.js", "relay.py"]
 
 
 class Suite(object):
@@ -59,7 +58,7 @@ class Suite(object):
         self.name = name
         self.argv = argv
         self.cwd = cwd
-        self.kind = kind  # "py", "js", "factory", "macros" or "aiconfig"
+        self.kind = kind  # "py", "js", "subject", "macros" or "aiconfig"
 
 
 def discover():
@@ -107,15 +106,26 @@ def skipped_ai_config():
           "DID NOT RUN" % os.path.relpath(AI_CONFIG_TESTS, ROOT))
 
 
+def subject_suites(root):
+    """Discover each subject's self-contained tests/board/*.py entry points."""
+    out = []
+    for parent in ("courses", "projects"):
+        pattern = os.path.join(root, parent, "*", "tests", "board", "*.py")
+        for path in sorted(glob.glob(pattern)):
+            subject = os.path.dirname(os.path.dirname(os.path.dirname(path)))
+            if os.path.basename(subject).startswith(".") or os.path.basename(path).startswith("_"):
+                continue
+            name = os.path.relpath(path, root).replace(os.sep, "/")
+            out.append(Suite(name, [sys.executable, path], subject, "subject"))
+    return out
+
+
 def extras():
     out = [Suite("macros/tex",
                  [sys.executable, os.path.join(BOARD, "tools", "sync-macros.py"),
                   "--check"], BOARD, "macros")]
     out.extend(ai_config())
-    if os.path.isdir(os.path.join(FACTORY, "paperwriter")):
-        out.append(Suite("factory",
-                         [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
-                         FACTORY, "factory"))
+    out.extend(subject_suites(ROOT))
     return out
 
 
@@ -176,12 +186,6 @@ def run_one(suite):
     if suite.kind == "js" and any(l.startswith("skip") for l in lines):
         first = next(l for l in lines if l.startswith("skip"))
         return "skip", secs, "skipped (%s)" % first[4:].strip(), []
-    if suite.kind == "factory":
-        ran = [l for l in lines if l.startswith("Ran ") and " test" in l]
-        if proc.returncode == 0:
-            return "pass", secs, (ran[-1] if ran else last) + ", and they pass", []
-        return "fail", secs, "FAILED", [l for l in lines
-                                        if l.startswith(("FAIL:", "ERROR:"))] or lines[-15:]
     if suite.kind == "aiconfig":
         if proc.returncode == 0:
             return "pass", secs, last, []
@@ -273,7 +277,7 @@ def main(argv):
         for n in args.names:
             base = os.path.basename(n)
             hit = [s for s in everything
-                   if s.name in (n, base) or os.path.splitext(s.name)[0] == base]
+                   if s.name in (n, base) or os.path.splitext(os.path.basename(s.name))[0] == base]
             if hit:
                 chosen.extend(s for s in hit if s not in chosen)
             else:
@@ -283,8 +287,6 @@ def main(argv):
             return 2
     else:
         chosen = everything
-        if not os.path.isdir(os.path.join(FACTORY, "paperwriter")):
-            print("factory skipped: Paper-Writer is not checked out here")
         if not ai_config():
             skipped_ai_config()
         width = max(len(s.name) for s in chosen) + 1

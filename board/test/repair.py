@@ -20,7 +20,7 @@ What the checks are about:
   * NO MODEL ON THE CLUSTER. `board ask-cluster` is retired, saying what
     replaced it, and a `turn` request is refused by the policy.
 
-Synthetic workspaces only, plus a read of the real TRD-EHR failure 2110916.
+Synthetic workspaces and reproducible relay histories only.
 """
 import json
 import os
@@ -89,7 +89,7 @@ HELPED = ["error FileNotFoundError at scripts/predictions/best_k_panels.py:88 "
           "recipe slurm/sweep.sbatch failed: exit 1 after line 79, "
           "checkout 20436b6"]
 FAILED = {"state": "failed", "exit": "1:0", "error": "FileNotFoundError",
-          "jobid": "2110916", "ended": "2026-10-02T22:13:25",
+          "jobid": "7001", "ended": "2026-10-02T22:13:25",
           "relay": HELPED}
 DONE = {"state": "completed", "exit": "0:0"}
 scenes = tempfile.mkdtemp(prefix="tutor-repair-")
@@ -475,56 +475,51 @@ finally:
     shutil.rmtree(scenes, ignore_errors=True)
     shutil.rmtree(box, ignore_errors=True)
 
-# --- the real failure: TRD-EHR's 2110916 -------------------------------------------
-# Frozen as it was when it failed: the real workspace's own files, with only that
-# request and its report under relay/, so the requests filed since (its repair
-# among them) do not move what this checks.
-rid = "2026-10-02-knn-across-embedders-neighbor-count-sweep"
-live_trd = os.path.join(REPO, "projects", "TRD-EHR")
-frozen = tempfile.mkdtemp(prefix="repair-2110916-")
-trd = os.path.join(frozen, "TRD-EHR")
-for _rel in ("tutorboard.json", "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
-             "slurm_jobs/quick_runs/diagnose.sbatch", "relay/requests/%s.json" % rid,
-             "relay/reports/%s.json" % rid):
-    os.makedirs(os.path.dirname(os.path.join(trd, _rel)), exist_ok=True)
-    shutil.copy(os.path.join(live_trd, _rel), os.path.join(trd, _rel))
+# A failed synthetic report retains its rerun and diagnostic information.
+from relay_fixture import write_history
+rid = "fixture-failed"
+frozen = tempfile.mkdtemp(prefix="repair-history-")
+trd = os.path.join(frozen, "Relay-Lab")
+write_history(trd)
+# Keep this scenario at its first failure, before any successful rerun.
+os.remove(os.path.join(trd, "relay", "requests", "fixture-done.json"))
+os.remove(os.path.join(trd, "relay", "reports", "fixture-done.json"))
 real = dict((r["request"], r) for r in jobs.relayed(trd)).get(rid)
-check("2110916 is request %s, failed, in TRD-EHR" % rid,
-      real is not None and real.get("slurm") == "2110916"
+check("7001 is request %s, failed, in Relay-Lab" % rid,
+      real is not None and real.get("slurm") == "7001"
       and jobs.ended_failed(real))
 if real:
     text = jobs.relay_sense(trd, real)
     check("were it heard now it would wake a repair, attempt 1 of 3, with "
-          "the exact rerun and TRD-EHR's own diagnostic",
+          "the exact rerun and Relay-Lab's own diagnostic",
           text.startswith("[repair] ") and "attempt 1 of 3" in text
           and ("board job --fixes %s --produces "
-               "results/bge-small-en-v1.5/google_medgemma-27b-text-it/"
-               "neighbor_count_sweep -- slurm_jobs/quick_runs/"
-               "neighbor_count_sweep.sbatch EMBEDDER=bge-small-en-v1.5"
+               "results/"
+               "sweep -- slurm_jobs/"
+               "sweep.sbatch SIZE=8"
                % rid) in text
           and "board diagnose --fixes %s -- "
-              "slurm_jobs/quick_runs/diagnose.sbatch" % rid in text)
+              "slurm_jobs/diagnose.sbatch" % rid in text)
     check("and a plain rerun of it is refused until it carries --fixes",
           jobs.open_fix(trd,
-                        "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
-                        {"EMBEDDER": "bge-small-en-v1.5"}) == rid)
+                        "slurm_jobs/sweep.sbatch",
+                        {"SIZE": "8"}) == rid)
     lines = jobs.repair_brief(trd, rid)
     check("its brief names the request, recipe and report; its report "
           "carries no RELAY: lines, so a diagnostic is how to ask",
           any(rid in l for l in lines)
-          and any("neighbor_count_sweep.sbatch" in l for l in lines)
+          and any("sweep.sbatch" in l for l in lines)
           and any("relay/reports/%s.json" % rid in l for l in lines)
           and any("a diagnostic recipe is how to ask" in l for l in lines))
     check("with no thread read, the brief and the [repair] line name "
-          "TRD-EHR's own check from its tutorboard.json",
-          any(l.strip().startswith("check") and "pytest tests" in l
+          "Relay-Lab's own check from its tutorboard.json",
+          any(l.strip().startswith("check") and "unittest" in l
               for l in lines)
-          and "the subject's check, uv run" in text)
+          and "the subject's check, python3" in text)
     ok, problems = jobs.check(trd, {
-        "id": "x-diagnose", "kind": "recipe", "thread": "knn-across-embedders",
-        "recipe": "slurm_jobs/quick_runs/diagnose.sbatch",
-        "env": {"EMBEDDER": "bge-small-en-v1.5",
-                "LOOK": "RESULTS_DIR/trained_models"},
+        "id": "x-diagnose", "kind": "recipe", "thread": "legacy-sweep",
+        "recipe": "slurm_jobs/diagnose.sbatch",
+        "env": {"LOOK": "RESULTS_DIR/trained_models"},
         "produces": [], "export": [], "fixes": rid, "filed": 1.0})
     check("and its diagnostic would pass the check, once the recipe is "
           "committed", not [p for p in problems

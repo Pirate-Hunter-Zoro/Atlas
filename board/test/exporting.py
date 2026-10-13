@@ -10,7 +10,7 @@ What the checks are about:
   * COMMITTED, AND STILL ON DISK. `approvals` keeps the entries both HEAD and
     the working tree hold: an uncommitted approval approves nothing, and an
     uncommitted revocation takes effect at once.
-  * OLD REPORTS STILL FOLD. TRD-EHR's requests and reports, written with
+  * OLD REPORTS STILL FOLD. fixture's requests and reports, written with
     `thread`, read through `jobs.view` as before.
 """
 
@@ -105,22 +105,17 @@ try:
 finally:
     shutil.rmtree(box, ignore_errors=True)
 
-TRD = os.path.join(REPO, "projects", "TRD-EHR")
-TRD = TRD if os.path.isdir(TRD) else None
-check("TRD-EHR is in this checkout", TRD is not None)
+from relay_fixture import write_history
 
 # --- old reports still fold ------------------------------------------------------------
 copy = tempfile.mkdtemp(prefix="tutor-trd-fold-")
 try:
-    shutil.copytree(os.path.join(TRD, "relay", "requests"),
-                    os.path.join(copy, "relay", "requests"))
-    shutil.copytree(os.path.join(TRD, "relay", "reports"),
-                    os.path.join(copy, "relay", "reports"))
+    write_history(copy)
     reqs = jobs.requests(copy)
     view = jobs.view(copy)
     relayed = [r for r in view.values() if r.get("request")]
     reps = jobs.reports(copy)
-    check("every TRD-EHR request folds into jobs.view, once each",
+    check("every fixture request folds into jobs.view, once each",
           len(relayed) == len(reqs) > 0)
     check("each with its report's state, its old thread kept for the "
           "lines that name it",
@@ -128,10 +123,10 @@ try:
               if r["request"] in reps)
           and all(jobs.title_of(r) == (r.get("thread") or r["request"])
                   for r in relayed))
-    one = view.get("relay:2026-10-02-knn-across-embedders-neighbor-count-sweep")
-    check("2110916 reads FAILED, its Slurm id and thread intact",
-          one and one["state"] == "FAILED" and one["slurm"] == "2110916"
-          and one["thread"] == "knn-across-embedders")
+    one = view.get("relay:fixture-failed")
+    check("7001 reads FAILED, its Slurm id and thread intact",
+          one and one["state"] == "FAILED" and one["slurm"] == "7001"
+          and one["thread"] == "legacy-sweep")
 finally:
     shutil.rmtree(copy, ignore_errors=True)
 

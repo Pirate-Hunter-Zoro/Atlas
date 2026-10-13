@@ -17,4 +17,4 @@ cask "font-dejavu"   # the PDF face Paper-Writer names: it has the ₀ ρ ≈ �
 # installs it into ~/.elan on both machines, and a second one here would shadow it.
 brew "uv"            # every pyproject.toml and uv.lock
 brew "libomp"        # OpenMP, which xgboost's and lightgbm's Mac wheels load
-brew "go"            # projects/Algo-Solutions
+brew "go"            # board Go-check integration tests
