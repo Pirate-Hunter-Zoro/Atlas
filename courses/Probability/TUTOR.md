@@ -9,7 +9,7 @@
 
 ## Now
 
-hw01, hw02, hw02-redone, hw03 and exam1-practice have no empty solution regions.
+Working hw04 (Chapter 4, Markov Chains), nine problems: 2, 3, 5, 14, 34, 40, 52, 60, 76. Started on 2 and 3 -- build the state space, then the transition matrix. Open question on the glass: why the last three days, not today's weather alone, form the state. Groups still ahead: 5 (one expectation from a matrix), 14 (classes of states), 34/40/52 (long-run proportions), 60/76 (hitting probability and mean hitting time). hw01, hw02, hw02-redone, hw03 and exam1-practice have no empty solution regions.
 
 ## Open decisions
 
