@@ -44,4 +44,26 @@ Whether or not it rains today depends on the weather of the last three days. Sho
 Write the weather day by day, for instance rain, sun, rain, sun, sun. Combine the last three days into a single state. Each day is rain or sun, so there are $2^3 = 8$ possible states.
 % ===== END SOLUTION 2 =====
 
+\begin{problem}{3}
+In Exercise 2, suppose that if it has rained for the past three days, then it will rain today with probability 0.8; if it did not rain for any of the past three days, then it will rain today with probability 0.2; and in any other case the weather today will, with probability 0.6, be the same as the weather yesterday. Determine $P$ for this Markov chain.
+\end{problem}
+% ===== SOLUTION 3 =====
+Label the eight states, oldest day first, and index them $0$ to $7$ in that order:
+
+$$\begin{gathered} 0:(S,S,S),\quad 1:(S,S,R),\quad 2:(S,R,S),\quad 3:(S,R,R), \\ 4:(R,S,S),\quad 5:(R,S,R),\quad 6:(R,R,S),\quad 7:(R,R,R). \end{gathered}$$
+
+Then
+
+$$P = \begin{pmatrix}
+.8 & .2 & 0 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & .4 & .6 & 0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 & .6 & .4 & 0 & 0 \\
+0 & 0 & 0 & 0 & 0 & 0 & .4 & .6 \\
+.6 & .4 & 0 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & .4 & .6 & 0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 & .6 & .4 & 0 & 0 \\
+0 & 0 & 0 & 0 & 0 & 0 & .2 & .8
+\end{pmatrix}.$$
+% ===== END SOLUTION 3 =====
+
 \end{document}
