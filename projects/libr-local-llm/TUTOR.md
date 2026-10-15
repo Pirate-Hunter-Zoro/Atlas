@@ -6,6 +6,7 @@
 - ollama, user-local: qwen3-coder:30b, medgemma:27b-it-q8_0, gpt-oss:120b (needs c3_accel). slurm_jobs/ollama_serve*.sbatch; bin/ollama-up, ollama-code, ollama-down. opencode is the front end; config/opencode.json is a tracked copy of ~/.config/opencode/opencode.json.
 - colibri, GLM-5.2 int4: slurm_jobs/colibri_serve.sbatch and bin/coli-build, coli-up, coli-code, coli-ask, coli-down. README §4c is its architecture; P0-STATUS.md findings 16-22 its measurements, and finding 20 governs the design.
 - The fleet is designed in DESIGN.md and scheduled in FLEET-BUILD.md. None of it is built.
+- The Colibri pitch deck is docs/colibri-pitch/colibri-pitch.tex, 11 slides; the write-up behind it is docs/writeup-20261012-111337/.
 - The retired plan is planning/LOCAL-LLM_TODO.txt in git history.
 
 ## Now
@@ -35,3 +36,4 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 ## Done recently
 
 - The colibri harness: five commands, on-demand generations that resume across deaths, reachable from the iPad. The job it was built for, the diarization repair, is done: PSYCH-ASR's reference transcript exists and the annotator approved it.
+- The Colibri pitch lecture (session 20261012-111337) closed its maths and its pitch: the union-formula caption is agreed (batching barely pays, the curve at 15.75 against a ceiling of 16), the write-up holds all 9 agreed answers, and the pitch deck is built at docs/colibri-pitch/ --- awaiting the owner's review. The PHI-safety sitting is open: exercise 1 is done (the transcript sits under a directory named phi, its folder named for the front end); the two guard exercises remain.

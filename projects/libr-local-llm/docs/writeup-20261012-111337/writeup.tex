@@ -85,4 +85,27 @@ GLM-5.2 has $75$ MoE blocks, each holding its own $256$ routed experts, and no t
 Each block contributes the $k=8$ experts that token keeps in it, and there are $75$ blocks, so one token touches $8\times75=600$ expert-weights in a single forward pass. Those $600$ are the active experts out of the model's $256\times75=19{,}200$ routed experts.
 % ===== END SOLUTION colibri-expert-weights =====
 
+\begin{problem}{colibri-union-formula}
+One block holds $n$ experts. Each token keeps $k$ of them, chosen independently of the others, and $t$ tokens share a single forward pass. Derive a closed form for $E[U]$, the expected number of distinct experts the block reads in that pass, and say what the exponent counts.
+\end{problem}
+% ===== SOLUTION colibri-union-formula =====
+Let $I_i$ be $1$ if any token routes to expert $i$, and $0$ otherwise. Then $U=\sum_{i=1}^{n}I_i$, so by linearity of expectation $E[U]=\sum_{i=1}^{n}E[I_i]=n\,E[I_1]$ by symmetry. Now $E[I_1]=1-P(\text{expert }1\text{ is unused by every token})$. One token misses expert $1$ with probability $\prod_{i=1}^{k}\frac{n-i}{n-i+1}$, a telescoping product equal to $\frac{n-k}{n}$. Since the $t$ tokens choose independently, all of them miss it with probability $\bigl(\frac{n-k}{n}\bigr)^t$, so $E[I_1]=1-\bigl(\frac{n-k}{n}\bigr)^t$. Therefore $E[U]=n\bigl(1-\bigl(\frac{n-k}{n}\bigr)^t\bigr)$, and the exponent $t$ counts the tokens sharing the pass.
+% ===== END SOLUTION colibri-union-formula =====
+
+\begin{problem}{colibri-deck-union-claim}
+The deck's union visual carries one caption. The block holds $n=256$ experts, one token keeps $k=8$, and two tokens share one forward pass, so the pass reads $E[U]=256\bigl(1-(31/32)^2\bigr)$ distinct experts. Exactly one caption matches: (a) batching pays, two tokens read about the same 8 experts as one; (b) batching barely pays, two tokens read almost 16 distinct experts; (c) batching is free, the count stays at 8 however many tokens share the pass. Which caption is it, and does the curve sit nearer 8 or nearer 16?
+\end{problem}
+% ===== SOLUTION colibri-deck-union-claim =====
+The caption is (b), and the curve sits nearer 16 than 8. Against $n=256$ candidates a single token keeps $k=8$, so it misses any fixed expert with probability $31/32$; two independent tokens both miss it with probability $(31/32)^2\approx0.938$. Nearly every expert is therefore read by at least one of the two, and the union is close to the full $2k=16$: $E[U]=256\bigl(1-(31/32)^2\bigr)=15.75$.
+
+The saving over the $16$ slots is only $0.25$, so batching barely pays. It is not free, because $E[U]=15.75>8$; and it is not the full $16$, because the handful of experts the two tokens share ($15.75=16-0.25$) are read once rather than twice. As more tokens share a pass the count keeps climbing toward the block's $256$, so batching helps less, not more, the larger the batch gets.
+% ===== END SOLUTION colibri-deck-union-claim =====
+
+\begin{problem}{colibri-front-end-name}
+A Colibri session writes its transcript to disk. The launcher `bin/coli-code` points the front end's own session store at a session root that ends in a directory named `phi`, and it defaults the front end's name to `claude`. Launching `coli-code -a opencode` drives the same local model through the other front end. Which single word names the transcript folder under `.../colibri-sessions/phi/`, and what does that say about what the folder tracks?
+\end{problem}
+% ===== SOLUTION colibri-front-end-name =====
+The folder is named for the front-end program, not the model. Launching `coli-code -a opencode` makes it `opencode`; the default `claude` makes it `claude`. Either way the engine is GLM-5.2 at int4 on LIBR hardware, and either way the transcript sits under a directory named `phi`, which is the name the fence matches. The name therefore tracks the program the model is driven through, not the model itself.
+% ===== END SOLUTION colibri-front-end-name =====
+
 \end{document}
