@@ -71,4 +71,18 @@ On the Colibri drawing, one thing travels across the gap between the two memorie
 A routed expert's weights --- one part --- crosses the gap. It rests in the node's 1 TB of RAM, where all 407 GB of experts wait as separate blocks, and it is copied into the A40's 46 GB of VRAM when a token routes to it. That is the fetch: the card is far too small to hold every expert, so only the parts a token actually needs are brought over, and room is made for them as they come.
 % ===== END SOLUTION colibri-what-travels =====
 
+\begin{problem}{colibri-expert-union}
+One block, 256 experts, $k=8$, two tokens in one forward pass. Token A routes to $\{3,17,42,88,101,150,200,255\}$; token B routes to $\{8,17,42,60,99,101,200,255\}$. The engine must read the union of the two sets.
+\end{problem}
+% ===== SOLUTION colibri-expert-union =====
+The two sets share $\{17,42,101,200,255\}$, five experts, so the union is $8+8-5=11$. Over two tokens that is $11/2=5.5$ experts per token, below the $8$ a single token reads. Doubling the batch therefore cut the experts read per token from $8$ to $5.5$. More generally, because tokens' expert sets overlap, the experts-per-token ratio falls further below $k$ as more tokens share one pass.
+% ===== END SOLUTION colibri-expert-union =====
+
+\begin{problem}{colibri-expert-weights}
+GLM-5.2 has $75$ MoE blocks, each holding its own $256$ routed experts, and no two blocks share experts. A token keeps the top $k=8$ experts in every block. Across the whole model, how many expert-weights does one token touch in a single forward pass?
+\end{problem}
+% ===== SOLUTION colibri-expert-weights =====
+Each block contributes the $k=8$ experts that token keeps in it, and there are $75$ blocks, so one token touches $8\times75=600$ expert-weights in a single forward pass. Those $600$ are the active experts out of the model's $256\times75=19{,}200$ routed experts.
+% ===== END SOLUTION colibri-expert-weights =====
+
 \end{document}
