@@ -1,0 +1,83 @@
+% ===========================================================================
+%  Galois Theory: ch07
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Galois Theory: ch07}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{problem-13d-sigma3}
+Let $\zeta=\zeta_{13}$ and let $H$ be the nonzero squares mod $13$, with $\eta_H=\sum_{a\in H}\zeta^a$. Compute $\sigma_3(\eta_H)$ and explain why it is $\eta_H$ again.
+\end{problem}
+% ===== SOLUTION problem-13d-sigma3 =====
+$\sigma_3$ permutes $H$, so $\sigma_3(\eta_H)=\eta_H$. The permutation holds because $3\in H$ and $H$ is a subgroup, so multiplying every element of $H$ by $3$ maps $H$ onto itself.
+% ===== END SOLUTION problem-13d-sigma3 =====
+
+\begin{problem}{problem-13d-sigma2}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$, and let $\eta_H=\sum_{a\in H}\zeta^a$. Compute $\sigma_2(\eta_H)$, identify which period it is, and show that applying $\sigma_2$ a second time returns $\eta_H$.
+\end{problem}
+% ===== SOLUTION problem-13d-sigma2 =====
+$\sigma_2(\eta_H)=\sum_{a\in H}\zeta^{2a}$. The six exponents are $2,6,8,18,20,24$, which reduce modulo $13$ to $2,6,8,5,7,11$. That set is exactly $N$, so $\sigma_2(\eta_H)=\eta_N$.
+
+Applying $\sigma_2$ twice multiplies every exponent by $4$, since $\sigma_2^2=\sigma_4$. The element $4$ lies in $H$, and multiplying $H$ by one of its own elements permutes $H$. Hence $\sigma_4(\eta_H)=\eta_H$, that is, $\sigma_2^2(\eta_H)=\eta_H$.
+% ===== END SOLUTION problem-13d-sigma2 =====
+
+\begin{problem}{problem-13d-distinct}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$, and let $\eta_H=\sum_{a\in H}\zeta^a$, $\eta_N=\sum_{b\in N}\zeta^b$. Show that $\eta_H\ne\eta_N$.
+\end{problem}
+% ===== SOLUTION problem-13d-distinct =====
+Suppose $\eta_H=\eta_N$. Then $\eta_H-\eta_N=0$, that is, $\sum_{i=1}^{6}\left(\zeta^{H_i}-\zeta^{N_i}\right)=0$. Put $c_b=+1$ when $b\in H$, $c_b=-1$ when $b\in N$, and $c_0=0$, so that $\sum_{b=0}^{12}c_b\zeta^b=0$.
+
+The polynomial $P(x)=\sum_{b=0}^{12}c_bx^b$ has degree at most $12$ and vanishes at $\zeta$, so the minimal polynomial $\Phi_{13}(x)=1+x+\dots+x^{12}$ divides $P(x)$. Both have degree at most $12$, so $P$ is a rational multiple of $\Phi_{13}$. That forces all thirteen coefficients $c_b$ to be equal. They are not: $c_0=0$ while $c_1=1$ because $1\in H$. Hence $\eta_H\ne\eta_N$.
+% ===== END SOLUTION problem-13d-distinct =====
+
+\begin{problem}{problem-13d-coset}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, and let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$. Compute the set $3N=\{3b\bmod 13:b\in N\}$ and say whether it is $H$, $N$, or neither.
+\end{problem}
+% ===== SOLUTION problem-13d-coset =====
+Reducing each product modulo $13$ gives $3\cdot 2=6$, $3\cdot 5=15\equiv 2$, $3\cdot 6=18\equiv 5$, $3\cdot 7=21\equiv 8$, $3\cdot 8=24\equiv 11$, and $3\cdot 11=33\equiv 7$. So $3N=\{2,5,6,7,8,11\}$, which is $N$ itself. The reason is that $3=4^2$ is a nonzero square, so $3\in H$, and multiplying a coset of $H$ by an element of $H$ returns that same coset.
+% ===== END SOLUTION problem-13d-coset =====
+
+\begin{problem}{problem-13d-sum-value}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and let $\eta_H=\sum_{a\in H}\zeta^a$, $\eta_N=\sum_{b\in N}\zeta^b$. Compute $\eta_H+\eta_N$ as an exact rational, and explain why the answer is rational rather than merely a complex number.
+\end{problem}
+% ===== SOLUTION problem-13d-sum-value =====
+$H$ and $N$ split the nonzero exponents, so
+\[
+\eta_H+\eta_N=\sum_{i=1}^{12}\zeta^i.
+\]
+The relation $1+\zeta+\cdots+\zeta^{12}=0$ gives $\sum_{i=1}^{12}\zeta^i=-1$. The sum is therefore the exact rational number $-1$: the identity that produces it has rational coefficients, so the value is determined by rationals and is not merely some complex number.
+% ===== END SOLUTION problem-13d-sum-value =====
+
+\end{document}
