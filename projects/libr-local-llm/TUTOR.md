@@ -35,6 +35,6 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 ## Done recently
 
-- The colibri harness: five commands, on-demand generations that resume across deaths, reachable from the iPad. The job it was built for, the diarization repair, is done: PSYCH-ASR's reference transcript exists and the annotator approved it.
-- The Colibri pitch lecture (session 20261012-111337) closed its maths and its pitch: the union-formula caption is agreed (batching barely pays, the curve at 15.75 against a ceiling of 16), the write-up holds all 9 agreed answers, and the pitch deck is built at docs/colibri-pitch/ --- awaiting the owner's review. The PHI-safety sitting is open: exercise 1 is done (the transcript sits under a directory named phi, its folder named for the front end); the two guard exercises remain.
-- Galois ch07: all answers written up in docs/galois-theory-ch07/writeup.tex, the last being problem-13d-m2t.
+- The colibri harness: five commands, on-demand generations that resume across deaths, reachable from the iPad. Diarization repair is done: PSYCH-ASR's reference transcript exists and the annotator approved it.
+- The Colibri pitch lecture (20261012-111337) closed its maths and pitch: the union-formula caption is agreed (batching barely pays, the curve at 15.75 against a ceiling of 16), the write-up holds all 9 agreed answers, and the deck is built at docs/colibri-pitch/, awaiting review. PHI-safety is open: exercise 1 is done (the transcript sits under a directory named phi, named for the front end); two guard exercises remain.
+- Galois ch07: the write-up holds Problems 13(a)-13(d). 13(a) and 13(b) are agreed, 13(c) is open, and 13(d) has only the p=13, d=2 case. The general 13(d) proof is the live exercise; card 0052 poses the distinct-periods step.

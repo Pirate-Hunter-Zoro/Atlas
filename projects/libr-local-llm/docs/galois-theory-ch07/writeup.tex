@@ -37,67 +37,53 @@
 % One problem/solution pair per question, in the order the sheet or the
 % session posed them.
 
-\begin{problem}{problem-13d-sigma3}
-Let $\zeta=\zeta_{13}$ and let $H$ be the nonzero squares mod $13$, with $\eta_H=\sum_{a\in H}\zeta^a$. Compute $\sigma_3(\eta_H)$ and explain why it is $\eta_H$ again.
+\begin{problem}{13(a)}
+Let $p$ be an odd prime, $\zeta=\zeta_p$, $K=\QQ(\zeta)$ and $G=\operatorname{Gal}(K/\QQ)$. Show that $G$ is cyclic of order $p-1$.
 \end{problem}
-% ===== SOLUTION problem-13d-sigma3 =====
-$\sigma_3$ permutes $H$, so $\sigma_3(\eta_H)=\eta_H$. The permutation holds because $3\in H$ and $H$ is a subgroup, so multiplying every element of $H$ by $3$ maps $H$ onto itself.
-% ===== END SOLUTION problem-13d-sigma3 =====
+% ===== SOLUTION 13(a) =====
+Each $\sigma\in G$ sends $\zeta$ to a root of $\Phi_p$, so $\sigma(\zeta)=\zeta^k$ for some $k\in\{1,\dots,p-1\}$. Conversely, for every such $k$ there is exactly one automorphism with $\sigma(\zeta)=\zeta^k$, because the roots of the minimal polynomial are exactly the primitive $p$-th roots. Hence $|G|=p-1$.
 
-\begin{problem}{problem-13d-sigma2}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$, and let $\eta_H=\sum_{a\in H}\zeta^a$. Compute $\sigma_2(\eta_H)$, identify which period it is, and show that applying $\sigma_2$ a second time returns $\eta_H$.
+The map $\sigma\mapsto k$ is injective, since $\sigma$ is determined by $\sigma(\zeta)$, and it turns composition into multiplication: $\sigma_j\circ\sigma_k=\sigma_{jk}$, with exponents read mod $p$. So $G\cong(\ZZ/p\ZZ)^\times$.
+
+The group $(\ZZ/p\ZZ)^\times$ is cyclic, by the named result that the multiplicative group of a finite field is cyclic. Therefore $G$ is cyclic of order $p-1$.
+% ===== END SOLUTION 13(a) =====
+
+\begin{problem}{13(b)}
+Let $p$ be an odd prime, $\zeta_p$ a primitive $p$-th root of unity, $K=\QQ(\zeta_p)$, and $G=\operatorname{Gal}(K/\QQ)$, cyclic of order $p-1$. For each divisor $d$ of $p-1$, show that there is exactly one intermediate field $K_d$ with $[K_d:\QQ]=d$, and that $K_d$ is Galois over $\QQ$ with cyclic Galois group.
 \end{problem}
-% ===== SOLUTION problem-13d-sigma2 =====
-$\sigma_2(\eta_H)=\sum_{a\in H}\zeta^{2a}$. The six exponents are $2,6,8,18,20,24$, which reduce modulo $13$ to $2,6,8,5,7,11$. That set is exactly $N$, so $\sigma_2(\eta_H)=\eta_N$.
-
-Applying $\sigma_2$ twice multiplies every exponent by $4$, since $\sigma_2^2=\sigma_4$. The element $4$ lies in $H$, and multiplying $H$ by one of its own elements permutes $H$. Hence $\sigma_4(\eta_H)=\eta_H$, that is, $\sigma_2^2(\eta_H)=\eta_H$.
-% ===== END SOLUTION problem-13d-sigma2 =====
-
-\begin{problem}{problem-13d-distinct}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$, and let $\eta_H=\sum_{a\in H}\zeta^a$, $\eta_N=\sum_{b\in N}\zeta^b$. Show that $\eta_H\ne\eta_N$.
-\end{problem}
-% ===== SOLUTION problem-13d-distinct =====
-Suppose $\eta_H=\eta_N$. Then $\eta_H-\eta_N=0$, that is, $\sum_{i=1}^{6}\left(\zeta^{H_i}-\zeta^{N_i}\right)=0$. Put $c_b=+1$ when $b\in H$, $c_b=-1$ when $b\in N$, and $c_0=0$, so that $\sum_{b=0}^{12}c_b\zeta^b=0$.
-
-The polynomial $P(x)=\sum_{b=0}^{12}c_bx^b$ has degree at most $12$ and vanishes at $\zeta$, so the minimal polynomial $\Phi_{13}(x)=1+x+\dots+x^{12}$ divides $P(x)$. Both have degree at most $12$, so $P$ is a rational multiple of $\Phi_{13}$. That forces all thirteen coefficients $c_b$ to be equal. They are not: $c_0=0$ while $c_1=1$ because $1\in H$. Hence $\eta_H\ne\eta_N$.
-% ===== END SOLUTION problem-13d-distinct =====
-
-\begin{problem}{problem-13d-coset}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$, and let $N=\{2,5,6,7,8,11\}$ be the nonsquares mod $13$. Compute the set $3N=\{3b\bmod 13:b\in N\}$ and say whether it is $H$, $N$, or neither.
-\end{problem}
-% ===== SOLUTION problem-13d-coset =====
-Reducing each product modulo $13$ gives $3\cdot 2=6$, $3\cdot 5=15\equiv 2$, $3\cdot 6=18\equiv 5$, $3\cdot 7=21\equiv 8$, $3\cdot 8=24\equiv 11$, and $3\cdot 11=33\equiv 7$. So $3N=\{2,5,6,7,8,11\}$, which is $N$ itself. The reason is that $3=4^2$ is a nonzero square, so $3\in H$, and multiplying a coset of $H$ by an element of $H$ returns that same coset.
-% ===== END SOLUTION problem-13d-coset =====
-
-\begin{problem}{problem-13d-sum-value}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and let $\eta_H=\sum_{a\in H}\zeta^a$, $\eta_N=\sum_{b\in N}\zeta^b$. Compute $\eta_H+\eta_N$ as an exact rational, and explain why the answer is rational rather than merely a complex number.
-\end{problem}
-% ===== SOLUTION problem-13d-sum-value =====
-$H$ and $N$ split the nonzero exponents, so
+% ===== SOLUTION 13(b) =====
+Fix a divisor $d$ of $p-1$. Since $G$ is cyclic of order $p-1$, it has exactly one subgroup of order $(p-1)/d$; call it $H$. By the correspondence, $H$ has a fixed field $K^H$, and
 \[
-\eta_H+\eta_N=\sum_{i=1}^{12}\zeta^i.
+[K^H:\QQ]=[G:H]=\frac{|G|}{|H|}=\frac{p-1}{(p-1)/d}=d.
 \]
-The relation $1+\zeta+\cdots+\zeta^{12}=0$ gives $\sum_{i=1}^{12}\zeta^i=-1$. The sum is therefore the exact rational number $-1$: the identity that produces it has rational coefficients, so the value is determined by rationals and is not merely some complex number.
-% ===== END SOLUTION problem-13d-sum-value =====
+So a field of degree $d$ exists.
 
-\begin{problem}{problem-13d-m0-m1}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and write $\eta_H\eta_N=\sum_{t=0}^{12}m_t\zeta^t$ with $m_t$ the number of pairs $(a,b)\in H\times N$ such that $a+b\equiv t\pmod{13}$. Compute $m_0$ and $m_1$.
+For uniqueness, let $L$ be any intermediate field with $[L:\QQ]=d$. By the correspondence $L=K^{H'}$ for a unique subgroup $H'$, and $[K^{H'}:\QQ]=[G:H']$ gives $|H'|=(p-1)/d$. A cyclic group has only one subgroup of each order, so $H'=H$ and $L=K^H$.
+
+Finally, every subgroup of a cyclic group is normal, so $H\unlhd G$. Therefore $K^H/\QQ$ is Galois with group $G/H$. A quotient of a cyclic group is cyclic, so $\operatorname{Gal}(K_d/\QQ)$ is cyclic.
+% ===== END SOLUTION 13(b) =====
+
+\begin{problem}{13(c)}
+Take $p=13$. Check that $2$ is a primitive root modulo $13$, and use it to list every subgroup of $(\ZZ/13\ZZ)^\times$, together with the degree over $\QQ$ of the corresponding fixed field.
 \end{problem}
-% ===== SOLUTION problem-13d-m0-m1 =====
-$m_0=0$. A pair contributing to $m_0$ would need $b\equiv-a\pmod{13}$, and the negatives of the elements of $H$ are $12,10,9,4,3,1$, none of which lies in $N$.
+% ===== SOLUTION 13(c) =====
+% ===== END SOLUTION 13(c) =====
 
-$m_1=3$, from the pairs $(3,11)$, $(9,5)$ and $(12,2)$. The remaining elements of $H$ give no partner: $1$ needs $0$, $4$ needs $10$, and $10$ needs $4$, and none of those three lies in $N$.
-% ===== END SOLUTION problem-13d-m0-m1 =====
-
-\begin{problem}{problem-13d-m2t}
-Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and for $t\bmod 13$ let $S_t=\{(a,b)\in H\times N:\ a+b\equiv t\pmod{13}\}$, with $m_t=\#S_t$. Exhibit a one-to-one map from $S_t$ to $S_{2t}$, and conclude that $m_{2t}=m_t$.
+\begin{problem}{13(d)}
+Let $p$ be an odd prime, $\zeta=\zeta_p$, $K=\QQ(\zeta)$, $G=\operatorname{Gal}(K/\QQ)$, and $H\le G$ a subgroup of index $d$, read as a set of residues in $(\ZZ/p\ZZ)^\times$. Let $\eta_H=\sum_{a\in H}\zeta^a$ be the Gaussian period. Show that $K_d=K^H=\QQ(\eta_H)$.
 \end{problem}
-% ===== SOLUTION problem-13d-m2t =====
-Map $(a,b)$ to $(2b,2a)$. Doubling sends $H$ to $N$ and $N$ to $H$, since $2$ is a nonsquare mod $13$, so the exchanged pair lies in $H\times N$; its entries sum to $2(a+b)\equiv 2t$, so the image lies in $S_{2t}$.
+% ===== SOLUTION 13(d) =====
+\textbf{The case $p=13$, $d=2$.} Let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, with $\eta_H=\sum_{a\in H}\zeta^a$ and $\eta_N=\sum_{b\in N}\zeta^b$.
 
-The map is one-to-one: if $(2b_1,2a_1)=(2b_2,2a_2)$, then $2b_1=2b_2$ and $2a_1=2a_2$. Inverting $2$ modulo $13$ gives $b_1=b_2$ and $a_1=a_2$, hence $(a_1,b_1)=(a_2,b_2)$. Equivalently, the map has the inverse $(c,d)\mapsto(7d,7c)$, because $7\cdot 2\equiv 1\pmod{13}$.
+Since $3\in H$ and $H$ is a subgroup, multiplication by $3$ permutes $H$, so $\sigma_3(\eta_H)=\eta_H$. Since $2\notin H$, $\sigma_2(\eta_H)=\eta_N$: the exponents $2,6,8,18,20,24$ reduce to $2,6,8,5,7,11$, which is $N$. And $\sigma_2^2=\sigma_4$ with $4\in H$, so $\sigma_2^2(\eta_H)=\eta_H$. The stabilizer of $\eta_H$ is therefore exactly $H$, and its orbit is $\{\eta_H,\eta_N\}$.
 
-An injective map between finite sets of the same size is a bijection, so the two sets have equal size: $m_{2t}=m_t$.
-% ===== END SOLUTION problem-13d-m2t =====
+The two periods are distinct. If $\eta_H=\eta_N$, the difference has coefficient $+1$ on $\zeta^a$ for $a\in H$ and $-1$ for $a\in N$; those twelve coefficients are rational and not all zero, so the difference cannot vanish, because $\zeta,\dots,\zeta^{12}$ is a $\QQ$-basis of $K$.
+
+The orbit has size $[G:H]=2$, so $[\QQ(\eta_H):\QQ]=2$. Since $\eta_H$ is fixed by $H$, $\QQ(\eta_H)\subseteq K^H$, and both have degree $2$ over $\QQ$; hence $\QQ(\eta_H)=K^H=K_2$. This proves the claim for $p=13$, $d=2$.
+
+The concrete case also gives $\eta_H+\eta_N=-1$, since $H\cup N=\{1,\dots,12\}$ and $\sum_{i=1}^{12}\zeta^i=-1$, and $3N=N$ because $3\in H$. For the product, $m_0=0$ and $m_1=3$; the map $(a,b)\mapsto(2b,2a)$ sends $S_t$ one-to-one onto $S_{2t}$ with inverse $(c,d)\mapsto(7d,7c)$, so $m_{2t}=m_t$. Since $2$ has order $12$ mod $13$, every nonzero $t$ has $m_t=3$, and the $36$ pairs are accounted for. Hence $\eta_H\eta_N=3\sum_{i=1}^{12}\zeta^i=-3$, and $\eta_H,\eta_N$ are the roots of $x^2+x-3$.
+
+\todo{The general claim: the $d$ periods must be shown pairwise distinct. Then there are $d$ conjugates, $[\QQ(\eta_H):\QQ]=d$, and $\QQ(\eta_H)=K_d$.}
+% ===== END SOLUTION 13(d) =====
 
 \end{document}
