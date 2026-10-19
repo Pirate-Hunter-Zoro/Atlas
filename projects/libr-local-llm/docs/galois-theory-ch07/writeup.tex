@@ -80,4 +80,24 @@ $H$ and $N$ split the nonzero exponents, so
 The relation $1+\zeta+\cdots+\zeta^{12}=0$ gives $\sum_{i=1}^{12}\zeta^i=-1$. The sum is therefore the exact rational number $-1$: the identity that produces it has rational coefficients, so the value is determined by rationals and is not merely some complex number.
 % ===== END SOLUTION problem-13d-sum-value =====
 
+\begin{problem}{problem-13d-m0-m1}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and write $\eta_H\eta_N=\sum_{t=0}^{12}m_t\zeta^t$ with $m_t$ the number of pairs $(a,b)\in H\times N$ such that $a+b\equiv t\pmod{13}$. Compute $m_0$ and $m_1$.
+\end{problem}
+% ===== SOLUTION problem-13d-m0-m1 =====
+$m_0=0$. A pair contributing to $m_0$ would need $b\equiv-a\pmod{13}$, and the negatives of the elements of $H$ are $12,10,9,4,3,1$, none of which lies in $N$.
+
+$m_1=3$, from the pairs $(3,11)$, $(9,5)$ and $(12,2)$. The remaining elements of $H$ give no partner: $1$ needs $0$, $4$ needs $10$, and $10$ needs $4$, and none of those three lies in $N$.
+% ===== END SOLUTION problem-13d-m0-m1 =====
+
+\begin{problem}{problem-13d-m2t}
+Let $\zeta=\zeta_{13}$, let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, and for $t\bmod 13$ let $S_t=\{(a,b)\in H\times N:\ a+b\equiv t\pmod{13}\}$, with $m_t=\#S_t$. Exhibit a one-to-one map from $S_t$ to $S_{2t}$, and conclude that $m_{2t}=m_t$.
+\end{problem}
+% ===== SOLUTION problem-13d-m2t =====
+Map $(a,b)$ to $(2b,2a)$. Doubling sends $H$ to $N$ and $N$ to $H$, since $2$ is a nonsquare mod $13$, so the exchanged pair lies in $H\times N$; its entries sum to $2(a+b)\equiv 2t$, so the image lies in $S_{2t}$.
+
+The map is one-to-one: if $(2b_1,2a_1)=(2b_2,2a_2)$, then $2b_1=2b_2$ and $2a_1=2a_2$. Inverting $2$ modulo $13$ gives $b_1=b_2$ and $a_1=a_2$, hence $(a_1,b_1)=(a_2,b_2)$. Equivalently, the map has the inverse $(c,d)\mapsto(7d,7c)$, because $7\cdot 2\equiv 1\pmod{13}$.
+
+An injective map between finite sets of the same size is a bijection, so the two sets have equal size: $m_{2t}=m_t$.
+% ===== END SOLUTION problem-13d-m2t =====
+
 \end{document}

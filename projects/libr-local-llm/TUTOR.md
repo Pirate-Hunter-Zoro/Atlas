@@ -37,3 +37,4 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 - The colibri harness: five commands, on-demand generations that resume across deaths, reachable from the iPad. The job it was built for, the diarization repair, is done: PSYCH-ASR's reference transcript exists and the annotator approved it.
 - The Colibri pitch lecture (session 20261012-111337) closed its maths and its pitch: the union-formula caption is agreed (batching barely pays, the curve at 15.75 against a ceiling of 16), the write-up holds all 9 agreed answers, and the pitch deck is built at docs/colibri-pitch/ --- awaiting the owner's review. The PHI-safety sitting is open: exercise 1 is done (the transcript sits under a directory named phi, its folder named for the front end); the two guard exercises remain.
+- Galois ch07: all answers written up in docs/galois-theory-ch07/writeup.tex, the last being problem-13d-m2t.
