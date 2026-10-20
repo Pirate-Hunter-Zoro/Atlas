@@ -35,6 +35,7 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 ## Done recently
 
-- The colibri harness: five commands, on-demand generations resuming across deaths, reachable from the iPad. Diarization is repaired: PSYCH-ASR's reference transcript exists, annotator-approved.
-- The Colibri pitch lecture (20261012-111337): union-formula caption agreed, all 9 answers written up, deck at docs/colibri-pitch/ awaits review. PHI-safety is open: exercise 1 done, two guards remain.
-- Galois ch07: 13(c) skipped, not to re-ask. 14 closed and written up. 13(d) reopened at 0095: the one gap is the coefficient check m(x) in Q[x]. Their 14(c) proof came back correct: |N|=2 plus the unique order-2 subgroup, no subgroup list. 15(a) answered. 15(b)'s n=5 substitution came as text with no page, so unconfirmed and unwritten.
+- The colibri harness: five commands, on-demand generations resuming across deaths, reachable from the iPad. Diarization repaired: PSYCH-ASR's reference transcript exists, annotator-approved.
+- The Colibri pitch deck is built at docs/colibri-pitch/ with its opencode path confirmed in the PDF, all 9 answers written up. Its closing question --- one slide to change --- is parked, not answered.
+- 0040's flag question is still unanswered. On 2026-10-20 they asked for the serve script's code to annotate for the deck; 0042 shows it and asks the flag question again.
+- Galois ch07: 13(c) skipped, not to re-ask. 14 closed and written up. 13(d) reopened at 0095: the one gap is the coefficient check m(x) in Q[x]. 15(a) answered. 15(b)'s n=5 substitution came as text with no page, unconfirmed and unwritten.
