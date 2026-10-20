@@ -108,4 +108,11 @@ A Colibri session writes its transcript to disk. The launcher `bin/coli-code` po
 The folder is named for the front-end program, not the model. Launching `coli-code -a opencode` makes it `opencode`; the default `claude` makes it `claude`. Either way the engine is GLM-5.2 at int4 on LIBR hardware, and either way the transcript sits under a directory named `phi`, which is the name the fence matches. The name therefore tracks the program the model is driven through, not the model itself.
 % ===== END SOLUTION colibri-front-end-name =====
 
+\begin{problem}{kv-not-in-checkpoint}
+Which of the dense trunk, the routed experts and the KV cache is not in the checkpoint file at all, and how does it come to exist?
+\end{problem}
+% ===== SOLUTION kv-not-in-checkpoint =====
+KV cache. The checkpoint holds the trunk and the experts and nothing else; the attention record is computed and written while a turn runs, never trained and never stored.
+% ===== END SOLUTION kv-not-in-checkpoint =====
+
 \end{document}

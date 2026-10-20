@@ -35,7 +35,7 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 ## Done recently
 
-- The colibri harness: five commands, on-demand generations resuming across deaths, reachable from the iPad. Diarization repaired: PSYCH-ASR's reference transcript exists, annotator-approved.
-- The Colibri pitch deck is built at docs/colibri-pitch/ with its opencode path confirmed in the PDF, all 9 answers written up. Its closing question --- one slide to change --- is parked, not answered.
-- 0040's flag question is still unanswered. On 2026-10-20 they asked for the serve script's code to annotate for the deck; 0042 shows it and asks the flag question again.
-- Galois ch07: 13(c) skipped, not to re-ask. 14 closed and written up. 13(d) reopened at 0095: the one gap is the coefficient check m(x) in Q[x]. 15(a) answered. 15(b)'s n=5 substitution came as text with no page, unconfirmed and unwritten.
+- The colibri harness: five commands, on-demand generations resuming across deaths. Diarization repaired: PSYCH-ASR's reference transcript exists.
+- The Colibri pitch deck is built at docs/colibri-pitch/, all 9 answers written up. Its closing question --- one slide to change --- is parked.
+- Serve-script flags: they named `--auto-tier`, half of it. 0044 corrected 0043: the laptop streams at 0.05-0.1 tok/s, 0.64 was CPU-only on a 1 TB node, and the Air's disk needs all 429 GB. 0045 corrected "over 500 GB" and the resident-trunk claim: `TRUNK_RESIDENT_LAYERS=0` maps it. 0045 asks which of trunk, experts, KV is not in the checkpoint at all.
+- Galois ch07: 13(c) skipped, not to re-ask. 14 closed and written up. 13(d) reopened at 0095: the one gap is the coefficient check m(x) in Q[x]. 15(a) answered. 15(b)'s n=5 substitution unconfirmed.
