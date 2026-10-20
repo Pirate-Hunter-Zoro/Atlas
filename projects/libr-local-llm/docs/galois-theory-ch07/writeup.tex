@@ -91,7 +91,7 @@ Since $aH$ and $bH$ are disjoint and nonempty, $P$ has a $+1$ coefficient and a 
 
 \textbf{The general case: the conjugation step.} Put $m(x)=\prod_{aH\in G/H}(x-\eta_{aH})$, a monic polynomial in $\QQ[x]$ of degree $d$ with $m(\eta_H)=0$. Suppose $m=fg$ with $f,g\in\QQ[x]$ monic of positive degree, and let $\alpha$ be a period that is a root of $f$. Every period is $\sigma(\alpha)$ for some $\sigma\in G$. Since $\sigma$ is a field automorphism fixing $\QQ$ pointwise, it is a ring homomorphism, so it commutes with evaluation of a rational-coefficient polynomial: $f(\sigma(\alpha))=\sigma(f(\alpha))=\sigma(0)=0$. Hence every period is a root of $f$.
 
-\todo{The general claim: $m$ has no monic factorization into positive-degree rational factors. The conjugation step makes all $d$ periods roots of $f$; the count $\deg f\ge d$ against $\deg f\le d$ from $f\mid m$ gives $f=m$, so $g$ is constant, $[\QQ(\eta_H):\QQ]=d$ and $\QQ(\eta_H)=K_d$.}
+\textbf{The remaining step.} The conjugation step gives $\deg f\ge d$, and $f\mid m$ gives $\deg f\le d$, so $f=m$ and $g$ is constant; that yields $[\QQ(\eta_H):\QQ]=d$ and $\QQ(\eta_H)=K_d$. What is still owed is the coefficient check behind $m\in\QQ[x]$: each coefficient of $m$ is symmetric in the periods, every $\sigma\in G$ permutes the periods, and $K^G=\QQ$. That check has not yet been written, so the argument above is not yet closed.
 % ===== END SOLUTION 13(d) =====
 
 \end{document}
