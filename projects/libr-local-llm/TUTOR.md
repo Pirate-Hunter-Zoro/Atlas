@@ -35,6 +35,6 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 ## Done recently
 
-- The colibri harness: five commands, on-demand generations that resume across deaths, reachable from the iPad. Diarization repair is done: PSYCH-ASR's reference transcript exists and the annotator approved it.
-- The Colibri pitch lecture (20261012-111337) closed its maths and pitch: the union-formula caption is agreed, the write-up holds all 9 agreed answers, and the deck is built at docs/colibri-pitch/, awaiting review. PHI-safety is open: exercise 1 is done; two guard exercises remain.
-- Galois ch07: write-up holds 13(a), 13(b), the p=13 case of 13(d) and general distinctness; 13(c) is empty and skipped, not to re-ask. 13(d) is parked with one named gap: the coefficient check that puts m in Q[x]; card 0067 asked it and was skipped. Now on Problem 14(a).
+- The colibri harness: five commands, on-demand generations resuming across deaths, reachable from the iPad. Diarization is repaired: PSYCH-ASR's reference transcript exists, annotator-approved.
+- The Colibri pitch lecture (20261012-111337): the union-formula caption is agreed, the write-up holds all 9 agreed answers, and the deck at docs/colibri-pitch/ awaits review. PHI-safety is open: exercise 1 done, two guards remain.
+- Galois ch07: 13 is closed and 13(c) skipped, not to re-ask. 14(a) is written up; 15(a) is answered. 14(c) is written up through the completed cubic $x^3+x^2-2x-1$ and the order-2 subgroup $H=\{\sigma_1,\sigma_6\}$; their page gave the right set and the right uniqueness claim. They have not stated $\sigma_3$'s order; $G$ is cyclic of order 6 and $\sigma_3$ generates it. Owed: the subgroup list, then uniqueness of the cubic subfield.
