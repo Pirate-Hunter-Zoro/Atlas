@@ -83,7 +83,15 @@ The orbit has size $[G:H]=2$, so $[\QQ(\eta_H):\QQ]=2$. Since $\eta_H$ is fixed 
 
 The concrete case also gives $\eta_H+\eta_N=-1$, since $H\cup N=\{1,\dots,12\}$ and $\sum_{i=1}^{12}\zeta^i=-1$, and $3N=N$ because $3\in H$. For the product, $m_0=0$ and $m_1=3$; the map $(a,b)\mapsto(2b,2a)$ sends $S_t$ one-to-one onto $S_{2t}$ with inverse $(c,d)\mapsto(7d,7c)$, so $m_{2t}=m_t$. Since $2$ has order $12$ mod $13$, every nonzero $t$ has $m_t=3$, and the $36$ pairs are accounted for. Hence $\eta_H\eta_N=3\sum_{i=1}^{12}\zeta^i=-3$, and $\eta_H,\eta_N$ are the roots of $x^2+x-3$.
 
-\todo{The general claim: the $d$ periods must be shown pairwise distinct. Then there are $d$ conjugates, $[\QQ(\eta_H):\QQ]=d$, and $\QQ(\eta_H)=K_d$.}
+\textbf{The general case: the periods are pairwise distinct.} Suppose $\eta_{aH}=\eta_{bH}$ for distinct cosets $aH\ne bH$, and let $P(x)=\sum_{h\in H}x^{ah}-\sum_{h\in H}x^{bh}$. Then $P(\zeta)=0$, and the coefficients of $P$ are $+1$ on the exponents in $aH$, $-1$ on the exponents in $bH$, and $0$ elsewhere.
+
+The polynomial $\Phi_p$ is the minimal polynomial of $\zeta$ over $\QQ$, so $\Phi_p$ divides $P$. Both have degree at most $p-1$, so $P=c\,\Phi_p$ for some constant $c$.
+
+Since $aH$ and $bH$ are disjoint and nonempty, $P$ has a $+1$ coefficient and a $-1$ coefficient. Hence $P\ne0$, so $c\ne0$. But every coefficient of $c\,\Phi_p$ equals $c$, so no constant $c$ can match a coefficient list containing both $+1$ and $-1$. Contradiction. Therefore distinct cosets give distinct periods.
+
+\textbf{The general case: the conjugation step.} Put $m(x)=\prod_{aH\in G/H}(x-\eta_{aH})$, a monic polynomial in $\QQ[x]$ of degree $d$ with $m(\eta_H)=0$. Suppose $m=fg$ with $f,g\in\QQ[x]$ monic of positive degree, and let $\alpha$ be a period that is a root of $f$. Every period is $\sigma(\alpha)$ for some $\sigma\in G$. Since $\sigma$ is a field automorphism fixing $\QQ$ pointwise, it is a ring homomorphism, so it commutes with evaluation of a rational-coefficient polynomial: $f(\sigma(\alpha))=\sigma(f(\alpha))=\sigma(0)=0$. Hence every period is a root of $f$.
+
+\todo{The general claim: $m$ has no monic factorization into positive-degree rational factors. The conjugation step makes all $d$ periods roots of $f$; the count $\deg f\ge d$ against $\deg f\le d$ from $f\mid m$ gives $f=m$, so $g$ is constant, $[\QQ(\eta_H):\QQ]=d$ and $\QQ(\eta_H)=K_d$.}
 % ===== END SOLUTION 13(d) =====
 
 \end{document}
