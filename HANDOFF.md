@@ -43,8 +43,9 @@ reports it built once it is.
 1. **The manual cluster items.** Each needs judgement, so none is in `setup-cluster.sh`.
    - **One round trip.** In an iPad session bound to projects/TRD-EHR, ask the tutor to file its
      cheapest diagnostic recipe; a completed `[job]` card arrives within about 5 minutes. In one
-     bound to the diarization project, ask for a dry job; its report completes, and job_env.sh
-     resolves its data variable inside that subject's fenced directory.
+     bound to the diarization project, file `slurm_jobs/stage1_grid.sbatch GRID_DRY_RUN=1`; its
+     report completes, and job_env.sh resolves its data variable inside that subject's fenced
+     directory.
    - **One coding-session trial.** Start an iPad session bound to a non-PHI subject with code and run
      the command its header shows on the cluster (`board code <session-id> <path>`). Edit
      one file; a `[code] step` card shows within about a minute. `board code <session-id> --end`
@@ -144,7 +145,7 @@ In this order. Each item's open tasks live in its subject's TUTOR.md.
      at proof, and a strict packet rebuild (`scripts/rebuild-packet.sh`, which runs `board build`).
 2. **The Colibri deck** (`projects/libr-local-llm`): section 1.
 3. **PSYCH-ASR grid sweep**, as cluster requests, and the owner's recording review at the
-   institute.
+   institute. The owner's cluster steps: projects/PSYCH-ASR/docs/HANDOFF.md.
 4. **Paper 2** (`projects/TRD-EHR`, `paper2-counterfactual/`). Teach sessions on estimand
    identification, then coach sessions on the four robustness rungs. The owner writes that code on
    the Mac against `test_data/`, or on the cluster with `board code` when it needs real rows. Then

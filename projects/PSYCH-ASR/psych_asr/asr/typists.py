@@ -128,8 +128,7 @@ def transcribe_faster_whisper(decoded_audio, checkpoint, batch_size=16, device="
 
     Imports whisperx, so it runs only in asr_env. The path must be handed over as a STRING,
     not a Path -- only a str takes faster-whisper's local-directory branch, and a Path sends
-    it to the Hub, which on a compute node with no outbound internet hangs instead of
-    failing. Language is forced to English so per-chunk detection is skipped.
+    it to the Hub, where the job's HF_HUB_OFFLINE=1 makes it fail. Language is forced to English so per-chunk detection is skipped.
     """
     import whisperx
 

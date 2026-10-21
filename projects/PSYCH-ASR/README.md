@@ -1,9 +1,8 @@
 # PSYCH-ASR: Psychotherapy Session ASR, Diarization & Outcome-Linked NLP
 
-> **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
-> anything.** It is the operating contract for this repository and it is model-agnostic —
-> Claude, Codex, DeepSeek/open-code, Cursor, a local model, all the same. Nothing auto-loads
-> it, so read it the moment you are pointed at this README.
+> **AI assistants: read [`RULES.md`](./RULES.md) before doing anything.** It holds the
+> data fence and the owner's rules for this repository. What is next is the **Now** section
+> of [`TUTOR.md`](./TUTOR.md).
 
 Feasibility pipeline for **automated transcription and NLP-based characterization of
 early psychotherapy sessions**, with the goal of predicting treatment response and
@@ -18,9 +17,6 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > (ASR, diarization, downstream NLP) runs locally on LIBR compute. No audio, transcript,
 > or derived feature ever leaves the node or is sent to an external API. See
 > [Privacy & Data Handling](#privacy--data-handling).
-> **Companion documentation — read this first.** This README documents the *pipeline
-> architecture*. The slide deck is in `docs/`; the live task list is
-> `planning/PSYCH-ASR_TODO.txt` and is the answer to "what do we do next".
 >
 > **Conceptual walkthrough of Stage 1.** A slide deck explaining what Stage 1 actually does
 > — a broad tour of what each of the five calls accomplishes, with the input and output
@@ -31,12 +27,6 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > `.tex` beside it. Read it before modifying Stage 1. The five calls it walks through run as
 > `psych_asr.cli.run_asr`, `psych_asr.cli.diarize_pyannote` and
 > `psych_asr.cli.join_speakers`.
->
-> **Division of labour between the two files.** The TODO tracks **only what is left**.
-> Finished work is never annotated there as "DONE" — its entry is deleted, and whatever
-> is durably worth knowing (what exists, where it lives, how it was staged, which traps
-> were paid for) graduates **into this README**. Git history records completion; the TODO
-> records intent. Anyone editing either file, human or agent, follows this.
 
 ---
 
@@ -136,11 +126,10 @@ project on this box:
   `task/cgroup` with `ConstrainDevices=yes`, so a job sees only its allocated
   devices and Slurm sets `CUDA_VISIBLE_DEVICES` itself. Jobs log an `nvidia-smi`
   memory line so a later CUDA OOM is explainable from the log alone.
-- **Model weights (offline):** the login node has outbound internet; the compute
-  nodes do not. All model weights are downloaded once into a `models/` directory on
-  study storage and loaded from there by absolute path, with `HF_HUB_OFFLINE=1` set
-  in every job so a stray Hub request fails fast instead of hanging on a compute
-  node.
+- **Model weights (offline):** every model is staged once, on the login node, into a
+  `models/` directory on study storage and loaded from there by absolute path.
+  `HF_HUB_OFFLINE=1` is set in every job, so a stray Hub request fails fast instead of
+  fetching weights nobody staged.
 
 Core libraries (pinned in `scripts/setup_envs.sh`): **`whisperx` 3.8.6 anchors the
 whole stack** — its `~=` dependency pins force `torch`/`torchaudio` 2.8.x,
@@ -234,7 +223,7 @@ be confounded by transcript differences. Running 1a **once** and fanning every d
 the identical aligned transcript and identical word timings is what makes the arms
 comparable at all.
 
-**The refactor has a built-in regression test.** Job 2032471 (2026-08-12, full ~50 min
+**The refactor has a built-in regression test.** Job 2032471 (a full ~50 min
 session) produced 489 segments, 7298 words, exactly 2 speaker labels, 89 turns, one UNKNOWN
 segment, 79/21 talk time. Composing 1a → 1b(community-1) → 1c must reproduce those numbers
 exactly. If it does not, the split changed behavior and the difference is a bug, not a
@@ -242,13 +231,13 @@ finding.
 
 ### The other two boxes — the seam that has *not* been cut yet
 
-**Added 2026-09-09, and it reframes the bake-off.** Stage 1 runs three models, and the
+**This reframes the bake-off.** Stage 1 runs three models, and the
 argument that produced the diarization bake-off applies word for word to the other two:
 
 | Box | Nickname | What runs today | Ever compared? |
 | --- | --- | --- | --- |
-| `transcribe` | the typist | `faster-whisper-large-v3` | **no** |
-| `align` | the stopwatch | torchaudio `wav2vec2_fairseq_base_ls960` | **no** |
+| `transcribe` | the typist | `faster-whisper-large-v3`; the grid adds three | **no** |
+| `align` | the stopwatch | torchaudio `WAV2VEC2_ASR_BASE_960H`; the grid adds `WAV2VEC2_ASR_LARGE_LV60K_960H` | **no** |
 | `diarize` | the name-tagger | five arms | yes — undecided |
 
 Both untested boxes are running a **default, not a decision**: whisperx bundles a
@@ -287,12 +276,13 @@ whichever stopwatch the cell names.
 It is the single-typist path the 1a/1b/1c regression gate compares against byte for byte,
 and it is now a composition of the same two halves rather than a separate implementation.
 
-**The grid is a cube, and it is 13 jobs.** Three swappable boxes means three axes, not two:
+**The grid is a cube, and it is 17 GPU jobs.** Three swappable boxes means three axes, not two:
 4 typists × 2 stopwatches × 5 name-taggers = **40 cells**. The name-tagger never reads a
-word, so its output depends on neither of the other two — run each typist×stopwatch pair
-once (8 runs of 1a) and each diarizer once (5 runs of 1b), then assemble the cells. A
-nested loop that re-runs diarization per transcript is wasted compute *and* re-introduces
-exactly the confound the 1a/1b split exists to remove.
+word, so its output depends on neither of the other two — transcribe once per typist (4
+runs of 1a-i), align once per typist×stopwatch pair (8 runs of 1a-ii), diarize once per
+name-tagger (5 runs of 1b), then join every cell in one CPU job. A nested loop that re-runs
+diarization per transcript is wasted compute *and* re-introduces exactly the confound the
+1a/1b split exists to remove. See **Running the grid** below.
 
 **Each axis can only move some of the numbers, and that is what keeps 40 cells affordable.**
 The words come from the typist; the times come from the stopwatch, timing the typist's
@@ -319,9 +309,12 @@ CLI (`hf`) ships inside the `asr_env` conda environment.
 
 **Not because the compute nodes are offline — they are not.** They resolve DNS and reach
 `huggingface.co`, so a job with the variable unset silently re-downloads instead of
-failing, and a bake-off arm can end up weighed against a checkpoint that moved under it.
-Staging pins the weights to a path and a revision; `HF_HUB_OFFLINE=1` is what turns a
-quiet re-download into an error you can see.
+failing, and an arm can end up run against a checkpoint that moved under it. Staging pins
+the weights to a path, and re-staging keeps a staged directory as it is; `HF_HUB_OFFLINE=1`
+is what turns a quiet re-download into an error you can see.
+
+The owner's step-by-step for the grid's staging and launch is
+[`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 **Diarization model — `pyannote/speaker-diarization-community-1`.** WhisperX 3.8.6
 defaults its diarizer to this model, and pyannote.audio 4.0.7's `SpeakerDiarization`
@@ -344,7 +337,8 @@ because therapist backchannels ("mm-hm") overlap patient speech constantly.
 > unconditionally, and the 3.1 config predates PLDA, so an offline load raises
 > `LocalEntryNotFoundError`. Use community-1.
 
-One-time setup:
+Setup. Steps 1 and 2 are needed only while community-1 is not staged: it is the one gated
+repo, and `stage_models.sh` asks for a token only when its directory is missing or empty.
 
 1. **Authenticate.** Create a read-scoped token at
    `huggingface.co/settings/tokens` and place it in a git-ignored `.env` at the repo
@@ -352,15 +346,38 @@ One-time setup:
 2. **Accept the gate.** While logged in as the token's account, open the model page
    and click *"Agree and access repository."* community-1 is auto-gated, so access is
    granted instantly (no manual approval).
-3. **Download into `models/`.** `scripts/stage_models.sh` now stages community-1 along
-   with everything else, so this is one command on the login node rather than a manual
-   `hf download` that has to be remembered separately. It sources the git-ignored `.env`
-   with auto-export on, clears `HF_HUB_OFFLINE` for the download only, and pulls every
-   repo by `--local-dir`.
+3. **Download into `models/`.** `bash scripts/stage_models.sh` on the login node stages
+   every asset in one pass. It sources the git-ignored `.env` with auto-export on, clears
+   `HF_HUB_OFFLINE` for the download only, and pulls every repo by `--local-dir`.
+   - **A staged directory is kept.** A non-empty directory (or, for a single-file stage, a
+     non-empty file) prints `kept <name>` and is not re-fetched, because `hf download`
+     resolves to the latest revision and would move the weights earlier runs used. Delete
+     it to re-fetch.
+   - **It ends with the preflight**, `python -m psych_asr.cli.preflight_models --load`, and
+     exits with its status. The preflight checks every asset by its required files and by
+     an offline load on CPU, and counts the inbox WAVs; a pass ends
+     `RELAY: preflight assets 15 ok 15 ... load-failed 0 inbox-wav 1`. An `empty` or
+     `incomplete` line means delete that directory and rerun.
+   - **`bash scripts/stage_models.sh --check`** runs only the preflight: no `.env`, no
+     download. `slurm_jobs/preflight_models.sbatch` runs the same check from a compute node.
 4. **Load offline.** In pipeline code, set `HF_HUB_OFFLINE=1` and call
    `Pipeline.from_pretrained()` with the **absolute local directory**, never the Hub id.
    `psych_asr/config.py` holds that directory and every other staged path, so no argument
    parser spells one out.
+
+**The two stopwatches are torchaudio bundles, not Hugging Face repos.** Both load from
+`TORCH_HOME` and are fetched from `download.pytorch.org` by `stage_models.sh` (through
+`psych_asr.cli.warm_align_cache`); neither needs a token.
+
+| `--stopwatch` | torchaudio bundle | Cache file in `TORCH_HOME/hub/checkpoints/` |
+| --- | --- | --- |
+| `wav2vec2-base` | `WAV2VEC2_ASR_BASE_960H` | `wav2vec2_fairseq_base_ls960_asr_ls960.pth` (360 MB) |
+| `wav2vec2-large` | `WAV2VEC2_ASR_LARGE_LV60K_960H` | `wav2vec2_fairseq_large_lv60k_asr_ls960.pth` (about 1.2 GB) |
+
+The large bundle stays torchaudio rather than its Hugging Face port: torchaudio layer-norms
+each input waveform for this recipe, and whisperx's Hugging Face branch feeds raw audio, so
+the port would not be the same model. `config.STOPWATCH_CHECKPOINTS` names the cache files,
+and the preflight's load tier asserts they match torchaudio's own.
 
 ### Typist bake-off — candidate models
 
@@ -404,31 +421,58 @@ attention window does nothing for an autoregressive decoder that has run out of 
 length. It needs chunked inference, which is not built. Its row in the grid reads 100.5%
 WER, and that number is a broken transcript rather than a measurement of the model.
 
-#### Running the typist bake-off
+#### Running the grid
+
+The grid runs every cell of the cube and keeps every output. It never scores, compares or
+ranks an arm. The owner's step-by-step, from staging to the report, is
+[`docs/HANDOFF.md`](docs/HANDOFF.md).
+
+`slurm_jobs/stage1_grid.sbatch` is the driver and the relay recipe. It runs
+`psych_asr.cli.grid_submit` on `c3_accel` with no GPU: `c3` is suspended by `c3_short`, and
+`c3_short`'s time limit is shorter than a grid.
 
 ```bash
-source slurm_jobs/lib/job_env.sh                 # sets PSYCH_ASR_DATA; the script refuses without it
-bash slurm_jobs/run_typist_bakeoff.sh
-bash slurm_jobs/run_typist_bakeoff.sh --typist parakeet --stopwatch wav2vec2-large
+board job -- slurm_jobs/stage1_grid.sbatch GRID_DRY_RUN=1          # plan + preflight, submits nothing
+board job -- slurm_jobs/stage1_grid.sbatch                          # all 40 cells
+board job -- slurm_jobs/stage1_grid.sbatch GRID_TYPISTS=parakeet:canary GRID_TAGGERS=community-1
+board job -- slurm_jobs/stage1_grid.sbatch GRID_REJOIN=<driver job id>
+sbatch slurm_jobs/stage1_grid.sbatch                                # without the relay
 ```
 
-Nine jobs: one 1a-i transcribe and one 1a-ii align per typist, then one CPU job that joins
-every typist's words onto **one** name-tagger's turn table. Each align depends on its own
-transcribe with `afterok`; the join job depends on all four with `afterany`, so one typist
-crashing still joins the others and shows up as a missing cell.
+`GRID_TYPISTS`, `GRID_STOPWATCHES` and `GRID_TAGGERS` take colon lists; an unknown name is
+refused before any GPU is requested. `GRID_TAGGERS=community-1 GRID_STOPWATCHES=wav2vec2-base`
+is the typist bake-off. Off the cluster, `python -m psych_asr.cli.grid_submit --dry-run`
+prints the same plan.
 
-**The stopwatch and the name-tagger are held fixed**, which is the whole point — every
-difference in the word columns is then the typist and nothing else. Holding the name-tagger
-costs nothing, because five of the six error labels never move along that axis anyway.
+```text
+transcribe:<t> (4, GPU, the typist's env) --afterok + kill-on-invalid-dep--> align:<t>+<s> (8, GPU, asr_env) --+
+diarize:<n>    (5, GPU, its own env, no dependency) ------------------------------------------------------+--afterany--> join (1, CPU) -> manifest
+```
 
-**Each job gets its own log**, overridden on the `sbatch` command line: the two Stage 1a
-`.sbatch` files name a fixed log path, which is right for one typist and destroys three of
-four logs for a bake-off. The join log is
-`slurm_jobs/logs/stage1c_join_cells_out.txt`.
-
-`slurm_jobs/stage1c_join_cells.sbatch` names the cell explicitly with `--arm`, so a cell's
-artifacts read `<typist>+<stopwatch>+<name-tagger>` rather than just the diarizer the RTTM
-filename knows about.
+- **The dependency kinds are not interchangeable.** An align waits for its own typist with
+  `afterok`, and `--kill-on-invalid-dep=yes` cancels it when that typist failed; without it
+  the align stays pending forever and the join never starts. The join waits on every align
+  and diarize with `afterany`, so a dead arm still lets every other cell join, and its cells
+  are reported as missing.
+- **Before submitting**, the driver runs the file-tier preflight for the selected axes and
+  requires exactly one inbox WAV, refuses if another grid driver is live, and cancels what
+  it already submitted if one `sbatch` fails.
+- **One output directory per run.** Every child runs with `PSYCH_ASR_GRID=<driver job id>`;
+  `job_env.sh` exports `PSYCH_ASR_STAGE1_DIR` as `stage1/grid-<id>/` under the data root, and
+  `config.STAGE1_DIR` follows it. No run overwrites an earlier one, and a missing input can
+  only mean it did not land in this run. Without `PSYCH_ASR_GRID`, Stage 1 writes to
+  `stage1/` itself, which is the `run_bakeoff.sh` path.
+- **One log directory per run**: `slurm_jobs/logs/grid-<id>/` holds every child's log,
+  `jobs.tsv` (key, role, Slurm id) and `manifest.json`. The join
+  (`psych_asr.cli.join_grid`, `stage1c_join_grid.sbatch`) writes the manifest: axes,
+  per-input states and per-cell status and counts, with no stem, path or text.
+- **The report.** The driver polls `squeue` until every job has left the queue, then prints
+  `RELAY: grid` lines from the manifest: one per input that did not land, one per failed
+  cell (exception type only), then the plan, the inputs landed and the cell totals, last.
+  It exits 1 only when a cell's join raised or no cell joined.
+- **`GRID_REJOIN=<id>`** submits the join alone for run `<id>`, re-joining its kept inputs
+  without a GPU job. Pass the same subsets the run had; the inbox must still hold the same
+  WAV.
 
 ### Diarization bake-off — candidate models
 
@@ -507,8 +551,8 @@ The same download recipe stages any other Hugging Face model: one
 `stage_models.sh` stages every asset the pipeline needs in one pass: the ASR weights,
 community-1, the three bake-off challengers (`diarizen-wavlm-large-s80-md-v2`,
 `diar_sortformer_4spk-v1`, `diar_streaming_sortformer_4spk-v2.1`), the WeSpeaker embedder
-DiariZen needs, and then the two caches that are *not* Hugging Face assets — the torchaudio
-alignment bundle and nltk's `punkt_tab`. The challengers come to about 1.8 GB, which is
+DiariZen needs, the three other typists, and then the two caches that are *not* Hugging
+Face assets — both torchaudio stopwatch bundles and nltk's `punkt_tab`. The challengers come to about 1.8 GB, which is
 small enough that staging is not the slow part of anything.
 
 **How each challenger reaches its weights offline**, since all three differ from the
@@ -539,14 +583,13 @@ small enough that staging is not the slow part of anything.
 > a model as available.
 
 **Forced alignment is not a Hugging Face download.** For English, WhisperX resolves its
-alignment model to a **torchaudio** bundle (`WAV2VEC2_ASR_BASE_960H`), fetched from
-`download.pytorch.org` into the Torch hub cache — not from the Hugging Face Hub. Setting
-`HF_HUB_OFFLINE=1` therefore does *not* protect this path, and on a node without outbound
-internet it will stall exactly the way an unstaged Hub model does. That cache is warmed on
-the login node by `scripts/stage_models.sh`, which exports `TORCH_HOME` to
-`models/torch_home` on study storage and runs `psych_asr.cli.warm_align_cache`; torch writes
-the 360 MB `wav2vec2_fairseq_base_ls960_asr_ls960.pth` into a `hub/checkpoints` subfolder
-of it, and a re-run reuses it silently. **Every job must export the same `TORCH_HOME`** —
+alignment model to a **torchaudio** bundle (`WAV2VEC2_ASR_BASE_960H`, or the large bundle
+the `--stopwatch` names), fetched from `download.pytorch.org` into the Torch hub cache — not
+from the Hugging Face Hub. Setting `HF_HUB_OFFLINE=1` therefore does *not* protect this path:
+an uncached bundle is fetched silently inside the job. Both bundles are warmed on the login
+node by `scripts/stage_models.sh`, which exports `TORCH_HOME` to `models/torch_home` on study
+storage and runs `psych_asr.cli.warm_align_cache`; torch writes each `.pth` (see the
+stopwatch table above) into a `hub/checkpoints` subfolder of it, and a re-run reuses it. **Every job must export the same `TORCH_HOME`** —
 exporting the variable, not merely having the files on disk, is what makes torch reuse the
 cache instead of re-fetching into `~/.cache`.
 
@@ -565,17 +608,17 @@ find its cache; having the files on study storage is necessary but not sufficien
 three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
 `slurm_jobs/lib/job_env.sh`, which every job sources. One helper rather than a copy per
 job, because a job that exports two of the three is the kind of difference nobody notices
-until an arm quietly re-downloads its own weights mid-bake-off.
+until an arm quietly re-downloads its own weights mid-grid.
 
 **Importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
 `setdefault`, so an explicit export still wins. The job scripts cover the jobs and nothing
 else: a pytest run, a `python -m psych_asr…` on the login node or an interactive check gets
 the library default, and nltk's default is `~/nltk_data` — whisperx's `alignment.py` calls
 `nltk.download('punkt_tab', quiet=True)` when the lookup misses, which duplicates the staged
-copy in the home folder on a login node and hangs on a compute node with no egress.
-`HF_HUB_OFFLINE` is deliberately **not** set on import: it belongs to the compute node, and
-setting it breaks `psych_asr.cli.warm_align_cache`, whose whole job is to reach
-`download.pytorch.org` from the login node. `tests/conftest.py` imports the module before any
+copy in the home folder.
+`HF_HUB_OFFLINE` is deliberately **not** set on import: every job sets it, and setting it
+from an import would also set it on the login node, where `scripts/stage_models.sh`
+downloads. `tests/conftest.py` imports the module before any
 test module for the same reason — nltk reads the variable when it is imported, so the export
 has to come first.
 
@@ -595,22 +638,19 @@ in this repository is pip-installed into any env, so every step runs as `python 
 psych_asr.cli.<name>` and it is the submit directory landing on `sys.path` that makes the
 import resolve. The job's log paths are relative to the same place.
 
-**There is one Stage 1 path, and it is the 1a/1b/1c chain.** `bash
-slurm_jobs/run_bakeoff.sh` submits it — see **Running the diarization bake-off** below for
-the dependency graph, the per-arm jobs and the artifact names. Every job sources
+**Stage 1 is the 1a/1b/1c chain, submitted two ways.** `slurm_jobs/stage1_grid.sbatch`
+runs every typist × stopwatch × name-tagger cell into its own run directory (**Running the
+grid** above). `bash slurm_jobs/run_bakeoff.sh` runs one typist against every name-tagger
+into `stage1/` itself, and is the path the regression gate checks (**Running the
+diarization bake-off** below). Every job sources
 `slurm_jobs/lib/job_env.sh` and calls `activate_env`, which loads `Anaconda3/2025.06-0`,
 activates the prefix env inside a `set +u` / `set -u` wrap, and exports the four variables
 every job needs: `PYTHONNOUSERSITE`, `HF_HUB_OFFLINE`, `TORCH_HOME`, `NLTK_DATA`.
 
-> **The single-job script is retired** (2026-09-09). `psych_asr.cli.run_whisperx` and
-> `slurm_jobs/stage1_whisperx.sbatch` ran all three passes in one job, and were kept for a
-> while as the cheap path for one session against the incumbent diarizer. Both are deleted.
-> Two things settled it. That path never persisted the pyannote turn table, so anything it
-> produced was missing the one artifact overlapping speech survives in. And a second path
-> that has to be kept behaviour-identical to the chain is a standing cost with no remaining
-> benefit, because the chain runs one arm as happily as five. What was worth keeping from it
-> is kept: the regression gate still scores the chain against the pre-split fixture that
-> path produced.
+> **Stage 1 has no single-job path.** One job running all three passes would not persist the
+> pyannote turn table, the one artifact overlapping speech survives in, and a second path kept
+> behaviour-identical to the chain is a standing cost, because the chain runs one arm as
+> happily as five. The regression gate scores the chain against the pre-split fixture.
 
 The three passes below are what Stage 1 does, wherever they run. Stage 1a decodes the audio
 with `whisperx.load_audio` and reuses that array for both of its own passes, so ffmpeg runs
@@ -774,6 +814,7 @@ globs it and guards on the count. Submit **from the repo root** — all paths ar
 the submit directory.
 
 ```bash
+source slurm_jobs/lib/job_env.sh     # sets PSYCH_ASR_DATA; the script refuses without it
 bash slurm_jobs/run_bakeoff.sh
 ```
 
@@ -884,7 +925,7 @@ about, since Whisper decodes in float16 on a GPU and is not bit-reproducible acr
   **Some of arm B's error will be seam error rather than model error**, and that belongs in
   the writeup.
 
-### Bake-off status — first full run, 2026-08-23
+### Bake-off status — first full run
 
 All five arms ran end to end on the first pilot session (~50 min), off one
 Stage 1a transcript: 489 aligned segments, 7,298 words. The 1a/1b/1c split reproduced the
@@ -930,6 +971,9 @@ Three things this run *does* establish, none of which needed the reference RTTM:
 **A privacy note worth recording**: NeMo ships a telemetry logger (OneLogger). The job log
 records it initializing with *no exporters configured*, so nothing is collected or
 transmitted. Confirm that line is still present in the log if NeMo is ever upgraded.
+pyannote.audio 4.x telemetry is on by default and posts each pipeline load and apply
+(audio duration, speaker count) to otel.pyannote.ai; `activate_env`, `stage_models.sh`
+and the preflight set `PYANNOTE_METRICS_ENABLED=0` to turn it off.
 
 ### Getting a reference when the assistant cannot read the session
 
@@ -1068,7 +1112,6 @@ states the diarizer's own attribution on every speaker-attribution row, so the m
 read off the sheet rather than inferred. What follows is for the sessions that have no log,
 which is the point: the pilot has to measure whether the mapping can be proposed *without*
 one.
-
 
 Diarization labels are anonymous by construction, so every session needs
 `SPEAKER_00`/`SPEAKER_01` mapped onto therapist and patient. Doing this by hand for the
@@ -1415,10 +1458,14 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 ```bash
 .
 ├── README.md              # this file (committed)
-├── AI_INSTRUCTIONS.md     # the operating contract for any AI working here
+├── RULES.md               # the data fence and the owner's rules
+├── TUTOR.md               # the tutor's notes: where things are, what is next
 ├── .gitignore             # PHI, audio, transcripts, envs all excluded
+├── docs/                  # the Stage 1 walkthrough deck + HANDOFF.md (owner's grid steps)
 ├── psych_asr/             # the pipeline package — every entry point runs from here
 │   ├── config.py              # staged model paths, artifact dirs, arm names (stdlib only)
+│   ├── grid.py                # the Stage 1 grid: axes, job plan, manifest, RELAY lines (stdlib)
+│   ├── preflight.py           # file-tier check of every staged asset + inbox WAV count (stdlib)
 │   ├── join.py                # Stage 1c: RTTM or Annotation -> speaker-stamped transcript
 │   ├── artifacts/             # on-disk shapes. STDLIB ONLY — all four envs import these
 │   │   ├── rttm_io.py             # RTTM read/write + turn-table diagnostics
@@ -1443,7 +1490,9 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │       ├── run_asr.py             ├── join_speakers.py    ├── gpu_smoke.py
 │       ├── diarize_pyannote.py    ├── render_transcript.py├── warm_align_cache.py
 │       ├── diarize_diarizen.py    ├── check_split_regression.py
-│       └── diarize_sortformer.py
+│       ├── diarize_sortformer.py  ├── preflight_models.py # file + offline-load check
+│       ├── grid_submit.py         # the grid driver: submit, wait, report
+│       └── join_grid.py           # the grid's 1c: join every landed cell, write the manifest
 ├── scripts/               # shell only; everything Python lives in the package
 │   ├── setup_envs.sh          # builds all four conda prefix envs, each smoke-checked
 │   ├── standardize.sh         # Stage 0: one recording in -> 16 kHz mono WAV beside it
@@ -1451,7 +1500,8 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 ├── slurm_jobs/            # .sbatch job scripts; logs/ gitignored
 │   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav / session_stem
 │   ├── run_bakeoff.sh                    # submits the whole 1a -> 1b×N -> 1c chain
-│   ├── run_typist_bakeoff.sh             # submits 1a-i×N -> 1a-ii×N -> 1c join
+│   ├── stage1_grid.sbatch                # NO GPU — the grid driver and relay recipe
+│   ├── preflight_models.sbatch           # NO GPU — the staging preflight from a compute node
 │   ├── stage1a_asr.sbatch                # 1 GPU
 │   ├── stage1a_transcribe.sbatch         # 1 GPU, env follows the typist
 │   ├── stage1a_align.sbatch              # 1 GPU, always asr_env
@@ -1461,12 +1511,13 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   ├── stage1b_sortformer.sbatch         # 1 GPU, nemo_env, offline + windowed
 │   ├── stage1b_sortformer_streaming.sbatch  # 1 GPU, nemo_env
 │   ├── stage1c_join.sbatch               # NO GPU — join, render, regression gate
-│   ├── stage1c_join_cells.sbatch         # NO GPU — one join per typist-grid cell
+│   ├── stage1c_join_grid.sbatch          # NO GPU — the grid's join + manifest
 │   └── gpu_smoke.sbatch                  # GPU/ctranslate2 sanity job
 ├── tests/                 # pytest over SYNTHETIC transcripts and turn tables — no PHI
 └── phi/                   # raw + derived data — GITIGNORED (PHI)
     ├── inbox/                 # exactly one .wav — the file Stage 1 will process
     ├── stage1/                # Stage 1 output, one set per arm (see the artifact table above)
+    │                          #   + grid-<id>/, one directory per grid run
     │                          #   + the QC error log export the annotator produced
     └── stage2/                # the human-adjudicated reference transcript
 ```
@@ -1513,9 +1564,12 @@ and it runs without the cluster. Run it from the repo root:
 python -m pytest tests -q
 ```
 
-69 tests in `asr_env`; the ones that need `whisperx` skip themselves elsewhere, so the same
-suite runs in torch-free `diar_eval_env` (65 pass there, `test_join.py` skipping as a
-module).
+126 tests in `asr_env`; the ones that need `whisperx` or `torchaudio` skip themselves
+elsewhere, so the same suite runs in torch-free `diar_eval_env`. The grid, preflight and
+driver tests (`test_grid.py`, `test_join_grid_plan.py`, `test_preflight.py`,
+`test_imports_light.py`) are stdlib and run anywhere, including `uv run --extra test python
+-m pytest tests -q` on the Mac. `tests/board/job_env.py` checks the shell side: the
+per-run directory, the grid-id refusal, the relay variables and `bash -n` on every recipe.
 
 What it deliberately does **not** cover is anything that needs a model. Whisper's decode,
 pyannote's clustering, DiariZen's VBx and Sortformer's forward pass are exercised only by
@@ -1530,9 +1584,6 @@ and the non-speech-gap event classifier (Stage 3b), and the vLLM turn-coding dri
 its judgment-cache merge (Stage 3c), each with an sbatch cloned from
 `stage1a_asr.sbatch`; and a `stage_models.sh` extension covering the audio-event and
 dimensional-affect checkpoints.
-
-The task list is `planning/PSYCH-ASR_TODO.txt` (see the **Companion documentation** note at
-the top of this README).
 
 ---
 
@@ -1594,7 +1645,7 @@ paper cites.
   configuration exist to keep that true. Any model or agent that reads transcripts must have
   no tool-calling surface at all: a tool-enabled agent placing a session fragment into a
   search query is an exfiltration event under this constraint, not a bug.
-- **The rule is written down, and separately it is enforced.** `AI_INSTRUCTIONS.md` opens
+- **The rule is written down, and separately it is enforced.** `RULES.md` opens
   with **The data fence**, which binds any assistant working here whether or not anything
   stops it. Underneath that, a `PreToolUse` guard (`~/.claude/hooks/block-phi.py`)
   refuses every read of the raw audio, the diarization and ASR output shapes, and anything
@@ -1609,7 +1660,7 @@ paper cites.
   reading a transcript has transmitted a therapy session to a third party. A model whose
   weights execute on LIBR compute, with no tool-calling surface, is inside the fence, and
   reading session content is its *job* — the reference pass, turn coding, adjudicating where
-  the diarizers disagree. The full three-part test is in `AI_INSTRUCTIONS.md`. An
+  the diarizers disagree. `RULES.md` (its *The data fence* section) names this exception. An
   open-weight model served over somebody else's API is outside it; the licence is irrelevant
   and the network path is what counts.
 - Raw and derived data live under `phi/` (gitignored) or on study storage — never in the

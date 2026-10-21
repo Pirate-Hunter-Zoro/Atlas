@@ -2,12 +2,10 @@
 
 STDLIB ONLY. Every env imports this.
 
-Model weights are staged ONCE on the login node into a models/ directory on study
-storage and loaded thereafter by ABSOLUTE PATH with HF_HUB_OFFLINE=1, because the compute
-nodes have no outbound internet (see README, "Staging model weights"). Those absolute
-paths used to be repeated as literal defaults in five argument parsers, which meant
-moving the staging directory was a five-file edit with no way to tell whether one had
-been missed. They are here instead, and every parser's default reads from here.
+Model weights are staged ONCE on the login node into a models/ directory on study storage
+and loaded by ABSOLUTE PATH. Every job sets HF_HUB_OFFLINE=1, so a stray Hub request fails
+fast instead of fetching (see README, "Staging model weights"). Every argument parser's
+default reads its path from here, so moving the staging directory is a one-file edit.
 
 The root is overridable with PSYCH_ASR_MODELS_ROOT for anyone running this off a
 different filesystem; nothing in the pipeline sets it, so the default is what runs.
@@ -21,6 +19,13 @@ from pathlib import Path
 MODELS_ROOT = Path(os.environ.get(
     "PSYCH_ASR_MODELS_ROOT",
     "/media/studies/ehr_study/analysis/mferguson/models",
+))
+
+# The conda prefix envs, built by scripts/setup_envs.sh. Same default and same override as
+# slurm_jobs/lib/job_env.sh, which activates them; the preflight checks they exist.
+VENV_ROOT = Path(os.environ.get(
+    "PSYCH_ASR_VENV_ROOT",
+    "/media/studies/ehr_study/analysis/mferguson/venvs",
 ))
 
 # ---- Stage 1a: ASR and forced alignment ----
@@ -40,8 +45,8 @@ WHISPER_TURBO_MODEL_DIR = MODELS_ROOT / "faster-whisper-large-v3-turbo"
 
 # The two NVIDIA typists. Both load through nemo.collections.asr straight off disk, so no
 # Hub call is made -- the same reason the Sortformer arms need no HF_HUB_OFFLINE dance.
-# LICENCES READ 2026-09-13: both are CC-BY-4.0, i.e. commercial use permitted with
-# attribution, so neither adds to the two diarizer arms that are already non-commercial.
+# Both are CC-BY-4.0, i.e. commercial use permitted with attribution, so neither adds to
+# the two diarizer arms that are already non-commercial.
 # These name the staged DIRECTORY, not the archive: `hf download --local-dir` writes the
 # .nemo file inside it, and restore_from wants the file, so typists.resolve_nemo_checkpoint
 # does that last hop at load time.
@@ -71,6 +76,14 @@ STOPWATCHES = {
     "wav2vec2-large": STOPWATCH_WAV2VEC2_LARGE,
 }
 
+# Short name -> the file torch writes under TORCH_HOME/hub/checkpoints. These are
+# torchaudio's own cache filenames (each bundle's _path), and the preflight checks them:
+# a bundle whose file is absent would be fetched by the job instead of loaded.
+STOPWATCH_CHECKPOINTS = {
+    "wav2vec2-base": "wav2vec2_fairseq_base_ls960_asr_ls960.pth",
+    "wav2vec2-large": "wav2vec2_fairseq_large_lv60k_asr_ls960.pth",
+}
+
 # ---- Stage 1b: one entry per arm ----
 # Baseline. Pipeline.from_pretrained takes the DIRECTORY and finds config.yaml inside it;
 # the config's $model/... references resolve against that same directory.
@@ -79,7 +92,7 @@ PYANNOTE_MODEL_DIR = MODELS_ROOT / "pyannote-speaker-diarization-community-1"
 # Arm A. DiariZen's own from_pretrained calls snapshot_download, so the pipeline is
 # constructed from these two absolute paths instead (see diarize/diarizen_arm.py).
 DIARIZEN_MODEL_DIR = MODELS_ROOT / "diarizen-wavlm-large-s80-md-v2"
-# The speaker embedder, handed over as a plain FILE path rather than a directory. Already
+# The speaker embedder, handed over as a plain FILE path rather than a directory. Also
 # staged for the baseline arm, so it is not a third download.
 WESPEAKER_EMBEDDING_FILE = MODELS_ROOT / "pyannote-wespeaker-voxceleb-resnet34-LM" / "pytorch_model.bin"
 
@@ -98,52 +111,54 @@ NLTK_DATA = MODELS_ROOT / "nltk_data"
 
 # AND IMPORTING THIS MODULE EXPORTS THEM, because the job scripts only cover the jobs.
 # `slurm_jobs/lib/job_env.sh` exports both and every .sbatch sources it; nothing else does.
-# A pytest run, a `python -m psych_asr...` on the login node or an interactive check gets the
-# library default instead, and nltk's default is `~/nltk_data` -- so whisperx's alignment.py,
-# which calls `nltk.download('punkt_tab', quiet=True)` when the lookup misses, silently
-# duplicates the staged package into the home folder. The same call on a compute node with no
-# egress is a hang rather than a download.
+# A pytest run, a `python -m psych_asr...` on the login node or an interactive check would
+# otherwise get the library default, and nltk's default is `~/nltk_data` -- so whisperx's
+# alignment.py, which calls `nltk.download('punkt_tab', quiet=True)` when the lookup misses,
+# would duplicate the staged package into the home folder.
 #
 # setdefault, NOT assignment: an explicit export still wins, which is what keeps
 # PSYCH_ASR_MODELS_ROOT meaningful and lets a job override either path. Every env imports
 # this module, so this is the one place that reaches all of them.
 #
-# HF_HUB_OFFLINE IS DELIBERATELY NOT SET HERE. It belongs to the compute node, where there
-# is no outbound internet and a stray Hub request should fail fast. Setting it from an
-# import would also set it for `psych_asr.cli.warm_align_cache`, whose entire job is to
-# reach download.pytorch.org from the login node.
+# HF_HUB_OFFLINE IS DELIBERATELY NOT SET HERE. Every job sets it, so a stray Hub request
+# fails fast there. Setting it from an import would also set it on the login node, where
+# scripts/stage_models.sh downloads.
 os.environ.setdefault("TORCH_HOME", str(TORCH_HOME))
 os.environ.setdefault("NLTK_DATA", str(NLTK_DATA))
 
 # ---- Artifacts ----
 # Session content, and therefore PHI.
 #
-# IT LIVES IN THE WORKSPACE AND OUTSIDE GIT: `phi/`, beside this package. 308 MB of
-# identifiable therapy session audio with participant IDs in the filenames, and
-# everything the pipeline writes goes beside it. It was at `~/phi/PSYCH-ASR` until
-# 14 September 2026; it is here now, because a project's data belongs with the project.
+# IT LIVES IN THE WORKSPACE AND OUTSIDE GIT: `phi/`, beside this package. Identifiable
+# therapy session audio with participant IDs in the filenames, and everything the
+# pipeline writes goes beside it.
 #
 # THREE FENCES, and not one of them is trusted alone: `/phi/` is the first rule in this
 # workspace's .gitignore, `board/test/tracked.py` fails the whole suite if any of it is
 # ever tracked, and `ai-config/policy/phi.py` refuses to let an assistant read it by
 # matching the directory NAME. That last one is why this directory is called what it is
-# called -- rename it and 308 MB of PHI silently stops being fenced while everybody goes
-# on believing in the hook. Do not rename it.
+# called -- rename it and the PHI silently stops being fenced while everybody goes on
+# believing in the hook. Do not rename it.
 #
 # It is NOT symlinked in. A symlink is a tracked file pointing at PHI, which hands the
 # next reader of a public repository a map straight to it.
 #
 # `PSYCH_ASR_DATA` overrides the root, the same way `PSYCH_ASR_MODELS_ROOT` overrides the
 # weights, for anyone running this off other storage. Absolute on purpose, and derived
-# from THIS FILE rather than from $HOME: these paths used to resolve against the submit
-# directory, so a job launched from the wrong place wrote session content somewhere
-# nobody was looking for it. `slurm_jobs/lib/job_env.sh` works the same root out the same
-# way, so a Python step and a shell step in one job cannot disagree.
+# from THIS FILE rather than from $HOME or the submit directory, so a job launched from
+# the wrong place cannot write session content somewhere nobody is looking.
+# `slurm_jobs/lib/job_env.sh` works the same root out the same way, so a Python step and a
+# shell step in one job cannot disagree.
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = Path(os.environ.get(
     "PSYCH_ASR_DATA", str(WORKSPACE_ROOT / "phi")))
 
-STAGE1_DIR = DATA_ROOT / "stage1"
+# Where Stage 1 writes. job_env.sh exports PSYCH_ASR_STAGE1_DIR for every job: stage1/
+# itself, or stage1/grid-<id>/ for a child of the grid driver, so no grid run overwrites
+# another run's outputs. Every CLI's default --outdir reads this, so a child job writes
+# into its own run's directory without being told. Unset (a test, a login-node run), it
+# is stage1/ under the data root.
+STAGE1_DIR = Path(os.environ.get("PSYCH_ASR_STAGE1_DIR") or DATA_ROOT / "stage1")
 # Stage 2's own directory, and deliberately not a subdirectory of Stage 1's: the
 # arm-discovery globs in artifacts/naming.py match "<stem>.*" inside STAGE1_DIR, so a
 # corrected reference stored there would be enrolled as a fifth diarization arm by the
@@ -157,5 +172,7 @@ INBOX_DIR = DATA_ROOT / "inbox"
 # arm needs no change to the join.
 ARM_BASELINE = "community-1"
 ARM_DIARIZEN = "diarizen"
+# The same DiariZen model with its speaker count left to the checkpoint's own clustering.
+ARM_DIARIZEN_FREE = ARM_DIARIZEN + "-free"
 ARM_SORTFORMER = "sortformer"
 ARM_SORTFORMER_STREAMING = "sortformer-streaming"

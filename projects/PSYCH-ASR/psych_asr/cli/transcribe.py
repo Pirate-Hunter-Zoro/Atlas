@@ -3,15 +3,15 @@
     python -m psych_asr.cli.transcribe <audio.wav> --typist large-v3        (asr_env)
     python -m psych_asr.cli.transcribe <audio.wav> --typist parakeet        (nemo_env)
 
-Output: data/stage1/<stem>.<typist>.asr.json -- segments with loose boundaries and no
-word-level timing, plus the language. NO word times, because the word times are the NEXT
-job's answer and a typist's own guess at them is not the stopwatch being measured.
+Output: <stem>.<typist>.asr.json in the Stage 1 directory (config.STAGE1_DIR) -- segments
+with loose boundaries and no word-level timing, plus the language. NO word times, because
+the word times are the NEXT job's answer and a typist's own guess at them is not the
+stopwatch being measured.
 
-WHY THIS IS ITS OWN JOB. Stage 1a used to transcribe and align in one call, which was
-possible only because both halves were whisperx. Parakeet and Canary need nemo_env, the
-same env the Sortformer arms run in, and nothing imports whisperx and NeMo into one
-process. So the two passes are two jobs with a file between them -- the RTTM seam of
-Stage 1b, cut again one stage earlier.
+WHY THIS IS ITS OWN JOB. Parakeet and Canary need nemo_env, the same env the Sortformer
+arms run in, and nothing imports whisperx and NeMo into one process. So transcription and
+alignment are two jobs with a file between them -- the RTTM seam of Stage 1b, cut again
+one stage earlier.
 
 RUN THIS IN THE ENV THE TYPIST NEEDS. The registry says which; the job log prints it.
 """

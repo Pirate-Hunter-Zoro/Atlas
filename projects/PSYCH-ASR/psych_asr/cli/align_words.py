@@ -7,8 +7,9 @@ whisperx, and never NeMo. That is the point of the seam -- a NeMo typist's outpu
 into this job as a file and the stopwatch never learns where it came from.
 
 IN:  the original audio + <stem>.<typist>.asr.json from Stage 1a-i
-OUT: data/stage1/<stem>.<typist>+<stopwatch>.aligned.json -- segments, word_segments and
-     language, with NO "speaker" keys anywhere. Stage 1c adds those.
+OUT: <stem>.<typist>+<stopwatch>.aligned.json in the Stage 1 directory (config.STAGE1_DIR)
+     -- segments, word_segments and language, with NO "speaker" keys anywhere. Stage 1c
+     adds those.
 
 THE ARM NAME IS HALF A GRID CELL. "large-v3+wav2vec2-base" says who typed and who timed;
 Stage 1b appends the name-tagger. Nothing downstream parses the string -- every artifact

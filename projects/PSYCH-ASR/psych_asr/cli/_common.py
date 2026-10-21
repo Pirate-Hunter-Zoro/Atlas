@@ -2,9 +2,8 @@
 
 STDLIB ONLY.
 
-Six parsers used to re-declare --outdir, --num-speakers and --arm with their own help text
-and their own hardcoded absolute model paths. The flags are declared once here, so a
-default cannot drift between two jobs that are supposed to agree.
+--outdir, --num-speakers and --arm are declared once here, with one help text and one
+default each, so a default cannot drift between two jobs that are supposed to agree.
 """
 
 from pathlib import Path
@@ -13,8 +12,9 @@ from .. import config
 
 
 def add_output_dir(parser, default=config.STAGE1_DIR):
-    """--outdir, defaulting to data/stage1. Session content is PHI and data/ is gitignored
-    wholesale; nothing in Stage 1 may be written outside it."""
+    """--outdir, defaulting to config.STAGE1_DIR: the run's Stage 1 directory under the data
+    root (stage1/, or stage1/grid-<id>/ for a grid child). Session content is PHI and the
+    data root is outside git; nothing in Stage 1 may be written outside it."""
     parser.add_argument("--outdir", type=str, default=str(default),
                         help="where to write the artifacts (default: %(default)s)")
 

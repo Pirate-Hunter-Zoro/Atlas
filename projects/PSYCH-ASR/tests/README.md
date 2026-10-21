@@ -17,3 +17,9 @@ Run from the repo root:
 
 `test_join.py` needs whisperx and skips itself where it is absent, which is what lets the
 same suite run in the torch-free env.
+
+The grid's tests are stdlib and run anywhere: `test_grid.py` (axes, job plan, driver,
+RELAY lines), `test_join_grid_plan.py` (cell states and the manifest), `test_preflight.py`
+(asset statuses and inbox count; its load test skips without torchaudio) and
+`test_imports_light.py` (none of them imports a model library). `board/job_env.py` runs
+under the board's runner and checks the recipes.

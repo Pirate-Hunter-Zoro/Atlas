@@ -19,18 +19,19 @@
 # never NeMo. That is what the seam buys -- a NeMo typist's output arrives as a file and the
 # stopwatch never learns where it came from.
 #
-# TORCH_HOME must be exported (activate_env does it): the alignment bundle comes from
-# download.pytorch.org, not the Hugging Face Hub, so HF_HUB_OFFLINE does not cover it and an
-# unstaged bundle hangs on a node with no outbound internet rather than failing.
+# TORCH_HOME must be exported (activate_env does it): both stopwatch bundles come from
+# download.pytorch.org, not the Hugging Face Hub, so HF_HUB_OFFLINE does not cover them.
+# scripts/stage_models.sh fetches both into TORCH_HOME, and the preflight checks they are
+# there.
 #
 # Submit FROM THE REPO ROOT.
 
 set -e
 source slurm_jobs/lib/job_env.sh
 
-# INPUT_DIR comes from job_env.sh: the session audio lives OUTSIDE this
-# repository, at $PSYCH_ASR_DATA (default: this workspace's `phi/`).
-STAGE1_DIR=data/stage1
+# INPUT_DIR and STAGE1_DIR come from job_env.sh: the session audio lives OUTSIDE this
+# repository, at $PSYCH_ASR_DATA (default: this workspace's `phi/`), and a grid child
+# reads and writes its own run's directory.
 TYPIST="${1:-large-v3}"
 STOPWATCH="${2:-wav2vec2-base}"
 
@@ -40,7 +41,7 @@ report_gpu
 AUDIO_PATH="$(sole_wav "${INPUT_DIR}")"
 ASR_PATH="${STAGE1_DIR}/$(basename "${AUDIO_PATH}" .wav).${TYPIST}.asr.json"
 if [[ ! -f "${ASR_PATH}" ]]; then
-    echo "No ${ASR_PATH}. Did stage1a_transcribe run for ${TYPIST}?" >&2
+    echo "No ${TYPIST} asr.json in the Stage 1 directory. Did stage1a_transcribe run for ${TYPIST}?" >&2
     exit 1
 fi
 

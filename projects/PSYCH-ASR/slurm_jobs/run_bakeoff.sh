@@ -15,8 +15,13 @@
 # arms with AFTERANY, so one arm crashing still produces transcripts for the others; a
 # dead arm then shows up as a missing file, which is a result rather than a silent gap.
 #
-# Run FROM THE REPO ROOT. Requires exactly one .wav in $PSYCH_ASR_DATA/inbox
-# (default: this workspace's `phi/inbox`) -- the session audio is not in this repository.
+# The single-typist path the regression gate uses. The full typist x stopwatch x
+# name-tagger grid is slurm_jobs/stage1_grid.sbatch.
+#
+# Run FROM THE REPO ROOT, having sourced slurm_jobs/lib/job_env.sh -- that is what sets
+# PSYCH_ASR_DATA, and this script refuses rather than guessing. Requires exactly one .wav
+# in $PSYCH_ASR_DATA/inbox (default: this workspace's `phi/inbox`) -- the session audio is
+# not in this repository.
 # ---------------------------------------------------------------------------
 
 set -o errexit
@@ -41,7 +46,7 @@ fi
 
 WAVS=( "${PSYCH_ASR_DATA:?source slurm_jobs/lib/job_env.sh first}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
-    echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
+    echo "The inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
     exit 1
 fi
 echo "Input: ${WAVS[0]}"
@@ -65,4 +70,5 @@ printf '%-30s: %s\n' "1c join + render" "${JOIN_JOB}"
 
 echo ""
 echo "Watch with: squeue -u \$USER"
-echo "Logs land in slurm_jobs/logs/ ; per-arm transcripts in data/stage1/<stem>.<arm>.transcript.txt"
+echo "Logs land in slurm_jobs/logs/. Per-arm transcripts land in the data root's stage1"
+echo "directory, as <stem>.<arm>.transcript.txt."

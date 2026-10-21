@@ -46,7 +46,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
 
     pinned = args.num_speakers > 0
-    arm = args.arm or (config.ARM_DIARIZEN if pinned else f"{config.ARM_DIARIZEN}-free")
+    arm = args.arm or (config.ARM_DIARIZEN if pinned else config.ARM_DIARIZEN_FREE)
 
     audio_path = Path(args.audio)
     output_dir = prepare_output_dir(args.outdir)
