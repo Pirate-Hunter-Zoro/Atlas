@@ -1,0 +1,149 @@
+{
+ "version": 1,
+ "note": "2026-10-21-v1.md",
+ "round": 1,
+ "document": "colibri-pitch",
+ "title": "Colibri: GLM-5.2 at int4 on one GPU",
+ "ask": "revise",
+ "source": "docs/colibri-pitch/colibri-pitch.tex",
+ "pdf": "docs/colibri-pitch/colibri-pitch.pdf",
+ "filed": "2026-10-21 10:08",
+ "before": {
+  "file": "before.tex",
+  "commit": "69ff1975ecf4cb3c2cc9705bc5bb7ff3f0a384c1",
+  "source": "docs/colibri-pitch/colibri-pitch.tex"
+ },
+ "how_to_answer": "One entry in `answers` per id in `items`, keyed by the id: {\"disposition\": \"done\" | \"partly\" | \"not done\" | \"pushed back\", \"did\": \"one sentence of what you did; for not done and pushed back, the reply the owner reads beside their ink\", \"new\": \"the new wording of the passage you changed, copied exactly from the source (required for done and partly)\"}. An id you could not find is still answered: not done, saying so. Change nothing else in this file.",
+ "items": [
+  {
+   "id": "R1.1",
+   "kind": "ink",
+   "page": 3,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.1.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p3.png"
+  },
+  {
+   "id": "R1.2",
+   "kind": "ink",
+   "page": 3,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.2.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p3.png"
+  },
+  {
+   "id": "R1.3",
+   "kind": "ink",
+   "page": 3,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.3.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p3.png"
+  },
+  {
+   "id": "R1.4",
+   "kind": "ink",
+   "page": 3,
+   "strokes": 2,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.4.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p3.png"
+  },
+  {
+   "id": "R1.5",
+   "kind": "ink",
+   "page": 4,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.5.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p4.png"
+  },
+  {
+   "id": "R1.6",
+   "kind": "ink",
+   "page": 5,
+   "strokes": 25,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.6.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p5.png"
+  },
+  {
+   "id": "R1.7",
+   "kind": "ink",
+   "page": 5,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.7.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p5.png"
+  },
+  {
+   "id": "R1.8",
+   "kind": "ink",
+   "page": 6,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.8.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p6.png"
+  },
+  {
+   "id": "R1.9",
+   "kind": "ink",
+   "page": 6,
+   "strokes": 2,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.9.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p6.png"
+  },
+  {
+   "id": "R1.10",
+   "kind": "ink",
+   "page": 7,
+   "strokes": 1,
+   "crop": "docs/colibri-pitch/feedback/2026-10-21-v1/R1.10.svg",
+   "page_image": "docs/colibri-pitch/feedback/2026-10-21-v1/marked-p7.png"
+  }
+ ],
+ "answers": {
+  "R1.1": {
+   "disposition": "done",
+   "did": "Labelled the context length under the token vector the mark touched.",
+   "new": "\\node[lbl] (in) {$[t_0, t_1, \\dots, t_{\\mathrm{ctx}-1}]$\\\\[-1pt]\\textit{the tokens so far, ctx = context length}};"
+  },
+  "R1.2": {
+   "disposition": "done",
+   "did": "Defined a block beneath the diagram, since the mark sits on the '75 blocks' brace.",
+   "new": "\\node[aside, below=6mm of out, text width=40mm] {a block $=$ attention + its 256 routed experts};"
+  },
+  "R1.3": {
+   "disposition": "done",
+   "did": "Rewrote the Router bullet the mark sits beside, defining hidden state in place.",
+   "new": "\\item \\textbf{Router}: scores all 256 experts in a block from the token's hidden state --- the vector that block computed --- and keeps the top $k=8$. Those eight picks are the token's \\emph{route} through the block."
+  },
+  "R1.4": {
+   "disposition": "done",
+   "did": "Replaced the singular 'that pick' with the eight picks that make up the route, at the marked sentence.",
+   "new": "\\item \\textbf{Router}: scores all 256 experts in a block from the token's hidden state --- the vector that block computed --- and keeps the top $k=8$. Those eight picks are the token's \\emph{route} through the block."
+  },
+  "R1.5": {
+   "disposition": "done",
+   "did": "Reworded the node label the dot touches so the serve job is what runs, not the node.",
+   "new": "\\node[draw, rounded corners=3pt, inner sep=4pt, fit=(ram)(gpu), label={[lbl]above:compute node (compute300--305), while Colibri serves}] (node) {};"
+  },
+  "R1.6": {
+   "disposition": "done",
+   "did": "Answered the handwritten question by defining 'part' at the top of the slide, before the diagram uses it.",
+   "new": "{\\small \\textbf{A part} is one routed expert's weights --- the unit the loader places on the GPU or reads from RAM.\\par}"
+  },
+  "R1.7": {
+   "disposition": "done",
+   "did": "Replaced 'no parts' on the size bar with 'no experts' so the bar no longer uses the term before it is defined.",
+   "new": "  {$\\approx$\\,12\\,GB dense + attention\\\\ (no experts)};"
+  },
+  "R1.8": {
+   "disposition": "not done",
+   "did": "This is a bare dot in the empty lower-left of page 6, with no word or line under it, so there is no request I can read; tell me the word and the change and I will make it."
+  },
+  "R1.9": {
+   "disposition": "not done",
+   "did": "These are two bare dots in the empty lower-left of page 6, with no word or line under them, so there is no request I can read; tell me the word and the change and I will make it."
+  },
+  "R1.10": {
+   "disposition": "done",
+   "did": "Added a one-line caption under the unlabelled curve; `board build` passed before and after with no Overfull or Underfull box, and `board check` passes.",
+   "new": "{\\footnotesize Expected distinct experts read in one block as $t$ tokens share a pass; the curve approaches the block's 256.}"
+  }
+ }
+}
