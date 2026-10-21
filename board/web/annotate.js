@@ -1177,9 +1177,15 @@ function follow() {
    a tap a moment earlier, or from an element outside a card -- survives
    `user-select: none`, and iOS is happy to keep extending it. So refuse the
    gesture outright while annotating, and drop anything already selected as the
-   pen goes down. */
+   pen goes down. A text field is the exception: placing the caret in a note
+   typed with the pen still on is a selection too, and refusing it left the
+   library's note box with no way to fix a word. So is a panel marked
+   `data-no-ink`, which is never drawn on. */
+var FIELD = "input, textarea, select, [contenteditable], [data-no-ink]";
 function noSelect(ev) {
-  if (on) ev.preventDefault();
+  var t = ev.target && ev.target.nodeType === 1 ? ev.target
+        : ev.target && ev.target.parentElement;
+  if (on && !(t && t.closest && t.closest(FIELD))) ev.preventDefault();
 }
 
 function dropSelection() {
@@ -1611,6 +1617,8 @@ function penWatch() {
 }
 
 /* A control is not a place to draw, and the pen has to be able to press one.
+   Nor is a panel marked `data-no-ink` (the library's note and round panels):
+   the Pencil has to scroll its list and select in it while the pen is on.
    This listener is on the document, and a `preventDefault` on `touchstart`
    also suppresses the synthetic click, so the refusal stops at the edge of
    any control (the board's and the slate's tools alike). A button has no
@@ -1619,7 +1627,7 @@ function onControl(ev) {
   var t = ev && ev.target;
   if (!t || !t.closest) return false;
   return !!t.closest("button, a, input, textarea, select, label, [role='button'],"
-                     + " .annbar, .sl-tools");
+                     + " .annbar, .sl-tools, [data-no-ink]");
 }
 
 /* Whether this touch begins a gesture rather than joining one: every contact

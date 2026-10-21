@@ -577,6 +577,60 @@ try:
     check("and one whose write-up is there is refused, naming it",
           "courses/Test/docs/x/writeup.tex" in said
           and sessions.get(s3["id"], base)["subject"] == "courses/Test", said)
+    try:
+        sessions.bind(s3["id"], "projects/Proj", base=base)
+        said = ""
+    except sessions.Unconfirmed as exc:
+        said = str(exc)
+    check("a bind off a subject holding its write-up waits for the owner, "
+          "naming it", "courses/Test/docs/x/writeup.tex" in said
+          and sessions.get(s3["id"], base)["subject"] == "courses/Test", said)
+    s3_dir = sessions.path(s3["id"], base)
+    code, out = board(["bind", "projects/Proj"], session=s3_dir)
+    check("`board bind` refuses it too, naming --force for the owner's ask",
+          code == 1 and sessions.get(s3["id"], base)["subject"] == "courses/Test"
+          and "board bind projects/Proj --force" in out, out)
+    code, out = board(["bind", "projects/Proj", "--force"], session=s3_dir)
+    check("and --force, the owner's confirmation, moves it",
+          code == 0 and sessions.get(s3["id"], base)["subject"] == "projects/Proj",
+          out)
+    sessions.bind(s3["id"], "courses/Test", base=base)
+    check("a move back off a subject it left nothing in needs no confirmation",
+          sessions.get(s3["id"], base)["subject"] == "courses/Test")
+    # Nothing written up yet, but a lesson under way: one stray tap would
+    # send its first write-up to the wrong subject.
+    s4 = sessions.new("Taught", base=base, now=now + 160)
+    sessions.bind(s4["id"], "courses/Test", base=base)
+    with open(os.path.join(sessions.path(s4["id"], base), "cards",
+                           "0001-first.md"), "w", encoding="utf-8") as fh:
+        fh.write("---\ntitle: First\n---\nA card.\n")
+    try:
+        sessions.bind(s4["id"], "projects/Proj", base=base)
+        said = ""
+    except sessions.Unconfirmed as exc:
+        said = str(exc)
+    check("a bind off a subject with cards taught but nothing written up "
+          "waits for the owner", "1 card" in said
+          and sessions.get(s4["id"], base)["subject"] == "courses/Test", said)
+    sessions.bind(s4["id"], "projects/Proj", base=base, force=True)
+    check("and moves when confirmed",
+          sessions.get(s4["id"], base)["subject"] == "projects/Proj")
+    # A send is the owner's own ask: cards taught, nothing left behind, and
+    # it goes.
+    s5 = sessions.new("Taught, then sent", base=base, now=now + 165)
+    sessions.bind(s5["id"], "courses/Test", base=base)
+    with open(os.path.join(sessions.path(s5["id"], base), "cards",
+                           "0001-first.md"), "w", encoding="utf-8") as fh:
+        fh.write("---\ntitle: First\n---\nA card.\n")
+    try:
+        rec, _filed, _ = sessions.send(s5["id"], "projects/Proj", base=base)
+        said = ""
+    except sessions.Refused as exc:
+        rec, said = {}, str(exc)
+    check("a send off a subject with cards but nothing left there goes "
+          "without a second confirmation",
+          not said and rec.get("subject") == "projects/Proj"
+          and sessions.get(s5["id"], base)["subject"] == "projects/Proj", said)
 
     # Two sends at once (a double tap, or a changed mind) run one after the
     # other: the first binds and files everything, the second finds the

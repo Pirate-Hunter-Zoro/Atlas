@@ -8,6 +8,7 @@ Bring the subject's TUTOR.md up to date with `board memo <section>`, the section
 - what they got wrong, and what the misunderstanding actually was
 - what they got right, so it is not re-taught
 - the single next thing, and why that one
+- every direction they gave that still holds -- what they dropped, what not to drill, what to focus on -- so no later turn re-asks it
 - anything about how this student works that took you a while to learn
 
 Never write RULES.md or the subject's README.md; both are the owner's.

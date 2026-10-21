@@ -174,6 +174,32 @@ check("and the session stays bound", record(SID).get("subject") == "courses/Line
 status, got = ask("POST", "/s/%s/bind" % SID, {"subject": "projects/Beta"})
 check("rebinding to another subject is allowed",
       status == 200 and record(SID).get("subject") == "projects/Beta")
+# A session that already left its write-up in a subject moves off it only
+# when the owner confirms: one stray tap otherwise misfiles every later turn.
+def set_record(sid, rec):
+    """session.json replaced whole, as the server's own writes are: a reader
+    never sees it half-written."""
+    where = os.path.join(sessions.path(sid, atlas), "session.json")
+    with open(where + ".tmp", "w") as fh:
+        json.dump(rec, fh)
+    os.replace(where + ".tmp", where)
+
+
+before = record(SID)
+set_record(SID, dict(before, writeup="projects/Beta/docs/x/writeup.tex"))
+status, got = ask("POST", "/s/%s/bind" % SID, {"subject": "courses/Linear-Algebra"})
+check("a move off a subject holding its write-up asks first (%d)" % status,
+      status == 409 and got.get("confirm") is True
+      and "projects/Beta/docs/x/writeup.tex" in (got.get("error") or "")
+      and record(SID).get("subject") == "projects/Beta")
+status, got = ask("POST", "/s/%s/bind" % SID,
+                  {"subject": "courses/Linear-Algebra", "force": True})
+check("and makes it when confirmed",
+      status == 200 and record(SID).get("subject") == "courses/Linear-Algebra")
+status, got = ask("POST", "/s/%s/bind" % SID, {"subject": "projects/Beta"})
+check("a move off a subject it left nothing in needs no confirmation",
+      status == 200 and record(SID).get("subject") == "projects/Beta")
+set_record(SID, dict(record(SID), writeup=before.get("writeup")))
 status, _ = ask("POST", "/bind", {"subject": "projects/Beta"})
 check("unprefixed, /bind is no route (%d)" % status, status == 404)
 

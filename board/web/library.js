@@ -89,6 +89,7 @@ var els = {
   note: document.getElementById("note"),
   noteTitle: document.getElementById("note-title"),
   noteWhere: document.getElementById("note-where"),
+  noteBody: document.getElementById("note-body"),
   noteText: document.getElementById("note-text"),
   notePage: document.getElementById("note-page"),
   noteMarks: document.getElementById("note-marks"),
@@ -220,7 +221,7 @@ function since(at) {
 }
 
 function load() {
-  libFetch("/library.json", { credentials: "same-origin" })
+  return libFetch("/library.json", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) { paint(got || {}); })
     .catch(function () {
@@ -672,7 +673,12 @@ var reader = window.Reader ? window.Reader.mount({
   keep: {
     /* Only for the document on the glass: that is the only build this page
        knows it drew. */
-    build: function (id) { return openBuild && mineKey(id) ? openBuild : null; },
+    build: function (id) {
+      if (!openBuild || !mineKey(id)) return null;
+      /* Ink saved now is ink drawn on this build: the server stamps it so. */
+      inkBuilds[id] = openBuild.digest;
+      return openBuild;
+    },
     /* WHICH MEETING DECK, so a reader left open over a deck asked for again
        cannot write the old deck's rings onto the new one's slides: the board
        answers `gone`, and the ink is let go. */
@@ -694,6 +700,7 @@ function read(doc, changes, page) {
      changes", off (and one tap away) otherwise. */
   if (ledger) ledger.open(doc, !!changes);
   openBuild = null;
+  inkBuilds = {};
   openDeck = deckOf(doc);
   paintRebuilt(null);
   paintCheck();
@@ -850,6 +857,7 @@ function drawn(got, h) {
   /* THE BUILD ON THE GLASS, handed back with every save of this document's
      ink -- and the flag, when ink on it was drawn on another. */
   openBuild = got.build || null;
+  inkBuilds = got.builds || {};
   openDeck = deckOf(openDoc);
   paintRebuilt(got.rebuilt || null);
   paintCheck();
@@ -961,6 +969,7 @@ function closed() {
   }
   openDoc = null;
   openBuild = null;
+  inkBuilds = {};
   openDeck = null;
   openPages = 0;
   drawnPages = 0;
@@ -1095,7 +1104,10 @@ function decodePage(img) {
    sized against the decoded pages, because a page with no picture is a page
    the send cannot carry. A page not drawn in the reader has no picture to make
    and is left alone: its strokes are already on disk. Never a send -- the
-   note is the send. Resolves to the keys whose picture the board took. */
+   note is the send. INK DRAWN ON ANOTHER BUILD IS NOT PICTURED: the page on
+   the glass is the new build's, and old ink burned over it points at words
+   that have moved; the round crops it from its own build instead. Resolves
+   to the keys whose picture the board took. */
 function savePictures(docId) {
   if (!window.Annotate || !window.Annotate.picture || !openDoc
       || openDoc.id !== docId) return Promise.resolve([]);
@@ -1106,7 +1118,8 @@ function savePictures(docId) {
     return fig && fig.querySelector("img");
   };
   var ids = window.Annotate.marked().filter(function (id) {
-    return id.indexOf(mine) === 0;
+    return id.indexOf(mine) === 0
+      && !(openBuild && inkBuilds[id] && inkBuilds[id] !== openBuild.digest);
   });
   var waited = ids.some(function (id) { return !decoded(imgOf(id)); });
   return Promise.all(ids.map(function (id) { return decodePage(imgOf(id)); }))
@@ -1137,6 +1150,7 @@ function savePictures(docId) {
    after a save lands: the row carries how many pages are marked, and the note
    dialog decides whether the send button is live off the same number. */
 var openBuild = null;                /* the build on the glass: `got.build` */
+var inkBuilds = {};                  /* key -> the digest its ink was drawn on */
 var keeper = reader ? reader.keeper : null;
 
 function mineKey(id) {
@@ -1229,7 +1243,56 @@ function say(doc, page) {
   noteSplit = [];
   askSplit();
   els.note.hidden = false;
-  els.noteText.focus();
+  els.noteBody.scrollTop = 0;
+  fitNote();
+  /* THE KEYBOARD ONLY WHEN THERE IS SOMETHING TO TYPE. On an iPad it takes
+     half the glass, and with ink waiting the ink is the whole message -- so
+     the box is focused for a note that has nothing else, or a draft to go
+     on with, and otherwise "send it" is what is in front of them. */
+  if (noteAsk === "revise" && (els.noteText.value.trim()
+      || (!inkWaiting(doc) && !reopenedOn(doc)))) {
+    els.noteText.focus();
+  }
+}
+
+/* THE PANEL IS THE SIZE OF WHAT CAN BE SEEN. A fixed `inset: 0` box on iOS
+   is the layout viewport, which the keyboard does not shrink, so with the
+   keyboard up its bottom -- the buttons -- was under the keys. While it is
+   open the panel follows `visualViewport`, and goes back to `inset: 0` when
+   it shuts or where there is none. */
+function fitNote() {
+  var vv = window.visualViewport;
+  var s = els.note.style;
+  if (!vv || els.note.hidden) {
+    s.top = s.left = s.width = s.height = s.bottom = s.right = "";
+    return;
+  }
+  s.top = vv.offsetTop + "px";
+  s.left = vv.offsetLeft + "px";
+  s.width = vv.width + "px";
+  s.height = vv.height + "px";
+  s.bottom = s.right = "auto";
+}
+
+var noteFrame = 0;
+function fitNoteSoon() {
+  if (noteFrame || els.note.hidden) return;
+  noteFrame = (window.requestAnimationFrame || function (fn) {
+    return setTimeout(fn, 16);
+  })(function () { noteFrame = 0; fitNote(); });
+}
+
+if (window.visualViewport) {
+  ["resize", "scroll"].forEach(function (ev) {
+    window.visualViewport.addEventListener(ev, fitNoteSoon);
+  });
+}
+window.addEventListener("orientationchange", fitNoteSoon);
+
+function shutNote() {
+  els.note.hidden = true;
+  noteFor = null;
+  fitNote();
 }
 
 /* ------------------------------------------- the split, before it goes */
@@ -1371,10 +1434,7 @@ els.noteText.addEventListener("input", keepDraft);
 els.noteText.addEventListener("input", laterSplit);
 els.purpose.addEventListener("input", keepDraft);
 
-els.noteCancel.onclick = function () {
-  els.note.hidden = true;
-  noteFor = null;
-};
+els.noteCancel.onclick = shutNote;
 
 /* ------------------------------------------------- reading a round back */
 function openRounds(doc) {
@@ -1419,8 +1479,9 @@ els.roundClose.onclick = function () { els.round.hidden = true; };
 els.noteSend.onclick = function () {
   var said = els.noteText.value.trim();
   var aim = els.purpose.value.trim();
-  var ink = ((noteFor && noteFor.marks && noteFor.marks.pages) || 0)
-    + reopenedOn(noteFor);
+  /* The same count `paintSend` lit the button on, so a tap on a live button
+     is never a tap that does nothing. */
+  var ink = inkWaiting(noteFor) + reopenedOn(noteFor);
   if (!noteFor) return;
   if (noteAsk === "rework" ? aim.length < PURPOSE_LEAST : (!said && !ink)) return;
   var asked = noteAsk;
@@ -1446,11 +1507,20 @@ els.noteSend.onclick = function () {
     body: JSON.stringify({ document: forDoc, text: said, page: notePage,
                            ask: asked, purpose: aim, merge: noteMerge.slice() })
   }); }).then(function (r) {
-    return r.json().catch(function () { return {}; });
+    /* ONLY THE BOARD'S OWN YES IS A YES. A proxy's error page or a crash's 500
+       parses as nothing, and nothing read as "filed" -- the ink still waiting
+       and the panel saying it had gone. */
+    return r.json().catch(function () { return null; }).then(function (got) {
+      if (r.ok === false && !(got && got.ok === false && got.error)) {
+        return { ok: false, error: "the board answered " + (r.status || "with an error")
+                                   + " and nothing was asked" };
+      }
+      return got;
+    });
   }).then(function (got) {
     freePen();
     els.noteSaid.hidden = false;
-    if (!got || got.ok === false) {
+    if (!got || got.ok !== true) {
       els.noteSaid.className = "note-said bad";
       /* A REFUSAL NAMES WHAT IS IN THE WAY and nothing was written -- an
          overhaul against an uncommitted source is the one that matters, since
@@ -1459,6 +1529,21 @@ els.noteSend.onclick = function () {
         || "the board refused it") + ".";
       els.noteSend.disabled = false;
       els.noteSend.textContent = was;
+      return;
+    }
+    /* FILED IS NOT SENT. The note is on disk but no turn was woken (the inbox
+       could not be written, or no session would take it), so the server left
+       the ink waiting and counts the round nowhere: this says so in red, keeps
+       the words, and leaves the button live for the retry, which files the
+       same ink again. */
+    if (!got.asked) {
+      els.noteSaid.className = "note-said bad";
+      els.noteSaid.textContent = "Not sent: "
+        + (got.detail || "the tutor could not be asked") + ". Your marks are "
+        + "still waiting; send it again.";
+      els.noteSend.disabled = false;
+      els.noteSend.textContent = was;
+      load();
       return;
     }
     els.noteSaid.className = "note-said";
@@ -1488,12 +1573,21 @@ els.noteSend.onclick = function () {
        being right about a second after one lands. */
     load();
   }).catch(function () {
+    /* NO ANSWER IS NOT NO. The round may have been filed before the reply was
+       lost, so the list is asked again, and the button is live only while the
+       reloaded document still has marks waiting or words were typed. */
     freePen();
     els.noteSaid.hidden = false;
     els.noteSaid.className = "note-said bad";
-    els.noteSaid.textContent = "The board is not answering; nothing was written.";
-    els.noteSend.disabled = false;
+    els.noteSaid.textContent = "The board did not answer; this may or may not "
+      + "have been filed.";
     els.noteSend.textContent = was;
+    els.noteSend.disabled = true;
+    load().then(function () {
+      var now = null;
+      docs.forEach(function (d) { if (d.id === forDoc) now = d; });
+      els.noteSend.disabled = !(said || aim || inkWaiting(now) > 0);
+    });
   });
 };
 

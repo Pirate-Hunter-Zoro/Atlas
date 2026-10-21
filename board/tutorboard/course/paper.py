@@ -34,7 +34,9 @@ PAGE_WIDTH = 1240
 MAX_PAGES = 160
 
 # Page sets kept: shared by every session, and a marked copy needs the build
-# its ink was drawn on. Least recently opened goes first.
+# its ink was drawn on. Least recently opened goes first; a set unsent ink was
+# drawn on is touched whenever its document opens or a round is filed
+# (`library.drawn_on`, `ledger.file_round`), so it outlives the sweep.
 CACHE_SETS = 24
 
 

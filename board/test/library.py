@@ -560,6 +560,54 @@ try:
           "sends the ink",
           status == 200 and body.get("ok") is True and body.get("marks") == 2)
 
+    # INK IS SENT WHEN A TURN WAS ASKED FOR IT, AND NOT BEFORE. A deck's
+    # markups were "sent" in the owner's head and in no inbox; what the page is
+    # told has to be the truth about the inbox. The ask is broken here the way
+    # a full or read-only disk breaks it: the inbox cannot be appended to.
+    from tutorboard.course import ledger as ledger_mod                 # noqa: E402
+    ink_keys = ["doc/%s/p2" % marked["id"], "doc/%s/p5" % idents[-1]]
+    ink(ink_keys[0], strokes=4)
+    ink(ink_keys[1], strokes=2, png=False)
+    library.forget()
+    check("fresh ink on the document is waiting before the send",
+          not any(lesson_notes.load_notes_sent(repo).get(k) for k in ink_keys))
+    woke_before = len(woken)
+    inbox_kept = repo.messages_path + ".kept"
+    os.replace(repo.messages_path, inbox_kept)
+    os.makedirs(repo.messages_path)
+    try:
+        status, body = post("/library/feedback", {"document": mine["id"], "text": ""})
+    finally:
+        os.rmdir(repo.messages_path)
+        os.replace(inbox_kept, repo.messages_path)
+    check("a send whose turn could not be asked says so: asked is false, with "
+          "the reason, so the page can show it in red",
+          status == 200 and body.get("ok") is True and body.get("asked") is False
+          and "nothing could be asked" in (body.get("detail") or ""))
+    check("and no turn was woken for it", len(woken) == woke_before)
+    check("and the ink is still waiting -- never marked sent for an ask that "
+          "did not happen",
+          not any(lesson_notes.load_notes_sent(repo).get(k) for k in ink_keys))
+    check("and the round it filed counts nowhere",
+          os.path.isfile(os.path.join(ledger_mod.round_dir(body.get("path") or ""),
+                                      "unsent.json")))
+    unasked_rel = body.get("rel")
+
+    status, body = post("/library/feedback", {"document": mine["id"], "text": ""})
+    check("the retry is asked, carrying the same ink",
+          status == 200 and body.get("asked") is True and body.get("marks") == 2)
+    check("it wakes a turn on the session the page was served from",
+          len(woken) == woke_before + 1 and woken[-1] is repo)
+    with open(repo.messages_path, encoding="utf-8") as fh:
+        line = [json.loads(l) for l in fh if l.strip()][-1]
+    check("and the inbox's newest line is that round's [revise], unread, from "
+          "the student",
+          line["text"].startswith("[revise]") and body["rel"] in line["text"]
+          and unasked_rel not in line["text"] and line.get("read") is False
+          and line.get("from") == "student" and line.get("signal") == "revise")
+    check("and only now is the ink marked sent",
+          all(lesson_notes.load_notes_sent(repo).get(k) for k in ink_keys))
+
     status, body = get("/library/view/" + mine["id"])
     check("asking for the pages of a document reaches the renderer, and names "
           "the strokes the board took off its pages",
@@ -1082,11 +1130,11 @@ check("and each request is counted once: the round whose ask failed counts "
       and count1["open"] == count0["open"] + fresh
       and os.path.basename(failed["path"]) not in
       [r["note"] for r in ledger.view(lrepo, ldoc)["rounds"]])
-check("the round numbers go past the unsent one, never back",
+check("a retry takes the unsent round's number, so a failed ask burns none",
       failed["ids"] and json.load(open(ledger.ledger_path(retry["path"]),
                                        encoding="utf-8"))["round"]
       == json.load(open(ledger.ledger_path(failed["path"]),
-                        encoding="utf-8"))["round"] + 1)
+                        encoding="utf-8"))["round"])
 
 # A NOTE DELETED DOES NOT HAND ITS NUMBER ON.
 high = json.load(open(ledger.ledger_path(retry["path"]), encoding="utf-8"))["round"]
@@ -1380,6 +1428,102 @@ check("and the strokes it took are named for a reader still showing them",
 code3, out3 = board_round(pdoc["id"])
 check("with no ink and nothing reopened, `board round` refuses and says why",
       code3 == 1 and "nothing to file" in out3)
+
+# INK DRAWN ON AN OLDER BUILD. A deck marked on 11 pages and rebuilt to 2: the
+# round keeps no picture of the new build's page under the old ink, crops it
+# from the older build's cached rendering, says so at the top of the note, and
+# keeps that rendering alive in the page cache while the ink points at it.
+import struct                                                          # noqa: E402
+from tutorboard import paths                                           # noqa: E402
+
+real_pages = paths.PAGES
+paths.PAGES = tempfile.mkdtemp(prefix="tutor-pages-")
+ob_tmp = tempfile.mkdtemp(prefix="tutor-oldbuild-")
+with open(os.path.join(ob_tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Old Build Workspace"}, fh)
+os.makedirs(os.path.join(ob_tmp, "writeups", "deck"))
+with open(os.path.join(ob_tmp, "writeups", "deck", "deck.tex"), "w",
+          encoding="utf-8") as fh:
+    fh.write("\\documentclass{beamer}\n\\begin{document}\nHello.\n\\end{document}\n")
+ob_pdf = os.path.join(ob_tmp, "writeups", "deck", "deck.pdf")
+with open(ob_pdf, "wb") as fh:
+    fh.write(pdf_lines([["The first slide."], ["The second slide."]]))
+ob_repo = course_repo.Repo(ob_tmp, os.path.join(ob_tmp, "live"))
+library.forget()
+ob_doc = [d for d in library.documents(ob_tmp) if d["stem"] == "deck"][0]
+ob_now = course_paper._digest(ob_pdf, course_paper.PAGE_WIDTH)
+OB_OLD = "4ed0c5f6ad320390"
+OB_AT = time.mktime((2026, 9, 28, 21, 40, 0, 0, 0, -1))
+ob_cache = os.path.join(paths.PAGES, OB_OLD)
+os.makedirs(ob_cache)
+with open(os.path.join(ob_cache, OB_OLD + "-1.png"), "wb") as fh:
+    fh.write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR"
+             + struct.pack(">II", 1240, 930) + b"\0" * 16)
+os.utime(ob_cache, (1, 1))
+
+
+def ob_ink(page, digest, at, pages):
+    key = "doc/%s/p%d" % (ob_doc["id"], page)
+    stem = writing_route.ann_file(key)
+    os.makedirs(ob_repo.notes, exist_ok=True)
+    with open(os.path.join(ob_repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "sent": False,
+                   "strokes": [S([0.20, 0.20, 0.40, 0.25])],
+                   "build": {"digest": digest, "at": at, "pages": pages}}, fh)
+    with open(os.path.join(ob_repo.notes, stem + ".png"), "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n" + b"\0" * 32)
+    return key
+
+
+ob_k1 = ob_ink(1, OB_OLD, OB_AT, 11)
+ob_k2 = ob_ink(2, ob_now, time.time(), 2)
+library.forget()
+check("the view names the build each page's ink was drawn on",
+      library.ink_builds(ob_repo, library.ink(ob_repo, ob_doc))
+      == {ob_k1: OB_OLD, ob_k2: ob_now})
+library.drawn_on(ob_repo, ob_doc, ob_now)
+check("opening the document keeps the older build's pages in the cache",
+      os.path.getmtime(ob_cache) > 1000)
+os.utime(ob_cache, (1, 1))
+ob_r = library.write_note(ob_repo, ob_doc["id"], "")
+ob_where = ledger.round_dir(ob_r["path"])
+ob_items = ledger.items_of(ob_r["path"])
+ob_by = {i["page"]: i for i in ob_items}
+check("a page whose ink was drawn on an older build keeps no picture of the "
+      "new build under it; a page drawn on this build keeps its own",
+      ob_r.get("ok") and not os.path.isfile(os.path.join(ob_where, "marked-p1.png"))
+      and os.path.isfile(os.path.join(ob_where, "marked-p2.png"))
+      and ob_by[1]["marked"] == "" and ob_by[2]["marked"] == "marked-p2.png"
+      and ob_by[1]["drawn_on"] == OB_OLD and ob_by[2]["drawn_on"] == ob_now)
+ob_svg = open(os.path.join(ob_where, ob_by[1]["crop"]), encoding="utf-8").read()
+check("its crop is cut from the older build's cached page",
+      "<image" in ob_svg and "<polyline" in ob_svg)
+check("and filing touched that cached page set, so the sweep keeps it",
+      os.path.getmtime(ob_cache) > 1000)
+ob_note = open(ob_r["path"], encoding="utf-8").read()
+check("the note says the marks were drawn on an earlier build, its date and "
+      "page count, and that the PDF has been rebuilt since",
+      "- the marks on page 1 were drawn on an earlier build of the PDF "
+      "(built 28 Sep 21:40, 11 pages); the PDF has been rebuilt since, so "
+      "their page numbers refer to that build, and their crops show it" in ob_note
+      and "page 2 were drawn on" not in ob_note)
+check("and its marked-page line points at no picture of the new build",
+      "- page 1, 1 stroke -- drawn on the earlier build" in ob_note
+      and "marked-p2.png" in ob_note)
+ledger.keep_evidence(ob_repo, ob_doc)
+check("the wipe's guard does not copy the live picture for it either",
+      not os.path.isfile(os.path.join(ob_where, "marked-p1.png")))
+ob_round = json.load(open(ledger.ledger_path(ob_r["path"]), encoding="utf-8"))["round"]
+ledger.mark_unsent(ob_r["path"], "nothing could be asked")
+check("an unsent round's number is handed to its retry",
+      ledger.next_round(ob_tmp, ob_doc) == ob_round)
+ob_retry = library.write_note(ob_repo, ob_doc["id"], "")
+check("so the retry files under that number, its ids unburned",
+      json.load(open(ledger.ledger_path(ob_retry["path"]), encoding="utf-8"))["round"]
+      == ob_round and ob_retry["ids"][0] == "R%d.1" % ob_round)
+check("and the round after it is the next number",
+      ledger.next_round(ob_tmp, ob_doc) == ob_round + 1)
+paths.PAGES = real_pages
 
 print()
 if fails:

@@ -194,42 +194,48 @@
      and versioned, and the same request asks for the revision -- a note nothing
      acts on is a note somebody believes is in force. A page number rides with
      it because the reader is looking at a page when they write it. -->
-<div id="note" hidden>
+<div id="note" hidden data-no-ink>
   <div id="note-box">
     <strong id="note-title"></strong>
     <p id="note-where" class="muted"></p>
-    <!-- TWO ASKS, FROM ONE PANEL. A correction keeps the document's structure,
-         its names for things and its claims -- which is right for "figure 3 is
-         mislabelled" and wrong for "that presentation needs an overhaul now
-         that we plan to use colibrì". The prompt a correction is woken with
-         says outright *do not start it again and do not widen it*, so without
-         this the only route to an overhaul was a terminal. -->
-    <div id="note-ask">
-      <button id="ask-revise" type="button" class="on">fix what is wrong</button>
-      <button id="ask-rework" type="button">it needs an overhaul</button>
+    <!-- THE PART THAT SCROLLS. Twenty-three requests and a seven-row box are
+         taller than an iPad in landscape, and taller still with the keyboard
+         up, so everything between the title and the answer scrolls here and
+         the answer and the two buttons below it never leave the glass. -->
+    <div id="note-body">
+      <!-- TWO ASKS, FROM ONE PANEL. A correction keeps the document's structure,
+           its names for things and its claims -- which is right for "figure 3 is
+           mislabelled" and wrong for "that presentation needs an overhaul now
+           that we plan to use colibrì". The prompt a correction is woken with
+           says outright *do not start it again and do not widen it*, so without
+           this the only route to an overhaul was a terminal. -->
+      <div id="note-ask">
+        <button id="ask-revise" type="button" class="on">fix what is wrong</button>
+        <button id="ask-rework" type="button">it needs an overhaul</button>
+      </div>
+      <textarea id="note-text" rows="7"
+        placeholder="What is wrong with it, and what should it say instead."></textarea>
+      <!-- AN OVERHAUL COSTS A PURPOSE. Restructuring, cutting and rewriting with
+           no new purpose named is a rewrite for its own sake, so this sentence is
+           required and is what the turn works to. -->
+      <div id="note-purpose-box" hidden>
+        <p class="muted">It may restructure, cut, reorder and rewrite. Say what the
+          document is <strong>for</strong> now — that sentence outranks the shape
+          it presently has.</p>
+        <textarea id="note-purpose" rows="3"
+          placeholder="What this document is for now, and who reads it."></textarea>
+      </div>
+      <p id="note-page" class="muted" hidden></p>
+      <!-- THE SPLIT, BEFORE IT GOES. Each inked region and each paragraph is one
+           request with an id the revision answers; a page's marks can be made one
+           request here, so "that was one request, not three" costs a tap now
+           rather than a round later. -->
+      <div id="note-items" class="lg-preview" hidden></div>
+      <!-- INK COUNTS AS SAYING SOMETHING. A ring round a figure is a complaint,
+           and a send button that stays dead until somebody types is the board
+           asking them to write out what they have already drawn. -->
+      <p id="note-marks" class="muted" hidden></p>
     </div>
-    <textarea id="note-text" rows="7"
-      placeholder="What is wrong with it, and what should it say instead."></textarea>
-    <!-- AN OVERHAUL COSTS A PURPOSE. Restructuring, cutting and rewriting with
-         no new purpose named is a rewrite for its own sake, so this sentence is
-         required and is what the turn works to. -->
-    <div id="note-purpose-box" hidden>
-      <p class="muted">It may restructure, cut, reorder and rewrite. Say what the
-        document is <strong>for</strong> now — that sentence outranks the shape
-        it presently has.</p>
-      <textarea id="note-purpose" rows="3"
-        placeholder="What this document is for now, and who reads it."></textarea>
-    </div>
-    <p id="note-page" class="muted" hidden></p>
-    <!-- THE SPLIT, BEFORE IT GOES. Each inked region and each paragraph is one
-         request with an id the revision answers; a page's marks can be made one
-         request here, so "that was one request, not three" costs a tap now
-         rather than a round later. -->
-    <div id="note-items" class="lg-preview" hidden></div>
-    <!-- INK COUNTS AS SAYING SOMETHING. A ring round a figure is a complaint,
-         and a send button that stays dead until somebody types is the board
-         asking them to write out what they have already drawn. -->
-    <p id="note-marks" class="muted" hidden></p>
     <p id="note-said" class="note-said" hidden></p>
     <div id="note-acts">
       <button id="note-cancel" type="button" class="quiet">cancel</button>
@@ -242,7 +248,7 @@
      bottom of the feedback file, and that is the answer to *did it do what I
      asked* -- in a file the iPad cannot open. The rounds under a document are
      tappable and this is what opens. -->
-<div id="round" hidden>
+<div id="round" hidden data-no-ink>
   <div id="round-box">
     <strong id="round-title"></strong>
     <div id="round-list"></div>

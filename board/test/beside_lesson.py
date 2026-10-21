@@ -85,6 +85,10 @@ try:
     write(os.path.join(mine, "notes", "ch04.tex"), "one\ntwo\n")
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "worked through the tower law by hand")
+    # The board's own save of the lesson is not their work.
+    write(os.path.join(mine, "notes", "ch04.tex"), "one\ntwo\nthree\n")
+    git(base, "add", "-A")
+    git(base, "commit", "-q", "-m", "Galois-Theory: lesson complete")
     write(os.path.join(other, "psych_asr", "asr.py"), "one\ntwo\n")
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "the typist emits the seam's contract")
@@ -100,6 +104,8 @@ try:
           any("tower law" in c["subject"] for c in rec["commits"]))
     check("and what they committed to ANOTHER workspace is not",
           not any("typist" in c["subject"] for c in rec["commits"]))
+    check("and the board's own save is not listed as theirs",
+          not any("lesson complete" in c["subject"] for c in rec["commits"]))
 
     lesson_git._BESIDE.clear()
     theirs = lesson_git.beside_the_lesson(them)

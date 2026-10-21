@@ -8,9 +8,14 @@
 
 ## Now
 
-Chapter 7, Splitting fields. Problem 13. Parts (a) and (b) are written up. 13(c) -- list the subgroups of $(\ZZ/13\ZZ)^\times$ with their fixed-field degrees -- was SKIPPED at t0136 (card 0035 held the full restatement), after the hand-check in 0034 was also skipped; per the skip rule it is not re-asked and stays unwritten.
+Chapter 7 worksheet, problems 13-19, in session 20261009-193922. chapters/ch07-splitting-fields/homework/ch07-homework.tex holds 13(a) and 13(b). The agreed 13(d) steps and 14(a)-(c) are only in projects/libr-local-llm/docs/galois-theory-ch07/writeup.tex: transcribe each into ch07-homework.tex from the owner's own pages (not from that file's 14(c) paragraph, which is the tutor's).
 
-13(d): with $H\le G$ of index $d$ and $\eta_H=\sum_{a\in H}\zeta^a$, show $K_d=\QQ(\eta_H)$. At t0137 they did not compute the period; instead they sketched the plan and asked on the page "Is this plan a good direction?" Card 0037 answers yes -- the plan is $\eta_H\in K_d$ (H fixes the period) then a degree comparison, keeping the nested-over-$\QQ$ diagram -- and re-poses the one concrete step: for $p=13$, $H=\{1,3,4,9,10,12\}$, compute $\sigma_3(\eta_H)$ and say in one line why it returns $\eta_H$. Awaiting their reply. Arc to hold: $\eta_H\in K_d$, then $[\QQ(\eta_H):\QQ]=d$ via the $d$ distinct coset periods as conjugates, forcing equality.
+- 13(c): the owner chose to answer it with the p=7 case already worked (their pages for cards 0011-0026); write that up as 13(c) from those pages, and never re-pose p=13.
+- 13(d): their route (t0137) is $\eta_H\in K_d$, then a degree bound. In libr's writeup.tex: the periods are pairwise distinct, and a factor of $m$ over $\QQ$ has every period as a root. At t0194 they asked to prove, in general, that $m(x)\in\QQ[x]$ and that $m$ is irreducible over $\QQ$. Card 0095 answered with a $p=13$ step instead; unanswered. Work their general proof.
+- 14(a), 14(b): agreed; not yet in ch07-homework.tex. 14(c): the cubic is agreed; the uniqueness argument on t0193 is theirs, but the paragraph in libr's writeup.tex is the tutor's (card 0092), and theirs replaces it. 14(d), the lattice: never posed.
+- 15(a): posed at card 0076, set aside for 14 (t0176), unanswered. 15(b): posed at 0094, unanswered. 16-19: not started.
+
+Their standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192).
 
 ## Open decisions
 

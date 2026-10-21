@@ -485,7 +485,19 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
                         "at": _mtime(target), "pages": out.get("n") or 0}
         out["rebuilt"] = drawn_on(repo, doc, out["build"]["digest"],
                                   out["ink"])["rebuilt"]
+        # Which build each page's ink was drawn on, so a send pictures only
+        # the ink drawn on the build on the glass.
+        out["builds"] = ink_builds(repo, out["ink"])
     return out
+
+
+def ink_builds(repo, ink_now):
+    """`{key: digest}` for every key in `ink_now` whose build is recorded."""
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+
+    builds = lesson_notes.load_notes_builds(repo)
+    return {k: builds[k]["digest"] for k in ink_now
+            if (builds.get(k) or {}).get("digest")}
 
 
 def when_built(at):
@@ -510,6 +522,8 @@ def drawn_on(repo, doc, current, ink_now=None):
     A page with no stamp goes with whichever build is burned. An older build
     is burned only from its own cached rendering, because marks drawn on one
     build must not land on another's pages. Marks on two builds are refused.
+    Every older build ink points at is touched in the page cache, so its
+    rendering outlives `paper._prune` while that ink is unsent.
     """
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
@@ -530,6 +544,8 @@ def drawn_on(repo, doc, current, ink_now=None):
         page = writing.ann_doc_page(key)
         if page and page[1] not in got["pages"]:
             got["pages"].append(page[1])
+    for d in older:
+        paper._touch(d)
     if not older:
         return {"digest": current, "rebuilt": None, "refuse": ""}
     digest = min(older, key=lambda d: older[d]["at"])
@@ -995,6 +1011,19 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
                     % (round_no, len(items), "" if len(items) == 1 else "s",
                        os.path.relpath(ledger.ledger_path(target), root)
                        .replace(os.sep, "/")))
+    older = _drawn_before(repo, items)
+    for o in older:
+        built = [("built %s" % when_built(o["at"])) if o["at"] else "",
+                 ("%d page%s" % (o["was"], "" if o["was"] == 1 else "s"))
+                 if o["was"] else ""]
+        head.append("- the marks on page%s %s were drawn on an earlier build of "
+                    "the PDF%s; the PDF has been rebuilt since, so their page "
+                    "numbers refer to that build, and their crops show it"
+                    % ("" if len(o["pages"]) == 1 else "s",
+                       ", ".join(str(n) for n in o["pages"]),
+                       " (%s)" % ", ".join(x for x in built if x)
+                       if any(built) else ""))
+    old_keys = set(k for o in older for k in o["keys"])
     # With a ledger the typed words are the requests below; written once.
     typed_below = bool(led) and any(i.get("kind") == "text" for i in items)
     head += ["", ("What they typed is below, under *The requests, by id*: one "
@@ -1029,9 +1058,15 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
                                                "" if mark["strokes"] == 1 else "s")
             # The round's own copy, because the live picture is wiped once
             # the round lands.
-            pic = marked_copy.get(mark["page"]) or mark["png"]
-            line += " -- `%s`" % pic if pic else " -- no image was "\
-                                                 "saved for this page"
+            pic = marked_copy.get(mark["page"]) or (
+                "" if mark["key"] in old_keys else mark["png"])
+            if pic:
+                line += " -- `%s`" % pic
+            elif mark["key"] in old_keys:
+                line += (" -- drawn on the earlier build, so this build's page "
+                         "is not under it; the crops above show it")
+            else:
+                line += " -- no image was saved for this page"
             head.append(line)
         head.append("")
     try:
@@ -1053,6 +1088,31 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
             "ledger": (os.path.relpath(ledger.ledger_path(target), root)
                        .replace(os.sep, "/") if led else ""),
             "carry": reopen, "note": name}
+
+
+def _drawn_before(repo, items):
+    """The older builds this round's ink was drawn on, against the build it
+    was filed with: `[{when, was, pages, keys}]`, oldest first."""
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+
+    stale = [i for i in items if i.get("kind") == "ink" and i.get("filed_on")
+             and i.get("drawn_on") and i["drawn_on"] != i["filed_on"]]
+    if not stale:
+        return []
+    builds = lesson_notes.load_notes_builds(repo)
+    by = {}
+    for it in stale:
+        b = builds.get(it.get("ann")) or {}
+        o = by.setdefault(it["drawn_on"], {"at": b.get("at") or 0,
+                                           "was": b.get("pages") or 0,
+                                           "pages": [], "keys": []})
+        if it["page"] not in o["pages"]:
+            o["pages"].append(it["page"])
+        if it.get("ann") and it["ann"] not in o["keys"]:
+            o["keys"].append(it["ann"])
+    for o in by.values():
+        o["pages"].sort()
+    return sorted(by.values(), key=lambda o: o["at"])
 
 
 def _requests(root, note_path, items):

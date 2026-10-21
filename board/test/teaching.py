@@ -133,7 +133,7 @@ for phrase, why in [
     # A model handed a chapter and told to teach writes a lecture.
     ("exercises, all the way down", "a lesson is exercises and nothing else"),
     # "I've got a board to write on and have to scroll up to see the question."
-    ("Then ask it again", "a posing card closes by restating the question"),
+    ("End on the ask", "a posing card closes on the question, written whole"),
     # A skipped homework problem is deferred, not dropped.
     ("not now", "a skipped assigned problem is still owed"),
     ("ladder comes after the break", "a review asks cold and ladders from a break"),

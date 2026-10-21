@@ -100,7 +100,7 @@ git("commit", "-qm", "fixture", cwd=atlas)
 sid = sessions.new("injected", base=atlas)["id"]
 sessions.bind(sid, "courses/Demo", base=atlas)
 repo = sessions.repo(sid, atlas)
-for n, (kind, title) in enumerate((("lesson", "Groups, defined"),
+for n, (kind, title) in enumerate((("question", "Groups, defined"),
                                    ("question", "Is Z under + a group?"),
                                    ("lesson", "Subgroups")), 1):
     write(os.path.join(repo.cards, "%04d-c%d.md" % (n, n)),
@@ -150,6 +150,9 @@ try:
           "=== THE RECAP" in prompt and "Groups, defined" in prompt
           and "NEWEST-MARK-3" in prompt and "NEWEST-MARK-1" not in prompt
           and "<- answered" in prompt and "inverses are negatives" in prompt)
+    check("and a question they moved on from is passed over, not open",
+          "Groups, defined  <- passed over" in prompt
+          and "OPEN, not answered" not in prompt)
     check("then the turn's own prompt, with the inbox",
           prompt.index("=== END OF THE BRIEF AND THE RECAP")
           < prompt.index("You are running headless")
@@ -202,6 +205,23 @@ try:
           and "Do not run `board brief` or `board recap`" in prompt
           and "`board memo <section>`" in prompt
           and "Run `board recap`" not in prompt)
+
+    # --- an earlier page is listed by its whole path -----------------------
+    with open(repo.path("turns.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"id": "t0300", "rev": 1, "t": 0.5,
+                             "iso": "2026-10-09 09:58:00",
+                             "png": "/answers/t0300-r1.png"}) + "\n")
+        fh.write(json.dumps({"id": "t0301", "rev": 1, "t": 0.6,
+                             "iso": "2026-10-09 09:59:00",
+                             "text": "LONG-TEXT " + "x" * 200,
+                             "png": "/answers/t0301-r1.png"}) + "\n")
+    whole = brief.recap(repo)
+    page = os.path.join(repo.session, "answers", "t0301-r1.png")
+    check("an earlier page is listed with its whole path, the typed text "
+          "beside it cut short",
+          os.path.join(repo.session, "answers", "t0300-r1.png") in whole
+          and ("LONG-TEXT " + "x" * 86 + " handwriting " + page) in whole
+          and "x" * 87 not in whole, whole[-600:])
 
     # --- the size guard ----------------------------------------------------
     with open(repo.path("turns.jsonl"), "a", encoding="utf-8") as fh:

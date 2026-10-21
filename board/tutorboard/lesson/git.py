@@ -301,7 +301,8 @@ def _seen_until(repo):
 def beside_the_lesson(repo):
     """What somebody did to this workspace that the tutor has not been told:
     `{"commits": [...], "uncommitted": [...], "files": n, "since": t}`, or
-    None outside git. Cached; the payload is polled often."""
+    None outside git. The board's own saves are not listed. Cached; the
+    payload is polled often."""
     now = time.time()
     key = os.path.realpath(repo.root)
     hit = _BESIDE.get(key)
@@ -324,6 +325,11 @@ def beside_the_lesson(repo):
                 for line in p.stdout.decode("utf-8", "replace").splitlines():
                     at, _, subject = line.partition("\0")
                     if not subject.strip():
+                        continue
+                    # The board's own save (`gitops.SAVE`, after a subject
+                    # prefix) is the lesson, not their work.
+                    if (subject.split(":", 1)[-1].strip().lower().rstrip(".")
+                            == gitops.SAVE):
                         continue
                     try:
                         when = int(at)

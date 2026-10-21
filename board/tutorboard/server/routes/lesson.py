@@ -136,9 +136,10 @@ def _mode(h, repo):
 
 
 def _bind(h, repo):
-    """`POST /bind {subject}`: bind this session from the header's chip.
-    `sessions.bind` matches `subject` against existing subjects and appends a
-    non-waking `[bind]` line. The registry is asked again at once, so the
+    """`POST /bind {subject, force}`: bind this session from the header's
+    chip. `sessions.bind` matches `subject` against existing subjects and
+    appends a non-waking `[bind]` line. A move off a subject the session has
+    left work in is a 409 with `confirm`, until `force` is true. The registry is asked again at once, so the
     next payload roots at the subject without a reload.
     """
     if not repo.stored:
@@ -153,7 +154,11 @@ def _bind(h, repo):
     base = repo.atlas
     try:
         rec, changed = sessions.bind(sid, str(payload.get("subject") or ""),
-                                     base=base)
+                                     base=base, force=payload.get("force") is True)
+    except sessions.Unconfirmed as exc:
+        # The chip asks the owner, then sends the same subject with `force`.
+        return h.send_json({"ok": False, "error": str(exc), "confirm": True},
+                           status=409)
     except sessions.Refused as exc:
         return h.send_json({"ok": False, "error": str(exc)}, status=400)
     except sessions.NoSession:

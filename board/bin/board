@@ -563,9 +563,12 @@ def _session_flag(args, who):
 def cmd_bind(live, args):
     """Bind the session to a subject, making the subject first if asked.
 
-    board bind <subject> [--session <id>]
+    board bind <subject> [--force] [--session <id>]
         set the session's subject (courses/<name> or projects/<name>) and drop
         a [bind] line that wakes nothing. Nothing is filed and nothing moves.
+        Moving a session off a subject it has already left a write-up, an
+        artifact, a filed upload or a lesson's cards in is refused unless
+        --force: only the owner confirms that move.
     board bind <subject> --create [--phi yes|no]
         make the subject, then bind: the slug of the name as its directory,
         tutorboard.json, a TUTOR.md skeleton, and for --phi yes a .gitignore
@@ -578,7 +581,8 @@ def cmd_bind(live, args):
     try:
         sid, base, rest = _session_flag(args, "board bind")
         create = "--create" in rest
-        rest = [a for a in rest if a != "--create"]
+        force = "--force" in rest
+        rest = [a for a in rest if a not in ("--create", "--force")]
         phi = None
         if "--phi" in rest:
             n = rest.index("--phi")
@@ -594,7 +598,7 @@ def cmd_bind(live, args):
             del rest[n:n + 2]
         if len(rest) != 1:
             print("usage: board bind <courses/name|projects/name> [--create] "
-                  "[--phi yes|no] [--session <id>]", file=sys.stderr)
+                  "[--phi yes|no] [--force] [--session <id>]", file=sys.stderr)
             return 2
         subject = rest[0]
         if create:
@@ -613,10 +617,14 @@ def cmd_bind(live, args):
             print("board bind: name a session (--session <id>) or run inside "
                   "one (TUTORBOARD_SESSION)", file=sys.stderr)
             return 2
-        rec, changed = sessions.bind(sid, subject, base=base)
+        rec, changed = sessions.bind(sid, subject, base=base, force=force)
         print("%s %s to %s" % ("bound" if changed else "already bound",
                                rec["id"], rec["subject"]))
         return 0
+    except sessions.Unconfirmed as exc:
+        print("board bind: %s Only when the owner asked for this move: "
+              "`board bind %s --force`." % (exc, subject), file=sys.stderr)
+        return 1
     except (sessions.NoSession, sessions.Refused, ValueError) as exc:
         print("board bind: %s" % exc, file=sys.stderr)
         return 1

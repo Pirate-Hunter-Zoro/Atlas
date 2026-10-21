@@ -367,6 +367,19 @@ const named = (title) => rows().filter(
   window.Annotate.isOn() && /done marking/.test(pen.textContent)
     ? ok('one tap turns it on, and the button says which state it is in')
     : fail('the pen did not come on');
+  {
+    // With the pen on, a selection on the page is refused -- and one in the
+    // note's own box is not, or a word typed there could never be fixed.
+    const sel = (el) => {
+      const e = new window.Event('selectstart', { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    sel(pages[0]) && !sel(doc.getElementById('note-text'))
+      ? ok('the pen refuses a selection on the page, never in the note\'s text box')
+      : fail('selectstart with the pen on: page ' + sel(pages[0])
+             + ', note box ' + sel(doc.getElementById('note-text')));
+  }
 
   {
     const bar = doc.querySelector('.annbar-doc');
@@ -453,9 +466,18 @@ const named = (title) => rows().filter(
   doc.getElementById('note-send').disabled
     ? ok('with nothing written, there is nothing to send')
     : fail('empty feedback can be sent');
+  doc.activeElement === doc.getElementById('note-text')
+    ? ok('and with nothing to send but words, the box has the keyboard')
+    : fail('a note with no ink opened without the box focused');
 
   // 6b. And on a document that HAS been marked up, an empty note is the ink.
+  //     The keyboard stays down for it: on an iPad it takes half the glass,
+  //     and "send it" is what is wanted.
+  doc.activeElement.blur();
   tap(named('What the batch size costs').querySelectorAll('.lib-acts button')[1]);
+  doc.activeElement !== doc.getElementById('note-text')
+    ? ok('a note whose ink is the message opens without raising the keyboard')
+    : fail('the box was focused over waiting ink, and the keyboard covers "send it"');
   !doc.getElementById('note-send').disabled
     ? ok('a marked-up document can be sent back with nothing typed')
     : fail('the ink could not be sent without typing something as well');
@@ -463,7 +485,47 @@ const named = (title) => rows().filter(
     && !doc.getElementById('note-marks').hidden
     ? ok('and the panel says the marks are going with it')
     : fail('nothing says what happens to the ink');
+  {
+    // With the pen on, the Pencil still scrolls the open panel: a stylus
+    // touchstart inside it is not refused, while one on a page still is.
+    const stylusDown = (el) => {
+      const ev = new window.Event('touchstart', { bubbles: true, cancelable: true });
+      const list = [{ clientX: 40, clientY: 40, touchType: 'stylus', radiusX: 1 }];
+      Object.defineProperty(ev, 'touches', { value: list });
+      Object.defineProperty(ev, 'changedTouches', { value: list });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    tap(pen);
+    const inPanel = window.Annotate.isOn()
+      && !doc.getElementById('note').hidden && stylusDown(doc.getElementById('note-marks'));
+    const onPage = stylusDown(pages[0]);
+    window.Annotate.isOn() && !inPanel && onPage
+      ? ok('with the pen on, the Pencil can scroll the open panel and still draws on the page')
+      : fail('stylus touchstart with the pen on: panel refused ' + inPanel
+             + ', page refused ' + onPage + ', pen ' + window.Annotate.isOn());
+    tap(pen);
+  }
+
+  // 6b'. THE PANEL IS THE SIZE OF WHAT CAN BE SEEN. With the keyboard up an
+  //      iPad's fixed `inset: 0` is still the whole layout viewport, so the
+  //      panel follows `visualViewport` while it is open and lets go on shut.
+  //      (Whether it then FITS is `test/notepanel.js`, in a real Chrome.)
   doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  window.visualViewport = { scale: 1, offsetLeft: 0, offsetTop: 12, width: 1180,
+                            height: 343, addEventListener() {} };
+  tap(named('What the batch size costs').querySelectorAll('.lib-acts button')[1]);
+  {
+    const s = doc.getElementById('note').style;
+    s.top === '12px' && s.height === '343px' && s.width === '1180px'
+      ? ok('open, the panel is laid over the visible part of the glass, not under the keyboard')
+      : fail('the panel is not sized to the visual viewport: ' + s.cssText);
+    doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    s.top === '' && s.height === ''
+      ? ok('and shut, it goes back to the stylesheet')
+      : fail('the panel kept its size after it shut: ' + s.cssText);
+  }
+  delete window.visualViewport;
   tap(doc.getElementById('reader-say'));
 
   sent.length = 0;
@@ -1514,6 +1576,7 @@ const named = (title) => rows().filter(
   await lazyPagesArePictured();
   await changesArePins();
   await pipsAndOwedInk();
+  await oldBuildInk();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');
@@ -1636,6 +1699,18 @@ async function inkIsKept() {
         new pageWin.Blob(['%PDF-1.4'], { type: 'application/pdf' })) });
     }
     if (/library\/feedback/.test(url)) {
+      /* Filed, and nothing woken: the inbox could not be written. */
+      if (net.feedback === 'unasked') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(
+          { ok: true, rel: 'writeups/notes/feedback/2026-09-28-v1.md', asked: false,
+            revise: 'board', detail: 'the note is written but nothing could be '
+              + 'asked: [Errno 28] No space left on device' }) });
+      }
+      /* A crash, or a proxy in the way: a 500 whose body is not JSON. */
+      if (net.feedback === 'broken') {
+        return Promise.resolve({ ok: false, status: 502,
+                                 json: () => Promise.reject(new SyntaxError('<html>')) });
+      }
       return Promise.resolve({ json: () => Promise.resolve(net.feedback === 'ok'
         ? { ok: true, rel: 'writeups/notes/feedback/2026-09-28-v1.md', asked: true,
             revise: 'board', detail: 'The tutor has been asked to revise it.' }
@@ -1942,6 +2017,32 @@ async function inkIsKept() {
   p3.byId('note-text').value === 'Table 2 still has the old cohort size.'
     ? ok('and is still there after a send the board refused')
     : fail('a refused send lost the draft: ' + JSON.stringify(p3.byId('note-text').value));
+
+  // FILED IS NOT SENT. A reply that woke nothing, and a reply that is not the
+  // board's at all, are both failures said in red -- never "Filed at" -- with
+  // the words kept and the button live for the retry.
+  for (const how of ['unasked', 'broken']) {
+    net.feedback = how;
+    p3.click(p3.byId('note-send'));
+    await sleep(60);
+    const said = p3.byId('note-said');
+    !said.hidden && said.classList.contains('bad') && !/Filed at/.test(said.textContent)
+      && (how === 'unasked' ? /Not sent: .*No space left/.test(said.textContent)
+                            : /502/.test(said.textContent))
+      ? ok('a send that ' + (how === 'unasked' ? 'woke no turn' : 'came back as a 502 page')
+           + ' says so in red, in the words of what went wrong')
+      : fail('after a ' + how + ' reply the panel says ' + JSON.stringify(said.textContent)
+             + ' (' + said.className + (said.hidden ? ', hidden' : '') + ')');
+    !p3.byId('note-send').disabled && p3.byId('note-send').textContent === 'send it'
+      && p3.byId('note-text').value === 'Table 2 still has the old cohort size.'
+      ? ok('and the words stay, with "send it" live for the retry')
+      : fail('after a ' + how + ' reply the button is '
+             + JSON.stringify(p3.byId('note-send').textContent)
+             + (p3.byId('note-send').disabled ? ' (dead)' : ''));
+    !/being revised/.test(p3.byId('reader-said').textContent)
+      ? ok('and nothing claims a revision is running')
+      : fail('a ' + how + ' reply put up "being revised"');
+  }
 
   net.feedback = 'ok';
   p3.click(p3.byId('note-send'));
@@ -2721,4 +2822,138 @@ async function pipsAndOwedInk() {
   D.querySelectorAll('.lg-ghost.lg-full[data-id="R2.4"]').length === 1
     ? ok('ledger: ink still owed stays on the page while the panel shows another round')
     : fail('owed ink went when another round was shown');
+}
+
+/* ==========================================================================
+   INK DRAWN ON AN OLDER BUILD IS NOT PICTURED OVER THE NEW ONE. A deck marked
+   on one build and rebuilt since: the send pictures only the pages whose ink
+   was drawn on the build on the glass, because old ink burned over new pages
+   points at words that moved. And a send the board never answers may or may
+   not have been filed: the page says so, asks for the list again, and leaves
+   the button live only while ink is still waiting or words were typed.
+   ========================================================================== */
+async function oldBuildInk() {
+  const ID = 'writeups-colibri-colibri';
+  const key = (n) => 'doc/' + ID + '/p' + n;
+  const RING = { c: '#e0b45c', w: 2, pg: 1, p: [0.2, 0.2, 0.5, 0.2], pr: [0.5, 0.5] };
+  const LIB = { workspace: 'research/LIBR', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/colibri', stem: 'colibri', title: 'Colibri',
+    kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/colibri/colibri.pdf',
+    pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [],
+    marks: { pages: 3, strokes: 3, waiting: 3 },
+  }] };
+  const net = { feedback: 'ok' };
+  const log = [];
+  const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                 url: 'https://board.test/library' });
+  const w = d.window;
+  const D = w.document;
+  w.HTMLCanvasElement.prototype.getContext = function () {
+    return new Proxy({}, { get: () => () => {}, set: () => true });
+  };
+  w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,AAAA';
+  w.Element.prototype.setPointerCapture = function () {};
+  w.Element.prototype.releasePointerCapture = function () {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w.fetch = (u, o) => {
+    const url = String(u);
+    log.push({ url: url, opts: o || {} });
+    const reply = (x) => Promise.resolve({ ok: true, json: () => Promise.resolve(x) });
+    if (/library\.json/.test(url)) return reply(JSON.parse(JSON.stringify(LIB)));
+    if (/library\/stamp/.test(url)) return reply({ ok: true, stamp: 's', documents: { [ID]: 'x' } });
+    if (/library\/view\//.test(url)) {
+      return reply({ ok: true, n: 3, truncated: false, digest: 'new1',
+                     pages: [1, 2, 3].map((n) => '/paper/new1-' + n + '.png'),
+                     ink: { [key(1)]: [RING], [key(2)]: [RING], [key(3)]: [RING] },
+                     wiped: {},
+                     build: { digest: 'new1', at: 1790000000, pages: 12 },
+                     builds: { [key(1)]: '4ed0c5f6ad320390', [key(2)]: 'new1' },
+                     rebuilt: { at: 1789000000, when: '28 Sep 21:40', was: 11,
+                                pages: [1], copy: true, detail: '' } });
+    }
+    if (/annotate\/save/.test(url)) return reply({ ok: true });
+    if (/library\/feedback/.test(url)) {
+      if (net.feedback === 'down') return Promise.reject(new Error('down'));
+      return reply({ ok: true, rel: 'writeups/colibri/feedback/v1.md', asked: true,
+                     marks: 2, detail: 'The tutor has been asked to revise it.' });
+    }
+    return new Promise(() => {});
+  };
+  w.addEventListener('error', (e) => fail('uncaught (old build): ' + e.message));
+  for (const f of LIB_SCRIPTS) {
+    try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ': ' + e.message); }
+  }
+  w.INK_RETRY_MS = 100000;
+  w.STAMP_EVERY = 100000;
+  w.PICTURE_WAIT_MS = 60;
+  try { w.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+  catch (e) { fail('library.js (old build): ' + e.message); }
+  await sleep(20);
+  const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const byId = (id) => D.getElementById(id);
+  const rect = (l, t, wd, ht) => ({ left: l, top: t, width: wd, height: ht,
+                                    right: l + wd, bottom: t + ht, x: l, y: t });
+  const fig = (n) => D.querySelector('.lib-page[data-page="' + n + '"]');
+  const decodedPage = (n) => {
+    const img = fig(n).querySelector('img');
+    Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 1240 });
+    Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 930 });
+    img.decode = () => Promise.resolve();
+    fig(n).getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 600);
+    img.getBoundingClientRect = () => rect(50, 100 + (n - 1) * 700, 800, 600);
+  };
+  click(D.querySelector('.lib-row .lib-name'));
+  await sleep(30);
+  [1, 2, 3].forEach(decodedPage);
+  w.Annotate.redrawAll();
+
+  log.length = 0;
+  click(byId('reader-say'));
+  click(byId('note-send'));
+  await sleep(150);
+  const pics = log.filter((r) => /annotate\/save/.test(r.url))
+    .map((r) => JSON.parse(r.opts.body || '{}'))
+    .filter((b) => /^data:image\/png/.test(b.png || ''))
+    .map((b) => b.card).sort();
+  pics.join('|') === [key(2), key(3)].join('|')
+    ? ok('old build: a page whose ink was drawn on an older build is not pictured '
+         + 'over the new one; this build\'s pages and unstamped ones are')
+    : fail('old build: pictures were saved for ' + pics.join(', '));
+  log.some((r) => /library\/feedback/.test(r.url))
+    ? ok('old build: and the round is still filed, carrying that ink')
+    : fail('old build: the round was never filed');
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+
+  // ---- A SEND THE BOARD NEVER ANSWERS ----------------------------------
+  // Twice: first the reloaded list still has ink waiting, then it has none
+  // (the round was filed before the reply was lost).
+  net.feedback = 'down';
+  click(byId('reader-say'));
+  byId('note-text').value = '';
+  byId('note-text').dispatchEvent(new w.Event('input', { bubbles: true }));
+  LIB.documents[0].marks = { pages: 1, strokes: 1, waiting: 1 };
+  log.length = 0;
+  click(byId('note-send'));
+  await sleep(150);
+  const said = byId('note-said').textContent;
+  /may or may not have been filed/.test(said) && /did not answer/.test(said)
+    ? ok('no answer: the page says the round may or may not have been filed')
+    : fail('no answer: the panel says ' + JSON.stringify(said));
+  const fbAt = log.findIndex((r) => /library\/feedback/.test(r.url));
+  fbAt >= 0 && log.slice(fbAt + 1).some((r) => /library\.json/.test(r.url))
+    ? ok('no answer: and the list is asked for again')
+    : fail('no answer: the list was not reloaded: ' + log.map((r) => r.url).join(' '));
+  !byId('note-send').disabled
+    ? ok('no answer: with ink still waiting in the reloaded list, send is live again')
+    : fail('no answer: send stayed dead with ink still waiting');
+
+  LIB.documents[0].marks = { pages: 0, strokes: 0, waiting: 0 };
+  click(byId('note-send'));
+  await sleep(150);
+  byId('note-send').disabled
+    ? ok('no answer: with nothing waiting in the reloaded list and nothing typed, '
+         + 'send stays dead')
+    : fail('no answer: send is live with nothing waiting and nothing typed');
+  D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
 }

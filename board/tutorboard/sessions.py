@@ -57,6 +57,11 @@ class Refused(ValueError):
     """A bind or a filing that cannot be done as asked; the message says why."""
 
 
+class Unconfirmed(Refused):
+    """A move away from a subject the session has already left work in: done
+    only when the owner confirms it (`bind(..., force=True)`)."""
+
+
 # A subject's document ink, ignored: `<subject>/.ink/`, keyed `doc/<id>/p<n>`.
 INK = ".ink"
 # The default home of a filed upload, ignored: `<subject>/materials/`.
@@ -336,10 +341,16 @@ def _line(where, text, signal, now=None, **extra):
                       signal, now=now, **extra)
 
 
-def bind(sid, subject, base=None, now=None):
+def bind(sid, subject, base=None, now=None, force=False):
     """Bind session `sid` to `subject` (matched against `subjects.all()`).
     `(record, changed)`. Appends a non-waking `[bind] <id>` line; nothing is
-    filed or moved (D21). Rebinding the same subject is silent."""
+    filed or moved (D21). Rebinding the same subject is silent.
+
+    Moving a session off a subject it has already left something in -- a
+    filed upload, an artifact, its write-up (`_left_in`) -- or any cards of
+    a lesson raises `Unconfirmed` unless `force`: one stray tap on the chip
+    otherwise sends every later turn's notes and write-up into the wrong
+    subject."""
     base = base or subjects.root()
     where = _need(sid, base)
     found = subjects.find(subject, base) if subject else None
@@ -349,11 +360,37 @@ def bind(sid, subject, base=None, now=None):
     rec = get(sid, base)
     if rec.get("subject") == found["id"]:
         return rec, False
+    was = rec.get("subject")
+    if was and not force:
+        left = _left_in(where, base, was, rec)
+        if left:
+            raise Unconfirmed("this session is bound to %s and has already "
+                              "left %s there; moving it to %s leaves that "
+                              "behind." % (was, ", ".join(left), found["id"]))
+        taught = _cards(where)
+        if taught:
+            # Nothing written up yet, but a lesson under way: a stray tap
+            # here sends its first write-up to the wrong subject.
+            raise Unconfirmed("this session is bound to %s and has %d card%s "
+                              "of a lesson there; moving it to %s sends its "
+                              "write-up and notes there instead."
+                              % (was, taught, "" if taught == 1 else "s",
+                                 found["id"]))
     rec["subject"] = found["id"]
     _save(where, rec)
     _line(where, "[bind] %s" % found["id"], "bind", now=now,
           subject=found["id"])
     return rec, True
+
+
+def _cards(where):
+    """How many cards session folder `where` holds."""
+    from .lesson import cards as lesson_cards               # local: heavy
+    try:
+        return sum(1 for n in os.listdir(os.path.join(where, "cards"))
+                   if lesson_cards.CARD_RE.match(n))
+    except OSError:
+        return 0
 
 
 def _left_in(where, base, subject, rec):
@@ -417,7 +454,9 @@ def _send(sid, subject, base, now, late):
             raise Refused("this session is bound to %s and has already left "
                           "%s there, which would stay behind; it cannot be "
                           "sent to %s" % (was, ", ".join(left), found["id"]))
-    rec, _changed = bind(sid, found["id"], base=base, now=now)
+    # Checked above: what it left elsewhere refuses the send, and a send is
+    # the owner's own ask, so a lesson's cards do not stop it.
+    rec, _changed = bind(sid, found["id"], base=base, now=now, force=True)
     if late and not was:
         rec["sent_late"] = found["id"]
         _save(where, rec)

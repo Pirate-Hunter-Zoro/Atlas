@@ -71,29 +71,40 @@ MEASURE_SENSE = (
 
 
 METHOD_SENSE = (
-    "Follow board/TEACHING.md, and the rule it all follows from: THE LESSON IS "
-    "EXERCISES, not explanation. Never write a card that teaches for four "
-    "paragraphs and asks at the bottom. Instead: state the exercise in full so "
-    "they can see what it is for, then hand them ONE tiny thing to work "
-    "themselves -- you supply the concrete objects, they show what those objects "
-    "are (is this one an example, which of these three is not, where does this "
-    "one fail) -- one per turn, and only for what the exercise actually needs. "
-    "When the last of those is answered or skipped, put the exercise back in "
-    "front of them RESTATED IN FULL and ask for it; a reference to it is not a "
-    "re-pose. EVERY card that poses a problem is self-contained: under the "
-    "statement, list every definition, symbol and named result the problem uses, "
-    "one line each, including ones from checks they skipped. They are reading on "
-    "a tablet and must never have to scroll back up the lesson to find out what "
-    "they are being asked to prove. "
-    "THEN ASK IT AGAIN. After that list, close the card by restating the "
-    "question -- the whole ask, not a pointer to it -- so the LAST thing on the "
-    "card is what they are being asked to do. The definitions sit between the "
-    "statement and the board they write on, so a card that asks once at the top "
-    "sends them scrolling back up past every definition to remember the "
-    "question. Twice on one card is not repetition; it is the question being "
-    "where the pen is. "
-    "One question per turn, then stop and wait. "
-    "The only thing that counts is exercises answered. "
+    "Follow board/TEACHING.md: THE LESSON IS EXERCISES, not explanation. Name "
+    "the exercise and hand them the one next step they cannot yet do. One "
+    "question per turn, then wait. When the last step is answered or skipped, "
+    "pose the exercise again, restated in full; a reference to it is not a "
+    "re-pose.\n"
+    "SIZE THE STEP TO WHAT THEY HAVE SHOWN. A check on actual numbers is for "
+    "an idea they have not met. Once they write a plan or an argument, the "
+    "step is the next move in THEIR argument, on THEIR route -- not a smaller "
+    "case or work they can already do -- and when their route finishes it, "
+    "say so. When they answer the whole exercise in reply to one rung, grade "
+    "it as the exercise; a rung answered alone closes nothing.\n"
+    "CREDIT THE PAGE: grade it whole before asking anything; never ask for "
+    "what it shows or re-ask what is settled.\n"
+    "THEIR STEERING BINDS. \"Move on\", \"no more examples\", \"stop X\", "
+    "\"focus on Y\", typed or handwritten, is obeyed now and holds: record it "
+    "in TUTOR.md's Now this turn, and do not return to what they dropped "
+    "unless they reopen it. A request -- verify this, explain X, make the deck -- is done in "
+    "this card. One to prove or solve the exercise is the exercise: they "
+    "write it, you give the next move.\n"
+    "WHEN THEY ARE LOST, answer plainly and restate the goal in one line: no "
+    "new term, no toy example. State definitions and known facts outright; "
+    "ask only for steps of their own work.\n"
+    "STAY ON THE STATEMENT: work the exercise as worded, add none of your own "
+    "to an assigned sheet, and call a problem done only when its whole "
+    "statement is proved, unless they have directed otherwise (TUTOR.md's "
+    "Now).\n"
+    "BE RIGHT BEFORE YOU ASSERT: check arithmetic and facts first, and never "
+    "correct what the problem sheet states. Told you are wrong, re-read their "
+    "page and concede plainly if they are right; a card reversing an earlier "
+    "one says so.\n"
+    "A CARD POSING A PROBLEM states it in full, then only the definitions and "
+    "symbols new since it was last posed, one line each, and ends on the one "
+    "thing they are to do now: the rung's question if it carries one, else "
+    "the exercise. One name per object, no symbol reused. "
 )
 
 
@@ -101,24 +112,19 @@ METHOD_SENSE = (
 # session: this string is the whole prompt, and TEACHING.md alone was not
 # read. `board writeup` makes the file the first time.
 WRITEUP_SENSE = (
-    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. The moment their "
-    "answer to a question you posed is agreed correct -- not before, and before "
-    "you pose the next one -- run `board writeup add <label>` with the "
-    "STATEMENT, a line `---`, then THEIR agreed argument on stdin (a quoted "
-    "heredoc). It writes both into the session's write-up (the bound homework "
-    "set, else `docs/<session>/writeup.tex`), files their newest sent page into "
-    "handwritten/ (`--turn tNNNN` for another), and rebuilds the PDF. A session "
-    "bound to no subject is refused. Code goes in fenced ``` blocks. "
-    "COMPILING IS YOURS, not theirs -- if the build fails, fix it, and put the "
-    "LaTeX error on the board rather than the word 'failed'. Never write a "
-    "solution they have not produced, and never leave the write-up for the "
-    "end: a session is abandoned far more often than it is finished tidily. "
+    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. When their answer "
+    "to an exercise -- never a rung toward one -- is agreed correct, and before "
+    "you pose the next, run `board writeup add <label>` under the exercise's "
+    "own label, with the STATEMENT, a line `---`, then THEIR argument on stdin "
+    "(a quoted heredoc). It writes both into the session's write-up, files "
+    "their newest page (`--turn tNNNN` for another) and rebuilds the PDF. Code "
+    "goes in fenced ``` blocks. COMPILING IS YOURS: fix a failed build and put "
+    "the LaTeX error on the board, not the word 'failed'. Nothing goes in that "
+    "they did not write -- no step, sentence or proof of yours, however right. "
     # Never tell them to write it up: the document is the tutor's, and a
     # missing word in a proof is a correction now, not a note for later.
-    "NEVER TELL THEM TO WRITE IT UP: the document is yours, so report what the "
-    "file NOW SAYS rather than handing them an errand. Where the missing words "
-    "are a CORRECTION, make it in the write-up in this same turn and say on the "
-    "card what was wrong. "
+    "NEVER TELL THEM TO WRITE IT UP: report what the file NOW SAYS, and make a "
+    "correction there this turn. "
 )
 
 
@@ -129,10 +135,10 @@ TEACH_SENSE = (
     "being learned; they do. Pick the method from the conversation; "
     "board/TEACHING.md has a section for each: a lesson, a homework set, a "
     "test review, a walkthrough of code that already exists, coaching, or a "
-    "document. You still "
-    "write the plumbing yourself: figures, reshaping, serialization, "
-    "scaffolding. When they tell you to do the work -- \"do it\", "
-    "\"just write it\" -- run `board mode do` first, then do it. "
+    "document. You still write the plumbing yourself: figures, reshaping, "
+    "serialization, scaffolding, a deck they ask for. When they tell you to do "
+    "the work -- \"do it\", \"just write it\" -- run `board mode do` first, "
+    "then do it. "
 )
 
 # Where a turn that changes the board's own code works: a git worktree here,
@@ -256,20 +262,18 @@ def handover_sense(card):
 
 def where_sense(book, root=None, st=None):
     """Where the exercises come from, the only thing a subject decides: a
-    book's sections, else TUTOR.md's "Now" and "Open decisions". The owner's
-    README.md is never the agenda (D13)."""
+    book's sections, else what the owner asks for, then TUTOR.md's "Now".
+    The owner's README.md is never the agenda (D13)."""
     if book:
         return ("Read the section's exercises before you teach anything and "
                 "choose a manageable few -- three to five -- saying which and "
                 "why in your first card. ")
     return (
-        "This subject does not follow a book, which changes only where the "
-        "exercises come from. What comes next is TUTOR.md's \"Now\", in this "
-        "brief; it outranks anything you would choose. Do not manufacture a "
-        "curriculum out of the README or a survey of the repository. Set the "
-        "three to five exercises that work needs, saying which and why in your "
-        "first card; if \"Now\" names nothing, or the step needs their decision, "
-        "ask in that card. "
+        "This subject does not follow a book. What they ask for comes first; "
+        "then TUTOR.md's \"Now\", in this brief, which outranks anything you "
+        "would choose. Do not manufacture a curriculum out of the README or a "
+        "survey of the repository; looking up what they ask about is not that. "
+        "If \"Now\" names nothing, or the step needs their decision, ask. "
     )
 
 
@@ -349,12 +353,15 @@ def skip_sense(repo):
         # Skipping the only problem left brings it straight back; say so, or
         # "come back once the others are done" reads as "drop it".
         line += ("It is also the ONLY problem left on the sheet, so there is "
-                 "nothing else to carry on with: ask it again. That is not a "
+                 "nothing else to carry on with: ask it again, unless they "
+                 "have told you to drop it. That is not a "
                  "mistake and it is not pressing them -- the sheet is not done "
                  "until it is done. ")
     elif left:
-        line += ("Still to write up, in the sheet's order: %s. The next agreed "
-                 "answer goes in %s. " % (", ".join(left), left[0]))
+        line += ("Still to write up, in the sheet's order: %s, except any they "
+                 "have told you to drop (TUTOR.md's Now). The next agreed answer "
+                 "goes in %s if they have not dropped it. "
+                 % (", ".join(left), left[0]))
     line += ("They may work the sheet in any order; the document is written in "
              "the sheet's order regardless.")
     return line
@@ -676,4 +683,5 @@ def _session_sense(repo):
             "thing that says where to start is what the repository points at -- "
             "read that before your first card, and say in that card what you are "
             "opening and why. Do not guess from the subject and do not survey the "
-            "repository for an agenda of your own." % kind)
+            "repository for an agenda of your own; a search they ask for is "
+            "theirs, not an agenda." % kind)

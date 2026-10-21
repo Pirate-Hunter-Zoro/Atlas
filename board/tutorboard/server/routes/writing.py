@@ -372,9 +372,12 @@ def post(h, repo, path):
             msg = dict(record)
             # A page is not a verdict: it may be an attempt or a question.
             msg["text"] = ("[slate] %s rev %d, %d strokes. Open the image and "
-                           "read what is actually on it: if there is a question "
-                           "anywhere on the page, answer that first, in its own "
-                           "card, before assessing any working. Do not mark a "
+                           "read all of it. Credit what is already on it and "
+                           "never ask for that again. A question NEW on this "
+                           "page is answered first, before any working is "
+                           "assessed; one carried over from their last page "
+                           "was answered by your last card. A direction on it "
+                           "-- move on, stop, focus on -- binds. Do not mark a "
                            "question wrong."
                            % (tid, rev, len(strokes)))
             msg["slate"] = os.path.join(repo.answers, base + ".png")

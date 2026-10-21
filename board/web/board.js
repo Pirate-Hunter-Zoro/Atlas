@@ -4139,6 +4139,7 @@ function openPicker(mode, then) {
   els.barmenu.hidden = true;
   picking = mode;
   pickThen = then || null;
+  bindArmed = null;
   making = null;
   makingPhi = null;
   els.subjpickForm.hidden = true;
@@ -4261,9 +4262,20 @@ function pickRow(id) {
   });
 }
 
+/* A move off a subject the session already left work in comes back
+   `confirm`: the server says what stays behind, and only a second tap on the
+   same subject sends it with `force`. */
+var bindArmed = null;
 function bindTo(id) {
   pickSaid("binding…");
-  return postJson(BASE + "/bind", { subject: id }).then(function (got) {
+  var force = bindArmed === id;
+  bindArmed = null;
+  return postJson(BASE + "/bind", { subject: id, force: force }).then(function (got) {
+    if (got && got.confirm) {
+      bindArmed = id;
+      pickSaid(got.error + " Tap it again to move it.");
+      return false;
+    }
     if (!got || !got.ok) { pickSaid((got && got.error) || "Not bound."); return false; }
     boundTo = { id: got.subject.id, name: got.subject.name, at: Date.now() };
     paintHeader(Object.assign({}, headerState));

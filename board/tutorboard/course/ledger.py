@@ -428,7 +428,11 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
     """Write the round's own directory and its ledger. Returns the ledger.
 
     Crops and pictures are copied at filing, because a page's live picture is
-    overwritten by the next save. The source is snapshot, not committed,
+    overwritten by the next save. A live picture is copied only for ink drawn
+    on the build on disk, since the reader pictures a page over the build on
+    the glass; ink from an older build has its crop, cut from that build's
+    cached rendering, which is touched so the page cache keeps it. The source
+    is snapshot, not committed,
     since a commit of a half-finished edit is a worse undo than none; the
     commit is recorded beside it where the source is clean at HEAD.
     """
@@ -449,6 +453,9 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
         except OSError:
             item["crop"] = ""
         item["drawn_on"] = (builds.get(item.get("ann")) or {}).get("digest") or current
+        item["filed_on"] = current
+        if item["drawn_on"] != current:
+            paper._touch(item["drawn_on"])
         # The words under the ink, taken while their build is on disk, so a
         # pair follows its words through a recompile.
         if pdf and item["drawn_on"] == current and item.get("box"):
@@ -459,7 +466,7 @@ def file_round(repo, doc, source_doc, note_path, round_no, items, ask, pdf):
             if got:
                 item["under"] = got
         png = item.pop("png", "")
-        if png and item["page"] not in marked:
+        if png and item["drawn_on"] == current and item["page"] not in marked:
             name = "marked-p%d.png" % item["page"]
             try:
                 shutil.copyfile(os.path.join(root, *png.split("/")),
@@ -574,11 +581,14 @@ def mark_unsent(note_path, why=""):
 
 def next_round(root, doc):
     """The next round's number, past every round there has been, never a
-    count of notes on disk (a deleted note would hand out its ids again)."""
+    count of notes on disk (a deleted note would hand out its ids again). A
+    round never sent counts nowhere, so its retry takes the same number."""
     from . import library                             # local: avoids a cycle
 
-    high = len(library.notes(root, doc))
-    for _rec, path in rounds(root, doc, every=True):
+    where = library.feedback_dir(root, doc)
+    high = sum(1 for rec in library.notes(root, doc)
+               if not unsent(os.path.join(where, rec["name"])))
+    for _rec, path in rounds(root, doc):
         try:
             high = max(high, int((_read(ledger_path(path), {}) or {}).get("round") or 0))
         except (TypeError, ValueError):
@@ -745,7 +755,8 @@ def evidence(root, doc, note_name, file_name):
 def keep_evidence(repo, doc):
     """Before live marks go, every round keeps the pictures it points at.
     `file_round` already copied them; this is the guard `wipe_delivered` runs
-    first in case that copy failed.
+    first in case that copy failed. Ink drawn on an older build than the one
+    it was filed against has no picture to keep: its crop is the evidence.
     """
     root = repo.root
     for _rec, path in rounds(root, doc):
@@ -754,6 +765,8 @@ def keep_evidence(repo, doc):
         changed = False
         for it in items:
             if it.get("kind") != "ink" or it.get("marked") or not it.get("ann"):
+                continue
+            if it.get("filed_on") and it.get("drawn_on") != it["filed_on"]:
                 continue
             from ..server.routes import writing       # local: avoids a cycle
 

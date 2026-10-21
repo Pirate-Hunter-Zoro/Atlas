@@ -121,20 +121,45 @@ body { font-family: var(--ui); color: var(--ink); }
 /* ---------- reading one: `reader.css`, the one reader's sheet ---------- */
 
 /* ---------- saying what is wrong ---------- */
+/* THE PANEL NEVER OUTGROWS THE GLASS. Twenty-three requests made it taller
+   than an iPad in landscape, and a centred fixed box that tall spills off the
+   top and the bottom alike: nothing scrolls to a fixed box's top, the page
+   under it is locked (`body.reading`) and the pinch is the board's, so "send
+   it" was unreachable. So the box is capped at the panel, the panel is sized
+   to what is visible (`fitNote`, for the keyboard), and only `#note-body`
+   scrolls -- the answer and the buttons stay put under it. `margin: auto`
+   centres a box that fits and starts one that does not at the top, where
+   `align-items: center` put its top out of reach. */
 #note {
   position: fixed; inset: 0; z-index: 60;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; justify-content: center;
+  box-sizing: border-box;
   padding: 1rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+           max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   background: rgba(0, 0, 0, .45);
 }
 #note-box {
   width: min(32rem, 100%);
+  max-height: 100%; min-height: 0; margin: auto;
+  box-sizing: border-box;
   display: flex; flex-direction: column; gap: .5rem;
+  overflow: hidden;
   padding: 1rem;
   border-radius: .6rem; border: 1px solid var(--rule);
   background: var(--paper);
   box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
 }
+#note-title, #note-where, #note-said, #note-acts { flex: none; }
+#note-where { margin: 0; overflow-wrap: anywhere; }
+#note-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: .5rem;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+#note-body > * { flex: none; }
+#note-body p { margin: 0; }
 #note-text, #note-purpose, #deck-ask-text {
   font: inherit; font-size: .9rem; line-height: 1.5;
   padding: .6rem; border-radius: .4rem;

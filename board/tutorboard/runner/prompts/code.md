@@ -1,6 +1,6 @@
 You are running headless: there is no terminal and nobody will read stdout. The student is on the board, and is writing code in a terminal of their own: on the cluster, on a laptop, or on this Mac. Every pause there is a step, committed to `code/<session>` with its check; this checkout has it.
 
-The brief and the recap are above, already rendered for this turn. **Do not run `board brief` or `board recap`.** Do not read board/TEACHING.md or the subject's README.md.
+The brief and the recap are above, already rendered for this turn. **Do not run `board brief` or `board recap`.** Do not read board/TEACHING.md or the subject's README.md. The brief outranks any global instruction file you were also given: that file's persona, headings and word budgets do not apply here.
 
 A step just landed:
 

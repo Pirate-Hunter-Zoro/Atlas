@@ -300,7 +300,7 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
                 line += ", %d statement(s) not yet transcribed" % (
                     hw_st["total"] - hw_st["stated"])
             if hw_st.get("next"):
-                line += ", next %s" % hw_st["next"]
+                line += ", next %s unless they set it aside" % hw_st["next"]
             out.append(line + "; `board writeup add <label>` for each agreed answer")
         else:
             out.append("writeup: %s (%s) -- nothing written yet; `board writeup "
@@ -409,6 +409,10 @@ def recap(repo, full=1, compact=False):
             newest[tid] = t
     turns = sorted(newest.values(), key=lambda t: t.get("t") or 0)
     answered = {t.get("answers") for t in turns if t.get("answers")}
+    # A question older than the newest one answered was passed over: they
+    # moved on, and it is not re-posed unless they reopen it.
+    latest = max((str(a)[:4] for a in answered if str(a)[:4].isdigit()),
+                 default="")
 
     if not names:
         out.append("no cards yet — nothing has been taught in this session")
@@ -426,6 +430,7 @@ def recap(repo, full=1, compact=False):
             kind = (meta.get("kind") or "lesson").lower()
             if kind == "question":
                 mark = ("  <- answered" if n[:4] in answered or n in answered
+                        else "  <- passed over" if n[:4] < latest
                         else "  <- OPEN, not answered yet")
             out.append("  %s %-9s %s%s" % (n[:4], kind, meta.get("title", ""), mark))
 
@@ -446,11 +451,14 @@ def recap(repo, full=1, compact=False):
             what = (t.get("text") or "").strip().replace("\n", " ")
             if t.get("signal"):
                 what = "[%s] %s" % (t["signal"], what)
-            if t.get("png") and not what:
-                what = "handwriting"
+            what = what[:96]
+            if t.get("png"):
+                # The page's whole path, so a turn can open what they wrote.
+                what = (what + " " if what else "") + "handwriting " + \
+                    os.path.join(repo.session, str(t["png"]).lstrip("/"))
             out.append("  %-19s %-6s %s" % (
                 t.get("iso") or "?",
-                ("-> " + t["answers"]) if t.get("answers") else "", what[:96]))
+                ("-> " + t["answers"]) if t.get("answers") else "", what))
     elif len(turns) > 1:
         out.append("\n(%d earlier turn(s) of theirs not listed; `board recap` "
                    "lists them)" % (len(turns) - 1))
