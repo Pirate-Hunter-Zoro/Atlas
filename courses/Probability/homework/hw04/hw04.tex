@@ -66,4 +66,26 @@ $$P = \begin{pmatrix}
 \end{pmatrix}.$$
 % ===== END SOLUTION 3 =====
 
+\begin{problem}{5}
+A Markov chain $\{X_n,\ n\ge 0\}$ with states $0,1,2$ has transition probability matrix
+
+$$P=\begin{pmatrix} \tfrac12 & \tfrac13 & \tfrac16 \\[2pt] 0 & \tfrac13 & \tfrac23 \\[2pt] \tfrac12 & 0 & \tfrac12 \end{pmatrix}, \qquad p=\left(\tfrac14,\ \tfrac14,\ \tfrac12\right),$$
+
+where $p$ is the initial distribution, the third entry following from $P\{X_0=0\}=P\{X_0=1\}=\tfrac14$. Find $E[X_3]$.
+\end{problem}
+% ===== SOLUTION 5 =====
+Every row of $P$ sums to $1$, so $P$ is a transition matrix and $p$ is a distribution. The distribution of $X_3$ is $pP^3$: a $1\times n$ vector times an $n\times n$ matrix three times, which gives a $1\times n$ vector again.
+
+$$P^2 = \begin{pmatrix} \tfrac13 & \tfrac5{18} & \tfrac7{18} \\[2pt] \tfrac13 & \tfrac19 & \tfrac59 \\[2pt] \tfrac12 & \tfrac16 & \tfrac13 \end{pmatrix}, \qquad
+P^3 = \begin{pmatrix} \tfrac{13}{36} & \tfrac{11}{54} & \tfrac{47}{108} \\[2pt] \tfrac49 & \tfrac4{27} & \tfrac{11}{27} \\[2pt] \tfrac5{12} & \tfrac29 & \tfrac{13}{36} \end{pmatrix}.$$
+
+Then
+
+$$pP^3 = \left(\tfrac{59}{144},\ \tfrac{43}{216},\ \tfrac{169}{432}\right),$$
+
+whose entries sum to $1$, and for a state taking the value $j$ with probability $P\{X_3=j\}$,
+
+$$E[X_3] = P\{X_3=1\} + 2P\{X_3=2\} = \tfrac{43}{216} + 2\cdot\tfrac{169}{432} = \tfrac{53}{54}.$$
+% ===== END SOLUTION 5 =====
+
 \end{document}
