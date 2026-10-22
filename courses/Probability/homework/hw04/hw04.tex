@@ -88,4 +88,23 @@ whose entries sum to $1$, and for a state taking the value $j$ with probability 
 $$E[X_3] = P\{X_3=1\} + 2P\{X_3=2\} = \tfrac{43}{216} + 2\cdot\tfrac{169}{432} = \tfrac{53}{54}.$$
 % ===== END SOLUTION 5 =====
 
+\begin{problem}{14}
+Specify the classes of the following Markov chains, and determine whether they are transient or recurrent:
+
+$$\mathbf{P}_1=\begin{pmatrix}0&\tfrac12&\tfrac12\\[2pt]\tfrac12&0&\tfrac12\\[2pt]\tfrac12&\tfrac12&0\end{pmatrix},\qquad
+\mathbf{P}_2=\begin{pmatrix}0&0&0&1\\[2pt]0&0&0&1\\[2pt]\tfrac12&\tfrac12&0&0\\[2pt]0&0&1&0\end{pmatrix},$$
+
+$$\mathbf{P}_3=\begin{pmatrix}\tfrac12&0&\tfrac12&0&0\\[2pt]\tfrac14&\tfrac12&\tfrac14&0&0\\[2pt]\tfrac12&0&\tfrac12&0&0\\[2pt]0&0&0&\tfrac12&\tfrac12\\[2pt]0&0&0&\tfrac12&\tfrac12\end{pmatrix},\qquad
+\mathbf{P}_4=\begin{pmatrix}\tfrac14&\tfrac34&0&0&0\\[2pt]\tfrac12&\tfrac12&0&0&0\\[2pt]0&0&1&0&0\\[2pt]0&0&\tfrac13&\tfrac23&0\\[2pt]1&0&0&0&0\end{pmatrix}.$$
+\end{problem}
+% ===== SOLUTION 14 =====
+For $\mathbf{P}_1$ the class is $\{0,1,2\}$, and all its states are recurrent.
+
+For $\mathbf{P}_2$ the class is $\{0,1,2,3\}$, and all its states are recurrent.
+
+For $\mathbf{P}_3$ the classes are $\{0,2\}$ and $\{3,4\}$, both recurrent, and $\{1\}$, transient.
+
+For $\mathbf{P}_4$ the classes are $\{0,1\}$ and $\{2\}$, both recurrent, and $\{3\}$ and $\{4\}$, both transient. State $2$ is recurrent because when you are in it you will always return to it.
+% ===== END SOLUTION 14 =====
+
 \end{document}

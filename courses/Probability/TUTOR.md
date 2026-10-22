@@ -9,14 +9,18 @@
 
 ## Now
 
-Working hw04 (Chapter 4, Markov Chains), nine problems: 2, 3, 5, 14, 34, 40, 52, 60, 76. Problems 2, 3 and 5 are written up and the PDF builds: hw04-2.png needs $2^3=8$ states, hw04-3.png has the correct eight-row matrix, hw04-5.png has the setup.
+hw04, nine problems: 2, 3, 5, 14, 34, 40, 52, 60, 76. Problems 2, 3, 5 and 14 are written up and the PDF builds.
 
-Problem 5 is closed. They switched the session to do mode and asked for the triple product, so SOLUTION 5 was filled: $P^2$ rows $(\tfrac13,\tfrac5{18},\tfrac7{18})$, $(\tfrac13,\tfrac19,\tfrac59)$, $(\tfrac12,\tfrac16,\tfrac13)$; $pP^3=(59/144,\ 43/216,\ 169/432)$; $E[X_3]=53/54$. Card 0004 reports it and says the $(1,3)$ entry is $169/432$. They said they would switch back to teach mode.
+Problem 5 is closed. Their page t0002-r4 reproduced the triple and $E[X_3]$, and their direction "if all this is right, let's move on" holds. Do not return to it.
 
-Next: problem 14, the classes of states. Then 34, 40, 52 (long-run proportions), then 60, 76 (hitting probability and mean hitting time).
+Exercise 14 is closed and written up. Their page t0002-r5 had all four chains right; card 0006 wrongly read $\{2\}$ as transient, and card 0007 withdraws that. Do not re-ask any part of 14.
+
+Exercise 34 is posed in card 0007 and unanswered: the flea on a triangle, (a) the long-run proportion at each vertex, (b) how often a counterclockwise move is followed by five clockwise moves. Grade it whole when their page arrives.
+
+Next: 40, the mean return time of a particle on a 12-point circle; then 52, the taxi driver's average profit per trip; then 60 and 76.
 
 ## Open decisions
 
 ## Done recently
 
-Problem 5 of hw04 written into homework/hw04/hw04.tex in do mode, the page filed as handwritten/hw04-5.png, PDF built. Committed as 15d1b202.
+Exercise 14 transcribed from t0002-r5 into homework/hw04/hw04.tex, page filed as handwritten/hw04-14.png, PDF built. Problem 5 done earlier and committed as 15d1b202.
