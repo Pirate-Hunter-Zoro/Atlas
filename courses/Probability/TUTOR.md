@@ -9,18 +9,14 @@
 
 ## Now
 
-Working hw04 (Chapter 4, Markov Chains), nine problems: 2, 3, 5, 14, 34, 40, 52, 60, 76. Exercises 2 and 3 are written up (hw04-2.png needs $2^3=8$ states; hw04-3.png has the correct eight-row matrix). The set builds.
+Working hw04 (Chapter 4, Markov Chains), nine problems: 2, 3, 5, 14, 34, 40, 52, 60, 76. Problems 2, 3 and 5 are written up and the PDF builds: hw04-2.png needs $2^3=8$ states, hw04-3.png has the correct eight-row matrix, hw04-5.png has the setup.
 
-The live problem is 5. t0002 has the right setup: $P$ with rows $(\tfrac12,\tfrac13,\tfrac16)$, $(0,\tfrac13,\tfrac23)$, $(\tfrac12,0,\tfrac12)$ -- every row sums to 1 -- plus $p=(\tfrac14,\tfrac14,\tfrac12)$, the route $pP^3$, the dimension check, and $E[X_3]=P\{X_3=1\}+2P\{X_3=2\}$. No entries computed yet.
+Problem 5 is closed. They switched the session to do mode and asked for the triple product, so SOLUTION 5 was filled: $P^2$ rows $(\tfrac13,\tfrac5{18},\tfrac7{18})$, $(\tfrac13,\tfrac19,\tfrac59)$, $(\tfrac12,\tfrac16,\tfrac13)$; $pP^3=(59/144,\ 43/216,\ 169/432)$; $E[X_3]=53/54$. Card 0004 reports it and says the $(1,3)$ entry is $169/432$. They said they would switch back to teach mode.
 
-They asked the board to do the triple product and hand them the $(1,3)$ entry ("just do this for me"). Card 0003 declined and read it as a request to shrink the step, not a mode switch. If they repeat the demand plainly, treat it as a do-mode request.
-
-The rung still open: $P\{X_1=0\}$ as one fraction; correct value $3/8$, the row is $(3/8,\ 1/6,\ 11/24)$. Then $P^2$, then $P^3$, then $E[X_3]$.
-
-Checked for grading: $P^2$ rows $(\tfrac13,\tfrac5{18},\tfrac7{18})$, $(\tfrac13,\tfrac19,\tfrac59)$, $(\tfrac12,\tfrac16,\tfrac13)$; then $pP^3=(59/144,\ 43/216,\ 169/432)$ and $E[X_3]=53/54$.
-
-Groups still ahead: 14 (classes of states), 34/40/52 (long-run proportions), 60/76 (hitting probability and mean hitting time).
+Next: problem 14, the classes of states. Then 34, 40, 52 (long-run proportions), then 60, 76 (hitting probability and mean hitting time).
 
 ## Open decisions
 
 ## Done recently
+
+Problem 5 of hw04 written into homework/hw04/hw04.tex in do mode, the page filed as handwritten/hw04-5.png, PDF built. Committed as 15d1b202.
