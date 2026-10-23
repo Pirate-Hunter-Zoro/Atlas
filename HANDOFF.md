@@ -82,7 +82,6 @@ These are pre-approved. Write each from its bullets, and commit it when its item
     evaluation they ask for are not the mathematics: compute them exactly, give that result,
     and stop."
   - Change the do-mode rule to "only for a solution the owner names as a solution".
-- **`courses/Colibri/RULES.md` (item 1).**
 - **`courses/Random/RULES.md` (item 12):**
   - Each session is its own topic.
   - TUTOR.md "Done recently" holds at most 15 one-line entries, newest first.
@@ -97,92 +96,6 @@ These are pre-approved. Write each from its bullets, and commit it when its item
 - **The course READMEs and the Galois chapter `.tex` header comments:** they link
   `AI_INSTRUCTIONS.md`, `HANDOFF.md`, `PROGRESS.md` and `make split`, none of which exists. Point
   them at `RULES.md`, `TUTOR.md` and `board textbook split`.
-
-## 1. Rescue the Galois pages, then give Colibri its own course
-
-The deck and lesson continue in `courses/Colibri`, a course about Colibri on LIBR's cluster.
-Nothing of the owner's coursework stays in a project the exit removes.
-
-Run this from the owner's terminal session in the main checkout. The changes are subject
-files, so no worktree is needed. Run it while `sessions/20261012-111337/agent.json` shows no
-`turn_pid`.
-
-1. **Galois.**
-   - Copy the nine 13(d) pngs from `projects/libr-local-llm/docs/galois-theory-ch07/handwritten/`
-     into `courses/Galois-Theory/chapters/ch07-splitting-fields/homework/handwritten/`. Compare
-     by md5 first; they have no copy there.
-   - Commit, by pathspec, the course's modified `ch07-homework.tex`, its `TUTOR.md` and every
-     untracked png under `handwritten/`.
-   - Session `20261009-193922` ("Galois Theory: ch07") is bound to `courses/Probability` by a
-     stray tap. Set its `session.json` `writeup` to the ch07-homework.tex path. Then run
-     `board bind courses/Galois-Theory --force --session 20261009-193922`.
-   - Diff libr's `docs/galois-theory-ch07/writeup.tex` (working tree) against the course's
-     `ch07-homework.tex`. Its p=13, d=2 worked case of 13(d) exists only in libr's file. Carry it
-     verbatim into the course's 13(d) region; it is the owner's own work. Carry anything else
-     found only there too.
-   - Then run `git rm -r -f projects/libr-local-llm/docs/galois-theory-ch07` and `rm -rf` the
-     directory. The index holds staged pngs and an MM writeup.tex there, and four untracked pngs
-     that are already in the course.
-   - Drop the Galois line from libr's `TUTOR.md` with `board memo`.
-2. **The course.**
-   - Create `courses/Colibri`, named "Colibri", through `subjects.create`. That writes
-     `tutorboard.json` and a TUTOR.md skeleton.
-   - Draft its RULES.md:
-     - the owner does the reasoning, one concept per reply, ending on one question;
-     - sources are `materials/`, listed in `materials/SOURCES.md`;
-     - no live Colibri task and no cluster request;
-     - no lab storage path, person or dataset in a tracked file.
-3. **Sources, Mac-only.** `materials/` is ignored, so the public tree carries no LIBR snapshot.
-   - `materials/libr/`: libr-local-llm's `README.md`, `DESIGN.md`, `P0-STATUS.md`,
-     `FLEET-BUILD.md`, `RULES.md`, `docs/deepseek-egress.md`, `slurm_jobs/colibri_serve.sbatch`,
-     `slurm_jobs/colibri_adopt.sbatch` and `bin/coli-*`.
-   - `materials/board/`: `colibri.py`, `relay.py`, `jobs.py`, `cluster.py`, `leaving.py`,
-     `fenced.py` and `libr_ai.py` from HEAD.
-   - `materials/policy/`: ai-config's `policy/egress.py`, `phi.py`, `LOCAL-MODELS.md` and
-     `hosted.txt`. Never `credentials.txt`.
-   - `materials/SOURCES.md`: each file's origin path and Atlas SHA, plus the Colibri upstream
-     URL and both pins (they are in LIBR-EXIT.md's *Decided*).
-   - No upstream source tree under `materials/`, because `subjects.materials` lists every file
-     on the iPad.
-4. **Move the lesson.**
-   - Use plain `mv`, so the ignored build files travel too. Move
-     `projects/libr-local-llm/docs/colibri-pitch` and `docs/writeup-20261012-111337` into
-     `courses/Colibri/docs/`, and `projects/libr-local-llm/.ink/doc-colibri-pitch-*` into
-     `courses/Colibri/.ink/`.
-   - Before staging anything, replace the lab storage path
-     (`/media/studies/ehr_study/...`) in `colibri-pitch.tex`'s "Where GLM lives" slide with "the
-     lab's shared filer".
-   - The feedback rounds carry the same path in their `before.tex`, `after.tex` and
-     `items.json`. Keep them untracked: put item 6's two `.gitignore` rules into the same commit.
-   - Run `git add -A --` on the old and new directories, then commit by pathspec. The index
-     holds other staged work.
-   - Before committing, `git grep -n -E '/media/|ehr.study|mferguson' -- courses/Colibri` prints
-     nothing.
-   - In `sessions/20261012-111337/session.json`, point `writeup` at the course copy and drop
-     `hw`. Then run `board bind courses/Colibri --force --session 20261012-111337`.
-   - Replace libr's TUTOR.md Colibri lines with one pointer to the course, through `board memo`.
-     Commit libr's `TUTOR.md` by pathspec.
-5. **TUTOR.md**, through `board memo`, under 800 words:
-   - "Where things are": the deck, the write-up and `materials/SOURCES.md`.
-   - "Now", resuming at card 0048's open question. The topic order is:
-     1. what Colibri is and where it runs;
-     2. why it is safe with sensitive data (local weights, fences, the egress block);
-     3. how it rides the cluster (Slurm, the relay, the 68-minute cold start);
-     4. the live gaps: loopback is not a boundary, ollama has no auth, KV persistence;
-     5. the partitions/A40/NVLink item.
-6. **The deck, on the iPad.** This step is the owner's.
-   - In the Colibri library, re-ask round 2's revise. Its 40 requests are unanswered, and the
-     last revise timed out.
-   - Let it finish, then End. End commits with no participant-scan refusal, because a course is
-     phi false.
-   - The session waits, then confirms that the ledger shows round 2 answered.
-   - `fleet_walkthrough` stays in libr and leaves in its zip.
-
-Done when:
-- Home lists Colibri under Courses, and the session chip reads `courses/Colibri`.
-- The library shows the deck with its ink on pages 1-13 and both rounds, round 2 answered.
-- `git ls-files projects/libr-local-llm | grep -E 'colibri-pitch|writeup-20261012|galois'`
-  prints nothing.
 
 ## 2. Teach mode computes on request; do mode does only what was asked
 
@@ -303,7 +216,7 @@ Done when:
 
 ## 5. The LIBR exit
 
-Run `LIBR-EXIT.md`. It needs items 1 and 4 landed and the owner's first cluster steps (its
+Run `LIBR-EXIT.md`. It needs item 4 landed and the owner's first cluster steps (its
 section 5a) done, and it stops midway for the owner's section 5b.
 
 It zips TRD-EHR, PSYCH-ASR, libr-local-llm and Paper-Writer with their write-ups, results and
@@ -318,7 +231,7 @@ review files. It does not track session detail.
 
 - **Feedback rounds are untracked.** These are board-generated ink SVGs, crops, page renders,
   before/after copies, `items.json`, `states.json`, ledgers and round notes.
-  - The root `.gitignore` gets `/courses/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*`
+  - The root `.gitignore` already has `/courses/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*`
     and the same rule under `/projects/`.
   - Nothing reads rounds from git; `ledger.py` reads the disk.
   - `test/deck_loop.py` becomes "End leaves the round on disk and out of the commit".
@@ -834,6 +747,9 @@ These are built but not yet used for real. Strike each one after an evening on t
   - The session header: subject chip, teach and do, Make, End.
   - Teach and do persist until switched, and a do turn runs `board check`.
 - **Documents:**
+  - The Colibri deck's round 2. In the Colibri library, re-ask its revise: its 40 requests are
+    unanswered, because the last revise timed out. Let it finish, then End. End commits with no
+    participant-scan refusal, and the ledger shows round 2 answered.
   - One document all the way round: Make, build, read, ink, "Say what's wrong", revise.
   - The round as pairs on the Colibri deck: tap the chip, a row and a pip, and mark pairs fine
     or not fixed.
