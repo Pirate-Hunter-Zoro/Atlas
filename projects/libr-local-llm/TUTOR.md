@@ -6,8 +6,8 @@
 - ollama, user-local: qwen3-coder:30b, medgemma:27b-it-q8_0, gpt-oss:120b (needs c3_accel). slurm_jobs/ollama_serve*.sbatch; bin/ollama-up, ollama-code, ollama-down. opencode is the front end; config/opencode.json is a tracked copy of ~/.config/opencode/opencode.json.
 - colibri, GLM-5.2 int4: slurm_jobs/colibri_serve.sbatch and bin/coli-build, coli-up, coli-code, coli-ask, coli-down. README §4c is its architecture; P0-STATUS.md findings 16-22 its measurements, and finding 20 governs the design.
 - The fleet is designed in DESIGN.md and scheduled in FLEET-BUILD.md. None of it is built.
-- The Colibri pitch deck is docs/colibri-pitch/colibri-pitch.tex, 11 slides; the write-up behind it is docs/writeup-20261012-111337/.
 - The retired plan is planning/LOCAL-LLM_TODO.txt in git history.
+- The Colibri lesson and its pitch deck are the course `courses/Colibri`.
 
 ## Now
 
@@ -18,9 +18,6 @@ Nothing here waits on another person, so work comes here while TRD-EHR and PSYCH
 - [ ] With it: the fidelity-rating JSON schema, operational items split from subjective scales, and a validation plan (human-human ICC, then model against humans).
 - [ ] After PSYCH-ASR's numbers-only summary writer exists and the owner has eyeballed its output once: teach ai-config/policy/phi.py the *.summary.json shape and say so in PERMISSIONS.md §2. Never before.
 - [ ] Decide whether a longer-lived ollama server is wanted on c3; both sbatch files default to 8 h.
-- [ ] Learn, for the Colibri PHI-safety deck: why coli-code's session root ends in a directory named phi; the three layers of the PHI boundary, and why the clinical model never runs through opencode; what names_phi checks before a push or a save, and what only a hosted turn's judgement can catch.
-- [ ] Learn: the cluster's partitions and nodes, the A40s, the 1 TB node, and why inactive NVLink favours replicas over shards; the measured rates, 51 tok/s per user on one A40 for the 30B helper against 3.2-4.4 tok/s for the 744B model.
-- [ ] Build the deck once the owner has had those learn sittings.
 
 After M1: M2 colibri placement, M3 the supervisor, M4 the front door, M5 the consultant tool, each only once the last exit is met. Measurements owed first: atomic rename on the NFS share, replicas against a 4-way shard, whether a yield helps the other job, 744B int4 against a well-served 27-120B model scored blind, reacquisitions that beat a yielded job (must be zero), and our fair-share factor.
 
@@ -35,7 +32,4 @@ Colibri on demand: `board colibri` or a relay request files a task; a generation
 
 ## Done recently
 
-- The colibri harness: five commands, on-demand generations resuming across deaths. Diarization repaired: PSYCH-ASR's reference transcript exists.
-- The Colibri pitch deck is at docs/colibri-pitch/; page 4 draws a token's journey with one layer inset. Its parked question is the closing one.
-- Serve-script flags: they named `--auto-tier`, half of it. 0044 corrected 0043: the laptop streams at 0.05-0.1 tok/s, 0.64 was CPU-only on a 1 TB node, and the Air's disk needs all 429 GB. 0045 corrected "over 500 GB" and the resident-trunk claim: `TRUNK_RESIDENT_LAYERS=0` maps it. 0045 asks which of trunk, experts, KV is not in the checkpoint at all.
-- Galois ch07: 13(c) skipped, not to re-ask. 14 closed and written up. 13(d) reopened at 0095: the one gap is the coefficient check m(x) in Q[x]. 15(a) answered. 15(b)'s n=5 substitution unconfirmed.
+- The colibri harness: five commands, on-demand generations resuming across deaths. PSYCH-ASR's reference transcript exists.
