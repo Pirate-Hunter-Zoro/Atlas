@@ -52,11 +52,11 @@ SIBLINGS = 5
 # The mechanics of a turn; only a turn reads the brief.
 TURN_SENSE = (
     "This turn is its own session; nothing you hold survives it but the lesson "
-    "on disk (handed to every turn as its recap), RULES.md and TUTOR.md. When this turn changes "
+    "on disk (its recap), RULES.md and TUTOR.md. When this turn changes "
     "where things are, what is happening now, an open decision or what got "
     "done, rewrite that section with `board memo <section>` (its whole new text "
     "on stdin; TUTOR.md is capped at %d words). Never write RULES.md. Do not "
-    "wait: the next message starts a fresh turn of its own." % memo.WORDS
+    "wait: the next message starts a fresh turn." % memo.WORDS
 )
 
 
@@ -286,8 +286,12 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
         beside_open = siblings_sense(repo, st.get("subject"))
         if beside_open:
             out.append(beside_open)
-    # The write-up's counts every turn: a debt on the brief gets paid.
+    # The write-up's counts every turn: a debt on the brief gets paid. In do
+    # mode the counts stay, without the next problem or the call to pay them:
+    # a request there is the scope, and a write-up is made only when asked for.
     hw_set = homework.bound(root, st)
+    do = config.mode_of(st) == "do"
+    pay = "" if do else "; `board writeup add <label>` for each agreed answer"
     if hw_set:
         try:
             hw_st = homework.status(root, st)
@@ -299,14 +303,13 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
             if hw_st.get("stated", 0) < hw_st["total"]:
                 line += ", %d statement(s) not yet transcribed" % (
                     hw_st["total"] - hw_st["stated"])
-            if hw_st.get("next"):
+            if hw_st.get("next") and not do:
                 line += ", next %s unless they set it aside" % hw_st["next"]
-            out.append(line + "; `board writeup add <label>` for each agreed answer")
+            out.append(line + pay)
         else:
-            out.append("writeup: %s (%s) -- nothing written yet; `board writeup "
-                       "add <label>` for each agreed answer"
-                       % (hw_set["name"], hw_set["rel"]))
-    elif config.mode_of(st) != "do":
+            out.append("writeup: %s (%s) -- nothing written yet%s"
+                       % (hw_set["name"], hw_set["rel"], pay))
+    elif not do:
         out.append("writeup: none yet -- the first `board writeup add <label>` "
                    "starts it%s" % (
                        "" if not (getattr(repo, "stored", False)

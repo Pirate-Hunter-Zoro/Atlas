@@ -77,11 +77,6 @@ Rules that hold throughout:
 
 These are pre-approved. Write each from its bullets, and commit it when its item runs.
 
-- **`courses/Probability/RULES.md` and `courses/Galois-Theory/RULES.md` (item 2):**
-  - Add after the first rule: "Arithmetic, matrix products, simplification and numeric
-    evaluation they ask for are not the mathematics: compute them exactly, give that result,
-    and stop."
-  - Change the do-mode rule to "only for a solution the owner names as a solution".
 - **`courses/Random/RULES.md` (item 12):**
   - Each session is its own topic.
   - TUTOR.md "Done recently" holds at most 15 one-line entries, newest first.
@@ -96,47 +91,6 @@ These are pre-approved. Write each from its bullets, and commit it when its item
 - **The course READMEs and the Galois chapter `.tex` header comments:** they link
   `AI_INSTRUCTIONS.md`, `HANDOFF.md`, `PROGRESS.md` and `make split`, none of which exists. Point
   them at `RULES.md`, `TUTOR.md` and `board textbook split`.
-
-## 2. Teach mode computes on request; do mode does only what was asked
-
-In hw04 problem 5 the tutor refused to multiply matrices in teach mode. It said "the
-multiplication is the exercise". In do mode it then finished the problem, filled SOLUTION 5 and
-committed.
-
-This item changes prompt text only. Every string reaches every live turn on merge.
-
-- **`board/tutorboard/sense.py`:**
-  - `METHOD_SENSE`: add computation to the requests done in the card. "COMPUTATION IS NOT THE
-    EXERCISE": arithmetic, a matrix product or power, a simplification or a numeric value on
-    their route is computed exactly (python3 `fractions`). The card gives that result and
-    nothing past it. Asked for pP³ or its (1,3) entry, it gives that, never E[X₃]. Only a
-    request to prove or solve stays theirs.
-  - SIZE THE STEP: the arithmetic of their own route is never a rung.
-  - `TEACH_SENSE`: add "mechanical computation they ask for is yours". `board mode do` is for
-    "do the whole task". "Just do this for me" about one computation is done in teach mode. Keep
-    the literal `board mode do` and the method words that `test/mode.py` checks.
-  - `DO_SENSE` and `DOING_SENSE`: add "DO WHAT WAS ASKED, NOT THE REST". In a lesson or homework,
-    the request is the scope: no finishing the exercise, no filling a SOLUTION region, and no
-    write-up or commit they did not ask for. Make the code-only sentences conditional on the work
-    being code.
-- **`mode.py` `LINE["do"]`:** "Do what they ask yourself -- code, a computation, a file -- and
-  only that; report what changed."
-- **`brief.py`:** the write-up debt line drops the "`board writeup add <label>` for each agreed
-  answer" clause in do mode.
-- **`board/TEACHING.md`:**
-  - The "said outright" line adds "any computation they ask for".
-  - The teach/do section gets one paragraph.
-  - Do mode gets "Do what was asked, and stop".
-  - It sits at exactly the 600-line cap. Shorten the body of "Where a new thing goes" to its
-    one bolded sentence, but keep the heading. `DOING_SENSE` points at it, and
-    `test/teaching.py` requires a named section to be a heading.
-- **`test/teaching.py`:** two-places checks for "computation is not the exercise" and "do what
-  was asked". Count the 30-phrase budget first.
-- **The two course RULES.md edits** (*Owner files*).
-
-Done when a fresh teach session replaying "tell me the (1,3) result" gets 169/432 and stops, with
-no E[X₃], no write-up, no commit and the mode unchanged. In do mode it gets the same card and
-touches no file.
 
 ## 4. Sync without the cluster
 
@@ -733,6 +687,9 @@ These are built but not yet used for real. Strike each one after an evening on t
     edit one file. A `[code] step` card shows within a minute.
   - A do-mode `board push` lands on the laptop.
   - `board code <sid> --end` leaves one commit on main, no `code/*` ref, and the Mac pulled.
+- **Teach and do on a computation:** in a fresh teach session on hw04, "tell me the (1,3)
+  result" gets 169/432 and stops: no E[X₃], no write-up, no commit, the mode unchanged. In do
+  mode it gets the same card and touches no file.
 - **Answers:**
   - A response typing out, and the typed half of the answer panel.
   - Whether the verdict band and streak chip feel like information or like a scoreboard.
@@ -741,7 +698,7 @@ These are built but not yet used for real. Strike each one after an evening on t
 
 Each item's open tasks live in its subject's TUTOR.md.
 
-1. **Probability and Galois Theory homework**, with items 2, 10 and 11 taking the friction out.
+1. **Probability and Galois Theory homework**, with items 10 and 11 taking the friction out.
 2. **The Colibri course** (`courses/Colibri`): the lesson from card 0048, and the pitch deck's
    rounds.
 3. **Spirit-Forge:** Sparring spirit in Rust, then the Lean thread.

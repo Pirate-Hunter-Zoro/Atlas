@@ -150,14 +150,20 @@ for phrase, why in [
 
 # Two places, one rule: the document a tutor opens, and the block a woken turn
 # is handed. A rule fixed in one and left in the other is the failure here.
-for phrase, block, why in [
-    ("mathematics in a card is tex, not ascii", sense.PLAIN_SENSE,
+for phrase, blocks, why in [
+    ("mathematics in a card is tex, not ascii", [sense.PLAIN_SENSE],
      "every card's mathematics is TeX"),
-    ("fix the module that produces it and run it again", sense.RULE_SENSE,
+    ("fix the module that produces it and run it again", [sense.RULE_SENSE],
      "fix the rule, never its output"),
+    # hw04 5: "the multiplication is the exercise", in teach mode.
+    ("computation is not the exercise", [sense.METHOD_SENSE],
+     "a computation they ask for is done, in teach mode too"),
+    # hw04 5, in do mode: the product asked for, then SOLUTION 5 and a commit.
+    ("do what was asked", [sense.DO_SENSE, sense.DOING_SENSE],
+     "a do-mode turn in a lesson does what was asked and stops"),
 ]:
     check("TEACHING.md and the turn agree: " + why,
-          phrase in FLAT and phrase in flat(block))
+          phrase in FLAT and all(phrase in flat(b) for b in blocks))
 
 # ---------------------------------------------------------------------------
 # WHAT A TURN IS HANDED

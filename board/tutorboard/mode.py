@@ -21,8 +21,9 @@ from .lesson import turns
 LINE = {
     "teach": "[mode] This session is now in TEACH mode. Withhold the code being "
              "learned; the method follows TEACHING.md.",
-    "do": "[mode] This session is now in DO mode. Write the code yourself, run "
-          "it, and report what changed.",
+    "do": "[mode] This session is now in DO mode. Do what they ask yourself "
+          "-- code, a computation, a file -- and only that; report what "
+          "changed.",
 }
 
 
