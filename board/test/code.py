@@ -386,6 +386,13 @@ try:
     check("so `board push` still asks origin",
           sha == "" and "codes in this checkout" not in what
           and "as code/%s has them" % S6 in what, what)
+    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 4\n")
+    sha, what = code.vibe(cluster, S6, ["projects/Shut/src"], pushed6, None)
+    check("a `board push` with no message says `save: <changed files>`, "
+          "not the held directory",
+          sha != "" and git(cluster, "log", "-1", "--format=%s", sha)
+          == "save: projects/Shut/src/a.py", (what, sha and git(
+              cluster, "log", "-1", "--format=%s", sha)))
     git(mac, "fetch", "-q", "origin",
         "refs/heads/code/%s:refs/heads/code/%s" % (S6, S6))
     ear6 = ear_mod.Sync(mac, state_dir=os.path.join(work, "ear6"),

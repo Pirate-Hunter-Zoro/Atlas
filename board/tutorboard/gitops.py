@@ -8,6 +8,7 @@
     pull(root)                                  fast-forward only, guarded
     lockfiles_moved(root, before, after)        the subjects to rebuild after one
     save(root, paths, message)                  commit, then push
+    save_message(paths), is_save(message)       a save's message, and reading one back
     adopt_private(base)                         clone ai-config where it is missing
 
 The Mac's timed pull is `sync.Sync`; `save-and-push.sh` wraps `save`;
@@ -31,9 +32,14 @@ import sys
 
 from tutorboard import worktree
 
-# The message of a save that names none. `briefs.SAVES` reads it back: a
-# commit saying only this is a save, not a piece of work.
+# A save rather than a piece of work, read back by `is_save`: a commit whose
+# message (bare, or after the subject's own prefix) is one of these or starts
+# with `SAVE_PREFIX` (`save_message`). History carries all of them.
 SAVE = "lesson complete"
+SAVES = (SAVE, "lesson transcript", "stopping point")
+SAVE_PREFIX = "save:"
+# How many changed paths a save's message names before it counts the rest.
+SAVE_NAMES = 3
 
 # A longer network wait is an invisible credential prompt or a dead remote.
 NET_TIMEOUT = 120
@@ -46,6 +52,36 @@ _ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/bin/false"}
 # The session whose own held paths a commit may carry: set only by `board code
 # <id> --end`, read by the pre-commit hook.
 END_ENV = "BOARD_CODE_END"
+
+
+def save_message(paths):
+    """The message of a save that names none: `save: <changed files>`, the
+    first `SAVE_NAMES` of `paths` and a count of the rest."""
+    paths = [p for p in (paths or []) if p]
+    if not paths:
+        return SAVE_PREFIX + " nothing changed"
+    named = ", ".join(paths[:SAVE_NAMES])
+    more = len(paths) - SAVE_NAMES
+    return "%s %s%s" % (SAVE_PREFIX, named,
+                        " and %d more" % more if more > 0 else "")
+
+
+def is_save(message, prefixes=()):
+    """Is a commit with this message (its first line) a save rather than a
+    piece of work: one of `SAVES`, or `save: ...`, bare or after a prefix
+    naming one of `prefixes` (a subject's id or slug, `subjects.prefix`).
+    Nothing else: any other head (`board: `, `HANDOFF: `) is work."""
+    said = (str(message or "").strip().splitlines() or [""])[0]
+    tries = [said]
+    head, colon, rest = said.partition(":")
+    slugs = set(str(p).strip().split("/")[-1] for p in prefixes or () if p)
+    if colon and head.strip() and head.strip().split("/")[-1] in slugs:
+        tries.append(rest)
+    for one in tries:
+        low = one.strip().lower().rstrip(".").strip()
+        if low in SAVES or low.startswith(SAVE_PREFIX):
+            return True
+    return False
 
 
 def _git(root, *args, **kw):
@@ -755,12 +791,12 @@ def main(argv=None):
               "(a commit carries named paths only)")
         return 2
     cut = argv.index("--")
-    message = argv[0] if cut == 1 and argv[0] else SAVE
     paths = argv[cut + 1:]
     code, top = _git(os.getcwd(), "rev-parse", "--show-toplevel")
     if code != 0 or not top:
         print("not a git repository: %s" % os.getcwd())
         return 1
+    message = argv[0] if cut == 1 and argv[0] else save_message(paths)
     ok, said = save(top, paths, message)
     print(said)
     return 0 if ok else 1

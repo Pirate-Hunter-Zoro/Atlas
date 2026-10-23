@@ -26,11 +26,8 @@ slurm_jobs/logs/*
 # hold a document's title, its source file and the sessions that asked for it.
 !/docs/doc.json
 !/docs/*/doc.json
-# And its feedback: each round's ledger, and the requests and their states
-# in the round's directory. The rest of that directory's JSON is cache.
-!/docs/**/feedback/*.ledger.json
-!/docs/**/feedback/*/items.json
-!/docs/**/feedback/*/states.json
+# Its feedback rounds are not: the root .gitignore keeps them on disk, and a
+# negation here would let a round's JSON back in.
 
 *.jsonl
 

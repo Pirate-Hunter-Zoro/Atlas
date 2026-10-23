@@ -980,10 +980,11 @@ def push_code(live, held, message, only=None):
 def cmd_push(live, args):
     """Commit and push this workspace. It does not end the session.
 
-    One path to a commit: `gitops.save` with `lesson_git.save_pathspec`, as the
-    save button uses, so the tool, other workspaces and NFS litter stay out.
-    `board push "msg" -- <paths>` narrows it; a path outside the workspace is
-    refused.
+    One path to a commit: `lesson_git.save` with `lesson_git.save_pathspec`,
+    as the save button uses, so the tool, other workspaces and NFS litter stay
+    out, and a change to TUTOR.md alone commits nothing. `board push "msg" --
+    <paths>` narrows it; a path outside the workspace is refused. With no
+    message it is `save: <changed files>`.
     """
     from tutorboard.lesson import git as lesson_git
     only = None
@@ -994,7 +995,7 @@ def cmd_push(live, args):
             print("`--` with no paths after it: name what to commit",
                   file=sys.stderr)
             return 1
-    message = " ".join(a for a in args if not a.startswith("--")) or gitops.SAVE
+    message = " ".join(a for a in args if not a.startswith("--")) or None
 
     # Never commit into a rebase or merge somebody started: this runs
     # unattended. Say what is in the way and change nothing.
@@ -1053,13 +1054,10 @@ def cmd_push(live, args):
               + ", ".join(refused), file=sys.stderr)
         return 1
 
-    # The workspace leads the message, as for the save button in lesson/git.py.
+    # `lesson_git.save` leads the message with the workspace, as for the save
+    # button, and keeps a TUTOR.md-only change out of git.
     where = subjects.identify(live.root)
-    lead = subjects.prefix(live.root)
-    if lead and not message.startswith(lead + ":"):
-        message = "%s: %s" % (lead, message)
-
-    ok, out = gitops.save(top, specs, message)
+    ok, out = lesson_git.save(top, live.root, specs, message)
     print(out)
     # `push.json` is shaped exactly as lesson/git.py shapes it; the board reads it.
     record = {"ok": ok, "at": time.time(),

@@ -60,8 +60,7 @@ CORPUS_BYTES = 8000000
 # The tutor's file, whose diff over the period is the subject's story.
 STORY = "TUTOR.md"
 
-# A save, not a piece of work: what follows a subject's prefix decides.
-SAVES = (gitops.SAVE, "lesson transcript", "stopping point")
+# A hand-off is a save here too, after the owner's prefix (`is_save`).
 SAVE_RE = re.compile(r"^(?:[\w.+-]+\s+)?hand-?off\b")
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
@@ -233,12 +232,14 @@ def owner_of(subject, ids):
 
 
 def is_save(subject, ids=()):
-    """A save rather than a piece of work, whoever's prefix is on it."""
+    """A save rather than a piece of work, whoever's prefix is on it: what
+    follows a known subject's prefix (`owner_of`) is a `gitops.is_save` save
+    or names a hand-off."""
     said = str(subject or "").strip()
     if owner_of(said, ids):
         said = said.split(":", 1)[1].strip()
-    said = said.lower().rstrip(".")
-    return said in SAVES or bool(SAVE_RE.match(said))
+    return (gitops.is_save(said)
+            or bool(SAVE_RE.match(said.lower().rstrip("."))))
 
 
 def classify(commit, rel, ids):

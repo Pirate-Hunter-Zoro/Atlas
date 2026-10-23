@@ -18,6 +18,7 @@ the guards themselves, in temporary repositories.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -217,6 +218,50 @@ for _c in sorted(os.listdir(_COURSES)) if os.path.isdir(_COURSES) else []:
                  "own, and that path should be %s."
                  % ("ignores" if _said else "can see", _rel,
                     "ignored" if _want else "trackable"))
+
+
+# ---- A DOCUMENT'S FEEDBACK ROUNDS STAY ON DISK ------------------------------
+#
+# A round -- ink SVGs, crops, page renders, before/after copies, items.json,
+# states.json, its ledger and its note -- is session detail. `ledger.py` reads
+# it from disk, and the root .gitignore keeps it out of git. A tracked one
+# fails, and so does a subject whose own .gitignore lets a round path back in,
+# because a negation in a subject's file outranks the root's rule. Asked of
+# git, on paths that do not exist.
+ROUND = re.compile(r"(?:^|/)feedback/[^/]*[0-9]{4}-[0-9]{2}-[0-9]{2}-v[0-9]")
+_rounds = [f for f in files if ROUND.search(f)]
+if _rounds:
+    fail("%d feedback-round file(s) are tracked, e.g. %s. Rounds stay on disk: "
+         "untrack them in the main checkout with `git rm -r --cached`, and "
+         "check each is still on disk." % (len(_rounds), ", ".join(_rounds[:3])))
+else:
+    ok("no feedback round is tracked")
+_ROUND_PATHS = ("docs/feedback/x-2026-01-01-v1.md",
+                "docs/feedback/x-2026-01-01-v1.ledger.json",
+                "docs/feedback/x-2026-01-01-v1/items.json",
+                "docs/feedback/x-2026-01-01-v1/states.json",
+                "docs/feedback/x-2026-01-01-v1/R1.1.svg",
+                "docs/talk/feedback/talk-2026-01-01-v2/after.tex",
+                "chapters/ch01/feedback/notes-2026-01-01-v1.md")
+_seen_rounds = 0
+for _fam in ("courses", "projects"):
+    _top = os.path.join(HERE, _fam)
+    for _name in sorted(os.listdir(_top)) if os.path.isdir(_top) else []:
+        if _name.startswith(".") or not os.path.isdir(os.path.join(_top, _name)):
+            continue
+        for _p in _ROUND_PATHS:
+            checked += 1
+            _seen_rounds += 1
+            _rel = "/".join((_fam, _name, _p))
+            if subprocess.run(["git", "check-ignore", "-q", "--no-index", _rel],
+                              cwd=HERE, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode != 0:
+                fail("GIT CAN SEE %s. A feedback round stays on disk; the root "
+                     ".gitignore's feedback rule keeps it out, and something "
+                     "(a negation in the subject's .gitignore?) lets it back "
+                     "in." % _rel)
+ok("%d feedback-round paths across every subject asked of git, and ignored"
+   % _seen_rounds)
 
 
 # ---------------------------------------------------------------------------

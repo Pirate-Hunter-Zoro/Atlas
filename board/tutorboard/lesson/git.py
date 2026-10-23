@@ -11,7 +11,7 @@ import os
 import subprocess
 import time
 
-from .. import gitops, leaving, paths, subjects, worktree
+from .. import gitops, leaving, memo, paths, subjects, worktree
 from ..course import homework
 from ..course import repo as course_repo
 
@@ -160,6 +160,58 @@ def repo_top(root):
     return root
 
 
+def changed(top, specs):
+    """The paths a commit of `specs` would carry, relative to `top`: tracked
+    changes and untracked files, ignored ones aside. None where git cannot be
+    asked."""
+    try:
+        p = subprocess.run(
+            ["git", "--no-optional-locks", "status", "--porcelain", "-z",
+             "--no-renames", "--untracked-files=all", "--"] + list(specs),
+            cwd=top, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    return [e[3:] for e in p.stdout.decode("utf-8", "replace").split("\0")
+            if len(e) > 3]
+
+
+def memo_only(paths):
+    """True when every one of `paths` (at least one) is a subject's TUTOR.md."""
+    return bool(paths) and all(os.path.basename(p) == memo.TUTOR for p in paths)
+
+
+# What a save says when TUTOR.md is the only change.
+QUIET = ("only TUTOR.md changed, so nothing was committed: it goes in with the "
+         "next End or the next save of real work")
+
+
+def save(top, root, specs, message=None):
+    """The one save behind the save button and `board push`: commit `specs`
+    in `top` and push (`gitops.save`). `(ok, said)`.
+
+    TUTOR.md is quiet: a save whose only change is TUTOR.md commits nothing
+    and rides with the next End or real-work commit. With no `message`, the
+    message is `gitops.save_message` of the changed files, relative to the
+    workspace at `root`; either way the workspace's prefix leads it.
+    """
+    found = changed(top, specs)
+    if found is not None and memo_only(found):
+        ok, pushed = gitops.push(top)
+        return ok, "%s\n%s" % (QUIET, pushed)
+    if not message:
+        real_top, real_root = os.path.realpath(top), os.path.realpath(root)
+        message = gitops.save_message([
+            os.path.relpath(os.path.join(real_top, f), real_root)
+            .replace(os.sep, "/") for f in found or []])
+    lead = subjects.prefix(root)
+    if lead and not message.startswith(lead + ":"):
+        message = "%s: %s" % (lead, message)
+    return gitops.save(top, specs, message)
+
+
 def run_push(repo, message=None):
     """Commit and push this workspace (`save_pathspec`), and record it.
 
@@ -213,17 +265,12 @@ def run_push(repo, message=None):
     # An out-of-date write-up is rebuilt into the commit.
     built = build_before_push(repo)
 
-    # The workspace leads the message, and the commit is of the repository
-    # the workspace is in, carrying only `save_pathspec`.
-    said = message or gitops.SAVE
+    # The commit is of the repository the workspace is in, carrying only
+    # `save_pathspec`, through the one `save`.
     where = subjects.identify(repo.root)
-    lead = subjects.prefix(repo.root)
-    if lead and not said.startswith(lead + ":"):
-        said = "%s: %s" % (lead, said)
-
     top = repo_top(repo.root)
     specs, _ = save_pathspec(repo.root, top)
-    ok, out = gitops.save(top, specs, said)
+    ok, out = save(top, repo.root, specs, message)
     code = 0 if ok else 1
 
     record = {
@@ -326,10 +373,9 @@ def beside_the_lesson(repo):
                     at, _, subject = line.partition("\0")
                     if not subject.strip():
                         continue
-                    # The board's own save (`gitops.SAVE`, after a subject
-                    # prefix) is the lesson, not their work.
-                    if (subject.split(":", 1)[-1].strip().lower().rstrip(".")
-                            == gitops.SAVE):
+                    # The board's own save, under this workspace's prefix,
+                    # is the lesson, not their work.
+                    if gitops.is_save(subject, (subjects.prefix(repo.root),)):
                         continue
                     try:
                         when = int(at)

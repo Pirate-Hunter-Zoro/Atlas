@@ -112,44 +112,6 @@ Sections 1 and 2 are done: every zip and bundle in `~/LIBR-handoff-2026-10-23/` 
 waits for the owner's section 5b.
 
 
-## 6. What git tracks
-
-Git tracks durable work: code, tests, `tutorboard.json`, RULES.md, TUTOR.md, `doc.json`, artifact
-sources, write-ups, `notes.md`, `handwritten/` pages, already-tracked PDFs and owner-placed
-review files. It does not track session detail.
-
-- **Feedback rounds are untracked.** These are board-generated ink SVGs, crops, page renders,
-  before/after copies, `items.json`, `states.json`, ledgers and round notes.
-  - The root `.gitignore` already has `/courses/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*`
-    and the same rule under `/projects/`.
-  - Nothing reads rounds from git; `ledger.py` reads the disk.
-  - `test/deck_loop.py` becomes "End leaves the round on disk and out of the commit".
-  - `test/tracked.py` fails on any tracked match.
-  - `artifacts.kept` stops returning round files: the `feedback/` loop goes, and the docstring
-    says rounds stay on disk. Otherwise End names an ignored path to `git add`, which fails and
-    commits nothing, TUTOR.md included.
-  - Add a `test/deck_loop.py` case for a document placed in place that has a round, and confirm
-    End commits.
-  - Update board/README's Reader text and README's Tracked table.
-- **Untrack in the main checkout, not a worktree.** A worktree commit that removes files deletes
-  them from the Mac's tree on fast-forward.
-  1. Tar the rounds to `~/Archive/feedback-rounds-<date>.tgz`.
-  2. Have the owner settle the staged index.
-  3. Run `git rm -r --cached` on the matches, and confirm each still exists on disk.
-  4. Commit with no pathspec, because `gitops.commit --only` drops a staged `rm --cached`.
-- **TUTOR.md is quiet.**
-  - A `board push` or iPad save whose only change is TUTOR.md commits nothing. The memo rides
-    along with the next End or real-work commit.
-  - `board memo` never commits on its own.
-  - The default save message is `save: <changed files>` instead of "lesson complete".
-  - `gitops` gets one `is_save(message)` that matches the old exact strings and the new prefix.
-    `lesson/git.py`'s commit filter and `briefs.is_save` (if it survives the exit) both call it.
-
-Done when:
-- `git ls-files | grep -E 'feedback/.*-v[0-9]'` is empty, and the library still shows every round.
-- A lesson that changes only TUTOR.md leaves no commit until End.
-- The suite passes.
-
 ## 8. Spirit-Forge: Rust, Zig, containers, and the Lean thread
 
 Spirit-Forge exercises Rust, Zig and containers, each with a job the game needs, plus Flutter for

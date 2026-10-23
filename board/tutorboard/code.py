@@ -59,7 +59,7 @@ import subprocess
 import tempfile
 import time
 
-from . import fenced, paths, subjects
+from . import fenced, gitops, paths, subjects
 
 POLL = 2.0
 QUIET = 10.0
@@ -639,7 +639,8 @@ def vibe(top, sid, held_paths, since, message):
     changed since `since` (`code.seen`, else HEAD). A file the tip changed
     differently is refused by name. Gated first; fast-forward only. A
     Mac-local session's ref is here (`keeps_local`): its loop takes the held
-    files as they are in this working tree, so nothing is pushed.
+    files as they are in this working tree, so nothing is pushed. With no
+    `message`, it is `save: <changed files>` (`gitops.save_message`).
     """
     if keeps_local(top, sid):
         return "", ("nothing to push: session %s codes in this checkout, so "
@@ -689,9 +690,9 @@ def vibe(top, sid, held_paths, since, message):
             return "", "write-tree failed: %s" % new
     if new == _tree_of(top, tip):
         return "", "nothing to push: the held files are as code/%s has them" % sid
+    said = (message or "").strip() or gitops.save_message(mine)
     msg = "%s\n\n%s\nsession: %s\nfiles: %s\n" % (
-        (message or "a change").strip().splitlines()[0], VIBE, sid,
-        ", ".join(mine))
+        said.splitlines()[0], VIBE, sid, ", ".join(mine))
     code, sha = _git(top, "commit-tree", new, "-p", tip, "-F", "-", input=msg)
     if code != 0:
         return "", "commit-tree failed: %s" % sha

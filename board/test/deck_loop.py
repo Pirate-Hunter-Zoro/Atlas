@@ -1,30 +1,32 @@
 #!/usr/bin/env python3
-"""The deck loop: a deck read in the library, inked, revised, and kept at End.
+"""The deck loop: a deck read in the library, inked, revised, and kept at End,
+which leaves the round on disk and out of the commit.
 
     python3 test/deck_loop.py
 
 A temp Atlas holds one project shaped like `projects/libr-local-llm`: a beamer
 deck placed in `docs/` with `docs/doc.json` beside it (asked by nobody), its
-PDF tracked despite the root's PDF rule, and a `*.json` ignore with the
-negations that keep a document's record and its feedback (the ledger,
-`items.json` and `states.json`).
+PDF tracked despite the root's PDF rule, a `*.json` ignore with the negations
+that keep a document's record, and the real root .gitignore's feedback rule,
+which keeps every round on disk and out of git.
 
   * "Say what's wrong" from the library page routes a `[revise]` to the open
     session bound to the project, and puts that session on the deck's
     doc.json, once however many rounds; asked from inside a session, that
     session goes on it. An overhaul of the committed deck is a `[rework]`,
     refused once the source has changes nothing committed.
-  * End of that session settles every round, then commits the revised
-    .tex, the rebuilt tracked PDF, doc.json and every round's note, ledger
-    and round directory, and leaves nothing of the deck modified. The
-    round's caches (`checked.json`, `placed-*.json`) stay ignored. The
-    owner's edits, drafts and rounds on other documents in that `docs/`
-    stay out of the commit. What the overhaul pulls into the deck beside it
+  * End of that session settles every round on disk, then commits the
+    revised .tex, the rebuilt tracked PDF, doc.json and TUTOR.md, and
+    leaves nothing of the deck modified. Every round -- note, ledger, round
+    directory -- stays on disk and out of the commit. The owner's edits,
+    drafts and rounds on other documents in that `docs/` stay out too. What the overhaul pulls into the deck beside it
     (an image, a sub-file and what that pulls in) is committed with it; a
     file named only in a LaTeX comment is not. A PDF a failed build deleted
     is committed as deleted.
   * End settles a `docs/<slug>/` deck whose slug a walked document already
     holds as its library id (`DESIGN.md` beside a "Design" deck).
+  * A document placed in place outside `docs/` with a round on disk: End
+    commits its source and doc.json with TUTOR.md, and the round stays out.
   * A revision, overhaul or write-up turn is handed the recap of the session
     it runs in, and its prompt sends it to `board see` for the ink and
     holds a deck to a build with no box warnings.
@@ -71,7 +73,7 @@ os.environ["TUTORBOARD_TRASH"] = trash
 os.environ.pop("TUTORBOARD_SESSION", None)
 
 from tutorboard import artifacts, brief, sessions                   # noqa: E402
-from tutorboard.course import library                               # noqa: E402
+from tutorboard.course import ledger, library                       # noqa: E402
 from tutorboard.lesson import inbox                                 # noqa: E402
 from tutorboard.runner import prompts, turn                         # noqa: E402
 from tutorboard.runner import service as runner_service             # noqa: E402
@@ -106,13 +108,16 @@ DECK = r"""\documentclass{beamer}
 \end{document}
 """
 
-# The root's rules for sessions and built PDFs, and the project's `*.json`
-# with the negations a document's record and its feedback need.
-ROOT_IGNORE = "/sessions/\n/projects/*/docs/**/*.pdf\n*.log\n*.aux\n"
-LAB_IGNORE = ("*.json\n!/tutorboard.json\n!/docs/doc.json\n!/docs/*/doc.json\n"
-              "!/docs/**/feedback/*.ledger.json\n"
-              "!/docs/**/feedback/*/items.json\n"
-              "!/docs/**/feedback/*/states.json\n")
+# The root's rules for sessions and built PDFs, the real root's feedback-round
+# rules, and the project's `*.json` with the negations a document's record
+# needs.
+with open(os.path.join(os.path.dirname(BOARD_DIR), ".gitignore"),
+          encoding="utf-8") as _fh:
+    ROUND_RULES = [l.strip() for l in _fh
+                   if "/feedback/" in l and not l.lstrip().startswith("#")]
+ROOT_IGNORE = ("/sessions/\n/projects/*/docs/**/*.pdf\n*.log\n*.aux\n"
+               + "".join(r + "\n" for r in ROUND_RULES))
+LAB_IGNORE = "*.json\n!/tutorboard.json\n!/docs/doc.json\n!/docs/*/doc.json\n"
 
 try:
     lab = os.path.join(base, "projects", "Lab")
@@ -132,6 +137,8 @@ try:
     git("add", "-A")
     git("add", "-f", "projects/Lab/docs/fleet.pdf")
     git("commit", "-q", "-m", "fixture")
+    check("the fixture carries the real root's feedback-round rules",
+          len(ROUND_RULES) >= 2, ROUND_RULES)
     check("the fixture deck's PDF is tracked despite the root's PDF rule",
           "projects/Lab/docs/fleet.pdf" in git("ls-files").stdout)
 
@@ -233,6 +240,8 @@ try:
     note_path = os.path.join(lab, *note["rel"].split("/"))
     check("the answered round has no account under its note before End",
           "## What was changed" not in open(note_path, encoding="utf-8").read())
+    write(os.path.join(lab, "TUTOR.md"), "# Where things are\n\nThe deck.\n")
+    shown = ledger.summary(lab, doc)
     head = git("rev-parse", "HEAD").stdout.strip()
     rec, ok, said = sessions.end(sid, base=base)
     files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
@@ -243,26 +252,33 @@ try:
                  "projects/Lab/docs/colibri-map.png",
                  "projects/Lab/docs/frames.tex",
                  "projects/Lab/docs/figs/arch.png",
-                 "projects/Lab/" + note["rel"],
-                 "projects/Lab/" + note["ledger"],
-                 "projects/Lab/" + note2["ledger"]):
+                 "projects/Lab/TUTOR.md"):
         check("End commits %s" % want, want in files, files)
-    round_files = [f for f in files if f.startswith(
-        "projects/Lab/" + note["rel"][:-3] + "/")]
-    check("and the round's own directory, its requests with it",
-          any(f.endswith("/items.json") for f in round_files), round_files)
-    check("End settles the round first, so the account and the after-copy are "
-          "in the commit rather than written after it",
-          "## What was changed" in git("show", "HEAD:projects/Lab/"
-                                       + note["rel"]).stdout
-          and any(f.endswith("/after.tex") for f in round_files), round_files)
-    check("while the round's caches stay out of git",
-          not any(f.endswith("/checked.json") for f in round_files)
-          and os.path.isfile(os.path.join(note_path[:-3], "checked.json")),
-          round_files)
+    check("End leaves every round out of the commit: no note, ledger or "
+          "round directory", not any("/feedback/" in f for f in files), files)
+    round_dir = note_path[:-3]
+    check("and on disk, settled: the note's account, the ledgers, the "
+          "round's requests, after-copy and caches",
+          "## What was changed" in open(note_path, encoding="utf-8").read()
+          and os.path.isfile(led)
+          and os.path.isfile(os.path.join(lab, *note2["ledger"].split("/")))
+          and os.path.isfile(os.path.join(round_dir, "items.json"))
+          and os.path.isfile(os.path.join(round_dir, "after.tex"))
+          and os.path.isfile(os.path.join(round_dir, "checked.json")),
+          sorted(os.listdir(round_dir)) if os.path.isdir(round_dir) else None)
+    library.forget()
+    after = library.status(page)
+    row = [d for d in after["documents"] if d.get("stem") == "fleet"]
+    check("and the library still shows every round, read from disk",
+          shown["rounds"] == 4 and ledger.summary(lab, doc) == shown
+          and row and row[0].get("ledger") == shown,
+          (shown, ledger.summary(lab, doc), row and row[0].get("ledger")))
+    check("and git cannot see any of it",
+          git("ls-files", "--", "projects/Lab/docs/feedback").stdout == ""
+          and git("status", "--porcelain", "--",
+                  "projects/Lab/docs/feedback").stdout == "")
     left = git("status", "--porcelain", "--", "projects/Lab/docs").stdout
     theirs = ("projects/Lab/docs/egress.md", "projects/Lab/docs/draft-private.md",
-              "projects/Lab/docs/feedback/egress-",
               "projects/Lab/docs/old-map.png")
     deck_left = [l for l in left.splitlines()
                  if not any(t in l for t in theirs)]
@@ -271,7 +287,8 @@ try:
     check("End commits only the deck's own files from the docs/ it shares: "
           "not the owner's edit to another document, nor an untracked draft, "
           "nor that document's round",
-          not any(f.startswith(t) for f in files for t in theirs), files)
+          not any(f.startswith(t) for f in files for t in theirs)
+          and not any("/feedback/egress-" in f for f in files), files)
     check("and those stay as the owner left them, the commented-out map too",
           " M projects/Lab/docs/egress.md" in left
           and "?? projects/Lab/docs/draft-private.md" in left
@@ -322,18 +339,70 @@ try:
     write(led4, json.dumps(got))
     rec, ok, said = sessions.end(sid3, base=base)
     files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
+    note4_path = os.path.join(lab, *note4["rel"].split("/"))
     check("End settles that deck's round, not the walked document's: its "
-          "account and after-copy are in the commit",
-          ok and "## What was changed" in git(
-              "show", "HEAD:projects/Lab/" + note4["rel"]).stdout
-          and any(f.startswith("projects/Lab/" + note4["rel"][:-3] + "/")
-                  and f.endswith("/after.tex") for f in files), (said, files))
+          "account and after-copy are on disk",
+          ok and "## What was changed" in open(
+              note4_path, encoding="utf-8").read()
+          and os.path.isfile(os.path.join(note4_path[:-3], "after.tex")),
+          (said, note4["rel"]))
+    check("and End commits the deck it owns, none of its round",
+          "projects/Lab/docs/design/design.tex" in files
+          and not any("/feedback/" in f for f in files), files)
     library.forget()
     library.status(page)
     left = git("status", "--porcelain", "--", "projects/Lab/docs/design",
                "projects/Lab/DESIGN.md").stdout
     check("and the next library read leaves nothing of it to commit",
           left.strip() == "", left)
+
+    # ---- a document placed in place, outside docs/, with a round ------------
+    # End names only what `git add` takes: never an ignored round path, which
+    # would fail the add and commit nothing, TUTOR.md included. A project of
+    # its own, with no `*.json` rule, so its doc.json is trackable.
+    talk = os.path.join(base, "projects", "Talk")
+    talks = os.path.join(talk, "talks")
+    write(os.path.join(talk, "tutorboard.json"),
+          json.dumps({"name": "Talk", "phi": False}))
+    write(os.path.join(talk, "TUTOR.md"), "# Where things are\n")
+    write(os.path.join(talks, "intro.md"), "# Intro\n\nOne slide.\n")
+    git("add", "-A", "projects/Talk")
+    git("commit", "-q", "-m", "talk")
+    sid4 = registry.open_bound(base, "projects/Talk", "Intro talk")
+    artifacts.place(talks, "intro.md", "Intro", session=sid4)
+    library.forget()
+    intro = [d for d in library.documents(talk) if d["stem"] == "intro"]
+    check("a document placed in place outside docs/ is a library document "
+          "with its record", intro and intro[0].get("artifact") == "talks",
+          [(d["id"], d.get("artifact")) for d in library.documents(talk)])
+    note5 = library.write_note(sessions.repo(sid4, base), intro[0]["id"],
+                               "Say who it is for.", hand_over=False)
+    note5_path = os.path.join(talk, *note5.get("rel", "x").split("/"))
+    check("its round is filed in talks/feedback/ and ignored",
+          note5.get("ok") and note5["rel"].startswith("talks/feedback/intro-")
+          and git("check-ignore", "-q", "projects/Talk/" + note5["rel"])
+          .returncode == 0, note5)
+    art = [a for a in artifacts.for_session(talk, sid4) if a["rel"] == "talks"]
+    check("`artifacts.kept` names no round path, so End never hands git an "
+          "ignored one", art and not any(
+              os.sep + "feedback" in p for p in artifacts.kept(art[0])),
+          art and artifacts.kept(art[0]))
+    write(os.path.join(talks, "intro.md"), "# Intro\n\nFor the lab.\n")
+    write(os.path.join(talk, "TUTOR.md"), "# Where things are\n\nThe talk.\n")
+    head = git("rev-parse", "HEAD").stdout.strip()
+    rec, ok, said = sessions.end(sid4, base=base)
+    files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
+    check("End commits it: its source, its doc.json and TUTOR.md, in one commit",
+          ok and git("rev-list", "--count", "%s..HEAD" % head).stdout.strip()
+          == "1" and {"projects/Talk/talks/intro.md",
+                      "projects/Talk/talks/doc.json",
+                      "projects/Talk/TUTOR.md"} <= set(files), (said, files))
+    check("and its round stays on disk and out of the commit",
+          os.path.isfile(note5_path)
+          and not any("/feedback/" in f for f in files), files)
+    check("leaving nothing of the project to commit",
+          git("status", "--porcelain", "--", "projects/Talk").stdout == "",
+          git("status", "--porcelain", "--", "projects/Talk").stdout)
 
     # ---- what the turn is handed --------------------------------------------
     for sig in ("revise", "rework", "writeup"):

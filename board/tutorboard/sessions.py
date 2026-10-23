@@ -213,8 +213,9 @@ def _kept(base, subject, sid):
 def _settle(base, subject, sid):
     """Write out every feedback round on the artifacts listing this session
     -- the note's `## What was changed`, the round's `after` copy -- which
-    the library otherwise writes only when it is next read, after the commit
-    that should hold them. A failure costs that round's account, never End."""
+    the library otherwise writes only when it is next read. The rounds stay
+    on disk, out of End's commit. A failure costs that round's account,
+    never End."""
     from . import artifacts                              # local: artifacts imports this
     from .course import library
     root = os.path.join(base, subject)
@@ -235,7 +236,7 @@ def _settle(base, subject, sid):
 def end(sid, base=None, now=None):
     """End session `sid`: set `ended`, then commit the bound subject's
     TUTOR.md and every artifact listing the session (`_kept`), its feedback
-    settled first (`_settle`), and push (`gitops.push(board=True)`: main
+    settled on disk first (`_settle`), and push (`gitops.push(board=True)`: main
     only, and not past a commit of the owner's). `(record, ok,
     said)`: `ok` is the commit's; a push that failed is in `said`. Ending
     again keeps the time and retries the commit and the push."""

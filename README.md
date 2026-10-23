@@ -57,9 +57,10 @@ Inside a subject:
 | `tutorboard.json` | `name`, `phi`, `check`, `relay` | yes |
 | `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
-| `TUTOR.md` | the tutor's memory, written only with `board memo` | yes |
+| `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |
 | `README.md` | the owner's own notes; never fed to a turn | yes |
 | `docs/<slug>/` | an artifact: `doc.json` plus its source | yes |
+| `**/feedback/<stem>-<date>-v<n>*` | a document's feedback rounds, read from disk by `ledger.py` | no |
 | `relay/requests/`, `relay/reports/`, `exports/` | the cluster channel | yes |
 | `materials/`, `.ink/` | uploaded and third-party files, and ink on documents | no |
 | `relay/state/` | the relay's job registry and Colibri queue | no |

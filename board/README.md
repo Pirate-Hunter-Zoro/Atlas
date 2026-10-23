@@ -145,7 +145,10 @@ no marker file.
   edit, and the pre-commit hook refuses it in a turn. `TUTOR.md` is the tutor's: sections
   "Where things are", "Now", "Open decisions", "Done recently", at most 800 words, written
   only by `board memo <section>`. The cap refuses rather than trims, because the brief carries
-  the whole file.
+  the whole file. `TUTOR.md` is quiet: `board memo` never commits, and a save or `board push`
+  whose only change is `TUTOR.md` commits nothing, so it rides with End or the next save of
+  real work. A save with no message says `save: <changed files>`; `gitops.is_save` reads
+  a save back only bare or under the subject's own prefix, so `board: ...` is work.
 - **Delete** from the iPad needs the name typed. It is refused unless `tutorboard.json` at HEAD
   sets `phi` to `false` literally, no open session is bound to it, no coding session holds it,
   and no request waits for a report. A PHI subject is removed only through a cluster runbook.
@@ -180,9 +183,11 @@ tree gets a `doc.json` written in place, so its ids hold.
   `[revise]` turn, which edits the source or writes `TUTOR.md`. The turn runs in the
   session it was asked from, else the subject's newest open session (`registry.runner_route`),
   is handed its recap, and that
-  session goes on the document's `doc.json`, so its End settles the rounds and commits the
-  document with its feedback. One placed in a shared directory commits only its own files
-  (`artifacts.kept`), never its neighbours.
+  session goes on the document's `doc.json`, so its End settles the rounds on disk and commits
+  the document. A round (ink SVGs, crops, page renders, before/after copies, `items.json`,
+  `states.json`, its ledger and note) is never committed: the root `.gitignore` keeps it on
+  disk, where `ledger.py` reads it. One placed in a shared directory commits only its own
+  files (`artifacts.kept`), never its neighbours.
 - **Ink** is one kind. Card ink lives in the session; document ink lives in
   `<subject>/.ink/`, keyed `doc/<id>/p<n>`. Both are ignored.
 - **Materials** are third-party or uploaded files in `<subject>/materials/`, ignored, readable

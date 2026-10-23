@@ -384,18 +384,15 @@ def pulled(path):
 
 
 
-# A round directory's caches, which the board rewrites on every read.
-ROUND_CACHE = re.compile(r"\A(?:checked|placed-.*)\.json\Z")
-
-
 def kept(art):
     """The absolute paths an End commits for artifact `art` (an entry of
-    `list`). A `docs/<slug>/` artifact owns its directory, so all of it. One
+    `list`). A `docs/<slug>/` artifact owns its directory, so all of it that
+    git does not ignore. One
     placed in place shares its directory with other work, so only doc.json,
     the source, its built files (`built`, a deleted one too), what it pulls
-    in beside it (`pulled`), the pages a write-up files in `handwritten/`
-    beside it, and its own rounds in `feedback/`: each note, ledger and round
-    directory named for the source's stem, less the round's caches."""
+    in beside it (`pulled`) and the pages a write-up files in `handwritten/`
+    beside it. Its feedback rounds stay on disk, untracked: the root
+    .gitignore ignores them, and `ledger.py` reads them there."""
     if art["own"]:
         return [art["dir"]]
     out = [os.path.join(art["dir"], DOC_JSON)]
@@ -403,29 +400,9 @@ def kept(art):
     if not path:
         return out
     out += [path] + built(path) + [p for p in pulled(path) if p not in out]
-    here = os.path.dirname(path)
-    hand = os.path.join(here, "handwritten")
+    hand = os.path.join(os.path.dirname(path), "handwritten")
     if os.path.isdir(hand):
         out.append(hand)
-    stem = os.path.splitext(os.path.basename(path))[0]
-    mine = re.compile(r"\A%s-\d{4}-\d{2}-\d{2}-v\d+" % re.escape(stem))
-    top = os.path.join(here, "feedback")
-    try:
-        names = sorted(os.listdir(top))
-    except OSError:
-        names = []
-    for name in names:
-        m = mine.match(name)
-        if not m:
-            continue
-        rest, p = name[m.end():], os.path.join(top, name)
-        if rest in (".md", ".ledger.json") and os.path.isfile(p):
-            out.append(p)
-        elif rest == "" and os.path.isdir(p):
-            for there, dirs, files in os.walk(p):
-                dirs.sort()
-                out += [os.path.join(there, f) for f in sorted(files)
-                        if not ROUND_CACHE.match(f)]
     return out
 
 

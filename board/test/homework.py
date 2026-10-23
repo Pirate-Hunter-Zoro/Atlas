@@ -389,16 +389,22 @@ try:
     check("and then actually commits", "committed" in out)
 
     # ONE PATH TO A COMMIT: `board push` and the save button both go through
-    # `gitops.save`, so the terminal's door cannot drift from the iPad's.
+    # `lesson_git.save`, so the terminal's door cannot drift from the iPad's.
     src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
     push_body = src[src.index("def cmd_push("):src.index("def cmd_slate(")]
-    check("bin/board commits through gitops.save and runs no script of its own",
-          "gitops.save(top, specs, message)" in push_body
+    button = open(os.path.join(ROOT, "tutorboard", "lesson", "git.py"),
+                  encoding="utf-8").read()
+    button = button[button.index("def run_push("):]
+    check("bin/board commits through lesson_git.save, as the save button "
+          "does, and runs no script of its own",
+          "lesson_git.save(top, live.root, specs, message)" in push_body
+          and "save(top, repo.root, specs, message)" in button
+          and "gitops.save(" not in push_body
           and "save-and-push.sh" not in push_body)
 
     # AND THE SUBJECT LEADS WITH THE WORKSPACE, which is the other half of one
     # door. The commit carries the whole repository, so a history of subjects
-    # reading "lesson complete" says nothing about which afternoon each one was.
+    # reading only "save" says nothing about which afternoon each one was.
     # `test/beside.py` holds the same assertion for the save button.
     subject = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=prob,
                              stdout=subprocess.PIPE).stdout.decode().strip()
