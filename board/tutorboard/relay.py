@@ -1559,8 +1559,9 @@ def health(atlas, now=None, state_dir=None, fresh=False):
 def panel(atlas, now=None, state_dir=None):
     """GET /relay.json: `health`, and Colibri as status.json says it, with
     the libr-local-llm tasks the panel lists and what filing one costs. The
-    machine's `brew:` lines (`brewcare`) join `lines` here only, so they never
-    reach a brief."""
+    machine's `brew:` and `tools:` lines (`brewcare`) join `lines` here only,
+    so they never reach a brief; a mise pin behind also reaches its own
+    subject's brief (`brief.pins_sense`), where the bump is proposed."""
     from . import brewcare, colibri
     out = health(atlas, now, state_dir)
     out["lines"] = out["lines"] + brewcare.lines(state_dir)

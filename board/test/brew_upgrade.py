@@ -26,6 +26,22 @@ launchctl shim that keeps its loaded agents in a file.
     editor, a pager or a `tail` of the log is not busy.
   - OUTDATED, HOLDS, A CASK FAILURE, THE ORDER, update-tools, OFF MID-RUN,
     R3 (only a CLI the run removed is put back), DRY-RUN, R1.
+  - COVER: the other job's last success (a partial run is none) over 26
+    hours old; its record as this Mac's job writes it, today partial; a full
+    upgrade that excludes nothing of the other job's (a cask it protects, a
+    formula and a cask it holds all upgrade; a pinned formula stays held); a
+    cask whose installer wants a password is recorded as failed, and no call
+    has a stdin or a terminal;
+    overdue counted from the newer of the two jobs' runs; a brew or the other
+    job starting mid-cover stops it before its next brew step, unstamped and
+    keeping its tool failures. AFTER ITS TURN: the cover and the toolchain
+    phase wait while the other job is due, go once it has run or after
+    WAIT_H, and the toolchain phase yields to it, to be run later that day.
+  - THE TOOLCHAIN PHASE: mise with MISE_YES and the Atlas tree trusted, an
+    install named by the subject's own tools, a prune of only the pinned
+    tools, `mise outdated` in mise 2026.10's own JSON shape, a CLI failure read from update-tools'
+    log, a planted failing descriptor, the pins behind; and THE UNION the
+    Brewfile probe checks, from a temp file under --dry-run.
   - THE PLIST, install, off, on, status, and brewcare's lines and summary.
     `off` and `install` during a run boot nothing out; the detached `settle`
     does it once the lock is free, and no process is killed by name.
@@ -150,6 +166,9 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 real_run = mod.run
 
+sys.path.insert(0, BOARD)
+from tutorboard import brewcare                              # noqa: E402
+
 # --- brew's prefix, the agent dirs, a fake Atlas ------------------------------
 prefix = os.path.join(work, "prefix")
 for d in ("Cellar/node/24.1", "Cellar/python@3.15/3.15.0", "Caskroom/foo-app/1.0"):
@@ -220,6 +239,8 @@ class Fake(object):
         self.not_loaded = set()
         self.clis = []
         self.on_call = None
+        self.mise_outdated = (0, "{}", "")
+        self.real_tools = False
 
     def __call__(self, argv, timeout, mutating=False, env=None, cwd=None):
         argv = [str(a) for a in argv]
@@ -258,6 +279,15 @@ class Fake(object):
                 if app in pat.replace("\\", ""):
                     return 0, "777\n", ""
             return 1, "", ""
+        if prog == "mise":
+            if argv[1:2] == ["outdated"]:
+                return self.mise_outdated
+            for key in self.fail:
+                if s.startswith(key):
+                    return 1, "", "mise: %s failed\n" % key
+            return 0, "", ""
+        if self.real_tools and s.startswith("bash scripts/tools.sh"):
+            return real_run(argv, timeout, cwd=cwd, env=env)
         if prog == "pmset":
             return 0, self.pmset, ""
         if prog == "ioreg":
@@ -320,9 +350,59 @@ def good_board_agent():
                        "ProgramArguments": [sys.executable, "serve.py"]}, fh)
 
 
-def plist(dirpath, name, label, args):
+def plist(dirpath, name, label, args, **extra):
     with open(os.path.join(dirpath, name), "wb") as fh:
-        plistlib.dump({"Label": label, "ProgramArguments": args}, fh)
+        plistlib.dump(dict({"Label": label, "ProgramArguments": args}, **extra), fh)
+
+
+OTHER_DIR = os.path.join(work, "other")
+
+
+def upgrader(ok_at=None, held=None, log_ok=None, log_partial=None,
+             attempt=None, log_start=None):
+    """Another upgrader, loaded, with its own record: a state JSON whose
+    last_success is `ok_at` (two hours before 04:10 by default; False: none),
+    whose last_attempt is `attempt` (none by default) and which holds `held`,
+    and a log whose last `done (ok)` line is `log_ok`, last `done (partial)`
+    line `log_partial` and last `run (...)` line `log_start`. Its plist runs
+    a launcher that execs brew_upgrade.py beside it, which protects the
+    casks jelly and fusey as the real one does."""
+    shutil.rmtree(OTHER_DIR, ignore_errors=True)
+    os.makedirs(os.path.join(OTHER_DIR, "state"))
+    write(os.path.join(OTHER_DIR, "run_brew_upgrade.sh"),
+          '#!/bin/bash\nexec /usr/bin/python3 "$(dirname "$0")/brew_upgrade.py"\n')
+    write(os.path.join(OTHER_DIR, "brew_upgrade.py"),
+          'raise SystemExit("never run")\n\nPROTECTED_CASKS = {\n'
+          '    "jelly": "a server it restarts",\n'
+          '    "fusey": "its installer needs the admin password",\n}\n')
+    if ok_at is not False:
+        doc = {"last_success": (ok_at or at(2)).isoformat(), "held": held or {}}
+        if attempt:
+            doc["last_attempt"] = attempt.isoformat()
+        write(os.path.join(OTHER_DIR, "state", "brew_upgrade.json"), json.dumps(doc))
+    lines = ["[2026-10-01 03:00:00] === done in 5s (ok) ===",
+             "[2026-10-10 03:00:00] === done in 7s (partial) ===",
+             "[2026-10-10 05:00:00] === done in 9s (stopped) ==="]
+    for when, how in ((log_ok, "done in 9s (ok)"), (log_partial, "done in 9s (partial)"),
+                      (log_start, "brew upgrade run (due, on AC power)")):
+        if when:
+            lines.append("[%s] === %s ===" % (when.strftime("%Y-%m-%d %H:%M:%S"), how))
+    write(os.path.join(OTHER_DIR, "BrewUpgrade.log"), "\n".join(sorted(lines)) + "\n")
+    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade",
+          [os.path.join(OTHER_DIR, "run_brew_upgrade.sh")],
+          WorkingDirectory=OTHER_DIR,
+          StandardOutPath=os.path.join(OTHER_DIR, "BrewUpgrade.log"))
+    return ("com.example.brewupgrade",
+            os.path.join(agents, "com.example.brewupgrade.plist"))
+
+
+TOOLCHAIN = ("bash ai-config/scripts/update-tools", "uv python upgrade", "mise",
+             "bash scripts/tools.sh")
+
+
+def brew_calls(f):
+    """upgrade_calls without the toolchain phase's."""
+    return [s for s in upgrade_calls(f) if not s.startswith(TOOLCHAIN)]
 
 
 def state():
@@ -429,19 +509,22 @@ try:
     check("and an unreadable plist is skipped", mod.other_upgrader() is None)
 
     f = reset(4)
-    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade",
-          ["/Users/x/Media/run_brew_upgrade.sh"])
-    check("another upgrader's plist is found",
-          mod.other_upgrader() == ("com.example.brewupgrade",
-                                   os.path.join(agents, "com.example.brewupgrade.plist")))
+    want = upgrader()
+    check("another upgrader's plist is found", mod.other_upgrader() == want)
     f.broken = {VENV_A}
     f.bundle_ok = False
     mod.main(["run"])
     st = state()
-    check("defer: no brew update, upgrade, bundle install, cleanup, npm, update-tools, "
-          "uv python upgrade or install-clis", not upgrade_calls(f), upgrade_calls(f))
+    check("defer: no brew update, upgrade, bundle install, cleanup, npm or install-clis",
+          not brew_calls(f), upgrade_calls(f))
+    check("but the toolchain phase runs: update-tools, then uv python upgrade",
+          upgrade_calls(f) == ["bash ai-config/scripts/update-tools", "uv python upgrade"]
+          and st.get("toolchain_attempt") == at(4).isoformat()
+          and st.get("toolchain_success") == at(4).isoformat(), upgrade_calls(f))
     check("the baseline tick acts on nothing and records the fingerprint",
-          not f.said("uv sync") and not f.said("bash") and st.get("mode") == "defer"
+          not f.said("uv sync") and not [s for s in f.said("bash")
+                                         if not s.startswith(TOOLCHAIN)]
+          and st.get("mode") == "defer"
           and st.get("fingerprint") == mod.fingerprint()
           and st["deferred_to"]["label"] == "com.example.brewupgrade", st)
     check("and reports what it saw",
@@ -704,7 +787,7 @@ try:
           and st["last_result"] == "stopped" and "last_success" not in st
           and mod.lock_holder() is None and "off by owner" in read(LOG), (f.said(), st))
     f = reset(4)
-    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade", ["/x"])
+    upgrader()
     f.broken = {VENV_A}
     write(STATE, json.dumps({"mode": "defer", "fingerprint": "old",
                              "deferred_to": {"label": "com.example.brewupgrade"}}))
@@ -832,6 +915,447 @@ try:
     check("the host is never notified", not f.said("osascript"))
 
     # =======================================================================
+    # cover: the other upgrader's last finished run, over 26 hours old
+    # =======================================================================
+    f = reset(4)
+    upgrader(ok_at=datetime(2026, 10, 11, 3, 0))
+    mod.main(["run"])
+    st = state()
+    check("the other job succeeded 25 hours ago: no brew upgrade here, the toolchain "
+          "phase runs", not brew_calls(f) and "uv python upgrade" in f.said()
+          and "covered" not in st and st["mode"] == "defer", (f.said(), st))
+    f = reset(4)
+    upgrader(ok_at=datetime(2026, 10, 11, 1, 0),
+             held={"jelly": {"installed": "1", "latest": "2", "why": "supervised"},
+                   "wget": {"installed": "1", "latest": "2", "why": "it broke"}})
+    f.outdated = outdated([("wget", {}), ("pinny", {"pinned": True})],
+                          ["jelly", "bar", "fusey"])
+    f.fail = {"brew upgrade --cask fusey"}
+    mod.main(["run"])
+    st = state()
+    check("27 hours ago: it covers with its own brew upgrade",
+          "brew update" in f.said() and "brew upgrade --formula wget" in f.said()
+          and "brew bundle check --no-upgrade --file=%s" % os.path.join(
+              mod.SETUP_DIR, "Brewfile.all") in f.said()
+          and "brew cleanup --prune=7" in f.said(), f.said())
+    check("excluding nothing of the other job's: the casks it protects and the "
+          "formula and cask it holds upgrade too",
+          f.said("brew upgrade --cask") == ["brew upgrade --cask bar",
+                                            "brew upgrade --cask fusey",
+                                            "brew upgrade --cask jelly"]
+          and "wget" not in st["held"] and "jelly" not in st["held"]
+          and "PROTECTED_CASKS" not in read(LOG) and "holds it" not in read(LOG),
+          (f.said(), st.get("held"), read(LOG)[-800:]))
+    check("only this job's own holds apply: a pinned formula stays",
+          "pinny" in st["held"] and "pinny" not in " ".join(f.said("brew upgrade")),
+          (f.said(), st.get("held")))
+    check("a protected cask whose installer wants a password fails, recorded as "
+          "failed, and the run goes on",
+          "fusey" in st["failed"] and st["last_result"] == "partial"
+          and "brew upgrade --cask jelly" in f.said(), (st, f.said()))
+    check("and records that it covered, staying in defer mode",
+          st["mode"] == "defer" and st["deferred_to"]["label"] == "com.example.brewupgrade"
+          and st["covered"] == {"for": "com.example.brewupgrade", "at": at(4).isoformat(),
+                                "other_success": "2026-10-11T01:00:00"}
+          and "covered for com.example.brewupgrade, whose last success was "
+              "2026-10-11T01:00:00" in read(LOG), (st, read(LOG)[-600:]))
+    said = brewcare.lines(os.path.dirname(STATE), at(4))
+    check("brewcare says so, on home and in doctor",
+          "brew: com.example.brewupgrade last succeeded Oct 11 01:00, so "
+          "atlas.brew-upgrade ran the brew upgrade itself Oct 12 04:10" in said
+          and brewcare.summary(os.path.dirname(STATE)).startswith(
+              "defers to com.example.brewupgrade, covered for it Oct 12 04:10 "
+              "(partial); 1 failed"),
+          (said, brewcare.summary(os.path.dirname(STATE))))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        mod.main(["status"])
+    check("and atlas-brew status names the cover and the other's last run",
+          "covered:   2026-10-12T04:10:00, for com.example.brewupgrade" in buf.getvalue()
+          and "its last:  2026-10-11T01:00:00; this job covers" in buf.getvalue(),
+          buf.getvalue())
+    f.calls = []
+    mod.now = lambda: at(6)
+    mod.main(["run"])
+    check("once that day: two hours on it upgrades nothing", not upgrade_calls(f),
+          f.said())
+    code, out, err = real_run([sys.executable, "-c",
+                               "import sys\nprint(repr(sys.stdin.read()))\n"
+                               "try:\n    open('/dev/tty')\n"
+                               "except OSError:\n    print('no terminal')\n"], 10)
+    check("no call has a stdin or a terminal, so a sudo inside brew cannot wait on "
+          "a password", code == 0 and out.split() == ["''", "no", "terminal"],
+          (code, out, err))
+    upgrader(ok_at=at(5))
+    mod.now = lambda: at(7)
+    mod.main(["run"])
+    check("and once the other job succeeds again, the cover line goes",
+          "covered" not in state()
+          and not [l for l in brewcare.lines(os.path.dirname(STATE), at(7))
+                   if "ran the brew upgrade itself" in l], state())
+    for label, kw, covers in (
+            ("only its log, 3 hours ago: no cover",
+             {"ok_at": False, "log_ok": datetime(2026, 10, 12, 1, 0)}, False),
+            ("only its log, whose last ok is Oct 1: it covers",
+             {"ok_at": False}, True),
+            ("a partial run 3 hours ago is no success: it covers",
+             {"ok_at": datetime(2026, 10, 1, 3, 0),
+              "log_partial": datetime(2026, 10, 12, 1, 0)}, True)):
+        f = reset(4)
+        upgrader(**kw)
+        mod.main(["run"])
+        check(label, ("brew update" in f.said()) is covers, f.said())
+    f = reset(14)
+    upgrader(ok_at=datetime(2026, 10, 1, 3, 0))
+    mod.main(["run"])
+    check("the host never covers outside the window", not upgrade_calls(f), f.said())
+
+    # A coding laptop at 14:00, on AC and idle: overdue counts from the newer
+    # of the two jobs' last runs, not from this job's first_seen.
+    for hours, covers in ((30, False), (50, True)):
+        f = reset(14, role="coding", state={
+            "first_seen": (at(14) - timedelta(days=7)).isoformat()})
+        upgrader(ok_at=at(14) - timedelta(hours=hours))
+        mod.main(["run"])
+        check("a coding laptop at 14:00, the other job's last run %dh ago: %s"
+              % (hours, "it covers" if covers else "no cover"),
+              ("brew update" in f.said()) is covers, f.said())
+
+    # The other job, or a brew, starting while the cover runs: it stops before
+    # its next brew step, since brew does not wait on its lock.
+    f = reset(4, state={"failed": {"tool:old": "it broke"},
+                        "last_attempt": "2026-10-11T04:10:00",
+                        "toolchain_attempt": "2026-10-11T04:10:00"})
+    upgrader(ok_at=datetime(2026, 10, 11, 1, 0))
+    f.outdated = outdated([("wget", {})])
+
+    def other_starts(s):
+        if s == "brew update":
+            f.other_running = "991 /usr/bin/python3 /x/brew_upgrade.py\n"
+    f.on_call = other_starts
+    mod.main(["run"])
+    st = state()
+    check("the other job starting mid-cover: no brew step after it, yielded, not covered",
+          "brew update" in f.said() and not f.said("brew upgrade")
+          and not f.said("brew bundle install") and not f.said("brew cleanup")
+          and st["last_result"] == "yielded" and "covered" not in st
+          and st["mode"] == "defer" and "yielded: another brew upgrader is running"
+          in read(LOG), (f.said(), st))
+    check("and the next own-mode check is not a cover any more",
+          mod.COVERING is False and mod.DEFERRING is False)
+    check("a cover that yielded unstamps its attempts and keeps the tool failures "
+          "it did not re-check",
+          st["last_attempt"] == "2026-10-11T04:10:00"
+          and st["toolchain_attempt"] == "2026-10-11T04:10:00"
+          and st["failed"].get("tool:old") == "it broke", st)
+    f.calls, f.on_call, f.other_running = [], None, ""
+    upgrader(ok_at=datetime(2026, 10, 11, 1, 0), attempt=at(4, minute=5))
+    mod.now = lambda: at(5)
+    mod.main(["run"])
+    check("so once the other job has run, a later tick that day covers",
+          "brew upgrade --formula wget" in f.said() and "covered" in state()
+          and "uv python upgrade" in f.said(), (f.said(), state()))
+
+    # =======================================================================
+    # after its turn: the day's work waits while the other job is due
+    # =======================================================================
+    # This Mac's job as it writes its record today: its last success 33 hours
+    # back, a partial run since, started 03:37 and done 03:55.
+    real = os.path.join(work, "real-other")
+    os.makedirs(os.path.join(real, "state"))
+    write(os.path.join(real, "state", "brew_upgrade.json"), json.dumps({
+        "first_seen": "2026-09-05T20:16:36", "last_attempt": "2026-10-23T03:37:00",
+        "last_success": "2026-10-22T03:36:01", "last_result": "partial",
+        "last_duration_seconds": 1114, "held": {"jellyfin": {
+            "installed": "12.2", "latest": "12.3", "why": "the supervised upgrade "
+            "failed"}}}))
+    write(os.path.join(real, "BrewUpgrade.log"), "\n".join([
+        "[2026-10-22 03:29:28] === brew upgrade run (due, on AC power) ===",
+        "[2026-10-22 03:36:01] === done in 392s (ok) ===",
+        "[2026-10-23 03:37:00] === brew upgrade run (due, on AC power) ===",
+        "[2026-10-23 03:55:35]     [brew cleanup] ==> freed 46.1MB",
+        "[2026-10-23 03:55:35] === done in 1114s (partial) ===",
+        "[2026-10-23 09:00:00] === dry run; nothing was changed ==="]) + "\n")
+    plist(agents, "com.real.brewupgrade.plist", "com.real.brewupgrade",
+          [os.path.join(real, "run_brew_upgrade.sh")], WorkingDirectory=real,
+          StandardOutPath=os.path.join(real, "BrewUpgrade.log"))
+    rec = mod.other_record(("com.real.brewupgrade",
+                            os.path.join(agents, "com.real.brewupgrade.plist")))
+    check("the record this Mac's job writes: its last success Oct 22 03:36, not the "
+          "partial run; its last start 03:37, not a dry run",
+          rec == (datetime(2026, 10, 22, 3, 36, 1), datetime(2026, 10, 23, 3, 37)), rec)
+    os.remove(os.path.join(agents, "com.real.brewupgrade.plist"))
+
+    # Its last success 33 hours back and its turn taken today: it covers.
+    f = reset(4)
+    upgrader(ok_at=at(4, day=11) - timedelta(hours=9), attempt=at(3, minute=37),
+             log_partial=at(3, minute=55))
+    f.outdated = outdated([("wget", {})])
+    mod.main(["run"])
+    check("its last success 33h old, its partial run done today: it covers",
+          "brew upgrade --formula wget" in f.said() and "covered" in state(),
+          (f.said(), read(LOG)[-600:]))
+
+    # Due (its last start a day back), and this job's tick comes first.
+    def due_tick(hour, minute=10, **kw):
+        f.calls = []
+        mod.now = lambda: at(hour, minute=minute)
+        mod.main(["run"] + kw.get("args", []))
+        return state()
+
+    for label, ok_at in (("a cover", at(4, day=10)), ("the toolchain phase",
+                                                       at(3, day=11, minute=37))):
+        f = reset(3)
+        upgrader(ok_at=ok_at, attempt=at(3, day=11, minute=37))
+        f.outdated = outdated([("wget", {})])
+        st = due_tick(3)
+        check("%s waits while the other job is due: nothing runs, nothing stamped"
+              % label, not upgrade_calls(f) and not f.said("mise")
+              and "last_attempt" not in st and "toolchain_attempt" not in st
+              and st.get("other_due_seen") == at(3).isoformat()
+              and "waiting: com.example.brewupgrade last started a run "
+                  "2026-10-11T03:37:00 and is due; this job goes after it, or by "
+                  "04:40 if it does not start" in read(LOG),
+              (f.said(), st, read(LOG)[-400:]))
+        st = due_tick(4)
+        check("%s: an hour on, still due, still waiting" % label,
+              not upgrade_calls(f) and "toolchain_attempt" not in st, f.said())
+        upgrader(ok_at=ok_at, attempt=at(4, minute=37), log_partial=at(4, minute=50))
+        st = due_tick(5)
+        check("%s runs once the other job has had its turn" % label,
+              "uv python upgrade" in f.said() and "other_due_seen" not in st
+              and ("brew upgrade --formula wget" in f.said()) is (label == "a cover"),
+              (f.said(), st))
+    f = reset(3)
+    upgrader(ok_at=at(4, day=10), attempt=at(3, day=11, minute=37))
+    f.outdated = outdated([("wget", {})])
+    due_tick(3)
+    due_tick(4)
+    due_tick(4, minute=45)
+    check("an upgrader that never starts: waited for 1.5h, then covered for",
+          "brew upgrade --formula wget" in f.said(), (f.said(), read(LOG)[-400:]))
+    f = reset(3, state={"other_due_seen": at(3, day=11).isoformat()})
+    upgrader(ok_at=at(4, day=10), attempt=None, log_start=at(3, day=11, minute=37))
+    st = due_tick(3)
+    check("a wait from another stretch awake starts over; its log's run line is a start",
+          not upgrade_calls(f) and st["other_due_seen"] == at(3).isoformat(),
+          (f.said(), st))
+    st = due_tick(3, args=["--force"])
+    check("and --force does not wait", "brew update" in f.said(), f.said())
+
+    # The toolchain phase alone, the other job starting under it: it yields
+    # before its next step, keeps the failures, and runs later that day.
+    f = reset(4, state={"failed": {"tool:old": "it broke"},
+                        "toolchain_attempt": "2026-10-11T04:10:00"})
+    upgrader(ok_at=at(3), attempt=at(3))
+
+    def starts_under_tools(s):
+        if s == "bash ai-config/scripts/update-tools":
+            f.other_running = "991 /usr/bin/python3 /x/brew_upgrade.py\n"
+    f.on_call = starts_under_tools
+    mod.main(["run"])
+    st = state()
+    check("the toolchain phase yields to the other job starting under it",
+          "bash ai-config/scripts/update-tools" in f.said()
+          and not f.said("uv python upgrade") and not f.said("bash scripts/tools.sh")
+          and st["toolchain_attempt"] == "2026-10-11T04:10:00"
+          and st["failed"] == {"tool:old": "it broke"} and "toolchain_success" not in st
+          and "yielded: another brew upgrader is running" in read(LOG)
+          and mod.DEFERRING is False, (f.said(), st))
+    f.calls, f.on_call, f.other_running = [], None, ""
+    mod.now = lambda: at(5)
+    mod.main(["run"])
+    check("and a later tick that day runs it", "uv python upgrade" in f.said()
+          and "tool:old" not in (state().get("failed") or {}), (f.said(), state()))
+
+    # =======================================================================
+    # the toolchain phase: mise, the descriptors, the pins, the failures
+    # =======================================================================
+    MISE = os.path.join(atlas, "projects", "M")
+    write(os.path.join(MISE, "mise.toml"),
+          '[tools]\nnode = "20.0.0"  # the pin\n"npm:prettier" = "3.0.0"\n'
+          '[tools.python]\nversion = "3.12"\n[env]\nNOT_A_TOOL = "1"\n')
+    write(os.path.join(MISE, "mise.lock"), "lock\n")
+
+    def mise_rec(name, requested, current, bump, latest, src):
+        """One record of `mise outdated --json --bump --local`, as mise
+        2026.10.17 prints it."""
+        return {"name": name, "requested": requested, "current": current, "bump": bump,
+                "latest": latest, "release_url": "https://example.invalid/%s" % latest,
+                "source": {"type": "mise.toml", "path": src}}
+    # node is behind; python's request (a minor) already reaches its newest
+    # release, so bump is null; prettier is not installed yet (current null),
+    # pinned at its newest; shfmt comes from the parent directory's config.
+    MISE_OUTDATED = (0, json.dumps({
+        "node": mise_rec("node", "20.0.0", "20.0.0", "22.1.0", "22.1.0",
+                         os.path.join(MISE, "mise.toml")),
+        "python": mise_rec("python", "3.12", "3.12.9", None, "3.14.0",
+                           os.path.join(MISE, "mise.toml")),
+        "npm:prettier": mise_rec("npm:prettier", "3.0.0", None, None, "3.0.0",
+                                 os.path.join(MISE, "mise.toml")),
+        "shfmt": mise_rec("shfmt", "3.8.0", "3.8.0", "3.12.0", "3.12.0",
+                          os.path.join(atlas, "projects", "mise.toml"))}, indent=2), "")
+    write(os.path.join(atlas, "scripts", "tools.sh"), "exit 0\n")
+    f = reset(4)
+    upgrader()
+    f.mise_outdated = MISE_OUTDATED
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = mod.main(["run", "--dry-run", "--force"])
+    out = buf.getvalue()
+    check("atlas-brew run --dry-run --force in defer mode lists the toolchain phase",
+          code == 0 and "mode: defer -> com.example.brewupgrade" in out
+          and "toolchain gate: would run" in out and "toolchain phase" in out
+          and "would run bash %s" % TOOLS_SCRIPT in out
+          and "uv python upgrade" in out and "would run mise install --locked node npm:prettier python\n" in out
+          and "would run mise prune --yes --tools node npm:prettier python\n" in out
+          and "would run bash %s update" % os.path.join(atlas, "scripts", "tools.sh") in out
+          and "pin behind: projects/M node 20.0.0 -> 22.1.0" in out
+          and "brew upgrade" not in out and not os.path.exists(STATE), out)
+    f = reset(4)
+    upgrader()
+    f.mise_outdated = MISE_OUTDATED
+    mod.main(["run"])
+    tj = json.loads(read(os.path.join(os.path.dirname(STATE), "tools.json")) or "{}")
+    check("mise install --locked of the subject's own tools in it, mise prune, "
+          "tools.sh update, mise outdated --local, in order",
+          [c["cwd"] for c in f.calls
+           if c["s"] == "mise install --locked node npm:prettier python"] == [MISE]
+          and f.first("mise install") < f.first("mise prune --yes --tools")
+          < f.first("bash scripts/tools.sh update")
+          < f.first("mise outdated --json --bump --local"), f.said())
+    mises = [c for c in f.calls if c["argv"][0] == "mise"]
+    check("every mise call answers no prompt and trusts the Atlas tree's configs",
+          len(mises) == 3 and all(c["env"].get("MISE_YES") == "1"
+                                  and c["env"].get("MISE_TRUSTED_CONFIG_PATHS") == atlas
+                                  for c in mises), mises)
+    check("mise prune names the tools the subjects pin, never a bare prune",
+          f.said("mise prune") == ["mise prune --yes --tools node npm:prettier python"],
+          f.said("mise"))
+    check("a pin behind goes into tools.json and onto home as a pin behind line; a null "
+          "bump and another directory's config are not this one's",
+          tj.get("pins") == [{"subject": "projects/M", "tool": "node",
+                              "pinned": "20.0.0", "latest": "22.1.0", "dir": MISE}]
+          and "tools: pin behind: projects/M node 20.0.0 -> 22.1.0"
+          in brewcare.lines(os.path.dirname(STATE), at(4)), tj)
+    check("and nothing bumps it", not [s for s in f.said()
+                                       if "upgrade" in s and "mise" in s
+                                       or "use" in s.split()[:2]], f.said())
+    AI_LOG = os.path.join(home, ".local", "state", "ai-tools-update.log")
+    write(AI_LOG, "2026-10-11 04:10:00   opencode 1.0: update failed (exit 9); left "
+                  "where it was\n")
+
+    def cli_fails(s):
+        if s == "bash ai-config/scripts/update-tools":
+            with open(AI_LOG, "a") as fh:
+                fh.write("2026-10-12 04:10:01   claude 2.1.3: update failed (exit 1); "
+                         "left where it was\n2026-10-12 04:10:02   codex 0.1 -> 0.2\n")
+    f = reset(4)
+    upgrader()
+    f.on_call = cli_fails
+    mod.main(["run"])
+    check("update-tools exits 0 whatever happens: a CLI's failure is read from the "
+          "lines it adds to its log",
+          (state().get("failed") or {}) == {
+              "tool:claude": "update failed (exit 1); see ~/.local/state/"
+                             "ai-tools-update.log"}, state())
+    os.remove(AI_LOG)
+    f = reset(4)
+    upgrader()
+    f.fail = {"mise install", "bash ai-config/scripts/update-tools"}
+    mod.main(["run"])
+    st = state()
+    check("toolchain failures enter failed as tool:<name>, in defer mode",
+          sorted(st.get("failed") or {}) == ["tool:mise:projects/M", "tool:update-tools"]
+          and "toolchain_success" not in st, st)
+    os.makedirs(os.path.join(prefix, "Cellar", "node", "24.3"))
+    f.fail = set()
+    mod.now = lambda: at(5)
+    mod.main(["run"])
+    check("and stay through a defer tick that repairs", "tool:update-tools"
+          in (state().get("failed") or {}), state())
+    shutil.rmtree(os.path.join(prefix, "Cellar", "node", "24.3"))
+
+    # A planted failing descriptor, through the real tools.sh.
+    os.remove(os.path.join(atlas, "scripts", "tools.sh"))
+    shutil.copy(os.path.join(ATLAS_REAL, "scripts", "tools.sh"),
+                os.path.join(atlas, "scripts", "tools.sh"))
+    os.symlink(BOARD, os.path.join(atlas, "board"))
+    write(os.path.join(atlas, "projects", "T", "tools", "planted.sh"),
+          'T_NAME="planted"\nT_BIN="planted"\nT_BIN_DIR="$HOME/.planted/bin"\n'
+          'T_ROLES="host coding"\nT_INSTALL=""\nT_MANUAL="fetch it by hand"\n'
+          'T_UPDATE="exit 3"\nT_VERSION="planted --version"\nT_CHECK="planted"\n'
+          'T_EVERY_DAYS=1\nT_STALE_DAYS=14\n')
+    write(os.path.join(home, ".planted", "bin", "planted"),
+          "#!/bin/sh\necho planted 0.1.0\n", EXE)
+    f = reset(4)
+    f.real_tools = True
+    mod.main(["run"])
+    st = state()
+    check("a planted failing descriptor: brew.json failed names tool:planted",
+          st["failed"].get("tool:planted") == "T_UPDATE exited 3"
+          and st["mode"] == "own", st.get("failed"))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = mod.main(["status"])
+    check("and atlas-brew status shows it, exit 1",
+          code == 1 and "FAILED    tool:planted: T_UPDATE exited 3" in buf.getvalue(),
+          buf.getvalue())
+    said = brewcare.lines(os.path.dirname(STATE), at(4))
+    check("brewcare names it once",
+          [l for l in said if "planted" in l]
+          == ["tools: planted did not update: T_UPDATE exited 3"], said)
+    doc = subprocess.run([sys.executable, os.path.join(BOARD, "bin", "board"),
+                          "doctor", "--dry"], stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, universal_newlines=True,
+                         timeout=180, cwd=work,
+                         env=dict(os.environ, BOARD_NO_TAILNET="1"))
+    check("and board doctor prints a tools: line naming it",
+          "tools:    1 declared, 1 failed" in doc.stdout
+          and "tools: planted did not update: T_UPDATE exited 3" in doc.stdout,
+          doc.stdout[-1500:])
+    shutil.rmtree(MISE)
+    shutil.rmtree(os.path.join(atlas, "projects", "T"))
+    os.remove(os.path.join(atlas, "board"))
+    os.remove(os.path.join(atlas, "scripts", "tools.sh"))
+    os.remove(os.path.join(os.path.dirname(STATE), "tools.json"))
+
+    # =======================================================================
+    # the Brewfile union: the probe checks what setup.sh bundles
+    # =======================================================================
+    UNION = os.path.join(mod.SETUP_DIR, "Brewfile.all")
+    write(os.path.join(atlas, "projects", "A", "Brewfile"), 'brew "ripgrep"\nbrew "uv"\n')
+    f = reset(4)
+    f.bundle_ok = False
+    mod.main(["repair"])
+    check("the probe checks and installs the union, root and subject Brewfiles in one",
+          f.said("brew bundle") == [
+              "brew bundle check --no-upgrade --file=" + UNION,
+              "brew bundle install --no-upgrade --file=" + UNION]
+          and [l for l in read(UNION).splitlines() if not l.startswith("#")]
+          == ['brew "ripgrep"', 'brew "uv"'], (f.said("brew bundle"), read(UNION)))
+    written = os.stat(UNION).st_mtime_ns
+    write(os.path.join(atlas, "projects", "B", "Brewfile"), 'brew "jq"\n')
+    f = reset(4)
+    seen = {}
+
+    def keep_union(s):
+        if s.startswith("brew bundle check"):
+            path = s.split("--file=", 1)[1]
+            seen["path"], seen["text"] = path, read(path)
+    f.on_call = keep_union
+    with contextlib.redirect_stdout(io.StringIO()):
+        mod.main(["repair", "--dry-run"])
+    check("a dry run checks the changed union from a temp file, removed after, and "
+          "leaves Brewfile.all alone",
+          seen.get("path") not in (None, UNION) and 'brew "jq"' in seen.get("text", "")
+          and not os.path.exists(seen.get("path") or UNION + ".none")
+          and os.stat(UNION).st_mtime_ns == written and 'brew "jq"' not in read(UNION),
+          seen)
+    os.remove(os.path.join(atlas, "projects", "A", "Brewfile"))
+    os.remove(os.path.join(atlas, "projects", "B", "Brewfile"))
+
+    # =======================================================================
     # the plist
     # =======================================================================
     mod.run = real_run
@@ -877,14 +1401,14 @@ try:
           c1 == c2 == 0 and len(boots) == 1 and "atlas.brew-upgrade" in read(LOADED).split()
           and os.path.realpath(mod.LINK) == os.path.realpath(SCRIPT)
           and "upgrades brew daily 03:00-07:59" in out, (out, read(CALLS)))
-    plist(agents, "com.example.brewupgrade.plist", "com.example.brewupgrade", ["/x/y"])
+    upgrader()
     with open(LOADED, "a") as fh:
         fh.write("com.example.brewupgrade\n")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.main(["install"])
     check("with another upgrader it says it defers",
-          "defers to com.example.brewupgrade (repairs only)" in buf.getvalue(),
+          "defers to com.example.brewupgrade (repairs and the toolchain phase" in buf.getvalue(),
           buf.getvalue())
 
     def hold_lock():
@@ -1004,8 +1528,6 @@ try:
     # =======================================================================
     # brewcare
     # =======================================================================
-    sys.path.insert(0, BOARD)
-    from tutorboard import brewcare                          # noqa: E402
     sd = os.path.join(work, "care")
     os.makedirs(sd)
     N = datetime(2026, 10, 12, 9, 0)
@@ -1045,7 +1567,8 @@ try:
                  "deferred_to": {"label": "com.example.brewupgrade", "path": "/x"},
                  "problems": [{"what": "a", "fix": "b"}]})
     check("defer never yields a stale line",
-          l == ["brew: a; b"] and s == "defers to com.example.brewupgrade; 1 problems",
+          l == ["brew: a; b"]
+          and s == "defers to com.example.brewupgrade; 0 failed, 1 problems",
           (l, s))
 finally:
     httpd.shutdown()

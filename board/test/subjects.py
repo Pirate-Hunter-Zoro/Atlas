@@ -4,7 +4,9 @@
 A fixture tree, never the real one: `all`, `find` (a qualified id under a
 merged-away parent finds nothing), `kind_of`, `identify`, `roots`, `root`,
 `read_config` and lookups by slug (`colibri.WORKSPACE`, a project by its
-bare name). atlas.py is gone.
+bare name). atlas.py is gone. On the real tree, a subject holding a toolchain
+marker (mise.toml, Cargo.toml, pubspec.yaml, at its root or one directory
+down) names its check and keeps the marker's lockfile beside it.
 """
 
 import json
@@ -239,6 +241,41 @@ for parent, _kind in subjects.DIRS:
         pass
 check("on this tree, all() is exactly the directories under the subject parents",
       set(s["id"] for s in subjects.all()) == listed)
+
+# --- markers: a pinned toolchain has its lockfile and its check ---------------
+from tutorboard import toolplan                               # noqa: E402
+box = os.path.realpath(tempfile.mkdtemp(prefix="markers-"))
+try:
+    mk(box, "projects/R/app")
+    for rel in ("projects/R/mise.toml", "projects/R/app/Cargo.toml",
+                "projects/R/target/Cargo.toml", "projects/R/.hidden/Cargo.toml",
+                "projects/R/node_modules/x/Cargo.toml", "projects/R/a/b/Cargo.toml",
+                "projects/R/ui/pubspec.yaml", "projects/R/build/pubspec.yaml"):
+        os.makedirs(os.path.dirname(os.path.join(box, rel)), exist_ok=True)
+        open(os.path.join(box, rel), "w").close()
+    got = [(m, os.path.relpath(d, box)) for m, _l, d in
+           toolplan.markers(os.path.join(box, "projects", "R"))]
+    check("markers count at the root and one directory down, never in target/, "
+          "build/, node_modules/ or a dot directory",
+          got == [("mise.toml", "projects/R"), ("Cargo.toml", "projects/R/app"),
+                  ("pubspec.yaml", "projects/R/ui")])
+finally:
+    shutil.rmtree(box, ignore_errors=True)
+for subject in subjects.all():
+    found = toolplan.markers(subject["root"])
+    if not found:
+        continue
+    try:
+        with open(os.path.join(subject["root"], "tutorboard.json"), encoding="utf-8") as fh:
+            named = json.load(fh).get("check")
+    except (OSError, ValueError):
+        named = None
+    check("%s: it holds %s, and its tutorboard.json names its check"
+          % (subject["id"], found[0][0]), bool(named))
+    for marker, lock, where in found:
+        check("%s: %s has %s beside it" % (
+            subject["id"], os.path.relpath(os.path.join(where, marker), subject["root"]),
+            lock), os.path.isfile(os.path.join(where, lock)))
 
 print()
 print("%d FAILURES" % len(fails) if fails

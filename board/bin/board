@@ -2412,6 +2412,12 @@ def machine_check():
     said = brewcare.summary()
     if said is not None:
         print("brew:     %s" % said)
+    # The tools neither brew nor mise keeps current, the mise pins behind and
+    # whatever a deleted subject left installed (scripts/tools.sh, toolplan).
+    print("tools:    %s" % brewcare.tools_doctor())
+    for line in brewcare.lines():
+        if line.startswith("tools: "):
+            print("          %s" % line)
 
     # --- and the half of the machine that actually teaches -------------------
     print()

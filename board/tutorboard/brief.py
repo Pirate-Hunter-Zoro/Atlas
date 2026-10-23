@@ -3,7 +3,8 @@
 Every turn is a cold turn, so the brief is what a turn costs before it teaches.
 It carries the method as `tutorboard.sense` states it, the subject's RULES.md
 as committed at HEAD (flagging a working-tree edit), the subject's TUTOR.md,
-what the owner did away from the board, and the work out on the cluster. It
+a mise pin behind in the subject (to propose its bump), what the owner did
+away from the board, and the work out on the cluster. It
 points at board/TEACHING.md for a rule's detail. A subject's README.md is the
 owner's and never enters the brief.
 
@@ -103,6 +104,36 @@ def _unbound(repo):
     if not getattr(repo, "stored", False) or not atlas:
         return False
     return os.path.realpath(repo.root) == os.path.realpath(atlas)
+
+
+def pins_sense(root, state_dir=None):
+    """The subject's mise pins behind, as brew-upgrade.py last found them
+    (tools.json `pins`, `toolplan`), with the bump to propose; or "". A pin
+    is this subject's when its directory is `root` or one level down."""
+    from . import paths, toolplan
+    try:
+        pins = toolplan.read(state_dir or paths.STATE_DIR).get("pins") or []
+        here = os.path.realpath(root)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    mine = []
+    for p in pins:
+        if not isinstance(p, dict) or not p.get("dir"):
+            continue
+        d = os.path.realpath(str(p["dir"]))
+        if d == here or os.path.dirname(d) == here:
+            rel = os.path.relpath(d, here)
+            mine.append("  %s %s -> %s%s" % (p.get("tool"), p.get("pinned"),
+                                            p.get("latest"),
+                                            "" if rel == "." else " (in %s/)" % rel))
+    if not mine:
+        return ""
+    return "\n".join(
+        ["\n--- toolchain pins behind (mise.toml) ---"] + mine +
+        ["Propose the bump to the owner once, at a pause, and make it only on "
+         "their yes: `mise upgrade --bump <tool>` in that directory rewrites "
+         "mise.toml and mise.lock; then `board check`, and one commit of both "
+         "files. Nothing else moves a pin."])
 
 
 def subjects_sense(repo):
@@ -339,6 +370,10 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
         if said:
             out.append(said)
     out.append(tutor_sense(repo))
+    if not _unbound(repo):
+        pins = pins_sense(root)
+        if pins:
+            out.append(pins)
 
     beside = beside_sense(repo)
     if beside:

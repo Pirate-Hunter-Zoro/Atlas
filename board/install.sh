@@ -23,8 +23,10 @@ BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
 ok=0
 
 # The PATH the LaunchAgent runs with. Its interpreter is the first python3 on
-# it, so the server and every `board` its turns run are the same Python.
-AGENT_PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# it, so the server and every `board` its turns run are the same Python. mise's
+# shims come last: a subject's pinned toolchain reaches its turns, and a
+# pinned python never becomes the board's.
+AGENT_PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/share/mise/shims"
 STATE="$HOME/.local/state/tutor-board"
 
 agent_python() {
@@ -45,14 +47,14 @@ render_plist() {
   esac
   "$py" - "$HERE/scripts/launchd/tutor-board.plist" "$py" "$HERE" \
       "$(dirname "$HERE")" "$HOME" "${TUTORBOARD_LOG:-$STATE/server.log}" \
-      "${TUTORBOARD_LABEL:-tutor-board}" "$@" <<'PYEOF'
+      "${TUTORBOARD_LABEL:-tutor-board}" "$AGENT_PATH" "$@" <<'PYEOF'
 import plistlib, sys
-src, py, board, atlas, home, log, label = sys.argv[1:8]
-extra = sys.argv[8:]
+src, py, board, atlas, home, log, label, path = sys.argv[1:9]
+extra = sys.argv[9:]
 with open(src, "rb") as fh:
     job = plistlib.load(fh)
 fill = {"@PYTHON@": py, "@BOARD@": board, "@ATLAS@": atlas, "@HOME@": home,
-        "@LOG@": log}
+        "@LOG@": log, "@PATH@": path}
 def sub(v):
     if isinstance(v, str):
         for k, w in fill.items():

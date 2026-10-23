@@ -63,7 +63,7 @@ Rules that hold throughout:
 - **Galois:** the p=13, d=2 worked case of ch07 13(d) carries into the course.
 - **Brew upgrades.** Both upgraders stay.
   - The external `com.mikeyferguson.brewupgrade` keeps its job.
-  - `atlas.brew-upgrade` keeps a full brew upgrader on every clone (item 7).
+  - `atlas.brew-upgrade` keeps a full brew upgrader on every clone.
   - A cover run is a full brew upgrade, the external job's protected casks included.
 - **Spirit-Forge:** the verification language is Lean 4 without Mathlib. Zig, Rust and
   containerization are the three things the project exercises, each with a real job in the game.
@@ -149,79 +149,6 @@ Done when:
 - `git ls-files | grep -E 'feedback/.*-v[0-9]'` is empty, and the library still shows every round.
 - A lesson that changes only TUTOR.md leaves no commit until End.
 - The suite passes.
-
-## 7. Tools on every machine
-
-Today only the root Brewfile declares tools, and `scripts/setup.sh` hard-codes three markers.
-On the Mac mini, `atlas.brew-upgrade` sits in defer mode behind `com.mikeyferguson.brewupgrade`,
-so `ai-tools-update` and `uv python upgrade` have never run there. Nothing updates any non-brew
-toolchain.
-
-Three layers fix this. The board server never runs any of them.
-
-1. **Machine tools: the Brewfile.**
-   - A subject may carry its own `Brewfile`. `setup.sh` bundles the root file plus every subject
-     Brewfile, as a sorted and deduplicated union in `~/.local/state/atlas-setup/Brewfile.all`
-     rewritten only on change, with `--no-upgrade`.
-   - `brew-upgrade.py` `probe_brewfile` checks the same union.
-   - Add `brew "mise"`, plus `ghostscript` and `tesseract`, which item 13 needs and which today
-     arrive only through texlive.
-   - Never run `brew bundle --cleanup`: the Mac mini holds many non-Atlas formulae.
-2. **Subject toolchains: mise.**
-   - A subject that pins a toolchain tracks `mise.toml` and `mise.lock` at its root.
-   - `setup.sh` runs `mise install --locked` there. Then `Cargo.toml` runs `mise exec -- cargo
-     fetch --locked`, and `pubspec.yaml` runs `mise exec -- flutter pub get --enforce-lockfile`.
-   - Markers count at the root and one directory down. Skip `target/`, `build/`, `.dart_tool/`,
-     `.venv/` and `node_modules/`.
-   - `gitops.LOCKFILES` gains `mise.toml`, `mise.lock`, `Cargo.lock` and `pubspec.lock` at both
-     depths. `test/subjects.py`, which receives `test/jobs.py`'s marker check in the exit,
-     requires a check and a lockfile beside each new marker.
-   - The tutor-board plist's `AGENT_PATH` (`board/install.sh`) and setup's PATH gain
-     `~/.local/share/mise/shims`.
-   - A pin moves only by a commit. Nothing auto-bumps it, and nothing runs `flutter upgrade` on a
-     mise-managed SDK.
-3. **What neither brew nor mise keeps current: descriptors.**
-   - `<subject>/tools/<name>.sh` follows the shape of `ai-config/assistants/<name>.sh`. Its
-     fields are `T_NAME`, `T_BIN`, `T_BIN_DIR`, `T_ROLES` (`host`/`coding`), `T_INSTALL`,
-     `T_MANUAL`, `T_UPDATE`, `T_VERSION`, `T_CHECK`, `T_EVERY_DAYS` and `T_STALE_DAYS`.
-   - The reader is `scripts/tools.sh` (`install | update | list | path | check`), which names no
-     tool. State goes to `~/.local/state/tutor-board/tools.json`.
-   - The same name in two subjects must be byte-identical.
-   - Cover these with `board/test/tools.py`.
-4. **Upkeep.**
-   - `brew-upgrade.py` gets a toolchain phase: `ai-tools-update`, `uv python upgrade`,
-     `mise install` over every subject plus `mise prune`, and `tools.sh update`.
-   - It runs in own AND defer mode, under the existing window and laptop gate, because none of
-     it takes brew's lock.
-   - **Brew itself.** Both upgraders stay. Where the external upgrader is loaded,
-     `atlas.brew-upgrade` still runs its brew probes and repairs every tick. If the external
-     job's last success (read from its log or state) is older than 26 hours, it runs its own
-     full brew upgrade that day, under brew's own lock, and reports that it covered. Everywhere
-     else it upgrades brew as it does today.
-   - Failures enter `brew.json` `failed` as `tool:<name>`.
-   - It also runs `mise outdated --json` in each subject with a `mise.toml`. Behind pins go
-     into `tools.json` and show as `pin behind: <subject> <tool> <pinned> -> <latest>`. The bump
-     is a commit of `mise.toml` and `mise.lock`, proposed in the subject's next session.
-   - Check what `brew outdated --json=v2` returns for an `auto_updates` cask today. Then make the
-     "NEVER GREEDY" docstring and README say what the job does.
-   - In ai-config, `update-tools` adds each descriptor's `A_BIN_DIR` to PATH. Without it a
-     curl-installed opencode is never updated. That is a commit in the private repo, and it is
-     pre-approved.
-5. **Reporting.** `brewcare.py` reads `tools.json` too. It gives one line per failed tool, per tool
-   older than `T_STALE_DAYS`, and per `no longer declared: <name> at <dir>`. `board doctor` prints
-   a `tools:` line, and the home screen shows them through the sync health (`/sync.json` after
-   the exit).
-6. **Removal.** A deleted subject's descriptors and Brewfile lines leave the plan. Setup never
-   uninstalls anything; doctor names what is left behind.
-7. **Mac only.** Keep the layers OS-neutral so a Linux laptop stays possible later, but do not
-   build one.
-
-Done when:
-- `setup-mac.sh` and `--coding` each end clean twice with no change on the second run.
-- A synthetic subject with a `mise.toml` builds, and `board pull` names it when its lock moves.
-- `atlas-brew run --dry-run --force` lists the toolchain phase in defer mode.
-- A planted failing descriptor shows in `atlas-brew status` and `board doctor`.
-- A synthetic subject pinned to an old version shows a `pin behind` line.
 
 ## 8. Spirit-Forge: Rust, Zig, containers, and the Lean thread
 
@@ -669,6 +596,12 @@ existing vision route on the slate PNG.
   ignored `projects/Lean-Theorem-Proving` there (about 14 GB of `.lake`) and on any laptop that
   has it. `subjects.walk` lists any directory under `projects/` as a subject.
 - **In ai-config,** drop `workspaces/lean-theorem-proving.allow` and its `PERMISSIONS.md` rows.
+- **Push ai-config's `update-tools` commit.** It puts each descriptor's `A_BIN_DIR` on the PATH,
+  so a curl-installed opencode is updated. It is committed on ai-config's main, not pushed.
+- **Tools on every machine.** Run `bash scripts/setup-mac.sh` twice on the Mac mini, and
+  `bash scripts/setup-mac.sh --coding` twice on each laptop. The second run must
+  end clean with `Brewfile.all unchanged`. The first installs mise, ghostscript and tesseract,
+  and re-renders the tutor-board plist with mise's shims on its PATH.
 
 ## Loose ends in the code
 

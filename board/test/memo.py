@@ -11,6 +11,8 @@
     to it with --append. A result over 800 words is refused, naming the count,
     and nothing is written. It never writes RULES.md.
   * An unbound session has no TUTOR.md, and `board memo` says to bind first.
+  * A mise pin behind in the bound subject (tools.json) is in its brief, with
+    the bump to propose; another subject's is not.
   * No `NEXT.md` or `board note` is left in board/.
 
 Everything runs in a temp Atlas (`TUTORBOARD_COURSES`).
@@ -148,6 +150,28 @@ try:
           "Never read the held-out split" in said and "deleted in the working tree"
           in said, said)
     git("checkout", "--", "projects/Probe/RULES.md")
+
+    # ---- a mise pin behind, proposed in the subject's session -------------
+    from tutorboard import paths
+    pins_state = tempfile.mkdtemp(prefix="tutor-memo-state-")
+    write(os.path.join(pins_state, "tools.json"), json.dumps({"pins": [
+        {"subject": "projects/Probe/app", "tool": "rust", "pinned": "1.80.0",
+         "latest": "1.85.0", "dir": os.path.join(proj, "app")},
+        {"subject": "projects/Other", "tool": "node", "pinned": "20.0.0",
+         "latest": "22.0.0", "dir": os.path.join(base, "projects", "Other")}]}))
+    real_state, paths.STATE_DIR = paths.STATE_DIR, pins_state
+    try:
+        said = brief.briefing(repo, sense)
+        check("a pin behind in the subject is in its brief, with the bump to propose",
+              "rust 1.80.0 -> 1.85.0 (in app/)" in said
+              and "mise upgrade --bump" in said and "mise.lock" in said, said)
+        check("and another subject's pin is not", "node 20.0.0" not in said, said)
+        said = brief.briefing(sessions.repo(sessions.new(base=base)["id"], base,
+                                            create=True), sense)
+        check("an unbound session's brief carries no pin", "pins behind" not in said)
+    finally:
+        paths.STATE_DIR = real_state
+        shutil.rmtree(pins_state, ignore_errors=True)
 
     # ---- board memo ------------------------------------------------------
     rules_before = read(os.path.join(proj, "RULES.md"))

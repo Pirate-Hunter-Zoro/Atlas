@@ -539,14 +539,17 @@ def _vendor_moved(root, before, after):
 
 
 # What `scripts/setup.sh` builds a subject's environment from, at the
-# subject's root. One a pull moved leaves that environment stale.
-LOCKFILES = ("uv.lock", "go.sum", "lake-manifest.json", "lean-toolchain")
+# subject's root; the NESTED ones count one directory down too, where setup
+# finds their markers (`toolplan.marker_dirs`). One a pull moved leaves that
+# environment stale.
+NESTED = ("mise.toml", "mise.lock", "Cargo.lock", "pubspec.lock")
+LOCKFILES = ("uv.lock", "go.sum", "lake-manifest.json", "lean-toolchain") + NESTED
 
 
 def lockfiles_moved(root, before, after):
     """The ids (`<parent>/<slug>`) of the subjects still in `root` whose
     lockfile differs between two commits, sorted; [] when nothing moved."""
-    from tutorboard import subjects                          # local: a cycle
+    from tutorboard import subjects, toolplan                # local: a cycle
     if not before or not after or before == after:
         return []
     code, out = _git(root, "diff", "--name-only", "--no-renames", before, after)
@@ -556,7 +559,14 @@ def lockfiles_moved(root, before, after):
     moved = set()
     for path in out.splitlines():
         parts = path.split("/")
-        if (len(parts) == 3 and parts[0] in parents and parts[2] in LOCKFILES
+        if len(parts) == 3:
+            hit = parts[2] in LOCKFILES
+        elif len(parts) == 4:
+            hit = (parts[3] in NESTED and not parts[2].startswith(".")
+                   and parts[2] not in toolplan.SKIP)
+        else:
+            hit = False
+        if (hit and parts[0] in parents
                 and os.path.isdir(os.path.join(root, parts[0], parts[1]))):
             moved.add("%s/%s" % (parts[0], parts[1]))
     return sorted(moved)

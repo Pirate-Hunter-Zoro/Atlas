@@ -3,7 +3,8 @@
 
     python3 test/laptop.py
 
-The real setup-mac.sh, bootstrap.sh and install.sh run in a fixture Atlas
+The real setup-mac.sh, setup.sh, tools.sh, bootstrap.sh and install.sh (and
+board/tutorboard, linked) run in a fixture Atlas
 cloned from a bare origin, with ai-config cloned inside it from its own. HOME
 is a temp dir, and every tool that could touch this machine is a shim first on
 the PATH: launchctl keeps its "loaded" agents in a file, and tailscale, curl
@@ -18,11 +19,13 @@ anything but the shim.
     `tutor-board` is booted out with its plist; without the role, install.sh
     does load it.
   - TAILSCALE AND PORT 8778 ARE NEVER ASKED.
-  - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run.
+  - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run;
+    setup.sh bundles the union, builds a mise subject and installs a
+    descriptor, and a second run, --coding or as the host, changes nothing.
   - A MISSING ai-config/policy/phi.py IS A PROBLEM, named.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
-    whose lockfiles moved, with --quiet too; ai-config that will not
-    fast-forward is exit 1.
+    whose lockfiles moved, with --quiet too, a mise.lock or a Cargo.lock one
+    directory down included; ai-config that will not fast-forward is exit 1.
   - --CODING ASKS FOR THE MAC MINI'S TAILNET NAME and writes it as config.json
     `host`, keeping the other keys; a rerun does not ask again.
   - `board pull --materials` RSYNCS THE IGNORED INPUTS ONLY. An rsync shim
@@ -132,9 +135,17 @@ case "$1" in
   bootstrap) b="${3##*/}"; echo "${b%.plist}" >>"$LAPTOP_LOADED" ;;
 esac
 """, EXE)
-write(os.path.join(shims, "tailscale"), "#!/bin/bash\n" + LOG, EXE)
+# tailscale: serve --bg is remembered, and serve status then answers it.
+write(os.path.join(shims, "tailscale"), "#!/bin/bash\n" + LOG + """\
+case "$*" in
+  "serve status") [ -f "$LAPTOP_LOADED.served" ] && echo "|-- / proxy http://127.0.0.1:8778" ;;
+  "serve --bg"*) touch "$LAPTOP_LOADED.served" ;;
+esac
+exit 0
+""", EXE)
 write(os.path.join(shims, "curl"), "#!/bin/bash\n" + LOG + "printf 200\n", EXE)
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
+write(os.path.join(shims, "mise"), "#!/bin/bash\n" + LOG, EXE)
 # setup-mac.sh refuses anything but a Mac; the suite runs on the cluster too.
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
 # rsync: logs its argv (one JSON list a line), maps `host:<path>` to
@@ -169,7 +180,7 @@ sys.exit(subprocess.call([real] + out) if real else 0)
 """, EXE)
 
 try:
-    for tool in ("launchctl", "tailscale", "curl", "brew", "uname", "rsync"):
+    for tool in ("launchctl", "tailscale", "curl", "brew", "mise", "uname", "rsync"):
         where = shutil.which(tool, path=PATH)
         if where != os.path.join(shims, tool):
             print("REFUSED: %s resolves to %s, not the shim; nothing was run"
@@ -188,23 +199,35 @@ try:
                    "policy/phi.py": "def names_phi(path):\n    return False\n"},
            "a1")
 
-    # Atlas: the real setup scripts, the rest stubbed.
+    # Atlas: the real setup scripts and the toolplan they read (board/tutorboard,
+    # a link to this checkout's), the rest stubbed.
     origin = os.path.join(work, "atlas.git")
     run(["git", "init", "-q", "--bare", "-b", "main", origin])
     seed = os.path.join(work, "atlas-seed")
     run(["git", "init", "-q", "-b", "main", seed])
     git(seed, "remote", "add", "origin", origin)
     real = {}
-    for rel in ("scripts/setup-mac.sh", "board/bootstrap.sh", "board/install.sh",
+    for rel in ("scripts/setup-mac.sh", "scripts/setup.sh", "scripts/tools.sh",
+                "board/bootstrap.sh", "board/install.sh", "Brewfile",
                 "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py",
                 "scripts/launchd/atlas.brew-upgrade.plist"):
         real[rel] = read(os.path.join(ATLAS, rel))
     real.update({
         ".gitignore": "/ai-config/\n",
-        "scripts/setup.sh": 'echo setup.sh >>"$LAPTOP_CALLS"\necho "workspaces ok"\n',
+        "projects/M/tools/widget.sh": (
+            'T_NAME="widget"\nT_BIN="widget"\nT_BIN_DIR="$HOME/.widget/bin"\n'
+            'T_ROLES="host coding"\nT_INSTALL=\'mkdir -p "$HOME/.widget/bin" && '
+            'printf "#!/bin/sh\\necho widget 1.0\\n" >"$HOME/.widget/bin/widget" && '
+            'chmod +x "$HOME/.widget/bin/widget" && echo widget-install >>"$LAPTOP_CALLS"\'\n'
+            'T_MANUAL="by hand"\nT_UPDATE="true"\nT_VERSION="widget"\nT_CHECK="widget"\n'
+            'T_EVERY_DAYS=1\nT_STALE_DAYS=14\n'),
         "board/test/tracked.py": "import sys\nsys.exit(0)\n",
         "projects/A/uv.lock": "a 1\n", "projects/B/go.sum": "b 1\n",
-        "courses/C/notes.md": "c 1\n"})
+        "projects/M/mise.toml": '[tools]\nrust = "1.80.0"\n',
+        "projects/M/mise.lock": "m 1\n", "projects/M/app/Cargo.toml": "[package]\n",
+        "projects/M/app/Cargo.lock": "m 1\n", "courses/C/notes.md": "c 1\n"})
+    os.makedirs(os.path.join(seed, "board"))
+    os.symlink(os.path.join(ROOT, "tutorboard"), os.path.join(seed, "board", "tutorboard"))
     commit(seed, real, "seed")
     laptop = os.path.join(work, "laptop")
     run(["git", "clone", "-q", origin, laptop])
@@ -232,8 +255,14 @@ try:
     check("it pulls main", git(laptop, "rev-parse", "HEAD")
           == git(origin, "rev-parse", "main"), out)
     check("and runs scripts/setup.sh, ai-config's install.sh and install-clis.sh",
-          calls("setup.sh") and calls("ai-install") and calls("install-clis"),
+          "Brewfile.all rewritten" in out and calls("ai-install") and calls("install-clis"),
           read(CALLS))
+    check("setup.sh bundles the union, builds the mise subject and installs its tool",
+          [l for l in calls("brew") if l.startswith("brew bundle install --no-upgrade")]
+          and "mise install --locked rust" in calls("mise")
+          and "mise exec -- cargo fetch --locked" in calls("mise")
+          and calls("widget-install") == ["widget-install"]
+          and "1 tool(s) declared for a coding, 0 problem(s)" in out, (out, read(CALLS)))
     check("a stray tutor-board is booted out, its plist removed",
           any("bootout" in l and l.endswith("/tutor-board") for l in calls("launchctl"))
           and not os.path.exists(AGENT) and "tutor-board" not in read(LOADED),
@@ -261,6 +290,9 @@ try:
     check("and does not ask for the host again",
           json.loads(read(CONFIG)).get("host") == "mac-mini"
           and "copies from mac-mini" in out, out)
+    check("and its setup.sh is clean and changes nothing",
+          "Brewfile.all unchanged" in out and "FAILED" not in out
+          and not calls("widget-install"), (out, read(CALLS)))
     check("and still loads nothing and asks neither tailscale nor 8778",
           not any(l.startswith("launchctl bootstrap") for l in calls("launchctl"))
           and not calls("tailscale") and not calls("curl"), read(CALLS))
@@ -289,6 +321,28 @@ try:
         check("and with it again, boots it out",
               "booted out tutor-board" in out and not os.path.exists(AGENT)
               and "tutor-board" not in read(LOADED), out)
+
+        # The host: setup-mac.sh with no role, twice. The second run changes
+        # nothing: no union rewritten, no tool installed, no agent loaded and
+        # no tailscale serve.
+        os.remove(ROLE)
+        coding_cfg = read(CONFIG)
+        write(CONFIG, "{}\n")
+        runs = []
+        for _ in (1, 2):
+            open(CALLS, "w").close()
+            code, out = run(["bash", setup])
+            runs.append((code, out, read(CALLS).splitlines()))
+        check("setup-mac.sh as the host ends clean, twice",
+              all(c == 0 and "THE MAC IS UP TO DATE" in o and "FAILED" not in o
+                  for c, o, _ in runs), [o for _, o, _ in runs])
+        code, out, said = runs[1]
+        check("and its second run changes nothing",
+              "Brewfile.all unchanged" in out and "widget-install" not in said
+              and not [l for l in said if l.startswith("launchctl bootstrap")
+                       or l.startswith("tailscale serve --bg")], (out, said))
+        write(ROLE, "coding\n")
+        write(CONFIG, coding_cfg)
     else:
         print("skip the host-role install.sh check: no plutil here")
 
@@ -314,6 +368,19 @@ try:
     code, out = run([sys.executable, BOARD, "pull", "--quiet", "--atlas", laptop])
     check("--quiet still names it", code == 0
           and "lockfiles moved in projects/B;" in out and "projects/A" not in out, out)
+
+    commit(seed, {"projects/M/mise.lock": "m 2\n"}, "M's mise lock moves")
+    code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
+    check("a subject with a mise.toml is named when its mise.lock moves",
+          code == 0 and "lockfiles moved in projects/M;" in out, out)
+    commit(seed, {"projects/M/app/Cargo.lock": "m 2\n"}, "M's Cargo lock moves")
+    code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
+    check("and when a lockfile one directory down moves",
+          code == 0 and "lockfiles moved in projects/M;" in out, out)
+    commit(seed, {"projects/M/target/Cargo.lock": "out\n",
+                  "projects/M/app/src/Cargo.lock": "deep\n"}, "not a marker's")
+    code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
+    check("but not one in target/ or two down", code == 0 and "lockfiles" not in out, out)
 
     code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
     check("nothing new names nothing", code == 0 and "lockfiles" not in out, out)

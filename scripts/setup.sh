@@ -4,8 +4,13 @@
 #
 #     bash scripts/setup.sh
 #
-# 1. The system tools. On a Mac, `brew bundle` on the root Brewfile, installing
-#    what is missing and moving nothing that is there (--no-upgrade). Elsewhere,
+# 1. The system tools. On a Mac, `brew bundle` on the union of the root
+#    Brewfile and every subject's own, sorted and deduplicated into
+#    ~/.local/state/atlas-setup/Brewfile.all (rewritten only when it changes,
+#    board/tutorboard/toolplan.py), installing what is missing and moving
+#    nothing that is there (--no-upgrade). Never --cleanup: the machine holds
+#    formulae no Brewfile names, and one a deleted subject declared stays
+#    installed, named by `board doctor`. Elsewhere,
 #    uv is installed into ~/.local/bin when it is not on the PATH, and so is Go:
 #    from conda-forge into ~/.local/goenv where Slurm is (the cluster has no Go
 #    module and blocks dl.google.com), from go.dev into ~/.local/go elsewhere.
@@ -21,6 +26,17 @@
 #                       prebuilt cache, when lake-manifest.json asks for the
 #                       library that ships one; then lake build
 #      go.mod           go mod download
+#    and by what it pins, each counted at its root and one directory down
+#    (never in target/, build/, .dart_tool/, .venv/ or node_modules/):
+#      mise.toml        mise trust, then mise install --locked <its tools>,
+#                       which installs only what mise.lock records (with a
+#                       URL for this platform; `mise lock` writes it)
+#      Cargo.toml       mise exec -- cargo fetch --locked
+#      pubspec.yaml     mise exec -- flutter pub get --enforce-lockfile
+#    A pin moves only by a commit of mise.toml and mise.lock.
+#    On a Mac only: elsewhere a marker's subject says it was skipped.
+# 3. The subjects' tool descriptors, <subject>/tools/<name>.sh: each one this
+#    role uses and lacks is installed (scripts/tools.sh install). Mac only.
 #
 # Idempotent: a second run changes nothing and says so. One line per workspace;
 # what each step printed is in ~/.local/state/atlas-setup/<workspace>.log.
@@ -35,18 +51,30 @@ mkdir -p "$LOGS"
 for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/.local/go/bin" "$HOME/.elan/bin"; do
   [ -d "$d" ] && case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
 done
+# mise's shims last, so a subject's pinned python never stands in for the
+# python3 this script and the board run.
+case ":$PATH:" in *":$HOME/.local/share/mise/shims:"*) ;; *) PATH="$PATH:$HOME/.local/share/mise/shims" ;; esac
 export PATH
+
+# board/tutorboard/toolplan.py, which reads the Brewfiles, markers and descriptors.
+plan() { (cd "$ROOT/board" && TUTORBOARD_COURSES="$ROOT" python3 -B -m tutorboard.toolplan "$@" --atlas "$ROOT"); }
 
 SLURM=0
 command -v sbatch >/dev/null 2>&1 && SLURM=1
+# mise and the tool descriptors are a Mac's: brew is where mise comes from,
+# and a descriptor's installer is for a host or a coding laptop.
+MAC=0
+[ "$(uname -s)" = Darwin ] && MAC=1
 failed=0
 
 line() { printf '%-32s %s\n' "$1" "$2"; }
 
 # ---- 1. system tools --------------------------------------------------------
 if [ "$(uname -s)" = Darwin ] && command -v brew >/dev/null 2>&1; then
-  if brew bundle install --no-upgrade --file="$ROOT/Brewfile" >"$LOGS/brew.log" 2>&1; then
-    line "Brewfile" "ok"
+  if ! union="$(plan union --write 2>"$LOGS/brew.log")"; then
+    line "Brewfile" "FAILED -- the union was not written; $LOGS/brew.log"; failed=1
+  elif brew bundle install --no-upgrade --file="$LOGS/Brewfile.all" >"$LOGS/brew.log" 2>&1; then
+    line "Brewfile" "ok (Brewfile.all $union)"
   else
     line "Brewfile" "FAILED -- $LOGS/brew.log"; failed=1
   fi
@@ -144,6 +172,15 @@ lean_build() (
   lake build
 )
 
+# Every marker, one line each: subject, marker, lockfile, directory.
+markers="$(plan markers)" || { line "markers" "FAILED -- board/tutorboard/toolplan.py did not answer"; failed=1; }
+TAB="$(printf '\t')"
+
+# The directories in subject $1 that hold marker $2.
+marker_dirs() {
+  printf '%s\n' "$markers" | awk -F"$TAB" -v id="$1" -v m="$2" '$1 == id && $2 == m { print $4 }'
+}
+
 for id in $workspaces; do
   ws="$ROOT/$id"
   log="$LOGS/${id//\//_}.log"
@@ -176,6 +213,34 @@ for id in $workspaces; do
     did="${did:+$did, }go mod download"
   fi
 
+  # The pinned toolchains first, then what builds with them. Mac only.
+  if [ "$MAC" = 0 ]; then
+    if [ -n "$(printf '%s\n' "$markers" | awk -F"$TAB" -v id="$id" '$1 == id')" ]; then
+      did="${did:+$did, }mise toolchains skipped (Mac only)"
+    fi
+  else
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      # Named: --locked fails on any tool mise.lock lacks, and the owner's
+      # global config's tools are in no subject's lock.
+      pins=()
+      while IFS= read -r t; do [ -n "$t" ] && pins+=("$t"); done < <(plan pinned "$d")
+      [ "${#pins[@]}" -gt 0 ] || continue
+      { mise trust --quiet "$d/mise.toml" && (cd "$d" && mise install --locked "${pins[@]}"); } >>"$log" 2>&1 || bad=1
+      case "$did" in *"mise install"*) ;; *) did="${did:+$did, }mise install" ;; esac
+    done < <(marker_dirs "$id" mise.toml)
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      (cd "$d" && mise exec -- cargo fetch --locked) >>"$log" 2>&1 || bad=1
+      case "$did" in *"cargo fetch"*) ;; *) did="${did:+$did, }cargo fetch" ;; esac
+    done < <(marker_dirs "$id" Cargo.toml)
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      (cd "$d" && mise exec -- flutter pub get --enforce-lockfile) >>"$log" 2>&1 || bad=1
+      case "$did" in *"flutter pub get"*) ;; *) did="${did:+$did, }flutter pub get" ;; esac
+    done < <(marker_dirs "$id" pubspec.yaml)
+  fi
+
   if [ -z "$did" ]; then
     line "$id" "nothing to build"
   elif [ "$bad" = 0 ]; then
@@ -184,5 +249,17 @@ for id in $workspaces; do
     line "$id" "FAILED ($did) -- $log"; failed=1
   fi
 done
+
+# ---- 3. the tool descriptors ------------------------------------------------
+# Installs what is missing and never removes anything; tools.sh says the rest.
+# Mac only: a descriptor's installer is for a host or a coding laptop.
+if [ "$MAC" = 0 ]; then
+  line "tools" "skipped (the descriptors are Mac only)"
+elif said="$(bash "$ROOT/scripts/tools.sh" install 2>&1)"; then
+  line "tools" "ok ($(printf '%s\n' "$said" | tail -1))"
+else
+  printf '%s\n' "$said" >"$LOGS/tools-install.log"
+  line "tools" "FAILED -- $LOGS/tools-install.log"; failed=1
+fi
 
 exit "$failed"

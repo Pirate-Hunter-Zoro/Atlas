@@ -4,7 +4,7 @@
   tutor-board: the Mac's one board server, board/serve.py on port 8778.
 
   A template. `install.sh` fills each @NAME@ with an absolute path (launchd
-  expands nothing) and copies the result to
+  expands nothing; @PATH@ is install.sh's AGENT_PATH) and copies the result to
   ~/Library/LaunchAgents/tutor-board.plist. install.sh prints it with its plist option.
 
   A LaunchAgent, not a daemon: it runs in the owner's login session, where the
@@ -30,7 +30,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>@HOME@/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>@PATH@</string>
     <key>TUTORBOARD_SYNC</key>
     <string>1</string>
     <key>TUTORBOARD_FRESH</key>

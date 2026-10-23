@@ -14,7 +14,7 @@ What the checks are about:
     load the relay timed. No brief is a 400. The filed task then shows
     queued, working and done as the relay's reports and status.json say.
   * THE BRIEF names a relay that looks down.
-  * BREW. brew.json's failures join /relay.json's lines; relay.health and the
+  * BREW. brew.json's failures, and tools.json's, join /relay.json's lines; relay.health and the
     brief never carry them.
 
 Synthetic repositories only: a bare origin and a "Mac" clone.
@@ -195,6 +195,16 @@ try:
           and "brew" not in brief.relay_sense(ws)
           and not any("brew" in l for l in brief._health(ws)), plain["lines"])
     os.remove(os.path.join(os.environ["BOARD_STATE_DIR"], "brew.json"))
+    write(os.path.join(os.environ["BOARD_STATE_DIR"], "tools.json"), json.dumps({
+        "tools": {"widget": {"failed": "T_UPDATE exited 3"}},
+        "pins": [{"subject": "projects/S", "tool": "node", "pinned": "20.0.0",
+                  "latest": "22.1.0"}]}))
+    code, got = ask("GET", "/relay.json")
+    check("tools.json's failures and pins behind join them too, so home shows them",
+          code == 200 and "tools: widget failed: T_UPDATE exited 3" in got["lines"]
+          and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in got["lines"],
+          got.get("lines"))
+    os.remove(os.path.join(os.environ["BOARD_STATE_DIR"], "tools.json"))
 
     code, got = ask("GET", "/relay.json")
     check("/relay.json carries Colibri loading from status.json",

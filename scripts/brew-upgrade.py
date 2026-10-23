@@ -16,10 +16,51 @@ The rules, each with its reason:
 
   * DEFER TO ANOTHER UPGRADER. When a LaunchAgent or LaunchDaemon whose label or
     program matches `brew.?(upgrade|autoupdate)|homebrew-autoupdate` is
-    installed and loaded, this job upgrades nothing and only probes and repairs,
-    on the tick after brew's tree moves, because two upgraders fight over brew's
-    lock. A plist left installed but not loaded is no upgrader: it upgrades
-    nothing, so this job does.
+    installed and loaded, this job leaves brew's daily upgrade to it and probes
+    and repairs on the tick after brew's tree moves, because two upgraders
+    fight over brew's lock. A plist left installed but not loaded is no
+    upgrader: it upgrades nothing, so this job does.
+  * COVER FOR IT. When that job's last success is over 26 hours old, or no
+    record of one is found, this job runs its own brew upgrade that day and
+    records that it covered. A success is a `last_success` in a JSON in the
+    other job's working directory's or program's `state/` (or beside it), or
+    a `=== done ... (ok) ===` line in the log its plist names, all read naming
+    no vendor; a partial run is no success. The cover's gate is the usual
+    one, measured from the newer of the two jobs' last successes. The cover
+    is a full brew upgrade: formulae, every cask, the Brewfile union and npm.
+    It excludes nothing of that job's, neither the casks it protects nor what
+    its state holds; only this job's own HOLDS apply. A cask whose installer
+    needs the admin password fails and is recorded as failed, because no call
+    has a stdin or a terminal to prompt on. Brew takes its lock without
+    waiting, so a second brew fails rather than queues: the cover starts only when no brew
+    and no other upgrader is running (BUSY), checks again before each brew
+    step, and stops when either has started.
+  * AFTER ITS TURN. In defer mode the day's work, a cover or the toolchain
+    phase alone, waits while the other job is due: its last start (a
+    `last_attempt` in that JSON, or a `=== ... run ... ===` line in its log)
+    is MIN_INTERVAL_H or more old. It goes once that job has started and
+    ended, or after WAIT_H of ticks in which it never started, so the two
+    jobs' brew, npm and CLI updates do not overlap. Every step of a defer-mode
+    run, not only a brew step, stops when the other job has started, since
+    it updates the same CLIs and npm globals. A run that yields before its
+    toolchain phase is done unstamps its attempt, so a later tick that day
+    runs it, and keeps the tool failures it did not re-check.
+  * THE TOOLCHAIN PHASE RUNS IN BOTH MODES, once a day under the same gate:
+    ai-config's update-tools, `uv python upgrade`, `mise install --locked
+    <tools>` in every subject directory holding a mise.toml, then `mise prune
+    --tools` of the tools those files name, and `scripts/tools.sh update`,
+    because none of it takes brew's lock; in defer mode it runs after the
+    other job's turn (AFTER ITS TURN). Install names the directory's own
+    tools because --locked fails on any tool without a mise.lock entry, and
+    the owner's global config has none; the prune is named because a bare one
+    removes every version no tracked config uses, Atlas's or not, and without
+    --tools it also forgets the owner's trusted configs. A failure enters
+    brew.json `failed` as `tool:<name>`; update-tools never exits non-zero, so
+    an assistant CLI's failure is read from the lines it adds to its log. Then
+    `mise outdated --json --bump --local` names each pin behind (a non-null
+    `bump`) in tools.json, and that subject's sessions are briefed to propose
+    the bump; a pin moves only by a commit of mise.toml and mise.lock, never
+    from here.
   * HOURLY, GATED TO ONCE A DAY IN 03:00-07:59. A sleeping machine misses a
     calendar job; an hourly tick catches up. The host never upgrades outside the
     window, because the owner may be in a lesson. A coding laptop upgrades
@@ -29,8 +70,11 @@ The rules, each with its reason:
     interpreter whose script's name matches, never an editor or a `tail` of the
     log), or a board turn running or queued skips the tick, logs why, and
     stamps nothing.
-  * NEVER GREEDY. Casks that update themselves are left to do so, and a stale
-    record of one is never "upgraded" over the app.
+  * NEVER GREEDY. `brew outdated --json=v2` is asked without --greedy, so it
+    leaves out every cask marked auto_updates or versioned :latest, even while
+    brew's record of one is behind the cask's current version. Such a cask is
+    never upgraded here: the app updates itself, and its stale record is not
+    read as outdated.
   * HOLDS. A pinned formula, a tailscale run as a brew service on the host (it
     carries the board's tailnet), and a cask whose app is running at three ticks
     in a row are held and reported, never forced.
@@ -41,7 +85,9 @@ The rules, each with its reason:
     nothing more current.
   * REPAIRS ACT ONLY ON BREAKAGE. A subject's .venv that cannot start is
     re-synced with `uv sync --locked`; the board's LaunchAgent whose interpreter
-    is gone is reinstalled; a Brewfile miss is installed in own mode; an
+    is gone is reinstalled; a miss in the Brewfile union (the root Brewfile
+    and every subject's, ~/.local/state/atlas-setup/Brewfile.all, the file
+    setup.sh bundles) is installed in own mode, never with --cleanup; an
     assistant CLI the run itself removed is put back, and one already missing
     before the run is left missing, because that is how the owner keeps one off
     a machine. TeX and the board's reachability are reported, never touched.
@@ -57,6 +103,7 @@ The rules, each with its reason:
 """
 
 import fcntl
+import glob
 import hashlib
 import json
 import os
@@ -65,6 +112,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 from datetime import datetime, timedelta
 
@@ -98,6 +146,10 @@ AGENT_DIRS = [os.path.join(HOME, "Library", "LaunchAgents"),
 AGENT = os.path.join(AGENT_DIRS[0], LABEL + ".plist")
 BOARD_AGENT = os.path.join(AGENT_DIRS[0], "tutor-board.plist")
 UV_PYTHONS = os.path.join(HOME, ".local", "share", "uv", "python")
+TOOLS_JSON = os.path.join(os.path.dirname(STATE), "tools.json")
+TOOLS_SH = os.path.join("scripts", "tools.sh")
+# update-tools' own log: it always exits 0, so a failed CLI is read from here.
+AI_TOOLS_LOG = os.path.join(HOME, ".local", "state", "ai-tools-update.log")
 CAFFEINATE = "/usr/bin/caffeinate"
 
 OTHER = re.compile(r"brew.?(upgrade|autoupdate)|homebrew-autoupdate", re.I)
@@ -116,6 +168,9 @@ MIN_INTERVAL_H = 20
 RECHECK_MIN = 50                     # a recorded problem is re-probed hourly
 WINDOW = range(3, 8)                 # 03:00-07:59 local
 OVERDUE_H = 48
+COVER_H = 26                         # the other upgrader's last success, at most
+WAIT_H = 1.5                         # the other job, due, is waited for this long
+WAIT_RESET_H = 3                     # a wait older than this began another stretch
 STALE_H = 72
 MIN_BATTERY_PCT = 40
 IDLE_MIN_S = 1200
@@ -130,6 +185,7 @@ T_FORMULAE = 10800
 T_CASK = 5400
 T_NPM = 1800
 T_TOOLS = 1800
+T_MISE = 3600
 T_UVPY = 1800
 T_UVSYNC = 1800
 T_CLEANUP = 1800
@@ -139,6 +195,8 @@ T_PROBE = 60
 
 DRY = False
 _lock_fd = None
+COVERING = False                     # a cover run's brew steps yield to any brew
+DEFERRING = False                    # a defer-mode run yields to the other upgrader
 
 
 def brew_env():
@@ -177,7 +235,9 @@ def hours_since(when):
 def run(argv, timeout, mutating=False, env=None, cwd=None):
     """(code, stdout, stderr). Never raises: a timeout is 124, a missing
     program 127. A mutating call under --dry-run is described, not run. The
-    caller's PATH comes first, then brew's and the system's directories."""
+    caller's PATH comes first, then brew's and the system's directories. No
+    call has a stdin or a controlling terminal, so a sudo inside one (a cask's
+    installer) fails at once rather than waiting on a password prompt."""
     argv = [str(a) for a in argv]
     if mutating and DRY:
         log("[dry-run] would run %s" % " ".join(argv))
@@ -194,7 +254,8 @@ def run(argv, timeout, mutating=False, env=None, cwd=None):
     try:
         p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            stdin=subprocess.DEVNULL, universal_newlines=True,
-                           timeout=timeout, env=full, cwd=cwd)
+                           timeout=timeout, env=full, cwd=cwd,
+                           start_new_session=True)
         return p.returncode, p.stdout or "", p.stderr or ""
     except subprocess.TimeoutExpired:
         return 124, "", "timed out after %ds" % timeout
@@ -368,16 +429,29 @@ def upgrader_line(line):
     return bool(OTHER.search(" ".join(args)))
 
 
-def busy(role):
-    """Why this tick must not work now, or None."""
+def brew_busy():
+    """A running brew or another upgrader at work, as a reason, or None."""
     code, out, _ = run(["pgrep", "-f", r"/Library/Homebrew/brew\.(rb|sh)"], T_PROBE)
     if code == 0 and out.strip():
         return "a brew is running"
+    return upgrader_busy()
+
+
+def upgrader_busy():
+    """Another upgrader at work, as a reason, or None."""
     code, out, _ = run(["pgrep", "-lf", "brew[-_]?upgrade"], T_PROBE)
     if code == 0:
         for line in out.splitlines():
             if upgrader_line(line):
                 return "another brew upgrader is running (%s)" % line.strip()[:120]
+    return None
+
+
+def busy(role):
+    """Why this tick must not work now, or None."""
+    why = brew_busy()
+    if why:
+        return why
     if role == "host":
         try:
             with urllib.request.urlopen("http://127.0.0.1:%d/health" % board_port(),
@@ -435,10 +509,23 @@ class Stopped(Exception):
     """The owner turned the job off mid-run."""
 
 
-def check_off():
-    """Between steps: stop when `off` has been run since this run began."""
+class Yielded(Stopped):
+    """A cover run met a brew or the other upgrader at work."""
+
+
+def check_off(brew_step=False):
+    """Between steps: stop when `off` has been run since this run began. A
+    defer-mode run also stops when the other upgrader has started, and a
+    cover, before a brew step, when any brew has: brew does not wait on its
+    lock, so the second brew would fail."""
     if not DRY and os.path.exists(OFF_FILE):
         raise Stopped()
+    if DRY:
+        return
+    why = brew_busy() if COVERING and brew_step else \
+        upgrader_busy() if DEFERRING else None
+    if why:
+        raise Yielded(why)
 
 
 def drop_lock():
@@ -734,12 +821,57 @@ def probe_tex():
                     "tlmgr install %s" % " ".join(s[:-4] for s in absent))]
 
 
+def brewfile_union():
+    """(path, temporary) of the Brewfile union setup.sh bundles: the root
+    Brewfile and every subject's, sorted and deduplicated by
+    `toolplan.write_union` into Brewfile.all, which is rewritten only when it
+    changed. Under --dry-run a changed union goes to a temp file, since a dry
+    run writes nothing. The root Brewfile alone when toolplan cannot answer."""
+    plan = board_import("toolplan")
+    dest = os.path.join(SETUP_DIR, "Brewfile.all")
+    try:
+        if plan is None:
+            raise ValueError("no toolplan")
+        if not DRY:
+            plan.write_union(ATLAS, dest)
+            return dest, False
+        text = plan.union_text(ATLAS)
+        try:
+            with open(dest, encoding="utf-8") as fh:
+                if fh.read() == text:
+                    return dest, False
+        except OSError:
+            pass
+        fd, tmp = tempfile.mkstemp(prefix="Brewfile.all.")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return tmp, True
+    except Exception:                                        # noqa: BLE001
+        root = os.path.join(ATLAS, "Brewfile")
+        return (root if os.path.isfile(root) else None), False
+
+
 def probe_brewfile(own, acting):
-    """R5: everything the Brewfile names is installed. Own mode installs a
-    miss, which is how a new python minor version lands."""
-    bf = os.path.join(ATLAS, "Brewfile")
-    if not PREFIX or not os.path.isfile(bf):
+    """R5: everything the Brewfile union names is installed. Own mode installs
+    a miss, which is how a new python minor version lands; nothing is ever
+    removed, so no --cleanup."""
+    if not PREFIX:
         return []
+    bf, temp = brewfile_union()
+    if not bf:
+        return []
+    try:
+        return _probe_brewfile(own, acting, bf)
+    finally:
+        if temp:
+            try:
+                os.remove(bf)
+            except OSError:
+                pass
+
+
+def _probe_brewfile(own, acting, bf):
+    fix = "brew bundle install --no-upgrade --file=" + bf.replace(HOME, "~", 1)
     code, out, err = brew(["bundle", "check", "--no-upgrade", "--file=" + bf], T_BCHECK)
     if code == 0:
         log("probe Brewfile: ok")
@@ -748,19 +880,16 @@ def probe_brewfile(own, acting):
     if not own:
         return [problem("the Brewfile is not satisfied", "bash scripts/setup.sh")]
     if not acting:
-        return [problem("the Brewfile is not satisfied",
-                        "brew bundle install --no-upgrade --file=Brewfile")]
+        return [problem("the Brewfile is not satisfied", fix)]
     code, out, err = brew(["bundle", "install", "--no-upgrade", "--file=" + bf],
                           T_BINSTALL, mutating=True)
     if DRY:
-        return [problem("the Brewfile is not satisfied",
-                        "brew bundle install --no-upgrade --file=Brewfile")]
+        return [problem("the Brewfile is not satisfied", fix)]
     log_tail(out + "\n" + err, "bundle", 8)
     if code == 0:
         log("repaired: brew bundle install")
         return []
-    return [problem("brew bundle install failed: %s" % last_line(err, out),
-                    "brew bundle install --no-upgrade --file=Brewfile")]
+    return [problem("brew bundle install failed: %s" % last_line(err, out), fix)]
 
 
 def probe_board_serve():
@@ -898,22 +1027,402 @@ def app_running(app):
     return code == 0 and bool(out.strip())
 
 
-def own_run(state, role, why):
-    """One upgrade run. Saves state at the end whatever happened."""
+# ------------------------------------------------------------ the toolchain
+
+def mise_env():
+    """mise answers no prompt here, and trusts the Atlas tree's own configs
+    for this call only; setup.sh trusts them for good."""
+    return {"MISE_YES": "1", "MISE_TRUSTED_CONFIG_PATHS": ATLAS}
+
+
+def tool_failures():
+    """{tool:<name>: why} for each tool tools.json says failed."""
+    try:
+        with open(TOOLS_JSON, encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    tools = doc.get("tools") if isinstance(doc, dict) else None
+    return dict(("tool:" + name, str(rec.get("failed")))
+                for name, rec in sorted((tools or {}).items())
+                if isinstance(rec, dict) and rec.get("failed"))
+
+
+CLI_FAILED = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\s+(\S+) \S+: "
+                        r"update failed \(exit (\d+)\)")
+
+
+def log_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
+def cli_failures(since):
+    """{tool:<cli>: why} from the lines update-tools added to its log past
+    byte `since` (from the start, when the log is now shorter)."""
+    out = {}
+    try:
+        with open(AI_TOOLS_LOG, "rb") as fh:
+            if log_size(AI_TOOLS_LOG) >= since:
+                fh.seek(since)
+            added = fh.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return out
+    for line in added:
+        m = CLI_FAILED.match(line)
+        if m:
+            out["tool:" + m.group(1)] = ("update failed (exit %s); see %s"
+                                         % (m.group(2), AI_TOOLS_LOG.replace(HOME, "~", 1)))
+    return out
+
+
+def toolchain(failed):
+    """The toolchain phase, the same in own and defer mode: none of it takes
+    brew's lock. Each failure goes into `failed` as tool:<name>; each pin
+    behind into tools.json. A pin is never moved from here."""
+    log("toolchain phase")
+    for k in [k for k in failed if k.startswith("tool:")]:
+        del failed[k]
+
+    # 1. the assistant CLIs, by ai-config's own updater (ai-tools-update)
+    tools = os.path.join(ATLAS, "ai-config", "scripts", "update-tools")
+    check_off()
+    if os.path.isfile(tools):
+        since = log_size(AI_TOOLS_LOG)
+        code, out, err = run(["bash", tools], T_TOOLS, mutating=True)
+        if code != 0:
+            failed["tool:update-tools"] = last_line(err, out) or "exit %d" % code
+            log("! update-tools exited %d" % code)
+            log_tail(out + "\n" + err, "update-tools", 8)
+        if not DRY:
+            for name, why in sorted(cli_failures(since).items()):
+                failed[name] = why
+                log("! %s: %s" % (name[5:], why))
+
+    # 2. uv's own Pythons
+    uv = shutil.which("uv", path=os.environ.get("PATH", "") + os.pathsep
+                      + os.path.join(PREFIX or "/opt/homebrew", "bin"))
+    try:
+        pythons = [n for n in os.listdir(UV_PYTHONS) if n.startswith("cpython-")]
+    except OSError:
+        pythons = []
+    check_off()
+    if uv and pythons:
+        code, out, err = run([uv, "python", "upgrade"], T_UVPY, mutating=True)
+        if code != 0:
+            failed["tool:uv-python"] = last_line(err, out) or "exit %d" % code
+            log("! uv python upgrade exited %d" % code)
+            log_tail(out + "\n" + err, "uv", 8)
+
+    # 3. each subject's pinned toolchains, as locked, then the versions of
+    # those tools that no tracked config uses. Both named: --locked fails on a
+    # tool with no mise.lock entry, which every tool of the owner's global
+    # config is, and a bare prune would touch tools only some other project
+    # of the owner's uses.
+    plan = board_import("toolplan")
+    try:
+        dirs = [(i, d, plan.pinned_in(d)) for i, d in plan.mise_dirs(ATLAS)] \
+            if plan else []
+        pinned = plan.mise_tools(ATLAS) if plan else []
+    except Exception:                                        # noqa: BLE001
+        dirs, pinned = [], []
+    for ident, where, names in dirs:
+        if not names:
+            continue
+        check_off()
+        code, out, err = run(["mise", "install", "--locked"] + names, T_MISE,
+                             mutating=True, cwd=where, env=mise_env())
+        if code != 0:
+            failed["tool:mise:" + ident] = last_line(err, out) or "exit %d" % code
+            log("! mise install in %s exited %d" % (ident, code))
+            log_tail(out + "\n" + err, "mise", 8)
+    if pinned:
+        check_off()
+        code, out, err = run(["mise", "prune", "--yes", "--tools"] + pinned, T_MISE,
+                             mutating=True, env=mise_env())
+        if code != 0:
+            failed["tool:mise-prune"] = last_line(err, out) or "exit %d" % code
+            log("! mise prune exited %d" % code)
+
+    # 4. the subjects' tool descriptors
+    sh = os.path.join(ATLAS, TOOLS_SH)
+    check_off()
+    if os.path.isfile(sh):
+        code, out, err = run(["bash", sh, "update"], T_TOOLS, mutating=True)
+        if code != 0:
+            log("! tools.sh update exited %d" % code)
+            log_tail(out + "\n" + err, "tools.sh", 8)
+        if not DRY:
+            said = tool_failures()
+            failed.update(said)
+            if code != 0 and not said:
+                failed["tool:tools.sh"] = last_line(out, err) or "exit %d" % code
+
+    # 5. the pins behind, named and never moved. --local leaves out the
+    # owner's global config; pins_of keeps only this directory's own.
+    pins = []
+    for ident, where, _names in dirs:
+        code, out, err = run(["mise", "outdated", "--json", "--bump", "--local"],
+                             T_PROBE * 5, cwd=where, env=mise_env())
+        if code == 0 and plan is not None:
+            pins += plan.pins_of(out, ident, where)
+        elif code != 0:
+            log("! mise outdated in %s exited %d" % (ident, code))
+    for p in pins:
+        log("pin behind: %s %s %s -> %s" % (p["subject"], p["tool"], p["pinned"],
+                                            p["latest"]))
+    if plan is not None and not DRY:
+        try:
+            plan.write_pins(pins)
+        except Exception as exc:                             # noqa: BLE001
+            log("! could not write tools.json: %s" % exc)
+
+
+def toolchain_run(state, role, why):
+    """Defer mode's daily work when there is nothing to cover: the toolchain
+    phase alone. brew.json keeps only its tool:<name> failures; a phase that
+    did not finish keeps the ones it had. One that yielded to the other job
+    unstamps its attempt, so a later tick that day runs it."""
+    global DEFERRING
+    DEFERRING = True
+    started = now()
+    log("=== toolchain run (%s) ===" % why)
+    before = state.get("toolchain_attempt")
+    state["toolchain_attempt"] = stamp(started)
+    save_state(state)
+    prior = dict((k, v) for k, v in (state.get("failed") or {}).items()
+                 if k.startswith("tool:"))
+    failed = dict(prior)
+    done = yielded = False
+    try:
+        toolchain(failed)
+        done = True
+    except Yielded as exc:
+        yielded = True
+        log("yielded: %s; the toolchain phase stops here and runs on a later tick"
+            % exc)
+    except Stopped:
+        log("off by owner: the run stops here, before its next step")
+    except Exception as exc:                                 # noqa: BLE001
+        prior["tool:brew-upgrade.py"] = repr(exc)[:300]
+        log("! the toolchain phase stopped on %r" % exc)
+    finally:
+        DEFERRING = False
+        if not done:
+            failed = prior
+        if yielded:
+            unstamp(state, "toolchain_attempt", before)
+        state["failed"] = failed
+        if done and not failed:
+            state["toolchain_success"] = stamp()
+        save_state(state)
+        log("=== toolchain %s (%d failed) ===" % ("dry run done" if DRY else "done",
+                                                 len(failed)))
+        notify(state)
+    return 0
+
+
+# ------------------------------------------------------------ the other job
+
+DONE = re.compile(r"^\[(\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d)\].*\bdone\b.*\(ok\)")
+STARTED = re.compile(r"^\[(\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d)\]\s*===\s+(?!dry\b)"
+                     r"[^=]*\brun\b[^=]*===\s*$")
+
+
+def unstamp(state, key, before):
+    """Put `key` back to `before`, its value when the run began."""
+    if before is None:
+        state.pop(key, None)
+    else:
+        state[key] = before
+
+
+def other_dirs(data):
+    """The other job's working directory and its program's directories,
+    from its plist's `data`."""
+    dirs = []
+    prog = data.get("ProgramArguments") or [data.get("Program") or ""]
+    for v in [data.get("WorkingDirectory")] + list(prog if isinstance(prog, list) else []):
+        if isinstance(v, str) and os.path.isabs(v):
+            d = v if os.path.isdir(v) else os.path.dirname(v)
+            if d not in dirs and d != "/":
+                dirs.append(d)
+    return dirs
+
+
+def other_record(other):
+    """(last success, last start) of the other upgrader, read from its own
+    record and naming no vendor: a JSON holding `last_success` (and
+    `last_attempt`) in its working directory's or program's
+    directory or their `state/`, and the newest `=== done ... (ok) ===` and
+    `=== ... run ... ===` lines of the log its plist names. A partial run is
+    no success: that job itself counts only ok. Each the newer of the two;
+    None when neither says."""
+    data = read_plist(other[1]) or {}
+    dirs = other_dirs(data)
+    best, began = None, None
+    for d in dirs:
+        for path in sorted(glob.glob(os.path.join(d, "state", "*.json"))
+                           + glob.glob(os.path.join(d, "*.json"))):
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    doc = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            if not isinstance(doc, dict):
+                continue
+            when = parse_ts(doc.get("last_success"))
+            if when and (best is None or when > best):
+                best = when
+            tried = parse_ts(doc.get("last_attempt"))
+            if tried and (began is None or tried > began):
+                began = tried
+    for key in ("StandardOutPath", "StandardErrorPath"):
+        path = data.get(key)
+        if not isinstance(path, str):
+            continue
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(max(0, os.path.getsize(path) - 524288))
+                tail = fh.read().decode("utf-8", "replace").splitlines()
+        except OSError:
+            continue
+        ok = start = None
+        for line in reversed(tail):
+            if ok is None:
+                m = DONE.match(line)
+                ok = parse_ts(m.group(1).replace(" ", "T")) if m else None
+            if start is None:
+                m = STARTED.match(line)
+                start = parse_ts(m.group(1).replace(" ", "T")) if m else None
+            if ok and start:
+                break
+        if ok and (best is None or ok > best):
+            best = ok
+        if start and (began is None or start > began):
+            began = start
+    return best, began
+
+
+def its_turn(state, other, began, force):
+    """Why defer mode's daily work waits for the other upgrader's, or None.
+    It waits while that job is due (its last start MIN_INTERVAL_H or more
+    old), and for WAIT_H at most, counted from the first tick that found it
+    due in this stretch awake: an upgrader that does not start in that long
+    is not coming. With no record of a start, nothing is waited for."""
+    if force or began is None or hours_since(began) < MIN_INTERVAL_H:
+        if state.pop("other_due_seen", None) is not None:
+            save_state(state)
+        return None
+    seen = parse_ts(state.get("other_due_seen"))
+    waited = hours_since(seen)
+    if waited < 0 or waited > WAIT_RESET_H:
+        state["other_due_seen"] = stamp()
+        save_state(state)
+        waited = 0.0
+    if waited >= WAIT_H:
+        return None
+    return ("%s last started a run %s and is due; this job goes after it, or by "
+            "%s if it does not start" % (
+                other[0], stamp(began),
+                (now() + timedelta(hours=WAIT_H - waited)).strftime("%H:%M")))
+
+
+def defer_upkeep(state, role, other, force):
+    """Defer mode's daily work, under own mode's gate: a brew upgrade when
+    the other upgrader's last success is over COVER_H hours old or
+    unknown (covering for it), else the toolchain phase alone; either waits
+    for the other job's turn (its_turn). The cover's
+    gate counts overdue from the newer of the two jobs' last runs, so a
+    laptop is not upgraded outside the window while the other job's run is
+    under OVERDUE_H hours old."""
+    last, began = other_record(other)
+    stale = last is None or hours_since(last) >= COVER_H
+    cover = state.get("covered") if isinstance(state.get("covered"), dict) else None
+    if cover and last and parse_ts(cover.get("at")) and last > parse_ts(cover["at"]):
+        state.pop("covered", None)
+        save_state(state)
+    if DRY:
+        log("%s %s: %s" % (
+            other[0], "last succeeded %s" % stamp(last) if last
+            else "has no success on any record found",
+            "this job covers with its own brew upgrade" if stale
+            else "brew is its; this job runs the toolchain phase"))
+    if stale:
+        view = dict(state)
+        mine = parse_ts(state.get("last_success"))
+        if last and (mine is None or last > mine):
+            view["last_success"] = stamp(last)
+        go, why = gated(view, role, force, "gate")
+        if go and wait_turn(state, other, began, force):
+            return 0
+        if go:
+            hold_awake()
+            return own_run(state, role, "covering for %s, %s" % (other[0], why),
+                           cover=(other, last))
+    view = {"last_attempt": state.get("toolchain_attempt"),
+            "last_success": state.get("toolchain_success"),
+            "first_seen": state.get("first_seen")}
+    go, why = gated(view, role, force, "toolchain gate")
+    if not go or wait_turn(state, other, began, force):
+        return 0
+    hold_awake()
+    return toolchain_run(state, role, why)
+
+
+def wait_turn(state, other, began, force):
+    """True when the day's work waits for the other job's turn (its_turn),
+    logged; a dry run says so and goes."""
+    why = its_turn(state, other, began, force)
+    if why is None:
+        return False
+    log("%s: %s" % ("a real tick waits" if DRY else "waiting", why))
+    return not DRY
+
+
+def gated(state, role, force, label):
+    """`gate`, except that --force goes; --dry-run says what the gate would
+    do and goes."""
+    if DRY:
+        go, why = gate(state, role)
+        log("%s: %s (%s)" % (label, "would run" if go else "would skip", why))
+        return True, "dry run"
+    if force:
+        return True, "forced"
+    return gate(state, role)
+
+
+def own_run(state, role, why, cover=None):
+    """One upgrade run. Saves state at the end whatever happened. `cover` is
+    (other, its last success) when this run covers for another upgrader: a
+    full upgrade of formulae and every cask that excludes nothing of that
+    job's (its holds and the casks it protects upgrade too; only this job's
+    own holds apply), each brew step first checks that no brew and not that
+    job has started, and the state stays in defer mode with `covered` saying
+    so."""
+    global COVERING, DEFERRING
+    COVERING = DEFERRING = bool(cover)
     trim_log()
     started = now()
     log("=== brew upgrade run (%s) ===" % why)
+    before = (state.get("last_attempt"), state.get("toolchain_attempt"))
+    prior = dict((k, v) for k, v in (state.get("failed") or {}).items()
+                 if k.startswith("tool:"))
     state["last_attempt"] = stamp(started)
+    state["toolchain_attempt"] = stamp(started)
     save_state(state)
     ok = True
+    tools_done = False
     failed, held = {}, {}
     defers = dict(state.get("cask_defers") or {})
     found = []
-    stopped = False
+    stopped = yielded = False
     try:
         clis_before = clis_missing()
         # 1. the index
-        check_off()
+        check_off(brew_step=True)
         if DRY:
             log("index not refreshed (dry-run)")
         else:
@@ -949,6 +1458,8 @@ def own_run(state, role, why):
             run_casks = []
             for c in casks:
                 name = c["name"]
+                if name in held:
+                    continue
                 running = [a for a in apps.get(name, []) if app_running(a)]
                 if not running:
                     run_casks.append(name)
@@ -973,7 +1484,7 @@ def own_run(state, role, why):
                 log("HELD: %s %s -> %s: %s" % (name, h["installed"], h["latest"], h["why"]))
 
             # 4. formulae, named
-            check_off()
+            check_off(brew_step=True)
             if names:
                 log("upgrading formulae: %s" % ", ".join(names))
                 code, out, err = brew(["upgrade", "--formula"] + names, T_FORMULAE,
@@ -985,7 +1496,7 @@ def own_run(state, role, why):
 
             # 5. casks, one at a time
             for name in sorted(run_casks):
-                check_off()
+                check_off(brew_step=True)
                 code, out, err = brew(["upgrade", "--cask", name], T_CASK, mutating=True)
                 if code == 0:
                     defers.pop(name, None)
@@ -998,7 +1509,7 @@ def own_run(state, role, why):
                     log_tail(out + "\n" + err, "cask " + name, 8)
 
         # 6. the Brewfile
-        check_off()
+        check_off(brew_step=True)
         bf = probe_brewfile(True, True)
         if bf:
             ok = False
@@ -1006,7 +1517,7 @@ def own_run(state, role, why):
 
         # 7. brew's npm globals
         npm = os.path.join(PREFIX, "bin", "npm")
-        check_off()
+        check_off(brew_step=True)
         if os.path.exists(npm):
             code, out, err = run([npm, "update", "-g"], T_NPM, mutating=True,
                                  env=brew_env())
@@ -1015,39 +1526,24 @@ def own_run(state, role, why):
                 log("! npm update -g exited %d" % code)
                 log_tail(out + "\n" + err, "npm", 8)
 
-        # 8. the assistant CLIs, by ai-config's own updater
-        tools = os.path.join(ATLAS, "ai-config", "scripts", "update-tools")
-        check_off()
-        if os.path.isfile(tools):
-            code, out, err = run(["bash", tools], T_TOOLS, mutating=True)
-            if code != 0:
-                log("! update-tools exited %d" % code)
-                log_tail(out + "\n" + err, "update-tools", 8)
+        # 8-12. the toolchain phase: update-tools, uv's Pythons, mise,
+        # the descriptors, the pins
+        toolchain(failed)
+        tools_done = True
 
-        # 9. uv's own Pythons
-        uv = shutil.which("uv", path=os.environ.get("PATH", "") + os.pathsep
-                          + os.path.join(PREFIX, "bin"))
-        try:
-            pythons = [n for n in os.listdir(UV_PYTHONS) if n.startswith("cpython-")]
-        except OSError:
-            pythons = []
-        check_off()
-        if uv and pythons:
-            code, out, err = run([uv, "python", "upgrade"], T_UVPY, mutating=True)
-            if code != 0:
-                log("! uv python upgrade exited %d" % code)
-                log_tail(out + "\n" + err, "uv", 8)
-
-        # 10. repairs
+        # 13. repairs
         found += repairs(role, True, True, brewfile=False, clis_before=clis_before)
 
-        # 11. cleanup, last
-        check_off()
+        # 14. cleanup, last
+        check_off(brew_step=True)
         code, out, err = brew(["cleanup", "--prune=%d" % PRUNE_DAYS], T_CLEANUP,
                               mutating=True)
         if code != 0:
             log("! brew cleanup exited %d" % code)
             log_tail(out + "\n" + err, "cleanup", 3)
+    except Yielded as exc:
+        ok, stopped, yielded = False, True, True
+        log("yielded: %s; the cover stops here, before its next brew step" % exc)
     except Stopped:
         ok, stopped = False, True
         log("off by owner: the run stops here, before its next step")
@@ -1056,20 +1552,46 @@ def own_run(state, role, why):
         failed["brew-upgrade.py"] = repr(exc)[:300]
         log("! the run stopped on %r" % exc)
     finally:
+        COVERING = DEFERRING = False
         drop_lock()
         done = now()
-        state["last_result"] = "stopped" if stopped else "ok" if ok else "partial"
+        if not tools_done:
+            # The phase did not finish: what it had found stands until it does.
+            for k in [k for k in failed if k.startswith("tool:")]:
+                del failed[k]
+            failed.update(prior)
+            if yielded:
+                # Met the other job before its upgrade was done: a later tick
+                # that day may cover, and run the toolchain phase, after it.
+                unstamp(state, "last_attempt", before[0])
+                unstamp(state, "toolchain_attempt", before[1])
+        state["last_result"] = ("yielded" if yielded else "stopped" if stopped
+                                else "ok" if ok else "partial")
         if ok:
             state["last_success"] = stamp(done)
+        if tools_done and not [k for k in failed if k.startswith("tool:")]:
+            state["toolchain_success"] = stamp(done)
         state["last_duration_seconds"] = int((done - started).total_seconds())
         state.update({"held": held, "failed": failed, "cask_defers": defers,
-                      "mode": "own", "role": role, "problems": found,
-                      "fingerprint": fingerprint(), "probed_at": stamp(done)})
-        state.pop("deferred_to", None)
+                      "mode": "defer" if cover else "own", "role": role,
+                      "problems": found, "fingerprint": fingerprint(),
+                      "probed_at": stamp(done)})
+        if cover:
+            state["deferred_to"] = {"label": cover[0][0], "path": cover[0][1]}
+            if not yielded:
+                state["covered"] = {"for": cover[0][0], "at": stamp(done),
+                                    "other_success": stamp(cover[1]) if cover[1]
+                                    else None}
+        else:
+            state.pop("deferred_to", None)
+            state.pop("covered", None)
         save_state(state)
         log("=== %s in %ds (%s) ===" % ("dry run done" if DRY else "done",
                                        state["last_duration_seconds"],
                                        state["last_result"]))
+        if cover and not yielded:
+            log("covered for %s, whose last success was %s" % (
+                cover[0][0], stamp(cover[1]) if cover[1] else "never recorded"))
         notify(state)
     return 0
 
@@ -1099,7 +1621,9 @@ def recheck(state, role, own):
 
 
 def defer_tick(state, role, other, forced=False):
-    """Defer mode: probe and repair once brew's tree moves; upgrade nothing."""
+    """Defer mode: probe and repair once brew's tree moves; upgrade nothing.
+    A tool:<name> failure stays: the toolchain phase is this job's in either
+    mode."""
     fp = fingerprint()
     stored = state.get("fingerprint")
     same = (stored == fp and state.get("mode") == "defer"
@@ -1116,8 +1640,12 @@ def defer_tick(state, role, other, forced=False):
     state.update({"mode": "defer", "role": role,
                   "deferred_to": {"label": other[0], "path": other[1]},
                   "fingerprint": fp, "probed_at": stamp(), "problems": found})
-    for k in ("held", "failed", "cask_defers"):
+    for k in ("held", "cask_defers"):
         state.pop(k, None)
+    state["failed"] = dict((k, v) for k, v in (state.get("failed") or {}).items()
+                           if k.startswith("tool:"))
+    if not state["failed"]:
+        state.pop("failed")
     save_state(state)
     notify(state)
     return 0
@@ -1158,9 +1686,12 @@ def work(role, other, force, repair_only):
     """cmd_run's body, under the lock."""
     state = load_state()
     if other:
-        if DRY:
-            log("gate: not used; defers to %s, so nothing is upgraded" % other[0])
-        return defer_tick(state, role, other, forced=repair_only)
+        if repair_only:
+            return defer_tick(state, role, other, forced=True)
+        if not state.get("first_seen"):
+            state["first_seen"] = stamp()
+        defer_tick(state, role, other)
+        return defer_upkeep(state, role, other, force)
     if repair_only:
         found = repairs(role, True, True)
         state.update({"problems": found, "probed_at": stamp(), "role": role})
@@ -1258,7 +1789,9 @@ def cmd_install():
         return 1
     other = other_upgrader()
     if other:
-        print("%s loaded; defers to %s (repairs only)" % (LABEL, other[0]))
+        print("%s loaded; defers to %s (repairs and the toolchain phase; a brew "
+              "upgrade of its own when that job has not succeeded in %d hours)"
+              % (LABEL, other[0], COVER_H))
     else:
         print("%s loaded; upgrades brew daily 03:00-07:59" % LABEL)
     return 0
@@ -1355,8 +1888,16 @@ def cmd_status():
     other = other_upgrader()
     if other:
         print("mode:      defer to %s (%s)" % other)
+        last, _ = other_record(other)
+        print("its last:  %s%s" % (stamp(last) if last else "no record of a success",
+                                   "" if last and hours_since(last) < COVER_H
+                                   else "; this job covers its brew upgrade"))
     else:
         print("mode:      own")
+    cover = state.get("covered") if isinstance(state.get("covered"), dict) else {}
+    if other and cover.get("at"):
+        print("covered:   %s, for %s (its last success %s)" % (
+            cover["at"], cover.get("for"), cover.get("other_success") or "never recorded"))
     print("role:      %s" % read_role())
     print("loaded:    %s" % ("yes" if loaded() else "no"))
     print("off:       %s" % ("yes (atlas-brew on)" if os.path.exists(OFF_FILE) else "no"))
@@ -1377,7 +1918,19 @@ def cmd_status():
         print("FAILED    %s: %s" % (name, why))
     for p in problems:
         print("PROBLEM   %s; %s" % (p.get("what"), p.get("fix")))
-    return 1 if (held or failed or problems) else 0
+    care = board_import("brewcare")
+    tools = []
+    if care is not None:
+        try:
+            doc = care.read_tools(os.path.dirname(STATE))
+            skip = set(k[5:] for k in failed if k.startswith("tool:"))
+            tools = care.tool_lines_of(doc, now(), skip=skip) if doc else []
+        except Exception:                                    # noqa: BLE001
+            tools = []
+    for line in tools:
+        print("TOOLS     %s" % line[len("tools: "):])
+    return 1 if (held or failed or problems
+                 or [l for l in tools if "pin behind" not in l]) else 0
 
 
 USAGE = ("usage: atlas-brew run [--dry-run] [--force] | repair [--dry-run] | status "

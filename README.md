@@ -34,6 +34,8 @@ Atlas/
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
   scripts/setup-cluster.sh  the same on the cluster, from a compute node
   scripts/setup.sh       builds every subject's environment; both of the above run it
+  scripts/tools.sh       installs and updates the subjects' tool descriptors
+  scripts/brew-upgrade.py  the daily brew and toolchain upkeep, `atlas-brew`
   .githooks/             pre-commit (the public-repo gate) and commit-msg
   board/                 the tutoring board: server, CLI, relay, web client, tests
   vendor/                other people's repositories, as submodules
@@ -53,6 +55,7 @@ Inside a subject:
 | Path | What it is | Tracked |
 | --- | --- | --- |
 | `tutorboard.json` | `name`, `phi`, `check`, `relay` | yes |
+| `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
 | `TUTOR.md` | the tutor's memory, written only with `board memo` | yes |
 | `README.md` | the owner's own notes; never fed to a turn | yes |
@@ -105,9 +108,20 @@ board, and checks that the board answers. Its header lists each step.
 - `bootstrap.sh` fills `vendor/`, clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
   the board's LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
-- `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
-  environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`). A
-  `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
+- `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile joined with every
+  subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
+  each subject's environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
+  A `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
+- A subject pins a toolchain in `mise.toml` and `mise.lock` (written by `mise lock`, which records
+  each platform's download URL that `--locked` requires): setup runs `mise install --locked` on
+  the tools that `mise.toml` names, so the owner's global mise tools never fail it, then `cargo fetch --locked` for a `Cargo.toml` and `flutter pub get --enforce-lockfile` for a
+  `pubspec.yaml`, through `mise exec`, at the subject's root and one directory down. A pin moves
+  only by a commit. Each marker needs its lockfile beside it and a check in `tutorboard.json`.
+  mise and the descriptors below are Mac only; on the cluster setup says it skipped them.
+- A tool neither brew nor mise keeps current is a descriptor, `<subject>/tools/<name>.sh`, read
+  by `scripts/tools.sh` (its header lists the fields). Setup installs what is missing. One name
+  in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
+  Brewfile entries are named by `board doctor` while they stay installed.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
 - The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
   `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
@@ -116,13 +130,30 @@ board, and checks that the board answers. Its header lists each step.
 - Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once.
 - Step 7 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
-  cask current once a day in 03:00-07:59, then brew's npm globals, `ai-tools-update` and uv's
-  Pythons. It then checks the subjects' venvs, TeX, the Brewfile and the board. It repairs a
-  broken venv, and puts back an assistant CLI the upgrade removed; a CLI missing before the run
-  stays missing. A recorded problem is checked again each hour until it clears. Where another
-  brew upgrader is loaded it upgrades nothing and only repairs, because two upgraders fight over
-  brew's lock. `atlas-brew status` reports. `atlas-brew off` stops it for good; a run under way
-  stops before its next step, and the job unloads once it ends.
+  cask current once a day in 03:00-07:59, then brew's npm globals. It never passes `--greedy`, so
+  a cask marked `auto_updates` is left out of `brew outdated` and updates itself. Then comes the
+  toolchain phase: `ai-tools-update`, uv's Pythons, `mise install --locked` in every subject with
+  a `mise.toml`, `mise prune --tools` of the tools those files name (never a bare prune, which
+  reaches the owner's other projects and trusted configs), and `scripts/tools.sh update`. It then checks the subjects' venvs,
+  TeX, the Brewfile union and the board. It repairs a broken venv, and puts back an assistant
+  CLI the upgrade removed; a CLI missing before the run stays missing. A recorded problem is
+  checked again each hour until it clears.
+- Where another brew upgrader is loaded, brew is that job's, because two upgraders fight over
+  brew's lock. This job still repairs and runs the toolchain phase daily. When the other job's
+  last success (a partial run is none) is over 26 hours old, this job runs its own full brew
+  upgrade that day (formulae, every cask, the Brewfile and npm) and says it covered. It excludes
+  nothing of the other job's: the casks it protects and what it holds upgrade too, and only this
+  job's own holds apply. A cask whose installer needs the admin password fails, recorded as
+  failed, since no brew call has a stdin or a terminal to prompt on. Brew does not wait on its lock,
+  so the cover stops before any brew step that would meet a running brew or the other job.
+  The day's cover or toolchain phase waits while the other job is due, up to 90 minutes, so the
+  two never update brew, npm or the assistant CLIs at once.
+- A failed tool shows as `tool:<name>`, and a mise pin behind (`mise outdated --json --bump
+  --local` gives it a `bump`) as `pin behind`, in
+  `atlas-brew status`, `board doctor` and on home. A pin behind is also in that subject's
+  session brief, so the session proposes the bump: a commit of `mise.toml` and `mise.lock`.
+- `atlas-brew off` stops it for good; a run under way stops before its next step, and the job
+  unloads once it ends.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 

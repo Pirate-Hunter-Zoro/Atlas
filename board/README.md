@@ -15,8 +15,9 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
 - **One board LaunchAgent**, label `tutor-board`, rendered from `scripts/launchd/tutor-board.plist`
   by `install.sh`. KeepAlive, an absolute interpreter path, ThrottleInterval 10. It runs one
   `serve.py` on port 8778, loopback only. `tailscale serve` publishes it over HTTPS once.
-  `atlas.brew-upgrade` is setup's machine job, not the board's; its `brew:` lines appear in
-  `/relay.json` and `board doctor`.
+  `atlas.brew-upgrade` is setup's machine job, not the board's; its `brew:` lines, and the
+  `tools:` lines from `tools.json` (`brewcare.py`), appear in `/relay.json` and `board doctor`.
+  The LaunchAgent's PATH is `install.sh`'s `AGENT_PATH`, which ends in mise's shims.
 - **`serve.py`** serves every session at `/s/<id>/`, plus the unprefixed home, library and
   subject routes. `tutorboard/server/app.py` is the start. A session's Repo and Hub are made on
   first use and dropped after 10 idle minutes (`server/registry.py`). Its listen backlog is
