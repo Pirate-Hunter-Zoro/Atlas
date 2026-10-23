@@ -14,7 +14,7 @@
   KeepAlive true: launchd starts the server again whenever it exits. The
   server exits 0 by itself once committed board code changed and no turn runs
   (TUTORBOARD_FRESH), so a ship lands without anyone restarting anything.
-  TUTORBOARD_CLUSTER turns on the thread that pulls and hears the cluster.
+  TUTORBOARD_SYNC turns on the thread that pulls, merges, pushes and hears.
 -->
 <plist version="1.0">
 <dict>
@@ -31,7 +31,7 @@
   <dict>
     <key>PATH</key>
     <string>@HOME@/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>TUTORBOARD_CLUSTER</key>
+    <key>TUTORBOARD_SYNC</key>
     <string>1</string>
     <key>TUTORBOARD_FRESH</key>
     <string>1</string>

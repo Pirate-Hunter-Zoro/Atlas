@@ -366,7 +366,7 @@ try:
           == "z = 1\n")
 
     # --- a branch made from origin's code/S is not a local session -------------
-    from tutorboard import cluster as ear_mod  # noqa: E402
+    from tutorboard import sync as ear_mod  # noqa: E402
     S6 = "20261008-145000"
     rec6, probs = code.start(cluster, S6, ["projects/Shut/src"], cwd=cluster)
     loop6 = code.Loop(cluster, rec6, say=say, clock=clock)
@@ -387,7 +387,7 @@ try:
           and "as code/%s has them" % S6 in what, what)
     git(mac, "fetch", "-q", "origin",
         "refs/heads/code/%s:refs/heads/code/%s" % (S6, S6))
-    ear6 = ear_mod.Ear(mac, state_dir=os.path.join(work, "ear6"),
+    ear6 = ear_mod.Sync(mac, state_dir=os.path.join(work, "ear6"),
                        say=lambda m: None)
     check("and the ear does not hear such a branch as a local ref",
           ear6.local_refs() == {}, ear6.local_refs())
@@ -441,7 +441,7 @@ try:
     git(cluster, "checkout", "-q", "--", "projects/Shut/src/a.py")
 
     # --- Mac-local mode: the board's own checkout --------------------------------
-    from tutorboard import cluster as ear_mod, gitops, sessions  # noqa: E402
+    from tutorboard import gitops, sessions, sync as ear_mod  # noqa: E402
     git(mac, "checkout", "-q", "main")
     git(mac, "pull", "-q", "--ff-only", "origin", "main")
     git(mac, "config", "core.hooksPath", HOOKS)
@@ -506,7 +506,7 @@ try:
     # The ear, with origin unreachable: the local ref is heard anyway.
     url = git(mac, "remote", "get-url", "origin")
     git(mac, "remote", "set-url", "origin", os.path.join(work, "nowhere.git"))
-    ear = ear_mod.Ear(mac, state_dir=os.path.join(work, "ear"),
+    ear = ear_mod.Sync(mac, state_dir=os.path.join(work, "ear"),
                       say=lambda m: None)
     # The owner took the step back out: the ear must not bring it again.
     os.remove(os.path.join(mac, "projects", "Open", "src", "c.py"))
@@ -746,6 +746,41 @@ try:
           and read(os.path.join(mac, "projects", "Open", "notes.md"))
           == "mine\n")
     git(mac, "checkout", "-q", "--", "projects/Open/notes.md")
+
+    # --- --end's lock: board-code.lock in the git common dir, the relay's too ---
+    import fcntl  # noqa: E402
+    lock = code.lock_path(cluster)
+    check("--end's lock is board-code.lock in `git rev-parse --git-common-dir`",
+          lock is not None and os.path.realpath(lock) == os.path.join(
+              os.path.realpath(cluster), ".git", "board-code.lock"), lock)
+    held_fh = open(lock, "a+")
+    fcntl.flock(held_fh.fileno(), fcntl.LOCK_EX)
+    got = relay.run_pass(cluster, run=Slurm())
+    check("a relay pass takes the same lock: while --end holds it, it skips",
+          "board code --end" in str(got.get("skipped") or ""), got)
+    S9 = "20261008-175000"
+    rec9, _ = code.start(cluster, S9, ["projects/Open/notes.md"], cwd=cluster)
+    del said[:]
+    rc = code.end(cluster, S9, say=say, wait=1)
+    check("and --end waits on it, ending nothing",
+          rc == 1 and code.read(S9) is not None
+          and any("board-code.lock" in s for s in said), said)
+    held_fh.close()
+    code.abandon(cluster, S9, say=say)
+
+    # --- code.py imports neither relay nor exports ---------------------------
+    import ast  # noqa: E402
+    tree = ast.parse(read(os.path.join(ROOT, "tutorboard", "code.py")))
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(a.name for a in node.names)
+            names.add(node.module or "")
+        elif isinstance(node, ast.Import):
+            names.update(a.name for a in node.names)
+    check("code.py imports neither relay nor exports",
+          not names & {"relay", "exports", "tutorboard.relay",
+                       "tutorboard.exports"}, sorted(names))
 
     # --- `board code --help` imports no server or runner module ---------------
     p = subprocess.run([sys.executable, "-X", "importtime",

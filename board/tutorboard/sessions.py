@@ -2,7 +2,7 @@
 
     new(title=None, view="board")   a fresh session, unbound, in teach mode;
                       `view` slate is a notes canvas
-    end(id)           set `ended`, and commit what the session leaves behind
+    end(id)           set `ended`, then commit and push what the session leaves
     reopen(id)        clear `ended`
     delete(id)        move the directory to the trash
     prune_trash()     drop trash entries older than 30 days (server start)
@@ -235,8 +235,10 @@ def _settle(base, subject, sid):
 def end(sid, base=None, now=None):
     """End session `sid`: set `ended`, then commit the bound subject's
     TUTOR.md and every artifact listing the session (`_kept`), its feedback
-    settled first (`_settle`). `(record, ok, said)`. Ending again keeps the time and
-    retries the commit."""
+    settled first (`_settle`), and push (`gitops.push(board=True)`: main
+    only, and not past a commit of the owner's). `(record, ok,
+    said)`: `ok` is the commit's; a push that failed is in `said`. Ending
+    again keeps the time and retries the commit and the push."""
     base = base or subjects.root()
     where = _need(sid, base)
     rec = get(sid, base)
@@ -256,7 +258,14 @@ def end(sid, base=None, now=None):
     if not keep:
         return rec, True, "ended; nothing of %s to commit" % subject
     ok, said = gitops.commit(base, keep, "%s: session %s ended" % (subject, rec["id"]))
-    return rec, ok, said
+    if not ok:
+        return rec, ok, said
+    # Pushed at once, so a laptop's `board code --end` meanwhile never leaves
+    # main diverged here; a failed push leaves the commit, and the sync
+    # thread merges and pushes once origin moves. A board push: main only,
+    # and never a commit of the owner's not pushed yet.
+    _pushed, pushed = gitops.push(base, board=True)
+    return rec, ok, "%s\n%s" % (said, pushed)
 
 
 def reopen(sid, base=None):

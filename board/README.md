@@ -30,9 +30,17 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   root and `TUTORBOARD_SESSION=<session dir>`, `TUTORBOARD_TURN=1` and
   `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`. A message is recorded as owed before the turn runs
   and re-queued at startup, so a restart loses no message.
-- **The cluster thread** (`cluster.Ear`, only with `TUTORBOARD_CLUSTER=1`). Every 20 s one
+- **The sync thread** (`sync.Sync`, only with `TUTORBOARD_SYNC=1`). Every 20 s one
   `git ls-remote origin` asks for `main` and `refs/heads/code/*`. When main moved: a
-  fast-forward pull, a vendor checkout, then every subject's reports are heard. Every 5 min
+  fast-forward pull, or, where HEAD (main tracking origin/main) is ahead too, a merge and a push
+  of the sha checked (`gitops.merge_in`), then
+  a vendor checkout, then every subject's reports are heard. The merge is tested with `git
+  merge-tree --write-tree` and lands as a fast-forward, so git refuses any overlap with
+  uncommitted, untracked or ignored work and no merge is ever left standing. While anything is
+  staged it waits, and `pull.json` and the health say `skipped: staged changes`. It merges and
+  pushes only commits the board made (`gitops.commit` lists them in `board-commits` in the git
+  common directory): origin is public, so an unpushed commit of the owner's stops it with
+  `skipped: unpushed commits of your own`. Every 5 min
   it also fast-forwards `ai-config`, which Atlas's pull never moves, and reruns its
   `scripts/install.sh` when that moved it (`gitops.sync_private`).
 - **The freshness thread** (only with `TUTORBOARD_FRESH=1`). Once committed board code differs
@@ -96,8 +104,10 @@ and the audit refuses any path under it.
 - **Mode.** `board mode teach|do`, `POST /mode`, or the tutor obeying "do it". Nothing infers
   do mode. A change is a non-waking line, so the next turn reads it.
 - **Persist.** A session stays open until the owner taps End, twice when it is bound. End sets
-  `ended`, commits the subject's `TUTOR.md` and the session's artifacts, then queues a wrap-up
-  turn that brings `TUTOR.md` up to date with `board memo`. A second End retries the commit.
+  `ended`, commits the subject's `TUTOR.md` and the session's artifacts and pushes (main only,
+  and never past an unpushed commit of the owner's), then queues
+  a wrap-up turn that brings `TUTOR.md` up to date with `board memo`. A second End retries the
+  commit and the push.
 - **Who teaches.** The tutor's chip in the header opens the machine's provider setting
   (`POST /default-agent`, drawn by `who.js` as on the home screen). It takes every session's
   next turn; there is no per-session provider.
@@ -140,8 +150,8 @@ no marker file.
   and no request waits for a report. A PHI subject is removed only through a cluster runbook.
   `GET /subject/delete?subject=<id>` answers the same question read-only: `phi` at HEAD, `why`
   (`phi`, `open-session`, `coding`, `request` or empty), one `blocker` sentence naming every
-  reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit, as
-  End's commit is local; the directory goes to the trash, whose path the reply names.
+  reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit; the
+  directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
 
 ## Artifacts and documents
@@ -205,7 +215,7 @@ tree gets a `doc.json` written in place, so its ids hold.
 
 ## The relay
 
-The cluster half is `relay.py`; the Mac half is `jobs.py` and `cluster.py`. GitHub is the only
+The cluster half is `relay.py`; the Mac half is `jobs.py` and `sync.py`. GitHub is the only
 channel.
 
 1. **File.** In do mode the tutor runs `board check`, `board push`, then
@@ -222,7 +232,7 @@ channel.
    along only where `phi` is literally `false`. Exports land under `exports/` only when
    `relay.exports` approves them: png, pdf and svg by any matching glob, csv and json only
    with `"aggregate": true`, 5 MB at most.
-5. **Hear.** The Mac's cluster thread reads new reports and wakes the session that filed the
+5. **Hear.** The Mac's sync thread reads new reports and wakes the session that filed the
    request, reopening it if ended. A report with no session becomes a home notice and starts
    no turn.
 6. **Repair.** A failed job wakes a `[repair]` turn. Up to 3 automatic attempts per failure,
@@ -266,23 +276,23 @@ One git ref per coding session, `code/<session-id>` (`code.py`).
   holds those paths. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
   the index and main never move. The commit-time gate and the subject's check run over the
   snapshot, and it is pushed fast-forward to `code/<session>` with `Step N` in the message.
-- The Mac's cluster thread hears the ref, records it in `session.json` `code`, brings the held
+- The Mac's sync thread hears the ref, records it in `session.json` `code`, brings the held
   files in its working tree to the new tip, and wakes the session with `[code] step N`. The
   tutor answers on the iPad.
 - A vibe push from the Mac while the session is open goes to the same ref, and the loop applies
   it when its held paths are unchanged. Otherwise it prints "both sides changed".
-- `--end` takes the relay's lock and makes one commit of the held paths on main, then deletes
-  the ref. `--abandon` deletes the ref only.
+- `--end` takes `board-code.lock` in the git common directory, which a relay pass takes too,
+  makes one commit of the held paths on main, pushes it, then deletes the ref. `--abandon` deletes the ref only.
 - While a session is held, the relay tolerates edits to its paths, and the Mac and the
   pre-commit hook refuse commits to them on main. `--end` alone lifts that, for its own session
   (`BOARD_CODE_END`).
 - **Mac-local**, where `sessions/<session>/session.json` exists (the board's own checkout): steps
-  go to the local `refs/heads/code/<session>`, never pushed. The cluster thread lists local refs
+  go to the local `refs/heads/code/<session>`, never pushed. The sync thread lists local refs
   every pass without the network, brings nothing and never releases one. Only the registration's
   `local` makes a ref local; a branch checked out from origin's `code/<session>` is not. The loop
   takes no step while a turn is answering the session (`agent.json` has `owed`, says `working`,
   and its heartbeat is fresh), because the tutor may be writing the held files. What that turn
-  changed is one step marked `by: tutor`, taken as it ends; the ear records it with a non-waking
+  changed is one step marked `by: tutor`, taken as it ends; the sync thread records it with a non-waking
   `[stepped]` line, so a do-mode edit never wakes a turn about itself. `--end` commits on main,
   pushes, deletes the local ref and clears `code`. A linked worktree of that checkout, or a
   branch other than main, is refused.
@@ -371,7 +381,7 @@ it installs jsdom into `board/node_modules` on first run, for development only.
 
 Prove behaviour with fixtures: temp repositories, bare remotes, fake `squeue` and `sbatch`, a
 fake provider script that writes a card. A test server never binds 8778 and never sets
-`TUTORBOARD_CLUSTER=1`. A failing suite means the change is wrong, not the test. Suites can
+`TUTORBOARD_SYNC=1`. A failing suite means the change is wrong, not the test. Suites can
 collide on ports when worktrees test at once, so re-run a failure alone before believing it.
 
 ## Shipping

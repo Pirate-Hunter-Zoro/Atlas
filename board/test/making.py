@@ -42,7 +42,7 @@ os.environ["BOARD_NO_TAILNET"] = "1"
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["TUTORBOARD_PAGES"] = os.path.join(box, "pages")
 for k in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-          "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
+          "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
     os.environ.pop(k, None)
 for k, v in (("GIT_AUTHOR_NAME", "t"), ("GIT_AUTHOR_EMAIL", "t@t"),
              ("GIT_COMMITTER_NAME", "t"), ("GIT_COMMITTER_EMAIL", "t@t")):

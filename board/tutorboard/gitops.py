@@ -2,13 +2,15 @@
 
     commit(root, paths, message, refuse=None, exempt=None)
                                                 named paths only, no trailers
-    push(root)                                  fetch, merge, push; never forced
+    push(root, board=False)                     fetch, merge, push; never forced
+    foreign(root, base)                         unpushed commits the board did not make
+    merge_in(root, theirs)                      a merge around uncommitted work
     pull(root)                                  fast-forward only, guarded
     lockfiles_moved(root, before, after)        the subjects to rebuild after one
     save(root, paths, message)                  commit, then push
     adopt_private(base)                         clone ai-config where it is missing
 
-The Mac's timed pull is `cluster.Ear`; `save-and-push.sh` wraps `save`;
+The Mac's timed pull is `sync.Sync`; `save-and-push.sh` wraps `save`;
 relay.py and code.py keep their own cluster-side git. While a session has
 `code` set, `commit` on main refuses its held paths (`held_refusal`), and so
 does the pre-commit hook (`audit.coding_refusals`): they reach main only through
@@ -65,6 +67,17 @@ def _git(root, *args, **kw):
 
 def _lines(text):
     return sorted(set(l for l in text.splitlines() if l.strip()))
+
+
+def why(out, default="git failed"):
+    """The line of git's output that says what went wrong: the first
+    `fatal:` or `error:` line, else the last line. A refused remote ends
+    with "...and the repository exists.", which says nothing."""
+    lines = [l.strip() for l in (out or "").splitlines() if l.strip()]
+    for l in lines:
+        if l.lower().startswith(("fatal:", "error:")):
+            return l
+    return lines[-1] if lines else default
 
 
 def _hooks(root):
@@ -212,22 +225,103 @@ def commit(root, paths, message, refuse=None, exempt=None):
                 "and drops the removal.\n  Nothing has been lost. Commit the "
                 "removal by itself: stage only it and commit with no pathspec."
                 % " ".join(kept))
+    _, before = _git(root, "rev-parse", "--verify", "--quiet", "HEAD")
     code, out = _git(root, *cmd, timeout=COMMIT_TIMEOUT,
                      env={END_ENV: exempt or ""})
     if code != 0:
         said.append("git commit failed: %s" % out)
         return False, "\n".join(said)
+    _note(root, before)
     said.append("committed: %s" % (message.splitlines() or [""])[0])
     return True, "\n".join(said)
 
 
-def push(root, timeout=NET_TIMEOUT):
+# The commits `commit` made, one sha a line, in the git common directory: a
+# board push (`push(board=True)`, `sync.Sync`) publishes only these, never a
+# commit the owner made and has not pushed. Kept to the newest LEDGER_KEEP.
+LEDGER = "board-commits"
+LEDGER_KEEP = 2000
+
+
+def _ledger(root):
+    code, out = _git(root, "rev-parse", "--git-common-dir")
+    if code != 0 or not out:
+        return None
+    return os.path.join(os.path.abspath(os.path.join(root, out)), LEDGER)
+
+
+def _note(root, before):
+    """Add the commit `commit` just made on `before` (HEAD's sha then, ""
+    when unborn) to the ledger. Noted only when HEAD's parent is `before`:
+    a commit of the owner's landing just after ours is never taken for
+    ours, and ours then goes unnoted, which only refuses a board push."""
+    path = _ledger(root)
+    code, out = _git(root, "log", "-1", "--format=%H %P", "HEAD")
+    if path is None or code != 0 or not out:
+        return
+    sha, _, parents = out.partition(" ")
+    if parents.split()[:1] != before.split()[:1]:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(sha + "\n")
+        with open(path, "r", encoding="utf-8") as fh:
+            kept = fh.read().splitlines()
+        if len(kept) > 2 * LEDGER_KEEP:
+            tmp = "%s.%d" % (path, os.getpid())
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(kept[-LEDGER_KEEP:]) + "\n")
+            os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def foreign(root, base, tip="HEAD"):
+    """`["<sha12> <subject>", ...]`: the commits in `base..tip` the board
+    did not make (`commit`'s ledger), oldest first. Merges are not listed;
+    what they bring from a branch of the owner's is. None when git cannot
+    say, which a board push takes as a refusal."""
+    code, out = _git(root, "log", "--no-merges", "--reverse",
+                     "--format=%H %s", "%s..%s" % (base, tip))
+    if code != 0:
+        return None
+    path = _ledger(root)
+    made = set()
+    try:
+        with open(path or "", "r", encoding="utf-8") as fh:
+            made = set(l.strip() for l in fh if l.strip())
+    except OSError:
+        pass
+    out = [l.partition(" ") for l in out.splitlines() if l.strip()]
+    return ["%s %s" % (sha[:12], subj) for sha, _, subj in out
+            if sha not in made]
+
+
+# What a board push or the sync thread says when HEAD holds unpushed commits
+# the board did not make: they are the owner's to publish, and origin is
+# public.
+FOREIGN = "skipped: unpushed commits of your own"
+
+
+def _foreign_said(mine):
+    return "%s (%s%s); push them yourself and the board's go with them" % (
+        FOREIGN, "; ".join(mine[:3]),
+        " and %d more" % (len(mine) - 3) if len(mine) > 3 else "")
+
+
+def push(root, timeout=NET_TIMEOUT, board=False):
     """Push the current branch to origin. `(ok, said)`. Never forced.
 
-    With an upstream: fetch it, merge it in when it is ahead (a merge, so
-    nothing committed here is rewritten), then push. A conflict only in
-    generated `build/` output keeps this machine's copy; any other conflict
-    abandons the merge and pushes nothing. With no upstream: `push -u`.
+    With an upstream: fetch it, merge it in when it is ahead (`merge_in`: a
+    merge, so nothing committed here is rewritten, made around uncommitted
+    work, which git protects), then push. A merge refused or conflicting
+    pushes nothing and leaves everything here as it was. With no upstream:
+    `push -u`.
+
+    `board`, for a push nobody typed (`sessions.end`, `sync.Sync`): only main
+    with an upstream, and only when every unpushed commit is one `commit`
+    made (`foreign`); otherwise nothing is merged or pushed (`FOREIGN`). The
+    sha checked last is the sha pushed, so a commit landing meanwhile stays.
     """
     code, _ = _git(root, "remote", "get-url", "origin")
     if code != 0:
@@ -236,6 +330,9 @@ def push(root, timeout=NET_TIMEOUT):
     if code != 0 or branch == "HEAD":
         return False, "HEAD is detached, so there is no branch to push"
     code, up = _git(root, "rev-parse", "--abbrev-ref", "@{upstream}")
+    if board and (branch != MAIN or code != 0 or up != "origin/" + MAIN):
+        return False, ("not pushed: HEAD is on %s, and the board pushes only "
+                       "%s tracking origin/%s" % (branch, MAIN, MAIN))
     said = []
     if code == 0 and up:
         _, ahead = _git(root, "rev-list", "--count", "@{upstream}..HEAD")
@@ -245,18 +342,37 @@ def push(root, timeout=NET_TIMEOUT):
         if code != 0:
             return False, ("could not fetch origin/%s, so nothing was pushed:\n%s"
                            % (branch, "\n".join(out.splitlines()[-5:])))
+        if board:
+            mine = foreign(root, "@{upstream}")
+            if mine is None:
+                return False, "not pushed: git could not list what is unpushed"
+            if mine:
+                return False, "not pushed: " + _foreign_said(mine)
         _, behind = _git(root, "rev-list", "--count", "HEAD..@{upstream}")
-        _, dirty = _git(root, "status", "--porcelain")
-        if behind.strip() not in ("", "0") and dirty.strip():
-            said.append("origin/%s is ahead and this tree has uncommitted work "
-                        "outside the commit, so it was not merged in; the push "
-                        "may be rejected. Save the rest, then push again." % branch)
-        elif behind.strip() not in ("", "0"):
-            ok, why = _merge(root, branch)
+        if behind.strip() not in ("", "0"):
+            _, theirs = _git(root, "rev-parse", "--verify", "@{upstream}")
+            ok, why = merge_in(root, theirs, up, timeout=timeout)
             if not ok:
-                return False, why
+                return False, ("%s is ahead and was not merged in, so nothing "
+                               "was pushed: %s" % (up, why))
             said.append(why)
-        code, out = _git(root, "push", timeout=timeout)
+        if board:
+            # The sha checked is the sha pushed: a commit of the owner's
+            # landing after the check (or the merge) is never published.
+            code, tip = _git(root, "rev-parse", "--verify", "--quiet", "HEAD")
+            mine = foreign(root, "@{upstream}", tip) if code == 0 else None
+            if mine is None:
+                return False, "not pushed: git could not list what is unpushed"
+            if mine:
+                said.append("not pushed: " + _foreign_said(mine))
+                return False, "\n".join(said)
+            code, out = _git(root, "push", "origin",
+                             "%s:refs/heads/%s" % (tip, MAIN), timeout=timeout)
+        # Named, so `push.default` cannot make it push nothing or more.
+        elif up == "origin/" + branch:
+            code, out = _git(root, "push", "origin", branch, timeout=timeout)
+        else:
+            code, out = _git(root, "push", timeout=timeout)
     else:
         code, out = _git(root, "push", "-u", "origin", branch, timeout=timeout)
     if code != 0:
@@ -266,31 +382,138 @@ def push(root, timeout=NET_TIMEOUT):
     return True, "\n".join(said)
 
 
-def _merge(root, branch):
-    """Merge `@{upstream}` in. `(ok, said)`; a failed merge is abandoned,
-    never left standing, because a repository left mid-merge refuses every
-    later save."""
-    code, _ = _git(root, "merge", "--no-edit", "@{upstream}")
-    if code == 0:
-        return True, "merged origin/%s" % branch
-    _, out = _git(root, "diff", "--name-only", "--diff-filter=U")
-    conflicts = _lines(out)
-    real = [f for f in conflicts
-            if not (f.startswith("build/") or "/build/" in f)]
-    if real:
-        _git(root, "merge", "--abort")
-        return False, ("merge conflicts outside build output; resolve by hand:\n"
-                       + "\n".join(real))
-    for f in conflicts:
-        _git(root, "checkout", "--ours", "--", f)
-        _git(root, "add", "--", f)
-    code, _ = _git(root, "commit", "--no-edit")
+# What `merge_in` says while anything is staged: git refuses a true merge
+# then, and what is staged is the owner's.
+STAGED = "skipped: staged changes"
+
+
+def _is_build(path):
+    """Generated output, where a conflict keeps this machine's side."""
+    return path.startswith("build/") or "/build/" in path
+
+
+def merge_in(root, theirs, label=None, timeout=NET_TIMEOUT):
+    """Merge commit `theirs` into HEAD. `(ok, said)`. Never raises.
+
+    The merge is tested and made without touching the working tree: `git
+    merge-tree --write-tree` writes the merged tree, `commit-tree` makes the
+    merge commit, and a fast-forward to it moves HEAD, the index and the
+    files. Git refuses that fast-forward where an uncommitted change, an
+    untracked file or an ignored one (`--no-overwrite-ignore`: data folders
+    are ignored) overlaps what the merge brings, and then nothing here
+    changes. No merge is ever left standing and none is ever aborted, so
+    uncommitted work is never reset.
+
+    Refused, changing nothing: during an operation in progress (rebase,
+    merge, ...), on a detached HEAD, with unresolved conflicts in the index,
+    while anything is staged (`STAGED`), and
+    where the merge conflicts outside generated `build/` output. A conflict
+    only there keeps this machine's side.
+    """
+    label = label or (theirs or "")[:12]
+    busy = worktree.busy_reason(root)
+    if busy:
+        return False, "not merged: %s here, so it is left exactly as it is" % busy
+    code, branch = _git(root, "symbolic-ref", "--quiet", "--short", "HEAD")
     if code != 0:
-        _git(root, "merge", "--abort")
-        return False, ("the merge could not be completed, so it was abandoned "
-                       "and nothing was pushed. The commit above is safe here. "
-                       "Merge by hand.")
-    return True, "merged origin/%s; kept this machine's build output" % branch
+        return False, "not merged: HEAD is detached"
+    code, head = _git(root, "rev-parse", "--verify", "--quiet", "HEAD")
+    if code != 0:
+        return False, "not merged: HEAD has no commit"
+    code, them = _git(root, "rev-parse", "--verify", "--quiet",
+                      "%s^{commit}" % theirs)
+    if code != 0:
+        return False, "not merged: %s is not a commit here" % label
+    if _git(root, "merge-base", "--is-ancestor", them, head)[0] == 0:
+        return True, "already holds %s" % label
+    code, out = _git(root, "ls-files", "--unmerged")
+    if code != 0 or out:
+        return False, ("not merged: the index holds unresolved conflicts; "
+                       "resolve them first" if code == 0 else
+                       "not merged: git could not read the index")
+    code, _ = _git(root, "diff", "--cached", "--quiet")
+    if code == 1:
+        return False, STAGED
+    if code != 0:
+        return False, "not merged: git could not read the index"
+    target = them
+    kept = False
+    if _git(root, "merge-base", "--is-ancestor", head, them)[0] != 0:
+        tree, conflicts, err = _merge_tree(root, head, them)
+        if err:
+            return False, "not merged: git could not test the merge: %s" % err
+        if conflicts:
+            real = [f for f in conflicts if not _is_build(f)]
+            if real:
+                return False, ("not merged: it conflicts outside build output; "
+                               "merge by hand:\n" + "\n".join(real))
+            tree, conflicts, err = _merge_tree(root, head, them, ours=True)
+            if err or conflicts:
+                return False, ("not merged: the build output conflicts and "
+                               "could not keep this machine's copy: %s"
+                               % (err or ", ".join(conflicts)))
+            kept = True
+        target, err = _made(root, tree, head, them, "Merge %s into %s"
+                            % (label, branch))
+        if err:
+            return False, "not merged: git commit-tree failed: %s" % err
+    code, out = _git(root, "merge", "--ff-only", "--no-autostash",
+                     "--no-overwrite-ignore", "--quiet", target)
+    if code != 0:
+        last = [l for l in out.splitlines() if l.strip()]
+        return False, ("git refused to bring %s in, so nothing here changed: %s"
+                       % (label, " ".join(l.strip() for l in last[:8])
+                          or "merge refused"))
+    said = ["merged %s" % label + ("; kept this machine's build output"
+                                   if kept else "")]
+    moved = _vendor_follow(root, head, target, timeout)
+    if moved:
+        said.append(moved)
+    return True, "\n".join(said)
+
+
+# The last merge commit `merge_in` made, by what it was made of: while git
+# refuses its fast-forward (an overlap with uncommitted or ignored work) the
+# sync thread retries every pass, and reuses that commit instead of leaving
+# a new unreachable one each time.
+_last_made = (None, None)
+
+
+def _made(root, tree, head, them, message):
+    """`(sha, error)` of a merge commit of `tree` on `head` and `them`."""
+    global _last_made
+    key = (os.path.realpath(root), tree, head, them, message)
+    made, sha = _last_made
+    if made == key and _git(root, "cat-file", "-e",
+                            "%s^{commit}" % sha)[0] == 0:
+        return sha, None
+    code, out = _git(root, "commit-tree", tree, "-p", head, "-p", them,
+                     "-m", message)
+    if code != 0:
+        return None, why(out, "commit-tree failed (%d)" % code)
+    _last_made = (key, out)
+    return out, None
+
+
+def _merge_tree(root, head, them, ours=False):
+    """`(tree, conflicted paths, error)` of merging `them` into `head`, as
+    `git merge-tree --write-tree` finds it: it writes objects only, never
+    the working tree, the index or a ref."""
+    args = ["merge-tree", "--write-tree", "--name-only", "--no-messages"]
+    if ours:
+        args += ["-X", "ours"]
+    code, out = _git(root, *(args + [head, them]))
+    lines = out.splitlines()
+    if code == 129 or "usage: git merge-tree" in out:
+        return None, [], ("this git is too old to test a merge without touching "
+                          "the tree (merge-tree --write-tree needs 2.38, with "
+                          "-X 2.40)")
+    if code not in (0, 1) or not lines:
+        return None, [], why(out, "merge-tree failed (%d)" % code)
+    tree = lines[0].strip()
+    if not re.match(r"^[0-9a-f]{40,64}$", tree):
+        return None, [], tree or "merge-tree wrote no tree"
+    return tree, ([] if code == 0 else _lines("\n".join(lines[1:]))), ""
 
 
 def save(root, paths, message, refuse=None):
@@ -373,13 +596,18 @@ def pull(root, quiet=False, timeout=60, say=None):
     if code != 0:
         return None
     _, before = _git(root, "rev-parse", "HEAD")
-    code, out = _git(root, "pull", "--ff-only", timeout=timeout)
+    # `pull --ff-only`, in its two halves, so the merge can refuse to
+    # overwrite an ignored file (data folders are ignored); pull cannot.
+    code, out = _git(root, "fetch", "--quiet", timeout=timeout)
     if code in (124, 127):
         tell("  could not reach the remote; working with what is here")
         return False
+    if code == 0:
+        code, out = _git(root, "merge", "--ff-only", "--no-autostash",
+                         "--no-overwrite-ignore", "--quiet", "@{upstream}",
+                         timeout=timeout)
     if code != 0:
-        last = out.splitlines()
-        tell("  not synced: %s" % (last[-1] if last else "pull failed"))
+        tell("  not synced: %s" % why(out, "pull failed"))
         if say is None:
             tell("  the session will start anyway, on what is here")
         return False
@@ -387,16 +615,25 @@ def pull(root, quiet=False, timeout=60, say=None):
     if before != after:
         _, n = _git(root, "rev-list", "--count", "%s..%s" % (before, after))
         tell("  pulled %s commit(s) from another machine" % n)
-        if _vendor_moved(root, before, after):
-            code, out = _git(root, "submodule", "update", "--init", "--",
-                             "vendor", timeout=max(timeout, NET_TIMEOUT))
-            if code != 0:
-                last = out.splitlines()
-                tell("  vendor checkouts not updated: %s"
-                     % (last[-1] if last else "submodule update failed"))
-            else:
-                tell("  vendor checkouts moved to the pulled pointers")
+        moved = _vendor_follow(root, before, after, timeout)
+        if moved:
+            tell("  " + moved)
     return True
+
+
+def _vendor_follow(root, before, after, timeout):
+    """Where a gitlink under `vendor/` moved between two commits, run `git
+    submodule update --init -- vendor`, so the vendor checkouts stay clean.
+    The sentence to say, or ""."""
+    if not _vendor_moved(root, before, after):
+        return ""
+    code, out = _git(root, "submodule", "update", "--init", "--", "vendor",
+                     timeout=max(timeout, NET_TIMEOUT))
+    if code != 0:
+        last = out.splitlines()
+        return "vendor checkouts not updated: %s" % (
+            last[-1] if last else "submodule update failed")
+    return "vendor checkouts moved to the pulled pointers"
 
 
 # ai-config is the one private repository nested inside Atlas and ignored by

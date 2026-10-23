@@ -4,10 +4,12 @@ way to committed code.
 
 What the checks are about:
 
-  * THE CLUSTER THREAD (`cluster.Ear`). One `git ls-remote` per pass. A pull
+  * THE SYNC THREAD (`sync.Sync`). One `git ls-remote` per pass. A pull
     only when origin's main is a commit HEAD lacks: with origin equal to HEAD
-    there is none, and when it moves there is one. A failed pull or ls-remote
-    is recorded in pull.json. The code refs are kept on the ear.
+    there is none, and when it moves there is one. A HEAD ahead of origin's
+    main as well is merged and pushed, unless something is staged, which is
+    recorded in pull.json as `skipped: staged changes`, as is a failed
+    ls-remote. The code refs are kept on the thread.
   * D16. A report wakes its open filing session, reopens an ended one, and
     is a home notice (`/notices.json`) where no session filed it. A notice
     starts no turn.
@@ -20,7 +22,7 @@ What the checks are about:
   * ONE LAUNCHAGENT. The plist lints, renders with an absolute interpreter,
     KeepAlive and ThrottleInterval 10; ship.sh kickstarts it; the old
     restart commands refuse and name it.
-  * CODING SESSIONS. A real server on port 8779 with TUTORBOARD_CLUSTER=1:
+  * CODING SESSIONS. A real server on port 8779 with TUTORBOARD_SYNC=1:
     a step pushed to code/S wakes S within one tick and records session.json
     `code`; a Mac commit to a held path on main is refused; `board push` in
     S lands on code/S and the cluster's loop applies it; a deleted ref clears
@@ -57,9 +59,9 @@ os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["BOARD_NO_TAILNET"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
+             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
-from tutorboard import cluster, gitops, jobs, paths, sessions, stamp  # noqa: E402
+from tutorboard import gitops, jobs, paths, sessions, stamp, sync  # noqa: E402
 from tutorboard.course import library                                  # noqa: E402
 from tutorboard.runner import service                                  # noqa: E402
 from tutorboard.runner import turn as runturn                          # noqa: E402
@@ -107,7 +109,7 @@ def lines_of(path):
 
 
 class FakeRunner(object):
-    """Stands in for the server's runner: `cluster.wake` queues through it."""
+    """Stands in for the server's runner: `sync.wake` queues through it."""
 
     def __init__(self, atlas):
         self.atlas = atlas
@@ -169,15 +171,15 @@ try:
 
     def pull_state():
         try:
-            with open(os.path.join(state, cluster.PULL_STATE)) as fh:
+            with open(os.path.join(state, sync.PULL_STATE)) as fh:
                 return json.load(fh)
         except (OSError, ValueError):
             return {}
 
     # --- the cluster thread: one ls-remote, a pull only on change -------------
-    ear = cluster.Ear(mac, state_dir=state, say=lambda m: None)
+    ear = sync.Sync(mac, state_dir=state, say=lambda m: None)
     check("the ear's cadence is twenty seconds, and an ls-remote ten",
-          cluster.EVERY == 20 and cluster.LS_TIMEOUT == 10
+          sync.EVERY == 20 and sync.LS_TIMEOUT == 10
           and not hasattr(jobs, "PULL_EVERY") and not hasattr(jobs, "pull_due")
           and not hasattr(gitops, "hear_pass"))
     got = ear.once()
@@ -211,35 +213,57 @@ try:
     ear.once()
     check("and a deleted one is gone", ear.code == {})
 
-    # A pull that cannot fast-forward is recorded, and the next good pass clears it.
+    # A Mac both ahead and behind with something staged is not merged: the
+    # skip is recorded, and the next pass with nothing staged merges and pushes.
+    # The Mac's commit is the board's (`gitops.commit`), which a board push
+    # may publish.
     write(os.path.join(mac, "notes", "diverge.txt"), "mac side\n")
-    git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "the Mac diverges")
+    ok_, said_ = gitops.commit(mac, ["notes/diverge.txt"], "the Mac diverges")
+    assert ok_ and said_.startswith("committed"), said_
     cluster_commit("notes/two.txt", "two\n")
+    write(os.path.join(mac, "notes", "staged.txt"), "staged\n")
+    git(mac, "add", "--", "notes/staged.txt")
+    mine = head(mac)
     got = ear.once()
     rec = pull_state()
-    check("a pull that fails is recorded in pull.json, with origin's sha",
+    check("a diverged Mac with a staged file is not merged, and pull.json says "
+          "skipped: staged changes, with origin's sha",
           got["pulled"] is False and ear.pulls == 2 and rec.get("ok") is False
-          and rec.get("step") == "pull" and rec.get("said")
-          and rec.get("remote") == origin_main(), rec)
+          and rec.get("step") == "merge"
+          and rec.get("said") == "skipped: staged changes"
+          and rec.get("remote") == origin_main() and head(mac) == mine, rec)
+    check("and the staged file is still staged, with no merge standing",
+          git(mac, "diff", "--cached", "--name-only").strip()
+          == "notes/staged.txt"
+          and not os.path.exists(os.path.join(mac, ".git", "MERGE_HEAD")))
     from tutorboard import relay                                    # noqa: E402
     told = relay.health(mac, state_dir=state, fresh=True)
-    check("a diverged tree shows \"not synced\" in git's own words",
+    check("and the sync health says \"not synced: skipped: staged changes\"",
           told["synced"] is False
-          and any(l.startswith("not synced: ") for l in told["lines"])
+          and "not synced: skipped: staged changes" in told["lines"]
           and told["pull"]["said"].count("not synced") == 1, told)
-    git(mac, "reset", "-q", "--hard", "origin/main")
-    git(mac, "pull", "-q", "--ff-only")
-    ear.once()
+    git(mac, "reset", "-q", "--", "notes/staged.txt")
+    got = ear.once()
+    check("with nothing staged the next pass merges origin's main and pushes: "
+          "one main",
+          got["pulled"] is True and ear.pulls == 3
+          and head(mac) == origin_main()
+          and subprocess.run(["git", "-C", mac, "merge-base", "--is-ancestor",
+                              mine, "HEAD"]).returncode == 0
+          and os.path.isfile(os.path.join(mac, "notes", "two.txt"))
+          and open(os.path.join(mac, "notes", "staged.txt")).read()
+          == "staged\n", git(mac, "log", "--oneline", "-5"))
     check("and once HEAD has origin's main the record says ok again",
-          pull_state().get("ok") is True and ear.pulls == 2, pull_state())
+          pull_state().get("ok") is True and pull_state().get("step") == "merge",
+          pull_state())
     check("and the health says synced again",
           relay.health(mac, state_dir=state, fresh=True)["synced"] is True)
+    os.remove(os.path.join(mac, "notes", "staged.txt"))
     git(mac, "remote", "set-url", "origin", os.path.join(base, "nowhere.git"))
     got = ear.once()
     check("an ls-remote that fails pulls nothing and is recorded",
           got["pulled"] is None and pull_state().get("step") == "ls-remote"
-          and pull_state().get("ok") is False and ear.pulls == 2)
+          and pull_state().get("ok") is False and ear.pulls == 3)
     git(mac, "remote", "set-url", "origin", origin)
     ear.once()
 
@@ -259,7 +283,7 @@ try:
                 if m.get("signal") != "bind"]
 
     def notices():
-        return cluster.notices(mac)
+        return sync.notices(mac)
 
     # --- a request filed from the open session -----------------------------------
     req = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "label": "knn",
@@ -472,7 +496,7 @@ try:
     fws = os.path.join(fresh, "projects", "Proj")
     check("a fresh clone hears nothing of the reports it arrived with",
           jobs.hear(fws) == [] and jobs.hear(fws) == []
-          and cluster.notices(fresh) == []
+          and sync.notices(fresh) == []
           and not os.path.exists(os.path.join(fresh, "sessions")))
 
     # --- one path on both machines ---------------------------------------------
@@ -569,8 +593,9 @@ check("label tutor-board, KeepAlive true, ThrottleInterval 10",
 check("an absolute interpreter that exists, running this tree's serve.py",
       os.path.isabs(args[0]) and os.access(args[0], os.X_OK)
       and args[1:] == [os.path.join(ROOT, "serve.py")], args)
-check("TUTORBOARD_CLUSTER=1 and a PATH holding /opt/homebrew/bin",
-      envs.get("TUTORBOARD_CLUSTER") == "1" and envs.get("TUTORBOARD_FRESH") == "1"
+check("TUTORBOARD_SYNC=1 and a PATH holding /opt/homebrew/bin",
+      envs.get("TUTORBOARD_SYNC") == "1" and "TUTORBOARD_CLUSTER" not in envs
+      and envs.get("TUTORBOARD_FRESH") == "1"
       and "/opt/homebrew/bin" in envs.get("PATH", "").split(":"), envs)
 log = os.path.join(home, ".local", "state", "tutor-board", "server.log")
 check("stdout and stderr go to ~/.local/state/tutor-board/server.log",
@@ -743,7 +768,7 @@ finally:
 
 
 # ===========================================================================
-# coding sessions: a real server with TUTORBOARD_CLUSTER=1 hears code/<id>
+# coding sessions: a real server with TUTORBOARD_SYNC=1 hears code/<id>
 # ===========================================================================
 import socket  # noqa: E402
 from tutorboard import code as coding  # noqa: E402
@@ -818,7 +843,7 @@ try:
         return git(corigin, "for-each-ref", "--format=%(objectname)", ref).strip()
 
     port = free_port(8779)
-    env = dict(os.environ, TUTORBOARD_CLUSTER="1",
+    env = dict(os.environ, TUTORBOARD_SYNC="1",
                BOARD_STATE_DIR=os.path.join(cbox, "macstate"))
     env.pop("TUTORBOARD_COURSES", None)
     env.pop("TUTORBOARD_FRESH", None)
@@ -835,9 +860,9 @@ try:
             break
     threading.Thread(target=lambda: [clog.append(l) for l in cserver.stderr],
                      daemon=True).start()
-    check("a server on port %d runs the cluster thread" % (cport or 0),
+    check("a server on port %d runs the sync thread" % (cport or 0),
           cport and (port == 0 or cport == 8779)
-          and "threads: cluster" in "".join(clog), "".join(clog))
+          and "threads: sync" in "".join(clog), "".join(clog))
 
     # The cluster: `board code S projects/Code/src`, an edit, one step.
     os.environ["BOARD_STATE_DIR"] = os.path.join(cbox, "clusterstate")
@@ -850,13 +875,13 @@ try:
     check("the cluster pushes step 1 to code/S", not probs and pushed and step1,
           probs)
     got = until(lambda: [m for m in cinbox() if m.get("signal") == "code"],
-                cluster.EVERY + 15, 0.5)
+                sync.EVERY + 15, 0.5)
     waited = time.time() - t_push
-    print("     (heard in %.1f s; a tick is %d s)" % (waited, cluster.EVERY))
+    print("     (heard in %.1f s; a tick is %d s)" % (waited, sync.EVERY))
     check("a pushed code/S step wakes S within one tick: one [code] step line",
           len(got) == 1 and got[0]["text"].startswith("[code] step 1: Step 1")
           and got[0].get("wake") is not False
-          and waited <= cluster.EVERY + 5, (got, waited))
+          and waited <= sync.EVERY + 5, (got, waited))
     check("the line names the diff the tutor reads itself",
           got and ("git diff " in got[0]["text"])
           and step1[:12] in got[0]["text"])
@@ -908,7 +933,7 @@ try:
     check("and not on main", tip_of("refs/heads/main") == main_before)
     check("session.json follows it", (ccode() or {}).get("sha") == vibe
           and (ccode() or {}).get("seen") == vibe)
-    time.sleep(cluster.EVERY + 3)
+    time.sleep(sync.EVERY + 3)
     check("the session's own push wakes nothing", len(cinbox()) == inbox_before,
           cinbox()[inbox_before:])
     loop.tick(fetch=True)
@@ -920,7 +945,7 @@ try:
     check("the cluster ends it: one main commit, and the ref deleted",
           ended == 0 and not tip_of() and tip_of("refs/heads/main") != main_before)
     cleared = until(lambda: ccode() is None and sessions.get(S, cmac) is not None,
-                    cluster.EVERY + 15, 0.5)
+                    sync.EVERY + 15, 0.5)
     check("deleting the ref clears code", cleared, ccode())
     unheld = [m for m in cinbox() if m.get("signal") == "unheld"]
     check("with a non-waking [unheld] line",

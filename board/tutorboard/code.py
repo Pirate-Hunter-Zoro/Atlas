@@ -21,8 +21,9 @@ move; the commit-time gate (`audit.gate`) runs, then the subject's check,
 and the step is pushed fast-forward to `refs/heads/code/<session>`. A
 commit the loop did not make (a vibe push) is applied when the held paths
 are unchanged since the last snapshot, else "both sides changed" waits.
-`--end` takes the relay's `relay/.lock` and commits the held paths to main
-as one commit. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
+`--end` takes `board-code.lock` in the git common directory (`lock_path`),
+which a relay pass takes too, and commits the held paths to main as one
+commit, then pushes. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
 the check and its output rules live here too.
 
 Mac-local mode, where `<top>/sessions/<session>/session.json` exists (the
@@ -54,15 +55,16 @@ import subprocess
 import tempfile
 import time
 
-from . import exports, fenced, paths, subjects
+from . import fenced, paths, subjects
 
 POLL = 2.0
 QUIET = 10.0
 # How often the loop asks origin for a commit it did not make.
 FETCH_EVERY = 10.0
-# How long `--end` waits for a relay pass to let go of `relay/.lock`.
+# How long `--end` waits for a relay pass to let go of `LOCK`, which lives in
+# `git rev-parse --git-common-dir`: one per repository, its worktrees too.
 LOCK_WAIT = 300
-LOCK = os.path.join("relay", ".lock")
+LOCK = "board-code.lock"
 
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 # Under a subject: the cluster channel, which the relay writes.
@@ -795,7 +797,7 @@ def check_spec(spec, files):
                     bad.append("%s needs a held file, and %s is a directory"
                                % (hole, rel))
                     continue
-                if (val != "." and exports.rel(val) != val) \
+                if (val != "." and _rel(val) != val) \
                         or val.startswith("-") or "{" in val:
                     bad.append("%r is not a path a check may be given" % val)
                     continue
@@ -842,17 +844,47 @@ def tracked(root):
                if os.path.realpath(os.path.join(real, p)).startswith(real + os.sep))
 
 
+def _rel(value):
+    """A path inside a subject, normalized, or None."""
+    out = str(value or "").strip().replace("\\", "/").lstrip("/")
+    while out.startswith("./"):
+        out = out[2:]
+    out = out.rstrip("/")
+    if not out or out == "." or ".." in out.split("/") or out.startswith("~"):
+        return None
+    return out
+
+
+_PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*[^\s/:'\",;)]+")
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def public(text, names_phi=None, limit=MAX_LINE):
+    """`text` fit for a public commit, or None where the PHI policy matches
+    it: control characters go, paths become `<path>`, cut to `limit`."""
+    s = _CTRL_RE.sub("", str(text or "")).strip()
+    s = _PATH_RE.sub("<path>", s)
+    if names_phi is not None:
+        try:
+            if names_phi(s):
+                return None
+        except Exception:                                    # noqa: BLE001
+            return None
+    if len(s) > limit:
+        s = s[:limit - 1].rstrip() + "\u2026"
+    return s
+
+
 def relay_lines(text, names_phi=None):
     """`(lines, withheld)`: the `RELAY:` lines of a program's output, prefix
-    dropped, each through `relay.public`, at most `MAX_LINES`; lines the PHI
+    dropped, each through `public`, at most `MAX_LINES`; lines the PHI
     policy flags are withheld and counted."""
-    from . import relay
     out, withheld = [], 0
     for line in (text or "").splitlines():
         m = RELAY_LINE.match(line.rstrip("\r"))
         if not m:
             continue
-        said = relay.public(m.group(1), names_phi, MAX_LINE)
+        said = public(m.group(1), names_phi, MAX_LINE)
         if said is None:
             withheld += 1
             continue
@@ -867,10 +899,9 @@ def check_output(text, root, names_phi, top=None):
     """`{output, output_total, output_cut, withheld}`: a check's output fit
     for a public commit, for an open subject only. Pure. Control codes go;
     subject and repository paths become relative, other paths `<path>`
-    (`relay.public`); flagged lines are withheld; head and tail lines are
+    (`public`); flagged lines are withheld; head and tail lines are
     kept within `OUT_BYTES`, the cut marked.
     """
-    from . import relay
     prefixes = []
     for base in (root, os.path.realpath(root) if root else "",
                  top, os.path.realpath(top) if top else ""):
@@ -885,7 +916,7 @@ def check_output(text, root, names_phi, top=None):
             line = pat.sub(lambda m: "" if m.group(0).endswith("/") else ".",
                            line)
         indent = len(line) - len(line.lstrip(" "))
-        said = relay.public(line, names_phi, MAX_LINE - min(indent, 40))
+        said = public(line, names_phi, MAX_LINE - min(indent, 40))
         if said is None:
             withheld += 1
             continue
@@ -1310,10 +1341,20 @@ def watch(top, rec, say=print, sleep=time.sleep, clock=time.time,
 # ---------------------------------------------------------------------------
 # --end and --abandon
 # ---------------------------------------------------------------------------
+def lock_path(top):
+    """`board-code.lock` in `top`'s git common directory, or None where git
+    cannot say. `--end` and a relay pass both take it."""
+    code, out = _git(top, "rev-parse", "--git-common-dir")
+    if code != 0 or not out.strip():
+        return None
+    return os.path.join(os.path.abspath(os.path.join(top, out.strip())), LOCK)
+
+
 def _lock(top, wait):
-    """`relay/.lock`, held, or None after `wait` seconds."""
-    path = os.path.join(top, LOCK)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    """`lock_path`, held, or None after `wait` seconds."""
+    path = lock_path(top)
+    if path is None:
+        return None
     fh = open(path, "a+")
     deadline = time.time() + wait
     while True:
@@ -1369,8 +1410,8 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
         return 1
     fh = _lock(top, wait)
     if fh is None:
-        say("board code: a relay pass held %s for %d s; nothing was ended. "
-            "Try again." % (LOCK, wait))
+        say("board code: a relay pass or another --end held %s for %d s; "
+            "nothing was ended. Try again." % (LOCK, wait))
         return 1
     try:
         tip, err = tip_of(top, sid, local)
@@ -1416,7 +1457,8 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
         behind = _git(top, "rev-list", "--count", "HEAD.." + up)[1]
         ahead = _git(top, "rev-list", "--count", up + "..HEAD")[1]
         if behind not in ("", "0") and ahead in ("", "0"):
-            code, out = _git(top, "merge", "--ff-only", "--quiet", up)
+            code, out = _git(top, "merge", "--ff-only", "--no-autostash",
+                             "--quiet", up)
             if code != 0:
                 say("board code: could not fast-forward to origin/%s, so "
                     "nothing was committed: %s"

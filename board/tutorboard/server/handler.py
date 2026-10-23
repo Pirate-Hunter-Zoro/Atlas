@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
-from .. import cluster, paths, sessions, subjects
+from .. import paths, sessions, subjects, sync
 from ..course import paper
 from .. import stamp as code_stamp
 from . import routes
@@ -486,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
         if how == "notices":
             # Cluster lines no session took (D16), newest first; no turn ran.
             return self.send_json({"ok": True,
-                                   "notices": cluster.notices(registry.atlas)})
+                                   "notices": sync.notices(registry.atlas)})
         if how == "assistants":
             # The home screen's default-assistant setting: what POST
             # /default-agent chooses among. None when it could not be asked.

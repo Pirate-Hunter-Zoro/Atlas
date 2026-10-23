@@ -92,48 +92,11 @@ These are pre-approved. Write each from its bullets, and commit it when its item
   `AI_INSTRUCTIONS.md`, `HANDOFF.md`, `PROGRESS.md` and `make split`, none of which exists. Point
   them at `RULES.md`, `TUTOR.md` and `board textbook split`.
 
-## 4. Sync without the cluster
-
-The Mac hears laptop coding sessions through `cluster.Ear`. It lives in `cluster.py`, which the
-exit deletes, and it is gated on `TUTORBOARD_CLUSTER`. Move it first, so the laptop path and
-the exit stop depending on each other.
-
-- **Create `board/tutorboard/sync.py`** holding `Ear` (renamed `Sync`), `wake`, `notices`,
-  `notices_path`, `atlas_of` and `PULL_STATE`.
-  - Re-point `app.py`, `handler.py` (`/notices.json`), `hub.py`, `brief.py` and `jobs.py`.
-  - `cluster.py` re-exports them until the exit deletes it.
-  - `Sync.once` calls `jobs.hear` only while `jobs.py` exists.
-- **Rename the env var to `TUTORBOARD_SYNC`** in `app.py`, `board/scripts/launchd/tutor-board.plist`
-  and the tests that set or scrub it (`hearing.py`, `making.py`, `health.py`, `meeting.py`).
-  `app.py` accepts both names until `bash board/install.sh` has re-rendered the plist. Run it
-  right after the merge.
-- **Take `code.py` off the relay.**
-  - Inline `exports.rel` and `relay.public` (with its regexes) into `code.py`.
-  - The `--end` lock becomes `board-code.lock` in `git rev-parse --git-common-dir`, and
-    `relay.py` takes the same lock.
-- **No divergence.** Today `sessions.end` commits and never pushes, and `Sync` pulls ff-only, so
-  a laptop's `--end` leaves the Mac diverged.
-  - `sessions.end` commits and pushes.
-  - `gitops.push` merges upstream with a dirty tree and lets git refuse overlaps. It never leaves
-    a merge standing.
-  - `Sync.once` merges when HEAD is ahead and origin is not contained, then pushes. Merge only
-    when the index matches HEAD; git refuses a true merge while anything is staged. Otherwise
-    record `skipped: staged changes` in `pull.json` and the sync health.
-  - Test the merge first with `git merge-tree --write-tree`. Never run `merge --abort` over
-    uncommitted work, and abort only a merge this pass started.
-  - The new test also covers a Mac clone with a staged file.
-
-Done when:
-- `test/hearing.py` and `test/code.py` import `sync`, and `code.py` imports neither relay nor
-  exports.
-- A new test passes in which a Mac clone holding a local End commit, plus a laptop clone's
-  `--end`, end on one main after one sync pass.
-- `launchctl print gui/$(id -u)/tutor-board` shows `TUTORBOARD_SYNC`.
 
 ## 5. The LIBR exit
 
-Run `LIBR-EXIT.md`. It needs item 4 landed and the owner's first cluster steps (its
-section 5a) done, and it stops midway for the owner's section 5b.
+Run `LIBR-EXIT.md`. It needs the owner's first cluster steps (its section 5a) done, and it
+stops midway for the owner's section 5b.
 
 It zips TRD-EHR, PSYCH-ASR, libr-local-llm and Paper-Writer with their write-ups, results and
 sessions to `~/LIBR-handoff-<date>/`. It records Colibri's upstream instead of zipping it. It

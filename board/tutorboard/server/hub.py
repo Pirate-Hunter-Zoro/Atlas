@@ -23,8 +23,8 @@ import stat
 import threading
 import time
 
-from .. import assistants, cluster, colibri, coursemacros, fenced, paths
-from .. import relay, writeups
+from .. import assistants, colibri, coursemacros, fenced, paths
+from .. import relay, sync, writeups
 from .. import jobs as slurm_jobs
 from ..course import config, homework, library
 from ..lesson import cards, git, notes, slate, state, turns, uploads
@@ -154,7 +154,7 @@ class Hub:
             # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),
             # The cluster's health, the same for every session.
-            "relay": _safe(relay.health, cluster.atlas_of(repo.root)),
+            "relay": _safe(relay.health, sync.atlas_of(repo.root)),
         }
         for key in GONE:
             data[key] = None
@@ -254,7 +254,7 @@ def subject_info(repo):
         "sets": sets,
         "results": _safe(library.figures_status, repo),
         "jobs": _safe(slurm_jobs.running, root) or [],
-        "colibri": _safe(colibri.status, cluster.atlas_of(root)),
+        "colibri": _safe(colibri.status, sync.atlas_of(root)),
         "unsaved": _safe(git.repo_dirty, repo),
         "assistants": _safe(assistants.listing),
         "fenced": list(_safe(fenced.holds, root) or []),

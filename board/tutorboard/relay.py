@@ -2,7 +2,8 @@
 
 scrontab runs `board/scripts/relay-pass.sh` (a bash pull, a re-exec when
 board/ changed), then `board/bin/relay --once`, which is `run_pass`. Under
-one `flock` (`relay/.lock`; a second pass skips): pull fast-forward and move
+one `flock` (`relay/.lock`; a second pass skips), and `board code --end`'s
+(`code.lock_path`; a pass during an end skips): pull fast-forward and move
 `vendor/colibri`; validate and submit or refuse each new request; poll jobs
 (`squeue` plus exit files, since `sacct` is refused) and write reports and
 exports; queue and check Colibri tasks; commit only what this pass wrote,
@@ -1083,17 +1084,29 @@ def run_pass(base=None, run=subprocess.run, now=None, pull_vendor=None,
              push=True):
     """One pass; returns a summary that `relay/state.json` records. `run` asks
     Slurm, so a test can answer from a table; git is always real."""
+    from . import code
     base = os.path.realpath(base or subjects.root())
     lock = os.path.join(base, LOCK)
     os.makedirs(os.path.dirname(lock), exist_ok=True)
     fh = open(lock, "a+")
+    ending = None
     try:
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return {"skipped": "another pass holds the lock"}
+        # `board code --end`'s lock too: a pass never commits beside an end.
+        held = code.lock_path(base)
+        if held:
+            ending = open(held, "a+")
+            try:
+                fcntl.flock(ending.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return {"skipped": "a `board code --end` holds %s" % code.LOCK}
         return _locked_pass(base, run, now, pull_vendor, push)
     finally:
+        if ending is not None:
+            ending.close()
         fh.close()
 
 
@@ -1482,10 +1495,10 @@ def stale_requests(atlas, now=None, after=DOWN_AFTER):
 
 def pull_health(state_dir=None):
     """pull.json as the Mac's health: `{ok, said, step, at}`, `said` being
-    "not synced: <git's words>" when the last pull or ls-remote failed; None
-    where the cluster thread has written none."""
-    from . import cluster
-    path = os.path.join(state_dir or paths.STATE_DIR, cluster.PULL_STATE)
+    "not synced: <git's words>" when the last pull, merge or ls-remote
+    failed or was skipped; None where the sync thread has written none."""
+    from . import sync
+    path = os.path.join(state_dir or paths.STATE_DIR, sync.PULL_STATE)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             rec = json.load(fh)

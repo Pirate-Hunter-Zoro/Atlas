@@ -23,7 +23,7 @@ import shutil
 import subprocess
 import time
 
-from . import cluster, exports, fenced
+from . import exports, fenced, sync
 
 NAME = "jobs.jsonl"
 
@@ -1331,11 +1331,11 @@ def sense(root, rec):
 
 
 def drop(root, rec, now=None, text=None, signal="job"):
-    """Put a machinery line where `cluster.wake` routes it: the filing
+    """Put a machinery line where `sync.wake` routes it: the filing
     session's inbox (which wakes a turn), else a home notice. A relay record's
     request id and session ride along for `board brief`."""
     rec = rec or {}
-    return cluster.wake(root, rec.get("session"),
+    return sync.wake(root, rec.get("session"),
                         text if text is not None else sense(root, rec),
                         wake=True, signal=signal, request=rec.get("request"),
                         now=now)
@@ -2089,7 +2089,7 @@ def commit_only(root, targets, what, push=True):
 # the Mac hears the cluster
 # ---------------------------------------------------------------------------
 # A report a pull brought to an end drops the same `[job]` (or `[repair]`)
-# line a local ending does, through `cluster.wake`. `cluster.Ear` calls `hear`
+# line a local ending does, through `sync.wake`. `sync.Sync` calls `hear`
 # for every subject each pass. "Brought by a pull" is a diff of
 # `relay/reports/` from the last heard commit to HEAD, whoever moved HEAD; a
 # fresh clone records HEAD and hears nothing. Claimed once per (request,

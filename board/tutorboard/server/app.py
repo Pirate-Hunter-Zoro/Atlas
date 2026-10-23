@@ -13,9 +13,12 @@ Two more threads, each switched on by the LaunchAgent's environment
 (`scripts/launchd/tutor-board.plist`), so a server started by hand or by a
 test runs neither:
 
-  * `TUTORBOARD_CLUSTER=1`: the cluster thread (`cluster.Ear`), which pulls
-    when origin's main moves, hears every subject's reports, and hears each
-    `code/<id>` ref: a coding session's step at the cluster wakes its session.
+  * `TUTORBOARD_SYNC=1`: the sync thread (`sync.Sync`), which pulls when
+    origin's main moves (merging and pushing where HEAD is ahead too), hears
+    every subject's reports, and hears each `code/<id>` ref: a coding
+    session's step on a laptop or the cluster wakes its session.
+    `TUTORBOARD_CLUSTER=1`, the variable's old name, is read too until
+    `bash board/install.sh` has re-rendered the plist.
   * `TUTORBOARD_FRESH=1`: the freshness thread. Once committed board code
     differs from what this process loaded (`stamp.moved`) and no turn runs
     or waits, the server stops listening and exits 0; launchd (KeepAlive)
@@ -34,7 +37,7 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
-from .. import cluster, jobs, paths, sessions, stamp, subjects
+from .. import jobs, paths, sessions, stamp, subjects, sync
 from ..runner import service
 from .handler import Handler
 from .registry import Registry
@@ -148,9 +151,10 @@ def main(argv):
     except OSError:
         pruned = []
     threads = []
-    if os.environ.get("TUTORBOARD_CLUSTER") == "1":
-        cluster.Ear(atlas).start()
-        threads.append("cluster")
+    if "1" in (os.environ.get("TUTORBOARD_SYNC"),
+               os.environ.get("TUTORBOARD_CLUSTER")):
+        sync.Sync(atlas).start()
+        threads.append("sync")
     if os.environ.get("TUTORBOARD_FRESH") == "1":
         threading.Thread(target=watch_fresh, args=(httpd, runner),
                          name="fresh", daemon=True).start()

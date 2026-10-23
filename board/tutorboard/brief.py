@@ -197,9 +197,9 @@ def relay_sense(root):
 def _health(root):
     """`relay.health`'s "relay looks down" and "not synced" lines: a request
     filed now would wait on either."""
-    from . import cluster, relay
+    from . import relay, sync
     try:
-        got = relay.health(cluster.atlas_of(root))
+        got = relay.health(sync.atlas_of(root))
     except Exception:                                        # noqa: BLE001
         return []
     return ["HEALTH: " + l for l in got.get("lines") or []

@@ -39,7 +39,8 @@ os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["BOARD_NO_TAILNET"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH", "COLI_QUEUE_ROOT"):
+             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH",
+             "COLI_QUEUE_ROOT"):
     os.environ.pop(name, None)
 
 from tutorboard import brief, colibri, relay, sessions               # noqa: E402

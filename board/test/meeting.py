@@ -44,7 +44,7 @@ os.environ["BOARD_NO_TAILNET"] = "1"
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["TUTORBOARD_PAGES"] = os.path.join(box, "pages")
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_CLUSTER"):
+             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER"):
     os.environ.pop(name, None)
 
 fails = []
