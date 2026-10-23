@@ -32,11 +32,13 @@ import re
 import sys
 from datetime import datetime
 
-# A marker's lockfile, which must sit beside it.
+# A marker's lockfile, which must sit beside it. build.zig.zon is its own:
+# it carries each dependency's content hash, and Zig writes no other lock.
 MARKERS = (("mise.toml", "mise.lock"), ("Cargo.toml", "Cargo.lock"),
-           ("pubspec.yaml", "pubspec.lock"))
-# Never looked into for a marker: build output and environments.
-SKIP = ("target", "build", ".dart_tool", ".venv", "node_modules")
+           ("pubspec.yaml", "pubspec.lock"), ("build.zig.zon", "build.zig.zon"))
+# Never looked into for a marker: build output, caches and environments.
+SKIP = ("target", "build", ".dart_tool", ".venv", "node_modules",
+        "zig-out", ".zig-cache", "zig-pkg")
 # A Brewfile's entries, in the order brew bundle needs them: a tap first.
 KINDS = ("tap", "brew", "cask", "mas", "whalebrew", "vscode")
 

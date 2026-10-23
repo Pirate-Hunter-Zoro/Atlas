@@ -115,9 +115,12 @@ board, and checks that the board answers. Its header lists each step.
   A `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
 - A subject pins a toolchain in `mise.toml` and `mise.lock` (written by `mise lock`, which records
   each platform's download URL that `--locked` requires): setup runs `mise install --locked` on
-  the tools that `mise.toml` names, so the owner's global mise tools never fail it, then `cargo fetch --locked` for a `Cargo.toml` and `flutter pub get --enforce-lockfile` for a
-  `pubspec.yaml`, through `mise exec`, at the subject's root and one directory down. A pin moves
-  only by a commit. Each marker needs its lockfile beside it and a check in `tutorboard.json`.
+  the tools that `mise.toml` names, so the owner's global mise tools never fail it. Then, through
+  `mise exec`, at the subject's root and one directory down: `cargo fetch --locked` for a
+  `Cargo.toml`, `flutter pub get --enforce-lockfile` for a `pubspec.yaml`, and
+  `zig build --fetch` for a `build.zig.zon`, which is its own lockfile, only when the nearest
+  `mise.toml` pins zig. A pin moves only by a commit. Each marker needs its lockfile beside it
+  and a check in `tutorboard.json`.
   mise and the descriptors below are Mac only; on the cluster setup says it skipped them.
 - A tool neither brew nor mise keeps current is a descriptor, `<subject>/tools/<name>.sh`, read
   by `scripts/tools.sh` (its header lists the fields). Setup installs what is missing. One name

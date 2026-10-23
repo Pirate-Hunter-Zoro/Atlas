@@ -28,9 +28,13 @@ __pycache__/
 node_modules/
 # A workspace's environment, which `uv sync` builds from its uv.lock.
 .venv/
-# What cargo and flutter build and fetch beside a Cargo.toml or pubspec.yaml.
+# What cargo, flutter and zig build and fetch beside a Cargo.toml, pubspec.yaml
+# or build.zig.zon.
 target/
 .dart_tool/
+zig-out/
+.zig-cache/
+zig-pkg/
 *.log
 
 # A Lean build's output and fetched packages, which `lake build` recreates.

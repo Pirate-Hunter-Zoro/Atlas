@@ -24,8 +24,8 @@ anything but the shim.
     descriptor, and a second run, --coding or as the host, changes nothing.
   - A MISSING ai-config/policy/phi.py IS A PROBLEM, named.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
-    whose lockfiles moved, with --quiet too, a mise.lock or a Cargo.lock one
-    directory down included; ai-config that will not fast-forward is exit 1.
+    whose lockfiles moved, with --quiet too, a mise.lock, a Cargo.lock or a
+    build.zig.zon one directory down included; ai-config that will not fast-forward is exit 1.
   - --CODING ASKS FOR THE MAC MINI'S TAILNET NAME and writes it as config.json
     `host`, keeping the other keys; a rerun does not ask again.
   - `board pull --materials` RSYNCS THE IGNORED INPUTS ONLY. An rsync shim
@@ -381,6 +381,14 @@ try:
                   "projects/M/app/src/Cargo.lock": "deep\n"}, "not a marker's")
     code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
     check("but not one in target/ or two down", code == 0 and "lockfiles" not in out, out)
+    commit(seed, {"projects/M/warden/build.zig.zon": ".{ .version = \"2\" }\n"},
+           "M's warden manifest moves")
+    code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
+    check("a build.zig.zon one directory down is its own lockfile, and named",
+          code == 0 and "lockfiles moved in projects/M;" in out, out)
+    commit(seed, {"projects/M/zig-pkg/build.zig.zon": "fetched\n"}, "a fetched package's")
+    code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
+    check("but not one in zig-pkg/", code == 0 and "lockfiles" not in out, out)
 
     code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
     check("nothing new names nothing", code == 0 and "lockfiles" not in out, out)

@@ -27,12 +27,16 @@
 #                       library that ships one; then lake build
 #      go.mod           go mod download
 #    and by what it pins, each counted at its root and one directory down
-#    (never in target/, build/, .dart_tool/, .venv/ or node_modules/):
+#    (never in target/, build/, .dart_tool/, .venv/, node_modules/, zig-out/,
+#    .zig-cache/ or zig-pkg/):
 #      mise.toml        mise trust, then mise install --locked <its tools>,
 #                       which installs only what mise.lock records (with a
 #                       URL for this platform; `mise lock` writes it)
 #      Cargo.toml       mise exec -- cargo fetch --locked
 #      pubspec.yaml     mise exec -- flutter pub get --enforce-lockfile
+#      build.zig.zon    mise exec -- zig build --fetch, only when the nearest
+#                       mise.toml pins zig (else "zig skipped"); it is its
+#                       own lockfile, holding each dependency's hash
 #    A pin moves only by a commit of mise.toml and mise.lock.
 #    On a Mac only: elsewhere a marker's subject says it was skipped.
 # 3. The subjects' tool descriptors, <subject>/tools/<name>.sh: each one this
@@ -239,6 +243,19 @@ for id in $workspaces; do
       (cd "$d" && mise exec -- flutter pub get --enforce-lockfile) >>"$log" 2>&1 || bad=1
       case "$did" in *"flutter pub get"*) ;; *) did="${did:+$did, }flutter pub get" ;; esac
     done < <(marker_dirs "$id" pubspec.yaml)
+    # Zig is pre-1.0, so a fetch runs only under a zig the nearest mise.toml
+    # pins, never one mise exec would borrow from the PATH or a global config.
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      pd="$ws"; [ -f "$d/mise.toml" ] && pd="$d"
+      if plan pinned "$pd" | grep -qx zig; then
+        (cd "$d" && mise exec -- zig build --fetch) >>"$log" 2>&1 || bad=1
+        case "$did" in *"zig build --fetch"*) ;; *) did="${did:+$did, }zig build --fetch" ;; esac
+      else
+        echo "$d/build.zig.zon: no zig pin in $pd/mise.toml, not fetched" >>"$log"
+        case "$did" in *"zig skipped"*) ;; *) did="${did:+$did, }zig skipped (no zig pin)" ;; esac
+      fi
+    done < <(marker_dirs "$id" build.zig.zon)
   fi
 
   if [ -z "$did" ]; then

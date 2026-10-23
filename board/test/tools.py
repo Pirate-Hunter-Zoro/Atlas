@@ -12,8 +12,9 @@ else. Nothing is installed on this machine.
   - THE UNION: the root Brewfile and each subject's, comments dropped, taps
     first, sorted and deduplicated; Brewfile.all rewritten only on change; an
     entry that leaves it is remembered while it is still installed.
-  - SETUP TWICE: a subject with a mise.toml, a Cargo.toml one directory down
-    and a pubspec.yaml builds through mise; a second run is clean and changes
+  - SETUP TWICE: a subject with a mise.toml, a Cargo.toml one directory down,
+    a pubspec.yaml and a warden/build.zig.zon builds through mise; zig fetches
+    only under a zig pin. A second run is clean and changes
     nothing, as a host and as a coding laptop. Off a Mac it runs no mise and
     installs no descriptor. A deleted subject's Brewfile lines and descriptors
     leave the plan, nothing is uninstalled, and brewcare names what is left
@@ -166,17 +167,27 @@ try:
           'cask "font-x"   # a "quoted" # comment\n')
     M = os.path.join(atlas, "projects", "M")
     write(os.path.join(M, "tutorboard.json"), json.dumps({"check": "cargo test"}))
-    write(os.path.join(M, "mise.toml"), '[tools]\nrust = "1.80.0"\nflutter = "3.24.0"\n')
+    write(os.path.join(M, "mise.toml"),
+          '[tools]\nrust = "1.80.0"\nflutter = "3.24.0"\nzig = "0.17.0"\n')
     write(os.path.join(M, "mise.lock"), "locked\n")
     write(os.path.join(M, "app", "Cargo.toml"), "[package]\nname = \"app\"\n")
     write(os.path.join(M, "app", "Cargo.lock"), "locked\n")
     write(os.path.join(M, "app", "target", "Cargo.toml"), "not a marker\n")
     write(os.path.join(M, "ui", "pubspec.yaml"), "name: ui\n")
     write(os.path.join(M, "ui", "pubspec.lock"), "locked\n")
+    write(os.path.join(M, "warden", "build.zig.zon"), ".{ .name = .warden }\n")
+    for out in ("zig-out", ".zig-cache", "zig-pkg"):
+        write(os.path.join(M, out, "build.zig.zon"), "not a marker\n")
     write(os.path.join(M, "Brewfile"),
           'brew "uv"  # also the root\nbrew "ripgrep"\ntap "acme/tools"\n'
           'brew "acme/tools/widget-cli"\n')
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    # A build.zig.zon under a mise.toml that pins no zig is never fetched.
+    Z = os.path.join(atlas, "projects", "Z")
+    write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
+    write(os.path.join(Z, "mise.toml"), '[tools]\nrust = "1.80.0"\n')
+    write(os.path.join(Z, "mise.lock"), "locked\n")
+    write(os.path.join(Z, "warden", "build.zig.zon"), ".{ .name = .warden }\n")
     write(os.path.join(atlas, "courses", "C", "notes.md"), "no code\n")
 
     # =======================================================================
@@ -203,14 +214,20 @@ try:
           and 'brew "ripgrep"' in read(union) and 'brew "uv"' in read(union)
           and "Brewfile.all rewritten" in out1, (calls("brew"), out1))
     check("a subject with a mise.toml builds: mise trust and install --locked at its "
-          "root, cargo fetch and flutter pub get one directory down, through mise",
+          "root, cargo fetch, flutter pub get and zig build --fetch one directory "
+          "down, through mise",
           calls("mise trust --quiet %s/mise.toml @ " % M)
-          and calls("mise install --locked flutter rust @ %s" % M)
+          and calls("mise install --locked flutter rust zig @ %s" % M)
           and calls("mise exec -- cargo fetch --locked @ %s" % os.path.join(M, "app"))
           and calls("mise exec -- flutter pub get --enforce-lockfile @ %s"
                     % os.path.join(M, "ui"))
-          and not [l for l in calls("mise") if "target" in l]
-          and "ok (mise install, cargo fetch, flutter pub get)" in out1, (calls(), out1))
+          and calls("mise exec -- zig build --fetch @ %s" % os.path.join(M, "warden"))
+          and not [l for l in calls("mise") if "target" in l or "zig-" in l]
+          and "ok (mise install, cargo fetch, flutter pub get, zig build --fetch)" in out1,
+          (calls(), out1))
+    check("a build.zig.zon whose mise.toml pins no zig is not fetched, and setup says so",
+          not calls("mise exec -- zig build --fetch @ %s" % Z)
+          and "ok (mise install, zig skipped (no zig pin))" in out1, (calls(), out1))
     widget = os.path.join(home, ".widget", "bin", "widget")
     check("and the descriptor's tool is installed",
           os.path.exists(widget) and read(os.path.join(home, "widget.installs")) == "x\n"
@@ -300,6 +317,12 @@ try:
     said = brewcare.tool_lines_of(tools_json())
     check("brewcare names it", "tools: widget failed: T_UPDATE exited 4" in said, said)
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    # A build.zig.zon under a mise.toml that pins no zig is never fetched.
+    Z = os.path.join(atlas, "projects", "Z")
+    write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
+    write(os.path.join(Z, "mise.toml"), '[tools]\nrust = "1.80.0"\n')
+    write(os.path.join(Z, "mise.lock"), "locked\n")
+    write(os.path.join(Z, "warden", "build.zig.zon"), ".{ .name = .warden }\n")
     code, out = tools("update", "--force")
     check("and it clears once an update works",
           code == 0 and not tools_json()["tools"]["widget"].get("failed"), out)
@@ -324,6 +347,12 @@ try:
           code == 0 and rec["version"] == "1.2.0"
           and rec["updated"] != "2026-01-01T00:00:00", rec)
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    # A build.zig.zon under a mise.toml that pins no zig is never fetched.
+    Z = os.path.join(atlas, "projects", "Z")
+    write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
+    write(os.path.join(Z, "mise.toml"), '[tools]\nrust = "1.80.0"\n')
+    write(os.path.join(Z, "mise.lock"), "locked\n")
+    write(os.path.join(Z, "warden", "build.zig.zon"), ".{ .name = .warden }\n")
     write(os.path.join(home, ".widget", "version"), "1.1.0\n")
     code, out = tools("update", "--force")
     check("and a T_UPDATE again drops the by-hand note",
@@ -349,6 +378,12 @@ try:
           code == 1 and "widget fails its check: false" in out
           and tools_json()["tools"]["widget"]["failed_step"] == "check", out)
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    # A build.zig.zon under a mise.toml that pins no zig is never fetched.
+    Z = os.path.join(atlas, "projects", "Z")
+    write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
+    write(os.path.join(Z, "mise.toml"), '[tools]\nrust = "1.80.0"\n')
+    write(os.path.join(Z, "mise.lock"), "locked\n")
+    write(os.path.join(Z, "warden", "build.zig.zon"), ".{ .name = .warden }\n")
     code, out = tools("check")
     check("and a passing one clears it", code == 0 and "widget works (1.1.0)" in out
           and not tools_json()["tools"]["widget"].get("failed"), out)
@@ -428,6 +463,7 @@ try:
     os.makedirs(os.path.join(prefix, "Cellar", "ripgrep", "14.1"))
     os.makedirs(os.path.join(prefix, "Cellar", "widget-cli", "1.0"))
     shutil.rmtree(M)
+    shutil.rmtree(Z)
     open(CALLS, "w").close()
     code, out = run(["bash", setup])
     doc = tools_json()

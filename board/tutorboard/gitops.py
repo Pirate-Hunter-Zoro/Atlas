@@ -578,7 +578,7 @@ def _vendor_moved(root, before, after):
 # subject's root; the NESTED ones count one directory down too, where setup
 # finds their markers (`toolplan.marker_dirs`). One a pull moved leaves that
 # environment stale.
-NESTED = ("mise.toml", "mise.lock", "Cargo.lock", "pubspec.lock")
+NESTED = ("mise.toml", "mise.lock", "Cargo.lock", "pubspec.lock", "build.zig.zon")
 LOCKFILES = ("uv.lock", "go.sum", "lake-manifest.json", "lean-toolchain") + NESTED
 
 

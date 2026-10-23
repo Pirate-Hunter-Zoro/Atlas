@@ -5,8 +5,9 @@ A fixture tree, never the real one: `all`, `find` (a qualified id under a
 merged-away parent finds nothing), `kind_of`, `identify`, `roots`, `root`,
 `read_config` and lookups by slug (`colibri.WORKSPACE`, a project by its
 bare name). atlas.py is gone. On the real tree, a subject holding a toolchain
-marker (mise.toml, Cargo.toml, pubspec.yaml, at its root or one directory
-down) names its check and keeps the marker's lockfile beside it.
+marker (mise.toml, Cargo.toml, pubspec.yaml, build.zig.zon, at its root or
+one directory down) names its check and keeps the marker's lockfile beside it;
+build.zig.zon is its own lockfile.
 """
 
 import json
@@ -250,15 +251,21 @@ try:
     for rel in ("projects/R/mise.toml", "projects/R/app/Cargo.toml",
                 "projects/R/target/Cargo.toml", "projects/R/.hidden/Cargo.toml",
                 "projects/R/node_modules/x/Cargo.toml", "projects/R/a/b/Cargo.toml",
-                "projects/R/ui/pubspec.yaml", "projects/R/build/pubspec.yaml"):
+                "projects/R/ui/pubspec.yaml", "projects/R/build/pubspec.yaml",
+                "projects/R/warden/build.zig.zon", "projects/R/zig-out/build.zig.zon",
+                "projects/R/zig-pkg/build.zig.zon", "projects/R/.zig-cache/build.zig.zon"):
         os.makedirs(os.path.dirname(os.path.join(box, rel)), exist_ok=True)
         open(os.path.join(box, rel), "w").close()
-    got = [(m, os.path.relpath(d, box)) for m, _l, d in
-           toolplan.markers(os.path.join(box, "projects", "R"))]
+    found = toolplan.markers(os.path.join(box, "projects", "R"))
+    got = [(m, os.path.relpath(d, box)) for m, _l, d in found]
     check("markers count at the root and one directory down, never in target/, "
-          "build/, node_modules/ or a dot directory",
+          "build/, node_modules/, zig-out/, zig-pkg/ or a dot directory",
           got == [("mise.toml", "projects/R"), ("Cargo.toml", "projects/R/app"),
-                  ("pubspec.yaml", "projects/R/ui")])
+                  ("pubspec.yaml", "projects/R/ui"), ("build.zig.zon", "projects/R/warden")])
+    check("warden/build.zig.zon is a marker and its own lockfile, so the rule that "
+          "a lockfile sits beside it holds",
+          [(m, l) for m, l, d in found if m == "build.zig.zon"]
+          == [("build.zig.zon", "build.zig.zon")])
 finally:
     shutil.rmtree(box, ignore_errors=True)
 for subject in subjects.all():
