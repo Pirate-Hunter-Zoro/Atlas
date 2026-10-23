@@ -9,4 +9,4 @@ Section heading: Data Availability
 
 # Data Availability
 
-The EHR data cannot be shared publicly. Analysis code is available at https://github.com/Pirate-Hunter-Zoro/Atlas/tree/main/projects/TRD-EHR. Fitted model objects are not distributed because they are derived from nonshareable patient data.
+The EHR data cannot be shared publicly. Analysis code is available at https://github.com/Pirate-Hunter-Zoro/Atlas/tree/da44a79a7a68f7e57de2e2ba2e27a59835de9530/projects/TRD-EHR. Fitted model objects are not distributed because they are derived from nonshareable patient data.

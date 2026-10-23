@@ -332,7 +332,7 @@ the remaining detail.
 
 All random processes were seeded. Analyses were implemented in Python with scikit-learn
 [16], XGBoost [17], and sentence-transformer encoders [11]. Analysis code is available at
-[https://github.com/Pirate-Hunter-Zoro/Atlas/tree/main/projects/TRD-EHR](https://github.com/Pirate-Hunter-Zoro/Atlas/tree/main/projects/TRD-EHR).
+[https://github.com/Pirate-Hunter-Zoro/Atlas/tree/da44a79a7a68f7e57de2e2ba2e27a59835de9530/projects/TRD-EHR](https://github.com/Pirate-Hunter-Zoro/Atlas/tree/da44a79a7a68f7e57de2e2ba2e27a59835de9530/projects/TRD-EHR).
 
 # Results
 
