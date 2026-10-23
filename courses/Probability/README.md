@@ -8,30 +8,29 @@ professor's lecture modules.
 the text, Edition 11" and asks anybody holding the tenth to say so, because the exercises
 are numbered differently between them — 61 and 76 were worked from the tenth before the
 mismatch was found. `chapters.tsv` indexes `textbook/ProbTextbook.pdf`, which is the
-eleventh, 769 pages, offset 8. An exercise number is only meaningful against that file.
+eleventh, 769 pages. An exercise number is only meaningful against that file.
 
-> **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
-> anything.** It is the operating contract for this repository and it is model-agnostic —
-> Claude, Codex, DeepSeek/open-code, Cursor, a local model, all the same. Nothing auto-loads it,
-> so read it the moment you are pointed at this README. Then read
-> [`HANDOFF.md`](./HANDOFF.md) — where the last session got to, what went wrong in it, and what
-> comes next. It is the only continuity between sessions, and it is rewritten before each one
-> ends.
+The offset from printed page to PDF page is not one number: it is 8 in chapter 1 and falls by
+one at chapters 2, 3, 4, 7 and 8, to 3 from chapter 8 on. `board textbook find "p. 295"` gives
+PDF page 300, and `board textbook find "Ch 4 #34"` gives the exercise and its page.
+
+> **AI assistants: read [`RULES.md`](./RULES.md) and [`TUTOR.md`](./TUTOR.md) before doing
+> anything.** RULES.md is the owner's standing rules for this course. TUTOR.md is where the
+> last session got to, what went wrong in it, and what comes next. It is the only continuity
+> between sessions.
 
 ## Layout
 
 ```
-textbook/           the full text (ignored — kept on disk, never committed)
+RULES.md            the owner's standing rules for this course
+TUTOR.md            where the last session got to, and what comes next
+tutorboard.json     how the board treats this course
+textbook/           the full text and its index.json (ignored — kept on disk, never committed)
 chapters.tsv        chapter table — numbers, titles, page ranges. Single source of truth.
 latex/
   coursemacros.sty  shared preamble, probability macros
-  templates/        notes and homework templates
-scripts/
-  split-textbook.sh cut the full text into per-chapter excerpts
-  scaffold.sh       create chapter / homework folders and .tex files
-  build.sh          compile one .tex
 chapters/chNN-slug/
-  reading/chNN.pdf  this chapter's excerpt, cut by `make split` (ignored — regenerate it)
+  reading/chNN.pdf  this chapter's excerpt, cut by `board textbook split` (ignored — regenerate it)
   lectures/         the professor's module slides for this chapter (ignored — on disk only)
   notes/            chNN-notes.tex
   handwritten/      iPad exports — the work as originally written
@@ -75,24 +74,26 @@ argument into it. No assistant ever invents a solution you have not produced:
 
 ## Build
 
-Handled by the assistant. Entry points: `make split`, `make scaffold`, `make scaffold-hw HW=04`,
-`make notes CH=03`, `make homework HW=02`, `make all`, `make clean`, `make list`.
+Handled by the assistant. `board textbook ingest Probability` indexes the book;
+`board textbook split` cuts the readings; `board textbook scaffold` writes chapter notes, and
+`board textbook scaffold Probability --hw 04` a homework set; `board build <file>` compiles one
+.tex; `board writeup list` names every set.
 
 ## Chapters
 
 | # | Title | PDF pages |
 |---|---|---|
-| 1 | Introduction to Probability Theory | 19–38 |
-| 2 | Random Variables | 39–114 |
-| 3 | Conditional Probability and Conditional Expectation | 115–208 |
-| 4 | Markov Chains | 209–308 |
-| 5 | The Exponential Distribution and the Poisson Process | 309–388 |
-| 6 | Continuous-Time Markov Chains | 389–438 |
-| 7 | Renewal Theory and Its Applications | 439–514 |
-| 8 | Queueing Theory | 515–596 |
-| 9 | Reliability Theory | 597–648 |
-| 10 | Brownian Motion and Stationary Processes | 649–684 |
-| 11 | Simulation | 685–752 |
+| 1 | Introduction to Probability Theory | 9–27 |
+| 2 | Random Variables | 28–98 |
+| 3 | Conditional Probability and Conditional Expectation | 99–187 |
+| 4 | Markov Chains | 188–281 |
+| 5 | The Exponential Distribution and the Poisson Process | 282–361 |
+| 6 | Continuous-Time Markov Chains | 362–412 |
+| 7 | Renewal Theory and Its Applications | 413–483 |
+| 8 | Queueing Theory | 484–561 |
+| 9 | Reliability Theory | 562–609 |
+| 10 | Brownian Motion and Stationary Processes | 610–647 |
+| 11 | Simulation | 648–709 |
 
 On this machine the lecture modules cover chapters 1–4 and homework sets 1–3 sit in
 `homework/`. Both are on disk and out of git, so a clone arrives with the directories empty
@@ -137,5 +138,5 @@ repository, because somebody else wrote them: the textbook, its per-chapter exce
 professor's module slides under `chapters/*/lectures/`, and the assignment sheets under
 `homework/*/assignment/`. A fresh clone gets none of the four. It gets the directories, held
 open by a `.gitkeep`, and it gets everything written ABOUT them — the notes, the typeset
-solutions, `chapters.tsv`, the lesson transcripts. `board/test/tracked.py` refuses any of the
+solutions, `chapters.tsv`, `TUTOR.md`. `board/test/tracked.py` refuses any of the
 four that reaches the index, so the rule is a test rather than a sentence.
