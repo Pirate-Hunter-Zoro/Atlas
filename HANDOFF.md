@@ -277,54 +277,6 @@ Done when:
 - The README inventory and the RULES.md paragraph are committed.
 - `bash scripts/setup.sh` prints a `projects/Spirit-Forge` line reading `nothing to build`.
 
-## 10. The ink clipboard across pages, and typing on the iPad
-
-**Clipboard.** `board.html`, `library.html` (annotate) and `slate.html` are separate documents
-sharing `InkClip` (`web/ink-clip.js`) through localStorage `tutor-board.clip`.
-
-The bug: `put()` writes to disk only when the clip is at most 300000 bytes (about 16k points),
-and it swallows `setItem` errors. So after a big copy on one page, another page, or a
-bfcache-restored one, pastes the older clip still on disk. Ties also go to memory. The fix lives
-in `ink-clip.js`:
-- **Stamps:** stamp `seq = max(Date.now(), newest seen + 1)` and compare on `seq`, falling back to
-  `at` for old clips. Ties go to disk.
-- **Too big, or `setItem` throws:** remove the key, then write a stub
-  (`{v, seq, at, kind, src, big: true, n, strokes: []}`). A newer stub from another page pastes
-  nothing, and `InkClip.why()` says `big`.
-- **Compact v2 encoding:** flat integer deltas, which roughly triple capacity. Decode v1 and v2.
-- **Back from bfcache:** on `pageshow` with `persisted` set, call `fire()`.
-- **Copy and paste wording:** `annbar.js` and `slate-core.js` copy messages say "this page only
-  (too large to carry)" when `put()` held it in memory only. A paste blocked by a stub says
-  "copy it again here".
-- **Test:** add `board/test/clipshare.js`, with several JSDOMs sharing one Map-backed
-  localStorage. It covers newest-wins in both directions, a same-millisecond pair, an oversize
-  copy, a throwing `setItem`, and a v1 clip. Add one same-document case to `test/clip.js`.
-
-**Typing.** The small keyboard is iPadOS's floating keyboard, and no web page can resize it. The
-owner fixes it on the device (see *The owner's*). The board's job is to keep the answer box on
-the keys while the lesson scrolls behind it.
-- **Docking functions:** add `dockSay()` and `dockSaySoon()` in `board.js` beside `autosize()`.
-  Follow `library.js` `fitNote()` and `board.js` `placeMenu()`, coalesced to one
-  requestAnimationFrame. Trigger them on visualViewport resize and scroll, `#saybox` focus and
-  blur, and orientationchange.
-- **When to dock:** when `#saybox` is focused and `innerHeight - visualViewport.height > 120`.
-  Then `#typebox` gets `.say-docked` (position fixed at the top of the keys, z-index 45, the
-  `#writer` background). A placeholder holds its in-flow height, and body bottom padding lets
-  every card scroll above the dock. Undocking clears all of it.
-- **Never re-parent the textarea.** Moving a focused element closes the keyboard.
-- **Box size:** while docked, `autosize()` caps at about 40% of the visible height, not 144px,
-  and `#said` at 25%. A new `#say-grow` beside `#say-math` toggles `.say-tall` (about 60%).
-- **No focus zoom:** the `#typebox` textarea's font-size becomes at least 16px, so iOS stops
-  zooming on focus.
-- **No HTML keyboard:** it would lose dictation, Scribble and autocorrect.
-- **Test:** add `board/test/saydock.js` with a faked visualViewport, in the style of
-  `test/library.js`.
-
-Done when, on the iPad:
-- Copying on the board, then in annotate, then pasting on the board pastes the annotate ink, and
-  the reverse.
-- With the full keyboard up, the answer box sits on the keys, the lesson scrolls behind it, and
-  the box can be made tall.
 
 ## 11. The problem stays on screen, and its givens go anywhere in one tap
 
@@ -629,6 +581,10 @@ These are built but not yet used for real. Strike each one after an evening on t
   - Sending selected annotations.
   - A writeup appearing after handwritten answers in a project session.
   - A code excerpt with `path#L`, opening the read-only source viewer.
+  - The ink clipboard across pages: copy on the board, then in annotate, then paste on the
+    board, and the annotate ink pastes. Then the reverse.
+- **Typing:** with the full keyboard up, the answer box sits on the keys, the lesson scrolls
+  behind it, and the ⤢ key makes the box tall.
 - **Laptop coding:**
   - In an iPad session bound to a subject with code, run the header's command on the laptop and
     edit one file. A `[code] step` card shows within a minute.

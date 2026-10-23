@@ -203,6 +203,32 @@ function loop(slate, x0, y0, x1, y1, id) {
              + 'clipboard');
   }
 
+  // ---------------------------- too big for the disk, pasted in the same page
+  //
+  // The disk gets a stub, so another page pastes nothing rather than an older
+  // clip; this page still holds the whole of it, and the copy says so.
+  {
+    const zig = Array.from({ length: 40000 }, (_, i) =>
+      [130 + (i % 2) * 40 + (i % 7), 130 + (i % 3) * 20 + (i % 11), 0.5]);
+    A.load({ w: 900, h: 500, strokes: [{ c: '#eee', w: 3, pts: zig }] });
+    await sleep(10);
+    loop(A, 90, 90, 260, 200, 13);
+    button(A, 'copy').onclick();
+    const said = A.root.querySelector('.sl-toast').textContent;
+    let raw = null;
+    try { raw = JSON.parse(window.localStorage.getItem('tutor-board.clip')); } catch (e) {}
+    raw && raw.big && /this page only \(too large to carry\)/.test(said)
+      ? ok('a copy too big for the disk leaves a stub there and says "' + said + '"')
+      : fail('a big copy left ' + JSON.stringify(raw).slice(0, 80) + ' and said "' + said + '"');
+    B.load({ w: 900, h: 500, strokes: [] });
+    await sleep(5);
+    button(B, 'paste').onclick();
+    await sleep(5);
+    B.strokes() === 1
+      ? ok('and the other board in the same page still pastes it')
+      : fail('the other board has ' + B.strokes() + ' strokes after pasting a big clip');
+  }
+
   // --------------------------------------------------- a card, and its marks
   //
   // With a neighbour above it, because the layer reaches half way into the gap

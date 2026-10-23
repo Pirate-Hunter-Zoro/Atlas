@@ -156,6 +156,7 @@ var els = {
   saidText: document.getElementById("said-text"),
   saidHint: document.getElementById("said-hint"),
   sayMath: document.getElementById("say-math"),
+  sayGrow: document.getElementById("say-grow"),
   sendType: document.getElementById("send-type"),
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
@@ -6409,6 +6410,7 @@ function paintPanel() {
   syncSaid();
   if (typing) { paintSay(); autosize(); }
   else if (writer) requestAnimationFrame(writer.relayout);
+  dockSaySoon();
 }
 
 /* Which typed answer the box is correcting, as opposed to answering afresh,
@@ -6537,8 +6539,113 @@ function wrapMath() {
 }
 
 function autosize() {
+  var vv = window.visualViewport;
+  var cap = 9 * 16;
+  var tall = false;
+  if (sayDocked && vv) {
+    tall = els.typebox.classList.contains("say-tall");
+    cap = Math.round(vv.height * (tall ? 0.6 : 0.4));
+  }
   els.saybox.style.height = "auto";
-  els.saybox.style.height = Math.min(els.saybox.scrollHeight, 9 * 16) + "px";
+  els.saybox.style.height = (tall ? cap : Math.min(els.saybox.scrollHeight, cap)) + "px";
+  padDock();
+}
+
+/* THE ANSWER BOX SITS ON THE KEYS. With the full iPad keyboard up, the box in
+   the lesson is somewhere under it or scrolled away, so while `#saybox` has the
+   focus and the keys take more than 120px of the window, `#typebox` is fixed to
+   the top of the keys (`.say-docked`) and the lesson scrolls behind it. A
+   placeholder keeps its height in the lesson, so nothing jumps, and the body's
+   bottom padding lets the last card scroll clear of the dock.
+
+   Measured against `visualViewport`, as `placeMenu` and library.js `fitNote`
+   are: `position: fixed` is fixed to the layout viewport, which the keyboard
+   does not shrink. The floating keyboard takes less than 120px of the window's
+   height, so it leaves the box where it is.
+
+   The textarea is never moved to another parent: moving a focused element
+   closes the keyboard. Only its box changes how it is positioned. */
+var sayDocked = false;
+var sayHold = null;
+
+function dockSay() {
+  var vv = window.visualViewport;
+  var box = els.typebox;
+  var want = !!vv && !box.hidden && !els.writer.hidden
+    && document.activeElement === els.saybox
+    && window.innerHeight - vv.height > 120;
+  if (!want) { undockSay(); return; }
+  if (!sayDocked) {
+    sayHold = document.createElement("div");
+    sayHold.id = "say-hold";
+    sayHold.style.height = box.offsetHeight + "px";
+    box.parentNode.insertBefore(sayHold, box);
+    box.classList.add("say-docked");
+    sayDocked = true;
+  }
+  /* The top of the keys, in the layout viewport's terms; the dock hangs above
+     it by its own height (a translate of -100% in board.css), so it grows
+     upward as the box does. */
+  box.style.left = vv.offsetLeft + "px";
+  box.style.width = vv.width + "px";
+  box.style.top = (vv.offsetTop + vv.height) + "px";
+  els.said.style.maxHeight = Math.round(vv.height * 0.25) + "px";
+  autosize();
+}
+
+function undockSay() {
+  if (!sayDocked) return;
+  sayDocked = false;
+  var box = els.typebox;
+  box.classList.remove("say-docked");
+  box.style.left = box.style.width = box.style.top = "";
+  els.said.style.maxHeight = "";
+  if (sayHold && sayHold.parentNode) sayHold.parentNode.removeChild(sayHold);
+  sayHold = null;
+  document.body.style.paddingBottom = "";
+  autosize();
+}
+
+/* Room under the lesson for the dock and the keys, so every card can be
+   scrolled above them. */
+function padDock() {
+  if (!sayDocked) return;
+  var vv = window.visualViewport;
+  var keys = vv ? Math.max(0, window.innerHeight - vv.height) : 0;
+  document.body.style.paddingBottom = (els.typebox.offsetHeight + keys) + "px";
+}
+
+/* Coalesced to one placement a frame, as `placeMenuSoon` is: the visual
+   viewport reports a scroll on every frame of one. */
+var dockFrame = 0;
+function dockSaySoon() {
+  if (dockFrame) return;
+  dockFrame = window.requestAnimationFrame(function () {
+    dockFrame = 0;
+    dockSay();
+  });
+}
+
+if (window.visualViewport) {
+  ["resize", "scroll"].forEach(function (ev) {
+    window.visualViewport.addEventListener(ev, dockSaySoon);
+  });
+}
+window.addEventListener("orientationchange", dockSaySoon);
+els.saybox.addEventListener("focus", dockSaySoon);
+els.saybox.addEventListener("blur", dockSaySoon);
+
+/* A taller box while docked, for an answer longer than a line or two. The
+   press must not take the focus, which would put the keyboard away. */
+if (els.sayGrow) {
+  els.sayGrow.addEventListener("mousedown", function (e) { e.preventDefault(); });
+  els.sayGrow.onclick = function () {
+    var tall = els.typebox.classList.toggle("say-tall");
+    els.sayGrow.classList.toggle("on", tall);
+    els.sayGrow.title = tall ? "shorter box" : "taller box";
+    els.saybox.focus();
+    autosize();
+  };
 }
 
 function say(signal) {

@@ -1557,6 +1557,14 @@ function create(opts) {
     return clip;
   }
 
+  /* A clip too large for the disk is held in this document only: it pastes
+     here, and another page will not see it. Said at the copy, not discovered at
+     the paste. */
+  function heldHere() {
+    return window.InkClip && window.InkClip.local && window.InkClip.local()
+      ? " — this page only (too large to carry)" : "";
+  }
+
   /* Where a pasted clip's top-left corner goes.
 
      Two cases, and telling them apart is the whole of it. A DUPLICATE -- copy
@@ -1604,7 +1612,7 @@ function create(opts) {
   var ACTIONS = {
     copy: function () {
       var clip = clipOut();
-      if (clip) toast(clip.strokes.length + " copied");
+      if (clip) toast(clip.strokes.length + " copied" + heldHere());
     },
     cut: function () {
       var clip = clipOut();
@@ -1613,11 +1621,16 @@ function create(opts) {
       var drop = {}; sel.idx.forEach(function (i) { drop[i] = true; });
       page().strokes = page().strokes.filter(function (_, i) { return !drop[i]; });
       clearSelection(); invalidateInk(); markDirty();
-      toast(clip.strokes.length + " cut");
+      toast(clip.strokes.length + " cut" + heldHere());
     },
     paste: function () {
       var clip = window.InkClip && window.InkClip.get();
-      if (!clip) { toast("nothing copied yet"); return; }
+      if (!clip) {
+        toast(window.InkClip && window.InkClip.why && window.InkClip.why() === "big"
+              ? "that copy was too large to carry from the other page — copy it again here"
+              : "nothing copied yet");
+        return;
+      }
       snapshot();
       var at = placeClip(clip);
       var p = page(), start = p.strokes.length;

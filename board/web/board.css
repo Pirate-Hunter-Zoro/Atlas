@@ -1184,9 +1184,31 @@ body.tools-out { padding-bottom: 5.5rem; }
   font-weight: 400; padding: .55rem .6rem;
 }
 #typebox #say-math:hover { background: #2c2f37; color: #e9e7e2; }
+/* The tall-box key exists only while the box is docked on the keys. */
+#typebox #say-grow {
+  display: none;
+  border-color: #3a3e47; background: transparent; color: #b9bcc4;
+  font-weight: 400; padding: .55rem .6rem;
+}
+#typebox.say-docked #say-grow { display: inline-block; }
+#typebox #say-grow.on, #typebox #say-grow:hover { background: #2c2f37; color: #e9e7e2; }
+
+/* DOCKED ON THE KEYS (board.js `dockSay`). Fixed at the top of the iPad
+   keyboard, which `top` names; the translate hangs it above that line by its
+   own height. The writer's own paper, so it reads as the same panel. */
+#typebox.say-docked {
+  position: fixed; z-index: 45; right: auto; bottom: auto;
+  box-sizing: border-box;
+  transform: translateY(-100%);
+  background: #15161a;
+  border-top: 1px solid #2c2f37;
+  box-shadow: 0 -4px 14px rgba(0,0,0,.28);
+}
+#typebox.say-docked #said { overflow-y: auto; }
+/* At least 16px: below that, iOS zooms the page on focus. */
 #typebox textarea {
   flex: 1 1 auto; min-width: 0;
-  font: inherit; font-family: var(--ui); font-size: .92rem; line-height: 1.4;
+  font: inherit; font-family: var(--ui); font-size: max(16px, .92rem); line-height: 1.4;
   padding: .55rem .7rem;
   border: 1px solid #3a3e47; border-radius: .45rem;
   background: #101114; color: #e9e7e2;

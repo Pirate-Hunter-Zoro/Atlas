@@ -163,15 +163,28 @@ function mount(opts) {
      it, not only an invitation to change it. */
   well.addEventListener("click", function () { ink(picker.value); });
 
+  /* A clip too large for the disk pastes on this page and nowhere else, and
+     the person carrying it to another page has to be told before they go. */
+  function heldHere() { return !!(window.InkClip && window.InkClip.local && window.InkClip.local()); }
   bCopy.onclick = function () {
     var n = A.copy();
-    say(n ? n + " copied — paste it on a " + where + " or on your own board" : whyNot());
+    say(!n ? whyNot()
+        : heldHere() ? n + " copied — this page only (too large to carry)"
+        : n + " copied — paste it on a " + where + " or on your own board");
     paint();
   };
-  bCut.onclick = function () { var n = A.cut(); say(n ? n + " cut" : whyNot()); paint(); };
+  bCut.onclick = function () {
+    var n = A.cut();
+    say(!n ? whyNot()
+        : n + " cut" + (heldHere() ? " — this page only (too large to carry)" : ""));
+    paint();
+  };
   bPaste.onclick = function () {
     var n = A.paste();
-    say(n ? n + " pasted — drag it where you want it" : "nothing copied yet");
+    var big = !n && window.InkClip && window.InkClip.why && window.InkClip.why() === "big";
+    say(n ? n + " pasted — drag it where you want it"
+        : big ? "that copy was too large to carry from the other page — copy it again here"
+        : "nothing copied yet");
     paint();
   };
   bDel.onclick = function () { A.erase(); paint(); };
