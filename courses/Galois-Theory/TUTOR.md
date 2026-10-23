@@ -8,18 +8,23 @@
 
 ## Now
 
-Chapter 7 worksheet, problems 13-19, in session 20261009-193922. chapters/ch07-splitting-fields/homework/ch07-homework.tex holds 13(a) and 13(b). The agreed 13(d) steps and 14(a)-(c) are only in projects/libr-local-llm/docs/galois-theory-ch07/writeup.tex: transcribe each into ch07-homework.tex from the owner's own pages (not from that file's 14(c) paragraph, which is the tutor's).
+Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-splitting-fields/homework/ch07-homework.tex` now holds 13(a), 13(b), 13(d), 14(a)-(c), 15(b)-(d) and 16(a)-(c). The board counts 4 of 7 written up and the PDF builds (`board writeup status`). Pages for 14, 15 and 16 are filed in `homework/handwritten/`.
 
-- 13(c): the owner chose to answer it with the p=7 case already worked (their pages for cards 0011-0026); write that up as 13(c) from those pages, and never re-pose p=13.
-- 13(d): their route (t0137) is $\eta_H\in K_d$, then a degree bound. In libr's writeup.tex: the periods are pairwise distinct, and a factor of $m$ over $\QQ$ has every period as a root. At t0194 they asked to prove, in general, that $m(x)\in\QQ[x]$ and that $m$ is irreducible over $\QQ$. Card 0095 answered with a $p=13$ step instead; unanswered. Work their general proof.
-- 14(a), 14(b): agreed; not yet in ch07-homework.tex. 14(c): the cubic is agreed; the uniqueness argument on t0193 is theirs, but the paragraph in libr's writeup.tex is the tutor's (card 0092), and theirs replaces it. 14(d), the lattice: never posed.
-- 15(a): posed at card 0076, set aside for 14 (t0176), unanswered. 15(b): posed at 0094, unanswered. 16-19: not started.
+The solutions had been written into `projects/libr-local-llm/docs/galois-theory-ch07/writeup.tex`; they are now in the course set, and that file is stale -- do not transcribe from it again. Its 13(d) ended with a stale "still owed" note; the version in the homework is closed by the owner's $K^G=\QQ$ step (t0200).
 
-Their standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192).
+Still open:
+
+- 13(c): the $p=13$ subgroup list. The owner chose to answer it with the $p=7$ case on their early pages (cards 0011-0026); write it up as 13(c) from those pages, never re-pose $p=13$.
+- 15(a): complex conjugation restricted to $K$. Set aside for 14, never answered; 15(b)-(d) are written up without it.
+- 14(d): posed at card 0120, unanswered. The lattice, four nodes each, edges labelled.
+- 17, 18, 19: not started.
+
+Standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192). A request to read files, transcribe or compile is done, not taught (t0219).
 
 ## Open decisions
 
 ## Done recently
 
 - The automorphisms and splitting-fields worksheet, problems 7-12: Aut(ℚ(ζₙ)/ℚ) inside (ℤ/nℤ)ˣ, Φₚ irreducible, the whole machine on x⁴+1, the splitting field of x³−2, and the finite-field pair.
-- Problem 13(a) and 13(b) transcribed into ch07-homework.tex (SOLUTION 13 region); pages ch07-13a.png, ch07-13b.png.
+- The solutions stranded in libr's `writeup.tex` were moved into `ch07-homework.tex`: 13(d), 14(a)-(c), 15(b)-(d), 16(a)-(c). The PDF rebuilds clean and the board reads 4 of 7.
+- The $p=13$, $d=2$ worked case of 13(d), the 14(c) order-two note and two 14 clauses carried from libr's writeup.tex into ch07-homework.tex, with the nine 13(d) pages as `handwritten/ch07-13d*.png`. libr's copy is deleted.
