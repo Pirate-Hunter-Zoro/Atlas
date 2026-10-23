@@ -108,6 +108,10 @@ It zips TRD-EHR, PSYCH-ASR, libr-local-llm and Paper-Writer with their write-ups
 sessions to `~/LIBR-handoff-<date>/`. It records Colibri's upstream instead of zipping it. It
 removes the cluster, every PHI guard, Meetings, Paper-Writer and the vendored Colibri.
 
+Sections 1 and 2 are done: every zip and bundle in `~/LIBR-handoff-2026-10-23/` verifies. Section 3
+waits for the owner's section 5b.
+
+
 ## 6. What git tracks
 
 Git tracks durable work: code, tests, `tutorboard.json`, RULES.md, TUTOR.md, `doc.json`, artifact
@@ -646,6 +650,7 @@ existing vision route on the slate PNG.
 
 ## The owner's
 
+- **LIBR-EXIT section 5b**, on the cluster. Then copy `~/LIBR-handoff-2026-10-23/` to a second disk.
 - **Time Machine has no destination** (`tmutil destinationinfo`). Set one now. Materials,
   sessions, `.ink/`, the Colibri course's sources and the LIBR zips live only on the Mac disk.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
