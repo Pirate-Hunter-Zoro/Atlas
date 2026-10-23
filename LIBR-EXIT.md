@@ -173,8 +173,8 @@ Guards fail closed, so callers and registrations go before the files they name.
    - In the code, delete `gitops._vendor_moved` and the submodule block in `gitops.pull`, and
      `bootstrap.sh`'s submodule fill.
    - In the docs and tests, delete `--recurse-submodules` from README's clone lines and the vendor
-     fixtures in `test/gitremote.py` and `test/commands.py`. Retire `test/truthful.py`'s
-     `~/colibri*` targets.
+     fixtures in `test/gitremote.py` and `test/commands.py`. `test/truthful.py`'s retired
+     `~/colibri*` targets go.
    - In the main checkout, run `git submodule deinit -f --all` before the merge. Without it the
      merge leaves `?? vendor/`. *After the merge* removes the rest.
    - `setup-mac.sh` does the same once on any clone where `.gitmodules` is gone and
@@ -229,7 +229,7 @@ Guards fail closed, so callers and registrations go before the files they name.
      - `agents/oneshot.py` and `board/README.md` stop naming Paper-Writer's daemon and
        unittests.
      - Synthetic test subjects named Paper-Writer (`test/briefs.py`, `test/mode.py`,
-       `test/subjects.py`) take a neutral name, and `test/truthful.py` drops `~/Paper-Writer`.
+       `test/subjects.py`) take a neutral name, and `test/truthful.py` drops its retired `~/Paper-Writer`.
      - The Brewfile keeps `font-dejavu`, commented as `board build`'s PDF face.
 8. **LIBR text in staying subjects.**
    - `courses/Colibri` may name LIBR's cluster (partitions, node names, the A40s) as its example.
