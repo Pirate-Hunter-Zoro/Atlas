@@ -277,28 +277,6 @@ Done when:
 - The README inventory and the RULES.md paragraph are committed.
 - `bash scripts/setup.sh` prints a `projects/Spirit-Forge` line reading `nothing to build`.
 
-## 9. Coach-coded from a laptop
-
-Item 4 makes the hearing cluster-free. This item makes the rest of the laptop path work. The
-owner codes on a laptop clone, the tutor on the Mac answers, and the owner reads it on the iPad.
-
-- **`board code <sid> <paths>` on a non-local checkout runs `gitops.pull` first**, so steps start
-  from current main. A refused pull warns and goes on.
-- **Add `board pull --materials [<subject>...]`.**
-  - It rsyncs over SSH on the tailnet, from a new `host` key in the laptop's
-    `~/.config/tutor-board/config.json` (the Mac mini's tailnet name). `setup-mac.sh --coding`
-    asks for it and writes it, and the command refuses plainly when it is unset.
-  - It copies only the ignored inputs: `materials/`, `courses/*/textbook/`,
-    `courses/*/chapters/*/{reading,lectures}/` and `assignment*`.
-  - It never copies `.ink/`, `sessions/` or `.env`.
-  - README's "Setting up a laptop" names the owner's one step: Remote Login on the Mac mini, plus
-    the laptop's key.
-- **Rename `clusterCommand`/`paintClusterCode` in `board.js`** to code-neutral names. The header
-  command reads "on your laptop".
-
-Done when `test/laptop.py` proves the rsync include and exclude lists with a shim, and the
-on-the-glass trial below passes.
-
 ## 10. The ink clipboard across pages, and typing on the iPad
 
 **Clipboard.** `board.html`, `library.html` (annotate) and `slate.html` are separate documents

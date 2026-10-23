@@ -9,6 +9,8 @@
 # no board: it writes `coding` to ~/.config/tutor-board/role, so every rerun
 # stays one, and then step 2 installs no board LaunchAgent and boots out a stray one,
 # and steps 5 and 6 skip tailscale serve, the provider config and port 8778.
+# Step 6 asks instead for the Mac mini's tailnet name, once, and writes it as
+# `host` in ~/.config/tutor-board/config.json for `board pull --materials`.
 # Deleting the role file makes the next run a host again.
 #
 # A fresh clone or an old checkout, it does the same thing, and a second run
@@ -112,6 +114,50 @@ fi
 echo "== 6. checks"
 if [ "$CODING" = 1 ]; then
   good "skipped the provider config and port 8778: the board runs on the Mac mini"
+  # `host` in config.json: read it, else ask once and merge it in. The other
+  # keys are kept; a config.json that is not JSON is left alone.
+  CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/config.json"
+  HOST_PY='
+import json, os, re, sys
+path = sys.argv[1]
+try:
+    with open(path) as fh:
+        cfg = json.load(fh)
+except OSError:
+    cfg = {}
+except ValueError:
+    sys.exit("%s is not JSON, so host was not written" % path)
+if not isinstance(cfg, dict):
+    sys.exit("%s is not a JSON object, so host was not written" % path)
+if len(sys.argv) < 3:
+    print(str(cfg.get("host") or "").strip())
+    sys.exit(0)
+host = sys.argv[2].strip()
+if not re.match(r"^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9.-]*$", host):
+    sys.exit("%r is not a host name, so host was not written" % host)
+cfg["host"] = host
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path + ".tmp", "w") as fh:
+    json.dump(cfg, fh, indent=2)
+    fh.write("\n")
+os.replace(path + ".tmp", path)
+'
+  host="$(python3 -c "$HOST_PY" "$CONFIG" 2>/dev/null || true)"
+  if [ -z "$host" ]; then
+    answer=""
+    read -r -p "  the Mac mini's tailnet name, for board pull --materials (blank: later): " answer || true
+    if [ -n "$answer" ] && said="$(python3 -c "$HOST_PY" "$CONFIG" "$answer" 2>&1)"; then
+      host="$answer"
+    elif [ -n "$answer" ]; then
+      warn "$said"
+    fi
+  fi
+  answer="${answer:-}"
+  if [ -n "$host" ]; then
+    good "board pull --materials copies from $host (config.json host)"
+  elif [ -z "$answer" ]; then
+    warn "no host in $CONFIG: board pull --materials refuses until a rerun is given the Mac mini's tailnet name"
+  fi
 else
   if [ -f "$HOME/.config/tutor-board/config.json" ]; then
     good "~/.config/tutor-board/config.json is there"

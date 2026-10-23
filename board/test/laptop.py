@@ -23,8 +23,17 @@ anything but the shim.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
     whose lockfiles moved, with --quiet too; ai-config that will not
     fast-forward is exit 1.
+  - --CODING ASKS FOR THE MAC MINI'S TAILNET NAME and writes it as config.json
+    `host`, keeping the other keys; a rerun does not ask again.
+  - `board pull --materials` RSYNCS THE IGNORED INPUTS ONLY. An rsync shim
+    logs the command, maps `host:<path>` to a fixture Mac and runs the real
+    rsync there, so the include and exclude lists are proved by rsync itself:
+    materials, textbooks, readings, lectures and assignments arrive; `.ink/`,
+    `sessions/`, any `.env*`, phi/ and anything else never do; nothing here is
+    deleted; named subjects limit it; no `host` is a plain refusal.
 """
 
+import json
 import os
 import shutil
 import stat
@@ -87,8 +96,9 @@ def read(path):
         return ""
 
 
-def run(argv, cwd=None):
-    p = subprocess.run(argv, cwd=cwd or work, env=ENV, stdout=subprocess.PIPE,
+def run(argv, cwd=None, stdin=""):
+    p = subprocess.run(argv, cwd=cwd or work, env=ENV, input=stdin,
+                       stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT, universal_newlines=True,
                        timeout=300)
     return p.returncode, p.stdout
@@ -127,9 +137,39 @@ write(os.path.join(shims, "curl"), "#!/bin/bash\n" + LOG + "printf 200\n", EXE)
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
 # setup-mac.sh refuses anything but a Mac; the suite runs on the cluster too.
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
+# rsync: logs its argv (one JSON list a line), maps `host:<path>` to
+# <MACHOME>/<path>, drops `-e <ssh>`, and runs the real rsync, so the filter
+# lists are rsync's to judge. No host is ever contacted. openrsync spawns its
+# receiving half as `rsync --server`, which passes straight through.
+MACHOME = os.path.join(work, "machome")
+REAL_RSYNC = shutil.which("rsync", path=os.pathsep.join(
+    PATH.split(os.pathsep)[1:])) or ""
+RSYNC_LOG = os.path.join(work, "rsync.log")
+ENV.update(LAPTOP_MACHOME=MACHOME, LAPTOP_REAL_RSYNC=REAL_RSYNC,
+           LAPTOP_RSYNC_LOG=RSYNC_LOG)
+write(os.path.join(shims, "rsync"), "#!%s\n" % sys.executable + """\
+import json, os, re, subprocess, sys
+args = sys.argv[1:]
+real = os.environ.get("LAPTOP_REAL_RSYNC")
+if "--server" in args:  # a local rsync's other half, spawned by name
+    os.execv(real, [real] + args)
+with open(os.environ["LAPTOP_RSYNC_LOG"], "a") as fh:
+    fh.write(json.dumps(args) + "\\n")
+out, skip = [], False
+for a in args:
+    if skip:
+        skip = False
+    elif a == "-e":
+        skip = True
+    elif re.match(r"^[^/:]+:", a):
+        out.append(os.path.join(os.environ["LAPTOP_MACHOME"], a.split(":", 1)[1]))
+    else:
+        out.append(a)
+sys.exit(subprocess.call([real] + out) if real else 0)
+""", EXE)
 
 try:
-    for tool in ("launchctl", "tailscale", "curl", "brew", "uname"):
+    for tool in ("launchctl", "tailscale", "curl", "brew", "uname", "rsync"):
         where = shutil.which(tool, path=PATH)
         if where != os.path.join(shims, tool):
             print("REFUSED: %s resolves to %s, not the shim; nothing was run"
@@ -179,7 +219,13 @@ try:
     # =======================================================================
     # setup-mac.sh --coding
     # =======================================================================
-    code, out = run(["bash", setup, "--coding"])
+    CONFIG = os.path.join(home, ".config", "tutor-board", "config.json")
+    write(CONFIG, '{"provider": "kept"}\n')
+    code, out = run(["bash", setup, "--coding"], stdin="mac-mini\n")
+    cfg = json.loads(read(CONFIG) or "{}")
+    check("--coding asks for the Mac mini's tailnet name and writes it as host",
+          cfg.get("host") == "mac-mini" and cfg.get("provider") == "kept"
+          and "board pull --materials copies from mac-mini" in out, out)
     check("--coding ends clean, as a coding checkout",
           code == 0 and "THIS CODING CHECKOUT IS UP TO DATE" in out, out)
     check("and writes the role file", read(ROLE).strip() == "coding", read(ROLE))
@@ -208,10 +254,13 @@ try:
     # A rerun with no flag, after ai-config moved on.
     open(CALLS, "w").close()
     commit(aseed, {"rules.md": "new\n"}, "a2")
-    code, out = run(["bash", setup])
+    code, out = run(["bash", setup], stdin="elsewhere\n")
     check("a rerun without --coding stays a coding checkout",
           code == 0 and read(ROLE).strip() == "coding"
           and "THIS CODING CHECKOUT IS UP TO DATE" in out, out)
+    check("and does not ask for the host again",
+          json.loads(read(CONFIG)).get("host") == "mac-mini"
+          and "copies from mac-mini" in out, out)
     check("and still loads nothing and asks neither tailscale nor 8778",
           not any(l.startswith("launchctl bootstrap") for l in calls("launchctl"))
           and not calls("tailscale") and not calls("curl"), read(CALLS))
@@ -277,6 +326,98 @@ try:
     code, out = run([sys.executable, BOARD, "pull", "--atlas", laptop])
     check("an ai-config that will not fast-forward is exit 1, said",
           code == 1 and "ai-config: not moved forward" in out, out)
+
+    # =======================================================================
+    # board pull --materials
+    # =======================================================================
+    mac = os.path.join(MACHOME, "Developer", "Atlas")
+    SENT = {  # what crosses
+        "materials/shared/m.pdf", "courses/C/materials/c.pdf",
+        "courses/C/textbook/book.pdf", "courses/C/textbook/ch/1.pdf",
+        "courses/C/chapters/ch1/reading/r.pdf",
+        "courses/C/chapters/ch1/lectures/l.pdf",
+        "courses/C/chapters/ch1/assignment-sheet.pdf",
+        "courses/C/homework/hw1/assignment/a.pdf",
+        "courses/C/homework/hw1/assignment/deep/b.pdf",
+        "courses/C/assignment1.pdf", "courses/C/assignment/a.pdf",
+        "courses/D/textbook/d.pdf", "projects/A/materials/q.txt"}
+    KEPT = {  # what never does
+        "courses/C/.ink/i.json", "courses/C/materials/.ink/k.json",
+        "courses/C/textbook/.ink/t.json", "sessions/s1/session.json",
+        "courses/C/materials/sessions/x.json", ".env",
+        "courses/C/materials/.env", "courses/C/textbook/.env",
+        "courses/C/materials/.envrc",
+        "courses/C/chapters/ch1/lectures/.env.local",
+        "projects/A/phi/materials/p.csv", "projects/A/results/materials/r.csv",
+        "courses/C/chapters/ch1/notes.md", "courses/C/notes.md",
+        "courses/C/chapters/ch1/reading.md", "projects/A/notes.md",
+        "README.md", "vendor/v/materials/v.pdf",
+        "projects/A/node_modules/materials/n.js"}
+    for rel in SENT | KEPT:
+        write(os.path.join(mac, rel), "mac\n")
+    os.makedirs(os.path.join(laptop, "courses", "D"), exist_ok=True)
+    write(os.path.join(laptop, "materials", "mine.pdf"), "laptop\n")
+    write(os.path.join(laptop, "courses", "C", "notes.md"), "laptop's own\n")
+
+    def landed():
+        got = set()
+        for top, dirs, files in os.walk(laptop):
+            dirs[:] = [d for d in dirs if d not in (".git", "ai-config")]
+            for f in files:
+                rel = os.path.relpath(os.path.join(top, f), laptop)
+                if read(os.path.join(laptop, rel)) == "mac\n":
+                    got.add(rel)
+        return got
+
+    def rsyncs():
+        return [json.loads(l) for l in read(RSYNC_LOG).splitlines()]
+
+    saved_cfg = read(CONFIG)
+    write(CONFIG, '{"provider": "kept"}\n')
+    code, out = run([sys.executable, BOARD, "pull", "--materials", "--atlas", laptop])
+    check("--materials without host refuses plainly, and runs no rsync",
+          code == 1 and "no `host`" in out and "setup-mac.sh --coding" in out
+          and not rsyncs(), out)
+    write(CONFIG, saved_cfg)
+
+    code, out = run([sys.executable, BOARD, "pull", "--materials", "--atlas", laptop])
+    sent = rsyncs()[-1] if rsyncs() else []
+    check("--materials runs one rsync from host:Developer/Atlas/ over batch ssh",
+          len(rsyncs()) == 1 and "mac-mini:Developer/Atlas/" in sent
+          and sent[-1] == os.path.join(laptop, "")
+          and "-e" in sent and "BatchMode=yes" in sent[sent.index("-e") + 1]
+          and not any(a.startswith("--delete") for a in sent), sent)
+    excl = [a for a in sent if a.startswith("--exclude=")]
+    incl = [a for a in sent if a.startswith("--include=")]
+    check("every never-copy is excluded before any include",
+          all(("--exclude=" + p) in excl for p in (".ink/", "sessions/", ".env*"))
+          and incl and max(sent.index(a) for a in excl[:-1])
+          < min(sent.index(a) for a in incl) and sent.index("--exclude=*")
+          > max(sent.index(a) for a in incl), sent)
+    if REAL_RSYNC:
+        got = landed()
+        check("rsync itself copies exactly the ignored inputs",
+              code == 0 and got == SENT,
+              "%s\nmissing %s\nextra %s" % (out, sorted(SENT - got),
+                                              sorted(got - SENT)))
+        check("and deletes nothing here, overwriting no tracked file",
+              read(os.path.join(laptop, "materials", "mine.pdf")) == "laptop\n"
+              and read(os.path.join(laptop, "courses", "C", "notes.md"))
+              == "laptop's own\n", out)
+        for rel in SENT:
+            os.remove(os.path.join(laptop, rel))
+        code, out = run([sys.executable, BOARD, "pull", "--materials", "D",
+                         "--atlas", laptop])
+        check("named subjects limit it: `D` brings courses/D's inputs only",
+              code == 0 and landed() == {"courses/D/textbook/d.pdf"}
+              and "--include=/courses/D/" in rsyncs()[-1], out)
+    else:
+        print("skip the real-rsync checks: no rsync here")
+    code, out = run([sys.executable, BOARD, "pull", "--materials", "Nowhere",
+                     "--atlas", laptop])
+    check("an unknown subject is refused before rsync runs",
+          code == 1 and "no subject 'Nowhere'" in out
+          and len(rsyncs()) == (2 if REAL_RSYNC else 1), out)
 finally:
     shutil.rmtree(work, ignore_errors=True)
 
@@ -284,4 +425,5 @@ print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a coding laptop loads no board, asks no tailnet, and its pull names what to rebuild")
+print("a coding laptop loads no board, asks no tailnet, its pull names what to rebuild, "
+      "and --materials copies the ignored inputs only")

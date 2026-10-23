@@ -273,7 +273,8 @@ is `~/.config/libr-ai/key` on the cluster.
 One git ref per coding session, `code/<session-id>` (`code.py`).
 
 - `board code <session> <path>...`, run by the owner in a terminal on the cluster or a laptop,
-  holds those paths. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
+  holds those paths. A new hold there fast-forwards main first; a refused pull is said and the
+  hold goes on. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
   the index and main never move. The commit-time gate and the subject's check run over the
   snapshot, and it is pushed fast-forward to `code/<session>` with `Step N` in the message.
 - The Mac's sync thread hears the ref, records it in `session.json` `code`, brings the held

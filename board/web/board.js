@@ -3848,7 +3848,7 @@ function paintHeader(state) {
       ? "This session ended bound to nothing. Its chip still sends it to a course or project."
       : "This session has ended. It is read-only.";
   }
-  paintClusterCode(st);
+  paintCodeBar(st);
   /* Ended unbound, the chip is still the way to send it somewhere. */
   els.subjectBtn.disabled = ended && bound;
   els.modeBtn.disabled = ended;
@@ -3871,23 +3871,23 @@ function paintHeader(state) {
    command, `board code <id> <paths>`, and the last step. Before it starts the
    overflow menu's entry opens the strip with `board code <id> ` to copy and
    the paths left to type. */
-var clusterCodeAsked = false;
+var codeBarAsked = false;
 
-function clusterCommand(st) {
+function codeCommand(st) {
   var code = st.code || null;
   var paths = (code && code.paths) || [];
   return "board code " + (st.id || "") + (paths.length ? " " + paths.join(" ") : " ");
 }
 
-function paintClusterCode(st) {
+function paintCodeBar(st) {
   if (!els.codebar) return;
   var stored = isStoredState(st) && !!st.id;
   var code = st.code && st.code.ref ? st.code : null;
   if (els.codeBtn) els.codeBtn.hidden = !stored || !!code;
-  var show = stored && (!!code || clusterCodeAsked);
+  var show = stored && (!!code || codeBarAsked);
   els.codebar.hidden = !show;
   if (!show) return;
-  var cmd = clusterCommand(st);
+  var cmd = codeCommand(st);
   if (els.codeCmd.value !== cmd) els.codeCmd.value = cmd;
   els.codeClose.hidden = !!code;
   if (code) {
@@ -3915,12 +3915,12 @@ if (els.codeCopy) els.codeCopy.onclick = function () {
 };
 if (els.codeBtn) els.codeBtn.onclick = function () {
   els.barmenu.hidden = true;
-  clusterCodeAsked = true;
-  paintClusterCode(headerState);
+  codeBarAsked = true;
+  paintCodeBar(headerState);
 };
 if (els.codeClose) els.codeClose.onclick = function () {
-  clusterCodeAsked = false;
-  paintClusterCode(headerState);
+  codeBarAsked = false;
+  paintCodeBar(headerState);
 };
 
 function paintMode(mode) {

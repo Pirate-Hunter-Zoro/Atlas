@@ -8,6 +8,9 @@ The assistant runs these. The student never does.
                                        session's subject, mode and cards
     board pull [--quiet]               fast-forward Atlas, vendor checkouts along,
                                        and ai-config; name stale lockfiles
+    board pull --materials [<subject>...]
+                                       a laptop copies the Mac mini's ignored
+                                       inputs over SSH (config.json `host`)
     board cost [<session|subject>] [--turns]
                                        what the turns cost, from every session's
                                        cost.jsonl
@@ -2434,6 +2437,7 @@ def tutor_health():
 
 def cmd_pull(live, args):
     """board pull [--quiet] [--atlas <dir>]
+    board pull --materials [<subject>...] [--atlas <dir>]
 
     Fast-forward Atlas (`gitops.pull`), and the vendor checkouts with it when
     the pull moved a vendor pointer, then name every subject whose lockfile it
@@ -2444,8 +2448,24 @@ def cmd_pull(live, args):
     either pull was refused or failed; 0 when they ran or there is no origin
     to pull from. The board server's cluster thread pulls on its own; this is
     the by-hand one, and a coding laptop's only one.
+
+    --materials pulls no git. It copies the Mac mini's ignored inputs
+    (`materials/`, textbooks, readings, lectures, assignments) over SSH from
+    config.json `host`, for every subject or the ones named
+    (`tutorboard.materials`), and refuses plainly when `host` is unset.
     """
     base = _flag_value(args, "--atlas") or subjects.root()
+    if "--materials" in args:
+        from tutorboard import materials
+        rest, skip = [], False
+        for a in args:
+            if skip:
+                skip = False
+            elif a == "--atlas":
+                skip = True
+            elif not a.startswith("-"):
+                rest.append(a)
+        return materials.pull(base, rest)
     _, before = gitops._git(base, "rev-parse", "HEAD")
     got = gitops.pull(base, quiet="--quiet" in args)
     if got is None and "--quiet" not in args:

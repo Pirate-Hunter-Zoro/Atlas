@@ -113,13 +113,13 @@
 </div>
 
 <!-- A CODING SESSION. The exact command that starts or resumes this
-     session's coding session, to copy into a terminal on the cluster, a
-     laptop or this Mac: shown while it is coding (with its held paths and
-     last step), and from the overflow menu before it starts. -->
+     session's coding session, to copy into a terminal on the owner's laptop
+     (the cluster runs the same one): shown while it is coding (with its held
+     paths and last step), and from the overflow menu before it starts. -->
 <div id="codebar" class="codebar" hidden>
-  <span class="codebar-lead">in a terminal</span>
+  <span class="codebar-lead">on your laptop</span>
   <input id="code-cmd" class="code-cmd" type="text" readonly spellcheck="false"
-         aria-label="the command to run in a terminal">
+         aria-label="the command to run on your laptop">
   <button id="code-copy" type="button">copy</button>
   <span id="code-step" class="muted"></span>
   <button id="code-close" type="button" title="hide" hidden>✕</button>
@@ -256,7 +256,7 @@
   <button id="btn-annot-pdf" title="upload a PDF into this session and write on it">✎  annotate a PDF</button>
   <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
   <button id="btn-print" title="print or save as PDF">⎙  print</button>
-  <button id="btn-code" title="the command that codes this session in a terminal: on the cluster, a laptop or this Mac">⌨  code in a terminal</button>
+  <button id="btn-code" title="the command that codes this session from a terminal on your laptop (the cluster runs the same one)">⌨  code on your laptop</button>
   <!-- The lesson AS IT WAS READ -- the board's own pixels, photographed by the
        device that drew them: "I want it as if it were a screenshot of the
        entire iPad screen scrolled down over the whole tutoring session." -->

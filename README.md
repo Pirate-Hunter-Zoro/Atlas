@@ -142,7 +142,15 @@ host.
 - `ai-config/policy/phi.py` must be there. Without it, `board code` withholds every check's
   output from the tutor. Setup says when it is missing.
 - `board pull` brings the laptop up to date: Atlas, its vendor checkouts and ai-config. It names
-  each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those.
+  each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those. `board code
+  <session> <paths>` pulls main first too.
+- `board pull --materials [<subject>...]` copies the Mac mini's ignored inputs over SSH:
+  `materials/`, textbooks, chapter readings and lectures, and assignment sheets. It never copies
+  `.ink/`, `sessions/` or any `.env*`, and deletes nothing. It reads `host` (the Mac mini's tailnet
+  name, which setup asks for) and `host_atlas` (default `Developer/Atlas` under the remote home)
+  from `~/.config/tutor-board/config.json`, and refuses without `host`.
+- **The owner's one step:** turn on Remote Login on the Mac mini (System Settings, General,
+  Sharing), and add the laptop's public SSH key to the Mac mini's `~/.ssh/authorized_keys`.
 - The same brew job runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
   and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
 

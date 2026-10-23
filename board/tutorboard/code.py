@@ -11,6 +11,10 @@ carries it, `code/<session>`:
     board code <session> --abandon    drop the ref and the registration
     board code --list                 the sessions held on this machine
 
+A new hold on a checkout that is not the board's own (a laptop, the cluster)
+fast-forwards it first (`pull_first`), so the steps start from current main; a
+refused pull is said and the hold goes on.
+
 A registration, `~/.local/state/tutor-board/code/<session>.json`, is the
 session on this machine: {session, subject, paths, base, last, step, root},
 and `local` in Mac-local mode;
@@ -95,7 +99,8 @@ USAGE = """\
 board code <session> <path>...        hold these paths here and watch them:
                                       each pause of 10 s is a step on
                                       code/<session> with its check, pushed
-                                      (kept local in the Mac's own checkout)
+                                      (kept local in the Mac's own checkout);
+                                      main is pulled first, except there
 board code <session>                  resume watching a session held here
 board code <session> --end [--title T]
                                       commit the held paths to main as one
@@ -1537,6 +1542,29 @@ def pin_ok(root, sid, commit):
 # ---------------------------------------------------------------------------
 # the command
 # ---------------------------------------------------------------------------
+def pull_first(top, sid, say=print, pull=None):
+    """Before a new hold on a checkout that is not the board's own (a laptop,
+    the cluster), fast-forward it (`gitops.pull`), so the steps start from
+    current main. A refused or failed pull is said and the hold goes on, on
+    what is here. The board's own checkout is not pulled here; its server
+    pulls it. True when it pulled, False when refused, None when skipped."""
+    local, why = mode(top, sid)
+    if local or why:
+        return None
+    if pull is None:
+        from . import gitops
+        pull = gitops.pull
+    said = []
+    got = pull(top, quiet=True, timeout=60, say=said.append)
+    if got is False:
+        say("board code: main was not pulled first (%s); holding on what is "
+            "here" % ("; ".join(s for s in said if s) or "pull refused"))
+    else:
+        for line in said:
+            say(line)
+    return got
+
+
 def main(argv, top=None, say=print, cwd=None):
     """`board code ...`. Exit code."""
     argv = list(argv)
@@ -1568,6 +1596,8 @@ def main(argv, top=None, say=print, cwd=None):
     if bad:
         say("board code: unknown option %s\n\n%s" % (bad[0], USAGE))
         return 2
+    if rest and read(sid) is None:
+        pull_first(top, sid, say=say)
     rec, problems = start(top, sid, rest, cwd=cwd or os.getcwd())
     if problems:
         say("board code: nothing is held:")

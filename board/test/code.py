@@ -12,7 +12,8 @@ code/S elsewhere lands in the cluster's working tree; --end is one commit on
 main and no ref; --abandon drops the ref; a relay pass with a dirty held file
 does not skip, and an upstream change to one is reported, not pulled; a
 request pinned to code/S is accepted; `board code --help` imports no server
-or runner module.
+or runner module. A new hold on a checkout that is not the board's pulls main
+first, and a refused pull is said while the hold goes on.
 
 A local branch made from origin's code/S (`git checkout code/S`) does not
 make the session local: --abandon still drops origin's ref, `board push` still
@@ -767,6 +768,47 @@ try:
           and any("board-code.lock" in s for s in said), said)
     held_fh.close()
     code.abandon(cluster, S9, say=say)
+
+    # --- a new hold off the board's checkout pulls main first ---------------
+    real_watch = code.watch
+    code.watch = lambda top, rec, say=print, **kw: 0
+    try:
+        behind = clone("behind")
+        git(behind, "reset", "-q", "--hard", "HEAD~1")
+        del said[:]
+        rc = code.main(["pull-first", "projects/Open/notes.md"], top=behind,
+                       say=say, cwd=behind)
+        got = code.read("pull-first") or {}
+        check("`board code <sid> <paths>` on a laptop pulls main first, so "
+              "the steps start there",
+              rc == 0 and git(behind, "rev-parse", "HEAD")
+              == git(origin, "rev-parse", "main")
+              and got.get("base") == git(origin, "rev-parse", "main"),
+              "\n".join(said))
+        code.forget("pull-first")
+
+        apart = clone("apart")
+        git(apart, "reset", "-q", "--hard", "HEAD~1")
+        write(os.path.join(apart, "projects", "Open", "mine.md"), "mine\n")
+        git(apart, "add", "-A")
+        git(apart, "commit", "-qm", "mine")
+        mine = git(apart, "rev-parse", "HEAD")
+        del said[:]
+        rc = code.main(["pull-apart", "projects/Open/notes.md"], top=apart,
+                       say=say, cwd=apart)
+        got = code.read("pull-apart") or {}
+        check("a refused pull is said, and the hold goes on from what is here",
+              rc == 0 and got.get("base") == mine
+              and any("not pulled first" in l for l in said), "\n".join(said))
+        code.forget("pull-apart")
+
+        asked = []
+        code.pull_first(mac, SL, say=say,
+                        pull=lambda *a, **k: asked.append(a) or True)
+        check("the board's own checkout is never pulled by `board code`",
+              asked == [])
+    finally:
+        code.watch = real_watch
 
     # --- code.py imports neither relay nor exports ---------------------------
     import ast  # noqa: E402
