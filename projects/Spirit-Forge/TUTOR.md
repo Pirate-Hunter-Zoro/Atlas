@@ -13,7 +13,12 @@ No lesson has occurred and no mastery is recorded.
 
 ## Open decisions
 
-First combat action and Rust starting level. Rust, Flutter, and Podman are the proposed
-stack; the coach introduces each only when needed. May 2027 is the readiness checkpoint.
+First combat action and Rust starting level. May 2027 is the readiness checkpoint.
+
+- Lean starts after A real duel works in Rust.
+- Flutter's first target is web.
+- Zig arrives with Realm warden, after Save a journey.
+- Podman arrives with Ship a reproducible realm.
+- Before May 2027, one algorithm quest of the owner's choice.
 
 ## Done recently

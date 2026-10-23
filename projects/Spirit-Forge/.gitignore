@@ -1,0 +1,15 @@
+# Build output and caches.
+/target/
+.dart_tool/
+zig-out/
+.zig-cache/
+zig-pkg/
+/dist/
+
+# Signing keys.
+*.jks
+*.keystore
+key.properties
+
+# Local traces; golden traces in traces/*.jsonl stay tracked.
+/traces/*.local.jsonl
