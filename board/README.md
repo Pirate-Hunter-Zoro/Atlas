@@ -68,7 +68,7 @@ Python it fixes cannot import. The owner runs `board code` by hand to code with 
 | `tutorboard/server/` | app, handler, hub, registry, TikZ worker, `routes/` by family |
 | `tutorboard/runner/` | the runner, one turn, its prompts (`prompts/*.md`) |
 | `tutorboard/lesson/` | cards, inbox, slate, turns, uploads, the save |
-| `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn |
+| `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn, book (the textbook index) |
 | `tutorboard/agents/` | provider recipes, usage and cost, `board doctor` |
 | `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, briefs (the meeting deck), relay, jobs, exports, colibri, cluster, code, gitops, audit, fenced, leaving |
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
@@ -157,6 +157,14 @@ no marker file.
   reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit; the
   directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
+- **Textbook.** A course's one PDF in `textbook/` is indexed by `board textbook ingest`
+  (`course/book.py`) into the ignored `textbook/index.json`. Chapters and sections come from the
+  PDF outline; printed page numbers, as runs of constant offset, and exercises come from the
+  page text, with any page under 40 characters OCR'd by `gs`. `chapters.tsv` is written only
+  where absent; otherwise it is diffed, and rewritten only with `--write`. `board textbook find`
+  resolves a reference or says "not indexed". From the iPad, the course maker's textbook field
+  or the library's "Add the textbook" posts `/s/<id>/textbook`, which indexes on one thread and
+  wakes the session with a `[textbook]` line.
 
 ## Artifacts and documents
 

@@ -200,7 +200,23 @@ def book_sense(root):
             break
         said.append(one)
         n += len(one) + 2
-    return head + "; ".join(said)
+    return head + "; ".join(said) + _book_index(root)
+
+
+def _book_index(root):
+    """How a reference in the book is looked up: `board textbook find` where
+    textbook/ is indexed, `ingest` where it holds a PDF that is not."""
+    from .course import book
+    try:
+        if book.indexed(root):
+            return ("\nbook index: `board textbook find <ref>` (\"3.4\", \"§2.1\", "
+                    "\"p. 295\") gives its pages and text")
+        if book.pdfs(root):
+            return ("\nbook index: none yet; `board textbook ingest %s` makes "
+                    "it" % os.path.basename(os.path.normpath(root)))
+    except Exception:                                        # noqa: BLE001
+        pass
+    return ""
 
 
 def relay_sense(root):

@@ -77,6 +77,9 @@ var els = {
   makerKind: $("maker-kind"),
   makerName: $("maker-name"),
   makerPhi: $("maker-phi"),
+  makerBook: $("maker-book"),
+  makerBookFile: $("maker-book-file"),
+  makerBar: $("maker-bar"),
   makerSaid: $("maker-said"),
   makerGo: $("maker-go"),
   makerGoSub: $("maker-go-sub"),
@@ -437,8 +440,10 @@ function closeAnnot() {
   els.annot.hidden = true;
 }
 
-/* One XHR, because fetch says nothing about progress. */
-function uploadTo(base, file) {
+/* One XHR, because fetch says nothing about progress. `bar` is the
+   <progress> it fills: the annotate sheet's unless another is given. */
+function uploadTo(base, file, bar) {
+  bar = bar || els.annotBar;
   return new Promise(function (resolve, reject) {
     var form = new FormData();
     form.append("f0", file, file.name);
@@ -446,7 +451,7 @@ function uploadTo(base, file) {
     xhr.open("POST", base + "/upload");
     xhr.upload.onprogress = function (e) {
       if (!e.lengthComputable || !e.total) return;
-      els.annotBar.value = Math.floor(100 * e.loaded / e.total);
+      bar.value = Math.floor(100 * e.loaded / e.total);
     };
     xhr.onload = function () {
       var got = {};
@@ -905,6 +910,11 @@ function openMaker(kind, then) {
   els.makerName.value = "";
   els.makerName.placeholder = makerKind === "course" ? "Linear Algebra" : "Diarization";
   els.makerPhi.hidden = makerKind !== "project";
+  /* A textbook only for a course made from + new: the send sheet's maker
+     sends an existing session there instead. */
+  els.makerBook.hidden = makerKind !== "course" || !!makerThen;
+  els.makerBookFile.value = "";
+  els.makerBar.hidden = true;
   els.makerSaid.hidden = true;
   paintMaker();
   els.maker.hidden = false;
@@ -929,17 +939,55 @@ function paintMaker() {
   var want = !name ? "name it first"
     : makerKind === "project" && makerPhi === null ? "say whether it holds patient data"
     : "";
+  var book = makerBook();
   els.makerGo.disabled = making || !!want;
-  els.makerGoSub.textContent = making ? "making it…" : want
+  els.makerGoSub.textContent = making ? (book ? "uploading the textbook…" : "making it…")
+    : want || (book ? "then its textbook is indexed" : "")
     || (makerKind === "project" && makerPhi
         ? "a project holding patient data: phi/ and results/ ignored"
         : "one commit: tutorboard.json and TUTOR.md");
+}
+
+/* The textbook PDF chosen on the sheet, or null. */
+function makerBook() {
+  if (els.makerBook.hidden) return null;
+  var f = els.makerBookFile.files && els.makerBookFile.files[0];
+  return f || null;
+}
+
+/* A NEW COURSE WITH ITS BOOK: annotate()'s chain -- a session, bound to the
+   course, the PDF uploaded into it -- then `/textbook`, which files it into
+   textbook/ and indexes it; the session's board opens, and a `[textbook]`
+   card arrives there when the index is done. */
+function bookInto(subject, file) {
+  var base = "";
+  els.makerBar.value = 0;
+  els.makerBar.hidden = false;
+  return postJSON("/sessions/new", { title: "Textbook " + (subject.name || subject.id) })
+    .then(function (got) {
+      if (!got || !got.ok) throw new Error((got && got.error) || "the session was not made");
+      base = "/s/" + enc(got.id);
+      return postJSON(base + "/bind", { subject: subject.id });
+    }).then(function (b) {
+      if (!b || !b.ok) throw new Error((b && b.error) || "the session was not bound");
+      return uploadTo(base, file, els.makerBar);
+    }).then(function (up) {
+      return postJSON(base + "/textbook", { upload: up.name });
+    }).then(function (t) {
+      if (!t || !t.ok) throw new Error((t && t.error) || "the textbook was not taken");
+      go(base + "/board");
+    });
 }
 
 function makeSubject() {
   var name = els.makerName.value.trim();
   if (!name || making) return;
   if (makerKind === "project" && makerPhi === null) return;
+  var book = makerBook();
+  if (book && !/\.pdf$/i.test(book.name || "")) {
+    makerSay("The textbook is not a PDF.", true);
+    return;
+  }
   making = true;
   paintMaker();
   var body = { kind: makerKind, name: name };
@@ -950,6 +998,18 @@ function makeSubject() {
       paintMaker();
       makerSay((got && got.error) || "it was not made", true);
       return;
+    }
+    if (book) {
+      making = true;
+      paintMaker();
+      return bookInto(got.subject, book).catch(function (e) {
+        making = false;
+        els.makerBar.hidden = true;
+        paintMaker();
+        makerSay((e && e.message || "the board did not answer")
+                 + ". The course is made; add the textbook from its library.", true);
+        refresh();
+      });
     }
     var then = makerThen;
     closeMaker();
@@ -1471,6 +1531,7 @@ els.makerPhi.addEventListener("click", function (ev) {
   paintMaker();
 });
 els.makerGo.onclick = makeSubject;
+els.makerBookFile.onchange = paintMaker;
 els.makerClose.onclick = closeMaker;
 els.maker.addEventListener("click", function (ev) {
   if (ev.target === els.maker) closeMaker();

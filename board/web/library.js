@@ -65,6 +65,10 @@ var els = {
   count: document.getElementById("lib-count"),
   list: document.getElementById("lib-list"),
   none: document.getElementById("lib-none"),
+  book: document.getElementById("lib-book"),
+  bookLine: document.getElementById("lib-book-line"),
+  bookAdd: document.getElementById("lib-book-add"),
+  bookFile: document.getElementById("lib-book-file"),
   reader: document.getElementById("reader"),
   readerName: document.getElementById("reader-name"),
   readerSub: document.getElementById("reader-sub"),
@@ -649,6 +653,103 @@ function paintDrop() {
     });
   };
 }
+
+/* ------------------------------------------------------------ the textbook */
+/* A COURSE'S BOOK, IN ONE LINE: what `/textbook.json` says its index holds,
+   the run going, or "Add the textbook". Adding needs the session this page is
+   under, because this page opens no sitting: the PDF is uploaded into it, and
+   `/textbook` files and indexes it. A `[textbook]` card arrives on that
+   session's board when the index is done. */
+var bookTimer = null;
+var bookBusy = false;
+
+function loadBook() {
+  return libFetch("/textbook.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) { paintBook(got || {}); })
+    .catch(function () { /* the documents' own load says the board is down */ });
+}
+
+function paintBook(got) {
+  if (bookTimer) { clearTimeout(bookTimer); bookTimer = null; }
+  if (!got.course) { els.book.hidden = true; return; }
+  els.book.hidden = false;
+  var prog = got.progress || {};
+  var pdf = (got.pdfs || [])[0] || "";
+  var line = "", add = false, state = "";
+  if (got.running || prog.state === "running") {
+    line = "Textbook: indexing " + (pdf || "the PDF")
+      + (prog.step ? " (" + prog.step
+         + (prog.total ? ", " + prog.done + " of " + prog.total : "") + ")" : "")
+      + "…";
+    bookTimer = setTimeout(loadBook, 5000);
+  } else if (got.indexed) {
+    line = "Textbook: " + (got.pdf || pdf) + ", " + got.chapters + " chapters, "
+      + got.sections + " sections, " + got.exercises + " exercises"
+      + ((got.doubts || []).length ? ", " + got.doubts.length + " doubt"
+         + (got.doubts.length === 1 ? "" : "s") : "");
+  } else if (prog.state === "failed") {
+    state = "failed";
+    line = "Textbook: indexing " + (pdf || "it") + " failed: " + (prog.error || "");
+  } else if (pdf) {
+    line = "Textbook: " + pdf + ", not indexed yet";
+  } else if (BASE) {
+    add = true;
+  } else {
+    line = "No textbook yet. Open this library from a session on the course "
+      + "to add one.";
+  }
+  els.book.setAttribute("data-state", state);
+  els.bookLine.textContent = line;
+  els.bookLine.hidden = !line;
+  els.bookAdd.hidden = !add;
+  els.bookAdd.disabled = bookBusy;
+}
+
+function postLib(path, body) {
+  return fetch(path, {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
+}
+
+function addBook(file) {
+  if (!file || bookBusy || !BASE) return;
+  if (!/\.pdf$/i.test(file.name || "")) {
+    els.bookLine.hidden = false;
+    els.bookLine.textContent = "That is not a PDF.";
+    return;
+  }
+  bookBusy = true;
+  els.bookAdd.disabled = true;
+  els.bookLine.hidden = false;
+  els.bookLine.textContent = "Uploading " + file.name + "…";
+  var form = new FormData();
+  form.append("f0", file, file.name);
+  fetch(BASE + "/upload", { method: "POST", credentials: "same-origin", body: form })
+    .then(function (r) { return r.json().catch(function () { return {}; }); })
+    .then(function (up) {
+      var one = (up && up.files || [])[0];
+      if (!up || !up.ok || !one) throw new Error((up && up.error) || "the upload failed");
+      return postLib(BASE + "/textbook", { upload: one.name });
+    }).then(function (t) {
+      if (!t || !t.ok) throw new Error((t && t.error) || "the textbook was not taken");
+      bookBusy = false;
+      loadBook();
+    }).catch(function (e) {
+      bookBusy = false;
+      els.bookAdd.disabled = false;
+      els.bookLine.textContent = (e && e.message) || "the board did not answer";
+    });
+}
+
+els.bookAdd.onclick = function () { els.bookFile.click(); };
+els.bookFile.onchange = function () {
+  var f = els.bookFile.files && els.bookFile.files[0];
+  els.bookFile.value = "";
+  addBook(f);
+};
 
 function goHome() { window.location.href = "/"; }
 
@@ -2559,6 +2660,7 @@ function onMouseUp() {
 paintPen();
 paintDrop();
 load();
+loadBook();
 loadResults();
 poll();
 /* A document is rebuilt by a job, a compile, or the revision this page just
@@ -2572,6 +2674,7 @@ document.addEventListener("visibilitychange", function () {
     return;
   }
   load();
+  loadBook();
   /* The results too: a job that finished while the lid was shut is exactly the
      thing somebody comes back to this page to look at. */
   loadResults();

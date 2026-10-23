@@ -48,6 +48,12 @@ body { font-family: var(--ui); color: var(--ink); }
   margin: 1.4rem .2rem .4rem;
 }
 .lib-dir:first-child { margin-top: .2rem; }
+/* The course's textbook line, above the documents. */
+.lib-book {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  color: var(--ink-2); font-size: .82rem; margin: 0 .2rem .8rem;
+}
+.lib-book[data-state="failed"] { color: var(--ask); }
 /* What the board made, what was already here, and the materials. */
 .lib-group {
   font-size: .8rem; font-weight: 700; color: var(--ink-2);

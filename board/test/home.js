@@ -900,6 +900,71 @@ async function stubbed() {
           r2.aw.__went[0] === '/s/' + r2.NEW + '/board#/s/' + r2.NEW + '/doc/materials-slides');
   }
 
+  // + NEW COURSE WITH ITS TEXTBOOK: the course made, then a session bound to
+  // it, the PDF uploaded there, /textbook asked, and that session's board.
+  {
+    const bw = load();
+    await sleep(60);
+    const bd = bw.document;
+    const NEW = '20261009-150000';
+    const xhrs = [];
+    bw.XMLHttpRequest = function () {
+      const x = this;
+      x.upload = {};
+      x.open = (m, u) => { x.method = m; x.url = u; };
+      x.send = (form) => {
+        xhrs.push({ url: x.url, file: form.get('f0') });
+        x.status = 200;
+        x.responseText = JSON.stringify({ ok: true, saved: ['Book.pdf'],
+          files: [{ name: 'Book.pdf', size: 4 }] });
+        setTimeout(() => x.onload(), 5);
+      };
+    };
+    bw.fetch = ((orig) => (u, init) => {
+      const url = String(u);
+      const body = init && init.body ? JSON.parse(init.body) : null;
+      let got = null;
+      if (url === '/subjects/new') {
+        got = { ok: true, subject: { id: 'courses/' + body.name, kind: 'course',
+                                     slug: body.name, name: body.name } };
+      }
+      if (url === '/sessions/new') got = { ok: true, id: NEW, url: '/s/' + NEW + '/board' };
+      if (url === '/s/' + NEW + '/bind') got = { ok: true };
+      if (url === '/s/' + NEW + '/textbook') got = { ok: true, started: true };
+      if (!got) return orig(u, init);
+      bw.asked.push({ url, method: 'POST', body });
+      return Promise.resolve({ status: 200, json: () => Promise.resolve(got) });
+    })(bw.fetch);
+    bd.getElementById('new-course').click();
+    check('+ new course offers a textbook PDF field',
+          !bd.getElementById('maker-book').hidden);
+    const bname = bd.getElementById('maker-name');
+    bname.value = 'Topology';
+    bname.dispatchEvent(new bw.Event('input'));
+    const bfile = bd.getElementById('maker-book-file');
+    Object.defineProperty(bfile, 'files', {
+      value: [new bw.File(['%PDF-1.4'], 'Book.pdf', { type: 'application/pdf' })] });
+    bfile.dispatchEvent(new bw.Event('change'));
+    check('and says the book is indexed once it is made',
+          /textbook is indexed/.test(bd.getElementById('maker-go-sub').textContent));
+    bd.getElementById('maker-go').click();
+    await sleep(120);
+    const order = bw.asked.map((r) => r.url).filter((u) => /subjects\/new|sessions\/new|\/bind$|\/textbook$/.test(u));
+    const bound = bw.asked.filter((r) => /\/bind$/.test(r.url))[0];
+    const took = bw.asked.filter((r) => /\/textbook$/.test(r.url))[0];
+    check('it makes the course, a session bound to it, uploads the PDF there and '
+          + 'asks /textbook for it',
+          order.join(' ') === '/subjects/new /sessions/new /s/' + NEW + '/bind /s/'
+            + NEW + '/textbook'
+          && bound.body.subject === 'courses/Topology'
+          && xhrs.length === 1 && xhrs[0].url === '/s/' + NEW + '/upload'
+          && took.body.upload === 'Book.pdf');
+    check('and opens that session\'s board', bw.__went[0] === '/s/' + NEW + '/board');
+    bd.getElementById('new-project').click();
+    check('a project has no textbook field', bd.getElementById('maker-book').hidden);
+    bd.getElementById('maker-close').click();
+  }
+
   // Addresses.
   async function routed(hash) {
     const page = load(hash);

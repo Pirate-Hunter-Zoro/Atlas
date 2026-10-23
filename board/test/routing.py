@@ -404,6 +404,11 @@ DRIVE = {
     ("POST", "/file", "writing"): ("session", [
         ("/file", {"upload": "nope.pdf"}, REFUSED),
         ("/file", {"upload": "../session.json"}, REFUSED)]),
+    # textbook
+    ("GET", "/textbook.json", "textbook"): ("subject", [("/textbook.json", None, OK)]),
+    ("POST", "/textbook", "textbook"): ("session", [
+        ("/textbook", {"upload": "nope.pdf"}, REFUSED),
+        ("/textbook", {"upload": "../session.json"}, REFUSED)]),
     # taking
     ("GET", "/marked/", "taking"): ("session", [
         ("/marked/homework/nope-marked.pdf", None, (404,)),

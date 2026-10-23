@@ -113,7 +113,8 @@ are the ones I want to work through*. Never let one sit unremarked.
 the bound subject, `materials/` by default, and its ink is re-keyed with it, so
 file an upload rather than copying it. Nobody is asked where one goes. A PDF may
 be there to be written on: the owner marks it up in the reader and may keep a
-marked copy, `<name>-marked.pdf` beside it, which git never carries.
+marked copy, `<name>-marked.pdf` beside it, which git never carries. A course's
+book is not filed: `board textbook ingest <course> --upload <name>` indexes it.
 
 ## Every card
 
@@ -281,9 +282,8 @@ exercises come from and who chooses them; how an exercise is posed never changes
 
 ### A lesson from a book
 
-1. **Read the section's exercises before you teach anything.** They are at the
-   end of the section in `textbook/`, usually extracted under
-   `chapters/chNN-*/reading/`. They are the specification; the prose is the means.
+1. **Read the section's exercises before you teach anything.** They are the
+   specification. `board textbook find "3.4"` gives one's pages and text.
 2. **Choose a manageable set, and say why.** Not all of them: the smallest set
    covering the section's distinct ideas, usually **three to five**. Prefer an
    exercise that makes a definition be *used* over one that recites it. Say the

@@ -277,6 +277,22 @@ def handover_sense(card):
     return HANDOVER_SENSE % card
 
 
+def _sheet_refs(root, sheet):
+    """The homework line's ask to resolve a sheet's references through the
+    book's index, where the course has one; else ""."""
+    from .course import book as textbook
+    try:
+        if not textbook.indexed(root):
+            return ""
+    except Exception:                                        # noqa: BLE001
+        return ""
+    return (" Before you pose anything, resolve every reference on it with "
+            "`board textbook find --sheet %s` (add \"Ch N\" when it lists bare "
+            "numbers), and pose each from the text it returns; one it calls "
+            "not indexed you find in the book yourself, never by guessing."
+            % sheet)
+
+
 def where_sense(book, root=None, st=None):
     """Where the exercises come from, the only thing a subject decides: a
     book's sections, else what the owner asks for, then TUTOR.md's "Now".
@@ -687,7 +703,8 @@ def _session_sense(repo):
                     "No assignment sheet is filed under %s. " %
                     os.path.dirname(st_hw["rel"])))
             where = ("The assignment sheet is at %s -- read it and do exactly the "
-                     "problems it assigns, all of them, in order." % sheet[0]) if sheet else (
+                     "problems it assigns, all of them, in order." % sheet[0]
+                     + _sheet_refs(repo.root, sheet[0])) if sheet else (
                      "No assignment sheet is filed under %s; ask which problems are "
                      "assigned before teaching anything." % os.path.dirname(st_hw["rel"]))
             return (how + sitting + "%s Transcribe each statement before you "
