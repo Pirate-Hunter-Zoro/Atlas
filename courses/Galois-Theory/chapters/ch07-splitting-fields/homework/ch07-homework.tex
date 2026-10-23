@@ -128,7 +128,7 @@ x=\frac{-1\pm\sqrt{1-8}}{2}=\frac{-1\pm\sqrt{-7}}{2},
 \]
 so the two roots are $\frac{-1+\sqrt{-7}}{2}$ and $\frac{-1-\sqrt{-7}}{2}$. Either may be called $\alpha$; taking $\alpha$ to be the root with positive imaginary part matches the observation that the sines in $\alpha=\zeta+\zeta^{2}+\zeta^{4}$ have positive sum. Since $\sqrt{-7}\notin\QQ$, the polynomial is irreducible and $\QQ(\alpha)=\QQ(\sqrt{-7})$ has degree $2$ over $\QQ$.
 
-Finally, $\QQ(\sqrt{-7})$ is the only subfield of $K$ of degree $2$ over $\QQ$. By 14(a), $G=\operatorname{Gal}(K/\QQ)=\langle\sigma\rangle$ is cyclic of order $6$, and a cyclic group has at most one subgroup of a given order. So $G$ has exactly one subgroup of order $3$, namely $\{e,\sigma^{2},\sigma^{4}\}$: the two generators $\sigma^{2}$ and $\sigma^{4}$ produce the same three elements. A subfield $L$ with $\QQ\subseteq L\subseteq K$ and $[L:\QQ]=2$ corresponds by the Galois correspondence to a subgroup $H\le G$ with $[G:H]=2$, that is $|H|=3$. There is only one such $H$, so there is only one such field, and $\QQ(\sqrt{-7})$ is it.
+Finally, $\QQ(\sqrt{-7})$ is the only subfield of $K$ of degree $2$ over $\QQ$. By 14(a), $G=\operatorname{Gal}(K/\QQ)=\langle\sigma\rangle$ is cyclic of order $6$, and a cyclic group has at most one subgroup of a given order. So $G$ has exactly one subgroup of order $3$, namely $\{e,\sigma^{2},\sigma^{4}\}$. A subfield $L$ with $\QQ\subseteq L\subseteq K$ and $[L:\QQ]=2$ corresponds by the Galois correspondence to a subgroup $H\le G$ with $[G:H]=2$, that is $|H|=3$. There is only one such $H$, so there is only one such field, and $\QQ(\sqrt{-7})$ is it.
 \end{proof}
 \noindent\textbf{(c)}
 \begin{proof}
@@ -143,7 +143,7 @@ The six values $\sigma^{k}(\eta)$, with exponents reduced modulo $7$, are
 \sigma^{4}(\eta)=\zeta^{4}+\zeta^{3},\quad
 \sigma^{5}(\eta)=\zeta^{5}+\zeta^{2}.
 \]
-The rule behind them is $\sigma^{k}(\zeta)=\zeta^{3^{k}}$ with $3^{k}$ then reduced modulo $7$: $3^{3}=27\equiv6$, so $\sigma^{3}(\zeta)=\zeta^{6}$, and $3^5=243\equiv 5$, with $-243\equiv 2$. Since $\sigma$ fixes $\QQ$ and respects inverses, $\sigma^{k}(\eta)=\sigma^{k}(\zeta)+(\sigma^{k}(\zeta))^{-1}$.
+The rule behind them is $\sigma^{k}(\zeta)=\zeta^{3^{k}}$ with $3^{k}$ then reduced modulo $7$: $3^{3}=27\equiv6$, so $\sigma^{3}(\zeta)=\zeta^{6}$. Since $\sigma$ fixes $\QQ$ and respects inverses, $\sigma^{k}(\eta)=\sigma^{k}(\zeta)+(\sigma^{k}(\zeta))^{-1}$.
 
 The list collapses to three elements, each occurring twice: $\eta=\zeta+\zeta^{6}$ at $k=0,3$; $\zeta^{3}+\zeta^{4}$ at $k=1,4$; $\zeta^{2}+\zeta^{5}$ at $k=2,5$. So the stabilizer of $\eta$ in $G$ is $\{\sigma^{0},\sigma^{3}\}$, of order $2$, and $[\QQ(\eta):\QQ]=6/2=3$. The three distinct values are the conjugates of $\eta$.
 
@@ -190,12 +190,6 @@ It remains to show that $\QQ(\eta)$ is the only cubic subfield. Let $L\subseteq 
 [L:\QQ]=[G:N]=3.
 \]
 There is only one subgroup of $G$ of index $3$, namely $H=\langle\sigma^{3}\rangle=\{\sigma_1,\sigma_6\}$, so $N=H$ and $L=K^{H}=\QQ(\eta)$. Hence every cubic subfield of $K$ is $\QQ(\eta)$.
-\end{proof}
-\noindent\textbf{(c), the subgroup of order 2.} The subgroup of order 2 in $G=\operatorname{Gal}(\QQ(\zeta)/\QQ)$ is $H=\langle\sigma_6\rangle=\{\sigma_1,\sigma_6\}$, where $\sigma_k(\zeta)=\zeta^k$ and exponents are read modulo 7.
-\begin{proof}
-Since $\sigma_6^2=\sigma_{36}=\sigma_1$ and $\sigma_6\ne\sigma_1$, the element $\sigma_6$ has order 2, and the subgroup it generates is $\{\sigma_1,\sigma_6\}$, the identity included. The identity is $\sigma_1$, not $\sigma_3$: $\sigma_3$ has order 6, because $\sigma_3^2=\sigma_9=\sigma_2$ and $\sigma_3^3=\sigma_{27}=\sigma_6$, so $\sigma_3$ generates all of $G$. The other subgroup of order 3 is $\langle\sigma_2\rangle=\{\sigma_1,\sigma_2,\sigma_4\}$, which is not $H$.
-
-The subgroup $H$ is the only subgroup of order 2. A cyclic group of order 6 has exactly one subgroup of each order dividing 6, and the Galois correspondence between subgroups of $G$ and intermediate fields of $\QQ(\zeta)/\QQ$ is one-to-one and inclusion-reversing. So $H$ fixes a unique subfield of degree $6/2=3$ over $\QQ$, namely $K=\QQ(\zeta)^H$.
 \end{proof}
 % ===== END SOLUTION 14 =====
 
