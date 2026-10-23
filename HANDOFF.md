@@ -64,7 +64,10 @@ Rules that hold throughout:
 - **Brew upgrades.** Both upgraders stay.
   - The external `com.mikeyferguson.brewupgrade` keeps its job.
   - `atlas.brew-upgrade` keeps a full brew upgrader on every clone (item 7).
-- **Spirit-Forge:** the verification language is Lean 4 without Mathlib.
+- **Spirit-Forge:** the verification language is Lean 4 without Mathlib. Zig, Rust and
+  containerization are the three things the project exercises, each with a real job in the game.
+- **A blank canvas.** Home opens a canvas to write on with no tutor, for notes at a lecture. It
+  saves to Random lessons, any subject or nowhere, and goes to a tutor at any time (item 12).
 - **Defaults:**
   - Home's "Annotate a PDF" preselects Random lessons.
   - A finished textbook ingest wakes one tutor turn.
@@ -95,7 +98,7 @@ These are pre-approved. Write each from its bullets, and commit it when its item
 
 ## 5. The LIBR exit
 
-Run `LIBR-EXIT.md`. It needs the owner's first cluster steps (its section 5a) done, and it
+Run `LIBR-EXIT.md`. The owner's section 5a is done, and it
 stops midway for the owner's section 5b.
 
 It zips TRD-EHR, PSYCH-ASR, libr-local-llm and Paper-Writer with their write-ups, results and
