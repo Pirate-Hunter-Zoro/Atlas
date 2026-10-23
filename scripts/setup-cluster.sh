@@ -16,9 +16,8 @@
 #   4  the PHI guards: ai-config's tests, phi-probe, board/test/tracked.py
 #   5  the assistant CLIs: ai-config linked, and every CLI its descriptors know
 #      how to install, installed when missing (none is required)
-#   6  Mathlib, as a Slurm job when it is not built and no build is queued
-#   7  the colibri build, reported (it needs CUDA; the README's command)
-#   8  one relay pass, and relay/status.json has no error
+#   6  the colibri build, reported (it needs CUDA; the README's command)
+#   7  one relay pass, and relay/status.json has no error
 #
 # Nothing here needs a hosted model's login. The CLIs are for the owner's own
 # use; the system never calls them here, and logging in is by hand, once.
@@ -90,28 +89,14 @@ else
   warn "no ai-config here; bootstrap clones it, then rerun"
 fi
 
-echo "== 6. Mathlib"
-LEAN="$ROOT/projects/Lean-Theorem-Proving"
-if [ ! -f "$LEAN/lean-toolchain" ]; then
-  good "no Lean project here"
-elif [ -n "$(find "$LEAN/.lake/packages/mathlib/.lake/build" -name Mathlib.olean -print -quit 2>/dev/null)" ]; then
-  good "Mathlib is built"
-elif [ -n "$(squeue -u "$USER" -h -n mathlib -o %i 2>/dev/null)" ]; then
-  good "a Mathlib build is already queued or running (squeue -n mathlib)"
-elif job="$(cd "$LEAN" && sbatch --parsable slurm_jobs/build_mathlib.sbatch 2>"$LOGS/mathlib-sbatch.log")"; then
-  good "Mathlib build submitted as job $job; progress in $LEAN/slurm_jobs/build_mathlib_out.txt"
-else
-  warn "sbatch of the Mathlib build failed; see $LOGS/mathlib-sbatch.log"
-fi
-
-echo "== 7. colibri"
+echo "== 6. colibri"
 if [ -x vendor/colibri-build/c/colibri ]; then
   good "vendor/colibri-build/c/colibri is built"
 else
   warn "vendor/colibri-build is not built; projects/libr-local-llm/README.md has the make line (CUDA, GCC modules)"
 fi
 
-echo "== 8. one relay pass"
+echo "== 7. one relay pass"
 if bash board/scripts/relay-pass.sh >"$LOGS/relay-pass.log" 2>&1; then
   err="$(python3 -c 'import json; print(json.load(open("relay/status.json")).get("last_error") or "")' 2>/dev/null)"
   if [ -n "$err" ]; then warn "relay/status.json last_error: $err"; else good "relay pass ran; relay/status.json has no error"; fi

@@ -222,8 +222,8 @@ Guards fail closed, so callers and registrations go before the files they name.
    - The main checkout's ignored leftovers (`.venv`, `docs` builds, `.ink`, `relay/state`) survive
      the merge, and `subjects.walk` lists any directory under `projects/` as a subject. So
      *After the merge* deletes them outright.
-   - `setup-mac.sh` does the same once on other clones: it deletes any of those five, or
-     `projects/Lean-Theorem-Proving`, that holds no tracked file, and prints what it deleted.
+   - `setup-mac.sh` does the same once on other clones: it deletes any of those five that holds
+     no tracked file, and prints what it deleted.
    - Paper-Writer's dependents outside it:
      - `build.py` keeps its markdown converter but stops calling it a copy of Paper-Writer's.
      - `agents/oneshot.py` and `board/README.md` stop naming Paper-Writer's daemon and
@@ -302,4 +302,4 @@ These are the owner's steps; agents never ssh.
 - Log out of every CLI, because tokens are group-readable on NFS.
 - Check nothing in `~/atlas-migration/courses.pre-fold/<Name>` is missing from
   `~/Atlas/courses/<Name>` (`diff -rq`, ignoring `.git`). Then delete `courses.pre-fold`.
-- Delete `~/Atlas`, including the ignored Lean `.lake/` (about 14 GB).
+- Delete `~/Atlas`.

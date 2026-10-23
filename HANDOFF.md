@@ -138,44 +138,6 @@ Done when a fresh teach session replaying "tell me the (1,3) result" gets 169/43
 no E[X₃], no write-up, no commit and the mode unchanged. In do mode it gets the same card and
 touches no file.
 
-## 3. Axe Lean-Theorem-Proving; keep Lean itself
-
-The project goes. Lean stays a supported language, because Spirit-Forge's verification thread
-(item 8) uses Lean 4 without Mathlib.
-
-- Run `git rm -r projects/Lean-Theorem-Proving`.
-- **Setup scripts:**
-  - `scripts/setup-mac.sh`: drop step 7 (Mathlib) and its header lines, and renumber. The
-    "step 8" in README and in `scripts/brew-upgrade.py`'s docstring becomes 7.
-  - `scripts/setup-cluster.sh`: drop the Mathlib sbatch step. The exit deletes the rest.
-- **The `scripts/setup.sh` lean branch:**
-  - With no `elan`, install it into `~/.elan` through the official `elan-init.sh` with `-y
-    --no-modify-path`.
-  - Run `lake exe cache get` only when `lake-manifest.json` names mathlib, then `lake build`.
-  - A subject's own `scripts/setup.sh` still wins.
-- **Brewfile:** the elan comment says `setup.sh` installs it.
-- **`.gitignore`:** the comment over `.lake/` names Lean builds generally, not Mathlib.
-- **README:** drop Mathlib and the Lean project, and keep `lean-toolchain` as a marker.
-- **HANDOFF and LIBR-EXIT:** drop the remaining mentions of Lean-Theorem-Proving and its Mathlib
-  build. Keep the Lean 4 without Mathlib decision and every Spirit-Forge Lean line.
-- **Keep:** `lake` in `CHECK_PROGRAMS`, `lean-toolchain` and `lake-manifest.json` in
-  `gitops.LOCKFILES`, `.lake/` in `.gitignore`, `audit.py` and `code.SKIP_DIRS`, `.lean`
-  highlighting and the vendored grammar.
-
-Done when:
-- `git grep -n -E 'Lean-Theorem-Proving|build-mathlib|build_mathlib|squeue -n mathlib'` finds
-  nothing outside vendored files, HANDOFF.md and LIBR-EXIT.md.
-- `git grep -n -i mathlib -- README.md Brewfile .gitignore scripts` hits only setup.sh's
-  manifest check.
-- A Mathlib-free scratch Lake package passes the new lean branch.
-- The suite passes, and home lists no Lean subject.
-
-Tell the owner:
-- **Do not delete `~/.elan`.** Its 2.7 GB v4.34.1 toolchain is reused.
-- On the cluster, check that `squeue -n mathlib` is empty before the merge reaches it. Delete the
-  ignored `projects/Lean-Theorem-Proving` residue there (about 14 GB of `.lake`) and on any laptop.
-- In ai-config, drop `workspaces/lean-theorem-proving.allow` and its `PERMISSIONS.md` rows.
-
 ## 4. Sync without the cluster
 
 The Mac hears laptop coding sessions through `cluster.Ear`. It lives in `cluster.py`, which the
@@ -723,6 +685,11 @@ existing vision route on the slate PNG.
 - **After the exit:** run `bash scripts/setup-mac.sh` once on every laptop clone, so the purged
   projects' leftovers go.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
+- **Keep `~/.elan`.** Its 2.7 GB v4.34.1 toolchain is reused by every Lean subject.
+- **Before the cluster next pulls main,** check that `squeue -n mathlib` is empty. Then delete the
+  ignored `projects/Lean-Theorem-Proving` there (about 14 GB of `.lake`) and on any laptop that
+  has it. `subjects.walk` lists any directory under `projects/` as a subject.
+- **In ai-config,** drop `workspaces/lean-theorem-proving.allow` and its `PERMISSIONS.md` rows.
 
 ## Loose ends in the code
 

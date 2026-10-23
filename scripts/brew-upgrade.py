@@ -8,7 +8,7 @@
     atlas-brew settle                      internal: reload or unload once a run ends
 
 `atlas-brew` is ~/.local/bin/atlas-brew, a link to this file. setup-mac.sh's
-step 8 runs `install` on both roles. State is $BOARD_STATE_DIR/brew.json (else
+step 7 runs `install` on both roles. State is $BOARD_STATE_DIR/brew.json (else
 ~/.local/state/tutor-board/brew.json); board/tutorboard/brewcare.py reads it for
 /relay.json and `board doctor`. The log is ~/.local/state/atlas-setup/brew-upgrade.log.
 

@@ -9,7 +9,6 @@
 # no board: it writes `coding` to ~/.config/tutor-board/role, so every rerun
 # stays one, and then step 2 installs no board LaunchAgent and boots out a stray one,
 # and steps 5 and 6 skip tailscale serve, the provider config and port 8778.
-# Step 7 still runs, because a laptop codes Lean too.
 # Deleting the role file makes the next run a host again.
 #
 # A fresh clone or an old checkout, it does the same thing, and a second run
@@ -26,9 +25,7 @@
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  the provider config exists, the board answers on 8778, and
 #      board/test/tracked.py passes
-#   7  Mathlib: built, building, or its background build started
-#      (projects/Lean-Theorem-Proving/scripts/build-mathlib.sh)
-#   8  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
+#   7  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -136,18 +133,7 @@ fi
 python3 board/test/tracked.py >"$LOGS/tracked.log" 2>&1 \
   && good "tracked.py: git can see nothing it must not" || warn "tracked.py fails; see $LOGS/tracked.log"
 
-echo "== 7. Mathlib"
-# Starts the build when it is neither built nor running, and returns at once.
-mathlib=projects/Lean-Theorem-Proving/scripts/build-mathlib.sh
-if [ ! -f "$mathlib" ]; then
-  good "no Lean project here"
-elif said="$(bash "$mathlib" 2>&1)"; then
-  good "Mathlib $said"
-else
-  warn "Mathlib: $said"
-fi
-
-echo "== 8. brew upkeep"
+echo "== 7. brew upkeep"
 if said="$(python3 scripts/brew-upgrade.py install 2>&1)"; then good "$said"; else warn "brew upkeep: $said"; fi
 
 echo

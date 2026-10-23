@@ -106,10 +106,8 @@ board, and checks that the board answers. Its header lists each step.
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
   the board's LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
 - `scripts/setup.sh` runs `brew bundle` on the Brewfile, then builds each subject's
-  environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
-- Mathlib builds in the background
-  (`projects/Lean-Theorem-Proving/scripts/build-mathlib.sh`); setup's last step says built,
-  running or started.
+  environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`). A
+  `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
 - The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
   `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
@@ -117,7 +115,7 @@ board, and checks that the board answers. Its header lists each step.
 - `board doctor --dry` reports what the machine has without spending a turn.
 - Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once.
-- Step 8 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
+- Step 7 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
   cask current once a day in 03:00-07:59, then brew's npm globals, `ai-tools-update` and uv's
   Pythons. It then checks the subjects' venvs, TeX, the Brewfile and the board. It repairs a
   broken venv, and puts back an assistant CLI the upgrade removed; a CLI missing before the run
@@ -158,15 +156,14 @@ cd ~/Atlas && bash scripts/setup-cluster.sh
 Run it on a compute node (`salloc`, then ssh to the node), never on `submit0`. It is also how the
 cluster is brought up to date. It pulls main, runs `board/scripts/setup-cluster.sh` (bootstrap,
 ai-config, the relay's scrontab entry, origin), runs `scripts/setup.sh`, checks the PHI guards,
-submits `projects/Lean-Theorem-Proving/slurm_jobs/build_mathlib.sbatch` when Mathlib is not built,
 and runs one relay pass. No board and no LaunchAgent is installed there, and nothing in setup
 needs a hosted model's login.
 
 - Step 5 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once; nothing in setup or the relay needs a login.
 - The relay's scrontab entry runs `board/scripts/relay-pass.sh` every 2 minutes.
-- The cluster blocks `dl.google.com` and Mathlib's cache host. So Go comes from conda-forge into
-  `~/.local/goenv` with `GOPROXY=direct`, and Mathlib is compiled by the job above.
+- The cluster blocks `dl.google.com`. So Go comes from conda-forge into `~/.local/goenv` with
+  `GOPROXY=direct`.
 - `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
 - The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
   `board/test/py37.py` enforces it.

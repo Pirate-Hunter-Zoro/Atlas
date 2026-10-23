@@ -9,18 +9,17 @@
 #    uv is installed into ~/.local/bin when it is not on the PATH, and so is Go:
 #    from conda-forge into ~/.local/goenv where Slurm is (the cluster has no Go
 #    module and blocks dl.google.com), from go.dev into ~/.local/go elsewhere.
-#    Nothing needs root. Lean's elan is the Lean workspace's own setup's to
-#    install.
+#    Nothing needs root.
 # 2. Every workspace, found the way the board finds them (`subjects.all`),
 #    never from a list. ai-config, the one private repository nested in Atlas,
 #    is reported when this machine has not cloned it. A workspace is built by
 #    what it holds:
 #      pyproject.toml   uv sync, with the `test` extra, and the `cluster` extra
 #                       only where Slurm exists
-#      lean-toolchain   its own scripts/setup.sh: elan, the toolchain, and
-#                       Mathlib's build started in the background. Under Slurm
-#                       it starts nothing; scripts/setup-cluster.sh submits
-#                       Mathlib as a job
+#      lean-toolchain   its own scripts/setup.sh when it has one. Otherwise
+#                       elan, installed into ~/.elan when it is missing; the
+#                       prebuilt cache, when lake-manifest.json asks for the
+#                       library that ships one; then lake build
 #      go.mod           go mod download
 #
 # Idempotent: a second run changes nothing and says so. One line per workspace;
@@ -119,6 +118,32 @@ has_extra() {
     END { exit !found }' "$1"
 }
 
+# elan, Lean's toolchain manager, from its official installer into ~/.elan,
+# when it is missing. --no-modify-path: no shell profile is edited, and this
+# run puts ~/.elan/bin on its own PATH. --default-toolchain none: each
+# workspace's lean-toolchain names its own, and elan fetches it on first use.
+need_elan() {
+  command -v elan >/dev/null 2>&1 && return 0
+  local tmp ok=1
+  tmp="$(mktemp -d)" || return 1
+  curl -sSfL https://elan.lean-lang.org/elan-init.sh -o "$tmp/elan-init.sh" \
+    && sh "$tmp/elan-init.sh" -y --no-modify-path --default-toolchain none && ok=0
+  rm -rf "$tmp"
+  case ":$PATH:" in *":$HOME/.elan/bin:"*) ;; *) PATH="$HOME/.elan/bin:$PATH"; export PATH ;; esac
+  [ "$ok" = 0 ] && command -v elan >/dev/null 2>&1
+}
+
+# A Lean workspace, in a subshell so its cd stays there: the prebuilt cache
+# only when the manifest pins the library that ships one (`lake exe cache get`
+# is that library's executable), then the build.
+lean_build() (
+  cd "$1" || exit 1
+  if grep -q -E '"name": *"mathlib"' lake-manifest.json 2>/dev/null; then
+    lake exe cache get || exit 1
+  fi
+  lake build
+)
+
 for id in $workspaces; do
   ws="$ROOT/$id"
   log="$LOGS/${id//\//_}.log"
@@ -141,7 +166,7 @@ for id in $workspaces; do
     if [ -f "$ws/scripts/setup.sh" ]; then
       bash "$ws/scripts/setup.sh" >>"$log" 2>&1 || bad=1
     else
-      (cd "$ws" && lake exe cache get && lake build) >>"$log" 2>&1 || bad=1
+      { need_elan && lean_build "$ws"; } >>"$log" 2>&1 || bad=1
     fi
     did="${did:+$did, }lean"
   fi

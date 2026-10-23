@@ -30,8 +30,8 @@ node_modules/
 .venv/
 *.log
 
-# Lean's compiled Mathlib: 14 GB across 150,582 files, and `lake build`
-# recreates all of it. It never leaves the machine.
+# A Lean build's output and fetched packages, which `lake build` recreates.
+# It never leaves the machine.
 .lake/
 build/
 # Not output: the board's builder keeps its pandoc filter here.
