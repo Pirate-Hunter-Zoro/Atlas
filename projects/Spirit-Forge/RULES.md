@@ -42,10 +42,13 @@ An explicit request to implement work authorizes that work; obey the owner's act
 
 ## Tools and boundaries
 
-The proposed stack is Rust for a deterministic simulation and backend, Dart with Flutter
-for a 2D client, and Podman for OCI containers. These are directions, not installed tools.
-The coach checks the machine and current official documentation before each tool lesson.
-Explain one needed download at a time. Do not preinstall a stack or generate starter apps.
+The stack is Rust for the deterministic simulation and server, Flutter (Dart) for the
+client, Zig for the realm's static tools and cross toolchain, Lean 4 for the specification,
+and Podman for the shipped image. None is installed. Each arrives as a line in this
+subject's `mise.toml` or `Brewfile`, added in the lesson that introduces it; once committed,
+every Mac installs and updates it. The coach checks the machine and current official
+documentation before each tool lesson. Explain one needed download at a time. Do not
+preinstall a stack or generate starter apps.
 
 Begin with Rust and a terminal encounter. Introduce Flutter after the rules work. Use a
 versioned HTTP/JSON boundary when adding the backend, rather than starting with native
@@ -57,11 +60,43 @@ structs, enums, traits, ownership, errors, and concurrency without forcing class
 onto it. Introduce database design with local persistence; select a server database only
 when a quest needs its transactions or concurrent access.
 
+Rust decides outcomes: integer rules over ordered maps (`BTreeMap`), and a PRNG the owner
+writes from SplitMix64 or PCG32, checked against its reference vectors. Saves go to SQLite
+through `rusqlite` with its bundled C source. The axum v1 server validates actions and
+serves the Flutter web build. proptest mirrors each Lean property.
+
+Zig has two jobs. `warden` is a static tool the owner writes: `backup`, `restore`, and
+`check` (SQLite's online backup API, then `PRAGMA integrity_check`) work while the server is
+stopped or hung, and `probe` (GET `/v1/health`) is the only health check an image with no
+shell can run. It declares its SQLite externs by hand, because Zig 0.17 removed `@cImport`.
+Its `build.zig` compiles the SQLite amalgamation at the version `rusqlite` bundles. It is
+built and drilled natively on the Mac first. `zig cc`, through cargo-zigbuild,
+cross-compiles the server and its SQLite C to static `aarch64-` and
+`x86_64-unknown-linux-musl` binaries. Zig never decides outcomes and is never linked into
+the Rust process. Zig is pre-1.0: its pin moves with zls in its own commit, and the coach
+teaches only APIs in the pinned standard library.
+
+Podman ships one image built `FROM scratch`, holding the server, warden, and the web client
+for arm64 and amd64 under one manifest. The owner writes the Containerfile: it copies
+per-arch prebuilt binaries by `TARGETARCH`, with no RUN steps and no emulation in the build.
+The coach writes `scripts/ship.sh`. The image teaches a numeric non-root user, a published
+port, a named save volume, memory limits, the Linux VM Podman uses on macOS and its limits,
+and image size against a debian-slim baseline. Its health check is `warden probe`. OCI
+format drops HEALTHCHECK, so the owner chooses `--health-cmd` or docker format and says why.
+amd64 is checked by its ELF header and manifest entry, and runs only if the VM emulates it;
+the coach says which happened. Flutter, Lean, and dev shells are never containerized.
+
+Lean 4 is the specification language, with no Mathlib. Its Lake package sits at the subject
+root with sources in `spec/`. The bridge to Rust is a versioned JSON trace, never bindings.
+Lean reads the rolls from the trace and never re-implements the PRNG. The owner writes
+definitions and proofs; the coach writes trace plumbing and `scripts/check.sh`. "Verified"
+means `lake build --wfail` is green, with no `sorry`. Lean starts after "A real duel" works
+in Rust.
+
 Prefer local, free, open-source tools and portable file formats. No paid container desktop,
 cloud account, app-store membership, or subscription is required to play or develop.
-Podman on macOS uses a Linux VM. Teach its resource limits, volumes, and networking when
-containerization becomes the lesson. Do not containerize native UI tooling just for symmetry.
-Official references: https://podman.io/docs/installation and https://flutter.dev/.
+Official references: https://podman.io/docs/installation, https://flutter.dev/,
+https://ziglang.org/, and https://lean-lang.org/.
 
 DeepSeek is the intended coach, not an application dependency. All coaches follow this
 same contract. Atlas's provider table and fallback order remain authoritative. Any future
@@ -84,5 +119,12 @@ next exercise, and actual check commands/results in `TUTOR.md`. Keep it under 80
 Write up agreed reasoning in the current turn using Atlas's write-up workflow. Never invent
 an answer the owner did not give. Save only named project paths through Atlas's normal flow.
 
-The minimal `tutorboard.json` intentionally declares no check or relay. Add a real check
-when the owner has created runnable code; never install a placeholder passing check.
+The check contract is built only when code runs. `scripts/check.sh` runs
+`cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked` with the
+golden-trace replay, `zig fmt --check warden/`, `zig build test` in `warden/`,
+`flutter analyze` and `flutter test` where a pubspec sits, then `lake build --wfail` and the
+oracle over `traces/*.jsonl`. The cross-build, manifest, container replay, and restore drill
+live in `scripts/ship.sh`, never in the board check, because they need the podman machine.
+
+The minimal `tutorboard.json` intentionally declares no check. It gets `check` once
+`scripts/check.sh` is tracked; never install a placeholder passing check.
