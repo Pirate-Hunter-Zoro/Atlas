@@ -1,12 +1,13 @@
 # Single source of truth for the chapter layout of this course.
-# Used by scripts/split-textbook.sh, scripts/scaffold.sh and the Makefile.
+# Used by `board textbook split` and `board textbook scaffold`; checked against
+# the PDF outline by `board textbook ingest Galois-Theory --check`.
 #
 # Columns (TAB separated):
 #   num  first_pdf_page  last_pdf_page  slug  title
 #
 # Page numbers are PDF page indices into textbook/A Course in Galois Theory.pdf
-# (NOT the book's printed page numbers; the offset is 11 for Part 1 and 12 for
-# Part 2). Verified against the chapter opening pages of the scan.
+# (NOT the book's printed page numbers: a PDF page is the printed page plus 9,
+# all the way through; `board textbook find "p. N"` converts one).
 01	12	22	groups-fields-and-vector-spaces	Groups, fields and vector spaces
 02	23	26	axiom-of-choice-and-zorns-lemma	The axiom of choice, and Zorn's lemma
 03	27	45	rings	Rings

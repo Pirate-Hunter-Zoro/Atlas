@@ -87,9 +87,6 @@ These are pre-approved. Write each from its bullets, and commit it when its item
   - Each session is its own topic.
   - TUTOR.md "Done recently" holds at most 15 one-line entries, newest first.
   - Cut before adding.
-- **The course READMEs and the Galois chapter `.tex` header comments:** they link
-  `AI_INSTRUCTIONS.md`, `HANDOFF.md`, `PROGRESS.md` and `make split`, none of which exists. Point
-  them at `RULES.md`, `TUTOR.md` and `board textbook split`.
 
 
 ## 5. The LIBR exit
@@ -246,67 +243,6 @@ Done when:
 - `board open` has a CLI test.
 - A marked copy made after a bind holds the ink drawn before it.
 
-## 13. Textbooks: upload a book, get an index
-
-Both existing courses were set up by hand: someone read the running headers to make
-`chapters.tsv`. The brief tells the tutor only the chapter titles, and nothing resolves
-"Exercise 3.4" to a page. Both tables' page-offset comments are wrong. Probability's offset
-drifts from 8 to 3, and Galois's is 9, not 11/12.
-
-Prototypes on both real books show that the PDF outline reproduces all 31 hand-made chapter rows
-exactly. Nothing here calls a model.
-
-- **The engine: `board/tutorboard/course/book.py`.**
-  - Outline: from `pdftohtml -xml -i -q -stdout -f 1 -l 1`, parsed with `xml.etree`.
-  - Page text: cached in `textbook/text/pNNNN.txt` from one `pdftotext -layout` run. Any page
-    with under 40 characters is OCR'd one at a time with `gs -sDEVICE=ocr -r300`. The run resumes.
-  - Chapters:
-    - the shallowest outline depth with at least 3 numbered items;
-    - a chapter ends one page before the next item at the same or shallower depth;
-    - stop at Solutions, Appendix, Index, References or Bibliography, recorded as a doubt;
-    - with no outline, use a text fallback, marked as doubts.
-  - Sections: from the outline, or N.M heading lines.
-  - Printed pages: runs of constant offset per page range, never one offset.
-  - Exercises: after a line reading "Exercises" or "Problems", reset at each section, keeping the
-    increasing run.
-  - Output:
-    - Write ignored `textbook/index.json`: sha256, pages, chapters, sections, label runs,
-      exercises and doubts.
-    - Write `chapters.tsv` only when it is absent. Otherwise print the diff, and write only with
-      `--write`.
-    - Then run `split-textbook.sh` and `scaffold.sh --chapter-homework`.
-  - `find(ref)` accepts "Exercise 3.4", "3.4", "Ch 4 #34", "Section 2.1", "§2.1" and "p. 295". It
-    returns PDF pages, printed pages, the reading excerpt and page, and the text. An unresolved
-    reference is flagged "not indexed", never guessed.
-- **The CLI:** `board textbook ingest <course> [--upload <name>] [--write] [--check]`,
-  `board textbook find [<course>] <ref> [--sheet <pdf>]` and `board textbook status <course>`.
-- **The server:**
-  - `POST /s/<id>/textbook {upload}`. It needs a session bound to a course and refuses a second,
-    different PDF.
-  - It files the upload into `textbook/` and runs `book.ingest` in a daemon thread, as
-    `tikz.Compiler` does, with progress in `textbook/ingest.json`.
-  - It finishes with a waking `[textbook]` line carrying counts and doubts.
-  - That turn settles the doubts by reading pages, and writes TUTOR.md "Where things are".
-  - Add `GET /textbook.json`.
-- **The client:** the course maker sheet gets an optional "textbook PDF" field. It runs the
-  `annotate()` chain, then `/textbook`, then opens the session. The library shows the textbook
-  line, or "Add the textbook".
-- **What the tutor is told:**
-  - `brief.book_sense` adds "`board textbook find <ref>`", within `test/tokens.py`'s BUDGET.
-  - The homework sense says to resolve every reference on the sheet with
-    `board textbook find --sheet` before posing.
-  - TEACHING.md's uploads section says a course's book goes in through `board textbook ingest`.
-- **Tests:** in `board/test/textbook.py`, gs-made fixtures cover an outline with back matter, no
-  outline, and an image-only page.
-
-Done when:
-- `ingest --check` on both courses reports zero chapter-row differences.
-- Galois "7.6" gives PDF page 79, "Section 3.4" gives page 33, and Probability "p. 295" gives
-  page 300.
-- On the iPad, "+ new course" with a PDF ends in a `[textbook]` card, with excerpts and notes on
-  disk and `chapters.tsv` committed.
-- Nothing under `textbook/` or `reading/` is tracked.
-
 ## 14. Speech: every tutor speaks, listens and judges pronunciation
 
 Every session gets this, math included. A language subject turns it on by default.
@@ -458,6 +394,9 @@ These are built but not yet used for real. Strike each one after an evening on t
   - A code excerpt with `path#L`, opening the read-only source viewer.
   - The ink clipboard across pages: copy on the board, then in annotate, then paste on the
     board, and the annotate ink pastes. Then the reverse.
+- **A textbook:** "+ new course" with a PDF ends in a `[textbook]` card, with the readings and
+  chapter notes on disk and `chapters.tsv` committed. The library shows the book's line, or
+  "Add the textbook".
 - **Typing:** with the full keyboard up, the answer box sits on the keys, the lesson scrolls
   behind it, and the ⤢ key makes the box tall.
 - **Laptop coding:**

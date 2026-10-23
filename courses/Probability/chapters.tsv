@@ -1,12 +1,14 @@
 # Single source of truth for the chapter layout of this course.
-# Used by scripts/split-textbook.sh, scripts/scaffold.sh and the Makefile.
+# Used by `board textbook split` and `board textbook scaffold`; checked against
+# the PDF outline by `board textbook ingest Probability --check`.
 #
 # Columns (TAB separated):
 #   num  first_pdf_page  last_pdf_page  slug  title
 #
 # Page numbers are PDF page indices into textbook/ProbTextbook.pdf, which is
 # Ross, ELEVENTH edition, 769 pages. They are not the book's printed page
-# numbers; the offset is 8, so printed page 1 is PDF page 9.
+# numbers, and no one offset converts them: it is 8 in chapter 1 and falls to 3
+# by chapter 8. `board textbook find "p. N"` converts one.
 #
 # THE EDITION IS THE THING TO CHECK BEFORE TRUSTING AN EXERCISE NUMBER. The
 # course ran on the tenth edition until 22 September 2026 and its exercises are
