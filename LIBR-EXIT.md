@@ -173,8 +173,8 @@ Guards fail closed, so callers and registrations go before the files they name.
    - In the code, delete `gitops._vendor_moved` and the submodule block in `gitops.pull`, and
      `bootstrap.sh`'s submodule fill.
    - In the docs and tests, delete `--recurse-submodules` from README's clone lines and the vendor
-     fixtures in `test/gitremote.py` and `test/commands.py`. `test/truthful.py`'s retired
-     `~/colibri*` targets go.
+     fixtures in `test/gitremote.py` and `test/commands.py`.
+     `test/truthful.py`'s retired `~/colibri*` targets go.
    - In the main checkout, run `git submodule deinit -f --all` before the merge. Without it the
      merge leaves `?? vendor/`. *After the merge* removes the rest.
    - `setup-mac.sh` does the same once on any clone where `.gitmodules` is gone and
