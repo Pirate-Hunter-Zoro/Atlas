@@ -158,6 +158,10 @@ keys.env
 /courses/*/chapters/*/reading/
 /courses/*/chapters/*/lectures/
 /courses/*/**/assignment*
+# A document's feedback rounds (ink SVGs, crops, page renders, before/after
+# copies, items, states, ledgers, round notes) stay on disk; ledger.py reads them there.
+/courses/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*
+/projects/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*
 
 # A subject's live/ is an old per-subject board's session state (turns, answers,
 # mission trails). Sessions live in /sessions/ now; a machine that still holds
