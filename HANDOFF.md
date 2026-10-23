@@ -88,7 +88,7 @@ These are pre-approved. Write each from its bullets, and commit it when its item
   - TUTOR.md "Done recently" holds at most 15 one-line entries, newest first.
   - Cut before adding.
 - **`projects/Spirit-Forge/RULES.md` (item 8):**
-  - In "Tools and boundaries", the Lean paragraph.
+  - In "Tools and boundaries", the stack, Zig, Podman and Lean paragraphs.
   - Downloads arrive as lines in the subject's `mise.toml` or `Brewfile`, added in the lesson
     that introduces them. Once committed, every machine installs and updates them. That keeps
     "do not preinstall a stack" true.
@@ -219,41 +219,99 @@ Done when:
 - A planted failing descriptor shows in `atlas-brew status` and `board doctor`.
 - A synthetic subject pinned to an old version shows a `pin behind` line.
 
-## 8. Spirit-Forge: the toolchain and the Lean thread
+## 8. Spirit-Forge: Rust, Zig, containers, and the Lean thread
 
-Spirit-Forge plans Rust for the simulation, Flutter/Dart for the client and Podman later. None
-of them is installed. Its RULES.md forbids preinstalling, so the item-7 machinery is built now
-and each declaration lands in the lesson that introduces its tool.
+Spirit-Forge exercises Rust, Zig and containers, each with a job the game needs, plus Flutter for
+the client and Lean 4 for the specification. None is installed. Its RULES.md forbids
+preinstalling, so the item-7 machinery is built now and each declaration lands in the lesson that
+introduces its tool.
 
-- **README.md gains the inventory** (owner's file, so draft it):
-  - Every machine: rust via mise, with `rustfmt` and `clippy`; and flutter via mise, stable
-    channel, which includes Dart.
-  - First client target: Flutter web in Chrome. It needs no Xcode or Android SDK, and widget tests
-    run on the Dart VM.
-  - Coding laptop only, when a device target is chosen:
-    - Android Studio (cask in the subject Brewfile). Its bundled JDK serves Gradle.
-      `ANDROID_HOME=~/Library/Android/sdk`. Do not add the `android-commandlinetools` cask:
-      Studio's SDK Manager installs cmdline-tools into that SDK, and a second SDK would shadow
-      it.
-    - `tools/android-sdk.sh` (`sdkmanager --update`, with a timeout and closed stdin).
-    - Xcode from the App Store with automatic updates. `tools/xcode.sh` only reports.
-    - No CocoaPods: Flutter uses SwiftPM by default.
-  - Podman (brew) when its quest arrives, plus a descriptor that checks `podman machine`.
-  - Once only, by a person: Android licences, the Xcode licence and `-runFirstLaunch`, the Studio
-    wizard, AVDs, Apple ID signing and `podman machine init`.
-  - Lean 4 via elan (setup.sh's lean branch), with a Mathlib-free Lake package.
-- **QUESTS.md gains "Prove the rules"** after "First playable loop":
-  - Oracle of the duel: the duel's step function as a pure Lean definition. A rejected action
-    leaves the state unchanged, and HP and energy stay in bounds.
-  - Replay judge: Rust writes seeded JSON-lines traces, and `lake exe oracle` replays them and
-    stops at the first divergence.
-  - Every duel ends: a decreasing measure.
-  - Proven optimizations: DP forge equals brute force, BFS is shortest, union-find agrees with
-    naive connectivity. Plausible falsifies before proof (confirm it needs no Mathlib), and Rust's
-    proptest mirrors each property.
-  - The paragraph on optimizations preserving behaviour adds: stated, and preferably proved, in
-    Lean.
-- **RULES.md paragraph** (*Owner files*):
+**The jobs.**
+- **Rust decides outcomes.** An integer-only duel with ordered maps (`BTreeMap`). A PRNG the owner
+  writes from a published algorithm (SplitMix64 or PCG32), checked against its reference vectors,
+  because a library generator may change its stream between versions. Versioned JSON-lines traces
+  carry the seed, every action and roll, and a per-step state digest; Lean reads the rolls and
+  never re-implements the PRNG. Saves go to SQLite through `rusqlite` with its bundled C source.
+  The axum v1 HTTP/JSON server validates actions and serves the Flutter web build. proptest
+  mirrors each Lean property.
+- **Zig has two jobs.**
+  - `warden`, a static tool the owner writes: `backup`, `restore` and `check` (SQLite's online
+    backup API, then `PRAGMA integrity_check`) work while the server is stopped or hung, and
+    `probe` (GET `/v1/health`) is the only health check an image with no shell can run. It reaches
+    SQLite through hand-written extern declarations, because Zig 0.17 removed `@cImport`, and
+    `build.zig` compiles the SQLite amalgamation at the version `rusqlite` bundles. It is built and
+    drilled natively on the Mac first.
+  - `zig cc`, through cargo-zigbuild, cross-compiles the server (with its SQLite C) to static
+    `aarch64-` and `x86_64-unknown-linux-musl` binaries on the Mac.
+  - Zig never decides outcomes and is never linked into the Rust process.
+- **Podman ships one image built `FROM scratch`** holding the server, warden and the web client.
+  The owner writes the Containerfile: COPY per-arch prebuilt binaries by `TARGETARCH`, no RUN
+  steps, one arm64+amd64 manifest with no emulation in the build. It teaches a numeric non-root
+  USER, a published port, a named save volume, a memory limit, the podman machine VM's limits,
+  image size against a debian-slim baseline, and the warden probe as a health check (OCI format
+  drops HEALTHCHECK: the owner chooses `--health-cmd` or docker format and says why). Acceptance:
+  the arm64 container replays the golden traces with identical digests, and a restore drill
+  deletes the save volume, runs `warden restore` and plays on. amd64 is checked by its ELF header
+  and manifest entry, and run only if the VM emulates it; the coach says which happened. Flutter,
+  Lean and dev shells are never containerized. The coach writes `scripts/ship.sh`.
+- **Flutter stays the client:** web only before May 2027, one duel screen against the Rust server.
+  Device targets wait until one is chosen.
+- **Lean before May:** Oracle of the duel and Replay judge, after A real duel. Every duel ends and
+  Proven optimizations come after the checkpoint unless time remains.
+
+**Order to May 2027:** Sparring spirit; A real duel; Prove the rules; one algorithm quest of the
+owner's choice; Save a journey; Realm warden; A visible arena (web, with the minimal v1 server);
+Forge a static spirit; Ship a reproducible realm. What slips first: Lean's optional proofs, the
+amd64 run, then `warden check`.
+
+- **QUESTS.md:**
+  - A real duel ends: "Use explicit inputs and repeatable randomness so a failing encounter can be
+    replayed. Write the random generator yourself from a published algorithm and check it against
+    its reference values, because a library generator may change its stream between versions.
+    Each encounter writes a versioned JSON-lines trace of the seed, every action and roll, and a
+    digest of the state after each step. Keep the rules in integers and ordered collections so a
+    trace replays identically on any machine."
+  - "Prove the rules" goes after "First playable loop":
+    - Oracle of the duel: the step function as a pure Lean definition. A rejected action leaves
+      the state unchanged, and HP and energy stay in bounds.
+    - Replay judge: `lake exe oracle` replays Rust's traces and stops at the first divergence.
+    - Every duel ends (a decreasing measure) and Proven optimizations (DP forge equals brute
+      force, BFS is shortest, union-find agrees with naive connectivity; Plausible falsifies
+      first, if it needs no Mathlib; proptest mirrors each), marked "after the May 2027
+      checkpoint unless time remains".
+    - The paragraph on optimizations preserving behaviour adds: stated, and preferably proved, in
+      Lean.
+  - A visible arena starts: "Build a Flutter web screen for the same duel; phone and tablet targets
+    wait until one is chosen." It ends: "The Rust server serves the built client, so one binary
+    carries the playable game."
+  - Save a journey adds: "Store saves in SQLite compiled from its own C source inside the Rust
+    build, so the realm carries C code that later needs a cross compiler."
+  - New, after Save a journey, **Realm warden:** "Write warden in Zig: a small static tool that
+    backs up, restores, and checks a save while the game is stopped or hung. Declare the few
+    SQLite C functions it needs by hand and build SQLite's source with build.zig. Learn slices,
+    allocators, error unions, defer, and the C ABI through a tool the realm depends on. Finish with
+    a drill: delete the save, restore it, and play on."
+  - New, before Ship, **Forge a static spirit:** "Cross-compile the server and warden from the Mac
+    to static Linux binaries for arm64 and amd64. Zig compiles SQLite's C and links against musl
+    for both. Explain target triples, libc, and static linking from each binary's own headers, not
+    from a green build."
+  - Ship a reproducible realm's second and third sentences become: "Package the server, warden,
+    and web client in one image built from scratch, for arm64 and amd64 under one manifest, with
+    no emulation in the build. Learn ports, a named save volume, a numeric non-root user, a warden
+    health probe, memory limits, and the Linux VM behind Podman. The image replays the golden
+    traces with identical digests, and a restore drill brings a deleted save back. A fresh local
+    environment must run the current game." Keep the hosting sentence.
+  - Make it survive trouble adds: "Measure musl's allocator under concurrent duels before blaming
+    it; replace it only for a measured gain."
+  - The May 2027 checkpoint adds: "Diagnose the seeded bug from the first diverging step of its
+    trace."
+- **RULES.md "Tools and boundaries"** (*Owner files*): its first paragraph names the stack (Rust,
+  Flutter, Zig for the realm's static tools and cross toolchain, Lean 4, Podman), each arriving as a
+  line in the subject's `mise.toml` or `Brewfile` in the lesson that introduces it. A Zig paragraph
+  says its two jobs, that it never decides outcomes and is not linked into Rust, and that Zig is
+  pre-1.0: its pin moves with zls in its own commit, and the coach teaches only APIs in the pinned
+  standard library. A Podman paragraph says the one scratch image and what it teaches. The Lean
+  paragraph:
   - Lean 4 is the specification language, with no Mathlib.
   - The Lake package sits at the root with sources in `spec/`.
   - The bridge is a versioned JSON trace, never bindings.
@@ -261,21 +319,47 @@ and each declaration lands in the lesson that introduces its tool.
     `scripts/check.sh`.
   - "Verified" means `lake build --wfail` is green, with no `sorry`.
   - Lean starts after "A real duel" works in Rust.
-- **`projects/Spirit-Forge/.gitignore`:** `/target/`, `.dart_tool/`, `*.jks`, `*.keystore`,
-  `key.properties` and `/traces/*.local.jsonl`.
+- **README.md inventory** (*Owner files*):
+  - Every machine: rust via mise with `rustfmt` and `clippy`, plus the two linux-musl targets from
+    Forge a static spirit; zig 0.17.0 and zls 0.17.0 via mise from Realm warden; cargo-zigbuild
+    0.24.0 via mise's github backend, never brew (brew's pulls in brew zig and llvm); flutter via
+    mise, stable channel, which includes Dart.
+  - First client target: Flutter web in Chrome. It needs no Xcode or Android SDK, and widget tests
+    run on the Dart VM.
+  - Coding laptop only, when a device target is chosen: Android Studio (cask in the subject
+    Brewfile; its bundled JDK serves Gradle; `ANDROID_HOME=~/Library/Android/sdk`; no
+    `android-commandlinetools` cask, whose second SDK would shadow Studio's),
+    `tools/android-sdk.sh` (`sdkmanager --update`, with a timeout and closed stdin), Xcode from
+    the App Store with `tools/xcode.sh` only reporting, and no CocoaPods.
+  - Podman (brew) from Ship a reproducible realm, plus `tools/podman-machine.sh`: `T_ROLES` coding,
+    empty `T_INSTALL`, `T_MANUAL` naming `podman machine init`, `T_CHECK` that a machine runs and
+    client and machine versions agree, report-only `T_UPDATE`, `T_EVERY_DAYS` 7, `T_STALE_DAYS` 30.
+  - Lean 4 via elan (setup.sh's lean branch), with a Mathlib-free Lake package in `spec/`.
+  - Once only, by a person: `podman machine init` with chosen CPUs, memory and disk; Android
+    licences, the Xcode licence and `-runFirstLaunch`, the Studio wizard, AVDs and Apple ID signing
+    when a device target is chosen.
+- **The item-7 machinery learns Zig:** `build.zig.zon` is a marker one directory down; setup runs
+  `mise exec -- zig build --fetch` there; `gitops.LOCKFILES` gains `build.zig.zon`; the marker
+  walk skips `zig-out/`, `.zig-cache/` and `zig-pkg/`.
+- **`projects/Spirit-Forge/.gitignore`:** `/target/`, `.dart_tool/`, `zig-out/`, `.zig-cache/`,
+  `zig-pkg/`, `/dist/`, `*.jks`, `*.keystore`, `key.properties` and `/traces/*.local.jsonl`.
+  Golden traces in `traces/*.jsonl` stay tracked.
 - **The check contract, later.** Record it in RULES.md and build it only when code runs.
-  - `scripts/check.sh` runs `cargo fmt --check`, `cargo clippy --locked -- -D warnings` and
-    `cargo test --locked`.
-  - Then `flutter analyze` and `flutter test` where a pubspec sits.
-  - Then `lake build --wfail` and the oracle over `traces/*.jsonl`.
-  - `tutorboard.json` gets `check` once the script is tracked.
-- **TUTOR.md "Open decisions"**, through `board memo`: the Lean thread starts after A real duel,
-  and the first Flutter target is web.
+  `scripts/check.sh` runs `cargo fmt --check`, `cargo clippy --locked -- -D warnings`,
+  `cargo test --locked` (with the golden-trace replay), `zig fmt --check warden/`,
+  `zig build test` in `warden/`, `flutter analyze` and `flutter test` where a pubspec sits, then
+  `lake build --wfail` and the oracle over `traces/*.jsonl`. `tutorboard.json` gets `check` once
+  the script is tracked. The cross-build, manifest, container replay and restore drill live in
+  `scripts/ship.sh`, never in the board check, because they need the podman machine.
+- **TUTOR.md "Open decisions"**, through `board memo`: Lean starts after A real duel; Flutter's first
+  target is web; Zig arrives with Realm warden after Save a journey; Podman arrives with Ship a
+  reproducible realm; before May 2027, one algorithm quest of the owner's choice.
 
 Done when:
 - QUESTS.md and TUTOR.md carry the above.
-- The README inventory and the RULES.md paragraph are committed.
+- The README inventory and the RULES.md paragraphs are committed.
 - `bash scripts/setup.sh` prints a `projects/Spirit-Forge` line reading `nothing to build`.
+- A synthetic subject with `warden/build.zig.zon` is found as a marker, with its lockfile rule.
 
 
 ## 11. The problem stays on screen, and its givens go anywhere in one tap
@@ -356,14 +440,44 @@ What is missing is a catch-all, a URL or a Mac path, and a single "save to" orde
   drawer.
 - **The constant:** `subjects.SCRATCH = "courses/Random"` and `subjects.scratch(base)`.
   `/subjects.json` returns `scratch` beside `meetings` (or alone after the exit).
-- **One order in all three pickers:** "Random lessons" first, then Recent, Courses, Projects. The
-  pickers are `board.js` `paintSubjects`, `home.js` `paintSender` and `openAnnot`. Annotate
+- **One order in all four pickers:** "Random lessons" first, then Recent, Courses, Projects. The
+  pickers are `board.js` `paintSubjects`, `home.js` `paintSender` and `openAnnot`, and `slate.js`
+  `openSend`, which also ends on "keep it unfiled". Annotate
   preselects Random lessons, and "not yet: it stays in the session" stays last. No route changes.
 - **The notes canvas:** an unbound canvas binds to the catch-all unless its pages plainly belong
   elsewhere. Change `runner/prompts/notes.md` step 1 and `loop.notes_up`, and name the catch-all
   in `brief.py`'s unbound line.
 - **The marked copy reads all ink.** `burn.strokes_by_page` reads every dir in
   `course_repo.ink_dirs(repo)`. Today ink drawn before a bind is missing from "keep a marked copy".
+- **A blank canvas** (owner decision). Home's Notes canvas (`home.js` `newNotes`, a `view: slate`
+  session) already opens in one tap, holds many pages and never wakes a tutor while unsent. Build
+  the rest:
+  - **Named for what it is.** `#act-notes` becomes "New canvas", sub-line "write now; file it or
+    give it to a tutor later", beside `#new-session`. The meeting deck's `notes*` ids stay its own.
+  - **Writing never wakes a tutor.** On a canvas, `slate.js` hides `bSend` and the Live chip through
+    a new `api.sendable(false)` in `slate-core.js`.
+  - **"Save to…" on the canvas.** `#away` gains a subject button that opens the shared picker and
+    binds through `POST /s/<id>/bind`. It neither ends the session nor wakes a turn.
+  - **The pages are filed, not only transcribed.** A new `sessions.file_canvas(sid)` writes the
+    inked pages to `<subject>/docs/<slug>/handwritten/page-NN.png` (at the send cap, not
+    `PNG_IDLE_EDGE`), beside a `notes.md` with one image link per page and a `doc.json` naming the
+    session. It runs on bind and on End, and `_kept` commits that directory.
+  - **End offers three things.** "End, keep the pages" files them and queues no turn. "End and
+    transcribe" is today's `_notes`, writing the text under each page's image. "Keep it unfiled"
+    ends with no turn and leaves the pages in the session. `routes/lesson.py` `_end` takes
+    `{subject?, transcribe}`, and `RUNNER.end` runs only when `transcribe` is true.
+  - **"Give to the tutor" wakes one turn on the whole canvas.** It sits on the canvas and on its
+    Continue and Past rows. `POST /s/<id>/give` writes one waking `[canvas]` line naming every
+    inked page in order (`sessions.slate_pages`). On an ended canvas it calls `sessions.reopen`
+    first, so it is not in `ENDED_REFUSES`. Home then opens `/s/<id>/board`.
+  - **The tutor knows the canvas exists.** For a canvas session, `brief.py` names its pages and
+    `board slate --all`.
+  - **A taught canvas gets its wrap-up.** `service._wrap` runs `loop.wrap_up` for a `view: slate`
+    session that has cards, and `_notes` when transcription was asked for.
+  - **Export.** `GET /s/<id>/canvas.pdf` comes from a new `burn.canvas_pdf(pages)`, drawing the
+    strokes as vector paths on white pages through `_write_pdf`, each page cropped like `pngBox`
+    (canvas PNGs are RGBA, which `burn._png_parts` refuses). The canvas menu offers "PDF" and "this
+    page as PNG".
 - **From a URL:** `POST /s/<id>/fetch {url}` in `routes/writing.py`, added to
   `handler.ENDED_REFUSES`.
   - Allow http and https only. Build the opener without `FileHandler` or `FTPHandler`, and
@@ -376,7 +490,14 @@ What is missing is a catch-all, a URL or a Mac path, and a single "save to" orde
   It is listed in `NO_LIVE`.
 
 Done when:
-- All three pickers show Random lessons first.
+- All four pickers show Random lessons first, and a canvas has no Send or Live (JSDOM).
+- `/sessions/new {view:slate}` plus an unsent `/slate/save` writes no waking line and queues no
+  turn. `/give` writes one `[canvas]` line listing pages 1..N and queues one turn; on an ended
+  canvas it reopens and wakes; on an empty one it answers 400.
+- `_end {transcribe:false}` queues nothing and commits `docs/<slug>/notes.md` with
+  `handwritten/page-*.png`; with no subject and no transcription it commits nothing.
+- `canvas.pdf` starts with `%PDF-` and has one page per inked page.
+- `_wrap` on a canvas with cards writes TUTOR.md.
 - A send there files uploads into `courses/Random/materials/`.
 - `/fetch` lands a local http.server PDF and refuses file://, ftp:// and a non-PDF.
 - `board open` has a CLI test.
@@ -576,6 +697,10 @@ These are built but not yet used for real. Strike each one after an evening on t
   - Pinch-zoom on a paper and a deck in the one reader. Safari's page zoom never starts, ink
     stays on its words, and one finger scrolls a zoomed page sideways.
   - The notes canvas: a full-slate session whose End leaves a notes.md.
+  - A canvas at a lecture: "New canvas" in one tap, three pages with the tutor still
+    listening, "Save to" Random lessons mid-canvas, "Give to the tutor" days later bringing one
+    card that reads all three pages, the PDF in the share sheet, and "End, keep the pages"
+    leaving them in the library with no turn.
   - Annotate from Files, from a URL and from `board open`; "Keep a marked copy"; and the copy
     following the PDF into the chosen subject.
   - Sending selected annotations.
