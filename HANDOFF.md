@@ -64,10 +64,13 @@ Rules that hold throughout:
 - **Brew upgrades.** Both upgraders stay.
   - The external `com.mikeyferguson.brewupgrade` keeps its job.
   - `atlas.brew-upgrade` keeps a full brew upgrader on every clone (item 7).
+  - A cover run is a full brew upgrade, the external job's protected casks included.
 - **Spirit-Forge:** the verification language is Lean 4 without Mathlib. Zig, Rust and
   containerization are the three things the project exercises, each with a real job in the game.
+  Flutter stays the client as planned.
 - **A blank canvas.** Home opens a canvas to write on with no tutor, for notes at a lecture. It
   saves to Random lessons, any subject or nowhere, and goes to a tutor at any time (item 12).
+  Handing it over wakes one tutor turn.
 - **Defaults:**
   - Home's "Annotate a PDF" preselects Random lessons.
   - A finished textbook ingest wakes one tutor turn.
