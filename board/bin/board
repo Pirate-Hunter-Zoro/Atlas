@@ -5,7 +5,8 @@ board -- command line for the live tutoring board.
 The assistant runs these. The student never does.
 
     board status                       is the one board server up, and this
-                                       session's subject, mode and cards
+                                       session's subject, mode and cards; no
+                                       session: the server line alone
     board pull [--quiet]               fast-forward Atlas and ai-config; name
                                        stale lockfiles
     board pull --materials [<subject>...]
@@ -184,11 +185,14 @@ def server_answers(port=None, timeout=3.0):
 
 
 def cmd_status(live, args):
-    """Is the one board server up, and where this session stands."""
-    st = live.state()
+    """Is the one board server up, and where this session stands. With no
+    session named, the server line alone."""
     port = paths.port()
     print("server:  %s on 127.0.0.1:%d" % ("up" if server_answers(port) else "down",
                                           port))
+    if live is None:
+        return 0
+    st = live.state()
     print("repo:    %s" % live.root)
     cfg = read_config(live.root)
     print("course:  %s" % (st.get("course") or cfg["name"]))
@@ -2247,6 +2251,9 @@ NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.
 SUBJECT_ONLY = ("check", "init", "see", "memo")
+# Commands that say less outside a session: with none named they run with no
+# Repo, anywhere, instead of refusing.
+SESSION_OPTIONAL = ("status",)
 
 
 def help_for(cmd, fn):
@@ -2283,7 +2290,8 @@ def main(argv):
     # Only the first position: later it may be an option's value.
     if rest and rest[0] in ("-h", "--help", "help"):
         return help_for(cmd, fn)
-    if cmd in NO_LIVE:
+    if cmd in NO_LIVE or (cmd in SESSION_OPTIONAL
+                          and not os.environ.get("TUTORBOARD_SESSION")):
         return fn(None, rest)
     live = course_repo.resolve(root, create=False,
                                need_session=cmd not in SUBJECT_ONLY)
