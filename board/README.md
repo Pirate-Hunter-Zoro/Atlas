@@ -130,7 +130,8 @@ to the target subject, else to a new session bound to it.
 A subject is a directory directly under `courses/` or `projects/` (`subjects.py`). No registry,
 no marker file.
 
-- **`tutorboard.json`** holds `name` and `check`. `board init` writes one.
+- **`tutorboard.json`** holds `name`, `check` and optionally `speech` (`{lang, native, voice,
+  auto}`, see *Speech*). `board init` writes one.
 - **Create.** "+ course", "+ project" or `board bind <id> --create`. One commit makes the
   directory, `tutorboard.json` and a `TUTOR.md` skeleton.
 - **Memory.** `RULES.md` is the owner's; the brief reads it at HEAD and flags a working-tree
@@ -296,6 +297,26 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
   provider in the chain and sends the vision route one witness strip; `--dry` spends none and
   names the vision route chain. `board see` passes over a route that answered without looking
   and asks the next sighted recipe. `board cost` adds up every session's `cost.jsonl`.
+
+## Speech
+
+Every session speaks and listens; a subject's `speech.lang` only sets the default language.
+
+- `agents/speech.py` is a table of its own, `azure`, `openai` and `local`, with an `order` per
+  kind (`tts`, `stt`, `assess`). config.json's `speech` block is laid over it as `agents` is:
+  `recipes` per name, `order` per kind. `chain` passes over a recipe that is unkeyed, missing
+  its command, limited, stood down or without the language, and always ends with `local`:
+  `say` (espeak-ng for Irish), `whisper-cli` with the model `scripts/speech-model.sh` fetches,
+  and `speech/tones.py`, a stdlib tone check labelled a prototype. Azure takes
+  `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`, OpenAI `OPENAI_API_KEY`, in keys.env.
+- A card's fence opened with `say <lang>` (optional `pinyin="..."`) becomes
+  `@@SAY:<sha>:<status>:<lang>@@`, synthesised on the TikZ thread into the speech cache
+  (`paths.SPEECH`) and served at `/speech/<sha>.m4a`. `POST /speech/card` speaks a card's
+  prose without its math or code.
+- `POST /s/<id>/speech/say` takes a recording and writes `sessions/<id>/speech/<base>.heard.json`
+  beside it; the tutor gets a waking `[speech]` line naming that file, never the audio, and
+  reads it with `board hear`. Each job writes one `cost.jsonl` line; `board cost` lists them
+  apart from turns. `board doctor` speaks one word and hears it back.
 
 ## Invariants
 

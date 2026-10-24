@@ -104,7 +104,8 @@ The assistant runs these. The student never does.
     board init [name]                  write tutorboard.json for this repository
     board doctor [--dry] [name ...]    what the machine has, then one real turn
                                        each on the provider and its fallback,
-                                       and one look through the vision route;
+                                       one look through the vision route and
+                                       one word spoken and heard back;
                                        --dry spends none
     board egress [--repair]            can a turn get out, and through which exit node
     board limit [--clear|--set S]      has the tutor's allowance here run out
@@ -2011,6 +2012,12 @@ def cmd_doctor(live, args):
     if dry and "--dry" not in args:
         print("inside a turn: dry, no turn is spent")
     ok = smoke.cmd_doctor(None, names, dry=dry) == 0 and ok
+    if not names:
+        # Speech: the chains, the local recipe's state, and, spent, one word
+        # spoken and heard back (`speech/witness.py`).
+        from tutorboard.speech import witness
+        print()
+        ok = witness.report(dry=dry) and ok
     return 0 if ok else 1
 
 

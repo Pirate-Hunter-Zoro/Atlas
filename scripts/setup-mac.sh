@@ -20,7 +20,8 @@
 #      submodules go, and so do retired projects that hold only caches
 #   2  bootstrap: `board` on the PATH, ai-config,
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
-#   3  the Brewfile and every subject's environment (scripts/setup.sh)
+#   3  the Brewfile and every subject's environment (scripts/setup.sh), and
+#      the board's whisper model (scripts/speech-model.sh)
 #   4  the assistant CLIs: ai-config linked, and every CLI its descriptors know
 #      how to install, installed when missing (none is required)
 #   5  tailscale serves the board on the tailnet over HTTPS
@@ -133,6 +134,13 @@ bash board/bootstrap.sh 2>&1 | sed 's/^/  /'
 echo "== 3. environments"
 bash scripts/setup.sh 2>&1 | tee "$LOGS/setup.log" | sed 's/^/  /'
 [ "${PIPESTATUS[0]}" -eq 0 ] || warn "scripts/setup.sh: a FAILED line above names its log"
+# The board's local listener: one whisper model, checksummed, fetched once.
+if [ "$CODING" = 1 ]; then
+  good "skipped the whisper model: a coding checkout serves no board"
+else
+  bash scripts/speech-model.sh 2>&1 | sed 's/^/  /'
+  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
+fi
 
 echo "== 4. assistant CLIs"
 # None is load-bearing: a CLI that will not install is reported, never a stop.

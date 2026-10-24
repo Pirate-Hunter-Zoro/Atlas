@@ -16,6 +16,11 @@ brew "gh"
 brew "tailscale"
 cask "font-dejavu"   # `board build`'s PDF face: it has the ₀ ρ ≈ − a paper uses
 
+# speech: the board's local listener and voices (board/tutorboard/agents/speech.py)
+brew "whisper-cpp"   # whisper-cli; scripts/speech-model.sh fetches its model
+brew "ffmpeg"        # a WebM take, which afconvert cannot read
+brew "espeak-ng"     # Irish (ga), which macOS has no voice for
+
 # the workspaces' code. Not elan: scripts/setup.sh installs it into ~/.elan for
 # a Lean subject, on every machine, and a second one here would shadow it.
 brew "uv"            # every pyproject.toml and uv.lock

@@ -45,7 +45,7 @@ Inside a subject:
 
 | Path | What it is | Tracked |
 | --- | --- | --- |
-| `tutorboard.json` | `name`, `check` | yes |
+| `tutorboard.json` | `name`, `check`, `speech` | yes |
 | `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
 | `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |

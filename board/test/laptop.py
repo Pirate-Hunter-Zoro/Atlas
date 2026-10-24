@@ -38,6 +38,7 @@ anything but the shim.
     deleted; named subjects limit it; no `host` is a plain refusal.
 """
 
+import hashlib
 import json
 import os
 import shutil
@@ -146,6 +147,13 @@ esac
 exit 0
 """, EXE)
 write(os.path.join(shims, "curl"), "#!/bin/bash\n" + LOG + "printf 200\n", EXE)
+# The whisper model: a fetch that logs and writes known bytes, checked
+# against their own SHA-256 (scripts/speech-model.sh), so no host is contacted.
+write(os.path.join(shims, "model-fetch"), "#!/bin/bash\n" + LOG
+      + 'printf "model bytes" >"$2"\n', EXE)
+ENV.pop("TUTORBOARD_MODELS", None)
+ENV.update(SPEECH_MODEL_FETCH=os.path.join(shims, "model-fetch"),
+           SPEECH_MODEL_SHA256=hashlib.sha256(b"model bytes").hexdigest())
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
 write(os.path.join(shims, "mise"), "#!/bin/bash\n" + LOG, EXE)
 # setup-mac.sh refuses anything but a Mac; the shim keeps the suite independent of uname.
@@ -209,6 +217,7 @@ try:
     git(seed, "remote", "add", "origin", origin)
     real = {}
     for rel in ("scripts/setup-mac.sh", "scripts/setup.sh", "scripts/tools.sh",
+                "scripts/speech-model.sh",
                 "board/bootstrap.sh", "board/install.sh", "Brewfile",
                 "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py",
                 "scripts/launchd/atlas.brew-upgrade.plist"):
@@ -373,6 +382,8 @@ try:
         code, out, said = runs[1]
         check("and its second run changes nothing",
               "Brewfile.all unchanged" in out and "widget-install" not in said
+              and "whisper model ggml-small-q5_1.bin unchanged" in out
+              and not calls("model-fetch")
               and not [l for l in said if l.startswith("launchctl bootstrap")
                        or l.startswith("tailscale serve --bg")], (out, said))
         write(ROLE, "coding\n")
