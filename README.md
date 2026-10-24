@@ -160,14 +160,13 @@ host.
 ## Assistant CLIs
 
 Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
-config, its hooks, and how to install, update and run it. The scripts that act on the
+config and how to install, update and run it. The scripts that act on the
 descriptors name no vendor, so adding an assistant is one file, and none is required.
 `setup-mac.sh` fast-forwards `ai-config` first, since Atlas's pull never moves it. Then it
 runs these two, which a second run leaves unchanged:
 
-- `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each hook and
-  settings file, the daily audit and update timers, and one marked block in `~/.bashrc` that
-  sources `ai-config/scripts/shell.sh`.
+- `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`) and each settings
+  file, and loads the daily audit's LaunchAgent.
 - `ai-config/scripts/install-clis.sh` runs the vendor's own installer for any CLI that is
   missing, under `$HOME`, with no prompt and no login. It prints each login command. A failed
   install is reported and the rest go on.

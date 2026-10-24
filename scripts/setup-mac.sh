@@ -136,15 +136,15 @@ bash scripts/setup.sh 2>&1 | tee "$LOGS/setup.log" | sed 's/^/  /'
 
 echo "== 4. assistant CLIs"
 # None is load-bearing: a CLI that will not install is reported, never a stop.
-# ai-config links each one's contract, hooks and settings and the shell
-# block; install-clis puts in any its descriptors know how to install.
+# ai-config links each one's contract and settings and loads the daily
+# audit; install-clis puts in any its descriptors know how to install.
 if [ -f ai-config/scripts/install.sh ]; then
   # ai-config is its own repository and Atlas's pull never moves it.
   GIT_TERMINAL_PROMPT=0 git -C ai-config pull -q --ff-only origin main 2>"$LOGS/ai-config-pull.log" \
     && good "ai-config at $(git -C ai-config log -1 --format=%h)" \
     || warn "ai-config would not fast-forward (local commits or edits); see $LOGS/ai-config-pull.log"
   bash ai-config/scripts/install.sh >"$LOGS/ai-config-install.log" 2>&1 \
-    && good "ai-config linked (contract, hooks, settings, shell)" \
+    && good "ai-config linked (contract, settings, daily audit)" \
     || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
   bash ai-config/scripts/install-clis.sh 2>&1 | sed 's/^/  /'
   [ "${PIPESTATUS[0]}" -eq 0 ] || warn "an assistant CLI did not install; the line above says how by hand"

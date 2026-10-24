@@ -175,17 +175,6 @@ existing vision route on the slate PNG.
   re-renders the tutor-board plist with mise's shims on its PATH, and deletes the retired
   vendor checkouts and any retired project that holds only caches. One holding anything else
   is kept and named: move what is the owner's out of it, then delete it.
-- **ai-config.** The policy files are already copied into `courses/Colibri/materials/policy/`.
-  - First unregister `block-phi.py` in the Claude settings, because a registered hook whose
-    target is missing blocks every tool call. Then delete `policy/phi.py` and the PHI hook
-    adapters.
-  - Drop `shell.sh`'s NFS wrappers.
-  - Port the systemd timers (the daily audit and CLI updates) to launchd.
-  - Drop the egress and LOCAL-MODELS fence, the lab-path deny rules and the `~/Atlas` paths.
-  - Drop `README.md`'s Colibri line.
-- **`~/.claude/CLAUDE.md`'s "AI Providers: None Is Load-Bearing" section** names the cluster,
-  PHI, Colibri and a deleted egress document. Rewrite it for the Mac, and the same section in
-  `~/.config/opencode/AGENTS.md`.
 
 ## Loose ends in the code
 
@@ -194,6 +183,9 @@ existing vision route on the slate PNG.
   to home's Past sessions, or delete it.
 - `board/install.sh` ends by suggesting `board status`, which refuses outside a session. Make
   `cmd_status` print the server line with no session, or drop the hint.
+- `ai-config/adapters/claude_code.py` is a no-op hook kept for Claude Code sessions started
+  before 2026-10-24, which still run it through `~/.claude/hooks/block-phi.py`. Once every
+  session has restarted, delete both, and `A_LEFTOVER` in `assistants/claude_code.sh`.
 
 ## On the glass
 

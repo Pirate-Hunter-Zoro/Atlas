@@ -100,7 +100,7 @@ Thumbs.db
 **/.claude/
 
 # ---- the one directory that is its own private repository ----
-# `ai-config/` holds the operating contract every assistant reads, its hooks,
+# `ai-config/` holds the operating contract every assistant reads
 # and each vendor's settings files, which name real paths on this machine. It lives INSIDE this tree, so one directory is the whole of the
 # work, and is ignored here, so a public repository never carries a byte of it.
 /ai-config/
