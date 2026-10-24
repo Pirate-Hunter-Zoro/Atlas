@@ -17,7 +17,7 @@
 # changes nothing:
 #
 #   1  main, fast-forward only; once, the checkouts of the retired vendor
-#      submodules go, and so do the retired projects' untracked leftovers
+#      submodules go, and so do retired projects that hold only caches
 #   2  bootstrap: `board` on the PATH, ai-config,
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
 #   3  the Brewfile and every subject's environment (scripts/setup.sh)
@@ -96,16 +96,35 @@ if [ ! -f .gitmodules ] && [ -n "$GIT_COMMON" ] && [ -d "$GIT_COMMON/modules/ven
     rmdir "$GIT_COMMON/modules/vendor" "$GIT_COMMON/modules" vendor 2>/dev/null
   fi
 fi
-# Five retired projects leave ignored leftovers (.venv, docs builds, .ink)
-# behind on a clone that pulls their removal, and subjects.walk lists any
-# directory under projects/ as a subject. One holding no tracked file goes.
+# Five retired projects leave leftovers behind on a clone that pulls their
+# removal, and subjects.walk lists any directory under projects/ as a subject.
+# One goes only when git answers that it holds no tracked file and what is
+# left is caches and virtualenvs. Anything else, ignored or untracked, may be
+# the owner's only copy (a manuscript, a write-up), so that directory is kept
+# and named, and so is every one when git or find does not answer: an empty
+# answer would read as "nothing to keep".
+CACHES=(-name .venv -o -name venv -o -name __pycache__ -o -name .pytest_cache
+        -o -name .mypy_cache -o -name .ruff_cache)
 for p in TRD-EHR PSYCH-ASR libr-local-llm Meetings Paper-Writer; do
   [ -d "projects/$p" ] || continue
-  if [ -n "$(git ls-files -- "projects/$p")" ]; then
+  if ! tracked="$(git ls-files -- "projects/$p" 2>/dev/null)"; then
+    warn "projects/$p was kept: git did not answer whether it holds tracked files"
+    continue
+  fi
+  if [ -n "$tracked" ]; then
     warn "projects/$p still holds tracked files, so it was kept"
     continue
   fi
-  rm -rf "projects/$p" && good "deleted projects/$p, a retired project's untracked leftovers"
+  if ! own="$(find "projects/$p" \( "${CACHES[@]}" \) -prune \
+                -o ! -type d ! -name .DS_Store ! -name '*.pyc' -print 2>/dev/null)"; then
+    warn "projects/$p was kept: find could not read all of it"
+    continue
+  fi
+  if [ -n "$own" ]; then
+    warn "projects/$p was kept: $(printf '%s\n' "$own" | wc -l | tr -d ' ') file(s) in it are not caches, such as $(printf '%s\n' "$own" | head -1); move what is yours out, then delete it"
+    continue
+  fi
+  rm -rf "projects/$p" && good "deleted projects/$p, a retired project holding only caches"
 done
 
 echo "== 2. bootstrap"

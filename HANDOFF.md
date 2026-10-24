@@ -179,7 +179,8 @@ existing vision route on the slate PNG.
   `bash scripts/setup-mac.sh --coding` twice on each laptop. The second run must
   end clean with `Brewfile.all unchanged`. The first installs mise, ghostscript and tesseract,
   re-renders the tutor-board plist with mise's shims on its PATH, and deletes the retired
-  projects' leftovers and vendor checkouts.
+  vendor checkouts and any retired project that holds only caches. One holding anything else
+  is kept and named: move what is the owner's out of it, then delete it.
 - **ai-config.** The policy files are already copied into `courses/Colibri/materials/policy/`.
   - First unregister `block-phi.py` in the Claude settings, because a registered hook whose
     target is missing blocks every tool call. Then delete `policy/phi.py` and the PHI hook

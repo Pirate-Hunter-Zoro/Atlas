@@ -25,6 +25,9 @@ anything but the shim.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
     whose lockfiles moved, with --quiet too, a mise.lock, a Cargo.lock or a
     build.zig.zon one directory down included; ai-config that will not fast-forward is exit 1.
+  - A RETIRED PROJECT GOES ONLY WHEN IT HOLDS NOTHING BUT CACHES: one holding
+    the owner's files, ignored or untracked, is kept and named, and so is every
+    one when git does not answer.
   - --CODING ASKS FOR THE MAC MINI'S TAILNET NAME and writes it as config.json
     `host`, keeping the other keys; a rerun does not ask again.
   - `board pull --materials` RSYNCS THE IGNORED INPUTS ONLY. An rsync shim
@@ -232,7 +235,7 @@ try:
     run(["git", "clone", "-q", aorigin, os.path.join(laptop, "ai-config")])
     setup = os.path.join(laptop, "scripts", "setup-mac.sh")
 
-    # A retired project's ignored leftovers, which subjects.walk would list.
+    # A retired project's virtualenv, which subjects.walk would list.
     write(os.path.join(laptop, "projects", "Paper-Writer", ".venv", "pyvenv.cfg"), "x\n")
     # A stray board from before, loaded, with its plist.
     write(AGENT, "<plist/>\n")
@@ -252,7 +255,7 @@ try:
     check("--coding ends clean, as a coding checkout",
           code == 0 and "THIS CODING CHECKOUT IS UP TO DATE" in out, out)
     check("and writes the role file", read(ROLE).strip() == "coding", read(ROLE))
-    check("a retired project holding no tracked file is deleted, and said",
+    check("a retired project holding only caches is deleted, and said",
           not os.path.exists(os.path.join(laptop, "projects", "Paper-Writer"))
           and "deleted projects/Paper-Writer" in out, out)
     check("it pulls main", git(laptop, "rev-parse", "HEAD")
@@ -301,6 +304,41 @@ try:
     check("ai-config is fast-forwarded and installed",
           git(os.path.join(laptop, "ai-config"), "rev-parse", "HEAD")
           == git(aorigin, "rev-parse", "main") and calls("ai-install"), out)
+
+    # A retired project holding anything but caches may hold the owner's only
+    # copy of their work, ignored or untracked: it is kept and named. One
+    # holding only caches goes. And when git does not answer, an empty answer
+    # is not "nothing tracked": every one is kept.
+    proj = lambda *rel: os.path.join(laptop, "projects", *rel)
+    write(proj("Paper-Writer", "Manuscripts", "paper.md"), "the owner's draft\n")
+    write(proj("Paper-Writer", ".venv", "pyvenv.cfg"), "x\n")
+    write(proj("Meetings", "agenda-2026.md"), "the owner's agenda\n")
+    write(proj("TRD-EHR", ".venv", "pyvenv.cfg"), "x\n")
+    write(proj("TRD-EHR", "pkg", "__pycache__", "m.cpython-313.pyc"), "x\n")
+    write(proj("TRD-EHR", ".DS_Store"), "x\n")
+    code, out = run(["bash", setup])
+    check("a retired project holding the owner's files is kept, and said",
+          read(proj("Paper-Writer", "Manuscripts", "paper.md")) == "the owner's draft\n"
+          and read(proj("Meetings", "agenda-2026.md")) == "the owner's agenda\n"
+          and "projects/Paper-Writer was kept" in out
+          and "projects/Meetings was kept" in out and code != 0, out)
+    check("and one holding only caches is deleted",
+          not os.path.exists(proj("TRD-EHR")) and "deleted projects/TRD-EHR" in out, out)
+    shutil.rmtree(proj("Paper-Writer"))
+    shutil.rmtree(proj("Meetings"))
+    gitfail = os.path.join(work, "gitfail")
+    write(os.path.join(gitfail, "git"), "#!/bin/bash\n"
+          'for a in "$@"; do [ "$a" = ls-files ] && exit 128; done\n'
+          'exec %s "$@"\n' % shutil.which("git", path=PATH), EXE)
+    write(proj("PSYCH-ASR", ".venv", "pyvenv.cfg"), "x\n")
+    p = subprocess.run(["bash", setup], cwd=work, input="",
+                       env=dict(ENV, PATH=gitfail + os.pathsep + ENV["PATH"]),
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       universal_newlines=True, timeout=300)
+    check("when git does not answer, a retired project is kept, and said",
+          os.path.exists(proj("PSYCH-ASR", ".venv", "pyvenv.cfg"))
+          and "projects/PSYCH-ASR was kept: git did not answer" in p.stdout, p.stdout)
+    shutil.rmtree(proj("PSYCH-ASR"))
 
 
     # Without the role, the same install.sh does load the agent: the gate is
