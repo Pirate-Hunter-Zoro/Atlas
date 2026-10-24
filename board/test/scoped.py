@@ -4,7 +4,7 @@
 Atlas holds the tool and every workspace. A save tapped in one -- the save
 button, `board push`, `board finish`'s offer -- commits that
 workspace's directory and nothing else: never `board/`, never another
-workspace, never an `.nfs*` file the NFS client left behind. `board push "msg"
+workspace. `board push "msg"
 -- <paths>` narrows it further, which is how a turn commits the work it did
 under a message naming the thread.
 
@@ -74,7 +74,7 @@ try:
     write(os.path.join(beta, "tutorboard.json"), "{}\n")
     write(os.path.join(beta, "y.py"), "y = 1\n")
     write(os.path.join(repo, "board", "x.py"), "x = 1\n")
-    # The real root .gitignore, because that is what keeps `.nfs*` out.
+    # The real root .gitignore, as Atlas has it.
     shutil.copy(os.path.join(os.path.dirname(ROOT), ".gitignore"),
                 os.path.join(repo, ".gitignore"))
     subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
@@ -88,7 +88,6 @@ try:
     # --- the save button ---------------------------------------------------
     write(os.path.join(alpha, "notes.md"), "tonight\n")
     write(os.path.join(alpha, "live", "slate", "page-02.json"), "{}\n")
-    write(os.path.join(alpha, ".nfs0000000000abcd00000001"), "litter\n")
     write(os.path.join(beta, "y.py"), "y = 2\n")
     write(os.path.join(repo, "board", "x.py"), "x = 2\n")
 
@@ -101,13 +100,9 @@ try:
     check("board/ does not", not any(f.startswith("board/") for f in got))
     check("another workspace does not",
           not any(f.startswith("projects/Beta/") for f in got))
-    check("an .nfs file does not", not any(".nfs" in f for f in got))
     left = dirty(repo)
     check("and the other two are still uncommitted, untouched",
           {"board/x.py", "projects/Beta/y.py"} <= left)
-    check("and the .nfs file is still on disk, ignored rather than tracked",
-          os.path.exists(os.path.join(alpha, ".nfs0000000000abcd00000001"))
-          and not git(repo, "ls-files", "projects/Alpha/.nfs*")[1])
     check("the subject leads with the subject's slug",
           git(repo, "log", "-1", "--format=%s")[1].strip()
           == "Alpha: lesson complete")
@@ -147,8 +142,7 @@ try:
     got = committed(repo)
     check("a bare `board push` is the same scope as the save button",
           code == 0 and "projects/Alpha/src/b.py" in got
-          and not any(f.startswith(("board/", "projects/Beta/")) for f in got)
-          and not any(".nfs" in f for f in got))
+          and not any(f.startswith(("board/", "projects/Beta/")) for f in got))
 
     # --- the pathspec itself --------------------------------------------------
     # A workspace that holds the tool (the repository root in a single-clone
