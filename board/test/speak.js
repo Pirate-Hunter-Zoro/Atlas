@@ -66,6 +66,7 @@ window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 // What was fetched, and what the server says.
 const fetched = [];
 let heardReply = null;
+let notMade = [];
 window.fetch = (u, init) => {
   const url = String(u);
   fetched.push({ url, init: init || {} });
@@ -78,6 +79,9 @@ window.fetch = (u, init) => {
   }
   if (/\/speech\/say$/.test(url)) {
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(heardReply) });
+  }
+  if (notMade.some((sha) => url.endsWith('/speech/' + sha + '.m4a'))) {
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ ok: false }) });
   }
   if (/\/speech\/[0-9a-f]{32}\.m4a$/.test(url)) {
     return Promise.resolve({ ok: true, status: 200,
@@ -176,6 +180,19 @@ function paint(extra) {
   check(!posts(/\/speech\/card$/).length,
         'the first frame speaks nothing, even with auto-speak on',
         'opening the board read out every card already on it');
+
+  // Auto-speak is on before anyone touches its toggle, so the first tap
+  // anywhere is what unlocks iOS audio.
+  plays.length = 0;
+  doc.body.click();
+  check(plays.length === 1 && /^data:audio/.test(plays[0]),
+        'the first tap anywhere plays a silent clip: the iOS unlock, with auto-speak '
+        + 'on before its toggle is touched', 'the first tap unlocked nothing: '
+        + JSON.stringify(plays));
+  await sleep(10);
+  doc.body.click();
+  check(plays.length === 1, 'and only the first: the player stays unlocked',
+        'every tap replays the silent clip');
 
   // ---- the tab ------------------------------------------------------------
   const tab = doc.getElementById('tab-speak');
@@ -352,12 +369,49 @@ function paint(extra) {
   check(posts(/\/speech\/card$/).length === cardPosts,
         'and its prose is not read: target phrases only',
         'auto-speak read the whole card aloud');
+
+  // A phrase freshly written is still being made when its card lands.
+  const SHA4 = '9'.repeat(32);
+  const card4 = { id: '0004', kind: 'lesson', title: 'Next', mtime: now + 20,
+                  body: 'A new card.\n\n@@SAY:' + SHA2 + ':ready:zh-CN@@ 谢谢' };
+  const morning = (status) => ({ id: '0006', kind: 'lesson', title: 'Morning', mtime: now + 25,
+                                 body: '@@SAY:' + SHA4 + ':' + status + ':zh-CN@@ 早上好' });
+  notMade = [SHA4];
+  paint({ cards: [lesson, question, card4, morning('pending')] });
+  await sleep(30);
+  check(!gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length,
+        'a new phrase still pending is not fetched, to a 404 and dropped',
+        'a pending phrase was fetched before it was made');
+  plays.length = 0;
+  notMade = [];
+  paint({ cards: [lesson, question, card4, morning('ready')] });
+  await sleep(30);
+  check(gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length === 1
+        && plays.length === 1 && /^blob:/.test(plays[0]),
+        'it plays unasked on the frame that says it is ready',
+        'the phrase made after its card landed never played: ' + JSON.stringify(plays));
+  paint({ cards: [lesson, question, card4, morning('ready')] });
+  await sleep(30);
+  check(gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length === 1,
+        'and once', 'an owed phrase played again on a later frame');
+  check(doc.querySelector('.card[data-card="0006"] .say-phrase').dataset.status === 'ready',
+        'the card is redrawn when what it was waiting for is made',
+        'the card still says its phrase is pending');
+  const figured = (status) => ({ id: '0007', kind: 'lesson', title: 'Figure', mtime: now + 26,
+                                 body: '@@FIGURE:' + 'ab'.repeat(8) + ':' + status + '@@' });
+  paint({ cards: [lesson, question, card4, morning('ready'), figured('pending')] });
+  paint({ cards: [lesson, question, card4, morning('ready'), figured('ready')] });
+  check(doc.querySelector('.card[data-card="0007"] .figure img')
+        && !doc.querySelector('.card[data-card="0007"] .figure.pending'),
+        'and so is a figure compiled after its card landed',
+        'a figure made after its card landed still says compiling');
+
   await sleep(30);
   plays.length = 0;
   auto.click();
-  check(plays.length === 1 && /^data:audio/.test(plays[0]),
-        'the toggle\'s own tap plays a silent clip: the iOS unlock',
-        'the toggle tap played nothing, so iOS would stay locked');
+  check(plays.length === 0,
+        'the toggle\'s tap does not replay the clip once the player is unlocked',
+        'the toggle tap replayed the silent clip: ' + JSON.stringify(plays));
   check(window.localStorage.getItem('speak-auto:courses/Mandarin') === '0'
         && auto.getAttribute('aria-pressed') === 'false',
         'turned off, and stored for this subject', 'the choice was not stored per subject');

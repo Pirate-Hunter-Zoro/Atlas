@@ -1139,9 +1139,16 @@ function render(data) {
        not moved would keep the band and the count it was born with. */
     var band = item.card ? (cardVerdict[item.card.id] || "") : "";
     var run = item.card ? (streakAt[item.card.id] || 0) : 0;
+    /* And how many of its figures and `say` phrases are still being made:
+       the frame that says one is ready does not touch the card file, so
+       without this the card would say "compiling" until a reload, and a
+       phrase owed to auto-speak would never be played. */
+    var making = item.card ? ((item.card.body || "").match(
+      /@@(?:FIGURE|SAY):[0-9a-f]+:pending\b/g) || []).length : 0;
     var wantKey = stamp + (item.card
       ? (band ? ":v" + band : "")
         + (run > 1 ? ":s" + run : "")
+        + (making ? ":p" + making : "")
       : (onBoard ? ":b" : "") + (says ? ":v" + says : "")
         + (nth ? ":n" + nth + "/" + oneOf.length : ""));
     if (onScreen[wantKey]) {

@@ -29,9 +29,13 @@
    auto-speaks target phrases only (HANDOFF's owner decisions), and a card is
    read whole only from its own button. It is stored per subject (`speak-auto:<subject>`), and a
    subject with no stored choice takes `speech.auto` from its tutorboard.json.
-   iOS plays sound only from an element first played inside a tap, so the
-   toggle's own tap plays a silent clip on the one shared player; every later
-   play goes through that element.
+   A new card's phrase usually arrives `pending` (the compiler thread is still
+   making it): it is owed, and played on the frame that says it is ready.
+   iOS plays sound only from an element first played inside a tap, and a
+   language subject's auto-speak is on before anyone taps the toggle, so the
+   first tap anywhere on the page plays a silent clip on the one shared
+   player, as do the toggle, record, play and speak taps, synchronously,
+   before any fetch; every later play goes through that element.
 
    board.js owns the page and hands over what this needs (`init`): its
    session fetch, the question being answered, whether the session has ended,
@@ -53,6 +57,7 @@ var started = false;
 var subject = "";          /* whose auto-speak choice is read */
 var defaults = null;       /* the subject's `speech` block, or null */
 var seen = null;           /* card ids already on screen: only new ones speak */
+var owed = {};             /* sha of a new card's phrase still being made */
 var target = null;         /* {text, lang, pinyin} a take aims at */
 var lastHeard = "";        /* the heard block painted, as JSON */
 
@@ -61,6 +66,7 @@ var player = null;         /* the one shared <audio> */
 var playUrl = null;        /* its current object URL */
 var queue = [];            /* URLs waiting to be played */
 var playing = false;
+var unlocked = false;      /* the shared player has played inside a tap */
 
 function $(id) { return document.getElementById(id); }
 
@@ -86,6 +92,17 @@ function init(h) {
     setAuto(!auto());
     unlock();
   });
+  /* The first tap anywhere unlocks the player for auto-speak. */
+  var first = function () {
+    unlock();
+    if (!unlocked) return;
+    ["touchend", "click", "keydown"].forEach(function (ev) {
+      document.removeEventListener(ev, first, false);
+    });
+  };
+  ["touchend", "click", "keydown"].forEach(function (ev) {
+    document.addEventListener(ev, first, false);
+  });
   /* A phrase's play button and a card's speak button, wherever they are:
      cards are rebuilt by the board's reconcile, so nothing is bound to them. */
   document.addEventListener("click", function (e) {
@@ -95,6 +112,7 @@ function init(h) {
     if (play) {
       e.preventDefault();
       e.stopPropagation();
+      unlock();
       phrase(play.closest(".say-phrase"), true);
       return;
     }
@@ -102,6 +120,7 @@ function init(h) {
     if (card) {
       e.preventDefault();
       e.stopPropagation();
+      unlock();
       speakCard(card);
     }
   }, true);
@@ -119,17 +138,19 @@ function getPlayer() {
   return player;
 }
 
-/* Inside a tap: play the silent clip once, so iOS lets this element play
-   later on its own. Skipped while something plays: that element is already
-   allowed. */
+/* Inside a tap, synchronously: play the silent clip once, so iOS lets this
+   element play later on its own. Once is enough, and it is skipped while
+   something plays: that element is already allowed. A refused clip leaves
+   the next tap to try again. */
 function unlock() {
+  if (unlocked || playing) return;
   var p = getPlayer();
-  if (playing) return;
+  unlocked = true;
   try {
     p.src = SILENT;
     var got = p.play();
-    if (got && got.catch) got.catch(function () {});
-  } catch (e) {}
+    if (got && got.catch) got.catch(function () { unlocked = false; });
+  } catch (e) { unlocked = false; }
 }
 
 /* Fetched whole, then played from a Blob: no Range support on the server. */
@@ -310,7 +331,8 @@ function paintAuto() {
 
 /* New cards since the last frame: their `say` phrases played in order when
    auto-speak is on. The prose is not read. The first frame only learns what
-   is already there. */
+   is already there. A phrase still `pending` is owed, and played on the
+   first frame that has it `ready`; one that failed is let go. */
 function speakNew(cards) {
   var fresh = [];
   cards.forEach(function (c) {
@@ -319,11 +341,21 @@ function speakNew(cards) {
   });
   if (!seen) seen = {};
   cards.forEach(function (c) { if (c && c.kind !== "pending") seen[c.id] = true; });
-  if (!fresh.length || !auto() || (hooks.ended && hooks.ended())) return;
+  if (!auto() || (hooks.ended && hooks.ended())) { owed = {}; return; }
   fresh.forEach(function (id) {
     Array.prototype.forEach.call(
       document.querySelectorAll('[data-card="' + id + '"] .say-phrase'),
-      function (n) { phrase(n, false); });
+      function (n) {
+        if (n.dataset.status === "ready") phrase(n, false);
+        else if (n.dataset.status === "pending" && n.dataset.sha) owed[n.dataset.sha] = true;
+      });
+  });
+  Object.keys(owed).forEach(function (sha) {
+    var n = document.querySelector('[data-card] .say-phrase[data-sha="' + sha + '"]');
+    if (!n) { delete owed[sha]; return; }
+    if (n.dataset.status === "pending") return;
+    delete owed[sha];
+    if (n.dataset.status === "ready") phrase(n, false);
   });
 }
 

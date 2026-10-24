@@ -322,8 +322,10 @@ Every session speaks and listens; a subject's `speech.lang` only sets the defaul
 - `web/speak.js` is the speak tab (`#tab-speak`, `#speakbox`): `getUserMedia` on the record
   tap only, every track stopped after the take, `audio/mp4` else `audio/webm;codecs=opus`. It
   also adds each card's speak button and plays `say` phrases from a Blob, since nothing serves
-  a Range. The menu's auto-speak plays a new card's phrases, never its prose. It is stored per
-  subject, defaults to `speech.auto`, and its tap unlocks iOS audio.
+  a Range. The menu's auto-speak plays a new card's phrases, never its prose; a phrase still
+  being made plays on the frame that says it is ready. It is stored per subject and defaults
+  to `speech.auto`. The first tap anywhere unlocks iOS audio, so a default of on needs no
+  tap on the toggle.
 
 ## Invariants
 
