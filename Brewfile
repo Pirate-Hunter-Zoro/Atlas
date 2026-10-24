@@ -1,7 +1,6 @@
 # The Mac's system tools. `bash scripts/setup.sh` runs `brew bundle` on this file
-# joined with every subject's own Brewfile (~/.local/state/atlas-setup/Brewfile.all);
-# on the cluster the same tools come from modules or a user-level install of uv
-# and elan. A line's comment says what it is for, where the name does not. A
+# joined with every subject's own Brewfile (~/.local/state/atlas-setup/Brewfile.all).
+# A line's comment says what it is for, where the name does not. A
 # tool only one subject uses goes in that subject's Brewfile.
 
 # the board and the paper builders

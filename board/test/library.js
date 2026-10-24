@@ -50,7 +50,7 @@ const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LIBRARY = {
-  workspace: 'research/PSYCH-ASR',
+  workspace: 'research/Speech-Lab',
   writeups: 'writeups',
   documents: [
     {
@@ -90,7 +90,7 @@ const LIBRARY = {
    The shape is `library.browse_results`', and the thing to notice is what is
    NOT in it: no `rel`, because the board addresses a result by id. */
 const RESULTS = {
-  ok: true, workspace: 'research/TRD-EHR',
+  ok: true, workspace: 'research/Cohort-Study',
   figures: 3, tables: 2, more: 1,
   looked: ['results', 'figures'],
   groups: [
@@ -293,7 +293,7 @@ const named = (title) => rows().filter(
   sent.filter((r) => /library\.json/.test(r.url)).length === 1
     ? ok('the page asks the board what this workspace has written')
     : fail('the list was not fetched once: ' + JSON.stringify(sent.map((r) => r.url)));
-  doc.getElementById('lib-where').textContent === 'research/PSYCH-ASR'
+  doc.getElementById('lib-where').textContent === 'research/Speech-Lab'
     ? ok('and says which workspace it is showing')
     : fail('the workspace is not named');
 
@@ -884,7 +884,7 @@ const named = (title) => rows().filter(
   doc.getElementById('note-send').disabled
     ? ok('“make it better” is not a purpose, and is refused before it is sent')
     : fail('a three-word purpose armed the send');
-  const AIM = 'a fifteen-minute briefing for the lab meeting on what colibri '
+  const AIM = 'a fifteen-minute briefing for the lab meeting on what kestrel '
     + 'does to a transcript';
   doc.getElementById('note-purpose').value = AIM;
   doc.getElementById('note-purpose')
@@ -1186,7 +1186,7 @@ const named = (title) => rows().filter(
      directories, one of them too heavy to spend on a thumbnail. The shape is
      `library.browse_results`', sent down the same route, so this is the payload the
      page really gets and not a second idea of one. */
-  const GAL = { ok: true, workspace: 'research/TRD-EHR', tables: 0, more: 0,
+  const GAL = { ok: true, workspace: 'research/Cohort-Study', tables: 0, more: 0,
                 looked: ['results'], figures: 0, groups: [] };
   [['sweep/alpha', 14, 1789000000], ['sweep/beta', 20, 1788000000],
    ['cohort', 6, 1787000000]].forEach(([where, n, at]) => {
@@ -1254,7 +1254,7 @@ const named = (title) => rows().filter(
 
   // --- AND IT FETCHES NONE OF THEM YET -----------------------------------
   // The single highest-value assertion here. Six hundred figures is 46 MB in
-  // TRD-EHR, and a grid that asked for them on paint is a page that never
+  // Cohort-Study, and a grid that asked for them on paint is a page that never
   // finishes on a tablet.
   fetched().length === 0 && thumbs().every((i) => i.dataset.src)
     ? ok('THE GRID ASKS FOR NO PICTURE AT ALL until one comes near the glass, '
@@ -1564,7 +1564,7 @@ const named = (title) => rows().filter(
    ========================================================================== */
 async function inkFollowsZoom() {
   const ID = 'writeups-zoom-zoom';
-  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+  const LIB = { workspace: 'research/Cohort-Study', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/zoom', stem: 'zoom', title: 'A paper to zoom',
     kind: 'paper', formats: ['pdf'], rel: 'writeups/zoom/zoom.pdf',
     pages: 2, pdf: true, stale: false, iso: '2026-09-29', notes: [],
@@ -1625,7 +1625,7 @@ async function inkIsKept() {
   const ID = 'writeups-notes-notes';
   const P1 = 'doc/' + ID + '/p1';
   const P2 = 'doc/' + ID + '/p2';
-  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+  const LIB = { workspace: 'research/Cohort-Study', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/notes', stem: 'notes', title: 'Notes on the cohort',
     kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/notes/notes.pdf',
     pages: 2, pdf: true, stale: false, iso: '2026-09-28', notes: [],
@@ -2067,7 +2067,7 @@ async function lazyPagesArePictured() {
   const OLD = JSON.parse('{"c":"' + OLD_C + '","w":2,"pg":1,"dir":1,'
                          + '"p":[0.2,0.6,0.5,0.6],"pr":[0.5,0.5]}');
   const HALO = 'rgba(47,125,79,0.22)';
-  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+  const LIB = { workspace: 'research/Cohort-Study', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/lazy', stem: 'lazy', title: 'A long deck',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/lazy/lazy.pdf',
     pages: 4, pdf: true, stale: false, iso: '2026-10-01', notes: [],
@@ -2401,7 +2401,7 @@ async function lazyPagesArePictured() {
    ========================================================================== */
 async function changesArePins() {
   const ID = 'writeups-led-led';
-  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+  const LIB = { workspace: 'research/Cohort-Study', writeups: 'writeups', documents: [{
     id: ID, dir: 'writeups/led', stem: 'led', title: 'A paper with requests',
     kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/led/led.pdf',
     pages: 2, pdf: true, stale: false, iso: '2026-09-29',
@@ -2807,12 +2807,12 @@ async function pipsAndOwedInk() {
    the button live only while ink is still waiting or words were typed.
    ========================================================================== */
 async function oldBuildInk() {
-  const ID = 'writeups-colibri-colibri';
+  const ID = 'writeups-kestrel-kestrel';
   const key = (n) => 'doc/' + ID + '/p' + n;
   const RING = { c: '#e0b45c', w: 2, pg: 1, p: [0.2, 0.2, 0.5, 0.2], pr: [0.5, 0.5] };
-  const LIB = { workspace: 'research/LIBR', writeups: 'writeups', documents: [{
-    id: ID, dir: 'writeups/colibri', stem: 'colibri', title: 'Colibri',
-    kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/colibri/colibri.pdf',
+  const LIB = { workspace: 'research/Lab', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/kestrel', stem: 'kestrel', title: 'Kestrel',
+    kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/kestrel/kestrel.pdf',
     pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [],
     marks: { pages: 3, strokes: 3 },
   }] };
@@ -2848,7 +2848,7 @@ async function oldBuildInk() {
     if (/annotate\/save/.test(url)) return reply({ ok: true });
     if (/library\/feedback/.test(url)) {
       if (net.feedback === 'down') return Promise.reject(new Error('down'));
-      return reply({ ok: true, rel: 'writeups/colibri/feedback/v1.md', asked: true,
+      return reply({ ok: true, rel: 'writeups/kestrel/feedback/v1.md', asked: true,
                      marks: 2, detail: 'The tutor has been asked to revise it.' });
     }
     return new Promise(() => {});

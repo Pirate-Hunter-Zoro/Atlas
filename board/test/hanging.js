@@ -260,7 +260,7 @@ await sleep(40);
 // an indication that this is what's happening on the app."
 {
   const doing = (agent) => JSON.stringify({
-    state: { course: 'PSYCH-ASR', session: 'lecture', chapter: 'cli',
+    state: { course: 'Speech-Lab', session: 'lecture', chapter: 'cli',
              aim: 'build', stance: 'do', declared_stance: 'teach' },
     // The opening sentence, written by the turn itself a moment ago.
     cards: [{ id: '0001', kind: 'lesson', title: 'opening',
@@ -344,7 +344,7 @@ await sleep(40);
 
 // ------------------------------------------- a turn that is RE-PLANNING says so
 //
-// Reported from a direction change in PSYCH-ASR: "I just tried to change the
+// Reported from a direction change in Speech-Lab: "I just tried to change the
 // direction of the project... but I got left hanging for a bit while it was
 // thinking and modifying the plan - I want a visual indication that the
 // replanning is still happening like I get when waiting on a tutor response."
@@ -358,7 +358,7 @@ await sleep(40);
 // The daemon says what a turn was woken for; see `turn_signal` in `tutorboard/runner/turn.py`.
 {
   const replan = (cards) => JSON.stringify({
-    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach',
+    state: { course: 'Speech-Lab', session: 'lecture', aim: 'teach',
              declared_stance: 'teach' },
     cards: cards,
     turns: [{ id: 't0020', rev: 1, kind: 'text', answers: null, t: t0 - 60,
@@ -390,7 +390,7 @@ await sleep(40);
   // And it stops when the turn does -- the report is written over that card, and
   // the turn ends. Nothing here counts on the card to say so.
   es.onmessage({ data: JSON.stringify({
-    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach' },
+    state: { course: 'Speech-Lab', session: 'lecture', aim: 'teach' },
     cards: [{ id: '0001', kind: 'lesson', title: '',
               body: 'The plan is rewritten. First step: calibrate.',
               mtime: t0 - 1 }],
@@ -412,7 +412,7 @@ await sleep(40);
 // because it is exactly what the person just asked for.
 {
   es.onmessage({ data: JSON.stringify({
-    state: { course: 'PSYCH-ASR', session: 'lecture' },
+    state: { course: 'Speech-Lab', session: 'lecture' },
     cards: [], turns: [], history: 0,
     agent: { agent: 'claude', state: 'stopped', turns: 4 },
     waiting: { since: t0 - 30, count: 1, signal: 'direction' },
@@ -438,7 +438,7 @@ await sleep(40);
 // exists for: "I don't ever want to be left hanging."
 {
   es.onmessage({ data: JSON.stringify({
-    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'build',
+    state: { course: 'Speech-Lab', session: 'lecture', aim: 'build',
              stance: 'do', declared_stance: 'teach' },
     cards: [{ id: '0001', kind: 'lesson', title: 'opening',
               html: '<p>About to run the four typists.</p>', mtime: t0 - 900 }],

@@ -7,8 +7,8 @@ which is why a fleet reading every document by hand found over a hundred false
 sentences in one afternoon and nothing in the suite had ever flinched.
 
 Most of them were one class. A workspace moved into this repository and its
-documents went on naming the place it used to be: `~/Tutor-Board`, `~/colibri`,
-`~/PSYCH-ASR`. That class is mechanical -- a retired address is a fixed string,
+documents went on naming the place it used to be: `~/Tutor-Board`,
+`~/Galois-Theory`. That class is mechanical -- a retired address is a fixed string,
 and a document containing one is wrong however the sentence around it reads --
 so it is checked here rather than remembered.
 
@@ -136,8 +136,8 @@ check("no config and no document carries a key the board drops on read",
 # The three documents an assistant reads first. A relative link names a file
 # that exists, and a `#fragment` names a heading in it, spelled the way GitHub
 # slugs headings. Fenced blocks and inline code are not links. The subject
-# documents are left out: a manuscript links figures that live only on the
-# cluster, under its ignored `results/`.
+# documents are left out: a manuscript may link figures under an ignored
+# `results/` that a clone does not have.
 CORE = ("README.md", "board/README.md", "board/TEACHING.md")
 
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
@@ -234,9 +234,9 @@ check("every `board` command the core documents name is in COMMANDS (%d commands
 # Whether every source file a document names exists. It was written, it fired
 # three times, and all three sentences were TRUE: `board/README.md` names a
 # course's `scripts/build.sh` while sitting in the board's own directory, and
-# PSYCH-ASR names `slurm_jobs/stage1_whisperx.sbatch` in the paragraph saying
-# it was deleted. A check that cannot tell our module from somebody else's
-# library, or a live path from an obituary, reports true sentences as false --
+# a project named a job script in the paragraph saying it was deleted. A
+# check that cannot tell our module from somebody else's library, or a live
+# path from an obituary, reports true sentences as false --
 # and an auditor nobody believes is worse than no auditor, because the next
 # person silences it rather than reading it. Reading a document for that class
 # is still a reader's job.

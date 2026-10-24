@@ -158,7 +158,7 @@ A fixed statement.
           "\\IfFileExists{coursemacros.sty}{\\usepackage{coursemacros}}" in body)
 
     # --- an unbound session refuses ------------------------------------------
-    s1 = sessions.new("Colibri warmth", base=base)
+    s1 = sessions.new("Kestrel warmth", base=base)
     d1 = sessions.path(s1["id"], base)
     code, out = board(["writeup", "add", "1"], d1, "Q\n---\nA\n")
     check("an unbound session refuses, and says to bind first",
@@ -172,18 +172,18 @@ A fixed statement.
                       "Why is the warm pool two jobs?\n---\n"
                       "Because two generations \\emph{overlap}: $n = 2$.\n"
                       "```python\ndef warm(n):\n\treturn [spawn(i) for i in range(n)]  # 100% & $x_1\n```\n")
-    wdir = os.path.join(llm, "docs", "colibri-warmth")
+    wdir = os.path.join(llm, "docs", "kestrel-warmth")
     wtex = os.path.join(wdir, "writeup.tex")
     check("the first add makes docs/<session-slug>/writeup.tex",
-          os.path.isfile(wtex) and "started docs/colibri-warmth/writeup.tex" in out, out)
+          os.path.isfile(wtex) and "started docs/kestrel-warmth/writeup.tex" in out, out)
     doc = artifacts.read(wdir) or {}
     check("its doc.json names writeup.tex and lists the session",
           doc.get("source") == "writeup.tex" and doc.get("sessions") == [s1["id"]], doc)
     rec = sessions.get(s1["id"], base)
     check("session.json's writeup is that source",
-          rec["writeup"] == "projects/Research-Lab/docs/colibri-warmth/writeup.tex", rec)
+          rec["writeup"] == "projects/Research-Lab/docs/kestrel-warmth/writeup.tex", rec)
     check("the sent page is filed into handwritten/",
-          os.path.isfile(os.path.join(wdir, "handwritten", "colibri-warmth-warm-pool.png")))
+          os.path.isfile(os.path.join(wdir, "handwritten", "kestrel-warmth-warm-pool.png")))
     text = read(wtex)
     check("the code block is set verbatim, its tab expanded, nothing escaped",
           "\\begin{verbatim}\ndef warm(n):\n    return [spawn(i) for i in range(n)]"
@@ -208,7 +208,7 @@ A fixed statement.
           and "80 > 70$." in read(wtex), out)
     code, out = board(["writeup", "status"], d1)
     check("board writeup status names the write-up and what is written",
-          code == 0 and "colibri-warmth" in out and "2 of 2 written up" in out, out)
+          code == 0 and "kestrel-warmth" in out and "2 of 2 written up" in out, out)
     code, out = board(["writeup", "add", "../x"], d1, "---\nA\n")
     check("a label that is not a label is refused", code != 0 and "label" in out, out)
 
@@ -223,7 +223,7 @@ A fixed statement.
     data = hub.Hub(repo, tikz.TikzWorker(repo)).build()
     banner = (data.get("hw") or {}).get("build") or {}
     check("the payload carries the failure the banner paints, with its reason",
-          not HAVE_TEX or (data.get("hw", {}).get("name") == "colibri-warmth"
+          not HAVE_TEX or (data.get("hw", {}).get("name") == "kestrel-warmth"
                            and banner.get("ok") is False
                            and "Undefined control sequence" in banner.get("detail", "")),
           banner)
@@ -288,7 +288,7 @@ A fixed statement.
           "mode: do" in done and sense.WRITEUP_SENSE not in done)
     walk = brief.briefing(sessions.repo(s1["id"], base), sense)
     check("and a teach session with a write-up has its debt on the brief",
-          "writeup: colibri-warmth (docs/colibri-warmth/writeup.tex) -- 3 of 3 written up"
+          "writeup: kestrel-warmth (docs/kestrel-warmth/writeup.tex) -- 3 of 3 written up"
           in walk, [l for l in walk.splitlines() if l.startswith("writeup")])
 finally:
     shutil.rmtree(base, ignore_errors=True)

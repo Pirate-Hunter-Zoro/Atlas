@@ -4,7 +4,7 @@
 Every other sitting on this board ends in the student producing something new.
 In a working project most of what has to be understood was written months ago,
 and a tutor with nowhere to put that does the only thing it can -- there is a
-card in PSYCH-ASR that proves it, invented arithmetic on fictional numbers in a
+card in Speech-Lab that proves it, invented arithmetic on fictional numbers in a
 repository whose owner wanted an algorithm on disk explained to him.
 
 So: the scope is a file in this repository, checked before it reaches
@@ -59,25 +59,24 @@ BODY = "\n".join("    # a line of it that is long enough to be real" for _ in ra
 proj = tempfile.mkdtemp(prefix="tutor-walk-proj-")
 prose = tempfile.mkdtemp(prefix="tutor-walk-prose-")
 try:
-    write(proj, "psych_asr/__init__.py", "from . import evaluate\n" + BODY)
-    write(proj, "psych_asr/config.py", "SETTING = 1\n" + BODY)
-    write(proj, "psych_asr/evaluate/__init__.py", "\n" + BODY)
-    write(proj, "psych_asr/evaluate/grade.py",
+    write(proj, "speech_lab/__init__.py", "from . import evaluate\n" + BODY)
+    write(proj, "speech_lab/config.py", "SETTING = 1\n" + BODY)
+    write(proj, "speech_lab/evaluate/__init__.py", "\n" + BODY)
+    write(proj, "speech_lab/evaluate/grade.py",
           "import re\n\n\ndef grade(reference, candidate):\n" + BODY + "\n\n\nclass Finding:\n    pass\n")
-    write(proj, "psych_asr/transcript/corrections.py",
+    write(proj, "speech_lab/transcript/corrections.py",
           "def apply_corrections(turns, log):\n" + BODY + "\n")
     write(proj, "scripts/run.sh", "#!/usr/bin/env bash\nset -eu\n" + BODY + "\n")
     write(proj, "README.md", "# a project\n" + BODY)
     write(proj, "notes.txt", "not machinery\n" + BODY)
-    write(proj, "psych_asr/tiny.py", "x = 1\n")
+    write(proj, "speech_lab/tiny.py", "x = 1\n")
     # A SHEBANG IS AS GOOD A DECLARATION AS A SUFFIX, and `SOURCE` keyed on the
-    # suffix alone -- so the entire surface of colibrì, which is `bin/coli`,
-    # `bin/coli-up`, `bin/coli-ask` and `bin/coli-code`, was invisible. A
-    # walkthrough of that workspace offered six files and not one of them was
-    # the one anybody would ask for.
-    write(proj, "bin/coli-up",
+    # suffix alone would leave a workspace whose whole surface is extensionless
+    # scripts (`bin/kes-up`, `bin/kes-ask`, `bin/kes-code`) offering six files,
+    # none of them the one anybody would ask for.
+    write(proj, "bin/kes-up",
           "#!/usr/bin/env bash\nset -eu\nwarm() {\n" + BODY + "\n}\n")
-    write(proj, "bin/coli-ask", "#!/bin/bash\n" + BODY + "\n")
+    write(proj, "bin/kes-ask", "#!/bin/bash\n" + BODY + "\n")
     write(proj, "bin/tally", "#!/usr/bin/env python3\ndef tally(rows):\n" + BODY + "\n")
     # And a file that declared nothing at all is not machinery. A licence, a
     # lock file and a data dump all have no suffix either.
@@ -89,13 +88,13 @@ try:
 
     names = [u["name"] for u in walk.units(proj)]
     check("a project offers its own source files",
-          "psych_asr/evaluate/grade.py" in names
-          and "psych_asr/transcript/corrections.py" in names)
+          "speech_lab/evaluate/grade.py" in names
+          and "speech_lab/transcript/corrections.py" in names)
     check("and shell scripts, because a pipeline is taught by its job script too",
           "scripts/run.sh" in names)
     check("and a script with a #! line and no suffix at all, which is what a "
           "driver command is",
-          "bin/coli-up" in names and "bin/coli-ask" in names
+          "bin/kes-up" in names and "bin/kes-ask" in names
           and "bin/tally" in names)
     # A README is read by reading it. A walkthrough over one is a lecture with
     # extra steps, and offering it buries the files that do something.
@@ -105,25 +104,25 @@ try:
     # The symbol check has to know which language a shebang stands in for, or a
     # function named inside a suffixless script is a name it cannot verify --
     # and an unverifiable name is one `resolve` refuses to carry.
-    chosen, _ = walk.resolve(proj, ["bin/coli-up::warm"])
+    chosen, _ = walk.resolve(proj, ["bin/kes-up::warm"])
     check("a function inside a #! bash script is found the way one in a .sh is",
-          [u["name"] for u in chosen] == ["bin/coli-up::warm"])
+          [u["name"] for u in chosen] == ["bin/kes-up::warm"])
     chosen, _ = walk.resolve(proj, ["bin/tally::tally"])
     check("and one inside a #! python script too",
           [u["name"] for u in chosen] == ["bin/tally::tally"])
     check("while a name such a script does not define is still refused",
-          walk.resolve(proj, ["bin/coli-up::missing"])[1] == ["bin/coli-up::missing"])
+          walk.resolve(proj, ["bin/kes-up::missing"])[1] == ["bin/kes-up::missing"])
     check("and never build output, dependencies, data or the board's own live/",
           not [n for n in names if n.split("/")[0]
                in ("live", "node_modules", "__pycache__", "results", "data", ".git")])
     check("an __init__.py is a namespace, not machinery, and is not offered",
           not [n for n in names if n.endswith("__init__.py")])
     check("and neither is a file with nothing in it",
-          "psych_asr/tiny.py" not in names)
+          "speech_lab/tiny.py" not in names)
     check("each one says which directory it is in, so a list of a hundred can be read",
           all(u["dir"] for u in walk.units(proj))
           and {u["dir"] for u in walk.units(proj)}
-          >= {"psych_asr", "psych_asr/evaluate", "scripts"})
+          >= {"speech_lab", "speech_lab/evaluate", "scripts"})
     check("and they come back in the repository's own order, not the order os.walk found them",
           names == sorted(names, key=lambda n: (os.path.dirname(n), n)))
 
@@ -134,40 +133,40 @@ try:
     # --- a name from a request is checked, never trusted ----------------------
     # A person names machinery the way their language names it, and the last
     # component of a dotted name is as likely to be the function as the module.
-    chosen, unknown = walk.resolve(proj, ["psych_asr/evaluate/grade.py"])
+    chosen, unknown = walk.resolve(proj, ["speech_lab/evaluate/grade.py"])
     check("a file can be named by its path",
-          [u["name"] for u in chosen] == ["psych_asr/evaluate/grade.py"])
-    chosen, _ = walk.resolve(proj, ["psych_asr.evaluate.grade"])
+          [u["name"] for u in chosen] == ["speech_lab/evaluate/grade.py"])
+    chosen, _ = walk.resolve(proj, ["speech_lab.evaluate.grade"])
     check("or as a module, the way the language names it",
-          [u["name"] for u in chosen] == ["psych_asr/evaluate/grade.py"])
-    chosen, _ = walk.resolve(proj, ["psych_asr.evaluate.grade.grade"])
+          [u["name"] for u in chosen] == ["speech_lab/evaluate/grade.py"])
+    chosen, _ = walk.resolve(proj, ["speech_lab.evaluate.grade.grade"])
     check("or as a definition inside one, which is where a walkthrough starts",
-          [u["name"] for u in chosen] == ["psych_asr/evaluate/grade.py::grade"]
+          [u["name"] for u in chosen] == ["speech_lab/evaluate/grade.py::grade"]
           and chosen[0]["symbol"] == "grade")
-    chosen, _ = walk.resolve(proj, ["psych_asr.evaluate.grade.Finding"])
+    chosen, _ = walk.resolve(proj, ["speech_lab.evaluate.grade.Finding"])
     check("a class is a definition too", chosen and chosen[0]["symbol"] == "Finding")
     # The whole point of checking: a walkthrough announced over a function that
     # is not there sends the tutor looking, and it will find something else and
     # teach that instead.
     check("a name the file does not define is refused rather than carried",
-          walk.resolve(proj, ["psych_asr.evaluate.grade.missing"])[1]
-          == ["psych_asr.evaluate.grade.missing"])
+          walk.resolve(proj, ["speech_lab.evaluate.grade.missing"])[1]
+          == ["speech_lab.evaluate.grade.missing"])
     check("and so is a file this repository does not have",
-          walk.resolve(proj, ["psych_asr/evaluate/nothing.py"])[1]
-          == ["psych_asr/evaluate/nothing.py"])
+          walk.resolve(proj, ["speech_lab/evaluate/nothing.py"])[1]
+          == ["speech_lab/evaluate/nothing.py"])
     check("a bare filename works where the repository has only one of them",
           [u["name"] for u in walk.resolve(proj, ["corrections.py"])[0]]
-          == ["psych_asr/transcript/corrections.py"])
+          == ["speech_lab/transcript/corrections.py"])
     write(proj, "scripts/config.py", "OTHER = 2\n" + BODY)
     walk._cache.clear()
     check("and resolves to nothing where it would have to guess between two",
           walk.resolve(proj, ["config.py"])[1] == ["config.py"])
     check("naming the same file twice walks it once",
-          len(walk.resolve(proj, ["psych_asr.evaluate.grade",
-                                  "psych_asr/evaluate/grade.py"])[0]) == 1)
+          len(walk.resolve(proj, ["speech_lab.evaluate.grade",
+                                  "speech_lab/evaluate/grade.py"])[0]) == 1)
     check("a file and one definition inside it are two different scopes",
-          len(walk.resolve(proj, ["psych_asr.evaluate.grade",
-                                  "psych_asr.evaluate.grade.grade"])[0]) == 2)
+          len(walk.resolve(proj, ["speech_lab.evaluate.grade",
+                                  "speech_lab.evaluate.grade.grade"])[0]) == 2)
 
     check("a walkthrough sitting is gone: no scope, label or status of its own",
           not any(hasattr(walk, n) for n in ("scope", "sitting_label", "status")))
@@ -178,12 +177,12 @@ finally:
 # A walkthrough is a method the tutor picks in teach mode, not a sitting kind: a
 # state still saying `session: walk` reads as a lecture.
 try:
-    json.dump({"name": "PSYCH-ASR"},
+    json.dump({"name": "Speech-Lab"},
               open(os.path.join(proj, "tutorboard.json"), "w"))
     r = course_repo.Repo(proj, os.path.join(proj, "live"))
     st = r.state()
     st.update({"session": "walk",
-               "walk": ["psych_asr/evaluate/grade.py::grade"]})
+               "walk": ["speech_lab/evaluate/grade.py::grade"]})
     json.dump(st, open(r.state_path, "w"))
     line = sense.session_sense(r)
     check("a legacy walk sitting reads as a lecture in teach mode",
@@ -196,11 +195,11 @@ finally:
 teach_repo = tempfile.mkdtemp(prefix="tutor-walk-teach-")
 do_repo = tempfile.mkdtemp(prefix="tutor-walk-do-")
 try:
-    json.dump({"name": "PSYCH-ASR"},
+    json.dump({"name": "Speech-Lab"},
               open(os.path.join(teach_repo, "tutorboard.json"), "w"))
-    json.dump({"name": "TRD-EHR", "stance": "do"},
+    json.dump({"name": "Cohort-Study", "stance": "do"},
               open(os.path.join(do_repo, "tutorboard.json"), "w"))
-    write(teach_repo, "psych_asr/grid.py", "def sweep():\n" + BODY + "\n")
+    write(teach_repo, "speech_lab/grid.py", "def sweep():\n" + BODY + "\n")
     write(do_repo, "pipeline/confound.py", "def overlap():\n" + BODY + "\n")
 
     rd = course_repo.Repo(do_repo, os.path.join(do_repo, "live"))
@@ -226,7 +225,7 @@ try:
     check("and teach when the session says nothing", "mode: teach" in line)
     check("a workspace that names no check gets no check line",
           "\ncheck: " not in line)
-    json.dump({"name": "PSYCH-ASR", "check": "uv run --extra test python -m pytest tests -q"},
+    json.dump({"name": "Speech-Lab", "check": "uv run --extra test python -m pytest tests -q"},
               open(os.path.join(teach_repo, "tutorboard.json"), "w"))
     line = brief.briefing(rt, sense)
     check("the briefing names the workspace's check, run as `board check` "
@@ -241,11 +240,11 @@ finally:
 # --- the sitting itself, through the real handler -----------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-walk-")
 try:
-    json.dump({"name": "PSYCH-ASR"},
+    json.dump({"name": "Speech-Lab"},
               open(os.path.join(tmp, "tutorboard.json"), "w"))
-    write(tmp, "psych_asr/evaluate/grade.py",
+    write(tmp, "speech_lab/evaluate/grade.py",
           "def grade(reference, candidate):\n" + BODY + "\n")
-    write(tmp, "psych_asr/transcript/corrections.py",
+    write(tmp, "speech_lab/transcript/corrections.py",
           "def apply_corrections(turns, log):\n" + BODY + "\n")
     walk._cache.clear()
     repo = course_repo.Repo(tmp, os.path.join(tmp, "live"))
@@ -284,7 +283,7 @@ try:
               "walk" not in payload)
 
         status, _ = post("/session", {
-            "session": "walk", "over": ["psych_asr.evaluate.grade.grade"]})
+            "session": "walk", "over": ["speech_lab.evaluate.grade.grade"]})
         check("the board no longer opens a walkthrough sitting", status == 400)
         check("and the lesson it would have interrupted is untouched",
               not archive.list_archive(repo))
@@ -312,30 +311,30 @@ try:
     write(home, "courses/Topology/tutorboard.json", '{"name": "Topology"}')
     write(home, "courses/Topology/topo/space.py",
           "def open_sets(x):\n" + BODY + "\n")
-    write(home, "projects/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
-    write(home, "projects/PSYCH-ASR/psych_asr/grade.py",
+    write(home, "projects/Speech-Lab/tutorboard.json", '{"name": "Speech-Lab"}')
+    write(home, "projects/Speech-Lab/speech_lab/grade.py",
           "def grade(a, b):\n" + BODY + "\n")
-    write(home, "projects/PSYCH-ASR/results/r.py", "def r():\n" + BODY + "\n")
+    write(home, "projects/Speech-Lab/results/r.py", "def r():\n" + BODY + "\n")
     write(home, "board/tutorboard/sync.py",
           "def run_once(base):\n" + BODY + "\n")
     write(home, "board/node_modules/katex/index.js",
           "function render() {\n" + BODY + "\n}\n")
-    write(home, "vendor/colibri/bin/coli-up",
+    write(home, "vendor/kestrel/bin/kes-up",
           "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
-    write(home, "vendor/colibri/README.md", "# colibri\n" + BODY)
+    write(home, "vendor/kestrel/README.md", "# kestrel\n" + BODY)
     write(home, "ai-config/policy/x.py", "def private():\n" + BODY + "\n")
     write(home, "sessions/20261008-000000/x.py", "def x():\n" + BODY + "\n")
     write(home, ".hidden/x.py", "def x():\n" + BODY + "\n")
     write(outside, "secret.py", "def secret():\n" + BODY + "\n")
     os.symlink(os.path.join(outside, "secret.py"),
-               os.path.join(home, "projects", "PSYCH-ASR", "escape.py"))
+               os.path.join(home, "projects", "Speech-Lab", "escape.py"))
     os.environ["TUTORBOARD_COURSES"] = home
     walk._cache.clear()
     ws = os.path.join(home, "courses", "Topology")
 
     check("a vendor tree is not a subject",
           [w["id"] for w in subjects.all()]
-          == ["courses/Topology", "projects/PSYCH-ASR"])
+          == ["courses/Topology", "projects/Speech-Lab"])
     check("and the vendor-tree machinery is gone",
           not hasattr(walk, "resolve_any") and not hasattr(walk, "ELSEWHERE"))
 
@@ -345,16 +344,16 @@ try:
           and chosen[0]["path"] == "board/tutorboard/sync.py"
           and chosen[0]["readonly"] is True
           and os.path.realpath(chosen[0]["root"]) == os.path.realpath(home))
-    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up"])
-    check("vendor/colibri/bin/coli-up resolves by its shebang, read-only",
+    chosen, unknown = walk.resolve(ws, ["vendor/kestrel/bin/kes-up"])
+    check("vendor/kestrel/bin/kes-up resolves by its shebang, read-only",
           not unknown and [u["name"] for u in chosen]
-          == ["vendor/colibri/bin/coli-up"] and chosen[0]["readonly"] is True)
-    chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up::warm",
+          == ["vendor/kestrel/bin/kes-up"] and chosen[0]["readonly"] is True)
+    chosen, unknown = walk.resolve(ws, ["vendor/kestrel/bin/kes-up::warm",
                                         "board.tutorboard.sync.run_once"])
     check("a symbol in Atlas is carried once the file really defines it",
           not unknown and sorted(u["name"] for u in chosen)
           == ["board/tutorboard/sync.py::run_once",
-              "vendor/colibri/bin/coli-up::warm"])
+              "vendor/kestrel/bin/kes-up::warm"])
     check("and one it does not define is unknown",
           walk.resolve(ws, ["board/tutorboard/sync.py::missing"])[1]
           == ["board/tutorboard/sync.py::missing"])
@@ -366,20 +365,20 @@ try:
           and chosen[0]["readonly"] is False
           and os.path.realpath(chosen[0]["root"]) == os.path.realpath(ws))
     chosen, unknown = walk.resolve(
-        ws, ["projects/PSYCH-ASR/psych_asr/grade.py::grade"])
+        ws, ["projects/Speech-Lab/speech_lab/grade.py::grade"])
     check("another project's source resolves, and is not read-only",
           not unknown and chosen[0]["readonly"] is False
-          and chosen[0]["name"] == "projects/PSYCH-ASR/psych_asr/grade.py::grade")
+          and chosen[0]["name"] == "projects/Speech-Lab/speech_lab/grade.py::grade")
     check("the bare-filename shortcut stays subject-local",
-          walk.resolve(ws, ["sync.py", "coli-up", "grade.py"])[1]
-          == ["sync.py", "coli-up", "grade.py"]
+          walk.resolve(ws, ["sync.py", "kes-up", "grade.py"])[1]
+          == ["sync.py", "kes-up", "grade.py"]
           and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
           == ["topo/space.py"])
 
     refused = ["ai-config/policy/x.py", "sessions/20261008-000000/x.py",
-               ".hidden/x.py", "projects/PSYCH-ASR/results/r.py",
-               "board/node_modules/katex/index.js", "vendor/colibri/README.md",
-               "projects/PSYCH-ASR/escape.py", "../" + os.path.basename(outside)
+               ".hidden/x.py", "projects/Speech-Lab/results/r.py",
+               "board/node_modules/katex/index.js", "vendor/kestrel/README.md",
+               "projects/Speech-Lab/escape.py", "../" + os.path.basename(outside)
                + "/secret.py", os.path.join(outside, "secret.py"),
                "courses/Topology/../../etc/passwd", "board/tutorboard/nope.py"]
     for name in refused:

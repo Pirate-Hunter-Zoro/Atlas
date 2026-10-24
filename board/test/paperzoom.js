@@ -46,8 +46,8 @@ const ok = (m) => console.log('ok   ' + m);
 const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const HEALTH = { ok: true, id: 'research/TRD-EHR', dir: 'TRD-EHR' };
-const OLD_KEY = 'doc/paper1-trd-prediction/p1';
+const HEALTH = { ok: true, id: 'research/Cohort-Study', dir: 'Cohort-Study' };
+const OLD_KEY = 'doc/paper1-cohort/p1';
 const VIEW = {
   ok: true, name: 'Paper 1', n: 2,
   pages: ['/paper/m-1.png', '/paper/m-2.png'],
@@ -57,7 +57,7 @@ const VIEW = {
                                 + '"p":[0.2,0.6,0.5,0.6],"pr":[0.5,0.5]}')] },
 };
 const LIVE = {
-  state: { course: 'TRD-EHR', session: 'lecture', mode: 'research' },
+  state: { course: 'Cohort-Study', session: 'lecture', mode: 'research' },
   cards: [], turns: [], messages: [], uploads: [], notes: {}, notes_sent: {},
   push: null, agent: null, history: 1,
 };
@@ -166,19 +166,19 @@ function gesture(target, name) {
   const inst = mounted && window.Reader.mount();
   const instOpen = inst.open;
   inst.open = function (o) { opened.push(o); return instOpen.call(this, o); };
-  window.__openDoc('paper1-trd-prediction', 'Paper 1');
+  window.__openDoc('paper1-cohort', 'Paper 1');
   await sleep(20);
   inst.open = instOpen;
   window.Reader.open = realOpen;
   const pages = el('reader-pages');
   const chip = el('reader-zoom');
   const boxes = pages.querySelectorAll('.lib-page');
-  opened.length === 1 && opened[0].pagesUrl === '/view/doc/paper1-trd-prediction'
-    && opened[0].inkKey === 'doc/paper1-trd-prediction' && opened[0].burn === 'doc/paper1-trd-prediction'
+  opened.length === 1 && opened[0].pagesUrl === '/view/doc/paper1-cohort'
+    && opened[0].inkKey === 'doc/paper1-cohort' && opened[0].burn === 'doc/paper1-cohort'
     ? ok('a document opened from a card goes through Reader.open, with its ink key and its burn kind')
     : fail('the board opened a document without Reader.open: ' + JSON.stringify(opened));
   boxes.length === 2 && !el('reader').hidden && el('reader').classList.contains('reader-over')
-    && boxes[0].dataset.ann === 'doc/paper1-trd-prediction/p1'
+    && boxes[0].dataset.ann === 'doc/paper1-cohort/p1'
     ? ok('a document opens on the board in the built reader, a box per page')
     : fail('the document did not open: ' + boxes.length + ' pages');
   !el('paper') && !el('paper-pages') && !el('keepwhat')
@@ -199,7 +199,7 @@ function gesture(target, name) {
      lands cleans it. */
   {
     const S = { c: '#e8746c', w: 2, pg: 1, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
-    const P2 = 'doc/paper1-trd-prediction/p2';
+    const P2 = 'doc/paper1-cohort/p2';
     const draw = (key, s) => { window.Annotate.load({ [key]: [s] }); window.Annotate.clear(key); window.Annotate.undo(); };
     net.save = 'refused';
     net.saves.length = 0;
@@ -590,7 +590,7 @@ function gesture(target, name) {
   const vpWas = vp.getAttribute('content');
   window.visualViewport = Object.assign(new window.EventTarget(),
     { scale: 1.6, width: 640, height: 480, offsetLeft: 0, offsetTop: 0 });
-  window.__openDoc('paper1-trd-prediction', 'Paper 1');
+  window.__openDoc('paper1-cohort', 'Paper 1');
   await sleep(20);
   zoom() === '1' && chip.hidden
     ? ok('and every document opens at the page width, whatever the last was left at')

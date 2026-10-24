@@ -136,7 +136,7 @@ routed = {"env": {"ANTHROPIC_BASE_URL": "https://example.test",
 env = runturn.turn_environment(routed, {"COLI_SESSION_ID": "s1"})
 check("env reaches the subprocess", env["ANTHROPIC_BASE_URL"] == "https://example.test")
 check("with {KEY} substituted", env["ANTHROPIC_AUTH_TOKEN"] == "sk-abc123")
-check("and a colibri mission's own variable lands in the SAME dict rather than "
+check("and a mission's own variable lands in the SAME dict rather than "
       "in a second one that fights it", env["COLI_SESSION_ID"] == "s1")
 
 missing = {"env": {"TOKEN": "{NOT_A_KEY}"}}

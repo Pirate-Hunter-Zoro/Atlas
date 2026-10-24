@@ -106,7 +106,7 @@ const t0 = Date.now() / 1000 - 3600;
 const TEACHING = { course: 'Galois Theory', opened: '2026-09-17 19:40',
                    session: 'lecture', aim: 'teach', stance: 'teach',
                    stance_now: 'teach', declared_stance: 'teach' };
-const DOING = { course: 'PSYCH-ASR', opened: '2026-09-17 19:55',
+const DOING = { course: 'Speech-Lab', opened: '2026-09-17 19:55',
                 session: 'lecture', aim: 'build', stance: 'do',
                 stance_now: 'do', declared_stance: 'do' };
 

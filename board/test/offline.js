@@ -1,8 +1,8 @@
 // A board that is not there must still paint something.
 //
 // The address the installed app has baked into it is served by whichever
-// machine currently holds the board, and on a cluster that machine's allocation
-// ends. Open the app after that and every request fails. The worker's fallback
+// machine currently holds the board, and that machine can be asleep or gone.
+// Open the app then and every request fails. The worker's fallback
 // was `caches.match(req)` and then `caches.match("/")` -- and when neither is in
 // the cache that resolves to `undefined`, which `respondWith` treats as a
 // network error, which paints a blank white screen. Nothing on it says what

@@ -227,7 +227,7 @@ _SHAPES = (
     ("projects/X/model.pkl", True),
     ("projects/X/keys.env", True),
     ("ai-config/policy/x.py", True),
-    ("projects/TRD-EHR/notes/lectures.md", False),
+    ("projects/Cohort-Study/notes/lectures.md", False),
     ("projects/X/src/assignment.py", False),
     ("board/tutorboard/sessions.py", False),
     ("projects/X/docs/talk/talk.tex", False))

@@ -108,9 +108,9 @@ def save_pathspec(root, top, only=None):
     to `top`, its repository. `(specs, refused)`.
 
     The workspace's directory, or `only`'s paths, refusing any outside it.
-    The tool and nested workspaces are excluded; `.nfs*` is the root
-    .gitignore's. Each exclude literally names a directory inside a narrowed
-    path, because otherwise git 2.52's `add -A` adds no untracked file.
+    The tool and nested workspaces are excluded. Each exclude literally
+    names a directory inside a narrowed path, because otherwise git 2.52's
+    `add -A` adds no untracked file.
     """
     real_top = os.path.realpath(top)
     real_root = os.path.realpath(root)

@@ -1,6 +1,6 @@
 // The library's "say what is wrong" panel has to fit on the glass.
 //
-// Reported as: the markups on the colibrì deck were never sent, and "the
+// Reported as: the markups on a deck were never sent, and "the
 // WINDOW that shows up for me to send my markups of the presentation was not
 // scrollable or workable". Eleven pages of ink made twenty-three requests, and
 // the panel listing them was 1020px tall on an iPad whose landscape glass is
@@ -12,7 +12,7 @@
 // library suite stayed green over a panel nobody could use. So this reads the
 // sheet for the rules that keep the panel on the glass, and then, where a
 // Chrome is installed, renders the real markup with the real sheets at iPad
-// sizes and measures it. No Chrome (a compute node), and that half says SKIP.
+// sizes and measures it. No Chrome, and that half says SKIP.
 
 const fs = require('fs');
 const os = require('os');
@@ -121,8 +121,8 @@ function page() {
     + '<script src="' + href('ledger.js') + '"></script>'
     + '<script>(function () {\n'
     + 'var $ = function (id) { return document.getElementById(id); };\n'
-    + '$("note-title").textContent = "Colibrì: a model that never leaves the building";\n'
-    + '$("note-where").textContent = "docs/colibri-pitch/colibri-pitch.pdf";\n'
+    + '$("note-title").textContent = "Kestrel: a model that never leaves the building";\n'
+    + '$("note-where").textContent = "docs/kestrel-pitch/kestrel-pitch.pdf";\n'
     + '$("note-page").hidden = false; $("note-page").textContent = "about page 11";\n'
     + 'window.Ledger.preview($("note-items"), ' + JSON.stringify(reqs) + ', [], function () {});\n'
     + '$("note-marks").hidden = false;\n'

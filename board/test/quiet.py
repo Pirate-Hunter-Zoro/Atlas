@@ -149,8 +149,8 @@ try:
             "save the plot", "", "Other: save: x", "board: lesson complete",
             "board: HANDOFF drops the TUTOR.md commit decision -- the runner's "
             "wrap-up runs sessions.end again, which commits the edit",
-            "research/TRD-EHR: the handoff says what is applied and what the "
-            "cluster still owes", "HANDOFF: the owner's answers",
+            "research/Cohort-Study: the handoff says what is applied and what the "
+            "lab still owes", "HANDOFF: the owner's answers",
             "handoff: item 6", "galois handoff", "Probe: hand-off")
     check("`gitops.is_save` reads every save message as a save, bare or under "
           "the subject's prefix",

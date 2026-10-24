@@ -1,6 +1,6 @@
 // EVERY RESPONSE IS TYPED OUT, WHATEVER WROTE IT AND HOWEVER IT LANDED.
 //
-// Reported from a direction change in PSYCH-ASR, in two halves:
+// Reported from a direction change in Speech-Lab, in two halves:
 //
 //   "when the response from the agent came back, it just showed up suddenly and
 //    the next board, etc. was there before it, so I was left hanging for a bit.
@@ -22,7 +22,7 @@
 // board is not blank, then several minutes of work, then `board write --over`
 // with the report. So in a teaching sitting the effect worked and in a doing
 // sitting it had never once run -- which is precisely the difference between
-// "the math tutoring" and "PSYCH-ASR".
+// "the math tutoring" and "Speech-Lab".
 //
 // The fix is the card's mtime in the stamp, which is the same thing `rev` is for
 // a turn. What is asserted here is the behaviour, not the line: a response that
@@ -111,7 +111,7 @@ const REPORT = 'The pass is split. The corrections reader now takes the log and 
              + 'yours to choose.';
 
 const frame = (cards, agent) => JSON.stringify({
-  state: { course: 'PSYCH-ASR', session: 'lecture', chapter: 'cli',
+  state: { course: 'Speech-Lab', session: 'lecture', chapter: 'cli',
            aim: 'build', stance: 'do', declared_stance: 'do' },
   cards: cards,
   turns: [],

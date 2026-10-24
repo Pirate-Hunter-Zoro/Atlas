@@ -82,13 +82,13 @@ TABLE = {
     "default": "claude", "vision_agent": "deepseek",
     "agents": [
         {"name": "claude", "vision": None},
-        {"name": "colibri", "vision": None},
+        {"name": "local", "vision": None},
         {"name": "deepseek", "vision": {
             "endpoint": "https://api.deepseek.com/v1/chat/completions",
             "model": "a-model", "needs_key": "A_KEY"}},
     ],
 }
-got, why = seeing.route("colibri", TABLE)
+got, why = seeing.route("local", TABLE)
 check("an assistant with no eyes falls through to `vision_agent`",
       got and got["agent"] == "deepseek")
 got, why = seeing.route("deepseek", TABLE)
@@ -110,16 +110,16 @@ CMD_TABLE = {
     "agents": [
         {"name": "claude", "vision": {"cmd": ["claude", "-p", "{prompt}"],
                                       "model": "its own"}},
-        {"name": "colibri", "vision": None},
+        {"name": "local", "vision": None},
         {"name": "deepseek", "vision": {
             "endpoint": "https://api.deepseek.com/v1/chat/completions",
             "model": "a-model", "needs_key": "A_KEY"}},
     ],
 }
-got, why = seeing.route("colibri", CMD_TABLE)
+got, why = seeing.route("local", CMD_TABLE)
 check("a provider that is stood down is passed over, and the next name on the "
       "list answers", got and got["agent"] == "claude")
-got, why = seeing.route("colibri", TABLE)
+got, why = seeing.route("local", TABLE)
 check("and where that leaves nothing, the refusal names the host that went "
       "dark rather than sending the page at it",
       got is None and "api.deepseek.com" in (why or ""))
@@ -133,13 +133,13 @@ OTHER_HOST = {
     "default": "claude", "vision_agent": "deepseek",
     "agents": [
         {"name": "claude", "vision": None},
-        {"name": "colibri", "vision": None},
+        {"name": "local", "vision": None},
         {"name": "deepseek", "vision": {
             "endpoint": "https://vision.elsewhere.test/v1/chat/completions",
             "model": "a-model", "needs_key": "A_KEY"}},
     ],
 }
-got, why = seeing.route("colibri", OTHER_HOST)
+got, why = seeing.route("local", OTHER_HOST)
 check("a recipe stood down for one host still routes through an endpoint on a "
       "different one, because the block is on the name that was dropped and not "
       "on the provider's whole recipe",
@@ -160,7 +160,7 @@ check("a `vision` block that declares its model blind is not a route",
       got is None and "cannot take an image" in (why or ""))
 
 egress.clear_unreachable("deepseek")
-got, why = seeing.route("colibri", CMD_TABLE)
+got, why = seeing.route("local", CMD_TABLE)
 check("with nothing stood down the recipe named in `vision_agent` still wins",
       got and got["agent"] == "deepseek")
 

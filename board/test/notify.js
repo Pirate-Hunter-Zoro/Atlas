@@ -126,11 +126,11 @@ window.asked.some((r) => r.url === '/seen' && r.how === 'POST')
 // A payload from before T52 that still carries answers and missions draws no
 // row for either: there is no list for them on the page any more.
 {
-  const psych = { id: 'research/PSYCH-ASR', repo: 'PSYCH-ASR', course: 'PSYCH-ASR',
+  const speech = { id: 'research/Speech-Lab', repo: 'Speech-Lab', course: 'Speech-Lab',
                   card: '0014', title: 'the four typists agree', when: t0 - 240 };
-  const mission = { id: 't0007', ws: 'research/PSYCH-ASR', state: 'running',
+  const mission = { id: 't0007', ws: 'research/Speech-Lab', state: 'running',
                     task: 'grade the four typists', at: t0 - 7200 };
-  es.onmessage({ data: frame([], { news: [psych], missions: [mission] }) });
+  es.onmessage({ data: frame([], { news: [speech], missions: [mission] }) });
   await sleep(60);
   bar().hidden && !doc.getElementById('news-list')
     && !doc.getElementById('mission-list') && !doc.getElementById('mission-progress')

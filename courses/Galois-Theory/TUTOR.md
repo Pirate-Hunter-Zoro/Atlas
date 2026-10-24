@@ -25,5 +25,5 @@ Standing directions: no small cases, examples or subgroup lists once they are wo
 ## Done recently
 
 - The automorphisms and splitting-fields worksheet, problems 7-12: Aut(ℚ(ζₙ)/ℚ) inside (ℤ/nℤ)ˣ, Φₚ irreducible, the whole machine on x⁴+1, the splitting field of x³−2, and the finite-field pair.
-- The solutions stranded in libr's `writeup.tex` were moved into `ch07-homework.tex`: 13(d), 14(a)-(c), 15(b)-(d), 16(a)-(c). The PDF rebuilds clean and the board reads 4 of 7.
-- The $p=13$, $d=2$ worked case of 13(d), carried from libr's writeup.tex into ch07-homework.tex, with the nine 13(d) pages as `handwritten/ch07-13d*.png`. libr's copy is deleted.
+- The solutions stranded in a retired project's `writeup.tex` were moved into `ch07-homework.tex`: 13(d), 14(a)-(c), 15(b)-(d), 16(a)-(c). The PDF rebuilds clean and the board reads 4 of 7.
+- The $p=13$, $d=2$ worked case of 13(d), carried from that project's writeup.tex into ch07-homework.tex, with the nine 13(d) pages as `handwritten/ch07-13d*.png`. The project's copy is deleted.

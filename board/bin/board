@@ -1071,7 +1071,7 @@ def cmd_push(live, args):
     """Commit and push this workspace. It does not end the session.
 
     One path to a commit: `lesson_git.save` with `lesson_git.save_pathspec`,
-    as the save button uses, so the tool, other workspaces and NFS litter stay
+    as the save button uses, so the tool and other workspaces stay
     out, and a change to TUTOR.md alone commits nothing. `board push "msg" --
     <paths>` narrows it; a path outside the workspace is refused. With no
     message it is `save: <changed files>`.

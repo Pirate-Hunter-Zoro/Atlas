@@ -19,7 +19,7 @@ Three things, and each of them is a way the feature turns into a defect:
     is a query parameter carrying a repo-relative path, which is a traversal
     waiting to be written.
 
-  * IT IS BOUNDED. TRD-EHR's results tree holds 676 PNGs. A drawer is not a file
+  * IT IS BOUNDED. Cohort-Study's results tree holds 676 PNGs. A drawer is not a file
     manager and a payload polled four times a second is not a directory walk.
 
   * AND IT IS NOT CACHED. A figure is rebuilt at the same name by the next job,
@@ -110,10 +110,10 @@ BIG = png_bytes()
 # a workspace shaped like the one this is for
 # ---------------------------------------------------------------------------
 TMP = tempfile.mkdtemp(prefix="showing-")
-WS = os.path.join(TMP, "TRD-EHR")
+WS = os.path.join(TMP, "Cohort-Study")
 os.makedirs(WS)
 with open(os.path.join(WS, "tutorboard.json"), "w", encoding="utf-8") as fh:
-    json.dump({"name": "TRD-EHR"}, fh)
+    json.dump({"name": "Cohort-Study"}, fh)
 
 # The figure this change exists for, written once per contrast under the SAME
 # filename -- which is the reason an id cannot come from a basename.
@@ -131,7 +131,7 @@ write(os.path.join(WS, "results", "deep", "a", "b", "c", "buried.png"), BIG)
 
 repo = course_repo.Repo(WS, os.path.join(WS, "live"))
 with open(repo.state_path, "w", encoding="utf-8") as fh:
-    json.dump({"course": "TRD-EHR"}, fh)
+    json.dump({"course": "Cohort-Study"}, fh)
 
 library.forget()
 found = library.figures(WS)

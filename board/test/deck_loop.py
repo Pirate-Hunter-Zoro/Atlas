@@ -4,7 +4,7 @@ which leaves the round on disk and out of the commit.
 
     python3 test/deck_loop.py
 
-A temp Atlas holds one project shaped like `projects/libr-local-llm`: a beamer
+A temp Atlas holds one project shaped like `projects/local-models`: a beamer
 deck placed in `docs/` with `docs/doc.json` beside it (asked by nobody), its
 PDF tracked despite the root's PDF rule, a `*.json` ignore with the negations
 that keep a document's record, and the real root .gitignore's feedback rule,
@@ -143,7 +143,7 @@ try:
           "projects/Lab/docs/fleet.pdf" in git("ls-files").stdout)
 
     # ---- the lesson's session, and the library page ------------------------
-    sid = registry.open_bound(base, "projects/Lab", "Colibri")
+    sid = registry.open_bound(base, "projects/Lab", "Kestrel")
     page = registry.sessionless(lab, base)
     library.forget()
     doc = [d for d in library.documents(lab) if d["stem"] == "fleet"][0]
@@ -154,10 +154,10 @@ try:
           library_route.rework_refused(page, doc) == "")
 
     # ---- round 1: an overhaul from the library page --------------------------
-    note = library.write_note(page, doc["id"], "Say what Colibri is first.",
+    note = library.write_note(page, doc["id"], "Say what Kestrel is first.",
                               ask="rework",
                               purpose="a twenty-minute talk for the lab on "
-                                      "Colibri and why it runs locally",
+                                      "Kestrel and why it runs locally",
                               hand_over=False)
     check("an overhaul's note is filed in docs/feedback/ under the deck's stem",
           note.get("ok") and note["rel"].startswith("docs/feedback/fleet-")
@@ -185,9 +185,9 @@ try:
     # pulls in another image from a folder of its own. A map it commented out
     # is the owner's draft, not the deck's.
     write(os.path.join(docs, "fleet.tex"), DECK.replace(
-        "One frame.", "Colibri.\\includegraphics[width=4cm]{colibri-map}"
+        "One frame.", "Kestrel.\\includegraphics[width=4cm]{kestrel-map}"
         "\n%\\includegraphics{old-map.png}\n\\input{frames}"))
-    write(os.path.join(docs, "colibri-map.png"), b"\x89PNG map")
+    write(os.path.join(docs, "kestrel-map.png"), b"\x89PNG map")
     write(os.path.join(docs, "old-map.png"), b"\x89PNG old")
     write(os.path.join(docs, "frames.tex"),
           "\\graphicspath{{figs/}}\n\\begin{frame}\\includegraphics{arch}"
@@ -197,7 +197,7 @@ try:
     led = os.path.join(lab, *note["ledger"].split("/"))
     got = read_json(led)
     got["answers"] = {i: {"disposition": "done", "did": "said it first",
-                          "new": "Colibri."} for i in note["ids"]}
+                          "new": "Kestrel."} for i in note["ids"]}
     write(led, json.dumps(got))
     check("once the source has changes nothing committed, another overhaul is "
           "refused", "changes nothing has committed"
@@ -249,7 +249,7 @@ try:
         "rev-list", "--count", "%s..HEAD" % head).stdout.strip() == "1", said)
     for want in ("projects/Lab/docs/fleet.tex", "projects/Lab/docs/fleet.pdf",
                  "projects/Lab/docs/doc.json",
-                 "projects/Lab/docs/colibri-map.png",
+                 "projects/Lab/docs/kestrel-map.png",
                  "projects/Lab/docs/frames.tex",
                  "projects/Lab/docs/figs/arch.png",
                  "projects/Lab/TUTOR.md"):
@@ -409,12 +409,12 @@ try:
         check("a %s turn is handed the recap and not the brief" % sig,
               turn.context_plan(sig) == (False, True))
     check("a lesson turn still gets both", turn.context_plan("") == (True, True))
-    write(os.path.join(srepo.cards, "0001-colibri.md"),
-          "---\nkind: lesson\ntitle: Where Colibri runs\n---\nOn a GPU node.\n")
+    write(os.path.join(srepo.cards, "0001-kestrel.md"),
+          "---\nkind: lesson\ntitle: Where Kestrel runs\n---\nOn a GPU node.\n")
     handed = brief.turn_context(srepo, "revise", brief=False)
     check("the recap it is handed is that session's lesson",
           "THE RECAP" in handed and "THE BRIEF" not in handed
-          and "Where Colibri runs" in handed, handed[:600])
+          and "Where Kestrel runs" in handed, handed[:600])
     for name, said in (("a revision", prompts.HEADLESS_REVISE_PROMPT),
                        ("an overhaul", prompts.HEADLESS_REWORK_PROMPT)):
         check("%s is told to run `board see` on the ink" % name,

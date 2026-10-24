@@ -1340,7 +1340,7 @@ if (es && window.Annotate) {
 // should also have the option to download it locally on the iPad so I can save
 // it to files in my iCloud, get it on my phone, and email it to my prof,
 // lickety split. Also, I want the ability to do this with the written up work
-// too." A compute node is not a place an iPad can reach.
+// too."
 if (es) {
   var getLink = doc.getElementById('pushed-get');
   var hwBtn = doc.getElementById('btn-export-hw');
@@ -1676,7 +1676,7 @@ if (es) {
   // A mid-session save is a save, not a declaration that the work is finished,
   // and `board push` from a terminal no longer ends a session either.
   es.onmessage({ data: JSON.stringify(Object.assign({}, b4, {
-    state: { course: 'TRD', session: 'lecture' } })) });
+    state: { course: 'Cohort', session: 'lecture' } })) });
   if (!saveBtn.hidden) ok('a project repository has the same save');
   else fail('the save disappears in a repository with no book');
   saveBtn.onclick();
@@ -2334,7 +2334,7 @@ async function headerFlow() {
       { id: 'courses/Linear-Algebra', kind: 'course', slug: 'Linear-Algebra',
         name: 'Linear Algebra' },
       { id: 'courses/Random', kind: 'course', slug: 'Random', name: 'Random lessons' },
-      { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' }] });
+      { id: 'projects/Cohort-Study', kind: 'project', slug: 'Cohort-Study', name: 'Cohort-Study' }] });
     if (url === '/bind') return reply({ ok: true, changed: true, subject: {
       id: body.subject, name: names[body.subject] || body.subject, kind: '' } });
     if (url === '/mode') return reply({ ok: true, mode: body.mode, changed: true });
@@ -2344,7 +2344,7 @@ async function headerFlow() {
       return reply({ ok: true, subject: { id: id, kind: 'project', name: body.name } });
     }
     if (url === '/end') {
-      if (body.subject === 'projects/TRD-EHR') {
+      if (body.subject === 'projects/Cohort-Study') {
         return reply({ ok: false, error: 'this session cannot go there' }, 400);
       }
       const ended = { ok: true, session: { ended: '2026-10-09 22:00' } };
@@ -2360,8 +2360,8 @@ async function headerFlow() {
       sent: { id: body.subject, name: names[body.subject] || body.subject, kind: '' },
       filed: [], refused: [{ upload: 'uploads/x.pdf', error: 'materials/x.pdf already exists' }] });
     if (url === '/sessions.json') return reply({ ok: true, sessions: [
-      { id: '20261009-200000', subject: null }, { id: '20261009-190000', subject: 'projects/TRD-EHR' },
-      { id: '20261009-180000', subject: 'projects/TRD-EHR' }] });
+      { id: '20261009-200000', subject: null }, { id: '20261009-190000', subject: 'projects/Cohort-Study' },
+      { id: '20261009-180000', subject: 'projects/Cohort-Study' }] });
     if (url === '/assistants.json') return reply({ ok: true, assistants: listing });
     if (url === '/default-agent') return reply({ ok: true, 'default': body.agent, why: '',
       assistants: Object.assign({}, listing, { 'default': body.agent }) });
@@ -2509,7 +2509,7 @@ async function headerFlow() {
   es.onmessage({ data: frame({ subject: 'projects/Grant-Notes', code: null }) });
   codebar.hidden && codeBtn && !codeBtn.hidden && doc.getElementById('barmenu').contains(codeBtn)
     ? ok('a session not coding offers the command from the overflow menu')
-    : fail('the cluster command is drawn, or not offered, before coding starts');
+    : fail('the code command is drawn, or not offered, before coding starts');
   codeBtn.click();
   !codebar.hidden && codeCmd.value === 'board code 20261009-210000 '
     ? ok('which shows `board code <id> ` with the paths left to type')
@@ -2569,8 +2569,8 @@ async function headerFlow() {
                                           (g) => g.textContent);
   groups[0] === 'Recent' && rows()[0].textContent === 'Random lessons'
     && pick.querySelector('#subjpick-list').firstElementChild === rows()[0]
-    && rows()[1].textContent === 'TRD-EHR'
-    && rows().filter((b) => b.textContent === 'TRD-EHR').length === 1
+    && rows()[1].textContent === 'Cohort-Study'
+    && rows().filter((b) => b.textContent === 'Cohort-Study').length === 1
     && rows().filter((b) => b.textContent === 'Random lessons').length === 1
     ? ok('Random lessons comes first, under no heading, then the recently used subjects, once each')
     : fail('the picker lists ' + JSON.stringify(groups) + ' ' + rows().map((b) => b.textContent));
@@ -2583,9 +2583,9 @@ async function headerFlow() {
     : fail('the filter shows ' + shown().map((b) => b.textContent));
   filter.value = '';
   filter.dispatchEvent(new window.Event('input'));
-  named('TRD-EHR').click();
+  named('Cohort-Study').click();
   await sleep(40);
-  posts('/end').length === ends + 1 && posts('/end').slice(-1)[0].body.subject === 'projects/TRD-EHR'
+  posts('/end').length === ends + 1 && posts('/end').slice(-1)[0].body.subject === 'projects/Cohort-Study'
     && !pick.hidden && /Not sent: this session cannot go there/.test(doc.getElementById('subjpick-said').textContent)
     && !end.disabled && doc.body.dataset.ended !== '1'
     ? ok('a refused send says why, and the session stays open')

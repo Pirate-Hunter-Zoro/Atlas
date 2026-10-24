@@ -2005,15 +2005,15 @@ document.addEventListener("keydown", function (ev) {
 
 /* HOW MANY PICTURES MAY BE IN FLIGHT AT ONCE. A figure out of these pipelines
    is a median of 52 kB, so a screenful is under a megabyte -- but a thumb
-   flicked down six hundred tiles would open six hundred connections against a
-   board sharing a compute node with the job that wrote them. */
+   flicked down six hundred tiles would open six hundred connections against one
+   board. */
 var GRID_AT_ONCE = 6;
 
 /* HOW FAR AHEAD OF THE GLASS a tile is fetched, so a picture is there by the
    time it is looked at rather than arriving under the eye. */
 var GRID_NEAR = "800px";
 
-/* ABOVE THIS, SCROLLING PAST DOES NOT SPEND THE BYTES. Five of TRD-EHR's 628
+/* ABOVE THIS, SCROLLING PAST DOES NOT SPEND THE BYTES. Five of one project's 628
    figures are over it and they are 3.4 MB between them. */
 var GRID_HEAVY = 300000;
 

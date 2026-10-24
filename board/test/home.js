@@ -94,8 +94,8 @@ async function stubbed() {
     { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
     { id: 'courses/Probability', kind: 'course', slug: 'Probability', name: 'Probability' },
     { id: 'projects/Mosaic', kind: 'project', slug: 'Mosaic', name: 'Mosaic' },
-    { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' },
-    { id: 'projects/libr-local-llm', kind: 'project', slug: 'libr-local-llm', name: 'Local LLM' }];
+    { id: 'projects/Cohort-Study', kind: 'project', slug: 'Cohort-Study', name: 'Cohort-Study' },
+    { id: 'projects/local-models', kind: 'project', slug: 'local-models', name: 'Local LLM' }];
   const AGENTS = [
     { name: 'claude', label: 'Claude', headless: true, cmd: 'claude' },
     { name: 'codex', label: 'Codex', headless: true, cmd: 'codex' }];
@@ -105,7 +105,7 @@ async function stubbed() {
     'courses/Galois-Theory': { why: 'open-session', sessions: [SID, GAL],
       blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it; end them first; '
         + 'request 2026-10-09-gal has no terminal report yet' },
-    'projects/TRD-EHR': { why: 'request', sessions: [],
+    'projects/Cohort-Study': { why: 'request', sessions: [],
       blocker: 'request 2026-10-09-knn is outstanding on it; wait for its report' },
   };
   const answers = {
@@ -125,16 +125,16 @@ async function stubbed() {
           opened: '2026-10-01 09:00:00',
           url: '/s/' + GAL + '/board', new_cards: 0,
           last_card: { id: '0018', title: '' } },
-        { id: '20260901-100000', title: 'Old one', subject: 'projects/TRD-EHR',
-          subject_name: 'TRD-EHR', mode: 'do', opened: '2026-09-01 10:00:00',
+        { id: '20260901-100000', title: 'Old one', subject: 'projects/Cohort-Study',
+          subject_name: 'Cohort-Study', mode: 'do', opened: '2026-09-01 10:00:00',
           ended: '2026-09-02 11:00:00', url: '/s/20260901-100000/board' },
         { id: LECT, title: 'Lecture 4', subject: null, subject_name: null, mode: 'teach',
           opened: '2026-08-30 09:00:00', ended: '2026-08-30 10:00:00',
           url: '/s/' + LECT + '/board' }].concat(older) },
     '/subjects.json': { ok: true, subjects: SUBJECTS },
     '/notices.json': { ok: true, notices: [
-      { t: now - 60, text: 'report t0031 landed', subject: 'projects/TRD-EHR' },
-      { t: now - 30, text: 'report t0032 landed', subject: 'projects/TRD-EHR' }] },
+      { t: now - 60, text: 'report t0031 landed', subject: 'projects/Cohort-Study' },
+      { t: now - 30, text: 'report t0032 landed', subject: 'projects/Cohort-Study' }] },
     // The sync health (`sync.health`).
     '/sync.json': { ok: true, synced: false, down: true,
       lines: ['not synced: fatal: Not possible to fast-forward, aborting.',
@@ -303,11 +303,11 @@ async function stubbed() {
         && /Galois Theory/.test(courses[0].textContent));
   const names = (list) => Array.from(d.querySelectorAll(list + ' .row-name')).map((e) => e.textContent);
   check('the most recently used first, then the untouched ones by name',
-        names('#project-list').join('|') === 'TRD-EHR|Local LLM|Mosaic'
+        names('#project-list').join('|') === 'Cohort-Study|Local LLM|Mosaic'
         && names('#course-list').join('|') === 'Galois Theory|Probability');
   const sub = (id) => (d.querySelector('[data-subject="' + id + '"] .row-sub') || {}).textContent;
   check('a row says when it was last used, when it has been',
-        sub('projects/TRD-EHR') === 'last: 2026-09-02'
+        sub('projects/Cohort-Study') === 'last: 2026-09-02'
         && sub('courses/Galois-Theory') === '2 open sessions  ·  last: 2026-10-08'
         && sub('courses/Probability') === 'courses/Probability');
   check('a subject row opens its page, the library for that subject',
@@ -444,19 +444,19 @@ async function stubbed() {
   // and holds across a refresh.
   const find = d.getElementById('find');
   const typeIn = (input, text) => { input.value = text; input.dispatchEvent(new w.Event('input')); };
-  typeIn(find, 'trd');
+  typeIn(find, 'cohort');
   check('the search narrows the courses, the projects and the past sessions by name or id',
         d.querySelectorAll('#course-list .row').length === 0
         && !d.getElementById('course-none').hidden
         && d.getElementById('course-none').textContent === 'No course matches.'
-        && names('#project-list').join('|') === 'TRD-EHR'
+        && names('#project-list').join('|') === 'Cohort-Study'
         && d.querySelectorAll('#past-list .row').length === 1
         && /Old one/.test(d.querySelector('#past-list .row').textContent)
         && d.getElementById('past-more').hidden);
   d.dispatchEvent(new w.Event('visibilitychange'));
   await sleep(60);
   check('and still narrows them after the lists are read again',
-        names('#project-list').join('|') === 'TRD-EHR'
+        names('#project-list').join('|') === 'Cohort-Study'
         && d.querySelectorAll('#past-list .row').length === 1);
   typeIn(find, '20260830');
   check('a past session is found by its id too',
@@ -526,13 +526,13 @@ async function stubbed() {
         /request 2026-10-09-gal has no terminal report yet/.test(dropWhy().textContent));
   dropper.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   check('a tap on the backdrop closes it', dropper.hidden);
-  await openDrop('projects/TRD-EHR');
+  await openDrop('projects/Cohort-Study');
   check('any other blocker is shown in the board\'s own words',
         d.getElementById('dropper-ask').hidden
         && dropWhy().textContent === 'request 2026-10-09-knn is outstanding on it; wait for its report');
   d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
   check('Escape closes it', dropper.hidden);
-  await openDrop('projects/libr-local-llm');
+  await openDrop('projects/local-models');
   check('a check the board could not answer asks for nothing',
         d.getElementById('dropper-ask').hidden && dropGo.hidden && !dropper.hidden);
   d.getElementById('dropper-close').click();
@@ -549,8 +549,8 @@ async function stubbed() {
   check('it opens a sheet over every course and project in the one picker order: '
         + 'Recent, then Courses, then Projects',
         !sender.hidden && d.getElementById('sender-title').textContent === 'Lecture 4'
-        && sendIds().join('|') === ['courses/Galois-Theory', 'projects/TRD-EHR',
-          'courses/Probability', 'projects/libr-local-llm', 'projects/Mosaic'].join('|')
+        && sendIds().join('|') === ['courses/Galois-Theory', 'projects/Cohort-Study',
+          'courses/Probability', 'projects/local-models', 'projects/Mosaic'].join('|')
         && Array.from(d.querySelectorAll('#sender-list .sender-group'))
           .map((e) => e.textContent).join('|') === 'Recent|Courses|Projects');
   typeIn(d.getElementById('sender-find'), 'prob');
@@ -791,7 +791,7 @@ async function stubbed() {
     const r1 = await annotated('');
     check('Annotate a PDF opens its sheet, offering every subject, and "not yet" last',
           !r1.sheet.hidden && r1.opts[r1.opts.length - 1] === '' && r1.opts.length === 6
-          && r1.opts.slice(0, 2).join('|') === 'courses/Galois-Theory|projects/TRD-EHR');
+          && r1.opts.slice(0, 2).join('|') === 'courses/Galois-Theory|projects/Cohort-Study');
     check('a chosen PDF can be sent', r1.ready);
     const made = r1.aw.asked.filter((r) => r.url === '/sessions/new')[0];
     check('it makes a session titled for the file, and uploads into that session',
@@ -835,8 +835,8 @@ async function stubbed() {
     const ids = Array.from(rd.querySelectorAll('#sender-list button')).map((b) => b.getAttribute('data-id'));
     const first = rd.getElementById('sender-list').firstElementChild;
     check('the send sheet offers Random lessons first, then Recent, Courses, Projects',
-          ids.join('|') === ['courses/Random', 'courses/Galois-Theory', 'projects/TRD-EHR',
-            'courses/Probability', 'projects/libr-local-llm', 'projects/Mosaic'].join('|')
+          ids.join('|') === ['courses/Random', 'courses/Galois-Theory', 'projects/Cohort-Study',
+            'courses/Probability', 'projects/local-models', 'projects/Mosaic'].join('|')
           && first && first.getAttribute('data-id') === 'courses/Random'
           && /Random lessons/.test(first.textContent));
     rd.getElementById('sender-close').click();

@@ -9,7 +9,7 @@ checks are the two rules, and the second is the one that matters.
 
   * SCOPED TO THE WORKSPACE. One repository holds nine of them and `git log` at
     its root answers about all nine. A turn about Galois Theory told about
-    PSYCH-ASR's afternoon is a turn that will try to teach it.
+    Speech-Lab's afternoon is a turn that will try to teach it.
   * NAMED AS THE PERSON'S WORK, NEVER THE TUTOR'S. A turn that mistakes a commit
     somebody made on their laptop for something it did itself will report having
     done work it has not done -- invisible from the outside, confidently stated,
@@ -60,12 +60,12 @@ def git(base, *args):
 base = tempfile.mkdtemp(prefix="tutor-beside-")
 try:
     mine = os.path.join(base, "courses", "Galois-Theory")
-    other = os.path.join(base, "projects", "PSYCH-ASR")
+    other = os.path.join(base, "projects", "Speech-Lab")
     for r in (mine, other):
         write(os.path.join(r, "tutorboard.json"), json.dumps({"name": "X"}))
         os.makedirs(os.path.join(r, "live", "cards"), exist_ok=True)
     write(os.path.join(mine, "notes", "ch04.tex"), "one\n")
-    write(os.path.join(other, "psych_asr", "asr.py"), "one\n")
+    write(os.path.join(other, "speech_lab", "asr.py"), "one\n")
 
     git(base, "init", "-q", "-b", "main")
     git(base, "config", "user.email", "t@example.com")
@@ -89,7 +89,7 @@ try:
     write(os.path.join(mine, "notes", "ch04.tex"), "one\ntwo\nthree\n")
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "Galois-Theory: lesson complete")
-    write(os.path.join(other, "psych_asr", "asr.py"), "one\ntwo\n")
+    write(os.path.join(other, "speech_lab", "asr.py"), "one\ntwo\n")
     git(base, "add", "-A")
     git(base, "commit", "-q", "-m", "the typist emits the seam's contract")
     # And leaves something uncommitted.

@@ -282,7 +282,7 @@ try:
     os.makedirs(missions, exist_ok=True)
     with open(os.path.join(missions, "0007.json"), "w", encoding="utf-8") as fh:
         json.dump({"id": "0007", "task": "repair the transcript",
-                   "agent": "colibri", "at": time.time(), "ended": ""}, fh)
+                   "agent": "kestrel", "at": time.time(), "ended": ""}, fh)
     _cold = _brief()
     check("a teaching subject is briefed as a lesson, a leftover mission "
           "record or not", sense.METHOD_SENSE in _cold and RULE not in _cold

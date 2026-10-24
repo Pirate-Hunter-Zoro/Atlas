@@ -75,7 +75,7 @@ def put(rel, text="", size=0):
     return where
 
 
-# PSYCH-ASR's shape: a beamer source and its PDF, in `docs/`.
+# Speech-Lab's shape: a beamer source and its PDF, in `docs/`.
 put("docs/stage1_pipeline_walkthrough.tex",
     "\\documentclass[aspectratio=169]{beamer}\n\\usetheme{Boadilla}\n"
     "\\title{How Audio Becomes a Transcript}\n")
@@ -87,7 +87,7 @@ put("docs/stage2_reference_walkthrough.tex",
     "\\documentclass[aspectratio=169]{beamer}\n"
     "\\title{Did the Computer Hear It Right?}\n")
 
-# TRD-EHR's shape: four stems in one directory, three formats each.
+# Cohort-Study's shape: four stems in one directory, three formats each.
 for stem, title in (("manuscript", "TRD prediction from EHR text"),
                     ("supplement", "Supplement M1. Source data"),
                     ("cover_letter", "Cover letter"),
@@ -413,7 +413,7 @@ check("and a round belonging to a DIFFERENT document is refused as well, "
 # ---------------------------------------------------------------------------
 # the second ask: an overhaul rather than a correction
 # ---------------------------------------------------------------------------
-# "that presentation needs an overhaul now that we plan to use colibri" is not a
+# "that presentation needs an overhaul now that we plan to use kestrel" is not a
 # correction, and the prompt a correction is woken with says outright *do not
 # start it again and do not widen it*. So there are two asks, and the new one
 # costs a sentence saying what the document is FOR now.
@@ -426,7 +426,7 @@ refused = library.write_note(repo, mine["id"], "", ask="rework",
 check("an overhaul with no real purpose in it is refused rather than started",
       refused.get("ok") is False and "FOR now" in refused["error"])
 
-PURPOSE = ("a fifteen-minute briefing for the lab meeting on what colibri does "
+PURPOSE = ("a fifteen-minute briefing for the lab meeting on what kestrel does "
            "to a transcript, for people who have never seen the pipeline")
 worked = library.write_note(repo, mine["id"], "", ask="rework", purpose=PURPOSE)
 check("with one, it is written -- and with nothing typed, which a correction "
@@ -661,7 +661,7 @@ try:
     check("an overhaul with no real purpose in it is refused over the wire too",
           status == 400 and body.get("ok") is False)
 
-    # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT. TRD-EHR's shape: the
+    # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT. Cohort-Study's shape: the
     # Markdown is the source, and the turn is told to rebuild it with the one
     # builder there is.
     paper = [d for d in library.documents(tmp)

@@ -10,7 +10,7 @@ sessions and the invariants. How a tutor turn teaches is
 ## Hard constraints
 
 - **The repository is public.** Every commit is published the moment it is pushed, and git
-  keeps it forever. The TRD-EHR manuscript links here, so it stays public.
+  keeps it forever. A published manuscript's code link pins a commit here, so it stays public.
 - **Nothing private in git.** Other people's work, keys, recordings and large binaries stay on
   disk. Ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each refuse them on
   their own, because any one guard can be deleted by accident.

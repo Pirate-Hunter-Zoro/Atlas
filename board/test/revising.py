@@ -92,7 +92,7 @@ check("it is not sent to read the contract or the cards, none of which is about 
 # ---------------------------------------------------------------------------
 # AND THE WIDER ASK ON THE SAME PANEL: AN OVERHAUL
 # ---------------------------------------------------------------------------
-# "That presentation needs an overhaul now that we plan to use colibri" is not a
+# "That presentation needs an overhaul now that we plan to use kestrel" is not a
 # correction. The revision prompt above says outright *do not start it again and
 # do not widen it*, which is exactly right for "figure 3 is mislabelled" -- so
 # until there was a second ask, the only route to an overhaul was a terminal.
@@ -172,31 +172,31 @@ check("and says the lesson on the board is somebody else's",
 # ---------------------------------------------------------------------------
 # A MANUSCRIPT IS REVISED LIKE ANY OTHER DOCUMENT, and rebuilt by `board build`
 # ---------------------------------------------------------------------------
-# TRD-EHR's shape: `paper1-trd-prediction/manuscript.md` is the source, and the
+# Cohort-Study's shape: `paper1-cohort/manuscript.md` is the source, and the
 # .pdf and .docx beside it are built from it. A note from the library wakes a
 # `[revise]` turn, and that turn is told the one builder there is. The provider
 # is a fake script that records the prompt it was handed.
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="tutor-revising-"))
-work = os.path.join(tmp, "projects", "TRD-EHR")
-paper = os.path.join(work, "paper1-trd-prediction")
+work = os.path.join(tmp, "projects", "Cohort-Study")
+paper = os.path.join(work, "paper1-cohort")
 os.makedirs(paper)
 with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:
-    json.dump({"name": "TRD-EHR"}, fh)
+    json.dump({"name": "Cohort-Study"}, fh)
 with open(os.path.join(paper, "manuscript.md"), "w", encoding="utf-8") as fh:
-    fh.write("# TRD prediction from EHR text\n\nSection 3 reports a split.\n")
+    fh.write("# Outcome prediction from cohort records\n\nSection 3 reports a split.\n")
 for ext in (".pdf", ".docx"):
     with open(os.path.join(paper, "manuscript" + ext), "wb") as fh:
         fh.write(b"x" * 30000)
 library.forget()
 doc = [d for d in library.documents(work) if d["stem"] == "manuscript"][0]
-check("TRD-EHR's manuscript is a library document with its Markdown as source",
-      doc["source"] == "paper1-trd-prediction/manuscript.md")
+check("Cohort-Study's manuscript is a library document with its Markdown as source",
+      doc["source"] == "paper1-cohort/manuscript.md")
 
 repo = Repo(work, os.path.join(work, "live"))
 note = library.write_note(repo, doc["id"], "Section 3 reports the wrong split.",
                           hand_over=False)
 check("the note is filed beside the manuscript", note.get("ok") is True
-      and note["rel"].startswith("paper1-trd-prediction/feedback/"))
+      and note["rel"].startswith("paper1-cohort/feedback/"))
 
 
 class _Hub(object):
@@ -243,7 +243,7 @@ check("the fake provider ran one fresh turn", rc == 0 and not timed_out
 check("and that turn is the revision, not the lesson",
       "[revise]" in got and "NOT PART OF THE LESSON" in got)
 check("and it is told to rebuild the manuscript with board build",
-      "`board build paper1-trd-prediction/manuscript.md`" in got)
+      "`board build paper1-cohort/manuscript.md`" in got)
 
 print()
 if fails:

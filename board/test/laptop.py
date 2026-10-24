@@ -145,7 +145,7 @@ exit 0
 write(os.path.join(shims, "curl"), "#!/bin/bash\n" + LOG + "printf 200\n", EXE)
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
 write(os.path.join(shims, "mise"), "#!/bin/bash\n" + LOG, EXE)
-# setup-mac.sh refuses anything but a Mac; the suite runs on the cluster too.
+# setup-mac.sh refuses anything but a Mac; the shim keeps the suite independent of uname.
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
 # rsync: logs its argv (one JSON list a line), maps `host:<path>` to
 # <MACHOME>/<path>, drops `-e <ssh>`, and runs the real rsync, so the filter
