@@ -8,7 +8,8 @@
     givens(body)           [{id, name, tex, calc}]: every named matrix
                            environment or `\\left(...\\right)` tuple. `calc` is
                            math.js text (`P = [1/2, 1/3; 0, 1]`), null when an
-                           entry is symbolic.
+                           entry is symbolic; an inverse, transpose or power
+                           after the value is kept in both.
     figure_source(tex)     the kind-`latex` source a given is typeset from on
                            the slate
 
@@ -388,7 +389,7 @@ _NAME = re.compile(r"(?P<name>(?:%s|\\[A-Za-z]+|[A-Za-z])%s%s)\s*=\s*$" % (_FONT
 # What sits between the cells of a tuple and around a number.
 _SPACE = re.compile(r"\\[,;:! ]|\\q?quad\b|~|\s+")
 _NUM = r"[0-9]+(?:\.[0-9]*)?|\.[0-9]+"
-_ARG = r"(?:\{\s*(%s)\s*\}|([0-9]))" % _NUM
+_ARG = r"(?:\{\s*([+-]*(?:%s))\s*\}|([0-9]))" % _NUM
 
 
 def _number(cell):
@@ -406,6 +407,11 @@ def _number(cell):
     if m:
         a = m.group(1) or m.group(2)
         b = m.group(3) or m.group(4)
+        # A sign inside either brace: -\frac{1}{2}, \frac{-1}{2}, \frac{1}{-2}.
+        for part in (a, b):
+            if part.count("-") % 2:
+                sign = "" if sign else "-"
+        a, b = a.lstrip("+-"), b.lstrip("+-")
         return "%s%s/%s" % (sign, _plain(a), _plain(b))
     m = re.match(r"(%s)/(%s)$" % (_NUM, _NUM), s)
     if m:
@@ -510,6 +516,36 @@ def _calc(ident, value_kind, inner):
     return "%s = [%s]" % (ident, ", ".join(nums))
 
 
+def _postfix(math, end):
+    """`(end, wrap)` for a `^...` or `'` straight after a value ending at
+    `end`: the end past it, and how its math.js text is wrapped -- a format
+    string, `""` for no operator, or None for one with no math.js reading."""
+    m = re.match(r"\s*('+)", math[end:])
+    if m:
+        k = len(m.group(1))
+        return end + m.end(), ("transpose(%s)" if k % 2 else "%s")
+    m = re.match(r"\s*\^\s*", math[end:])
+    if not m:
+        return end, ""
+    at = end + m.end()
+    got = _group(math, at)
+    if got:
+        arg, after = got[0], got[1]
+    else:
+        tok = re.match(r"\\[A-Za-z]+|[A-Za-z0-9]", math[at:])
+        if not tok:
+            return end, ""
+        arg, after = tok.group(0), at + tok.end()
+    arg = re.sub(r"\s+", "", arg)
+    if arg == "-1":
+        return after, "inv(%s)"
+    if arg in ("T", "\\top", "\\intercal", "\\mathsf{T}", "\\mathrm{T}", "t"):
+        return after, "transpose(%s)"
+    if re.match(r"[0-9]+$", arg):
+        return after, "%s^" + arg
+    return after, None
+
+
 def _slug(name):
     s = re.sub(r"\\(?:mathbf|mathrm|mathit|mathsf|mathcal|mathbb|boldsymbol|bm|vec)", "", name)
     s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_")
@@ -548,15 +584,22 @@ def givens(body):
             named = _NAME.search(math[:begin])
             if not named:
                 continue
+            # An inverse, a transpose or a power after it is part of the value.
+            end, wrap = _postfix(math, end)
             last_end = end
             name = re.sub(r"\s+", "", named.group("name"))
             tex = (name + "=" + math[begin:end]).strip()
             ident = _identifier(name)
             slug = ident or _slug(name)
             seen[slug] = seen.get(slug, 0) + 1
+            # Followed by an operator, the value is not the whole right side.
+            more = re.match(r"\s*(?:[-+*/]|\\(?:cdot|times|otimes|circ)\b)", math[end:])
+            calc = _calc(ident, kind, inner) if wrap is not None and not more else None
+            if calc and wrap:
+                lhs, _, rhs = calc.partition(" = ")
+                calc = "%s = %s" % (lhs, wrap % rhs)
             out.append({"id": slug if seen[slug] == 1 else "%s-%d" % (slug, seen[slug]),
-                        "name": name, "tex": tex,
-                        "calc": _calc(ident, kind, inner)})
+                        "name": name, "tex": tex, "calc": calc})
     return out
 
 

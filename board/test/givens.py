@@ -10,7 +10,9 @@ Galois Theory's ch07 homework.
     defines; problem 14 gives its four matrices.
   * Galois ch07 problem 17 renders whole: its italic title, (a) to (d), and
     its mathematics exactly as written.
-  * An entry that is not a number leaves `calc` null and keeps the given.
+  * An entry that is not a number leaves `calc` null and keeps the given; a
+    signed fraction is a number; an inverse, transpose or power after a
+    value is part of it, and an operator after it leaves `calc` null.
   * `state.load_problem` reads the pinned set only, caches on its mtime, and
     falls back to the next problem when nothing is pinned; the payload
     carries it as `problem`.
@@ -105,6 +107,22 @@ sym = givens.givens("$$A=\\begin{bmatrix} a & 1 \\\\ 0 & \\tfrac{3}{4} \\end{bma
 check("a symbolic entry keeps the given and leaves calc null",
       [g["name"] for g in sym] == ["A", "v"] and sym[0]["calc"] is None
       and sym[1]["calc"] == "v = [-1/2, 0.5]", sym)
+
+signed = givens.givens("$A=\\begin{bmatrix}\\frac{-1}{2} & 1\\\\ 0 & 1\\end{bmatrix}$ "
+                       "and $p = \\left(\\frac{-1}{4}, \\frac{5}{-4}, -\\frac{-1}{2}\\right)$")
+check("a sign inside a fraction's braces is still a number",
+      [g["calc"] for g in signed] == ["A = [-1/2, 1; 0, 1]", "p = [-1/4, -5/4, 1/2]"],
+      signed)
+post = givens.givens("$Q = \\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}^{-1}$, "
+                     "$x = \\left(1,2,3\\right)^T$, $y = \\left(1,2\\right)'$, "
+                     "$M = \\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}^{n}$, "
+                     "$N = \\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}^2 + I$")
+check("an inverse, transpose or power after a value stays in its tex and its calc",
+      [g["tex"] for g in post][:2]
+      == ["Q=\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}^{-1}", "x=\\left(1,2,3\\right)^T"]
+      and [g["calc"] for g in post]
+      == ["Q = inv([1, 2; 3, 4])", "x = transpose([1, 2, 3])", "y = transpose([1, 2])",
+          None, None], post)
 
 # --- load_problem --------------------------------------------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-givens-")
