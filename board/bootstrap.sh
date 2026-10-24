@@ -5,8 +5,8 @@
 #   bash board/bootstrap.sh [--name <tailnet-name>] [--no-clone]
 #   bash board/bootstrap.sh --private-only
 #
-# Run it once on each machine: the Mac, which runs the board, and the cluster,
-# which runs only the relay. It puts `board` on the path, fills in the vendored
+# Run it once on each machine: the Mac, which runs the board, and each laptop.
+# It puts `board` on the path, fills in the vendored
 # submodules, brings in ai-config, reports what is missing, and
 # tells you what remains. Run it again whenever you are not sure: every step is
 # idempotent.
@@ -35,7 +35,7 @@
 # `--no-clone` skips the submodules and the cloning; hooks are still set on
 # Atlas and on ai-config if it is already there.
 # `--private-only` runs the hook and ai-config steps and nothing else --
-# the board server's cluster thread (`gitops.adopt_private`) calls it, so there
+# the board server's sync thread (`gitops.adopt_private`) calls it, so there
 # is one copy of that logic.
 # ---------------------------------------------------------------------------
 set -uo pipefail
@@ -237,5 +237,3 @@ say "Next:"
 say "  tailscale serve --bg --https=443 http://127.0.0.1:8778   publish the board once (the Mac)"
 say "  board vpn             what tailscale says, and where HTTPS points"
 say "  board doctor --dry    what this machine has, without spending a turn"
-say
-say "  bash $ROOT/scripts/setup-cluster.sh   on the cluster: everything, from a compute node"

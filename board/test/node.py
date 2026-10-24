@@ -12,8 +12,6 @@ the most expensive kind of bug this repository has.
 It is derived one way, in `tutorboard/machine.py`, and no caller asks the
 system directly: `os.uname()` and `socket.gethostname()` are not required to
 agree on one machine. Nothing pins it; boards run on the Mac alone.
-
-Also the cluster's setup script.
 """
 
 import importlib.machinery
@@ -101,7 +99,7 @@ def asks_the_system(path):
     return found
 
 
-for rel in ("bin/board", "bin/relay", "serve.py"):
+for rel in ("bin/board", "serve.py"):
     check("%s does not ask the system for the hostname itself" % rel,
           not asks_the_system(os.path.join(ROOT, rel)))
 
@@ -126,36 +124,11 @@ bloader.exec_module(board)
 check("the launcher and the board call this machine the same thing",
       recipes.this_host() == board.this_node() == machine.node_name())
 
-# --- setting the cluster up ------------------------------------------------------
-# `scripts/setup-cluster.sh` replaces the compute-node setup: no board and no
-# model run there, so it bootstraps, checks ai-config, installs the relay and
-# checks the remote.
-import subprocess  # noqa: E402
-
-SETUP = os.path.join(ROOT, "scripts", "setup-cluster.sh")
-check("there is a cluster setup script, and it is the only setup script",
-      os.path.isfile(SETUP)
-      and [n for n in os.listdir(os.path.join(ROOT, "scripts"))
-           if n.startswith("setup-")] == ["setup-cluster.sh"])
-setup_src = open(SETUP, encoding="utf-8").read() if os.path.isfile(SETUP) else ""
-check("it is at most sixty lines", len(setup_src.splitlines()) <= 60)
-check("it is sound bash", subprocess.run(["bash", "-n", SETUP]).returncode == 0)
-check("it bootstraps and checks ai-config",
-      "bootstrap.sh" in setup_src and "ai-config" in setup_src)
-check("it installs the relay through bin/relay, and names no other launcher",
-      'bin/relay" --install' in setup_src and "tutor" not in setup_src)
-check("and checks the remote answers", "ls-remote origin" in setup_src)
-check("and installs no timer and starts no board or tutor",
-      "systemctl" not in setup_src and "restart" not in setup_src
-      and "board start" not in setup_src)
+# --- no timer ------------------------------------------------------------------
 check("the systemd units are gone, so nothing can install a timer",
       not os.path.exists(os.path.join(ROOT, "scripts", "systemd")))
 install_src = open(os.path.join(ROOT, "install.sh"), encoding="utf-8").read()
 check("and install.sh has no systemd branch", "systemctl" not in install_src)
-auto = open(os.path.join(ROOT, "scripts", "install-autostart.sh"),
-            encoding="utf-8").read()
-check("install-autostart keeps only --uninstall",
-      "--uninstall" in auto and "--login-hook" not in auto)
 
 shutil.rmtree(sandbox, ignore_errors=True)
 print()

@@ -15,8 +15,7 @@ else. Nothing is installed on this machine.
   - SETUP TWICE: a subject with a mise.toml, a Cargo.toml one directory down,
     a pubspec.yaml and a warden/build.zig.zon builds through mise; zig fetches
     only under a zig pin. A second run is clean and changes
-    nothing, as a host and as a coding laptop. Off a Mac it runs no mise and
-    installs no descriptor. A deleted subject's Brewfile lines and descriptors
+    nothing, as a host and as a coding laptop. Off a Mac it refuses. A deleted subject's Brewfile lines and descriptors
     leave the plan, nothing is uninstalled, and brewcare names what is left
     behind.
   - DESCRIPTORS: tools.sh install, update, list, path and check; the role;
@@ -271,15 +270,14 @@ try:
     shutil.rmtree(os.path.join(home, ".coder"))
     tools("install")
 
-    # Off a Mac (the cluster runs setup.sh too): no mise, no descriptor.
+    # Off a Mac: refused, and nothing runs.
     write(os.path.join(shims, "uname"), "#!/bin/bash\necho Linux\n", EXE)
     open(CALLS, "w").close()
     os.rename(widget, widget + ".away")
     code, out = run(["bash", setup])
-    check("off a Mac, setup runs no mise and installs no descriptor, and says so",
-          code == 0 and not calls("mise") and not calls("brew")
-          and "mise toolchains skipped (Mac only)" in out
-          and "skipped (the descriptors are Mac only)" in out
+    check("off a Mac, setup refuses, runs no mise or brew and installs no descriptor",
+          code != 0 and not calls("mise") and not calls("brew")
+          and "not a Mac" in out
           and not os.path.exists(widget), (out, calls()))
     os.rename(widget + ".away", widget)
     write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
@@ -520,7 +518,7 @@ try:
     write(os.path.join(state, "brew.json"), json.dumps({
         "mode": "defer", "failed": {"tool:broke": "T_UPDATE exited 1"}}))
     said = brewcare.lines(state, N)
-    check("brewcare.lines, which reach home through /relay.json, name a failure once",
+    check("brewcare.lines, which reach home through /sync.json, name a failure once",
           len([l for l in said if "broke" in l]) == 1
           and "tools: broke did not update: T_UPDATE exited 1" in said
           and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in said, said)

@@ -1,10 +1,10 @@
 # Atlas
 
 Every course and project I work on, in one public repository, with a tutoring board that
-teaches it, codes it, writes it up and sends long work to the cluster.
+teaches it, codes it and writes it up.
 
 The board is `board/`. Its own README, [board/README.md](board/README.md), covers processes,
-sessions, the relay and the invariants. How a tutor turn teaches is
+sessions and the invariants. How a tutor turn teaches is
 [board/TEACHING.md](board/TEACHING.md).
 
 ## Hard constraints
@@ -17,13 +17,7 @@ sessions, the relay and the invariants. How a tutor turn teaches is
 - **No AI provider is load-bearing.** Every AI use in Atlas reads one provider table and walks
   it in order, so any provider can be added, removed, or go away. DeepSeek on the Mac mini alone
   runs all of it. The README in `board/` says how to add one.
-- **No hosted model reads PHI**, and the system never runs one at the cluster: the relay refuses
-  a `turn` request. `claude` or `codex` may be installed there for the owner's own use. The one
-  model beside the data is Colibri, which is local; IT's model server takes work only from
-  subjects with no PHI. DeepSeek is blocked from the compute nodes
-  (`projects/libr-local-llm/docs/deepseek-egress.md`), and nothing works around that.
 - **The Mac is the only brain.** Every model turn, compile and deck runs on the Mac mini.
-  The cluster runs Slurm jobs and the relay, nothing else.
 - **Commits are authored by the owner.** `.githooks/commit-msg` strips assistant trailers.
 
 ## Layout
@@ -32,15 +26,13 @@ sessions, the relay and the invariants. How a tutor turn teaches is
 Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
-  scripts/setup-cluster.sh  the same on the cluster, from a compute node
-  scripts/setup.sh       builds every subject's environment; both of the above run it
+  scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
   scripts/tools.sh       installs and updates the subjects' tool descriptors
   scripts/brew-upgrade.py  the daily brew and toolchain upkeep, `atlas-brew`
   .githooks/             pre-commit (the public-repo gate) and commit-msg
-  board/                 the tutoring board: server, CLI, relay, web client, tests
+  board/                 the tutoring board: server, CLI, web client, tests
   vendor/                other people's repositories, as submodules
   ai-config/             the AI assistant configuration; a private repository, ignored here
-  relay/status.json      the cluster relay's health, committed by the relay on change
   sessions/<id>/         tutoring sessions; Mac only, ignored
   courses/<Name>/        one directory per course
   projects/<Name>/       one directory per project
@@ -54,19 +46,17 @@ Inside a subject:
 
 | Path | What it is | Tracked |
 | --- | --- | --- |
-| `tutorboard.json` | `name`, `phi`, `check`, `relay` | yes |
+| `tutorboard.json` | `name`, `phi`, `check` | yes |
 | `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
 | `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |
 | `README.md` | the owner's own notes; never fed to a turn | yes |
 | `docs/<slug>/` | an artifact: `doc.json` plus its source | yes |
 | `**/feedback/<stem>-<date>-v<n>*` | a document's feedback rounds, read from disk by `ledger.py` | no |
-| `relay/requests/`, `relay/reports/`, `exports/` | the cluster channel | yes |
 | `materials/`, `.ink/` | uploaded and third-party files, and ink on documents | no |
-| `relay/state/` | the relay's job registry and Colibri queue | no |
 | `phi/`, `results/`, `.env` | cluster data; never read by an agent | no |
 
-`phi` gates what leaves the cluster. Check output and log excerpts cross only when
+`phi` gates check output: a coding session's check output reaches the tutor only when
 `tutorboard.json` sets `phi` to `false` literally, on disk and at HEAD.
 
 `projects/Meetings/` is a PHI subject and holds the meeting deck at `docs/meeting/`.
@@ -74,26 +64,12 @@ Inside a subject:
 Textbooks, lecture slides, assignment handouts, `materials/` and session uploads are ignored.
 Worked solutions, write-ups and the owner's handwritten answers are tracked.
 
-## The Mac and the cluster
+## The Mac and the laptops
 
-The two machines never talk directly. GitHub is the only channel: `main`, plus one
-`code/<session-id>` branch per open cluster coding session.
-
-| | Mac mini (home) | Cluster (institute) |
-| --- | --- | --- |
-| Runs | the board server, every model turn, every build | Slurm jobs, and the relay every 2 minutes from scrontab |
-| Models | every provider in the table, in order: DeepSeek through `opencode`, `claude`, `codex` | Colibri and IT's model server, each as a relay task |
-| Holds | Atlas, sessions, materials, ink | Atlas, `phi/`, `results/`, model weights |
-
-- The Mac pushes a request under `<subject>/relay/requests/`. The relay pulls it, checks it,
-  submits it to Slurm and pushes a report. The Mac hears the report and wakes the session that
-  filed it.
-- A failed job is repaired on the Mac, by up to three repair turns. No model runs beside the
-  data.
-- To code at the cluster, the owner runs `board code <session> <paths>` in a cluster terminal.
-  Each pause becomes a step on `code/<session>`, and the tutor on the Mac answers on the iPad.
-
-The iPad reaches the Mac over the owner's tailnet. Nothing on the cluster serves a board.
+GitHub is the only channel between machines: `main`, plus one `code/<session-id>` branch per
+open coding session. To code on a laptop, the owner runs `board code <session> <paths>` in a
+terminal there. Each pause becomes a step on `code/<session>`, and the tutor on the Mac answers
+on the iPad. The iPad reaches the Mac over the owner's tailnet.
 
 ## Setting up the Mac
 
@@ -121,7 +97,7 @@ board, and checks that the board answers. Its header lists each step.
   `zig build --fetch` for a `build.zig.zon`, which is its own lockfile, only when the nearest
   `mise.toml` pins zig. A pin moves only by a commit. Each marker needs its lockfile beside it
   and a check in `tutorboard.json`.
-  mise and the descriptors below are Mac only; on the cluster setup says it skipped them.
+  `scripts/setup.sh` refuses any machine but a Mac.
 - A tool neither brew nor mise keeps current is a descriptor, `<subject>/tools/<name>.sh`, read
   by `scripts/tools.sh` (its header lists the fields). Setup installs what is missing. One name
   in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
@@ -189,35 +165,13 @@ host.
 - The same brew job runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
   and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
 
-## Setting up the cluster
-
-```
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
-cd ~/Atlas && bash scripts/setup-cluster.sh
-```
-
-Run it on a compute node (`salloc`, then ssh to the node), never on `submit0`. It is also how the
-cluster is brought up to date. It pulls main, runs `board/scripts/setup-cluster.sh` (bootstrap,
-ai-config, the relay's scrontab entry, origin), runs `scripts/setup.sh`, checks the PHI guards,
-and runs one relay pass. No board and no LaunchAgent is installed there, and nothing in setup
-needs a hosted model's login.
-
-- Step 5 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
-  each one you use, once; nothing in setup or the relay needs a login.
-- The relay's scrontab entry runs `board/scripts/relay-pass.sh` every 2 minutes.
-- The cluster blocks `dl.google.com`. So Go comes from conda-forge into `~/.local/goenv` with
-  `GOPROXY=direct`.
-- `vendor/colibri-build` is built by hand; `projects/libr-local-llm/README.md` has the line.
-- The cluster's `python3` may be 3.7, so relay-path code avoids newer syntax.
-  `board/test/py37.py` enforces it.
-
 ## Assistant CLIs
 
 Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
 config, its PHI hook, and how to install, update and run it. The scripts that act on the
 descriptors name no vendor, so adding an assistant is one file, and none is required.
-Both setup scripts fast-forward `ai-config` first, since Atlas's pull never moves it. Then
-they run these two, which a second run leaves unchanged:
+`setup-mac.sh` fast-forwards `ai-config` first, since Atlas's pull never moves it. Then it
+runs these two, which a second run leaves unchanged:
 
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each PHI hook and
   settings file, the daily audit and update timers, and one marked block in `~/.bashrc` that
@@ -227,18 +181,7 @@ they run these two, which a second run leaves unchanged:
   install is reported and the rest go on.
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
-`node_modules`, the CLI's own `update` otherwise. It runs from a daily timer on the cluster, and
-from `atlas.brew-upgrade` on a Mac.
-
-**On the cluster** the home is NFS with institute-wide group ACLs, and `chmod` cannot change
-them. `shell.sh` sees the network home and wraps any CLI whose descriptor asks. Codex runs with
-`--no-daemon`, because its background server refuses a socket in a folder other users can
-write to. Its temp folder points at node-local `/tmp`, because files it holds open cannot be
-deleted over NFS. A function already defined in `~/.bashrc` is left alone. On the Mac,
-`shell.sh` does nothing.
-
-The same group ACLs cover each CLI's login token in the home folder, so anyone in
-`domain users` can read it. Log out on the cluster when that matters.
+`node_modules`, the CLI's own `update` otherwise. It runs from `atlas.brew-upgrade`.
 
 ## Working in here
 
@@ -248,10 +191,7 @@ The same group ACLs cover each CLI's login token in the home folder, so anyone i
 - Edit `board/` only in a git worktree under `~/Developer/Atlas-wt/`. The main checkout serves
   the iPad live, so a half-finished edit there breaks a lesson in progress.
 - Run `python3 board/test/run.py` before shipping board code.
-- `vendor/colibri` moves forward on the cluster: every relay pass bumps the pointer and commits
-  it, and only when nothing else in the tree is dirty. `vendor/colibri-build` is pinned and
-  moved only by hand, because a build tree that moves under a build is the failure it exists
-  to avoid.
+- `vendor/colibri` and `vendor/colibri-build` are pinned and moved only by hand.
 - `HANDOFF.md` holds only the work still to do.
 
 Python standard library only; plain browser JavaScript; no package manager at run time.

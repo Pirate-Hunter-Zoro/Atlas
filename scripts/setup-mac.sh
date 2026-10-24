@@ -48,7 +48,7 @@ good() { printf '  ok    %s\n' "$*"; }
 warn() { printf '  ----  %s\n' "$*"; problems=$((problems + 1)); }
 
 [ "$(uname -s)" = Darwin ] \
-  || { echo "this is not a Mac. On the cluster: bash scripts/setup-cluster.sh"; exit 1; }
+  || { echo "this is not a Mac; Atlas runs on a Mac only."; exit 1; }
 command -v brew >/dev/null 2>&1 \
   || { echo "no Homebrew. Install it from https://brew.sh, then rerun."; exit 1; }
 
